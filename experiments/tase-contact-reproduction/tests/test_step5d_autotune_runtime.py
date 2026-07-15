@@ -77,7 +77,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
 
         self.assertNotIn("BRIDGE_NORMAL_FILTER_ALPHA", env)
         self.assertEqual(env["BRIDGE_NORMAL_FILTER_TAU_S"], "0.35")
-        self.assertEqual(env["STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S"], "0.020")
+        self.assertEqual(env["STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S"], "0.050")
         self.assertEqual(env["STEP5D_AUTOTUNE_FORCE_P"], "0.001000")
         self.assertEqual(env["STEP5D_AUTOTUNE_FORCE_I"], "0.00001000")
         self.assertEqual(env["STEP5D_AUTOTUNE_FORCE_DAMPING"], "7.000")
@@ -97,7 +97,10 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertEqual(autotune["normal_filter_alpha"], "rejected")
         self.assertEqual(autotune["normal_filter_tau_s"], 0.35)
         self.assertEqual(autotune["normal_filter_dt_s"], 0.002)
-        self.assertEqual(tuple(autotune["live_normal_rate_rad_s"]), (0.01, 0.015, 0.02))
+        self.assertEqual(
+            tuple(autotune["live_normal_rate_rad_s"]),
+            (0.01, 0.015, 0.02, 0.05),
+        )
         self.assertEqual(tuple(autotune["offline_only_normal_rate_rad_s"]), (0.03,))
         self.assertEqual(
             autotune["handshake"]["host_to_tp"],

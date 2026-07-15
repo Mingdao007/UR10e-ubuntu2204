@@ -1250,8 +1250,12 @@ class CampaignStore:
                         raise EvidenceIntegrityError(
                             "baseline transition may occur only at campaign history start"
                         )
-                elif transition.kind is not TrialTransitionKind.RETRY or (
-                    transition.retry_kind != "code_fix"
+                elif (
+                    transition.kind is not TrialTransitionKind.CODE_EPOCH_SEARCH
+                    and (
+                        transition.kind is not TrialTransitionKind.RETRY
+                        or transition.retry_kind != "code_fix"
+                    )
                 ):
                     assert transition.source is not None
                     if (

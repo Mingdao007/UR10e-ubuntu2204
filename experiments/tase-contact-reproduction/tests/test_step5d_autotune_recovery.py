@@ -26,6 +26,7 @@ from step5d_autotune_contract import (  # noqa: E402
 from step5d_autotune_coordinator import (  # noqa: E402
     CampaignCoordinator,
     CoordinatorError,
+    MailboxObservation,
     RecoveryError,
 )
 from step5d_autotune_governor import (  # noqa: E402
@@ -336,9 +337,18 @@ class FakeContinuousSink:
     def __init__(self) -> None:
         self.session_id = "one-continuous-tp-session"
         self.packets = []
+        self.latest = None
 
     def send_command(self, packet, *, prepared_trial) -> None:
         self.packets.append((self.session_id, packet, prepared_trial.trial.trial_uid))
+        self.latest = SimpleNamespace(
+            packet=packet,
+            binding=SimpleNamespace(trial_uid=prepared_trial.trial.trial_uid),
+            sha256=hashlib.sha256(repr(packet).encode("utf-8")).hexdigest(),
+        )
+
+    def read_latest(self):
+        return self.latest
 
 
 class RecoveryFixture(unittest.TestCase):
@@ -396,7 +406,12 @@ class RecoveryFixture(unittest.TestCase):
             verified_resume_history=self.store.read_resume_history(),
         )
 
-    def restore(self, snapshot: TpSnapshot):
+    def restore(
+        self,
+        snapshot: TpSnapshot,
+        *,
+        mailbox_observation: MailboxObservation | None = None,
+    ):
         return CampaignCoordinator.restore(
             supervisor=supervisor(),
             journal=self.journal,
@@ -404,6 +419,11 @@ class RecoveryFixture(unittest.TestCase):
             resume_history=self.store.read_resume_history(),
             promotion_history=self.store.read_promotion_history(),
             tp_snapshot=snapshot,
+            mailbox_observation=(
+                MailboxObservation.missing()
+                if mailbox_observation is None
+                else mailbox_observation
+            ),
         )
 
 
@@ -416,7 +436,11 @@ class CommandIssuanceTest(RecoveryFixture):
         self.assertEqual(arm.command, HostCommand.ARM)
         sink = FakeContinuousSink()
         bound = prepared(trial)
-        self.coordinator.dispatch(arm, prepared_trial=bound, sink=sink)
+        arm_receipt = self.coordinator.dispatch(arm, prepared_trial=bound, sink=sink)
+        self.assertEqual(arm_receipt.command, "arm")
+        self.assertEqual(
+            self.journal.load_latest().state.dispatch_receipt, arm_receipt
+        )
 
         _, ack = self.close_and_ack(trial)
         ack_entry = self.journal.load_latest()
@@ -604,6 +628,48 @@ class RestartRecoveryTest(RecoveryFixture):
             restored.packet.command_seq,
         )
 
+    def test_consumed_arm_without_bundle_resumes_closure(self) -> None:
+        trial, arm = self.arm()
+        restored = self.restore(
+            tp_for(trial, "WAIT_ACK", consumed=arm.command_seq)
+        )
+        self.assertEqual(restored.decision.action, ReconcileAction.RESUME_CLOSURE)
+        self.assertIsNone(restored.packet)
+        self.assertEqual(restored.coordinator.supervisor.active_trial, trial)
+
+    def test_cancel_is_durable_and_never_regresses_high_water_or_tokens(self) -> None:
+        trial, _ = self.arm()
+        before = self.journal.load_latest().state
+        cancelled = self.coordinator.cancel_unconsumed_arm(
+            tp_ready(consumed=0),
+            mailbox_observation=MailboxObservation.missing(),
+        )
+        self.assertEqual(cancelled, trial)
+        state = self.journal.load_latest().state
+        self.assertEqual(state.high_water, before.high_water)
+        self.assertEqual(dict(state.candidate_tokens), dict(before.candidate_tokens))
+        self.assertEqual(state.terminal_fates[-1].kind, "cancelled_unconsumed")
+        _, next_arm = self.arm()
+        self.assertGreater(next_arm.trial_id, trial.trial_id)
+        self.assertGreater(next_arm.command_seq, trial.command_seq)
+
+    def test_exact_mailbox_crash_gap_is_adopted_and_blocks_cancel(self) -> None:
+        trial, arm = self.arm()
+        sink = FakeContinuousSink()
+        sink.send_command(arm, prepared_trial=prepared(trial))
+        observation = MailboxObservation.from_command(sink.read_latest())
+        with self.assertRaisesRegex(CoordinatorError, "not proven consumed"):
+            self.coordinator.cancel_unconsumed_arm(
+                tp_ready(consumed=0), mailbox_observation=observation
+            )
+        restored = self.restore(
+            tp_ready(consumed=0), mailbox_observation=observation
+        )
+        self.assertEqual(restored.packet, arm)
+        receipt = self.journal.load_latest().state.dispatch_receipt
+        self.assertIsNotNone(receipt)
+        self.assertEqual(receipt.command_seq, arm.command_seq)
+
     def test_persisted_ack_before_send_is_reissued_without_new_sequence(self) -> None:
         trial, _ = self.arm()
         _, ack = self.close_and_ack(trial)
@@ -619,7 +685,9 @@ class RestartRecoveryTest(RecoveryFixture):
         self.assertEqual(restored.decision.action, ReconcileAction.PERSIST_POST_ACK)
         self.assertIsNone(restored.packet)
         self.assertEqual(restored.coordinator.supervisor.phase, CampaignPhase.HOME)
-        self.assertEqual(self.journal.load_latest().state.phase, "home")
+        latest = self.journal.load_latest().state
+        self.assertEqual(latest.phase, "home")
+        self.assertEqual(latest.terminal_fates[-1].kind, "ack_consumed")
 
     def test_infrastructure_ack_recovers_with_durable_pause_origin(self) -> None:
         trial, _ = self.arm()
@@ -774,6 +842,46 @@ class EpochAndGovernorJournalTest(RecoveryFixture):
         )
         self.assertEqual(new.journal.load_latest().state.campaign.campaign_epoch, 2)
 
+    def test_code_epoch_restart_reconstructs_prior_durable_trial_spec_reference(self) -> None:
+        trial, _ = self.arm()
+        _, ack = self.close_and_ack(
+            trial,
+            reason=13,
+            disposition=TrialDisposition.CODE_CONTRACT_BUG,
+            objective=None,
+        )
+        self.coordinator.reconcile(
+            tp_for(trial, "FAULT", consumed=ack.command_seq, reason=13)
+        )
+        next_campaign = campaign(epoch=2, fingerprint="9" * 64)
+        next_journal = SupervisorJournal(self.root / "journal-epoch-2")
+        next_coordinator = self.coordinator.resume_after_code_change(
+            new_journal=next_journal,
+            campaign=next_campaign,
+            source_fingerprint="8" * 64,
+            config_fingerprint="7" * 64,
+        )
+        restarted = CampaignCoordinator.restore(
+            supervisor=supervisor(
+                campaign_spec=next_campaign,
+                source="8" * 64,
+                config="7" * 64,
+            ),
+            journal=next_journal,
+            latest=next_coordinator.journal.load_latest(),
+            resume_history=(),
+            promotion_history=(),
+            prior_resume_history=self.store.read_resume_history(),
+            tp_snapshot=tp_ready(consumed=ack.command_seq),
+        )
+        current_store = CampaignStore(self.root / "store-epoch-2")
+        restarted.coordinator.issue_arm(
+            current_store, require_cuda_botorch=False
+        )
+        active = restarted.coordinator.supervisor.active_trial
+        assert active is not None
+        self.assertEqual(active.transition.source.trial_uid, trial.trial_uid)
+
     def test_governor_keep_changes_plant_profile_without_regressing_highwater(self) -> None:
         self.coordinator.persist_home()
         trial_a, _ = self.arm()
@@ -852,6 +960,7 @@ class EpochAndGovernorJournalTest(RecoveryFixture):
             promotion_history=self.store.read_promotion_history(),
             tp_snapshot=tp_ready(consumed=ack_a.command_seq),
             profile_catalog=(profile_b,),
+            mailbox_observation=MailboxObservation.missing(),
         )
         restored_probe = restored.coordinator.supervisor.recovery_snapshot().governor_probe
         assert restored_probe is not None
@@ -874,6 +983,7 @@ class EpochAndGovernorJournalTest(RecoveryFixture):
             promotion_history=self.store.read_promotion_history(),
             tp_snapshot=tp_ready(consumed=ack_a.command_seq),
             profile_catalog=(profile_b,),
+            mailbox_observation=MailboxObservation.missing(),
         )
         self.assertEqual(restarted_active.decision.action, ReconcileAction.SEND_PERSISTED_ARM)
         self.assertEqual(restarted_active.packet, arm_b)

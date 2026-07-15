@@ -34,6 +34,7 @@ from step5d_autotune_contract import (
 )
 from step5d_autotune_governor import AbEvidence, AbTrialIdentity, SaturationSample
 from step5d_autotune_journal import (
+    AdvisoryDispatchReceipt,
     CampaignIdentity,
     GovernorProbe,
     HighWaterMarks,
@@ -47,6 +48,7 @@ from step5d_autotune_journal import (
     ReconcileDecision,
     RetryRelease,
     SupervisorJournal,
+    TerminalFate,
     TpSnapshot,
     TrialCursor,
     reconcile_tp_snapshot,
@@ -89,6 +91,8 @@ class ContinuousTpCommandSink(Protocol):
         self, packet: HostPacket, *, prepared_trial: PreparedTrialLike
     ) -> None: ...
 
+    def read_latest(self) -> Any | None: ...
+
 
 class CoordinatorError(RuntimeError):
     """Base class for fail-closed coordinator failures."""
@@ -111,6 +115,69 @@ class RestoreResult:
     packet: HostPacket | None
 
 
+@dataclass(frozen=True)
+class MailboxObservation:
+    """One strict mailbox read; distinct from not observing the mailbox."""
+
+    observed: bool
+    packet: HostPacket | None = None
+    trial_uid: str | None = None
+    mailbox_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.observed) is not bool:
+            raise ValueError("mailbox observed flag must be a boolean")
+        if not self.observed:
+            if any(
+                value is not None
+                for value in (self.packet, self.trial_uid, self.mailbox_sha256)
+            ):
+                raise ValueError("unobserved mailbox cannot carry command data")
+            return
+        if self.packet is None:
+            if self.trial_uid is not None or self.mailbox_sha256 is not None:
+                raise ValueError("missing mailbox cannot carry command metadata")
+            return
+        if not isinstance(self.packet, HostPacket):
+            raise ValueError("mailbox packet must be a HostPacket")
+        if (
+            not isinstance(self.trial_uid, str)
+            or len(self.trial_uid) != 64
+            or any(char not in "0123456789abcdef" for char in self.trial_uid)
+        ):
+            raise ValueError("mailbox trial_uid must be 64 lowercase hex characters")
+        if (
+            not isinstance(self.mailbox_sha256, str)
+            or len(self.mailbox_sha256) != 64
+            or any(char not in "0123456789abcdef" for char in self.mailbox_sha256)
+        ):
+            raise ValueError("mailbox SHA-256 must be 64 lowercase hex characters")
+
+    @classmethod
+    def unobserved(cls) -> "MailboxObservation":
+        return cls(False)
+
+    @classmethod
+    def missing(cls) -> "MailboxObservation":
+        return cls(True)
+
+    @classmethod
+    def from_command(cls, command: Any | None) -> "MailboxObservation":
+        if command is None:
+            return cls.missing()
+        packet = getattr(command, "packet", None)
+        binding = getattr(command, "binding", None)
+        return cls(
+            True,
+            packet=packet,
+            trial_uid=getattr(binding, "trial_uid", None),
+            mailbox_sha256=getattr(command, "sha256", None),
+        )
+
+    def matches(self, packet: HostPacket, *, trial_uid: str) -> bool:
+        return self.packet == packet and self.trial_uid == trial_uid
+
+
 def _campaign_identity(supervisor: CampaignSupervisor) -> CampaignIdentity:
     return CampaignIdentity(
         campaign_id=supervisor.campaign.campaign_id,
@@ -119,6 +186,37 @@ def _campaign_identity(supervisor: CampaignSupervisor) -> CampaignIdentity:
         backend_id=supervisor.backend_id,
         source_fingerprint=supervisor.source_fingerprint,
         config_fingerprint=supervisor.config_fingerprint,
+    )
+
+
+def _dispatch_command_name(command: HostCommand) -> str:
+    if command is HostCommand.ARM:
+        return "arm"
+    if command is HostCommand.ACK_BUNDLE:
+        return "ack_bundle"
+    raise CoordinatorError("only ARM and ACK have dispatch receipts")
+
+
+def _receipt_from_observation(
+    observation: MailboxObservation,
+    packet: HostPacket,
+    *,
+    trial_uid: str,
+) -> AdvisoryDispatchReceipt:
+    if not observation.observed or not observation.matches(
+        packet, trial_uid=trial_uid
+    ):
+        raise CoordinatorError("mailbox read-back differs from the dispatched packet")
+    assert observation.mailbox_sha256 is not None
+    return AdvisoryDispatchReceipt(
+        trial_uid=trial_uid,
+        campaign_epoch=packet.campaign_epoch,
+        trial_id=packet.trial_id,
+        command=_dispatch_command_name(packet.command),
+        candidate_token=packet.candidate_token,
+        execution_profile_integer_id=packet.execution_profile_id,
+        command_seq=packet.command_seq,
+        mailbox_sha256=observation.mailbox_sha256,
     )
 
 
@@ -333,6 +431,46 @@ def _trial_reference(trial: TrialSpec, trial_dir: Path) -> JournalReference:
     return reference
 
 
+def _trial_reference_from_history(
+    row: Mapping[str, Any], trial: TrialSpec
+) -> JournalReference:
+    provenance = row.get("artifact_provenance")
+    if not isinstance(provenance, Mapping) or not provenance:
+        raise RecoveryError("prior history lacks durable artifact provenance")
+    roots: set[Path] = set()
+    for role, artifact in provenance.items():
+        if not isinstance(role, str) or not isinstance(artifact, Mapping):
+            raise RecoveryError("prior artifact provenance is invalid")
+        raw_path = artifact.get("path")
+        digest = artifact.get("sha256")
+        if not isinstance(raw_path, str) or not isinstance(digest, str):
+            raise RecoveryError("prior artifact provenance lacks path/SHA-256")
+        path = Path(raw_path)
+        try:
+            if any(
+                (
+                    not path.is_absolute(),
+                    path.name != role,
+                    path.parent.name != digest,
+                    path.parent.parent.name != "sha256",
+                    path.parent.parent.parent.name != "artifacts",
+                )
+            ):
+                raise RecoveryError("prior artifact path is not a canonical store path")
+            roots.add(path.parents[3])
+        except IndexError as exc:
+            raise RecoveryError("prior artifact path is too shallow") from exc
+    if len(roots) != 1:
+        raise RecoveryError("prior artifacts do not identify one canonical store")
+    trial_dir = next(iter(roots)) / "trials" / trial.trial_uid
+    try:
+        return _trial_reference(trial, trial_dir)
+    except CoordinatorError as exc:
+        raise RecoveryError(
+            "prior history lacks its exact durable trial_spec.json"
+        ) from exc
+
+
 def _trial_from_spec_reference(reference: JournalReference) -> TrialSpec:
     _, payload = _read_reference(reference, role="journal trial_spec.json")
     if not isinstance(payload, dict):
@@ -437,6 +575,12 @@ class CampaignCoordinator:
         self._trial_spec_references = dict(trial_spec_references or {})
         self._bundle_references = dict(bundle_references or {})
         self._pending_terminal_by_trial: dict[str, tuple[int, str | None]] = {}
+        self._dispatch_receipt = (
+            None if latest is None else latest.state.dispatch_receipt
+        )
+        self._terminal_fates = (
+            () if latest is None else latest.state.terminal_fates
+        )
         self._poisoned = False
 
     def _require_healthy(self) -> None:
@@ -638,6 +782,8 @@ class CampaignCoordinator:
             governor_probe=governor_probe,
             observation_references=references,
             history_references=references,
+            dispatch_receipt=self._dispatch_receipt,
+            terminal_fates=self._terminal_fates,
         )
 
     def _append_snapshot(self, snapshot: SupervisorRecoverySnapshot) -> JournalEntry:
@@ -658,6 +804,53 @@ class CampaignCoordinator:
             self._poisoned = True
             raise
 
+    def cancel_unconsumed_arm(
+        self,
+        tp_snapshot: TpSnapshot,
+        *,
+        mailbox_observation: MailboxObservation,
+    ) -> TrialSpec:
+        """Durably clear an ARM that the TP proves it never consumed."""
+
+        self._require_healthy()
+        if not isinstance(mailbox_observation, MailboxObservation):
+            raise CoordinatorError("cancel requires a strict mailbox observation")
+        if not mailbox_observation.observed:
+            raise CoordinatorError("cancel requires an actual mailbox read")
+        if self.latest is None or self.latest.state.active_trial is None:
+            raise CoordinatorError("cancel requires one persisted active ARM")
+        persisted = self.latest.state.active_trial
+        if self._dispatch_receipt is not None:
+            raise CoordinatorError("a dispatched ARM cannot be cancelled")
+        if (
+            mailbox_observation.packet is not None
+            and mailbox_observation.packet.command_seq
+            > tp_snapshot.consumed_command_seq
+        ):
+            raise CoordinatorError(
+                "mailbox contains a command not proven consumed by the TP"
+            )
+        try:
+            trial = self.supervisor.cancel_unconsumed_arm(
+                tp_snapshot,
+                persisted_trial_uid=persisted.trial_uid,
+                has_dispatch_receipt=False,
+            )
+            self._terminal_fates = self._terminal_fates + (
+                TerminalFate(
+                    kind="cancelled_unconsumed",
+                    trial=persisted,
+                    command="arm",
+                    command_seq=persisted.arm_command_seq,
+                    tp_snapshot=tp_snapshot,
+                ),
+            )
+            self._append_snapshot(self.supervisor.recovery_snapshot())
+            return trial
+        except Exception:
+            self._poisoned = True
+            raise
+
     def issue_arm(
         self,
         registrar: TrialRegistrar,
@@ -667,6 +860,7 @@ class CampaignCoordinator:
         cuda_fit_mode: str = "serial",
         parallel_cuda_verified: bool = False,
         search_attestations: Sequence[SearchAttestation] = (),
+        forced_candidate: ForceCandidate | None = None,
     ) -> HostPacket:
         """Register TrialSpec, fsync ARM intent, then return its HostPacket."""
 
@@ -677,6 +871,7 @@ class CampaignCoordinator:
                 cuda_fit_mode=cuda_fit_mode,
                 parallel_cuda_verified=parallel_cuda_verified,
                 search_attestations=search_attestations,
+                forced_candidate=forced_candidate,
             )
             transition_source = intent.trial.transition.source
             if transition_source is not None:
@@ -771,6 +966,9 @@ class CampaignCoordinator:
                 host_cause,
             )
             packet = self.supervisor.prepare_ack_packet()
+            # The materialized transaction changes from ARM to ACK.  The ARM
+            # dispatch receipt remains advisory and is no longer current.
+            self._dispatch_receipt = None
             self._append_snapshot(self.supervisor.recovery_snapshot())
             return packet
         except Exception:
@@ -878,7 +1076,7 @@ class CampaignCoordinator:
         *,
         prepared_trial: PreparedTrialLike,
         sink: ContinuousTpCommandSink,
-    ) -> None:
+    ) -> AdvisoryDispatchReceipt:
         """Deliver one already-fsync'd packet through the continuous-TP seam."""
 
         self._require_healthy()
@@ -907,7 +1105,89 @@ class CampaignCoordinator:
         sender = getattr(sink, "send_command", None)
         if not callable(sender):
             raise CoordinatorError("continuous TP command sink lacks send_command")
-        sender(packet, prepared_trial=prepared_trial)
+        reader = getattr(sink, "read_latest", None)
+        if not callable(reader):
+            raise CoordinatorError("continuous TP command sink lacks read_latest")
+        try:
+            sender(packet, prepared_trial=prepared_trial)
+            observation = MailboxObservation.from_command(reader())
+            receipt = _receipt_from_observation(
+                observation,
+                packet,
+                trial_uid=intent.trial.trial_uid,
+            )
+            if receipt != self._dispatch_receipt:
+                self._dispatch_receipt = receipt
+                self._append_snapshot(self.supervisor.recovery_snapshot())
+            return receipt
+        except Exception:
+            self._poisoned = True
+            raise
+
+    def _current_packet(self) -> tuple[HostPacket, str] | None:
+        if self.latest is None:
+            return None
+        state = self.latest.state
+        if state.active_trial is not None:
+            cursor = state.active_trial
+            return (
+                HostPacket(
+                    campaign_epoch=state.campaign.campaign_epoch,
+                    trial_id=cursor.trial_id,
+                    command=HostCommand.ARM,
+                    candidate_token=cursor.candidate_token,
+                    execution_profile_id=cursor.execution_profile_integer_id,
+                    command_seq=cursor.arm_command_seq,
+                ),
+                cursor.trial_uid,
+            )
+        if state.pending_ack is not None:
+            pending = state.pending_ack
+            cursor = pending.trial
+            return (
+                HostPacket(
+                    campaign_epoch=state.campaign.campaign_epoch,
+                    trial_id=cursor.trial_id,
+                    command=HostCommand.ACK_BUNDLE,
+                    candidate_token=cursor.candidate_token,
+                    execution_profile_id=cursor.execution_profile_integer_id,
+                    command_seq=pending.ack_command_seq,
+                ),
+                cursor.trial_uid,
+            )
+        return None
+
+    def _adopt_mailbox_observation(
+        self,
+        observation: MailboxObservation | None,
+        tp_snapshot: TpSnapshot,
+    ) -> None:
+        current = self._current_packet()
+        if observation is None or not observation.observed:
+            if current is not None:
+                raise RecoveryError(
+                    "current durable command requires an actual mailbox observation"
+                )
+            return
+        if observation.packet is not None:
+            if current is not None and observation.matches(
+                current[0], trial_uid=current[1]
+            ):
+                receipt = _receipt_from_observation(
+                    observation, current[0], trial_uid=current[1]
+                )
+                if self._dispatch_receipt not in (None, receipt):
+                    raise RecoveryError(
+                        "mailbox read-back differs from durable dispatch receipt"
+                    )
+                if self._dispatch_receipt is None:
+                    self._dispatch_receipt = receipt
+                    self._append_snapshot(self.supervisor.recovery_snapshot())
+                return
+            if observation.packet.command_seq > tp_snapshot.consumed_command_seq:
+                raise RecoveryError(
+                    "mailbox contains a non-current command not proven consumed"
+                )
 
     def reconcile(self, tp_snapshot: TpSnapshot) -> ReconcileResult:
         self._require_healthy()
@@ -930,6 +1210,20 @@ class CampaignCoordinator:
                 prepared_ack=None,
             )
             try:
+                pending = self.latest.state.pending_ack
+                if pending is None:
+                    raise RecoveryError("post-ACK recovery lacks journal ACK cursor")
+                self._terminal_fates = self._terminal_fates + (
+                    TerminalFate(
+                        kind="ack_consumed",
+                        trial=pending.trial,
+                        command="ack_bundle",
+                        command_seq=pending.ack_command_seq,
+                        tp_snapshot=tp_snapshot,
+                        dispatch_receipt=self._dispatch_receipt,
+                    ),
+                )
+                self._dispatch_receipt = None
                 self._append_snapshot(predicted)
                 self.supervisor.confirm_ack_consumed(snapshot.prepared_ack)
             except Exception:
@@ -1041,7 +1335,9 @@ class CampaignCoordinator:
         resume_history: Sequence[Mapping[str, Any]],
         promotion_history: Sequence[Mapping[str, Any]],
         tp_snapshot: TpSnapshot,
+        prior_resume_history: Sequence[Mapping[str, Any]] = (),
         profile_catalog: Sequence[ExecutionProfile] = (),
+        mailbox_observation: MailboxObservation | None = None,
     ) -> RestoreResult:
         """Restore from verified store rows, latest journal, and one TP snapshot."""
 
@@ -1077,6 +1373,52 @@ class CampaignCoordinator:
         prior_command_seq = 0
         token_map: dict[str, int] = {}
         token_owners: dict[int, str] = {}
+        prior_outcomes_by_epoch: dict[int, list[Observation]] = {}
+        prior_trials: dict[str, TrialSpec] = {}
+        prior_spec_refs: dict[str, JournalReference] = {}
+        for row in prior_resume_history:
+            trial = _trial_from_payload(row.get("trial"))
+            evaluation = _evaluation_from_payload(row.get("evaluation"))
+            if any(
+                (
+                    row.get("trial_uid") != trial.trial_uid,
+                    evaluation.trial_uid != trial.trial_uid,
+                    trial.campaign.campaign_id != supervisor.campaign.campaign_id,
+                    trial.campaign.campaign_epoch >= supervisor.campaign.campaign_epoch,
+                    trial.backend_id != supervisor.backend_id,
+                    trial.trial_id <= prior_trial_id,
+                    trial.command_seq <= prior_command_seq,
+                    trial.trial_uid in trials,
+                )
+            ):
+                raise RecoveryError("prior resume history identity/order is invalid")
+            candidate_uid = trial.candidate.candidate_uid
+            prior_token = token_map.get(candidate_uid)
+            prior_owner = token_owners.get(trial.candidate_token)
+            if prior_token not in (None, trial.candidate_token) or prior_owner not in (
+                None,
+                candidate_uid,
+            ):
+                raise RecoveryError("prior history candidate token mapping is inconsistent")
+            token_map[candidate_uid] = trial.candidate_token
+            token_owners[trial.candidate_token] = candidate_uid
+            observation = Observation(
+                trial.candidate,
+                evaluation,
+                trial.execution_profile.profile_id,
+                trial.plant_epoch,
+                row.get("artifact_provenance", {}).get("csv", {}).get("sha256"),
+            )
+            prior_outcomes_by_epoch.setdefault(
+                trial.campaign.campaign_epoch, []
+            ).append(observation)
+            prior_trials[trial.trial_uid] = trial
+            prior_spec_refs[trial.trial_uid] = _trial_reference_from_history(
+                row, trial
+            )
+            trials[trial.trial_uid] = trial
+            prior_trial_id = trial.trial_id
+            prior_command_seq = trial.command_seq
         for row in resume_history:
             trial = _trial_from_payload(row.get("trial"))
             evaluation = _evaluation_from_payload(row.get("evaluation"))
@@ -1135,7 +1477,7 @@ class CampaignCoordinator:
             )
         ):
             raise RecoveryError("journal profile/plant/high-water differs from verified history")
-        spec_refs: dict[str, JournalReference] = {}
+        spec_refs: dict[str, JournalReference] = dict(prior_spec_refs)
         cursors = list(state._cursors())
         for cursor in cursors:
             trial = _trial_from_reference(cursor)
@@ -1449,6 +1791,26 @@ class CampaignCoordinator:
             cooldown_remaining=state.cooldown_remaining,
             governor_probe=governor_value,
         )
+        supervisor.archived_epoch_outcomes = [
+            (epoch, tuple(rows))
+            for epoch, rows in sorted(prior_outcomes_by_epoch.items())
+        ]
+        supervisor.archived_epoch_observations = [
+            (
+                epoch,
+                tuple(
+                    row
+                    for row in rows
+                    if row.eligible
+                    and row.evaluation.disposition is TrialDisposition.OBJECTIVE
+                ),
+            )
+            for epoch, rows in sorted(prior_outcomes_by_epoch.items())
+        ]
+        supervisor._archived_trial_sources = {
+            trial_uid: trial_source_from_trial(trial)
+            for trial_uid, trial in prior_trials.items()
+        }
         supervisor.restore_recovery_snapshot(snapshot)
         coordinator = cls(
             supervisor=supervisor,
@@ -1456,6 +1818,10 @@ class CampaignCoordinator:
             latest=latest,
             trial_spec_references=spec_refs,
             bundle_references=bundle_refs,
+        )
+        coordinator._adopt_mailbox_observation(
+            mailbox_observation,
+            tp_snapshot,
         )
 
         if transitional_uid is not None:

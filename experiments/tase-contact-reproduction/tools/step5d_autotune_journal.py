@@ -55,6 +55,8 @@ TP_STATES = TRANSIENT_TP_STATES | {
     "WAIT_INFRA_READY",
     "FAULT",
 }
+DISPATCH_COMMANDS = frozenset({"arm", "ack_bundle"})
+TERMINAL_FATE_KINDS = frozenset({"cancelled_unconsumed", "ack_consumed"})
 
 
 class JournalError(RuntimeError):
@@ -510,6 +512,140 @@ class PendingRetry:
 
 
 @dataclass(frozen=True)
+class AdvisoryDispatchReceipt:
+    """Read-back of one mailbox publication; never proof of TP consumption."""
+
+    trial_uid: str
+    campaign_epoch: int
+    trial_id: int
+    command: str
+    candidate_token: int
+    execution_profile_integer_id: int
+    command_seq: int
+    mailbox_sha256: str
+
+    def __post_init__(self) -> None:
+        _strict_sha("dispatch receipt trial_uid", self.trial_uid)
+        _strict_int("dispatch receipt campaign_epoch", self.campaign_epoch, minimum=1)
+        _strict_int("dispatch receipt trial_id", self.trial_id, minimum=1)
+        if self.command not in DISPATCH_COMMANDS:
+            raise ValueError("dispatch receipt command is invalid")
+        _strict_int("dispatch receipt candidate_token", self.candidate_token, minimum=1)
+        _strict_int(
+            "dispatch receipt execution_profile_integer_id",
+            self.execution_profile_integer_id,
+            minimum=1,
+        )
+        _strict_int("dispatch receipt command_seq", self.command_seq, minimum=1)
+        _strict_sha("dispatch receipt mailbox_sha256", self.mailbox_sha256)
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "campaign_epoch": self.campaign_epoch,
+            "candidate_token": self.candidate_token,
+            "command": self.command,
+            "command_seq": self.command_seq,
+            "execution_profile_integer_id": self.execution_profile_integer_id,
+            "mailbox_sha256": self.mailbox_sha256,
+            "trial_id": self.trial_id,
+            "trial_uid": self.trial_uid,
+        }
+
+    @classmethod
+    def from_payload(cls, payload: Any) -> "AdvisoryDispatchReceipt":
+        row = _exact_object(
+            "dispatch receipt",
+            payload,
+            {
+                "trial_uid",
+                "campaign_epoch",
+                "trial_id",
+                "command",
+                "candidate_token",
+                "execution_profile_integer_id",
+                "command_seq",
+                "mailbox_sha256",
+            },
+        )
+        return cls(**row)
+
+
+@dataclass(frozen=True)
+class TerminalFate:
+    """Append-only terminal receipt for one durable TrialCursor."""
+
+    kind: str
+    trial: TrialCursor
+    command: str
+    command_seq: int
+    tp_snapshot: "TpSnapshot"
+    dispatch_receipt: AdvisoryDispatchReceipt | None = None
+
+    def __post_init__(self) -> None:
+        if self.kind not in TERMINAL_FATE_KINDS:
+            raise ValueError("terminal fate kind is invalid")
+        if not isinstance(self.trial, TrialCursor):
+            raise ValueError("terminal fate trial must be a TrialCursor")
+        if self.command not in DISPATCH_COMMANDS:
+            raise ValueError("terminal fate command is invalid")
+        _strict_int("terminal fate command_seq", self.command_seq, minimum=1)
+        if not isinstance(self.tp_snapshot, TpSnapshot):
+            raise ValueError("terminal fate requires an exact TP snapshot")
+        if self.dispatch_receipt is not None and not isinstance(
+            self.dispatch_receipt, AdvisoryDispatchReceipt
+        ):
+            raise ValueError("terminal fate dispatch receipt is invalid")
+        if self.kind == "cancelled_unconsumed":
+            if self.command != "arm" or self.command_seq != self.trial.arm_command_seq:
+                raise ValueError("cancel fate must bind the exact ARM")
+            if self.dispatch_receipt is not None:
+                raise ValueError("cancel fate cannot carry a dispatch receipt")
+        elif self.command != "ack_bundle" or self.command_seq <= self.trial.arm_command_seq:
+            raise ValueError("ACK fate must bind a sequence newer than ARM")
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "command": self.command,
+            "command_seq": self.command_seq,
+            "dispatch_receipt": (
+                None
+                if self.dispatch_receipt is None
+                else self.dispatch_receipt.payload()
+            ),
+            "kind": self.kind,
+            "tp_snapshot": self.tp_snapshot.payload(),
+            "trial": self.trial.payload(),
+        }
+
+    @classmethod
+    def from_payload(cls, payload: Any) -> "TerminalFate":
+        row = _exact_object(
+            "terminal fate",
+            payload,
+            {
+                "kind",
+                "trial",
+                "command",
+                "command_seq",
+                "tp_snapshot",
+                "dispatch_receipt",
+            },
+        )
+        return cls(
+            kind=row["kind"],
+            trial=TrialCursor.from_payload(row["trial"]),
+            command=row["command"],
+            command_seq=row["command_seq"],
+            tp_snapshot=TpSnapshot.from_payload(row["tp_snapshot"]),
+            dispatch_receipt=(
+                None
+                if row["dispatch_receipt"] is None
+                else AdvisoryDispatchReceipt.from_payload(row["dispatch_receipt"])
+            ),
+        )
+
+
+@dataclass(frozen=True)
 class GovernorProbe:
     layer: str
     profile_before_id: str
@@ -602,6 +738,81 @@ def _normalize_references(
     return tuple(by_id[key] for key in sorted(by_id))
 
 
+def _receipt_matches_cursor(
+    campaign: CampaignIdentity,
+    receipt: AdvisoryDispatchReceipt,
+    cursor: TrialCursor,
+    *,
+    command: str,
+    command_seq: int,
+) -> bool:
+    return (
+        receipt.campaign_epoch == campaign.campaign_epoch
+        and receipt.trial_uid == cursor.trial_uid
+        and receipt.trial_id == cursor.trial_id
+        and receipt.command == command
+        and receipt.candidate_token == cursor.candidate_token
+        and receipt.execution_profile_integer_id
+        == cursor.execution_profile_integer_id
+        and receipt.command_seq == command_seq
+    )
+
+
+def _validate_terminal_fate(
+    campaign: CampaignIdentity, fate: TerminalFate
+) -> None:
+    snapshot = fate.tp_snapshot
+    if fate.kind == "cancelled_unconsumed":
+        if any(
+            (
+                snapshot.state != "READY_HOME",
+                snapshot.campaign_epoch_echo != 0,
+                snapshot.trial_id_echo != 0,
+                snapshot.candidate_token_echo != 0,
+                snapshot.terminal_reason != 0,
+                snapshot.execution_profile_integer_id_echo != 0,
+                snapshot.consumed_command_seq >= fate.command_seq,
+            )
+        ):
+            raise ValueError(
+                "cancel fate requires exact READY_HOME proof before ARM consumption"
+            )
+        return
+    if snapshot.consumed_command_seq != fate.command_seq:
+        raise ValueError("ACK fate must bind exact TP command consumption")
+    if fate.dispatch_receipt is not None and not _receipt_matches_cursor(
+        campaign,
+        fate.dispatch_receipt,
+        fate.trial,
+        command="ack_bundle",
+        command_seq=fate.command_seq,
+    ):
+        raise ValueError("ACK fate dispatch receipt differs from the terminal ACK")
+    if snapshot.state == "READY_HOME":
+        if any(
+            (
+                snapshot.campaign_epoch_echo != 0,
+                snapshot.trial_id_echo != 0,
+                snapshot.candidate_token_echo != 0,
+                snapshot.execution_profile_integer_id_echo != 0,
+            )
+        ):
+            raise ValueError("READY_HOME ACK fate retains non-zero identity echoes")
+    elif snapshot.state in {"WAIT_INFRA_READY", "FAULT"}:
+        if any(
+            (
+                snapshot.campaign_epoch_echo != campaign.campaign_epoch,
+                snapshot.trial_id_echo != fate.trial.trial_id,
+                snapshot.candidate_token_echo != fate.trial.candidate_token,
+                snapshot.execution_profile_integer_id_echo
+                != fate.trial.execution_profile_integer_id,
+            )
+        ):
+            raise ValueError("terminal ACK fate TP identity differs from its trial")
+    else:
+        raise ValueError("ACK fate TP state is not terminal after ACK consumption")
+
+
 @dataclass(frozen=True)
 class JournalState:
     campaign: CampaignIdentity
@@ -618,6 +829,8 @@ class JournalState:
     governor_probe: GovernorProbe | None = None
     observation_references: tuple[JournalReference, ...] = ()
     history_references: tuple[JournalReference, ...] = ()
+    dispatch_receipt: AdvisoryDispatchReceipt | None = None
+    terminal_fates: tuple[TerminalFate, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.campaign, CampaignIdentity):
@@ -640,6 +853,21 @@ class JournalState:
             self.governor_probe, GovernorProbe
         ):
             raise ValueError("governor_probe must be a GovernorProbe or None")
+        if self.dispatch_receipt is not None and not isinstance(
+            self.dispatch_receipt, AdvisoryDispatchReceipt
+        ):
+            raise ValueError(
+                "dispatch_receipt must be an AdvisoryDispatchReceipt or None"
+            )
+        if not isinstance(self.terminal_fates, (tuple, list)) or any(
+            not isinstance(fate, TerminalFate) for fate in self.terminal_fates
+        ):
+            raise ValueError("terminal_fates must be a sequence of TerminalFate")
+        object.__setattr__(self, "terminal_fates", tuple(self.terminal_fates))
+        if len({fate.trial.trial_uid for fate in self.terminal_fates}) != len(
+            self.terminal_fates
+        ):
+            raise ValueError("terminal_fates contain duplicate trial identities")
         if not isinstance(self.candidate_tokens, Mapping):
             raise ValueError("candidate_tokens must be a mapping")
         normalized_tokens: dict[str, int] = {}
@@ -685,6 +913,35 @@ class JournalState:
             raise ValueError("wait_ack phase must have exactly one pending ACK")
         if self.active_trial is not None and self.pending_ack is not None:
             raise ValueError("active trial and pending ACK cannot coexist")
+        current_cursor: TrialCursor | None = None
+        current_command: str | None = None
+        current_command_seq: int | None = None
+        if self.active_trial is not None:
+            current_cursor = self.active_trial
+            current_command = "arm"
+            current_command_seq = self.active_trial.arm_command_seq
+        elif self.pending_ack is not None:
+            current_cursor = self.pending_ack.trial
+            current_command = "ack_bundle"
+            current_command_seq = self.pending_ack.ack_command_seq
+        if self.dispatch_receipt is not None and (
+            current_cursor is None
+            or current_command is None
+            or current_command_seq is None
+            or not _receipt_matches_cursor(
+                self.campaign,
+                self.dispatch_receipt,
+                current_cursor,
+                command=current_command,
+                command_seq=current_command_seq,
+            )
+        ):
+            raise ValueError("dispatch receipt differs from the materialized command")
+        terminal_trial_uids = {fate.trial.trial_uid for fate in self.terminal_fates}
+        if current_cursor is not None and current_cursor.trial_uid in terminal_trial_uids:
+            raise ValueError("a terminal trial cannot remain materialized as current")
+        for fate in self.terminal_fates:
+            _validate_terminal_fate(self.campaign, fate)
         if self.phase == "wait_infra_ready":
             if self.pending_retry is None or self.pending_retry.kind != "infrastructure":
                 raise ValueError("wait_infra_ready requires an infrastructure retry")
@@ -760,6 +1017,7 @@ class JournalState:
             rows.append(self.pending_ack.trial)
         if self.pending_retry is not None:
             rows.append(self.pending_retry.origin_trial)
+        rows.extend(fate.trial for fate in self.terminal_fates)
         return tuple(rows)
 
     def payload(self) -> dict[str, Any]:
@@ -779,16 +1037,19 @@ class JournalState:
             "pending_retry": None if self.pending_retry is None else self.pending_retry.payload(),
             "phase": self.phase,
             "plant_epoch": self.plant_epoch,
+            "dispatch_receipt": (
+                None
+                if self.dispatch_receipt is None
+                else self.dispatch_receipt.payload()
+            ),
+            "terminal_fates": [fate.payload() for fate in self.terminal_fates],
         }
 
     @classmethod
     def from_payload(
         cls, campaign: CampaignIdentity, payload: Any
     ) -> "JournalState":
-        row = _exact_object(
-            "journal state",
-            payload,
-            {
+        legacy_keys = {
                 "phase",
                 "high_water",
                 "candidate_tokens",
@@ -801,8 +1062,18 @@ class JournalState:
                 "governor",
                 "observation_references",
                 "history_references",
-            },
-        )
+        }
+        if not isinstance(payload, dict):
+            raise ValueError("journal state must be an object")
+        actual_keys = set(payload)
+        current_keys = legacy_keys | {"dispatch_receipt", "terminal_fates"}
+        if actual_keys != legacy_keys and actual_keys != current_keys:
+            missing = sorted(current_keys - actual_keys)
+            extra = sorted(actual_keys - current_keys)
+            raise ValueError(
+                f"journal state keys differ; missing={missing}, extra={extra}"
+            )
+        row = payload
         governor = _exact_object(
             "governor", row["governor"], {"cooldown_remaining", "probe"}
         )
@@ -813,6 +1084,9 @@ class JournalState:
         histories = row["history_references"]
         if not isinstance(observations, list) or not isinstance(histories, list):
             raise ValueError("journal references must be arrays")
+        fates = row.get("terminal_fates", [])
+        if not isinstance(fates, list):
+            raise ValueError("terminal_fates must be an array")
         return cls(
             campaign=campaign,
             phase=row["phase"],
@@ -846,6 +1120,12 @@ class JournalState:
             history_references=tuple(
                 JournalReference.from_payload(item) for item in histories
             ),
+            dispatch_receipt=(
+                None
+                if row.get("dispatch_receipt") is None
+                else AdvisoryDispatchReceipt.from_payload(row["dispatch_receipt"])
+            ),
+            terminal_fates=tuple(TerminalFate.from_payload(item) for item in fates),
         )
 
 
@@ -870,6 +1150,113 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
     for candidate_uid, token in previous.candidate_tokens.items():
         if current.candidate_tokens.get(candidate_uid) != token:
             raise JournalConflictError("candidate token mapping changed or disappeared")
+    old_fates = previous.terminal_fates
+    new_fates = current.terminal_fates
+    if len(new_fates) < len(old_fates) or new_fates[: len(old_fates)] != old_fates:
+        raise JournalConflictError("terminal fate history changed or disappeared")
+    if len(new_fates) > len(old_fates) + 1:
+        raise JournalConflictError("only one terminal fate may be appended per revision")
+    appended_fate = new_fates[-1] if len(new_fates) > len(old_fates) else None
+    if appended_fate is not None:
+        if appended_fate.kind == "cancelled_unconsumed":
+            if any(
+                (
+                    previous.phase != "trial_active",
+                    previous.active_trial != appended_fate.trial,
+                    previous.dispatch_receipt is not None,
+                    current.phase != "home",
+                    current.active_trial is not None,
+                    current.pending_ack is not None,
+                    current.dispatch_receipt is not None,
+                    current.high_water != previous.high_water,
+                    dict(current.candidate_tokens)
+                    != dict(previous.candidate_tokens),
+                )
+            ):
+                raise JournalConflictError(
+                    "cancel fate must terminalize one persisted, undispatched ARM"
+                )
+        else:
+            pending = previous.pending_ack
+            if any(
+                (
+                    previous.phase != "wait_ack",
+                    pending is None,
+                    pending is not None and pending.trial != appended_fate.trial,
+                    pending is not None
+                    and pending.ack_command_seq != appended_fate.command_seq,
+                    current.phase
+                    != (None if pending is None else pending.post_ack_phase),
+                    current.active_trial is not None,
+                    current.pending_ack is not None,
+                    current.dispatch_receipt is not None,
+                    appended_fate.dispatch_receipt
+                    != previous.dispatch_receipt,
+                    current.high_water != previous.high_water,
+                    dict(current.candidate_tokens)
+                    != dict(previous.candidate_tokens),
+                )
+            ):
+                raise JournalConflictError(
+                    "ACK fate must terminalize the exact pending durable ACK"
+                )
+    if previous.active_trial is not None and current.active_trial != previous.active_trial:
+        carried_into_ack = bool(
+            current.pending_ack is not None
+            and current.pending_ack.trial == previous.active_trial
+        )
+        cancelled = bool(
+            appended_fate is not None
+            and appended_fate.kind == "cancelled_unconsumed"
+            and appended_fate.trial == previous.active_trial
+        )
+        if not carried_into_ack and not cancelled:
+            raise JournalConflictError(
+                "materialized ARM disappeared without ACK handoff or cancel fate"
+            )
+    if previous.pending_ack is not None and current.pending_ack != previous.pending_ack:
+        ack_terminalized = bool(
+            appended_fate is not None
+            and appended_fate.kind == "ack_consumed"
+            and appended_fate.trial == previous.pending_ack.trial
+            and appended_fate.command_seq == previous.pending_ack.ack_command_seq
+        )
+        if not ack_terminalized:
+            raise JournalConflictError(
+                "materialized ACK disappeared without terminal fate"
+            )
+
+    def command_identity(
+        state: JournalState,
+    ) -> tuple[str, str, int] | None:
+        if state.active_trial is not None:
+            return (
+                state.active_trial.trial_uid,
+                "arm",
+                state.active_trial.arm_command_seq,
+            )
+        if state.pending_ack is not None:
+            return (
+                state.pending_ack.trial.trial_uid,
+                "ack_bundle",
+                state.pending_ack.ack_command_seq,
+            )
+        return None
+
+    previous_command = command_identity(previous)
+    current_command = command_identity(current)
+    if previous_command != current_command and current.dispatch_receipt is not None:
+        raise JournalConflictError(
+            "a new materialized command cannot begin with a dispatch receipt"
+        )
+    if previous_command == current_command:
+        if (
+            previous.dispatch_receipt is not None
+            and current.dispatch_receipt != previous.dispatch_receipt
+        ):
+            raise JournalConflictError(
+                "dispatch receipt changed or disappeared for the current command"
+            )
     if current.plant_epoch < previous.plant_epoch:
         raise JournalConflictError("plant epoch regressed")
     profile_changed = (
@@ -1296,9 +1683,40 @@ class TpSnapshot:
         if self.state not in TP_STATES:
             raise ValueError("TP snapshot state is not recognized")
 
+    def payload(self) -> dict[str, Any]:
+        return {
+            "campaign_epoch_echo": self.campaign_epoch_echo,
+            "candidate_token_echo": self.candidate_token_echo,
+            "consumed_command_seq": self.consumed_command_seq,
+            "execution_profile_integer_id_echo": (
+                self.execution_profile_integer_id_echo
+            ),
+            "state": self.state,
+            "terminal_reason": self.terminal_reason,
+            "trial_id_echo": self.trial_id_echo,
+        }
+
+    @classmethod
+    def from_payload(cls, payload: Any) -> "TpSnapshot":
+        row = _exact_object(
+            "TP snapshot",
+            payload,
+            {
+                "campaign_epoch_echo",
+                "trial_id_echo",
+                "state",
+                "candidate_token_echo",
+                "terminal_reason",
+                "execution_profile_integer_id_echo",
+                "consumed_command_seq",
+            },
+        )
+        return cls(**row)
+
 
 class ReconcileAction(str, Enum):
     RESUME_HOME = "resume_home"
+    RESUME_CLOSURE = "resume_closure"
     SEND_PERSISTED_ARM = "send_persisted_arm"
     MONITOR_ACTIVE = "monitor_active"
     SEND_PERSISTED_ACK = "send_persisted_ack"
@@ -1508,6 +1926,18 @@ def reconcile_tp_snapshot(
         return ReconcileDecision(ReconcileAction.RESUME_HOME, "durable_home_agrees")
 
     if snapshot.state == "WAIT_ACK":
+        cursor = state.active_trial
+        if (
+            state.phase == "trial_active"
+            and cursor is not None
+            and _snapshot_matches_cursor(state.campaign, snapshot, cursor)
+            and snapshot.consumed_command_seq == cursor.arm_command_seq
+        ):
+            return ReconcileDecision(
+                ReconcileAction.RESUME_CLOSURE,
+                "arm_consumed_and_tp_waits_for_durable_closure",
+                cursor.arm_command_seq,
+            )
         pending = state.pending_ack
         if state.phase != "wait_ack" or pending is None:
             return _fail("wait_ack_observed_before_durable_pending_ack")

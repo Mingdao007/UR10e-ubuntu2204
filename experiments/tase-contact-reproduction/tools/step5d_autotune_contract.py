@@ -298,8 +298,10 @@ class ExecutionProfile:
         qdot_cap = _finite("qdot_cap_rad_s", self.qdot_cap_rad_s)
         filter_tau = _finite("normal_filter_tau_s", self.normal_filter_tau_s)
         _strict_bool("live_eligible", self.live_eligible)
-        if normal_rate not in {0.010, 0.015, 0.020, 0.030}:
-            raise ValueError("normal max-rate must be one of .010/.015/.020/.030 rad/s")
+        if normal_rate not in {0.010, 0.015, 0.020, 0.030, 0.050}:
+            raise ValueError(
+                "normal max-rate must be one of .010/.015/.020/.030/.050 rad/s"
+            )
         if host_slew not in {0.1, 0.2, 0.5}:
             raise ValueError("host qdot slew must be one of .1/.2/.5 rad/s^2")
         if tp_accel not in {0.1, 0.2, 0.5}:
@@ -346,6 +348,7 @@ NORMAL_FILTER_PROFILES: tuple[ExecutionProfile, ...] = (
     ExecutionProfile("nf015-slew010-a010", 0.015),
     ExecutionProfile("nf020-slew010-a010", 0.020),
     ExecutionProfile("nf030-offline", 0.030, live_eligible=False),
+    ExecutionProfile("nf050-slew050-a050", 0.050, 0.5, 0.5),
 )
 
 
@@ -691,6 +694,7 @@ class TrialTransitionKind(str, Enum):
     RETRY = "retry"
     GOVERNOR_PROBE = "governor_probe"
     PLANT_EPOCH_ANCHOR = "plant_epoch_anchor"
+    CODE_EPOCH_SEARCH = "code_epoch_search"
 
 
 @dataclass(frozen=True)
@@ -1013,6 +1017,19 @@ class TrialSpec:
                 ):
                     raise ValueError(
                         "plant epoch anchor must replicate candidate into the next epoch"
+                    )
+            elif transition.kind is TrialTransitionKind.CODE_EPOCH_SEARCH:
+                if (
+                    _trial_candidate_step(source.candidate, self.candidate) is None
+                    or same_candidate
+                    or not same_profile
+                    or not same_plant_epoch
+                    or self.campaign.campaign_epoch <= source.campaign_epoch
+                    or self.campaign.campaign_fingerprint
+                    == source.campaign_fingerprint
+                ):
+                    raise ValueError(
+                        "code_epoch_search requires one new adjacent candidate in a newer fingerprinted epoch"
                     )
             else:  # pragma: no cover - Enum exhaustiveness guard.
                 raise ValueError("unsupported trial transition kind")

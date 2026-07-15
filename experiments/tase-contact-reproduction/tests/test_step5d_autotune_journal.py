@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import step5d_autotune_journal as journal_module  # noqa: E402
 from step5d_autotune_journal import (  # noqa: E402
+    AdvisoryDispatchReceipt,
     CampaignIdentity,
     GovernorProbe,
     HighWaterMarks,
@@ -30,6 +31,7 @@ from step5d_autotune_journal import (  # noqa: E402
     PendingRetry,
     ReconcileAction,
     SupervisorJournal,
+    TerminalFate,
     TpSnapshot,
     TrialCursor,
     reconcile_tp_snapshot,
@@ -147,6 +149,29 @@ def wait_infra_state(**updates) -> JournalState:
     return JournalState(**payload)
 
 
+def dispatch_receipt(*, command: str = "arm", command_seq: int = 1):
+    return AdvisoryDispatchReceipt(
+        trial_uid=TRIAL_UID,
+        campaign_epoch=7,
+        trial_id=1,
+        command=command,
+        candidate_token=1,
+        execution_profile_integer_id=111,
+        command_seq=command_seq,
+        mailbox_sha256="9" * 64,
+    )
+
+
+def cancelled_fate() -> TerminalFate:
+    return TerminalFate(
+        kind="cancelled_unconsumed",
+        trial=cursor(),
+        command="arm",
+        command_seq=1,
+        tp_snapshot=TpSnapshot(0, 0, "READY_HOME", 0, 0, 0, 0),
+    )
+
+
 def tp_snapshot(
     state: str,
     *,
@@ -199,6 +224,46 @@ class JournalDurabilityTest(unittest.TestCase):
             self.assertEqual(dict(loaded.state.candidate_tokens), {CANDIDATE_UID: 1})
             self.assertEqual(loaded.state.observation_references, (observation,))
             self.assertEqual(loaded.state.history_references, (history,))
+
+    def test_cancel_tombstone_is_append_only_without_high_water_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            store = SupervisorJournal(Path(td) / "journal")
+            store.append(active_state())
+            with self.assertRaisesRegex(JournalConflictError, "ARM disappeared"):
+                store.append(
+                    home_state(
+                        high_water=HighWaterMarks(1, 1, 1),
+                        candidate_tokens={CANDIDATE_UID: 1},
+                    )
+                )
+            terminal = home_state(
+                high_water=HighWaterMarks(1, 1, 1),
+                candidate_tokens={CANDIDATE_UID: 1},
+                terminal_fates=(cancelled_fate(),),
+            )
+            stored = store.append(terminal)
+            self.assertEqual(stored.state.high_water, HighWaterMarks(1, 1, 1))
+            self.assertEqual(stored.state.terminal_fates, (cancelled_fate(),))
+            with self.assertRaisesRegex(JournalConflictError, "fate history"):
+                store.append(
+                    home_state(
+                        high_water=HighWaterMarks(1, 1, 1),
+                        candidate_tokens={CANDIDATE_UID: 1},
+                    )
+                )
+
+    def test_dispatch_receipt_blocks_cancel_tombstone_transition(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            store = SupervisorJournal(Path(td) / "journal")
+            store.append(active_state(dispatch_receipt=dispatch_receipt()))
+            with self.assertRaisesRegex(JournalConflictError, "undispatched ARM"):
+                store.append(
+                    home_state(
+                        high_water=HighWaterMarks(1, 1, 1),
+                        candidate_tokens={CANDIDATE_UID: 1},
+                        terminal_fates=(cancelled_fate(),),
+                    )
+                )
 
     def test_governor_probe_and_profile_change_require_new_plant_epoch(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -437,6 +502,14 @@ class JournalStrictInputTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unlimited"):
                 PendingRetry(cursor(), "evidence", 1, unlimited=False)
 
+    def test_legacy_state_payload_loads_with_empty_receipts_and_fates(self) -> None:
+        payload = home_state().payload()
+        payload.pop("dispatch_receipt")
+        payload.pop("terminal_fates")
+        restored = JournalState.from_payload(campaign(), payload)
+        self.assertIsNone(restored.dispatch_receipt)
+        self.assertEqual(restored.terminal_fates, ())
+
 
 class TpRecoveryReconcileTest(unittest.TestCase):
     def _entry(self, root: Path, state: JournalState):
@@ -493,6 +566,16 @@ class TpRecoveryReconcileTest(unittest.TestCase):
             self.assertEqual(decision.action, ReconcileAction.SEND_PERSISTED_ACK)
             self.assertEqual(decision.command_seq, 2)
             self.assertTrue(decision.command_permitted)
+
+    def test_consumed_arm_at_wait_ack_resumes_host_closure(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            entry = self._entry(Path(td), active_state())
+            decision = reconcile_tp_snapshot(
+                entry, tp_snapshot("WAIT_ACK", consumed=1)
+            )
+            self.assertEqual(decision.action, ReconcileAction.RESUME_CLOSURE)
+            self.assertEqual(decision.command_seq, 1)
+            self.assertFalse(decision.command_permitted)
 
     def test_ack_before_post_ack_persist_ambiguity_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as td:

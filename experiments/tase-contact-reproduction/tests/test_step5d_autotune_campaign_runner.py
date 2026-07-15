@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -14,10 +15,138 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from run_step5d_autotune_campaign import (  # noqa: E402
+    CampaignEpochLayout,
+    _campaign_authorization,
+    _campaign_spec,
     closure_sample_from_bridge_row,
+    discover_campaign_epochs,
     ensure_mailbox_parent,
+    profile_from_epoch,
     tp_snapshot_from_bridge_row,
 )
+from step5d_autotune_contract import ExecutionProfile  # noqa: E402
+from step5d_autotune_journal import (  # noqa: E402
+    CampaignIdentity,
+    HighWaterMarks,
+    JournalState,
+    SupervisorJournal,
+)
+from step5d_autotune_supervisor import execution_profile_integer_id  # noqa: E402
+
+
+def test_campaign_spec_accepts_single_trial_success_policy() -> None:
+    campaign = _campaign_spec(ROOT, "a" * 64, 9)
+
+    assert campaign.campaign_epoch == 9
+    assert campaign.success_mae_n == 0.3
+
+
+def test_campaign_authorization_must_be_external_and_exactly_fingerprint_bound() -> None:
+    campaign = _campaign_spec(ROOT, "a" * 64, 9)
+    payload = {
+        "schema_version": "step5d_autotune_campaign_authorization_v1",
+        "campaign_id": campaign.campaign_id,
+        "campaign_epoch": campaign.campaign_epoch,
+        "campaign_fingerprint": campaign.campaign_fingerprint,
+        "bounded_baseline_and_loop": True,
+        "live_authorized": True,
+        "controller_readback_verified": True,
+        "authorization_source": "test owner gate",
+        "authorized_at": "2026-07-15T00:00:00Z",
+    }
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "authorization.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        authorization = _campaign_authorization(
+            path,
+            campaign=campaign,
+            campaign_fingerprint=campaign.campaign_fingerprint,
+        )
+        assert authorization.live_authorized is True
+
+        payload["campaign_fingerprint"] = "b" * 64
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        with pytest.raises(RuntimeError, match="exact epoch/fingerprint"):
+            _campaign_authorization(
+                path,
+                campaign=campaign,
+                campaign_fingerprint=campaign.campaign_fingerprint,
+            )
+
+
+def test_campaign_epoch_discovery_selects_every_epoch_in_order() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "campaign"
+        campaign_id = "stable-campaign-id"
+        for epoch, epoch_root in (
+            (1, root),
+            (2, root / "epochs" / "0000000002"),
+            (3, root / "epochs" / "0000000003"),
+        ):
+            store = epoch_root / "store"
+            store.mkdir(parents=True)
+            campaign = _campaign_spec(
+                ROOT,
+                str(epoch) * 64,
+                epoch,
+                campaign_id=campaign_id,
+            )
+            (store / "campaign.json").write_text(
+                json.dumps({"campaign": campaign.__dict__}),
+                encoding="utf-8",
+            )
+
+        layouts = discover_campaign_epochs(root)
+
+        assert [row.epoch for row in layouts] == [1, 2, 3]
+        assert layouts[-1].root.name == "0000000003"
+        assert all(row.campaign.campaign_id == campaign_id for row in layouts)
+
+
+def test_prior_epoch_profile_comes_from_durable_manifest_not_current_config() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        epoch_root = Path(tmp) / "epoch"
+        store_root = epoch_root / "store"
+        store_root.mkdir(parents=True)
+        campaign = _campaign_spec(ROOT, "a" * 64, 1)
+        retained = ExecutionProfile("nf020-slew020-a020", 0.020, 0.2, 0.2)
+        manifest = {
+            "campaign": campaign.__dict__,
+            "execution_profile": retained.payload(),
+        }
+        (store_root / "campaign.json").write_text(
+            json.dumps(manifest),
+            encoding="utf-8",
+        )
+        journal = SupervisorJournal(epoch_root / "journal")
+        journal.append(
+            JournalState(
+                campaign=CampaignIdentity(
+                    campaign_id=campaign.campaign_id,
+                    campaign_epoch=campaign.campaign_epoch,
+                    campaign_fingerprint=campaign.campaign_fingerprint,
+                    backend_id="step5d_v35_native",
+                    source_fingerprint="b" * 64,
+                    config_fingerprint="c" * 64,
+                ),
+                phase="home",
+                high_water=HighWaterMarks(),
+                candidate_tokens={},
+                plant_epoch=1,
+                execution_profile_id=retained.profile_id,
+                execution_profile_integer_id=execution_profile_integer_id(retained),
+            )
+        )
+        layout = CampaignEpochLayout(
+            epoch=1,
+            root=epoch_root,
+            store_root=store_root,
+            journal_root=epoch_root / "journal",
+            manifest=manifest,
+            campaign=campaign,
+        )
+
+        assert profile_from_epoch(layout) == retained
 
 
 def bridge_row() -> dict[str, str]:

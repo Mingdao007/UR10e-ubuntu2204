@@ -1197,13 +1197,13 @@
     "v35 uses Codex/high deterministic closure plus automatic degraded 1+0 because Fable5 returned an explicit session-limit response; fresh live authorization remains missing."
   ],
   "sha256": {
-    ".script": "a148fe6d8d4c9488bec5e286e736b6595f641cf36ad278a7adf9b47426dba4e3",
-    ".txt": "4595ace93bf277894b9bc851f3550118e8a646c0ab7b6f355b187e6b69c1dab0",
-    ".urp": "c76a7d652fb53d1539eb892e1bba31bcf3223ad7c9ae513a5a5037b9eade16d4"
+    ".script": "6af0254d27ab241c5cf6b952483c5c573255e3afee9daf95f55a62b2387dc29e",
+    ".txt": "fc6473628ee391cc9297d71fc904da0486caaaa8b36e0989a46db8444b24aca3",
+    ".urp": "0c6e21709887c6df2be00d02b868bf28bd9e72c92dd5edc5245d4e055b63b250"
   },
   "delivery_manifest": "config/step5d_autotune_controller_readback_v1.json",
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v1.json",
-  "controller_readback_manifest_sha256": "c3c811d50a71a11b10cfbd6b1117d8f6df9a5487836e2eccc112d9ff2d21b25c",
+  "controller_readback_manifest_sha256": "e7c65c571819a67f945cd15081a2b89ec80aaa549a9a296d6f0463a8c125a3d8",
   "v29_contact_candidate": {
     "profile": "step5d_strict_rnn_ablation_v29",
     "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",

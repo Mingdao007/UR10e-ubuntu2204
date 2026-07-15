@@ -18,8 +18,9 @@ STEP5D_RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"
 STEP5D_CURRENT_BINDING_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v7"
 STEP5D_NO_CONTACT_P0_CONFIRM_TOKEN="${STEP5D_P0_CONFIRM_TOKEN_OVERRIDE:-LIVE STEP5D STRICT RNN NO CONTACT P0}"
-STEP5D_CUPY_PYTHONPATH="${STEP5D_CUPY_PYTHONPATH:-/tmp/step5d_gpu_np124}"
-STEP5D_CUDA_PYTHONPATH="${STEP5D_CUDA_PYTHONPATH:-/tmp/step5d_cuda129}"
+STEP5D_STABLE_PYTHON_RUNTIME="${STEP5D_PYTHON_RUNTIME_ROOT:-/home/andy/.codex-python/ur10e-digital-twin-20260711}"
+STEP5D_CUPY_PYTHONPATH="${STEP5D_CUPY_PYTHONPATH:-${STEP5D_STABLE_PYTHON_RUNTIME}}"
+STEP5D_CUDA_PYTHONPATH="${STEP5D_CUDA_PYTHONPATH:-${STEP5D_STABLE_PYTHON_RUNTIME}}"
 BRIDGE_PROFILE="${BRIDGE_PROFILE:-${STEP4E_VERSION:-v31}}"
 
 current_step5d_profile() {
@@ -1305,7 +1306,7 @@ PY
     return 0
   fi
   echo "refusing: STEP5D_RNN_BACKEND=cupy but CuPy RawKernel preflight failed"
-  echo "next: restore /tmp/step5d_gpu_np124 with NumPy 1.24 + cupy-cuda12x + CUDA 12.9 libs, rerun capture-bridge, then press TP Play after '[operator] P0 bridge armed: press TP Play now'"
+  echo "next: repair ${STEP5D_STABLE_PYTHON_RUNTIME} with NumPy 1.24 + cupy-cuda12x + CUDA 12.9 libs, then rerun capture-bridge"
   return 24
 }
 

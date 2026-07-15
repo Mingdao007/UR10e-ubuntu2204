@@ -38,7 +38,12 @@ from step5d_autotune_governor import (
     assess_ab,
     propose_change_from_trigger,
 )
-from step5d_autotune_optimizer import Observation, choose_candidate, success_confirmed
+from step5d_autotune_optimizer import (
+    Observation,
+    choose_candidate,
+    live_trust_region_step,
+    success_confirmed,
+)
 from step5d_autotune_state_machine import (
     HostCommand,
     HostPacket,
@@ -185,7 +190,7 @@ class SupervisorRecoverySnapshot:
 def execution_profile_integer_id(profile: ExecutionProfile) -> int:
     """Encode normal/slew/TP-accel levels for the TP ones-digit contract."""
 
-    normal_levels = {0.010: 1, 0.015: 2, 0.020: 3, 0.030: 4}
+    normal_levels = {0.010: 1, 0.015: 2, 0.020: 3, 0.030: 4, 0.050: 5}
     actuator_levels = {0.1: 1, 0.2: 2, 0.5: 3}
     try:
         normal = normal_levels[profile.normal_max_rate_rad_s]
@@ -225,6 +230,7 @@ class CampaignSupervisor:
         self.observations: list[Observation] = []
         self.archived_epoch_outcomes: list[tuple[int, tuple[Observation, ...]]] = []
         self.archived_epoch_observations: list[tuple[int, tuple[Observation, ...]]] = []
+        self._archived_trial_sources: dict[str, TrialSource] = {}
         self._trial_counter = 0
         self._command_seq = 0
         self._next_candidate_token = 1
@@ -245,6 +251,27 @@ class CampaignSupervisor:
     def active_trial(self) -> TrialSpec | None:
         return None if self._active is None else self._active.trial
 
+    def seed_command_sequence_from_tp(self, consumed_command_seq: int) -> None:
+        """Continue the TP-global command sequence for a fresh campaign epoch."""
+
+        if (
+            isinstance(consumed_command_seq, bool)
+            or not isinstance(consumed_command_seq, int)
+            or consumed_command_seq < 0
+        ):
+            raise ValueError("consumed_command_seq must be a non-negative integer")
+        if any(
+            (
+                self.phase is not CampaignPhase.HOME,
+                self._trial_counter != 0,
+                self._command_seq != 0,
+                self._active is not None,
+                self._pending_ack is not None,
+            )
+        ):
+            raise RuntimeError("TP command sequence can be seeded only before first ARM")
+        self._command_seq = consumed_command_seq
+
     @property
     def cooldown_remaining(self) -> int:
         return self._cooldown_remaining
@@ -262,6 +289,9 @@ class CampaignSupervisor:
         return self._command_seq
 
     def _source_from_outcome(self, outcome: Observation) -> TrialSource:
+        archived = self._archived_trial_sources.get(outcome.evaluation.trial_uid)
+        if archived is not None:
+            return archived
         return TrialSource(
             trial_uid=outcome.evaluation.trial_uid,
             candidate=outcome.candidate,
@@ -306,6 +336,7 @@ class CampaignSupervisor:
         cuda_fit_mode: str = "serial",
         parallel_cuda_verified: bool = False,
         search_attestations: Sequence[SearchAttestation] = (),
+        forced_candidate: ForceCandidate | None = None,
     ) -> TrialIntent:
         if self.phase is not CampaignPhase.HOME:
             raise RuntimeError(f"campaign cannot arm from phase {self.phase.value}")
@@ -350,6 +381,40 @@ class CampaignSupervisor:
                 "governor_a_trial_uid": probe.identity_a.trial_uid,
                 "force_candidate_frozen": True,
             }
+        elif forced_candidate is not None:
+            if not forced_candidate.within_tier(SearchTier.T1):
+                raise ValueError("forced live candidate must remain inside T1")
+            anchors = [
+                outcome
+                for outcome in self._all_outcomes()
+                if outcome.profile_id == trial_profile.profile_id
+                and outcome.plant_epoch == self.plant_epoch
+                and live_trust_region_step(outcome.candidate, forced_candidate)
+            ]
+            if not anchors:
+                raise ValueError(
+                    "forced live candidate must be one lattice step from an executed candidate"
+                )
+            source_outcome = anchors[-1]
+            candidate = forced_candidate
+            token = self._token_for(candidate)
+            retry_kind = pending_release_kind
+            selected_attestation = None
+            transition = TrialTransition(
+                kind=(
+                    TrialTransitionKind.CODE_EPOCH_SEARCH
+                    if source_outcome.evaluation.trial_uid
+                    in self._archived_trial_sources
+                    else TrialTransitionKind.FORCE_SEARCH
+                ),
+                source=self._source_from_outcome(source_outcome),
+            )
+            selection = {
+                "selection": "operator_bounded_candidate",
+                "tier": SearchTier.T1.value,
+                "source_trial_uid": source_outcome.evaluation.trial_uid,
+                "exact_parameter_set_reuse_allowed": False,
+            }
         else:
             candidate, selection = choose_candidate(
                 self._all_outcomes(),
@@ -390,15 +455,24 @@ class CampaignSupervisor:
                     source=self._source_for_trial_uid(source_uid),
                 )
             else:
-                history = self._all_outcomes()
+                history = [
+                    outcome
+                    for outcome in self._all_outcomes()
+                    if outcome.profile_id == trial_profile.profile_id
+                    and outcome.plant_epoch == self.plant_epoch
+                ]
                 if not history:
                     raise RuntimeError("non-baseline selection lacks an executed source")
                 source = self._source_from_outcome(history[-1])
                 transition = TrialTransition(
                     kind=(
-                        TrialTransitionKind.REPLICATION
-                        if source.candidate == candidate
-                        else TrialTransitionKind.FORCE_SEARCH
+                        TrialTransitionKind.CODE_EPOCH_SEARCH
+                        if source.campaign_epoch != self.campaign.campaign_epoch
+                        else (
+                            TrialTransitionKind.REPLICATION
+                            if source.candidate == candidate
+                            else TrialTransitionKind.FORCE_SEARCH
+                        )
                     ),
                     source=source,
                 )
@@ -689,6 +763,55 @@ class CampaignSupervisor:
             raise RuntimeError("campaign is not waiting for infrastructure")
         self.phase = CampaignPhase.HOME
 
+    def cancel_unconsumed_arm(
+        self,
+        tp_snapshot: TpSnapshot,
+        *,
+        persisted_trial_uid: str,
+        has_dispatch_receipt: bool,
+    ) -> TrialSpec:
+        """Release one persisted ARM proved absent from an exact Home TP state."""
+
+        if (
+            not isinstance(persisted_trial_uid, str)
+            or len(persisted_trial_uid) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in persisted_trial_uid
+            )
+        ):
+            raise ValueError(
+                "persisted_trial_uid must be 64 lowercase hexadecimal characters"
+            )
+        if type(has_dispatch_receipt) is not bool:
+            raise ValueError("has_dispatch_receipt must be bool")
+
+        if self.phase is not CampaignPhase.TRIAL_ACTIVE or self._active is None:
+            raise RuntimeError("no durable active ARM can be cancelled")
+        trial = self._active.trial
+        if persisted_trial_uid != trial.trial_uid:
+            raise RuntimeError("journal persistence does not bind the current ARM")
+        if has_dispatch_receipt:
+            raise RuntimeError("a dispatched ARM cannot be proven unconsumed")
+        if (
+            tp_snapshot.state != "READY_HOME"
+            or tp_snapshot.consumed_command_seq >= trial.command_seq
+            or any(
+                value != 0
+                for value in (
+                    tp_snapshot.campaign_epoch_echo,
+                    tp_snapshot.trial_id_echo,
+                    tp_snapshot.candidate_token_echo,
+                    tp_snapshot.execution_profile_integer_id_echo,
+                    tp_snapshot.terminal_reason,
+                )
+            )
+        ):
+            raise RuntimeError("TP does not prove the durable ARM was unconsumed at Home")
+        self._active = None
+        self.phase = CampaignPhase.HOME
+        return trial
+
     def resume_after_code_change(
         self,
         *,
@@ -697,14 +820,33 @@ class CampaignSupervisor:
         config_fingerprint: str,
         search_attestation: SearchAttestation | None = None,
     ) -> None:
-        if self.phase is not CampaignPhase.PAUSED_CODE_BUG:
-            raise RuntimeError("campaign is not paused for a code fix")
+        if self.phase not in {CampaignPhase.PAUSED_CODE_BUG, CampaignPhase.HOME}:
+            raise RuntimeError("campaign is not safely paused for a code fix")
+        pending_code_fix = bool(
+            self.phase is CampaignPhase.PAUSED_CODE_BUG
+            and self._pending_retry is not None
+            and self._pending_retry[2] == "code_fix"
+        )
+        if any(
+            value is not None
+            for value in (
+                self._active,
+                self._pending_ack,
+                self._prepared_ack,
+                None if pending_code_fix else self._pending_retry,
+                self._governor_probe,
+            )
+        ):
+            raise RuntimeError("code epoch cannot change with pending campaign state")
         if (
             campaign.campaign_id != self.campaign.campaign_id
             or campaign.campaign_epoch <= self.campaign.campaign_epoch
             or campaign.campaign_fingerprint == self.campaign.campaign_fingerprint
         ):
             raise ValueError("code changes require a new campaign epoch and fingerprint")
+        for outcome in self.outcome_timeline:
+            source = self._source_from_outcome(outcome)
+            self._archived_trial_sources[source.trial_uid] = source
         self.archived_epoch_observations.append(
             (self.campaign.campaign_epoch, tuple(self.observations))
         )

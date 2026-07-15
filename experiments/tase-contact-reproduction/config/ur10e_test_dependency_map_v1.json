@@ -85,7 +85,7 @@
     },
     {
       "paths": ["tools/step5d_autotune_store.py"],
-      "tests": ["tests/test_step5d_autotune_store.py"]
+      "tests": ["tests/test_step5d_autotune_store.py", "tests/test_step5d_autotune_recovery.py", "tests/test_step5d_autotune_campaign_runner.py"]
     },
     {
       "paths": ["tools/step5d_autotune_replay.py"],
@@ -93,7 +93,7 @@
     },
     {
       "paths": ["tools/step5d_autotune_backend.py", "tools/step5d_autotune_contract.py", "tools/step5d_autotune_state_machine.py"],
-      "tests": ["tests/test_step5d_autotune.py", "tests/test_step5d_autotune_runtime.py"]
+      "tests": ["tests/test_step5d_autotune.py", "tests/test_step5d_autotune_runtime.py", "tests/test_step5d_autotune_supervisor.py", "tests/test_step5d_autotune_store.py", "tests/test_step5d_autotune_recovery.py"]
     },
     {
       "paths": ["tools/build_step5d_autotune_tp.py"],
@@ -105,11 +105,11 @@
     },
     {
       "paths": ["config/step5d_autotune_campaign_v1.json", "config/schemas/step5d_autotune_campaign_v1.schema.json"],
-      "tests": ["tests/test_step5d_autotune_config.py", "tests/test_step5d_autotune.py"]
+      "tests": ["tests/test_step5d_autotune_config.py", "tests/test_step5d_autotune.py", "tests/test_step5d_autotune_runtime.py", "tests/test_step5d_autotune_live_driver.py", "tests/test_step5d_autotune_supervisor.py", "tests/test_step5d_autotune_campaign_runner.py"]
     },
     {
       "paths": ["tools/run_step5d_autotune_campaign.py"],
-      "tests": ["tests/test_step5d_autotune_campaign_runner.py"]
+      "tests": ["tests/test_step5d_autotune_campaign_runner.py", "tests/test_step5d_autotune_recovery.py", "tests/test_step5d_autotune_journal.py", "tests/test_step5d_autotune_live_driver.py", "tests/test_step5d_autotune_store.py"]
     },
     {
       "paths": ["tools/publish_step5d_autotune_plot.py"],
@@ -157,6 +157,7 @@
   "explicit_lanes": {
     "autotune_integration": [
       "tests/test_step5d_autotune.py",
+      "tests/test_step5d_autotune_campaign_runner.py",
       "tests/test_step5d_autotune_config.py",
       "tests/test_step5d_autotune_journal.py",
       "tests/test_step5d_autotune_live_driver.py",

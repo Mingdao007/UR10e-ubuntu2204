@@ -16,7 +16,7 @@ from step5d_autotune_contract import (
 
 
 PROFILE_LADDER = (0.1, 0.2, 0.5)
-NORMAL_RATE_LADDER = (0.010, 0.015, 0.020)
+NORMAL_RATE_LADDER = (0.010, 0.015, 0.020, 0.050)
 
 
 @dataclass(frozen=True)

@@ -26,6 +26,7 @@ from step5d_autotune_governor import (  # noqa: E402
     AbTrialIdentity,
     SaturationSample,
 )
+from step5d_autotune_journal import TpSnapshot  # noqa: E402
 from step5d_autotune_state_machine import SafeClosureEvidence  # noqa: E402
 from step5d_autotune_optimizer import Observation  # noqa: E402
 from step5d_autotune_supervisor import (  # noqa: E402
@@ -60,6 +61,18 @@ def supervisor() -> CampaignSupervisor:
         source_fingerprint=SHA_B,
         config_fingerprint=SHA_C,
         execution_profile=profile(),
+    )
+
+
+def ready_home(*, consumed_command_seq: int = 0) -> TpSnapshot:
+    return TpSnapshot(
+        campaign_epoch_echo=0,
+        trial_id_echo=0,
+        state="READY_HOME",
+        candidate_token_echo=0,
+        terminal_reason=0,
+        execution_profile_integer_id_echo=0,
+        consumed_command_seq=consumed_command_seq,
     )
 
 
@@ -290,6 +303,119 @@ def seed_t3_outcome(
 
 
 class Step5dAutotuneSupervisorTest(unittest.TestCase):
+    def test_fresh_campaign_continues_tp_global_command_sequence(self) -> None:
+        manager = supervisor()
+        manager.seed_command_sequence_from_tp(6)
+        trial = manager.next_trial(require_cuda_botorch=False).trial
+        self.assertEqual(trial.command_seq, 7)
+
+    def test_cancel_unconsumed_arm_preserves_all_high_water_marks(self) -> None:
+        manager = supervisor()
+        trial = manager.next_trial(require_cuda_botorch=False).trial
+        before = manager.recovery_snapshot()
+
+        cancelled = manager.cancel_unconsumed_arm(
+            ready_home(),
+            persisted_trial_uid=trial.trial_uid,
+            has_dispatch_receipt=False,
+        )
+
+        after = manager.recovery_snapshot()
+        self.assertEqual(cancelled, trial)
+        self.assertEqual(manager.phase, CampaignPhase.HOME)
+        self.assertIsNone(after.active)
+        self.assertEqual(after.trial_counter, before.trial_counter)
+        self.assertEqual(after.command_seq, before.command_seq)
+        self.assertEqual(after.candidate_tokens, before.candidate_tokens)
+        self.assertEqual(
+            after.candidate_tokens[trial.candidate.candidate_uid],
+            trial.candidate_token,
+        )
+        self.assertEqual(manager._next_candidate_token, trial.candidate_token + 1)
+
+        distinct = ForceCandidate.from_log2(p=0.25, damping=0.0, i=0.0)
+        self.assertEqual(manager._token_for(distinct), trial.candidate_token + 1)
+        next_trial = manager.next_trial(require_cuda_botorch=False).trial
+        self.assertEqual(next_trial.trial_id, trial.trial_id + 1)
+        self.assertEqual(next_trial.command_seq, trial.command_seq + 1)
+        self.assertEqual(next_trial.candidate_token, trial.candidate_token)
+
+    def test_cancel_unconsumed_arm_preconditions_fail_closed(self) -> None:
+        manager = supervisor()
+        trial = manager.next_trial(require_cuda_botorch=False).trial
+        snapshot = ready_home()
+
+        with self.assertRaisesRegex(ValueError, "persisted_trial_uid"):
+            manager.cancel_unconsumed_arm(
+                snapshot,
+                persisted_trial_uid="not-a-trial-uid",
+                has_dispatch_receipt=False,
+            )
+        with self.assertRaisesRegex(ValueError, "has_dispatch_receipt"):
+            manager.cancel_unconsumed_arm(
+                snapshot,
+                persisted_trial_uid=trial.trial_uid,
+                has_dispatch_receipt=0,
+            )
+
+        wrong_trial_uid = (
+            ("0" if trial.trial_uid[0] != "0" else "1") + trial.trial_uid[1:]
+        )
+        with self.assertRaisesRegex(RuntimeError, "journal persistence"):
+            manager.cancel_unconsumed_arm(
+                snapshot,
+                persisted_trial_uid=wrong_trial_uid,
+                has_dispatch_receipt=False,
+            )
+        with self.assertRaisesRegex(RuntimeError, "dispatched ARM"):
+            manager.cancel_unconsumed_arm(
+                snapshot,
+                persisted_trial_uid=trial.trial_uid,
+                has_dispatch_receipt=True,
+            )
+
+        invalid_snapshots = (
+            replace(snapshot, state="ARMED"),
+            replace(snapshot, consumed_command_seq=trial.command_seq),
+            replace(snapshot, campaign_epoch_echo=1),
+            replace(snapshot, trial_id_echo=1),
+            replace(snapshot, candidate_token_echo=1),
+            replace(snapshot, execution_profile_integer_id_echo=111),
+            replace(snapshot, terminal_reason=1),
+        )
+        for invalid_snapshot in invalid_snapshots:
+            with self.subTest(snapshot=invalid_snapshot):
+                with self.assertRaisesRegex(RuntimeError, "unconsumed at Home"):
+                    manager.cancel_unconsumed_arm(
+                        invalid_snapshot,
+                        persisted_trial_uid=trial.trial_uid,
+                        has_dispatch_receipt=False,
+                    )
+                self.assertEqual(manager.active_trial, trial)
+                self.assertEqual(manager.phase, CampaignPhase.TRIAL_ACTIVE)
+
+    def test_forced_candidate_uses_executed_neighbor_without_repeating_it(self) -> None:
+        manager = supervisor()
+        identity = SimpleNamespace(trial_uid="9" * 64, backend_id=manager.backend_id)
+        seed = ForceCandidate()
+        manager.outcome_timeline.append(
+            Observation(
+                candidate=seed,
+                evaluation=profile_diagnostic_evaluation(identity),
+                profile_id=manager.execution_profile.profile_id,
+                plant_epoch=manager.plant_epoch,
+                latest_trace_sha256="8" * 64,
+            )
+        )
+        requested = ForceCandidate.from_log2(p=0.25, damping=0.0, i=0.0)
+        trial = manager.next_trial(
+            require_cuda_botorch=False,
+            forced_candidate=requested,
+        ).trial
+        self.assertEqual(trial.candidate, requested)
+        self.assertEqual(trial.transition.kind, TrialTransitionKind.FORCE_SEARCH)
+        self.assertEqual(trial.transition.source.trial_uid, identity.trial_uid)
+
     def close_and_ack(self, manager, trial, manifest, result, root, **kwargs):
         decision = manager.close_trial(
             manifest=manifest,
@@ -311,6 +437,14 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
             tp_speedj_accel_rad_s2=0.5,
         )
         self.assertEqual(execution_profile_integer_id(changed), 113)
+        fixed_live = replace(
+            profile(),
+            profile_id="nf050-slew050-a050",
+            normal_max_rate_rad_s=0.05,
+            host_qdot_slew_rad_s2=0.5,
+            tp_speedj_accel_rad_s2=0.5,
+        )
+        self.assertEqual(execution_profile_integer_id(fixed_live), 533)
 
     def test_governor_requires_a_real_eligible_safe_a_outcome(self) -> None:
         samples = [
@@ -455,6 +589,11 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         self.assertNotEqual(next_trial.candidate, trial.candidate)
         self.assertNotEqual(next_trial.candidate_token, trial.candidate_token)
         self.assertEqual(next_trial.campaign.campaign_epoch, 2)
+        self.assertIs(
+            next_trial.transition.kind,
+            TrialTransitionKind.CODE_EPOCH_SEARCH,
+        )
+        self.assertEqual(next_trial.transition.source.trial_uid, trial.trial_uid)
 
     def test_one_eligible_success_finishes_without_confirmation_repeat(self) -> None:
         manager = supervisor()
@@ -887,6 +1026,15 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
             self.assertEqual(decision.action, "revert")
             self.assertEqual(manager.execution_profile, trial_a.execution_profile)
             self.assertEqual(manager.cooldown_remaining, 3)
+
+            next_trial = manager.next_trial(require_cuda_botorch=False).trial
+            self.assertIs(next_trial.transition.kind, TrialTransitionKind.FORCE_SEARCH)
+            self.assertEqual(
+                next_trial.transition.source.profile_id,
+                trial_a.execution_profile.profile_id,
+            )
+            self.assertEqual(next_trial.transition.source.plant_epoch, trial_a.plant_epoch)
+            self.assertNotEqual(next_trial.candidate, trial_a.candidate)
 
     def test_single_success_finishes_before_governor_probe(self) -> None:
         manager = supervisor()

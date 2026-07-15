@@ -45,6 +45,7 @@ from step5d_autotune_live_driver import (  # noqa: E402
     MailboxError,
     TrialArtifactProducer,
     decode_execution_profile_id,
+    execution_profile_id_for,
     finalize_bundle_and_dispatch_ack_for_test_fixture,
     integer_stop_transport,
     terminal_float_reason_crosscheck,
@@ -351,6 +352,42 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                     packet_for(offline, HostCommand.ARM),
                     prepared_trial=make_prepared(offline),
                 )
+
+    def test_live_050_profile_has_unique_network_code(self) -> None:
+        profile = ExecutionProfile("nf050-slew050-a050", 0.050, 0.5, 0.5)
+        self.assertEqual(execution_profile_id_for(profile, network_mode=True), 533)
+        self.assertEqual(
+            decode_execution_profile_id(533, network_mode=True),
+            (0.050, 0.5, 0.5),
+        )
+        self.assertEqual(
+            decode_execution_profile_id(333, network_mode=True),
+            (0.020, 0.5, 0.5),
+        )
+
+    def test_live_profile_integer_codec_is_injective_across_full_lattice(self) -> None:
+        encoded: dict[int, tuple[float, float, float]] = {}
+        for normal in (0.010, 0.015, 0.020, 0.050):
+            for host_slew in (0.1, 0.2, 0.5):
+                for tp_accel in (0.1, 0.2, 0.5):
+                    profile = ExecutionProfile(
+                        (
+                            f"nf{round(normal * 1000):03d}"
+                            f"-slew{round(host_slew * 100):03d}"
+                            f"-a{round(tp_accel * 100):03d}"
+                        ),
+                        normal,
+                        host_slew,
+                        tp_accel,
+                    )
+                    code = execution_profile_id_for(profile, network_mode=True)
+                    self.assertNotIn(code, encoded)
+                    encoded[code] = (normal, host_slew, tp_accel)
+                    self.assertEqual(
+                        decode_execution_profile_id(code, network_mode=True),
+                        (normal, host_slew, tp_accel),
+                    )
+        self.assertEqual(len(encoded), 36)
 
     def test_offline_030_mailbox_round_trip_preserves_offline_mode(self) -> None:
         offline = make_trial(
@@ -841,7 +878,7 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
         self.assertIn("codex_autotune_network_profile_valid", script)
         self.assertIn("codex_autotune_post_ack_state", script)
         self.assertIn("post_ack_state == 75", script)
-        self.assertIn("normal_level <= 3", script)
+        self.assertIn("normal_level == 5", script)
         self.assertIn("legacy float stop_request safety carrier", script)
 
     def test_bridge_mailbox_requires_absolute_path_and_cupy(self) -> None:
