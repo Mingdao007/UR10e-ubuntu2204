@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "step5d_autotune_campaign_v1.schema.json",
+  "title": "Step5d-native continuous autotune campaign source contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "stage_id", "source_stage_id", "activation", "baseline", "objective", "search", "execution_profiles", "governor", "orientation_qualification", "integer_handshake", "safe_closure", "failure_policy"],
+  "properties": {
+    "schema_version": {"const": "step5d_autotune_campaign_v1"},
+    "stage_id": {"const": "step5d_strict_rnn_autotune_v1"},
+    "source_stage_id": {"const": "step5d_strict_rnn_ablation_v35"},
+    "activation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["active", "controller_delivery_authorized", "controller_readback_verified", "live_authorized", "claim_boundary"],
+      "properties": {
+        "active": {"const": false},
+        "controller_delivery_authorized": {"const": false},
+        "controller_readback_verified": {"const": false},
+        "live_authorized": {"const": false},
+        "claim_boundary": {"type": "string", "minLength": 1}
+      }
+    },
+    "baseline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["target_force_n", "force_candidate", "outer_tangential_kp", "execution_profile_id", "execution_profile_integer_id", "normal_filter_tau_s", "normal_filter_dt_mode", "normal_max_rate_rad_s", "qdot_cap_rad_s", "host_qdot_slew_rad_s2", "tp_speedj_accel_rad_s2"],
+      "properties": {
+        "target_force_n": {"const": 12.0},
+        "force_candidate": {
+          "type": "object", "additionalProperties": false,
+          "required": ["force_p_gain", "force_i_gain", "force_damping"],
+          "properties": {
+            "force_p_gain": {"const": 0.001},
+            "force_i_gain": {"const": 0.00001},
+            "force_damping": {"const": 7.0}
+          }
+        },
+        "outer_tangential_kp": {"const": 1.5},
+        "execution_profile_id": {"const": "nf010-slew010-a010"},
+        "execution_profile_integer_id": {"const": 111},
+        "normal_filter_tau_s": {"const": 0.35},
+        "normal_filter_dt_mode": {"const": "fixed_0.002s"},
+        "normal_max_rate_rad_s": {"const": 0.01},
+        "qdot_cap_rad_s": {"const": 0.5},
+        "host_qdot_slew_rad_s2": {"const": 0.1},
+        "tp_speedj_accel_rad_s2": {"const": 0.1}
+      }
+    },
+    "objective": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "stage", "window_s", "bin_s", "required_complete_bins", "fixed_f0_shadow_normal_required", "success_mae_n", "confirmation_relative_delta_max", "confirmation_trials"],
+      "properties": {
+        "name": {"const": "signed_reaction_normal_12N_mae"},
+        "stage": {"const": 25.0},
+        "window_s": {"type": "array", "prefixItems": [{"const": 5.0}, {"const": 60.0}], "items": false, "minItems": 2, "maxItems": 2},
+        "bin_s": {"const": 0.1},
+        "required_complete_bins": {"const": 550},
+        "fixed_f0_shadow_normal_required": {"const": true},
+        "success_mae_n": {"const": 0.3},
+        "confirmation_relative_delta_max": {"const": 0.15},
+        "confirmation_trials": {"const": 2}
+      }
+    },
+    "search": {
+      "type": "object", "additionalProperties": false,
+      "required": ["coordinate_system", "lattice_octaves", "one_coordinate_per_live_trial", "i_zero_is_categorical", "trial_budget_stop_enabled", "low_ei_stop_enabled", "incumbent_replicate_every_eligible_trials", "first_threshold_hit_enters_confirmation", "outer_boundary_requires_pointwise_replay_unlock", "tiers", "plant_epoch_policy"],
+      "properties": {
+        "coordinate_system": {"const": "log2_native"},
+        "lattice_octaves": {"const": 0.25},
+        "one_coordinate_per_live_trial": {"const": true},
+        "i_zero_is_categorical": {"const": true},
+        "trial_budget_stop_enabled": {"const": false},
+        "low_ei_stop_enabled": {"const": false},
+        "incumbent_replicate_every_eligible_trials": {"const": 4},
+        "first_threshold_hit_enters_confirmation": {"const": true},
+        "outer_boundary_requires_pointwise_replay_unlock": {"const": true},
+        "tiers": {
+          "type": "object", "additionalProperties": false,
+          "required": ["T1", "T2", "T3"],
+          "properties": {
+            "T1": {"type": "object", "additionalProperties": false, "required": ["p_d_radius_octaves", "positive_i_radius_octaves", "fixed_i_gain"], "properties": {"p_d_radius_octaves": {"const": 1.0}, "positive_i_radius_octaves": {"const": 0.0}, "fixed_i_gain": {"const": 0.00001}}},
+            "T2": {"type": "object", "additionalProperties": false, "required": ["p_d_radius_octaves", "positive_i_radius_octaves", "unlock"], "properties": {"p_d_radius_octaves": {"const": 1.5}, "positive_i_radius_octaves": {"const": 1.0}, "unlock": {"type": "object", "additionalProperties": false, "required": ["minimum_eligible_trials", "incumbent_repeatability_trials", "incumbent_relative_delta_max", "recent_structural_failure_window", "recent_structural_failures_max"], "properties": {"minimum_eligible_trials": {"const": 6}, "incumbent_repeatability_trials": {"const": 2}, "incumbent_relative_delta_max": {"const": 0.15}, "recent_structural_failure_window": {"const": 6}, "recent_structural_failures_max": {"const": 0}}}}},
+            "T3": {"type": "object", "additionalProperties": false, "required": ["p_d_radius_octaves", "positive_i_radius_octaves", "unlock"], "properties": {"p_d_radius_octaves": {"const": 2.0}, "positive_i_radius_octaves": {"const": 2.0}, "unlock": {"type": "object", "additionalProperties": false, "required": ["adjacent_outward_improvements_required", "boundary_incumbent_replay_required", "recent_eligible_trials_required", "candidate_bound_latest_trace_replay"], "properties": {"adjacent_outward_improvements_required": {"const": 2}, "boundary_incumbent_replay_required": {"const": true}, "recent_eligible_trials_required": {"const": 6}, "candidate_bound_latest_trace_replay": {"type": "array", "prefixItems": [{"const": "exact_rnn"}, {"const": "oracle"}, {"const": "slew"}], "items": false, "minItems": 3, "maxItems": 3}}}}}
+          }
+        },
+        "plant_epoch_policy": {"type": "object", "additionalProperties": false, "required": ["observations_cross_epoch_training_allowed", "kept_profile_creates_new_epoch", "reverted_profile_restores_prior_epoch_history"], "properties": {"observations_cross_epoch_training_allowed": {"const": false}, "kept_profile_creates_new_epoch": {"const": true}, "reverted_profile_restores_prior_epoch_history": {"const": true}}}
+      }
+    },
+    "execution_profiles": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "prefixItems": [
+        {"type": "object", "additionalProperties": false, "required": ["profile_id", "integer_id", "normal_max_rate_rad_s", "host_qdot_slew_rad_s2", "tp_speedj_accel_rad_s2", "live_eligible"], "properties": {"profile_id": {"const": "nf010-slew010-a010"}, "integer_id": {"const": 111}, "normal_max_rate_rad_s": {"const": 0.01}, "host_qdot_slew_rad_s2": {"const": 0.1}, "tp_speedj_accel_rad_s2": {"const": 0.1}, "live_eligible": {"const": true}}},
+        {"type": "object", "additionalProperties": false, "required": ["profile_id", "integer_id", "normal_max_rate_rad_s", "host_qdot_slew_rad_s2", "tp_speedj_accel_rad_s2", "live_eligible"], "properties": {"profile_id": {"const": "nf015-slew010-a010"}, "integer_id": {"const": 211}, "normal_max_rate_rad_s": {"const": 0.015}, "host_qdot_slew_rad_s2": {"const": 0.1}, "tp_speedj_accel_rad_s2": {"const": 0.1}, "live_eligible": {"const": true}}},
+        {"type": "object", "additionalProperties": false, "required": ["profile_id", "integer_id", "normal_max_rate_rad_s", "host_qdot_slew_rad_s2", "tp_speedj_accel_rad_s2", "live_eligible"], "properties": {"profile_id": {"const": "nf020-slew010-a010"}, "integer_id": {"const": 311}, "normal_max_rate_rad_s": {"const": 0.02}, "host_qdot_slew_rad_s2": {"const": 0.1}, "tp_speedj_accel_rad_s2": {"const": 0.1}, "live_eligible": {"const": true}}},
+        {"type": "object", "additionalProperties": false, "required": ["profile_id", "integer_id", "normal_max_rate_rad_s", "host_qdot_slew_rad_s2", "tp_speedj_accel_rad_s2", "live_eligible"], "properties": {"profile_id": {"const": "nf030-offline"}, "integer_id": {"const": 411}, "normal_max_rate_rad_s": {"const": 0.03}, "host_qdot_slew_rad_s2": {"const": 0.1}, "tp_speedj_accel_rad_s2": {"const": 0.1}, "live_eligible": {"const": false}}}
+      ],
+      "items": false
+    },
+    "governor": {
+      "type": "object", "additionalProperties": false,
+      "required": ["normal_rate_ladder_rad_s", "host_slew_ladder_rad_s2", "tp_speedj_accel_ladder_rad_s2", "trigger", "keep", "probe_protocol", "qdot_cap_optimizer_dimension", "lag_alone_triggers_change"],
+      "properties": {
+        "normal_rate_ladder_rad_s": {"type": "array", "prefixItems": [{"const": 0.01}, {"const": 0.015}, {"const": 0.02}], "items": false, "minItems": 3, "maxItems": 3},
+        "host_slew_ladder_rad_s2": {"type": "array", "prefixItems": [{"const": 0.1}, {"const": 0.2}, {"const": 0.5}], "items": false, "minItems": 3, "maxItems": 3},
+        "tp_speedj_accel_ladder_rad_s2": {"type": "array", "prefixItems": [{"const": 0.1}, {"const": 0.2}, {"const": 0.5}], "items": false, "minItems": 3, "maxItems": 3},
+        "trigger": {"type": "object", "additionalProperties": false, "required": ["independent_windows", "window_s", "minimum_saturation_fraction", "or_continuous_saturation_s"], "properties": {"independent_windows": {"const": 2}, "window_s": {"const": 5.0}, "minimum_saturation_fraction": {"const": 0.2}, "or_continuous_saturation_s": {"const": 2.0}}},
+        "keep": {"type": "object", "additionalProperties": false, "required": ["minimum_burden_reduction", "maximum_mae_regression", "cooldown_eligible_trials"], "properties": {"minimum_burden_reduction": {"const": 0.3}, "maximum_mae_regression": {"const": 0.15}, "cooldown_eligible_trials": {"const": 3}}},
+        "probe_protocol": {"type": "object", "additionalProperties": false, "required": ["force_candidate_frozen", "one_layer_at_a_time", "sequence", "ambiguous_requires_a_prime", "failed_probe_reverts_immediately"], "properties": {"force_candidate_frozen": {"const": true}, "one_layer_at_a_time": {"const": true}, "sequence": {"type": "array", "prefixItems": [{"const": "A"}, {"const": "B"}, {"const": "A_prime_if_ambiguous"}], "items": false, "minItems": 3, "maxItems": 3}, "ambiguous_requires_a_prime": {"const": true}, "failed_probe_reverts_immediately": {"const": true}}},
+        "qdot_cap_optimizer_dimension": {"const": false},
+        "lag_alone_triggers_change": {"const": false}
+      }
+    },
+    "orientation_qualification": {
+      "type": "object", "additionalProperties": false,
+      "required": ["window_s", "entry_window_s", "p95_error_max_rad", "absolute_error_max_rad", "angular_saturation_duty_max", "gross_safety_guards_changed"],
+      "properties": {
+        "window_s": {"type": "array", "prefixItems": [{"const": 5.0}, {"const": 60.0}], "items": false, "minItems": 2, "maxItems": 2},
+        "entry_window_s": {"type": "array", "prefixItems": [{"const": 0.0}, {"const": 5.0}], "items": false, "minItems": 2, "maxItems": 2},
+        "p95_error_max_rad": {"const": 0.036},
+        "absolute_error_max_rad": {"const": 0.05},
+        "angular_saturation_duty_max": {"const": 0.05},
+        "gross_safety_guards_changed": {"const": false}
+      }
+    },
+    "integer_handshake": {
+      "type": "object", "additionalProperties": false,
+      "required": ["host_to_tp", "tp_to_host"],
+      "properties": {
+        "host_to_tp": {"type": "object", "additionalProperties": false, "required": ["campaign_epoch", "trial_id", "command", "candidate_token", "execution_profile_id", "command_sequence"], "properties": {"campaign_epoch": {"const": 24}, "trial_id": {"const": 25}, "command": {"const": 26}, "candidate_token": {"const": 27}, "execution_profile_id": {"const": 28}, "command_sequence": {"const": 29}}},
+        "tp_to_host": {"type": "object", "additionalProperties": false, "required": ["campaign_epoch_echo", "trial_id_echo", "state", "candidate_token_echo", "terminal_reason", "execution_profile_id_echo", "consumed_command_sequence"], "properties": {"campaign_epoch_echo": {"const": 24}, "trial_id_echo": {"const": 25}, "state": {"const": 26}, "candidate_token_echo": {"const": 27}, "terminal_reason": {"const": 28}, "execution_profile_id_echo": {"const": 29}, "consumed_command_sequence": {"const": 30}}}
+      }
+    },
+    "safe_closure": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tp", "host", "ack_requires_immutable_bundle"],
+      "properties": {
+        "tp": {"type": "object", "additionalProperties": false, "required": ["position_error_max_m", "orientation_error_max_rad", "joint_error_max_rad"], "properties": {"position_error_max_m": {"const": 0.003}, "orientation_error_max_rad": {"const": 0.05}, "joint_error_max_rad": {"const": 0.01}}},
+        "host": {"type": "object", "additionalProperties": false, "required": ["continuous_dwell_s", "safety_mode", "position_error_max_m", "orientation_error_max_rad", "joint_error_max_rad", "tcp_linear_speed_max_m_s", "tcp_angular_speed_max_rad_s", "qd_max_rad_s"], "properties": {"continuous_dwell_s": {"const": 0.5}, "safety_mode": {"const": "NORMAL"}, "position_error_max_m": {"const": 0.003}, "orientation_error_max_rad": {"const": 0.05}, "joint_error_max_rad": {"const": 0.01}, "tcp_linear_speed_max_m_s": {"const": 0.001}, "tcp_angular_speed_max_rad_s": {"const": 0.01}, "qd_max_rad_s": {"const": 0.01}}},
+        "ack_requires_immutable_bundle": {"const": true}
+      }
+    },
+    "failure_policy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["infra_reasons", "manual_recovery_reasons", "campaign_stop_reasons", "code_contract_reason", "reason4_requires_host_cause", "nonparameter_retry_limit", "infra_retry_limit", "retry_preserves_candidate_token_and_uses_new_trial_id", "code_change_requires_new_campaign_epoch_fingerprint_and_authorization", "scheduler_feedback_rnn_cadence_lag_are_tp_guards"],
+      "properties": {
+        "infra_reasons": {"type": "array", "prefixItems": [{"const": 8}, {"const": 10}, {"const": 12}, {"const": 14}], "items": false, "minItems": 4, "maxItems": 4},
+        "manual_recovery_reasons": {"type": "array", "prefixItems": [{"const": 2}, {"const": 3}], "items": false, "minItems": 2, "maxItems": 2},
+        "campaign_stop_reasons": {"type": "array", "prefixItems": [{"const": 5}, {"const": 6}, {"const": 7}, {"const": 17}], "items": false, "minItems": 4, "maxItems": 4},
+        "code_contract_reason": {"const": 13},
+        "reason4_requires_host_cause": {"const": true},
+        "nonparameter_retry_limit": {"const": null},
+        "infra_retry_limit": {"const": null},
+        "retry_preserves_candidate_token_and_uses_new_trial_id": {"const": true},
+        "code_change_requires_new_campaign_epoch_fingerprint_and_authorization": {"const": true},
+        "scheduler_feedback_rnn_cadence_lag_are_tp_guards": {"const": false}
+      }
+    }
+  }
+}
