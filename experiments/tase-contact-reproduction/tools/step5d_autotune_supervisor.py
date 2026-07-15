@@ -274,6 +274,26 @@ class CampaignSupervisor:
             ]
         )
 
+    def planned_candidate_within_policy_envelope(
+        self,
+        candidate: ForceCandidate,
+    ) -> bool:
+        """Accept Codex-planned positive-I probes without widening P/D early."""
+
+        tier = self.current_search_tier
+        if candidate.within_tier(tier):
+            return True
+        return (
+            self.selection_policy == "codex_batches"
+            and tier is SearchTier.T1
+            and abs(candidate.log2_p) <= SearchTier.T1.p_d_radius_octaves + 1e-9
+            and abs(candidate.log2_damping)
+            <= SearchTier.T1.p_d_radius_octaves + 1e-9
+            and candidate.force_i_gain > 0.0
+            and abs(candidate.log2_i)
+            <= SearchTier.T2.positive_i_radius_octaves + 1e-9
+        )
+
     def seed_command_sequence_from_tp(self, consumed_command_seq: int) -> None:
         """Continue the TP-global command sequence for a fresh campaign epoch."""
 
@@ -421,9 +441,10 @@ class CampaignSupervisor:
                 and outcome.plant_epoch == self.plant_epoch
             ]
             tier = unlocked_tier(context, pending_candidate=forced_candidate)
-            if not forced_candidate.within_tier(tier):
+            if not self.planned_candidate_within_policy_envelope(forced_candidate):
                 raise ValueError(
-                    f"planned candidate is outside the currently unlocked {tier.value}"
+                    "planned candidate is outside the current selection-policy "
+                    f"envelope (evidence tier {tier.value})"
                 )
             anchors = [
                 outcome
@@ -464,6 +485,12 @@ class CampaignSupervisor:
                     else "operator_bounded_candidate"
                 ),
                 "tier": tier.value,
+                "codex_positive_i_radius_octaves": (
+                    SearchTier.T2.positive_i_radius_octaves
+                    if self.selection_policy == "codex_batches"
+                    and tier is SearchTier.T1
+                    else tier.positive_i_radius_octaves
+                ),
                 "source_trial_uid": (
                     None if source_outcome is None else source_outcome.evaluation.trial_uid
                 ),

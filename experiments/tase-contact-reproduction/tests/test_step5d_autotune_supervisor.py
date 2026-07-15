@@ -417,6 +417,43 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         self.assertEqual(trial.transition.kind, TrialTransitionKind.FORCE_SEARCH)
         self.assertEqual(trial.transition.source.trial_uid, identity.trial_uid)
 
+    def test_codex_batch_can_probe_positive_i_early_without_widening_p_d(self) -> None:
+        identity = SimpleNamespace(trial_uid="9" * 64, backend_id="step5d_v35_native")
+        seed = ForceCandidate()
+
+        def seeded_manager(selection_policy: str) -> CampaignSupervisor:
+            manager = supervisor(selection_policy=selection_policy)
+            manager.outcome_timeline.append(
+                Observation(
+                    candidate=seed,
+                    evaluation=profile_diagnostic_evaluation(identity),
+                    profile_id=manager.execution_profile.profile_id,
+                    plant_epoch=manager.plant_epoch,
+                    latest_trace_sha256="8" * 64,
+                )
+            )
+            return manager
+
+        positive_i_probe = ForceCandidate.from_log2(p=0.0, damping=0.0, i=0.25)
+        with self.assertRaisesRegex(ValueError, "selection-policy envelope"):
+            seeded_manager("adaptive").next_trial(
+                require_cuda_botorch=False,
+                forced_candidate=positive_i_probe,
+            )
+
+        trial = seeded_manager("codex_batches").next_trial(
+            require_cuda_botorch=False,
+            forced_candidate=positive_i_probe,
+        ).trial
+        self.assertEqual(trial.candidate, positive_i_probe)
+
+        widened_p_probe = ForceCandidate.from_log2(p=1.25, damping=0.0, i=0.25)
+        with self.assertRaisesRegex(ValueError, "selection-policy envelope"):
+            seeded_manager("codex_batches").next_trial(
+                require_cuda_botorch=False,
+                forced_candidate=widened_p_probe,
+            )
+
     def close_and_ack(self, manager, trial, manifest, result, root, **kwargs):
         decision = manager.close_trial(
             manifest=manifest,

@@ -636,10 +636,10 @@ def _wait_for_codex_candidate(
                 None,
             )
             if candidate is not None:
-                if not candidate.within_tier(supervisor.current_search_tier):
+                if not supervisor.planned_candidate_within_policy_envelope(candidate):
                     raise RuntimeError(
-                        "next Codex batch candidate exceeds the currently unlocked "
-                        f"{supervisor.current_search_tier.value} envelope"
+                        "next Codex batch candidate exceeds the current selection-policy "
+                        f"envelope (evidence tier {supervisor.current_search_tier.value})"
                     )
                 return candidate, plan
             if plan.closed:
