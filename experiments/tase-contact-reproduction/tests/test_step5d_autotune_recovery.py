@@ -34,6 +34,7 @@ from step5d_autotune_governor import (  # noqa: E402
     SaturationSample,
 )
 from step5d_autotune_journal import (  # noqa: E402
+    JournalReference,
     ReconcileAction,
     SupervisorJournal,
     TpSnapshot,
@@ -628,6 +629,19 @@ class RestartRecoveryTest(RecoveryFixture):
             restored.packet.command_seq,
         )
 
+    def test_bundle_before_ack_rejects_terminal_reason_mismatch(self) -> None:
+        trial, arm = self.arm()
+        write_bundle(self.store, trial, self.root, reason=1)
+        with self.assertRaisesRegex(RecoveryError, "terminal reason differs"):
+            self.restore(
+                tp_for(
+                    trial,
+                    "WAIT_ACK",
+                    consumed=arm.command_seq,
+                    reason=13,
+                )
+            )
+
     def test_consumed_arm_without_bundle_resumes_closure(self) -> None:
         trial, arm = self.arm()
         restored = self.restore(
@@ -649,9 +663,97 @@ class RestartRecoveryTest(RecoveryFixture):
         self.assertEqual(state.high_water, before.high_water)
         self.assertEqual(dict(state.candidate_tokens), dict(before.candidate_tokens))
         self.assertEqual(state.terminal_fates[-1].kind, "cancelled_unconsumed")
-        _, next_arm = self.arm()
-        self.assertGreater(next_arm.trial_id, trial.trial_id)
-        self.assertGreater(next_arm.command_seq, trial.command_seq)
+        next_coordinator = self.coordinator.resume_after_code_change(
+            new_journal=SupervisorJournal(self.root / "cancelled-next-epoch"),
+            campaign=campaign(epoch=2, fingerprint="9" * 64),
+            source_fingerprint="8" * 64,
+            config_fingerprint="7" * 64,
+        )
+        next_state = next_coordinator.journal.load_latest().state
+        self.assertEqual(next_state.high_water, before.high_water)
+        self.assertEqual(dict(next_state.candidate_tokens), dict(before.candidate_tokens))
+        self.assertEqual(next_state.terminal_fates, ())
+
+    def test_consumed_infra_abort_tombstone_crosses_epoch_and_forbids_tuple(self) -> None:
+        trial, arm = self.arm()
+        sink = FakeContinuousSink()
+        self.coordinator.dispatch(arm, prepared_trial=prepared(trial), sink=sink)
+        run = self.root / "stopped-bridge"
+        partial = run / "autotune_trials" / trial.trial_uid / "capture.csv.part"
+        partial.parent.mkdir(parents=True)
+        partial.write_text("physically-attempted\n", encoding="utf-8")
+        summary = run / "summary.json"
+        summary.write_text(
+            json.dumps({"stop_reason": "signal_sigint"}) + "\n",
+            encoding="utf-8",
+        )
+        marker = run / ".capture_complete.json"
+        marker.write_text(
+            json.dumps(
+                {
+                    "capture_closed": True,
+                    "immutable": True,
+                    "source_files": [
+                        {
+                            "path": "summary.json",
+                            "sha256": hashlib.sha256(summary.read_bytes()).hexdigest(),
+                        },
+                        {
+                            "path": f"autotune_trials/{trial.trial_uid}/capture.csv.part",
+                            "sha256": hashlib.sha256(partial.read_bytes()).hexdigest(),
+                        },
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        marker_sha = hashlib.sha256(marker.read_bytes()).hexdigest()
+        evidence = JournalReference(
+            reference_id=marker_sha,
+            path=str(marker),
+            sha256=marker_sha,
+        )
+
+        terminalized = self.coordinator.terminalize_consumed_infra_abort(
+            tp_ready(consumed=arm.command_seq),
+            evidence=evidence,
+        )
+
+        self.assertEqual(terminalized, trial)
+        state = self.journal.load_latest().state
+        self.assertEqual(state.phase, "home")
+        self.assertEqual(state.terminal_fates[-1].kind, "infra_aborted_consumed")
+        next_coordinator = self.coordinator.resume_after_code_change(
+            new_journal=SupervisorJournal(self.root / "infra-next-epoch"),
+            campaign=campaign(epoch=2, fingerprint="9" * 64),
+            source_fingerprint="8" * 64,
+            config_fingerprint="7" * 64,
+        )
+        next_state = next_coordinator.journal.load_latest().state
+        self.assertEqual(
+            [fate.kind for fate in next_state.terminal_fates],
+            ["infra_aborted_consumed"],
+        )
+        restarted = CampaignCoordinator.restore(
+            supervisor=supervisor(
+                campaign_spec=campaign(epoch=2, fingerprint="9" * 64),
+                source="8" * 64,
+                config="7" * 64,
+            ),
+            journal=next_coordinator.journal,
+            latest=next_coordinator.journal.load_latest(),
+            resume_history=[],
+            promotion_history=[],
+            tp_snapshot=tp_ready(consumed=arm.command_seq),
+        )
+        self.assertEqual(restarted.decision.action, ReconcileAction.RESUME_HOME)
+        with self.assertRaisesRegex(ValueError, "already physically attempted"):
+            restarted.coordinator.issue_arm(
+                self.store,
+                require_cuda_botorch=False,
+                forced_candidate=trial.candidate,
+            )
 
     def test_exact_mailbox_crash_gap_is_adopted_and_blocks_cancel(self) -> None:
         trial, arm = self.arm()

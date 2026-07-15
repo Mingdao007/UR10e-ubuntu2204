@@ -1,9 +1,10 @@
 # Step5 Flow
 
-`config/current_stage.json` currently selects the 60 s
-`step5d_strict_rnn_ablation_v35` full-run identity. Its TP triplet is uploaded
-and fresh read-back verified. It is not live-authorized: package/read-back,
-offline timing, and Review v3 do not substitute for a fresh `开bridge` command.
+`config/current_stage.json` currently selects
+`step5d_strict_rnn_autotune_v1`. Its TP triplet is uploaded, fresh read-back
+verified, and the bounded campaign is live-authorized; every actual bridge
+start still revalidates the exact binding and requires the current `开bridge`
+operator trigger.
 
 v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,
@@ -13,13 +14,19 @@ Linux RT quota. The single retained 60 s no-motion production-seam timing
 completed 30,052 ticks with compute p99 `1.181 ms`, maximum row gap `4.011 ms`,
 zero gaps over 20 ms, and zero 45–60 ms gaps.
 
-The inactive `step5d_strict_rnn_autotune_v1` candidate is now built from the
-exact frozen v35 source and controller read-back verified. Its package stamp is
+The active `step5d_strict_rnn_autotune_v1` controller is built from the exact
+frozen v35 source and controller read-back verified. Its package stamp is
 `2026-07-15T0835HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1`; local, controller, and
 fresh-readback SHA agree for the `.script/.txt/.urp` triplet. Package delivery
-was an automatic file transaction and did not load or run the program. v35
-remains current; autotune v1 remains inactive pending frozen campaign Review
-v3 and explicit live/contact authorization.
+was an automatic file transaction and did not itself load or run the program.
+The host accepts append-only Codex-managed batches of exactly five
+`log2(P/P0), log2(I/I0), log2(damping/damping0)` points. Parameter-only batch
+updates live under the persistent campaign control directory and do not change
+the code fingerprint or require code tests. Each coordinate stays on the
+0.25-octave lattice inside +/-1 octave; I-axis points remain blocked until the
+existing T2 evidence gate unlocks them. The TP/bridge stays at verified Home
+while waiting for the next five-point batch, so the next direction can be
+chosen from the preceding results without another Play.
 
 v34 is retained as immutable physical failure evidence. Its Stage25 feedback,
 XY, qd alignment, RNN consumption, Safety NORMAL, and gross guards passed, but

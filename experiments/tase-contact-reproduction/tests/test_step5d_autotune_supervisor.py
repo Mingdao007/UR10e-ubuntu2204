@@ -54,13 +54,14 @@ def profile() -> ExecutionProfile:
     return ExecutionProfile("nf010-slew010-a010", 0.010)
 
 
-def supervisor() -> CampaignSupervisor:
+def supervisor(*, selection_policy: str = "adaptive") -> CampaignSupervisor:
     return CampaignSupervisor(
         campaign=campaign(),
         backend_id="step5d_v35_native",
         source_fingerprint=SHA_B,
         config_fingerprint=SHA_C,
         execution_profile=profile(),
+        selection_policy=selection_policy,
     )
 
 
@@ -608,6 +609,20 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 root,
             )
             self.assertEqual(manager.phase, CampaignPhase.SUCCEEDED)
+
+    def test_codex_batch_policy_does_not_stop_at_first_objective_hit(self) -> None:
+        manager = supervisor(selection_policy="codex_batches")
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            first = manager.next_trial(require_cuda_botorch=False).trial
+            self.close_and_ack(
+                manager,
+                first,
+                capture(first, reason=1),
+                evaluation(first, disposition=TrialDisposition.OBJECTIVE, objective=0.29),
+                root,
+            )
+        self.assertEqual(manager.phase, CampaignPhase.HOME)
 
     def test_infra_recovery_never_repeats_parameter_set(self) -> None:
         manager = supervisor()

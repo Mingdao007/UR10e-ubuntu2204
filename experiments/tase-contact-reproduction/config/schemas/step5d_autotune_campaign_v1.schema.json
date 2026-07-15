@@ -61,7 +61,7 @@
     },
     "search": {
       "type": "object", "additionalProperties": false,
-      "required": ["coordinate_system", "lattice_octaves", "one_coordinate_per_live_trial", "i_zero_is_categorical", "trial_budget_stop_enabled", "low_ei_stop_enabled", "exact_parameter_set_max_trials_per_profile", "first_threshold_hit_succeeds", "outer_boundary_requires_pointwise_replay_unlock", "tiers", "plant_epoch_policy"],
+      "required": ["coordinate_system", "lattice_octaves", "one_coordinate_per_live_trial", "i_zero_is_categorical", "trial_budget_stop_enabled", "low_ei_stop_enabled", "exact_parameter_set_max_trials_per_profile", "first_threshold_hit_succeeds", "outer_boundary_requires_pointwise_replay_unlock", "batch_grid", "tiers", "plant_epoch_policy"],
       "properties": {
         "coordinate_system": {"const": "log2_native"},
         "lattice_octaves": {"const": 0.25},
@@ -72,6 +72,22 @@
         "exact_parameter_set_max_trials_per_profile": {"const": 1},
         "first_threshold_hit_succeeds": {"const": true},
         "outer_boundary_requires_pointwise_replay_unlock": {"const": true},
+        "batch_grid": {
+          "type": "object", "additionalProperties": false,
+          "required": ["mode", "coordinate_bounds_octaves", "lattice_octaves", "coordinate_order", "positive_i_only", "candidates_per_batch", "parameter_only_batch_update_changes_code_fingerprint", "first_threshold_hit_stops_batching", "governor_probes_enabled", "i_axis_requires_t2_unlock"],
+          "properties": {
+            "mode": {"const": "codex_managed_log2_batches"},
+            "coordinate_bounds_octaves": {"type": "array", "prefixItems": [{"const": -1.0}, {"const": 1.0}], "items": false, "minItems": 2, "maxItems": 2},
+            "lattice_octaves": {"const": 0.25},
+            "coordinate_order": {"type": "array", "prefixItems": [{"const": "force_p_gain"}, {"const": "force_i_gain"}, {"const": "force_damping"}], "items": false, "minItems": 3, "maxItems": 3},
+            "positive_i_only": {"const": true},
+            "candidates_per_batch": {"const": 5},
+            "parameter_only_batch_update_changes_code_fingerprint": {"const": false},
+            "first_threshold_hit_stops_batching": {"const": false},
+            "governor_probes_enabled": {"const": false},
+            "i_axis_requires_t2_unlock": {"const": true}
+          }
+        },
         "tiers": {
           "type": "object", "additionalProperties": false,
           "required": ["T1", "T2", "T3"],

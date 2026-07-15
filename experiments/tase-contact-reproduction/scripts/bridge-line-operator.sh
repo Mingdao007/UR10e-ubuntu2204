@@ -16,6 +16,11 @@ PARALLEL_WORKFLOW="${ROOT}/tools/run_step5d_parallel_workflow.py"
 UR10E_LOCK_ROOT="${UR10E_LOCK_ROOT:-/tmp/ur10e-resource-locks}"
 STEP5D_RUNTIME_INTERFACE="${ROOT}/tools/step5d_runtime_interface.py"
 STEP5D_CURRENT_BINDING_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
+STEP5D_AUTOTUNE_PROFILE="step5d_strict_rnn_autotune_v1"
+STEP5D_AUTOTUNE_RUNNER="${ROOT}/tools/run_step5d_autotune_campaign.py"
+STEP5D_AUTOTUNE_PREPARE="${ROOT}/tools/prepare_step5d_autotune_launch.py"
+STEP5D_AUTOTUNE_CAMPAIGN_ROOT="${STEP5D_AUTOTUNE_CAMPAIGN_ROOT:-${RUN_ROOT}/step5d_native_autotune_campaign_v1}"
+STEP5D_AUTOTUNE_LEGACY_CAMPAIGN_ROOT="${STEP5D_AUTOTUNE_LEGACY_CAMPAIGN_ROOT:-}"
 STEP5D_NO_CONTACT_P0_PROFILE="step5d_strict_rnn_no_contact_p0_v7"
 STEP5D_NO_CONTACT_P0_CONFIRM_TOKEN="${STEP5D_P0_CONFIRM_TOKEN_OVERRIDE:-LIVE STEP5D STRICT RNN NO CONTACT P0}"
 STEP5D_STABLE_PYTHON_RUNTIME="${STEP5D_PYTHON_RUNTIME_ROOT:-/home/andy/.codex-python/ur10e-digital-twin-20260711}"
@@ -34,7 +39,7 @@ try:
 except Exception:
     raise SystemExit(0)
 program = current.get("program") or current.get("current_stage_id") or ""
-if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")):
+if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")) or program == "step5d_strict_rnn_autotune_v1":
     print(program)
 PY
 }
@@ -95,6 +100,10 @@ if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
   MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-50}"
   MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-60}"
+  MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
+elif [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]]; then
+  MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-60}"
+  MAX_FORCE_NORM_N="${MAX_FORCE_NORM_N:-100}"
   MAX_TORQUE_NORM_NM="${MAX_TORQUE_NORM_NM:-3.0}"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
   MAX_NORMAL_FORCE_N="${MAX_NORMAL_FORCE_N:-25}"
@@ -184,6 +193,14 @@ elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v26" ]]; then
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v27" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v28" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedl_cartesian_oracle}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
+elif [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]]; then
+  STEP5D_STAGE25_CONTROL_MODE_DEFAULT="speedj_rnn_live"
+  BRIDGE_ANGULAR_LIMIT_RAD_S="0.050"
+  STEP5D_EPSILON="0.010"
+  STEP5D_SIGR_EXPONENT_R="0.800"
+  STEP5D_RNN_INNER_ITERATIONS="512"
+  STEP5D_RNN_BACKEND="cupy"
+  STEP5D_QDOT_LIMIT_RAD_S="0.500"
 elif [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
   STEP5D_STAGE25_CONTROL_MODE_DEFAULT="${STEP5D_STAGE25_CONTROL_MODE_DEFAULT:-speedj_rnn_live}"
   BRIDGE_ANGULAR_LIMIT_RAD_S="${BRIDGE_ANGULAR_LIMIT_RAD_S:-0.015}"
@@ -225,7 +242,8 @@ BRIDGE_NORMAL_MIN_FORCE_N="${BRIDGE_NORMAL_MIN_FORCE_N:-2.0}"
 BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG="${BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG:-20}"
 BRIDGE_NORMAL_FRICTION_PROJECTION="${BRIDGE_NORMAL_FRICTION_PROJECTION:-on}"
 BRIDGE_PATH_SHAPE="${BRIDGE_PATH_SHAPE:-line}"
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v31" \
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" \
+  || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v31" \
   || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v32" \
   || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33c20" \
   || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v33" \
@@ -237,8 +255,12 @@ if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v31" \
   BRIDGE_RTDE_HZ="500"
   BRIDGE_SENSOR_STALE_S="2.0"
   BRIDGE_NORMAL_FOLLOW_MODE="filtered_live"
-  BRIDGE_NORMAL_FILTER_ALPHA="0.55"
   BRIDGE_NORMAL_MIN_FORCE_N="2.0"
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]]; then
+    BRIDGE_NORMAL_MAX_RATE_RAD_S="0.050"
+  else
+    BRIDGE_NORMAL_FILTER_ALPHA="0.55"
+  fi
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" ]]; then
   echo "refusing BRIDGE_PROFILE=step5c_speedj_dryrun_v1: DLS/Jacobian mapping is quarantined after wrong XY/Z live motion"
@@ -254,7 +276,7 @@ elif [[ "${BRIDGE_PROFILE}" == "step4g_v1" ]]; then
   BRIDGE_PATH_SHAPE="eight"
 elif [[ "${BRIDGE_PROFILE}" == "step5b_v1" ]]; then
   BRIDGE_PATH_SHAPE="cycloid"
-elif [[ "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+elif [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" || "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
   BRIDGE_PATH_SHAPE="cycloid"
 elif [[ "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
   BRIDGE_PATH_SHAPE="eight"
@@ -262,7 +284,7 @@ fi
 if [[ -z "${BRIDGE_NORMAL_FOLLOW_MODE}" ]]; then
   if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     BRIDGE_NORMAL_FOLLOW_MODE="locked"
-  elif [[ "${BRIDGE_PROFILE}" == "v30" || "${BRIDGE_PROFILE}" == "v31" || "${BRIDGE_PROFILE}" == "step4f_v1" || "${BRIDGE_PROFILE}" == "step4g_v1" || "${BRIDGE_PROFILE}" == "step5b_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* || "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
+  elif [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" || "${BRIDGE_PROFILE}" == "v30" || "${BRIDGE_PROFILE}" == "v31" || "${BRIDGE_PROFILE}" == "step4f_v1" || "${BRIDGE_PROFILE}" == "step4g_v1" || "${BRIDGE_PROFILE}" == "step5b_v1" || "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* || "${BRIDGE_PROFILE}" == "step6b_v1" || "${BRIDGE_PROFILE}" == "step6b_v2" ]]; then
     BRIDGE_NORMAL_FOLLOW_MODE="filtered_live"
   else
     BRIDGE_NORMAL_FOLLOW_MODE="locked"
@@ -358,6 +380,9 @@ if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFI
   PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
+fi
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step6b_v1" ]]; then
@@ -597,7 +622,7 @@ select_mode() {
         EXPECTED_BASENAME="step4g_eight_seed_normal_v1.urp"
       elif [[ "${BRIDGE_PROFILE}" == "step5b_v1" ]]; then
         EXPECTED_BASENAME="step5b_contact_cycloid_baseline_v1.urp"
-      elif [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
+      elif [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
         EXPECTED_BASENAME="${BRIDGE_PROFILE}.urp"
       elif [[ "${BRIDGE_PROFILE}" == "step6b_v1" ]]; then
         EXPECTED_BASENAME="step6b_contact_eight_baseline_v1.urp"
@@ -617,7 +642,7 @@ select_mode() {
         RUN_LABEL="step4g_eight_seed_normal_v1"
       elif [[ "${BRIDGE_PROFILE}" == "step5b_v1" ]]; then
         RUN_LABEL="step5b_contact_cycloid_baseline_v1"
-      elif [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
+      elif [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_v* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
         RUN_LABEL="${BRIDGE_PROFILE}"
       elif [[ "${BRIDGE_PROFILE}" == "step6b_v1" ]]; then
         RUN_LABEL="step6b_contact_eight_baseline_v1"
@@ -674,7 +699,7 @@ if not isinstance(gate, dict) or gate.get("ok") is not True or gate.get("issues"
 }
 
 step5d_live_ready() {
-  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     python3 "${STEP5D_RUNTIME_INTERFACE}" \
       --root "${ROOT}" \
       --program "${BRIDGE_PROFILE}" \
@@ -700,7 +725,7 @@ step5d_live_bridge_authorized() {
     step5d_no_contact_p0_capture_authorized
     return 0
   fi
-  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* ]]; then
     local gate_args=(
       --root "${ROOT}"
       --program "${BRIDGE_PROFILE}"
@@ -745,6 +770,7 @@ requires_step5d_realtime_launcher() {
 
 requires_step5d_realtime_ready_sentinel() {
   requires_step5d_realtime_launcher \
+    || [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]] \
     || [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v34" ]] \
     || [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v35" ]]
 }
@@ -781,30 +807,51 @@ ensure_no_existing_bridge() {
 dashboard_snapshot_py='
 import socket
 import sys
+import time
 
 expected_program = sys.argv[1]
 expected_basename = sys.argv[2]
 host = sys.argv[3]
 port = int(sys.argv[4])
 
-def read_once(sock, timeout=1.0):
-    sock.settimeout(timeout)
-    try:
-        return sock.recv(4096).decode("utf-8", errors="replace").strip()
-    except socket.timeout:
-        return ""
+def matching_line(sock, prefixes, *, timeout, buffered=b""):
+    deadline = time.monotonic() + timeout
+    data = buffered
+    seen = []
+    sock.settimeout(0.05)
+    while time.monotonic() < deadline:
+        while b"\n" in data:
+            raw, data = data.split(b"\n", 1)
+            line = raw.decode("utf-8", errors="replace").strip()
+            if not line:
+                continue
+            seen.append(line)
+            if any(line.startswith(prefix) for prefix in prefixes):
+                return line
+        try:
+            chunk = sock.recv(4096)
+        except socket.timeout:
+            continue
+        if not chunk:
+            break
+        data += chunk
+    raise RuntimeError(f"Dashboard response timeout; expected={prefixes!r}; seen={seen!r}")
 
-with socket.create_connection((host, port), timeout=1.0) as sock:
-    read_once(sock)
+def dash_cmd(command, prefixes):
+    with socket.create_connection((host, port), timeout=1.0) as sock:
+        # Greeting is advisory.  A delayed greeting is harmless because the
+        # response loop below accepts only the command-specific prefix.
+        try:
+            matching_line(sock, ("Connected: Universal Robots Dashboard Server",), timeout=0.15)
+        except RuntimeError:
+            pass
+        sock.sendall((command + "\n").encode("ascii"))
+        return matching_line(sock, prefixes, timeout=1.5)
 
-    def dash_cmd(cmd):
-        sock.sendall((cmd + "\n").encode("ascii"))
-        return read_once(sock)
-
-    running = dash_cmd("running")
-    loaded = dash_cmd("get loaded program")
-    state = dash_cmd("programState")
-    safety = dash_cmd("safetymode")
+running = dash_cmd("running", ("Program running:",))
+loaded = dash_cmd("get loaded program", ("Loaded program:",))
+state = dash_cmd("programState", ("PLAYING", "PAUSED", "STOPPED"))
+safety = dash_cmd("safetymode", ("Safetymode:",))
 print("\n".join([running, loaded, state, safety]))
 loaded_ok = expected_program in loaded or expected_basename in loaded
 running_ok = "true" in running.lower()
@@ -1005,6 +1052,7 @@ PY
 monitor_bridge() {
   local bridge_pid="$1"
   local seen_running="${2:-0}"
+  local runner_pid="${3:-}"
   local start now rc
   start="$(python3 - <<'PY'
 import time
@@ -1012,6 +1060,11 @@ print(time.monotonic())
 PY
 )"
   while kill -0 "${bridge_pid}" 2>/dev/null; do
+    if [[ -n "${runner_pid}" ]] && ! kill -0 "${runner_pid}" 2>/dev/null; then
+      echo "[operator] autotune campaign runner exited; stopping bridge"
+      stop_bridge_process "${bridge_pid}" "autotune campaign runner exited"
+      return 0
+    fi
     if dashboard_snapshot >/tmp/step4e_dash_snapshot.txt 2>&1; then
       true
     else
@@ -1134,7 +1187,7 @@ if not math.isclose(rtde_hz, 500.0, rel_tol=0.0, abs_tol=1e-9):
 scheduler = payload.get("runtime_scheduler")
 if not isinstance(scheduler, dict):
     raise SystemExit(1)
-if expected_profile == "step5d_strict_rnn_ablation_v35":
+if expected_profile in {"step5d_strict_rnn_ablation_v35", "step5d_strict_rnn_autotune_v1"}:
     if scheduler.get("policy") != "SCHED_OTHER" or scheduler.get("priority") != 0:
         raise SystemExit(1)
     lifecycle = payload.get("runtime_scheduler_lifecycle")
@@ -1207,7 +1260,7 @@ wait_for_bridge_output_started() {
   local metadata="${out_dir}/metadata.json"
   local ready="${out_dir}/bridge_ready.json"
   local max_checks=30
-  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" || "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]]; then
     max_checks=150
   fi
   local i
@@ -1242,7 +1295,7 @@ wait_for_bridge_output_started() {
 
 maybe_start_background_push() {
   local out_dir="$1"
-  if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" || "${BRIDGE_PROFILE}" == step5d_strict_rnn_liveprep_* || "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_* || "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
     # step5d live trigger keeps git publication in finalize.
     return 0
   fi
@@ -1273,11 +1326,11 @@ ensure_step5d_rnn_backend_ready() {
   if [[ -d /opt/ros/humble/lib ]]; then
     export LD_LIBRARY_PATH="/opt/ros/humble/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
   fi
-  if [[ -d "${STEP5D_CUPY_PYTHONPATH}/cupy" ]]; then
-    export PYTHONPATH="${STEP5D_CUPY_PYTHONPATH}${PYTHONPATH:+:${PYTHONPATH}}"
-  fi
   if [[ -d "${STEP5D_CUDA_PYTHONPATH}/nvidia" ]]; then
     export PYTHONPATH="${STEP5D_CUDA_PYTHONPATH}${PYTHONPATH:+:${PYTHONPATH}}"
+  fi
+  if [[ -d "${STEP5D_CUPY_PYTHONPATH}/cupy" ]]; then
+    export PYTHONPATH="${STEP5D_CUPY_PYTHONPATH}${PYTHONPATH:+:${PYTHONPATH}}"
   fi
   local gpu_lib_root="${STEP5D_CUPY_PYTHONPATH}"
   if [[ -d "${STEP5D_CUDA_PYTHONPATH}/nvidia/cuda_nvrtc/lib" ]]; then
@@ -1310,6 +1363,80 @@ PY
   return 24
 }
 
+AUTOTUNE_RUNNER_PID=""
+AUTOTUNE_RUNNER_LOG=""
+
+start_step5d_autotune_runner() {
+  local out_dir="$1"
+  local authorization="${out_dir}/runtime/campaign_authorization.json"
+  local plan="${out_dir}/runtime/campaign_launch_plan.json"
+  local ready_file="${out_dir}/runtime/campaign_runner_ready.json"
+  local legacy_args=()
+  if [[ -n "${STEP5D_AUTOTUNE_LEGACY_CAMPAIGN_ROOT}" ]]; then
+    legacy_args+=(--legacy-campaign-root "${STEP5D_AUTOTUNE_LEGACY_CAMPAIGN_ROOT}")
+  fi
+  python3 "${STEP5D_AUTOTUNE_PREPARE}" \
+    --experiment-root "${ROOT}" \
+    --campaign-root "${STEP5D_AUTOTUNE_CAMPAIGN_ROOT}" \
+    "${legacy_args[@]}" \
+    --authorization-file "${authorization}" \
+    --authorization-source "ur10e-live-bench resolver live_authorized + canonical bridge trigger" \
+    >"${plan}.tmp"
+  mv "${plan}.tmp" "${plan}"
+  local campaign_epoch
+  campaign_epoch="$(python3 - "${plan}" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if payload.get("ok") is not True or not isinstance(payload.get("campaign_epoch"), int):
+    raise SystemExit(1)
+print(payload["campaign_epoch"])
+PY
+)"
+  rm -f "${ready_file}"
+  AUTOTUNE_RUNNER_LOG="${out_dir}/runtime/campaign_runner.log"
+  python3 "${STEP5D_AUTOTUNE_RUNNER}" \
+    --experiment-root "${ROOT}" \
+    --bridge-run "${out_dir}" \
+    --campaign-root "${STEP5D_AUTOTUNE_CAMPAIGN_ROOT}" \
+    "${legacy_args[@]}" \
+    --mailbox "${out_dir}/runtime/command.json" \
+    --runner-ready-file "${ready_file}" \
+    --authorization-file "${authorization}" \
+    --campaign-epoch "${campaign_epoch}" \
+    --selection-policy codex_batches \
+    --candidate-plan "${STEP5D_AUTOTUNE_CAMPAIGN_ROOT}/control/candidate_plan.json" \
+    --wait-for-home \
+    --recover-infra-aborted-active \
+    >"${AUTOTUNE_RUNNER_LOG}" 2>&1 &
+  AUTOTUNE_RUNNER_PID="$!"
+  local i
+  for i in $(seq 1 300); do
+    if ! kill -0 "${AUTOTUNE_RUNNER_PID}" 2>/dev/null; then
+      wait "${AUTOTUNE_RUNNER_PID}" || true
+      echo "refusing: autotune campaign runner exited before ready; log=${AUTOTUNE_RUNNER_LOG}"
+      tail -n 40 "${AUTOTUNE_RUNNER_LOG}" || true
+      return 24
+    fi
+    if [[ -s "${ready_file}" ]] && python3 - "${ready_file}" "${AUTOTUNE_RUNNER_PID}" <<'PY'
+import json
+import sys
+from pathlib import Path
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+raise SystemExit(0 if payload.get("ok") is True and payload.get("pid") == int(sys.argv[2]) else 1)
+PY
+    then
+      echo "[operator] READY_FOR_ONE_PLAY: bridge + autotune runner ready; press TP Play once"
+      echo "[operator] campaign root: ${STEP5D_AUTOTUNE_CAMPAIGN_ROOT}"
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "refusing: autotune campaign runner ready timeout; log=${AUTOTUNE_RUNNER_LOG}"
+  return 24
+}
+
 _run_bridge_for_mode() {
   local out_dir="$1"
   local already_running="$2"
@@ -1318,6 +1445,7 @@ _run_bridge_for_mode() {
   ensure_step5d_rnn_backend_ready || return "$?"
   local bridge_pid=""
   local child_rc=0
+  local runner_rc=0
   local launch_nonce=""
   BRIDGE_EARLY_EXIT_RC=""
   local bridge_launcher=(python3)
@@ -1343,7 +1471,32 @@ PY
   if [[ "${BRIDGE_STAGE25_ONLY}" == "1" ]]; then
     stage25_only_args+=(--bridge-integrate-stage25-only)
   fi
+  local normal_filter_alpha_args=(--bridge-normal-filter-alpha "${BRIDGE_NORMAL_FILTER_ALPHA}")
+  local autotune_args=()
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]]; then
+    mkdir -p "${out_dir}/runtime"
+    normal_filter_alpha_args=()
+    unset BRIDGE_NORMAL_FILTER_ALPHA STEP4E_NORMAL_FILTER_ALPHA STEP5D_NORMAL_FILTER_ALPHA
+    autotune_args+=(
+      --step5d-autotune-force-p 0.001
+      --step5d-autotune-force-i 0.00001
+      --step5d-autotune-force-damping 7.0
+      --step5d-autotune-normal-rate-rad-s 0.050
+      --step5d-autotune-host-slew-rad-s2 0.500
+      --step5d-autotune-speedj-acceleration-rad-s2 0.500
+      --step5d-autotune-campaign-epoch 0
+      --step5d-autotune-trial-id 0
+      --step5d-autotune-command 0
+      --step5d-autotune-candidate-token 0
+      --step5d-autotune-execution-profile-id 0
+      --step5d-autotune-command-sequence 0
+      --step5d-autotune-command-mailbox "${out_dir}/runtime/command.json"
+    )
+  fi
   cleanup() {
+    if [[ -n "${AUTOTUNE_RUNNER_PID}" ]] && kill -0 "${AUTOTUNE_RUNNER_PID}" 2>/dev/null; then
+      kill -INT "${AUTOTUNE_RUNNER_PID}" 2>/dev/null || true
+    fi
     if [[ -n "${bridge_pid}" ]] && kill -0 "${bridge_pid}" 2>/dev/null; then
       stop_bridge_process "${bridge_pid}" "operator cleanup"
     fi
@@ -1390,7 +1543,7 @@ PY
     --bridge-contact-offset-min-fz-n 1.0 \
     --bridge-normal-follow-mode "${BRIDGE_NORMAL_FOLLOW_MODE}" \
     --bridge-normal-filter-tau-s "${BRIDGE_NORMAL_FILTER_TAU_S}" \
-    --bridge-normal-filter-alpha "${BRIDGE_NORMAL_FILTER_ALPHA}" \
+    "${normal_filter_alpha_args[@]}" \
     --bridge-normal-max-rate-rad-s "${BRIDGE_NORMAL_MAX_RATE_RAD_S}" \
     --bridge-normal-min-force-n "${BRIDGE_NORMAL_MIN_FORCE_N}" \
     --bridge-normal-max-angle-from-latch-deg "${BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG}" \
@@ -1413,6 +1566,7 @@ PY
     --step5d-preload-force-norm-max-n "${STEP5D_PRELOAD_FORCE_NORM_MAX_N:-${STEP5D_DEFAULT_PRELOAD_FORCE_NORM_MAX_N}}" \
     --step5d-preload-hold-s "${STEP5D_PRELOAD_HOLD_S:-0.100}" \
     --step5d-preload-timeout-s "${STEP5D_PRELOAD_TIMEOUT_S:-10.0}" \
+    "${autotune_args[@]}" \
     --output-dir "${out_dir}" &
   bridge_pid="$!"
   output_started_rc=0
@@ -1445,14 +1599,32 @@ PY
       return "${pre_arm_rc}"
     }
   fi
+  if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]]; then
+    if ! start_step5d_autotune_runner "${out_dir}"; then
+      stop_bridge_process "${bridge_pid}" "autotune runner startup failed"
+      wait "${bridge_pid}" || true
+      trap - INT TERM EXIT
+      return 24
+    fi
+  fi
   maybe_start_background_push "${out_dir}"
 
   local monitor_rc=0
-  monitor_bridge "${bridge_pid}" "${already_running}" || monitor_rc="$?"
+  monitor_bridge "${bridge_pid}" "${already_running}" "${AUTOTUNE_RUNNER_PID}" || monitor_rc="$?"
   if wait "${bridge_pid}"; then
     child_rc=0
   else
     child_rc="$?"
+  fi
+  if [[ -n "${AUTOTUNE_RUNNER_PID}" ]]; then
+    if kill -0 "${AUTOTUNE_RUNNER_PID}" 2>/dev/null; then
+      kill -INT "${AUTOTUNE_RUNNER_PID}" 2>/dev/null || true
+    fi
+    if wait "${AUTOTUNE_RUNNER_PID}"; then
+      runner_rc=0
+    else
+      runner_rc="$?"
+    fi
   fi
   trap - INT TERM EXIT
 
@@ -1464,7 +1636,7 @@ PY
     echo "[operator] Kunwei quiet stop reported issue: ${quiet_json}"
   fi
   [[ -f "${quiet_json}" ]] && cat "${quiet_json}"
-  python3 - "${out_dir}" "${child_rc}" "${monitor_rc}" <<'PY'
+  python3 - "${out_dir}" "${child_rc}" "${monitor_rc}" "${runner_rc}" <<'PY'
 import json
 import hashlib
 import os
@@ -1490,10 +1662,11 @@ payload = {
     "completed_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
     "bridge_child_exit_code": int(sys.argv[2]),
     "monitor_exit_code": int(sys.argv[3]),
+    "campaign_runner_exit_code": int(sys.argv[4]),
     "source_run": str(run_dir),
     "closure_nonce": secrets.token_hex(16),
-    "exit_codes": {"bridge_child": int(sys.argv[2]), "monitor": int(sys.argv[3])},
-    "capture_succeeded": int(sys.argv[2]) == 0 and int(sys.argv[3]) == 0,
+    "exit_codes": {"bridge_child": int(sys.argv[2]), "monitor": int(sys.argv[3]), "campaign_runner": int(sys.argv[4])},
+    "capture_succeeded": int(sys.argv[2]) == 0 and int(sys.argv[3]) == 0 and int(sys.argv[4]) == 0,
     "source_files": source_files,
 }
 temporary = marker.with_suffix(".json.tmp")
@@ -1502,6 +1675,10 @@ os.replace(temporary, marker)
 PY
   if [[ "${monitor_rc}" != "0" ]]; then
     return "${monitor_rc}"
+  fi
+  if [[ "${runner_rc}" != "0" ]]; then
+    echo "refusing: autotune campaign runner exited with rc=${runner_rc}; log=${AUTOTUNE_RUNNER_LOG}"
+    return "${runner_rc}"
   fi
   if requires_step5d_realtime_ready_sentinel && [[ "${child_rc}" != "0" ]]; then
     echo "refusing: strict Step5d bridge child exited with rc=${child_rc}"

@@ -576,6 +576,13 @@ class TpRecoveryReconcileTest(unittest.TestCase):
             self.assertEqual(decision.action, ReconcileAction.RESUME_CLOSURE)
             self.assertEqual(decision.command_seq, 1)
             self.assertFalse(decision.command_permitted)
+            invalid = reconcile_tp_snapshot(
+                entry,
+                replace(
+                    tp_snapshot("WAIT_ACK", consumed=1), terminal_reason=0
+                ),
+            )
+            self.assertTrue(invalid.fail_closed)
 
     def test_ack_before_post_ack_persist_ambiguity_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as td:

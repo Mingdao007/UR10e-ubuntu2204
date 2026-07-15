@@ -64,10 +64,16 @@ from step5d_autotune_backend import (
     CampaignAuthorization,
     Step5dV35Backend,
 )
+from step5d_autotune_batch_plan import (
+    CandidateBatchPlan,
+    assert_append_only,
+    load_plan,
+)
 from step5d_autotune_contract import CampaignSpec, ExecutionProfile, ForceCandidate
-from step5d_autotune_coordinator import CampaignCoordinator
+from step5d_autotune_coordinator import CampaignCoordinator, MailboxObservation
 from step5d_autotune_journal import (
     JournalIntegrityError,
+    JournalReference,
     ReconcileAction,
     SupervisorJournal,
     TpSnapshot,
@@ -433,6 +439,228 @@ def ensure_mailbox_parent(mailbox_path: Path, bridge_run: Path) -> None:
         raise RuntimeError("mailbox parent must be a real directory")
 
 
+def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    encoded = json.dumps(dict(payload), indent=2, sort_keys=True, allow_nan=False) + "\n"
+    with temporary.open("x", encoding="utf-8") as handle:
+        handle.write(encoded)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
+def _verified_parent_layout(manifest: Mapping[str, Any]) -> CampaignEpochLayout | None:
+    parent = manifest.get("parent_epoch")
+    if parent is None:
+        return None
+    if not isinstance(parent, Mapping) or set(parent) != {
+        "campaign_epoch",
+        "journal_revision",
+        "journal_record_sha256",
+        "root",
+        "store_manifest_sha256",
+    }:
+        raise RuntimeError("parent epoch reference is incomplete")
+    root = Path(str(parent["root"]))
+    if not root.is_absolute() or root.is_symlink() or not root.is_dir():
+        raise RuntimeError("parent epoch root is not a safe absolute directory")
+    manifest_path = root / "store" / "campaign.json"
+    if _sha256_path(manifest_path) != parent["store_manifest_sha256"]:
+        raise RuntimeError("parent epoch store manifest digest changed")
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    campaign = _campaign_from_payload(payload["campaign"])
+    latest = SupervisorJournal(root / "journal").load_latest()
+    if any(
+        (
+            campaign.campaign_epoch != parent["campaign_epoch"],
+            latest.revision != parent["journal_revision"],
+            latest.record_sha256 != parent["journal_record_sha256"],
+        )
+    ):
+        raise RuntimeError("parent epoch journal identity changed")
+    return CampaignEpochLayout(
+        epoch=campaign.campaign_epoch,
+        root=root,
+        store_root=root / "store",
+        journal_root=root / "journal",
+        manifest=payload,
+        campaign=campaign,
+    )
+
+
+def _prior_resume_history(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
+    layouts: list[CampaignEpochLayout] = []
+    current = _verified_parent_layout(manifest)
+    seen: set[Path] = set()
+    while current is not None:
+        if current.root in seen:
+            raise RuntimeError("parent epoch chain contains a cycle")
+        seen.add(current.root)
+        layouts.append(current)
+        current = _verified_parent_layout(current.manifest)
+    rows: list[dict[str, Any]] = []
+    for layout in reversed(layouts):
+        rows.extend(CampaignStore(layout.store_root).read_resume_history())
+    return rows
+
+
+def _infra_abort_evidence(latest: Any) -> JournalReference:
+    cursor = latest.state.active_trial
+    if cursor is None:
+        raise RuntimeError("infra-abort recovery lacks an active trial")
+    trial_spec_path = Path(cursor.trial_spec.path)
+    trial_payload = json.loads(trial_spec_path.read_text(encoding="utf-8"))
+    provenance = trial_payload.get("provenance_run_dir")
+    if not isinstance(provenance, str):
+        raise RuntimeError("active trial lacks its provenance bridge run")
+    bridge_run = Path(provenance)
+    marker_path = bridge_run / ".capture_complete.json"
+    summary_path = bridge_run / "summary.json"
+    partial_rel = f"autotune_trials/{cursor.trial_uid}/capture.csv.part"
+    partial_path = bridge_run / partial_rel
+    if any(path.is_symlink() or not path.is_file() for path in (marker_path, summary_path, partial_path)):
+        raise RuntimeError("infra-abort recovery evidence is missing or unsafe")
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    if marker.get("capture_closed") is not True or marker.get("immutable") is not True:
+        raise RuntimeError("infra-abort bridge run is not immutably closed")
+    source_files = marker.get("source_files")
+    if not isinstance(source_files, list):
+        raise RuntimeError("infra-abort completion marker lacks source files")
+    indexed = {
+        row.get("path"): row
+        for row in source_files
+        if isinstance(row, Mapping) and isinstance(row.get("path"), str)
+    }
+    for relative, path in (("summary.json", summary_path), (partial_rel, partial_path)):
+        row = indexed.get(relative)
+        if not isinstance(row, Mapping) or row.get("sha256") != _sha256_path(path):
+            raise RuntimeError(f"infra-abort evidence digest differs: {relative}")
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if summary.get("stop_reason") != "signal_sigint":
+        raise RuntimeError("infra-abort recovery requires exact signal_sigint stop evidence")
+    latest_partial = _latest_complete_row(partial_path)
+    if any(
+        (
+            _integer(latest_partial, "ur_output_int_register_25") != cursor.trial_id,
+            _integer(latest_partial, "ur_output_int_register_27")
+            != cursor.candidate_token,
+            _integer(latest_partial, "ur_output_int_register_30")
+            != cursor.arm_command_seq,
+        )
+    ):
+        raise RuntimeError("partial capture does not bind the exact consumed ARM")
+    digest = _sha256_path(marker_path)
+    return JournalReference(
+        reference_id=digest,
+        path=str(marker_path.resolve()),
+        sha256=digest,
+    )
+
+
+def _mailbox_observation_for_latest(latest: Any) -> MailboxObservation:
+    cursor = latest.state.active_trial
+    if cursor is None:
+        return MailboxObservation.missing()
+    trial_payload = json.loads(
+        Path(cursor.trial_spec.path).read_text(encoding="utf-8")
+    )
+    provenance = trial_payload.get("provenance_run_dir")
+    if not isinstance(provenance, str):
+        raise RuntimeError("active trial lacks provenance for mailbox recovery")
+    mailbox = AtomicCommandMailbox(
+        Path(provenance) / "runtime" / "command.json",
+        network_mode=True,
+    )
+    return MailboxObservation.from_command(mailbox.read_latest())
+
+
+def _settle_home_after_restart(
+    coordinator: CampaignCoordinator,
+    snapshot: TpSnapshot,
+    *,
+    persist: bool,
+    recover_infra_aborted_active: bool,
+) -> ReconcileAction:
+    latest = coordinator.latest
+    active = None if latest is None else latest.state.active_trial
+    if (
+        recover_infra_aborted_active
+        and active is not None
+        and snapshot.state == "READY_HOME"
+        and snapshot.consumed_command_seq == active.arm_command_seq
+    ):
+        coordinator.terminalize_consumed_infra_abort(
+            snapshot,
+            evidence=_infra_abort_evidence(latest),
+            persist=persist,
+        )
+        return ReconcileAction.RESUME_HOME
+    return coordinator.reconcile(snapshot).decision.action
+
+
+def _wait_for_codex_candidate(
+    *,
+    plan_path: Path,
+    campaign_id: str,
+    supervisor: CampaignSupervisor,
+    coordinator: CampaignCoordinator,
+    bridge_csv: Path,
+    previous_plan: CandidateBatchPlan | None,
+    timeout_s: float,
+) -> tuple[ForceCandidate | None, CandidateBatchPlan]:
+    deadline = time.monotonic() + timeout_s
+    announced_revision: int | None = None
+    while time.monotonic() < deadline:
+        if plan_path.is_file() and not plan_path.is_symlink():
+            plan = load_plan(plan_path, campaign_id=campaign_id)
+            if previous_plan is not None:
+                assert_append_only(previous_plan, plan)
+            attempted = (
+                supervisor.attempted_candidate_uids
+                | coordinator.terminal_candidate_uids
+            )
+            candidate = next(
+                (
+                    item
+                    for item in plan.candidates
+                    if item.candidate_uid not in attempted
+                ),
+                None,
+            )
+            if candidate is not None:
+                if not candidate.within_tier(supervisor.current_search_tier):
+                    raise RuntimeError(
+                        "next Codex batch candidate exceeds the currently unlocked "
+                        f"{supervisor.current_search_tier.value} envelope"
+                    )
+                return candidate, plan
+            if plan.closed:
+                return None, plan
+            if announced_revision != plan.revision:
+                announced_revision = plan.revision
+                print(
+                    json.dumps(
+                        {
+                            "waiting_for_codex_batch": True,
+                            "plan_revision": plan.revision,
+                            "attempted_parameter_sets": len(attempted),
+                            "current_search_tier": supervisor.current_search_tier.value,
+                        },
+                        sort_keys=True,
+                    ),
+                    flush=True,
+                )
+            previous_plan = plan
+        row = _latest_complete_row(bridge_csv)
+        if _integer(row, "ur_safety_mode") != 1:
+            raise RuntimeError("UR Safety left NORMAL while waiting for a Codex batch")
+        if tp_snapshot_from_bridge_row(row).state != "READY_HOME":
+            raise RuntimeError("TP left READY_HOME while waiting for a Codex batch")
+        time.sleep(0.25)
+    raise TimeoutError("timed out waiting for the next Codex five-candidate batch")
+
+
 def run(args: argparse.Namespace) -> int:
     root = args.experiment_root.resolve()
     bridge_run = args.bridge_run.resolve()
@@ -464,14 +692,27 @@ def run(args: argparse.Namespace) -> int:
     ):
         raise RuntimeError("bridge readiness is not live-complete")
     ensure_mailbox_parent(mailbox_path, bridge_run)
-    initial = tp_snapshot_from_bridge_row(_latest_complete_row(bridge_csv))
-    if initial.state != "READY_HOME":
-        raise RuntimeError(f"TP must start at READY_HOME, got {initial.state}")
+    campaign_root = args.campaign_root.resolve()
+    if campaign_root == bridge_run or bridge_run in campaign_root.parents:
+        raise RuntimeError("campaign root must be independent from the bridge run")
+    if campaign_root.is_symlink():
+        raise RuntimeError("campaign root must not be a symlink")
+    campaign_root.mkdir(parents=True, exist_ok=True)
+    plan_path: Path | None = None
+    if args.selection_policy == "codex_batches":
+        if args.candidate_plan is None:
+            raise RuntimeError("codex_batches requires --candidate-plan")
+        plan_path = args.candidate_plan.resolve()
+        expected_plan = campaign_root / "control" / "candidate_plan.json"
+        if plan_path != expected_plan or plan_path.is_symlink():
+            raise RuntimeError("candidate plan must use campaign_root/control/candidate_plan.json")
+    initial_row = _latest_complete_row(bridge_csv)
+    initial = tp_snapshot_from_bridge_row(initial_row)
+    if _integer(initial_row, "ur_safety_mode") != 1:
+        raise RuntimeError("bridge row does not report UR Safety NORMAL")
 
     backend = Step5dV35Backend(root)
     frozen = backend.freeze_fingerprint()
-    campaign_root = (bridge_run / "campaign").resolve()
-    campaign_root.mkdir(parents=True, exist_ok=True)
     epoch_chain = discover_campaign_epochs(campaign_root)
     if epoch_chain and args.campaign_epoch < epoch_chain[-1].epoch:
         raise RuntimeError("campaign epoch cannot regress behind the latest durable epoch")
@@ -479,18 +720,35 @@ def run(args: argparse.Namespace) -> int:
         (row for row in epoch_chain if row.epoch == args.campaign_epoch),
         None,
     )
+    if existing_layout is not None:
+        retained_policy = existing_layout.manifest.get(
+            "selection_policy", "adaptive"
+        )
+        if retained_policy != args.selection_policy:
+            raise RuntimeError(
+                "selection policy differs from the durable campaign epoch"
+            )
     prior_layout = next(
         (row for row in reversed(epoch_chain) if row.epoch < args.campaign_epoch),
         None,
     )
+    if args.legacy_campaign_root is not None:
+        if epoch_chain:
+            raise RuntimeError("legacy campaign root is allowed only for first adoption")
+        legacy_chain = discover_campaign_epochs(args.legacy_campaign_root.resolve())
+        if not legacy_chain:
+            raise RuntimeError("legacy campaign root has no durable epoch")
+        prior_layout = legacy_chain[-1]
+        if args.campaign_epoch <= prior_layout.epoch:
+            raise RuntimeError("adopted campaign epoch must advance beyond legacy epoch")
     campaign = _campaign_spec(
         root,
         frozen.composite_fingerprint,
         args.campaign_epoch,
         campaign_id=(
-            None
-            if not epoch_chain
-            else epoch_chain[-1].campaign.campaign_id
+            prior_layout.campaign.campaign_id
+            if not epoch_chain and prior_layout is not None
+            else None if not epoch_chain else epoch_chain[-1].campaign.campaign_id
         ),
     )
     if args.authorization_file is None:
@@ -505,6 +763,39 @@ def run(args: argparse.Namespace) -> int:
     preflight = backend.preflight(offline=False, authorization=authorization)
     if not preflight.ok:
         raise RuntimeError("live backend preflight failed: " + ";".join(preflight.blockers))
+    follower = BridgeCsvFollower(bridge_csv)
+    if args.runner_ready_file is not None:
+        ready_path = args.runner_ready_file.resolve()
+        if ready_path.parent != (bridge_run / "runtime").resolve():
+            raise RuntimeError("runner ready file must belong to bridge runtime")
+        _atomic_json(
+            ready_path,
+            {
+                "schema_version": "step5d_autotune_runner_ready_v1",
+                "ok": True,
+                "pid": os.getpid(),
+                "bridge_run": str(bridge_run),
+                "campaign_root": str(campaign_root),
+                "campaign_epoch": campaign.campaign_epoch,
+                "campaign_fingerprint": frozen.composite_fingerprint,
+                "selection_policy": args.selection_policy,
+                "state": (
+                    "ready_home" if initial.state == "READY_HOME" else "waiting_for_ready_home"
+                ),
+            },
+        )
+    if initial.state != "READY_HOME":
+        if not args.wait_for_home:
+            follower.close()
+            raise RuntimeError(f"TP must start at READY_HOME, got {initial.state}")
+        for row in follower.rows(timeout_s=args.home_timeout_s):
+            if _integer(row, "ur_safety_mode") != 1:
+                follower.close()
+                raise RuntimeError("UR Safety left NORMAL while waiting for READY_HOME")
+            candidate = tp_snapshot_from_bridge_row(row)
+            if candidate.state == "READY_HOME":
+                initial = candidate
+                break
     if args.preflight_only:
         print(
             json.dumps(
@@ -520,6 +811,7 @@ def run(args: argparse.Namespace) -> int:
                 sort_keys=True,
             )
         )
+        follower.close()
         return 0
 
     epoch_root = (
@@ -541,6 +833,7 @@ def run(args: argparse.Namespace) -> int:
                 "campaign_epoch": prior_layout.epoch,
                 "journal_revision": parent_journal.revision,
                 "journal_record_sha256": parent_journal.record_sha256,
+                "root": str(prior_layout.root),
                 "store_manifest_sha256": _sha256_path(
                     prior_layout.store_root / "campaign.json"
                 ),
@@ -550,6 +843,7 @@ def run(args: argparse.Namespace) -> int:
             "campaign": asdict(campaign),
             "frozen_fingerprint": backend.frozen_payload(frozen),
             "execution_profile": current_profile.payload(),
+            "selection_policy": args.selection_policy,
             "parent_epoch": parent_epoch,
         })
     journal = SupervisorJournal(epoch_root / "journal")
@@ -567,29 +861,31 @@ def run(args: argparse.Namespace) -> int:
             source_fingerprint=old_frozen["source_fingerprint"],
             config_fingerprint=old_frozen["config_fingerprint"],
             execution_profile=profile_from_epoch(prior_layout),
+            selection_policy=args.selection_policy,
         )
         old_journal = SupervisorJournal(prior_layout.journal_root)
+        old_latest = old_journal.load_latest()
         old_restored = CampaignCoordinator.restore(
             supervisor=old_supervisor,
             journal=old_journal,
-            latest=old_journal.load_latest(),
+            latest=old_latest,
             resume_history=CampaignStore(prior_layout.store_root).read_resume_history(),
             promotion_history=CampaignStore(prior_layout.store_root).read_promotion_history(),
+            prior_resume_history=_prior_resume_history(prior_layout.manifest),
             tp_snapshot=initial,
+            mailbox_observation=_mailbox_observation_for_latest(old_latest),
+            defer_reconcile=True,
         )
-        if (
-            old_restored.decision.action is ReconcileAction.SEND_PERSISTED_ARM
-            and forced_candidate is not None
-        ):
-            mailbox_payload = json.loads(mailbox_path.read_text(encoding="utf-8"))
-            mailbox_seq = int(mailbox_payload["packet"]["command_seq"])
-            if mailbox_seq > initial.consumed_command_seq:
-                raise RuntimeError("mailbox contains an unconsumed command and cannot be replaced")
-            old_restored.coordinator.cancel_unconsumed_arm(initial, persist=False)
-        elif old_restored.decision.action is not ReconcileAction.RESUME_HOME:
+        settled = _settle_home_after_restart(
+            old_restored.coordinator,
+            initial,
+            persist=False,
+            recover_infra_aborted_active=args.recover_infra_aborted_active,
+        )
+        if settled is not ReconcileAction.RESUME_HOME:
             raise RuntimeError(
                 "prior code epoch is not safely at Home: "
-                f"{old_restored.decision.action.value}: "
+                f"{settled.value}: "
                 f"{old_restored.decision.reason}"
             )
         coordinator = old_restored.coordinator.resume_after_code_change(
@@ -607,6 +903,7 @@ def run(args: argparse.Namespace) -> int:
             source_fingerprint=frozen.source_fingerprint,
             config_fingerprint=frozen.config_fingerprint,
             execution_profile=_profile(root),
+            selection_policy=args.selection_policy,
         )
         try:
             latest = journal.load_latest()
@@ -626,17 +923,25 @@ def run(args: argparse.Namespace) -> int:
                 latest=latest,
                 resume_history=store.read_resume_history(),
                 promotion_history=store.read_promotion_history(),
+                prior_resume_history=_prior_resume_history(existing_layout.manifest),
                 tp_snapshot=initial,
+                mailbox_observation=_mailbox_observation_for_latest(latest),
+                defer_reconcile=True,
             )
-            if restored.decision.action is not ReconcileAction.RESUME_HOME:
+            settled = _settle_home_after_restart(
+                restored.coordinator,
+                initial,
+                persist=True,
+                recover_infra_aborted_active=args.recover_infra_aborted_active,
+            )
+            if settled is not ReconcileAction.RESUME_HOME:
                 raise RuntimeError(
                     "existing campaign cannot resume from READY_HOME: "
-                    f"{restored.decision.action.value}: {restored.decision.reason}"
+                    f"{settled.value}: {restored.decision.reason}"
                 )
             coordinator = restored.coordinator
             resumed = True
     mailbox = AtomicCommandMailbox(mailbox_path, network_mode=True)
-    follower = BridgeCsvFollower(bridge_csv)
     event_path = campaign_root / "events.jsonl"
     campaign_root.mkdir(parents=True, exist_ok=True)
     _event(
@@ -648,15 +953,44 @@ def run(args: argparse.Namespace) -> int:
     )
 
     completed_trials = 0
+    plan_closed = False
+    current_plan: CandidateBatchPlan | None = None
     try:
         while supervisor.phase is CampaignPhase.HOME:
+            if args.selection_policy == "codex_batches":
+                assert plan_path is not None
+                forced_candidate, current_plan = _wait_for_codex_candidate(
+                    plan_path=plan_path,
+                    campaign_id=campaign.campaign_id,
+                    supervisor=supervisor,
+                    coordinator=coordinator,
+                    bridge_csv=bridge_csv,
+                    previous_plan=current_plan,
+                    timeout_s=args.plan_wait_timeout_s,
+                )
+                if forced_candidate is None:
+                    plan_closed = True
+                    _event(
+                        event_path,
+                        "codex_batch_plan_closed",
+                        plan_revision=current_plan.revision,
+                    )
+                    break
             arm = coordinator.issue_arm(
                 store,
                 provenance_run_dir=bridge_run,
-                require_cuda_botorch=True,
+                require_cuda_botorch=args.selection_policy == "adaptive",
                 cuda_fit_mode="serial",
                 forced_candidate=forced_candidate,
             )
+            plan_revision = None if current_plan is None else current_plan.revision
+            if args.selection_policy == "codex_batches":
+                _event(
+                    event_path,
+                    "codex_batch_candidate_selected",
+                    plan_revision=plan_revision,
+                    candidate=supervisor.active_trial.candidate.payload(),
+                )
             forced_candidate = None
             trial = supervisor.active_trial
             if trial is None:
@@ -670,6 +1004,7 @@ def run(args: argparse.Namespace) -> int:
                 trial_id=trial.trial_id,
                 candidate=trial.candidate.payload(),
                 profile=trial.execution_profile.payload(),
+                plan_revision=plan_revision,
             )
 
             home_path = bridge_run / "campaign_home_reference.json"
@@ -760,7 +1095,10 @@ def run(args: argparse.Namespace) -> int:
                 break
             if supervisor.phase is CampaignPhase.WAIT_INFRA_READY:
                 break
-            if supervisor.phase is CampaignPhase.HOME:
+            if (
+                args.selection_policy == "adaptive"
+                and supervisor.phase is CampaignPhase.HOME
+            ):
                 recovery = supervisor.recovery_snapshot()
                 probe = recovery.governor_probe
                 probe_closed = bool(
@@ -822,21 +1160,24 @@ def run(args: argparse.Namespace) -> int:
         trial_completed=completed_trials > 0,
         one_trial_limit_reached=one_trial_complete,
         campaign_succeeded=campaign_succeeded,
+        plan_closed=plan_closed,
     )
     print(
         json.dumps(
             {
-                "run_ok": campaign_succeeded or one_trial_complete,
+                "run_ok": campaign_succeeded or one_trial_complete or plan_closed,
                 "trial_completed": completed_trials > 0,
                 "campaign_succeeded": campaign_succeeded,
                 "campaign_terminal": campaign_terminal,
+                "plan_closed": plan_closed,
+                "selection_policy": args.selection_policy,
                 "phase": supervisor.phase.value,
                 "campaign_root": str(campaign_root),
             },
             sort_keys=True,
         )
     )
-    return 0 if campaign_succeeded or one_trial_complete else 2
+    return 0 if campaign_succeeded or one_trial_complete or plan_closed else 2
 
 
 def parse_args() -> argparse.Namespace:
@@ -847,9 +1188,22 @@ def parse_args() -> argparse.Namespace:
         default=Path(__file__).resolve().parents[1],
     )
     parser.add_argument("--bridge-run", type=Path, required=True)
+    parser.add_argument("--campaign-root", type=Path, required=True)
+    parser.add_argument("--legacy-campaign-root", type=Path)
     parser.add_argument("--mailbox", type=Path, required=True)
+    parser.add_argument("--runner-ready-file", type=Path)
     parser.add_argument("--authorization-file", type=Path)
     parser.add_argument("--campaign-epoch", type=int, default=1)
+    parser.add_argument(
+        "--selection-policy",
+        choices=("adaptive", "codex_batches"),
+        default="adaptive",
+    )
+    parser.add_argument("--candidate-plan", type=Path)
+    parser.add_argument("--plan-wait-timeout-s", type=float, default=86400.0)
+    parser.add_argument("--wait-for-home", action="store_true")
+    parser.add_argument("--home-timeout-s", type=float, default=90.0)
+    parser.add_argument("--recover-infra-aborted-active", action="store_true")
     parser.add_argument("--trial-timeout-s", type=float, default=180.0)
     parser.add_argument("--ack-timeout-s", type=float, default=10.0)
     parser.add_argument("--force-p", type=float)

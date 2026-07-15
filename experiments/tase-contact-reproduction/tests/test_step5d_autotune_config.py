@@ -117,6 +117,13 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
         self.assertFalse(
             self.payload["failure_policy"]["exact_parameter_set_reuse_allowed"]
         )
+        batch = self.payload["search"]["batch_grid"]
+        self.assertEqual(batch["mode"], "codex_managed_log2_batches")
+        self.assertEqual(batch["candidates_per_batch"], 5)
+        self.assertFalse(
+            batch["parameter_only_batch_update_changes_code_fingerprint"]
+        )
+        self.assertTrue(batch["i_axis_requires_t2_unlock"])
 
     def test_unlock_governor_and_epoch_policies_are_machine_closed(self) -> None:
         search = self.payload["search"]

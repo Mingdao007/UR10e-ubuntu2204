@@ -1233,12 +1233,9 @@ def main(argv: list[str] | None = None) -> int:
     if (
         args.command == "live-ready"
         and (
-            interface.program == STEP5D_AUTOTUNE_STAGE_ID
-            or (
-                interface.program in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
-                and isinstance(readiness, Mapping)
-                and readiness.get("blockers")
-            )
+            interface.program in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
+            and isinstance(readiness, Mapping)
+            and readiness.get("blockers")
         )
     ):
         return 3

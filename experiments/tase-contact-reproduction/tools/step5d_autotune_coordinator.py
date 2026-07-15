@@ -319,6 +319,44 @@ def _reference_for(path: Path, *, reference_id: str, role: str) -> JournalRefere
     return replace(provisional, sha256=digest.hexdigest())
 
 
+def _verify_infra_abort_evidence(fate: TerminalFate) -> None:
+    reference = fate.evidence
+    if fate.kind != "infra_aborted_consumed" or reference is None:
+        return
+    _, marker = _read_reference(reference, role="infra-abort completion marker")
+    if not isinstance(marker, Mapping) or any(
+        (
+            marker.get("capture_closed") is not True,
+            marker.get("immutable") is not True,
+            not isinstance(marker.get("source_files"), list),
+        )
+    ):
+        raise RecoveryError("infra-abort completion marker is not immutable/closed")
+    rows = {
+        row.get("path"): row
+        for row in marker["source_files"]
+        if isinstance(row, Mapping) and isinstance(row.get("path"), str)
+    }
+    partial_rel = f"autotune_trials/{fate.trial.trial_uid}/capture.csv.part"
+    for relative in ("summary.json", partial_rel):
+        row = rows.get(relative)
+        expected_sha = None if not isinstance(row, Mapping) else row.get("sha256")
+        if not isinstance(expected_sha, str):
+            raise RecoveryError(f"infra-abort marker lacks {relative}")
+        path = Path(reference.path).parent / relative
+        actual = _reference_for(
+            path,
+            reference_id=expected_sha,
+            role=f"infra-abort {relative}",
+        )
+        if actual.sha256 != expected_sha:
+            raise RecoveryError(f"infra-abort {relative} digest changed")
+        if relative == "summary.json":
+            _, summary = _read_reference(actual, role="infra-abort summary")
+            if not isinstance(summary, Mapping) or summary.get("stop_reason") != "signal_sigint":
+                raise RecoveryError("infra-abort summary stop reason is not signal_sigint")
+
+
 def _candidate_from_payload(payload: Any) -> ForceCandidate:
     if not isinstance(payload, Mapping):
         raise RecoveryError("history candidate is not an object")
@@ -564,6 +602,7 @@ class CampaignCoordinator:
         latest: JournalEntry | None = None,
         trial_spec_references: Mapping[str, JournalReference] | None = None,
         bundle_references: Mapping[str, JournalReference] | None = None,
+        terminal_fates: Sequence[TerminalFate] | None = None,
     ) -> None:
         if not isinstance(supervisor, CampaignSupervisor):
             raise ValueError("supervisor must be CampaignSupervisor")
@@ -578,10 +617,18 @@ class CampaignCoordinator:
         self._dispatch_receipt = (
             None if latest is None else latest.state.dispatch_receipt
         )
-        self._terminal_fates = (
-            () if latest is None else latest.state.terminal_fates
+        if latest is not None and terminal_fates is not None:
+            raise ValueError("terminal fates cannot override a loaded journal")
+        self._terminal_fates = tuple(
+            latest.state.terminal_fates
+            if latest is not None
+            else terminal_fates or ()
         )
         self._poisoned = False
+
+    @property
+    def terminal_candidate_uids(self) -> frozenset[str]:
+        return frozenset(fate.trial.candidate_uid for fate in self._terminal_fates)
 
     def _require_healthy(self) -> None:
         if self._poisoned:
@@ -851,6 +898,62 @@ class CampaignCoordinator:
             self._poisoned = True
             raise
 
+    def terminalize_consumed_infra_abort(
+        self,
+        tp_snapshot: TpSnapshot,
+        *,
+        evidence: JournalReference,
+        persist: bool = True,
+    ) -> TrialSpec:
+        """Retire a physically attempted ARM after immutable bridge-stop proof."""
+
+        self._require_healthy()
+        if type(persist) is not bool:
+            raise CoordinatorError("persist must be bool")
+        if not isinstance(evidence, JournalReference):
+            raise CoordinatorError("infra abort requires immutable stop evidence")
+        if self.latest is None or self.latest.state.active_trial is None:
+            raise CoordinatorError("infra abort requires one persisted active ARM")
+        persisted = self.latest.state.active_trial
+        receipt = self._dispatch_receipt
+        if receipt is None:
+            raise CoordinatorError("infra abort requires the durable ARM dispatch receipt")
+        if any(
+            (
+                receipt.trial_uid != persisted.trial_uid,
+                receipt.trial_id != persisted.trial_id,
+                receipt.command != "arm",
+                receipt.candidate_token != persisted.candidate_token,
+                receipt.execution_profile_integer_id
+                != persisted.execution_profile_integer_id,
+                receipt.command_seq != persisted.arm_command_seq,
+            )
+        ):
+            raise CoordinatorError("infra abort dispatch receipt differs from active ARM")
+        try:
+            trial = self.supervisor.terminalize_consumed_infra_abort(
+                tp_snapshot,
+                persisted_trial_uid=persisted.trial_uid,
+            )
+            self._terminal_fates = self._terminal_fates + (
+                TerminalFate(
+                    kind="infra_aborted_consumed",
+                    trial=persisted,
+                    command="arm",
+                    command_seq=persisted.arm_command_seq,
+                    tp_snapshot=tp_snapshot,
+                    dispatch_receipt=receipt,
+                    evidence=evidence,
+                ),
+            )
+            self._dispatch_receipt = None
+            if persist:
+                self._append_snapshot(self.supervisor.recovery_snapshot())
+            return trial
+        except Exception:
+            self._poisoned = True
+            raise
+
     def issue_arm(
         self,
         registrar: TrialRegistrar,
@@ -872,6 +975,11 @@ class CampaignCoordinator:
                 parallel_cuda_verified=parallel_cuda_verified,
                 search_attestations=search_attestations,
                 forced_candidate=forced_candidate,
+                forbidden_candidate_uids={
+                    fate.trial.candidate_uid
+                    for fate in self._terminal_fates
+                    if fate.kind == "infra_aborted_consumed"
+                },
             )
             transition_source = intent.trial.transition.source
             if transition_source is not None:
@@ -1320,6 +1428,11 @@ class CampaignCoordinator:
             trial_spec_references=self._trial_spec_references,
             # Outcome/bundle history never crosses a code campaign epoch.
             bundle_references={},
+            terminal_fates=tuple(
+                fate
+                for fate in self._terminal_fates
+                if fate.kind == "infra_aborted_consumed"
+            ),
         )
         coordinator.persist_home()
         self._poisoned = True
@@ -1338,6 +1451,7 @@ class CampaignCoordinator:
         prior_resume_history: Sequence[Mapping[str, Any]] = (),
         profile_catalog: Sequence[ExecutionProfile] = (),
         mailbox_observation: MailboxObservation | None = None,
+        defer_reconcile: bool = False,
     ) -> RestoreResult:
         """Restore from verified store rows, latest journal, and one TP snapshot."""
 
@@ -1465,6 +1579,8 @@ class CampaignCoordinator:
             prior_command_seq = trial.command_seq
 
         state = latest.state
+        for fate in state.terminal_fates:
+            _verify_infra_abort_evidence(fate)
         if any(
             (
                 state.execution_profile_id
@@ -1479,6 +1595,11 @@ class CampaignCoordinator:
             raise RecoveryError("journal profile/plant/high-water differs from verified history")
         spec_refs: dict[str, JournalReference] = dict(prior_spec_refs)
         cursors = list(state._cursors())
+        cross_epoch_infra_fates = {
+            fate.trial.trial_uid
+            for fate in state.terminal_fates
+            if fate.kind == "infra_aborted_consumed"
+        }
         for cursor in cursors:
             trial = _trial_from_reference(cursor)
             if trial.campaign != supervisor.campaign or any(
@@ -1490,7 +1611,17 @@ class CampaignCoordinator:
             ):
                 # A code-fix retry origin may belong to the immediately prior
                 # campaign and is carried only into a newly rooted journal.
-                if state.pending_retry is None or state.pending_retry.kind != "code_fix":
+                retained_infra_attempt = bool(
+                    trial.trial_uid in cross_epoch_infra_fates
+                    and trial.campaign.campaign_id == supervisor.campaign.campaign_id
+                    and trial.campaign.campaign_epoch
+                    < supervisor.campaign.campaign_epoch
+                    and trial.backend_id == supervisor.backend_id
+                )
+                if not retained_infra_attempt and (
+                    state.pending_retry is None
+                    or state.pending_retry.kind != "code_fix"
+                ):
                     raise RecoveryError("journal cursor differs from campaign fingerprints")
             spec_refs[trial.trial_uid] = cursor.trial_spec
             prior_token = token_map.get(trial.candidate.candidate_uid)
@@ -1824,6 +1955,16 @@ class CampaignCoordinator:
             tp_snapshot,
         )
 
+        if defer_reconcile:
+            return RestoreResult(
+                coordinator,
+                ReconcileDecision(
+                    ReconcileAction.HOLD_TERMINAL,
+                    "reconciliation deferred for explicit code-epoch migration",
+                ),
+                None,
+            )
+
         if transitional_uid is not None:
             if (
                 tp_snapshot.state != "WAIT_ACK"
@@ -1844,6 +1985,10 @@ class CampaignCoordinator:
             ):
                 raise RecoveryError("transitional bundle differs from verified history")
             manifest = CaptureManifest(**payload["capture"])
+            if manifest.terminal_reason != tp_snapshot.terminal_reason:
+                raise RecoveryError(
+                    "transitional bundle terminal reason differs from exact TP WAIT_ACK"
+                )
             evaluation = evaluations[transitional_uid]
             coordinator.close_trial(
                 manifest=manifest,

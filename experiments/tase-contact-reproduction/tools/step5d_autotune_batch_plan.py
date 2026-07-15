@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""Atomic operator-managed log2 candidate batches for Step5d autotune."""
+
+from __future__ import annotations
+
+import json
+import math
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+from step5d_autotune_contract import ForceCandidate, LOG2_LATTICE_OCTAVE
+
+
+SCHEMA_VERSION = "step5d_autotune_codex_batch_plan_v1"
+ENVELOPE_ID = "positive_i_log2_pm1_q025_v1"
+BATCH_SIZE = 5
+
+
+@dataclass(frozen=True)
+class CandidateBatchPlan:
+    campaign_id: str
+    revision: int
+    closed: bool
+    batches: tuple[tuple[ForceCandidate, ...], ...]
+    payload: Mapping[str, Any]
+
+    @property
+    def candidates(self) -> tuple[ForceCandidate, ...]:
+        return tuple(candidate for batch in self.batches for candidate in batch)
+
+
+def _coordinate(name: str, value: Any) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be numeric")
+    numeric = float(value)
+    if not math.isfinite(numeric) or abs(numeric) > 1.0 + 1e-12:
+        raise ValueError(f"{name} must remain inside [-1, 1] octave")
+    if not math.isclose(
+        numeric / LOG2_LATTICE_OCTAVE,
+        round(numeric / LOG2_LATTICE_OCTAVE),
+        abs_tol=1e-9,
+    ):
+        raise ValueError(f"{name} must use the 0.25-octave lattice")
+    return numeric
+
+
+def candidate_from_log2_payload(payload: Any) -> ForceCandidate:
+    if not isinstance(payload, Mapping) or set(payload) != {
+        "log2_p",
+        "log2_i",
+        "log2_damping",
+    }:
+        raise ValueError("planned candidate must contain exact log2 P/I/damping")
+    return ForceCandidate.from_log2(
+        p=_coordinate("log2_p", payload["log2_p"]),
+        i=_coordinate("log2_i", payload["log2_i"]),
+        damping=_coordinate("log2_damping", payload["log2_damping"]),
+    )
+
+
+def candidate_log2_payload(candidate: ForceCandidate) -> dict[str, float]:
+    if candidate.i_mode != "positive":
+        raise ValueError("Codex batch plans require positive log2 I")
+    def lattice(value: float) -> float:
+        return round(value / LOG2_LATTICE_OCTAVE) * LOG2_LATTICE_OCTAVE
+
+    return {
+        "log2_p": lattice(candidate.log2_p),
+        "log2_i": lattice(candidate.log2_i),
+        "log2_damping": lattice(candidate.log2_damping),
+    }
+
+
+def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPlan:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("candidate plan must be a real regular file")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    required = {
+        "schema_version",
+        "envelope_id",
+        "campaign_id",
+        "revision",
+        "batch_size",
+        "closed",
+        "batches",
+    }
+    if not isinstance(payload, Mapping) or set(payload) != required:
+        raise ValueError("candidate plan schema is incomplete")
+    if payload["schema_version"] != SCHEMA_VERSION:
+        raise ValueError("candidate plan schema version differs")
+    if payload["envelope_id"] != ENVELOPE_ID:
+        raise ValueError("candidate plan envelope differs")
+    if not isinstance(payload["campaign_id"], str) or not payload["campaign_id"]:
+        raise ValueError("candidate plan campaign_id is invalid")
+    if campaign_id is not None and payload["campaign_id"] != campaign_id:
+        raise ValueError("candidate plan campaign_id differs")
+    if (
+        isinstance(payload["revision"], bool)
+        or not isinstance(payload["revision"], int)
+        or payload["revision"] < 0
+    ):
+        raise ValueError("candidate plan revision is invalid")
+    if payload["batch_size"] != BATCH_SIZE or type(payload["closed"]) is not bool:
+        raise ValueError("candidate plan batch policy differs")
+    if not isinstance(payload["batches"], list):
+        raise ValueError("candidate plan batches must be a list")
+
+    batches: list[tuple[ForceCandidate, ...]] = []
+    seen: set[str] = set()
+    for expected_id, row in enumerate(payload["batches"], start=1):
+        if not isinstance(row, Mapping) or set(row) != {
+            "batch_id",
+            "source",
+            "candidates",
+        }:
+            raise ValueError("candidate batch schema differs")
+        if row["batch_id"] != expected_id:
+            raise ValueError("candidate batch ids must be contiguous")
+        if not isinstance(row["source"], str) or not row["source"].strip():
+            raise ValueError("candidate batch source is invalid")
+        if not isinstance(row["candidates"], list) or len(row["candidates"]) != BATCH_SIZE:
+            raise ValueError("every candidate batch must contain exactly five points")
+        candidates = tuple(candidate_from_log2_payload(item) for item in row["candidates"])
+        for candidate in candidates:
+            if candidate.candidate_uid in seen:
+                raise ValueError("candidate plan repeats an exact parameter set")
+            seen.add(candidate.candidate_uid)
+        batches.append(candidates)
+    if payload["revision"] != len(batches):
+        raise ValueError("candidate plan revision must equal the batch count")
+    return CandidateBatchPlan(
+        campaign_id=payload["campaign_id"],
+        revision=payload["revision"],
+        closed=payload["closed"],
+        batches=tuple(batches),
+        payload=payload,
+    )
+
+
+def assert_append_only(previous: CandidateBatchPlan, current: CandidateBatchPlan) -> None:
+    if current.campaign_id != previous.campaign_id:
+        raise ValueError("candidate plan campaign identity changed")
+    if current.revision < previous.revision:
+        raise ValueError("candidate plan revision regressed")
+    if current.batches[: previous.revision] != previous.batches:
+        raise ValueError("candidate plan rewrote a prior batch")
+    if previous.closed and current != previous:
+        raise ValueError("closed candidate plan cannot change")
+
+
+def _atomic_write(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    encoded = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    with temporary.open("x", encoding="utf-8") as handle:
+        handle.write(encoded)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+
+
+def initialize_plan(path: Path, *, campaign_id: str) -> CandidateBatchPlan:
+    if path.exists() or path.is_symlink():
+        raise ValueError("candidate plan already exists")
+    _atomic_write(
+        path,
+        {
+            "schema_version": SCHEMA_VERSION,
+            "envelope_id": ENVELOPE_ID,
+            "campaign_id": campaign_id,
+            "revision": 0,
+            "batch_size": BATCH_SIZE,
+            "closed": False,
+            "batches": [],
+        },
+    )
+    return load_plan(path, campaign_id=campaign_id)
+
+
+def append_batch(
+    path: Path,
+    *,
+    candidates: Sequence[ForceCandidate],
+    source: str,
+) -> CandidateBatchPlan:
+    plan = load_plan(path)
+    if plan.closed:
+        raise ValueError("candidate plan is closed")
+    if len(candidates) != BATCH_SIZE:
+        raise ValueError("append requires exactly five candidates")
+    payload = dict(plan.payload)
+    batches = list(payload["batches"])
+    batches.append(
+        {
+            "batch_id": plan.revision + 1,
+            "source": source,
+            "candidates": [candidate_log2_payload(item) for item in candidates],
+        }
+    )
+    payload["revision"] = plan.revision + 1
+    payload["batches"] = batches
+    _atomic_write(path, payload)
+    updated = load_plan(path, campaign_id=plan.campaign_id)
+    assert_append_only(plan, updated)
+    return updated

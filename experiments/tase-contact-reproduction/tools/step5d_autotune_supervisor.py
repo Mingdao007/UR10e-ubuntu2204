@@ -9,6 +9,7 @@ path before this state machine can emit an ACK packet.
 from __future__ import annotations
 
 import math
+from collections.abc import Collection
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
@@ -43,6 +44,7 @@ from step5d_autotune_optimizer import (
     choose_candidate,
     live_trust_region_step,
     success_confirmed,
+    unlocked_tier,
 )
 from step5d_autotune_state_machine import (
     HostCommand,
@@ -213,15 +215,19 @@ class CampaignSupervisor:
         config_fingerprint: str,
         execution_profile: ExecutionProfile,
         plant_epoch: int = 1,
+        selection_policy: str = "adaptive",
     ) -> None:
         if plant_epoch < 1:
             raise ValueError("plant_epoch must be positive")
+        if selection_policy not in {"adaptive", "codex_batches"}:
+            raise ValueError("selection_policy must be adaptive or codex_batches")
         self.campaign = campaign
         self.backend_id = backend_id
         self.source_fingerprint = source_fingerprint
         self.config_fingerprint = config_fingerprint
         self.execution_profile = execution_profile
         self.plant_epoch = plant_epoch
+        self.selection_policy = selection_policy
         self.phase = CampaignPhase.HOME
         # ``outcome_timeline`` is authoritative for tier unlock, replay
         # attestation, and recovery. ``observations`` remains the legacy
@@ -250,6 +256,23 @@ class CampaignSupervisor:
     @property
     def active_trial(self) -> TrialSpec | None:
         return None if self._active is None else self._active.trial
+
+    @property
+    def attempted_candidate_uids(self) -> frozenset[str]:
+        return frozenset(
+            outcome.candidate.candidate_uid for outcome in self._all_outcomes()
+        )
+
+    @property
+    def current_search_tier(self) -> SearchTier:
+        return unlocked_tier(
+            [
+                outcome
+                for outcome in self._all_outcomes()
+                if outcome.profile_id == self.execution_profile.profile_id
+                and outcome.plant_epoch == self.plant_epoch
+            ]
+        )
 
     def seed_command_sequence_from_tp(self, consumed_command_seq: int) -> None:
         """Continue the TP-global command sequence for a fresh campaign epoch."""
@@ -337,6 +360,7 @@ class CampaignSupervisor:
         parallel_cuda_verified: bool = False,
         search_attestations: Sequence[SearchAttestation] = (),
         forced_candidate: ForceCandidate | None = None,
+        forbidden_candidate_uids: Collection[str] = (),
     ) -> TrialIntent:
         if self.phase is not CampaignPhase.HOME:
             raise RuntimeError(f"campaign cannot arm from phase {self.phase.value}")
@@ -350,6 +374,12 @@ class CampaignSupervisor:
                 f"governor {probe.stage} trial is closed and awaiting assessment"
             )
         trial_profile = self.execution_profile if probe is None else probe.expected_profile
+        external_forbidden = frozenset(forbidden_candidate_uids)
+        if any(
+            not isinstance(value, str) or len(value) != 64
+            for value in external_forbidden
+        ):
+            raise ValueError("forbidden candidate identities must be SHA-256 strings")
         # The pending record preserves an infra/code pause origin for durable
         # reconciliation only.  It never authorizes reuse of its candidate.
         pending_release_kind = (
@@ -382,8 +412,19 @@ class CampaignSupervisor:
                 "force_candidate_frozen": True,
             }
         elif forced_candidate is not None:
-            if not forced_candidate.within_tier(SearchTier.T1):
-                raise ValueError("forced live candidate must remain inside T1")
+            if forced_candidate.candidate_uid in external_forbidden:
+                raise ValueError("forced live candidate was already physically attempted")
+            context = [
+                outcome
+                for outcome in self._all_outcomes()
+                if outcome.profile_id == trial_profile.profile_id
+                and outcome.plant_epoch == self.plant_epoch
+            ]
+            tier = unlocked_tier(context, pending_candidate=forced_candidate)
+            if not forced_candidate.within_tier(tier):
+                raise ValueError(
+                    f"planned candidate is outside the currently unlocked {tier.value}"
+                )
             anchors = [
                 outcome
                 for outcome in self._all_outcomes()
@@ -391,28 +432,41 @@ class CampaignSupervisor:
                 and outcome.plant_epoch == self.plant_epoch
                 and live_trust_region_step(outcome.candidate, forced_candidate)
             ]
-            if not anchors:
+            baseline_start = not context and forced_candidate == ForceCandidate()
+            if not anchors and not baseline_start:
                 raise ValueError(
                     "forced live candidate must be one lattice step from an executed candidate"
                 )
-            source_outcome = anchors[-1]
+            source_outcome = None if baseline_start else anchors[-1]
             candidate = forced_candidate
             token = self._token_for(candidate)
             retry_kind = pending_release_kind
             selected_attestation = None
             transition = TrialTransition(
                 kind=(
-                    TrialTransitionKind.CODE_EPOCH_SEARCH
+                    TrialTransitionKind.BASELINE
+                    if source_outcome is None
+                    else TrialTransitionKind.CODE_EPOCH_SEARCH
                     if source_outcome.evaluation.trial_uid
                     in self._archived_trial_sources
                     else TrialTransitionKind.FORCE_SEARCH
                 ),
-                source=self._source_from_outcome(source_outcome),
+                source=(
+                    None
+                    if source_outcome is None
+                    else self._source_from_outcome(source_outcome)
+                ),
             )
             selection = {
-                "selection": "operator_bounded_candidate",
-                "tier": SearchTier.T1.value,
-                "source_trial_uid": source_outcome.evaluation.trial_uid,
+                "selection": (
+                    "codex_log2_batch_candidate"
+                    if self.selection_policy == "codex_batches"
+                    else "operator_bounded_candidate"
+                ),
+                "tier": tier.value,
+                "source_trial_uid": (
+                    None if source_outcome is None else source_outcome.evaluation.trial_uid
+                ),
                 "exact_parameter_set_reuse_allowed": False,
             }
         else:
@@ -426,7 +480,8 @@ class CampaignSupervisor:
                 search_attestations=search_attestations,
                 forbidden_candidate_uids=self._forbidden_candidate_uids(
                     trial_profile.profile_id
-                ),
+                )
+                | external_forbidden,
             )
             token = self._token_for(candidate)
             retry_kind = pending_release_kind
@@ -597,7 +652,8 @@ class CampaignSupervisor:
             # campaign under the global confirmation rule.
             post_ack_phase = (
                 CampaignPhase.SUCCEEDED
-                if objective_confirmed
+                if self.selection_policy == "adaptive"
+                and objective_confirmed
                 and not (probe is not None and probe.stage == "b")
                 else CampaignPhase.HOME
             )
@@ -808,6 +864,40 @@ class CampaignSupervisor:
             )
         ):
             raise RuntimeError("TP does not prove the durable ARM was unconsumed at Home")
+        self._active = None
+        self.phase = CampaignPhase.HOME
+        return trial
+
+    def terminalize_consumed_infra_abort(
+        self,
+        tp_snapshot: TpSnapshot,
+        *,
+        persisted_trial_uid: str,
+    ) -> TrialSpec:
+        """Retire one dispatched/consumed ARM after externally proven bridge stop."""
+
+        if self.phase is not CampaignPhase.TRIAL_ACTIVE or self._active is None:
+            raise RuntimeError("no durable active ARM can be terminalized")
+        trial = self._active.trial
+        if persisted_trial_uid != trial.trial_uid:
+            raise RuntimeError("journal persistence does not bind the active ARM")
+        if (
+            tp_snapshot.state != "READY_HOME"
+            or tp_snapshot.consumed_command_seq != trial.command_seq
+            or any(
+                value != 0
+                for value in (
+                    tp_snapshot.campaign_epoch_echo,
+                    tp_snapshot.trial_id_echo,
+                    tp_snapshot.candidate_token_echo,
+                    tp_snapshot.execution_profile_integer_id_echo,
+                    tp_snapshot.terminal_reason,
+                )
+            )
+        ):
+            raise RuntimeError(
+                "TP does not prove the consumed ARM returned to exact Home"
+            )
         self._active = None
         self.phase = CampaignPhase.HOME
         return trial

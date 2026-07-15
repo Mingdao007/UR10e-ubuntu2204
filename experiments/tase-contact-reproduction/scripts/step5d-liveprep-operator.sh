@@ -182,7 +182,7 @@ case "$1" in
     ;;
   contact-bridge)
     if [[ -z "${STEP5D_VERSION}" ]]; then
-      echo "refusing live Step5d bridge start: set STEP5D_VERSION to the controller-readback-verified Step5d package and provide explicit live confirmation"
+      echo "refusing live Step5d bridge start: set STEP5D_VERSION to the controller-readback-verified exact runtime profile and provide explicit live confirmation"
       exit 40
     fi
     require_current_stage_readback_gate

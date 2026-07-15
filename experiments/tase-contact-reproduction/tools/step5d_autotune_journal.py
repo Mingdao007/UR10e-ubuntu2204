@@ -56,7 +56,9 @@ TP_STATES = TRANSIENT_TP_STATES | {
     "FAULT",
 }
 DISPATCH_COMMANDS = frozenset({"arm", "ack_bundle"})
-TERMINAL_FATE_KINDS = frozenset({"cancelled_unconsumed", "ack_consumed"})
+TERMINAL_FATE_KINDS = frozenset(
+    {"cancelled_unconsumed", "infra_aborted_consumed", "ack_consumed"}
+)
 
 
 class JournalError(RuntimeError):
@@ -580,6 +582,7 @@ class TerminalFate:
     command_seq: int
     tp_snapshot: "TpSnapshot"
     dispatch_receipt: AdvisoryDispatchReceipt | None = None
+    evidence: JournalReference | None = None
 
     def __post_init__(self) -> None:
         if self.kind not in TERMINAL_FATE_KINDS:
@@ -595,13 +598,24 @@ class TerminalFate:
             self.dispatch_receipt, AdvisoryDispatchReceipt
         ):
             raise ValueError("terminal fate dispatch receipt is invalid")
+        if self.evidence is not None and not isinstance(
+            self.evidence, JournalReference
+        ):
+            raise ValueError("terminal fate evidence is invalid")
         if self.kind == "cancelled_unconsumed":
             if self.command != "arm" or self.command_seq != self.trial.arm_command_seq:
                 raise ValueError("cancel fate must bind the exact ARM")
-            if self.dispatch_receipt is not None:
-                raise ValueError("cancel fate cannot carry a dispatch receipt")
+            if self.dispatch_receipt is not None or self.evidence is not None:
+                raise ValueError("cancel fate cannot carry receipt/evidence")
+        elif self.kind == "infra_aborted_consumed":
+            if self.command != "arm" or self.command_seq != self.trial.arm_command_seq:
+                raise ValueError("infra-abort fate must bind the exact ARM")
+            if self.dispatch_receipt is None or self.evidence is None:
+                raise ValueError("infra-abort fate requires dispatch and stop evidence")
         elif self.command != "ack_bundle" or self.command_seq <= self.trial.arm_command_seq:
             raise ValueError("ACK fate must bind a sequence newer than ARM")
+        elif self.evidence is not None:
+            raise ValueError("ACK fate does not accept external stop evidence")
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -612,6 +626,7 @@ class TerminalFate:
                 if self.dispatch_receipt is None
                 else self.dispatch_receipt.payload()
             ),
+            "evidence": None if self.evidence is None else self.evidence.payload(),
             "kind": self.kind,
             "tp_snapshot": self.tp_snapshot.payload(),
             "trial": self.trial.payload(),
@@ -619,17 +634,20 @@ class TerminalFate:
 
     @classmethod
     def from_payload(cls, payload: Any) -> "TerminalFate":
+        required = {
+            "kind",
+            "trial",
+            "command",
+            "command_seq",
+            "tp_snapshot",
+            "dispatch_receipt",
+        }
+        if isinstance(payload, Mapping) and "evidence" in payload:
+            required.add("evidence")
         row = _exact_object(
             "terminal fate",
             payload,
-            {
-                "kind",
-                "trial",
-                "command",
-                "command_seq",
-                "tp_snapshot",
-                "dispatch_receipt",
-            },
+            required,
         )
         return cls(
             kind=row["kind"],
@@ -641,6 +659,11 @@ class TerminalFate:
                 None
                 if row["dispatch_receipt"] is None
                 else AdvisoryDispatchReceipt.from_payload(row["dispatch_receipt"])
+            ),
+            evidence=(
+                None
+                if row.get("evidence") is None
+                else JournalReference.from_payload(row["evidence"])
             ),
         )
 
@@ -776,6 +799,35 @@ def _validate_terminal_fate(
         ):
             raise ValueError(
                 "cancel fate requires exact READY_HOME proof before ARM consumption"
+            )
+        return
+    if fate.kind == "infra_aborted_consumed":
+        receipt = fate.dispatch_receipt
+        if any(
+            (
+                snapshot.state != "READY_HOME",
+                snapshot.campaign_epoch_echo != 0,
+                snapshot.trial_id_echo != 0,
+                snapshot.candidate_token_echo != 0,
+                snapshot.terminal_reason != 0,
+                snapshot.execution_profile_integer_id_echo != 0,
+                snapshot.consumed_command_seq != fate.command_seq,
+                receipt is None,
+                receipt is not None
+                and (
+                    receipt.trial_uid != fate.trial.trial_uid
+                    or receipt.trial_id != fate.trial.trial_id
+                    or receipt.command != "arm"
+                    or receipt.candidate_token != fate.trial.candidate_token
+                    or receipt.execution_profile_integer_id
+                    != fate.trial.execution_profile_integer_id
+                    or receipt.command_seq != fate.command_seq
+                ),
+                fate.evidence is None,
+            )
+        ):
+            raise ValueError(
+                "infra-abort fate requires exact consumed ARM, Home, and stop evidence"
             )
         return
     if snapshot.consumed_command_seq != fate.command_seq:
@@ -1158,12 +1210,15 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
         raise JournalConflictError("only one terminal fate may be appended per revision")
     appended_fate = new_fates[-1] if len(new_fates) > len(old_fates) else None
     if appended_fate is not None:
-        if appended_fate.kind == "cancelled_unconsumed":
+        if appended_fate.kind in {"cancelled_unconsumed", "infra_aborted_consumed"}:
+            infra_abort = appended_fate.kind == "infra_aborted_consumed"
             if any(
                 (
                     previous.phase != "trial_active",
                     previous.active_trial != appended_fate.trial,
-                    previous.dispatch_receipt is not None,
+                    (previous.dispatch_receipt is not None) != infra_abort,
+                    infra_abort
+                    and appended_fate.dispatch_receipt != previous.dispatch_receipt,
                     current.phase != "home",
                     current.active_trial is not None,
                     current.pending_ack is not None,
@@ -1173,6 +1228,10 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
                     != dict(previous.candidate_tokens),
                 )
             ):
+                if infra_abort:
+                    raise JournalConflictError(
+                        "infra-abort fate must bind the exact persisted ARM dispatch"
+                    )
                 raise JournalConflictError(
                     "cancel fate must terminalize one persisted, undispatched ARM"
                 )
@@ -1205,12 +1264,13 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
             current.pending_ack is not None
             and current.pending_ack.trial == previous.active_trial
         )
-        cancelled = bool(
+        terminalized = bool(
             appended_fate is not None
-            and appended_fate.kind == "cancelled_unconsumed"
+            and appended_fate.kind
+            in {"cancelled_unconsumed", "infra_aborted_consumed"}
             and appended_fate.trial == previous.active_trial
         )
-        if not carried_into_ack and not cancelled:
+        if not carried_into_ack and not terminalized:
             raise JournalConflictError(
                 "materialized ARM disappeared without ACK handoff or cancel fate"
             )
@@ -1932,6 +1992,7 @@ def reconcile_tp_snapshot(
             and cursor is not None
             and _snapshot_matches_cursor(state.campaign, snapshot, cursor)
             and snapshot.consumed_command_seq == cursor.arm_command_seq
+            and snapshot.terminal_reason > 0
         ):
             return ReconcileDecision(
                 ReconcileAction.RESUME_CLOSURE,

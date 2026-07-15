@@ -919,6 +919,32 @@ class StoreAndBackendTest(unittest.TestCase):
         self.assertIn("--step5d-autotune-campaign-epoch", prepared.runner_arguments)
         self.assertIn("--step5d-autotune-execution-profile-id", prepared.runner_arguments)
 
+    def test_backend_preparation_preserves_nontrivial_candidate_floats_exactly(self) -> None:
+        spec = trial(
+            candidate=ForceCandidate.from_log2(p=-0.25, damping=0.25, i=0.25)
+        )
+        frozen = FrozenFingerprint(
+            backend_id=BACKEND_ID,
+            git_commit="0" * 40,
+            source_fingerprint=spec.source_fingerprint,
+            config_fingerprint=spec.config_fingerprint,
+            composite_fingerprint=spec.campaign.campaign_fingerprint,
+            source_files={},
+            config_files={},
+            v35_package_sha256={".script": SHA_A, ".txt": SHA_B, ".urp": SHA_C},
+            controller_readback_manifest="manifest.json",
+            controller_readback_manifest_sha256=SHA_A,
+            rnn_contract={},
+            force_frame_contract_sha256=SHA_B,
+        )
+        prepared = Step5dV35Backend(ROOT).prepare_trial(spec, frozen)
+        for name, expected in (
+            ("STEP5D_AUTOTUNE_FORCE_P", spec.candidate.force_p_gain),
+            ("STEP5D_AUTOTUNE_FORCE_I", spec.candidate.force_i_gain),
+            ("STEP5D_AUTOTUNE_FORCE_DAMPING", spec.candidate.force_damping),
+        ):
+            self.assertEqual(float(prepared.environment[name]), expected)
+
     def test_backend_preparation_requires_frozen_f0_shadow_normal(self) -> None:
         spec = replace(
             trial(),

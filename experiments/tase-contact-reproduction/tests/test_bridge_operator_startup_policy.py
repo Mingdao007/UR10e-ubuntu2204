@@ -3,8 +3,11 @@ import csv
 import hashlib
 import json
 import os
+import socket
 import subprocess
 import tempfile
+import threading
+import time
 import unittest
 
 
@@ -16,6 +19,105 @@ def read_script(name: str) -> str:
 
 
 class BridgeOperatorStartupPolicyTest(unittest.TestCase):
+    def _dashboard_server(self, responses: list[dict[str, object]]):
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        commands: list[str] = []
+
+        def serve() -> None:
+            try:
+                for response in responses:
+                    conn, _ = listener.accept()
+                    with conn:
+                        delay = float(response.get("greeting_delay", 0.0))
+                        if delay:
+                            time.sleep(delay)
+                        conn.sendall(b"Connected: Universal Robots Dashboard Server\n")
+                        command = b""
+                        while b"\n" not in command:
+                            command += conn.recv(4096)
+                        commands.append(command.decode().strip())
+                        for chunk in response["chunks"]:
+                            conn.sendall(chunk)
+                            time.sleep(0.01)
+            finally:
+                listener.close()
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        return listener.getsockname()[1], commands, thread
+
+    def _dashboard_snapshot(self, port: int) -> subprocess.CompletedProcess[str]:
+        script = f'''
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+ROBOT_HOST=127.0.0.1
+DASHBOARD_PORT={port}
+EXPECTED_PROGRAM=/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp
+EXPECTED_BASENAME=step5d_strict_rnn_autotune_v1.urp
+dashboard_snapshot
+'''
+        return subprocess.run(
+            ["bash", "-lc", script],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_dashboard_snapshot_frames_delayed_multiline_fragmented_and_stale_lines(self) -> None:
+        port, commands, thread = self._dashboard_server(
+            [
+                {
+                    "greeting_delay": 0.20,
+                    "chunks": [b"stale line\nProgram running: false\n"],
+                },
+                {
+                    "chunks": [
+                        b"unrelated\nConnected: Universal Robots Dashboard Server\n",
+                        b"Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp\n",
+                    ]
+                },
+                {"chunks": [b"STO", b"PPED step5d_strict_rnn_autotune_v1.urp\n"]},
+                {"chunks": [b"old response\nSafetymode: NORMAL\n"]},
+            ]
+        )
+
+        completed = self._dashboard_snapshot(port)
+        thread.join(timeout=2.0)
+
+        self.assertEqual(completed.returncode, 11, completed.stdout + completed.stderr)
+        self.assertEqual(
+            commands,
+            ["running", "get loaded program", "programState", "safetymode"],
+        )
+        self.assertIn("Program running: false", completed.stdout)
+        self.assertIn("Safetymode: NORMAL", completed.stdout)
+        self.assertNotIn("old response", completed.stdout)
+
+    def test_dashboard_snapshot_real_non_normal_safety_still_fails_closed(self) -> None:
+        port, _, thread = self._dashboard_server(
+            [
+                {"chunks": [b"Program running: false\n"]},
+                {
+                    "chunks": [
+                        b"Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp\n"
+                    ]
+                },
+                {"chunks": [b"STOPPED step5d_strict_rnn_autotune_v1.urp\n"]},
+                {"chunks": [b"Safetymode: PROTECTIVE_STOP\n"]},
+            ]
+        )
+
+        completed = self._dashboard_snapshot(port)
+        thread.join(timeout=2.0)
+
+        self.assertEqual(completed.returncode, 20, completed.stdout + completed.stderr)
+        self.assertIn("Safetymode: PROTECTIVE_STOP", completed.stdout)
+
     def test_failed_optional_bench_diagnostic_is_logged_without_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
