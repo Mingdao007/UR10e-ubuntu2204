@@ -1,4 +1,4 @@
-# VERSION: 20260715_093711
+# VERSION: 20260715_094500
 # Step5d strict RNN ablation v35.
 # VERSION: 2026-07-15T0204HKT_STEP5D_STRICT_RNN_ABLATION_V35_QUOTA_SAFE_SCHED_OTHER_ACCEL_0P1
 # GENERATED_AT_LOCAL: 2026-07-15T02:04:25+08:00
@@ -320,6 +320,11 @@ def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2):
     write_output_float_register(34, 1.0)
     if not codex_wait_for_rezero_complete(5.0):
       stop_reason = 14.0
+    end
+    if stop_reason == 0.0:
+      if not codex_wait_for_fresh_heartbeat(5.0):
+        stop_reason = 14.0
+      end
     end
     if stop_reason == 0.0:
       sleep(0.20)

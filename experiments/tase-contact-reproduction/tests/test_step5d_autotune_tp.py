@@ -70,6 +70,17 @@ class Step5dAutotuneTpBuilderTest(unittest.TestCase):
             rendered,
         )
 
+    def test_stage23_waits_for_sensor_rearm_after_rezero(self) -> None:
+        rendered = builder.render_script()
+        stage23 = rendered.split("write_output_float_register(35, 23.0)", 1)[1]
+        stage23 = stage23.split("write_output_float_register(35, 24.0)", 1)[0]
+        self.assertIn("codex_wait_for_rezero_complete(5.0)", stage23)
+        self.assertIn("codex_wait_for_fresh_heartbeat(5.0)", stage23)
+        self.assertLess(
+            stage23.index("codex_wait_for_fresh_heartbeat(5.0)"),
+            stage23.index("codex_step4e_guard_stop_reason()"),
+        )
+
     def test_manual_recovery_reasons_never_auto_return(self) -> None:
         rendered = builder.render_script()
         marker = "if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:"
