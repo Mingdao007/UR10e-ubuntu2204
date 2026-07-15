@@ -77,7 +77,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
 
         self.assertNotIn("BRIDGE_NORMAL_FILTER_ALPHA", env)
         self.assertEqual(env["BRIDGE_NORMAL_FILTER_TAU_S"], "0.35")
-        self.assertEqual(env["STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S"], "0.010")
+        self.assertEqual(env["STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S"], "0.020")
         self.assertEqual(env["STEP5D_AUTOTUNE_FORCE_P"], "0.001000")
         self.assertEqual(env["STEP5D_AUTOTUNE_FORCE_I"], "0.00001000")
         self.assertEqual(env["STEP5D_AUTOTUNE_FORCE_DAMPING"], "7.000")
@@ -258,6 +258,33 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertEqual(offline.step5d_autotune_profile_eligibility, "offline_only")
         self.assertEqual(bridge.step5d_normal_filter_dt_s(AUTOTUNE, 0.019), 0.002)
         self.assertEqual(bridge.step5d_normal_filter_dt_s(V35, 0.019), 0.019)
+
+    def test_continuous_trials_reset_diagnostics_once_per_trial_id(self) -> None:
+        args = parse_autotune()
+        state = bridge.BridgeState()
+        diagnostics = bridge.DeferredV30Diagnostics(capacity=2)
+        state.step5d_v30_deferred_diagnostics = diagnostics
+
+        diagnostics.count = 2
+        diagnostics.overflowed = True
+        args.step5d_autotune_handshake["trial_id"] = 1
+        self.assertTrue(
+            bridge.reset_step5d_autotune_diagnostics_for_trial(state, args)
+        )
+        self.assertEqual(diagnostics.count, 0)
+        self.assertFalse(diagnostics.overflowed)
+
+        diagnostics.count = 1
+        self.assertFalse(
+            bridge.reset_step5d_autotune_diagnostics_for_trial(state, args)
+        )
+        self.assertEqual(diagnostics.count, 1)
+
+        args.step5d_autotune_handshake["trial_id"] = 2
+        self.assertTrue(
+            bridge.reset_step5d_autotune_diagnostics_for_trial(state, args)
+        )
+        self.assertEqual(diagnostics.count, 0)
 
     def test_qdot_tau_and_low_frequency_levels_are_fail_closed(self) -> None:
         with patch.dict(os.environ, {}, clear=True):

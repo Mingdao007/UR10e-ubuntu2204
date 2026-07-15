@@ -3704,6 +3704,27 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         )
 
 
+def reset_step5d_autotune_diagnostics_for_trial(
+    state: "BridgeState", args: argparse.Namespace
+) -> bool:
+    """Start a fresh bounded diagnostics extent on each new autotune trial."""
+
+    if args.bridge_profile != STEP5D_AUTOTUNE_STAGE_ID:
+        return False
+    try:
+        trial_id = int(args.step5d_autotune_handshake["trial_id"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("autotune handshake lacks a valid trial id") from exc
+    if trial_id <= 0 or trial_id == state.step5d_v30_diagnostics_trial_id:
+        return False
+    diagnostics = state.step5d_v30_deferred_diagnostics
+    if diagnostics is None:
+        raise RuntimeError("autotune trial started before diagnostics preallocation")
+    diagnostics.reset_for_trial()
+    state.step5d_v30_diagnostics_trial_id = trial_id
+    return True
+
+
 def step5d_liveprep_runtime_missing(state: "BridgeState", args: argparse.Namespace) -> list[str]:
     missing: list[str] = []
     if state.step5d_model_bundle is None:
@@ -4049,6 +4070,7 @@ class BridgeState:
         self.step5d_outer_state = Step5dOuterLoopState()
         self.step5d_v30_sequence = 0
         self.step5d_v30_deferred_diagnostics: DeferredV30Diagnostics | None = None
+        self.step5d_v30_diagnostics_trial_id: int | None = None
         self.step5d_v30_safety_envelope = SafetyEnvelope()
         self.step5d_v30_policy: StrictRnnControlPolicy | None = None
         self.step5d_p0_v9_anchor_tcp_pose: tuple[float, ...] | None = None
@@ -10934,6 +10956,7 @@ def main(argv: list[str] | None = None) -> int:
                             )
                         if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
                             bridge_values.update(args.step5d_autotune_handshake)
+                            reset_step5d_autotune_diagnostics_for_trial(state, args)
                         if fail_stop_latched:
                             step4e_values = {name: 0.0 for name in BRIDGE_INPUT_NAMES}
                             step4e_values["stop_request"] = 0.0

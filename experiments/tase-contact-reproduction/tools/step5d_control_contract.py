@@ -1102,6 +1102,15 @@ class DeferredV30Diagnostics:
             self._field_index["register_37"], self._field_index["register_42"] + 1
         )
 
+    def reset_for_trial(self) -> None:
+        """Reuse the prefaulted storage for a new bounded trial in O(1)."""
+
+        # ``count`` is the authoritative readable extent, so old suffix rows
+        # are unreachable after this reset and need not be cleared in the
+        # 500 Hz lifecycle.  The backing pages remain resident.
+        self.count = 0
+        self.overflowed = False
+
     def record(
         self,
         observation: Step5dObservation,

@@ -576,6 +576,23 @@ class Step5dV30ControlContractTest(unittest.TestCase):
         self.assertEqual(deferred.numeric[0, fields["register_43"]], 1.0)
         self.assertEqual(deferred.numeric[0, fields["register_47"]], JOINT_LAYOUT_CODE)
 
+    def test_deferred_diagnostics_reuses_prefaulted_storage_for_next_trial(self) -> None:
+        deferred = DeferredV30Diagnostics(capacity=1)
+        obs = observation()
+        proposal = candidate()
+        decision = SafetyEnvelope().evaluate(obs, proposal)
+        command = decision_to_register_command(obs, decision)
+
+        self.assertTrue(deferred.record(obs, proposal, decision, command))
+        self.assertFalse(deferred.record(obs, proposal, decision, command))
+        numeric_id = id(deferred.numeric)
+        deferred.reset_for_trial()
+
+        self.assertEqual(id(deferred.numeric), numeric_id)
+        self.assertEqual(deferred.count, 0)
+        self.assertFalse(deferred.overflowed)
+        self.assertTrue(deferred.record(obs, proposal, decision, command))
+
     def test_dls_shadow_is_command_inert_and_forbidden_as_fallback(self) -> None:
         obs = observation(
             omega_minus=(-0.05,) * 6,
