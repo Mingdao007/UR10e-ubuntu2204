@@ -787,15 +787,30 @@ class CampaignSupervisor:
         diagnostic = governor.get("nontrainable_profile_diagnostic")
         if not isinstance(diagnostic, Mapping):
             return None
+        failure_scope = diagnostic.get("failure_scope")
+        failures = outcome.evaluation.structural_failures
+        legacy_scope = bool(
+            failure_scope == "orientation_profile_unqualified"
+            and failures == ("orientation_profile_unqualified",)
+        )
+        diagnostic_scope = bool(
+            failure_scope == "governor_profile_nontrainable"
+            and diagnostic.get("structural_failures") == tuple(failures)
+            and failures
+            and set(failures).issubset(
+                {
+                    "orientation_profile_unqualified",
+                    "cadence_failed",
+                    "feedback_failed",
+                }
+            )
+        )
         if any(
             (
                 diagnostic.get("available") is not True,
                 diagnostic.get("trainable_objective") is not False,
-                diagnostic.get("failure_scope")
-                != "orientation_profile_unqualified",
+                not (legacy_scope or diagnostic_scope),
                 outcome.evaluation.eligible,
-                outcome.evaluation.structural_failures
-                != ("orientation_profile_unqualified",),
             )
         ):
             return None

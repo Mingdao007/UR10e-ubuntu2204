@@ -540,6 +540,29 @@ class EvaluatorTest(unittest.TestCase):
         self.assertFalse(unqualified.eligible)
         self.assertIn("orientation_profile_unqualified", unqualified.structural_failures)
 
+        transport_diagnostic = evaluate_rows(
+            spec,
+            replace(capture(spec), cadence_ok=False, feedback_fresh=False),
+            unqualified_rows,
+        )
+        self.assertFalse(transport_diagnostic.eligible)
+        self.assertEqual(
+            transport_diagnostic.metrics["governor"][
+                "nontrainable_profile_diagnostic"
+            ]["failure_scope"],
+            "governor_profile_nontrainable",
+        )
+        self.assertEqual(
+            transport_diagnostic.metrics["governor"][
+                "nontrainable_profile_diagnostic"
+            ]["structural_failures"],
+            (
+                "cadence_failed",
+                "feedback_failed",
+                "orientation_profile_unqualified",
+            ),
+        )
+
         missing_saturation_rows = force_rows()
         missing_saturation_rows[0].pop("_step5d_normal_rate_limiter_active")
         missing_saturation = evaluate_rows(

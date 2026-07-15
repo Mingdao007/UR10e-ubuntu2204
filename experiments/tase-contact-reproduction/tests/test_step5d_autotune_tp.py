@@ -59,6 +59,17 @@ class Step5dAutotuneTpBuilderTest(unittest.TestCase):
         )
         self.assertNotIn("40.000, -0.0225, -0.0025)", rendered)
 
+    def test_each_continuous_trial_accepts_an_advancing_ready_heartbeat(self) -> None:
+        rendered = builder.render_script()
+        self.assertIn(
+            "if read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:",
+            rendered,
+        )
+        self.assertNotIn(
+            "elif saw_sensor_not_ready and read_input_float_register(27) > 0.5",
+            rendered,
+        )
+
     def test_manual_recovery_reasons_never_auto_return(self) -> None:
         rendered = builder.render_script()
         marker = "if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:"

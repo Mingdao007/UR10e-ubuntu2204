@@ -179,7 +179,17 @@ def profile_diagnostic_evaluation(
     *,
     objective: float = 0.5,
     governor_burden: float = 0.2,
+    transport_ineligible: bool = False,
 ) -> Evaluation:
+    failures = (
+        (
+            "cadence_failed",
+            "feedback_failed",
+            "orientation_profile_unqualified",
+        )
+        if transport_ineligible
+        else ("orientation_profile_unqualified",)
+    )
     return Evaluation(
         trial_uid=trial.trial_uid,
         backend_id=trial.backend_id,
@@ -191,7 +201,7 @@ def profile_diagnostic_evaluation(
         coverage_12_plus_minus_1_ratio=None,
         complete_bins=550,
         safe_closure=True,
-        structural_failures=("orientation_profile_unqualified",),
+        structural_failures=failures,
         metrics={
             "governor": {
                 "burden_by_layer": {
@@ -222,7 +232,14 @@ def profile_diagnostic_evaluation(
                 "nontrainable_profile_diagnostic": {
                     "available": True,
                     "trainable_objective": False,
-                    "failure_scope": "orientation_profile_unqualified",
+                    "failure_scope": (
+                        "governor_profile_nontrainable"
+                        if transport_ineligible
+                        else "orientation_profile_unqualified"
+                    ),
+                    "structural_failures": (
+                        list(failures) if transport_ineligible else None
+                    ),
                     "force_mae_n": objective,
                 },
                 "orientation": {
@@ -325,6 +342,23 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         assert profile_b is not None
         self.assertEqual(profile_b.normal_max_rate_rad_s, 0.015)
         self.assertEqual(proposal.layer, "normal_filter_rate")
+
+    def test_transport_ineligible_profile_diagnostic_can_start_governor(self) -> None:
+        manager = supervisor()
+        trial_a = manager.next_trial(require_cuda_botorch=False).trial
+        with tempfile.TemporaryDirectory() as td:
+            decision = self.close_and_ack(
+                manager,
+                trial_a,
+                capture(trial_a, reason=1),
+                profile_diagnostic_evaluation(
+                    trial_a,
+                    transport_ineligible=True,
+                ),
+                Path(td),
+            )
+        self.assertEqual(decision.reason, "governor_profile_diagnostic_ready")
+        self.assertEqual(manager.phase, CampaignPhase.HOME)
 
     def test_governor_rejects_caller_spoofed_saturation_trigger(self) -> None:
         manager = supervisor()

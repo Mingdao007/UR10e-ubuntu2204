@@ -47,12 +47,14 @@ from step5d_autotune_live_driver import (  # noqa: E402
     decode_execution_profile_id,
     finalize_bundle_and_dispatch_ack_for_test_fixture,
     integer_stop_transport,
+    terminal_float_reason_crosscheck,
 )
 from step5d_autotune_state_machine import (  # noqa: E402
     HostCommand,
     HostPacket,
     LoopCoordinator,
     TpLoopState,
+    TpPacket,
 )
 from step5d_runtime_interface import STEP5D_AUTOTUNE_STAGE_ID  # noqa: E402
 
@@ -229,6 +231,27 @@ def fake_bridge_args() -> SimpleNamespace:
 
 
 class Step5dAutotuneLiveDriverTest(unittest.TestCase):
+    def test_terminal_float_crosscheck_ignores_transient_search_reason(self) -> None:
+        def tp(state: TpLoopState, reason: int) -> TpPacket:
+            return TpPacket(7, 1, state, 20, reason, 111, 10)
+
+        self.assertTrue(
+            terminal_float_reason_crosscheck(
+                [
+                    (tp(TpLoopState.RUN, 0), 11.0),
+                    (tp(TpLoopState.TERMINAL, 1), 1.0),
+                    (tp(TpLoopState.WAIT_ACK, 1), 1.0),
+                ],
+                final_reason=1,
+            )
+        )
+        self.assertFalse(
+            terminal_float_reason_crosscheck(
+                [(tp(TpLoopState.WAIT_ACK, 1), 11.0)],
+                final_reason=1,
+            )
+        )
+
     def test_arm_closure_ack_ready_and_next_arm_in_one_bridge(self) -> None:
         trial1 = make_trial()
         prepared1 = make_prepared(trial1)

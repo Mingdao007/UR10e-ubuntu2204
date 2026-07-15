@@ -4,7 +4,7 @@ Open on Teach Pendant only after controller read-back is verified:
   /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp
 
 Version:
-  2026-07-15T0928HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1
+  20260715_093711
 
 Motion class:
   Contact motion package. Upload/read-back does not load or run it.

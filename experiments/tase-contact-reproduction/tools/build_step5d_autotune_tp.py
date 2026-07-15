@@ -275,6 +275,20 @@ def render_script(base_source: str | None = None) -> str:
         "40.000, -0.03375, -0.0025)",
         label="1.5x far-search speed",
     )
+    source = _replace_once(
+        source,
+        """    if read_input_float_register(27) < 0.5:
+      saw_sensor_not_ready = True
+    elif saw_sensor_not_ready and read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end""",
+        """    if read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    elif read_input_float_register(27) < 0.5:
+      saw_sensor_not_ready = True
+    end""",
+        label="continuous-campaign heartbeat readiness",
+    )
     auto_home_start = "  if codex_should_auto_home(stop_reason):\n"
     final_evidence = "  write_output_float_register(30, stop_reason)\n"
     if source.count(auto_home_start) != 1:
@@ -304,6 +318,7 @@ def validate_rendered_script(script: str) -> None:
         "local joint_accel_rad_s2 = tp_speedj_accel_rad_s2",
         "movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)",
         "40.000, -0.03375, -0.0025)",
+        "if read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:",
         "local campaign_home_pose = get_actual_tcp_pose()",
         "local campaign_home_q = get_actual_joint_positions()",
         "read_input_integer_register(24)",

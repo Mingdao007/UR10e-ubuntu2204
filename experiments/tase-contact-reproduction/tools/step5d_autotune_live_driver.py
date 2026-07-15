@@ -21,7 +21,7 @@ import secrets
 import stat
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from step5d_autotune_contract import (
     CaptureArtifactPaths,
@@ -69,6 +69,33 @@ class LegacyFloatStopRequired(MailboxError):
 
 class ClosureNotReady(RuntimeError):
     """No current, exact WAIT_ACK safe segment can be finalized."""
+
+
+def terminal_float_reason_crosscheck(
+    samples: Iterable[tuple[TpPacket, float | None]],
+    *,
+    final_reason: int,
+) -> bool:
+    """Cross-check only rows where the integer terminal reason is authoritative."""
+
+    reasons = {
+        int(value)
+        for packet, value in samples
+        if packet.terminal_reason == final_reason
+        and packet.state
+        in {
+            TpLoopState.TERMINAL,
+            TpLoopState.RETRACT,
+            TpLoopState.RETURN,
+            TpLoopState.HOME_VERIFY,
+            TpLoopState.WAIT_ACK,
+        }
+        and value is not None
+        and math.isfinite(value)
+        and value > 0.0
+        and value.is_integer()
+    }
+    return reasons == {final_reason}
 
 
 def _strict_int(name: str, value: Any, *, positive: bool = False) -> int:
@@ -1685,15 +1712,13 @@ class TrialArtifactProducer:
             )
             >= accepted_rows
         )
-        float_terminal_reasons = {
-            int(value)
-            for row in rows
-            if (value := self._csv_finite(row, "ur_output_double_register_30"))
-            is not None
-            and value > 0.0
-            and value.is_integer()
-        }
-        float_terminal_crosscheck = float_terminal_reasons == {final.terminal_reason}
+        float_terminal_crosscheck = terminal_float_reason_crosscheck(
+            (
+                (packet, self._csv_finite(row, "ur_output_double_register_30"))
+                for row, packet in zip(rows, packets)
+            ),
+            final_reason=final.terminal_reason,
+        )
         target_s = stage25_success_target_s(STEP5D_AUTOTUNE_STAGE_ID)
         if target_s is None:
             raise MailboxError("autotune Stage25 target is unavailable")

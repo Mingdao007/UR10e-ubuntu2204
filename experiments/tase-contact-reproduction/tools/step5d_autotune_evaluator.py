@@ -20,6 +20,13 @@ STAGE_ALIASES = ("ur_output_double_register_35", "_step5d_expected_stage", "stag
 FORCE_X_ALIASES = ("_step4e_force_b_x", "force_b_x_n", "force_x_base_n")
 FORCE_Y_ALIASES = ("_step4e_force_b_y", "force_b_y_n", "force_y_base_n")
 FORCE_Z_ALIASES = ("_step4e_force_b_z", "force_b_z_n", "force_z_base_n")
+GOVERNOR_DIAGNOSTIC_FAILURES = frozenset(
+    {
+        "orientation_profile_unqualified",
+        "cadence_failed",
+        "feedback_failed",
+    }
+)
 
 
 class MalformedEvidenceError(ValueError):
@@ -595,7 +602,8 @@ def evaluate_rows(
         )
         eligible = not failures and disposition is TrialDisposition.OBJECTIVE
         profile_diagnostic_available = bool(
-            failures == ["orientation_profile_unqualified"]
+            failures
+            and set(failures).issubset(GOVERNOR_DIAGNOSTIC_FAILURES)
             and manifest.terminal_reason == 1
             and complete_bins == trial.campaign.required_bins
         )
@@ -638,9 +646,16 @@ def evaluate_rows(
                     "available": profile_diagnostic_available,
                     "trainable_objective": False,
                     "failure_scope": (
-                        "orientation_profile_unqualified"
+                        (
+                            "orientation_profile_unqualified"
+                            if failures == ["orientation_profile_unqualified"]
+                            else "governor_profile_nontrainable"
+                        )
                         if profile_diagnostic_available
                         else None
+                    ),
+                    "structural_failures": (
+                        list(failures) if profile_diagnostic_available else None
                     ),
                     "force_mae_n": (
                         float(objective["mae_n"])
