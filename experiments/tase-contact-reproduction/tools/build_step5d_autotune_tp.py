@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-"""Build the offline Step5d-native continuous TP source from frozen v35.
+"""Build the Step5d-native continuous TP package from frozen v35.
 
-The builder is deliberately source-only.  It never contacts a controller and
-requires an explicit flag before writing even a local ``.script`` candidate.
+This builder writes the complete local ``.script/.txt/.urp`` triplet.  The
+package-delivery owner uploads and reads it back automatically in the same
+delivery transaction; this builder itself never starts a bridge or program.
 """
 
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
+import html
+import json
+import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from build_step4e_p0p1_programs import build_urp
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +26,8 @@ BASE_RELATIVE = Path(
 )
 BASE_SHA256 = "50894de5cdf74dd17309c829b904251a3da26613a4d73e93653f7c165f5fbbd0"
 PROGRAM_NAME = "step5d_strict_rnn_autotune_v1"
+CONTROLLER_DIR = "/programs/andyl/kunwei/step5"
+LOCAL_PROGRAM_DIR = ROOT / "programs/step5/step5d"
 
 BASE_FUNCTION = "codex_step5d_strict_rnn_ablation_v35"
 TRIAL_FUNCTION = "codex_step5d_autotune_trial_v1"
@@ -317,20 +327,97 @@ def validate_rendered_script(script: str) -> None:
         raise ValueError("rendered autotune TP lifecycle is out of order")
 
 
+def source_stamp(now: datetime | None = None) -> str:
+    value = now or datetime.now(timezone(timedelta(hours=8)))
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V1")
+
+
+def build_package_script(stamp: str) -> str:
+    if not stamp or "\n" in stamp:
+        raise ValueError("source stamp must be one non-empty line")
+    return f"# VERSION: {stamp}\n" + render_script()
+
+
+def build_txt(stamp: str) -> str:
+    return f"""Step5d-native continuous autotune TP package
+
+Open on Teach Pendant only after controller read-back is verified:
+  {CONTROLLER_DIR}/{PROGRAM_NAME}.urp
+
+Version:
+  {stamp}
+
+Motion class:
+  Contact motion package. Upload/read-back does not load or run it.
+  Program load/Play, bridge start, sensor zero/tare, contact, and motion remain live-gated.
+
+Contract:
+  Continuous campaign home is captured once.
+  Host/TP integer handshake uses input 24..29 and output 24..30.
+  qdot cap is fixed at 0.500 rad/s.
+  speedj acceleration profiles are 0.100, 0.200, and 0.500 rad/s^2.
+  normal-rate profile 0.030 rad/s is offline-only and rejected by this TP.
+"""
+
+
+def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> None:
+    xml = gzip.decompress(urp).decode("utf-8")
+    root = ET.fromstring(xml)
+    cached = ""
+    script_file = ""
+    for node in root.iter():
+        if node.tag == "cachedContents":
+            cached = html.unescape(node.text or "")
+        elif node.tag == "file" and node.attrib.get("resolves-to") == "file":
+            script_file = node.text or ""
+    checks = {
+        "script stamp": stamp in script,
+        "txt stamp": stamp in txt,
+        "program name": root.attrib.get("name") == PROGRAM_NAME,
+        "controller directory": root.attrib.get("directory") == CONTROLLER_DIR,
+        "script file": script_file == f"{CONTROLLER_DIR}/{PROGRAM_NAME}.script",
+        "cached script": cached == script,
+        "continuous entrypoint": script.rstrip().endswith(
+            "codex_step5d_strict_rnn_autotune_v1()"
+        ),
+    }
+    failed = [label for label, ok in checks.items() if not ok]
+    if failed:
+        raise ValueError(f"autotune TP package validation failed: {failed}")
+
+
+def write_triplet(output_dir: Path, stamp: str) -> dict[str, object]:
+    script = build_package_script(stamp)
+    txt = build_txt(stamp)
+    urp = build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
+    validate_triplet(script, txt, urp, stamp)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    paths = {
+        ".script": output_dir / f"{PROGRAM_NAME}.script",
+        ".txt": output_dir / f"{PROGRAM_NAME}.txt",
+        ".urp": output_dir / f"{PROGRAM_NAME}.urp",
+    }
+    paths[".script"].write_text(script, encoding="utf-8")
+    paths[".txt"].write_text(txt, encoding="utf-8")
+    paths[".urp"].write_bytes(urp)
+    return {
+        "program": PROGRAM_NAME,
+        "controller_dir": CONTROLLER_DIR,
+        "stamp": stamp,
+        "paths": {ext: str(path) for ext, path in paths.items()},
+        "sha256": {
+            ext: sha256_bytes(path.read_bytes()) for ext, path in paths.items()
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", type=Path, default=ROOT / BASE_RELATIVE)
-    parser.add_argument("--output-script", type=Path)
-    parser.add_argument("--allow-local-render", action="store_true")
+    parser.add_argument("--output-dir", type=Path, default=LOCAL_PROGRAM_DIR)
+    parser.add_argument("--stamp", default=None)
     args = parser.parse_args(argv)
-    rendered = render_script(load_frozen_v35(args.base))
-    digest = sha256_bytes(rendered.encode("utf-8"))
-    if args.output_script:
-        if not args.allow_local_render:
-            parser.error("--output-script requires --allow-local-render; no controller action is performed")
-        args.output_script.parent.mkdir(parents=True, exist_ok=True)
-        args.output_script.write_text(rendered, encoding="utf-8")
-    print(digest)
+    result = write_triplet(args.output_dir, args.stamp or source_stamp())
+    print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
 

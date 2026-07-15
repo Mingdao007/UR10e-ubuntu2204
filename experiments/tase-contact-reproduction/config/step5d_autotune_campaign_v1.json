@@ -4,10 +4,9 @@
   "source_stage_id": "step5d_strict_rnn_ablation_v35",
   "activation": {
     "active": false,
-    "controller_delivery_authorized": false,
     "controller_readback_verified": false,
     "live_authorized": false,
-    "claim_boundary": "offline implementation only; no controller delivery, readback, bridge start, contact, or motion"
+    "claim_boundary": "controller package delivery/readback is automatic and does not authorize bridge start, program load/Play, zero/tare, contact, or motion"
   },
   "baseline": {
     "target_force_n": 12.0,

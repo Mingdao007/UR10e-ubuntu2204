@@ -11,11 +11,10 @@
     "source_stage_id": {"const": "step5d_strict_rnn_ablation_v35"},
     "activation": {
       "type": "object", "additionalProperties": false,
-      "required": ["active", "controller_delivery_authorized", "controller_readback_verified", "live_authorized", "claim_boundary"],
+      "required": ["active", "controller_readback_verified", "live_authorized", "claim_boundary"],
       "properties": {
         "active": {"const": false},
-        "controller_delivery_authorized": {"const": false},
-        "controller_readback_verified": {"const": false},
+        "controller_readback_verified": {"type": "boolean"},
         "live_authorized": {"const": false},
         "claim_boundary": {"type": "string", "minLength": 1}
       }

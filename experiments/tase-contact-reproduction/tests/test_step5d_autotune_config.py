@@ -25,12 +25,12 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
         self.payload = json.loads(self.config_path.read_text())
         self.schema = json.loads(self.schema_path.read_text())
 
-    def test_source_contract_validates_and_stays_offline(self) -> None:
+    def test_source_contract_validates_and_keeps_live_inactive(self) -> None:
         Draft202012Validator(self.schema).validate(self.payload)
         self.assertFalse(self.payload["activation"]["active"])
         self.assertFalse(self.payload["activation"]["live_authorized"])
-        self.assertFalse(
-            self.payload["activation"]["controller_delivery_authorized"]
+        self.assertNotIn(
+            "controller_delivery_authorized", self.payload["activation"]
         )
 
     def test_candidate_schema_has_no_alpha_or_qdot_dimension(self) -> None:

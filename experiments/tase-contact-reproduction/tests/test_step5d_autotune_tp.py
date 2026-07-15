@@ -66,23 +66,18 @@ class Step5dAutotuneTpBuilderTest(unittest.TestCase):
             rendered.index("trial_id, 60,"), rendered.index("trial_id, 70,")
         )
 
-    def test_local_write_requires_explicit_render_flag(self) -> None:
+    def test_local_triplet_build_requires_no_user_authorization(self) -> None:
         with tempfile.TemporaryDirectory() as td:
-            output = Path(td) / "candidate.script"
-            with self.assertRaises(SystemExit):
-                builder.main(["--output-script", str(output)])
-            self.assertFalse(output.exists())
+            output = Path(td)
+            stamp = "2026-07-15T0830HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1"
             self.assertEqual(
-                builder.main(
-                    [
-                        "--output-script",
-                        str(output),
-                        "--allow-local-render",
-                    ]
-                ),
+                builder.main(["--output-dir", str(output), "--stamp", stamp]),
                 0,
             )
-            self.assertTrue(output.is_file())
+            script = (output / f"{builder.PROGRAM_NAME}.script").read_text()
+            txt = (output / f"{builder.PROGRAM_NAME}.txt").read_text()
+            urp = (output / f"{builder.PROGRAM_NAME}.urp").read_bytes()
+            builder.validate_triplet(script, txt, urp, stamp)
 
 
 if __name__ == "__main__":
