@@ -44,6 +44,27 @@ class CandidateBatchPlanTest(unittest.TestCase):
             self.assertEqual(payload["batch_size"], 5)
             self.assertEqual(payload["batches"][0]["candidates"][0]["log2_p"], -0.25)
 
+    def test_plan_accepts_only_approved_coarse_i_scale_multipliers(self) -> None:
+        approved = (10.0, 50.0, 100.0, 500.0, 1000.0)
+        parsed = tuple(
+            candidate_from_log2_payload(
+                {
+                    "log2_p": 0.75,
+                    "i_multiplier": multiplier,
+                    "log2_damping": 0.25,
+                }
+            )
+            for multiplier in approved
+        )
+        self.assertEqual(
+            tuple(row.approved_i_scale_multiplier for row in parsed),
+            approved,
+        )
+        with self.assertRaisesRegex(ValueError, "approved I scale probe"):
+            candidate_from_log2_payload(
+                {"log2_p": 0.75, "i_multiplier": 25, "log2_damping": 0.25}
+            )
+
     def test_plan_rejects_non_lattice_out_of_envelope_and_duplicate_points(self) -> None:
         for row in (
             {"log2_p": 0.1, "log2_i": 0.0, "log2_damping": 0.0},

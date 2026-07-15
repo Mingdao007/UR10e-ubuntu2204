@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Atomic operator-managed log2 candidate batches for Step5d autotune."""
+"""Atomic Codex-managed hybrid I-scale/log2 batches for Step5d autotune."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from step5d_autotune_contract import ForceCandidate, LOG2_LATTICE_OCTAVE
 
 
 SCHEMA_VERSION = "step5d_autotune_codex_batch_plan_v1"
-ENVELOPE_ID = "positive_i_log2_pm1_q025_v1"
+ENVELOPE_ID = "positive_i_multiplier_coarse_log2_fine_v1"
 BATCH_SIZE = 5
 
 
@@ -47,16 +47,27 @@ def _coordinate(name: str, value: Any) -> float:
 
 
 def candidate_from_log2_payload(payload: Any) -> ForceCandidate:
-    if not isinstance(payload, Mapping) or set(payload) != {
-        "log2_p",
-        "log2_i",
-        "log2_damping",
-    }:
-        raise ValueError("planned candidate must contain exact log2 P/I/damping")
-    return ForceCandidate.from_log2(
-        p=_coordinate("log2_p", payload["log2_p"]),
-        i=_coordinate("log2_i", payload["log2_i"]),
-        damping=_coordinate("log2_damping", payload["log2_damping"]),
+    if not isinstance(payload, Mapping):
+        raise ValueError("planned candidate must be an object")
+    fine_fields = {"log2_p", "log2_i", "log2_damping"}
+    scale_fields = {"log2_p", "i_multiplier", "log2_damping"}
+    if set(payload) == fine_fields:
+        return ForceCandidate.from_log2(
+            p=_coordinate("log2_p", payload["log2_p"]),
+            i=_coordinate("log2_i", payload["log2_i"]),
+            damping=_coordinate("log2_damping", payload["log2_damping"]),
+        )
+    if set(payload) == scale_fields:
+        multiplier = payload["i_multiplier"]
+        if isinstance(multiplier, bool) or not isinstance(multiplier, (int, float)):
+            raise ValueError("i_multiplier must be numeric")
+        return ForceCandidate.from_i_multiplier(
+            p=_coordinate("log2_p", payload["log2_p"]),
+            i_multiplier=float(multiplier),
+            damping=_coordinate("log2_damping", payload["log2_damping"]),
+        )
+    raise ValueError(
+        "planned candidate must contain log2 P/damping and log2_i or i_multiplier"
     )
 
 
@@ -66,11 +77,16 @@ def candidate_log2_payload(candidate: ForceCandidate) -> dict[str, float]:
     def lattice(value: float) -> float:
         return round(value / LOG2_LATTICE_OCTAVE) * LOG2_LATTICE_OCTAVE
 
-    return {
+    payload = {
         "log2_p": lattice(candidate.log2_p),
-        "log2_i": lattice(candidate.log2_i),
         "log2_damping": lattice(candidate.log2_damping),
     }
+    multiplier = candidate.approved_i_scale_multiplier
+    if multiplier is None:
+        payload["log2_i"] = lattice(candidate.log2_i)
+    else:
+        payload["i_multiplier"] = multiplier
+    return payload
 
 
 def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPlan:

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from step5d_autotune_contract import (
+    CODEX_I_SCALE_MULTIPLIERS,
     CampaignSpec,
     CaptureManifest,
     Evaluation,
@@ -29,6 +30,7 @@ from step5d_autotune_contract import (
     TrialTransitionKind,
     TrialDisposition,
     TrialSpec,
+    codex_i_scale_probe_transition,
     trial_source_from_trial,
 )
 from step5d_autotune_governor import (
@@ -283,15 +285,18 @@ class CampaignSupervisor:
         tier = self.current_search_tier
         if candidate.within_tier(tier):
             return True
+        return self.selection_policy == "codex_batches" and candidate.within_codex_hybrid_i_envelope()
+
+    def planned_candidate_transition_allowed(
+        self,
+        source: ForceCandidate,
+        target: ForceCandidate,
+    ) -> bool:
+        if live_trust_region_step(source, target):
+            return True
         return (
             self.selection_policy == "codex_batches"
-            and tier is SearchTier.T1
-            and abs(candidate.log2_p) <= SearchTier.T1.p_d_radius_octaves + 1e-9
-            and abs(candidate.log2_damping)
-            <= SearchTier.T1.p_d_radius_octaves + 1e-9
-            and candidate.force_i_gain > 0.0
-            and abs(candidate.log2_i)
-            <= SearchTier.T2.positive_i_radius_octaves + 1e-9
+            and codex_i_scale_probe_transition(source, target)
         )
 
     def seed_command_sequence_from_tp(self, consumed_command_seq: int) -> None:
@@ -451,7 +456,10 @@ class CampaignSupervisor:
                 for outcome in self._all_outcomes()
                 if outcome.profile_id == trial_profile.profile_id
                 and outcome.plant_epoch == self.plant_epoch
-                and live_trust_region_step(outcome.candidate, forced_candidate)
+                and self.planned_candidate_transition_allowed(
+                    outcome.candidate,
+                    forced_candidate,
+                )
             ]
             baseline_start = not context and forced_candidate == ForceCandidate()
             if not anchors and not baseline_start:
@@ -467,6 +475,11 @@ class CampaignSupervisor:
                 kind=(
                     TrialTransitionKind.BASELINE
                     if source_outcome is None
+                    else TrialTransitionKind.I_SCALE_PROBE
+                    if codex_i_scale_probe_transition(
+                        source_outcome.candidate,
+                        forced_candidate,
+                    )
                     else TrialTransitionKind.CODE_EPOCH_SEARCH
                     if source_outcome.evaluation.trial_uid
                     in self._archived_trial_sources
@@ -480,15 +493,20 @@ class CampaignSupervisor:
             )
             selection = {
                 "selection": (
-                    "codex_log2_batch_candidate"
+                    "codex_log10_i_scale_candidate"
+                    if source_outcome is not None
+                    and codex_i_scale_probe_transition(
+                        source_outcome.candidate,
+                        forced_candidate,
+                    )
+                    else "codex_log2_batch_candidate"
                     if self.selection_policy == "codex_batches"
                     else "operator_bounded_candidate"
                 ),
                 "tier": tier.value,
                 "codex_positive_i_radius_octaves": (
-                    SearchTier.T2.positive_i_radius_octaves
+                    math.log2(max(CODEX_I_SCALE_MULTIPLIERS))
                     if self.selection_policy == "codex_batches"
-                    and tier is SearchTier.T1
                     else tier.positive_i_radius_octaves
                 ),
                 "source_trial_uid": (

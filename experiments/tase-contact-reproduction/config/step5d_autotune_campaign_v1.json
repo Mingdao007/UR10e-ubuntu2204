@@ -37,7 +37,7 @@
     "confirmation_trials": 1
   },
   "search": {
-    "coordinate_system": "log2_native",
+    "coordinate_system": "log10_i_scale_probe_then_log2_native_refine",
     "lattice_octaves": 0.25,
     "one_coordinate_per_live_trial": true,
     "i_zero_is_categorical": true,
@@ -47,16 +47,17 @@
     "first_threshold_hit_succeeds": true,
     "outer_boundary_requires_pointwise_replay_unlock": true,
     "batch_grid": {
-      "mode": "codex_managed_log2_batches",
-      "coordinate_bounds_octaves": [-1, 1],
+      "mode": "codex_managed_hybrid_i_batches",
+      "p_d_coordinate_bounds_octaves": [-1, 1],
       "lattice_octaves": 0.25,
+      "i_coarse_multipliers": [10, 50, 100, 500, 1000],
       "coordinate_order": ["force_p_gain", "force_i_gain", "force_damping"],
       "positive_i_only": true,
       "candidates_per_batch": 5,
       "parameter_only_batch_update_changes_code_fingerprint": false,
       "first_threshold_hit_stops_batching": false,
       "governor_probes_enabled": false,
-      "i_axis_requires_t2_unlock": true
+      "i_axis_requires_t2_unlock": false
     },
     "tiers": {
       "T1": {"p_d_radius_octaves": 1.0, "positive_i_radius_octaves": 0.0, "fixed_i_gain": 0.00001},

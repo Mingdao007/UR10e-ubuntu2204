@@ -19,14 +19,19 @@ frozen v35 source and controller read-back verified. Its package stamp is
 `2026-07-15T0835HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1`; local, controller, and
 fresh-readback SHA agree for the `.script/.txt/.urp` triplet. Package delivery
 was an automatic file transaction and did not itself load or run the program.
-The host accepts append-only Codex-managed batches of exactly five
-`log2(P/P0), log2(I/I0), log2(damping/damping0)` points. Parameter-only batch
-updates live under the persistent campaign control directory and do not change
-the code fingerprint or require code tests. Each coordinate stays on the
-0.25-octave lattice inside +/-1 octave; I-axis points remain blocked until the
-existing T2 evidence gate unlocks them. The TP/bridge stays at verified Home
-while waiting for the next five-point batch, so the next direction can be
-chosen from the preceding results without another Play.
+The host accepts append-only Codex-managed batches of exactly five candidates.
+P and damping remain on the 0.25-octave `log2` lattice inside +/-1 octave. I
+uses a two-stage policy: first probe exact positive multipliers
+`[10,50,100,500,1000] * I0`, then refine around the best I scale with ordinary
+`log2 +/-0.25` steps. The force integral state remains clamped to `+/-1 N*s`,
+so the largest coarse I contribution is `0.01 m/s^2`; at the group-10 anchor,
+the P contribution at 12 N error is about `0.0202 m/s^2`. The current
+`qdot<=0.5 rad/s`, matched host/TP `0.5 rad/s^2` slew/acceleration, and gross
+force/torque guards are unchanged. Parameter-only batch updates live under the
+persistent campaign control directory and do not change the code fingerprint
+or require code tests. The TP/bridge stays at verified Home while waiting for
+the next five-point batch, so the next direction can be chosen from the
+preceding results without another Play.
 
 v34 is retained as immutable physical failure evidence. Its Stage25 feedback,
 XY, qd alignment, RNN consumption, Safety NORMAL, and gross guards passed, but

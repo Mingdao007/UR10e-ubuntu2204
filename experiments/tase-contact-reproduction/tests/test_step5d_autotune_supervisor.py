@@ -447,6 +447,26 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         ).trial
         self.assertEqual(trial.candidate, positive_i_probe)
 
+        coarse_i_probe = ForceCandidate.from_i_multiplier(
+            p=0.0,
+            damping=0.0,
+            i_multiplier=100.0,
+        )
+        with self.assertRaisesRegex(ValueError, "selection-policy envelope"):
+            seeded_manager("adaptive").next_trial(
+                require_cuda_botorch=False,
+                forced_candidate=coarse_i_probe,
+            )
+        coarse_trial = seeded_manager("codex_batches").next_trial(
+            require_cuda_botorch=False,
+            forced_candidate=coarse_i_probe,
+        ).trial
+        self.assertEqual(coarse_trial.candidate, coarse_i_probe)
+        self.assertEqual(
+            coarse_trial.transition.kind,
+            TrialTransitionKind.I_SCALE_PROBE,
+        )
+
         widened_p_probe = ForceCandidate.from_log2(p=1.25, damping=0.0, i=0.25)
         with self.assertRaisesRegex(ValueError, "selection-policy envelope"):
             seeded_manager("codex_batches").next_trial(

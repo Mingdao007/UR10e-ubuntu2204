@@ -27,6 +27,7 @@ SEED_FORCE_P_GAIN = 0.001
 SEED_FORCE_I_GAIN = 0.00001
 SEED_FORCE_DAMPING = 7.0
 LOG2_LATTICE_OCTAVE = 0.25
+CODEX_I_SCALE_MULTIPLIERS = (10.0, 50.0, 100.0, 500.0, 1000.0)
 QDOT_CAP_RAD_S = 0.5
 NORMAL_FILTER_TAU_S = 0.35
 NORMAL_FILTER_DT_MODE = "fixed_0.002s"
@@ -177,8 +178,17 @@ class ForceCandidate:
         for name, coordinate in (("log2_p", self.log2_p), ("log2_damping", self.log2_damping)):
             if not _on_lattice(coordinate):
                 raise ValueError(f"{name} must be on the 0.25-octave lattice")
-        if i > 0.0 and not _on_lattice(self.log2_i):
-            raise ValueError("log2_i must be on the 0.25-octave lattice")
+        if (
+            i > 0.0
+            and not _on_lattice(self.log2_i)
+            and not any(
+                math.isclose(i / SEED_FORCE_I_GAIN, multiplier, abs_tol=1e-9)
+                for multiplier in CODEX_I_SCALE_MULTIPLIERS
+            )
+        ):
+            raise ValueError(
+                "I must use the 0.25-octave lattice or an approved scale multiplier"
+            )
         native_values = (1.0 / p, i / p, damping / p)
         if not all(math.isfinite(value) for value in native_values):
             raise ValueError("native Md/kf/Bd mapping must remain finite")
@@ -204,6 +214,20 @@ class ForceCandidate:
     @property
     def i_mode(self) -> str:
         return "off" if self.force_i_gain == 0.0 else "positive"
+
+    @property
+    def approved_i_scale_multiplier(self) -> float | None:
+        if self.force_i_gain <= 0.0:
+            return None
+        actual = self.force_i_gain / SEED_FORCE_I_GAIN
+        return next(
+            (
+                multiplier
+                for multiplier in CODEX_I_SCALE_MULTIPLIERS
+                if math.isclose(actual, multiplier, abs_tol=1e-9)
+            ),
+            None,
+        )
 
     @property
     def native_mapping(self) -> dict[str, float]:
@@ -241,6 +265,20 @@ class ForceCandidate:
             return math.isclose(self.force_i_gain, SEED_FORCE_I_GAIN, abs_tol=1e-15)
         return self.force_i_gain == 0.0 or abs(self.log2_i) <= tier.positive_i_radius_octaves + 1e-9
 
+    def within_codex_hybrid_i_envelope(self) -> bool:
+        """Bound P/D normally while allowing the approved log10-like I scale probes."""
+
+        if (
+            abs(self.log2_p) > SearchTier.T1.p_d_radius_octaves + 1e-9
+            or abs(self.log2_damping) > SearchTier.T1.p_d_radius_octaves + 1e-9
+            or self.force_i_gain <= 0.0
+        ):
+            return False
+        return (
+            abs(self.log2_i) <= SearchTier.T2.positive_i_radius_octaves + 1e-9
+            or self.approved_i_scale_multiplier is not None
+        )
+
     @classmethod
     def from_log2(
         cls,
@@ -265,6 +303,26 @@ class ForceCandidate:
             force_p_gain=SEED_FORCE_P_GAIN * (2.0**float(p)),
             force_i_gain=force_i_gain,
             force_damping=SEED_FORCE_DAMPING * (2.0**float(damping)),
+        )
+
+    @classmethod
+    def from_i_multiplier(
+        cls,
+        *,
+        p: float,
+        damping: float,
+        i_multiplier: float,
+    ) -> "ForceCandidate":
+        multiplier = _finite("i_multiplier", i_multiplier)
+        if not any(
+            math.isclose(multiplier, approved, abs_tol=1e-9)
+            for approved in CODEX_I_SCALE_MULTIPLIERS
+        ):
+            raise ValueError("i_multiplier is not an approved I scale probe")
+        return cls(
+            force_p_gain=SEED_FORCE_P_GAIN * (2.0**_finite("p", p)),
+            force_i_gain=SEED_FORCE_I_GAIN * multiplier,
+            force_damping=SEED_FORCE_DAMPING * (2.0**_finite("damping", damping)),
         )
 
     @classmethod
@@ -695,6 +753,7 @@ class TrialTransitionKind(str, Enum):
     GOVERNOR_PROBE = "governor_probe"
     PLANT_EPOCH_ANCHOR = "plant_epoch_anchor"
     CODE_EPOCH_SEARCH = "code_epoch_search"
+    I_SCALE_PROBE = "i_scale_probe"
 
 
 @dataclass(frozen=True)
@@ -881,6 +940,22 @@ def _trial_candidate_step(
     return axis, delta
 
 
+def codex_i_scale_probe_transition(
+    source: ForceCandidate,
+    target: ForceCandidate,
+) -> bool:
+    """Return true for one-axis probes on the approved coarse I scale grid."""
+
+    if source.i_mode != "positive" or target.i_mode != "positive":
+        return False
+    return (
+        math.isclose(source.log2_p, target.log2_p, abs_tol=1e-9)
+        and math.isclose(source.log2_damping, target.log2_damping, abs_tol=1e-9)
+        and not math.isclose(source.log2_i, target.log2_i, abs_tol=1e-9)
+        and target.approved_i_scale_multiplier is not None
+    )
+
+
 @dataclass(frozen=True)
 class TrialSpec:
     campaign: CampaignSpec
@@ -917,7 +992,10 @@ class TrialSpec:
             require_sha256(name, value)
         if not isinstance(self.backend_id, str) or not self.backend_id.strip():
             raise ValueError("backend_id must be a non-empty string")
-        if not self.candidate.within_tier(SearchTier.T3):
+        if not (
+            self.candidate.within_tier(SearchTier.T3)
+            or self.candidate.within_codex_hybrid_i_envelope()
+        ):
             raise ValueError("trial candidate is outside the frozen T3 envelope")
         if not isinstance(self.transition, TrialTransition):
             raise ValueError("transition must be TrialTransition")
@@ -945,7 +1023,28 @@ class TrialSpec:
                 source.source_fingerprint == self.source_fingerprint
                 and source.config_fingerprint == self.config_fingerprint
             )
-            if transition.kind is TrialTransitionKind.FORCE_SEARCH:
+            if transition.kind is TrialTransitionKind.I_SCALE_PROBE:
+                same_or_new_code_epoch = (
+                    same_campaign_epoch and same_fingerprints
+                ) or (
+                    self.campaign.campaign_epoch > source.campaign_epoch
+                    and self.campaign.campaign_fingerprint
+                    != source.campaign_fingerprint
+                )
+                if (
+                    not codex_i_scale_probe_transition(
+                        source.candidate,
+                        self.candidate,
+                    )
+                    or same_candidate
+                    or not same_profile
+                    or not same_plant_epoch
+                    or not same_or_new_code_epoch
+                ):
+                    raise ValueError(
+                        "i_scale_probe requires one approved same-P/D I scale step"
+                    )
+            elif transition.kind is TrialTransitionKind.FORCE_SEARCH:
                 step = _trial_candidate_step(source.candidate, self.candidate)
                 if (
                     step is None
