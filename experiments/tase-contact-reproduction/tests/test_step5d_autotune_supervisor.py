@@ -467,6 +467,26 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
             TrialTransitionKind.I_SCALE_PROBE,
         )
 
+        migrated = seeded_manager("codex_batches")
+        migrated.resume_after_code_change(
+            campaign=campaign(epoch=2, fingerprint="9" * 64),
+            source_fingerprint="8" * 64,
+            config_fingerprint="7" * 64,
+        )
+        migrated_trial = migrated.next_trial(
+            require_cuda_botorch=False,
+            forced_candidate=coarse_i_probe,
+        ).trial
+        self.assertEqual(migrated_trial.candidate, coarse_i_probe)
+        self.assertEqual(
+            migrated_trial.transition.kind,
+            TrialTransitionKind.CODE_EPOCH_SEARCH,
+        )
+        self.assertEqual(
+            migrated_trial.transition.source.trial_uid,
+            identity.trial_uid,
+        )
+
         widened_p_probe = ForceCandidate.from_log2(p=1.25, damping=0.0, i=0.25)
         with self.assertRaisesRegex(ValueError, "selection-policy envelope"):
             seeded_manager("codex_batches").next_trial(

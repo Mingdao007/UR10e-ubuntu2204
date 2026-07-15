@@ -1119,7 +1119,13 @@ class TrialSpec:
                     )
             elif transition.kind is TrialTransitionKind.CODE_EPOCH_SEARCH:
                 if (
-                    _trial_candidate_step(source.candidate, self.candidate) is None
+                    (
+                        _trial_candidate_step(source.candidate, self.candidate) is None
+                        and not codex_i_scale_probe_transition(
+                            source.candidate,
+                            self.candidate,
+                        )
+                    )
                     or same_candidate
                     or not same_profile
                     or not same_plant_epoch
@@ -1128,7 +1134,8 @@ class TrialSpec:
                     == source.campaign_fingerprint
                 ):
                     raise ValueError(
-                        "code_epoch_search requires one new adjacent candidate in a newer fingerprinted epoch"
+                        "code_epoch_search requires one new adjacent or approved I-scale "
+                        "candidate in a newer fingerprinted epoch"
                     )
             else:  # pragma: no cover - Enum exhaustiveness guard.
                 raise ValueError("unsupported trial transition kind")

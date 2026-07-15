@@ -475,14 +475,14 @@ class CampaignSupervisor:
                 kind=(
                     TrialTransitionKind.BASELINE
                     if source_outcome is None
+                    else TrialTransitionKind.CODE_EPOCH_SEARCH
+                    if source_outcome.evaluation.trial_uid
+                    in self._archived_trial_sources
                     else TrialTransitionKind.I_SCALE_PROBE
                     if codex_i_scale_probe_transition(
                         source_outcome.candidate,
                         forced_candidate,
                     )
-                    else TrialTransitionKind.CODE_EPOCH_SEARCH
-                    if source_outcome.evaluation.trial_uid
-                    in self._archived_trial_sources
                     else TrialTransitionKind.FORCE_SEARCH
                 ),
                 source=(
