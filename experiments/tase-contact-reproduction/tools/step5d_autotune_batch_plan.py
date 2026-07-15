@@ -136,8 +136,21 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
             raise ValueError("candidate batch ids must be contiguous")
         if not isinstance(row["source"], str) or not row["source"].strip():
             raise ValueError("candidate batch source is invalid")
-        if not isinstance(row["candidates"], list) or len(row["candidates"]) != BATCH_SIZE:
-            raise ValueError("every candidate batch must contain exactly five points")
+        candidate_count = (
+            len(row["candidates"])
+            if isinstance(row["candidates"], list)
+            else 0
+        )
+        final_closed_partial = (
+            payload["closed"]
+            and expected_id == len(payload["batches"])
+            and 1 <= candidate_count < BATCH_SIZE
+        )
+        if candidate_count != BATCH_SIZE and not final_closed_partial:
+            raise ValueError(
+                "every open batch must contain exactly five points; only a closed "
+                "final recovery batch may contain one to four"
+            )
         candidates = tuple(candidate_from_log2_payload(item) for item in row["candidates"])
         for candidate in candidates:
             if candidate.candidate_uid in seen:

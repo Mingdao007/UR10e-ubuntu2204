@@ -65,6 +65,36 @@ class CandidateBatchPlanTest(unittest.TestCase):
                 {"log2_p": 0.75, "i_multiplier": 25, "log2_damping": 0.25}
             )
 
+    def test_closed_final_recovery_batch_may_contain_four_points(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "candidate_plan.json"
+            initialize_plan(path, campaign_id="campaign-1")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload.update({"revision": 1, "closed": True})
+            payload["batches"] = [
+                {
+                    "batch_id": 1,
+                    "source": "closed recovery tail after one completed live point",
+                    "candidates": [
+                        {
+                            "log2_p": 0.75,
+                            "i_multiplier": multiplier,
+                            "log2_damping": 0.25,
+                        }
+                        for multiplier in (50, 100, 500, 1000)
+                    ],
+                }
+            ]
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            recovered = load_plan(path, campaign_id="campaign-1")
+            self.assertTrue(recovered.closed)
+            self.assertEqual(len(recovered.candidates), 4)
+
+            payload["closed"] = False
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "only a closed final recovery"):
+                load_plan(path, campaign_id="campaign-1")
+
     def test_plan_rejects_non_lattice_out_of_envelope_and_duplicate_points(self) -> None:
         for row in (
             {"log2_p": 0.1, "log2_i": 0.0, "log2_damping": 0.0},
