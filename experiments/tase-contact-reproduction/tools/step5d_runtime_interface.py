@@ -36,6 +36,7 @@ STEP5D_ABLATION_V33C20_STAGE_ID = "step5d_strict_rnn_ablation_v33c20"
 STEP5D_ABLATION_V33_STAGE_ID = "step5d_strict_rnn_ablation_v33"
 STEP5D_ABLATION_V34_STAGE_ID = "step5d_strict_rnn_ablation_v34"
 STEP5D_ABLATION_V35_STAGE_ID = "step5d_strict_rnn_ablation_v35"
+STEP5D_AUTOTUNE_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 STEP5D_NO_CONTACT_P0_V7_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
 STEP5D_NO_CONTACT_P0_V8_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v8"
 STEP5D_NO_CONTACT_P0_V9_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v9"
@@ -56,6 +57,7 @@ STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS = (
     STEP5D_ABLATION_V33_STAGE_ID,
     STEP5D_ABLATION_V34_STAGE_ID,
     STEP5D_ABLATION_V35_STAGE_ID,
+    STEP5D_AUTOTUNE_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
     STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
 )
@@ -72,8 +74,32 @@ STEP5D_ABLATION_STAGE_IDS = (
     STEP5D_ABLATION_V33_STAGE_ID,
     STEP5D_ABLATION_V34_STAGE_ID,
     STEP5D_ABLATION_V35_STAGE_ID,
+    STEP5D_AUTOTUNE_STAGE_ID,
     *STEP5D_NO_CONTACT_P0_STAGE_IDS,
 )
+STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S = 0.35
+STEP5D_AUTOTUNE_NORMAL_FILTER_DT_S = 0.002
+STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S = (0.010, 0.015, 0.020)
+STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S = (0.030,)
+STEP5D_AUTOTUNE_QDOT_CAP_RAD_S = 0.5
+STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2 = (0.1, 0.2, 0.5)
+STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP = {
+    "input_int_register_24": "campaign_epoch",
+    "input_int_register_25": "trial_id",
+    "input_int_register_26": "command",
+    "input_int_register_27": "candidate_token",
+    "input_int_register_28": "execution_profile_id",
+    "input_int_register_29": "command_seq",
+}
+STEP5D_AUTOTUNE_HANDSHAKE_TP_TO_HOST = {
+    "output_int_register_24": "campaign_epoch_echo",
+    "output_int_register_25": "trial_id_echo",
+    "output_int_register_26": "state",
+    "output_int_register_27": "candidate_token_echo",
+    "output_int_register_28": "terminal_reason",
+    "output_int_register_29": "execution_profile_id_echo",
+    "output_int_register_30": "consumed_command_seq",
+}
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
 STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE = 523.0
 STEP5D_STAGE25_JOINT_LAYOUT_CODE = 524.0
@@ -196,6 +222,19 @@ _STAGE_ENV_MAP: tuple[tuple[str, str, object], ...] = (
     ("STEP5D_PRELOAD_TIMEOUT_S", "guard.line_entry_timeout_s", lambda value: _fmt_float(value, 1)),
 )
 
+_AUTOTUNE_STAGE_ENV_MAP: tuple[tuple[str, str, object], ...] = tuple(
+    item for item in _STAGE_ENV_MAP if item[0] != "BRIDGE_NORMAL_FILTER_ALPHA"
+) + (
+    ("BRIDGE_NORMAL_FILTER_TAU_S", "autotune_profile.normal_filter_tau_s", lambda value: _fmt_float(value, 2)),
+    ("BRIDGE_NORMAL_MAX_RATE_RAD_S", "autotune_profile.normal_rate_rad_s", lambda value: _fmt_float(value, 3)),
+    ("STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S", "autotune_profile.normal_rate_rad_s", lambda value: _fmt_float(value, 3)),
+    ("STEP5D_AUTOTUNE_FORCE_P", "autotune_profile.force_defaults.P", lambda value: _fmt_float(value, 6)),
+    ("STEP5D_AUTOTUNE_FORCE_I", "autotune_profile.force_defaults.I", lambda value: _fmt_float(value, 8)),
+    ("STEP5D_AUTOTUNE_FORCE_DAMPING", "autotune_profile.force_defaults.damping", lambda value: _fmt_float(value, 3)),
+    ("STEP5D_AUTOTUNE_HOST_SLEW_RAD_S2", "autotune_profile.host_slew_rad_s2", lambda value: _fmt_float(value, 3)),
+    ("STEP5D_AUTOTUNE_SPEEDJ_ACCELERATION_RAD_S2", "autotune_profile.speedj_acceleration_rad_s2", lambda value: _fmt_float(value, 3)),
+)
+
 
 def build_stage_env(stage_id: str, root: Path = EXPERIMENT_ROOT) -> dict[str, str]:
     row = _stage_row(stage_id, root)
@@ -205,7 +244,12 @@ def build_stage_env(stage_id: str, root: Path = EXPERIMENT_ROOT) -> dict[str, st
         else None
     )
     env: dict[str, str] = {}
-    for env_name, dotted, formatter in _STAGE_ENV_MAP:
+    stage_env_map = (
+        _AUTOTUNE_STAGE_ENV_MAP
+        if stage_id == STEP5D_AUTOTUNE_STAGE_ID
+        else _STAGE_ENV_MAP
+    )
+    for env_name, dotted, formatter in stage_env_map:
         try:
             value = _stage_field(row, dotted)
         except StageEnvError:
@@ -380,7 +424,7 @@ def _current_stage(path: Path = CURRENT_STAGE_PATH) -> dict[str, Any]:
 def current_step5d_program(path: Path = CURRENT_STAGE_PATH) -> str:
     current = _current_stage(path)
     program = str(current.get("program") or current.get("current_stage_id") or "")
-    if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_", "step5d_strict_rnn_no_contact_p0_")):
+    if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_", "step5d_strict_rnn_autotune_", "step5d_strict_rnn_no_contact_p0_")):
         return program
     return STEP5D_LIVEPREP_V20_STAGE_ID
 
@@ -419,6 +463,7 @@ def uses_step5b_speedl_live_source(program: str) -> bool:
         STEP5D_ABLATION_V33_STAGE_ID,
         STEP5D_ABLATION_V34_STAGE_ID,
         STEP5D_ABLATION_V35_STAGE_ID,
+        STEP5D_AUTOTUNE_STAGE_ID,
     }
 
 
@@ -431,7 +476,7 @@ def speedl_orientation_policy(program: str) -> str | None:
 
 
 def stage25_0_register_contract(program: str) -> str:
-    if program in {STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}:
         return (
             f"{program.rsplit('_', 1)[-1]} Stage25.0 accepts strict RNN qd0..qd5 only; the typed joint encoder "
             "writes internal wire marker 524. Marker 524 is not a global readiness or publish gate; "
@@ -475,11 +520,11 @@ def stage25_0_register_contract(program: str) -> str:
             + "Step5b/step4e orientation follow wx/wy/wz; Step5d paper/RNN outputs are logged as shadow diagnostics; "
             + suffix
         )
-    if program in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}:
         route = "strict RNN live speedj" if program == STEP5D_ABLATION_V29_STAGE_ID else "strict RNN offline-candidate speedj"
         alternatives = (
             "speedl_cartesian_oracle and speedj_dls_oracle are offline shadow/diagnostic only and forbidden as runtime fallback; "
-            if program in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
+            if program in {STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}
             else "speedl_cartesian_oracle and speedj_dls_oracle remain explicit debug/fallback modes; "
         )
         return (
@@ -502,7 +547,7 @@ def stage25_0_register_contract(program: str) -> str:
 def stage25_success_target_s(program: str) -> float | None:
     if is_no_contact_p0_stage(program):
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
-    if program in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}:
         return float(_stage_field(_stage_row(program), "guard.stage25_success_target_s"))
     if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID}:
         return STEP5D_STAGE25_V28_FULL_RUN_TARGET_S
@@ -512,11 +557,11 @@ def stage25_success_target_s(program: str) -> float | None:
 
 
 def stage25_runtime_limit_s(program: str) -> float | None:
-    if program in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}:
+    if program in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}:
         return float(_stage_field(_stage_row(program), "guard.stage25_runtime_limit_s"))
     if is_no_contact_p0_stage(program):
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
-    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}:
+    if program in {STEP5D_ABLATION_V28_STAGE_ID, STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}:
         return STEP5D_STAGE25_V28_RUNTIME_LIMIT_S
     if program == STEP5D_ABLATION_V27_STAGE_ID:
         return STEP5D_STAGE25_V27_RUNTIME_LIMIT_S
@@ -618,7 +663,7 @@ def runtime_protocol_profile(
 ) -> dict[str, Any]:
     profile_id = (
         "Step5.step5d_rnn"
-        if program in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
+        if program in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}
         else "Step5.step5d_rnn_legacy_v27"
     )
     try:
@@ -643,7 +688,7 @@ def resolve_runtime_interface(
         selected_row = _stage_row(selected, root)
     except StageEnvError:
         selected_row = {}
-    if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}:
+    if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}:
         stage_env = build_stage_env(selected, root)
         stage_guard = selected_row.get("guard") or {}
         optional_stage_env = {
@@ -701,7 +746,7 @@ def resolve_runtime_interface(
             env_map.get(
                 "STEP5D_STAGE25_CONTROL_MODE",
                 "speedj_rnn_live"
-                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
+                if selected in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_ABLATION_V30_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}
                 else "speedl_cartesian_oracle"
                 if selected in STEP5D_ABLATION_STAGE_IDS
                 else "speedj_rnn_live",
@@ -769,7 +814,11 @@ def resolve_runtime_interface(
             force_damping=env_float(env_map, "STEP5D_FORCE_DAMPING", float(protocol_params["force_damping"]), legacy="BRIDGE_FORCE_DAMPING"),
             integral_limit_n_s=env_float(env_map, "STEP5D_INTEGRAL_LIMIT_N_S", float(protocol_params["integral_limit_n_s"]), legacy="BRIDGE_INTEGRAL_LIMIT_N_S"),
             normal_velocity_limit_m_s=env_float(env_map, "STEP5D_NORMAL_VELOCITY_LIMIT_M_S", float(protocol_limits["normal_velocity_limit_m_s"]), legacy="BRIDGE_NORMAL_VELOCITY_LIMIT_M_S"),
-            normal_filter_alpha=env_float(env_map, "STEP5D_NORMAL_FILTER_ALPHA", float(protocol_params["normal_filter_alpha"]), legacy="BRIDGE_NORMAL_FILTER_ALPHA"),
+            normal_filter_alpha=(
+                0.0
+                if selected == STEP5D_AUTOTUNE_STAGE_ID
+                else env_float(env_map, "STEP5D_NORMAL_FILTER_ALPHA", float(protocol_params["normal_filter_alpha"]), legacy="BRIDGE_NORMAL_FILTER_ALPHA")
+            ),
             normal_min_force_n=env_float(env_map, "STEP5D_NORMAL_MIN_FORCE_N", float(protocol_params["normal_filter_min_force_n"]), legacy="BRIDGE_NORMAL_MIN_FORCE_N"),
             total_linear_limit_m_s=env_float(env_map, "STEP5D_TOTAL_LINEAR_LIMIT_M_S", float(protocol_limits["total_linear_limit_m_s"]), legacy="BRIDGE_TOTAL_LINEAR_LIMIT_M_S"),
             angular_limit_rad_s=env_float(env_map, "STEP5D_ANGULAR_LIMIT_RAD_S", 0.150 if selected == STEP5D_ABLATION_V25_STAGE_ID else float(protocol_limits["angular_limit_rad_s"]), legacy="BRIDGE_ANGULAR_LIMIT_RAD_S"),
@@ -843,7 +892,7 @@ def resolve_runtime_interface(
                     "sigr_exponent_r": 0.8,
                     "qdot_cap_rad_s": (
                         STEP5D_V31_QDOT_CAP_RAD_S
-                        if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
+                        if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}
                         else STEP5D_NO_CONTACT_P0_V9_QDOT_CAP_RAD_S
                         if selected == STEP5D_NO_CONTACT_P0_V9_STAGE_ID
                         else 0.05
@@ -854,21 +903,21 @@ def resolve_runtime_interface(
                             "wire_protocol": "stage_aware_joint_v1",
                             "joint_marker_internal": 524.0,
                         }
-                        if selected in {STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
+                        if selected in {STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}
                         else {"joint_layout_code": 524.0}
                     ),
                     **(
                         {
                             "guard_schema": (
                                 str((selected_row.get("guard") or {}).get("schema"))
-                                if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
+                                if selected in {STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}
                                 else "p0_v9_guard_v2"
                             ),
                             "force_guards_enabled": False,
                             "cartesian_speed_guards_enabled": False,
                             "normal_motion_guards_enabled": False,
                         }
-                        if selected in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
+                        if selected in {STEP5D_NO_CONTACT_P0_V9_STAGE_ID, STEP5D_ABLATION_V31_STAGE_ID, STEP5D_ABLATION_V32_STAGE_ID, STEP5D_ABLATION_V33C20_STAGE_ID, STEP5D_ABLATION_V33_STAGE_ID, STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}
                         else {}
                     ),
                 }
@@ -877,13 +926,33 @@ def resolve_runtime_interface(
             ),
             "runtime_scheduler": (
                 {"policy": "SCHED_OTHER", "priority": 0, "rt_quota_safe": True}
-                if selected == STEP5D_ABLATION_V35_STAGE_ID
+                if selected in {STEP5D_ABLATION_V35_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}
                 else {"policy": "SCHED_FIFO", "priority": 20}
                 if selected in STEP5D_V30_CONTROL_CONTRACT_STAGE_IDS
                 else None
             ),
             "no_contact_p0_capture": is_no_contact_p0_stage(selected),
             "v30_control_contract": uses_v30_control_contract(selected),
+            "autotune_profile": (
+                {
+                    "source_stage_id": STEP5D_ABLATION_V35_STAGE_ID,
+                    "normal_filter_alpha": "rejected",
+                    "normal_filter_tau_s": STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S,
+                    "normal_filter_dt_mode": "fixed",
+                    "normal_filter_dt_s": STEP5D_AUTOTUNE_NORMAL_FILTER_DT_S,
+                    "live_normal_rate_rad_s": STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S,
+                    "offline_only_normal_rate_rad_s": STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S,
+                    "qdot_cap_rad_s": STEP5D_AUTOTUNE_QDOT_CAP_RAD_S,
+                    "host_slew_and_speedj_levels_rad_s2": STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2,
+                    "handshake": {
+                        "host_to_tp": STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP,
+                        "tp_to_host": STEP5D_AUTOTUNE_HANDSHAKE_TP_TO_HOST,
+                        "freshness": "exact identity echoes plus consumed command_seq",
+                    },
+                }
+                if selected == STEP5D_AUTOTUNE_STAGE_ID
+                else None
+            ),
             "no_ubuntu_motion": True,
             "no_zero_ftsensor": True,
             "no_kunwei_tare_or_config": True,
@@ -891,6 +960,7 @@ def resolve_runtime_interface(
             "offline_candidate": selected
             in {
                 STEP5D_ABLATION_V30_STAGE_ID,
+                STEP5D_AUTOTUNE_STAGE_ID,
                 STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
                 STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
             },
@@ -916,7 +986,7 @@ def validate_interface_values(
         raise ValueError("STEP5D_PRELOAD_CMD_LIMIT_M_S must be positive")
     if not 0.0 <= bridge.normal_filter_alpha <= 1.0:
         raise ValueError("STEP5D_NORMAL_FILTER_ALPHA must be in [0, 1]")
-    non_negative = {"socket_timeout_s"}
+    non_negative = {"normal_filter_alpha", "socket_timeout_s"}
     if allow_zero_force_control:
         non_negative.update({"target_force_n", "force_p_gain", "force_i_gain", "integral_limit_n_s"})
     for label, value in asdict(bridge).items():
@@ -1163,9 +1233,14 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(live_ready_lines(interface, readiness=readiness)))
     if (
         args.command == "live-ready"
-        and interface.program in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
-        and isinstance(readiness, Mapping)
-        and readiness.get("blockers")
+        and (
+            interface.program == STEP5D_AUTOTUNE_STAGE_ID
+            or (
+                interface.program in {STEP5D_ABLATION_V34_STAGE_ID, STEP5D_ABLATION_V35_STAGE_ID}
+                and isinstance(readiness, Mapping)
+                and readiness.get("blockers")
+            )
+        )
     ):
         return 3
     return 0
