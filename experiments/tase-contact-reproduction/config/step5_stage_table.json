@@ -10343,8 +10343,8 @@
         "status": "pass",
         "scope": "offline_source_plus_controller_delivery_no_live",
         "autotune_suite": {
-          "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_step5d_autotune*.py",
-          "passed": 192,
+          "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_step5d_autotune*.py tests/test_publish_step5d_autotune_plot.py",
+          "passed": 194,
           "subtests_passed": 32
         },
         "impacted_scope": {
