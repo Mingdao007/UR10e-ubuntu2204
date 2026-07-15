@@ -42,12 +42,21 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
         self.assertFalse(self.payload["governor"]["qdot_cap_optimizer_dimension"])
 
     def test_profiles_and_handshake_are_exact(self) -> None:
+        self.assertEqual(
+            self.payload["baseline"]["execution_profile_id"],
+            "nf020-slew020-a020",
+        )
+        self.assertEqual(
+            self.payload["baseline"]["execution_profile_integer_id"], 322
+        )
         profiles = self.payload["execution_profiles"]
         self.assertEqual(
             [row["normal_max_rate_rad_s"] for row in profiles],
             [0.01, 0.015, 0.02, 0.03],
         )
         self.assertFalse(profiles[-1]["live_eligible"])
+        self.assertEqual(profiles[2]["tp_speedj_accel_rad_s2"], 0.2)
+        self.assertEqual(profiles[2]["host_qdot_slew_rad_s2"], 0.2)
         self.assertEqual(
             set(self.payload["integer_handshake"]["host_to_tp"].values()),
             set(range(24, 30)),
