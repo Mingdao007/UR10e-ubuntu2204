@@ -48,6 +48,17 @@ class Step5dAutotuneTpBuilderTest(unittest.TestCase):
         self.assertIn("return 0.200", rendered)
         self.assertIn("return 0.500", rendered)
 
+    def test_precontact_entry_and_far_search_are_one_point_five_times_faster(self) -> None:
+        rendered = builder.render_script()
+        self.assertIn(
+            "movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)", rendered
+        )
+        self.assertIn("40.000, -0.03375, -0.0025)", rendered)
+        self.assertNotIn(
+            "movel(entry_xy_pose, a=0.090, v=0.060, r=0.0)", rendered
+        )
+        self.assertNotIn("40.000, -0.0225, -0.0025)", rendered)
+
     def test_manual_recovery_reasons_never_auto_return(self) -> None:
         rendered = builder.render_script()
         marker = "if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:"

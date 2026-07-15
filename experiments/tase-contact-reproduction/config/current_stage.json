@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "updated_at": "2026-07-15T02:30:00+08:00",
+  "updated_at": "2026-07-15T09:19:24+08:00",
   "current_step": "Step5d",
   "current_stage_id": "step5d_strict_rnn_autotune_v1",
   "program": "step5d_strict_rnn_autotune_v1",
@@ -26,9 +26,9 @@
       "force_norm_n": 100.0,
       "torque_norm_nm": 3.0
     },
-    "stage22_entry_movel_speed_m_s": 0.06,
-    "stage22_entry_movel_accel_m_s2": 0.09,
-    "stage24_far_search_speed_m_s": -0.0225,
+    "stage22_entry_movel_speed_m_s": 0.09,
+    "stage22_entry_movel_accel_m_s2": 0.135,
+    "stage24_far_search_speed_m_s": -0.03375,
     "stage24_near_search_speed_m_s": -0.0025,
     "stage25_95_register_clear_barrier": "TP writes stage 25.95 after preload; bridge publishes the typed zero-invalid clear packet state 522 until TP observes registers 37..47 clear before Stage25.0 consumption",
     "stage25_control_mode": "speedj_rnn_live",
@@ -1197,13 +1197,13 @@
     "v35 uses Codex/high deterministic closure plus automatic degraded 1+0 because Fable5 returned an explicit session-limit response; fresh live authorization remains missing."
   ],
   "sha256": {
-    ".script": "bfec603db15c9c07902881e74263ca50030e379036688c5b3694fc2644093476",
-    ".txt": "2b16180f8c6dcaec94dbb6a29663c93c84ff7b0fe7a85b2535c70c147ba5331f",
-    ".urp": "fd129d3056ac9e4b34528d2c9ad0ccb137c7acd8e18ab99f0bc7bb40cf235fc6"
+    ".script": "934d5a329c589d3f462173bfad687380d9c0bbb385c6c005e53bf4f15dae26be",
+    ".txt": "6a8bfe7a3662710c7c83a8924752cf10f5ce131a42803167ceffd55f1f4d1079",
+    ".urp": "d13873192e61613a444de64bcc0fb61cf911749089740b96379b2a22cbadc238"
   },
   "delivery_manifest": "config/step5d_autotune_controller_readback_v1.json",
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v1.json",
-  "controller_readback_manifest_sha256": "efbf057f29883a3113595418c9d5858613215765ff728907e326942ca88d5aca",
+  "controller_readback_manifest_sha256": "31333a3fb43949795cfeb1e62fe980231686447946678df90e7d50c3072a2441",
   "v29_contact_candidate": {
     "profile": "step5d_strict_rnn_ablation_v29",
     "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",

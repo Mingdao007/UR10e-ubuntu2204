@@ -7,30 +7,30 @@
     {
       "logical_role": "controller_readback_manifest",
       "original_path": "config/step5d_autotune_controller_readback_v1.json",
-      "sha256": "efbf057f29883a3113595418c9d5858613215765ff728907e326942ca88d5aca",
-      "size": 2313,
-      "store_key": "sha256/efbf057f29883a3113595418c9d5858613215765ff728907e326942ca88d5aca"
+      "sha256": "31333a3fb43949795cfeb1e62fe980231686447946678df90e7d50c3072a2441",
+      "size": 2268,
+      "store_key": "sha256/31333a3fb43949795cfeb1e62fe980231686447946678df90e7d50c3072a2441"
     },
     {
       "logical_role": "controller_readback_script",
       "original_path": "programs/step5/step5d/step5d_strict_rnn_autotune_v1.script",
-      "sha256": "bfec603db15c9c07902881e74263ca50030e379036688c5b3694fc2644093476",
-      "size": 34009,
-      "store_key": "sha256/bfec603db15c9c07902881e74263ca50030e379036688c5b3694fc2644093476"
+      "sha256": "934d5a329c589d3f462173bfad687380d9c0bbb385c6c005e53bf4f15dae26be",
+      "size": 34010,
+      "store_key": "sha256/934d5a329c589d3f462173bfad687380d9c0bbb385c6c005e53bf4f15dae26be"
     },
     {
       "logical_role": "controller_readback_txt",
       "original_path": "programs/step5/step5d/step5d_strict_rnn_autotune_v1.txt",
-      "sha256": "2b16180f8c6dcaec94dbb6a29663c93c84ff7b0fe7a85b2535c70c147ba5331f",
-      "size": 714,
-      "store_key": "sha256/2b16180f8c6dcaec94dbb6a29663c93c84ff7b0fe7a85b2535c70c147ba5331f"
+      "sha256": "6a8bfe7a3662710c7c83a8924752cf10f5ce131a42803167ceffd55f1f4d1079",
+      "size": 834,
+      "store_key": "sha256/6a8bfe7a3662710c7c83a8924752cf10f5ce131a42803167ceffd55f1f4d1079"
     },
     {
       "logical_role": "controller_readback_urp",
       "original_path": "programs/step5/step5d/step5d_strict_rnn_autotune_v1.urp",
-      "sha256": "fd129d3056ac9e4b34528d2c9ad0ccb137c7acd8e18ab99f0bc7bb40cf235fc6",
-      "size": 7717,
-      "store_key": "sha256/fd129d3056ac9e4b34528d2c9ad0ccb137c7acd8e18ab99f0bc7bb40cf235fc6"
+      "sha256": "d13873192e61613a444de64bcc0fb61cf911749089740b96379b2a22cbadc238",
+      "size": 7720,
+      "store_key": "sha256/d13873192e61613a444de64bcc0fb61cf911749089740b96379b2a22cbadc238"
     }
   ]
 }

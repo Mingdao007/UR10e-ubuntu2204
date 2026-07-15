@@ -1,4 +1,4 @@
-# VERSION: 2026-07-15T0835HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1
+# VERSION: 2026-07-15T0928HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1
 # Step5d strict RNN ablation v35.
 # VERSION: 2026-07-15T0204HKT_STEP5D_STRICT_RNN_ABLATION_V35_QUOTA_SAFE_SCHED_OTHER_ACCEL_0P1
 # GENERATED_AT_LOCAL: 2026-07-15T02:04:25+08:00
@@ -312,7 +312,7 @@ def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2):
     local p_current = get_actual_tcp_pose()
     local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]
     codex_echo_step4e(stop_reason)
-    movel(entry_xy_pose, a=0.090, v=0.060, r=0.0)
+    movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)
     stopl(0.1)
     sleep(0.20)
     write_output_float_register(35, 23.0)
@@ -343,7 +343,7 @@ def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2):
     if first_search_max_down_m < first_search_near_start_depth_m + 0.010:
       first_search_max_down_m = first_search_near_start_depth_m + 0.010
     end
-    stop_reason = codex_step5d_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.0225, -0.0025)
+    stop_reason = codex_step5d_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.03375, -0.0025)
     if stop_reason == 11.0:
       stop_reason = 0.0
     end

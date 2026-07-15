@@ -263,6 +263,18 @@ def render_script(base_source: str | None = None) -> str:
         "    local joint_accel_rad_s2 = tp_speedj_accel_rad_s2",
         label="speedj acceleration",
     )
+    source = _replace_once(
+        source,
+        "    movel(entry_xy_pose, a=0.090, v=0.060, r=0.0)",
+        "    movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)",
+        label="1.5x pre-contact entry movel",
+    )
+    source = _replace_once(
+        source,
+        "40.000, -0.0225, -0.0025)",
+        "40.000, -0.03375, -0.0025)",
+        label="1.5x far-search speed",
+    )
     auto_home_start = "  if codex_should_auto_home(stop_reason):\n"
     final_evidence = "  write_output_float_register(30, stop_reason)\n"
     if source.count(auto_home_start) != 1:
@@ -290,6 +302,8 @@ def validate_rendered_script(script: str) -> None:
         f"def {TRIAL_FUNCTION}(campaign_home_pose, tp_speedj_accel_rad_s2):",
         "local qdot_cap_rad_s = 0.500",
         "local joint_accel_rad_s2 = tp_speedj_accel_rad_s2",
+        "movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)",
+        "40.000, -0.03375, -0.0025)",
         "local campaign_home_pose = get_actual_tcp_pose()",
         "local campaign_home_q = get_actual_joint_positions()",
         "read_input_integer_register(24)",
@@ -355,6 +369,8 @@ Contract:
   Continuous campaign home is captured once.
   Host/TP integer handshake uses input 24..29 and output 24..30.
   qdot cap is fixed at 0.500 rad/s.
+  Pre-contact entry movel is a=0.135 m/s^2, v=0.090 m/s.
+  Far search is -0.03375 m/s; near search remains -0.0025 m/s.
   speedj acceleration profiles are 0.100, 0.200, and 0.500 rad/s^2.
   normal-rate profile 0.030 rad/s is offline-only and rejected by this TP.
 """
