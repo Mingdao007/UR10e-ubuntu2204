@@ -631,7 +631,7 @@ class OptimizerTest(unittest.TestCase):
         diagonal = ForceCandidate.from_log2(p=0.25, damping=0.25, i=0.0)
         self.assertFalse(live_trust_region_step(seed, diagonal))
 
-    def test_tier2_unlock_and_success_confirmation(self) -> None:
+    def test_tier2_unlock_and_single_success(self) -> None:
         spec = trial()
         candidates = [ForceCandidate(), *one_step_neighbors(ForceCandidate(), SearchTier.T1)]
         observations: list[Observation] = []
@@ -643,10 +643,8 @@ class OptimizerTest(unittest.TestCase):
             observations.append(Observation(candidate, evaluation(obs_spec, 0.5), profile().profile_id, 1))
         self.assertEqual(unlocked_tier(observations), SearchTier.T2)
         first = trial(trial_id=20, token=220)
-        second = trial(trial_id=21, token=221)
         confirmed = [
             Observation(first.candidate, evaluation(first, 0.29), profile().profile_id, 1),
-            Observation(second.candidate, evaluation(second, 0.30), profile().profile_id, 1),
         ]
         self.assertTrue(success_confirmed(confirmed, profile_id=profile().profile_id, plant_epoch=1))
 
@@ -811,7 +809,7 @@ class GovernorTest(unittest.TestCase):
         self.assertEqual(decision.evidence["to_profile_id"], profile_b.profile_id)
         self.assertEqual(decision.evidence["plant_epoch"], 3)
 
-    def test_ab_identity_mismatch_fails_closed_and_a_prime_is_explicit(self) -> None:
+    def test_ab_identity_mismatch_fails_closed_and_ambiguous_reverts(self) -> None:
         profile_a = profile()
         profile_b = ExecutionProfile("nf015-slew010-a010", 0.015)
         base = self.ab_evidence(profile_a, profile_b)
@@ -856,62 +854,10 @@ class GovernorTest(unittest.TestCase):
             evidence=ambiguous,
             plant_epoch=3,
         )
-        self.assertEqual(request.action, "repeat_a_prime")
-        self.assertTrue(request.evidence["a_prime_required"])
-
-        with self.assertRaisesRegex(ValueError, "A-prime identity and metrics"):
-            assess_ab(
-                layer="normal_filter_rate",
-                profile_a=profile_a,
-                profile_b=profile_b,
-                evidence=replace(ambiguous, phase="a_prime"),
-                plant_epoch=3,
-            )
-
-        a_prime = replace(
-            ambiguous,
-            phase="a_prime",
-            identity_a_prime=self.identity("trial-a-prime", profile_a.profile_id),
-            burden_a_prime=1.0,
-            mae_a_prime_n=0.5,
-        )
-        confirmed = assess_ab(
-            layer="normal_filter_rate",
-            profile_a=profile_a,
-            profile_b=profile_b,
-            evidence=a_prime,
-            plant_epoch=3,
-        )
-        self.assertEqual(confirmed.action, "revert")
-        self.assertEqual(confirmed.reason, "a_prime_confirmation_failed")
-        assert a_prime.identity_a_prime is not None
-        self.assertEqual(
-            confirmed.evidence["trial_a_prime_uid"],
-            a_prime.identity_a_prime.trial_uid,
-        )
-
-        resolvable = replace(
-            self.ab_evidence(profile_a, profile_b, burden_b=0.74),
-            phase="a_prime",
-            identity_a_prime=self.identity(
-                "trial-a-prime-resolving", profile_a.profile_id
-            ),
-            burden_a_prime=1.14,
-            mae_a_prime_n=0.5,
-        )
-        resolved = assess_ab(
-            layer="normal_filter_rate",
-            profile_a=profile_a,
-            profile_b=profile_b,
-            evidence=resolvable,
-            plant_epoch=3,
-        )
-        self.assertEqual(resolved.action, "keep")
-        self.assertGreaterEqual(resolved.evidence["burden_reduction"], 0.30)
-        self.assertEqual(
-            resolved.evidence["a_prime_burden_aggregation"],
-            "repeatable_pair_mean",
-        )
+        self.assertEqual(request.action, "revert")
+        self.assertFalse(request.keep)
+        self.assertFalse(request.evidence["a_prime_required"])
+        self.assertFalse(request.evidence["exact_parameter_set_reuse_allowed"])
 
 
 class StoreAndBackendTest(unittest.TestCase):

@@ -113,8 +113,9 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
     def test_search_never_stops_for_budget_or_low_ei(self) -> None:
         self.assertFalse(self.payload["search"]["trial_budget_stop_enabled"])
         self.assertFalse(self.payload["search"]["low_ei_stop_enabled"])
-        self.assertIsNone(self.payload["failure_policy"]["nonparameter_retry_limit"])
-        self.assertIsNone(self.payload["failure_policy"]["infra_retry_limit"])
+        self.assertFalse(
+            self.payload["failure_policy"]["exact_parameter_set_reuse_allowed"]
+        )
 
     def test_unlock_governor_and_epoch_policies_are_machine_closed(self) -> None:
         search = self.payload["search"]
@@ -130,11 +131,11 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
         )
         self.assertEqual(
             self.payload["governor"]["probe_protocol"]["sequence"],
-            ["A", "B", "A_prime_if_ambiguous"],
+            ["A", "B"],
         )
         self.assertTrue(
             self.payload["failure_policy"]
-            ["retry_preserves_candidate_token_and_uses_new_trial_id"]
+            ["evidence_failure_records_outcome_then_advances"]
         )
 
     def test_schema_rejects_safety_search_and_handshake_drift(self) -> None:

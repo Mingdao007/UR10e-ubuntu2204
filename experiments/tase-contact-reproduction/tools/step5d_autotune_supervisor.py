@@ -278,12 +278,26 @@ class CampaignSupervisor:
     def _source_for_trial_uid(self, trial_uid: str) -> TrialSource:
         matches = [
             outcome
-            for outcome in self.outcome_timeline
+            for outcome in self._all_outcomes()
             if outcome.evaluation.trial_uid == trial_uid
         ]
         if len(matches) != 1:
             raise RuntimeError("transition source trial is missing or not unique")
         return self._source_from_outcome(matches[0])
+
+    def _all_outcomes(self) -> list[Observation]:
+        return [
+            outcome
+            for _epoch, archived in self.archived_epoch_outcomes
+            for outcome in archived
+        ] + list(self.outcome_timeline)
+
+    def _forbidden_candidate_uids(self, profile_id: str) -> frozenset[str]:
+        return frozenset(
+            outcome.candidate.candidate_uid
+            for outcome in self._all_outcomes()
+            if outcome.profile_id == profile_id
+        )
 
     def next_trial(
         self,
@@ -305,36 +319,19 @@ class CampaignSupervisor:
                 f"governor {probe.stage} trial is closed and awaiting assessment"
             )
         trial_profile = self.execution_profile if probe is None else probe.expected_profile
-        if self._pending_retry is not None:
-            candidate, token, retry_kind, retry_source = self._pending_retry
-            selected_attestation = None
-            transition = TrialTransition(
-                kind=TrialTransitionKind.RETRY,
-                source=retry_source,
-                retry_kind=retry_kind,
-            )
-            selection = {
-                "selection": "same_candidate_nonparameter_retry",
-                "retry_kind": retry_kind,
-                "unlimited_retry_policy": True,
-                "source_trial_uid": retry_source.trial_uid,
-            }
-            if probe is not None:
-                if candidate != probe.force_candidate:
-                    raise RuntimeError(
-                        "governor retry differs from the frozen force candidate"
-                    )
-                selection.update(
-                    {
-                        "governor_probe_stage": probe.stage,
-                        "governor_a_trial_uid": probe.identity_a.trial_uid,
-                    }
-                )
-            self._pending_retry = None
-        elif probe is not None:
+        # The pending record preserves an infra/code pause origin for durable
+        # reconciliation only.  It never authorizes reuse of its candidate.
+        pending_release_kind = (
+            self._pending_retry[2]
+            if self._pending_retry is not None
+            and self._pending_retry[2] == "infrastructure"
+            else None
+        )
+        self._pending_retry = None
+        if probe is not None:
             candidate = probe.force_candidate
             token = self._token_for(candidate)
-            retry_kind = None
+            retry_kind = pending_release_kind
             selected_attestation = None
             source_identity = (
                 probe.identity_a
@@ -355,16 +352,19 @@ class CampaignSupervisor:
             }
         else:
             candidate, selection = choose_candidate(
-                self.outcome_timeline,
+                self._all_outcomes(),
                 profile_id=self.execution_profile.profile_id,
                 plant_epoch=self.plant_epoch,
                 require_cuda_botorch=require_cuda_botorch,
                 cuda_fit_mode=cuda_fit_mode,
                 parallel_cuda_verified=parallel_cuda_verified,
                 search_attestations=search_attestations,
+                forbidden_candidate_uids=self._forbidden_candidate_uids(
+                    trial_profile.profile_id
+                ),
             )
             token = self._token_for(candidate)
-            retry_kind = None
+            retry_kind = pending_release_kind
             attestation_uid = selection.get("search_attestation_uid")
             selected_attestation = None
             if attestation_uid is not None:
@@ -390,9 +390,10 @@ class CampaignSupervisor:
                     source=self._source_for_trial_uid(source_uid),
                 )
             else:
-                if not self.outcome_timeline:
+                history = self._all_outcomes()
+                if not history:
                     raise RuntimeError("non-baseline selection lacks an executed source")
-                source = self._source_from_outcome(self.outcome_timeline[-1])
+                source = self._source_from_outcome(history[-1])
                 transition = TrialTransition(
                     kind=(
                         TrialTransitionKind.REPLICATION
@@ -401,6 +402,10 @@ class CampaignSupervisor:
                     ),
                     source=source,
                 )
+        if candidate.candidate_uid in self._forbidden_candidate_uids(
+            trial_profile.profile_id
+        ):
+            raise RuntimeError("exact parameter set has already been executed")
         self._trial_counter += 1
         trial = TrialSpec(
             campaign=self.campaign,
@@ -529,7 +534,6 @@ class CampaignSupervisor:
                 "infrastructure",
                 trial_source_from_trial(trial),
             )
-            retry = True
             post_ack_phase = CampaignPhase.WAIT_INFRA_READY
         elif disposition is TrialDisposition.CODE_CONTRACT_BUG:
             self._pending_retry = (
@@ -538,7 +542,6 @@ class CampaignSupervisor:
                 "code_fix",
                 trial_source_from_trial(trial),
             )
-            retry = True
             post_ack_phase = CampaignPhase.PAUSED_CODE_BUG
             reason = "code_bug_requires_new_fingerprint_epoch_and_authorization"
         elif disposition is TrialDisposition.SAFETY_STOP:
@@ -559,7 +562,6 @@ class CampaignSupervisor:
                 "code_fix",
                 trial_source_from_trial(trial),
             )
-            retry = True
             post_ack_phase = CampaignPhase.PAUSED_CODE_BUG
             reason = "code_bug_requires_new_fingerprint_epoch_and_authorization"
         elif (
@@ -581,17 +583,10 @@ class CampaignSupervisor:
                 else "governor_profile_diagnostic_ready"
             )
         elif disposition is TrialDisposition.FAIL_CLOSED and returned_safe:
-            # Cadence/scheduler/feedback/RNN/lag/malformed evidence is not a
-            # parameter score.  Preserve candidate token and retry without a cap.
-            self._pending_retry = (
-                trial.candidate,
-                trial.candidate_token,
-                "evidence",
-                trial_source_from_trial(trial),
-            )
-            retry = True
+            # Preserve the failed evidence as a non-trainable outcome.  Fix
+            # the evidence path separately; the next trial must use a new set.
             post_ack_phase = CampaignPhase.HOME
-            reason = "nonparameter_evidence_retry_without_limit"
+            reason = "nonparameter_evidence_recorded_no_parameter_repeat"
         else:
             post_ack_phase = CampaignPhase.STOPPED_FAIL_CLOSED
 
@@ -710,19 +705,6 @@ class CampaignSupervisor:
             or campaign.campaign_fingerprint == self.campaign.campaign_fingerprint
         ):
             raise ValueError("code changes require a new campaign epoch and fingerprint")
-        next_pending_retry = self._pending_retry
-        if self._pending_retry is not None:
-            candidate, token, retry_kind, retry_source = self._pending_retry
-            if search_attestation is not None:
-                raise ValueError(
-                    "same-candidate code-fix retry does not accept a force-search attestation"
-                )
-            next_pending_retry = (
-                candidate,
-                token,
-                retry_kind,
-                retry_source,
-            )
         self.archived_epoch_observations.append(
             (self.campaign.campaign_epoch, tuple(self.observations))
         )
@@ -734,11 +716,11 @@ class CampaignSupervisor:
         self.campaign = campaign
         self.source_fingerprint = source_fingerprint
         self.config_fingerprint = config_fingerprint
-        self._pending_retry = next_pending_retry
+        self._pending_retry = None
         self._prepared_ack = None
         # Code/guard changes invalidate every prior profile comparison.  The
-        # same force candidate may be retried, but A/B provenance may not cross
-        # a campaign fingerprint epoch.
+        # A/B provenance may not cross a campaign fingerprint epoch, and prior
+        # exact parameter sets remain forbidden after the code fix.
         self._governor_probe = None
         self.phase = CampaignPhase.HOME
 
@@ -1063,7 +1045,7 @@ class CampaignSupervisor:
         ):
             raise RuntimeError("governor may probe only while safely at campaign home")
         if self._pending_retry is not None:
-            raise RuntimeError("governor cannot bypass a pending same-candidate retry")
+            raise RuntimeError("governor cannot bypass a durable infra/code pause")
         if self._governor_probe is not None:
             raise RuntimeError("one governor A/B layer is already active")
         accepted_a = [
@@ -1428,7 +1410,8 @@ class CampaignSupervisor:
             "eligible_observations": len(self.observations),
             "outcome_timeline_count": len(self.outcome_timeline),
             "active_trial_uid": None if self.active_trial is None else self.active_trial.trial_uid,
-            "same_candidate_retry_pending": self._pending_retry is not None,
+            "same_candidate_retry_pending": False,
+            "durable_pause_origin_pending": self._pending_retry is not None,
             "cooldown_remaining": self._cooldown_remaining,
             "governor_probe_stage": (
                 None if self._governor_probe is None else self._governor_probe.stage

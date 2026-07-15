@@ -715,7 +715,7 @@ class BridgeMailboxRuntime:
             and snapshot.state is TpLoopState.WAIT_INFRA_READY
             and command.packet.command_seq > snapshot.consumed_command_seq
         ):
-            # Durable same-candidate retry ARM has not reached the old
+            # The durable next-candidate ARM has not reached the old
             # WAIT_INFRA identity yet; normal ARM phase validation sends it.
             return False
         arm = self._arm_from_binding(command)

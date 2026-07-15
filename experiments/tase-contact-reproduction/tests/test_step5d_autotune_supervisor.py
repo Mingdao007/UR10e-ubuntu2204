@@ -404,14 +404,13 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         )
         self.assertIsNone(trial_b.search_attestation)
 
-    def test_t3_infrastructure_retry_preserves_candidate_without_search_proof(self) -> None:
+    def test_t3_infrastructure_recovery_advances_to_untried_candidate(self) -> None:
         manager = supervisor()
         source = seed_t3_outcome(manager)
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             trial = manager.next_trial(require_cuda_botorch=False).trial
-            self.assertEqual(trial.candidate, source.candidate)
-            self.assertIs(trial.transition.kind, TrialTransitionKind.REPLICATION)
+            self.assertNotEqual(trial.candidate, source.candidate)
             self.close_and_ack(
                 manager,
                 trial,
@@ -423,21 +422,19 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 root,
             )
             manager.mark_infra_ready()
-            retry = manager.next_trial(require_cuda_botorch=False).trial
+            next_trial = manager.next_trial(require_cuda_botorch=False).trial
 
-        self.assertEqual(retry.candidate, trial.candidate)
-        self.assertIs(retry.transition.kind, TrialTransitionKind.RETRY)
-        self.assertEqual(retry.transition.retry_kind, "infrastructure")
-        self.assertEqual(retry.transition.source.trial_uid, trial.trial_uid)
-        self.assertIsNone(retry.search_attestation)
+        self.assertNotEqual(next_trial.candidate, trial.candidate)
+        self.assertNotEqual(next_trial.candidate_token, trial.candidate_token)
+        self.assertIs(next_trial.transition.kind, TrialTransitionKind.FORCE_SEARCH)
 
-    def test_t3_code_fix_retry_uses_new_fingerprint_without_search_proof(self) -> None:
+    def test_t3_code_fix_advances_to_untried_candidate(self) -> None:
         manager = supervisor()
         source = seed_t3_outcome(manager)
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             trial = manager.next_trial(require_cuda_botorch=False).trial
-            self.assertEqual(trial.candidate, source.candidate)
+            self.assertNotEqual(trial.candidate, source.candidate)
             self.close_and_ack(
                 manager,
                 trial,
@@ -453,16 +450,13 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 source_fingerprint="8" * 64,
                 config_fingerprint="7" * 64,
             )
-            retry = manager.next_trial(require_cuda_botorch=False).trial
+            next_trial = manager.next_trial(require_cuda_botorch=False).trial
 
-        self.assertEqual(retry.candidate, trial.candidate)
-        self.assertIs(retry.transition.kind, TrialTransitionKind.RETRY)
-        self.assertEqual(retry.transition.retry_kind, "code_fix")
-        self.assertEqual(retry.transition.source.trial_uid, trial.trial_uid)
-        self.assertEqual(retry.campaign.campaign_epoch, 2)
-        self.assertIsNone(retry.search_attestation)
+        self.assertNotEqual(next_trial.candidate, trial.candidate)
+        self.assertNotEqual(next_trial.candidate_token, trial.candidate_token)
+        self.assertEqual(next_trial.campaign.campaign_epoch, 2)
 
-    def test_two_matching_successes_confirm_at_home_with_stable_candidate_token(self) -> None:
+    def test_one_eligible_success_finishes_without_confirmation_repeat(self) -> None:
         manager = supervisor()
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -474,20 +468,9 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 evaluation(first, disposition=TrialDisposition.OBJECTIVE, objective=0.29),
                 root,
             )
-            self.assertEqual(manager.phase, CampaignPhase.HOME)
-            second = manager.next_trial(require_cuda_botorch=False).trial
-            self.assertEqual(second.candidate, first.candidate)
-            self.assertEqual(second.candidate_token, first.candidate_token)
-            self.close_and_ack(
-                manager,
-                second,
-                capture(second, reason=1),
-                evaluation(second, disposition=TrialDisposition.OBJECTIVE, objective=0.30),
-                root,
-            )
             self.assertEqual(manager.phase, CampaignPhase.SUCCEEDED)
 
-    def test_infra_retries_same_candidate_without_retry_limit(self) -> None:
+    def test_infra_recovery_never_repeats_parameter_set(self) -> None:
         manager = supervisor()
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -504,10 +487,11 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 manager.mark_infra_ready()
                 current = manager.next_trial(require_cuda_botorch=False).trial
                 self.assertGreater(current.trial_id, previous.trial_id)
-                self.assertEqual(current.candidate_token, previous.candidate_token)
+                self.assertNotEqual(current.candidate, previous.candidate)
+                self.assertNotEqual(current.candidate_token, previous.candidate_token)
                 previous = current
 
-    def test_ineligible_evidence_is_not_a_parameter_score_and_retries(self) -> None:
+    def test_ineligible_evidence_is_recorded_then_next_candidate_advances(self) -> None:
         manager = supervisor()
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -519,11 +503,14 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 evaluation(first, disposition=TrialDisposition.FAIL_CLOSED),
                 root,
             )
-            self.assertEqual(decision.reason, "nonparameter_evidence_retry_without_limit")
+            self.assertEqual(
+                decision.reason,
+                "nonparameter_evidence_recorded_no_parameter_repeat",
+            )
             self.assertEqual(manager.observations, [])
-            retry = manager.next_trial(require_cuda_botorch=False).trial
-            self.assertEqual(retry.candidate, first.candidate)
-            self.assertEqual(retry.candidate_token, first.candidate_token)
+            next_trial = manager.next_trial(require_cuda_botorch=False).trial
+            self.assertNotEqual(next_trial.candidate, first.candidate)
+            self.assertNotEqual(next_trial.candidate_token, first.candidate_token)
 
     def test_code_bug_pauses_until_new_epoch_fingerprint(self) -> None:
         manager = supervisor()
@@ -549,9 +536,10 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 source_fingerprint="8" * 64,
                 config_fingerprint="7" * 64,
             )
-            retry = manager.next_trial(require_cuda_botorch=False).trial
-            self.assertEqual(retry.campaign.campaign_epoch, 2)
-            self.assertEqual(retry.candidate_token, first.candidate_token)
+            next_trial = manager.next_trial(require_cuda_botorch=False).trial
+            self.assertEqual(next_trial.campaign.campaign_epoch, 2)
+            self.assertNotEqual(next_trial.candidate, first.candidate)
+            self.assertNotEqual(next_trial.candidate_token, first.candidate_token)
 
     def test_missing_bundle_or_safe_closure_never_emits_ack(self) -> None:
         manager = supervisor()
@@ -733,7 +721,7 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         self.assertFalse(decision.same_candidate_retry_pending)
         self.assertIsNone(manager.recovery_snapshot().governor_probe)
 
-    def test_a_prime_profile_diagnostic_can_finish_ambiguous_probe(self) -> None:
+    def test_ambiguous_profile_probe_reverts_without_a_prime(self) -> None:
         manager = supervisor()
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -770,30 +758,11 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 safe_closure=True,
             )
             request = manager.complete_governor_probe(evidence)
-            self.assertEqual(request.action, "repeat_a_prime")
+            self.assertEqual(request.action, "revert")
 
-            trial_a_prime = manager.next_trial(require_cuda_botorch=False).trial
-            close = self.close_and_ack(
-                manager,
-                trial_a_prime,
-                capture(trial_a_prime, reason=1),
-                profile_diagnostic_evaluation(trial_a_prime),
-                root,
-            )
-            self.assertEqual(
-                close.reason, "governor_a_prime_profile_diagnostic_closed"
-            )
-            completed = manager.complete_governor_probe(
-                replace(
-                    evidence,
-                    phase="a_prime",
-                    burden_a_prime=0.2,
-                    mae_a_prime_n=0.5,
-                )
-            )
-
-        self.assertEqual(completed.action, "revert")
+        self.assertFalse(request.evidence["exact_parameter_set_reuse_allowed"])
         self.assertEqual(len(manager.observations), 1)
+        self.assertIsNone(manager.recovery_snapshot().governor_probe)
 
     def test_caller_cannot_hide_immutable_tracking_regression(self) -> None:
         manager = supervisor()
@@ -855,7 +824,7 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         self.assertEqual(reverted.action, "revert")
         self.assertEqual(manager.execution_profile, trial_a.execution_profile)
 
-    def test_governor_rejects_forged_identity_and_drives_a_prime(self) -> None:
+    def test_governor_rejects_forged_identity_and_ambiguous_reverts(self) -> None:
         manager = supervisor()
         samples = [
             SaturationSample(index * 0.1, normal_filter_limited=True)
@@ -915,35 +884,11 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                     )
                 )
             decision = manager.complete_governor_probe(evidence)
-            self.assertEqual(decision.action, "repeat_a_prime")
-
-            trial_a_prime = manager.next_trial(require_cuda_botorch=False).trial
-            self.assertEqual(trial_a_prime.candidate, trial_a.candidate)
-            self.assertEqual(trial_a_prime.execution_profile, trial_a.execution_profile)
-            self.close_and_ack(
-                manager,
-                trial_a_prime,
-                capture(trial_a_prime, reason=1),
-                evaluation(
-                    trial_a_prime,
-                    disposition=TrialDisposition.OBJECTIVE,
-                    objective=0.5,
-                ),
-                root,
-            )
-            reverted = manager.complete_governor_probe(
-                replace(
-                    evidence,
-                    phase="a_prime",
-                    burden_a_prime=1.0,
-                    mae_a_prime_n=0.5,
-                )
-            )
-            self.assertEqual(reverted.action, "revert")
+            self.assertEqual(decision.action, "revert")
             self.assertEqual(manager.execution_profile, trial_a.execution_profile)
             self.assertEqual(manager.cooldown_remaining, 3)
 
-    def test_a_prime_success_confirmation_clears_probe_at_terminal_home(self) -> None:
+    def test_single_success_finishes_before_governor_probe(self) -> None:
         manager = supervisor()
         samples = [
             SaturationSample(index * 0.1, normal_filter_limited=True)
@@ -963,59 +908,10 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
                 ),
                 root,
             )
-            manager.begin_governor_probe(samples)
-            trial_b = manager.next_trial(require_cuda_botorch=False).trial
-            self.close_and_ack(
-                manager,
-                trial_b,
-                capture(trial_b, reason=1),
-                evaluation(
-                    trial_b,
-                    disposition=TrialDisposition.OBJECTIVE,
-                    objective=0.29,
-                    governor_burden=0.8,
-                ),
-                root,
-            )
-            manager.complete_governor_probe(
-                AbEvidence(
-                    burden_a=1.0,
-                    burden_b=0.8,
-                    mae_a_n=0.29,
-                    mae_b_n=0.29,
-                    tracking_not_worse=True,
-                    orientation_not_worse=True,
-                    guards_clean=True,
-                    safe_closure=True,
-                )
-            )
-            trial_a_prime = manager.next_trial(require_cuda_botorch=False).trial
-            self.close_and_ack(
-                manager,
-                trial_a_prime,
-                capture(trial_a_prime, reason=1),
-                evaluation(
-                    trial_a_prime,
-                    disposition=TrialDisposition.OBJECTIVE,
-                    objective=0.30,
-                ),
-                root,
-            )
         self.assertEqual(manager.phase, CampaignPhase.SUCCEEDED)
         self.assertIsNone(manager.recovery_snapshot().governor_probe)
-        with self.assertRaisesRegex(RuntimeError, "no governor"):
-            manager.complete_governor_probe(
-                AbEvidence(
-                    burden_a=1.0,
-                    burden_b=0.8,
-                    mae_a_n=0.29,
-                    mae_b_n=0.29,
-                    tracking_not_worse=True,
-                    orientation_not_worse=True,
-                    guards_clean=True,
-                    safe_closure=True,
-                )
-            )
+        with self.assertRaisesRegex(RuntimeError, "safely at campaign home"):
+            manager.begin_governor_probe(samples)
 
     def test_snapshot_explicitly_disables_budget_and_low_ei_stops(self) -> None:
         snapshot = supervisor().snapshot()

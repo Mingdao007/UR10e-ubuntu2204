@@ -47,7 +47,7 @@
     },
     "objective": {
       "type": "object", "additionalProperties": false,
-      "required": ["name", "stage", "window_s", "bin_s", "required_complete_bins", "fixed_f0_shadow_normal_required", "success_mae_n", "confirmation_relative_delta_max", "confirmation_trials"],
+      "required": ["name", "stage", "window_s", "bin_s", "required_complete_bins", "fixed_f0_shadow_normal_required", "success_mae_n", "confirmation_trials"],
       "properties": {
         "name": {"const": "signed_reaction_normal_12N_mae"},
         "stage": {"const": 25.0},
@@ -56,13 +56,12 @@
         "required_complete_bins": {"const": 550},
         "fixed_f0_shadow_normal_required": {"const": true},
         "success_mae_n": {"const": 0.3},
-        "confirmation_relative_delta_max": {"const": 0.15},
-        "confirmation_trials": {"const": 2}
+        "confirmation_trials": {"const": 1}
       }
     },
     "search": {
       "type": "object", "additionalProperties": false,
-      "required": ["coordinate_system", "lattice_octaves", "one_coordinate_per_live_trial", "i_zero_is_categorical", "trial_budget_stop_enabled", "low_ei_stop_enabled", "incumbent_replicate_every_eligible_trials", "first_threshold_hit_enters_confirmation", "outer_boundary_requires_pointwise_replay_unlock", "tiers", "plant_epoch_policy"],
+      "required": ["coordinate_system", "lattice_octaves", "one_coordinate_per_live_trial", "i_zero_is_categorical", "trial_budget_stop_enabled", "low_ei_stop_enabled", "exact_parameter_set_max_trials_per_profile", "first_threshold_hit_succeeds", "outer_boundary_requires_pointwise_replay_unlock", "tiers", "plant_epoch_policy"],
       "properties": {
         "coordinate_system": {"const": "log2_native"},
         "lattice_octaves": {"const": 0.25},
@@ -70,16 +69,16 @@
         "i_zero_is_categorical": {"const": true},
         "trial_budget_stop_enabled": {"const": false},
         "low_ei_stop_enabled": {"const": false},
-        "incumbent_replicate_every_eligible_trials": {"const": 4},
-        "first_threshold_hit_enters_confirmation": {"const": true},
+        "exact_parameter_set_max_trials_per_profile": {"const": 1},
+        "first_threshold_hit_succeeds": {"const": true},
         "outer_boundary_requires_pointwise_replay_unlock": {"const": true},
         "tiers": {
           "type": "object", "additionalProperties": false,
           "required": ["T1", "T2", "T3"],
           "properties": {
             "T1": {"type": "object", "additionalProperties": false, "required": ["p_d_radius_octaves", "positive_i_radius_octaves", "fixed_i_gain"], "properties": {"p_d_radius_octaves": {"const": 1.0}, "positive_i_radius_octaves": {"const": 0.0}, "fixed_i_gain": {"const": 0.00001}}},
-            "T2": {"type": "object", "additionalProperties": false, "required": ["p_d_radius_octaves", "positive_i_radius_octaves", "unlock"], "properties": {"p_d_radius_octaves": {"const": 1.5}, "positive_i_radius_octaves": {"const": 1.0}, "unlock": {"type": "object", "additionalProperties": false, "required": ["minimum_eligible_trials", "incumbent_repeatability_trials", "incumbent_relative_delta_max", "recent_structural_failure_window", "recent_structural_failures_max"], "properties": {"minimum_eligible_trials": {"const": 6}, "incumbent_repeatability_trials": {"const": 2}, "incumbent_relative_delta_max": {"const": 0.15}, "recent_structural_failure_window": {"const": 6}, "recent_structural_failures_max": {"const": 0}}}}},
-            "T3": {"type": "object", "additionalProperties": false, "required": ["p_d_radius_octaves", "positive_i_radius_octaves", "unlock"], "properties": {"p_d_radius_octaves": {"const": 2.0}, "positive_i_radius_octaves": {"const": 2.0}, "unlock": {"type": "object", "additionalProperties": false, "required": ["adjacent_outward_improvements_required", "boundary_incumbent_replay_required", "recent_eligible_trials_required", "candidate_bound_latest_trace_replay"], "properties": {"adjacent_outward_improvements_required": {"const": 2}, "boundary_incumbent_replay_required": {"const": true}, "recent_eligible_trials_required": {"const": 6}, "candidate_bound_latest_trace_replay": {"type": "array", "prefixItems": [{"const": "exact_rnn"}, {"const": "oracle"}, {"const": "slew"}], "items": false, "minItems": 3, "maxItems": 3}}}}}
+            "T2": {"type": "object", "additionalProperties": false, "required": ["p_d_radius_octaves", "positive_i_radius_octaves", "unlock"], "properties": {"p_d_radius_octaves": {"const": 1.5}, "positive_i_radius_octaves": {"const": 1.0}, "unlock": {"type": "object", "additionalProperties": false, "required": ["minimum_eligible_trials", "recent_structural_failure_window", "recent_structural_failures_max"], "properties": {"minimum_eligible_trials": {"const": 6}, "recent_structural_failure_window": {"const": 6}, "recent_structural_failures_max": {"const": 0}}}}},
+            "T3": {"type": "object", "additionalProperties": false, "required": ["p_d_radius_octaves", "positive_i_radius_octaves", "unlock"], "properties": {"p_d_radius_octaves": {"const": 2.0}, "positive_i_radius_octaves": {"const": 2.0}, "unlock": {"type": "object", "additionalProperties": false, "required": ["adjacent_outward_improvements_required", "boundary_point_must_be_eligible", "recent_eligible_trials_required", "candidate_bound_latest_trace_replay"], "properties": {"adjacent_outward_improvements_required": {"const": 2}, "boundary_point_must_be_eligible": {"const": true}, "recent_eligible_trials_required": {"const": 6}, "candidate_bound_latest_trace_replay": {"type": "array", "prefixItems": [{"const": "exact_rnn"}, {"const": "oracle"}, {"const": "slew"}], "items": false, "minItems": 3, "maxItems": 3}}}}}
           }
         },
         "plant_epoch_policy": {"type": "object", "additionalProperties": false, "required": ["observations_cross_epoch_training_allowed", "kept_profile_creates_new_epoch", "reverted_profile_restores_prior_epoch_history"], "properties": {"observations_cross_epoch_training_allowed": {"const": false}, "kept_profile_creates_new_epoch": {"const": true}, "reverted_profile_restores_prior_epoch_history": {"const": true}}}
@@ -104,7 +103,7 @@
         "tp_speedj_accel_ladder_rad_s2": {"type": "array", "prefixItems": [{"const": 0.1}, {"const": 0.2}, {"const": 0.5}], "items": false, "minItems": 3, "maxItems": 3},
         "trigger": {"type": "object", "additionalProperties": false, "required": ["independent_windows", "window_s", "minimum_saturation_fraction", "or_continuous_saturation_s"], "properties": {"independent_windows": {"const": 2}, "window_s": {"const": 5.0}, "minimum_saturation_fraction": {"const": 0.2}, "or_continuous_saturation_s": {"const": 2.0}}},
         "keep": {"type": "object", "additionalProperties": false, "required": ["minimum_burden_reduction", "maximum_mae_regression", "cooldown_eligible_trials"], "properties": {"minimum_burden_reduction": {"const": 0.3}, "maximum_mae_regression": {"const": 0.15}, "cooldown_eligible_trials": {"const": 3}}},
-        "probe_protocol": {"type": "object", "additionalProperties": false, "required": ["force_candidate_frozen", "one_layer_at_a_time", "sequence", "ambiguous_requires_a_prime", "failed_probe_reverts_immediately"], "properties": {"force_candidate_frozen": {"const": true}, "one_layer_at_a_time": {"const": true}, "sequence": {"type": "array", "prefixItems": [{"const": "A"}, {"const": "B"}, {"const": "A_prime_if_ambiguous"}], "items": false, "minItems": 3, "maxItems": 3}, "ambiguous_requires_a_prime": {"const": true}, "failed_probe_reverts_immediately": {"const": true}}},
+        "probe_protocol": {"type": "object", "additionalProperties": false, "required": ["force_candidate_frozen", "one_layer_at_a_time", "sequence", "ambiguous_reverts_without_repeat", "failed_probe_reverts_immediately"], "properties": {"force_candidate_frozen": {"const": true}, "one_layer_at_a_time": {"const": true}, "sequence": {"type": "array", "prefixItems": [{"const": "A"}, {"const": "B"}], "items": false, "minItems": 2, "maxItems": 2}, "ambiguous_reverts_without_repeat": {"const": true}, "failed_probe_reverts_immediately": {"const": true}}},
         "qdot_cap_optimizer_dimension": {"const": false},
         "lag_alone_triggers_change": {"const": false}
       }
@@ -140,16 +139,16 @@
     },
     "failure_policy": {
       "type": "object", "additionalProperties": false,
-      "required": ["infra_reasons", "manual_recovery_reasons", "campaign_stop_reasons", "code_contract_reason", "reason4_requires_host_cause", "nonparameter_retry_limit", "infra_retry_limit", "retry_preserves_candidate_token_and_uses_new_trial_id", "code_change_requires_new_campaign_epoch_fingerprint_and_authorization", "scheduler_feedback_rnn_cadence_lag_are_tp_guards"],
+      "required": ["infra_reasons", "manual_recovery_reasons", "campaign_stop_reasons", "code_contract_reason", "reason4_requires_host_cause", "exact_parameter_set_reuse_allowed", "evidence_failure_records_outcome_then_advances", "infra_or_code_recovery_advances_to_untried_parameter_set", "code_change_requires_new_campaign_epoch_fingerprint_and_authorization", "scheduler_feedback_rnn_cadence_lag_are_tp_guards"],
       "properties": {
         "infra_reasons": {"type": "array", "prefixItems": [{"const": 8}, {"const": 10}, {"const": 12}, {"const": 14}], "items": false, "minItems": 4, "maxItems": 4},
         "manual_recovery_reasons": {"type": "array", "prefixItems": [{"const": 2}, {"const": 3}], "items": false, "minItems": 2, "maxItems": 2},
         "campaign_stop_reasons": {"type": "array", "prefixItems": [{"const": 5}, {"const": 6}, {"const": 7}, {"const": 17}], "items": false, "minItems": 4, "maxItems": 4},
         "code_contract_reason": {"const": 13},
         "reason4_requires_host_cause": {"const": true},
-        "nonparameter_retry_limit": {"const": null},
-        "infra_retry_limit": {"const": null},
-        "retry_preserves_candidate_token_and_uses_new_trial_id": {"const": true},
+        "exact_parameter_set_reuse_allowed": {"const": false},
+        "evidence_failure_records_outcome_then_advances": {"const": true},
+        "infra_or_code_recovery_advances_to_untried_parameter_set": {"const": true},
         "code_change_requires_new_campaign_epoch_fingerprint_and_authorization": {"const": true},
         "scheduler_feedback_rnn_cadence_lag_are_tp_guards": {"const": false}
       }

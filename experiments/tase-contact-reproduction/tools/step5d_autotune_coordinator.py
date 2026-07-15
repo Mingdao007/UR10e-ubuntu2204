@@ -953,7 +953,7 @@ class CampaignCoordinator:
         return ReconcileResult(decision, packet)
 
     def mark_infrastructure_ready(self, tp_snapshot: TpSnapshot) -> JournalEntry:
-        """Persist infra release at HOME before any same-candidate retry ARM."""
+        """Persist infra release at HOME before arming an untried candidate."""
 
         self._require_healthy()
         if self.latest is None:
@@ -1024,9 +1024,7 @@ class CampaignCoordinator:
             supervisor=self.supervisor,
             journal=new_journal,
             trial_spec_references=self._trial_spec_references,
-            # Outcome/bundle history never crosses a code campaign epoch.  The
-            # old trial-spec reference remains only to bind the same-candidate
-            # retry token carried into the new journal.
+            # Outcome/bundle history never crosses a code campaign epoch.
             bundle_references={},
         )
         coordinator.persist_home()

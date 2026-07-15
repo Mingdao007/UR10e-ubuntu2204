@@ -578,18 +578,19 @@ def assess_ab(
     }
     if ambiguous and evidence.phase == "ab":
         return GovernorDecision(
-            action="repeat_a_prime",
+            action="revert",
             layer=layer,
             from_profile_id=profile_a.profile_id,
             to_profile_id=profile_b.profile_id,
-            keep=None,
-            reason="ab_improvement_ambiguous_10_to_30_percent",
+            keep=False,
+            reason="ab_improvement_ambiguous_revert_without_parameter_repeat",
             plant_epoch_before=plant_epoch,
             plant_epoch_after=plant_epoch,
             evidence={
                 **identity_evidence,
                 "burden_reduction": burden_reduction,
-                "a_prime_required": True,
+                "a_prime_required": False,
+                "exact_parameter_set_reuse_allowed": False,
             },
         )
     if evidence.phase == "a_prime" and not keep:

@@ -221,14 +221,6 @@ def incumbent(observations: Iterable[Observation], *, fallback: ForceCandidate |
     return min(eligible, key=lambda observation: observation.objective).candidate
 
 
-def _repeatable(observations: Iterable[Observation], candidate: ForceCandidate) -> bool:
-    values = [observation.objective for observation in observations if observation.eligible and observation.candidate == candidate]
-    if len(values) < 2:
-        return False
-    a, b = values[-2:]
-    return abs(a - b) / max(min(a, b), 1e-9) <= 0.15
-
-
 def _recent_structural_failure(outcomes: list[Observation]) -> bool:
     return any(outcome.evaluation.structural_failures for outcome in outcomes[-6:])
 
@@ -293,9 +285,7 @@ def _t3_unlocked_frontiers(
     eligible = [outcome for outcome in outcomes if outcome.eligible]
     frontiers: set[tuple[str, int, ForceCandidate]] = set()
     for boundary in {outcome.candidate for outcome in eligible}:
-        if not boundary.within_tier(SearchTier.T2) or not _repeatable(
-            eligible, boundary
-        ):
+        if not boundary.within_tier(SearchTier.T2):
             continue
         for axis, direction in _outward_improvement_chains(outcomes, boundary):
             frontiers.add((axis, direction, boundary))
@@ -368,8 +358,6 @@ def search_attestation_matches(
         or not pending_candidate.within_tier(SearchTier.T3)
     ):
         return False
-    if not _repeatable(eligible, best):
-        return False
     step = _transition_axis_direction(best, pending_candidate)
     if step != (attestation.outward_axis, attestation.outward_direction):
         return False
@@ -408,9 +396,6 @@ def unlocked_tier(
     eligible = [observation for observation in outcomes if observation.eligible]
     if len(eligible) < 6 or _recent_structural_failure(outcomes):
         return SearchTier.T1
-    best = incumbent(eligible)
-    if not _repeatable(eligible, best):
-        return SearchTier.T1
     if pending_candidate is None or search_attestation is None:
         return SearchTier.T2
     if any(not outcome.eligible for outcome in outcomes[-6:]):
@@ -431,33 +416,28 @@ def success_confirmed(
     plant_epoch: int,
     threshold_n: float = 0.30,
 ) -> bool:
-    grouped: dict[ForceCandidate, list[float]] = {}
-    for observation in observations:
-        if (
-            observation.eligible
-            and observation.profile_id == profile_id
-            and observation.plant_epoch == plant_epoch
-            and observation.objective <= threshold_n
-        ):
-            grouped.setdefault(observation.candidate, []).append(observation.objective)
-    for values in grouped.values():
-        if len(values) < 2:
-            continue
-        a, b = values[-2:]
-        if abs(a - b) / max(min(a, b), 1e-9) <= 0.15:
-            return True
-    return False
+    return any(
+        observation.eligible
+        and observation.profile_id == profile_id
+        and observation.plant_epoch == plant_epoch
+        and observation.objective <= threshold_n
+        for observation in observations
+    )
 
 
 def _deterministic_unseen(
     catalog: list[ForceCandidate],
     observations: list[Observation],
+    forbidden_candidate_uids: frozenset[str] = frozenset(),
 ) -> ForceCandidate:
-    visited = {observation.candidate for observation in observations if observation.eligible}
+    visited = {observation.candidate for observation in observations}
     for candidate in catalog:
-        if candidate not in visited:
+        if (
+            candidate not in visited
+            and candidate.candidate_uid not in forbidden_candidate_uids
+        ):
             return candidate
-    return catalog[len(observations) % len(catalog)]
+    raise RuntimeError("no untried candidate remains in the bounded catalog")
 
 
 def _cuda_botorch_candidate(
@@ -535,10 +515,19 @@ def choose_candidate(
     cuda_fit_mode: str = "serial",
     parallel_cuda_verified: bool = False,
     search_attestations: Iterable[SearchAttestation] = (),
+    forbidden_candidate_uids: frozenset[str] = frozenset(),
 ) -> tuple[ForceCandidate, dict[str, Any]]:
     attestations = tuple(search_attestations)
     if any(not isinstance(item, SearchAttestation) for item in attestations):
         raise ValueError("search_attestations must contain SearchAttestation values")
+    forbidden_candidate_uids = frozenset(
+        set(forbidden_candidate_uids)
+        | {
+            observation.candidate.candidate_uid
+            for observation in observations
+            if observation.profile_id == profile_id
+        }
+    )
     context = observations_for_context(
         observations, profile_id=profile_id, plant_epoch=plant_epoch,
     )
@@ -579,6 +568,31 @@ def choose_candidate(
             actual, selected
         ):
             raise RuntimeError("selected candidate skipped the latest actual lattice point")
+        if selected.candidate_uid in forbidden_candidate_uids:
+            anchor = actual if actual is not None else selected
+            replacements = sorted(
+                one_step_neighbors(anchor, tier),
+                key=lambda item: (
+                    not item.within_tier(SearchTier.T2),
+                    candidate_vector(item),
+                ),
+            )
+            replacement = next(
+                (
+                    item
+                    for item in replacements
+                    if item.candidate_uid not in forbidden_candidate_uids
+                ),
+                None,
+            )
+            if replacement is None:
+                raise RuntimeError(
+                    "no untried candidate remains in the current trust region"
+                )
+            selected = replacement
+            result["intended_candidate_uid"] = desired.candidate_uid
+            result["selection"] = "duplicate_rejected_unseen_neighbor"
+            result["exact_parameter_set_reuse_allowed"] = False
         transition = (
             None
             if actual is None or selected == actual
@@ -631,10 +645,10 @@ def choose_candidate(
                     ),
                 },
             )
-        return ForceCandidate(), {
-            "selection": "exact_v35_baseline",
-            "tier": SearchTier.T1.value,
-        }
+        return finalize(
+            ForceCandidate(),
+            {"selection": "exact_v35_baseline", "tier": SearchTier.T1.value},
+        )
     if not current:
         return finalize(
             ForceCandidate(),
@@ -642,16 +656,6 @@ def choose_candidate(
         )
 
     search_center = incumbent(current)
-    if (
-        context[-1].eligible
-        and context[-1].objective <= 0.30
-        and not _recent_structural_failure(context)
-    ):
-        return finalize(
-            context[-1].candidate,
-            {"selection": "success_confirmation", "tier": tier.value},
-        )
-
     candidate_attestations: dict[ForceCandidate, SearchAttestation] = {}
     if tier is SearchTier.T2:
         for candidate in one_step_neighbors(search_center, SearchTier.T3):
@@ -675,29 +679,16 @@ def choose_candidate(
                 fallback=ForceCandidate(),
             )
 
-    if (len(current) + 1) % 4 == 0:
-        return finalize(
-            center,
-            {"selection": "scheduled_incumbent_replication", "tier": tier.value},
-        )
-
-    if actual != center:
-        return finalize(
-            center,
-            {"selection": "incumbent_return", "tier": tier.value},
-        )
-
     if candidate_attestations:
         catalog = sorted(candidate_attestations, key=candidate_vector)
     else:
         catalog = list(one_step_neighbors(center, tier))
     if not catalog:
-        return finalize(
-            center,
-            {"selection": "bounded_incumbent_repeat", "tier": tier.value},
-        )
+        raise RuntimeError("bounded search has no untried neighbor")
     if len(current) < 6:
-        selected = _deterministic_unseen(catalog, current)
+        selected = _deterministic_unseen(
+            catalog, context, forbidden_candidate_uids
+        )
         return finalize(
             selected,
             {
@@ -708,7 +699,9 @@ def choose_candidate(
             preferred_attestation=candidate_attestations.get(selected),
         )
     if not require_cuda_botorch:
-        selected = _deterministic_unseen(catalog, current)
+        selected = _deterministic_unseen(
+            catalog, context, forbidden_candidate_uids
+        )
         details: dict[str, Any] = {
             "selection": "offline_deterministic_no_cuda",
             "tier": tier.value,

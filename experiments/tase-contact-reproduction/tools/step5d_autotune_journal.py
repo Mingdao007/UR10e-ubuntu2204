@@ -340,10 +340,10 @@ class TrialCursor:
         if self.retry_release is not None:
             if not isinstance(self.retry_release, RetryRelease):
                 raise ValueError("retry_release must be RetryRelease or None")
-            if self.retry_release.candidate_token != self.candidate_token:
-                raise ValueError("retry release must retain the same candidate token")
+            if self.retry_release.trial_id >= self.trial_id:
+                raise ValueError("infrastructure release must precede the new trial")
             if self.retry_release.consumed_command_seq >= self.arm_command_seq:
-                raise ValueError("retry ARM sequence must follow the released TP sequence")
+                raise ValueError("new ARM sequence must follow the released TP sequence")
 
     def payload(self) -> dict[str, Any]:
         return {

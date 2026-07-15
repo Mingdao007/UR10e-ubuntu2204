@@ -321,16 +321,14 @@ class SearchAttestationTest(unittest.TestCase):
             ),
             SearchTier.T1,
         )
-        selected, details = choose_candidate(
-            timeline,
-            profile_id=PROFILE_ID,
-            plant_epoch=1,
-            require_cuda_botorch=False,
-            search_attestations=(proof,),
-        )
-        self.assertTrue(live_trust_region_step(timeline[-1].candidate, selected))
-        self.assertLess(abs(selected.log2_p), abs(timeline[-1].candidate.log2_p))
-        self.assertEqual(details["tier"], SearchTier.T1.value)
+        with self.assertRaisesRegex(RuntimeError, "no untried candidate"):
+            choose_candidate(
+                timeline,
+                profile_id=PROFILE_ID,
+                plant_epoch=1,
+                require_cuda_botorch=False,
+                search_attestations=(proof,),
+            )
 
     def test_every_actual_transition_changes_at_most_one_coordinate(self) -> None:
         seed = ForceCandidate()
@@ -342,9 +340,9 @@ class SearchAttestationTest(unittest.TestCase):
             plant_epoch=1,
             require_cuda_botorch=False,
         )
-        self.assertEqual(selected, seed)
+        self.assertNotIn(selected, {seed, explored})
         self.assertTrue(live_trust_region_step(explored, selected))
-        self.assertEqual(details["selection"], "incumbent_return")
+        self.assertEqual(details["selection"], "duplicate_rejected_unseen_neighbor")
 
     def test_t3_frontier_advances_pointwise_after_outer_incumbent_repeat(self) -> None:
         timeline = t3_ready_timeline()
@@ -439,14 +437,14 @@ class SearchAttestationTest(unittest.TestCase):
         )
         target = ForceCandidate.from_log2(p=2.0, damping=0.0, i=0.0)
         stale_proof = attestation([outer_anchor], target)
-        without_fresh, _ = choose_candidate(
-            [outer_anchor, *new_epoch_timeline],
-            profile_id=new_profile_id,
-            plant_epoch=2,
-            require_cuda_botorch=False,
-            search_attestations=(stale_proof,),
-        )
-        self.assertNotEqual(without_fresh, target)
+        with self.assertRaisesRegex(RuntimeError, "no untried candidate"):
+            choose_candidate(
+                [outer_anchor, *new_epoch_timeline],
+                profile_id=new_profile_id,
+                plant_epoch=2,
+                require_cuda_botorch=False,
+                search_attestations=(stale_proof,),
+            )
 
         proof = attestation(
             new_epoch_timeline,

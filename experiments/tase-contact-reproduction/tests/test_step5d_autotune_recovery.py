@@ -621,7 +621,7 @@ class RestartRecoveryTest(RecoveryFixture):
         self.assertEqual(restored.coordinator.supervisor.phase, CampaignPhase.HOME)
         self.assertEqual(self.journal.load_latest().state.phase, "home")
 
-    def test_infrastructure_ack_recovers_to_wait_infra_with_same_retry_token(self) -> None:
+    def test_infrastructure_ack_recovers_with_durable_pause_origin(self) -> None:
         trial, _ = self.arm()
         _, ack = self.close_and_ack(
             trial,
@@ -641,7 +641,7 @@ class RestartRecoveryTest(RecoveryFixture):
         self.assertEqual(latest.state.pending_retry.origin_trial.candidate_token, 1)
         self.assertEqual(latest.state.pending_retry.kind, "infrastructure")
 
-    def test_wait_infra_release_arm_crash_reissues_same_candidate_new_trial(self) -> None:
+    def test_wait_infra_release_arm_crash_reissues_untried_candidate(self) -> None:
         trial, _ = self.arm()
         _, ack = self.close_and_ack(
             trial,
@@ -663,7 +663,8 @@ class RestartRecoveryTest(RecoveryFixture):
         )
         retry_trial = restored.coordinator.supervisor.active_trial
         assert retry_trial is not None
-        self.assertEqual(retry_trial.candidate_token, trial.candidate_token)
+        self.assertNotEqual(retry_trial.candidate, trial.candidate)
+        self.assertNotEqual(retry_trial.candidate_token, trial.candidate_token)
         self.assertGreater(retry_trial.trial_id, trial.trial_id)
 
         crashed = self.restore(waiting_tp)
@@ -881,95 +882,27 @@ class EpochAndGovernorJournalTest(RecoveryFixture):
         self.assertEqual(active_probe.identity_a.trial_uid, trial_a.trial_uid)
         self.assertIsNone(active_probe.identity_b)
 
-    def test_a_prime_confirmation_wins_and_restores_succeeded_without_probe(self) -> None:
+    def test_single_success_restores_succeeded_without_probe(self) -> None:
         self.coordinator.persist_home()
         trial_a, _ = self.arm()
         _, ack_a = self.close_and_ack(trial_a, objective=0.29)
         self.coordinator.reconcile(tp_ready(consumed=ack_a.command_seq))
-        samples = [
-            SaturationSample(index * 0.1, normal_filter_limited=True)
-            for index in range(110)
-        ]
-        profile_b, _ = self.coordinator.begin_governor_probe(samples)
-        assert profile_b is not None
-        trial_b, _ = self.arm()
-        _, ack_b = self.close_and_ack(
-            trial_b, objective=0.29, governor_burden=0.8
-        )
-        self.coordinator.reconcile(tp_ready(consumed=ack_b.command_seq))
-        request = self.coordinator.complete_governor_probe(
-            AbEvidence(
-                burden_a=1.0,
-                burden_b=0.8,
-                mae_a_n=0.29,
-                mae_b_n=0.29,
-                tracking_not_worse=True,
-                orientation_not_worse=True,
-                guards_clean=True,
-                safe_closure=True,
-            )
-        )
-        self.assertEqual(request.action, "repeat_a_prime")
-
         restored = CampaignCoordinator.restore(
             supervisor=supervisor(),
             journal=self.journal,
             latest=self.journal.load_latest(),
             resume_history=self.store.read_resume_history(),
             promotion_history=self.store.read_promotion_history(),
-            tp_snapshot=tp_ready(consumed=ack_b.command_seq),
-            profile_catalog=(profile_b,),
-        )
-        probe = restored.coordinator.supervisor.recovery_snapshot().governor_probe
-        assert probe is not None
-        self.assertEqual(probe.stage, "a_prime")
-        self.assertEqual(probe.identity_b.trial_uid, trial_b.trial_uid)
-
-        restored.coordinator.issue_arm(self.store, require_cuda_botorch=False)
-        trial_a_prime = restored.coordinator.supervisor.active_trial
-        assert trial_a_prime is not None
-        self.assertEqual(trial_a_prime.candidate, trial_a.candidate)
-        self.assertEqual(trial_a_prime.execution_profile, trial_a.execution_profile)
-        bundle, manifest, result = write_bundle(
-            self.store,
-            trial_a_prime,
-            self.root,
-            objective=0.30,
-        )
-        closed = restored.coordinator.close_trial(
-            manifest=manifest,
-            evaluation=result,
-            safe_closure=manifest.safe_closure_evidence,
-            bundle_path=bundle,
-        )
-        self.assertEqual(closed.post_ack_phase, CampaignPhase.SUCCEEDED)
-        ack_a_prime = restored.coordinator.issue_ack(
-            bundle,
-            verified_resume_history=self.store.read_resume_history(),
-        )
-        self.assertIsNone(self.journal.load_latest().state.governor_probe)
-        restored.coordinator.reconcile(
-            tp_ready(consumed=ack_a_prime.command_seq)
+            tp_snapshot=tp_ready(consumed=ack_a.command_seq),
         )
         self.assertEqual(
             restored.coordinator.supervisor.phase, CampaignPhase.SUCCEEDED
         )
-
-        final = CampaignCoordinator.restore(
-            supervisor=supervisor(),
-            journal=self.journal,
-            latest=self.journal.load_latest(),
-            resume_history=self.store.read_resume_history(),
-            promotion_history=self.store.read_promotion_history(),
-            tp_snapshot=tp_ready(consumed=ack_a_prime.command_seq),
-            profile_catalog=(profile_b,),
-        )
-        self.assertEqual(final.coordinator.supervisor.phase, CampaignPhase.SUCCEEDED)
         self.assertIsNone(
-            final.coordinator.supervisor.recovery_snapshot().governor_probe
+            restored.coordinator.supervisor.recovery_snapshot().governor_probe
         )
 
-    def test_closed_a_prime_identity_restores_exact_before_revert(self) -> None:
+    def test_ambiguous_governor_revert_restores_without_repeat_probe(self) -> None:
         self.coordinator.persist_home()
         trial_a, _ = self.arm()
         _, ack_a = self.close_and_ack(trial_a, objective=0.5)
@@ -985,7 +918,7 @@ class EpochAndGovernorJournalTest(RecoveryFixture):
             trial_b, objective=0.5, governor_burden=0.8
         )
         self.coordinator.reconcile(tp_ready(consumed=ack_b.command_seq))
-        self.coordinator.complete_governor_probe(
+        decision = self.coordinator.complete_governor_probe(
             AbEvidence(
                 burden_a=1.0,
                 burden_b=0.8,
@@ -997,49 +930,23 @@ class EpochAndGovernorJournalTest(RecoveryFixture):
                 safe_closure=True,
             )
         )
-        trial_a_prime, _ = self.arm()
-        _, ack_a_prime = self.close_and_ack(trial_a_prime, objective=0.5)
-        self.coordinator.reconcile(tp_ready(consumed=ack_a_prime.command_seq))
-
-        persisted = self.journal.load_latest().state.governor_probe
-        assert persisted is not None
-        self.assertEqual(persisted.stage, "a_prime")
-        self.assertEqual(persisted.trial_a_uid, trial_a.trial_uid)
-        self.assertEqual(persisted.trial_b_uid, trial_b.trial_uid)
-        self.assertEqual(persisted.trial_a_prime_uid, trial_a_prime.trial_uid)
+        self.assertEqual(decision.action, "revert")
+        self.assertIsNone(self.journal.load_latest().state.governor_probe)
         restored = CampaignCoordinator.restore(
             supervisor=supervisor(),
             journal=self.journal,
             latest=self.journal.load_latest(),
             resume_history=self.store.read_resume_history(),
             promotion_history=self.store.read_promotion_history(),
-            tp_snapshot=tp_ready(consumed=ack_a_prime.command_seq),
+            tp_snapshot=tp_ready(consumed=ack_b.command_seq),
             profile_catalog=(profile_b,),
         )
         probe = restored.coordinator.supervisor.recovery_snapshot().governor_probe
-        assert probe is not None
-        self.assertEqual(probe.identity_a.trial_uid, trial_a.trial_uid)
-        self.assertEqual(probe.identity_b.trial_uid, trial_b.trial_uid)
+        self.assertIsNone(probe)
         self.assertEqual(
-            probe.identity_a_prime.trial_uid, trial_a_prime.trial_uid
+            restored.coordinator.supervisor.execution_profile,
+            trial_a.execution_profile,
         )
-        decision = restored.coordinator.complete_governor_probe(
-            AbEvidence(
-                burden_a=1.0,
-                burden_b=0.8,
-                mae_a_n=0.5,
-                mae_b_n=0.5,
-                tracking_not_worse=True,
-                orientation_not_worse=True,
-                guards_clean=True,
-                safe_closure=True,
-                phase="a_prime",
-                burden_a_prime=1.0,
-                mae_a_prime_n=0.5,
-            )
-        )
-        self.assertEqual(decision.action, "revert")
-        self.assertIsNone(self.journal.load_latest().state.governor_probe)
         self.assertEqual(restored.coordinator.supervisor.cooldown_remaining, 3)
 
 

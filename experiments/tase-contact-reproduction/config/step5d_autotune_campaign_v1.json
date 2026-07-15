@@ -34,8 +34,7 @@
     "required_complete_bins": 550,
     "fixed_f0_shadow_normal_required": true,
     "success_mae_n": 0.3,
-    "confirmation_relative_delta_max": 0.15,
-    "confirmation_trials": 2
+    "confirmation_trials": 1
   },
   "search": {
     "coordinate_system": "log2_native",
@@ -44,20 +43,20 @@
     "i_zero_is_categorical": true,
     "trial_budget_stop_enabled": false,
     "low_ei_stop_enabled": false,
-    "incumbent_replicate_every_eligible_trials": 4,
-    "first_threshold_hit_enters_confirmation": true,
+    "exact_parameter_set_max_trials_per_profile": 1,
+    "first_threshold_hit_succeeds": true,
     "outer_boundary_requires_pointwise_replay_unlock": true,
     "tiers": {
       "T1": {"p_d_radius_octaves": 1.0, "positive_i_radius_octaves": 0.0, "fixed_i_gain": 0.00001},
       "T2": {
         "p_d_radius_octaves": 1.5,
         "positive_i_radius_octaves": 1.0,
-        "unlock": {"minimum_eligible_trials": 6, "incumbent_repeatability_trials": 2, "incumbent_relative_delta_max": 0.15, "recent_structural_failure_window": 6, "recent_structural_failures_max": 0}
+        "unlock": {"minimum_eligible_trials": 6, "recent_structural_failure_window": 6, "recent_structural_failures_max": 0}
       },
       "T3": {
         "p_d_radius_octaves": 2.0,
         "positive_i_radius_octaves": 2.0,
-        "unlock": {"adjacent_outward_improvements_required": 2, "boundary_incumbent_replay_required": true, "recent_eligible_trials_required": 6, "candidate_bound_latest_trace_replay": ["exact_rnn", "oracle", "slew"]}
+        "unlock": {"adjacent_outward_improvements_required": 2, "boundary_point_must_be_eligible": true, "recent_eligible_trials_required": 6, "candidate_bound_latest_trace_replay": ["exact_rnn", "oracle", "slew"]}
       }
     },
     "plant_epoch_policy": {
@@ -78,7 +77,7 @@
     "tp_speedj_accel_ladder_rad_s2": [0.1, 0.2, 0.5],
     "trigger": {"independent_windows": 2, "window_s": 5.0, "minimum_saturation_fraction": 0.2, "or_continuous_saturation_s": 2.0},
     "keep": {"minimum_burden_reduction": 0.3, "maximum_mae_regression": 0.15, "cooldown_eligible_trials": 3},
-    "probe_protocol": {"force_candidate_frozen": true, "one_layer_at_a_time": true, "sequence": ["A", "B", "A_prime_if_ambiguous"], "ambiguous_requires_a_prime": true, "failed_probe_reverts_immediately": true},
+    "probe_protocol": {"force_candidate_frozen": true, "one_layer_at_a_time": true, "sequence": ["A", "B"], "ambiguous_reverts_without_repeat": true, "failed_probe_reverts_immediately": true},
     "qdot_cap_optimizer_dimension": false,
     "lag_alone_triggers_change": false
   },
@@ -105,9 +104,9 @@
     "campaign_stop_reasons": [5, 6, 7, 17],
     "code_contract_reason": 13,
     "reason4_requires_host_cause": true,
-    "nonparameter_retry_limit": null,
-    "infra_retry_limit": null,
-    "retry_preserves_candidate_token_and_uses_new_trial_id": true,
+    "exact_parameter_set_reuse_allowed": false,
+    "evidence_failure_records_outcome_then_advances": true,
+    "infra_or_code_recovery_advances_to_untried_parameter_set": true,
     "code_change_requires_new_campaign_epoch_fingerprint_and_authorization": true,
     "scheduler_feedback_rnn_cadence_lag_are_tp_guards": false
   }
