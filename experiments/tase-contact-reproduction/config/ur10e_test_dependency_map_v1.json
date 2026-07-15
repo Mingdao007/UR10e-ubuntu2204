@@ -72,6 +72,10 @@
       "tests": ["tests/test_step5d_parallel_workflow.py", "tests/test_step5d_strict_rnn_solver.py", "tests/test_step5d_p0_rnn_profile_sweep.py"]
     },
     {
+      "paths": ["tools/step5d_autotune_*.py", "tools/build_step5d_autotune_tp.py", "tools/step5d_runtime_interface.py", "tools/kunwei_rtde_bridge.py", "config/step5d_autotune_campaign_v1.json", "config/schemas/step5d_autotune_campaign_v1.schema.json", "config/step5_stage_table.json", "tests/test_step5d_autotune*.py"],
+      "tests": ["tests/test_step5d_autotune.py", "tests/test_step5d_autotune_config.py", "tests/test_step5d_autotune_journal.py", "tests/test_step5d_autotune_live_driver.py", "tests/test_step5d_autotune_recovery.py", "tests/test_step5d_autotune_replay.py", "tests/test_step5d_autotune_runtime.py", "tests/test_step5d_autotune_search_attestation.py", "tests/test_step5d_autotune_store.py", "tests/test_step5d_autotune_supervisor.py", "tests/test_step5d_autotune_tp.py"]
+    },
+    {
       "paths": ["check.sh", "pytest.ini", "tests/conftest.py", "tools/run_ur10e_impacted_tests.py", "tools/ur10e_impact_selector.py", "config/ur10e_test_dependency_map_v1.json"],
       "tests": ["tests/test_project_check_entrypoint.py", "tests/test_ur10e_impact_selector.py"]
     },

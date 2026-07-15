@@ -454,7 +454,8 @@ class CrossStepParameterTableTest(unittest.TestCase):
         redundant = set(step5["bridge_startup_policy"]["applies_to_stage_ids"])
 
         self.assertEqual(derived, redundant)
-        self.assertEqual(len(derived), 11)
+        self.assertIn("step5d_strict_rnn_autotune_v1", derived)
+        self.assertEqual(len(derived), 12)
         self.assertIn("step5d_strict_rnn_ablation_v29", derived)
         self.assertIn("step5d_strict_rnn_no_contact_p0_v4", derived)
         self.assertIn("step5d_strict_rnn_no_contact_p0_v7", derived)
