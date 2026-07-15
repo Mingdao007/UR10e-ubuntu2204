@@ -505,7 +505,7 @@ def _prior_resume_history(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def _infra_abort_evidence(latest: Any) -> JournalReference:
+def _infra_abort_evidence(latest: Any) -> tuple[JournalReference, TpSnapshot]:
     cursor = latest.state.active_trial
     if cursor is None:
         raise RuntimeError("infra-abort recovery lacks an active trial")
@@ -551,10 +551,13 @@ def _infra_abort_evidence(latest: Any) -> JournalReference:
     ):
         raise RuntimeError("partial capture does not bind the exact consumed ARM")
     digest = _sha256_path(marker_path)
-    return JournalReference(
-        reference_id=digest,
-        path=str(marker_path.resolve()),
-        sha256=digest,
+    return (
+        JournalReference(
+            reference_id=digest,
+            path=str(marker_path.resolve()),
+            sha256=digest,
+        ),
+        tp_snapshot_from_bridge_row(latest_partial),
     )
 
 
@@ -588,11 +591,12 @@ def _settle_home_after_restart(
         recover_infra_aborted_active
         and active is not None
         and snapshot.state == "READY_HOME"
-        and snapshot.consumed_command_seq == active.arm_command_seq
+        and snapshot.consumed_command_seq in {0, active.arm_command_seq}
     ):
+        evidence, consumed_snapshot = _infra_abort_evidence(latest)
         coordinator.terminalize_consumed_infra_abort(
-            snapshot,
-            evidence=_infra_abort_evidence(latest),
+            consumed_snapshot,
+            evidence=evidence,
             persist=persist,
         )
         return ReconcileAction.RESUME_HOME
