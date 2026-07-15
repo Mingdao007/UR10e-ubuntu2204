@@ -1,0 +1,379 @@
+{
+  "legacy_source": "config/step5_stage_table.json",
+  "legacy_source_sha256": "64abe04a4c9ef3f3a22dc7af614134078c0e6fe4db625b601a9b3752a6bd59eb",
+  "schema": "step5.stage-index/v1",
+  "stage_count": 53,
+  "stages": [
+    {
+      "active": true,
+      "id": "step5a_cycloid_no_contact_v3",
+      "path": "config/step5/stages/step5a_cycloid_no_contact_v3.json",
+      "retained": false,
+      "sha256": "64d0795a7bf3fdae3a79227eade35ecf3549b616a082d5c8307c1c9386c711b7"
+    },
+    {
+      "active": false,
+      "id": "step5a_ros2_remote_no_contact_v1",
+      "path": "config/step5/stages/step5a_ros2_remote_no_contact_v1.json",
+      "retained": false,
+      "sha256": "3b45c99b57acbfbbcac9db03fe133853a6b3a86f01bd885b6e816b9fd118eeaa"
+    },
+    {
+      "active": false,
+      "id": "step5_contact_cycloid_baseline_v1",
+      "path": "config/step5/stages/step5_contact_cycloid_baseline_v1.json",
+      "retained": false,
+      "sha256": "ba81d02dee8308865eaa85fa7627bb782fa1d4e0f27753cf5b69a214c2e6ba71"
+    },
+    {
+      "active": false,
+      "id": "step5b_ros2_remote_shadow_v1",
+      "path": "config/step5/stages/step5b_ros2_remote_shadow_v1.json",
+      "retained": false,
+      "sha256": "c5dfe5236053d917f4c747e170549e703240cdd98c3b569092e312d36875090f"
+    },
+    {
+      "active": false,
+      "id": "step5c_speedj_dryrun_v1",
+      "path": "config/step5/stages/step5c_speedj_dryrun_v1.json",
+      "retained": false,
+      "sha256": "fc78893547ed9f92892abcafdc9fec8e4c6c1a788085d3b7c8c802699acd74cf"
+    },
+    {
+      "active": false,
+      "id": "step5c_joint_rnn_cycloid_v1",
+      "path": "config/step5/stages/step5c_joint_rnn_cycloid_v1.json",
+      "retained": false,
+      "sha256": "e767155758f9b09af8153008e1fa9b1246397278d6a23c29e2f567456ac87345"
+    },
+    {
+      "active": false,
+      "id": "step5c_strict_rnn_dryrun_v1",
+      "path": "config/step5/stages/step5c_strict_rnn_dryrun_v1.json",
+      "retained": false,
+      "sha256": "e939c96ecd9556eab250340814e2b9ce32d4c4c2001c092a21567db7f4926ce1"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v1",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v1.json",
+      "retained": false,
+      "sha256": "337c226258cbfe5eb6f626ce8c932acf9771741106f898deb0d0654edd6d3321"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v2",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v2.json",
+      "retained": false,
+      "sha256": "18392d1af3bc5b211369b1f69822d6cf3400d6228dec66bb7a7d544dfa03791e"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v3",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v3.json",
+      "retained": false,
+      "sha256": "58847ba23c7d093727f99ae5341ed0e3d3d76076c3072f786d81eeab2477c92d"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v4",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v4.json",
+      "retained": false,
+      "sha256": "4bbf914b0a6d13c2d32c3cc6342aa35815f282c68c319c4cad69b65e16718a9f"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v5",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v5.json",
+      "retained": false,
+      "sha256": "ae61aa8d7b7fc7c6a8b9d2ccd9f942b91693a8978ffcccd2243b19bd5609a8a2"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v6",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v6.json",
+      "retained": false,
+      "sha256": "9feda7fd27b8541ac6f3c84fc6692ac6c85382eb472ee47f1a817c7292b64802"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v7",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v7.json",
+      "retained": false,
+      "sha256": "dada71951ce5b62d57eb690940593f9d26688a0305716c17a9f5c754e202f682"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v8",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v8.json",
+      "retained": false,
+      "sha256": "6a1c6ddc2369f11cca594229545f6c7f9bd08c8357a7e1caac4f346ad60f1ef2"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v9",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v9.json",
+      "retained": false,
+      "sha256": "4298957e7fe7c3ec2dd81b1c1b671e59ebbc9f8b33ea17094bfe302a01105bee"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v10",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v10.json",
+      "retained": false,
+      "sha256": "dd6f4225bdb817ba556bdce83a1e6be34f9e7db25864013aaa9618f8c4ac7aac"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v11",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v11.json",
+      "retained": false,
+      "sha256": "11836b23f7e37e7927bd4ca15ea54e680620d0ede14bacc9973042365bfde9a1"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v12",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v12.json",
+      "retained": false,
+      "sha256": "25e05a04f0db763f91e750b460085e415662cbbd86b7f08f969a251dd955b59e"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v13",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v13.json",
+      "retained": false,
+      "sha256": "316ee1d01186168d85a0a8d323275b225238a0ee4bb210ccc593650fd0b05fd1"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v14",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v14.json",
+      "retained": false,
+      "sha256": "ca51b999eae59bec97f57eb35e447f05d60d019035d29b01962797ba552226c9"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v15",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v15.json",
+      "retained": false,
+      "sha256": "d713d16e87fab66c3dfda31d8578083e9f94daeedd0ed72ad9ea804854aaba6f"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v15a",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v15a.json",
+      "retained": false,
+      "sha256": "46dad7c215dce8553d72e351ba50d7d46a6d3d7536557923dd54c03bcfb9e41e"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v16",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v16.json",
+      "retained": false,
+      "sha256": "46c3227dcddcff4034886ef590fb60217a52a2731286859fcf32c6b024ab68b1"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v17",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v17.json",
+      "retained": false,
+      "sha256": "744c027351aab1851af9ba3bcfa4132a71f50a98b827ad17828c8abe36a20da7"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v18",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v18.json",
+      "retained": false,
+      "sha256": "1c868c70337d7010551b3b31c1e2a5954f1769f6d009e4b4087f3bb8db23d273"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v19",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v19.json",
+      "retained": false,
+      "sha256": "f1e7ded0f759dc06e8eefe0d5dda57fc03aaffd635cd8bb65b0109b6d9354b38"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v20",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v20.json",
+      "retained": false,
+      "sha256": "699ccdf844ec65b538c4061d83f7e6e642b204257ffed3ea2c3f55b09677a558"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v21",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v21.json",
+      "retained": false,
+      "sha256": "c7e6005a9ec9c8e905325dc018d0772e8a8ab5429c2175bcd8ffde5bf67d710d"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v22",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v22.json",
+      "retained": false,
+      "sha256": "1cdce313d9cb69a282972a5a412cd6ff757e5d4a2d82d756d0978816eaebe49a"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v23",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v23.json",
+      "retained": false,
+      "sha256": "3b065fdc76c2ddbb1d7412c59f5ffd4f03e8fae232efc339d9c73c51ec64c686"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_liveprep_v24",
+      "path": "config/step5/stages/step5d_strict_rnn_liveprep_v24.json",
+      "retained": false,
+      "sha256": "9b9dbd2fc99dfa4dadcc6e6e7c58117d40f0d3f7e223231ec248b7db31ec3412"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v25",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v25.json",
+      "retained": false,
+      "sha256": "8d5a92894119a73062ba7a55e2f4c8f24795c1fe924f0419fd7f7b5ae6a7f230"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v26",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v26.json",
+      "retained": false,
+      "sha256": "be1dfd887fb898cd27ed90bf131d2d904a06e54e4e68d0017f853749a93285fd"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v27",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v27.json",
+      "retained": false,
+      "sha256": "c412c4a389108cd603dfc9386716fa1e5cbfcc647211c0c6758c1f75cedc5bf8"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v28",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v28.json",
+      "retained": false,
+      "sha256": "c8c84537d8fc87d344c85c6753c84f7b6d58f621a69656115b3c22205bb17639"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v29",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v29.json",
+      "retained": false,
+      "sha256": "5eb11232d5cc139c68e51a704d4f4be0585d4a6e231ec91d66a131eaa7e62986"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_no_contact_p0_v4",
+      "path": "config/step5/stages/step5d_strict_rnn_no_contact_p0_v4.json",
+      "retained": false,
+      "sha256": "f38083a0089ce958bfe89c826dd0ef274486f60b7e52b675364555fd6e43c039"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_no_contact_p0_v5",
+      "path": "config/step5/stages/step5d_strict_rnn_no_contact_p0_v5.json",
+      "retained": false,
+      "sha256": "32ddb8cce0335ca700c7ff536acd61a57afce4b9ef073865663d2c2340e879bd"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_no_contact_p0_v6",
+      "path": "config/step5/stages/step5d_strict_rnn_no_contact_p0_v6.json",
+      "retained": false,
+      "sha256": "cfdd35bce5c9365b496084f8730931c3a171a9411450b14f118bdf47108428a9"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_no_contact_p0_v7",
+      "path": "config/step5/stages/step5d_strict_rnn_no_contact_p0_v7.json",
+      "retained": false,
+      "sha256": "daa9e3ece7987cec59748ac9615e63f8de5b709879297d6b5ba341e60cc39614"
+    },
+    {
+      "active": false,
+      "id": "step5d_ros2_remote_shadow_v1",
+      "path": "config/step5/stages/step5d_ros2_remote_shadow_v1.json",
+      "retained": false,
+      "sha256": "5472a5652869a8b32d55d59af76e019ccccfc573d1090101af2462dde6035e53"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_no_contact_p0_v8",
+      "path": "config/step5/stages/step5d_strict_rnn_no_contact_p0_v8.json",
+      "retained": false,
+      "sha256": "90eacca89d2117ef1ec33908476928d9be70913efd533987ca97520d2b364061"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_no_contact_p0_v9",
+      "path": "config/step5/stages/step5d_strict_rnn_no_contact_p0_v9.json",
+      "retained": false,
+      "sha256": "2372e20737abfe73f4148fbff3a152f7fd84c7ab449af45c8e085bdf6842a289"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v30",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v30.json",
+      "retained": false,
+      "sha256": "108d098dcb2ad81be130360b91efde82256b5fe2d137e54fe1d052e4f9b80ca4"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_reproduction_v1",
+      "path": "config/step5/stages/step5d_strict_rnn_reproduction_v1.json",
+      "retained": false,
+      "sha256": "848a32ac42a4955c3e7ee1d4a49383e305b500061d9afc6b200f1b294f3fca08"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v31",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v31.json",
+      "retained": false,
+      "sha256": "649c4789e4daf5175e5284be4f7ce1418e5a357d2520385c9fab0ade3c4b2c29"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v32",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v32.json",
+      "retained": false,
+      "sha256": "bbe9529a8f3e89e202ed363eee1db55b059952750ec4c329a8ea3253ac9f3b90"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v33c20",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v33c20.json",
+      "retained": false,
+      "sha256": "8fb00ad46c8d1cd4a0215cb6fe7ae0c1a287fdb8485b89b56397fc9302461742"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v33",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v33.json",
+      "retained": false,
+      "sha256": "b9a9779918e7873215520ecf1b98f2c4da343f5eb5fe532fdb4e9cc0ae4057b5"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v34",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v34.json",
+      "retained": false,
+      "sha256": "76ba4eff6e0c8e7089d75485aaa458b88affd75649687eedaba32a1f67f07d3c"
+    },
+    {
+      "active": false,
+      "id": "step5d_strict_rnn_ablation_v35",
+      "path": "config/step5/stages/step5d_strict_rnn_ablation_v35.json",
+      "retained": false,
+      "sha256": "6289a60df4fe2d5b1e601bf0220c5e1f67c349e3cb2e06457ec125a9dfc68d7f"
+    },
+    {
+      "active": true,
+      "id": "step5d_strict_rnn_autotune_v1",
+      "path": "config/step5/stages/step5d_strict_rnn_autotune_v1.json",
+      "retained": false,
+      "sha256": "9fb532b17bac8780cddf26649d0a2705298073946b6704c6a6d84a3a557b9dda"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "bundle_sha256": "016c6ff0e74f68215779732d3f8177c6bc50223d6da1dabd33e20fea8a5a350f",
+  "control_sources_byte_identical": [
+    "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
+    "experiments/tase-contact-reproduction/config/step5d_autotune_i_scale_sanity_v1.json",
+    "experiments/tase-contact-reproduction/tools/contact_semantics.py",
+    "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py",
+    "experiments/tase-contact-reproduction/tools/step5d_control_contract.py",
+    "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py",
+    "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py"
+  ],
+  "csv_sha256": "ac837bd001ec5fede3bc20a1d4773dd27b40045043285dfd0d48504b74a80930",
+  "golden_spec_sha256": "f56a3eef529494b6c209ca5534abec082519848446724a94426de522852260f8",
+  "group_id": "G10",
+  "packet_rows": 37121,
+  "passed": true,
+  "schema": "step5d.autotune.golden-replay-result/v2",
+  "tp_transitions": [
+    [
+      16,
+      12,
+      20,
+      12,
+      0,
+      533,
+      22
+    ],
+    [
+      16,
+      12,
+      40,
+      12,
+      1,
+      533,
+      22
+    ],
+    [
+      16,
+      12,
+      50,
+      12,
+      1,
+      533,
+      22
+    ],
+    [
+      16,
+      12,
+      70,
+      12,
+      1,
+      533,
+      22
+    ]
+  ],
+  "trial_uid": "61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210"
+}

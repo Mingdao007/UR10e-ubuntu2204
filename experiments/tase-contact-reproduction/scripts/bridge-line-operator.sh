@@ -1720,6 +1720,11 @@ if [[ "${BRIDGE_OPERATOR_SOURCE_ONLY:-0}" == "1" ]]; then
   return 0 2>/dev/null || exit 0
 fi
 
+if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]]; then
+  echo "refusing: Step5d autotune v1 is frozen; use step5d-autotune-live.sh for control-plane v2"
+  exit 78
+fi
+
 mode="${1:-}"
 if [[ "${mode}" == "prep-long-checks" ]]; then
   run_bench_diagnostics

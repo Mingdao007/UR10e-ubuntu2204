@@ -1,0 +1,103 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": null,
+    "blocked": false,
+    "bridge": true,
+    "cadence": {
+      "end_hold_s": 0.1,
+      "motion": "liveprep_speedj_after_readback_and_explicit_bridge_trigger",
+      "reference_clock": "real_time",
+      "tp_hold_s": 0.002
+    },
+    "complete": true,
+    "completion_target": false,
+    "contact": true,
+    "contact_policy": {
+      "bridge_required": true,
+      "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+      "contact_search": true,
+      "dls_fallback_allowed": false,
+      "force_control": true,
+      "ik_fallback_allowed": false,
+      "joint_solver": "strict_tase_rnn_only",
+      "reference_owner": "strict_rnn_bridge",
+      "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_and_v3_force_settle_entry",
+      "tp_role": "joint_executor_and_guard_only",
+      "virtual_clock_freeze": false
+    },
+    "delivery_evidence": {
+      "archived_to_step5d_dir": true,
+      "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+      "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v3_20260615_193024",
+      "controller_readback_verified": true,
+      "local_controller_readback_sha_match": true,
+      "local_package_validated": true,
+      "local_program_dir": "programs/step5/step5d",
+      "program_basename": "step5d_strict_rnn_liveprep_v3",
+      "sha256": {
+        ".script": "8917213bdfcf0fe089e65d147d10e597f62b0541cccdbe948677b0da6d65ceee",
+        ".txt": "07d05b7904e84b68d1d8c0d24f1aa518b1b462aca741bd7d09d2153f51d78ca5",
+        ".urp": "98183fef849ef0a2b8621ba1715ddfaa2222dc5a4b5d9ede1e4466718864db2a"
+      },
+      "stamp": "2026-06-14T2337HKT_STEP5D_STRICT_RNN_LIVEPREP_V3"
+    },
+    "duration_s": 60.0,
+    "filter_policy": {
+      "alpha": 0.35,
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "min_force_n": 2.0,
+      "normal_filter": "v31_filtered_live"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "attitude_cap_rad_s": 0.06,
+      "cmd_valid_required": true,
+      "force_norm_guard_n": 100.0,
+      "heartbeat_required": true,
+      "line_entry_force_error_abs_n": 3.0,
+      "line_entry_force_norm_max_n": 12.0,
+      "normal_velocity_cap_m_s": 0.003,
+      "orientation_skip_lift_error_rad": 0.069813,
+      "path_cap_m_s": 0.004,
+      "progress_end_hold_s": 0.1,
+      "qdot_cap_rad_s": 0.3,
+      "raw_normal_guard_n": 100.0,
+      "runtime_limit_s": 65.0,
+      "torque_norm_guard_nm": 3.0,
+      "total_linear_cap_m_s": 0.006
+    },
+    "id": "step5d_strict_rnn_liveprep_v3",
+    "joint_space": true,
+    "live_run_evidence": {
+      "artifact": "runs/bridge_step5d_strict_rnn_liveprep_v3_20260614_233207",
+      "followup": "superseded by step5d_strict_rnn_liveprep_v4",
+      "result": "did not enter Stage 25.0 because the strict 5N-centered 25.3 force-settle gate never became ready; max force remained below the 100N hard guard",
+      "root_cause": "25.3 required approximately 5N with abs(force_error)<=3N and force_norm<=12N for 0.100s, which was too narrow for the observed contact transient"
+    },
+    "liveprep_gates": [
+      "fresh Step5d structural numeric sanity artifact passes with qdot cap 0.30 rad/s",
+      "non-quarantine Step5d v3 TP package validates locally and contains speedj qdot executor for Stage 25.0",
+      "25.3 force-settle entry gate requires approximately 5 N before Stage 25.0",
+      "bridge limits live Step5d xdot_c before strict RNN while preserving raw xdot diagnostics",
+      "raw normal and force-norm hard guards are 100 N; 50 N remains an analysis warning threshold only",
+      "controller upload and read-back SHA/cachedContents verification pass",
+      "bridge accepts step5d_strict_rnn_liveprep_v3 and warms calibrated Pinocchio/RNN runtime before Stage 25.0",
+      "bridge Dashboard watchdog exits on TP program stopped or Play timeout even if operator is bypassed"
+    ],
+    "owner": "bridge+TP",
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "shape": "cycloid",
+    "stage": "Step5d",
+    "strict_rnn": true,
+    "success_condition": "Retained v3 live-prep evidence only. Superseded by v4 because 25.3 was too strict to enter Stage 25.0. It does not mark the full Step5d reproduction target complete."
+  }
+}

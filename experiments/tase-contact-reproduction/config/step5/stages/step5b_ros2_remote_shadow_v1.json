@@ -1,0 +1,84 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": "No-motion ROS2 shadow candidate for remote-control plumbing validation before any Step5d live candidate. It does not authorize TP program load, TP Play, bridge start, URScript, controller writes, zero_ftsensor, or robot motion.",
+    "blocked": false,
+    "bridge": false,
+    "cadence": {
+      "end_hold_s": null,
+      "motion": "no_motion_shadow_only",
+      "reference_clock": "historical_csv_t_monotonic_s",
+      "tp_hold_s": null
+    },
+    "complete": false,
+    "completion_target": false,
+    "contact": true,
+    "contact_policy": {
+      "bridge_required": false,
+      "contact_search": false,
+      "force_control": false,
+      "live_authorization": "none",
+      "reference_owner": "ROS2 shadow replay of retained Step5b bridge-owned commands",
+      "role": "remote_control_plumbing_validation_before_step5d",
+      "timing_policy": "offline_replay_only",
+      "tp_role": "none_no_tp_program_load_no_tp_play",
+      "virtual_clock_freeze": false
+    },
+    "duration_s": 60.0,
+    "filter_policy": {
+      "alpha": 0.35,
+      "follow_mode": "filtered_live",
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "min_force_n": 2.0,
+      "normal_filter": "v31_filtered_live_input_logs"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "cmd_enabled_default": false,
+      "enable_motion_default": false,
+      "prerequisites": [
+        "step5a0_ros2_headless_driver_readiness_pass",
+        "step5a_ros2_remote_no_contact_v1_pass"
+      ],
+      "required_trace": [
+        "desired_xy",
+        "desired_vxy",
+        "path_error_m",
+        "cmd_valid_shadow",
+        "would_command_twist",
+        "progress_or_path_time"
+      ],
+      "target_force_n": 5.0
+    },
+    "id": "step5b_ros2_remote_shadow_v1",
+    "local_analysis_evidence": {
+      "artifact_pattern": "runs/step5b_ros2_remote_shadow_YYYYMMDD_HHMMSS",
+      "default_config": "src/ur10e_example_controllers/config/contact_cycloid_shadow.yaml",
+      "launch": "src/ur10e_example_controllers/launch/contact_cycloid_shadow.launch.py",
+      "package": "src/ur10e_example_controllers",
+      "report": "report/step5b-ros2-remote-shadow.md",
+      "required_outputs": [
+        "summary.json",
+        "shadow_trace.csv"
+      ],
+      "source_replays": [
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222058/bridge_rtde_500hz.csv",
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv"
+      ]
+    },
+    "owner": "ROS2 offline",
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.1,
+      "type": "historical_csv_replay"
+    },
+    "shape": "cycloid",
+    "stage": "Step5b",
+    "success_condition": "Full Step5b replay covers retained evidence CSVs, is not mostly fail-fast, reports command/reference plumbing metrics, keeps cmd_enabled=false, and records that no live motion or TP action was authorized."
+  }
+}

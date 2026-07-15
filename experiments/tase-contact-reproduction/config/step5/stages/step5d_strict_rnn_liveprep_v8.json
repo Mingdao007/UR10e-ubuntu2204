@@ -1,0 +1,141 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": "Retained v8 failure evidence. Delivered and read-back verified, but 2026-06-15 live run stopped before Stage 25.0 because Stage 25.3 treated low-load dropout below 0.5N as recovery-window violation stop_reason=17. Superseded by step5d_strict_rnn_liveprep_v9.",
+    "blocked": false,
+    "bridge": true,
+    "cadence": {
+      "end_hold_s": 0.1,
+      "motion": "ready_for_explicit_live_trigger",
+      "reference_clock": "real_time",
+      "tp_hold_s": 0.002
+    },
+    "complete": true,
+    "completion_target": false,
+    "contact": true,
+    "contact_policy": {
+      "bridge_required": true,
+      "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+      "contact_search": true,
+      "dls_fallback_allowed": false,
+      "force_control": true,
+      "force_pid_settle_stage": "25.3",
+      "ik_fallback_allowed": false,
+      "joint_solver": "strict_tase_rnn_only",
+      "reference_owner": "strict_rnn_bridge",
+      "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_and_v8_force_pid_settle_25_3",
+      "tp_role": "stage_split_executor_and_guard_only",
+      "virtual_clock_freeze": false
+    },
+    "duration_s": 60.0,
+    "failure_evidence": "runs/bridge_step5d_strict_rnn_liveprep_v8_20260615_183351",
+    "filter_policy": {
+      "alpha": 0.35,
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "min_force_n": 2.0,
+      "normal_filter": "v31_filtered_live",
+      "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "attitude_cap_rad_s": 0.06,
+      "cmd_valid_required": true,
+      "force_norm_guard_n": 100.0,
+      "heartbeat_required": true,
+      "line_entry_force_norm_max_n": 25.0,
+      "line_entry_force_norm_stop_n": 100.0,
+      "line_entry_normal_load_max_n": 8.0,
+      "line_entry_normal_load_min_n": 3.0,
+      "line_entry_recovery_normal_load_max_n": 40.0,
+      "line_entry_recovery_normal_load_min_n": 0.5,
+      "line_entry_required_s": 0.2,
+      "line_entry_timeout_s": 10.0,
+      "normal_velocity_cap_m_s": 0.003,
+      "orientation_skip_lift_error_rad": 0.069813,
+      "path_cap_m_s": 0.004,
+      "progress_end_hold_s": 0.1,
+      "qdot_cap_rad_s": 0.3,
+      "raw_normal_guard_n": 100.0,
+      "runtime_limit_s": 65.0,
+      "second_contact_far_speed_m_s": -0.0025,
+      "second_contact_max_down_m": 0.035,
+      "second_contact_near_speed_m_s": -0.0025,
+      "second_contact_near_start_depth_m": 0.0,
+      "semantic_orientation_tolerance_rad": 0.08726646259971647,
+      "torque_norm_guard_nm": 3.0,
+      "total_linear_cap_m_s": 0.006
+    },
+    "id": "step5d_strict_rnn_liveprep_v8",
+    "joint_space": true,
+    "live_run_evidence": {
+      "followup": "superseded by step5d_strict_rnn_liveprep_v9",
+      "result": "Did not enter Stage 25.0. Stage 25.3 force-PID settle was active for about 0.368s, then low-load dropout to about 0.23N cleared bridge cmd_valid and TP stopped with reason 17. Dashboard remained Safetymode NORMAL.",
+      "root_cause": "Both bridge and TP used the 0.5N recovery lower bound as a hard stop instead of a press-recovery condition.",
+      "run_dir": "runs/bridge_step5d_strict_rnn_liveprep_v8_20260615_183351"
+    },
+    "liveprep_gates": [
+      "UR force/frame semantic gate passes v2/v4 Stage 25.0 replay",
+      "v6/v7 failure-contrast gate proves 20N+ must not enter Stage 25.0 directly",
+      "retained Step5d v8 TP package validates locally and splits registers: 25.3 uses 37..39 Cartesian settle velocity, 25.0 uses 37..42 qdot",
+      "24.3/24.4 second contact search remains slow-only with near_start_depth=0m and 2.5mm/s command speed",
+      "25.3 force PID settle may recover only inside 0.5N <= normal_load <= 40N and force_norm <=100N",
+      "25.3 settled release requires 3N <= normal_load <= 8N plus force_norm <=25N for 0.200s and bridge cmd_valid true",
+      "bridge limits live Step5d xdot_c before strict RNN while preserving raw xdot diagnostics",
+      "bridge hard-fails the Step5d semantic gate before RNN/qdot if orientation semantics disagree",
+      "controller upload and read-back SHA/cachedContents verification pass",
+      "separate live dry-run/contact SOP is accepted before bridge or TP Play"
+    ],
+    "local_delivery_evidence": {
+      "archived_to_step5d_dir": true,
+      "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+      "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v8_20260615_193040",
+      "controller_readback_verified": true,
+      "local_controller_readback_sha_match": true,
+      "local_package_validated": true,
+      "local_program_dir": "programs/step5/step5d",
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v8.{script,txt,urp}",
+      "program_basename": "step5d_strict_rnn_liveprep_v8",
+      "semantic_gate": "runs/ur_contact_semantic_gate_20260615_183044/ur_contact_semantic_gate_summary.json",
+      "semantic_gate_pass": true,
+      "sha256": {
+        ".script": "34004f8ec98259f6926f76340f17689e92fa73c1aeec5d863608e563f14717ea",
+        ".txt": "b6a97fbe3f351c7c6fbb820e6cf40d61a52260a4d6f9621a5d00f82e22be1425",
+        ".urp": "861dc1b3effc01e3dfd8c840775ac88bd7c158267e6a64293b3928207bc58d15"
+      },
+      "stamp": "2026-06-15T1828HKT_STEP5D_STRICT_RNN_LIVEPREP_V8"
+    },
+    "owner": "bridge+TP",
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "semantic_control_gate": {
+      "approach_normal": "-reaction_normal",
+      "contract": "UR_FORCE_FRAME_CONTRACT.md",
+      "failure_contrast": "v6/v7 contrast showed 24.3 re-contact overpressure at 20N+ should not be passed directly into Stage 25.0; v8 unloads in 25.3 recovery instead.",
+      "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+      "force_error_n": "target_load_n - normal_load_n",
+      "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
+      "normal_load_n": "dot(force_base, reaction_normal)",
+      "orientation_target_axis": "approach_normal",
+      "pid_settle": {
+        "approach_normal": "-reaction_normal",
+        "command_direction": "approach_normal * clamp(Kp*e + Ki*I - B*v_normal)",
+        "normal_load_n": "dot(force_base, reaction_normal)",
+        "stage": "25.3",
+        "target_load_n": 5.0
+      },
+      "reaction_normal_source": "Step5b/Step6b contact-search latched/filtered n_control_b",
+      "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before cmd_valid can remain true"
+    },
+    "shape": "cycloid",
+    "stage": "Step5d",
+    "strict_rnn": true,
+    "success_condition": "Retained v8 failure evidence only. Superseded by v9 because low-load Stage 25.3 dropout must continue press recovery instead of stopping with reason 17."
+  }
+}

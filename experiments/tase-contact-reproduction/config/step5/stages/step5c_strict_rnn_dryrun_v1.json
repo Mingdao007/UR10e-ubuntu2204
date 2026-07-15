@@ -1,0 +1,56 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": "config/step5c_tase_paper_truth.json still has pending_pdf_verify fields; strict RNN equations are intentionally not implemented with placeholders.",
+    "blocked": true,
+    "bridge": true,
+    "cadence": {
+      "end_hold_s": 0.1,
+      "motion": "blocked_until_strict_rnn_verified",
+      "reference_clock": "real_time",
+      "tp_hold_s": 0.002
+    },
+    "contact": false,
+    "contact_policy": {
+      "bridge_required": true,
+      "contact_search": false,
+      "force_control": false,
+      "reference_owner": "strict_rnn_bridge",
+      "timing_policy": "blocked_until_paper_truth_verified",
+      "tp_role": "joint_executor_and_guard_only",
+      "virtual_clock_freeze": false
+    },
+    "duration_s": 12.0,
+    "filter_policy": {
+      "normal_filter": "none"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "attitude_cap_rad_s": 0.0,
+      "cmd_valid_required": true,
+      "contact_force_guard_n": 12.0,
+      "heartbeat_required": true,
+      "normal_velocity_cap_m_s": 0.0,
+      "path_cap_m_s": 0.004,
+      "progress_end_hold_s": 0.1,
+      "qdot_cap_rad_s": 0.2,
+      "runtime_limit_s": 16.0,
+      "total_linear_cap_m_s": 0.004
+    },
+    "id": "step5c_strict_rnn_dryrun_v1",
+    "joint_space": true,
+    "owner": "bridge+TP",
+    "phase_law": {
+      "final_phase_rad": 1.2,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "shape": "cycloid",
+    "stage": "Step5c-strict-rnn-dryrun",
+    "success_condition": "Not runnable yet. Strict RNN dry-run can only become active after PDF-sourced equations and parameters are verified and numeric sanity passes."
+  }
+}

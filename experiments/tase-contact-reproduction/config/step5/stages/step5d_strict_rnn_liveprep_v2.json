@@ -1,0 +1,100 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": null,
+    "blocked": false,
+    "bridge": true,
+    "cadence": {
+      "end_hold_s": 0.1,
+      "motion": "liveprep_speedj_after_readback_and_explicit_bridge_trigger",
+      "reference_clock": "real_time",
+      "tp_hold_s": 0.002
+    },
+    "complete": true,
+    "completion_target": false,
+    "contact": true,
+    "contact_policy": {
+      "bridge_required": true,
+      "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+      "contact_search": true,
+      "dls_fallback_allowed": false,
+      "force_control": true,
+      "ik_fallback_allowed": false,
+      "joint_solver": "strict_tase_rnn_only",
+      "reference_owner": "strict_rnn_bridge",
+      "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_and_small-orientation skip",
+      "tp_role": "joint_executor_and_guard_only",
+      "virtual_clock_freeze": false
+    },
+    "delivery_evidence": {
+      "archived_to_step5d_dir": true,
+      "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+      "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v2_20260615_193020",
+      "controller_readback_verified": true,
+      "local_controller_readback_sha_match": true,
+      "local_package_validated": true,
+      "local_program_dir": "programs/step5/step5d",
+      "program_basename": "step5d_strict_rnn_liveprep_v2",
+      "sha256": {
+        ".script": "8cd0d19d9d2a1112fa2628da2cbed8785fbc699b55e117dd9acda6aa03ba699e",
+        ".txt": "dc0b44afa640a7b67b349de9c98493fa9028d07669c693e03fec28f3582e73c5",
+        ".urp": "ff4394b173d087a2c4cb084f1affdefd2defdbbdd8642b1214746ef9a79b2cfd"
+      },
+      "stamp": "2026-06-14T2313HKT_STEP5D_STRICT_RNN_LIVEPREP_V2"
+    },
+    "duration_s": 60.0,
+    "filter_policy": {
+      "alpha": 0.35,
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "min_force_n": 2.0,
+      "normal_filter": "v31_filtered_live"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "attitude_cap_rad_s": 0.06,
+      "cmd_valid_required": true,
+      "force_norm_guard_n": 60.0,
+      "heartbeat_required": true,
+      "normal_velocity_cap_m_s": 0.003,
+      "orientation_skip_lift_error_rad": 0.05236,
+      "path_cap_m_s": 0.004,
+      "progress_end_hold_s": 0.1,
+      "qdot_cap_rad_s": 0.3,
+      "raw_normal_guard_n": 50.0,
+      "runtime_limit_s": 65.0,
+      "torque_norm_guard_nm": 3.0,
+      "total_linear_cap_m_s": 0.006
+    },
+    "id": "step5d_strict_rnn_liveprep_v2",
+    "joint_space": true,
+    "live_run_evidence": {
+      "artifact": "runs/bridge_step5d_strict_rnn_liveprep_v2_20260614_231720",
+      "followup": "superseded by step5d_strict_rnn_liveprep_v3",
+      "result": "entered Stage 25.0 for about 0.086 s with live strict RNN qdot/speedj path active, then stopped by normal_force_guard after raw normal reached about -65.5 N",
+      "root_cause": "25.3 entered Stage 25.0 with about 18 N normal load, then unbounded Step5d task velocity drove qdot to the 0.30 rad/s cap and TCP motion continued into the contact normal"
+    },
+    "liveprep_gates": [
+      "fresh Step5d structural numeric sanity artifact passes with qdot cap 0.30 rad/s",
+      "non-quarantine Step5d TP package validates locally and contains speedj qdot executor for Stage 25.0",
+      "controller upload and read-back SHA/cachedContents verification pass",
+      "bridge accepts step5d_strict_rnn_liveprep_v2 and warms calibrated Pinocchio/RNN runtime before Stage 25.0",
+      "operator wrapper maps Step5d to the real /programs/andyl/kunwei/step5 package so TP-stopped watcher can close bridge",
+      "bridge Dashboard watchdog exits on TP program stopped or Play timeout even if operator is bypassed",
+      "v2 retained as over-contact evidence; superseded by step5d_strict_rnn_liveprep_v3"
+    ],
+    "owner": "bridge+TP",
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "shape": "cycloid",
+    "stage": "Step5d",
+    "strict_rnn": true,
+    "success_condition": "Current live-prep gate is complete only after v2 local package validation, controller read-back verification, operator path mapping, and bridge watchdog readiness. It does not mark the full Step5d reproduction target complete."
+  }
+}

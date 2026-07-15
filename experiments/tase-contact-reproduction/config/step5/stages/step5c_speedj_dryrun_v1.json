@@ -1,0 +1,57 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "archived": true,
+    "block_reason": "2026-06-13 live dry-run moved in the wrong XY/Z direction; DLS/MuJoCo Jacobian frame mapping is not trusted. Re-enable only after calibrated FK/Jacobian audit passes, qdot register path is fixed, and numeric sanity is saved.",
+    "blocked": true,
+    "bridge": true,
+    "cadence": {
+      "end_hold_s": 0.1,
+      "motion": "quarantine_stop_only",
+      "reference_clock": "real_time",
+      "tp_hold_s": 0.002
+    },
+    "contact": false,
+    "contact_policy": {
+      "bridge_required": true,
+      "contact_search": false,
+      "force_control": false,
+      "reference_owner": "bridge",
+      "timing_policy": "short_no_contact_speedj_dry_run",
+      "tp_role": "joint_executor_and_guard_only",
+      "virtual_clock_freeze": false
+    },
+    "duration_s": 12.0,
+    "filter_policy": {
+      "normal_filter": "none"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "attitude_cap_rad_s": 0.0,
+      "cmd_valid_required": true,
+      "contact_force_guard_n": 12.0,
+      "heartbeat_required": true,
+      "normal_velocity_cap_m_s": 0.0,
+      "path_cap_m_s": 0.004,
+      "progress_end_hold_s": 0.1,
+      "qdot_cap_rad_s": 0.2,
+      "runtime_limit_s": 16.0,
+      "total_linear_cap_m_s": 0.004
+    },
+    "id": "step5c_speedj_dryrun_v1",
+    "joint_space": true,
+    "owner": "bridge+TP",
+    "phase_law": {
+      "final_phase_rad": 1.2,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "shape": "cycloid",
+    "stage": "Step5c-dryrun",
+    "success_condition": "Blocked/quarantined after 2026-06-13 live dry-run XY/Z divergence. Do not run until calibrated FK/Jacobian mapping is fixed and revalidated offline, qdot register path is fixed, and a new numeric sanity artifact passes."
+  }
+}

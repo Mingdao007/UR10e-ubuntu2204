@@ -1,0 +1,333 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": "Retained v15a live-run evidence. The 2026-06-16 bridge run entered TP PLAYING with Safetymode NORMAL and Stage25, then stopped by step5d_contact_safety:hold_duty_limit; no current Step5d live-prep package remains without a new package or explicit same-version retry decision.",
+    "blocked": false,
+    "bridge": true,
+    "cadence": {
+      "end_hold_s": 0.1,
+      "motion": "retained_live_run_evidence_hold_duty_limit",
+      "reference_clock": "bridge_path_time_freezes_during_bounded_recoverable_hold",
+      "tp_hold_s": 0.002
+    },
+    "complete": true,
+    "completion_target": false,
+    "contact": true,
+    "contact_policy": {
+      "bridge_required": true,
+      "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+      "contact_search": true,
+      "controller_readback_status": "verified",
+      "deadband_acquire_stage": "25.3",
+      "dls_fallback_allowed": false,
+      "force_control": true,
+      "ik_fallback_allowed": false,
+      "joint_solver": "strict_tase_rnn_only",
+      "live_authorization": "retained_live_run_evidence_no_current_retry_authorization",
+      "reference_owner": "strict_rnn_bridge",
+      "stage25_contact_policy": "Online broad AABB TCP cage signed distance and braking margin are computed at Stage25; recoverable predicted-speed/contact uncertainty holds cmd_valid=1 with zero qdot and frozen path time only within finite hold event/consecutive/duty/repeated limits.",
+      "timing_policy": "step5b_scaffold_with_v15a_online_cage_bounded_hold_reacquire",
+      "tp_package_status": "generated_local_and_uploaded",
+      "tp_role": "stage_split_executor_and_guard_only",
+      "virtual_clock_freeze": true
+    },
+    "duration_s": 60.0,
+    "filter_policy": {
+      "alpha": 0.35,
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "min_force_n": 2.0,
+      "normal_filter": "v31_filtered_live",
+      "semantic_contract": "reaction normal for load, approach normal for posture/press direction",
+      "v15_status": "superseded_by_v15a",
+      "v15a_status": "retained_live_run_evidence_hold_duty_limit"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "absolute_speed_stop_m_s": 0.05,
+      "actual_speed_dwell_stop_s": 0.004,
+      "attitude_cap_rad_s": 0.06,
+      "braking_aware_tcp_cage": true,
+      "braking_margin_hard_stop_reason": "tcp_cage_braking_margin_exhausted",
+      "braking_margin_required": true,
+      "cmd_valid_required": true,
+      "deadband_acquire_slew_m_s2": 0.012,
+      "deadband_acquire_v_max_m_s": 0.0012,
+      "early_escape_speed_hold_m_s": 0.0099,
+      "force_norm_guard_n": 60.0,
+      "force_norm_hard_stop_n": 60.0,
+      "force_norm_valid_max_n": 25.0,
+      "hard_low_load_n": 0.25,
+      "heartbeat_required": true,
+      "high_window_dwell_stop_s": 0.03,
+      "hold_consecutive_max_s": 1.2,
+      "hold_duty_limit": 0.4,
+      "hold_event_limit": 360,
+      "line_entry_force_norm_max_n": 25.0,
+      "line_entry_force_norm_stop_n": 25.0,
+      "line_entry_normal_load_max_n": 15.0,
+      "line_entry_normal_load_min_n": 2.0,
+      "line_entry_recovery_normal_load_max_n": 40.0,
+      "line_entry_recovery_normal_load_min_n": 0.0,
+      "line_entry_required_s": 0.15,
+      "line_entry_timeout_s": 10.0,
+      "low_load_hold_timeout_s": 0.3,
+      "low_load_speed_load_n": 1.0,
+      "low_load_speed_stop_m_s": 0.025,
+      "low_load_timeout_policy": "deferred_to_zero_qdot_hold_when_actual_speed_benign",
+      "normal_load_filter_alpha": 0.15,
+      "normal_velocity_cap_m_s": 0.003,
+      "orientation_skip_lift_error_rad": 0.069813,
+      "path_cap_m_s": 0.004,
+      "predicted_speed_hold_action": "cmd_valid=1_zero_qdot_freeze_path_time_and_reacquire",
+      "predicted_speed_policy": "recoverable_hold_not_immediate_stop",
+      "progress_end_hold_s": 0.1,
+      "qdot_cap_rad_s": 0.05,
+      "qdot_slew_rad_s2": 0.2,
+      "raw_normal_guard_n": 50.0,
+      "repeated_hold_hard_stop_required_before_live_package": true,
+      "repeated_hold_limit": 120,
+      "runtime_diagnostics": [
+        "_step5d_tcp_cage_distance_m",
+        "_step5d_tcp_cage_braking_margin_m",
+        "_step5d_tcp_cage_signed_distance_m",
+        "_step5d_tcp_cage_cell_index",
+        "_step5d_tcp_cage_reason",
+        "_step5d_hold_event_count",
+        "_step5d_consecutive_hold_s",
+        "_step5d_total_hold_s",
+        "_step5d_hold_duty",
+        "_step5d_repeated_hold_count"
+      ],
+      "runtime_limit_s": 65.0,
+      "second_contact_far_speed_m_s": -0.0025,
+      "second_contact_max_down_m": 0.035,
+      "second_contact_near_speed_m_s": -0.0025,
+      "second_contact_near_start_depth_m": 0.0,
+      "semantic_gate_hard_stop": true,
+      "semantic_orientation_tolerance_rad": 0.08726646259971647,
+      "soft_low_load_n": 0.5,
+      "tcp_cage_a_stop_m_s2": 1.0,
+      "tcp_cage_contact_margin_m": 0.002,
+      "tcp_cage_mode": "broad_stagewise_aabb_from_success_step5b_step6b",
+      "tcp_cage_model_margin_m": 0.003,
+      "tcp_cage_padding_m": 0.02,
+      "tcp_cage_source": "successful Step5b/Step6b Stage25 TCP pose traces",
+      "tcp_cage_tau_stop_s": 0.1,
+      "torque_norm_guard_nm": 3.0,
+      "total_linear_cap_m_s": 0.006,
+      "valid_contact_max_n": 15.0,
+      "valid_contact_min_n": 0.5
+    },
+    "id": "step5d_strict_rnn_liveprep_v15a",
+    "joint_space": true,
+    "live_run_evidence": {
+      "bridge_write_rate_hz": 508.2309788886176,
+      "consecutive_hold_s": 0.546,
+      "followup": "archive v15a as retained live-run evidence; no current Step5d live-prep package until a new package or explicit same-version retry decision",
+      "force_norm_max_n": 13.992231661536401,
+      "hold_duty": 0.858,
+      "hold_event_count": 10,
+      "normal_force_max_n": 3.5726030504614115,
+      "normal_force_min_n": -13.966508303189434,
+      "result": "Entered TP PLAYING with Safetymode NORMAL; bridge ran about 25.620 s, Stage25 line control lasted about 0.998 s, and v15a stopped through the bounded hold-duty hard stop.",
+      "rtde_output_rate_hz": 437.73243210582484,
+      "rtde_reconnect_event_count": 2,
+      "run_dir": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355",
+      "stage25_duration_s": 0.9979995499597862,
+      "stop_reason": "step5d_contact_safety:hold_duty_limit",
+      "summary": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/summary.json",
+      "tcp_cage_braking_margin_m": 0.0143498989,
+      "tcp_cage_reason": "inside_broad_tcp_cage",
+      "torque_norm_max_nm": 0.3704129725119421,
+      "total_hold_s": 0.858
+    },
+    "liveprep_gates": [
+      "STEP5_FLOW.md and config/step5_stage_table.json identify v15 as retained evidence and v15a as current candidate only",
+      "online broad stage-wise AABB TCP cage is built from successful Step5b/Step6b source traces, not failed v11/v14 traces",
+      "runtime logs _step5d_tcp_cage_* and bounded hold-burden diagnostics at Stage25",
+      "v11 replay starts at true Stage25 entry and first hold occurs before qdot rails or large TCP escape",
+      "0.050 rad/s qdot cap and 0.20 rad/s^2 qdot slew are retained from v12-v15",
+      "success replay reports hold duty, max consecutive hold, hold event count, and first hold reason by CSV",
+      "bounded recovery finite limits are derived from success replay hold-burden distributions",
+      "local TP package generation, controller upload/read-back verification with SHA match, and fetched-back URP internal gate must pass before any bridge trigger",
+      "bridge start, TP Play/program load, robot motion, payload/TCP writes, and zero_ftsensor remain separate explicit live gates"
+    ],
+    "local_analysis_evidence": {
+      "acceptance": {
+        "cage_margin_hard_stop": true,
+        "online_tcp_cage_ready": true,
+        "success_hold_burden_reported": true,
+        "success_no_hard_stop": true,
+        "v11_intervenes_before_qdot_rail_or_large_escape": true,
+        "v14_enters_hold_before_hard_stop": true
+      },
+      "analyzer": "tools/step5d_v15_permissive_recovery.py",
+      "candidate_parameters": {
+        "actual_speed_hold_floor_m_s": 0.012294344589077973,
+        "actual_speed_hold_source": "max success main-tracking p99.9 and max; do not use load jump alone",
+        "actual_speed_success_max_m_s": 0.01307518954146332,
+        "bounded_hold_policy": {
+          "hold_consecutive_max_s": 1.2,
+          "hold_duty_limit": 0.4,
+          "hold_event_limit": 360,
+          "repeated_hold_limit": 120,
+          "source": "success replay hold-burden maxima with finite headroom",
+          "success_hold_duty_max_observed": 0.3163918060112362,
+          "success_hold_event_count_max_observed": 309,
+          "success_max_consecutive_hold_s_observed": 0.29999989800000293
+        },
+        "hard_stop_boundaries": [
+          "tcp_cage_distance_or_braking_margin_exhausted",
+          "semantic_gate_failed",
+          "hard_force_or_torque_or_joint_or_sensor_gate",
+          "hold_timeout",
+          "repeated_hold_limit",
+          "nonfinite_inputs"
+        ],
+        "predicted_speed_policy": "predicted speed above the v14 0.050 m/s intervention threshold is recoverable hold unless a hard boundary is already violated"
+      },
+      "generated_local_artifact": true,
+      "source_live_failure": "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805/bridge_rtde_500hz.csv",
+      "source_negative_replay": "runs/bridge_step5d_strict_rnn_liveprep_v11_20260615_204601/bridge_rtde_500hz.csv",
+      "success_first_hold_reason_by_csv": {
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv": "hard_lost_contact_hold",
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv": "hard_lost_contact_hold",
+        "runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv": "hard_lost_contact_hold",
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv": "early_tcp_escape_recoverable_hold",
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv": "early_tcp_escape_recoverable_hold"
+      },
+      "success_hold_duty_by_csv": {
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv": 0.25822791985309984,
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv": 0.23110683885889594,
+        "runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv": 0.2958072408400945,
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv": 0.3163918060112362,
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv": 0.3009843769687351
+      },
+      "success_hold_event_count_by_csv": {
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv": 189,
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv": 145,
+        "runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv": 85,
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv": 309,
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv": 276
+      },
+      "success_max_consecutive_hold_s_by_csv": {
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv": 0.29999982599998987,
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv": 0.2999994350000037,
+        "runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv": 0.29999963800000273,
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv": 0.2999992359999979,
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv": 0.29999989800000293
+      },
+      "success_reference_replays": [
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+        "runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv",
+        "runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv",
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv",
+        "runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv"
+      ],
+      "summary": "runs/step5d_v15a_permissive_recovery_offline_20260616/summary.json",
+      "tcp_cage": {
+        "braking_policy": {
+          "a_stop_m_s2": 1.0,
+          "contact_margin_m": 0.002,
+          "model_margin_m": 0.003,
+          "tau_stop_s": 0.1
+        },
+        "max_xyz": [
+          0.5079929084681909,
+          0.24367595037478126,
+          0.05944807908073341
+        ],
+        "min_xyz": [
+          0.4317484970550932,
+          0.10915382222700289,
+          -0.004498353030779913
+        ],
+        "mode": "broad_stagewise_aabb_from_success_step5b_step6b",
+        "padding_m": 0.02,
+        "source_csvs": [
+          "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+          "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv",
+          "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv",
+          "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv",
+          "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv"
+        ],
+        "source_rows": 119709,
+        "status": "online_broad_stagewise_aabb_ready"
+      }
+    },
+    "local_delivery_evidence": {
+      "archived_to_step5d_dir": false,
+      "controller_dir": "/programs/andyl/kunwei/step5",
+      "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v15a_20260616_155322/manifest.json",
+      "controller_readback_verified": true,
+      "fetched_back_urp_internal_gate_pass": true,
+      "local_controller_readback_sha_match": true,
+      "local_package_validated": true,
+      "local_program_dir": "programs/step5",
+      "local_triplet": "programs/step5/step5d_strict_rnn_liveprep_v15a.{script,txt,urp}",
+      "offline_replay_summary": "runs/step5d_v15a_permissive_recovery_offline_20260616/summary.json",
+      "program_basename": "step5d_strict_rnn_liveprep_v15a",
+      "semantic_gate": "runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json",
+      "semantic_gate_pass": true,
+      "sha256": {
+        ".script": "cbad5c358dd99617b48a21e16e7b65d971e07c3038c582ae91e2bfcd9306f249",
+        ".txt": "aa3f7192e22a893fe5aed603097f21f6eb5583064bbae3ba289338c967751bc7",
+        ".urp": "8dd90a7fba50d6d2e7b4d9bef2d933881a5523b63a9c91ad42dd2123f7ed4640"
+      },
+      "stamp": "2026-06-16T1553HKT_STEP5D_STRICT_RNN_LIVEPREP_V15A"
+    },
+    "owner": "bridge+TP",
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "semantic_control_gate": {
+      "approach_normal": "-reaction_normal",
+      "contract": "UR_FORCE_FRAME_CONTRACT.md",
+      "failure_contrast": "v11 escape replay and v14 predicted-speed hard-stops are contrasted against v15a zero-qdot hold behavior; v15 audit found synthetic cage-only evidence and incomplete hold burden, while v15a uses online broad AABB TCP cage, bounded hold counters, corrected v11 Stage25 replay, and success hold-burden reporting.",
+      "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+      "force_error_n": "target_load_n - normal_load_n",
+      "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
+      "normal_load_n": "dot(force_base, reaction_normal)",
+      "orientation_target_axis": "approach_normal",
+      "reaction_normal_source": "Step5b/Step6b contact-search latched/filtered n_control_b",
+      "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before nonzero qdot can be accepted",
+      "stage25_contact_safety": {
+        "danger_action": "stop_request=1_zero_qdot_for_hard_stops_only",
+        "diagnostic_angles": [
+          "control_normal_vs_world_z_angle_rad",
+          "control_normal_vs_tcp_z_angle_rad",
+          "approach_normal_vs_tcp_z_angle_rad"
+        ],
+        "hard_stop_reasons": [
+          "actual_tcp_speed_watchdog_dwell",
+          "force_norm_hard_stop",
+          "hold_consecutive_limit",
+          "hold_duty_limit",
+          "hold_event_limit",
+          "missing_tcp_cage_braking_margin",
+          "nonfinite_tcp_cage_braking_margin",
+          "repeated_hold_limit",
+          "repeated_recoverable_hold_limit",
+          "semantic_gate_failed",
+          "tcp_cage_braking_margin_exhausted"
+        ],
+        "recoverable_hold_reasons": [
+          "early_tcp_escape_recoverable_hold",
+          "low_load_predicted_tcp_speed_recoverable_hold",
+          "low_load_reacquire_hold_timeout_deferred",
+          "predicted_tcp_speed_recoverable_hold"
+        ]
+      }
+    },
+    "shape": "cycloid",
+    "stage": "Step5d",
+    "strict_rnn": true,
+    "success_condition": "Retained v15a read-back and live-run evidence only. The 2026-06-16 live run stopped by hold_duty_limit after about 0.998 s of Stage25, so v15a is not current. A future bridge attempt needs either an explicit same-version retry decision or a new current package after analysis."
+  }
+}

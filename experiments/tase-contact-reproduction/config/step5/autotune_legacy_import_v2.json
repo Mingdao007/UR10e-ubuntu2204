@@ -1,0 +1,199 @@
+{
+  "attempt_tombstones": [
+    {
+      "comparison_key": "03f8f74c06bcfa487d000dd7ccc0b70e38be3b138dd1843a2a8cc3e9243f0aa1",
+      "evidence_path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_autotune_v1_20260715_092649/autotune_trials/2f197dd78f078e6060fa7786e80059310378a8337a536644317fccab4dea41e1/capture.csv.part",
+      "evidence_sha256": "ec2ef94b7eb65112b7ae281343293122cf534612759d4e453e8ff39709360546"
+    },
+    {
+      "comparison_key": "540cdad5e5cf293c1d03916cb8c50098be4c11e65dd874d75cc825d487afec91",
+      "evidence_path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_autotune_v1_20260715_104100/autotune_trials/fd42800088610ab3aeede91e0f9249c177d4792e5976d4211a6fbcb98fc9e7ab/capture.csv",
+      "evidence_sha256": "52139d995ae2b25db9c7f58011c6b99292e92167510e9a5da12f134f9e7ef443"
+    },
+    {
+      "comparison_key": "41ab7425087687796018edd6f5db194d3c140bb791265c3993be5d3023f0b17f",
+      "evidence_path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_autotune_v1_20260715_105100/autotune_trials/65cf0a3c72bc0c891728c391c50b6557eda95cc3368becdb2ed136c6c3ba11b2/capture.csv",
+      "evidence_sha256": "008a631cb8b0a269b3a9ba453d04f467871fa2e3e32ca73adc2aa391b3f157c7"
+    },
+    {
+      "comparison_key": "dab18472b00998fa21f62e61005e4563dbb25d734eb1ca833068b00cba1f16cf",
+      "evidence_path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_autotune_v1_20260715_105100/autotune_trials/5dd2a49c34253bf2688b4ca535a5b6b4fba979982149184c4313f99ac9c233ff/capture.csv",
+      "evidence_sha256": "2a8c9800fc5d57faf0abe1723422b08e1d553e0a8aaa35ed7804ce057a7db51f"
+    }
+  ],
+  "diagnostic_incumbent": {
+    "force_mae_n": 0.5532958311272728,
+    "group_id": "G10",
+    "trial_id": "61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210"
+  },
+  "imported_trials": [
+    {
+      "bundle_sha256": "df4adff2f1692203f2d5a4496ddfefb9308eccbce81b689e32f7934e49682f37",
+      "comparison_key": "8971c2834cd9e496730014e5a9d086053b99d06b89dede9be0622961a3cdd7af",
+      "group_id": "G1",
+      "trial_id": "6c03359ef277b3a67b2feb5ff670d55b56a6ad01b2e8cab472149c45feeca466"
+    },
+    {
+      "bundle_sha256": "ad3f266ada60b7d4c921fb954700853159b4d8dd01c7a1db143a9ab0931ab22c",
+      "comparison_key": "e4b6283d0b335fd455d72b275708f7d85ee7c636c2111cb710cf24d5f1b9eb79",
+      "group_id": "G2",
+      "trial_id": "7592862b543969394eb5d313bfb5610043b4df5a95b3a6a362533cb030cc91f6"
+    },
+    {
+      "bundle_sha256": "d14f5149bfda5bbe783fd5b1a1ce3cc7746e2e489d12b32b2d114ea109537ebc",
+      "comparison_key": "4ff7eb0e2c361f72398f65a05c709bcaa93e62a4df0ada35689ee27a41c23e33",
+      "group_id": "G3",
+      "trial_id": "7cfea624d168db3fd84701874177bc3e1088a411b12c10c0e14ae65855fbedc6"
+    },
+    {
+      "bundle_sha256": "e6ecc6d4cc8f0ab6f52c5853a1897de61ba70e2b2815dce24b8debe367bef761",
+      "comparison_key": "3ba389181b3cc55e766b52671a058d309f4a2dfab2bd44647a5b5770ef47afd8",
+      "group_id": "G4",
+      "trial_id": "3d3f43eff5f229abd890b6e701574fc5fd614aefc86eaf05bd584bb7b274cf8a"
+    },
+    {
+      "bundle_sha256": "6381bca6482835fec41988f9abb14a4c1966b1378ea5c063c26d06b0d52d3d9d",
+      "comparison_key": "39b617c75130f52896eedd6c87fa7b35926e654745796e81721d2d4e394191f3",
+      "group_id": "G5",
+      "trial_id": "60e3e6d6e7afea052fe85e07fa96f30ad3950eda1c7038381570f2887654ba77"
+    },
+    {
+      "bundle_sha256": "8965a56079dd8c24ec2c3a5823c0c827ca49bcbd127bba36b38a06057c2308f4",
+      "comparison_key": "6023caf15278883d65c7a989ace9fa11e0df6f5cca1751781d2ddf8d5f5b6ef8",
+      "group_id": "G6",
+      "trial_id": "6c08eb4ab764b2263ddea9dc10fa186b4847cc53be5c3508289fb3f6eec268a2"
+    },
+    {
+      "bundle_sha256": "b4f86a38febde37bc0e0225b3461dd391716970ee83b2946327afddbd3825799",
+      "comparison_key": "d86be2579add83e0105073e56e6171d27bd3242aa4c5cb21231997e56664064d",
+      "group_id": "G7",
+      "trial_id": "f8f6a72c63df0d08922e20c667ed65724fe3c685fcfce3bc884a585b71e39fcc"
+    },
+    {
+      "bundle_sha256": "cc9670bca8484c62a8a57a7cd844d0f30e1df8ffe8d6d9b820f45f50aa96c826",
+      "comparison_key": "d573f9ea6706ff3e0097005db2c9dc4230bc6ee3e5f899acf574d72917e97769",
+      "group_id": "G8",
+      "trial_id": "176190a30c7224efae43fa32299bd2022f8c1ec57d5709af78efa402df719cab"
+    },
+    {
+      "bundle_sha256": "6b3a165ae6ebd901da57ac7801d22562bf52886aa21d080c991a8de4f622faf7",
+      "comparison_key": "473e147f98221aab9d492ad4e9a90e153d79813c1a185ac1fd7d9a1c9d1490fb",
+      "group_id": "G9",
+      "trial_id": "c2f47e2dafdb50d79663b77900610388b643e207a4576d81d060bc1462496be6"
+    },
+    {
+      "bundle_sha256": "016c6ff0e74f68215779732d3f8177c6bc50223d6da1dabd33e20fea8a5a350f",
+      "comparison_key": "3f533ad5c1f3646687b444ab959bb865682cc6e1d19877ba56404b97ab87d304",
+      "group_id": "G10",
+      "trial_id": "61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210"
+    },
+    {
+      "bundle_sha256": "1d40006f400995932c9df3f5e8e975bca21635c7ab447470532860310b2191fc",
+      "comparison_key": "2231b3e298252e60d892c225b32e6175485ac155a8c449e30f9458da6d1fe459",
+      "group_id": "G11",
+      "trial_id": "f8e252051c4e0ea919f6924f185f3891741febfc77ddcaf6f1fa89f6f1fde1d1"
+    }
+  ],
+  "mapping": {
+    "path": "/home/andy/.codex-worktrees/ur10e-step5d-autotune-v2-20260715/experiments/tase-contact-reproduction/config/step5/autotune_legacy_map_v1.json",
+    "sha256": "0e28de3d61bccbcea82e98fd2c93e5901fdf5cd3846ebd2fbd1a66f11e30506b"
+  },
+  "pending_groups": [
+    "G12",
+    "G13",
+    "G14",
+    "G15"
+  ],
+  "schema": "step5d.autotune.legacy-import/v2",
+  "source_files": [
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/epochs/0000000017/store/trials/f8e252051c4e0ea919f6924f185f3891741febfc77ddcaf6f1fa89f6f1fde1d1/immutable_trial_bundle.json",
+      "sha256": "1d40006f400995932c9df3f5e8e975bca21635c7ab447470532860310b2191fc"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/epochs/0000000017/store/trials/f8e252051c4e0ea919f6924f185f3891741febfc77ddcaf6f1fa89f6f1fde1d1/trial_spec.json",
+      "sha256": "ce5c8eff609a0a56c150cbd36126947aca9805d2695fd96cc7753c91328c11fa"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/176190a30c7224efae43fa32299bd2022f8c1ec57d5709af78efa402df719cab/immutable_trial_bundle.json",
+      "sha256": "cc9670bca8484c62a8a57a7cd844d0f30e1df8ffe8d6d9b820f45f50aa96c826"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/176190a30c7224efae43fa32299bd2022f8c1ec57d5709af78efa402df719cab/trial_spec.json",
+      "sha256": "fe78b1630a5b8572cd8299619a7fa955188f05c4876a94a228326b1777fa0749"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/3d3f43eff5f229abd890b6e701574fc5fd614aefc86eaf05bd584bb7b274cf8a/immutable_trial_bundle.json",
+      "sha256": "e6ecc6d4cc8f0ab6f52c5853a1897de61ba70e2b2815dce24b8debe367bef761"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/3d3f43eff5f229abd890b6e701574fc5fd614aefc86eaf05bd584bb7b274cf8a/trial_spec.json",
+      "sha256": "a6de3c31faf12bdcf2615b815121d61efdb2ae47e81d17ccbc6d8a1296b6a724"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/60e3e6d6e7afea052fe85e07fa96f30ad3950eda1c7038381570f2887654ba77/immutable_trial_bundle.json",
+      "sha256": "6381bca6482835fec41988f9abb14a4c1966b1378ea5c063c26d06b0d52d3d9d"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/60e3e6d6e7afea052fe85e07fa96f30ad3950eda1c7038381570f2887654ba77/trial_spec.json",
+      "sha256": "6d49ad404b2ff46c0648a23fd975102916c96f68b0b43375e8a56591567cfc5c"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210/immutable_trial_bundle.json",
+      "sha256": "016c6ff0e74f68215779732d3f8177c6bc50223d6da1dabd33e20fea8a5a350f"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210/trial_spec.json",
+      "sha256": "e8036d89825f45c29b027330ed31ee3b03cb6e7ece0385026993e8d849923f51"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/6c03359ef277b3a67b2feb5ff670d55b56a6ad01b2e8cab472149c45feeca466/immutable_trial_bundle.json",
+      "sha256": "df4adff2f1692203f2d5a4496ddfefb9308eccbce81b689e32f7934e49682f37"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/6c03359ef277b3a67b2feb5ff670d55b56a6ad01b2e8cab472149c45feeca466/trial_spec.json",
+      "sha256": "56dec40d9dc3802be6eeda0a0c78d063ed20effcabc3c7eac36e9b24c4001f4e"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/6c08eb4ab764b2263ddea9dc10fa186b4847cc53be5c3508289fb3f6eec268a2/immutable_trial_bundle.json",
+      "sha256": "8965a56079dd8c24ec2c3a5823c0c827ca49bcbd127bba36b38a06057c2308f4"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/6c08eb4ab764b2263ddea9dc10fa186b4847cc53be5c3508289fb3f6eec268a2/trial_spec.json",
+      "sha256": "40a36c1309a09d83600d7e5e13484a724e02410281066e7aef3831a35826c0fe"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/7592862b543969394eb5d313bfb5610043b4df5a95b3a6a362533cb030cc91f6/immutable_trial_bundle.json",
+      "sha256": "ad3f266ada60b7d4c921fb954700853159b4d8dd01c7a1db143a9ab0931ab22c"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/7592862b543969394eb5d313bfb5610043b4df5a95b3a6a362533cb030cc91f6/trial_spec.json",
+      "sha256": "c7dc7c7e6ae73494f0d81078ee71d5be5e5fbd25e850df3e47898ff123bb1a65"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/7cfea624d168db3fd84701874177bc3e1088a411b12c10c0e14ae65855fbedc6/immutable_trial_bundle.json",
+      "sha256": "d14f5149bfda5bbe783fd5b1a1ce3cc7746e2e489d12b32b2d114ea109537ebc"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/7cfea624d168db3fd84701874177bc3e1088a411b12c10c0e14ae65855fbedc6/trial_spec.json",
+      "sha256": "34ad570e00ec93e4940d9f99f35fe7375398e8c78c3d7eeac1d7233c1705466c"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/c2f47e2dafdb50d79663b77900610388b643e207a4576d81d060bc1462496be6/immutable_trial_bundle.json",
+      "sha256": "6b3a165ae6ebd901da57ac7801d22562bf52886aa21d080c991a8de4f622faf7"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/c2f47e2dafdb50d79663b77900610388b643e207a4576d81d060bc1462496be6/trial_spec.json",
+      "sha256": "47b0b5e5114609a9c2345c76ed84584e5dd0324160c4302373f3cc75e776dfeb"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/f8f6a72c63df0d08922e20c667ed65724fe3c685fcfce3bc884a585b71e39fcc/immutable_trial_bundle.json",
+      "sha256": "b4f86a38febde37bc0e0225b3461dd391716970ee83b2946327afddbd3825799"
+    },
+    {
+      "path": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs/step5d_native_autotune_recovered_runtime_v2/store/trials/f8f6a72c63df0d08922e20c667ed65724fe3c685fcfce3bc884a585b71e39fcc/trial_spec.json",
+      "sha256": "1f97c3b68e638aeac7a86c6a666f2a69fec0aeca041f334baf60cfb07b232f9a"
+    }
+  ],
+  "source_root": "/home/andy/.codex-worktrees/ur10e-step5d-native-autotune-20260715/experiments/tase-contact-reproduction/runs"
+}

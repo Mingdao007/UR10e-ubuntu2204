@@ -1,0 +1,181 @@
+{
+  "schema": "step5d.autotune.legacy-map/v1",
+  "tp_fingerprint": "50894de5cdf74dd17309c829b904251a3da26613a4d73e93653f7c165f5fbbd0",
+  "batches": [
+    {
+      "batch_id": "legacy-g1-g5",
+      "source": "immutable first five-point log2 direction probe",
+      "candidates": [
+        {
+          "group_id": "G1",
+          "p": "0.001189207115002721",
+          "i": "0.00001",
+          "d": "7",
+          "log2_p": "0.25",
+          "log2_i": "0",
+          "log2_d": "0",
+          "trial_uid": "6c03359ef277b3a67b2feb5ff670d55b56a6ad01b2e8cab472149c45feeca466",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/6c03359ef277b3a67b2feb5ff670d55b56a6ad01b2e8cab472149c45feeca466"
+        },
+        {
+          "group_id": "G2",
+          "p": "0.001",
+          "i": "0.00001",
+          "d": "8.324449805019047",
+          "log2_p": "0",
+          "log2_i": "0",
+          "log2_d": "0.25",
+          "trial_uid": "7592862b543969394eb5d313bfb5610043b4df5a95b3a6a362533cb030cc91f6",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/7592862b543969394eb5d313bfb5610043b4df5a95b3a6a362533cb030cc91f6"
+        },
+        {
+          "group_id": "G3",
+          "p": "0.001",
+          "i": "0.00001",
+          "d": "5.886274906776001",
+          "log2_p": "0",
+          "log2_i": "0",
+          "log2_d": "-0.25",
+          "trial_uid": "7cfea624d168db3fd84701874177bc3e1088a411b12c10c0e14ae65855fbedc6",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/7cfea624d168db3fd84701874177bc3e1088a411b12c10c0e14ae65855fbedc6"
+        },
+        {
+          "group_id": "G4",
+          "p": "0.0008408964152537145",
+          "i": "0.00001",
+          "d": "8.324449805019047",
+          "log2_p": "-0.25",
+          "log2_i": "0",
+          "log2_d": "0.25",
+          "trial_uid": "3d3f43eff5f229abd890b6e701574fc5fd614aefc86eaf05bd584bb7b274cf8a",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/3d3f43eff5f229abd890b6e701574fc5fd614aefc86eaf05bd584bb7b274cf8a"
+        },
+        {
+          "group_id": "G5",
+          "p": "0.001189207115002721",
+          "i": "0.00001",
+          "d": "5.886274906776001",
+          "log2_p": "0.25",
+          "log2_i": "0",
+          "log2_d": "-0.25",
+          "trial_uid": "60e3e6d6e7afea052fe85e07fa96f30ad3950eda1c7038381570f2887654ba77",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/60e3e6d6e7afea052fe85e07fa96f30ad3950eda1c7038381570f2887654ba77"
+        }
+      ]
+    },
+    {
+      "batch_id": "legacy-g6-g10",
+      "source": "immutable second five-point positive-P direction probe",
+      "candidates": [
+        {
+          "group_id": "G6",
+          "p": "0.0014142135623730952",
+          "i": "0.00001",
+          "d": "7",
+          "log2_p": "0.5",
+          "log2_i": "0",
+          "log2_d": "0",
+          "trial_uid": "6c08eb4ab764b2263ddea9dc10fa186b4847cc53be5c3508289fb3f6eec268a2",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/6c08eb4ab764b2263ddea9dc10fa186b4847cc53be5c3508289fb3f6eec268a2"
+        },
+        {
+          "group_id": "G7",
+          "p": "0.001189207115002721",
+          "i": "0.00001",
+          "d": "8.324449805019047",
+          "log2_p": "0.25",
+          "log2_i": "0",
+          "log2_d": "0.25",
+          "trial_uid": "f8f6a72c63df0d08922e20c667ed65724fe3c685fcfce3bc884a585b71e39fcc",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/f8f6a72c63df0d08922e20c667ed65724fe3c685fcfce3bc884a585b71e39fcc"
+        },
+        {
+          "group_id": "G8",
+          "p": "0.0014142135623730952",
+          "i": "0.00001",
+          "d": "8.324449805019047",
+          "log2_p": "0.5",
+          "log2_i": "0",
+          "log2_d": "0.25",
+          "trial_uid": "176190a30c7224efae43fa32299bd2022f8c1ec57d5709af78efa402df719cab",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/176190a30c7224efae43fa32299bd2022f8c1ec57d5709af78efa402df719cab"
+        },
+        {
+          "group_id": "G9",
+          "p": "0.001681792830507429",
+          "i": "0.00001",
+          "d": "7",
+          "log2_p": "0.75",
+          "log2_i": "0",
+          "log2_d": "0",
+          "trial_uid": "c2f47e2dafdb50d79663b77900610388b643e207a4576d81d060bc1462496be6",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/c2f47e2dafdb50d79663b77900610388b643e207a4576d81d060bc1462496be6"
+        },
+        {
+          "group_id": "G10",
+          "p": "0.001681792830507429",
+          "i": "0.00001",
+          "d": "8.324449805019047",
+          "log2_p": "0.75",
+          "log2_i": "0",
+          "log2_d": "0.25",
+          "trial_uid": "61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210"
+        }
+      ]
+    },
+    {
+      "batch_id": "coarse-i-g11-g15",
+      "source": "G10 P/D anchor with exact I multipliers 10,50,100,500,1000",
+      "candidates": [
+        {
+          "group_id": "G11",
+          "p": "0.001681792830507429",
+          "i": "0.0001",
+          "d": "8.324449805019047",
+          "log2_p": "0.75",
+          "log2_d": "0.25",
+          "i_multiplier": "10",
+          "trial_uid": "f8e252051c4e0ea919f6924f185f3891741febfc77ddcaf6f1fa89f6f1fde1d1",
+          "trial_dir": "step5d_native_autotune_recovered_runtime_v2/epochs/0000000017/store/trials/f8e252051c4e0ea919f6924f185f3891741febfc77ddcaf6f1fa89f6f1fde1d1"
+        },
+        {
+          "group_id": "G12",
+          "p": "0.001681792830507429",
+          "i": "0.0005",
+          "d": "8.324449805019047",
+          "log2_p": "0.75",
+          "log2_d": "0.25",
+          "i_multiplier": "50"
+        },
+        {
+          "group_id": "G13",
+          "p": "0.001681792830507429",
+          "i": "0.001",
+          "d": "8.324449805019047",
+          "log2_p": "0.75",
+          "log2_d": "0.25",
+          "i_multiplier": "100"
+        },
+        {
+          "group_id": "G14",
+          "p": "0.001681792830507429",
+          "i": "0.005",
+          "d": "8.324449805019047",
+          "log2_p": "0.75",
+          "log2_d": "0.25",
+          "i_multiplier": "500"
+        },
+        {
+          "group_id": "G15",
+          "p": "0.001681792830507429",
+          "i": "0.01",
+          "d": "8.324449805019047",
+          "log2_p": "0.75",
+          "log2_d": "0.25",
+          "i_multiplier": "1000"
+        }
+      ]
+    }
+  ]
+}

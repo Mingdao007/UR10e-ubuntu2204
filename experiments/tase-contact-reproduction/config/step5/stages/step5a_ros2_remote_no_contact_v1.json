@@ -1,0 +1,59 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": "Remote-control migration gate after 5a0 headless driver readiness. It is no-contact and no-motion by default; live air motion requires a separate explicit live gate.",
+    "blocked": false,
+    "bridge": false,
+    "cadence": {
+      "fast_after_s": 0.1,
+      "fast_hold_s": 0.001,
+      "motion": "no_motion_shadow_then_explicit_live_air_motion_gate",
+      "reference_clock": "generated_ros2_reference",
+      "sample_period_s": 0.02,
+      "warmup_hold_s": 0.008
+    },
+    "complete": false,
+    "completion_target": false,
+    "contact": false,
+    "contact_policy": {
+      "contact_search": false,
+      "external_control_urcap": false,
+      "force_control": false,
+      "kunwei_bridge_required": false,
+      "live_authorization": "none_until_explicit_step5a_remote_air_motion_gate",
+      "tcp_payload_write": false,
+      "zero_ftsensor": false
+    },
+    "duration_s": 22.0,
+    "filter_policy": {
+      "normal_filter": "none"
+    },
+    "fixed_base_z_m": 0.029423891,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "cmd_enabled_default": false,
+      "enable_motion_default": false,
+      "required_trace": [
+        "desired_xyz",
+        "desired_vxyz",
+        "reference_speed_m_s",
+        "cmd_valid_shadow"
+      ],
+      "requires_5a0_driver_readiness": true,
+      "velocity_cap_m_s": 0.009
+    },
+    "id": "step5a_ros2_remote_no_contact_v1",
+    "owner": "ROS2 remote shadow",
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.2727272727272727,
+      "type": "linear_time"
+    },
+    "shape": "cycloid",
+    "stage": "Step5a",
+    "success_condition": "First pass 5a0 ROS2 headless driver readiness, then pass no-contact Step5a remote shadow; only a separate explicit live gate may run low-speed free-space air motion."
+  }
+}

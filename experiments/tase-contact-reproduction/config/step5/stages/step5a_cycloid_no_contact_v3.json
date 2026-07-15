@@ -1,0 +1,72 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": true,
+    "amplitude_m": 0.015,
+    "bridge": false,
+    "cadence": {
+      "entry": "movel_only",
+      "fast_after_s": 0.1,
+      "fast_hold_s": 0.001,
+      "motion": "speedl",
+      "warmup_hold_s": 0.008
+    },
+    "contact": false,
+    "contact_policy": {
+      "contact_search": false,
+      "force_control": false,
+      "kunwei_bridge_required": false,
+      "tcp_payload_write": false,
+      "zero_ftsensor": false
+    },
+    "duration_s": 22.0,
+    "filter_policy": {
+      "normal_filter": "none"
+    },
+    "fixed_base_z_m": 0.029423891,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "base_x_guard_required": true,
+      "velocity_cap_m_s": 0.009,
+      "x_guard_source": "config/step5_safe_frame.json"
+    },
+    "id": "step5a_cycloid_no_contact_v3",
+    "owner": "TP",
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.2727272727272727,
+      "phase_semantics": {
+        "final_phase_meaning": "6.0 rad is about 95.5 percent of one cycloid arch.",
+        "not_circular_arc_angle": true,
+        "not_tcp_orientation": true,
+        "one_arch_meaning": "2*pi rad traces one cycloid arch in x=A(theta-sin(theta)), y=A(1-cos(theta)); it is not a circular TCP path.",
+        "one_arch_rad": 6.283185307179586,
+        "theta_role": "cycloid_parameter"
+      },
+      "phase_variable": "theta",
+      "type": "linear_time"
+    },
+    "provenance": {
+      "amplitude_m": {
+        "classification": "paper_local_control_geometry_lineage",
+        "direct_user_authored_primitive": false
+      },
+      "duration_s": {
+        "classification": "active_v3_implementation_timing_assistant_selected_in_inspected_session_evidence",
+        "direct_user_authored_primitive": false
+      },
+      "final_phase_rad": {
+        "classification": "previous_agent_plan_carried_and_paper_lineage_derived",
+        "direct_user_authored_primitive": false
+      },
+      "velocity_cap_m_s": {
+        "classification": "assistant_code_originated_conservative_guard_in_inspected_session_evidence",
+        "direct_user_authored_primitive": false
+      }
+    },
+    "shape": "cycloid",
+    "stage": "Step5a",
+    "success_condition": "Complete 22.0 s no-contact fixed-Z cycloid, final cycloid-parameter theta 6.0 rad, with base-X guard clear and shifted taught start/mid/end physical path gate passing."
+  }
+}

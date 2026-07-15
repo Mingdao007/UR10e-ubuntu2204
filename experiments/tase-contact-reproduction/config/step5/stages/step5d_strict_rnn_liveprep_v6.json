@@ -1,0 +1,125 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": "Retained v6 live-prep evidence. Superseded by step5d_strict_rnn_liveprep_v7 because v6 proved the force/frame semantic gate could enter Stage 25.0, but the widened 2-40N gate admitted a 20-22N re-contact caused by the 24.3 far-speed search.",
+    "blocked": false,
+    "bridge": true,
+    "cadence": {
+      "end_hold_s": 0.1,
+      "motion": "ready_for_explicit_live_trigger",
+      "reference_clock": "real_time",
+      "tp_hold_s": 0.002
+    },
+    "complete": true,
+    "completion_target": false,
+    "contact": true,
+    "contact_policy": {
+      "bridge_required": true,
+      "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+      "contact_search": true,
+      "dls_fallback_allowed": false,
+      "force_control": true,
+      "ik_fallback_allowed": false,
+      "joint_solver": "strict_tase_rnn_only",
+      "reference_owner": "strict_rnn_bridge",
+      "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_and_v6_2_40N_recovery_window",
+      "tp_role": "joint_executor_and_guard_only",
+      "virtual_clock_freeze": false
+    },
+    "duration_s": 60.0,
+    "filter_policy": {
+      "alpha": 0.35,
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "min_force_n": 2.0,
+      "normal_filter": "v31_filtered_live",
+      "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "attitude_cap_rad_s": 0.06,
+      "cmd_valid_required": true,
+      "force_norm_guard_n": 100.0,
+      "heartbeat_required": true,
+      "line_entry_force_norm_max_n": 45.0,
+      "line_entry_normal_load_max_n": 40.0,
+      "line_entry_normal_load_min_n": 2.0,
+      "line_entry_required_s": 0.05,
+      "line_entry_timeout_s": 10.0,
+      "normal_velocity_cap_m_s": 0.003,
+      "orientation_skip_lift_error_rad": 0.069813,
+      "path_cap_m_s": 0.004,
+      "progress_end_hold_s": 0.1,
+      "qdot_cap_rad_s": 0.3,
+      "raw_normal_guard_n": 100.0,
+      "runtime_limit_s": 65.0,
+      "semantic_orientation_tolerance_rad": 0.08726646259971647,
+      "torque_norm_guard_nm": 3.0,
+      "total_linear_cap_m_s": 0.006
+    },
+    "id": "step5d_strict_rnn_liveprep_v6",
+    "joint_space": true,
+    "live_run_evidence": {
+      "artifact": "runs/bridge_step5d_strict_rnn_liveprep_v6_20260615_173634",
+      "followup": "superseded by step5d_strict_rnn_liveprep_v7",
+      "result": "Reached Stage 25.0 for 93 rows. Stage 24.3 never entered 24.4 because near_start_depth was 40mm while the re-contact distance was about 20mm; the 2-40N gate admitted about 20-22N load into 25.0, qdot hit the 0.30 rad/s cap, contact unloaded to near 0N, and TP stop reason register 30 ended at 12."
+    },
+    "liveprep_gates": [
+      "UR force/frame semantic gate passes v2/v4 Stage 25.0 replay",
+      "v4 failure-contrast gate proves the old logged orientation was bad while the fixed outer-loop orientation is good",
+      "v5 Stage 25.0 blocked rows with 17-21N normal_load pass the v6 2-40N/45N contact window offline replay",
+      "fresh Step5d structural numeric sanity artifact passes with qdot cap 0.30 rad/s",
+      "non-quarantine Step5d v6 TP package validates locally and contains speedj qdot executor for Stage 25.0",
+      "25.3 contact/recovery window entry gate requires normal_load between 2N and 40N plus force_norm <=45N for 0.050s before Stage 25.0",
+      "bridge limits live Step5d xdot_c before strict RNN while preserving raw xdot diagnostics",
+      "bridge hard-fails the Step5d semantic gate before RNN/qdot if orientation semantics disagree",
+      "controller upload and read-back SHA/cachedContents verification pass",
+      "separate live dry-run/contact SOP is accepted before bridge or TP Play"
+    ],
+    "local_delivery_evidence": {
+      "archived_to_step5d_dir": true,
+      "controller_dir": "/programs/andyl/kunwei/step5/step5d",
+      "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v6_20260615_193034",
+      "controller_readback_verified": true,
+      "local_controller_readback_sha_match": true,
+      "local_package_validated": true,
+      "local_program_dir": "programs/step5/step5d",
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v6.{script,txt,urp}",
+      "program_basename": "step5d_strict_rnn_liveprep_v6",
+      "semantic_gate": "runs/ur_contact_semantic_gate_20260615_023201/ur_contact_semantic_gate_summary.json",
+      "semantic_gate_pass": true,
+      "sha256": {
+        ".script": "e33706232834f5458611896bda41b5c2261ea64a50ca3a6da1b7ba6772f66740",
+        ".txt": "4fb9354da713634c4d6f6e09548d3f11178ae57123cecdd0db1e2fe7d7fcd8b0",
+        ".urp": "2512cd7086083eb8cc12ad3a402d0e68cfb56f9947046e12ab87c694277d319a"
+      },
+      "stamp": "2026-06-15T1731HKT_STEP5D_STRICT_RNN_LIVEPREP_V6"
+    },
+    "owner": "bridge+TP",
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "semantic_control_gate": {
+      "approach_normal": "-reaction_normal",
+      "contract": "UR_FORCE_FRAME_CONTRACT.md",
+      "failure_contrast": "v4 replay must show old logged orientation error >=0.9 rad while fixed outer-loop orientation <=0.1 rad for at least one Stage 25.0 row",
+      "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+      "force_error_n": "target_load_n - normal_load_n",
+      "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
+      "normal_load_n": "dot(force_base, reaction_normal)",
+      "orientation_target_axis": "approach_normal",
+      "reaction_normal_source": "Step5b/Step6b contact-search latched/filtered n_control_b",
+      "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before cmd_valid can remain true",
+      "v6_window_replay": "runs/bridge_step5d_strict_rnn_liveprep_v5_20260615_171934/bridge_rtde_500hz.csv Stage 25.0 rows must pass the v6 2-40N/45N contact window"
+    },
+    "shape": "cycloid",
+    "stage": "Step5d",
+    "strict_rnn": true,
+    "success_condition": "Retained v6 evidence only. Superseded by v7 because v6 showed that widening the entry gate masks the 24.3 re-contact overpressure instead of fixing it."
+  }
+}

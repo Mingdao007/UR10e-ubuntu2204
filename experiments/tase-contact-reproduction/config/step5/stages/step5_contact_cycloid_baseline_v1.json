@@ -1,0 +1,126 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "bridge": true,
+    "cadence": {
+      "end_hold_s": 0.1,
+      "motion": "bridge_commanded_speedl",
+      "reference_clock": "real_time",
+      "tp_hold_s": 0.002
+    },
+    "canonical_profile_ref": "Step5.contact_cycloid",
+    "contact": true,
+    "contact_policy": {
+      "bridge_required": true,
+      "reference_owner": "bridge",
+      "timing_policy": "paper_faithful_real_time_stop_on_fault",
+      "tp_role": "executor_and_guard_only",
+      "virtual_clock_freeze": false
+    },
+    "current_binding": {
+      "flow_claim_status": "retained_evidence_route",
+      "is_current": false,
+      "source": "config/current_stage.json"
+    },
+    "duration_s": 60.0,
+    "evidence": true,
+    "evidence_refs": {
+      "latest_live_run_dir": "runs/bridge_step5b_contact_cycloid_baseline_v3_20260702_113430",
+      "latest_live_run_status": "retained",
+      "latest_stop_reason": "retained_contact_evidence"
+    },
+    "filter_policy": {
+      "alpha": 0.55,
+      "alpha_source": "runs/bridge_step5b_contact_cycloid_baseline_v3_20260702_113430/metadata.json args.bridge_normal_filter_alpha",
+      "first_contact_latch": true,
+      "follow_mode": "filtered_live",
+      "hold_on": [
+        "stale",
+        "low_force",
+        "reverse_normal"
+      ],
+      "line_stage_uses_filtered_live_normal": true,
+      "min_force_n": 2.0,
+      "normal_filter": "v31_filtered_live"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "angular_cap_rad_s": 0.12,
+      "cmd_valid_required": true,
+      "heartbeat_required": true,
+      "progress_end_hold_s": 0.1,
+      "runtime_limit_s": 65.0,
+      "velocity_cap_m_s": 0.006
+    },
+    "id": "step5_contact_cycloid_baseline_v1",
+    "lifecycle": {
+      "claim_status": "retained_not_current",
+      "current_candidate": false,
+      "retained_evidence": true,
+      "state": "retained_contact_evidence"
+    },
+    "operator_lifecycle": {
+      "autowatch_wait_for_play_s": 30,
+      "background_push_after_live": false,
+      "base_operator": "scripts/step4e-line-v1-operator.sh",
+      "confirm_env": "STEP5B_CONFIRM",
+      "confirm_token": "LIVE STEP5B CONTACT RUN",
+      "dashboard_program_watch_timeout_s": 45,
+      "entrypoint": "scripts/step5b-contact-operator.sh",
+      "expected_program": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v3.urp",
+      "fast_trigger_requires_long_check_cache": false,
+      "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
+      "long_check_ttl_s": 7200,
+      "mode": "line-bridge",
+      "operator_boundaries": [
+        "wrapper never loads a program or presses Play",
+        "no zero_ftsensor",
+        "no Kunwei tare/zero/config",
+        "no TCP/payload write"
+      ],
+      "output_start_wait_s": 3.0,
+      "post_run_quiet_stop_check": true,
+      "post_run_stage_frequency_summary": true,
+      "profile_alias_source": "STEP5B_BRIDGE_VERSION=step5b_v3",
+      "rtde_quick_probe_timeout_s": 1.0,
+      "wait_for_play_s": 45
+    },
+    "owner": "bridge+TP",
+    "package_delivery": {
+      "controller_dir": "/programs/andyl/kunwei/step5",
+      "controller_readback_manifest": "runs/controller_readback_step5b_contact_cycloid_baseline_v3_20260702_113338/manifest.json",
+      "controller_readback_status": "verified_retained",
+      "controller_target": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v3.urp",
+      "delivery_mode": "full_upload_readback",
+      "local_program_dir": "programs/step5",
+      "local_triplet": "programs/step5/step5b_contact_cycloid_baseline_v3.{script,txt,urp}",
+      "program_basename": "step5b_contact_cycloid_baseline_v3",
+      "sha256": {
+        ".script": "b834e1de72a0ea2d4b75f2c4f0072f4d847021abad6d2495c3899719a4eb3c5a",
+        ".txt": "47d778f28d50fb3fa7e08c466cde55057b2ad450bf8a2c0b7b418f373d4849d2",
+        ".urp": "196eb21da397e26b27187a4925975fe274b8bc060de7d012dc76ae5ff0bb6c87"
+      },
+      "variant_of": "step5_contact_cycloid_baseline_v1"
+    },
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "policy_refs": {
+      "bridge_contract": "STEP4E_BRIDGE_CONTRACT.md",
+      "bridge_startup_policy": "bridge_startup_policy",
+      "force_frame_contract": "UR_FORCE_FRAME_CONTRACT.md",
+      "pose_contract": "config/step_pose_contract_table.json#pre_contact_search_gravity_down_v1",
+      "startup_gate_profile": "startup_gate_profiles.prepared_fast_bridge_v1",
+      "textbook_spec": "config/local_control_textbook_spec.json"
+    },
+    "shape": "cycloid",
+    "stage": "Step5-contact",
+    "success_condition": "Bridge computes desired_xy, desired_vxy, path_error, progress, and feedback command; TP consumes registers 37..44 only and stops on stale/invalid/over-cap/end/runtime faults."
+  }
+}

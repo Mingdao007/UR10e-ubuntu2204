@@ -1,0 +1,159 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": "Retained v12 read-back evidence only. Superseded by step5d_strict_rnn_liveprep_v13 contact-safety planning before any live bridge trigger.",
+    "blocked": false,
+    "bridge": true,
+    "cadence": {
+      "end_hold_s": 0.1,
+      "motion": "retained_controller_readback_evidence",
+      "reference_clock": "real_time",
+      "tp_hold_s": 0.002
+    },
+    "complete": false,
+    "completion_target": false,
+    "contact": true,
+    "contact_policy": {
+      "bridge_required": true,
+      "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
+      "contact_search": true,
+      "deadband_acquire_stage": "25.3",
+      "dls_fallback_allowed": false,
+      "force_control": true,
+      "ik_fallback_allowed": false,
+      "joint_solver": "strict_tase_rnn_only",
+      "reference_owner": "strict_rnn_bridge",
+      "timing_policy": "step5b_scaffold_with_step5d_qdot_line_control_v11_deadband_acquire_25_3_and_v12_stage25_line_guard",
+      "tp_role": "stage_split_executor_and_guard_only",
+      "virtual_clock_freeze": false
+    },
+    "duration_s": 60.0,
+    "filter_policy": {
+      "alpha": 0.35,
+      "force_sign_convention": "step5_step6_positive_normal_load",
+      "min_force_n": 2.0,
+      "normal_filter": "v31_filtered_live",
+      "semantic_contract": "reaction normal for load, approach normal for posture/press direction"
+    },
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "guard": {
+      "attitude_cap_rad_s": 0.06,
+      "cmd_valid_required": true,
+      "deadband_acquire_slew_m_s2": 0.012,
+      "deadband_acquire_v_max_m_s": 0.0012,
+      "force_norm_guard_n": 100.0,
+      "heartbeat_required": true,
+      "line_entry_force_norm_max_n": 25.0,
+      "line_entry_force_norm_stop_n": 100.0,
+      "line_entry_normal_load_max_n": 15.0,
+      "line_entry_normal_load_min_n": 2.0,
+      "line_entry_recovery_normal_load_max_n": 40.0,
+      "line_entry_recovery_normal_load_min_n": 0.0,
+      "line_entry_required_s": 0.15,
+      "line_entry_timeout_s": 10.0,
+      "line_guard_contact_loss_limit_s": 0.03,
+      "line_guard_contact_max_n": 15.0,
+      "line_guard_contact_min_n": 1.0,
+      "line_guard_force_norm_max_n": 25.0,
+      "line_guard_low_load_stop_n": 0.5,
+      "line_guard_tcp_speed_max_m_s": 0.05,
+      "normal_load_filter_alpha": 0.15,
+      "normal_velocity_cap_m_s": 0.003,
+      "orientation_skip_lift_error_rad": 0.069813,
+      "path_cap_m_s": 0.004,
+      "progress_end_hold_s": 0.1,
+      "qdot_cap_rad_s": 0.05,
+      "qdot_slew_rad_s2": 0.2,
+      "raw_normal_guard_n": 100.0,
+      "runtime_limit_s": 65.0,
+      "second_contact_far_speed_m_s": -0.0025,
+      "second_contact_max_down_m": 0.035,
+      "second_contact_near_speed_m_s": -0.0025,
+      "second_contact_near_start_depth_m": 0.0,
+      "semantic_orientation_tolerance_rad": 0.08726646259971647,
+      "torque_norm_guard_nm": 3.0,
+      "total_linear_cap_m_s": 0.006
+    },
+    "id": "step5d_strict_rnn_liveprep_v12",
+    "joint_space": true,
+    "liveprep_gates": [
+      "v11 escape replay binds root cause to Stage 25.0 contact loss before the 0.02m/s and 0.05m/s speed thresholds",
+      "non-quarantine Step5d v12 TP package validates locally and splits registers: 25.3 uses 37..39 Cartesian deadband-acquire velocity, 25.0 uses 37..42 qdot",
+      "25.0 qdot cap is reduced to 0.050 rad/s and qdot slew is limited to 0.20 rad/s^2 from zero on first command",
+      "25.0 bridge clears cmd_valid on normal_load <0.5N, contact-window timeout, force_norm >25N, or TCP speed >0.050m/s before TP speedj",
+      "controller upload and read-back SHA/cachedContents verification must pass before current_stage.json can point to v12",
+      "strict RNN qdot path remains behind semantic orientation gate before speedj execution"
+    ],
+    "local_delivery_evidence": {
+      "archived_to_step5d_dir": true,
+      "controller_dir": "/programs/andyl/kunwei/step5",
+      "controller_readback": "runs/controller_readback_step5d_strict_rnn_liveprep_v12_20260615_212614",
+      "controller_readback_verified": true,
+      "local_package_validated": true,
+      "local_program_dir": "programs/step5/step5d",
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_liveprep_v12.{script,txt,urp}",
+      "numeric_sanity": "runs/step5d_v11_escape_replay_20260615/summary.json",
+      "program_basename": "step5d_strict_rnn_liveprep_v12",
+      "semantic_gate": "runs/ur_contact_semantic_gate_20260615_201109/ur_contact_semantic_gate_summary.json",
+      "semantic_gate_pass": true,
+      "sha256": {
+        ".script": "087ac3a40b9bdb1d216f03ffd77e3812a96d10c8207e7a2047fcba7f9046f318",
+        ".txt": "2af1d1150b054b76fa48cb7bd11858d5d36678e7f7a3bf63876e87cdf5349584",
+        ".urp": "ca5c75f17f709fc7ad42da92b017ac3bbb5941a73583a4a95fb414a1eabb7596"
+      },
+      "stamp": "2026-06-15T2125HKT_STEP5D_STRICT_RNN_LIVEPREP_V12"
+    },
+    "owner": "bridge+TP",
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "semantic_control_gate": {
+      "approach_normal": "-reaction_normal",
+      "contract": "UR_FORCE_FRAME_CONTRACT.md",
+      "deadband_acquire": {
+        "approach_normal": "-reaction_normal",
+        "command_direction": "approach_normal * v_acquire",
+        "force_norm_max_n": 25.0,
+        "normal_load_n": "EMA(dot(force_base, reaction_normal), alpha=0.15)",
+        "recovery_policy": "low_load_press_recovery_until_40N_normal_load_or_100N_force_norm_hard_envelope",
+        "release_required_s": 0.15,
+        "release_window_n": [
+          2.0,
+          15.0
+        ],
+        "slew_m_s2": 0.012,
+        "stage": "25.3",
+        "v_max_m_s": 0.0012
+      },
+      "failure_contrast": "v11 escape replay shows Stage 25.0 lost contact about 0.046s after entry while cmd_valid remained true; v12 clears cmd_valid on low-load/contact-window/TCP-speed guard before TP speedj execution, but is retained evidence after v13 contact-safety planning.",
+      "forbidden": "Do not normalize raw live force to construct R_d.z or orientation_target_axis",
+      "force_error_n": "target_load_n - normal_load_n",
+      "gate_scope": "offline replay and runtime regression guard; not an independent closed-loop stability proof",
+      "normal_load_n": "dot(force_base, reaction_normal)",
+      "orientation_target_axis": "approach_normal",
+      "reaction_normal_source": "Step5b/Step6b contact-search latched/filtered n_control_b",
+      "runtime_assertion": "contact-search orientation error and Step5d outer-loop orientation angle must agree within 5 deg before cmd_valid can remain true",
+      "stage25_line_guard": {
+        "action": "clear_cmd_valid_before_speedj",
+        "contact_loss_limit_s": 0.03,
+        "contact_window_n": [
+          1.0,
+          15.0
+        ],
+        "force_norm_max_n": 25.0,
+        "low_load_stop_n": 0.5,
+        "tcp_speed_max_m_s": 0.05
+      }
+    },
+    "shape": "cycloid",
+    "stage": "Step5d",
+    "strict_rnn": true,
+    "success_condition": "Retained v12 read-back evidence. Do not open v12 bridge as current; use v13 planning/package after local validation and an explicit later controller-delivery decision."
+  }
+}

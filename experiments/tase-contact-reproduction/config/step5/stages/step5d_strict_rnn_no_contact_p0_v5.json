@@ -1,0 +1,189 @@
+{
+  "schema": "step5.stage-manifest/v1",
+  "source": "config/step5_stage_table.json",
+  "stage": {
+    "acceptance": {
+      "controller_readback_required": true,
+      "live_bridge_authorization_required_after_p0": true,
+      "not_a_completed_reproduction_claim": true,
+      "package_generation_required": true,
+      "strict_rnn_no_contact_p0_passed": false,
+      "strict_rnn_no_contact_p0_required_before_live": true
+    },
+    "active": false,
+    "amplitude_m": 0.015,
+    "block_reason": "No-contact P0 v5 package is controller read-back verified; P0 capture is authorized but not passed yet.",
+    "blocked": false,
+    "bridge": true,
+    "bridge_runtime": {
+      "duration_s": 180.0,
+      "force_damping": 7.0,
+      "force_i_gain": 1e-05,
+      "force_p_gain": 0.001,
+      "integral_limit_n_s": 1.0,
+      "normal_follow_mode": "locked",
+      "normal_min_force_n": 0.001,
+      "rtde_hz": 500.0,
+      "sensor_stale_s": 0.1,
+      "socket_timeout_s": 0.0
+    },
+    "cadence": {
+      "end_hold_s": 0.0,
+      "motion": "no_contact_stage25_speedj_rnn_warm_start_capture",
+      "reference_clock": "real_time_no_contact_p0_full_window_capture",
+      "tp_hold_s": 0.002
+    },
+    "canonical_profile_ref": "Step5.step5d_rnn",
+    "complete": false,
+    "completion_target": false,
+    "contact": false,
+    "contact_policy": {
+      "bridge_required": true,
+      "bridge_startup_policy_ref": "bridge_startup_policy",
+      "contact_search": false,
+      "controller_readback_status": "verified_gate_package",
+      "deadband_acquire_stage": null,
+      "default_stage25_control_mode": "speedj_rnn_live",
+      "force_control": false,
+      "live_authorization": "p0_capture_only_requires_STEP5D_P0_CONFIRM_not_full_live_authorization",
+      "reference_owner": "bridge",
+      "speedj_rnn_live_policy": "strict RNN qdot is sent to TP speedj after one-shot lifecycle warm_start; P0 uses pre-RNN xdot feasibility scaling with qdot_cap=0.15 and no bridge-side qdot slew; evidence must show solver_warm_start and approach-normal command alignment.",
+      "stage25_contact_policy": "No contact search or preload; TP waits for heartbeat and sensor_ok, Stage25.95 register clear, then 60 s Stage25.0 layout-tagged speedj/speedl command consumption in open air.",
+      "stage25_control_modes": [
+        "speedj_rnn_live"
+      ],
+      "timing_policy": "no_contact_p0_stage25_60s_warm_start_capture",
+      "tp_package_status": "generated_uploaded_readback_verified_gate_package",
+      "tp_role": "no_contact_stage25_executor_and_guard_only",
+      "virtual_clock_freeze": false
+    },
+    "duration_s": 60.0,
+    "fixed_base_z_m": null,
+    "frame": "config/step5_safe_frame.json",
+    "gate_for": "step5d_strict_rnn_ablation_v28",
+    "guard": {
+      "attitude_cap_rad_s": 0.015,
+      "cmd_valid_required": true,
+      "force_norm_guard_n": 5.0,
+      "heartbeat_required": true,
+      "line_entry_normal_load_max_n": 2.0,
+      "line_entry_normal_load_min_n": 0.0,
+      "line_entry_param_valid_code": 521.0,
+      "line_entry_required_s": 0.0,
+      "line_entry_timeout_s": 1.0,
+      "normal_load_filter_alpha": 0.55,
+      "normal_velocity_cap_m_s": 0.003,
+      "path_cap_m_s": 0.004,
+      "qdot_cap_rad_s": 0.15,
+      "qdot_slew_rad_s2": 0.0,
+      "raw_normal_guard_n": 2.0,
+      "runtime_limit_s": 65.0,
+      "stage25_95_register_clear_required_s": 0.006,
+      "stage25_95_register_clear_timeout_s": 1.0,
+      "stage25_95_register_clear_zero_tol": 0.0005,
+      "stage25_cartesian_layout_tag": 523.0,
+      "stage25_default_control_mode": "speedj_rnn_live",
+      "stage25_joint_layout_tag": 524.0,
+      "stage25_runtime_limit_s": 65.0,
+      "stage25_success_target_s": 60.0,
+      "target_force_n": 1.0,
+      "torque_norm_guard_nm": 3.0,
+      "total_linear_cap_m_s": 0.004
+    },
+    "id": "step5d_strict_rnn_no_contact_p0_v5",
+    "joint_space": true,
+    "local_delivery_evidence": {
+      "controller_dir": "/programs/andyl/kunwei/step5",
+      "controller_readback": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v5_20260707_215357/manifest.json",
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v5_20260707_215357/manifest.json",
+      "controller_readback_verified": true,
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp",
+      "delivery_mode": "full_upload_readback",
+      "fetched_back_urp_internal_gate_pass": true,
+      "generated_at": "2026-07-07T18:21:26+08:00",
+      "installation_relative_path": "../../../default",
+      "local_controller_readback_sha_match": true,
+      "local_package_validated": true,
+      "local_program_dir": "programs/step5/step5d",
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v5.{script,txt,urp}",
+      "program_basename": "step5d_strict_rnn_no_contact_p0_v5",
+      "readback_source": "fresh_controller_get",
+      "sha256": {
+        ".script": "437260d51bf7e810ecc3fb9baa83a3e5962a774ad9f2d3f3187e5cd685f2fd2c",
+        ".txt": "9946417821d619cd3e714a4202ee1e04c59c22aeca08df9c9779b87f126cc96f",
+        ".urp": "0c5a5aaed1ef5ec1791986b7f9d0ca46ddc0eaa00cc9e1c6dfa766f8fbe36fe1"
+      },
+      "stamp": "2026-07-07T1821HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V5"
+    },
+    "notes": [
+      "P0 v5 is a no-contact gate package for v28 strict RNN warm_start evidence, not the current reproduction package.",
+      "P0 v5 uses qdot_cap_rad_s=0.15 with pre-RNN xdot feasibility scaling and no bridge-side qdot slew; UR speedj acceleration remains conservative.",
+      "P0 v5 package is controller read-back verified; no-contact capture is authorized but not passed yet.",
+      "Previous v4 capture at runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v4_20260707_100803 is retained as no_contact_p0_verifier_failed evidence and must not be accepted as pass."
+    ],
+    "operator_lifecycle": {
+      "base_operator": "scripts/bridge-line-operator.sh",
+      "baseline_s": 1.0,
+      "confirm_env": "STEP5D_P0_CONFIRM",
+      "confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0",
+      "entrypoint": "scripts/step5d-strict-rnn-p0.sh",
+      "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp",
+      "fast_trigger_requires_long_check_cache": true,
+      "live_readiness_state": "controller_readback_verified_p0_capture_pending",
+      "mode": "line-bridge-fast",
+      "operator_boundaries": [
+        "wrapper never loads a program or presses Play",
+        "no zero_ftsensor",
+        "no Kunwei tare/zero/config",
+        "no TCP/payload write",
+        "no contact search or preload"
+      ],
+      "rezero_s": 0.25,
+      "wait_for_play_s": 20
+    },
+    "owner": "bridge+TP",
+    "package_delivery": {
+      "controller_dir": "/programs/andyl/kunwei/step5",
+      "controller_readback": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v5_20260707_215357/manifest.json",
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v5_20260707_215357/manifest.json",
+      "controller_readback_status": "controller read-back verified",
+      "controller_readback_verified": true,
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v5.urp",
+      "delivery_mode": "full_upload_readback",
+      "fetched_back_urp_internal_gate_pass": true,
+      "local_controller_readback_sha_match": true,
+      "local_program_dir": "programs/step5/step5d",
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v5.{script,txt,urp}",
+      "p0_capture_passed": false,
+      "program_basename": "step5d_strict_rnn_no_contact_p0_v5",
+      "readback_source": "fresh_controller_get",
+      "sha256": {
+        ".script": "437260d51bf7e810ecc3fb9baa83a3e5962a774ad9f2d3f3187e5cd685f2fd2c",
+        ".txt": "9946417821d619cd3e714a4202ee1e04c59c22aeca08df9c9779b87f126cc96f",
+        ".urp": "0c5a5aaed1ef5ec1791986b7f9d0ca46ddc0eaa00cc9e1c6dfa766f8fbe36fe1"
+      }
+    },
+    "phase_law": {
+      "final_phase_rad": 6.0,
+      "omega_rad_s": 0.1,
+      "type": "linear_time"
+    },
+    "policy_refs": {
+      "bridge_startup_policy": "bridge_startup_policy",
+      "force_frame_contract": "UR_FORCE_FRAME_CONTRACT.md",
+      "runtime_interface": "tools/step5d_runtime_interface.py#tp_speedj_strict_rnn_liveprep_v1",
+      "startup_gate_profile": "startup_gate_profiles.prepared_fast_bridge_v1"
+    },
+    "runtime_interface_ref": {
+      "interface_class": "tp_speedj_strict_rnn_liveprep_v1",
+      "path": "tools/step5d_runtime_interface.py",
+      "stage25_default_control_mode": "speedj_rnn_live",
+      "stage25_runtime_limit_s": 65.0,
+      "stage25_success_target_s": 60.0
+    },
+    "shape": "cycloid",
+    "stage": "Step5d",
+    "strict_rnn": true,
+    "success_condition": "P0 passes only when a captured artifact validates first Stage25 speedj_rnn_live tick solver_warm_start, layout 524 consumption, and approach-normal alignment; this is not a contact reproduction claim."
+  }
+}
