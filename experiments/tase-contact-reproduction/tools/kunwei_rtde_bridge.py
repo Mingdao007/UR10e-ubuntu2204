@@ -10956,7 +10956,9 @@ def main(argv: list[str] | None = None) -> int:
                             )
                         if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
                             bridge_values.update(args.step5d_autotune_handshake)
-                            reset_step5d_autotune_diagnostics_for_trial(state, args)
+                            reset_step5d_autotune_diagnostics_for_trial(
+                                step4e_state, args
+                            )
                         if fail_stop_latched:
                             step4e_values = {name: 0.0 for name in BRIDGE_INPUT_NAMES}
                             step4e_values["stop_request"] = 0.0
