@@ -18,6 +18,7 @@ from run_step5d_autotune_campaign import (  # noqa: E402
     CampaignEpochLayout,
     _campaign_authorization,
     _campaign_spec,
+    _publish_runner_ready,
     closure_sample_from_bridge_row,
     discover_campaign_epochs,
     ensure_mailbox_parent,
@@ -199,3 +200,34 @@ def test_campaign_creates_its_own_runtime_mailbox_directory() -> None:
         assert mailbox.parent.is_dir()
         with pytest.raises(RuntimeError, match="selected bridge run"):
             ensure_mailbox_parent(Path(tmp) / "other" / "command.json", bridge_run)
+
+
+def test_runner_ready_requires_completed_durable_recovery() -> None:
+    campaign = _campaign_spec(ROOT, "a" * 64, 9)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        ready = root / "bridge" / "runtime" / "campaign_runner_ready.json"
+        with pytest.raises(RuntimeError, match="completed durable state recovery"):
+            _publish_runner_ready(
+                ready,
+                durable_state_ready=False,
+                bridge_run=root / "bridge",
+                campaign_root=root / "campaign",
+                campaign=campaign,
+                campaign_fingerprint=campaign.campaign_fingerprint,
+                selection_policy="codex_batches",
+            )
+        assert not ready.exists()
+
+        _publish_runner_ready(
+            ready,
+            durable_state_ready=True,
+            bridge_run=root / "bridge",
+            campaign_root=root / "campaign",
+            campaign=campaign,
+            campaign_fingerprint=campaign.campaign_fingerprint,
+            selection_policy="codex_batches",
+        )
+        payload = json.loads(ready.read_text(encoding="utf-8"))
+        assert payload["durable_state_ready"] is True
+        assert payload["state"] == "ready_home"

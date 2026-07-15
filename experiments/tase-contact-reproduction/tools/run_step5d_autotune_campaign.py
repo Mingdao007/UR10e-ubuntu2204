@@ -450,6 +450,35 @@ def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def _publish_runner_ready(
+    path: Path,
+    *,
+    durable_state_ready: bool,
+    bridge_run: Path,
+    campaign_root: Path,
+    campaign: CampaignSpec,
+    campaign_fingerprint: str,
+    selection_policy: str,
+) -> None:
+    if durable_state_ready is not True:
+        raise RuntimeError("runner ready requires completed durable state recovery")
+    _atomic_json(
+        path,
+        {
+            "schema_version": "step5d_autotune_runner_ready_v1",
+            "ok": True,
+            "pid": os.getpid(),
+            "bridge_run": str(bridge_run),
+            "campaign_root": str(campaign_root),
+            "campaign_epoch": campaign.campaign_epoch,
+            "campaign_fingerprint": campaign_fingerprint,
+            "selection_policy": selection_policy,
+            "state": "ready_home",
+            "durable_state_ready": True,
+        },
+    )
+
+
 def _verified_parent_layout(manifest: Mapping[str, Any]) -> CampaignEpochLayout | None:
     parent = manifest.get("parent_epoch")
     if parent is None:
@@ -771,26 +800,6 @@ def run(args: argparse.Namespace) -> int:
     if not preflight.ok:
         raise RuntimeError("live backend preflight failed: " + ";".join(preflight.blockers))
     follower = BridgeCsvFollower(bridge_csv)
-    if args.runner_ready_file is not None:
-        ready_path = args.runner_ready_file.resolve()
-        if ready_path.parent != (bridge_run / "runtime").resolve():
-            raise RuntimeError("runner ready file must belong to bridge runtime")
-        _atomic_json(
-            ready_path,
-            {
-                "schema_version": "step5d_autotune_runner_ready_v1",
-                "ok": True,
-                "pid": os.getpid(),
-                "bridge_run": str(bridge_run),
-                "campaign_root": str(campaign_root),
-                "campaign_epoch": campaign.campaign_epoch,
-                "campaign_fingerprint": frozen.composite_fingerprint,
-                "selection_policy": args.selection_policy,
-                "state": (
-                    "ready_home" if initial.state == "READY_HOME" else "waiting_for_ready_home"
-                ),
-            },
-        )
     if initial.state != "READY_HOME":
         if not args.wait_for_home:
             follower.close()
@@ -948,6 +957,19 @@ def run(args: argparse.Namespace) -> int:
                 )
             coordinator = restored.coordinator
             resumed = True
+    if args.runner_ready_file is not None:
+        ready_path = args.runner_ready_file.resolve()
+        if ready_path.parent != (bridge_run / "runtime").resolve():
+            raise RuntimeError("runner ready file must belong to bridge runtime")
+        _publish_runner_ready(
+            ready_path,
+            durable_state_ready=True,
+            bridge_run=bridge_run,
+            campaign_root=campaign_root,
+            campaign=campaign,
+            campaign_fingerprint=frozen.composite_fingerprint,
+            selection_policy=args.selection_policy,
+        )
     mailbox = AtomicCommandMailbox(mailbox_path, network_mode=True)
     event_path = campaign_root / "events.jsonl"
     campaign_root.mkdir(parents=True, exist_ok=True)
