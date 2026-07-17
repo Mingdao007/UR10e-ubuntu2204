@@ -10,11 +10,15 @@ from typing import Any
 from .config import ConfigError, load_static_config
 
 
-DEPLOYMENT_ID = "step5d-autotune-v2-live-20260717-r12"
+DEPLOYMENT_ID = "step5d-autotune-v2-live-20260717-r13"
 TP_DELIVERY_ID = "step5d-autotune-v2-readback-20260717-r2"
 PROGRAM = "step5d_strict_rnn_autotune_v2"
 BRIDGE_ARGV = ("python3", "{root}/tools/run_step5d_autotune_v2_bridge.py")
-BRIDGE_ENVIRONMENT = {"STEP5D_AUTOTUNE_V2_ADAPTER": "1"}
+BRIDGE_ENVIRONMENT = {
+    "STEP5D_AUTOTUNE_V2_ADAPTER": "1",
+    "STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED": "1",
+    "STEP5D_AUTOTUNE_V2_STARTUP_STABLE_S": "0.5",
+}
 PROFILE = {
     "sample_rate_hz": 500,
     "target_force_n": "12",
@@ -56,7 +60,7 @@ def verify_release_config(
     bridge = payload["bridge"]
     cutover = payload["live_cutover"]
 
-    _require(deployment["id"] == DEPLOYMENT_ID, "release deployment id is not r12")
+    _require(deployment["id"] == DEPLOYMENT_ID, "release deployment id is not r13")
     _require(
         deployment["tp_delivery_id"] == TP_DELIVERY_ID,
         "release TP delivery/readback identity differs",
@@ -70,6 +74,8 @@ def verify_release_config(
     _require(bridge["live_enabled"] is True, "release live bridge is disabled")
     _require(tuple(bridge["argv"]) == BRIDGE_ARGV, "release bridge argv is not frozen")
     _require(bridge["environment"] == BRIDGE_ENVIRONMENT, "release bridge environment differs")
+    _require(bridge["startup_stable_s"] == 0.5, "release startup stable gate differs")
+    _require(bridge["operator_play_timeout_s"] == 120, "release operator Play timeout differs")
     _require(cutover["enabled"] is True, "release cutover is disabled")
     _require(cutover["blocked_until"] == [], "release cutover blocker remains")
     if verify_fingerprints:

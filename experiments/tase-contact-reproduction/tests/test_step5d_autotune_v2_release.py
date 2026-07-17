@@ -20,7 +20,7 @@ def _current() -> dict:
 def test_current_config_is_a_frozen_live_release() -> None:
     report = verify_release_config(ROOT)
     assert report["ok"] is True
-    assert report["deployment_id"] == "step5d-autotune-v2-live-20260717-r12"
+    assert report["deployment_id"] == "step5d-autotune-v2-live-20260717-r13"
     assert report["bridge_profile"] == {
         "sample_rate_hz": 500,
         "target_force_n": "12",
@@ -43,6 +43,23 @@ def test_current_config_is_a_frozen_live_release() -> None:
         (lambda value: value["deployment"].__setitem__("authorized", False), "authorization"),
         (lambda value: value["bridge"].__setitem__("live_enabled", False), "live bridge"),
         (lambda value: value["bridge"].__setitem__("argv", []), "bridge argv"),
+        (
+            lambda value: value["bridge"]["environment"].pop(
+                "STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED"
+            ),
+            "bridge environment",
+        ),
+        (
+            lambda value: value["bridge"]["environment"].__setitem__(
+                "STEP5D_AUTOTUNE_V2_STARTUP_STABLE_S", "0.4"
+            ),
+            "bridge environment",
+        ),
+        (lambda value: value["bridge"].__setitem__("startup_stable_s", 0.4), "startup stable"),
+        (
+            lambda value: value["bridge"].__setitem__("operator_play_timeout_s", 60),
+            "operator Play timeout",
+        ),
         (lambda value: value["live_cutover"].__setitem__("enabled", False), "cutover"),
         (lambda value: value["live_cutover"].__setitem__("blocked_until", ["unfinished"]), "cutover blocker"),
     ],
