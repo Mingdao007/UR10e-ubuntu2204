@@ -14,11 +14,18 @@ validation, and a separately executed URSim HOLD-only gate in this phase; this
 change does not upload, select, load, Play, ARM, zero, contact, or move a real
 controller. A failed contract, replay, recovery, latency, size, URSim, or
 rollback gate is a No-Go and leaves v1 selected.
-The current offline decision is No-Go because the digest-pinned URSim HOLD-only
-lane could not access the Docker daemon; the executable evidence is summarized
-in `config/step5/step5d_autotune_v3_offline_validation.json`. Contract,
-five-candidate fake bridge, crash recovery, latency, and formal G10 are green,
-but none of them substitutes for the unrun URSim lane.
+The current decision is Go only for
+`offline_tooling_and_ursim_hold_only`. The digest-pinned URSim 5.11.11 lane
+observed `STOPPED -> STARTING -> READY_HOME` while the simulator remained
+STOPPED/HOLD with zero Play, ARM, motion, RTDE input recipe, or controller
+write; its v3 service rollback returned to `stopped`, and the v1 selector was
+unchanged. The immutable result and byte-identical raw evidence are
+`config/step5/step5d_autotune_v3_ursim_hold_result.json` and
+`config/step5/step5d_autotune_v3_ursim_hold_raw.json`. Contract,
+five-candidate fake bridge, crash recovery, latency, formal G10, watchdog, and
+rollback gates are green. This is not live-run/robot acceptance:
+`rollout_authorized=false`, v3 remains inactive, HIL is not authorized, and
+`config/current_stage.json` still selects v1.
 
 v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,

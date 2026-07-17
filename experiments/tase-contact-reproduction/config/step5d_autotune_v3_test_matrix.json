@@ -1,6 +1,6 @@
 {
   "schema_version": "step5d.autotune-v3/test-matrix-v1",
-  "claim_boundary": "offline_tooling_only_until_separate_promotion",
+  "claim_boundary": "offline_tooling_and_ursim_hold_only",
   "ci": {
     "lanes": [
       "small",
@@ -94,7 +94,12 @@
           "runs/step5d_autotune_v3_validation/ursim"
         ]
       ],
-      "execution_status": "not_run",
+      "execution_status": "pass",
+      "execution_observed_at": "2026-07-17T20:59:09.542360+00:00",
+      "immutable_result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
+      "immutable_result_sha256": "f4dcd36dc1a593c1f8b7c20be321904a71199e0c4281f8c31b2960c490046fb9",
+      "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
+      "raw_evidence_sha256": "83df91fbc6256d7380bd5f6761326fd9885511dbb858604e2a87324b09cc6dc3",
       "activation": "manual_with_prestarted_digest_pinned_ursim_on_docker_internal_network",
       "ci": false,
       "serial": true,
@@ -131,6 +136,7 @@
       "motion_allowed": false,
       "operator_action_consumed": false,
       "cleanup_required": true,
+      "cleanup_completed": true,
       "evidence_output": "runs/step5d_autotune_v3_validation/ursim/<control-fingerprint>-<utc>-<pid>/ursim_hold_gate.json"
     },
     "hil_no_motion": {

@@ -10450,14 +10450,17 @@
         "reproduction_complete": false
       },
       "offline_validation": {
-        "status": "no_go_ursim_hold_blocked",
+        "status": "go_offline_tooling_and_ursim_hold_only",
+        "acceptance_scope": "offline_tooling_and_ursim_hold_only",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "9a25c721bf70b260fd7dd135f1545ae867a94cfb071574afd93e43ad904ba58a",
+        "report_sha256": "aace17206d5f64623e8b13f59ccda3231b264ab17eceac2801107001e611ae4d",
         "contract_mutation": "pass",
         "fake_bridge_five_candidate": "pass",
         "crash_cut_matrix": "pass",
         "g10_production_seam": "pass",
-        "ursim_hold_only": "blocked_docker_daemon_unavailable",
+        "ursim_hold_only": "pass",
+        "ursim_result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
+        "ursim_result_sha256": "f4dcd36dc1a593c1f8b7c20be321904a71199e0c4281f8c31b2960c490046fb9",
         "hil_no_motion": "blocked_not_authorized"
       },
       "current_binding": {

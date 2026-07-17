@@ -1,0 +1,273 @@
+{
+  "arm_allowed": false,
+  "blocker": null,
+  "claim_boundary": "digest_pinned_ursim_hold_only_not_robot_acceptance",
+  "container": {
+    "container": "step5d-autotune-v3-ursim-hold",
+    "container_id": "b104b1aaddd7b4bfe7028625f01852059d7111499b09a3ec49198077a44a9fe6",
+    "container_image_id": "sha256:2defb07d45a84f988504a78184c9b8da69fea55ffec89ee1388e75a412e394a2",
+    "container_ip": "172.18.0.2",
+    "docker_server_version": "29.6.1",
+    "expected_image": "universalrobots/ursim_e-series@sha256:730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3",
+    "host_ports_published": false,
+    "network": "step5d-autotune-v3-ursim-internal",
+    "network_internal": true
+  },
+  "controller_write_allowed": false,
+  "evidence_path": "/home/andy/.codex-worktrees/ur10e-step5d-autotune-v3-20260718/experiments/tase-contact-reproduction/runs/step5d_autotune_v3_validation/ursim/81563dcb24ffebd4-20260717T205909.776286Z-469169/ursim_hold_gate.json",
+  "forbidden_action_count": 0,
+  "hold_watchdog": {
+    "dashboard_commands": [
+      "PolyscopeVersion",
+      "robotmode",
+      "programState",
+      "running",
+      "safetymode"
+    ],
+    "ok": true,
+    "rtde_input_recipe_created": false,
+    "rtde_output_fields": [
+      "actual_qd",
+      "actual_TCP_speed",
+      "runtime_state",
+      "robot_mode",
+      "safety_mode"
+    ],
+    "sample_count": 3,
+    "samples": [
+      {
+        "dashboard": {
+          "PolyscopeVersion": "URSoftware 5.11.11.1010533 (Apr 12 2022)",
+          "banner": "Connected: Universal Robots Dashboard Server",
+          "programState": "STOPPED <unnamed>",
+          "robotmode": "Robotmode: POWER_OFF",
+          "running": "Program running: false",
+          "safetymode": "Safetymode: NORMAL"
+        },
+        "hold": {
+          "max_abs": {
+            "actual_TCP_speed": 0.0,
+            "actual_qd": 0.0
+          },
+          "program_state": "STOPPED",
+          "running": false
+        },
+        "index": 0,
+        "observed_at": "2026-07-17T20:59:11.233654+00:00",
+        "rtde": {
+          "fields": {
+            "actual_TCP_speed": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "actual_qd": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "robot_mode": 3,
+            "runtime_state": 1,
+            "safety_mode": 1
+          },
+          "output_recipe_only": true,
+          "received_text_messages": [
+            {
+              "message": "SafetySetup has not been confirmed yet, therefore no data will be send yet",
+              "message_type": 2,
+              "payload_hex": "02536166657479536574757020686173206e6f74206265656e20636f6e6669726d6564207965742c207468657265666f7265206e6f20646174612077696c6c2062652073656e6420796574",
+              "protocol_version": 1
+            }
+          ],
+          "sent_packet_types": [
+            "V",
+            "O",
+            "S"
+          ]
+        }
+      },
+      {
+        "dashboard": {
+          "PolyscopeVersion": "URSoftware 5.11.11.1010533 (Apr 12 2022)",
+          "banner": "Connected: Universal Robots Dashboard Server",
+          "programState": "STOPPED <unnamed>",
+          "robotmode": "Robotmode: POWER_OFF",
+          "running": "Program running: false",
+          "safetymode": "Safetymode: NORMAL"
+        },
+        "hold": {
+          "max_abs": {
+            "actual_TCP_speed": 0.0,
+            "actual_qd": 0.0
+          },
+          "program_state": "STOPPED",
+          "running": false
+        },
+        "index": 1,
+        "observed_at": "2026-07-17T20:59:11.952758+00:00",
+        "rtde": {
+          "fields": {
+            "actual_TCP_speed": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "actual_qd": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "robot_mode": 3,
+            "runtime_state": 1,
+            "safety_mode": 1
+          },
+          "output_recipe_only": true,
+          "received_text_messages": [
+            {
+              "message": "SafetySetup has not been confirmed yet, therefore no data will be send yet",
+              "message_type": 2,
+              "payload_hex": "02536166657479536574757020686173206e6f74206265656e20636f6e6669726d6564207965742c207468657265666f7265206e6f20646174612077696c6c2062652073656e6420796574",
+              "protocol_version": 1
+            }
+          ],
+          "sent_packet_types": [
+            "V",
+            "O",
+            "S"
+          ]
+        }
+      },
+      {
+        "dashboard": {
+          "PolyscopeVersion": "URSoftware 5.11.11.1010533 (Apr 12 2022)",
+          "banner": "Connected: Universal Robots Dashboard Server",
+          "programState": "STOPPED <unnamed>",
+          "robotmode": "Robotmode: POWER_OFF",
+          "running": "Program running: false",
+          "safetymode": "Safetymode: NORMAL"
+        },
+        "hold": {
+          "max_abs": {
+            "actual_TCP_speed": 0.0,
+            "actual_qd": 0.0
+          },
+          "program_state": "STOPPED",
+          "running": false
+        },
+        "index": 2,
+        "observed_at": "2026-07-17T20:59:12.671028+00:00",
+        "rtde": {
+          "fields": {
+            "actual_TCP_speed": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "actual_qd": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "robot_mode": 3,
+            "runtime_state": 1,
+            "safety_mode": 1
+          },
+          "output_recipe_only": true,
+          "received_text_messages": [
+            {
+              "message": "SafetySetup has not been confirmed yet, therefore no data will be send yet",
+              "message_type": 2,
+              "payload_hex": "02536166657479536574757020686173206e6f74206265656e20636f6e6669726d6564207965742c207468657265666f7265206e6f20646174612077696c6c2062652073656e6420796574",
+              "protocol_version": 1
+            }
+          ],
+          "sent_packet_types": [
+            "V",
+            "O",
+            "S"
+          ]
+        }
+      }
+    ]
+  },
+  "initial_hold": {
+    "max_abs": {
+      "actual_TCP_speed": 0.0,
+      "actual_qd": 0.0
+    },
+    "program_state": "STOPPED",
+    "running": false
+  },
+  "lifecycle": {
+    "expected_prefix": [
+      "STOPPED",
+      "STARTING",
+      "READY_HOME"
+    ],
+    "observed": [
+      {
+        "source": "fresh_validation_workspace",
+        "state": "STOPPED"
+      },
+      {
+        "source": "production_service_spawn",
+        "state": "STARTING"
+      },
+      {
+        "source": "production_service_ready_home_plus_ursim_stopped_hold",
+        "state": "READY_HOME",
+        "tp_ready_home_echo_observed": false
+      },
+      {
+        "source": "graceful_service_rollback",
+        "state": "STOPPED"
+      }
+    ],
+    "service_phases_observed": [
+      "ready_home"
+    ]
+  },
+  "motion_allowed": false,
+  "observed_at": "2026-07-17T20:59:09.542360+00:00",
+  "ok": true,
+  "play_allowed": false,
+  "production_launcher": {
+    "contract_sha256": "cdac9d22fef5697c9113c9e98a54ab08a6430873845bc775321326e3ef69c5f9",
+    "control_fingerprint": "81563dcb24ffebd47ce4b16b477b819c973fbc502d81d74d6c7b06830b875f78",
+    "effective_field_count": 126
+  },
+  "rollback": {
+    "service_exit_code": 0,
+    "service_final_phase": "stopped",
+    "stderr": "",
+    "stdout": "",
+    "v1_selector_after": "step5d_strict_rnn_autotune_v1",
+    "v1_selector_before": "step5d_strict_rnn_autotune_v1",
+    "v3_active_after": false
+  },
+  "schema": "step5d.autotune-v3/ursim-hold-gate-v1",
+  "watchdog": {
+    "immutable_tp_watchdog_artifact_verified": true,
+    "read_only_hold_monitor_verified": true,
+    "reason": "HOLD-only gate forbids TP Play",
+    "tp_watchdog_runtime_executed": false
+  }
+}

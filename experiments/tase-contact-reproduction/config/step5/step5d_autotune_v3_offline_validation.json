@@ -1,6 +1,6 @@
 {
   "schema": "step5d.autotune-v3/offline-validation-v1",
-  "observed_at": "2026-07-18T03:35:21+08:00",
+  "observed_at": "2026-07-18T05:00:02+08:00",
   "frozen_baseline": {
     "tag": "archive/step5d-autotune-v1-20260715",
     "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
@@ -54,11 +54,25 @@
       "slew_violation_max_rad_s": 8.673617379884035e-19
     },
     "ursim_hold_only": {
-      "status": "blocked",
-      "blocker": "docker_daemon_unavailable",
-      "detail": "permission denied while trying to connect to the Docker API socket",
-      "container_or_network_started": false,
-      "play_or_arm_or_motion": false
+      "status": "pass",
+      "result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
+      "result_sha256": "f4dcd36dc1a593c1f8b7c20be321904a71199e0c4281f8c31b2960c490046fb9",
+      "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
+      "raw_evidence_sha256": "83df91fbc6256d7380bd5f6761326fd9885511dbb858604e2a87324b09cc6dc3",
+      "image_digest": "sha256:730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3",
+      "lifecycle_prefix_observed": [
+        "STOPPED",
+        "STARTING",
+        "READY_HOME"
+      ],
+      "hold_sample_count": 3,
+      "play_count": 0,
+      "arm_count": 0,
+      "motion_count": 0,
+      "controller_write_count": 0,
+      "watchdog_passed": true,
+      "v1_rollback_drill_passed": true,
+      "container_and_network_removed": true
     },
     "hil_no_motion": {
       "status": "blocked_not_authorized",
@@ -66,11 +80,12 @@
     }
   },
   "decision": {
-    "go_no_go": "no_go",
+    "go_no_go": "go",
+    "acceptance_scope": "offline_tooling_and_ursim_hold_only",
     "rollout_authorized": false,
     "current_selector": "step5d_strict_rnn_autotune_v1",
     "v3_active": false,
-    "reason": "digest-pinned URSim HOLD-only gate has not executed successfully",
-    "next_gate": "run the manual URSim HOLD-only lane with access to the prestarted pinned container"
+    "reason": "offline/tooling and digest-pinned URSim HOLD-only acceptance passed; live/robot acceptance did not run and remains separately unauthorized",
+    "next_gate": "obtain a new current-turn UR owner authorization before any HIL, controller, bridge, Play, ARM, contact, or motion work"
   }
 }

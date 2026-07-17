@@ -77,7 +77,14 @@ def test_matrix_binds_manual_internal_network_hold_lane() -> None:
     assert lane["dashboard_commands_allowed"] == list(gate.DASHBOARD_COMMANDS)
     assert lane["rtde_output_recipe_only"] is True
     assert lane["rtde_input_recipe_allowed"] is False
-    assert lane["execution_status"] == "not_run"
+    assert lane["execution_status"] == "pass"
+    assert lane["immutable_result"].endswith(
+        "step5d_autotune_v3_ursim_hold_result.json"
+    )
+    assert lane["raw_evidence_sha256"] == (
+        "83df91fbc6256d7380bd5f6761326fd9885511dbb858604e2a87324b09cc6dc3"
+    )
+    assert lane["cleanup_completed"] is True
     assert lane["commands"][0][1].endswith("run_step5d_autotune_v3_ursim_hold_gate.py")
 
 

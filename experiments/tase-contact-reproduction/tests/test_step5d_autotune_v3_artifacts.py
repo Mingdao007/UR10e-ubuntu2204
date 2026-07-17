@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ def _fixture_root(tmp_path: Path) -> Path:
     relatives = set(artifacts.EXPECTED_SHA256) | {
         "config/current_stage.json",
         "config/step5_stage_table.json",
+        "config/step5d_autotune_v3_test_matrix.json",
     }
     for relative in relatives:
         source = ROOT / relative
@@ -32,6 +34,10 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
     assert report["ok"] is True
     assert report["current_stage_id"] == artifacts.V1_STAGE_ID
     assert report["v3_active"] is False
+    assert report["acceptance_scope"] == "offline_tooling_and_ursim_hold_only"
+    assert report["rollout_authorized"] is False
+    assert "config/step5/step5d_autotune_v3_ursim_hold_raw.json" in report["verified_paths"]
+    assert "config/step5/step5d_autotune_v3_ursim_hold_result.json" in report["verified_paths"]
 
 
 def test_triplet_byte_mutation_fails_closed(tmp_path: Path) -> None:
@@ -54,4 +60,14 @@ def test_v3_selector_cannot_become_active_in_offline_bundle(tmp_path: Path) -> N
         encoding="utf-8",
     )
     with pytest.raises(artifacts.ArtifactVerificationError, match="selector active"):
+        artifacts.verify(fixture)
+
+
+def test_ursim_matrix_cannot_allow_robot_network(tmp_path: Path) -> None:
+    fixture = _fixture_root(tmp_path)
+    matrix_path = fixture / "config/step5d_autotune_v3_test_matrix.json"
+    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
+    matrix["lanes"]["large_ursim"]["robot_network_allowed"] = True
+    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
+    with pytest.raises(artifacts.ArtifactVerificationError, match="robot_network_allowed"):
         artifacts.verify(fixture)

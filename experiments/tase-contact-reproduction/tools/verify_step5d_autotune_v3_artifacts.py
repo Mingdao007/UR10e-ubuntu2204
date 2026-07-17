@@ -17,6 +17,12 @@ V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 TP_FINGERPRINT = "c2761f200c58d9825e37dc76907b5e25b2d9982cda7dff1cf7de9699dbad7bb9"
 LEDGER_SHA256 = "19cf2241ea070e3dc8eccfbe118660104f4c3f8e40ea25cb6f0efecabc7acf99"
+URSIM_IMAGE = (
+    "universalrobots/ursim_e-series@sha256:"
+    "730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3"
+)
+URSIM_RAW_SHA256 = "83df91fbc6256d7380bd5f6761326fd9885511dbb858604e2a87324b09cc6dc3"
+URSIM_RESULT_SHA256 = "f4dcd36dc1a593c1f8b7c20be321904a71199e0c4281f8c31b2960c490046fb9"
 EXPECTED_SHA256 = {
     "programs/step5/step5d/step5d_strict_rnn_autotune_v2.script":
         "d3e52cbb341adad5c6924c155e3e4c15890379f0a251647f4f1de0235fc1ad05",
@@ -37,8 +43,10 @@ EXPECTED_SHA256 = {
         "f56a3eef529494b6c209ca5534abec082519848446724a94426de522852260f8",
     "config/step5/golden_replay_g10_v3_result.json":
         "faab489644a52f554d01c30e4d51916173aa0b0701332438d7358e04bfca7567",
+    "config/step5/step5d_autotune_v3_ursim_hold_raw.json": URSIM_RAW_SHA256,
+    "config/step5/step5d_autotune_v3_ursim_hold_result.json": URSIM_RESULT_SHA256,
     "config/step5/step5d_autotune_v3_offline_validation.json":
-        "9a25c721bf70b260fd7dd135f1545ae867a94cfb071574afd93e43ad904ba58a",
+        "aace17206d5f64623e8b13f59ccda3231b264ab17eceac2801107001e611ae4d",
 }
 TRIPLET_SHA256 = {
     ".script": EXPECTED_SHA256[
@@ -215,10 +223,135 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         role="offline validation decision",
     )
     decision = validation.get("decision") or {}
-    _require_equal(decision.get("go_no_go"), "no_go", "v3 rollout decision")
+    _require_equal(decision.get("go_no_go"), "go", "v3 offline decision")
+    _require_equal(
+        decision.get("acceptance_scope"),
+        "offline_tooling_and_ursim_hold_only",
+        "v3 acceptance scope",
+    )
     _require_equal(decision.get("rollout_authorized"), False, "v3 rollout authorization")
     _require_equal(decision.get("current_selector"), V1_STAGE_ID, "rollback selector")
     _require_equal(decision.get("v3_active"), False, "v3 inactive decision")
+
+    ursim = _load_json(
+        root / "config/step5/step5d_autotune_v3_ursim_hold_result.json",
+        role="immutable URSim HOLD result",
+    )
+    _require_equal(ursim.get("status"), "pass", "URSim HOLD result")
+    _require_equal(
+        ursim.get("acceptance_scope"),
+        "offline_tooling_and_ursim_hold_only",
+        "URSim acceptance scope",
+    )
+    identity = ursim.get("identity") or {}
+    validation_identity = validation.get("identity") or {}
+    for field in ("control_fingerprint", "orchestration_fingerprint", "contract_sha256"):
+        _require_equal(
+            identity.get(field),
+            validation_identity.get(field),
+            f"URSim validation identity {field}",
+        )
+    image = ursim.get("image") or {}
+    _require_equal(image.get("reference"), URSIM_IMAGE, "URSim image digest")
+    _require_equal(image.get("entrypoint"), ["/entrypoint.sh"], "URSim entrypoint")
+    _require_equal(image.get("entrypoint_overridden"), False, "URSim entrypoint policy")
+    _require_equal(image.get("robot_model"), "UR10", "URSim robot model")
+    network = ursim.get("network") or {}
+    for field, expected in (
+        ("internal", True),
+        ("external_network_connected", False),
+        ("robot_network_connected", False),
+        ("host_ports_published", False),
+        ("removed_after_gate", True),
+    ):
+        _require_equal(network.get(field), expected, f"URSim network {field}")
+    container = ursim.get("container_lifecycle") or {}
+    for field, expected in (
+        ("privileged", False),
+        ("mounts", []),
+        ("devices", []),
+        ("removed_after_gate", True),
+    ):
+        _require_equal(container.get(field), expected, f"URSim container {field}")
+    lifecycle = ursim.get("service_lifecycle") or {}
+    _require_equal(
+        (lifecycle.get("observed") or [])[:3],
+        ["STOPPED", "STARTING", "READY_HOME"],
+        "URSim service lifecycle prefix",
+    )
+    for field in ("hardware_enabled", "bridge_started", "controller_touched", "tp_started"):
+        _require_equal(lifecycle.get(field), False, f"URSim service {field}")
+    hold = ursim.get("hold") or {}
+    _require_equal(hold.get("dashboard_program_state"), "STOPPED", "URSim program state")
+    _require_equal(hold.get("dashboard_running"), False, "URSim running state")
+    _require_equal(hold.get("rtde_output_recipe_only"), True, "URSim RTDE recipe")
+    _require_equal(hold.get("rtde_input_recipe_created"), False, "URSim RTDE input recipe")
+    for field in (
+        "max_abs_actual_qd_rad_s",
+        "max_abs_actual_tcp_speed",
+        "play_count",
+        "arm_count",
+        "motion_count",
+        "controller_write_count",
+        "forbidden_action_count",
+    ):
+        _require_equal(hold.get(field), 0, f"URSim HOLD {field}")
+    watchdog_result = ursim.get("watchdog") or {}
+    _require_equal(watchdog_result.get("hold_monitor_passed"), True, "URSim watchdog")
+    _require_equal(
+        watchdog_result.get("immutable_tp_watchdog_artifact_verified"),
+        True,
+        "URSim immutable TP watchdog",
+    )
+    rollback = ursim.get("rollback") or {}
+    _require_equal(rollback.get("service_exit_code"), 0, "URSim service rollback exit")
+    _require_equal(rollback.get("service_final_phase"), "stopped", "URSim rollback phase")
+    _require_equal(rollback.get("v1_selector_before"), V1_STAGE_ID, "URSim rollback before")
+    _require_equal(rollback.get("v1_selector_after"), V1_STAGE_ID, "URSim rollback after")
+    _require_equal(rollback.get("v3_active_after"), False, "URSim rollback v3 state")
+    raw = ursim.get("raw_evidence") or {}
+    _require_equal(raw.get("sha256"), URSIM_RAW_SHA256, "URSim raw evidence binding")
+    _require_equal(raw.get("byte_identical_copy_verified"), True, "URSim raw evidence copy")
+    ursim_decision = ursim.get("decision") or {}
+    _require_equal(ursim_decision.get("offline_acceptance"), "go", "URSim offline decision")
+    _require_equal(
+        ursim_decision.get("live_robot_acceptance"),
+        "not_run_not_authorized",
+        "URSim live boundary",
+    )
+    _require_equal(ursim_decision.get("rollout_authorized"), False, "URSim rollout")
+    _require_equal(ursim_decision.get("v3_active"), False, "URSim v3 activity")
+    _require_equal(ursim_decision.get("current_selector"), V1_STAGE_ID, "URSim selector")
+    ursim_gate = (validation.get("gates") or {}).get("ursim_hold_only") or {}
+    _require_equal(ursim_gate.get("status"), "pass", "offline URSim gate")
+    _require_equal(ursim_gate.get("result_sha256"), URSIM_RESULT_SHA256, "URSim result binding")
+
+    matrix = _load_json(
+        root / "config/step5d_autotune_v3_test_matrix.json",
+        role="Step5d v3 test matrix",
+    )
+    _require_equal(
+        matrix.get("claim_boundary"),
+        "offline_tooling_and_ursim_hold_only",
+        "test matrix claim boundary",
+    )
+    large = (matrix.get("lanes") or {}).get("large_ursim") or {}
+    _require_equal(large.get("execution_status"), "pass", "large URSim lane status")
+    _require_equal(large.get("container_image"), URSIM_IMAGE, "large URSim image")
+    _require_equal(large.get("immutable_result_sha256"), URSIM_RESULT_SHA256, "large URSim result")
+    _require_equal(large.get("raw_evidence_sha256"), URSIM_RAW_SHA256, "large URSim raw evidence")
+    for field, expected in (
+        ("external_network_allowed", False),
+        ("robot_network_allowed", False),
+        ("host_port_publication_allowed", False),
+        ("rtde_input_recipe_allowed", False),
+        ("controller_access_allowed", False),
+        ("live_writer_allowed", False),
+        ("arm_allowed", False),
+        ("motion_allowed", False),
+        ("cleanup_completed", True),
+    ):
+        _require_equal(large.get(field), expected, f"large URSim {field}")
 
     fingerprint_input = json.dumps(
         {
@@ -236,6 +369,10 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "current_stage_id": V1_STAGE_ID,
         "v3_stage_id": V3_STAGE_ID,
         "v3_active": False,
+        "acceptance_scope": "offline_tooling_and_ursim_hold_only",
+        "rollout_authorized": False,
+        "live_robot_acceptance": "not_run_not_authorized",
+        "ursim_result_sha256": URSIM_RESULT_SHA256,
         "tp_fingerprint": TP_FINGERPRINT,
         "attempt_ledger_sha256": LEDGER_SHA256,
         "artifact_set_fingerprint": hashlib.sha256(fingerprint_input).hexdigest(),
