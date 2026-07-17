@@ -21,7 +21,7 @@ from step5d_autotune_v2.reducer import LifecycleEvent
 from step5d_autotune_v2.repository import Repository
 from step5d_autotune_v2.runtime import JsonlBridgePort
 from step5d_autotune_v2.supervisor import ArtifactSeal
-from run_step5d_autotune_v2_bridge import bridge_argv
+from run_step5d_autotune_v2_bridge import bridge_argv, bridge_environment
 
 
 def _deployment() -> DeploymentSpec:
@@ -211,3 +211,14 @@ def test_same_pid_launcher_snapshot_is_frozen(tmp_path: Path) -> None:
     assert argv[argv.index("--step5d-autotune-command-mailbox") + 1] == str(
         tmp_path.resolve() / "command.json"
     )
+
+
+def test_launcher_constructs_runtime_paths_from_empty_environment() -> None:
+    environment = bridge_environment({})
+    assert environment["PYTHONPATH"].split(":")[:3] == [
+        "/home/andy/.codex-python/ur10e-digital-twin-20260711",
+        "/opt/ros/humble/lib/python3.10/site-packages",
+        "/opt/ros/humble/local/lib/python3.10/dist-packages",
+    ]
+    assert "nvidia/cuda_nvrtc/lib" in environment["LD_LIBRARY_PATH"]
+    assert environment["LD_LIBRARY_PATH"].split(":")[-1] == "/opt/ros/humble/lib"

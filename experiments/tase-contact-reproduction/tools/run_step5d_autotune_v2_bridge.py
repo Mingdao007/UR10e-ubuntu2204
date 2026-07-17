@@ -11,6 +11,37 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+STABLE_PYTHON_RUNTIME = Path("/home/andy/.codex-python/ur10e-digital-twin-20260711")
+ROS_PYTHON_PATHS = (
+    Path("/opt/ros/humble/lib/python3.10/site-packages"),
+    Path("/opt/ros/humble/local/lib/python3.10/dist-packages"),
+)
+RUNTIME_LIBRARY_PATHS = (
+    STABLE_PYTHON_RUNTIME / "nvidia/cuda_nvrtc/lib",
+    STABLE_PYTHON_RUNTIME / "nvidia/nvjitlink/lib",
+    STABLE_PYTHON_RUNTIME / "nvidia/cuda_runtime/lib",
+    Path("/opt/ros/humble/lib"),
+)
+
+
+def _prepend_paths(current: str | None, paths: tuple[Path, ...]) -> str:
+    values = [str(path) for path in paths if path.is_dir()]
+    if current:
+        values.append(current)
+    return os.pathsep.join(values)
+
+
+def bridge_environment(base: dict[str, str] | None = None) -> dict[str, str]:
+    environment = dict(os.environ if base is None else base)
+    environment["PYTHONPATH"] = _prepend_paths(
+        environment.get("PYTHONPATH"),
+        (STABLE_PYTHON_RUNTIME, *ROS_PYTHON_PATHS),
+    )
+    environment["LD_LIBRARY_PATH"] = _prepend_paths(
+        environment.get("LD_LIBRARY_PATH"),
+        RUNTIME_LIBRARY_PATHS,
+    )
+    return environment
 
 
 def bridge_argv(root: Path, runtime_root: Path) -> list[str]:
@@ -75,8 +106,14 @@ def main(argv: list[str] | None = None) -> int:
     if runtime_value is None or not runtime_value.is_absolute():
         raise SystemExit("STEP5D_AUTOTUNE_V2_RUNTIME_ROOT must be an absolute path")
     command = bridge_argv(ROOT, runtime_value.resolve())
+    environment = bridge_environment()
     if args.check:
-        print(json.dumps({"schema": "step5d.autotune.bridge-launch/v2", "argv": command}, indent=2))
+        print(json.dumps({
+            "schema": "step5d.autotune.bridge-launch/v2",
+            "argv": command,
+            "pythonpath": environment["PYTHONPATH"],
+            "ld_library_path": environment["LD_LIBRARY_PATH"],
+        }, indent=2))
         return 0
     required = (
         "STEP5D_AUTOTUNE_V2_ADAPTER",
@@ -86,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
     missing = [name for name in required if not os.environ.get(name)]
     if missing or os.environ.get("STEP5D_AUTOTUNE_V2_ADAPTER") != "1":
         raise SystemExit("v2 bridge launcher environment is incomplete")
-    os.execvpe(command[0], command, dict(os.environ))
+    os.execvpe(command[0], command, environment)
     raise AssertionError("execvpe returned unexpectedly")
 
 

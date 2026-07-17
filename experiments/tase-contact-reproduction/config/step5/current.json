@@ -3,7 +3,7 @@
   "deployment": {
     "id": "step5d-autotune-v2-live-20260717-r2",
     "tp_delivery_id": "step5d-autotune-v2-readback-20260717-r1",
-    "code_fingerprint": "e08ed9d26643517bba95e994887eb28e8f3c800b9557c426838182b0edeeccbf",
+    "code_fingerprint": "e71e45f0973bfe4ecc602f447910bd4ed88e6da926331978dc08dba5580cca15",
     "tp_fingerprint": "59f2d020721615305d15d45786bd87b2792181f8dfbe5c6a34f8947baa6bdd83",
     "guard_fingerprint": "87acabb4ff2808b0091dc9cc9851048ee1846b3242b23165d86560b190d85878",
     "authorized": true,
