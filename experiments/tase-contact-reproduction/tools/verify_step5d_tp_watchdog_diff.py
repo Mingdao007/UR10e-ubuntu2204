@@ -8,6 +8,7 @@ import gzip
 import hashlib
 import html
 import json
+import posixpath
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ EXTENSIONS = (".script", ".txt", ".urp")
 ROOT = Path(__file__).resolve().parents[1]
 WATCHDOG_MANIFEST = ROOT / "config/step5/tp_watchdog_v2.json"
 EXPECTED_BLOCK_REQUIREMENTS = {
-    "host_heartbeat_fail_closed_v1": frozenset({".script", ".urp"}),
+    "host_heartbeat_fail_closed_v2": frozenset({".script", ".urp"}),
 }
 BEGIN = b"AUTOTUNE_WATCHDOG_V2_BEGIN"
 END = b"AUTOTUNE_WATCHDOG_V2_END"
@@ -45,6 +46,7 @@ class WatchdogBlock:
 class ContentInspection:
     normalized: bytes
     blocks: tuple[WatchdogBlock, ...]
+    executable_script: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -239,9 +241,71 @@ def _replace_spans(raw: bytes, replacements: list[tuple[int, int, bytes]]) -> by
     return normalized
 
 
+def _normalize_source_stamp(
+    raw: bytes,
+    *,
+    actual_stamp: str,
+    normalized_stamp: str,
+    source: Path,
+) -> bytes:
+    pattern = re.compile(
+        rb"(?m)^# VERSION: (?P<stamp>[^\r\n]+)(?:\r?$)"
+    )
+    matches = list(pattern.finditer(raw))
+    matching = [
+        match
+        for match in matches
+        if match.group("stamp") == actual_stamp.encode("ascii")
+    ]
+    if len(matching) != 1:
+        raise ValueError(
+            f"exact source stamp identity count is {len(matching)}, expected 1: {source}"
+        )
+    match = matching[0]
+    return _replace_spans(
+        raw,
+        [(*match.span("stamp"), normalized_stamp.encode("ascii"))],
+    )
+
+
+def _normalize_literal_stamp(
+    raw: bytes,
+    *,
+    actual_stamp: str,
+    normalized_stamp: str,
+    source: Path,
+) -> bytes:
+    actual = actual_stamp.encode("ascii")
+    if raw.count(actual) != 1:
+        raise ValueError(
+            f"exact source stamp identity count is {raw.count(actual)}, expected 1: {source}"
+        )
+    return raw.replace(actual, normalized_stamp.encode("ascii"), 1)
+
+
 def _normalize_urscript_identity(
     raw: bytes, *, source_program: str, current_program: str, source: Path
 ) -> bytes:
+    stage_pattern = re.compile(
+        rb"(?m)^# STEP5_STAGE_ID: (?P<program>[^\r\n]+)(?:\r?$)"
+    )
+    stage_rows = list(stage_pattern.finditer(raw))
+    if stage_rows:
+        if (
+            len(stage_rows) != 1
+            or stage_rows[0].group("program")
+            != source_program.encode("ascii")
+        ):
+            raise ValueError(f"stage program identity is missing or ambiguous: {source}")
+        raw = _replace_spans(
+            raw,
+            [
+                (
+                    *stage_rows[0].span("program"),
+                    current_program.encode("ascii"),
+                )
+            ],
+        )
     aliases = _main_function_names(source_program)
     definition = re.compile(
         rb"(?m)^def[ \t]+(?P<name>"
@@ -361,6 +425,9 @@ def _inspect_urp(
     current_program: str,
     candidate_program: str,
     require_executable_context: bool,
+    source_stamp: str | None,
+    candidate_stamp: str | None,
+    controller_directory: str | None,
 ) -> ContentInspection:
     try:
         root = ET.fromstring(raw)
@@ -371,6 +438,14 @@ def _inspect_urp(
         current_program=current_program,
         candidate_program=candidate_program,
     )
+    if controller_directory is not None:
+        if root.get("directory") != controller_directory:
+            raise ValueError(f"URP controller directory mismatch: {path}")
+        expected_install = posixpath.relpath(
+            "/programs/default", controller_directory
+        )
+        if root.get("installationRelativePath") != expected_install:
+            raise ValueError(f"URP installationRelativePath mismatch: {path}")
     cached_nodes = [
         node for node in root.iter() if _xml_local_name(node.tag) == "cachedContents"
     ]
@@ -391,6 +466,19 @@ def _inspect_urp(
         script = (node.text or "").encode("utf-8")
         outside, blocks = _extract_watchdog_blocks(script, source=path)
         try:
+            if source_stamp is not None or candidate_stamp is not None:
+                if source_stamp is None or candidate_stamp is None:
+                    raise ValueError("source/candidate stamp normalization must be paired")
+                outside = _normalize_source_stamp(
+                    outside,
+                    actual_stamp=(
+                        source_stamp
+                        if source_program == current_program
+                        else candidate_stamp
+                    ),
+                    normalized_stamp=source_stamp,
+                    source=path,
+                )
             normalized_script = _normalize_urscript_identity(
                 outside,
                 source_program=source_program,
@@ -438,9 +526,29 @@ def _inspect_urp(
 
     file_nodes = [node for node in root.iter() if _xml_local_name(node.tag) == "file"]
     file_suffix = f"/{source_program}.script"
-    matching_files = [node for node in file_nodes if (node.text or "").endswith(file_suffix)]
-    if len(matching_files) > 1:
-        raise ValueError(f"URP program file identity is ambiguous: {path}")
+    if controller_directory is None:
+        matching_files = [
+            node for node in file_nodes if (node.text or "").endswith(file_suffix)
+        ]
+        if len(matching_files) > 1:
+            raise ValueError(f"URP program file identity is ambiguous: {path}")
+    else:
+        expected_file = f"{controller_directory}/{source_program}.script"
+        matching_files = [
+            node
+            for node in file_nodes
+            if node.attrib.get("resolves-to") == "file"
+            and (node.text or "") == expected_file
+        ]
+        if len(matching_files) != 1:
+            raise ValueError(f"URP Script node path/resolves-to mismatch: {path}")
+        other_resolved = [
+            node
+            for node in file_nodes
+            if node.attrib.get("resolves-to") == "file" and node not in matching_files
+        ]
+        if other_resolved:
+            raise ValueError(f"URP contains an ambiguous extra resolved file node: {path}")
     if matching_files:
         old_text = matching_files[0].text or ""
         new_text = old_text[: -len(file_suffix)] + f"/{current_program}.script"
@@ -466,7 +574,11 @@ def _inspect_urp(
                 raw_script_start + relative_start + len(payload),
             )
         )
-    return ContentInspection(normalized=normalized, blocks=tuple(escaped_blocks))
+    return ContentInspection(
+        normalized=normalized,
+        blocks=tuple(escaped_blocks),
+        executable_script=script,
+    )
 
 
 def _validate_canonical_source(block: WatchdogBlock, *, source: Path) -> None:
@@ -477,22 +589,96 @@ def _validate_canonical_source(block: WatchdogBlock, *, source: Path) -> None:
     )
     if not code_lines:
         raise ValueError(f"canonical watchdog block is comment-only: {source}")
+    code = b"\n".join(code_lines)
     required_code = (
-        b"if host_heartbeat_timeout:",
-        b'textmsg("host_heartbeat_timeout_at_home")',
-        b'textmsg("host_heartbeat_timeout_unknown_home")',
-        b"halt",
+        b"local watchdog_home_pose = get_actual_tcp_pose()",
+        b"local watchdog_home_q = get_actual_joint_positions()",
+        b"thread codex_autotune_v2_heartbeat_watchdog():",
+        b"local watchdog_last_heartbeat = read_input_float_register(26)",
+        b"local watchdog_heartbeat = read_input_float_register(26)",
+        b"local watchdog_state = read_output_integer_register(26)",
+        b"local watchdog_timeout_s = 0.100",
+        b"if watchdog_state == 70 and watchdog_measured_home_verified:",
+        b"watchdog_timeout_s = 2.000",
+        b"local watchdog_measured_home_verified = watchdog_position_error_m <= 0.003 and watchdog_orientation_error_rad <= 0.050 and watchdog_joint_error_rad <= 0.010",
+        b"if watchdog_stale_s > watchdog_timeout_s:",
+        b'textmsg("host_heartbeat_timeout_at_verified_home")',
+        b"stopj(0.500)",
+        b'textmsg("host_heartbeat_timeout_unknown_home_controlled_stop")',
+        b"local watchdog_thread_handle = run codex_autotune_v2_heartbeat_watchdog()",
     )
     missing = [line.decode("ascii") for line in required_code if line not in code_lines]
     if missing:
-        raise ValueError(f"canonical watchdog block lacks executable policy {missing}: {source}")
+        raise ValueError(
+            f"canonical watchdog block lacks executable policy {missing}: {source}"
+        )
+    if code_lines.count(b"halt") != 2:
+        raise ValueError(f"canonical watchdog requires exactly two terminal halts: {source}")
+    if code.count(b"read_input_float_register(26)") != 2:
+        raise ValueError(f"canonical watchdog heartbeat register binding drift: {source}")
+    if code.count(b"stopj(0.500)") != 1:
+        raise ValueError(f"canonical watchdog controlled-stop binding drift: {source}")
+    decoded = code.decode("utf-8")
+    identifiers_without_strings = set(
+        re.findall(
+            r"\b[A-Za-z_][A-Za-z0-9_]*\b",
+            re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', "", decoded),
+        )
+    )
+    undefined_placeholders = {
+        "host_heartbeat_timeout",
+        "measured_home_verified",
+    }
+    found_placeholders = [
+        token for token in sorted(undefined_placeholders) if token in identifiers_without_strings
+    ]
+    if found_placeholders:
+        raise ValueError(
+            f"canonical watchdog contains undefined placeholder symbols "
+            f"{found_placeholders}: {source}"
+        )
+    identifiers = set(
+        re.findall(
+            r"\b(?:watchdog_[A-Za-z0-9_]+|codex_autotune_v2_heartbeat_watchdog)\b",
+            decoded,
+        )
+    )
+    declarations = set(
+        re.findall(
+            r"(?:^|\n)(?:local\s+)?(watchdog_[A-Za-z0-9_]+)\s*=",
+            decoded,
+        )
+    )
+    declarations.update(
+        re.findall(
+            r"(?:^|\n)thread\s+(codex_autotune_v2_heartbeat_watchdog)\s*\(\s*\)\s*:",
+            decoded,
+        )
+    )
+    undefined = sorted(identifiers - declarations)
+    if undefined:
+        raise ValueError(
+            f"canonical watchdog contains undefined bounded identifiers {undefined}: {source}"
+        )
     forbidden = (
         b"movej(",
         b"movel(",
+        b"movec(",
+        b"movep(",
         b"speedj(",
         b"speedl(",
         b"servoj(",
+        b"servoc(",
         b"force_mode(",
+        b"freedrive_mode(",
+        b"set_payload(",
+        b"set_target_payload(",
+        b"set_tcp(",
+        b"zero_ftsensor(",
+        b"stopl(",
+        b"codex_should_auto_home",
+        b"campaign_home_pose",
+        b"retract_pose",
         b"force_error",
         b"jacobian",
         b"qdot",
@@ -510,10 +696,35 @@ def load_canonical_blocks(path: Path = WATCHDOG_MANIFEST) -> dict[str, Canonical
     manifest: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     if manifest.get("schema") != "step5d.autotune.tp-watchdog/v2":
         raise ValueError("unknown TP watchdog policy manifest schema")
+    heartbeat = manifest.get("heartbeat")
+    restart_home = manifest.get("restart_home_gate")
+    wait_ack = manifest.get("wait_ack")
+    if (
+        not isinstance(heartbeat, dict)
+        or heartbeat.get("source_float_register") != 26
+        or heartbeat.get("run_timeout_s") != 0.1
+        or heartbeat.get("wait_ack_timeout_s") != 2.0
+        or manifest.get("auto_home_after_heartbeat_loss") is not False
+        or not isinstance(restart_home, dict)
+        or restart_home.get("position_error_max_m") != 0.003
+        or restart_home.get("orientation_error_max_rad") != 0.05
+        or restart_home.get("joint_error_max_rad") != 0.01
+        or restart_home.get("mismatch_action") != "refuse_start"
+        or not isinstance(wait_ack, dict)
+        or wait_ack.get("verified_home_timeout_action")
+        != "publish_terminal_and_halt"
+        or wait_ack.get("unknown_home_timeout_action")
+        != "controlled_stop_and_halt"
+    ):
+        raise ValueError("TP watchdog runtime policy drift")
     gate = manifest.get("watchdog_diff_gate")
     if not isinstance(gate, dict) or gate.get("schema") != "step5d.autotune.tp-watchdog-blocks/v2":
         raise ValueError("unknown TP watchdog canonical-block manifest schema")
-    if gate.get("outside_block_normalization") != ["program_identity", "urp_crcValue"]:
+    if gate.get("outside_block_normalization") != [
+        "program_identity",
+        "source_stamp_identity",
+        "urp_crcValue",
+    ]:
         raise ValueError("TP watchdog outside-block normalization policy drift")
     rows = gate.get("required_blocks")
     if not isinstance(rows, list) or not rows:
@@ -576,6 +787,9 @@ def inspect_content(
     current_program: str,
     candidate_program: str,
     require_executable_context: bool = True,
+    source_stamp: str | None = None,
+    candidate_stamp: str | None = None,
+    controller_directory: str | None = None,
 ) -> ContentInspection:
     raw = _decoded_bytes(path)
     try:
@@ -589,6 +803,9 @@ def inspect_content(
             current_program=current_program,
             candidate_program=candidate_program,
             require_executable_context=require_executable_context,
+            source_stamp=source_stamp,
+            candidate_stamp=candidate_stamp,
+            controller_directory=controller_directory,
         )
     source_program = _source_program_for_path(
         path,
@@ -605,6 +822,19 @@ def inspect_content(
                 candidate_program=candidate_program,
             )
     if path.suffix == ".script":
+        if source_stamp is not None or candidate_stamp is not None:
+            if source_stamp is None or candidate_stamp is None:
+                raise ValueError("source/candidate stamp normalization must be paired")
+            outside = _normalize_source_stamp(
+                outside,
+                actual_stamp=(
+                    source_stamp
+                    if source_program == current_program
+                    else candidate_stamp
+                ),
+                normalized_stamp=source_stamp,
+                source=path,
+            )
         normalized = _normalize_urscript_identity(
             outside,
             source_program=source_program,
@@ -614,6 +844,19 @@ def inspect_content(
     elif path.suffix == ".txt":
         if blocks:
             raise ValueError(f"watchdog block is forbidden in TP documentation: {path}")
+        if source_stamp is not None or candidate_stamp is not None:
+            if source_stamp is None or candidate_stamp is None:
+                raise ValueError("source/candidate stamp normalization must be paired")
+            outside = _normalize_literal_stamp(
+                outside,
+                actual_stamp=(
+                    source_stamp
+                    if source_program == current_program
+                    else candidate_stamp
+                ),
+                normalized_stamp=source_stamp,
+                source=path,
+            )
         normalized = _normalize_txt_identity(
             outside,
             source_program=source_program,
@@ -679,52 +922,320 @@ def _validated_block_hashes(
     return hashes
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--current-readback", type=Path, required=True)
-    parser.add_argument("--candidate", type=Path, required=True)
-    parser.add_argument("--program", default="step5d_strict_rnn_autotune_v2")
-    parser.add_argument("--attestation", type=Path, required=True)
-    args = parser.parse_args()
-    current = args.current_readback.resolve()
-    candidate = args.candidate.resolve()
-    attestation = json.loads(args.attestation.read_text(encoding="utf-8"))
-    if attestation.get("schema") != "step5d.autotune.tp-watchdog-diff/v2":
-        raise SystemExit("unknown TP watchdog diff attestation schema")
-    if attestation.get("control_math_changed") is not False:
-        raise SystemExit("TP watchdog attestation must prove unchanged control math")
-    if attestation.get("trajectory_changed") is not False:
-        raise SystemExit("TP watchdog attestation must prove unchanged trajectory")
-    if attestation.get("waypoint_changed") is not False:
-        raise SystemExit("TP watchdog attestation must prove unchanged waypoint")
-    fetched = attestation.get("fetched_controller_sha256") or {}
-    candidate_sha = attestation.get("candidate_sha256") or {}
-    normalized_sha = attestation.get("normalized_content_sha256") or {}
-    watchdog_counts = attestation.get("watchdog_block_count") or {}
-    attested_block_sha = attestation.get("watchdog_block_sha256") or {}
+ATTESTATION_KEYS = {
+    "schema",
+    "source_class",
+    "promotable",
+    "blocked_reason",
+    "source_receipt",
+    "source_program",
+    "candidate_program",
+    "controller_directory",
+    "source_stamp",
+    "candidate_stamp",
+    "allowed_changes",
+    "control_math_changed",
+    "trajectory_changed",
+    "waypoint_changed",
+    "command_order_changed",
+    "fetched_controller_sha256",
+    "candidate_sha256",
+    "normalized_content_sha256",
+    "watchdog_block_count",
+    "watchdog_block_sha256",
+    "canonical_watchdog",
+    "urp_crcValue",
+    "deploy_manifest",
+}
+SOURCE_RECEIPT_KEYS = {
+    "schema",
+    "path",
+    "sha256",
+    "host",
+    "controller_directory",
+    "basename",
+    "output_dir",
+    "captured_at",
+    "source_class",
+}
+ALLOWED_CHANGES = [
+    "program_identity",
+    "source_stamp_identity",
+    "urp_crcValue",
+    "canonical_watchdog_block",
+]
+
+
+def _strict_object(value: object, keys: set[str], *, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError(f"{label} contains missing or unsupported fields")
+    return value
+
+
+def _root_crc(path: Path) -> str:
+    raw = _decoded_bytes(path)
     try:
-        canonical = load_canonical_blocks()
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"cannot load canonical TP watchdog blocks: {exc}") from exc
+        root = ET.fromstring(raw)
+    except ET.ParseError as exc:
+        raise ValueError(f"decompressed URP is not well-formed XML: {path}: {exc}") from exc
+    value = root.get("crcValue")
+    if value is None:
+        raise ValueError(f"URP root lacks crcValue: {path}")
+    return value
+
+
+def _validate_bound_deploy_manifest(
+    *,
+    attested: dict[str, Any],
+    source_class: str,
+    candidate: Path,
+    program: str,
+    controller_directory: str,
+    candidate_sha: dict[str, str],
+) -> None:
+    _strict_object(
+        attested,
+        {"path", "sha256", "schema", "promotable"},
+        label="deploy manifest attestation",
+    )
+    path_raw = attested.get("path")
+    if not isinstance(path_raw, str):
+        raise ValueError("deploy manifest path must be a string")
+    path = Path(path_raw)
+    if not path.is_absolute() or ".." in path.parts:
+        raise ValueError("deploy manifest path must be absolute and traversal-free")
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("deploy manifest must be a regular non-symlink file")
+    path = path.resolve()
+    if path != candidate / f"{program}.deploy-manifest.json":
+        raise ValueError("deploy manifest path does not bind candidate output directory")
+    if attested.get("sha256") != sha(path):
+        raise ValueError("deploy manifest SHA256 attestation drift")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    bound = payload
+    if source_class == "fresh_controller_snapshot":
+        if attested.get("schema") != "ur10e.controller.deployment-manifest/v1":
+            raise ValueError("fresh deploy manifest schema attestation drift")
+        if attested.get("promotable") is not True:
+            raise ValueError("fresh deploy manifest must be marked promotable")
+    else:
+        _strict_object(
+            payload,
+            {"schema", "promotable", "blocked_reason", "would_deploy"},
+            label="non-promotable deploy manifest",
+        )
+        if (
+            payload.get("schema")
+            != "step5d.autotune.non-promotable-deploy-manifest/v1"
+            or payload.get("promotable") is not False
+            or payload.get("blocked_reason") != "stale_source_fixture"
+            or attested.get("schema") != payload.get("schema")
+            or attested.get("promotable") is not False
+        ):
+            raise ValueError("stale fixture deploy manifest promotion guard drift")
+        bound = payload.get("would_deploy")
+    bound = _strict_object(
+        bound,
+        {"schema_version", "basename", "controller_directory", "artifacts"},
+        label="bound deployment manifest",
+    )
+    if (
+        bound.get("schema_version") != 1
+        or bound.get("basename") != program
+        or bound.get("controller_directory") != controller_directory
+    ):
+        raise ValueError("deploy manifest identity binding drift")
+    artifacts = bound.get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != len(EXTENSIONS):
+        raise ValueError("deploy manifest must bind exactly one triplet")
+    seen: set[str] = set()
+    for row in artifacts:
+        row = _strict_object(
+            row,
+            {"filename", "source", "sha256"},
+            label="deploy manifest artifact",
+        )
+        filename = row.get("filename")
+        if not isinstance(filename, str):
+            raise ValueError("deploy manifest artifact filename must be a string")
+        suffix = Path(filename).suffix
+        if (
+            suffix not in EXTENSIONS
+            or suffix in seen
+            or filename != f"{program}{suffix}"
+            or row.get("source") != filename
+            or row.get("sha256") != candidate_sha.get(suffix)
+        ):
+            raise ValueError("deploy manifest exact triplet binding drift")
+        seen.add(suffix)
+    if seen != set(EXTENSIONS):
+        raise ValueError("deploy manifest triplet suffix set drift")
+
+
+def verify_triplet(
+    *,
+    current: Path,
+    candidate: Path,
+    program: str,
+    attestation_path: Path,
+) -> dict[str, Any]:
+    from build_step5d_autotune_v2_tp import (  # noqa: PLC0415
+        CANDIDATE_PROGRAM,
+        RECEIPT_SCHEMA,
+        SOURCE_PROGRAM,
+        V2_STAMP_RE,
+        load_snapshot_receipt,
+    )
+
+    if current.is_symlink() or candidate.is_symlink() or attestation_path.is_symlink():
+        raise ValueError("triplet/attestation paths must not be symlinks")
+    current = current.resolve()
+    candidate = candidate.resolve()
+    attestation_path = attestation_path.resolve()
+    if not current.is_dir() or not candidate.is_dir():
+        raise ValueError("current and candidate triplet directories must exist")
+    if not attestation_path.is_file():
+        raise ValueError("TP watchdog diff attestation is missing")
+    attestation = _strict_object(
+        json.loads(attestation_path.read_text(encoding="utf-8")),
+        ATTESTATION_KEYS,
+        label="TP watchdog diff attestation",
+    )
+    if attestation.get("schema") != "step5d.autotune.tp-watchdog-diff/v2":
+        raise ValueError("unknown TP watchdog diff attestation schema")
+    if program != CANDIDATE_PROGRAM or attestation.get("candidate_program") != program:
+        raise ValueError("candidate program identity attestation drift")
+    if attestation.get("source_program") != SOURCE_PROGRAM:
+        raise ValueError("source program identity attestation drift")
+    source_class = attestation.get("source_class")
+    if source_class not in {"fresh_controller_snapshot", "stale_source_fixture"}:
+        raise ValueError("unsupported attested source_class")
+    promotable = source_class == "fresh_controller_snapshot"
+    if (
+        attestation.get("promotable") is not promotable
+        or attestation.get("blocked_reason")
+        != (None if promotable else "stale_source_fixture")
+    ):
+        raise ValueError("source-class promotion classification drift")
+    if attestation.get("allowed_changes") != ALLOWED_CHANGES:
+        raise ValueError("TP watchdog allowed-change policy drift")
+    for field, label in (
+        ("control_math_changed", "control math"),
+        ("trajectory_changed", "trajectory"),
+        ("waypoint_changed", "waypoint"),
+        ("command_order_changed", "command order"),
+    ):
+        if attestation.get(field) is not False:
+            raise ValueError(f"TP watchdog attestation must prove unchanged {label}")
+
+    source_receipt = _strict_object(
+        attestation.get("source_receipt"),
+        SOURCE_RECEIPT_KEYS,
+        label="source receipt attestation",
+    )
+    receipt_path_raw = source_receipt.get("path")
+    if not isinstance(receipt_path_raw, str):
+        raise ValueError("source receipt path must be a string")
+    receipt = load_snapshot_receipt(Path(receipt_path_raw), current)
+    expected_receipt = {
+        "schema": RECEIPT_SCHEMA,
+        "path": str(receipt.path),
+        "sha256": receipt.sha256,
+        "host": receipt.host,
+        "controller_directory": str(receipt.controller_directory),
+        "basename": receipt.basename,
+        "output_dir": str(receipt.triplet_dir),
+        "captured_at": receipt.captured_at,
+        "source_class": receipt.source_class,
+    }
+    if source_receipt != expected_receipt:
+        raise ValueError("source receipt attestation binding drift")
+    if receipt.source_class != source_class:
+        raise ValueError("source receipt class differs from diff attestation")
+    controller_directory = str(receipt.controller_directory)
+    if attestation.get("controller_directory") != controller_directory:
+        raise ValueError("controller directory attestation drift")
+    source_stamp = attestation.get("source_stamp")
+    candidate_stamp = attestation.get("candidate_stamp")
+    if not isinstance(source_stamp, str) or not source_stamp.endswith(
+        "_STEP5D_STRICT_RNN_AUTOTUNE_V1"
+    ):
+        raise ValueError("source stamp attestation is stale or malformed")
+    if not isinstance(candidate_stamp, str) or V2_STAMP_RE.fullmatch(candidate_stamp) is None:
+        raise ValueError("candidate source stamp attestation is stale or malformed")
+    if candidate_stamp == source_stamp:
+        raise ValueError("candidate source stamp must differ from source stamp")
+
+    fetched = _strict_object(
+        attestation.get("fetched_controller_sha256"),
+        set(EXTENSIONS),
+        label="fetched controller SHA map",
+    )
+    candidate_sha = _strict_object(
+        attestation.get("candidate_sha256"),
+        set(EXTENSIONS),
+        label="candidate SHA map",
+    )
+    normalized_sha = _strict_object(
+        attestation.get("normalized_content_sha256"),
+        set(EXTENSIONS),
+        label="normalized content SHA map",
+    )
+    watchdog_counts = _strict_object(
+        attestation.get("watchdog_block_count"),
+        set(EXTENSIONS),
+        label="watchdog block-count map",
+    )
+    attested_block_sha = _strict_object(
+        attestation.get("watchdog_block_sha256"),
+        set(EXTENSIONS),
+        label="watchdog block SHA map",
+    )
+    canonical = load_canonical_blocks()
+    canonical_attested = _strict_object(
+        attestation.get("canonical_watchdog"),
+        {"block_id", "sha256"},
+        label="canonical watchdog attestation",
+    )
+    if len(canonical) != 1:
+        raise ValueError("canonical watchdog block set must contain exactly one block")
+    block_id, canonical_block = next(iter(canonical.items()))
+    if canonical_attested != {
+        "block_id": block_id,
+        "sha256": canonical_block.sha256,
+    }:
+        raise ValueError("canonical watchdog source attestation drift")
+
+    source_script_bytes = receipt.files[".script"].path.read_bytes()
+    candidate_script_path = candidate / f"{program}.script"
+    candidate_script_bytes = (
+        candidate_script_path.read_bytes() if candidate_script_path.is_file() else b""
+    )
     for extension in EXTENSIONS:
-        current_matches = list(current.glob(f"*{extension}"))
-        next_path = candidate / f"{args.program}{extension}"
-        if len(current_matches) != 1 or not next_path.is_file():
-            raise SystemExit(f"triplet member missing or ambiguous: {extension}")
-        if fetched.get(extension) != sha(current_matches[0]):
-            raise SystemExit(f"fetched controller SHA drift: {extension}")
+        current_path = receipt.files[extension].path
+        next_path = candidate / f"{program}{extension}"
+        if next_path.is_symlink() or not next_path.is_file():
+            raise ValueError(f"triplet member missing, ambiguous, or symlinked: {extension}")
+        if fetched.get(extension) != sha(current_path):
+            raise ValueError(f"fetched controller SHA drift: {extension}")
         if candidate_sha.get(extension) != sha(next_path):
-            raise SystemExit(f"candidate SHA drift: {extension}")
+            raise ValueError(f"candidate SHA drift: {extension}")
         try:
             current_inspection = inspect_content(
-                current_matches[0],
-                current_program=current_matches[0].stem,
-                candidate_program=args.program,
+                current_path,
+                current_program=SOURCE_PROGRAM,
+                candidate_program=program,
+                source_stamp=source_stamp,
+                candidate_stamp=candidate_stamp,
+                controller_directory=controller_directory,
             )
             candidate_inspection = inspect_content(
                 next_path,
-                current_program=current_matches[0].stem,
-                candidate_program=args.program,
+                current_program=SOURCE_PROGRAM,
+                candidate_program=program,
+                source_stamp=source_stamp,
+                candidate_stamp=candidate_stamp,
+                controller_directory=controller_directory,
             )
             block_hashes = _validated_block_hashes(
                 candidate_inspection,
@@ -732,20 +1243,79 @@ def main() -> int:
                 canonical=canonical,
             )
         except (OSError, ValueError, gzip.BadGzipFile) as exc:
-            raise SystemExit(f"cannot normalize TP diff {extension}: {exc}") from exc
+            raise ValueError(f"cannot normalize TP diff {extension}: {exc}") from exc
         if current_inspection.blocks:
-            raise SystemExit(f"fetched controller unexpectedly contains v2 markers: {extension}")
-        actual_normalized = hashlib.sha256(candidate_inspection.normalized).hexdigest()
+            raise ValueError(
+                f"fetched controller unexpectedly contains v2 markers: {extension}"
+            )
+        if extension == ".urp":
+            if current_inspection.executable_script != source_script_bytes:
+                raise ValueError("source URP cachedContents differs from source .script")
+            if candidate_inspection.executable_script != candidate_script_bytes:
+                raise ValueError("candidate URP cachedContents differs from candidate .script")
+        actual_normalized = hashlib.sha256(
+            candidate_inspection.normalized
+        ).hexdigest()
         if candidate_inspection.normalized != current_inspection.normalized:
-            raise SystemExit(
+            raise ValueError(
                 f"candidate changes content outside identity/watchdog blocks: {extension}"
             )
         if normalized_sha.get(extension) != actual_normalized:
-            raise SystemExit(f"normalized content attestation drift: {extension}")
+            raise ValueError(f"normalized content attestation drift: {extension}")
         if watchdog_counts.get(extension) != len(candidate_inspection.blocks):
-            raise SystemExit(f"watchdog block-count attestation drift: {extension}")
+            raise ValueError(f"watchdog block-count attestation drift: {extension}")
         if attested_block_sha.get(extension) != block_hashes:
-            raise SystemExit(f"watchdog canonical-block SHA attestation drift: {extension}")
+            raise ValueError(
+                f"watchdog canonical-block SHA attestation drift: {extension}"
+            )
+
+    crc_attested = _strict_object(
+        attestation.get("urp_crcValue"),
+        {"source", "candidate"},
+        label="URP crcValue attestation",
+    )
+    if crc_attested != {
+        "source": _root_crc(receipt.files[".urp"].path),
+        "candidate": _root_crc(candidate / f"{program}.urp"),
+    }:
+        raise ValueError("URP crcValue attestation drift")
+    _validate_bound_deploy_manifest(
+        attested=_strict_object(
+            attestation.get("deploy_manifest"),
+            {"path", "sha256", "schema", "promotable"},
+            label="deploy manifest attestation",
+        ),
+        source_class=source_class,
+        candidate=candidate,
+        program=program,
+        controller_directory=controller_directory,
+        candidate_sha=candidate_sha,
+    )
+    return {
+        "schema": "step5d.autotune.tp-watchdog-diff-verification/v2",
+        "pass": True,
+        "source_class": source_class,
+        "promotable": promotable,
+        "program": program,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--current-readback", type=Path, required=True)
+    parser.add_argument("--candidate", type=Path, required=True)
+    parser.add_argument("--program", default="step5d_strict_rnn_autotune_v2")
+    parser.add_argument("--attestation", type=Path, required=True)
+    args = parser.parse_args()
+    try:
+        verify_triplet(
+            current=args.current_readback,
+            candidate=args.candidate,
+            program=args.program,
+            attestation_path=args.attestation,
+        )
+    except (OSError, ValueError, json.JSONDecodeError, gzip.BadGzipFile) as exc:
+        raise SystemExit(str(exc)) from exc
     print("tp_watchdog_diff_gate=pass")
     return 0
 

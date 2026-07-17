@@ -1,6 +1,6 @@
 {
   "schema": "step5d.autotune.tp-watchdog/v2",
-  "status": "offline_policy_only_controller_triplet_not_fetched",
+  "status": "offline_builder_ready_controller_snapshot_missing",
   "control_math_changed": false,
   "trajectory_changed": false,
   "waypoint_changed": false,
@@ -30,13 +30,14 @@
     "schema": "step5d.autotune.tp-watchdog-blocks/v2",
     "outside_block_normalization": [
       "program_identity",
+      "source_stamp_identity",
       "urp_crcValue"
     ],
     "required_blocks": [
       {
-        "block_id": "host_heartbeat_fail_closed_v1",
-        "source": "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v1.script",
-        "sha256": "09b3b5a6896755bb662fe76ecce2d67f7d16f1dad0d11ab43a880101cbe4b001",
+        "block_id": "host_heartbeat_fail_closed_v2",
+        "source": "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v2.script",
+        "sha256": "8ef836b26e8820f76c6da16d8b0fe20f3d060cfee0d1cfe90e20af42adc487a2",
         "required_in": [
           ".script",
           ".urp"

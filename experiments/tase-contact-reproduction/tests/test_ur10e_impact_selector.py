@@ -96,11 +96,12 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
         changed_paths = [
             "tools/step5d_autotune_v2/bridge.py",
             *sorted(v2_tests),
+            "tools/build_step5d_autotune_v2_tp.py",
             "tools/verify_step5d_tp_watchdog_diff.py",
             "tools/generate_step5_docs.py",
             "config/step5/current.json",
             "config/step5/tp_watchdog_v2.json",
-            "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v1.script",
+            "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v2.script",
         ]
 
         for changed_path in changed_paths:
