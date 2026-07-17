@@ -192,9 +192,10 @@ def test_hold_sample_requires_stopped_output_only_and_zero_velocity() -> None:
 
 
 class _FakeRtdeSocket:
-    def __init__(self) -> None:
+    def __init__(self, *, pre_version_packets: tuple[str, ...] = ("M",)) -> None:
         self.pending = bytearray()
         self.sent_types: list[str] = []
+        self.pre_version_packets = pre_version_packets
 
     def __enter__(self):
         return self
@@ -210,6 +211,14 @@ class _FakeRtdeSocket:
         token = chr(kind)
         self.sent_types.append(token)
         if token == "V":
+            for pre_version_kind in self.pre_version_packets:
+                if pre_version_kind == "M":
+                    notice = b"\x02SafetySetup has not been confirmed yet"
+                    self.pending.extend(
+                        struct.pack("!HB", 3 + len(notice), ord("M")) + notice
+                    )
+                else:
+                    self.pending.extend(struct.pack("!HB", 3, ord(pre_version_kind)))
             payload = b"\x01"
         elif token == "O":
             payload = b"\x01VECTOR6D,VECTOR6D,UINT32,INT32,INT32"
@@ -237,6 +246,34 @@ def test_rtde_client_emits_only_version_output_recipe_and_start(
     assert fake.sent_types == ["V", "O", "S"]
     assert result["output_recipe_only"] is True
     assert result["fields"]["actual_qd"] == [0.0] * 6
+    assert result["received_text_messages"] == [
+        {
+            "protocol_version": 1,
+            "message_type": 2,
+            "message": "SafetySetup has not been confirmed yet",
+            "payload_hex": "02536166657479536574757020686173206e6f74206265656e20636f6e6669726d656420796574",
+        }
+    ]
+
+
+def test_rtde_client_rejects_unexpected_packet_before_version_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeRtdeSocket(pre_version_packets=("P",))
+    monkeypatch.setattr(gate.socket, "create_connection", lambda *_args, **_kwargs: fake)
+    with pytest.raises(gate.GateBlocked) as caught:
+        gate._rtde_snapshot("172.29.0.2", 1.0)
+    assert caught.value.code == "rtde_unexpected_packet"
+
+
+def test_rtde_client_bounds_interleaved_text_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeRtdeSocket(pre_version_packets=("M",) * 9)
+    monkeypatch.setattr(gate.socket, "create_connection", lambda *_args, **_kwargs: fake)
+    with pytest.raises(gate.GateBlocked) as caught:
+        gate._rtde_snapshot("172.29.0.2", 1.0)
+    assert caught.value.code == "rtde_text_message_limit_exceeded"
 
 
 def test_docker_unavailable_writes_blocker_and_never_opens_network(

@@ -216,9 +216,40 @@ def _recv_exact(connection: socket.socket, size: int) -> bytes:
     return payload
 
 
+def _decode_rtde_text_message(payload: bytes, *, protocol_version: int) -> dict[str, Any]:
+    if not payload:
+        raise GateBlocked("rtde_text_message_invalid", "empty payload")
+    if protocol_version == 1:
+        return {
+            "protocol_version": 1,
+            "message_type": payload[0],
+            "message": payload[1:].decode("utf-8", errors="replace"),
+            "payload_hex": payload.hex(),
+        }
+    message_size = payload[0]
+    message_end = 1 + message_size
+    if message_end >= len(payload):
+        raise GateBlocked("rtde_text_message_invalid", payload.hex())
+    source_size = payload[message_end]
+    source_end = message_end + 1 + source_size
+    if source_end >= len(payload):
+        raise GateBlocked("rtde_text_message_invalid", payload.hex())
+    return {
+        "protocol_version": 2,
+        "message": payload[1:message_end].decode("utf-8", errors="replace"),
+        "source": payload[message_end + 1 : source_end].decode(
+            "utf-8", errors="replace"
+        ),
+        "warning_level": payload[source_end],
+        "payload_hex": payload.hex(),
+    }
+
+
 def _rtde_snapshot(host: str, timeout_s: float) -> dict[str, Any]:
     formats = {"DOUBLE": "d", "VECTOR6D": "6d", "UINT32": "I", "INT32": "i"}
     sent: list[str] = []
+    text_messages: list[dict[str, Any]] = []
+    protocol_negotiated = False
     with socket.create_connection((host, 30004), timeout=timeout_s) as connection:
         connection.settimeout(timeout_s)
 
@@ -232,27 +263,50 @@ def _rtde_snapshot(host: str, timeout_s: float) -> dict[str, Any]:
             size, kind = struct.unpack("!HB", _recv_exact(connection, 3))
             return kind, _recv_exact(connection, size - 3) if size > 3 else b""
 
+        def receive_expected(expected: str) -> bytes:
+            for _ in range(9):
+                kind, payload = receive()
+                if kind == ord("M"):
+                    if len(text_messages) >= 8:
+                        raise GateBlocked(
+                            "rtde_text_message_limit_exceeded", repr(text_messages)
+                        )
+                    text_messages.append(
+                        _decode_rtde_text_message(
+                            payload,
+                            protocol_version=2 if protocol_negotiated else 1,
+                        )
+                    )
+                    continue
+                if kind != ord(expected):
+                    raise GateBlocked(
+                        "rtde_unexpected_packet",
+                        repr((expected, kind, payload.hex())),
+                    )
+                return payload
+            raise GateBlocked("rtde_expected_packet_missing", expected)
+
         send("V", struct.pack("!H", 2))
-        kind, payload = receive()
-        if kind != ord("V") or payload != b"\x01":
-            raise GateBlocked("rtde_protocol_negotiation_failed", repr((kind, payload)))
+        payload = receive_expected("V")
+        if payload != b"\x01":
+            raise GateBlocked("rtde_protocol_negotiation_failed", repr(payload))
+        protocol_negotiated = True
         recipe = struct.pack("!d", 10.0) + ",".join(RTDE_OUTPUT_FIELDS).encode("ascii")
         send("O", recipe)
-        kind, payload = receive()
-        if kind != ord("O") or not payload or payload[0] == 0:
-            raise GateBlocked("rtde_output_recipe_failed", repr((kind, payload)))
+        payload = receive_expected("O")
+        if not payload or payload[0] == 0:
+            raise GateBlocked("rtde_output_recipe_failed", repr(payload))
         recipe_id = payload[0]
         types = payload[1:].decode("ascii", errors="strict").split(",")
         if len(types) != len(RTDE_OUTPUT_FIELDS) or any(name not in formats for name in types):
             raise GateBlocked("rtde_output_recipe_types_invalid", repr(types))
         send("S")
-        kind, payload = receive()
-        if kind != ord("S") or payload != b"\x01":
-            raise GateBlocked("rtde_output_stream_start_failed", repr((kind, payload)))
-        while True:
-            kind, payload = receive()
-            if kind == ord("U") and payload and payload[0] == recipe_id:
-                break
+        payload = receive_expected("S")
+        if payload != b"\x01":
+            raise GateBlocked("rtde_output_stream_start_failed", repr(payload))
+        payload = receive_expected("U")
+        if not payload or payload[0] != recipe_id:
+            raise GateBlocked("rtde_output_recipe_id_mismatch", repr(payload[:1]))
         cursor = 1
         values: list[Any] = []
         for type_name in types:
@@ -265,6 +319,7 @@ def _rtde_snapshot(host: str, timeout_s: float) -> dict[str, Any]:
         "fields": dict(zip(RTDE_OUTPUT_FIELDS, values)),
         "output_recipe_only": True,
         "sent_packet_types": sent,
+        "received_text_messages": text_messages,
     }
 
 
