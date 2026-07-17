@@ -19,6 +19,10 @@ from step5d_autotune_v2.startup_smoke import RtdeHoldSession, verify_play_startu
 PROGRAM = "step5d_strict_rnn_autotune_v2.urp"
 
 
+def program_is_stopped(response: str) -> bool:
+    return response == "STOPPED" or response.startswith("STOPPED ")
+
+
 def _write(path: Path, payload: dict[str, Any]) -> None:
     path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -38,7 +42,7 @@ def run(host: str, output: Path, *, timeout_s: float) -> dict[str, Any]:
         version = dashboard.command("PolyscopeVersion", ("URSoftware",)).matched_line
         if "5.26." not in version:
             raise RuntimeError("target controller software is not the required 5.26 release")
-        if snapshot["programState"] != "STOPPED":
+        if not program_is_stopped(snapshot["programState"]):
             raise RuntimeError("target program must be STOPPED before the no-motion smoke")
         if not snapshot["get loaded program"].endswith("/" + PROGRAM):
             raise RuntimeError("the frozen Step5d v2 TP package is not loaded")
