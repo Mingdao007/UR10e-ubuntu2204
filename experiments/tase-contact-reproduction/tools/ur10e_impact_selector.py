@@ -127,8 +127,20 @@ def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
             "dependency map has unmapped code paths; add an explicit rule or use "
             f"--full-suite: {unmapped_code}"
         )
+    resource_groups = mapping.get("resource_groups", {})
+    exclusive_throughput_groups = sorted(
+        set(mapping.get("exclusive_throughput_groups", []))
+    )
+    unknown_exclusive_groups = sorted(
+        set(exclusive_throughput_groups) - set(resource_groups)
+    )
+    if unknown_exclusive_groups:
+        raise ValueError(
+            "dependency map declares unknown exclusive throughput groups: "
+            f"{unknown_exclusive_groups}"
+        )
     grouped: dict[str, str] = {}
-    for group, patterns in mapping.get("resource_groups", {}).items():
+    for group, patterns in resource_groups.items():
         for test in tests:
             if _matches(_test_file(test), patterns):
                 grouped[test] = group
@@ -171,6 +183,7 @@ def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
         "parallel_tests": parallel,
         "serial_tests": serial,
         "resource_groups": {test: grouped[test] for test in sorted(grouped)},
+        "exclusive_throughput_groups": exclusive_throughput_groups,
         "validators": mapping["validators"],
         "source_fingerprint": fingerprint,
         "full_suite": full_suite,

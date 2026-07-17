@@ -4,9 +4,13 @@ import sys
 import json
 import subprocess
 import tempfile
+import threading
+import time
 import unittest
+import venv
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +19,8 @@ from ur10e_impact_selector import changed_paths, select  # noqa: E402
 from run_ur10e_impacted_tests import (  # noqa: E402
     atomic_publish_cache,
     cache_key_lock,
+    environment_binding,
+    execute,
     main as run_impacted,
 )
 
@@ -73,6 +79,44 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
         self.assertIn(
             "tests/test_publish_step5d_autotune_plot.py",
             publisher["selected_tests"],
+        )
+
+    def test_autotune_v2_sources_tests_and_tp_verifier_share_explicit_rule(self) -> None:
+        v2_tests = {
+            "tests/test_step5d_autotune_v2_core.py",
+            "tests/test_step5d_autotune_v2_entrypoint.py",
+            "tests/test_step5d_autotune_v2_hardening.py",
+            "tests/test_step5d_autotune_v2_legacy.py",
+            "tests/test_step5d_autotune_v2_report.py",
+            "tests/test_step5d_autotune_v2_service.py",
+            "tests/test_step5d_autotune_v2_supervisor.py",
+            "tests/test_step5d_autotune_v2_tp_watchdog.py",
+            "tests/test_step5d_autotune_v2_transport.py",
+        }
+        changed_paths = [
+            "tools/step5d_autotune_v2/bridge.py",
+            *sorted(v2_tests),
+            "tools/verify_step5d_tp_watchdog_diff.py",
+            "tools/generate_step5_docs.py",
+            "config/step5/current.json",
+            "config/step5/tp_watchdog_v2.json",
+            "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v1.script",
+        ]
+
+        for changed_path in changed_paths:
+            with self.subTest(changed_path=changed_path):
+                result = select(root=ROOT, paths=[changed_path])
+                self.assertEqual(result["unmapped_changed_paths"], [])
+                self.assertTrue(v2_tests.issubset(result["selected_tests"]))
+
+        self.assertEqual(result["exclusive_throughput_groups"], ["timing_sensitive"])
+        self.assertEqual(
+            result["resource_groups"]["tests/test_step5d_autotune_v2_hardening.py"],
+            "timing_sensitive",
+        )
+        self.assertEqual(
+            result["resource_groups"]["tests/test_step5d_autotune_v2_service.py"],
+            "timing_sensitive",
         )
 
     def test_p0_v8_controller_readback_evidence_has_explicit_impact_rule(self) -> None:
@@ -171,6 +215,97 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
             self.assertNotEqual(
                 second_manifest["composite_fingerprint"], third_manifest["composite_fingerprint"]
             )
+
+    def test_environment_binding_probes_lexical_venv_interpreter(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            dependency_map = root / "dependency.json"
+            dependency_map.write_text(
+                json.dumps({"cache_external_fixture_globs": []}) + "\n",
+                encoding="utf-8",
+            )
+            venv_root = root / "validation-venv"
+            venv.EnvBuilder(with_pip=False, system_site_packages=True).create(venv_root)
+            invoked_python = venv_root / "bin/python"
+
+            binding = environment_binding(
+                python=invoked_python,
+                root=root,
+                dependency_map=dependency_map,
+            )
+
+            python_identity = binding["python"]
+            runtime = python_identity["runtime"]
+            self.assertEqual(python_identity["invoked"], str(invoked_python))
+            self.assertEqual(
+                python_identity["probe"]["command"][0], str(invoked_python)
+            )
+            self.assertEqual(runtime["executable"], str(invoked_python))
+            self.assertEqual(runtime["prefix"], str(venv_root))
+            self.assertEqual(
+                Path(runtime["real_executable"]),
+                Path(python_identity["resolved"]),
+            )
+            self.assertIsInstance(runtime["packages"], dict)
+
+    def test_dag_runs_exclusive_throughput_group_after_parallel_jobs(self) -> None:
+        selection = {
+            "validators": ["tools/fixture_validator.py"],
+            "parallel_tests": [f"tests/test_parallel_{index}.py" for index in range(8)],
+            "serial_tests": ["tests/test_gpu.py", "tests/test_timing.py"],
+            "resource_groups": {
+                "tests/test_gpu.py": "gpu",
+                "tests/test_timing.py": "timing_sensitive",
+            },
+            "exclusive_throughput_groups": ["timing_sensitive"],
+        }
+        intervals: dict[str, tuple[float, float]] = {}
+        lock = threading.Lock()
+
+        def fake_run_command(
+            name: str,
+            command: list[str],
+            *,
+            root: Path,
+            env: dict[str, str],
+            output: Path,
+        ) -> dict[str, object]:
+            del root, env, output
+            started = time.monotonic()
+            time.sleep(0.03)
+            ended = time.monotonic()
+            with lock:
+                intervals[name] = (started, ended)
+            return {
+                "name": name,
+                "command": command,
+                "exit_code": 0,
+                "status": "passed",
+            }
+
+        with tempfile.TemporaryDirectory() as td, mock.patch(
+            "run_ur10e_impacted_tests.run_command", side_effect=fake_run_command
+        ):
+            results = execute(
+                selection,
+                python=Path(sys.executable),
+                root=Path(td),
+                output=Path(td) / "output",
+                mode="dag",
+                workers=4,
+            )
+
+        exclusive_name = "pytest_resource_timing_sensitive"
+        nonexclusive_names = {
+            "fixture_validator",
+            "pytest_parallel_scope",
+            "pytest_resource_gpu",
+        }
+        self.assertEqual({row["name"] for row in results}, nonexclusive_names | {exclusive_name})
+        self.assertGreaterEqual(
+            intervals[exclusive_name][0],
+            max(intervals[name][1] for name in nonexclusive_names),
+        )
 
     def test_tampered_cached_log_is_not_reused(self) -> None:
         with tempfile.TemporaryDirectory() as td:

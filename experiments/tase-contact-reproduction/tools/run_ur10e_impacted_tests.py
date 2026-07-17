@@ -147,17 +147,24 @@ def environment_binding(*, python: Path, root: Path, dependency_map: Path) -> di
                 })
         fixture_closure[pattern] = rows
 
-    resolved_python = python.resolve()
+    invoked_python = Path(os.path.abspath(os.fspath(python.expanduser())))
+    resolved_python = invoked_python.resolve(strict=True)
     # importlib.metadata raises for absent optional packages, so use a small explicit loop.
     probe = (
-        "import importlib.metadata as m,json,sys\n"
+        "import importlib.metadata as m,json,os,sys\n"
         "versions={}\n"
         "for n in ('pytest','pytest-xdist','cupy','cupy-cuda11x','cupy-cuda12x','numpy'):\n"
         "  try: versions[n]=m.version(n)\n"
         "  except m.PackageNotFoundError: versions[n]=None\n"
-        "print(json.dumps({'executable':sys.executable,'version':sys.version,'packages':versions},sort_keys=True))\n"
+        "print(json.dumps({'executable':sys.executable,'real_executable':os.path.realpath(sys.executable),"
+        "'version':sys.version,'prefix':sys.prefix,'base_prefix':sys.base_prefix,"
+        "'packages':versions},sort_keys=True))\n"
     )
-    python_probe = _command_identity([str(resolved_python), "-c", probe], cwd=root)
+    python_probe = _command_identity([str(invoked_python), "-c", probe], cwd=root)
+    try:
+        runtime_identity = json.loads(python_probe["stdout"])
+    except (TypeError, json.JSONDecodeError):
+        runtime_identity = None
     try:
         gpu = subprocess.run(
             ["nvidia-smi", "--query-gpu=index,uuid,name,driver_version,memory.total",
@@ -175,8 +182,10 @@ def environment_binding(*, python: Path, root: Path, dependency_map: Path) -> di
         "schema_version": "ur10e_validation_environment_binding_v1",
         "python": {
             "requested": str(python),
+            "invoked": str(invoked_python),
             "resolved": str(resolved_python),
             "sha256": hashlib.sha256(resolved_python.read_bytes()).hexdigest(),
+            "runtime": runtime_identity,
             "probe": python_probe,
         },
         "git_head": _command_identity(["git", "rev-parse", "HEAD"], cwd=root),
@@ -217,6 +226,7 @@ def pytest_command(python: Path, tests: list[str], *, workers: int, parallel: bo
 
 def execute(selection: dict[str, Any], *, python: Path, root: Path, output: Path,
             mode: str, workers: int) -> list[dict[str, Any]]:
+    python = Path(os.path.abspath(os.fspath(python.expanduser())))
     env = os.environ.copy()
     env.update({
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
@@ -225,7 +235,7 @@ def execute(selection: dict[str, Any], *, python: Path, root: Path, output: Path
         "OPENBLAS_NUM_THREADS": "1",
         "MKL_NUM_THREADS": "1",
         "NUMEXPR_NUM_THREADS": "1",
-        "UR10E_TEST_PYTHON": str(python.resolve()),
+        "UR10E_TEST_PYTHON": str(python),
     })
     validators = [
         (Path(path).stem, [str(python), path]) for path in selection["validators"]
@@ -239,6 +249,7 @@ def execute(selection: dict[str, Any], *, python: Path, root: Path, output: Path
         (
             f"pytest_resource_{group}",
             pytest_command(python, tests, workers=1, parallel=False),
+            group,
         )
         for group, tests in sorted(resource_tests.items())
     ]
@@ -250,7 +261,7 @@ def execute(selection: dict[str, Any], *, python: Path, root: Path, output: Path
                 "pytest_parallel_scope_serial", pytest_command(python, parallel_tests, workers=1, parallel=False),
                 root=root, env=env, output=output,
             ))
-        for name, command in resource_jobs:
+        for name, command, _group in resource_jobs:
             results.append(run_command(name, command, root=root, env=env, output=output))
     else:
         jobs = validators[:]
@@ -261,13 +272,23 @@ def execute(selection: dict[str, Any], *, python: Path, root: Path, output: Path
             ))
         # Each resource group is internally serial, while independent CPU/GPU/lock
         # groups can overlap with the pure-CPU fan-out.
-        jobs.extend(resource_jobs)
+        exclusive_groups = set(selection.get("exclusive_throughput_groups", []))
+        jobs.extend(
+            (name, command)
+            for name, command, group in resource_jobs
+            if group not in exclusive_groups
+        )
         with ThreadPoolExecutor(max_workers=len(jobs) or 1) as pool:
             futures = [
                 pool.submit(run_command, name, command, root=root, env=env, output=output)
                 for name, command in jobs
             ]
             results.extend(future.result() for future in futures)
+        for name, command, group in resource_jobs:
+            if group in exclusive_groups:
+                results.append(
+                    run_command(name, command, root=root, env=env, output=output)
+                )
     return sorted(results, key=lambda row: row["name"])
 
 

@@ -116,6 +116,10 @@
       "tests": ["tests/test_publish_step5d_autotune_plot.py"]
     },
     {
+      "paths": ["tools/step5d_autotune_v2/**", "tests/test_step5d_autotune_v2_*.py", "tools/verify_step5d_tp_watchdog_diff.py", "tools/generate_step5_docs.py", "config/step5/current.json", "config/step5/tp_watchdog_v2.json", "config/step5/tp_watchdog_blocks/**"],
+      "tests": ["tests/test_step5d_autotune_v2_core.py", "tests/test_step5d_autotune_v2_entrypoint.py", "tests/test_step5d_autotune_v2_hardening.py", "tests/test_step5d_autotune_v2_legacy.py", "tests/test_step5d_autotune_v2_report.py", "tests/test_step5d_autotune_v2_service.py", "tests/test_step5d_autotune_v2_supervisor.py", "tests/test_step5d_autotune_v2_tp_watchdog.py", "tests/test_step5d_autotune_v2_transport.py"]
+    },
+    {
       "paths": ["check.sh", "pytest.ini", "tests/conftest.py", "tools/run_ur10e_impacted_tests.py", "tools/ur10e_impact_selector.py", "config/ur10e_test_dependency_map_v1.json"],
       "tests": ["tests/test_project_check_entrypoint.py", "tests/test_ur10e_impact_selector.py"]
     },
@@ -148,8 +152,15 @@
     "shared_fixture": [
       "tests/test_cross_step_parameter_table.py",
       "tests/test_project_check_entrypoint.py"
+    ],
+    "timing_sensitive": [
+      "tests/test_step5d_autotune_v2_hardening.py",
+      "tests/test_step5d_autotune_v2_service.py"
     ]
   },
+  "exclusive_throughput_groups": [
+    "timing_sensitive"
+  ],
   "validators": [
     "tools/validate_tase_protocol_table.py",
     "tools/validate_cross_step_parameter_table.py"

@@ -32,7 +32,7 @@ def sha256(path: Path) -> str:
 
 def git_common_dir(root: Path) -> Path:
     completed = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
+        ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
         cwd=root,
         text=True,
         capture_output=True,
@@ -44,7 +44,7 @@ def git_common_dir(root: Path) -> Path:
         )
     path = Path(completed.stdout.strip()).expanduser()
     if not path.is_absolute():
-        path = root / path
+        raise ArtifactStoreError(f"Git returned a non-absolute common dir: {path}")
     return path.resolve()
 
 

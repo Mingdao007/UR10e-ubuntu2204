@@ -176,6 +176,40 @@ class Step5dWorkflowStateTest(unittest.TestCase):
             with mock.patch.dict("os.environ", {"UR10E_ARTIFACT_STORE": str(root / "env-store")}):
                 self.assertEqual(artifact_store(root), (root / "env-store").resolve())
 
+    def test_default_store_uses_common_dir_from_nested_linked_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            fixture = Path(td)
+            repository = fixture / "repository"
+            linked = fixture / "linked"
+            repository.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repository, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.invalid"],
+                cwd=repository,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "UR10e test"],
+                cwd=repository,
+                check=True,
+            )
+            (repository / "tracked.txt").write_text("fixture\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=repository, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture"], cwd=repository, check=True)
+            subprocess.run(
+                ["git", "worktree", "add", "-q", "--detach", str(linked)],
+                cwd=repository,
+                check=True,
+            )
+            nested = linked / "experiments/tase-contact-reproduction"
+            nested.mkdir(parents=True)
+
+            with mock.patch.dict("os.environ", {"UR10E_ARTIFACT_STORE": ""}):
+                self.assertEqual(
+                    artifact_store(nested),
+                    (repository / ".git/ur10e-artifacts").resolve(),
+                )
+
     def test_artifact_ref_sha_is_authoritative_over_store_key(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
