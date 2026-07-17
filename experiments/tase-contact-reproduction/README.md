@@ -47,9 +47,10 @@ step5d-autotune-live.sh stop-after-current
 Calling `step5d-autotune-live.sh` without arguments maps to `start`. `start`
 must fail closed with one primary blocker until all live gates are current.
 
-Parameter-only `enqueue` accepts exactly five new tuples and performs only
-schema, envelope, Decimal identity, and global dedup checks. It does not run
-tests, alter the deployment fingerprint, commit code, or restart the service.
+Parameter-only `enqueue` accepts exactly five new tuples and performs schema,
+envelope, Decimal identity, deployment-derived profile binding, and global
+dedup checks. It does not run tests, alter the deployment fingerprint, commit
+code, or restart the service.
 
 ## Sources of truth
 
@@ -76,6 +77,10 @@ acceptance. They are not read by the v2 runtime.
 - Metrics, PNG generation, and transfers begin only after physical closure.
 - Replay candidates never enter optimizer/incumbent history by default.
 - Static authorization and fresh runtime readiness are separate facts.
+- Runtime READY binds the exact bridge PID/nonce to a fresh, progressing 500 Hz
+  health sidecar; a 100 ms watcher revokes it on child loss.
+- COMPLETE reports recover idempotently on service startup for the current
+  deployment only; legacy G10 stays an explicitly read-only reference.
 
 ## Development
 

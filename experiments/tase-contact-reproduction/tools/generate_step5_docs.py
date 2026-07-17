@@ -41,7 +41,8 @@ step5d-autotune-live.sh status --json
 ```
 
 `deployment_authorized` is static evidence. `runtime_ready` is a fresh service
-observation. Missing or stale service status is never READY.
+observation. `status --json` opens the existing SQLite database read-only and
+fails closed if it is missing or corrupt. Missing or stale status is never READY.
 
 ## Control boundary
 
@@ -72,7 +73,8 @@ The compact Step5d route does not replace the wider Step5 control contract:
 ## Physical lifecycle
 
 1. Persist ARM in SQLite.
-2. Publish one atomic mailbox snapshot.
+2. Bind ARM to the deployment-derived `nf050-slew050-a050` profile and publish
+   one atomic mailbox snapshot.
 3. Observe exact TP consumption and mark the tuple physically attempted.
 4. Observe RUN, retract, return, and measured Home verification.
 5. Seal the minimum immutable raw capture.
@@ -84,12 +86,18 @@ Postprocess cannot delay ACK. A postprocess failure pauses at safe Home and
 never authorizes an automatic repeat. Ambiguous TP consumption is recorded as
 `uncertain_attempt` and is also never repeated.
 
+READY additionally requires the exact bridge PID/launch nonce plus a fresh,
+progressing `step5d.autotune.bridge-health/v2` sidecar. The service checks it
+before every host heartbeat and with a 100 ms child watcher. Loss revokes READY
+and quarantines an open physical trial in one SQLite transaction.
+
 ## Parameter batches
 
 - A normal append contains exactly five new physical tuples.
 - P/D use a log2 lattice with 0.25-octave steps.
 - I coarse search uses exactly `10×, 50×, 100×, 500×, 1000×`, then log2 refinement.
 - Parameter append changes neither deployment/code fingerprint nor service process.
+- Caller-supplied profile IDs must equal the canonical deployment-derived ID.
 - Explicit replay has a nonce and purpose and is excluded from optimizer/incumbent history.
 
 The imported recovery batch is G11–G15. G11 is complete; only G12–G15 remain
@@ -104,7 +112,9 @@ step5d-autotune-live.sh stop-after-current
 ```
 
 Every trial report contains exactly two tables: group/parameter mapping and
-one-metric-per-row comparison against the historical diagnostic incumbent.
+one-metric-per-row comparison against a same-deployment/profile incumbent, or
+the explicitly labeled read-only G10 historical diagnostic reference. Startup
+reconciles current-deployment COMPLETE trials that lost their report crash cut.
 
 ## Service and operator sequence
 
@@ -115,7 +125,8 @@ session must not bind process lifetime to that terminal.
 When every live gate is complete:
 
 1. Run `step5d-autotune-live.sh` once.
-2. Wait for fresh `runtime_ready=true` with bridge 500 Hz evidence.
+2. Wait for fresh `runtime_ready=true` with configured 500 Hz and progressing
+   bridge-health evidence.
 3. Press TP Play once.
 4. Let the service advance distinct pending candidates.
 
@@ -128,7 +139,9 @@ authorized by this document.
 
 The controller triplet must be fetched before building TP v2 so the user's
 current waypoint is preserved. TP v2 may change only handshake/watchdog
-identity. Upload requires a narrow diff gate followed by fresh readback.
+identity. The diff gate requires the exact reviewed block in `.script` and its
+exact XML-escaped representation in decompressed `.urp`; upload then requires
+fresh readback.
 
 ## Source of truth
 

@@ -138,12 +138,18 @@ def reduce_lifecycle(
 
     if event is LifecycleEvent.MARK_UNCERTAIN_ATTEMPT:
         if snapshot.state not in {
+            LifecycleState.PENDING,
             LifecycleState.ARM_PERSISTED,
             LifecycleState.COMMAND_PUBLISHED,
             LifecycleState.TP_CONSUMED,
             LifecycleState.RUNNING,
+            LifecycleState.HOME_VERIFIED,
+            LifecycleState.RAW_SEALED,
+            LifecycleState.ACK_PERSISTED,
+            LifecycleState.ACK_PUBLISHED,
+            LifecycleState.READY_HOME_OBSERVED,
         }:
-            raise LifecycleError("uncertain attempt requires a published physical command")
+            raise LifecycleError("uncertain attempt requires an open physical transaction")
         return replace(
             snapshot,
             state=LifecycleState.UNCERTAIN_ATTEMPT,

@@ -197,6 +197,20 @@ class RepositoryViews:
             ).fetchone()
         return dict(row) if row else None
 
+    def completed_trials_missing_report(self, *, deployment_id: str) -> list[str]:
+        """Return only current-epoch COMPLETE trials lacking their durable report."""
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT t.trial_id FROM trials t "
+                "LEFT JOIN artifacts a ON a.trial_id=t.trial_id "
+                "AND a.role='trial_markdown_report' "
+                "WHERE t.deployment_id=? AND t.state='complete' "
+                "AND a.artifact_id IS NULL ORDER BY t.created_at,t.trial_id",
+                (deployment_id,),
+            ).fetchall()
+        return [str(row["trial_id"]) for row in rows]
+
     def trial_detail(self, trial_id: str) -> dict[str, Any]:
         with self._connect() as connection:
             row = connection.execute(
@@ -222,21 +236,27 @@ class RepositoryViews:
         return result
 
     def diagnostic_incumbent(
-        self, *, exclude_trial_id: str | None = None
+        self,
+        *,
+        deployment_id: str,
+        profile_id: str,
+        exclude_trial_id: str | None = None,
     ) -> dict[str, Any] | None:
         exclusion = ""
-        parameters: tuple[Any, ...] = ()
+        parameters: tuple[Any, ...] = (deployment_id, profile_id)
         if exclude_trial_id is not None:
             exclusion = " AND t.trial_id<>?"
-            parameters = (exclude_trial_id,)
+            parameters += (exclude_trial_id,)
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT t.trial_id,c.group_id,c.p_text,c.i_text,c.d_text,"
+                "SELECT t.trial_id,t.deployment_id,c.group_id,c.p_text,c.i_text,c.d_text,"
+                "c.profile_id,"
                 "a.metrics_json,a.force_mae_n FROM analyses a "
                 "JOIN trials t ON t.trial_id=a.trial_id "
                 "JOIN candidates c ON c.candidate_id=t.candidate_id "
                 "WHERE a.diagnostic_eligible=1 AND c.purpose='search' "
                 "AND a.force_mae_n IS NOT NULL "
+                "AND t.deployment_id=? AND c.profile_id=? "
                 + exclusion
                 + " ORDER BY a.force_mae_n ASC,a.created_at ASC LIMIT 1",
                 parameters,
@@ -248,21 +268,27 @@ class RepositoryViews:
         return result
 
     def objective_incumbent(
-        self, *, exclude_trial_id: str | None = None
+        self,
+        *,
+        deployment_id: str,
+        profile_id: str,
+        exclude_trial_id: str | None = None,
     ) -> dict[str, Any] | None:
         exclusion = ""
-        parameters: tuple[Any, ...] = ()
+        parameters: tuple[Any, ...] = (deployment_id, profile_id)
         if exclude_trial_id is not None:
             exclusion = " AND t.trial_id<>?"
-            parameters = (exclude_trial_id,)
+            parameters += (exclude_trial_id,)
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT t.trial_id,c.group_id,c.p_text,c.i_text,c.d_text,"
+                "SELECT t.trial_id,t.deployment_id,c.group_id,c.p_text,c.i_text,c.d_text,"
+                "c.profile_id,"
                 "a.metrics_json,a.objective_mae_n FROM analyses a "
                 "JOIN trials t ON t.trial_id=a.trial_id "
                 "JOIN candidates c ON c.candidate_id=t.candidate_id "
                 "WHERE a.objective_eligible=1 AND c.purpose='search' "
                 "AND a.objective_mae_n IS NOT NULL "
+                "AND t.deployment_id=? AND c.profile_id=? "
                 + exclusion
                 + " ORDER BY a.objective_mae_n ASC,a.created_at ASC LIMIT 1",
                 parameters,
@@ -271,4 +297,44 @@ class RepositoryViews:
             return None
         result = dict(row)
         result["metrics"] = json.loads(result.pop("metrics_json"))
+        return result
+
+    def historical_diagnostic_reference(
+        self,
+        *,
+        profile_id: str,
+        group_id: str | None = "G10",
+        exclude_trial_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Cross-deployment evidence projection; never an optimizer incumbent."""
+
+        filters = [
+            "a.diagnostic_eligible=1",
+            "c.purpose='search'",
+            "a.force_mae_n IS NOT NULL",
+            "c.profile_id=?",
+        ]
+        parameters: list[Any] = [profile_id]
+        if group_id is not None:
+            filters.append("c.group_id=?")
+            parameters.append(group_id)
+        if exclude_trial_id is not None:
+            filters.append("t.trial_id<>?")
+            parameters.append(exclude_trial_id)
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT t.trial_id,t.deployment_id,c.group_id,c.p_text,c.i_text,c.d_text,"
+                "c.profile_id,a.metrics_json,a.force_mae_n FROM analyses a "
+                "JOIN trials t ON t.trial_id=a.trial_id "
+                "JOIN candidates c ON c.candidate_id=t.candidate_id WHERE "
+                + " AND ".join(filters)
+                + " ORDER BY a.force_mae_n ASC,a.created_at ASC LIMIT 1",
+                tuple(parameters),
+            ).fetchone()
+        if row is None:
+            return None
+        result = dict(row)
+        result["metrics"] = json.loads(result.pop("metrics_json"))
+        result["historical_reference"] = True
+        result["optimizer_history"] = False
         return result

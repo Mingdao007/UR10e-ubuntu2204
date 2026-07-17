@@ -20,7 +20,7 @@ from step5d_autotune_v2.postprocess import analyze_capture
 from step5d_autotune_v2.reducer import LifecycleEvent
 from step5d_autotune_v2.runtime import EVENT_SCHEMA, JsonlBridgePort
 from step5d_autotune_v2.supervisor import CampaignSupervisor, RuntimeFailure
-from step5d_autotune_v2.transfer import TransferWorker
+from step5d_autotune_v2.transfer import TransferWorker, retry_delay_s
 from test_step5d_autotune_v2_supervisor import FakePort, deployment, repository
 
 
@@ -28,8 +28,13 @@ def test_bridge_ready_must_bind_fresh_child_pid_and_launch_nonce(tmp_path: Path)
     runtime = tmp_path / "runtime"
     child = """
 import json, os, time
+from datetime import datetime, timezone
 from pathlib import Path
 root = Path(os.environ['STEP5D_AUTOTUNE_V2_RUNTIME_ROOT'])
+def publish(name, payload):
+  temporary = root / ('.' + name + '.tmp')
+  temporary.write_text(json.dumps(payload), encoding='ascii')
+  temporary.replace(root / name)
 payload = {
   'schema': 'step5d.autotune.bridge-ready/v2',
   'bridge_ready': True,
@@ -41,8 +46,24 @@ payload = {
   'command_transport_ready': True,
   'event_transport_ready': True,
 }
-(root / 'bridge_ready.json').write_text(json.dumps(payload), encoding='utf-8')
-time.sleep(10)
+publish('bridge_ready.json', payload)
+sequence = 0
+while True:
+  sequence += 1
+  publish('bridge_health.json', {
+    'schema': 'step5d.autotune.bridge-health/v2',
+    'deployment_id': os.environ['STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID'],
+    'pid': os.getpid(),
+    'launch_nonce': os.environ['STEP5D_AUTOTUNE_V2_LAUNCH_NONCE'],
+    'health_sequence': sequence,
+    'observed_at': datetime.now(timezone.utc).isoformat(timespec='microseconds'),
+    'configured_rate_hz': 500,
+    'sample_counter': sequence * 10,
+    'rtde_healthy': True,
+    'command_transport_healthy': True,
+    'event_transport_healthy': True,
+  })
+  time.sleep(0.02)
 """
     bridge = BridgeProcess(
         argv=(sys.executable, "-c", child),
@@ -243,13 +264,87 @@ def test_transfer_failure_stays_in_retry_queue_and_trial_remains_complete(
         raise subprocess.TimeoutExpired(cmd=args[0], timeout=0.1)
 
     monkeypatch.setattr(subprocess, "run", fail_transfer)
+    monkeypatch.setattr(
+        "step5d_autotune_v2.transfer.retry_delay_s", lambda attempts: 30.0
+    )
     worker = TransferWorker(repo, timeout_s=1)
     worker.start()
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        pending = repo.pending_transfers()
+        if pending and pending[0]["attempts"] == 1:
+            break
+        time.sleep(0.01)
     worker.stop()
     pending = repo.pending_transfers()
     assert pending[0]["status"] == "retry_pending"
     assert pending[0]["attempts"] == 1
     assert repo.trial_detail(outcome.trial_id)["state"] == "complete"
+
+
+@pytest.mark.parametrize(
+    ("attempts", "expected_s"),
+    [(0, 0.0), (1, 0.25), (2, 1.0), (3, 4.0), (4, 16.0), (5, 30.0), (99, 30.0)],
+)
+def test_transfer_retry_backoff_uses_durable_attempt_count(
+    attempts: int, expected_s: float
+) -> None:
+    assert retry_delay_s(attempts) == expected_s
+
+
+def test_transfer_retries_in_same_worker_and_completion_stays_post_ack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = repository(tmp_path)
+    outcome = CampaignSupervisor(repo, FakePort(tmp_path)).run_pending(
+        deployment_id=deployment().deployment_id, maximum=1
+    )[0]
+    artifact = repo.artifact_for_trial(outcome.trial_id, role="raw_capture_seal")
+    assert artifact is not None
+    transfer_id = repo.queue_transfer(
+        artifact_id=artifact["artifact_id"],
+        destination="andyl@127.0.0.1:/Users/andyl/Downloads/step5d_autotune/",
+    )
+    trial_before = repo.trial_detail(outcome.trial_id)
+    assert trial_before["ack_sequence"] is not None
+    calls: list[list[str]] = []
+    call_times: list[float] = []
+
+    def fail_once_then_succeed(
+        args: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess:
+        calls.append(args)
+        call_times.append(time.monotonic())
+        if len(calls) == 1:
+            raise subprocess.TimeoutExpired(cmd=args, timeout=0.1)
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(subprocess, "run", fail_once_then_succeed)
+    worker = TransferWorker(repo, timeout_s=1)
+    worker.start()
+    try:
+        deadline = time.monotonic() + 2.0
+        row = None
+        while time.monotonic() < deadline:
+            with repo._connect() as connection:
+                fetched = connection.execute(
+                    "SELECT * FROM transfers WHERE transfer_id=?", (transfer_id,)
+                ).fetchone()
+            row = dict(fetched) if fetched is not None else None
+            if row is not None and row["status"] == "complete":
+                break
+            time.sleep(0.01)
+    finally:
+        worker.stop()
+
+    assert row is not None
+    assert row["status"] == "complete"
+    assert row["attempts"] == 2
+    assert len(calls) == 3
+    assert call_times[1] - call_times[0] >= 0.20
+    trial_after = repo.trial_detail(outcome.trial_id)
+    assert trial_after["state"] == "complete"
+    assert trial_after["ack_sequence"] == trial_before["ack_sequence"]
 
 
 def test_png_failure_is_a_warning_not_a_metrics_failure(tmp_path: Path) -> None:

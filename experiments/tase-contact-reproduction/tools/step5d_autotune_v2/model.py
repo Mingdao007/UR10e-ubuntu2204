@@ -26,6 +26,12 @@ APPROVED_I_MULTIPLIERS = frozenset(
 )
 GROUP_RE = re.compile(r"G[1-9][0-9]*\Z")
 SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
+CANONICAL_EXECUTION_PROFILE = {
+    "normal_max_rate_rad_s": "0.05",
+    "host_qdot_slew_rad_s2": "0.5",
+    "tp_speedj_accel_rad_s2": "0.5",
+    "qdot_cap_rad_s": "0.5",
+}
 
 
 class ModelError(ValueError):
@@ -71,6 +77,31 @@ def canonical_decimal(
     if "." in rendered:
         rendered = rendered.rstrip("0").rstrip(".")
     return rendered
+
+
+def canonical_profile_id(profile: Mapping[str, Any]) -> str:
+    """Derive the physical profile token from the normalized deployment profile."""
+
+    if not isinstance(profile, Mapping):
+        raise ModelError("deployment profile must be an object")
+    normalized = {
+        name: canonical_decimal(value, name=name, positive=True)
+        for name, value in profile.items()
+    }
+    if normalized != CANONICAL_EXECUTION_PROFILE:
+        raise ModelError("deployment profile must remain frozen at .05/.5/.5 with qdot .5")
+
+    def token(name: str, scale: str) -> str:
+        value = Decimal(normalized[name]) * Decimal(scale)
+        if value != value.to_integral_value():
+            raise ModelError(f"{name} cannot be represented by the canonical profile token")
+        return f"{int(value):03d}"
+
+    return (
+        f"nf{token('normal_max_rate_rad_s', '1000')}-"
+        f"slew{token('host_qdot_slew_rad_s2', '100')}-"
+        f"a{token('tp_speedj_accel_rad_s2', '100')}"
+    )
 
 
 def canonical_log2(value: Any, *, name: str) -> str:
@@ -448,16 +479,13 @@ class DeploymentSpec:
         for name in ("code_fingerprint", "tp_fingerprint", "guard_fingerprint"):
             if SHA256_RE.fullmatch(getattr(self, name)) is None:
                 raise ModelError(f"{name} must be a lowercase SHA-256")
-        expected_profile = {
-            "normal_max_rate_rad_s": "0.05",
-            "host_qdot_slew_rad_s2": "0.5",
-            "tp_speedj_accel_rad_s2": "0.5",
-            "qdot_cap_rad_s": "0.5",
-        }
         normalized = {
             name: canonical_decimal(value, name=name, positive=True)
             for name, value in self.profile.items()
         }
-        if normalized != expected_profile:
-            raise ModelError("deployment profile must remain frozen at .05/.5/.5 with qdot .5")
+        canonical_profile_id(normalized)
         object.__setattr__(self, "profile", normalized)
+
+    @property
+    def profile_id(self) -> str:
+        return canonical_profile_id(self.profile)

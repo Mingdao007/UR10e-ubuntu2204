@@ -48,6 +48,7 @@ class JsonlBridgePort:
         self.event_path = event_path.resolve()
         self.allowed_artifact_root = allowed_artifact_root.resolve()
         self.deployment_id = deployment_id
+        self.profile_id = repository.deployment_profile_id(deployment_id)
         self.analyzer_argv = tuple(analyzer_argv)
         self.command_root = command_root.resolve()
         self.transfer_destination = transfer_destination
@@ -79,6 +80,10 @@ class JsonlBridgePort:
     def _arm_payload(
         self, *, trial_id: str, candidate: Mapping[str, Any]
     ) -> dict[str, Any]:
+        if candidate.get("profile_id") != self.profile_id:
+            raise RuntimeFailure(
+                "candidate profile_id differs from the deployment profile"
+            )
         return {
             "command": "ARM",
             "deployment_id": self.deployment_id,
@@ -88,7 +93,7 @@ class JsonlBridgePort:
                 "p": candidate["p_text"],
                 "i": candidate["i_text"],
                 "d": candidate["d_text"],
-                "profile_id": candidate["profile_id"],
+                "profile_id": self.profile_id,
                 "comparison_key": candidate["comparison_key"],
                 "purpose": candidate["purpose"],
             },

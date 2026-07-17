@@ -20,7 +20,10 @@ def test_report_is_exactly_parameter_table_plus_metric_rows_table(tmp_path: Path
     report = render_trial_report(repo, trial_id=second.trial_id, batch_id="fake-five")
     assert len([line for line in report.splitlines() if line.startswith("|---")]) == 2
     assert "| 组 | P | I | D |" in report
-    assert "| Metric | 当前 G11 | 历史最佳 G10 | Δ |" in report
+    assert (
+        "| Metric | 当前 G11 | 同 deployment/profile 最佳 G10 | Δ |"
+        in report
+    )
     assert len([line for line in report.splitlines() if line.startswith("| ")]) == 2 + 5 + len(METRICS)
     assert first.trial_id != second.trial_id
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import subprocess
 import sys
 import time
@@ -33,6 +34,25 @@ def _repo(root: Path, database: Path | None) -> tuple[Repository, StaticConfig]:
     repository = Repository(database.resolve() if database else config.database_path)
     repository.initialize()
     repository.register_deployment(config.deployment)
+    return repository, config
+
+
+def _status_repo(
+    root: Path, database: Path | None
+) -> tuple[Repository, StaticConfig]:
+    """Open existing current truth without creating or registering anything."""
+
+    config = load_static_config(root)
+    if database is None:
+        database_path = (
+            root / str(config.payload["paths"]["database"])
+        ).absolute()
+        if database_path.resolve() != config.database_path:
+            raise RepositoryError("configured campaign database path is unsafe")
+    else:
+        database_path = database.expanduser().absolute()
+    repository = Repository(database_path, read_only=True)
+    repository.integrity_check()
     return repository, config
 
 
@@ -172,8 +192,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return run_service(root, database=args.database)
         if args.command == "start":
             return _start(root, args.database)
-        repository, config = _repo(root, args.database)
         if args.command == "status":
+            repository, config = _status_repo(root, args.database)
             status = _fresh_status(
                 repository,
                 float(config.payload["live_cutover"]["status_freshness_s"]),
@@ -188,10 +208,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     f"blocker={status['primary_blocker']}"
                 )
             return 0
+        repository, config = _repo(root, args.database)
         if args.command == "enqueue":
             payload = json.loads(args.file.read_text(encoding="utf-8"))
             batch = BatchSpec.from_mapping(payload)
-            repository.enqueue_batch(batch)
+            repository.enqueue_batch(
+                batch, deployment_id=config.deployment.deployment_id
+            )
             print(json.dumps({"batch_id": batch.batch_id, "groups": [c.group_id for c in batch.candidates]}))
             return 0
         if args.command == "report":
@@ -235,7 +258,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             ).run(output_path=args.output)
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
-    except (ConfigError, ModelError, RepositoryError, OSError, ValueError, json.JSONDecodeError) as exc:
+    except (
+        ConfigError,
+        ModelError,
+        RepositoryError,
+        OSError,
+        ValueError,
+        json.JSONDecodeError,
+        sqlite3.Error,
+    ) as exc:
+        if args.command == "status" and args.json:
+            print(
+                json.dumps(
+                    {
+                        "schema": "step5d.autotune.status-error/v2",
+                        "runtime_ready": False,
+                        "deployment_authorized": False,
+                        "controller_readback_verified": False,
+                        "fresh": False,
+                        "primary_blocker": "repository_state_unavailable",
+                        "error": f"{type(exc).__name__}:{exc}",
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
         print(f"refusing: {exc}", file=sys.stderr)
         return 2
     return 2

@@ -6,6 +6,7 @@ import hashlib
 import re
 import subprocess
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .repository import Repository
@@ -13,6 +14,34 @@ from .repository import Repository
 
 HOST_RE = re.compile(r"[A-Za-z0-9_.@-]+\Z")
 REMOTE_RE = re.compile(r"/[A-Za-z0-9_./-]*\Z")
+POLL_INTERVAL_S = 0.25
+RETRY_BACKOFF_S = (0.25, 1.0, 4.0, 16.0)
+MAX_RETRY_BACKOFF_S = 30.0
+
+
+def retry_delay_s(attempts: int) -> float:
+    """Return the durable retry delay after ``attempts`` failed/sent attempts."""
+
+    if attempts <= 0:
+        return 0.0
+    if attempts <= len(RETRY_BACKOFF_S):
+        return RETRY_BACKOFF_S[attempts - 1]
+    return MAX_RETRY_BACKOFF_S
+
+
+def _retry_is_due(row: dict, now: datetime) -> bool:
+    if row["status"] == "pending":
+        return True
+    if row["status"] != "retry_pending":
+        return False
+    try:
+        updated_at = datetime.fromisoformat(str(row["updated_at"]))
+    except ValueError:
+        return True
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    elapsed_s = (now - updated_at.astimezone(timezone.utc)).total_seconds()
+    return elapsed_s >= retry_delay_s(int(row["attempts"]))
 
 
 class TransferWorker:
@@ -22,7 +51,6 @@ class TransferWorker:
         self._stop = threading.Event()
         self._wake = threading.Event()
         self._thread: threading.Thread | None = None
-        self._attempted: set[str] = set()
 
     def start(self) -> None:
         if self._thread is not None:
@@ -40,16 +68,18 @@ class TransferWorker:
 
     def _run(self) -> None:
         while True:
-            self._wake.wait(0.25)
+            self._wake.wait(POLL_INTERVAL_S)
             self._wake.clear()
-            rows = [
-                row
-                for row in self.repository.pending_transfers()
-                if row["transfer_id"] not in self._attempted
-            ]
+            if self._stop.is_set():
+                return
+            now = datetime.now(timezone.utc)
+            rows = self.repository.pending_transfers()
             for row in rows:
+                if not _retry_is_due(row, now):
+                    continue
+                if self._stop.is_set():
+                    return
                 transfer_id = row["transfer_id"]
-                self._attempted.add(transfer_id)
                 try:
                     self._transfer(row)
                 except Exception as exc:
@@ -60,8 +90,6 @@ class TransferWorker:
                     )
                 else:
                     self.repository.record_transfer_attempt(transfer_id, success=True)
-            if self._stop.is_set():
-                return
 
     def _transfer(self, row: dict) -> None:
         source = Path(row["path"])

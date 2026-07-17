@@ -103,14 +103,29 @@ def render_trial_report(
             )
         )
     current_metrics = (current.get("analysis") or {}).get("metrics") or {}
-    incumbent = repository.diagnostic_incumbent(exclude_trial_id=trial_id)
+    incumbent = repository.diagnostic_incumbent(
+        deployment_id=current["deployment_id"],
+        profile_id=current["profile_id"],
+        exclude_trial_id=trial_id,
+    )
+    if incumbent is None:
+        incumbent = repository.historical_diagnostic_reference(
+            profile_id=current["profile_id"],
+            group_id="G10",
+            exclude_trial_id=trial_id,
+        )
     incumbent_metrics = incumbent.get("metrics", {}) if incumbent else {}
     current_group = current["group_id"]
-    incumbent_group = incumbent["group_id"] if incumbent else "无历史基线"
+    if incumbent is None:
+        incumbent_label = "无可用基线"
+    elif incumbent.get("historical_reference") is True:
+        incumbent_label = f"历史诊断参考 {incumbent['group_id']}（只读）"
+    else:
+        incumbent_label = f"同 deployment/profile 最佳 {incumbent['group_id']}"
     lines.extend(
         [
             "",
-            f"| Metric | 当前 {current_group} | 历史最佳 {incumbent_group} | Δ |",
+            f"| Metric | 当前 {current_group} | {incumbent_label} | Δ |",
             "|---|---:|---:|---:|",
         ]
     )
@@ -175,3 +190,20 @@ def write_trial_report(
         immutable=True,
     )
     return content, path
+
+
+def reconcile_missing_trial_reports(
+    repository: Repository, *, deployment_id: str, output_root: Path
+) -> list[tuple[str, Path]]:
+    """Recover the COMPLETE-to-report crash cut for the current epoch only."""
+
+    recovered: list[tuple[str, Path]] = []
+    for trial_id in repository.completed_trials_missing_report(
+        deployment_id=deployment_id
+    ):
+        recovered.append(
+            write_trial_report(
+                repository, trial_id=trial_id, output_root=output_root
+            )
+        )
+    return recovered

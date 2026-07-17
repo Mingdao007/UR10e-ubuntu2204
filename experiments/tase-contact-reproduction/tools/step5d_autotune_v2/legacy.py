@@ -9,7 +9,13 @@ import secrets
 from pathlib import Path
 from typing import Any, Mapping
 
-from .model import AttemptTupleSpec, BatchSpec, CandidateSpec, DeploymentSpec
+from .model import (
+    AttemptTupleSpec,
+    BatchSpec,
+    CandidateSpec,
+    DeploymentSpec,
+    canonical_profile_id,
+)
 from .postprocess import metrics_from_bundle
 from .repository import Repository, RepositoryError
 from .supervisor import AnalysisResult, ArtifactSeal, CampaignSupervisor
@@ -253,7 +259,9 @@ class LegacyImporter:
                     }
                 )
         tombstones = self._import_partial_attempts()
-        incumbent = self.repository.diagnostic_incumbent()
+        incumbent = self.repository.historical_diagnostic_reference(
+            profile_id=canonical_profile_id(PROFILE), group_id=None
+        )
         result = {
             "schema": IMPORT_RESULT_SCHEMA,
             "mapping": {"path": str(self.mapping_path), "sha256": mapping_sha},

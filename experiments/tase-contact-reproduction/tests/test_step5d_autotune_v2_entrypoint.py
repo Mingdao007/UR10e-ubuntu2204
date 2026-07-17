@@ -52,6 +52,28 @@ def test_start_fails_before_systemd_or_network_when_tp_v2_readback_is_missing(
 def test_status_reports_static_readback_blocker_without_starting_service(
     tmp_path: Path,
 ) -> None:
+    database = tmp_path / "campaign.sqlite3"
+    prepared = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools/step5d-autotunectl.py"),
+            "--root",
+            str(ROOT),
+            "--database",
+            str(database),
+            "start",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert prepared.returncode == 78
+    before = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in tmp_path.iterdir()
+        if path.is_file()
+    }
     completed = subprocess.run(
         [
             sys.executable,
@@ -59,7 +81,7 @@ def test_status_reports_static_readback_blocker_without_starting_service(
             "--root",
             str(ROOT),
             "--database",
-            str(tmp_path / "campaign.sqlite3"),
+            str(database),
             "status",
             "--json",
         ],
@@ -72,3 +94,66 @@ def test_status_reports_static_readback_blocker_without_starting_service(
     status = json.loads(completed.stdout)
     assert status["runtime_ready"] is False
     assert status["primary_blocker"] == "tp_v2_controller_readback_missing"
+    after = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in tmp_path.iterdir()
+        if path.is_file()
+    }
+    assert after == before
+
+
+def test_status_missing_database_fails_without_creating_it(tmp_path: Path) -> None:
+    database = tmp_path / "missing.sqlite3"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools/step5d-autotunectl.py"),
+            "--root",
+            str(ROOT),
+            "--database",
+            str(database),
+            "status",
+            "--json",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 2
+    failure = json.loads(completed.stdout)
+    assert failure["runtime_ready"] is False
+    assert failure["primary_blocker"] == "repository_state_unavailable"
+    assert "missing or unsafe" in completed.stderr
+    assert not database.exists()
+
+
+def test_status_corrupt_database_is_machine_readable_and_does_not_mutate_it(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "corrupt.sqlite3"
+    database.write_bytes(b"not a sqlite database\n")
+    before = (database.read_bytes(), database.stat().st_mtime_ns)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools/step5d-autotunectl.py"),
+            "--root",
+            str(ROOT),
+            "--database",
+            str(database),
+            "status",
+            "--json",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 2
+    failure = json.loads(completed.stdout)
+    assert failure["runtime_ready"] is False
+    assert failure["primary_blocker"] == "repository_state_unavailable"
+    assert "refusing:" in completed.stderr
+    assert (database.read_bytes(), database.stat().st_mtime_ns) == before
+    assert sorted(path.name for path in tmp_path.iterdir()) == [database.name]

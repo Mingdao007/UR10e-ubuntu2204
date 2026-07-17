@@ -257,8 +257,12 @@ def test_diagnostic_and_official_objective_incumbents_are_separate(tmp_path: Pat
     CampaignSupervisor(repo, OfficialPort(tmp_path)).run_pending(
         deployment_id="fake-live", maximum=1
     )
-    assert repo.diagnostic_incumbent()["group_id"] == "G10"
-    assert repo.objective_incumbent()["group_id"] == "G11"
+    assert repo.diagnostic_incumbent(
+        deployment_id="fake-live", profile_id=deployment().profile_id
+    )["group_id"] == "G10"
+    assert repo.objective_incumbent(
+        deployment_id="fake-live", profile_id=deployment().profile_id
+    )["group_id"] == "G11"
 
 
 @pytest.mark.parametrize(

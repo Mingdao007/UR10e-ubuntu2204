@@ -1,7 +1,7 @@
 {
   "schema": "step5d.autotune.deployment/v2",
   "deployment": {
-    "id": "step5d-autotune-v2-offline-20260715-r1",
+    "id": "step5d-autotune-v2-offline-20260715-r2",
     "code_fingerprint": "auto",
     "tp_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
     "guard_fingerprint": "auto",
@@ -41,11 +41,10 @@
     "tools/kunwei_rtde_bridge.py",
     "tools/step5d_runtime_interface.py",
     "tools/step5d_paper_outer_loop.py",
-    "tools/step5d_autotune_v2/model.py",
-    "tools/step5d_autotune_v2/config.py",
+    "tools/step5d_autotune_v2/model.py", "tools/step5d_autotune_v2/config.py",
     "tools/step5d_autotune_v2/reducer.py", "tools/step5d_autotune_v2/repository_schema.py",
     "tools/step5d_autotune_v2/repository_runtime.py", "tools/step5d_autotune_v2/repository_views.py",
-    "tools/step5d_autotune_v2/repository.py",
+    "tools/step5d_autotune_v2/repository.py", "tools/step5d_autotune_v2/legacy.py",
     "tools/step5d_autotune_v2/mailbox.py",
     "tools/step5d_autotune_v2/dashboard.py",
     "tools/step5d_autotune_v2/bridge.py",
@@ -55,7 +54,9 @@
     "tools/step5d_autotune_v2/readiness.py",
     "tools/step5d_autotune_v2/postprocess.py", "tools/step5d_autotune_v2/report.py",
     "tools/step5d_autotune_v2/transfer.py",
-    "tools/step5d_autotune_v2/tp_watchdog.py",
+    "tools/step5d_autotune_v2/tp_watchdog.py", "tools/verify_step5d_tp_watchdog_diff.py",
+    "config/step5/tp_watchdog_v2.json",
+    "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v1.script",
     "tools/step5d_autotune_v2/service.py",
     "tools/step5d_autotune_v2/cli.py",
     "tools/step5d-autotunectl.py",
@@ -73,8 +74,7 @@
       "--trial-id", "{trial_id}",
       "--output-dir", "{runtime_root}/plots"
     ],
-    "ready_timeout_s": 15,
-    "trial_timeout_s": 180
+    "ready_timeout_s": 15, "trial_timeout_s": 180
   },
   "postprocess": {
     "mac_destination": "andyl@100.127.94.11:/Users/andyl/Downloads/step5d_autotune/",

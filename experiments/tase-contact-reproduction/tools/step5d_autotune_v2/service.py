@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import secrets
 import sys
+import time
 from pathlib import Path
 
 from .bridge import BridgeError, BridgeProcess
@@ -11,7 +12,7 @@ from .config import load_static_config
 from .heartbeat import HeartbeatPublisher
 from .mailbox import AtomicMailbox
 from .readiness import evaluate_preflight
-from .report import write_trial_report
+from .report import reconcile_missing_trial_reports, write_trial_report
 from .repository import Repository
 from .runtime import JsonlBridgePort
 from .supervisor import CampaignSupervisor, TrialOutcome
@@ -27,8 +28,17 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
     bridge: BridgeProcess | None = None
     heartbeat: HeartbeatPublisher | None = None
     transfer_worker: TransferWorker | None = None
+    bridge_loss: list[str] = []
     try:
         repository.claim_writer(token=token)
+        report_paths: list[str] = []
+        for content, path in reconcile_missing_trial_reports(
+            repository,
+            deployment_id=config.deployment.deployment_id,
+            output_root=config.runtime_root_path / "reports",
+        ):
+            report_paths.append(str(path))
+            print(content, end="", flush=True)
         report = evaluate_preflight(config, repository)
         if not report.ready_to_launch:
             repository.set_runtime_status(
@@ -53,16 +63,60 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
             "bridge_pid": ready.pid,
             "bridge_ready_evidence": str(ready.evidence_path),
             "bridge_launch_nonce": ready.launch_nonce,
+            "bridge_health_evidence": str(ready.health_evidence_path),
             "sample_rate_hz": ready.sample_rate_hz,
             "startup_home_verified": ready.startup_home_verified,
         }
+
+        def health_details() -> dict[str, object]:
+            deadline = time.monotonic() + 0.25
+            while True:
+                try:
+                    health = bridge.check_health(
+                        max_age_s=2.0, require_progress=True
+                    )
+                    break
+                except BridgeError as exc:
+                    if (
+                        "counters did not progress" not in str(exc)
+                        or time.monotonic() >= deadline
+                    ):
+                        raise
+                    time.sleep(0.002)
+            return {
+                "schema": "step5d.autotune.bridge-health/v2",
+                "pid": health.pid,
+                "deployment_id": health.deployment_id,
+                "launch_nonce": health.launch_nonce,
+                "health_sequence": health.health_sequence,
+                "observed_at": health.observed_at,
+                "configured_rate_hz": health.configured_rate_hz,
+                "sample_counter": health.sample_counter,
+                "rtde_healthy": health.rtde_healthy,
+                "command_transport_healthy": health.command_transport_healthy,
+                "event_transport_healthy": health.event_transport_healthy,
+                "evidence_path": str(health.evidence_path),
+            }
+
+        def revoke_bridge_health(exc: BaseException) -> None:
+            error = f"{type(exc).__name__}:{exc}"
+            bridge_loss.append(error)
+            repository.revoke_runtime_for_bridge_loss(
+                deployment_authorized=config.deployment.deployment_authorized,
+                primary_blocker="bridge_liveness_lost",
+                details={**ready_details, "bridge_health_error": error},
+            )
+
         heartbeat = HeartbeatPublisher(
             repository=repository,
             mailbox=AtomicMailbox(config.heartbeat_path),
             writer_token=token,
             deployment_id=config.deployment.deployment_id,
             ready_details=ready_details,
+            health_probe=health_details,
+            health_failure_callback=revoke_bridge_health,
         )
+        bridge.start_watcher(heartbeat.fail_from_bridge, interval_s=0.1)
         heartbeat.start()
         transfer_worker = TransferWorker(
             repository,
@@ -81,8 +135,6 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
             timeout_s=float(bridge_config.get("trial_timeout_s", 180)),
             health_check=heartbeat.check,
         )
-        report_paths: list[str] = []
-
         def publish_outcome_report(outcome: TrialOutcome) -> None:
             trial_id = outcome.trial_id
             content, path = write_trial_report(
@@ -100,6 +152,7 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
         ).run_pending(
             deployment_id=config.deployment.deployment_id
         )
+        bridge.stop_watcher()
         heartbeat.stop()
         heartbeat = None
         transfer_worker.stop()
@@ -128,15 +181,16 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
             except Exception:
                 pass
             heartbeat = None
-        try:
-            repository.set_runtime_status(
-                deployment_authorized=config.deployment.deployment_authorized,
-                runtime_ready=False,
-                primary_blocker=f"service_failure:{type(exc).__name__}",
-                details={"error": str(exc)},
-            )
-        except Exception:
-            pass
+        if not bridge_loss:
+            try:
+                repository.set_runtime_status(
+                    deployment_authorized=config.deployment.deployment_authorized,
+                    runtime_ready=False,
+                    primary_blocker=f"service_failure:{type(exc).__name__}",
+                    details={"error": str(exc)},
+                )
+            except Exception:
+                pass
         print(f"step5d-autotune-v2 service failed: {exc}", file=sys.stderr)
         return 70
     finally:
