@@ -8,8 +8,10 @@ the parser, its env/default/configure helpers, or step5d_runtime_interface.
 
 from __future__ import annotations
 
+import os
 import sys
 import types
+from collections.abc import Sequence
 
 
 STUBBED_MODULES = frozenset(
@@ -67,3 +69,18 @@ def install() -> None:
     common = sys.modules["_ur_common"]
     common.RTDEClient = type("RTDEClient", (), {})
     common.dashboard_exchange = lambda *_args, **_kwargs: None
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Bootstrap the real CLI for an explicitly hermetic hosted-CI subprocess."""
+
+    if os.environ.get("STEP5D_V3_HERMETIC_PARSER_CI") != "1":
+        raise RuntimeError("the parser CI bootstrap is disabled outside its explicit lane")
+    install()
+    from step5d_autotune_v3.cli import main as cli_main
+
+    return cli_main(list(sys.argv[1:] if argv is None else argv))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
