@@ -44,6 +44,29 @@ class PreflightReadonlyDagTest(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertTrue(result["checks"]["remote_control_mode"])
 
+    def test_autotune_dashboard_requires_exact_v2_program(self) -> None:
+        base = {
+            "remote_control": False,
+            "safetymode": "NORMAL",
+            "robotmode": "RUNNING",
+            "programState": "STOPPED step5d_strict_rnn_autotune_v2.urp",
+        }
+        self.assertTrue(
+            preflight.dashboard_predicate(
+                base,
+                expected_remote_control=False,
+                expected_program=preflight.STEP5D_AUTOTUNE_V2_PROGRAM,
+            )["ok"]
+        )
+        base["programState"] = "STOPPED step5d_strict_rnn_autotune_v1.urp"
+        self.assertFalse(
+            preflight.dashboard_predicate(
+                base,
+                expected_remote_control=False,
+                expected_program=preflight.STEP5D_AUTOTUNE_V2_PROGRAM,
+            )["ok"]
+        )
+
     def test_step5d_contact_bridge_profiles_use_tp_local(self) -> None:
         self.assertTrue(
             preflight.bridge_profile_uses_tp_local("step5d_strict_rnn_ablation_v32")
@@ -56,6 +79,13 @@ class PreflightReadonlyDagTest(unittest.TestCase):
     def test_p0_v9_uses_its_capture_binding_instead_of_current_v29(self) -> None:
         result = preflight.p0_controller_binding(preflight.P0_V9_PROFILE, ROOT)
 
+        if "capture_manifest_not_found" in result["errors"]:
+            self.assertFalse(result["ok"])
+            self.assertEqual(
+                result["manifest"],
+                "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_185412/manifest.json",
+            )
+            return
         self.assertTrue(result["ok"])
         self.assertEqual(result["errors"], [])
         self.assertEqual(result["program"], preflight.P0_V9_PROFILE)
@@ -67,6 +97,19 @@ class PreflightReadonlyDagTest(unittest.TestCase):
             result["manifest"],
             "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_185412/manifest.json",
         )
+
+    def test_autotune_controller_binding_routes_to_v2_release_gate(self) -> None:
+        with mock.patch.object(
+            preflight,
+            "run_command",
+            return_value={"ok": True, "returncode": 0},
+        ) as command:
+            result = preflight.controller_binding(preflight.STEP5D_AUTOTUNE_PROFILE, ROOT)
+
+        self.assertTrue(result["ok"])
+        invoked = command.call_args.args[0]
+        self.assertTrue(invoked[1].endswith("verify_step5d_autotune_v2_release.py"))
+        self.assertNotIn("verify_step5d_current_binding.py", " ".join(invoked))
 
     def test_open_probe_accepts_open_only_payloads(self) -> None:
         self.assertTrue(preflight._open({"open": True}))

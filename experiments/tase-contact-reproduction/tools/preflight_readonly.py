@@ -45,6 +45,7 @@ RTDE_FIELDS = [
 P0_V8_PROFILE = "step5d_strict_rnn_no_contact_p0_v8"
 P0_V9_PROFILE = "step5d_strict_rnn_no_contact_p0_v9"
 STEP5D_AUTOTUNE_PROFILE = "step5d_strict_rnn_autotune_v1"
+STEP5D_AUTOTUNE_V2_PROGRAM = "step5d_strict_rnn_autotune_v2"
 P0_LOCAL_PROFILES = {
     P0_V8_PROFILE: "no_contact_p0_v8_capture",
     P0_V9_PROFILE: "no_contact_p0_v9_capture",
@@ -126,6 +127,7 @@ def dashboard_predicate(
     result: Any,
     *,
     expected_remote_control: bool = True,
+    expected_program: str | None = None,
 ) -> dict[str, Any]:
     result = result if isinstance(result, dict) else {}
     def value(*keys: str) -> str:
@@ -142,6 +144,11 @@ def dashboard_predicate(
         "safety_normal": safety_mode == "NORMAL",
         "robot_mode": robot_mode in {"RUNNING", "IDLE", "POWER_ON"},
         "program_state": program_token in {"STOPPED", "PLAYING", "PAUSED", "RUNNING"},
+        "program_identity": (
+            True
+            if expected_program is None
+            else f"{expected_program}.URP".upper() in program_state
+        ),
     }
     return {"ok": all(checks.values()), "checks": checks}
 
@@ -221,6 +228,20 @@ def p0_controller_binding(profile: str, root: Path = EXPERIMENT_ROOT) -> dict[st
         "manifest": manifest_rel,
         "errors": errors,
     }
+
+
+def controller_binding(profile: str | None, root: Path = EXPERIMENT_ROOT) -> dict[str, Any]:
+    if profile in P0_LOCAL_PROFILES:
+        return p0_controller_binding(str(profile), root)
+    verifier = (
+        "verify_step5d_autotune_v2_release.py"
+        if profile == STEP5D_AUTOTUNE_PROFILE
+        else "verify_step5d_current_binding.py"
+    )
+    args = [sys.executable, str(root / "tools" / verifier)]
+    if verifier == "verify_step5d_current_binding.py":
+        args.extend(["--root", str(root), "--json"])
+    return run_command(args)
 
 
 def rtde_predicate(result: Any) -> dict[str, Any]:
@@ -310,18 +331,8 @@ def main(argv: list[str] | None = None) -> int:
             "kunwei_tcp_connect_only": lambda: tcp_connect_only(
                 args.sensor_ip, args.sensor_port, args.timeout_s
             ),
-            "controller_binding": (
-                (lambda: p0_controller_binding(args.bridge_profile, EXPERIMENT_ROOT))
-                if args.bridge_profile in P0_LOCAL_PROFILES
-                else (lambda: run_command(
-                    [
-                        sys.executable,
-                        str(EXPERIMENT_ROOT / "tools/verify_step5d_current_binding.py"),
-                        "--root",
-                        str(EXPERIMENT_ROOT),
-                        "--json",
-                    ]
-                ))
+            "controller_binding": lambda: controller_binding(
+                args.bridge_profile, EXPERIMENT_ROOT
             ),
             "bench_network": lambda: run_command(
                 [sys.executable, str(BENCH_GATE), "--include-kunwei", "--json-only"]
@@ -352,6 +363,11 @@ def main(argv: list[str] | None = None) -> int:
         "dashboard": dashboard_predicate(
             dashboard,
             expected_remote_control=not bridge_profile_uses_tp_local(args.bridge_profile),
+            expected_program=(
+                STEP5D_AUTOTUNE_V2_PROGRAM
+                if args.bridge_profile == STEP5D_AUTOTUNE_PROFILE
+                else None
+            ),
         ),
         "rtde": rtde_predicate(rtde),
         "robot_ports": {"ok": local_ok and all(_open(value) for value in (remote.get("robot_ports") or {}).values())},
