@@ -231,6 +231,17 @@ def test_adapter_ignores_only_bootstrap_mailbox_from_prior_deployment(tmp_path: 
         adapter.command_mailbox.read_latest()
 
 
+def test_campaign_home_reference_is_namespaced_by_deployment(tmp_path: Path) -> None:
+    first = SimpleNamespace(deployment_id="deployment-r1")
+    second = SimpleNamespace(deployment_id="deployment-r2")
+    first_path = live_bridge.step5d_campaign_home_reference_path(tmp_path, first)
+    second_path = live_bridge.step5d_campaign_home_reference_path(tmp_path, second)
+    assert first_path.parent == tmp_path
+    assert second_path.parent == tmp_path
+    assert first_path != second_path
+    assert first_path.name.startswith("campaign_home_reference.")
+
+
 def test_global_live_writer_lock_fails_closed(tmp_path: Path) -> None:
     path = (tmp_path / "locks/live-writer.lock").resolve()
     first = LiveWriterLock(path)

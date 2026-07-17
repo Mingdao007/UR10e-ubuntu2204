@@ -3771,6 +3771,19 @@ def require_step5d_liveprep_runtime_prewarmed(state: "BridgeState", args: argpar
         )
 
 
+def step5d_campaign_home_reference_path(
+    output_dir: Path, live_adapter: Step5dAutotuneV2LiveAdapter | None
+) -> Path:
+    if live_adapter is None:
+        return (output_dir / "campaign_home_reference.json").absolute()
+    deployment_digest = hashlib.sha256(
+        live_adapter.deployment_id.encode("utf-8")
+    ).hexdigest()[:16]
+    return (
+        output_dir / f"campaign_home_reference.{deployment_digest}.json"
+    ).absolute()
+
+
 def reset_step5d_solver_state_for_boundary(state: "BridgeState", boundary_key: str) -> None:
     if state.step5d_solver_lifecycle_key == boundary_key:
         return
@@ -10355,9 +10368,9 @@ def main(argv: list[str] | None = None) -> int:
     step5d_autotune_mailbox_runtime = (
         BridgeMailboxRuntime(
             args.step5d_autotune_command_mailbox,
-            campaign_home_reference_path=(
-                args.output_dir / "campaign_home_reference.json"
-            ).absolute(),
+            campaign_home_reference_path=step5d_campaign_home_reference_path(
+                args.output_dir, step5d_autotune_v2_live_adapter
+            ),
             mailbox=(
                 None
                 if step5d_autotune_v2_live_adapter is None
