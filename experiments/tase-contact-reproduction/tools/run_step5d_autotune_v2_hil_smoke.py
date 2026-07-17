@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,19 @@ def program_is_stopped(response: str) -> bool:
     return response == "STOPPED" or response.startswith("STOPPED ")
 
 
+def wait_program_stopped(dashboard: DashboardClient, timeout_s: float = 5.0) -> str:
+    deadline = time.monotonic() + timeout_s
+    last = ""
+    while time.monotonic() < deadline:
+        last = dashboard.command(
+            "programState", ("PLAYING", "PAUSED", "STOPPED")
+        ).matched_line
+        if program_is_stopped(last):
+            return last
+        time.sleep(0.1)
+    raise RuntimeError(f"TP watchdog did not leave the program STOPPED: {last}")
+
+
 def _write(path: Path, payload: dict[str, Any]) -> None:
     path = path.resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -34,10 +48,8 @@ def _write(path: Path, payload: dict[str, Any]) -> None:
 def run(host: str, output: Path, *, timeout_s: float) -> dict[str, Any]:
     lock = LiveWriterLock()
     dashboard = DashboardClient(host, connect_timeout_s=2.0, response_timeout_s=5.0)
-    lock_acquired = False
     try:
         lock.acquire()
-        lock_acquired = True
         snapshot = dashboard.snapshot()
         version = dashboard.command("PolyscopeVersion", ("URSoftware",)).matched_line
         if "5.26." not in version:
@@ -46,15 +58,17 @@ def run(host: str, output: Path, *, timeout_s: float) -> dict[str, Any]:
             raise RuntimeError("target program must be STOPPED before the no-motion smoke")
         if not snapshot["get loaded program"].endswith("/" + PROGRAM):
             raise RuntimeError("the frozen Step5d v2 TP package is not loaded")
-        print("HIL_READY: 请在 TP 上按 Play；此 gate 只发送 heartbeat + HOLD，不发送 ARM。", flush=True)
         with RtdeHoldSession(host, timeout_s=5.0) as session:
             result = verify_play_startup(
                 session,
-                trigger_play=None,
+                trigger_play=lambda: print(
+                    "HIL_READY: 请在 TP 上按 Play；此 gate 只发送 heartbeat + HOLD，不发送 ARM。",
+                    flush=True,
+                ),
                 timeout_s=timeout_s,
                 allow_latched_ready_baseline=True,
             )
-        dashboard.command("stop", ("Stopped", "Stop"))
+        stopped_after_smoke = wait_program_stopped(dashboard)
         payload = {
             "schema": "step5d.autotune.hil-startup-smoke/v1",
             "ok": True,
@@ -70,8 +84,13 @@ def run(host: str, output: Path, *, timeout_s: float) -> dict[str, Any]:
             "first_active_state": result.first_active_state,
             "consumed_command_seq": result.consumed_command_seq,
             "samples": result.samples,
+            "stopped_after_smoke": stopped_after_smoke,
         }
-    except Exception as exc:
+    except (Exception, KeyboardInterrupt) as exc:
+        try:
+            stopped_after_failure = wait_program_stopped(dashboard)
+        except Exception as stop_exc:
+            stopped_after_failure = f"unconfirmed: {type(stop_exc).__name__}: {stop_exc}"
         payload = {
             "schema": "step5d.autotune.hil-startup-smoke/v1",
             "ok": False,
@@ -79,13 +98,9 @@ def run(host: str, output: Path, *, timeout_s: float) -> dict[str, Any]:
             "controller": host,
             "motion_allowed": False,
             "error": f"{type(exc).__name__}: {exc}",
+            "stopped_after_failure": stopped_after_failure,
         }
     finally:
-        if lock_acquired:
-            try:
-                dashboard.command("stop", ("Stopped", "Stop"))
-            except Exception:
-                pass
         lock.release()
     _write(output, payload)
     return payload

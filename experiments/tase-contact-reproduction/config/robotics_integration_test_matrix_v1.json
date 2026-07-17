@@ -9,12 +9,12 @@
   "lanes": {
     "small": {
       "environment": "hermetic_process",
-      "command": ["python3", "-m", "pytest", "-q", "tests/test_step5d_autotune_v2_live_adapter.py"],
+      "command": ["python3", "-m", "pytest", "-q", "tests/test_step5d_autotune_v2_live_adapter.py", "tests/test_step5d_autotune_v2_startup_smoke.py"],
       "test_doubles_allowed": true
     },
     "medium": {
       "environment": "local_process_and_filesystem",
-      "command": ["python3", "-m", "pytest", "-q", "tests/test_step5d_autotune_v2_live_adapter.py", "tests/test_step5d_autotune_live_driver.py", "tests/test_step5d_autotune_recovery.py"],
+      "command": ["python3", "-m", "pytest", "-q", "tests/test_step5d_autotune_v2_live_adapter.py", "tests/test_step5d_autotune_v2_startup_smoke.py", "tests/test_step5d_autotune_live_driver.py", "tests/test_step5d_autotune_recovery.py"],
       "test_doubles_allowed": true
     },
     "large_ursim": {
@@ -45,10 +45,14 @@
       "lanes": ["small", "medium", "large_ursim", "hil_no_motion"],
       "acceptance": [
         "STOPPED zero registers establish PREPLAY",
+        "STOPPED zero-identity latched READY_HOME establishes a warm-restart baseline",
+        "stale identity, terminal fault residue, and already-RUNNING baselines fail closed",
+        "operator-ready is emitted only after RTDE setup and baseline acceptance",
         "RUNNING zero registers are tolerated for at most 1.0 second",
         "first valid TP loop state enters ACTIVE",
         "missing PREPLAY, timeout, partial identity, and ACTIVE regression fail closed",
-        "no ARM command is sent during compatibility or HIL startup smoke"
+        "no ARM command is sent during compatibility or HIL startup smoke",
+        "Local-mode cleanup withdraws heartbeat and only observes the TP watchdog STOPPED state"
       ]
     },
     {

@@ -1,6 +1,13 @@
 {
   "schema": "step5d_autotune_v2_incident_fixture/v1",
   "incident": "2026-07-17 TP Play caused bridge fail-closed on runtime_state=2 with zero output registers",
+  "baseline_cases": [
+    {"name": "cold_zero", "accepted": true, "expected_phase": "preplay", "output": {"runtime_state": 1, "output_int_register_24": 0, "output_int_register_25": 0, "output_int_register_26": 0, "output_int_register_27": 0, "output_int_register_28": 0, "output_int_register_29": 0, "output_int_register_30": 0}},
+    {"name": "latched_ready", "accepted": true, "expected_phase": "preplay_ready_latched", "output": {"runtime_state": 1, "output_int_register_24": 0, "output_int_register_25": 0, "output_int_register_26": 10, "output_int_register_27": 0, "output_int_register_28": 0, "output_int_register_29": 0, "output_int_register_30": 0}},
+    {"name": "stale_identity", "accepted": false, "output": {"runtime_state": 1, "output_int_register_24": 1, "output_int_register_25": 2, "output_int_register_26": 10, "output_int_register_27": 3, "output_int_register_28": 0, "output_int_register_29": 533, "output_int_register_30": 4}},
+    {"name": "fault_residue", "accepted": false, "output": {"runtime_state": 1, "output_int_register_24": 0, "output_int_register_25": 0, "output_int_register_26": 90, "output_int_register_27": 0, "output_int_register_28": 2, "output_int_register_29": 0, "output_int_register_30": 0}},
+    {"name": "already_running", "accepted": false, "output": {"runtime_state": 2, "output_int_register_24": 0, "output_int_register_25": 0, "output_int_register_26": 10, "output_int_register_27": 0, "output_int_register_28": 0, "output_int_register_29": 0, "output_int_register_30": 0}}
+  ],
   "accepted_sequence": [
     {
       "monotonic_s": 0.0,

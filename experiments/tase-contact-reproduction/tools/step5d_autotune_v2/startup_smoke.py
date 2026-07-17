@@ -165,6 +165,35 @@ class RtdeHoldSession:
             return dict(zip(OUTPUT_FIELDS, values))
 
 
+def startup_baseline_phase(
+    output: dict[str, Any],
+    observation: Any,
+    *,
+    allow_latched_ready: bool,
+) -> str:
+    if output.get("runtime_state") != 1:
+        raise StartupSmokeError("startup baseline must be STOPPED")
+    if observation.phase is TpFeedbackPhase.PREPLAY:
+        return observation.phase.value
+    packet = observation.packet
+    latched_ready = (
+        allow_latched_ready
+        and packet is not None
+        and packet.state is TpLoopState.READY_HOME
+        and packet.campaign_epoch_echo == 0
+        and packet.trial_id_echo == 0
+        and packet.candidate_token_echo == 0
+        and packet.terminal_reason == 0
+        and packet.execution_profile_id_echo == 0
+        and packet.consumed_command_seq == 0
+    )
+    if latched_ready:
+        return "preplay_ready_latched"
+    raise StartupSmokeError(
+        "startup baseline must be cold-zero or zero-identity latched READY_HOME"
+    )
+
+
 def verify_play_startup(
     session: RtdeHoldSession,
     *,
@@ -187,24 +216,11 @@ def verify_play_startup(
         observation = decoder.observe(output, observed_at_s=observed_at)
         samples += 1
         if play_at is None:
-            packet = observation.packet
-            latched_ready = (
-                allow_latched_ready_baseline
-                and output.get("runtime_state") == 1
-                and packet is not None
-                and packet.state is TpLoopState.READY_HOME
-                and packet.campaign_epoch_echo == 0
-                and packet.trial_id_echo == 0
-                and packet.candidate_token_echo == 0
-                and packet.execution_profile_id_echo == 0
-                and packet.consumed_command_seq == 0
+            phase = startup_baseline_phase(
+                output,
+                observation,
+                allow_latched_ready=allow_latched_ready_baseline,
             )
-            if observation.phase is TpFeedbackPhase.PREPLAY:
-                phase = observation.phase.value
-            elif latched_ready:
-                phase = "preplay_ready_latched"
-            else:
-                raise StartupSmokeError("startup smoke requires an initial STOPPED zero-register snapshot")
             phases.append(phase)
             play_at = observed_at
             if trigger_play is not None:
