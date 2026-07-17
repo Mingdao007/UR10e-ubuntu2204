@@ -1,11 +1,12 @@
 {
   "schema": "step5d.autotune.deployment/v2",
   "deployment": {
-    "id": "step5d-autotune-v2-readback-20260717-r1",
-    "code_fingerprint": "auto",
+    "id": "step5d-autotune-v2-live-20260717-r2",
+    "tp_delivery_id": "step5d-autotune-v2-readback-20260717-r1",
+    "code_fingerprint": "e08ed9d26643517bba95e994887eb28e8f3c800b9557c426838182b0edeeccbf",
     "tp_fingerprint": "59f2d020721615305d15d45786bd87b2792181f8dfbe5c6a34f8947baa6bdd83",
-    "guard_fingerprint": "auto",
-    "authorized": false,
+    "guard_fingerprint": "87acabb4ff2808b0091dc9cc9851048ee1846b3242b23165d86560b190d85878",
+    "authorized": true,
     "controller_readback_verified": true,
     "readback_attestation": "config/step5d_autotune_controller_readback_v2.json"
   },
@@ -50,6 +51,7 @@
     "tools/step5d_autotune_v2/bridge.py",
     "tools/step5d_autotune_v2/heartbeat.py",
     "tools/step5d_autotune_v2/runtime.py",
+    "tools/step5d_autotune_v2/live_adapter.py",
     "tools/step5d_autotune_v2/supervisor.py",
     "tools/step5d_autotune_v2/readiness.py",
     "tools/step5d_autotune_v2/postprocess.py", "tools/step5d_autotune_v2/report.py",
@@ -59,14 +61,22 @@
     "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v2.script",
     "tools/step5d_autotune_v2/service.py",
     "tools/step5d_autotune_v2/cli.py",
+    "tools/step5d_autotune_v2/release.py",
     "tools/step5d-autotunectl.py",
+    "tools/run_step5d_autotune_v2_bridge.py",
+    "tools/verify_step5d_autotune_v2_release.py",
     "tools/postprocess_step5d_autotune_v2.py",
     "tools/publish_step5d_autotune_plot.py"
   ],
   "bridge": {
-    "live_enabled": false,
-    "argv": [],
-    "environment": {},
+    "live_enabled": true,
+    "argv": [
+      "python3",
+      "{root}/tools/run_step5d_autotune_v2_bridge.py"
+    ],
+    "environment": {
+      "STEP5D_AUTOTUNE_V2_ADAPTER": "1"
+    },
     "analyzer_argv": [
       "python3",
       "{root}/tools/postprocess_step5d_autotune_v2.py",
@@ -87,11 +97,9 @@
     "runtime_root": "runs/step5d_autotune_v2/runtime"
   },
   "live_cutover": {
-    "enabled": false,
+    "enabled": true,
     "status_freshness_s": 5,
     "golden_replay_attestation": "config/step5/golden_replay_g10_v2_result.json",
-    "blocked_until": [
-      "v2_bridge_command_not_frozen"
-    ]
+    "blocked_until": []
   }
 }

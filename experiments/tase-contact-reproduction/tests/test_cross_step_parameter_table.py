@@ -79,18 +79,23 @@ class CrossStepParameterTableTest(unittest.TestCase):
             failures,
         )
 
-    def test_current_v32_readback_flags_and_claim_states_are_consistent(self) -> None:
+    def test_current_v2_readback_flags_and_claim_states_are_consistent(self) -> None:
         current = validator.load_json(ROOT / "config" / "current_stage.json")
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        release = validator.load_json(ROOT / "config" / "step5" / "current.json")
         row = next(row for row in table["stages"] if row.get("id") == current["current_stage_id"])
 
-        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_ablation_v32")
+        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_autotune_v2")
         self.assertTrue(row["package_delivery"]["controller_readback_verified"])
-        self.assertTrue(current["v32_candidate"]["package"]["controller_readback_verified"])
-        self.assertEqual(current["liveprep_status"]["state"], "live_authorized")
+        self.assertEqual(
+            current["controller_readback_manifest"],
+            row["package_delivery"]["controller_readback_manifest"],
+        )
+        self.assertEqual(current["sha256"], row["package_delivery"]["sha256"])
+        self.assertTrue(release["deployment"]["controller_readback_verified"])
+        self.assertTrue(release["deployment"]["authorized"])
         self.assertTrue(current["bridge_trigger"]["live_motion_authorized"])
-        self.assertTrue(current["v32_candidate"]["live_authorized"])
-        self.assertTrue(row["blocked"])
+        self.assertFalse(row["blocked"])
         self.assertEqual(current["live_run_status"]["state"], "not_started")
         self.assertEqual(current["reproduction_status"]["state"], "incomplete")
 
@@ -428,15 +433,15 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertEqual(raw["solver"]["samples"], 10_000)
         self.assertGreater(raw["solver"]["compute_deadline_miss_count"], 0)
 
-    def test_current_v32_live_authorization_binds_exact_readiness(self) -> None:
+    def test_current_v2_live_authorization_binds_exact_release(self) -> None:
         current = validator.load_json(ROOT / "config" / "current_stage.json")
-        liveprep = current["liveprep_status"]
+        release = validator.load_json(ROOT / "config" / "step5" / "current.json")
 
-        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_ablation_v32")
-        self.assertEqual(liveprep["state"], "live_authorized")
-        self.assertEqual(liveprep["readiness_artifact"], "config/step5d_v32_liveprep_readiness.json")
-        self.assertEqual(len(liveprep["readiness_sha256"]), 64)
-        self.assertEqual(liveprep["blockers"], [])
+        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_autotune_v2")
+        self.assertTrue(release["deployment"]["authorized"])
+        self.assertTrue(release["deployment"]["controller_readback_verified"])
+        self.assertTrue(release["live_cutover"]["enabled"])
+        self.assertEqual(release["live_cutover"]["blocked_until"], [])
 
     def test_live_startup_gates_are_not_cacheable(self) -> None:
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
@@ -455,7 +460,8 @@ class CrossStepParameterTableTest(unittest.TestCase):
 
         self.assertEqual(derived, redundant)
         self.assertIn("step5d_strict_rnn_autotune_v1", derived)
-        self.assertEqual(len(derived), 12)
+        self.assertIn("step5d_strict_rnn_autotune_v2", derived)
+        self.assertEqual(len(derived), 15)
         self.assertIn("step5d_strict_rnn_ablation_v29", derived)
         self.assertIn("step5d_strict_rnn_no_contact_p0_v4", derived)
         self.assertIn("step5d_strict_rnn_no_contact_p0_v7", derived)

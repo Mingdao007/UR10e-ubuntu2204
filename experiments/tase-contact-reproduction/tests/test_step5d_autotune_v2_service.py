@@ -42,7 +42,7 @@ payload = {
   'launch_nonce': os.environ['STEP5D_AUTOTUNE_V2_LAUNCH_NONCE'],
   'pid': os.getpid(),
   'sample_rate_hz': 500,
-  'startup_home_verified': True,
+  'startup_stationary_verified': True,
   'command_transport_ready': True,
   'event_transport_ready': True,
 }

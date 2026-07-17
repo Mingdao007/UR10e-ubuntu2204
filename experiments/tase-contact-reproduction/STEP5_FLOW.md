@@ -3,16 +3,18 @@
 
 ## Current decision
 
-Step5d native autotune v1 is frozen. Control-plane v2 is the only maintained
-autotune orchestration route. The v2 offline implementation exists, but live
-cutover is disabled until controller-bound gates pass; this document never
-claims runtime READY.
+Step5d native autotune v1 remains the accepted behavioral baseline. Control-plane
+v2 is the maintained orchestration and production transport route. Its release
+configuration is frozen and live cutover is enabled; this document still never
+claims runtime READY without fresh bridge evidence.
 
-- Deployment: `step5d-autotune-v2-readback-20260717-r1`
+The canonical Step5 pointer currently selects `step5d_strict_rnn_autotune_v2`.
+
+- Deployment: `step5d-autotune-v2-live-20260717-r2`
 - Controller program target: `step5d_strict_rnn_autotune_v2`
-- Static authorization: `false`
+- Static authorization: `true`
 - Controller readback verified: `true`
-- Live cutover enabled: `false`
+- Live cutover enabled: `true`
 
 Fresh runtime truth comes only from:
 
@@ -115,7 +117,7 @@ authorized by this document.
 
 ## Live-cutover blockers
 
-- `v2_bridge_command_not_frozen`
+- none
 
 The controller triplet must be fetched before building TP v2 so the user's
 current waypoint is preserved. TP v2 may change only handshake/watchdog
@@ -131,7 +133,6 @@ fresh readback.
 - Legacy evidence mapping: `config/step5/autotune_legacy_map_v1.json`
 - Archived long-form docs: `docs/archive/step5/INDEX.md`
 
-Legacy `config/current_stage.json`, `config/step5_stage_table.json`, and
-`config/step5d/current.json` are frozen compatibility inputs for v1 tooling;
-they are not v2 runtime truth and will be removed from the active route only
-after live acceptance.
+`config/current_stage.json` and `config/step5_stage_table.json` are synchronized
+compatibility mirrors for the current v2 binding. `config/step5d/current.json`
+remains a frozen v1 compatibility input and is not v2 runtime truth.

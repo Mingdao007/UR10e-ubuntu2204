@@ -625,10 +625,21 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         if p0_archived:
             p0_delivery_state = "archive"
             archive_manifest = root / str(p0_delivery.get("archive_manifest") or "")
-            archive_readback = root / str(p0_delivery.get("controller_readback_dir") or "")
+            archive_entry: dict[str, Any] | None = None
+            if archive_manifest.is_file():
+                archive_payload = load_json(archive_manifest)
+                archive_entry = next(
+                    (
+                        item
+                        for item in archive_payload.get("triplets", [])
+                        if item.get("basename") == P0_V8_PROGRAM
+                    ),
+                    None,
+                )
             if (
                 not archive_manifest.is_file()
-                or not archive_readback.is_dir()
+                or archive_entry is None
+                or archive_entry.get("sha256") != p0_hashes
                 or p0_delivery.get("controller_uploaded") is not True
                 or p0_delivery.get("controller_readback_verified") is not True
             ):
@@ -1573,9 +1584,10 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         return failures
 
     step5b_row = step5_rows.get("step5_contact_cycloid_baseline_v1", {})
+    selected_step5d_id = str(current_program or current_stage_id)
     current_step5d_id = (
-        str(current_program or current_stage_id)
-        if str(current_program or current_stage_id).startswith("step5d_strict_rnn_ablation_")
+        selected_step5d_id
+        if selected_step5d_id.startswith("step5d_strict_rnn_")
         else "step5d_strict_rnn_ablation_v27"
     )
     step5d_label = current_step5d_id.rsplit("_", 1)[-1]

@@ -996,12 +996,10 @@ def test_committed_controller_readback_attestation_binds_exact_v2_triplet() -> N
         for extension in (".script", ".txt", ".urp")
     }
 
-    assert deployment["authorized"] is False
+    assert deployment["authorized"] is True
     assert deployment["controller_readback_verified"] is True
-    assert current["live_cutover"]["enabled"] is False
-    assert current["live_cutover"]["blocked_until"] == [
-        "v2_bridge_command_not_frozen"
-    ]
+    assert current["live_cutover"]["enabled"] is True
+    assert current["live_cutover"]["blocked_until"] == []
     assert deployment["tp_fingerprint"] == hashlib.sha256(
         manifest_path.read_bytes()
     ).hexdigest()
@@ -1017,7 +1015,7 @@ def test_committed_controller_readback_attestation_binds_exact_v2_triplet() -> N
     }
     assert attestation["schema"] == "step5d.autotune.controller-readback/v2"
     assert attestation["verified"] is True
-    assert attestation["deployment_id"] == deployment["id"]
+    assert attestation["deployment_id"] == deployment["tp_delivery_id"]
     assert attestation["controller_host"] == current["controller"]["host"]
     assert attestation["program"] == CANDIDATE_PROGRAM
     assert attestation["tp_fingerprint"] == deployment["tp_fingerprint"]
@@ -1033,4 +1031,4 @@ def test_committed_controller_readback_attestation_binds_exact_v2_triplet() -> N
     }
     static = load_static_config(ROOT)
     assert static.deployment.controller_readback_verified is True
-    assert static.deployment.deployment_authorized is False
+    assert static.deployment.deployment_authorized is True

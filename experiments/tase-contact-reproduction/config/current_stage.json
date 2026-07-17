@@ -2,15 +2,17 @@
   "version": 2,
   "updated_at": "2026-07-15T09:19:24+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "step5d_strict_rnn_autotune_v1",
-  "program": "step5d_strict_rnn_autotune_v1",
+  "current_stage_id": "step5d_strict_rnn_autotune_v2",
+  "program": "step5d_strict_rnn_autotune_v2",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.script",
-  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v1",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v2.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v2.script",
+  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v2",
   "bridge_profile": {
     "step4e_version": "step5d_strict_rnn_autotune_v1",
+    "transport_adapter": "step5d_autotune_v2_live",
+    "deployment_id": "step5d-autotune-v2-live-20260717-r2",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.5,
     "target_force_n": 12.0,
@@ -55,7 +57,7 @@
     "stage25_speedj_live_source": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj; marker 524 exists only inside the Stage25.0 joint packet and is not a global readiness/publish gate",
     "stage25_rnn_evidence_policy": "RNN accepted rows require Stage25.0 internal marker 524, cmd_valid=1, TP echo consumption, and _step5d_rnn_accepted=1; Stage25.05/25.3/25.95 use their own typed packets."
   },
-  "status": "step5d_autotune_controller_readback_verified_current_live_authorized",
+  "status": "step5d_autotune_v2_release_frozen_live_authorized_waiting_for_bridge",
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
@@ -1197,13 +1199,13 @@
     "v35 uses Codex/high deterministic closure plus automatic degraded 1+0 because Fable5 returned an explicit session-limit response; fresh live authorization remains missing."
   ],
   "sha256": {
-    ".script": "6af0254d27ab241c5cf6b952483c5c573255e3afee9daf95f55a62b2387dc29e",
-    ".txt": "fc6473628ee391cc9297d71fc904da0486caaaa8b36e0989a46db8444b24aca3",
-    ".urp": "0c6e21709887c6df2be00d02b868bf28bd9e72c92dd5edc5245d4e055b63b250"
+    ".script": "2f3b5d4ea303e9cc8830d0f81b873c5097b3a877d5478ed5c3ca5abae05a65ea",
+    ".txt": "f734706e65c75a0f25c30d655f69523f6c32637efd5914a78261981b97c0c6cc",
+    ".urp": "44fa2a43cc2e5a6a1b0b6787df0288add22ea46732938085c6b2842db1dc062b"
   },
-  "delivery_manifest": "config/step5d_autotune_controller_readback_v1.json",
-  "controller_readback_manifest": "config/step5d_autotune_controller_readback_v1.json",
-  "controller_readback_manifest_sha256": "e7c65c571819a67f945cd15081a2b89ec80aaa549a9a296d6f0463a8c125a3d8",
+  "delivery_manifest": "config/step5d_autotune_controller_readback_v2.json",
+  "controller_readback_manifest": "config/step5d_autotune_controller_readback_v2.json",
+  "controller_readback_manifest_sha256": "804488bd8b47013b39d3ff11ec648067826c973f32ae4c6e7f0c8941c570adc7",
   "v29_contact_candidate": {
     "profile": "step5d_strict_rnn_ablation_v29",
     "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",

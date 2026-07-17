@@ -1,10 +1,12 @@
 {
+  "bridge_adapter_patch_sha256": "50bb4c25c3a65b33c9903e9e3984d93483219e9e97e5a86c6a32bbd26e8c7c5d",
+  "bridge_frozen_v1_sha256": "5f913259826dcaff0d54bcae43d6c30b0efffe63ad8b8565e43459fa954fe3db",
+  "bridge_v2_sha256": "9cd215afed18700c7aa1cf156a79b09e1910c7cf79737b7a5ad9a9f4225bd277",
   "bundle_sha256": "016c6ff0e74f68215779732d3f8177c6bc50223d6da1dabd33e20fea8a5a350f",
   "control_sources_byte_identical": [
     "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
     "experiments/tase-contact-reproduction/config/step5d_autotune_i_scale_sanity_v1.json",
     "experiments/tase-contact-reproduction/tools/contact_semantics.py",
-    "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py",
     "experiments/tase-contact-reproduction/tools/step5d_control_contract.py",
     "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py",
     "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py"

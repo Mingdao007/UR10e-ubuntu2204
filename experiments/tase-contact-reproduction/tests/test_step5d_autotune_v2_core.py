@@ -465,7 +465,7 @@ def test_imported_partial_attempt_marks_a_mapped_pending_tuple_nonrepeatable(
     assert repository.next_pending_candidate()["group_id"] == "G11"
 
 
-def test_static_authorization_never_implies_fresh_runtime_ready(tmp_path: Path) -> None:
+def test_static_authorization_still_requires_fresh_runtime_candidate(tmp_path: Path) -> None:
     config = load_static_config(ROOT)
     assert config.payload["controller"]["host"] == "192.168.1.18"
     assert config.payload["controller"]["required_ports"] == [29999, 30004]
@@ -473,12 +473,12 @@ def test_static_authorization_never_implies_fresh_runtime_ready(tmp_path: Path) 
     repository.initialize()
     repository.register_deployment(config.deployment)
     report = evaluate_preflight(config, repository)
-    assert report.deployment_authorized is False
+    assert report.deployment_authorized is True
     assert config.deployment.controller_readback_verified is True
     assert report.ready_to_launch is False
-    assert report.primary_blocker == "deployment_not_authorized"
+    assert report.primary_blocker == "no_pending_candidate"
     repository.set_runtime_status(
-        deployment_authorized=False,
+        deployment_authorized=True,
         runtime_ready=False,
         primary_blocker=report.primary_blocker,
         details=report.details,
