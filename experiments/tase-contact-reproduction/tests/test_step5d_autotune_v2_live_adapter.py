@@ -223,3 +223,6 @@ def test_launcher_constructs_runtime_paths_from_empty_environment() -> None:
     ]
     assert "nvidia/cuda_nvrtc/lib" in environment["LD_LIBRARY_PATH"]
     assert environment["LD_LIBRARY_PATH"].split(":")[-1] == "/opt/ros/humble/lib"
+    assert environment["AMENT_PREFIX_PATH"] == "/opt/ros/humble"
+    assert environment["CMAKE_PREFIX_PATH"] == "/opt/ros/humble"
+    assert environment["ROS_DISTRO"] == "humble"

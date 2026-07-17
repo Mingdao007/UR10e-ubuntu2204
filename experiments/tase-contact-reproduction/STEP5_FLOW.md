@@ -10,7 +10,7 @@ claims runtime READY without fresh bridge evidence.
 
 The canonical Step5 pointer currently selects `step5d_strict_rnn_autotune_v2`.
 
-- Deployment: `step5d-autotune-v2-live-20260717-r4`
+- Deployment: `step5d-autotune-v2-live-20260717-r5`
 - Controller program target: `step5d_strict_rnn_autotune_v2`
 - Static authorization: `true`
 - Controller readback verified: `true`

@@ -33,6 +33,14 @@ def _prepend_paths(current: str | None, paths: tuple[Path, ...]) -> str:
 
 def bridge_environment(base: dict[str, str] | None = None) -> dict[str, str]:
     environment = dict(os.environ if base is None else base)
+    for name, value in {
+        "AMENT_PREFIX_PATH": "/opt/ros/humble",
+        "CMAKE_PREFIX_PATH": "/opt/ros/humble",
+        "ROS_DISTRO": "humble",
+        "ROS_VERSION": "2",
+        "ROS_PYTHON_VERSION": "3",
+    }.items():
+        environment.setdefault(name, value)
     environment["PYTHONPATH"] = _prepend_paths(
         environment.get("PYTHONPATH"),
         (STABLE_PYTHON_RUNTIME, *ROS_PYTHON_PATHS),
@@ -113,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             "argv": command,
             "pythonpath": environment["PYTHONPATH"],
             "ld_library_path": environment["LD_LIBRARY_PATH"],
+            "ament_prefix_path": environment["AMENT_PREFIX_PATH"],
         }, indent=2))
         return 0
     required = (
