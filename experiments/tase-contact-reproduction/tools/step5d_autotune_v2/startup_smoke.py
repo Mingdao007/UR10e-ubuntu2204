@@ -173,21 +173,11 @@ def startup_baseline_phase(
 ) -> str:
     if output.get("runtime_state") != 1:
         raise StartupSmokeError("startup baseline must be STOPPED")
-    if observation.phase is TpFeedbackPhase.PREPLAY:
+    if observation.phase is not TpFeedbackPhase.PREPLAY:
+        raise StartupSmokeError("startup decoder did not establish PREPLAY")
+    if observation.baseline_kind == "cold_zero":
         return observation.phase.value
-    packet = observation.packet
-    latched_ready = (
-        allow_latched_ready
-        and packet is not None
-        and packet.state is TpLoopState.READY_HOME
-        and packet.campaign_epoch_echo == 0
-        and packet.trial_id_echo == 0
-        and packet.candidate_token_echo == 0
-        and packet.terminal_reason == 0
-        and packet.execution_profile_id_echo == 0
-        and packet.consumed_command_seq == 0
-    )
-    if latched_ready:
+    if allow_latched_ready and observation.baseline_kind == "latched_ready":
         return "preplay_ready_latched"
     raise StartupSmokeError(
         "startup baseline must be cold-zero or zero-identity latched READY_HOME"
@@ -225,6 +215,8 @@ def verify_play_startup(
             play_at = observed_at
             if trigger_play is not None:
                 trigger_play()
+            continue
+        if observation.phase is TpFeedbackPhase.PREPLAY:
             continue
         if not phases or phases[-1] != observation.phase.value:
             phases.append(observation.phase.value)

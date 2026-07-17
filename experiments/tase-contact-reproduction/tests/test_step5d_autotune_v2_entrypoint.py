@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from step5d_autotune_v2.cli import _start_status_is_terminal
+from step5d_autotune_v2.cli import _start_status_is_success, _start_status_is_terminal
 
 
 def test_start_waits_past_stale_failure_from_previous_attempt() -> None:
@@ -28,6 +28,26 @@ def test_start_waits_past_stale_failure_from_previous_attempt() -> None:
             "primary_blocker": "service_failure:BridgeError",
         }
     ) is True
+
+
+def test_start_returns_success_only_for_exact_operator_play_state() -> None:
+    awaiting = {
+        "runtime_ready": False,
+        "fresh": True,
+        "primary_blocker": None,
+        "details": {
+            "startup": {
+                "phase": "awaiting_tp_play",
+                "operator_action": "press_tp_play",
+                "startup_gate_passed": False,
+                "motion_allowed": False,
+            }
+        },
+    }
+    assert _start_status_is_terminal(awaiting) is True
+    assert _start_status_is_success(awaiting) is True
+    awaiting["details"]["startup"]["motion_allowed"] = True
+    assert _start_status_is_success(awaiting) is False
 
 
 def test_v1_operator_is_mechanically_frozen() -> None:

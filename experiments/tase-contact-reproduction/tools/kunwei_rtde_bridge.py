@@ -11334,6 +11334,9 @@ def main(argv: list[str] | None = None) -> int:
                                 rotator=step5d_autotune_trial_rotator,
                                 output=latest_output,
                                 sample_counter=bridge_writes + 1,
+                                infrastructure_ready=ready_payload is not None,
+                                feedback_age_s=feedback_age_s,
+                                observed_at_s=now,
                             )
                     last_csv_write_s = time.perf_counter() - csv_write_start
                     bridge_writes += 1

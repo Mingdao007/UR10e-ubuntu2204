@@ -18,6 +18,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 READY_SCHEMA = "step5d.autotune.bridge-ready/v2"
 HEALTH_SCHEMA = "step5d.autotune.bridge-health/v2"
+STARTUP_SCHEMA = "step5d.autotune.tp-startup/v1"
 MAX_READY_BYTES = 64 * 1024
 LIVE_WRITER_LOCK_PATH = Path("/tmp/ur10e-resource-locks/live-writer.lock")
 
@@ -72,6 +73,19 @@ class BridgeReady:
     startup_stationary_verified: bool
     evidence_path: Path
     health_evidence_path: Path
+    startup_evidence_path: Path
+    startup_baseline: str
+
+
+@dataclass(frozen=True)
+class BridgeStartup:
+    phase: str
+    baseline: str
+    observed_at: str
+    sample_counter: int
+    stable_duration_s: float
+    startup_gate_passed: bool
+    evidence_path: Path
 
 
 @dataclass(frozen=True)
@@ -128,10 +142,12 @@ class BridgeProcess:
             raise BridgeError("bridge runtime root is not a directory")
         ready_path = self.runtime_root / "bridge_ready.json"
         health_path = self.runtime_root / "bridge_health.json"
+        startup_path = self.runtime_root / "tp_startup.json"
         revocation_path = self.runtime_root / "bridge_revocation.json"
         for snapshot_path, label in (
             (ready_path, "readiness"),
             (health_path, "health"),
+            (startup_path, "TP startup"),
             (revocation_path, "revocation"),
         ):
             _remove_stale_snapshot(
@@ -141,6 +157,9 @@ class BridgeProcess:
         self.log_handle = log_path.open("a", encoding="utf-8")
         environment = dict(os.environ)
         environment.update(self.environment)
+        startup_gate_required = (
+            environment.get("STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED") == "1"
+        )
         environment["STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID"] = self.deployment_id
         environment["STEP5D_AUTOTUNE_V2_RUNTIME_ROOT"] = str(self.runtime_root)
         launch_nonce = secrets.token_hex(32)
@@ -185,6 +204,28 @@ class BridgeProcess:
                     and payload.get("command_transport_ready") is True
                     and payload.get("event_transport_ready") is True
                 ):
+                    startup = None
+                    if startup_gate_required:
+                        startup = _read_startup_snapshot(startup_path)
+                        if startup is None:
+                            time.sleep(0.05)
+                            continue
+                        _validate_startup_identity(
+                            startup,
+                            deployment_id=self.deployment_id,
+                            pid=self.process.pid,
+                            launch_nonce=launch_nonce,
+                        )
+                        if (
+                            startup["phase"] != "awaiting_tp_play"
+                            or startup["baseline"] not in {"cold_zero", "latched_ready"}
+                            or startup["startup_gate_passed"] is not False
+                            or startup["motion_allowed"] is not False
+                            or startup["operator_action"] != "press_tp_play"
+                        ):
+                            raise BridgeError(
+                                "bridge readiness is not bound to an accepted pre-Play baseline"
+                            )
                     try:
                         health = self.check_health(
                             max_age_s=2.0, require_progress=False
@@ -215,12 +256,72 @@ class BridgeProcess:
                         startup_stationary_verified=True,
                         evidence_path=ready_path,
                         health_evidence_path=health_path,
+                        startup_evidence_path=startup_path,
+                        startup_baseline=(
+                            "legacy_unverified"
+                            if startup is None
+                            else str(startup["baseline"])
+                        ),
                     )
                 raise BridgeError(
                     "bridge readiness evidence lacks exact launch/rate/stationary/transport proof"
                 )
             time.sleep(0.05)
         raise BridgeError(f"bridge did not publish stable 500 Hz readiness: log={log_path}")
+
+    def wait_startup_gate(
+        self,
+        *,
+        timeout_s: float,
+        minimum_stable_s: float,
+    ) -> BridgeStartup:
+        if timeout_s <= 0 or minimum_stable_s <= 0:
+            raise BridgeError("startup gate timeouts must be positive")
+        if self.environment.get("STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED") != "1":
+            raise BridgeError("production startup gate is not enabled for this bridge")
+        process = self.process
+        launch_nonce = self._launch_nonce
+        if process is None or launch_nonce is None or process.poll() is not None:
+            raise BridgeError("startup gate requires the live bridge child")
+        path = self.runtime_root / "tp_startup.json"
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if process.poll() is not None:
+                raise BridgeError(f"bridge child exited before startup gate: rc={process.returncode}")
+            payload = _read_startup_snapshot(path)
+            if payload is not None:
+                _validate_startup_identity(
+                    payload,
+                    deployment_id=self.deployment_id,
+                    pid=process.pid,
+                    launch_nonce=launch_nonce,
+                )
+                phase = payload["phase"]
+                if phase not in {"awaiting_tp_play", "stabilizing", "live"}:
+                    raise BridgeError(f"unexpected TP startup phase: {phase}")
+                if phase == "live":
+                    if (
+                        payload["startup_gate_passed"] is not True
+                        or payload["motion_allowed"] is not False
+                        or payload["operator_action"] is not None
+                        or float(payload["stable_duration_s"]) < minimum_stable_s
+                        or payload["runtime_state"] != 2
+                        or payload["tp_state"] != 10
+                        or payload["consumed_command_seq"] != 0
+                    ):
+                        raise BridgeError("TP startup gate evidence is incomplete")
+                    return BridgeStartup(
+                        phase="live",
+                        baseline=str(payload["baseline"]),
+                        observed_at=str(payload["observed_at"]),
+                        sample_counter=int(payload["sample_counter"]),
+                        stable_duration_s=float(payload["stable_duration_s"]),
+                        startup_gate_passed=True,
+                        evidence_path=path,
+                    )
+            self.check_health(max_age_s=2.0, require_progress=False)
+            time.sleep(0.02)
+        raise BridgeError("timed out waiting for TP Play and stable READY_HOME")
 
     def check_health(
         self, *, max_age_s: float = 2.0, require_progress: bool = True
@@ -468,15 +569,15 @@ def _read_ready_snapshot(path: Path) -> dict[str, Any] | None:
         path,
         label="readiness",
         required={
-        "schema",
-        "bridge_ready",
-        "deployment_id",
-        "launch_nonce",
-        "pid",
-        "sample_rate_hz",
-        "startup_stationary_verified",
-        "command_transport_ready",
-        "event_transport_ready",
+            "schema",
+            "bridge_ready",
+            "deployment_id",
+            "launch_nonce",
+            "pid",
+            "sample_rate_hz",
+            "startup_stationary_verified",
+            "command_transport_ready",
+            "event_transport_ready",
         },
     )
 
@@ -499,3 +600,56 @@ def _read_health_snapshot(path: Path) -> dict[str, Any] | None:
             "event_transport_healthy",
         },
     )
+
+
+def _read_startup_snapshot(path: Path) -> dict[str, Any] | None:
+    return _read_snapshot(
+        path,
+        label="TP startup",
+        required={
+            "schema",
+            "pid",
+            "deployment_id",
+            "launch_nonce",
+            "observed_at",
+            "phase",
+            "baseline",
+            "runtime_state",
+            "tp_state",
+            "consumed_command_seq",
+            "sample_counter",
+            "stable_duration_s",
+            "startup_gate_passed",
+            "motion_allowed",
+            "operator_action",
+        },
+    )
+
+
+def _validate_startup_identity(
+    payload: Mapping[str, Any],
+    *,
+    deployment_id: str,
+    pid: int,
+    launch_nonce: str,
+) -> None:
+    try:
+        observed = datetime.fromisoformat(str(payload.get("observed_at", "")))
+    except ValueError as exc:
+        raise BridgeError("TP startup timestamp is invalid") from exc
+    valid = (
+        payload.get("schema") == STARTUP_SCHEMA
+        and payload.get("deployment_id") == deployment_id
+        and payload.get("pid") == pid
+        and payload.get("launch_nonce") == launch_nonce
+        and observed.tzinfo is not None
+        and payload.get("baseline") in {"cold_zero", "latched_ready"}
+        and isinstance(payload.get("sample_counter"), int)
+        and not isinstance(payload.get("sample_counter"), bool)
+        and payload.get("sample_counter") >= 0
+        and isinstance(payload.get("stable_duration_s"), (int, float))
+        and not isinstance(payload.get("stable_duration_s"), bool)
+        and float(payload.get("stable_duration_s")) >= 0.0
+    )
+    if not valid:
+        raise BridgeError("TP startup evidence lacks exact child/deployment identity")

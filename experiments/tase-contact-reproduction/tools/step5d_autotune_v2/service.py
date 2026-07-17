@@ -70,6 +70,14 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
             "bridge_health_evidence": str(ready.health_evidence_path),
             "sample_rate_hz": ready.sample_rate_hz,
             "startup_stationary_verified": ready.startup_stationary_verified,
+            "startup": {
+                "phase": "awaiting_tp_play",
+                "baseline": ready.startup_baseline,
+                "operator_action": "press_tp_play",
+                "startup_gate_passed": False,
+                "motion_allowed": False,
+                "evidence_path": str(ready.startup_evidence_path),
+            },
         }
 
         def health_details() -> dict[str, object]:
@@ -122,9 +130,35 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
             failure_mailbox=AtomicMailbox(
                 (runtime_root / "bridge_revocation.json").resolve()
             ),
+            runtime_ready=False,
+            primary_blocker=None,
         )
         bridge.start_watcher(heartbeat.fail_from_bridge, interval_s=0.1)
         heartbeat.start()
+        startup_stable_s = float(bridge_config.get("startup_stable_s", 0.5))
+        startup = bridge.wait_startup_gate(
+            timeout_s=float(bridge_config.get("operator_play_timeout_s", 120.0)),
+            minimum_stable_s=startup_stable_s,
+        )
+        ready_details = {
+            **ready_details,
+            "startup": {
+                "phase": startup.phase,
+                "baseline": startup.baseline,
+                "operator_action": None,
+                "startup_gate_passed": startup.startup_gate_passed,
+                "motion_allowed": False,
+                "stable_duration_s": startup.stable_duration_s,
+                "sample_counter": startup.sample_counter,
+                "observed_at": startup.observed_at,
+                "evidence_path": str(startup.evidence_path),
+            },
+        }
+        heartbeat.update_runtime_status(
+            runtime_ready=True,
+            primary_blocker=None,
+            details=ready_details,
+        )
         transfer_worker = TransferWorker(
             repository,
             timeout_s=float(config.payload["postprocess"]["transfer_timeout_s"]),

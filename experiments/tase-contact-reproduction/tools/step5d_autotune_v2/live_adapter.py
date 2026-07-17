@@ -7,6 +7,7 @@ import json
 import math
 import os
 import secrets
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -17,6 +18,8 @@ from step5d_autotune_live_driver import (
     BridgeTrialCsvRotator,
     MailboxCommand,
     RuntimeTrialBinding,
+    TpFeedbackObservation,
+    TpFeedbackPhase,
 )
 from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
 
@@ -26,6 +29,8 @@ from .runtime import BACKEND_ID, EVENT_SCHEMA, EXECUTION_PROFILE_ID, _stable_int
 
 READY_SCHEMA = "step5d.autotune.bridge-ready/v2"
 HEALTH_SCHEMA = "step5d.autotune.bridge-health/v2"
+STARTUP_SCHEMA = "step5d.autotune.tp-startup/v1"
+STARTUP_FEEDBACK_AGE_LIMIT_S = 0.050
 EXPECTED_PROFILE = {
     "normal_max_rate_rad_s": "0.05",
     "host_qdot_slew_rad_s2": "0.5",
@@ -228,7 +233,15 @@ class V2CommandMailbox:
 class Step5dAutotuneV2LiveAdapter:
     """Publish exact child health and bridge events from the persistent 500 Hz loop."""
 
-    def __init__(self, *, mailbox_path: Path, runtime_root: Path, deployment_id: str, launch_nonce: str) -> None:
+    def __init__(
+        self,
+        *,
+        mailbox_path: Path,
+        runtime_root: Path,
+        deployment_id: str,
+        launch_nonce: str,
+        startup_stable_s: float = 0.5,
+    ) -> None:
         if len(launch_nonce) != 64 or any(character not in "0123456789abcdef" for character in launch_nonce):
             raise LiveAdapterError("v2 launch nonce must be 64 lowercase hexadecimal characters")
         self.runtime_root = runtime_root.resolve()
@@ -238,6 +251,14 @@ class Step5dAutotuneV2LiveAdapter:
         self.event_path = self.runtime_root / "bridge_events.jsonl"
         self.ready_path = self.runtime_root / "bridge_ready.json"
         self.health_path = self.runtime_root / "bridge_health.json"
+        self.startup_path = self.runtime_root / "tp_startup.json"
+        if not math.isfinite(startup_stable_s) or not 0.1 <= startup_stable_s <= 5.0:
+            raise LiveAdapterError("startup stable duration must be inside [0.1,5.0] seconds")
+        self.startup_stable_s = float(startup_stable_s)
+        self.startup_baseline: str | None = None
+        self.startup_active_at_s: float | None = None
+        self.startup_gate_passed = False
+        self._startup_publish_key: tuple[str, str | None, bool] | None = None
         self.health_sequence = 0
         self.ready = False
         self.emitted: set[tuple[str, str, int]] = set()
@@ -252,6 +273,7 @@ class Step5dAutotuneV2LiveAdapter:
                 "STEP5D_AUTOTUNE_V2_RUNTIME_ROOT",
                 "STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID",
                 "STEP5D_AUTOTUNE_V2_LAUNCH_NONCE",
+                "STEP5D_AUTOTUNE_V2_STARTUP_STABLE_S",
             )
         }
         if any(not value for value in required.values()):
@@ -261,9 +283,10 @@ class Step5dAutotuneV2LiveAdapter:
             runtime_root=Path(required["STEP5D_AUTOTUNE_V2_RUNTIME_ROOT"]),
             deployment_id=required["STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID"],
             launch_nonce=required["STEP5D_AUTOTUNE_V2_LAUNCH_NONCE"],
+            startup_stable_s=float(required["STEP5D_AUTOTUNE_V2_STARTUP_STABLE_S"]),
         )
 
-    def publish_health(self, output: Mapping[str, Any], sample_counter: int) -> None:
+    def publish_health(self, sample_counter: int) -> None:
         self.health_sequence += 1
         _atomic_json(
             self.health_path,
@@ -281,22 +304,141 @@ class Step5dAutotuneV2LiveAdapter:
                 "event_transport_healthy": True,
             },
         )
-        if not self.ready and _stationary_and_normal(output):
-            _atomic_json(
-                self.ready_path,
-                {
-                    "schema": READY_SCHEMA,
-                    "pid": os.getpid(),
-                    "deployment_id": self.deployment_id,
-                    "launch_nonce": self.launch_nonce,
-                    "sample_rate_hz": 500,
-                    "bridge_ready": True,
-                    "startup_stationary_verified": True,
-                    "command_transport_ready": True,
-                    "event_transport_ready": True,
-                },
+    def _publish_startup(
+        self,
+        *,
+        phase: str,
+        observation: TpFeedbackObservation,
+        output: Mapping[str, Any],
+        sample_counter: int,
+        stable_duration_s: float,
+        operator_action: str | None,
+    ) -> None:
+        key = (phase, self.startup_baseline, self.startup_gate_passed)
+        if key == self._startup_publish_key:
+            return
+        packet = observation.packet
+        _atomic_json(
+            self.startup_path,
+            {
+                "schema": STARTUP_SCHEMA,
+                "pid": os.getpid(),
+                "deployment_id": self.deployment_id,
+                "launch_nonce": self.launch_nonce,
+                "observed_at": _now(),
+                "phase": phase,
+                "baseline": self.startup_baseline,
+                "runtime_state": output.get("runtime_state"),
+                "tp_state": None if packet is None else int(packet.state),
+                "consumed_command_seq": (
+                    None if packet is None else packet.consumed_command_seq
+                ),
+                "sample_counter": sample_counter,
+                "stable_duration_s": stable_duration_s,
+                "startup_gate_passed": self.startup_gate_passed,
+                "motion_allowed": False,
+                "operator_action": operator_action,
+            },
+        )
+        self._startup_publish_key = key
+
+    def publish_startup(
+        self,
+        *,
+        observation: TpFeedbackObservation,
+        output: Mapping[str, Any],
+        sample_counter: int,
+        infrastructure_ready: bool,
+        feedback_age_s: float,
+        observed_at_s: float,
+    ) -> None:
+        if self.startup_gate_passed:
+            return
+        if not infrastructure_ready or not _stationary_and_normal(output):
+            return
+        if observation.phase is TpFeedbackPhase.PREPLAY:
+            if observation.baseline_kind not in {"cold_zero", "latched_ready"}:
+                raise LiveAdapterError("operator readiness lacks an accepted TP baseline")
+            self.startup_baseline = observation.baseline_kind
+            self.startup_active_at_s = None
+            self._publish_startup(
+                phase="awaiting_tp_play",
+                observation=observation,
+                output=output,
+                sample_counter=sample_counter,
+                stable_duration_s=0.0,
+                operator_action="press_tp_play",
             )
-            self.ready = True
+            if not self.ready:
+                _atomic_json(
+                    self.ready_path,
+                    {
+                        "schema": READY_SCHEMA,
+                        "pid": os.getpid(),
+                        "deployment_id": self.deployment_id,
+                        "launch_nonce": self.launch_nonce,
+                        "sample_rate_hz": 500,
+                        "bridge_ready": True,
+                        "startup_stationary_verified": True,
+                        "command_transport_ready": True,
+                        "event_transport_ready": True,
+                    },
+                )
+                self.ready = True
+            return
+        if self.startup_baseline is None:
+            raise LiveAdapterError("TP startup transition lacks an accepted baseline")
+        if observation.phase is TpFeedbackPhase.STARTING:
+            self.startup_active_at_s = None
+            self._publish_startup(
+                phase="stabilizing",
+                observation=observation,
+                output=output,
+                sample_counter=sample_counter,
+                stable_duration_s=0.0,
+                operator_action=None,
+            )
+            return
+        packet = observation.packet
+        active_ready = (
+            observation.phase is TpFeedbackPhase.ACTIVE
+            and output.get("runtime_state") == 2
+            and packet is not None
+            and packet.state is TpLoopState.READY_HOME
+            and packet.campaign_epoch_echo == 0
+            and packet.trial_id_echo == 0
+            and packet.candidate_token_echo == 0
+            and packet.terminal_reason == 0
+            and packet.execution_profile_id_echo == 0
+            and packet.consumed_command_seq == 0
+        )
+        if not active_ready:
+            raise LiveAdapterError("TP startup ACTIVE sample is not zero-identity READY_HOME")
+        if not math.isfinite(feedback_age_s) or feedback_age_s > STARTUP_FEEDBACK_AGE_LIMIT_S:
+            self.startup_active_at_s = None
+            return
+        if self.startup_active_at_s is None:
+            self.startup_active_at_s = observed_at_s
+        stable_duration_s = max(0.0, observed_at_s - self.startup_active_at_s)
+        if stable_duration_s < self.startup_stable_s:
+            self._publish_startup(
+                phase="stabilizing",
+                observation=observation,
+                output=output,
+                sample_counter=sample_counter,
+                stable_duration_s=stable_duration_s,
+                operator_action=None,
+            )
+            return
+        self.startup_gate_passed = True
+        self._publish_startup(
+            phase="live",
+            observation=observation,
+            output=output,
+            sample_counter=sample_counter,
+            stable_duration_s=stable_duration_s,
+            operator_action=None,
+        )
 
     def _emit(self, command: MailboxCommand, event: str, **details: Any) -> None:
         key = (command.binding.trial_uid, event, command.packet.command_seq)
@@ -328,13 +470,27 @@ class Step5dAutotuneV2LiveAdapter:
         rotator: BridgeTrialCsvRotator,
         output: Mapping[str, Any],
         sample_counter: int,
+        infrastructure_ready: bool = True,
+        feedback_age_s: float = 0.0,
+        observed_at_s: float | None = None,
     ) -> None:
-        self.publish_health(output, sample_counter)
+        self.publish_health(sample_counter)
+        observation = runtime.latest_tp_observation
+        if observation is not None:
+            self.publish_startup(
+                observation=observation,
+                output=output,
+                sample_counter=sample_counter,
+                infrastructure_ready=infrastructure_ready,
+                feedback_age_s=feedback_age_s,
+                observed_at_s=(
+                    time.monotonic() if observed_at_s is None else observed_at_s
+                ),
+            )
         active = runtime.active
         latest = runtime.last_command
         if active is None:
             return
-        observation = runtime.latest_tp_observation
         if observation is None or observation.packet is None:
             return
         snapshot = observation.packet

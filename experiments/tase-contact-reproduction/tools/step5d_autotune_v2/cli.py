@@ -11,7 +11,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Mapping, Sequence
 
 from .config import ConfigError, StaticConfig, load_static_config
 from .heartbeat import REVOCATION_SCHEMA
@@ -240,18 +240,32 @@ def _start(root: Path, database: Path | None) -> int:
         status = _fresh_status(repository, 5.0, config)
         if _start_status_is_terminal(status):
             print(json.dumps(status, indent=2, sort_keys=True))
-            return 0 if status["runtime_ready"] else 78
+            return 0 if _start_status_is_success(status) else 78
         time.sleep(0.2)
     raise RepositoryError("service did not publish fresh readiness within 30 seconds")
 
 
 def _start_status_is_terminal(status: Mapping[str, Any]) -> bool:
-    if status.get("runtime_ready") is True:
+    if _start_status_is_success(status):
         return True
     return status.get("fresh") is True and status.get("primary_blocker") not in {
         None,
         "runtime_not_observed",
     }
+
+
+def _start_status_is_success(status: Mapping[str, Any]) -> bool:
+    if status.get("runtime_ready") is True:
+        return True
+    startup = (status.get("details") or {}).get("startup") or {}
+    return (
+        status.get("fresh") is True
+        and status.get("primary_blocker") is None
+        and startup.get("phase") == "awaiting_tp_play"
+        and startup.get("operator_action") == "press_tp_play"
+        and startup.get("startup_gate_passed") is False
+        and startup.get("motion_allowed") is False
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

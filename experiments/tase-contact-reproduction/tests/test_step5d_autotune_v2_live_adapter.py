@@ -30,6 +30,7 @@ from step5d_autotune_v2.reducer import LifecycleEvent
 from step5d_autotune_v2.repository import Repository
 from step5d_autotune_v2.runtime import JsonlBridgePort
 from step5d_autotune_v2.supervisor import ArtifactSeal
+import run_step5d_autotune_v2_bridge as bridge_launcher
 from run_step5d_autotune_v2_bridge import bridge_argv, bridge_environment
 import kunwei_rtde_bridge as live_bridge
 
@@ -125,6 +126,9 @@ def test_v2_adapter_drives_exact_arm_ack_and_event_lifecycle(tmp_path: Path) -> 
         deployment_id=deployment.deployment_id,
         launch_nonce="a" * 64,
     )
+    # This test begins at the post-startup ARM lifecycle boundary.  Dedicated
+    # startup tests below prove the pre-ARM gate itself.
+    adapter.startup_gate_passed = True
     runtime = BridgeMailboxRuntime(
         mailbox_path,
         campaign_home_reference_path=runtime_root / "campaign_home_reference.json",
@@ -216,8 +220,8 @@ def test_v2_adapter_drives_exact_arm_ack_and_event_lifecycle(tmp_path: Path) -> 
     ]
     assert all(row["trial_id"] == trial_id for row in events)
     assert events[-1]["command_sequence"] == ack_sequence
-    assert json.loads((runtime_root / "bridge_ready.json").read_text())[
-        "startup_stationary_verified"
+    assert json.loads((runtime_root / "bridge_health.json").read_text())[
+        "command_transport_healthy"
     ] is True
 
 
@@ -251,6 +255,97 @@ def test_incident_play_startup_transition_is_bounded_and_stateful() -> None:
     ]
     assert observations[-1].packet is not None
     assert observations[-1].packet.state is TpLoopState.READY_HOME
+
+
+@pytest.mark.parametrize("baseline_state", (0, 10))
+@pytest.mark.parametrize("include_running_zero", (False, True))
+def test_operator_ready_and_same_pid_startup_gate_cover_all_restart_paths(
+    tmp_path: Path,
+    baseline_state: int,
+    include_running_zero: bool,
+) -> None:
+    mailbox_path = (tmp_path / "command.json").resolve()
+    adapter = Step5dAutotuneV2LiveAdapter(
+        mailbox_path=mailbox_path,
+        runtime_root=tmp_path.resolve(),
+        deployment_id="deployment-r13",
+        launch_nonce="c" * 64,
+        startup_stable_s=0.5,
+    )
+    decoder = TpFeedbackDecoder()
+    baseline = _stopped_program_output()
+    if baseline_state == 10:
+        baseline["output_int_register_26"] = 10
+    observation = decoder.observe(baseline, observed_at_s=0.0)
+    adapter.publish_startup(
+        observation=observation,
+        output=baseline,
+        sample_counter=1,
+        infrastructure_ready=False,
+        feedback_age_s=0.0,
+        observed_at_s=0.0,
+    )
+    assert not (tmp_path / "bridge_ready.json").exists()
+    adapter.publish_startup(
+        observation=observation,
+        output=baseline,
+        sample_counter=2,
+        infrastructure_ready=True,
+        feedback_age_s=0.0,
+        observed_at_s=0.01,
+    )
+    awaiting = json.loads((tmp_path / "tp_startup.json").read_text())
+    assert awaiting["phase"] == "awaiting_tp_play"
+    assert awaiting["operator_action"] == "press_tp_play"
+    assert awaiting["startup_gate_passed"] is False
+
+    if include_running_zero:
+        running_zero = dict(_stopped_program_output(), runtime_state=2)
+        starting = decoder.observe(running_zero, observed_at_s=0.1)
+        adapter.publish_startup(
+            observation=starting,
+            output=running_zero,
+            sample_counter=3,
+            infrastructure_ready=True,
+            feedback_age_s=0.0,
+            observed_at_s=0.1,
+        )
+
+    active = _output(TpLoopState.READY_HOME, None, consumed=0)
+    active["runtime_state"] = 2
+    first_active = decoder.observe(active, observed_at_s=0.2)
+    adapter.publish_startup(
+        observation=first_active,
+        output=active,
+        sample_counter=4,
+        infrastructure_ready=True,
+        feedback_age_s=0.0,
+        observed_at_s=0.2,
+    )
+    almost_stable = decoder.observe(active, observed_at_s=0.699999)
+    adapter.publish_startup(
+        observation=almost_stable,
+        output=active,
+        sample_counter=5,
+        infrastructure_ready=True,
+        feedback_age_s=0.0,
+        observed_at_s=0.699999,
+    )
+    assert json.loads((tmp_path / "tp_startup.json").read_text())["phase"] == "stabilizing"
+    stable_active = decoder.observe(active, observed_at_s=0.700001)
+    adapter.publish_startup(
+        observation=stable_active,
+        output=active,
+        sample_counter=6,
+        infrastructure_ready=True,
+        feedback_age_s=0.0,
+        observed_at_s=0.700001,
+    )
+    passed = json.loads((tmp_path / "tp_startup.json").read_text())
+    assert passed["phase"] == "live"
+    assert passed["startup_gate_passed"] is True
+    assert passed["motion_allowed"] is False
+    assert adapter.command_mailbox.read_latest() is None
 
 
 def test_running_zero_startup_rejects_missing_preplay_timeout_and_active_regression() -> None:
@@ -333,6 +428,7 @@ def test_same_pid_launcher_snapshot_is_frozen(tmp_path: Path) -> None:
         "--step5d-autotune-normal-rate-rad-s": "0.05",
         "--step5d-autotune-host-slew-rad-s2": "0.5",
         "--step5d-autotune-speedj-acceleration-rad-s2": "0.5",
+        "--duration-s": "360",
     }
     assert {flag: argv[argv.index(flag) + 1] for flag in expected} == expected
     assert argv[argv.index("--step5d-autotune-command-mailbox") + 1] == str(
@@ -340,6 +436,31 @@ def test_same_pid_launcher_snapshot_is_frozen(tmp_path: Path) -> None:
     )
     offset_index = argv.index("--step5d-tcp-offset-tool0-m")
     assert argv[offset_index + 1 : offset_index + 4] == ["0", "0", "0.1221"]
+
+
+def test_same_pid_launcher_fails_closed_without_exact_startup_gate_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in (
+        "STEP5D_AUTOTUNE_V2_ADAPTER",
+        "STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID",
+        "STEP5D_AUTOTUNE_V2_LAUNCH_NONCE",
+        "STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED",
+        "STEP5D_AUTOTUNE_V2_STARTUP_STABLE_S",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("STEP5D_AUTOTUNE_V2_RUNTIME_ROOT", str(tmp_path.resolve()))
+    monkeypatch.setenv("STEP5D_AUTOTUNE_V2_ADAPTER", "1")
+    monkeypatch.setenv("STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID", "deployment-r13")
+    monkeypatch.setenv("STEP5D_AUTOTUNE_V2_LAUNCH_NONCE", "d" * 64)
+    monkeypatch.setenv("STEP5D_AUTOTUNE_V2_STARTUP_STABLE_S", "0.5")
+    with pytest.raises(SystemExit, match="environment is incomplete"):
+        bridge_launcher.main([])
+
+    monkeypatch.setenv("STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED", "1")
+    monkeypatch.setenv("STEP5D_AUTOTUNE_V2_STARTUP_STABLE_S", "0.4")
+    with pytest.raises(SystemExit, match="environment is incomplete"):
+        bridge_launcher.main([])
 
 
 def test_frozen_launcher_offset_prewarms_without_archived_runtime_csv(tmp_path: Path) -> None:

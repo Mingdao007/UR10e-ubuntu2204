@@ -58,7 +58,7 @@ def bridge_argv(root: Path, runtime_root: Path) -> list[str]:
     return [
         sys.executable, str(root / "tools/kunwei_rtde_bridge.py"),
         "--allow-kunwei-stream-command", "--write-rtde-inputs",
-        "--baseline-s", "5", "--rezero-s", "1", "--duration-s", "180",
+        "--baseline-s", "5", "--rezero-s", "1", "--duration-s", "360",
         "--rtde-hz", "500", "--socket-timeout-s", "0", "--sensor-stale-s", "0.10",
         "--target-force-n", "12", "--normal-axis", "fz", "--normal-sign", "1",
         "--max-normal-force-n", "60", "--max-force-norm-n", "100",
@@ -129,9 +129,16 @@ def main(argv: list[str] | None = None) -> int:
         "STEP5D_AUTOTUNE_V2_ADAPTER",
         "STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID",
         "STEP5D_AUTOTUNE_V2_LAUNCH_NONCE",
+        "STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED",
+        "STEP5D_AUTOTUNE_V2_STARTUP_STABLE_S",
     )
     missing = [name for name in required if not os.environ.get(name)]
-    if missing or os.environ.get("STEP5D_AUTOTUNE_V2_ADAPTER") != "1":
+    if (
+        missing
+        or os.environ.get("STEP5D_AUTOTUNE_V2_ADAPTER") != "1"
+        or os.environ.get("STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED") != "1"
+        or os.environ.get("STEP5D_AUTOTUNE_V2_STARTUP_STABLE_S") != "0.5"
+    ):
         raise SystemExit("v2 bridge launcher environment is incomplete")
     os.execvpe(command[0], command, environment)
     raise AssertionError("execvpe returned unexpectedly")

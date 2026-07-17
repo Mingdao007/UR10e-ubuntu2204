@@ -661,6 +661,7 @@ class TpFeedbackPhase(Enum):
 class TpFeedbackObservation:
     phase: TpFeedbackPhase
     packet: TpPacket | None
+    baseline_kind: str | None = None
 
 
 class TpFeedbackDecoder:
@@ -699,12 +700,40 @@ class TpFeedbackDecoder:
         all_zero = all(value == 0 for value in registers.values())
         runtime_state = output.get("runtime_state")
         if registers[26] == 0 and all_zero and runtime_state == 1:
+            if self._active:
+                raise MailboxError("TP ACTIVE regressed to a STOPPED baseline")
             self._saw_preplay = True
             self._active = False
             self._starting_at_s = None
             return TpFeedbackObservation(
                 TpFeedbackPhase.PREPLAY,
                 tp_packet_from_rtde(output),
+                "cold_zero",
+            )
+        if runtime_state == 1:
+            packet = tp_packet_from_rtde(output)
+            latched_ready = (
+                packet.state is TpLoopState.READY_HOME
+                and packet.campaign_epoch_echo == 0
+                and packet.trial_id_echo == 0
+                and packet.candidate_token_echo == 0
+                and packet.terminal_reason == 0
+                and packet.execution_profile_id_echo == 0
+                and packet.consumed_command_seq == 0
+            )
+            if not latched_ready:
+                raise MailboxError(
+                    "TP STOPPED baseline is not cold-zero or zero-identity READY_HOME"
+                )
+            if self._active:
+                raise MailboxError("TP ACTIVE regressed to a STOPPED baseline")
+            self._saw_preplay = True
+            self._active = False
+            self._starting_at_s = None
+            return TpFeedbackObservation(
+                TpFeedbackPhase.PREPLAY,
+                packet,
+                "latched_ready",
             )
         if registers[26] == 0 and all_zero and runtime_state == 2:
             if not self._saw_preplay or self._active:

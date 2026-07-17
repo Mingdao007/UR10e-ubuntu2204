@@ -18,7 +18,7 @@ from step5d_autotune_v2.startup_smoke import (
     verify_play_startup,
 )
 from run_step5d_autotune_v2_hil_smoke import program_is_stopped, wait_program_stopped
-from step5d_autotune_live_driver import TpFeedbackDecoder
+from step5d_autotune_live_driver import MailboxError, TpFeedbackDecoder
 
 
 def _sample(*, runtime_state: int, state: int = 0, consumed: int = 0) -> dict:
@@ -109,19 +109,45 @@ def test_hil_accepts_stopped_latched_ready_but_requires_running_transition() -> 
         )
 
 
+@pytest.mark.parametrize("baseline_state", (0, 10))
+@pytest.mark.parametrize("include_running_zero", (False, True))
+def test_every_cold_and_warm_baseline_accepts_both_play_transitions(
+    baseline_state: int,
+    include_running_zero: bool,
+) -> None:
+    samples = [_sample(runtime_state=1, state=baseline_state)]
+    if include_running_zero:
+        samples.append(_sample(runtime_state=2))
+    samples.append(_sample(runtime_state=2, state=10))
+    result = verify_play_startup(
+        FakeHoldSession(samples),
+        trigger_play=lambda: None,
+        timeout_s=2.0,
+        allow_latched_ready_baseline=True,
+    )
+    expected_baseline = "preplay" if baseline_state == 0 else "preplay_ready_latched"
+    expected = (
+        (expected_baseline, "starting", "active")
+        if include_running_zero
+        else (expected_baseline, "active")
+    )
+    assert result.phases == expected
+
+
 def test_every_incident_baseline_is_table_driven_and_fail_closed() -> None:
     fixture = json.loads(
         (ROOT / "tests/fixtures/step5d_autotune_v2_play_startup_transition.json").read_text()
     )
     for case in fixture["baseline_cases"]:
         decoder = TpFeedbackDecoder()
-        observation = decoder.observe(case["output"], observed_at_s=0.0)
         if case["accepted"]:
+            observation = decoder.observe(case["output"], observed_at_s=0.0)
             assert startup_baseline_phase(
                 case["output"], observation, allow_latched_ready=True
             ) == case["expected_phase"]
         else:
-            with pytest.raises(StartupSmokeError):
+            with pytest.raises((StartupSmokeError, MailboxError)):
+                observation = decoder.observe(case["output"], observed_at_s=0.0)
                 startup_baseline_phase(
                     case["output"], observation, allow_latched_ready=True
                 )

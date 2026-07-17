@@ -31,6 +31,8 @@ class HeartbeatPublisher:
         health_probe: Callable[[], Mapping[str, Any]] | None = None,
         health_failure_callback: Callable[[BaseException], None] | None = None,
         failure_mailbox: AtomicMailbox | None = None,
+        runtime_ready: bool = True,
+        primary_blocker: str | None = None,
     ) -> None:
         if interval_s <= 0 or interval_s > 2.0:
             raise HeartbeatError("heartbeat interval must be inside (0,2] seconds")
@@ -43,6 +45,8 @@ class HeartbeatPublisher:
         self.health_probe = health_probe
         self.health_failure_callback = health_failure_callback
         self.failure_mailbox = failure_mailbox
+        self.runtime_ready = bool(runtime_ready)
+        self.primary_blocker = primary_blocker
         self._sequence = 0
         self._failure_sequence = 0
         self._stop = threading.Event()
@@ -95,8 +99,8 @@ class HeartbeatPublisher:
             self._raise_if_failed()
             self.repository.set_runtime_status(
                 deployment_authorized=True,
-                runtime_ready=True,
-                primary_blocker=None,
+                runtime_ready=self.runtime_ready,
+                primary_blocker=self.primary_blocker,
                 details={
                     **self.ready_details,
                     "bridge_health": dict(health_details),
@@ -105,6 +109,21 @@ class HeartbeatPublisher:
                 },
             )
             self._raise_if_failed()
+
+    def update_runtime_status(
+        self,
+        *,
+        runtime_ready: bool,
+        primary_blocker: str | None,
+        details: Mapping[str, Any],
+    ) -> None:
+        if runtime_ready and primary_blocker is not None:
+            raise HeartbeatError("runtime READY cannot carry a blocker")
+        with self._publish_lock:
+            self.runtime_ready = bool(runtime_ready)
+            self.primary_blocker = primary_blocker
+            self.ready_details = dict(details)
+        self._publish_once()
 
     def _raise_if_failed(self) -> None:
         if self._failure_latched.is_set():

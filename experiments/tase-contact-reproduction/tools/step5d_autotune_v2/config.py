@@ -258,11 +258,18 @@ def load_static_config(root: Path, path: Path | None = None) -> StaticConfig:
         "analyzer_argv",
         "ready_timeout_s",
         "trial_timeout_s",
+        "startup_stable_s",
+        "operator_play_timeout_s",
     }:
         raise ConfigError("bridge launch contract is missing")
     if type(bridge["live_enabled"]) is not bool:
         raise ConfigError("bridge live_enabled must be a boolean")
-    for name in ("ready_timeout_s", "trial_timeout_s"):
+    for name in (
+        "ready_timeout_s",
+        "trial_timeout_s",
+        "startup_stable_s",
+        "operator_play_timeout_s",
+    ):
         if (
             isinstance(bridge[name], bool)
             or not isinstance(bridge[name], (int, float))

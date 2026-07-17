@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_autotune_v2.bridge import BridgeError, BridgeProcess
+import step5d_autotune_v2.service as service_module
 from step5d_autotune_v2.heartbeat import HeartbeatPublisher
 from step5d_autotune_v2.mailbox import AtomicMailbox
 from step5d_autotune_v2.postprocess import analyze_capture
@@ -78,6 +80,171 @@ while True:
         assert json.loads(ready.evidence_path.read_text())["launch_nonce"] == ready.launch_nonce
     finally:
         bridge.stop()
+
+
+def test_required_startup_gate_binds_preplay_and_live_to_same_child(tmp_path: Path) -> None:
+    runtime = tmp_path / "runtime"
+    child = """
+import json, os, time
+from datetime import datetime, timezone
+from pathlib import Path
+root = Path(os.environ['STEP5D_AUTOTUNE_V2_RUNTIME_ROOT'])
+def publish(name, payload):
+  temporary = root / ('.' + name + '.tmp')
+  temporary.write_text(json.dumps(payload), encoding='ascii')
+  temporary.replace(root / name)
+identity = {
+  'schema': 'step5d.autotune.tp-startup/v1',
+  'pid': os.getpid(),
+  'deployment_id': os.environ['STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID'],
+  'launch_nonce': os.environ['STEP5D_AUTOTUNE_V2_LAUNCH_NONCE'],
+  'baseline': 'latched_ready',
+  'motion_allowed': False,
+}
+publish('tp_startup.json', {**identity,
+  'observed_at': datetime.now(timezone.utc).isoformat(), 'phase': 'awaiting_tp_play',
+  'runtime_state': 1, 'tp_state': 10, 'consumed_command_seq': 0,
+  'sample_counter': 1, 'stable_duration_s': 0.0,
+  'startup_gate_passed': False, 'operator_action': 'press_tp_play'})
+publish('bridge_ready.json', {
+  'schema': 'step5d.autotune.bridge-ready/v2', 'bridge_ready': True,
+  'deployment_id': identity['deployment_id'], 'launch_nonce': identity['launch_nonce'],
+  'pid': os.getpid(), 'sample_rate_hz': 500, 'startup_stationary_verified': True,
+  'command_transport_ready': True, 'event_transport_ready': True})
+started = time.monotonic()
+sequence = 0
+published_live = False
+while True:
+  sequence += 1
+  publish('bridge_health.json', {
+    'schema': 'step5d.autotune.bridge-health/v2', 'deployment_id': identity['deployment_id'],
+    'pid': os.getpid(), 'launch_nonce': identity['launch_nonce'],
+    'health_sequence': sequence, 'observed_at': datetime.now(timezone.utc).isoformat(),
+    'configured_rate_hz': 500, 'sample_counter': sequence,
+    'rtde_healthy': True, 'command_transport_healthy': True, 'event_transport_healthy': True})
+  if not published_live and time.monotonic() - started > 0.3:
+    publish('tp_startup.json', {**identity,
+      'observed_at': datetime.now(timezone.utc).isoformat(), 'phase': 'live',
+      'runtime_state': 2, 'tp_state': 10, 'consumed_command_seq': 0,
+      'sample_counter': sequence, 'stable_duration_s': 0.1,
+      'startup_gate_passed': True, 'operator_action': None})
+    published_live = True
+  time.sleep(0.01)
+"""
+    bridge = BridgeProcess(
+        argv=(sys.executable, "-c", child),
+        root=ROOT,
+        runtime_root=runtime,
+        deployment_id="test-deployment-r13",
+        environment={"STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED": "1"},
+    )
+    try:
+        ready = bridge.start(timeout_s=2)
+        startup = bridge.wait_startup_gate(timeout_s=2, minimum_stable_s=0.1)
+        assert startup.startup_gate_passed is True
+        assert startup.baseline == ready.startup_baseline == "latched_ready"
+        assert json.loads(ready.evidence_path.read_text())["pid"] == bridge.process.pid
+        assert json.loads(startup.evidence_path.read_text())["pid"] == bridge.process.pid
+    finally:
+        bridge.stop()
+
+
+def test_service_cannot_construct_supervisor_or_trial_before_startup_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    deployment_config = SimpleNamespace(
+        deployment_id="test-deployment-r13", deployment_authorized=True
+    )
+    config = SimpleNamespace(
+        database_path=(tmp_path / "control.sqlite3").resolve(),
+        deployment=deployment_config,
+        runtime_root_path=(tmp_path / "runtime").resolve(),
+        heartbeat_path=(tmp_path / "runtime/host_heartbeat.json").resolve(),
+        mailbox_path=(tmp_path / "runtime/command.json").resolve(),
+        payload={
+            "bridge": {
+                "argv": ("unused",),
+                "environment": {"STEP5D_AUTOTUNE_V2_STARTUP_GATE_REQUIRED": "1"},
+                "startup_stable_s": 0.5,
+                "operator_play_timeout_s": 0.1,
+            },
+            "postprocess": {"transfer_timeout_s": 1, "mac_destination": "unused"},
+        },
+    )
+
+    class FakeRepository:
+        def __init__(self) -> None:
+            self.runtime_updates: list[dict[str, object]] = []
+            self.create_trial_called = False
+
+        def initialize(self) -> None: pass
+        def register_deployment(self, _deployment: object) -> None: pass
+        def claim_writer(self, *, token: str) -> None: pass
+        def release_writer(self, _token: str) -> None: pass
+        def set_runtime_status(self, **payload: object) -> None:
+            self.runtime_updates.append(payload)
+        def create_trial(self, **_payload: object) -> int:
+            self.create_trial_called = True
+            raise AssertionError("trial creation crossed the startup gate")
+
+    class FakeBridge:
+        def __init__(self, **_kwargs: object) -> None: pass
+        def start(self, *, timeout_s: float) -> SimpleNamespace:
+            return SimpleNamespace(
+                pid=123,
+                evidence_path=tmp_path / "bridge_ready.json",
+                launch_nonce="a" * 64,
+                health_evidence_path=tmp_path / "bridge_health.json",
+                sample_rate_hz=500,
+                startup_stationary_verified=True,
+                startup_baseline="latched_ready",
+                startup_evidence_path=tmp_path / "tp_startup.json",
+            )
+        def start_watcher(self, _callback: object, *, interval_s: float) -> None: pass
+        def wait_startup_gate(self, **_kwargs: object) -> object:
+            raise BridgeError("operator Play timeout")
+        def stop(self) -> None: pass
+
+    class FakeHeartbeat:
+        def __init__(self, **_kwargs: object) -> None: pass
+        def start(self) -> None: pass
+        def stop(self) -> None: pass
+        def fail_from_bridge(self, _error: object) -> None: pass
+
+    class FakeLock:
+        def acquire(self) -> None: pass
+        def release(self) -> None: pass
+
+    repo = FakeRepository()
+    supervisor_constructed = False
+
+    def reject_supervisor(*_args: object, **_kwargs: object) -> object:
+        nonlocal supervisor_constructed
+        supervisor_constructed = True
+        raise AssertionError("supervisor crossed the startup gate")
+
+    monkeypatch.setattr(service_module, "load_static_config", lambda _root: config)
+    monkeypatch.setattr(service_module, "Repository", lambda _path: repo)
+    monkeypatch.setattr(service_module, "reconcile_missing_trial_reports", lambda *a, **k: [])
+    monkeypatch.setattr(
+        service_module,
+        "evaluate_preflight",
+        lambda *_args: SimpleNamespace(
+            ready_to_launch=True,
+            deployment_authorized=True,
+            primary_blocker=None,
+            details={},
+        ),
+    )
+    monkeypatch.setattr(service_module, "LiveWriterLock", FakeLock)
+    monkeypatch.setattr(service_module, "BridgeProcess", FakeBridge)
+    monkeypatch.setattr(service_module, "HeartbeatPublisher", FakeHeartbeat)
+    monkeypatch.setattr(service_module, "CampaignSupervisor", reject_supervisor)
+
+    assert service_module.run_service(ROOT, database=config.database_path) == 70
+    assert supervisor_constructed is False
+    assert repo.create_trial_called is False
+    assert repo.runtime_updates[-1]["runtime_ready"] is False
 
 
 def test_stale_bridge_ready_file_can_never_publish_ready(tmp_path: Path) -> None:
