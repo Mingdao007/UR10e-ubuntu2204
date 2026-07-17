@@ -43,6 +43,7 @@ from step5d_autotune_live_driver import (  # noqa: E402
     HostClosureCollector,
     LegacyFloatStopRequired,
     MailboxError,
+    TpFeedbackDecoder,
     TrialArtifactProducer,
     decode_execution_profile_id,
     execution_profile_id_for,
@@ -511,7 +512,7 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                 rotator.observe(
                     {"stage": 25, "path_time_s": 5.1, "force_b_z_n": 12.0},
                     active=active,
-                    rtde_output=wrong,
+                    observation=TpFeedbackDecoder().observe(wrong, observed_at_s=0.0),
                 )
             )
             run = fake_rtde(
@@ -523,7 +524,7 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                 rotator.observe(
                     {"stage": 25, "path_time_s": 5.1, "force_b_z_n": 12.0},
                     active=active,
-                    rtde_output=run,
+                    observation=TpFeedbackDecoder().observe(run, observed_at_s=0.0),
                 )
             )
             wait_ack = fake_rtde(
@@ -536,7 +537,7 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                 rotator.observe(
                     {"stage": 25, "path_time_s": 60.0, "force_b_z_n": 12.0},
                     active=active,
-                    rtde_output=wait_ack,
+                    observation=TpFeedbackDecoder().observe(wait_ack, observed_at_s=0.0),
                 )
             )
             rotator.close()

@@ -11027,6 +11027,7 @@ def main(argv: list[str] | None = None) -> int:
                                 args,
                                 latest_output,
                                 connection_epoch=len(rtde_reconnect_events),
+                                observed_at_s=now,
                             )
                         if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
                             bridge_values.update(args.step5d_autotune_handshake)
@@ -11325,7 +11326,7 @@ def main(argv: list[str] | None = None) -> int:
                         step5d_autotune_trial_rotator.observe(
                             row,
                             active=step5d_autotune_mailbox_runtime.active,
-                            rtde_output=latest_output,
+                            observation=step5d_autotune_mailbox_runtime.latest_tp_observation,
                         )
                         if step5d_autotune_v2_live_adapter is not None and latest_output is not None:
                             step5d_autotune_v2_live_adapter.observe(

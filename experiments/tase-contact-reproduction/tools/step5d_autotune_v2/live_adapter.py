@@ -17,7 +17,6 @@ from step5d_autotune_live_driver import (
     BridgeTrialCsvRotator,
     MailboxCommand,
     RuntimeTrialBinding,
-    tp_packet_from_rtde,
 )
 from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
 
@@ -335,7 +334,10 @@ class Step5dAutotuneV2LiveAdapter:
         latest = runtime.last_command
         if active is None:
             return
-        snapshot = tp_packet_from_rtde(output)
+        observation = runtime.latest_tp_observation
+        if observation is None or observation.packet is None:
+            return
+        snapshot = observation.packet
         if snapshot.state is TpLoopState.FAULT:
             self._emit(active, "safety_halt", reason="tp_fault")
             return

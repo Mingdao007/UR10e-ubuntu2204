@@ -44,6 +44,7 @@ from step5d_autotune_live_driver import (  # noqa: E402
     BridgeTrialCsvRotator,
     CampaignHomeReference,
     HostClosureCollector,
+    TpFeedbackDecoder,
     TrialArtifactProducer,
     finalize_produced_bundle_and_dispatch_ack,
 )
@@ -527,13 +528,15 @@ class CommandIssuanceTest(RecoveryFixture):
             rotator.observe(
                 capture_row(index),
                 active=active,
-                rtde_output=rtde(TpLoopState.RUN),
+                observation=TpFeedbackDecoder().observe(
+                    rtde(TpLoopState.RUN), observed_at_s=0.0
+                ),
             )
         wait_ack = rtde(TpLoopState.WAIT_ACK, reason=1)
         rotator.observe(
             capture_row(3000, reason=1),
             active=active,
-            rtde_output=wait_ack,
+            observation=TpFeedbackDecoder().observe(wait_ack, observed_at_s=0.0),
         )
         rotator.close()
         ready = rtde(TpLoopState.READY_HOME)

@@ -1,0 +1,58 @@
+{
+  "schema": "step5d_autotune_v2_incident_fixture/v1",
+  "incident": "2026-07-17 TP Play caused bridge fail-closed on runtime_state=2 with zero output registers",
+  "accepted_sequence": [
+    {
+      "monotonic_s": 0.0,
+      "output": {
+        "runtime_state": 1,
+        "output_int_register_24": 0,
+        "output_int_register_25": 0,
+        "output_int_register_26": 0,
+        "output_int_register_27": 0,
+        "output_int_register_28": 0,
+        "output_int_register_29": 0,
+        "output_int_register_30": 0
+      }
+    },
+    {
+      "monotonic_s": 0.01,
+      "output": {
+        "runtime_state": 2,
+        "output_int_register_24": 0,
+        "output_int_register_25": 0,
+        "output_int_register_26": 0,
+        "output_int_register_27": 0,
+        "output_int_register_28": 0,
+        "output_int_register_29": 0,
+        "output_int_register_30": 0
+      }
+    },
+    {
+      "monotonic_s": 0.5,
+      "output": {
+        "runtime_state": 2,
+        "output_int_register_24": 0,
+        "output_int_register_25": 0,
+        "output_int_register_26": 0,
+        "output_int_register_27": 0,
+        "output_int_register_28": 0,
+        "output_int_register_29": 0,
+        "output_int_register_30": 0
+      }
+    },
+    {
+      "monotonic_s": 0.75,
+      "output": {
+        "runtime_state": 2,
+        "output_int_register_24": 0,
+        "output_int_register_25": 0,
+        "output_int_register_26": 10,
+        "output_int_register_27": 0,
+        "output_int_register_28": 0,
+        "output_int_register_29": 0,
+        "output_int_register_30": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "schema": "robotics.integration-test-matrix/v1",
+  "policy": {
+    "small_medium_large_target_percent": [80, 15, 5],
+    "realistic_dependency_required_for_release": true,
+    "incident_fixture_required_for_protocol_defects": true,
+    "target_platform_smoke_required_for_release": true
+  },
+  "lanes": {
+    "small": {
+      "environment": "hermetic_process",
+      "command": ["python3", "-m", "pytest", "-q", "tests/test_step5d_autotune_v2_live_adapter.py"],
+      "test_doubles_allowed": true
+    },
+    "medium": {
+      "environment": "local_process_and_filesystem",
+      "command": ["python3", "-m", "pytest", "-q", "tests/test_step5d_autotune_v2_live_adapter.py", "tests/test_step5d_autotune_live_driver.py", "tests/test_step5d_autotune_recovery.py"],
+      "test_doubles_allowed": true
+    },
+    "large_ursim": {
+      "environment": "ursim_5.25.2_compatibility",
+      "command": ["python3", "tools/run_step5d_autotune_v2_ursim_gate.py", "--output", "runs/step5d_autotune_v2/validation/ursim_gate.json"],
+      "container_image": "universalrobots/ursim_e-series:5.25.2@sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",
+      "safety_setup": "official_noVNC_confirmation_persisted",
+      "gui_volume": "step5d-ursim-gui-5-25-2-ur10-v1",
+      "programs_volume": "step5d-ursim-programs-5-25-2-ur10-v1",
+      "control_volume": "step5d-ursim-control-5-25-2-ur10-v1",
+      "test_doubles_allowed": false,
+      "serial": true,
+      "motion_allowed": false
+    },
+    "hil_no_motion": {
+      "environment": "ur10e_5.26_target_controller",
+      "command": ["python3", "tools/run_step5d_autotune_v2_hil_smoke.py", "--output", "runs/step5d_autotune_v2/validation/hil_smoke.json"],
+      "test_doubles_allowed": false,
+      "serial": true,
+      "motion_allowed": false,
+      "operator_play_required": true
+    }
+  },
+  "requirements": [
+    {
+      "id": "tp_play_startup_transition",
+      "incident_fixture": "tests/fixtures/step5d_autotune_v2_play_startup_transition.json",
+      "lanes": ["small", "medium", "large_ursim", "hil_no_motion"],
+      "acceptance": [
+        "STOPPED zero registers establish PREPLAY",
+        "RUNNING zero registers are tolerated for at most 1.0 second",
+        "first valid TP loop state enters ACTIVE",
+        "missing PREPLAY, timeout, partial identity, and ACTIVE regression fail closed",
+        "no ARM command is sent during compatibility or HIL startup smoke"
+      ]
+    },
+    {
+      "id": "single_sample_decode",
+      "lanes": ["small", "medium"],
+      "acceptance": [
+        "mailbox, capture rotator, and live adapter share one decoded observation per RTDE sample"
+      ]
+    }
+  ]
+}

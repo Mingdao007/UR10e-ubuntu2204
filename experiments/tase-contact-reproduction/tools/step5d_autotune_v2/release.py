@@ -10,7 +10,7 @@ from typing import Any
 from .config import ConfigError, load_static_config
 
 
-DEPLOYMENT_ID = "step5d-autotune-v2-live-20260717-r11"
+DEPLOYMENT_ID = "step5d-autotune-v2-live-20260717-r12"
 TP_DELIVERY_ID = "step5d-autotune-v2-readback-20260717-r2"
 PROGRAM = "step5d_strict_rnn_autotune_v2"
 BRIDGE_ARGV = ("python3", "{root}/tools/run_step5d_autotune_v2_bridge.py")
@@ -56,7 +56,7 @@ def verify_release_config(
     bridge = payload["bridge"]
     cutover = payload["live_cutover"]
 
-    _require(deployment["id"] == DEPLOYMENT_ID, "release deployment id is not r11")
+    _require(deployment["id"] == DEPLOYMENT_ID, "release deployment id is not r12")
     _require(
         deployment["tp_delivery_id"] == TP_DELIVERY_ID,
         "release TP delivery/readback identity differs",
@@ -100,6 +100,7 @@ def verify_release_config(
     _require(observed_profile == PROFILE, "release bridge execution profile differs")
     required_sources = {
         "tools/step5d_autotune_v2/live_adapter.py",
+        "tools/step5d_autotune_live_driver.py",
         "tools/run_step5d_autotune_v2_bridge.py",
         "tools/step5d_autotune_v2/release.py",
     }

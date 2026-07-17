@@ -19,7 +19,9 @@ import os
 import re
 import secrets
 import stat
+import time
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
@@ -649,6 +651,77 @@ def tp_packet_from_rtde(output: Mapping[str, Any] | None) -> TpPacket:
     )
 
 
+class TpFeedbackPhase(Enum):
+    PREPLAY = "preplay"
+    STARTING = "starting"
+    ACTIVE = "active"
+
+
+@dataclass(frozen=True)
+class TpFeedbackObservation:
+    phase: TpFeedbackPhase
+    packet: TpPacket | None
+
+
+class TpFeedbackDecoder:
+    """Decode the bounded RTDE transition between TP Play and script startup."""
+
+    STARTUP_GRACE_S = 1.0
+
+    def __init__(self) -> None:
+        self._saw_preplay = False
+        self._active = False
+        self._starting_at_s: float | None = None
+
+    def observe(
+        self,
+        output: Mapping[str, Any] | None,
+        *,
+        observed_at_s: float,
+    ) -> TpFeedbackObservation:
+        if not isinstance(output, Mapping):
+            raise IncompleteTpSnapshot("TP feedback is unavailable")
+        registers = {
+            index: _strict_int(
+                f"output_int_register_{index}",
+                output[f"output_int_register_{index}"],
+            )
+            for index in range(24, 31)
+            if f"output_int_register_{index}" in output
+        }
+        if len(registers) != 7:
+            missing = next(
+                index
+                for index in range(24, 31)
+                if f"output_int_register_{index}" not in output
+            )
+            raise IncompleteTpSnapshot(f"TP feedback lacks output_int_register_{missing}")
+        all_zero = all(value == 0 for value in registers.values())
+        runtime_state = output.get("runtime_state")
+        if registers[26] == 0 and all_zero and runtime_state == 1:
+            self._saw_preplay = True
+            self._active = False
+            self._starting_at_s = None
+            return TpFeedbackObservation(
+                TpFeedbackPhase.PREPLAY,
+                tp_packet_from_rtde(output),
+            )
+        if registers[26] == 0 and all_zero and runtime_state == 2:
+            if not self._saw_preplay or self._active:
+                raise MailboxError(
+                    "TP running-zero startup transition lacks a preceding stopped snapshot"
+                )
+            if self._starting_at_s is None:
+                self._starting_at_s = observed_at_s
+            if observed_at_s - self._starting_at_s > self.STARTUP_GRACE_S:
+                raise MailboxError("TP running-zero startup transition exceeded 1.0 s")
+            return TpFeedbackObservation(TpFeedbackPhase.STARTING, None)
+        packet = tp_packet_from_rtde(output)
+        self._active = True
+        self._starting_at_s = None
+        return TpFeedbackObservation(TpFeedbackPhase.ACTIVE, packet)
+
+
 def _tp_identity_matches(packet: HostPacket, snapshot: TpPacket) -> bool:
     return (
         snapshot.campaign_epoch_echo == packet.campaign_epoch
@@ -683,6 +756,8 @@ class BridgeMailboxRuntime:
         self.last_command: MailboxCommand | None = None
         self.last_command_seq = 0
         self.connection_epoch: int | None = None
+        self.feedback_decoder = TpFeedbackDecoder()
+        self.latest_tp_observation: TpFeedbackObservation | None = None
 
     @staticmethod
     def _arm_from_binding(command: MailboxCommand) -> MailboxCommand:
@@ -870,11 +945,21 @@ class BridgeMailboxRuntime:
         output: Mapping[str, Any] | None,
         *,
         connection_epoch: int = 0,
+        observed_at_s: float | None = None,
     ) -> bool:
-        command = self.mailbox.read_latest()
-        if command is None or output is None:
+        if output is None:
             return False
-        snapshot = tp_packet_from_rtde(output)
+        observation = self.feedback_decoder.observe(
+            output,
+            observed_at_s=time.monotonic() if observed_at_s is None else observed_at_s,
+        )
+        self.latest_tp_observation = observation
+        command = self.mailbox.read_latest()
+        if command is None or observation.phase is TpFeedbackPhase.STARTING:
+            return False
+        snapshot = observation.packet
+        if snapshot is None:
+            raise AssertionError("non-starting TP observation must contain a packet")
         if (
             snapshot.state is TpLoopState.READY_HOME
             and command.packet.command is HostCommand.ARM
@@ -1380,11 +1465,11 @@ class BridgeTrialCsvRotator:
         row: Mapping[str, Any],
         *,
         active: MailboxCommand | None,
-        rtde_output: Mapping[str, Any] | None,
+        observation: TpFeedbackObservation | None,
     ) -> bool:
-        if active is None or rtde_output is None:
+        if active is None or observation is None or observation.packet is None:
             return False
-        snapshot = tp_packet_from_rtde(rtde_output)
+        snapshot = observation.packet
         if snapshot.state is TpLoopState.READY_HOME or not self._matches(
             active.binding, snapshot
         ):

@@ -1,9 +1,9 @@
 {
   "schema": "step5d.autotune.deployment/v2",
   "deployment": {
-    "id": "step5d-autotune-v2-live-20260717-r11",
+    "id": "step5d-autotune-v2-live-20260717-r12",
     "tp_delivery_id": "step5d-autotune-v2-readback-20260717-r2",
-    "code_fingerprint": "3b5934dad491d4121f8bcb3c2d822393eff90a331f12d5d01f0cdc13b232bdf8",
+    "code_fingerprint": "4a53c06d3913fa6cda04c1c131616b2aa0f11f579f64a325d2dd9daa30c215b6",
     "tp_fingerprint": "c2761f200c58d9825e37dc76907b5e25b2d9982cda7dff1cf7de9699dbad7bb9",
     "guard_fingerprint": "87acabb4ff2808b0091dc9cc9851048ee1846b3242b23165d86560b190d85878",
     "authorized": true,
@@ -40,6 +40,7 @@
   },
   "code_sources": [
     "tools/kunwei_rtde_bridge.py",
+    "tools/step5d_autotune_live_driver.py",
     "tools/step5d_runtime_interface.py",
     "tools/step5d_paper_outer_loop.py",
     "tools/step5d_autotune_v2/model.py", "tools/step5d_autotune_v2/config.py",

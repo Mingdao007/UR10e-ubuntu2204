@@ -17,6 +17,8 @@ from step5d_autotune_live_driver import (
     BridgeMailboxRuntime,
     BridgeTrialCsvRotator,
     MailboxError,
+    TpFeedbackDecoder,
+    TpFeedbackPhase,
     tp_packet_from_rtde,
 )
 from step5d_autotune_state_machine import TpLoopState
@@ -144,10 +146,26 @@ def test_v2_adapter_drives_exact_arm_ack_and_event_lifecycle(tmp_path: Path) -> 
         sample_counter=0,
     )
 
-    for index, state in enumerate((TpLoopState.ARMED, TpLoopState.RUN), start=1):
+    running_zero = dict(ready, runtime_state=2)
+    assert runtime.poll(args, running_zero, observed_at_s=0.1) is False
+    assert runtime.active is arm
+    assert args.step5d_autotune_handshake == arm.handshake
+    adapter.observe(
+        runtime=runtime,
+        rotator=rotator,
+        output=running_zero,
+        sample_counter=1,
+    )
+    assert not (runtime_root / "bridge_events.jsonl").exists()
+
+    for index, state in enumerate((TpLoopState.ARMED, TpLoopState.RUN), start=2):
         output = _output(state, arm, consumed=arm.packet.command_seq)
         runtime.poll(args, output)
-        rotator.observe({"sample": index}, active=runtime.active, rtde_output=output)
+        rotator.observe(
+            {"sample": index},
+            active=runtime.active,
+            observation=runtime.latest_tp_observation,
+        )
         adapter.observe(
             runtime=runtime,
             rotator=rotator,
@@ -161,7 +179,12 @@ def test_v2_adapter_drives_exact_arm_ack_and_event_lifecycle(tmp_path: Path) -> 
         consumed=arm.packet.command_seq,
         reason=1,
     )
-    rotator.observe({"sample": 3}, active=runtime.active, rtde_output=wait_ack)
+    assert runtime.poll(args, wait_ack) is False
+    rotator.observe(
+        {"sample": 3},
+        active=runtime.active,
+        observation=runtime.latest_tp_observation,
+    )
     adapter.observe(runtime=runtime, rotator=rotator, output=wait_ack, sample_counter=3)
     assert rotator.sealed_path is not None
     seal = ArtifactSeal(rotator.sealed_path, "f" * 64)
@@ -209,6 +232,44 @@ def test_inactive_ready_sentinel_requires_stopped_runtime_and_zero_identity() ->
     nonzero_identity = dict(stopped, output_int_register_24=1)
     with pytest.raises(MailboxError, match="unknown loop state"):
         tp_packet_from_rtde(nonzero_identity)
+
+
+def test_incident_play_startup_transition_is_bounded_and_stateful() -> None:
+    fixture = json.loads(
+        (ROOT / "tests/fixtures/step5d_autotune_v2_play_startup_transition.json").read_text()
+    )
+    decoder = TpFeedbackDecoder()
+    observations = [
+        decoder.observe(sample["output"], observed_at_s=sample["monotonic_s"])
+        for sample in fixture["accepted_sequence"]
+    ]
+    assert [observation.phase for observation in observations] == [
+        TpFeedbackPhase.PREPLAY,
+        TpFeedbackPhase.STARTING,
+        TpFeedbackPhase.STARTING,
+        TpFeedbackPhase.ACTIVE,
+    ]
+    assert observations[-1].packet is not None
+    assert observations[-1].packet.state is TpLoopState.READY_HOME
+
+
+def test_running_zero_startup_rejects_missing_preplay_timeout_and_active_regression() -> None:
+    running_zero = dict(_stopped_program_output(), runtime_state=2)
+    with pytest.raises(MailboxError, match="preceding stopped"):
+        TpFeedbackDecoder().observe(running_zero, observed_at_s=0.0)
+
+    timeout_decoder = TpFeedbackDecoder()
+    timeout_decoder.observe(_stopped_program_output(), observed_at_s=0.0)
+    timeout_decoder.observe(running_zero, observed_at_s=0.1)
+    with pytest.raises(MailboxError, match="exceeded 1.0 s"):
+        timeout_decoder.observe(running_zero, observed_at_s=1.100001)
+
+    active_decoder = TpFeedbackDecoder()
+    active_decoder.observe(_stopped_program_output(), observed_at_s=0.0)
+    active_decoder.observe(running_zero, observed_at_s=0.1)
+    active_decoder.observe(_output(TpLoopState.READY_HOME, None, consumed=0), observed_at_s=0.2)
+    with pytest.raises(MailboxError, match="preceding stopped"):
+        active_decoder.observe(running_zero, observed_at_s=0.3)
 
 
 def test_adapter_ignores_only_bootstrap_mailbox_from_prior_deployment(tmp_path: Path) -> None:
