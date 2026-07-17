@@ -13,7 +13,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from step5d_autotune_live_driver import BridgeMailboxRuntime, BridgeTrialCsvRotator
+from step5d_autotune_live_driver import (
+    BridgeMailboxRuntime,
+    BridgeTrialCsvRotator,
+    MailboxError,
+    tp_packet_from_rtde,
+)
 from step5d_autotune_state_machine import TpLoopState
 from step5d_autotune_v2.bridge import BridgeError, LiveWriterLock
 from step5d_autotune_v2.live_adapter import Step5dAutotuneV2LiveAdapter
@@ -61,6 +66,13 @@ def _output(state: TpLoopState, command, *, consumed: int, reason: int = 0) -> d
         "output_int_register_29": command.packet.execution_profile_id if active else 0,
         "output_int_register_30": consumed,
     }
+
+
+def _stopped_program_output() -> dict:
+    output = _output(TpLoopState.READY_HOME, None, consumed=0)
+    output["output_int_register_26"] = 0
+    output["runtime_state"] = 1
+    return output
 
 
 def test_v2_adapter_drives_exact_arm_ack_and_event_lifecycle(tmp_path: Path) -> None:
@@ -117,7 +129,7 @@ def test_v2_adapter_drives_exact_arm_ack_and_event_lifecycle(tmp_path: Path) -> 
         mailbox=adapter.command_mailbox,
     )
     args = SimpleNamespace()
-    ready = _output(TpLoopState.READY_HOME, None, consumed=0)
+    ready = _stopped_program_output()
     assert runtime.poll(args, ready) is True
     arm = runtime.active
     assert arm is not None
@@ -125,6 +137,12 @@ def test_v2_adapter_drives_exact_arm_ack_and_event_lifecycle(tmp_path: Path) -> 
     assert arm.packet.execution_profile_id == 533
     assert arm.sha256 == arm_evidence["mailbox_checksum"]
     rotator = BridgeTrialCsvRotator((runtime_root / "trials").resolve(), ["sample"])
+    adapter.observe(
+        runtime=runtime,
+        rotator=rotator,
+        output=ready,
+        sample_counter=0,
+    )
 
     for index, state in enumerate((TpLoopState.ARMED, TpLoopState.RUN), start=1):
         output = _output(state, arm, consumed=arm.packet.command_seq)
@@ -178,6 +196,19 @@ def test_v2_adapter_drives_exact_arm_ack_and_event_lifecycle(tmp_path: Path) -> 
     assert json.loads((runtime_root / "bridge_ready.json").read_text())[
         "startup_stationary_verified"
     ] is True
+
+
+def test_inactive_ready_sentinel_requires_stopped_runtime_and_zero_identity() -> None:
+    stopped = _stopped_program_output()
+    assert tp_packet_from_rtde(stopped).state is TpLoopState.READY_HOME
+
+    running = dict(stopped, runtime_state=2)
+    with pytest.raises(MailboxError, match="unknown loop state"):
+        tp_packet_from_rtde(running)
+
+    nonzero_identity = dict(stopped, output_int_register_24=1)
+    with pytest.raises(MailboxError, match="unknown loop state"):
+        tp_packet_from_rtde(nonzero_identity)
 
 
 def test_global_live_writer_lock_fails_closed(tmp_path: Path) -> None:

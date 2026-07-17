@@ -623,18 +623,29 @@ def tp_packet_from_rtde(output: Mapping[str, Any] | None) -> TpPacket:
             raise IncompleteTpSnapshot(f"TP feedback lacks {name}")
         return _strict_int(name, output[name])
 
-    try:
-        state = TpLoopState(register(26))
-    except ValueError as exc:
-        raise MailboxError("TP reported an unknown loop state") from exc
+    registers = {index: register(index) for index in range(24, 31)}
+    raw_state = registers[26]
+    if raw_state == 0:
+        inactive_ready = (
+            output.get("runtime_state") == 1
+            and all(registers[index] == 0 for index in range(24, 31))
+        )
+        if not inactive_ready:
+            raise MailboxError("TP reported an unknown loop state")
+        state = TpLoopState.READY_HOME
+    else:
+        try:
+            state = TpLoopState(raw_state)
+        except ValueError as exc:
+            raise MailboxError("TP reported an unknown loop state") from exc
     return TpPacket(
-        campaign_epoch_echo=register(24),
-        trial_id_echo=register(25),
+        campaign_epoch_echo=registers[24],
+        trial_id_echo=registers[25],
         state=state,
-        candidate_token_echo=register(27),
-        terminal_reason=register(28),
-        execution_profile_id_echo=register(29),
-        consumed_command_seq=register(30),
+        candidate_token_echo=registers[27],
+        terminal_reason=registers[28],
+        execution_profile_id_echo=registers[29],
+        consumed_command_seq=registers[30],
     )
 
 
