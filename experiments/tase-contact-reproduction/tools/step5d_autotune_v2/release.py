@@ -10,7 +10,7 @@ from typing import Any
 from .config import ConfigError, load_static_config
 
 
-DEPLOYMENT_ID = "step5d-autotune-v2-live-20260717-r2"
+DEPLOYMENT_ID = "step5d-autotune-v2-live-20260717-r3"
 TP_DELIVERY_ID = "step5d-autotune-v2-readback-20260717-r1"
 PROGRAM = "step5d_strict_rnn_autotune_v2"
 BRIDGE_ARGV = ("python3", "{root}/tools/run_step5d_autotune_v2_bridge.py")
