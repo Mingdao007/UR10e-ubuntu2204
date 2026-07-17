@@ -14,14 +14,26 @@ class RuntimeFailure(RuntimeError):
     """Typed runtime failure which stops the service without repeating a tuple."""
 
 
-class SafetyHalt(RuntimeFailure):
-    """Bridge/TP evidence of a real safety terminal, never an infra ambiguity."""
-
-
 @dataclass(frozen=True)
 class ArtifactSeal:
     path: Path
     sha256: str
+
+
+class SafetyHalt(RuntimeFailure):
+    """Bridge/TP evidence of a real safety terminal, never an infra ambiguity."""
+
+    def __init__(
+        self,
+        reason: str,
+        *,
+        artifact: ArtifactSeal | None = None,
+        evidence: Mapping[str, Any] | None = None,
+    ) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.artifact = artifact
+        self.evidence = dict(evidence or {})
 
 
 @dataclass(frozen=True)
@@ -90,6 +102,22 @@ class CampaignSupervisor:
         if self.outcome_callback is not None:
             self.outcome_callback(outcome)
 
+    def _safety_halt(self, trial_id: str, exc: SafetyHalt) -> TrialOutcome:
+        if exc.artifact is not None:
+            self.repository.add_artifact(
+                trial_id=trial_id,
+                role="safety_halt_capture_seal",
+                path=exc.artifact.path,
+                sha256=exc.artifact.sha256,
+                immutable=True,
+            )
+        final = self.repository.apply_lifecycle_event(
+            trial_id,
+            LifecycleEvent.SAFETY_HALT,
+            {"reason": exc.reason, **exc.evidence},
+        )
+        return self._outcome(trial_id, final)
+
     def run_candidate(self, *, candidate_id: str, deployment_id: str) -> TrialOutcome:
         candidate = self.repository.candidate(candidate_id)
         if candidate["status"] != "pending":
@@ -124,12 +152,7 @@ class CampaignSupervisor:
                 try:
                     evidence = self.port.wait_tp_consumed(trial_id=trial_id)
                 except SafetyHalt as exc:
-                    final = self.repository.apply_lifecycle_event(
-                        trial_id,
-                        LifecycleEvent.SAFETY_HALT,
-                        {"reason": str(exc)},
-                    )
-                    return self._outcome(trial_id, final)
+                    return self._safety_halt(trial_id, exc)
                 except RuntimeFailure as exc:
                     return self._mark_uncertain(
                         trial_id, f"tp_consumption_ambiguous:{exc}"
@@ -142,12 +165,7 @@ class CampaignSupervisor:
                 try:
                     evidence = self.port.wait_run_started(trial_id=trial_id)
                 except SafetyHalt as exc:
-                    final = self.repository.apply_lifecycle_event(
-                        trial_id,
-                        LifecycleEvent.SAFETY_HALT,
-                        {"reason": str(exc)},
-                    )
-                    return self._outcome(trial_id, final)
+                    return self._safety_halt(trial_id, exc)
                 except RuntimeFailure as exc:
                     return self._mark_uncertain(
                         trial_id, f"tp_run_ambiguous:{exc}"
@@ -160,12 +178,7 @@ class CampaignSupervisor:
                 try:
                     evidence = self.port.wait_home_verified(trial_id=trial_id)
                 except SafetyHalt as exc:
-                    final = self.repository.apply_lifecycle_event(
-                        trial_id,
-                        LifecycleEvent.SAFETY_HALT,
-                        {"reason": str(exc)},
-                    )
-                    return self._outcome(trial_id, final)
+                    return self._safety_halt(trial_id, exc)
                 except RuntimeFailure as exc:
                     return self._mark_uncertain(
                         trial_id, f"run_closure_ambiguous:{exc}"
@@ -180,12 +193,7 @@ class CampaignSupervisor:
                 try:
                     artifact = self.port.seal_raw(trial_id=trial_id)
                 except SafetyHalt as exc:
-                    final = self.repository.apply_lifecycle_event(
-                        trial_id,
-                        LifecycleEvent.SAFETY_HALT,
-                        {"reason": str(exc)},
-                    )
-                    return self._outcome(trial_id, final)
+                    return self._safety_halt(trial_id, exc)
                 self.repository.add_artifact(
                     trial_id=trial_id,
                     role="raw_capture_seal",
@@ -227,12 +235,7 @@ class CampaignSupervisor:
                 try:
                     evidence = self.port.wait_ready_home(trial_id=trial_id)
                 except SafetyHalt as exc:
-                    final = self.repository.apply_lifecycle_event(
-                        trial_id,
-                        LifecycleEvent.SAFETY_HALT,
-                        {"reason": str(exc)},
-                    )
-                    return self._outcome(trial_id, final)
+                    return self._safety_halt(trial_id, exc)
                 self.repository.apply_lifecycle_event(
                     trial_id, LifecycleEvent.OBSERVE_READY_HOME, evidence
                 )

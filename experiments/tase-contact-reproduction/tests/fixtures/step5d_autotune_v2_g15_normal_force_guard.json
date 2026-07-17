@@ -1,0 +1,14 @@
+{
+  "schema": "step5d.autotune.incident-fixture/v1",
+  "incident": "G15 sustained post-RNN press against an unloading outer loop",
+  "trial_id": "4ed3a742-incident-redacted",
+  "deployment_release": "r14",
+  "rows": [
+    {"write_index": 7193, "normal_force_n": 12.399, "outer_normal_m_s": 0.0010177, "command_normal_m_s": 0.00036675},
+    {"write_index": 7247, "normal_force_n": 25.735, "outer_normal_m_s": -0.00009645, "command_normal_m_s": 0.0003794},
+    {"write_index": 7300, "normal_force_n": 32.742, "outer_normal_m_s": -0.0027487, "command_normal_m_s": -0.0002015},
+    {"write_index": 7624, "normal_force_n": 5.479, "outer_normal_m_s": 0.0034265, "command_normal_m_s": 0.0017578},
+    {"write_index": 7650, "normal_force_n": 30.081, "outer_normal_m_s": 0.0021904, "command_normal_m_s": 0.0018836},
+    {"write_index": 7678, "normal_force_n": 60.187, "outer_normal_m_s": -0.001398, "command_normal_m_s": 0.0015395, "stop_reason": "normal_force_guard"}
+  ]
+}

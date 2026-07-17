@@ -7,6 +7,7 @@ import inspect
 import gzip
 import csv
 import json
+import math
 import sys
 import tempfile
 import unittest
@@ -830,6 +831,66 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         )
         self.assertEqual(stop["action"], "stop_zero_qdot")
         self.assertEqual(stop["reason"], "post_rnn_high_load_press_dwell_stop")
+
+        def guard(load: float, *, qdot_z: float = -0.002, dwell: float = 0.0, dt: float = 0.0):
+            return bridge.step5d_post_rnn_normal_direction_guard(
+                qdot=[0.0, 0.0, qdot_z, 0.0, 0.0, 0.0],
+                jacobian=np.eye(6),
+                reaction_normal_b=[0.0, 0.0, 1.0],
+                actual_tcp_speed_b=[0.0, 0.0, 0.0],
+                normal_load_n=load,
+                force_norm_n=load,
+                previous_normal_load_n=load,
+                prior_dwell_s=dwell,
+                dt_s=dt,
+            )
+
+        self.assertEqual(guard(13.999999)["action"], "pass_solver")
+        self.assertEqual(guard(14.0)["action"], "hold_zero_qdot")
+        self.assertEqual(guard(18.0, dwell=0.003999, dt=0.0)["action"], "hold_zero_qdot")
+        self.assertEqual(guard(18.0, dwell=0.003999, dt=0.000002)["action"], "stop_zero_qdot")
+        self.assertEqual(guard(25.0, qdot_z=0.002)["action"], "stop_zero_qdot")
+        self.assertEqual(guard(18.0, qdot_z=0.002)["reason"], "post_rnn_high_load_unload_allowed")
+        self.assertEqual(guard(10.0, qdot_z=math.nan)["reason"], "post_rnn_normal_direction_nonfinite")
+
+        fixture = json.loads(
+            (ROOT / "tests/fixtures/step5d_autotune_v2_g15_normal_force_guard.json").read_text()
+        )
+        dangerous = [
+            row for row in fixture["rows"]
+            if row["normal_force_n"] >= 14.0 and row["command_normal_m_s"] > 0.0
+        ]
+        self.assertGreaterEqual(len(dangerous), 3)
+        self.assertTrue(all(guard(row["normal_force_n"])["action"] != "pass_solver" for row in dangerous))
+
+    def test_autotune_stop_ack_requires_packet_and_identity_bound_terminal(self) -> None:
+        self.assertFalse(
+            bridge.step5d_autotune_stop_acknowledged(
+                None, {"runtime_state": 1}, stop_packets_sent=0
+            )
+        )
+        self.assertTrue(
+            bridge.step5d_autotune_stop_acknowledged(
+                None, {"runtime_state": 1}, stop_packets_sent=1
+            )
+        )
+
+    def test_autotune_guard_is_after_v30_and_before_wire_serialization(self) -> None:
+        source = inspect.getsource(bridge.compute_bridge_values)
+        v30_final = source.index(
+            "step5d_qdot_command = step5d_v30_register_command.qdot"
+        )
+        autotune_guard = source.index(
+            "step5d_autotune_profile\n                    and step5d_stage25_control_mode",
+            v30_final,
+        )
+        serializer = source.index(
+            "step5d_v30_register_command.layout_code", autotune_guard
+        )
+        guarded_qdot = source.rfind("step5d_qdot_command", autotune_guard, serializer)
+        self.assertLess(v30_final, autotune_guard)
+        self.assertLess(autotune_guard, guarded_qdot)
+        self.assertLess(guarded_qdot, serializer)
 
         tracking_hold = bridge.step5d_post_rnn_tracking_guard(
             qdot=[0.0, 0.0, 0.002, 0.0, 0.0, 0.0],

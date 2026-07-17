@@ -188,7 +188,6 @@ class JsonlBridgePort:
     ) -> dict[str, Any]:
         deadline = time.monotonic() + self.timeout_s
         while time.monotonic() < deadline:
-            self._check_health()
             try:
                 with self.event_path.open("r", encoding="utf-8") as handle:
                     handle.seek(self.offset)
@@ -200,6 +199,7 @@ class JsonlBridgePort:
             except FileNotFoundError:
                 line = ""
             if not line:
+                self._check_health()
                 time.sleep(0.02)
                 continue
             try:
@@ -214,7 +214,62 @@ class JsonlBridgePort:
                 continue
             event_type = event.get("event")
             if event_type == "safety_halt":
-                raise SafetyHalt(f"bridge safety halt: {event.get('reason')}")
+                arm_sequence, arm_checksum = self._arm_binding(trial_id)
+                event_binding = (
+                    event.get("command_sequence"),
+                    event.get("command_checksum"),
+                )
+                if event_binding not in {
+                    (expected_sequence, expected_checksum),
+                    (arm_sequence, arm_checksum),
+                }:
+                    raise RuntimeFailure(
+                        "bridge safety halt does not bind the persisted command"
+                    )
+                required_safety_fields = {
+                    "reason",
+                    "tp_stop_acknowledged",
+                    "tp_state",
+                    "runtime_state",
+                    "normal_force_n",
+                    "force_norm_n",
+                    "sample_counter",
+                    "stop_packets_sent",
+                    "path",
+                    "sha256",
+                }
+                if not required_safety_fields.issubset(event):
+                    raise RuntimeFailure("bridge safety halt evidence is incomplete")
+                if (
+                    type(event["tp_stop_acknowledged"]) is not bool
+                    or not isinstance(event["tp_state"], str)
+                    or isinstance(event["sample_counter"], bool)
+                    or not isinstance(event["sample_counter"], int)
+                    or int(event["sample_counter"]) < 0
+                    or isinstance(event["stop_packets_sent"], bool)
+                    or not isinstance(event["stop_packets_sent"], int)
+                    or int(event["stop_packets_sent"]) < 0
+                ):
+                    raise RuntimeFailure("bridge safety halt evidence types differ")
+                artifact = self._seal_event_artifact(event, role="safety-halt")
+                reason = str(event.get("reason") or "bridge_safety_halt")
+                raise SafetyHalt(
+                    f"bridge_safety_halt:{reason}",
+                    artifact=artifact,
+                    evidence={
+                        key: event[key]
+                        for key in (
+                            "tp_stop_acknowledged",
+                            "tp_state",
+                            "runtime_state",
+                            "normal_force_n",
+                            "force_norm_n",
+                            "sample_counter",
+                            "stop_packets_sent",
+                        )
+                        if key in event
+                    },
+                )
             if event_type == expected:
                 if (
                     event.get("command_sequence") != expected_sequence
@@ -225,6 +280,32 @@ class JsonlBridgePort:
                     )
                 return event
         raise RuntimeFailure(f"timed out waiting for bridge event {expected}")
+
+    def _seal_event_artifact(
+        self, event: Mapping[str, Any], *, role: str
+    ) -> ArtifactSeal:
+        source_value = Path(str(event.get("path", "")))
+        if not source_value.is_absolute():
+            raise RuntimeFailure(f"{role} artifact path must be absolute")
+        try:
+            path = source_value.resolve(strict=True)
+        except OSError as exc:
+            raise RuntimeFailure(f"{role} artifact is missing") from exc
+        if source_value != path:
+            raise RuntimeFailure(f"{role} artifact path contains a symlink or traversal")
+        try:
+            path.relative_to(self.allowed_artifact_root)
+        except ValueError as exc:
+            raise RuntimeFailure(f"{role} artifact escapes the governed runtime root") from exc
+        actual = _sha256(path)
+        if actual != event.get("sha256"):
+            raise RuntimeFailure(f"{role} artifact digest differs from bridge seal")
+        sealed = _seal_immutable_copy(
+            source=path,
+            expected_sha256=actual,
+            allowed_root=self.allowed_artifact_root,
+        )
+        return ArtifactSeal(path=sealed, sha256=actual)
 
     def wait_tp_consumed(self, *, trial_id: str) -> Mapping[str, Any]:
         sequence, checksum = self._arm_binding(trial_id)
@@ -264,28 +345,7 @@ class JsonlBridgePort:
             expected_sequence=sequence,
             expected_checksum=checksum,
         )
-        source_value = Path(str(event.get("path", "")))
-        if not source_value.is_absolute():
-            raise RuntimeFailure("raw artifact path must be absolute")
-        try:
-            path = source_value.resolve(strict=True)
-        except OSError as exc:
-            raise RuntimeFailure("raw artifact seal is missing") from exc
-        if source_value != path:
-            raise RuntimeFailure("raw artifact path contains a symlink or traversal")
-        try:
-            path.relative_to(self.allowed_artifact_root)
-        except ValueError as exc:
-            raise RuntimeFailure("raw artifact path escapes the governed runtime root") from exc
-        actual = _sha256(path)
-        if actual != event.get("sha256"):
-            raise RuntimeFailure("raw artifact digest differs from bridge seal")
-        sealed = _seal_immutable_copy(
-            source=path,
-            expected_sha256=actual,
-            allowed_root=self.allowed_artifact_root,
-        )
-        return ArtifactSeal(path=sealed, sha256=actual)
+        return self._seal_event_artifact(event, role="raw")
 
     def publish_ack(
         self, *, trial_id: str, sequence: int, artifact: ArtifactSeal

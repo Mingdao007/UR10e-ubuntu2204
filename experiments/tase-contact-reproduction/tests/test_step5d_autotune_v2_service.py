@@ -21,7 +21,7 @@ from step5d_autotune_v2.mailbox import AtomicMailbox
 from step5d_autotune_v2.postprocess import analyze_capture
 from step5d_autotune_v2.reducer import LifecycleEvent
 from step5d_autotune_v2.runtime import EVENT_SCHEMA, JsonlBridgePort
-from step5d_autotune_v2.supervisor import CampaignSupervisor, RuntimeFailure
+from step5d_autotune_v2.supervisor import CampaignSupervisor, RuntimeFailure, SafetyHalt
 from step5d_autotune_v2.transfer import TransferWorker, retry_delay_s
 from test_step5d_autotune_v2_supervisor import FakePort, deployment, repository
 
@@ -350,6 +350,90 @@ def test_bridge_event_must_echo_persisted_command_sequence_and_checksum(
     with events.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event) + "\n")
     assert port.wait_tp_consumed(trial_id=trial_id)["event"] == "tp_consumed"
+
+
+def test_fsynced_safety_event_wins_child_exit_race_and_faults_trial(
+    tmp_path: Path,
+) -> None:
+    repo = repository(tmp_path)
+    candidate = repo.next_pending_candidate()
+    assert candidate is not None
+    trial_id = repo.create_trial(
+        candidate_id=candidate["candidate_id"],
+        deployment_id=deployment().deployment_id,
+    )
+    repo.apply_lifecycle_event(trial_id, LifecycleEvent.PERSIST_ARM)
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    mailbox = AtomicMailbox((runtime / "command.json").resolve())
+    events = runtime / "bridge_events.jsonl"
+    child_exited = {"value": False}
+
+    def health_check() -> None:
+        if child_exited["value"]:
+            raise RuntimeError("child rc=0")
+
+    port = JsonlBridgePort(
+        repository=repo,
+        mailbox=mailbox,
+        event_path=events,
+        allowed_artifact_root=runtime,
+        deployment_id=deployment().deployment_id,
+        analyzer_argv=(),
+        command_root=ROOT,
+        transfer_destination=None,
+        timeout_s=0.1,
+        health_check=health_check,
+    )
+    arm = port.publish_arm(
+        trial_id=trial_id,
+        sequence=repo.trial_detail(trial_id)["arm_sequence"],
+        candidate=repo.candidate(candidate["candidate_id"]),
+    )
+    repo.apply_lifecycle_event(trial_id, LifecycleEvent.PUBLISH_COMMAND, arm)
+    capture = runtime / "capture.safety_halt.csv"
+    capture.write_text("sample,force\n1,25\n", encoding="ascii")
+    digest = hashlib.sha256(capture.read_bytes()).hexdigest()
+    event = {
+        "schema": EVENT_SCHEMA,
+        "deployment_id": deployment().deployment_id,
+        "trial_id": trial_id,
+        "event": "safety_halt",
+        "command_sequence": arm["sequence"],
+        "command_checksum": arm["mailbox_checksum"],
+        "reason": "post_rnn_high_load_press_dwell_stop",
+        "tp_stop_acknowledged": True,
+        "tp_state": "TERMINAL",
+        "runtime_state": 2.0,
+        "normal_force_n": 18.2,
+        "force_norm_n": 18.4,
+        "sample_counter": 42,
+        "stop_packets_sent": 2,
+        "path": str(capture),
+        "sha256": digest,
+    }
+    events.write_text(json.dumps(event) + "\n", encoding="ascii")
+    with pytest.raises(SafetyHalt, match="bridge_safety_halt"):
+        port._wait(
+            trial_id,
+            "ready_home",
+            expected_sequence=arm["sequence"] + 1,
+            expected_checksum="persisted-ack-checksum",
+        )
+    port.offset = 0
+    child_exited["value"] = True
+
+    outcome = CampaignSupervisor(repo, port).resume_trial(trial_id)
+    assert outcome.state == "fault"
+    assert outcome.primary_blocker == (
+        "bridge_safety_halt:post_rnn_high_load_press_dwell_stop"
+    )
+    artifact = repo.artifact_for_trial(
+        trial_id, role="safety_halt_capture_seal"
+    )
+    assert artifact is not None
+    assert artifact["sha256"] == digest
+    assert Path(artifact["path"]).name == digest
 
 
 def test_raw_capture_is_copied_to_content_addressed_read_only_seal(

@@ -65,6 +65,18 @@
       "acceptance": [
         "mailbox, capture rotator, and live adapter share one decoded observation per RTDE sample"
       ]
+    },
+    {
+      "id": "g15_post_rnn_normal_force_safety_halt",
+      "incident_fixture": "tests/fixtures/step5d_autotune_v2_g15_normal_force_guard.json",
+      "lanes": ["small", "medium"],
+      "acceptance": [
+        "the final v30 qdot is guarded after RNN control and before wire serialization",
+        "directional press holds at 14N, stops after 4ms at 18N, and hard-stops at 25N while unload remains allowed",
+        "STOP is resent until an identity-bound TP terminal or STOPPED runtime acknowledgement, bounded by 1.5 seconds",
+        "the partial capture is content-addressed and a typed safety_halt reaches FAULT before child health can downgrade it to liveness ambiguity",
+        "a safety halt never advances to the next candidate or claims measured Home, ACK, or physical closure"
+      ]
     }
   ]
 }

@@ -1432,6 +1432,7 @@ class BridgeTrialCsvRotator:
         self._partial_path: Path | None = None
         self._final_path: Path | None = None
         self._sealed = False
+        self._safety_halted = False
         self._rows_since_flush = 0
 
     @staticmethod
@@ -1464,13 +1465,19 @@ class BridgeTrialCsvRotator:
             raise MailboxError("per-trial capture directory must not be a symlink")
         partial = trial_dir / "capture.csv.part"
         final = trial_dir / "capture.csv"
+        safety = trial_dir / "capture.safety_halt.csv"
         self._trial_uid = binding.trial_uid
         self._partial_path = partial
         self._final_path = final
         self._sealed = final.exists()
+        self._safety_halted = safety.exists()
+        if self._safety_halted and (safety.is_symlink() or not safety.is_file()):
+            raise MailboxError("safety-halt capture must be a regular file")
         if self._sealed:
             if final.is_symlink():
                 raise MailboxError("published per-trial capture must not be a symlink")
+            return
+        if self._safety_halted:
             return
         if partial.exists():
             if partial.is_symlink():
@@ -1504,7 +1511,7 @@ class BridgeTrialCsvRotator:
         ):
             return False
         self._open(active.binding)
-        if self._sealed:
+        if self._sealed or self._safety_halted:
             return False
         if self._writer is None or self._handle is None:
             raise MailboxError("per-trial capture writer is not open")
@@ -1528,6 +1535,25 @@ class BridgeTrialCsvRotator:
 
     def close(self) -> None:
         self._close_partial(sync_bytes=True)
+
+    def seal_safety_halt(self) -> Path:
+        """Durably publish an incomplete capture without claiming WAIT_ACK closure."""
+
+        self._close_partial(sync_bytes=True)
+        if self._partial_path is None or self._trial_uid is None:
+            raise MailboxError("safety halt has no active per-trial capture")
+        safety_path = self._partial_path.with_name("capture.safety_halt.csv")
+        if safety_path.exists():
+            if safety_path.is_symlink() or not safety_path.is_file():
+                raise MailboxError("safety-halt capture must be a regular file")
+            self._safety_halted = True
+            return safety_path
+        if not self._partial_path.exists() or self._partial_path.is_symlink():
+            raise MailboxError("safety-halt partial capture is missing or unsafe")
+        os.replace(self._partial_path, safety_path)
+        _fsync_directory(safety_path.parent)
+        self._safety_halted = True
+        return safety_path
 
     @property
     def sealed_path(self) -> Path | None:

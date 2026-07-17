@@ -547,6 +547,30 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
             self.assertEqual(text.count(trial.trial_uid), 2)
             self.assertNotIn(str(trial.candidate_token + 1), text)
 
+    def test_safety_halt_seals_partial_without_claiming_wait_ack(self) -> None:
+        trial = make_trial()
+        arm = packet_for(trial, HostCommand.ARM)
+        with tempfile.TemporaryDirectory() as directory:
+            sink = AtomicCommandMailbox(Path(directory) / "command.json")
+            sink.send_command(arm, prepared_trial=make_prepared(trial))
+            active = sink.read_latest()
+            assert active is not None
+            rotator = BridgeTrialCsvRotator(
+                (Path(directory) / "captures").absolute(), ("stage",)
+            )
+            run = fake_rtde(TpLoopState.RUN, arm, consumed_seq=arm.command_seq)
+            observation = TpFeedbackDecoder().observe(run, observed_at_s=0.0)
+            self.assertTrue(
+                rotator.observe({"stage": 25}, active=active, observation=observation)
+            )
+            safety_path = rotator.seal_safety_halt()
+            self.assertEqual(safety_path.name, "capture.safety_halt.csv")
+            self.assertTrue(safety_path.is_file())
+            self.assertIsNone(rotator.sealed_path)
+            self.assertFalse(
+                rotator.observe({"stage": 25}, active=active, observation=observation)
+            )
+
     def test_run_stop_uses_legacy_float_and_integer_stop_is_outer_only(self) -> None:
         self.assertEqual(
             classify_reason4_host_cause("rtde_feedback_stale_structural_stop"),

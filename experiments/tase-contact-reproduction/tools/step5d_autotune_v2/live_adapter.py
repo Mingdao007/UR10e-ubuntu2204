@@ -495,7 +495,23 @@ class Step5dAutotuneV2LiveAdapter:
             return
         snapshot = observation.packet
         if snapshot.state is TpLoopState.FAULT:
-            self._emit(active, "safety_halt", reason="tp_fault")
+            runtime_state = output.get("runtime_state")
+            try:
+                runtime_state = float(runtime_state)
+            except (TypeError, ValueError):
+                runtime_state = None
+            self.publish_safety_halt(
+                runtime=runtime,
+                rotator=rotator,
+                reason="tp_fault",
+                tp_stop_acknowledged=True,
+                tp_state=snapshot.state.name,
+                runtime_state=runtime_state,
+                normal_force_n=None,
+                force_norm_n=None,
+                sample_counter=sample_counter,
+                stop_packets_sent=0,
+            )
             return
         identity_matches = (
             snapshot.campaign_epoch_echo == active.packet.campaign_epoch
@@ -535,3 +551,37 @@ class Step5dAutotuneV2LiveAdapter:
                 command_cleared=True,
                 measured_home_verified=True,
             )
+
+    def publish_safety_halt(
+        self,
+        *,
+        runtime: BridgeMailboxRuntime,
+        rotator: BridgeTrialCsvRotator,
+        reason: str,
+        tp_stop_acknowledged: bool,
+        tp_state: str,
+        runtime_state: float | None,
+        normal_force_n: float | None,
+        force_norm_n: float | None,
+        sample_counter: int,
+        stop_packets_sent: int,
+    ) -> Path:
+        active = runtime.active
+        if active is None:
+            raise LiveAdapterError("safety halt lacks an active trial binding")
+        path = rotator.seal_safety_halt().resolve(strict=True)
+        self._emit(
+            active,
+            "safety_halt",
+            reason=str(reason),
+            tp_stop_acknowledged=bool(tp_stop_acknowledged),
+            tp_state=str(tp_state),
+            runtime_state=runtime_state,
+            normal_force_n=(None if normal_force_n is None else float(normal_force_n)),
+            force_norm_n=(None if force_norm_n is None else float(force_norm_n)),
+            sample_counter=int(sample_counter),
+            stop_packets_sent=int(stop_packets_sent),
+            path=str(path),
+            sha256=_sha256(path),
+        )
+        return path

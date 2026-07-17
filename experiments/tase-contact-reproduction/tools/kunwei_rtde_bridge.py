@@ -6094,6 +6094,46 @@ def compute_bridge_values(
                                 f"p0_contract:{decision_v30.reason}"
                             )
                 if (
+                    step5d_autotune_profile
+                    and step5d_stage25_control_mode == "speedj_rnn_live"
+                    and step5d_qdot_command is not None
+                ):
+                    step5d_post_rnn_normal_guard = step5d_post_rnn_normal_direction_guard(
+                        qdot=step5d_qdot_command,
+                        jacobian=jacobian,
+                        reaction_normal_b=n_control_b,
+                        actual_tcp_speed_b=speed[:3],
+                        normal_load_n=normal_load_n,
+                        force_norm_n=force_abs,
+                        previous_normal_load_n=state.step5d_normal_direction_prev_load_n,
+                        prior_dwell_s=state.step5d_normal_direction_guard_dwell_s,
+                        dt_s=dt_s,
+                    )
+                    state.step5d_normal_direction_guard_dwell_s = float(
+                        step5d_post_rnn_normal_guard["dwell_s"]
+                    )
+                    state.step5d_normal_direction_prev_load_n = normal_load_n
+                    post_guard_action = str(step5d_post_rnn_normal_guard["action"])
+                    if post_guard_action in {"hold_zero_qdot", "stop_zero_qdot"}:
+                        post_guard_reason = str(step5d_post_rnn_normal_guard["reason"])
+                        step5d_contact_safety = {
+                            **step5d_contact_safety,
+                            "state": str(step5d_post_rnn_normal_guard["state"]),
+                            "action": post_guard_action,
+                            "reason": post_guard_reason,
+                        }
+                        step5d_intervention_reasons.append(
+                            f"post_rnn_normal_guard:{post_guard_reason}"
+                        )
+                        step5d_qdot_command = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                        state.step5d_last_qdot = None
+                        state.step5d_outer_state = Step5dOuterLoopState()
+                        step5d_safe_hold_active = 1.0
+                        step5d_cmd_valid_reason = "post_rnn_normal_guard_zero_qdot"
+                        if post_guard_action == "stop_zero_qdot":
+                            step5d_contact_safety_stop = True
+                            step5d_engage_gate_ok = False
+                if (
                     step5d_liveprep_v29_profile
                     and step5d_stage25_control_mode == "speedj_rnn_live"
                     and step5d_qdot_command is not None
@@ -6268,7 +6308,11 @@ def compute_bridge_values(
             ):
                 values.update(
                     step5d_stage25_register_values(
-                        step5d_v30_register_command.qdot,
+                        (
+                            step5d_qdot_command
+                            if step5d_qdot_command is not None
+                            else step5d_v30_register_command.qdot
+                        ),
                         layout_tag=step5d_v30_register_command.layout_code,
                         cmd_valid=(
                             0.0
@@ -7851,6 +7895,45 @@ def apply_step5d_explicit_stop_packet(bridge_values: dict[str, float]) -> None:
     bridge_values["step4e_controller_state"] = float(
         STEP5D_STAGE25_JOINT_LAYOUT_CODE
     )
+
+
+def step5d_autotune_stop_acknowledged(
+    runtime: BridgeMailboxRuntime | None,
+    output: Mapping[str, Any] | None,
+    *,
+    stop_packets_sent: int,
+) -> bool:
+    """Accept STOP only after one packet and an identity-bound terminal observation."""
+
+    if stop_packets_sent < 1:
+        return False
+    if isinstance(output, Mapping):
+        try:
+            if int(float(output.get("runtime_state", -1))) == 1:
+                return True
+        except (TypeError, ValueError):
+            pass
+    if runtime is None or runtime.active is None:
+        return False
+    observation = runtime.latest_tp_observation
+    snapshot = None if observation is None else observation.packet
+    if snapshot is None:
+        return False
+    binding = runtime.active.binding
+    identity_matches = (
+        snapshot.campaign_epoch_echo == binding.campaign_epoch
+        and snapshot.trial_id_echo == binding.trial_id
+        and snapshot.candidate_token_echo == binding.candidate_token
+        and snapshot.execution_profile_id_echo == binding.execution_profile_id
+    )
+    return identity_matches and snapshot.state.name in {
+        "TERMINAL",
+        "RETRACT",
+        "RETURN",
+        "HOME_VERIFY",
+        "WAIT_ACK",
+        "FAULT",
+    }
 
 
 def apply_step5d_unpublished_startup_packet(
@@ -10344,6 +10427,7 @@ def main(argv: list[str] | None = None) -> int:
     guard_reason: str | None = None
     p0_canary_stop_sent_at: float | None = None
     p0_canary_tp_acknowledged = False
+    autotune_safety_stop: dict[str, Any] | None = None
     parse_errors = 0
     dropped_sync_bytes = 0
     samples = 0
@@ -11133,6 +11217,30 @@ def main(argv: list[str] | None = None) -> int:
                             stop_request = 1.0
                             guard_reason = hard_guard_reason
                             stop_reason = hard_guard_reason
+                    if (
+                        args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+                        and step5d_autotune_mailbox_runtime is not None
+                        and step5d_autotune_mailbox_runtime.active is not None
+                        and (guard_reason is not None or autotune_safety_stop is not None)
+                    ):
+                        if autotune_safety_stop is None:
+                            autotune_safety_stop = {
+                                "reason": str(guard_reason),
+                                "latched_at_s": now,
+                                "normal_force_n": float(
+                                    bridge_values.get("normal_force_n", math.nan)
+                                ),
+                                "force_norm_n": float(
+                                    bridge_values.get("force_norm_n", math.nan)
+                                ),
+                                "sample_counter": bridge_writes + 1,
+                                "stop_packets_sent": 0,
+                                "tp_stop_acknowledged": False,
+                            }
+                        guard_reason = str(autotune_safety_stop["reason"])
+                        stop_reason = guard_reason
+                        bridge_values["stop_request"] = 1.0
+                        stop_request = 1.0
                     v30_contract_profile = uses_v30_control_contract(
                         args.bridge_profile
                     )
@@ -11246,6 +11354,19 @@ def main(argv: list[str] | None = None) -> int:
                         else:
                             loop_rtde_send_s = time.perf_counter() - rtde_send_start
                             rtde_send_succeeded = True
+                    if autotune_safety_stop is not None and rtde_send_succeeded:
+                        autotune_safety_stop["stop_packets_sent"] = int(
+                            autotune_safety_stop["stop_packets_sent"]
+                        ) + 1
+                        autotune_safety_stop["tp_stop_acknowledged"] = (
+                            step5d_autotune_stop_acknowledged(
+                                step5d_autotune_mailbox_runtime,
+                                latest_output,
+                                stop_packets_sent=int(
+                                    autotune_safety_stop["stop_packets_sent"]
+                                ),
+                            )
+                        )
                     ready_payload = step5d_bridge_ready_payload(
                         args,
                         metadata,
@@ -11338,6 +11459,56 @@ def main(argv: list[str] | None = None) -> int:
                                 feedback_age_s=feedback_age_s,
                                 observed_at_s=now,
                             )
+                            if autotune_safety_stop is not None:
+                                stop_timed_out = (
+                                    now - float(autotune_safety_stop["latched_at_s"])
+                                    >= 1.5
+                                )
+                                if (
+                                    bool(autotune_safety_stop["tp_stop_acknowledged"])
+                                    or stop_timed_out
+                                ):
+                                    observation = (
+                                        step5d_autotune_mailbox_runtime.latest_tp_observation
+                                    )
+                                    snapshot = (
+                                        None if observation is None else observation.packet
+                                    )
+                                    runtime_state_value = latest_output.get("runtime_state")
+                                    try:
+                                        runtime_state_value = float(runtime_state_value)
+                                    except (TypeError, ValueError):
+                                        runtime_state_value = None
+                                    step5d_autotune_v2_live_adapter.publish_safety_halt(
+                                        runtime=step5d_autotune_mailbox_runtime,
+                                        rotator=step5d_autotune_trial_rotator,
+                                        reason=str(autotune_safety_stop["reason"]),
+                                        tp_stop_acknowledged=bool(
+                                            autotune_safety_stop["tp_stop_acknowledged"]
+                                        ),
+                                        tp_state=(
+                                            "UNKNOWN" if snapshot is None else snapshot.state.name
+                                        ),
+                                        runtime_state=runtime_state_value,
+                                        normal_force_n=float(
+                                            autotune_safety_stop["normal_force_n"]
+                                        ),
+                                        force_norm_n=float(
+                                            autotune_safety_stop["force_norm_n"]
+                                        ),
+                                        sample_counter=int(
+                                            autotune_safety_stop["sample_counter"]
+                                        ),
+                                        stop_packets_sent=int(
+                                            autotune_safety_stop["stop_packets_sent"]
+                                        ),
+                                    )
+                                    stop_reason = (
+                                        "autotune_safety_halt_tp_acknowledged"
+                                        if autotune_safety_stop["tp_stop_acknowledged"]
+                                        else "autotune_safety_halt_tp_ack_timeout"
+                                    )
+                                    terminate_after_write = True
                     last_csv_write_s = time.perf_counter() - csv_write_start
                     bridge_writes += 1
                     bridge_write_times.append(now)
@@ -11413,6 +11584,7 @@ def main(argv: list[str] | None = None) -> int:
                     elif (
                         not v29_safety_fail_stop["enabled"]
                         and guard_reason is not None
+                        and autotune_safety_stop is None
                     ) or terminate_after_write:
                         break
     finally:
