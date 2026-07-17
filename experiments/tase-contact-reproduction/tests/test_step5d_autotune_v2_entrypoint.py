@@ -25,7 +25,7 @@ def test_v1_operator_is_mechanically_frozen() -> None:
     assert "autotune v1 is frozen" in completed.stdout
 
 
-def test_start_fails_before_systemd_or_network_when_tp_v2_readback_is_missing(
+def test_start_fails_before_systemd_or_network_without_live_authorization(
     tmp_path: Path,
 ) -> None:
     completed = subprocess.run(
@@ -46,10 +46,12 @@ def test_start_fails_before_systemd_or_network_when_tp_v2_readback_is_missing(
     assert completed.returncode == 78
     status = json.loads(completed.stdout)
     assert status["runtime_ready"] is False
-    assert status["primary_blocker"] == "tp_v2_controller_readback_missing"
+    assert status["controller_readback_verified"] is True
+    assert status["deployment_authorized"] is False
+    assert status["primary_blocker"] == "deployment_not_authorized"
 
 
-def test_status_reports_static_readback_blocker_without_starting_service(
+def test_status_reports_static_authorization_blocker_without_starting_service(
     tmp_path: Path,
 ) -> None:
     database = tmp_path / "campaign.sqlite3"
@@ -93,7 +95,9 @@ def test_status_reports_static_readback_blocker_without_starting_service(
     assert completed.returncode == 0
     status = json.loads(completed.stdout)
     assert status["runtime_ready"] is False
-    assert status["primary_blocker"] == "tp_v2_controller_readback_missing"
+    assert status["controller_readback_verified"] is True
+    assert status["deployment_authorized"] is False
+    assert status["primary_blocker"] == "deployment_not_authorized"
     after = {
         path.name: (path.read_bytes(), path.stat().st_mtime_ns)
         for path in tmp_path.iterdir()

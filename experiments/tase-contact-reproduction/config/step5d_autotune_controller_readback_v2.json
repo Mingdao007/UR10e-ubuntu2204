@@ -1,0 +1,14 @@
+{
+  "schema": "step5d.autotune.controller-readback/v2",
+  "verified": true,
+  "deployment_id": "step5d-autotune-v2-readback-20260717-r1",
+  "controller_host": "192.168.1.18",
+  "program": "step5d_strict_rnn_autotune_v2",
+  "tp_fingerprint": "59f2d020721615305d15d45786bd87b2792181f8dfbe5c6a34f8947baa6bdd83",
+  "triplet_sha256": {
+    ".script": "2f3b5d4ea303e9cc8830d0f81b873c5097b3a877d5478ed5c3ca5abae05a65ea",
+    ".txt": "f734706e65c75a0f25c30d655f69523f6c32637efd5914a78261981b97c0c6cc",
+    ".urp": "44fa2a43cc2e5a6a1b0b6787df0288add22ea46732938085c6b2842db1dc062b"
+  },
+  "readback_at": "2026-07-17T17:59:08+08:00"
+}

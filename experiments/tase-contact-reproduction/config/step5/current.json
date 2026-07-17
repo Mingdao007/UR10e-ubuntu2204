@@ -1,13 +1,13 @@
 {
   "schema": "step5d.autotune.deployment/v2",
   "deployment": {
-    "id": "step5d-autotune-v2-offline-20260715-r2",
+    "id": "step5d-autotune-v2-readback-20260717-r1",
     "code_fingerprint": "auto",
-    "tp_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+    "tp_fingerprint": "59f2d020721615305d15d45786bd87b2792181f8dfbe5c6a34f8947baa6bdd83",
     "guard_fingerprint": "auto",
     "authorized": false,
-    "controller_readback_verified": false,
-    "readback_attestation": null
+    "controller_readback_verified": true,
+    "readback_attestation": "config/step5d_autotune_controller_readback_v2.json"
   },
   "controller": {
     "host": "192.168.1.18",
@@ -91,10 +91,7 @@
     "status_freshness_s": 5,
     "golden_replay_attestation": "config/step5/golden_replay_g10_v2_result.json",
     "blocked_until": [
-      "controller_reachable",
-      "current_triplet_fetched",
-      "tp_watchdog_diff_verified",
-      "fresh_controller_readback"
+      "v2_bridge_command_not_frozen"
     ]
   }
 }

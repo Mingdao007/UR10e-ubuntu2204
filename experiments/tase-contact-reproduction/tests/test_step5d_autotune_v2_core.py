@@ -474,8 +474,9 @@ def test_static_authorization_never_implies_fresh_runtime_ready(tmp_path: Path) 
     repository.register_deployment(config.deployment)
     report = evaluate_preflight(config, repository)
     assert report.deployment_authorized is False
+    assert config.deployment.controller_readback_verified is True
     assert report.ready_to_launch is False
-    assert report.primary_blocker == "tp_v2_controller_readback_missing"
+    assert report.primary_blocker == "deployment_not_authorized"
     repository.set_runtime_status(
         deployment_authorized=False,
         runtime_ready=False,

@@ -116,7 +116,7 @@
       "tests": ["tests/test_publish_step5d_autotune_plot.py"]
     },
     {
-      "paths": ["tools/step5d_autotune_v2/**", "tests/test_step5d_autotune_v2_*.py", "tools/build_step5d_autotune_v2_tp.py", "tools/verify_step5d_tp_watchdog_diff.py", "tools/generate_step5_docs.py", "config/step5/current.json", "config/step5/tp_watchdog_v2.json", "config/step5/tp_watchdog_blocks/**"],
+      "paths": ["tools/step5d_autotune_v2/**", "tests/test_step5d_autotune_v2_*.py", "tools/build_step5d_autotune_v2_tp.py", "tools/verify_step5d_tp_watchdog_diff.py", "tools/generate_step5_docs.py", "config/step5/current.json", "config/step5/tp_watchdog_v2.json", "config/step5/tp_watchdog_blocks/**", "config/step5d_autotune_controller_readback_v2.json", "programs/step5/step5d/step5d_strict_rnn_autotune_v2.*"],
       "tests": ["tests/test_step5d_autotune_v2_core.py", "tests/test_step5d_autotune_v2_entrypoint.py", "tests/test_step5d_autotune_v2_hardening.py", "tests/test_step5d_autotune_v2_legacy.py", "tests/test_step5d_autotune_v2_report.py", "tests/test_step5d_autotune_v2_service.py", "tests/test_step5d_autotune_v2_supervisor.py", "tests/test_step5d_autotune_v2_tp_watchdog.py", "tests/test_step5d_autotune_v2_transport.py"]
     },
     {

@@ -8,10 +8,10 @@ autotune orchestration route. The v2 offline implementation exists, but live
 cutover is disabled until controller-bound gates pass; this document never
 claims runtime READY.
 
-- Deployment: `step5d-autotune-v2-offline-20260715-r2`
+- Deployment: `step5d-autotune-v2-readback-20260717-r1`
 - Controller program target: `step5d_strict_rnn_autotune_v2`
 - Static authorization: `false`
-- Controller readback verified: `false`
+- Controller readback verified: `true`
 - Live cutover enabled: `false`
 
 Fresh runtime truth comes only from:
@@ -115,10 +115,7 @@ authorized by this document.
 
 ## Live-cutover blockers
 
-- `controller_reachable`
-- `current_triplet_fetched`
-- `tp_watchdog_diff_verified`
-- `fresh_controller_readback`
+- `v2_bridge_command_not_frozen`
 
 The controller triplet must be fetched before building TP v2 so the user's
 current waypoint is preserved. TP v2 may change only handshake/watchdog

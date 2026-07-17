@@ -102,6 +102,8 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
             "config/step5/current.json",
             "config/step5/tp_watchdog_v2.json",
             "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v2.script",
+            "config/step5d_autotune_controller_readback_v2.json",
+            "programs/step5/step5d/step5d_strict_rnn_autotune_v2.urp",
         ]
 
         for changed_path in changed_paths:

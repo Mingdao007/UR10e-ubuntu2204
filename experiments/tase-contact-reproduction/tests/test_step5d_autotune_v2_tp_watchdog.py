@@ -23,6 +23,7 @@ from step5d_autotune_v2.tp_watchdog import (
     compare_measured_home,
     decide_watchdog,
 )
+from step5d_autotune_v2.config import load_static_config
 from build_step5d_autotune_v2_tp import (
     ATTESTATION_SCHEMA,
     CANDIDATE_PROGRAM,
@@ -976,3 +977,60 @@ def test_canonical_manifest_rejects_runtime_policy_drift(tmp_path: Path) -> None
         mutated.write_text(json.dumps(payload), encoding="utf-8")
         with pytest.raises(ValueError, match="runtime policy drift"):
             load_canonical_blocks(mutated)
+
+
+def test_committed_controller_readback_attestation_binds_exact_v2_triplet() -> None:
+    current = json.loads(
+        (ROOT / "config/step5/current.json").read_text(encoding="utf-8")
+    )
+    deployment = current["deployment"]
+    attestation_path = ROOT / deployment["readback_attestation"]
+    attestation = json.loads(attestation_path.read_text(encoding="utf-8"))
+    package_dir = ROOT / "programs/step5/step5d"
+    manifest_path = package_dir / f"{CANDIDATE_PROGRAM}.deploy-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    actual_sha = {
+        extension: hashlib.sha256(
+            (package_dir / f"{CANDIDATE_PROGRAM}{extension}").read_bytes()
+        ).hexdigest()
+        for extension in (".script", ".txt", ".urp")
+    }
+
+    assert deployment["authorized"] is False
+    assert deployment["controller_readback_verified"] is True
+    assert current["live_cutover"]["enabled"] is False
+    assert current["live_cutover"]["blocked_until"] == [
+        "v2_bridge_command_not_frozen"
+    ]
+    assert deployment["tp_fingerprint"] == hashlib.sha256(
+        manifest_path.read_bytes()
+    ).hexdigest()
+    assert set(attestation) == {
+        "schema",
+        "verified",
+        "deployment_id",
+        "controller_host",
+        "program",
+        "tp_fingerprint",
+        "triplet_sha256",
+        "readback_at",
+    }
+    assert attestation["schema"] == "step5d.autotune.controller-readback/v2"
+    assert attestation["verified"] is True
+    assert attestation["deployment_id"] == deployment["id"]
+    assert attestation["controller_host"] == current["controller"]["host"]
+    assert attestation["program"] == CANDIDATE_PROGRAM
+    assert attestation["tp_fingerprint"] == deployment["tp_fingerprint"]
+    assert attestation["triplet_sha256"] == actual_sha
+    assert manifest["schema_version"] == 1
+    assert manifest["basename"] == CANDIDATE_PROGRAM
+    assert manifest["controller_directory"] == "/programs/andyl/kunwei/step5"
+    assert {
+        row["filename"]: row["sha256"] for row in manifest["artifacts"]
+    } == {
+        f"{CANDIDATE_PROGRAM}{extension}": actual_sha[extension]
+        for extension in (".script", ".txt", ".urp")
+    }
+    static = load_static_config(ROOT)
+    assert static.deployment.controller_readback_verified is True
+    assert static.deployment.deployment_authorized is False

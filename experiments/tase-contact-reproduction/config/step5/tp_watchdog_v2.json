@@ -1,6 +1,6 @@
 {
   "schema": "step5d.autotune.tp-watchdog/v2",
-  "status": "offline_builder_ready_controller_snapshot_missing",
+  "status": "controller_readback_verified_pending_live_authorization",
   "control_math_changed": false,
   "trajectory_changed": false,
   "waypoint_changed": false,
@@ -22,9 +22,9 @@
     "mismatch_action": "refuse_start"
   },
   "controller_delivery": {
-    "current_triplet_fetched": false,
-    "watchdog_only_diff_verified": false,
-    "fresh_readback_verified": false
+    "current_triplet_fetched": true,
+    "watchdog_only_diff_verified": true,
+    "fresh_readback_verified": true
   },
   "watchdog_diff_gate": {
     "schema": "step5d.autotune.tp-watchdog-blocks/v2",
