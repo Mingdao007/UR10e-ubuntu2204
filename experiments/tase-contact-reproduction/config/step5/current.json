@@ -1,11 +1,11 @@
 {
   "schema": "step5d.autotune.deployment/v2",
   "deployment": {
-    "id": "step5d-autotune-v2-live-20260717-r14",
+    "id": "step5d-autotune-v2-live-20260718-r15",
     "tp_delivery_id": "step5d-autotune-v2-readback-20260717-r2",
-    "code_fingerprint": "2783ef04ecfad59594843549c8da494f0e23dec0bd2f7f89975914faff717f30",
+    "code_fingerprint": "6231c8c3093b47970612fab3a2369c03d60c686a927a170e806aa48751aae8c6",
     "tp_fingerprint": "c2761f200c58d9825e37dc76907b5e25b2d9982cda7dff1cf7de9699dbad7bb9",
-    "guard_fingerprint": "87acabb4ff2808b0091dc9cc9851048ee1846b3242b23165d86560b190d85878",
+    "guard_fingerprint": "583fc450045689da586fd59a1061ccf853370bc1e221608b0c4a552bfc301f9f",
     "authorized": true,
     "controller_readback_verified": true,
     "readback_attestation": "config/step5d_autotune_controller_readback_v2.json"
@@ -31,11 +31,13 @@
     "force_math_changed": false,
     "trajectory_changed": false,
     "command_order_changed": false,
+    "guard_policy_changed": true,
     "guard_sources": [
       "config/step5_safe_frame.json",
       "config/step5d_autotune_i_scale_sanity_v1.json",
       "tools/contact_semantics.py",
-      "tools/step5d_control_contract.py"
+      "tools/step5d_control_contract.py",
+      "tools/kunwei_rtde_bridge.py"
     ]
   },
   "code_sources": [

@@ -313,6 +313,7 @@ def load_static_config(root: Path, path: Path | None = None) -> StaticConfig:
         "force_math_changed",
         "trajectory_changed",
         "command_order_changed",
+        "guard_policy_changed",
         "guard_sources",
     } or any(
         control_contract[name] is not False
@@ -323,6 +324,8 @@ def load_static_config(root: Path, path: Path | None = None) -> StaticConfig:
         )
     ):
         raise ConfigError("control refactor must preserve math, trajectory, and order")
+    if control_contract["guard_policy_changed"] is not True:
+        raise ConfigError("r15 requires the post-RNN guard policy change declaration")
     guard_rows = control_contract.get("guard_sources")
     if not isinstance(guard_rows, list) or not guard_rows:
         raise ConfigError("control_contract requires guard_sources")

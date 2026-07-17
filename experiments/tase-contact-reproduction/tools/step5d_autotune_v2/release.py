@@ -10,7 +10,7 @@ from typing import Any
 from .config import ConfigError, load_static_config
 
 
-DEPLOYMENT_ID = "step5d-autotune-v2-live-20260717-r14"
+DEPLOYMENT_ID = "step5d-autotune-v2-live-20260718-r15"
 TP_DELIVERY_ID = "step5d-autotune-v2-readback-20260717-r2"
 PROGRAM = "step5d_strict_rnn_autotune_v2"
 BRIDGE_ARGV = ("python3", "{root}/tools/run_step5d_autotune_v2_bridge.py")
@@ -60,7 +60,7 @@ def verify_release_config(
     bridge = payload["bridge"]
     cutover = payload["live_cutover"]
 
-    _require(deployment["id"] == DEPLOYMENT_ID, "release deployment id is not r14")
+    _require(deployment["id"] == DEPLOYMENT_ID, "release deployment id is not r15")
     _require(
         deployment["tp_delivery_id"] == TP_DELIVERY_ID,
         "release TP delivery/readback identity differs",
@@ -104,6 +104,10 @@ def verify_release_config(
         "torque_norm_guard_nm": "3",
     }
     _require(observed_profile == PROFILE, "release bridge execution profile differs")
+    _require(
+        payload["control_contract"].get("guard_policy_changed") is True,
+        "release post-RNN guard policy change is not declared",
+    )
     required_sources = {
         "tools/step5d_autotune_v2/live_adapter.py",
         "tools/step5d_autotune_live_driver.py",
@@ -134,6 +138,16 @@ def verify_release_config(
         and (row.get("current_binding") or {}).get("is_current") is True
     ]
     _require(len(current_rows) == 1, "release stage-table binding differs")
+    guard = current_rows[0].get("guard") or {}
+    _require(
+        guard.get("normal_motion_policy") == "post_rnn_directional_guarded"
+        and guard.get("post_rnn_hold_load_n") == 14
+        and guard.get("post_rnn_directional_stop_load_n") == 18
+        and guard.get("post_rnn_directional_stop_dwell_s") == 0.004
+        and guard.get("post_rnn_hard_stop_load_n") == 25
+        and guard.get("stop_ack_timeout_s") == 1.5,
+        "release post-RNN guard or STOP/ACK policy differs",
+    )
     return {
         "schema": "step5d.autotune.release-verification/v2",
         "ok": True,

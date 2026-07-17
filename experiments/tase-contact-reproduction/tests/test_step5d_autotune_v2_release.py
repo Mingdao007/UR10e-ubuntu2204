@@ -20,7 +20,7 @@ def _current() -> dict:
 def test_current_config_is_a_frozen_live_release() -> None:
     report = verify_release_config(ROOT)
     assert report["ok"] is True
-    assert report["deployment_id"] == "step5d-autotune-v2-live-20260717-r14"
+    assert report["deployment_id"] == "step5d-autotune-v2-live-20260718-r15"
     assert report["bridge_profile"] == {
         "sample_rate_hz": 500,
         "target_force_n": "12",
