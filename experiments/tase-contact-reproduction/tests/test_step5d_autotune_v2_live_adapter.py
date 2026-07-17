@@ -429,6 +429,7 @@ def test_same_pid_launcher_snapshot_is_frozen(tmp_path: Path) -> None:
         "--step5d-autotune-host-slew-rad-s2": "0.5",
         "--step5d-autotune-speedj-acceleration-rad-s2": "0.5",
         "--duration-s": "360",
+        "--dashboard-program-watch-timeout-s": "120",
     }
     assert {flag: argv[argv.index(flag) + 1] for flag in expected} == expected
     assert argv[argv.index("--step5d-autotune-command-mailbox") + 1] == str(

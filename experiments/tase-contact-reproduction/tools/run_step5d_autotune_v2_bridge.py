@@ -59,6 +59,7 @@ def bridge_argv(root: Path, runtime_root: Path) -> list[str]:
         sys.executable, str(root / "tools/kunwei_rtde_bridge.py"),
         "--allow-kunwei-stream-command", "--write-rtde-inputs",
         "--baseline-s", "5", "--rezero-s", "1", "--duration-s", "360",
+        "--dashboard-program-watch-timeout-s", "120",
         "--rtde-hz", "500", "--socket-timeout-s", "0", "--sensor-stale-s", "0.10",
         "--target-force-n", "12", "--normal-axis", "fz", "--normal-sign", "1",
         "--max-normal-force-n", "60", "--max-force-norm-n", "100",
