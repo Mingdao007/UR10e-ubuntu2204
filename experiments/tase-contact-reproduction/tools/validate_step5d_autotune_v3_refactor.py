@@ -304,7 +304,31 @@ def matrix_issues(payload: Any) -> list[str]:
         for field, required in expected.items():
             if lane.get(field) is not required:
                 issues.append(f"test_matrix_realistic_lane_policy:{name}:{field}")
-        if lane.get("execution_status") not in {"not_run", "blocked_not_authorized"}:
+        status = lane.get("execution_status")
+        if name == "large_ursim" and status == "pass":
+            required_evidence = {
+                "immutable_result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
+                "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
+                "cleanup_completed": True,
+            }
+            for field, required in required_evidence.items():
+                if lane.get(field) != required:
+                    issues.append(f"test_matrix_realistic_lane_pass_evidence:{name}:{field}")
+            for field in ("immutable_result_sha256", "raw_evidence_sha256"):
+                value = lane.get(field)
+                if (
+                    not isinstance(value, str)
+                    or re.fullmatch(r"[0-9a-f]{64}", value) is None
+                    or set(value) == {"0"}
+                ):
+                    issues.append(f"test_matrix_realistic_lane_pass_evidence:{name}:{field}")
+            if not isinstance(lane.get("execution_observed_at"), str) or not lane[
+                "execution_observed_at"
+            ].strip():
+                issues.append(
+                    f"test_matrix_realistic_lane_pass_evidence:{name}:execution_observed_at"
+                )
+        elif status not in {"not_run", "blocked_not_authorized"}:
             issues.append(f"test_matrix_realistic_lane_false_pass:{name}")
     image = lanes.get("large_ursim", {}).get("container_image", "")
     match = re.fullmatch(r"[^\s@]+@sha256:([0-9a-f]{64})", image) if isinstance(image, str) else None
@@ -357,6 +381,35 @@ def load_matrix(path: Path) -> tuple[Any, list[str]]:
         return None, [f"test_matrix_unreadable:{exc}"]
     issues = matrix_issues(payload)
     root = path.resolve().parent.parent
+    lanes = payload.get("lanes") if isinstance(payload, dict) else None
+    large = lanes.get("large_ursim") if isinstance(lanes, dict) else None
+    if isinstance(large, dict) and large.get("execution_status") == "pass":
+        for role, path_field, sha_field, required_relative in (
+            (
+                "result",
+                "immutable_result",
+                "immutable_result_sha256",
+                "config/step5/step5d_autotune_v3_ursim_hold_result.json",
+            ),
+            (
+                "raw",
+                "raw_evidence",
+                "raw_evidence_sha256",
+                "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
+            ),
+        ):
+            relative = large.get(path_field)
+            expected_sha = large.get(sha_field)
+            target = root / relative if relative == required_relative else None
+            if target is None or target.is_symlink() or not target.is_file():
+                issues.append(f"test_matrix_realistic_lane_evidence_unavailable:{role}")
+                continue
+            observed_sha = _sha256(target.read_bytes())
+            if observed_sha != expected_sha:
+                issues.append(
+                    f"test_matrix_realistic_lane_evidence_digest:{role}:"
+                    f"expected={expected_sha}:observed={observed_sha}"
+                )
     requirements = payload.get("requirements") if isinstance(payload, dict) else None
     if not isinstance(requirements, list) or not requirements:
         issues.append("test_matrix_incident_requirements_missing")

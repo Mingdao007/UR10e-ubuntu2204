@@ -149,6 +149,22 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             issues,
         )
 
+    def test_matrix_realistic_pass_requires_hash_bound_evidence(self) -> None:
+        payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
+        payload["lanes"]["large_ursim"]["immutable_result_sha256"] = "0" * 64
+        payload["lanes"]["large_ursim"]["cleanup_completed"] = False
+        payload["lanes"]["hil_no_motion"]["execution_status"] = "pass"
+        issues = gate.matrix_issues(payload)
+        self.assertIn(
+            "test_matrix_realistic_lane_pass_evidence:large_ursim:immutable_result_sha256",
+            issues,
+        )
+        self.assertIn(
+            "test_matrix_realistic_lane_pass_evidence:large_ursim:cleanup_completed",
+            issues,
+        )
+        self.assertIn("test_matrix_realistic_lane_false_pass:hil_no_motion", issues)
+
     def test_workflow_runs_only_explicit_hermetic_fast_tests(self) -> None:
         workflow = (GIT_ROOT / ".github" / "workflows" / "step5d-autotune-v3.yml").read_text(
             encoding="utf-8"
