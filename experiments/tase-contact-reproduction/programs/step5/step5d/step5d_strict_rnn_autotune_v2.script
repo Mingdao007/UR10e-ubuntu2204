@@ -707,8 +707,8 @@ def codex_step5d_strict_rnn_autotune_v2():
   local last_consumed_command_seq = 0
   codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)
   # AUTOTUNE_WATCHDOG_V2_BEGIN host_heartbeat_fail_closed_v2
-  local watchdog_home_pose = get_actual_tcp_pose()
-  local watchdog_home_q = get_actual_joint_positions()
+  global watchdog_home_pose = get_actual_tcp_pose()
+  global watchdog_home_q = get_actual_joint_positions()
   thread codex_autotune_v2_heartbeat_watchdog():
     local watchdog_last_heartbeat = read_input_float_register(26)
     local watchdog_stale_s = 0.000

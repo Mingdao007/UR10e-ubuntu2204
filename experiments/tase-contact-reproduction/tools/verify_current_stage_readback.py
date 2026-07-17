@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -17,6 +20,8 @@ ALLOWED_DELIVERY_MODES = {
     "full_upload_readback",
     "content_addressed_reuse",
 }
+AUTOTUNE_READBACK_SCHEMA = "step5d.autotune.controller-readback/v2"
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def fail(message: str) -> None:
@@ -128,6 +133,58 @@ def verify(
                 f"{manifest_path} != {expected_current}"
             )
     manifest = load_json(manifest_path)
+    if manifest.get("schema") == AUTOTUNE_READBACK_SCHEMA:
+        required_fields = {
+            "schema",
+            "verified",
+            "deployment_id",
+            "controller_host",
+            "program",
+            "tp_fingerprint",
+            "triplet_sha256",
+            "readback_at",
+        }
+        if set(manifest) != required_fields:
+            fail("autotune read-back attestation fields differ from schema")
+        if manifest.get("verified") is not True:
+            fail("autotune read-back attestation is not verified")
+        if manifest.get("program") != selected_program:
+            fail(
+                f"autotune read-back program is {manifest.get('program')}, "
+                f"expected {selected_program}"
+            )
+        if not isinstance(manifest.get("controller_host"), str) or not manifest.get(
+            "controller_host"
+        ):
+            fail("autotune read-back controller_host is missing")
+        if not isinstance(manifest.get("deployment_id"), str) or not manifest.get(
+            "deployment_id"
+        ):
+            fail("autotune read-back deployment_id is missing")
+        if SHA256_RE.fullmatch(str(manifest.get("tp_fingerprint", ""))) is None:
+            fail("autotune read-back tp_fingerprint is invalid")
+        try:
+            datetime.fromisoformat(str(manifest.get("readback_at")))
+        except ValueError:
+            fail("autotune read-back timestamp is invalid")
+        expected_sha = current_sha(current)
+        if manifest.get("triplet_sha256") != expected_sha:
+            fail("autotune read-back triplet does not match current-stage SHA256")
+        expected_manifest_sha = current.get("controller_readback_manifest_sha256")
+        actual_manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        if expected_manifest_sha != actual_manifest_sha:
+            fail("autotune read-back attestation SHA256 differs from current-stage binding")
+        return {
+            "ok": True,
+            "program": selected_program,
+            "target_dir": expected_target_dir,
+            "manifest": (
+                str(manifest_path.relative_to(root))
+                if manifest_path.is_relative_to(root)
+                else str(manifest_path)
+            ),
+            "delivery_mode": "full_upload_readback",
+        }
     if manifest.get("status") != "controller read-back verified":
         fail(f"manifest status is {manifest.get('status')}")
 

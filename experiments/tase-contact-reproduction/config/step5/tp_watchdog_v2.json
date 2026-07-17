@@ -37,7 +37,7 @@
       {
         "block_id": "host_heartbeat_fail_closed_v2",
         "source": "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v2.script",
-        "sha256": "8ef836b26e8820f76c6da16d8b0fe20f3d060cfee0d1cfe90e20af42adc487a2",
+        "sha256": "fe0c5a2e991fcc065efde75760f5c164b14f161cc5c2b8668941c64fbf4aa8e4",
         "required_in": [
           ".script",
           ".urp"

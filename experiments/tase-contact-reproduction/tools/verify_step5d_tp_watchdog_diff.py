@@ -591,8 +591,8 @@ def _validate_canonical_source(block: WatchdogBlock, *, source: Path) -> None:
         raise ValueError(f"canonical watchdog block is comment-only: {source}")
     code = b"\n".join(code_lines)
     required_code = (
-        b"local watchdog_home_pose = get_actual_tcp_pose()",
-        b"local watchdog_home_q = get_actual_joint_positions()",
+        b"global watchdog_home_pose = get_actual_tcp_pose()",
+        b"global watchdog_home_q = get_actual_joint_positions()",
         b"thread codex_autotune_v2_heartbeat_watchdog():",
         b"local watchdog_last_heartbeat = read_input_float_register(26)",
         b"local watchdog_heartbeat = read_input_float_register(26)",
@@ -645,7 +645,7 @@ def _validate_canonical_source(block: WatchdogBlock, *, source: Path) -> None:
     )
     declarations = set(
         re.findall(
-            r"(?:^|\n)(?:local\s+)?(watchdog_[A-Za-z0-9_]+)\s*=",
+            r"(?:^|\n)(?:(?:local|global)\s+)?(watchdog_[A-Za-z0-9_]+)\s*=",
             decoded,
         )
     )

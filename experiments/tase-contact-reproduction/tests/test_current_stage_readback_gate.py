@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -80,7 +81,54 @@ def write_case_with_manifest_status(root: Path, status: str) -> None:
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
 
+def write_autotune_v2_case(root: Path, *, sha: dict[str, str] | None = None) -> None:
+    manifest_rel = "config/step5d_autotune_controller_readback_v2.json"
+    manifest_path = root / manifest_rel
+    manifest_path.parent.mkdir(parents=True)
+    manifest = {
+        "schema": gate.AUTOTUNE_READBACK_SCHEMA,
+        "verified": True,
+        "deployment_id": "step5d-autotune-v2-readback-test",
+        "controller_host": "192.168.1.18",
+        "program": PROGRAM,
+        "tp_fingerprint": "4" * 64,
+        "triplet_sha256": sha or SHA,
+        "readback_at": "2026-07-17T20:03:51+08:00",
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    current = {
+        "current_stage_id": PROGRAM,
+        "program": PROGRAM,
+        "controller_target": f"{TARGET_DIR}/{PROGRAM}.urp",
+        "controller_script": f"{TARGET_DIR}/{PROGRAM}.script",
+        "status": f"{PROGRAM}_controller_readback_verified_waiting_for_bridge",
+        "sha256": SHA,
+        "controller_readback_manifest": manifest_rel,
+        "controller_readback_manifest_sha256": hashlib.sha256(
+            manifest_path.read_bytes()
+        ).hexdigest(),
+    }
+    (root / "config" / "current_stage.json").write_text(
+        json.dumps(current), encoding="utf-8"
+    )
+
+
 class CurrentStageReadbackGateTest(unittest.TestCase):
+    def test_autotune_v2_attestation_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_autotune_v2_case(root)
+            result = gate.verify(root, PROGRAM)
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["delivery_mode"], "full_upload_readback")
+
+    def test_autotune_v2_attestation_rejects_triplet_sha_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_autotune_v2_case(root, sha={**SHA, ".script": "9" * 64})
+            with self.assertRaisesRegex(RuntimeError, "triplet does not match"):
+                gate.verify(root, PROGRAM)
+
     def test_legacy_manifest_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

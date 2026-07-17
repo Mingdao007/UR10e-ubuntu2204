@@ -961,6 +961,23 @@ def test_canonical_validator_rejects_undefined_placeholder_and_bounded_symbol() 
         )
 
 
+def test_watchdog_home_snapshot_is_global_for_thread_scope() -> None:
+    assert "global watchdog_home_pose = get_actual_tcp_pose()" in CANONICAL_BLOCK
+    assert "global watchdog_home_q = get_actual_joint_positions()" in CANONICAL_BLOCK
+    assert "local watchdog_home_pose = get_actual_tcp_pose()" not in CANONICAL_BLOCK
+    assert "local watchdog_home_q = get_actual_joint_positions()" not in CANONICAL_BLOCK
+
+    local_snapshot = CANONICAL_BLOCK.replace(
+        "global watchdog_home_pose = get_actual_tcp_pose()",
+        "local watchdog_home_pose = get_actual_tcp_pose()",
+    ).encode()
+    with pytest.raises(ValueError, match="lacks executable policy"):
+        _validate_canonical_source(
+            WatchdogBlock(BLOCK_ID, local_snapshot, 0, len(local_snapshot)),
+            source=CANONICAL_BLOCK_PATH,
+        )
+
+
 def test_canonical_manifest_rejects_runtime_policy_drift(tmp_path: Path) -> None:
     manifest_path = ROOT / "config/step5/tp_watchdog_v2.json"
     mutations = (

@@ -1,14 +1,14 @@
 {
   "schema": "step5d.autotune.controller-readback/v2",
   "verified": true,
-  "deployment_id": "step5d-autotune-v2-readback-20260717-r1",
+  "deployment_id": "step5d-autotune-v2-readback-20260717-r2",
   "controller_host": "192.168.1.18",
   "program": "step5d_strict_rnn_autotune_v2",
-  "tp_fingerprint": "59f2d020721615305d15d45786bd87b2792181f8dfbe5c6a34f8947baa6bdd83",
+  "tp_fingerprint": "c2761f200c58d9825e37dc76907b5e25b2d9982cda7dff1cf7de9699dbad7bb9",
   "triplet_sha256": {
-    ".script": "2f3b5d4ea303e9cc8830d0f81b873c5097b3a877d5478ed5c3ca5abae05a65ea",
+    ".script": "d3e52cbb341adad5c6924c155e3e4c15890379f0a251647f4f1de0235fc1ad05",
     ".txt": "f734706e65c75a0f25c30d655f69523f6c32637efd5914a78261981b97c0c6cc",
-    ".urp": "44fa2a43cc2e5a6a1b0b6787df0288add22ea46732938085c6b2842db1dc062b"
+    ".urp": "3287e9913e8ba07f9d86549e7441f383f644e64cf33f956c7221e44df6621153"
   },
-  "readback_at": "2026-07-17T17:59:08+08:00"
+  "readback_at": "2026-07-17T20:03:46+08:00"
 }
