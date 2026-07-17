@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import html
 import json
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +20,19 @@ from step5d_autotune_v2.tp_watchdog import (
     compare_measured_home,
     decide_watchdog,
 )
-from verify_step5d_tp_watchdog_diff import normalized_content
+from verify_step5d_tp_watchdog_diff import (
+    inspect_content,
+    load_canonical_blocks,
+    normalized_content,
+)
+
+
+BLOCK_ID = "host_heartbeat_fail_closed_v1"
+NEXT_PROGRAM = "step5d_strict_rnn_autotune_v2"
+CANONICAL_BLOCK_PATH = (
+    ROOT / "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v1.script"
+)
+CANONICAL_BLOCK = CANONICAL_BLOCK_PATH.read_text(encoding="utf-8")
 
 
 def test_wait_ack_host_loss_halts_at_verified_home_without_motion() -> None:
@@ -57,15 +72,13 @@ def test_next_start_home_comparison_returns_concrete_blocker() -> None:
     assert result.blocker == "home_position_mismatch"
 
 
-def test_tp_diff_normalization_allows_only_bounded_watchdog_and_identity(
+def test_tp_diff_normalization_removes_only_named_bounded_block_and_identity(
     tmp_path: Path,
 ) -> None:
     old = "def old_program():\n  waypoint = p[1,2,3,4,5,6]\nend\n"
     new = (
         "def new_program():\n"
-        "  # AUTOTUNE_WATCHDOG_V2_BEGIN\n"
-        "  # host_heartbeat_timeout_at_home\n"
-        "  # AUTOTUNE_WATCHDOG_V2_END\n"
+        f"{CANONICAL_BLOCK}"
         "  waypoint = p[1,2,3,4,5,6]\nend\n"
     )
     old_script = tmp_path / "old_program.script"
@@ -83,8 +96,16 @@ def test_tp_diff_normalization_allows_only_bounded_watchdog_and_identity(
 
     old_urp = tmp_path / "old_program.urp"
     new_urp = tmp_path / "new_program.urp"
-    old_urp.write_bytes(gzip.compress(old.encode("utf-8"), mtime=0))
-    new_urp.write_bytes(gzip.compress(new.encode("utf-8"), mtime=0))
+    old_urp_text = f"<cachedContents>\n{old}</cachedContents>\n"
+    new_urp_text = (
+        "<cachedContents>\n"
+        "def new_program():\n"
+        f"{html.escape(CANONICAL_BLOCK, quote=True)}"
+        "  waypoint = p[1,2,3,4,5,6]\nend\n"
+        "</cachedContents>\n"
+    )
+    old_urp.write_bytes(gzip.compress(old_urp_text.encode("utf-8"), mtime=0))
+    new_urp.write_bytes(gzip.compress(new_urp_text.encode("utf-8"), mtime=0))
     assert normalized_content(
         old_urp, current_program="old_program", candidate_program="new_program"
     )[0] == normalized_content(
@@ -97,32 +118,60 @@ def test_tp_diff_normalization_allows_only_bounded_watchdog_and_identity(
     )[0] != old_normalized
 
 
-def test_full_tp_triplet_diff_gate_accepts_only_watchdog_identity_delta(
+def _write_triplet_fixture(
     tmp_path: Path,
-) -> None:
+    *,
+    script_block: str = CANONICAL_BLOCK,
+    urp_block: str | None = None,
+    append_after_program: bool = False,
+    insert_in_helper_suffix_function: bool = False,
+    insert_in_dead_branch: bool = False,
+) -> tuple[Path, Path, Path, dict[str, Path]]:
     current = tmp_path / "current"
     candidate = tmp_path / "candidate"
-    current.mkdir()
+    current.mkdir(parents=True)
     candidate.mkdir()
     current_program = "controller_current"
-    next_program = "step5d_strict_rnn_autotune_v2"
+    next_program = NEXT_PROGRAM
+    helper = (
+        f"def helper_{current_program}_dead():\n"
+        "  helper_waypoint = p[0,0,0,0,0,0]\n"
+        "end\n"
+        if insert_in_helper_suffix_function
+        else ""
+    )
+    dead_branch_open = "  if False:\n" if insert_in_dead_branch else ""
+    dead_branch_close = "  end\n" if insert_in_dead_branch else ""
     old = (
         '<Program crcValue="OLD">\n'
+        "<cachedContents>\n"
+        f"{helper}"
         f"def {current_program}():\n"
+        f"{dead_branch_open}"
         "  waypoint = p[1,2,3,4,5,6]\n"
-        "end\n</Program>\n"
+        f"{dead_branch_close}"
+        "end\n"
+        "</cachedContents>\n"
+        "</Program>\n"
     )
-    watchdog = (
-        "  # AUTOTUNE_WATCHDOG_V2_BEGIN\n"
-        "  # AUTOTUNE_WATCHDOG_V2\n"
-        "  # host_heartbeat_timeout_at_home\n"
-        "  # host_heartbeat_timeout_unknown_home\n"
-        "  # AUTO_HOME_AFTER_HEARTBEAT_LOSS: false\n"
-        "  # AUTOTUNE_WATCHDOG_V2_END\n"
-    )
-    new = old.replace(current_program, next_program).replace(
-        "  waypoint =", watchdog + "  waypoint ="
-    )
+    urp_representation = html.escape(urp_block or script_block, quote=True)
+    if append_after_program:
+        new_script = old.replace(current_program, next_program) + script_block
+        new_urp = old.replace(current_program, next_program) + urp_representation
+    elif insert_in_helper_suffix_function:
+        new_script = old.replace(current_program, next_program).replace(
+            "  helper_waypoint =", script_block + "  helper_waypoint ="
+        )
+        new_urp = old.replace(current_program, next_program).replace(
+            "  helper_waypoint =", urp_representation + "  helper_waypoint ="
+        )
+    else:
+        new_script = old.replace(current_program, next_program).replace(
+            "  waypoint =", script_block + "  waypoint ="
+        )
+        new_urp = old.replace(current_program, next_program).replace(
+            "  waypoint =", urp_representation + "  waypoint ="
+        )
     current_paths = {
         ".script": current / f"{current_program}.script",
         ".txt": current / f"{current_program}.txt",
@@ -135,25 +184,35 @@ def test_full_tp_triplet_diff_gate_accepts_only_watchdog_identity_delta(
     current_paths[".script"].write_text(old, encoding="utf-8")
     current_paths[".txt"].write_text(current_program + "\n", encoding="utf-8")
     current_paths[".urp"].write_bytes(gzip.compress(old.encode(), mtime=0))
-    candidate_paths[".script"].write_text(new, encoding="utf-8")
+    candidate_paths[".script"].write_text(new_script, encoding="utf-8")
     candidate_paths[".txt"].write_text(next_program + "\n", encoding="utf-8")
     candidate_paths[".urp"].write_bytes(
-        gzip.compress(new.replace('crcValue="OLD"', 'crcValue="NEW"').encode(), mtime=0)
+        gzip.compress(
+            new_urp.replace('crcValue="OLD"', 'crcValue="NEW"').encode(),
+            mtime=0,
+        )
     )
-
-    def sha(path: Path) -> str:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
 
     normalized = {}
     counts = {}
+    block_hashes = {}
     for extension, path in candidate_paths.items():
-        content, count = normalized_content(
+        inspected = inspect_content(
             path,
             current_program=current_program,
             candidate_program=next_program,
+            require_executable_context=not (
+                append_after_program
+                or insert_in_helper_suffix_function
+                or insert_in_dead_branch
+            ),
         )
-        normalized[extension] = hashlib.sha256(content).hexdigest()
-        counts[extension] = count
+        normalized[extension] = hashlib.sha256(inspected.normalized).hexdigest()
+        counts[extension] = len(inspected.blocks)
+        block_hashes[extension] = {
+            block.block_id: hashlib.sha256(block.payload).hexdigest()
+            for block in inspected.blocks
+        }
     attestation = tmp_path / "attestation.json"
     attestation.write_text(
         json.dumps(
@@ -162,19 +221,28 @@ def test_full_tp_triplet_diff_gate_accepts_only_watchdog_identity_delta(
                 "control_math_changed": False,
                 "trajectory_changed": False,
                 "waypoint_changed": False,
-                "fetched_controller_sha256": {
-                    extension: sha(path) for extension, path in current_paths.items()
-                },
                 "candidate_sha256": {
-                    extension: sha(path) for extension, path in candidate_paths.items()
+                    extension: hashlib.sha256(path.read_bytes()).hexdigest()
+                    for extension, path in candidate_paths.items()
+                },
+                "fetched_controller_sha256": {
+                    extension: hashlib.sha256(path.read_bytes()).hexdigest()
+                    for extension, path in current_paths.items()
                 },
                 "normalized_content_sha256": normalized,
                 "watchdog_block_count": counts,
+                "watchdog_block_sha256": block_hashes,
             }
         ),
         encoding="utf-8",
     )
-    completed = subprocess.run(
+    return current, candidate, attestation, candidate_paths
+
+
+def _run_gate(
+    current: Path, candidate: Path, attestation: Path
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         [
             sys.executable,
             str(ROOT / "tools/verify_step5d_tp_watchdog_diff.py"),
@@ -183,7 +251,7 @@ def test_full_tp_triplet_diff_gate_accepts_only_watchdog_identity_delta(
             "--candidate",
             str(candidate),
             "--program",
-            next_program,
+            NEXT_PROGRAM,
             "--attestation",
             str(attestation),
         ],
@@ -191,5 +259,127 @@ def test_full_tp_triplet_diff_gate_accepts_only_watchdog_identity_delta(
         text=True,
         check=False,
     )
+
+
+def test_full_tp_triplet_diff_gate_accepts_exact_reviewed_block_in_script_and_urp(
+    tmp_path: Path,
+) -> None:
+    canonical = load_canonical_blocks()
+    assert tuple(canonical) == (BLOCK_ID,)
+    assert canonical[BLOCK_ID].payload == CANONICAL_BLOCK_PATH.read_bytes()
+    assert canonical[BLOCK_ID].sha256 == hashlib.sha256(
+        CANONICAL_BLOCK_PATH.read_bytes()
+    ).hexdigest()
+
+    current, candidate, attestation, candidate_paths = _write_triplet_fixture(tmp_path)
+    assert html.escape(CANONICAL_BLOCK, quote=True).encode() in gzip.decompress(
+        candidate_paths[".urp"].read_bytes()
+    )
+    completed = _run_gate(current, candidate, attestation)
     assert completed.returncode == 0, completed.stderr
     assert completed.stdout.strip() == "tp_watchdog_diff_gate=pass"
+
+
+@pytest.mark.parametrize(
+    ("case", "block"),
+    (
+        (
+            "movej",
+            CANONICAL_BLOCK.replace("    halt\n", "    movej(home_q)\n    halt\n"),
+        ),
+        (
+            "speedj",
+            CANONICAL_BLOCK.replace(
+                "    halt\n", "    speedj(qdot, 0.5, 0.002)\n    halt\n"
+            ),
+        ),
+        (
+            "control_law",
+            CANONICAL_BLOCK.replace(
+                "    halt\n", "    local qdot = force_error * 0.1\n    halt\n"
+            ),
+        ),
+        (
+            "comment_only",
+            "  # AUTOTUNE_WATCHDOG_V2_BEGIN host_heartbeat_fail_closed_v1\n"
+            "  # if host_heartbeat_timeout:\n"
+            "  # host_heartbeat_timeout_at_home\n"
+            "  # host_heartbeat_timeout_unknown_home\n"
+            "  # AUTO_HOME_AFTER_HEARTBEAT_LOSS: false\n"
+            "  # halt\n"
+            "  # AUTOTUNE_WATCHDOG_V2_END host_heartbeat_fail_closed_v1\n",
+        ),
+    ),
+)
+def test_tp_diff_gate_rejects_noncanonical_marker_bodies(
+    tmp_path: Path, case: str, block: str
+) -> None:
+    current, candidate, attestation, _ = _write_triplet_fixture(
+        tmp_path / case,
+        script_block=block,
+        urp_block=block,
+    )
+    completed = _run_gate(current, candidate, attestation)
+    assert completed.returncode != 0
+    assert "bytes/hash differ from reviewed canonical source" in completed.stderr
+    assert "tp_watchdog_diff_gate=pass" not in completed.stdout
+
+
+def test_tp_diff_gate_rejects_script_urp_block_disagreement(tmp_path: Path) -> None:
+    changed_urp = CANONICAL_BLOCK.replace(
+        'textmsg("host_heartbeat_timeout_unknown_home")',
+        'textmsg("host_heartbeat_timeout_at_home")',
+    )
+    current, candidate, attestation, _ = _write_triplet_fixture(
+        tmp_path,
+        urp_block=changed_urp,
+    )
+    completed = _run_gate(current, candidate, attestation)
+    assert completed.returncode != 0
+    assert ".urp:host_heartbeat_fail_closed_v1" in completed.stderr
+
+
+def test_tp_diff_gate_rejects_exact_block_outside_executable_program(
+    tmp_path: Path,
+) -> None:
+    current, candidate, attestation, _ = _write_triplet_fixture(
+        tmp_path,
+        append_after_program=True,
+    )
+    completed = _run_gate(current, candidate, attestation)
+    assert completed.returncode != 0
+    assert "not inside the exact candidate program function" in completed.stderr
+
+
+def test_tp_diff_gate_rejects_exact_block_in_helper_with_candidate_name_suffix(
+    tmp_path: Path,
+) -> None:
+    current, candidate, attestation, _ = _write_triplet_fixture(
+        tmp_path,
+        insert_in_helper_suffix_function=True,
+    )
+    completed = _run_gate(current, candidate, attestation)
+    assert completed.returncode != 0
+    assert "not inside the exact candidate program function" in completed.stderr
+
+
+def test_tp_diff_gate_rejects_exact_block_in_dead_nested_branch(
+    tmp_path: Path,
+) -> None:
+    current, candidate, attestation, _ = _write_triplet_fixture(
+        tmp_path,
+        insert_in_dead_branch=True,
+    )
+    completed = _run_gate(current, candidate, attestation)
+    assert completed.returncode != 0
+    assert "nested or conditionally unreachable scope" in completed.stderr
+
+
+def test_tp_diff_gate_requires_attested_canonical_block_hashes(tmp_path: Path) -> None:
+    current, candidate, attestation, _ = _write_triplet_fixture(tmp_path)
+    payload = json.loads(attestation.read_text(encoding="utf-8"))
+    payload.pop("watchdog_block_sha256")
+    attestation.write_text(json.dumps(payload), encoding="utf-8")
+    completed = _run_gate(current, candidate, attestation)
+    assert completed.returncode != 0
+    assert "canonical-block SHA attestation drift" in completed.stderr

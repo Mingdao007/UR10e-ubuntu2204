@@ -25,5 +25,23 @@
     "current_triplet_fetched": false,
     "watchdog_only_diff_verified": false,
     "fresh_readback_verified": false
+  },
+  "watchdog_diff_gate": {
+    "schema": "step5d.autotune.tp-watchdog-blocks/v2",
+    "outside_block_normalization": [
+      "program_identity",
+      "urp_crcValue"
+    ],
+    "required_blocks": [
+      {
+        "block_id": "host_heartbeat_fail_closed_v1",
+        "source": "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v1.script",
+        "sha256": "09b3b5a6896755bb662fe76ecce2d67f7d16f1dad0d11ab43a880101cbe4b001",
+        "required_in": [
+          ".script",
+          ".urp"
+        ]
+      }
+    ]
   }
 }

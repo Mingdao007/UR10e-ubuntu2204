@@ -1,0 +1,11 @@
+  # AUTOTUNE_WATCHDOG_V2_BEGIN host_heartbeat_fail_closed_v1
+  if host_heartbeat_timeout:
+    if measured_home_verified:
+      textmsg("host_heartbeat_timeout_at_home")
+    else:
+      textmsg("host_heartbeat_timeout_unknown_home")
+    end
+    halt
+  end
+  # AUTO_HOME_AFTER_HEARTBEAT_LOSS: false
+  # AUTOTUNE_WATCHDOG_V2_END host_heartbeat_fail_closed_v1
