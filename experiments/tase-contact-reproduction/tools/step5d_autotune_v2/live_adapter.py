@@ -115,12 +115,23 @@ class V2CommandMailbox:
     def __init__(self, path: Path, deployment_id: str) -> None:
         self.mailbox = AtomicMailbox(path)
         self.deployment_id = deployment_id
+        self.current_deployment_seen = False
 
     def read_latest(self) -> MailboxCommand | None:
         envelope = self.mailbox.read_latest()
         if envelope is None:
             return None
-        return self._decode(envelope)
+        observed_deployment = envelope.payload.get("deployment_id")
+        if (
+            isinstance(observed_deployment, str)
+            and observed_deployment != self.deployment_id
+        ):
+            if not self.current_deployment_seen:
+                return None
+            raise LiveAdapterError("v2 mailbox deployment identity differs")
+        command = self._decode(envelope)
+        self.current_deployment_seen = True
+        return command
 
     def _decode(self, envelope: MailboxEnvelope) -> MailboxCommand:
         payload = envelope.payload

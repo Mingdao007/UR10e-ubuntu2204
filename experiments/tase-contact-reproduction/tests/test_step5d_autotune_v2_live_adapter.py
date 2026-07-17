@@ -21,7 +21,7 @@ from step5d_autotune_live_driver import (
 )
 from step5d_autotune_state_machine import TpLoopState
 from step5d_autotune_v2.bridge import BridgeError, LiveWriterLock
-from step5d_autotune_v2.live_adapter import Step5dAutotuneV2LiveAdapter
+from step5d_autotune_v2.live_adapter import LiveAdapterError, Step5dAutotuneV2LiveAdapter
 from step5d_autotune_v2.mailbox import AtomicMailbox
 from step5d_autotune_v2.model import BatchSpec, CandidateSpec, DeploymentSpec
 from step5d_autotune_v2.reducer import LifecycleEvent
@@ -209,6 +209,26 @@ def test_inactive_ready_sentinel_requires_stopped_runtime_and_zero_identity() ->
     nonzero_identity = dict(stopped, output_int_register_24=1)
     with pytest.raises(MailboxError, match="unknown loop state"):
         tp_packet_from_rtde(nonzero_identity)
+
+
+def test_adapter_ignores_only_bootstrap_mailbox_from_prior_deployment(tmp_path: Path) -> None:
+    mailbox_path = (tmp_path / "command.json").resolve()
+    mailbox = AtomicMailbox(mailbox_path)
+    mailbox.publish(
+        sequence=1,
+        payload={"command": "ARM", "deployment_id": "prior-deployment"},
+    )
+    adapter = Step5dAutotuneV2LiveAdapter(
+        mailbox_path=mailbox_path,
+        runtime_root=tmp_path.resolve(),
+        deployment_id="current-deployment",
+        launch_nonce="b" * 64,
+    )
+    assert adapter.command_mailbox.read_latest() is None
+
+    adapter.command_mailbox.current_deployment_seen = True
+    with pytest.raises(LiveAdapterError, match="deployment identity differs"):
+        adapter.command_mailbox.read_latest()
 
 
 def test_global_live_writer_lock_fails_closed(tmp_path: Path) -> None:
