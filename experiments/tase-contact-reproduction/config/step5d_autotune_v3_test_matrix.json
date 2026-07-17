@@ -1,0 +1,229 @@
+{
+  "schema_version": "step5d.autotune-v3/test-matrix-v1",
+  "claim_boundary": "offline_tooling_only_until_separate_promotion",
+  "ci": {
+    "lanes": [
+      "small",
+      "medium"
+    ],
+    "forbidden_lanes": [
+      "large_ursim",
+      "hil_no_motion"
+    ],
+    "controller_access_allowed": false,
+    "live_writer_allowed": false,
+    "network_allowed": false,
+    "motion_allowed": false
+  },
+  "lanes": {
+    "small": {
+      "claim": "pure contracts, parsing, invariants, and refactor policy",
+      "commands": [
+        [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_step5d_autotune_v3_contract.py",
+          "tests/test_step5d_autotune_v3_attempt_ledger.py",
+          "tests/test_step5d_autotune_v3_artifacts.py",
+          "tests/test_step5d_autotune_v3_g10.py",
+          "tests/test_step5d_autotune_v3_refactor_gate.py",
+          "tests/test_step5d_autotune_v3_ursim_hold.py"
+        ]
+      ],
+      "ci": true,
+      "serial": false,
+      "pinned": false,
+      "test_doubles_allowed": true,
+      "production_parser_test_double_allowed": false,
+      "dependency_double_scope": [
+        "_ur_common",
+        "capture_kunwei_kwr75_1khz",
+        "numpy",
+        "pandas",
+        "pinocchio",
+        "xacro",
+        "yaml"
+      ],
+      "network_allowed": false,
+      "controller_access_allowed": false,
+      "live_writer_allowed": false,
+      "hold_required": false,
+      "arm_allowed": false,
+      "motion_allowed": false,
+      "evidence_output": "pytest JSON/JUnit result"
+    },
+    "medium": {
+      "claim": "real local process, filesystem, mailbox, service, timeout, and crash-cut behavior",
+      "commands": [
+        [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_step5d_autotune_v3_service.py",
+          "tests/test_step5d_autotune_v3_acceptance.py",
+          "tests/test_step5d_autotune_recovery.py",
+          "tests/test_step5d_autotune_journal.py",
+          "tests/test_step5d_autotune_campaign_runner.py",
+          "tests/test_step5d_autotune_live_driver.py"
+        ]
+      ],
+      "ci": true,
+      "serial": true,
+      "pinned": false,
+      "test_doubles_allowed": true,
+      "network_allowed": false,
+      "controller_access_allowed": false,
+      "live_writer_allowed": false,
+      "hold_required": false,
+      "arm_allowed": false,
+      "motion_allowed": false,
+      "evidence_output": "pytest JSON/JUnit result"
+    },
+    "large_ursim": {
+      "claim": "production launcher and service compatibility with pinned URSim; never robot acceptance",
+      "commands": [
+        [
+          "python3",
+          "tools/run_step5d_autotune_v3_ursim_hold_gate.py",
+          "--container",
+          "step5d-autotune-v3-ursim-hold",
+          "--output-root",
+          "runs/step5d_autotune_v3_validation/ursim"
+        ]
+      ],
+      "execution_status": "not_run",
+      "activation": "manual_with_prestarted_digest_pinned_ursim_on_docker_internal_network",
+      "ci": false,
+      "serial": true,
+      "pinned": true,
+      "container_image": "universalrobots/ursim_e-series@sha256:730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3",
+      "pin_source": "https://hub.docker.com/r/universalrobots/ursim_e-series/tags?name=5.11",
+      "pin_verified_at": "2026-07-18",
+      "test_doubles_allowed": false,
+      "network_allowed": true,
+      "network_scope": "single_prestarted_container_on_docker_internal_network",
+      "external_network_allowed": false,
+      "robot_network_allowed": false,
+      "host_port_publication_allowed": false,
+      "container_lifecycle_mutation_allowed": false,
+      "docker_actions_allowed": [
+        "version",
+        "container_inspect",
+        "image_inspect",
+        "network_inspect"
+      ],
+      "dashboard_commands_allowed": [
+        "PolyscopeVersion",
+        "robotmode",
+        "programState",
+        "running",
+        "safetymode"
+      ],
+      "rtde_output_recipe_only": true,
+      "rtde_input_recipe_allowed": false,
+      "controller_access_allowed": false,
+      "live_writer_allowed": false,
+      "hold_required": true,
+      "arm_allowed": false,
+      "motion_allowed": false,
+      "operator_action_consumed": false,
+      "cleanup_required": true,
+      "evidence_output": "runs/step5d_autotune_v3_validation/ursim/<control-fingerprint>-<utc>-<pid>/ursim_hold_gate.json"
+    },
+    "hil_no_motion": {
+      "claim": "target controller startup and HOLD smoke only; never contact or motion acceptance",
+      "commands": [],
+      "execution_status": "blocked_not_authorized",
+      "activation": "manual_after_ur_owner_live_boundary_authorization",
+      "ci": false,
+      "serial": true,
+      "pinned": true,
+      "controller_identity_pin": "fresh_read_only_snapshot_sha256_required",
+      "test_doubles_allowed": false,
+      "network_allowed": false,
+      "controller_access_allowed": false,
+      "live_writer_allowed": false,
+      "hold_required": true,
+      "arm_allowed": false,
+      "motion_allowed": false,
+      "operator_action_consumed": false,
+      "cleanup_required": true,
+      "evidence_output": "runs/step5d_autotune_v3_validation/hil_no_motion/<controller_identity_sha256>/"
+    }
+  },
+  "requirements": [
+    {
+      "id": "escaped_effective_configuration_drift",
+      "incident_fixture": "tests/test_step5d_autotune_v3_contract.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    },
+    {
+      "id": "single_owner_persistent_campaign_lifecycle",
+      "incident_fixture": "tests/test_step5d_autotune_v3_service.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    },
+    {
+      "id": "migration_watchdog_and_inactive_selector_artifact_closure",
+      "incident_fixture": "tests/test_step5d_autotune_v3_artifacts.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    },
+    {
+      "id": "g10_production_seam_and_executable_thresholds",
+      "incident_fixture": "tests/test_step5d_autotune_v3_g10.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    },
+    {
+      "id": "faithful_fake_bridge_five_candidate_transaction",
+      "incident_fixture": "tests/test_step5d_autotune_v3_acceptance.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    },
+    {
+      "id": "crash_cut_exact_echo_and_no_duplicate_attempt",
+      "incident_fixture": "tests/test_step5d_autotune_recovery.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    },
+    {
+      "id": "ack_boundary_safety_failure_and_async_derived_analysis",
+      "incident_fixture": "tests/test_step5d_autotune_live_driver.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    }
+  ]
+}

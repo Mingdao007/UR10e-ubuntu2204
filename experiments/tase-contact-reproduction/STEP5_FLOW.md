@@ -6,6 +6,20 @@ verified, and the bounded campaign is live-authorized; every actual bridge
 start still revalidates the exact binding and requires the current `开bridge`
 operator trigger.
 
+`step5d_strict_rnn_autotune_v3` is present only as an inactive offline rollout
+candidate. It freezes the v1 control contract, reuses the digest-pinned v2
+watchdog-only TP read-back artifact, and keeps `config/current_stage.json` on
+v1. The v3 service and launcher are limited to contract checks, fake-bridge
+validation, and a separately executed URSim HOLD-only gate in this phase; this
+change does not upload, select, load, Play, ARM, zero, contact, or move a real
+controller. A failed contract, replay, recovery, latency, size, URSim, or
+rollback gate is a No-Go and leaves v1 selected.
+The current offline decision is No-Go because the digest-pinned URSim HOLD-only
+lane could not access the Docker daemon; the executable evidence is summarized
+in `config/step5/step5d_autotune_v3_offline_validation.json`. Contract,
+five-candidate fake bridge, crash recovery, latency, and formal G10 are green,
+but none of them substitutes for the unrun URSim lane.
+
 v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,
 and gross 60 N / 100 N / 3 Nm protection. The scheduler-only delta keeps the

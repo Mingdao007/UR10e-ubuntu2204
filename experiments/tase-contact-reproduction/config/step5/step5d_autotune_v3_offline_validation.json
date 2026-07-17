@@ -1,0 +1,76 @@
+{
+  "schema": "step5d.autotune-v3/offline-validation-v1",
+  "observed_at": "2026-07-18T03:35:21+08:00",
+  "frozen_baseline": {
+    "tag": "archive/step5d-autotune-v1-20260715",
+    "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
+  },
+  "identity": {
+    "control_fingerprint": "81563dcb24ffebd47ce4b16b477b819c973fbc502d81d74d6c7b06830b875f78",
+    "orchestration_fingerprint": "d4f846aa7e04d7f84800d5f616c70ff4671027efb05ccd0ad63d66c76ebd7b50",
+    "contract_sha256": "cdac9d22fef5697c9113c9e98a54ab08a6430873845bc775321326e3ef69c5f9",
+    "effective_field_count": 126,
+    "tp_fingerprint": "c2761f200c58d9825e37dc76907b5e25b2d9982cda7dff1cf7de9699dbad7bb9",
+    "attempt_ledger_sha256": "19cf2241ea070e3dc8eccfbe118660104f4c3f8e40ea25cb6f0efecabc7acf99"
+  },
+  "gates": {
+    "hosted_offline_release": {
+      "status": "pass",
+      "tests_passed": 295,
+      "subtests_passed": 5,
+      "elapsed_s": 5.73,
+      "network_allowed": false,
+      "hardware_allowed": false
+    },
+    "crash_recovery_and_ack_boundary": {
+      "status": "pass",
+      "tests_passed": 81,
+      "subtests_passed": 5,
+      "physical_attempt_deduplication": true,
+      "persisted_ack_exact_echo_only": true,
+      "safety_evaluation_failure_sends_ack": false
+    },
+    "fake_bridge_five_candidate": {
+      "status": "pass",
+      "candidate_count": 5,
+      "distinct_trial_uid_count": 5,
+      "simulated_play_count": 1,
+      "candidate_restart_count": 0,
+      "operator_prompt_count": 0,
+      "arm_command_sequences": [1, 3, 5, 7, 9],
+      "ack_command_sequences": [2, 4, 6, 8, 10],
+      "ready_home_to_next_arm_p95_s": 0.062158902,
+      "process_identity_stable": true,
+      "test_only_synthetic_evaluation": true
+    },
+    "g10_production_seam": {
+      "status": "pass",
+      "result": "config/step5/golden_replay_g10_v3_result.json",
+      "result_sha256": "faab489644a52f554d01c30e4d51916173aa0b0701332438d7358e04bfca7567",
+      "replayed_rows": 30053,
+      "structural_failure_rows": 0,
+      "rnn_oracle_qdot_delta_max_rad_s": 4.603357231799312e-07,
+      "qdot_max_abs_rad_s": 0.04506710544228554,
+      "slew_violation_max_rad_s": 8.673617379884035e-19
+    },
+    "ursim_hold_only": {
+      "status": "blocked",
+      "blocker": "docker_daemon_unavailable",
+      "detail": "permission denied while trying to connect to the Docker API socket",
+      "container_or_network_started": false,
+      "play_or_arm_or_motion": false
+    },
+    "hil_no_motion": {
+      "status": "blocked_not_authorized",
+      "controller_touched": false
+    }
+  },
+  "decision": {
+    "go_no_go": "no_go",
+    "rollout_authorized": false,
+    "current_selector": "step5d_strict_rnn_autotune_v1",
+    "v3_active": false,
+    "reason": "digest-pinned URSim HOLD-only gate has not executed successfully",
+    "next_gate": "run the manual URSim HOLD-only lane with access to the prestarted pinned container"
+  }
+}
