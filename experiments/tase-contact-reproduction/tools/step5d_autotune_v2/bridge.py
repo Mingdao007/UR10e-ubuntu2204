@@ -421,7 +421,10 @@ def _read_snapshot(
         before = os.fstat(descriptor)
         if (
             not stat.S_ISREG(before.st_mode)
-            or before.st_nlink != 1
+            # The writer commits with os.replace().  A reader may therefore
+            # hold the previous complete inode after it has been unlinked;
+            # nlink=0 is a valid immutable snapshot, while >1 is still unsafe.
+            or before.st_nlink not in {0, 1}
             or before.st_size > MAX_READY_BYTES
         ):
             raise BridgeError(

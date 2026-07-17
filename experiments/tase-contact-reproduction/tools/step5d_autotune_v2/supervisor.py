@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 
-from .reducer import LifecycleEvent, LifecycleState
+from .reducer import LifecycleError, LifecycleEvent, LifecycleState
 from .repository import Repository
 
 
@@ -131,12 +131,9 @@ class CampaignSupervisor:
                     )
                     return self._outcome(trial_id, final)
                 except RuntimeFailure as exc:
-                    final = self.repository.apply_lifecycle_event(
-                        trial_id,
-                        LifecycleEvent.MARK_UNCERTAIN_ATTEMPT,
-                        {"reason": f"tp_consumption_ambiguous:{exc}"},
+                    return self._mark_uncertain(
+                        trial_id, f"tp_consumption_ambiguous:{exc}"
                     )
-                    return self._outcome(trial_id, final)
                 self.repository.apply_lifecycle_event(
                     trial_id, LifecycleEvent.OBSERVE_TP_CONSUMED, evidence
                 )
@@ -152,12 +149,9 @@ class CampaignSupervisor:
                     )
                     return self._outcome(trial_id, final)
                 except RuntimeFailure as exc:
-                    final = self.repository.apply_lifecycle_event(
-                        trial_id,
-                        LifecycleEvent.MARK_UNCERTAIN_ATTEMPT,
-                        {"reason": f"tp_run_ambiguous:{exc}"},
+                    return self._mark_uncertain(
+                        trial_id, f"tp_run_ambiguous:{exc}"
                     )
-                    return self._outcome(trial_id, final)
                 self.repository.apply_lifecycle_event(
                     trial_id, LifecycleEvent.OBSERVE_RUN, evidence
                 )
@@ -173,12 +167,9 @@ class CampaignSupervisor:
                     )
                     return self._outcome(trial_id, final)
                 except RuntimeFailure as exc:
-                    final = self.repository.apply_lifecycle_event(
-                        trial_id,
-                        LifecycleEvent.MARK_UNCERTAIN_ATTEMPT,
-                        {"reason": f"run_closure_ambiguous:{exc}"},
+                    return self._mark_uncertain(
+                        trial_id, f"run_closure_ambiguous:{exc}"
                     )
-                    return self._outcome(trial_id, final)
                 self.repository.apply_lifecycle_event(
                     trial_id,
                     LifecycleEvent.VERIFY_HOME,
@@ -353,3 +344,25 @@ class CampaignSupervisor:
             analysis_complete=snapshot.analysis_complete,
             primary_blocker=snapshot.primary_blocker,
         )
+
+    def _mark_uncertain(self, trial_id: str, reason: str) -> TrialOutcome:
+        """Coalesce a concurrent bridge revocation with the waiter failure."""
+
+        try:
+            final = self.repository.apply_lifecycle_event(
+                trial_id,
+                LifecycleEvent.MARK_UNCERTAIN_ATTEMPT,
+                {"reason": reason},
+            )
+            return self._outcome(trial_id, final)
+        except LifecycleError:
+            snapshot = self.repository.trial_detail(trial_id)["snapshot"]
+            if snapshot["state"] != LifecycleState.UNCERTAIN_ATTEMPT.value:
+                raise
+            return TrialOutcome(
+                trial_id=trial_id,
+                state=snapshot["state"],
+                physical_closed=bool(snapshot["physical_closed"]),
+                analysis_complete=bool(snapshot["analysis_complete"]),
+                primary_blocker=snapshot["primary_blocker"],
+            )

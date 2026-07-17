@@ -18,6 +18,7 @@ from step5d_autotune_v2.supervisor import (
     AnalysisResult,
     ArtifactSeal,
     CampaignSupervisor,
+    RuntimeFailure,
 )
 
 
@@ -206,6 +207,26 @@ def test_one_service_session_advances_five_distinct_candidates(tmp_path: Path) -
     assert len(port.acks) == 5
     assert all(outcome.state == "complete" for outcome in outcomes)
     assert all(row["status"] == "complete" for row in repo.list_candidates())
+
+
+def test_concurrent_bridge_revocation_and_waiter_failure_coalesce(tmp_path: Path) -> None:
+    repo = repository(tmp_path)
+
+    class RevokingPort(FakePort):
+        def wait_tp_consumed(self, *, trial_id: str) -> Mapping[str, Any]:
+            repo.revoke_runtime_for_bridge_loss(
+                deployment_authorized=True,
+                primary_blocker="bridge_liveness_lost",
+                details={"error": "health snapshot race"},
+            )
+            raise RuntimeFailure("bridge heartbeat is unhealthy")
+
+    outcomes = CampaignSupervisor(repo, RevokingPort(tmp_path)).run_pending(
+        deployment_id="fake-live"
+    )
+    assert len(outcomes) == 1
+    assert outcomes[0].state == "uncertain_attempt"
+    assert outcomes[0].primary_blocker == "bridge_liveness_lost"
 
 
 def test_postprocess_failure_occurs_after_ack_and_pauses_next_candidate(tmp_path: Path) -> None:

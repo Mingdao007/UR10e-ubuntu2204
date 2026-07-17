@@ -14,6 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
+import step5d_autotune_v2.bridge as bridge_module
 from step5d_autotune_v2.bridge import BridgeError, BridgeProcess
 from step5d_autotune_v2.cli import _fresh_status
 from step5d_autotune_v2.heartbeat import HeartbeatError, HeartbeatPublisher
@@ -52,6 +53,43 @@ EXPECTED_COMPARISON_KEYS = {
     "G14": "da8700025c5fe36c9b291033507cde2b0d849d6ccab0bd08bb1f3187c4fbf46f",
     "G15": "35fa37e8a924123f8f5513a5619dcafe3f81f6f06880d4674b2b059c672432fd",
 }
+
+
+def test_health_reader_accepts_complete_inode_unlinked_by_atomic_replace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    health_path = tmp_path / "bridge_health.json"
+
+    def payload(sequence: int) -> dict[str, object]:
+        return {
+            "schema": bridge_module.HEALTH_SCHEMA,
+            "deployment_id": "deployment",
+            "pid": 123,
+            "launch_nonce": "a" * 64,
+            "health_sequence": sequence,
+            "observed_at": "2026-07-17T00:00:00+00:00",
+            "configured_rate_hz": 500,
+            "sample_counter": sequence,
+            "rtde_healthy": True,
+            "command_transport_healthy": True,
+            "event_transport_healthy": True,
+        }
+
+    health_path.write_text(json.dumps(payload(1)), encoding="ascii")
+    replacement = tmp_path / "replacement.json"
+    replacement.write_text(json.dumps(payload(2)), encoding="ascii")
+    real_open = bridge_module.os.open
+
+    def open_then_replace(path: object, flags: int, *args: object, **kwargs: object) -> int:
+        descriptor = real_open(path, flags, *args, **kwargs)
+        if Path(path) == health_path:
+            bridge_module.os.replace(replacement, health_path)
+        return descriptor
+
+    monkeypatch.setattr(bridge_module.os, "open", open_then_replace)
+    observed = bridge_module._read_health_snapshot(health_path)
+    assert observed is not None
+    assert observed["health_sequence"] == 1
 
 
 def _legacy_candidates() -> dict[str, CandidateSpec]:
