@@ -12,7 +12,7 @@
   "bridge_profile": {
     "step4e_version": "step5d_strict_rnn_autotune_v1",
     "transport_adapter": "step5d_autotune_v2_live",
-    "deployment_id": "step5d-autotune-v2-live-20260717-r3",
+    "deployment_id": "step5d-autotune-v2-live-20260717-r4",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.5,
     "target_force_n": 12.0,

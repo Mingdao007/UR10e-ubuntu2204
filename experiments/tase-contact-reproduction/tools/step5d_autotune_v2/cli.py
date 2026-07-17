@@ -238,14 +238,20 @@ def _start(root: Path, database: Path | None) -> int:
     deadline = time.monotonic() + 30.0
     while time.monotonic() < deadline:
         status = _fresh_status(repository, 5.0, config)
-        if status["runtime_ready"] or status.get("primary_blocker") not in {
-            None,
-            "runtime_not_observed",
-        }:
+        if _start_status_is_terminal(status):
             print(json.dumps(status, indent=2, sort_keys=True))
             return 0 if status["runtime_ready"] else 78
         time.sleep(0.2)
     raise RepositoryError("service did not publish fresh readiness within 30 seconds")
+
+
+def _start_status_is_terminal(status: Mapping[str, Any]) -> bool:
+    if status.get("runtime_ready") is True:
+        return True
+    return status.get("fresh") is True and status.get("primary_blocker") not in {
+        None,
+        "runtime_not_observed",
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:

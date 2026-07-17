@@ -48,7 +48,7 @@ def bridge_argv(root: Path, runtime_root: Path) -> list[str]:
     mailbox = runtime_root / "command.json"
     output = runtime_root / "bridge"
     return [
-        "chrt", "-f", "20", sys.executable, str(root / "tools/kunwei_rtde_bridge.py"),
+        sys.executable, str(root / "tools/kunwei_rtde_bridge.py"),
         "--allow-kunwei-stream-command", "--write-rtde-inputs",
         "--baseline-s", "5", "--rezero-s", "1", "--duration-s", "180",
         "--rtde-hz", "500", "--socket-timeout-s", "0", "--sensor-stale-s", "0.10",

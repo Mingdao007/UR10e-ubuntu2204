@@ -193,8 +193,9 @@ def test_global_live_writer_lock_fails_closed(tmp_path: Path) -> None:
 
 def test_same_pid_launcher_snapshot_is_frozen(tmp_path: Path) -> None:
     argv = bridge_argv(ROOT, tmp_path.resolve())
-    assert argv[:3] == ["chrt", "-f", "20"]
-    assert argv[3] == sys.executable
+    assert argv[0] == sys.executable
+    assert argv[1].endswith("tools/kunwei_rtde_bridge.py")
+    assert "chrt" not in argv
     expected = {
         "--rtde-hz": "500",
         "--target-force-n": "12",

@@ -8,6 +8,26 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+
+from step5d_autotune_v2.cli import _start_status_is_terminal
+
+
+def test_start_waits_past_stale_failure_from_previous_attempt() -> None:
+    assert _start_status_is_terminal(
+        {
+            "runtime_ready": False,
+            "fresh": False,
+            "primary_blocker": "service_failure:BridgeError",
+        }
+    ) is False
+    assert _start_status_is_terminal(
+        {
+            "runtime_ready": False,
+            "fresh": True,
+            "primary_blocker": "service_failure:BridgeError",
+        }
+    ) is True
 
 
 def test_v1_operator_is_mechanically_frozen() -> None:
