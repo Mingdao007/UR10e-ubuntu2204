@@ -4,7 +4,9 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
+import numpy as np
 import pytest
 
 
@@ -22,6 +24,7 @@ from step5d_autotune_v2.repository import Repository
 from step5d_autotune_v2.runtime import JsonlBridgePort
 from step5d_autotune_v2.supervisor import ArtifactSeal
 from run_step5d_autotune_v2_bridge import bridge_argv, bridge_environment
+import kunwei_rtde_bridge as live_bridge
 
 
 def _deployment() -> DeploymentSpec:
@@ -212,6 +215,36 @@ def test_same_pid_launcher_snapshot_is_frozen(tmp_path: Path) -> None:
     assert argv[argv.index("--step5d-autotune-command-mailbox") + 1] == str(
         tmp_path.resolve() / "command.json"
     )
+    offset_index = argv.index("--step5d-tcp-offset-tool0-m")
+    assert argv[offset_index + 1 : offset_index + 4] == ["0", "0", "0.1221"]
+
+
+def test_frozen_launcher_offset_prewarms_without_archived_runtime_csv(tmp_path: Path) -> None:
+    argv = bridge_argv(ROOT, tmp_path.resolve())
+    args = live_bridge.parse_args(argv[2:])
+    state = live_bridge.BridgeState()
+    model_bundle = SimpleNamespace(
+        model=SimpleNamespace(
+            lowerPositionLimit=np.full(6, -3.14),
+            upperPositionLimit=np.full(6, 3.14),
+        )
+    )
+    with (
+        patch.object(live_bridge.step5d_kin, "build_calibrated_model", return_value=model_bundle),
+        patch.object(
+            live_bridge.step5d_kin,
+            "finite_run_rows",
+            side_effect=AssertionError("production prewarm must not read an archived runtime CSV"),
+        ),
+        patch.object(
+            live_bridge,
+            "StrictTaseRnnSolver",
+            return_value=SimpleNamespace(reset_state=lambda: None),
+        ),
+    ):
+        live_bridge.ensure_step5d_liveprep_runtime(state, args)
+
+    assert np.array_equal(state.step5d_tcp_offset_tool0, np.array([0.0, 0.0, 0.1221]))
 
 
 def test_launcher_constructs_runtime_paths_from_empty_environment() -> None:

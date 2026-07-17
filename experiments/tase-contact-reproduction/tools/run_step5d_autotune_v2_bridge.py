@@ -83,6 +83,7 @@ def bridge_argv(root: Path, runtime_root: Path) -> list[str]:
         "--step5d-qdot-limit-rad-s", "0.5", "--step5d-epsilon", "0.022",
         "--step5d-sigr-exponent-r", "1", "--step5d-rnn-inner-iterations", "1",
         "--step5d-rnn-backend", "cupy",
+        "--step5d-tcp-offset-tool0-m", "0", "0", "0.1221",
         "--step5d-preload-filtered-min-n", "5", "--step5d-preload-filtered-max-n", "22",
         "--step5d-preload-raw-min-n", "3", "--step5d-preload-raw-max-n", "25",
         "--step5d-preload-force-norm-max-n", "100", "--step5d-preload-hold-s", "0.1",

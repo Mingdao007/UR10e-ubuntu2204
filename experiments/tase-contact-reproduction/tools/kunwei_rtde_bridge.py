@@ -3678,8 +3678,15 @@ def step5d_post_rnn_tracking_guard(
 def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespace) -> None:
     if state.step5d_model_bundle is None:
         state.step5d_model_bundle = step5d_kin.build_calibrated_model()
-        audit_rows = step5d_kin.finite_run_rows(step5d_kin.DEFAULT_BRIDGE_CSV)
-        state.step5d_tcp_offset_tool0 = step5d_kin.infer_tcp_offset(state.step5d_model_bundle, audit_rows)["mean"]
+        if args.step5d_tcp_offset_tool0_m is not None:
+            state.step5d_tcp_offset_tool0 = np.asarray(
+                args.step5d_tcp_offset_tool0_m, dtype=float
+            )
+        else:
+            audit_rows = step5d_kin.finite_run_rows(step5d_kin.DEFAULT_BRIDGE_CSV)
+            state.step5d_tcp_offset_tool0 = step5d_kin.infer_tcp_offset(
+                state.step5d_model_bundle, audit_rows
+            )["mean"]
     if args.bridge_profile in STEP5D_TCP_CAGE_PROFILES and state.step5d_tcp_cage is None:
         state.step5d_tcp_cage = build_step5d_v15a_tcp_cage()
     if state.step5d_solver is None:
@@ -8617,6 +8624,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step5d-rnn-inner-iterations", type=int, default=1)
     parser.add_argument("--step5d-rnn-backend", choices=("numpy", "cupy"), default="numpy")
     parser.add_argument(
+        "--step5d-tcp-offset-tool0-m",
+        type=float,
+        nargs=3,
+        default=None,
+        metavar=("X", "Y", "Z"),
+    )
+    parser.add_argument(
         "--step5d-autotune-force-p",
         type=float,
         default=env_float("STEP5D_AUTOTUNE_FORCE_P", 0.001),
@@ -9061,6 +9075,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+    if args.step5d_tcp_offset_tool0_m is not None:
+        tcp_offset = tuple(float(value) for value in args.step5d_tcp_offset_tool0_m)
+        if not all(math.isfinite(value) for value in tcp_offset):
+            raise SystemExit("Step5d TCP offset must contain three finite values")
+        if not 0.1218 <= math.sqrt(sum(value * value for value in tcp_offset)) <= 0.1224:
+            raise SystemExit("Step5d TCP offset norm differs from the audited 122.1 mm tool")
+        args.step5d_tcp_offset_tool0_m = tcp_offset
     return args
 
 
