@@ -4,7 +4,9 @@ import json
 import sqlite3
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -13,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_autotune_v2.bridge import BridgeError, BridgeProcess
+from step5d_autotune_v2.cli import _fresh_status
 from step5d_autotune_v2.heartbeat import HeartbeatError, HeartbeatPublisher
 from step5d_autotune_v2.mailbox import AtomicMailbox
 from step5d_autotune_v2.model import BatchSpec, CandidateSpec, DeploymentSpec
@@ -305,6 +308,63 @@ def _health_details(bridge: BridgeProcess) -> dict[str, object]:
     }
 
 
+def _live_config(tmp_path: Path) -> SimpleNamespace:
+    return SimpleNamespace(
+        deployment=deployment(),
+        payload={"live_cutover": {"enabled": True, "blocked_until": []}},
+        runtime_root_path=tmp_path,
+    )
+
+
+class _StatusRepository:
+    def __init__(self, observed_at: str, *, details: dict[str, object] | None = None):
+        self.observed_at = observed_at
+        self.details = details or {"deployment_id": deployment().deployment_id}
+
+    def status(self) -> dict[str, object]:
+        return {
+            "runtime_ready": True,
+            "deployment_authorized": True,
+            "primary_blocker": None,
+            "observed_at": self.observed_at,
+            "fresh": False,
+            "details": dict(self.details),
+        }
+
+
+@pytest.mark.parametrize(
+    "timestamp_case",
+    ("naive", "future"),
+    ids=("naive_timestamp", "future_beyond_clock_skew"),
+)
+def test_cli_status_rejects_naive_or_excessively_future_runtime_timestamp(
+    tmp_path: Path, timestamp_case: str
+) -> None:
+    now = datetime.now(timezone.utc)
+    observed_at = (
+        now.replace(tzinfo=None).isoformat(timespec="microseconds")
+        if timestamp_case == "naive"
+        else (now + timedelta(seconds=2)).isoformat(timespec="microseconds")
+    )
+    status = _fresh_status(
+        _StatusRepository(observed_at), 5.0, _live_config(tmp_path)
+    )
+    assert status["fresh"] is False
+    assert status["runtime_ready"] is False
+    assert status["primary_blocker"] == "runtime_status_stale"
+
+
+def test_cli_status_allows_only_bounded_positive_clock_skew(tmp_path: Path) -> None:
+    observed_at = (datetime.now(timezone.utc) + timedelta(seconds=0.5)).isoformat(
+        timespec="microseconds"
+    )
+    status = _fresh_status(
+        _StatusRepository(observed_at), 5.0, _live_config(tmp_path)
+    )
+    assert status["fresh"] is True
+    assert status["runtime_ready"] is True
+
+
 def test_child_kill_revokes_ready_within_250ms_and_quarantines_trial(
     tmp_path: Path,
 ) -> None:
@@ -368,6 +428,234 @@ def test_child_kill_revokes_ready_within_250ms_and_quarantines_trial(
             pass
         bridge.stop()
         repo.release_writer(token)
+
+
+def test_production_watcher_sidecar_demotes_within_250ms_under_sqlite_contention(
+    tmp_path: Path,
+) -> None:
+    repo = repository(tmp_path)
+    token = "contended-writer"
+    repo.claim_writer(token=token)
+    candidate = repo.next_pending_candidate()
+    assert candidate is not None
+    trial_id = repo.create_trial(
+        candidate_id=candidate["candidate_id"],
+        deployment_id=deployment().deployment_id,
+    )
+    repo.apply_lifecycle_event(trial_id, LifecycleEvent.PERSIST_ARM)
+    bridge = _bridge(tmp_path, REPEATING_HEALTH_CHILD)
+    ready_payload = json.loads(
+        (bridge.runtime_root / "bridge_ready.json").read_text(encoding="ascii")
+    )
+    heartbeat_path = (tmp_path / "contended-host-heartbeat.json").resolve()
+    revocation_path = (bridge.runtime_root / "bridge_revocation.json").resolve()
+    publisher = HeartbeatPublisher(
+        repository=repo,
+        mailbox=AtomicMailbox(heartbeat_path),
+        writer_token=token,
+        deployment_id=deployment().deployment_id,
+        ready_details={
+            "bridge_pid": ready_payload["pid"],
+            "bridge_launch_nonce": ready_payload["launch_nonce"],
+        },
+        interval_s=0.05,
+        health_probe=lambda: _health_details(bridge),
+        health_failure_callback=lambda exc: repo.revoke_runtime_for_bridge_loss(
+            deployment_authorized=True,
+            primary_blocker="bridge_liveness_lost",
+            details={"error": f"{type(exc).__name__}:{exc}"},
+        ),
+        failure_mailbox=AtomicMailbox(revocation_path),
+    )
+    holder = sqlite3.connect(repo.path, timeout=0.1, isolation_level=None)
+    try:
+        time.sleep(0.02)
+        bridge.start_watcher(publisher.fail_from_bridge, interval_s=0.1)
+        publisher.start()
+        assert repo.status()["runtime_ready"] is True
+        holder.execute("BEGIN IMMEDIATE")
+        started = time.monotonic()
+        assert bridge.process is not None
+        bridge.process.kill()
+        config = _live_config(bridge.runtime_root)
+        status = None
+        deadline = started + 0.5
+        while time.monotonic() < deadline:
+            status = _fresh_status(repo, 5.0, config)
+            if status["primary_blocker"] == "bridge_liveness_lost":
+                break
+            time.sleep(0.005)
+        elapsed = time.monotonic() - started
+        assert elapsed <= 0.25
+        assert status is not None
+        assert status["runtime_ready"] is False
+        assert status["primary_blocker"] == "bridge_liveness_lost"
+        evidence = AtomicMailbox(revocation_path).read_latest()
+        assert evidence is not None
+        assert evidence.payload["bridge_pid"] == ready_payload["pid"]
+        assert evidence.payload["bridge_launch_nonce"] == ready_payload["launch_nonce"]
+        assert evidence.payload["durable_revocation"] == "pending"
+        with pytest.raises(HeartbeatError):
+            publisher.check()
+        stopped_sequence = AtomicMailbox(heartbeat_path).read_latest().sequence
+        time.sleep(0.12)
+        assert AtomicMailbox(heartbeat_path).read_latest().sequence == stopped_sequence
+
+        holder.execute("ROLLBACK")
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            if repo.status()["primary_blocker"] == "bridge_liveness_lost":
+                break
+            time.sleep(0.005)
+        assert repo.status()["primary_blocker"] == "bridge_liveness_lost"
+        assert repo.trial_detail(trial_id)["state"] == "uncertain_attempt"
+    finally:
+        if holder.in_transaction:
+            holder.execute("ROLLBACK")
+        holder.close()
+        try:
+            publisher.stop()
+        except HeartbeatError:
+            pass
+        bridge.stop()
+        repo.release_writer(token)
+
+
+def test_failed_durable_revocation_remains_latched_and_preserved_in_sidecar(
+    tmp_path: Path,
+) -> None:
+    repo = repository(tmp_path)
+    runtime = tmp_path / "failure-runtime"
+    runtime.mkdir()
+    heartbeat_path = (runtime / "host-heartbeat.json").resolve()
+    revocation_path = (runtime / "bridge_revocation.json").resolve()
+
+    def fail_durable_revocation(exc: BaseException) -> None:
+        raise sqlite3.OperationalError("database is locked")
+
+    publisher = HeartbeatPublisher(
+        repository=repo,
+        mailbox=AtomicMailbox(heartbeat_path),
+        writer_token="unused",
+        deployment_id=deployment().deployment_id,
+        ready_details={"bridge_pid": 1234, "bridge_launch_nonce": "a" * 64},
+        health_failure_callback=fail_durable_revocation,
+        failure_mailbox=AtomicMailbox(revocation_path),
+    )
+    started = time.monotonic()
+    publisher.fail_from_bridge(BridgeError("child exited"))
+    assert time.monotonic() - started <= 0.25
+    deadline = time.monotonic() + 1.0
+    evidence = None
+    while time.monotonic() < deadline:
+        evidence = AtomicMailbox(revocation_path).read_latest()
+        if evidence is not None and evidence.payload["durable_revocation"] == "failed":
+            break
+        time.sleep(0.005)
+    assert evidence is not None
+    assert evidence.payload["durable_revocation"] == "failed"
+    assert evidence.payload["durable_revocation_error"].startswith(
+        "OperationalError:database is locked"
+    )
+    with pytest.raises(HeartbeatError):
+        publisher.check()
+    with pytest.raises(HeartbeatError, match="durable_revocation=OperationalError"):
+        publisher.stop()
+
+
+def test_stale_revocation_does_not_permanently_block_and_new_launch_clears_it(
+    tmp_path: Path,
+) -> None:
+    runtime = tmp_path / "bridge-runtime"
+    runtime.mkdir()
+    nonce = "b" * 64
+    revocation_path = (runtime / "bridge_revocation.json").resolve()
+    AtomicMailbox(revocation_path).publish(
+        sequence=1,
+        payload={
+            "schema": "step5d.autotune.bridge-revocation/v2",
+            "deployment_id": deployment().deployment_id,
+            "bridge_pid": 1234,
+            "bridge_launch_nonce": nonce,
+            "observed_at": "2000-01-01T00:00:00+00:00",
+            "reason": "BridgeError:old child exited",
+            "durable_revocation": "complete",
+            "durable_revocation_error": None,
+        },
+    )
+    status = _fresh_status(
+        _StatusRepository(
+            datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+            details={
+                "deployment_id": deployment().deployment_id,
+                "bridge_pid": 1234,
+                "bridge_launch_nonce": nonce,
+            },
+        ),
+        5.0,
+        _live_config(runtime),
+    )
+    assert status["runtime_ready"] is True
+
+    bridge = _bridge(tmp_path, REPEATING_HEALTH_CHILD)
+    try:
+        assert not revocation_path.exists()
+    finally:
+        bridge.stop()
+
+
+def test_fresh_revocation_must_match_current_bridge_identity(tmp_path: Path) -> None:
+    nonce = "c" * 64
+    revocation_path = (tmp_path / "bridge_revocation.json").resolve()
+    AtomicMailbox(revocation_path).publish(
+        sequence=1,
+        payload={
+            "schema": "step5d.autotune.bridge-revocation/v2",
+            "deployment_id": deployment().deployment_id,
+            "bridge_pid": 1234,
+            "bridge_launch_nonce": "d" * 64,
+            "observed_at": datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+            "reason": "BridgeError:wrong child",
+            "durable_revocation": "pending",
+            "durable_revocation_error": None,
+        },
+    )
+    status = _fresh_status(
+        _StatusRepository(
+            datetime.now(timezone.utc).isoformat(timespec="microseconds"),
+            details={
+                "deployment_id": deployment().deployment_id,
+                "bridge_pid": 1234,
+                "bridge_launch_nonce": nonce,
+            },
+        ),
+        5.0,
+        _live_config(tmp_path),
+    )
+    assert status["runtime_ready"] is False
+    assert status["primary_blocker"] == "bridge_revocation_evidence_invalid"
+
+
+def test_bridge_stop_terminates_child_even_when_watcher_join_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bridge = _bridge(tmp_path, REPEATING_HEALTH_CHILD)
+    process = bridge.process
+    assert process is not None
+
+    def fail_watcher_stop() -> None:
+        raise BridgeError("watcher thread did not stop")
+
+    monkeypatch.setattr(bridge, "stop_watcher", fail_watcher_stop)
+    try:
+        with pytest.raises(BridgeError, match="after child cleanup"):
+            bridge.stop(timeout_s=0.5)
+        assert process.poll() is not None
+        assert bridge.process is None
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=1.0)
 
 
 def test_watcher_probe_does_not_consume_heartbeat_progress_baseline(

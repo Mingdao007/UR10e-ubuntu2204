@@ -6,9 +6,11 @@ import hashlib
 import math
 import os
 import secrets
+import stat
 from pathlib import Path
 from typing import Any, Mapping
 
+from .model import canonical_json_bytes
 from .repository import Repository, RepositoryError
 
 
@@ -73,7 +75,9 @@ def render_trial_report(
     if trial_id is None:
         raise RepositoryError(f"batch has no trial result: {batch_id}")
     current = repository.trial_detail(trial_id)
-    resolved_batch = batch_id or current["batch_id"]
+    resolved_batch = current["batch_id"]
+    if batch_id is not None and batch_id != resolved_batch:
+        raise RepositoryError("trial does not belong to the requested batch")
     candidates = (
         repository.list_candidates(batch_id=resolved_batch)
         if resolved_batch is not None
@@ -139,55 +143,156 @@ def render_trial_report(
     return "\n".join(lines) + "\n"
 
 
-def write_trial_report(
+def _report_target(
     repository: Repository, *, trial_id: str, output_root: Path
-) -> tuple[str, Path]:
+) -> tuple[dict[str, Any], Path]:
     detail = repository.trial_detail(trial_id)
-    batch_id = detail["batch_id"] or repository.latest_batch_id()
-    content = render_trial_report(
-        repository, trial_id=trial_id, batch_id=batch_id
-    )
     if output_root.is_symlink():
         raise RepositoryError("report root must not be a symlink")
     output_root = output_root.resolve()
-    output_root.mkdir(parents=True, exist_ok=True)
     filename = (
         f"{detail['group_id']}_P={detail['p_text']}_I={detail['i_text']}_"
         f"D={detail['d_text']}_{trial_id[:12]}.md"
     )
-    path = output_root / filename
-    encoded = content.encode("utf-8")
-    if path.exists():
-        if path.is_symlink() or path.read_bytes() != encoded:
+    return detail, output_root / filename
+
+
+def _read_regular_report(path: Path) -> bytes | None:
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise RepositoryError("registered trial report is unsafe") from exc
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+            raise RepositoryError(
+                "registered trial report must be one regular non-symlink file"
+            )
+        chunks: list[bytes] = []
+        remaining = before.st_size
+        while remaining:
+            chunk = os.read(descriptor, min(1024 * 1024, remaining))
+            if not chunk:
+                raise RepositoryError("registered trial report ended early")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        encoded = b"".join(chunks)
+        after = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    identity = lambda value: (
+        value.st_dev,
+        value.st_ino,
+        value.st_mode,
+        value.st_nlink,
+        value.st_size,
+        value.st_mtime_ns,
+    )
+    if identity(before) != identity(after) or len(encoded) != before.st_size:
+        raise RepositoryError("registered trial report changed while being read")
+    return encoded
+
+
+def _write_report_file(path: Path, encoded: bytes) -> bool:
+    actual = _read_regular_report(path)
+    if actual is not None:
+        if actual != encoded:
             raise RepositoryError("immutable trial report already differs")
-    else:
-        temporary = output_root / (
-            f".{filename}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+        return False
+    output_root = path.parent
+    output_root.mkdir(parents=True, exist_ok=True)
+    temporary = output_root / (
+        f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+    )
+    try:
+        with temporary.open("xb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory = os.open(
+            output_root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
         )
         try:
-            with temporary.open("xb") as handle:
-                handle.write(encoded)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary, path)
-            directory = os.open(
-                output_root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
-            )
-            try:
-                os.fsync(directory)
-            finally:
-                os.close(directory)
+            os.fsync(directory)
         finally:
+            os.close(directory)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+    return True
+
+
+def _write_trial_report(
+    repository: Repository, *, trial_id: str, output_root: Path
+) -> tuple[str, Path, bool]:
+    _detail, path = _report_target(
+        repository, trial_id=trial_id, output_root=output_root
+    )
+    content = render_trial_report(repository, trial_id=trial_id)
+    encoded = content.encode("utf-8")
+    digest = hashlib.sha256(encoded).hexdigest()
+    existing = repository.artifact_record_for_trial(
+        trial_id, role="trial_markdown_report"
+    )
+    if existing is not None:
+        bound_artifact_id = hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "trial_id": trial_id,
+                    "role": "trial_markdown_report",
+                    "path": existing["path"],
+                    "sha256": existing["sha256"],
+                }
+            )
+        ).hexdigest()
+        if (
+            not bool(existing["immutable"])
+            or existing["path"] != str(path)
+            or existing["artifact_id"] != bound_artifact_id
+        ):
+            raise RepositoryError(
+                "registered trial report conflicts with canonical immutable content"
+            )
+        actual = _read_regular_report(path)
+        if actual is not None:
+            if hashlib.sha256(actual).hexdigest() != existing["sha256"]:
+                raise RepositoryError(
+                    "registered trial report bytes do not match its hash"
+                )
             try:
-                temporary.unlink()
-            except FileNotFoundError:
-                pass
+                return actual.decode("utf-8"), path, False
+            except UnicodeDecodeError as exc:
+                raise RepositoryError(
+                    "registered trial report is not UTF-8"
+                ) from exc
+        if existing["sha256"] != digest:
+            raise RepositoryError(
+                "missing immutable trial report cannot be recovered from changed rendering"
+            )
+    materialized = _write_report_file(path, encoded)
+    actual = _read_regular_report(path)
+    if actual is None or hashlib.sha256(actual).hexdigest() != digest:
+        raise RepositoryError("registered trial report bytes do not match its hash")
     repository.add_artifact(
         trial_id=trial_id,
         role="trial_markdown_report",
         path=path,
-        sha256=hashlib.sha256(encoded).hexdigest(),
+        sha256=digest,
         immutable=True,
+    )
+    return content, path, materialized or existing is None
+
+
+def write_trial_report(
+    repository: Repository, *, trial_id: str, output_root: Path
+) -> tuple[str, Path]:
+    content, path, _recovered = _write_trial_report(
+        repository, trial_id=trial_id, output_root=output_root
     )
     return content, path
 
@@ -195,15 +300,13 @@ def write_trial_report(
 def reconcile_missing_trial_reports(
     repository: Repository, *, deployment_id: str, output_root: Path
 ) -> list[tuple[str, Path]]:
-    """Recover the COMPLETE-to-report crash cut for the current epoch only."""
+    """Verify current-epoch reports and recover only deterministic crash cuts."""
 
     recovered: list[tuple[str, Path]] = []
-    for trial_id in repository.completed_trials_missing_report(
-        deployment_id=deployment_id
-    ):
-        recovered.append(
-            write_trial_report(
-                repository, trial_id=trial_id, output_root=output_root
-            )
+    for trial_id in repository.completed_trials(deployment_id=deployment_id):
+        content, path, changed = _write_trial_report(
+            repository, trial_id=trial_id, output_root=output_root
         )
+        if changed:
+            recovered.append((content, path))
     return recovered

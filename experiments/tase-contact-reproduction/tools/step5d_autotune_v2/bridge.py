@@ -89,9 +89,11 @@ class BridgeProcess:
             raise BridgeError("bridge runtime root is not a directory")
         ready_path = self.runtime_root / "bridge_ready.json"
         health_path = self.runtime_root / "bridge_health.json"
+        revocation_path = self.runtime_root / "bridge_revocation.json"
         for snapshot_path, label in (
             (ready_path, "readiness"),
             (health_path, "health"),
+            (revocation_path, "revocation"),
         ):
             _remove_stale_snapshot(
                 snapshot_path, runtime_root=self.runtime_root, label=label
@@ -302,26 +304,46 @@ class BridgeProcess:
         self._watch_thread = None
 
     def stop(self, *, timeout_s: float = 5.0) -> None:
-        self.stop_watcher()
+        watcher_error: BaseException | None = None
+        termination_error: BaseException | None = None
+        try:
+            self.stop_watcher()
+        except BaseException as exc:
+            watcher_error = exc
         process = self.process
-        if process is None:
-            return
-        if process.poll() is None:
-            process.terminate()
+        try:
+            if process is not None and process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=timeout_s)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=timeout_s)
+        except BaseException as exc:
+            termination_error = exc
+        finally:
             try:
-                process.wait(timeout=timeout_s)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=timeout_s)
-        if self.log_handle is not None:
-            self.log_handle.close()
-        self.process = None
-        self.log_handle = None
-        self._launch_nonce = None
-        self._health_sequence = None
-        self._sample_counter = None
-        self._observed_health_sequence = None
-        self._observed_sample_counter = None
+                if self.log_handle is not None:
+                    self.log_handle.close()
+            except BaseException as exc:
+                if termination_error is None:
+                    termination_error = exc
+            finally:
+                self.process = None
+                self.log_handle = None
+                self._launch_nonce = None
+                self._health_sequence = None
+                self._sample_counter = None
+                self._observed_health_sequence = None
+                self._observed_sample_counter = None
+        if termination_error is not None:
+            raise BridgeError(
+                f"bridge child could not be stopped: {termination_error}"
+            ) from termination_error
+        if watcher_error is not None:
+            raise BridgeError(
+                f"bridge watcher stop failed after child cleanup: {watcher_error}"
+            ) from watcher_error
 
 
 def _remove_stale_snapshot(path: Path, *, runtime_root: Path, label: str) -> None:

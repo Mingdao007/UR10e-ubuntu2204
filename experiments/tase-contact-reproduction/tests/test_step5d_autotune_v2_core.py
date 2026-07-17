@@ -26,6 +26,15 @@ from step5d_autotune_v2.reducer import (
     reduce_lifecycle,
 )
 from step5d_autotune_v2.repository import Repository, RepositoryError
+from step5d_autotune_v2.repository_schema import (
+    EVENT_CHAIN_ANCHOR_KEYS,
+    EVENT_CHAIN_ANCHOR_VERSION,
+    EVENT_CHAIN_ANCHOR_VERSION_KEY,
+    EVENT_CHAIN_COUNT_KEY,
+    EVENT_CHAIN_HEAD_KEY,
+    EVENT_CHAIN_HIGH_WATER_KEY,
+    EVENT_CHAIN_INTEGRITY_KEYS,
+)
 from step5d_autotune_v2.config import load_static_config
 from step5d_autotune_v2.readiness import evaluate_preflight
 
@@ -198,6 +207,119 @@ def test_repository_wal_event_chain_and_global_tuple_dedup(tmp_path: Path) -> No
         repository.integrity_check()
 
 
+def test_event_chain_anchor_tracks_count_head_and_autoincrement_high_water(
+    tmp_path: Path,
+) -> None:
+    repository = Repository((tmp_path / "campaign.sqlite3").resolve())
+    repository.initialize()
+    repository.register_deployment(deployment())
+    repository.enqueue_batch(BatchSpec("b1", "first", candidates()))
+
+    with sqlite3.connect(repository.path) as connection:
+        values = dict(
+            connection.execute(
+                "SELECT key,value FROM metadata WHERE key IN (?,?,?)",
+                (
+                    EVENT_CHAIN_COUNT_KEY,
+                    EVENT_CHAIN_HEAD_KEY,
+                    EVENT_CHAIN_HIGH_WATER_KEY,
+                ),
+            ).fetchall()
+        )
+        count, event_id, event_hash = connection.execute(
+            "SELECT COUNT(*),MAX(event_id),"
+            "(SELECT event_hash FROM events ORDER BY event_id DESC LIMIT 1) FROM events"
+        ).fetchone()
+        high_water = connection.execute(
+            "SELECT seq FROM sqlite_sequence WHERE name='events'"
+        ).fetchone()[0]
+    assert values[EVENT_CHAIN_COUNT_KEY] == str(count)
+    assert values[EVENT_CHAIN_HEAD_KEY] == event_hash
+    assert values[EVENT_CHAIN_HIGH_WATER_KEY] == str(event_id)
+    assert event_id == high_water
+    repository.integrity_check()
+
+
+@pytest.mark.parametrize(
+    "delete_sql",
+    (
+        "DELETE FROM events WHERE event_id=(SELECT MAX(event_id) FROM events)",
+        "DELETE FROM events",
+    ),
+)
+def test_event_chain_anchor_detects_tail_and_all_row_truncation(
+    tmp_path: Path, delete_sql: str
+) -> None:
+    repository = Repository((tmp_path / "campaign.sqlite3").resolve())
+    repository.initialize()
+    repository.register_deployment(deployment())
+    repository.enqueue_batch(BatchSpec("b1", "first", candidates()))
+    with sqlite3.connect(repository.path) as connection:
+        connection.execute(delete_sql)
+    with pytest.raises(RepositoryError, match="truncation|anchor"):
+        repository.integrity_check()
+
+
+def test_unanchored_legacy_v2_is_read_only_compatible_then_migrates_atomically(
+    tmp_path: Path,
+) -> None:
+    repository = Repository((tmp_path / "campaign.sqlite3").resolve())
+    repository.initialize()
+    repository.register_deployment(deployment())
+    with sqlite3.connect(repository.path) as connection:
+        connection.executemany(
+            "DELETE FROM metadata WHERE key=?",
+            ((key,) for key in EVENT_CHAIN_INTEGRITY_KEYS),
+        )
+
+    before = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in tmp_path.iterdir()
+        if path.is_file()
+    }
+    Repository(repository.path, read_only=True).integrity_check()
+    after = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in tmp_path.iterdir()
+        if path.is_file()
+    }
+    assert after == before
+
+    repository.initialize()
+    with sqlite3.connect(repository.path) as connection:
+        migrated = {
+            row[0]
+            for row in connection.execute(
+                "SELECT key FROM metadata WHERE key IN (?,?,?)",
+                (
+                    EVENT_CHAIN_COUNT_KEY,
+                    EVENT_CHAIN_HEAD_KEY,
+                    EVENT_CHAIN_HIGH_WATER_KEY,
+                ),
+            )
+        }
+        anchor_version = connection.execute(
+            "SELECT value FROM metadata WHERE key=?",
+            (EVENT_CHAIN_ANCHOR_VERSION_KEY,),
+        ).fetchone()[0]
+    assert migrated == EVENT_CHAIN_ANCHOR_KEYS
+    assert anchor_version == EVENT_CHAIN_ANCHOR_VERSION
+    repository.integrity_check()
+
+
+def test_integrity_requires_the_exact_database_schema_marker(tmp_path: Path) -> None:
+    repository = Repository((tmp_path / "campaign.sqlite3").resolve())
+    repository.initialize()
+    with sqlite3.connect(repository.path) as connection:
+        connection.execute(
+            "UPDATE metadata SET value='step5d.autotune.db/v999' WHERE key='schema'"
+        )
+    with pytest.raises(RepositoryError, match="unsupported database schema"):
+        repository.integrity_check()
+    with pytest.raises(RepositoryError, match="unsupported database schema"):
+        repository.initialize()
+
+
 def test_parameter_enqueue_does_not_mutate_deployment_identity(tmp_path: Path) -> None:
     repository = Repository((tmp_path / "campaign.sqlite3").resolve())
     repository.initialize()
@@ -248,6 +370,77 @@ def test_dead_same_host_writer_can_be_recovered_without_freshness_delay(
         )
     repository.claim_writer(token="replacement", stale_after_s=60)
     repository.release_writer("replacement")
+
+
+def test_reused_same_host_pid_cannot_inherit_a_different_process_lease(
+    tmp_path: Path,
+) -> None:
+    repository = Repository((tmp_path / "campaign.sqlite3").resolve())
+    repository.initialize()
+    repository.claim_writer(token="old-process")
+    with sqlite3.connect(repository.path) as connection:
+        encoded = connection.execute(
+            "SELECT hostname FROM writer_lease WHERE singleton=1"
+        ).fetchone()[0]
+        owner = json.loads(encoded)
+        assert owner["boot_id"]
+        assert isinstance(owner["process_start_ticks"], int)
+        owner["process_start_ticks"] += 1
+        connection.execute(
+            "UPDATE writer_lease SET hostname=? WHERE singleton=1",
+            (json.dumps(owner, sort_keys=True, separators=(",", ":")),),
+        )
+    repository.claim_writer(token="replacement", stale_after_s=60)
+    repository.release_writer("replacement")
+
+
+def test_bridge_loss_revokes_ready_and_quarantines_every_anomalous_active_trial(
+    tmp_path: Path,
+) -> None:
+    repository = Repository((tmp_path / "campaign.sqlite3").resolve())
+    repository.initialize()
+    repository.register_deployment(deployment())
+    repository.enqueue_batch(BatchSpec("b1", "anomaly fixture", candidates()))
+    trial_ids: list[str] = []
+    for _ in range(2):
+        candidate = repository.next_pending_candidate()
+        assert candidate is not None
+        trial_id = repository.create_trial(
+            candidate_id=candidate["candidate_id"],
+            deployment_id=deployment().deployment_id,
+        )
+        repository.apply_lifecycle_event(trial_id, LifecycleEvent.PERSIST_ARM)
+        trial_ids.append(trial_id)
+    repository.set_runtime_status(
+        deployment_authorized=True,
+        runtime_ready=True,
+        primary_blocker=None,
+        details={"fixture": "multiple-active"},
+    )
+
+    quarantined = repository.revoke_runtime_for_bridge_loss(
+        deployment_authorized=True,
+        primary_blocker="bridge_liveness_lost",
+        details={"error": "BridgeError:child exited"},
+    )
+
+    assert quarantined == trial_ids[0]
+    assert [repository.trial_detail(row)["state"] for row in trial_ids] == [
+        "uncertain_attempt",
+        "uncertain_attempt",
+    ]
+    status = repository.status()
+    assert status["runtime_ready"] is False
+    assert status["primary_blocker"] == "bridge_liveness_lost"
+    assert status["details"]["active_trial_invariant_violation"] is True
+    assert status["details"]["active_trial_ids_at_revocation"] == trial_ids
+    assert status["details"]["quarantined_trial_ids"] == trial_ids
+    with repository._connect() as connection:
+        evidence = connection.execute(
+            "SELECT entity_id FROM events WHERE event_type='mark_uncertain_attempt' "
+            "ORDER BY event_id"
+        ).fetchall()
+    assert [row["entity_id"] for row in evidence] == trial_ids
 
 
 def test_imported_partial_attempt_marks_a_mapped_pending_tuple_nonrepeatable(

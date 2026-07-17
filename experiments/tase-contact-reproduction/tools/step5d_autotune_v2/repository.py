@@ -30,11 +30,17 @@ from .reducer import (
     reduce_lifecycle,
 )
 from .repository_schema import (
+    EVENT_CHAIN_COUNT_KEY,
+    EVENT_CHAIN_HEAD_KEY,
+    EVENT_CHAIN_HIGH_WATER_KEY,
+    EVENT_CHAIN_INTEGRITY_KEYS,
     GENESIS_HASH,
     RepositoryError,
     check_database_layout,
+    event_sequence_high_water,
     initialize_schema,
     math_is_finite,
+    read_event_chain_anchor,
     utc_now,
 )
 from .repository_runtime import RepositoryRuntime
@@ -194,6 +200,8 @@ class Repository(RepositoryRuntime, RepositoryViews):
     def initialize(self) -> None:
         if self.read_only:
             raise RepositoryError("read-only repository cannot initialize a database")
+        if self.path.exists():
+            Repository(self.path, read_only=True).integrity_check()
         initialize_schema(self)
         self.integrity_check()
 
@@ -203,13 +211,21 @@ class Repository(RepositoryRuntime, RepositoryViews):
             self._verify_event_chain(connection)
 
     @staticmethod
-    def _verify_event_chain(connection: sqlite3.Connection) -> None:
+    def _verify_event_chain(
+        connection: sqlite3.Connection, *, allow_unanchored: bool = True
+    ) -> None:
         previous = GENESIS_HASH
+        count = 0
+        last_event_id = 0
         rows = connection.execute(
-            "SELECT entity_type,entity_id,event_type,payload_json,previous_hash,event_hash,created_at "
+            "SELECT event_id,entity_type,entity_id,event_type,payload_json,"
+            "previous_hash,event_hash,created_at "
             "FROM events ORDER BY event_id"
         )
         for row in rows:
+            count += 1
+            if int(row["event_id"]) != count:
+                raise RepositoryError("event chain event-id sequence mismatch")
             if row["previous_hash"] != previous:
                 raise RepositoryError("event chain previous hash mismatch")
             material = {
@@ -224,6 +240,22 @@ class Repository(RepositoryRuntime, RepositoryViews):
             if actual != row["event_hash"]:
                 raise RepositoryError("event chain content hash mismatch")
             previous = actual
+            last_event_id = int(row["event_id"])
+        high_water = event_sequence_high_water(connection)
+        if count != last_event_id or count != high_water:
+            raise RepositoryError("event chain truncation or high-water mismatch")
+        anchor = read_event_chain_anchor(connection)
+        if anchor is None:
+            if not allow_unanchored:
+                raise RepositoryError("event chain anchor is missing")
+            return
+        anchored_count, anchored_head, anchored_high_water = anchor
+        if (
+            anchored_count != count
+            or anchored_head != previous
+            or anchored_high_water != high_water
+        ):
+            raise RepositoryError("event chain durable anchor mismatch")
 
     @staticmethod
     def _append_event(
@@ -234,10 +266,26 @@ class Repository(RepositoryRuntime, RepositoryViews):
         event_type: str,
         payload: Mapping[str, Any],
     ) -> str:
+        anchor = read_event_chain_anchor(connection)
+        if anchor is None:
+            raise RepositoryError("event chain anchor is not initialized")
+        anchored_count, anchored_head, anchored_high_water = anchor
         row = connection.execute(
-            "SELECT event_hash FROM events ORDER BY event_id DESC LIMIT 1"
+            "SELECT event_id,event_hash FROM events ORDER BY event_id DESC LIMIT 1"
         ).fetchone()
-        previous = row["event_hash"] if row else GENESIS_HASH
+        previous = str(row["event_hash"]) if row else GENESIS_HASH
+        last_event_id = int(row["event_id"]) if row else 0
+        actual_count = int(
+            connection.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        )
+        if (
+            anchored_count != actual_count
+            or actual_count != last_event_id
+            or anchored_head != previous
+            or anchored_high_water != last_event_id
+            or event_sequence_high_water(connection) != last_event_id
+        ):
+            raise RepositoryError("event chain durable anchor mismatch before append")
         created_at = utc_now()
         material = {
             "entity_type": entity_type,
@@ -248,7 +296,7 @@ class Repository(RepositoryRuntime, RepositoryViews):
             "created_at": created_at,
         }
         event_hash = hashlib.sha256(canonical_json_bytes(material)).hexdigest()
-        connection.execute(
+        cursor = connection.execute(
             "INSERT INTO events(entity_type,entity_id,event_type,payload_json,previous_hash,event_hash,created_at) "
             "VALUES(?,?,?,?,?,?,?)",
             (
@@ -259,6 +307,17 @@ class Repository(RepositoryRuntime, RepositoryViews):
                 previous,
                 event_hash,
                 created_at,
+            ),
+        )
+        new_event_id = int(cursor.lastrowid)
+        if new_event_id != last_event_id + 1:
+            raise RepositoryError("event chain high-water did not advance by one")
+        connection.executemany(
+            "UPDATE metadata SET value=? WHERE key=?",
+            (
+                (str(anchored_count + 1), EVENT_CHAIN_COUNT_KEY),
+                (event_hash, EVENT_CHAIN_HEAD_KEY),
+                (str(new_event_id), EVENT_CHAIN_HIGH_WATER_KEY),
             ),
         )
         return event_hash
@@ -670,13 +729,9 @@ class Repository(RepositoryRuntime, RepositoryViews):
                 "WHERE state NOT IN ('complete','analysis_failed','uncertain_attempt','fault') "
                 "ORDER BY created_at,trial_id"
             ).fetchall()
-            if len(active) > 1:
-                raise RepositoryError(
-                    "multiple active trials violate the one-writer invariant"
-                )
-            quarantined_trial: str | None = None
-            if active:
-                row = active[0]
+            active_trial_ids = [str(row["trial_id"]) for row in active]
+            quarantined_trial_ids: list[str] = []
+            for row in active:
                 previous = LifecycleSnapshot.from_mapping(
                     json.loads(row["snapshot_json"])
                 )
@@ -714,10 +769,16 @@ class Repository(RepositoryRuntime, RepositoryViews):
                             "snapshot": current.as_dict(),
                         },
                     )
-                    quarantined_trial = str(row["trial_id"])
+                    quarantined_trial_ids.append(str(row["trial_id"]))
+            quarantined_trial = (
+                quarantined_trial_ids[0] if quarantined_trial_ids else None
+            )
             runtime_details = {
                 **dict(details),
                 "quarantined_trial_id": quarantined_trial,
+                "quarantined_trial_ids": quarantined_trial_ids,
+                "active_trial_ids_at_revocation": active_trial_ids,
+                "active_trial_invariant_violation": len(active_trial_ids) > 1,
             }
             connection.execute(
                 "INSERT INTO runtime_status VALUES(1,?,?,?,?,?) "
@@ -842,6 +903,8 @@ class Repository(RepositoryRuntime, RepositoryViews):
     def set_metadata(self, key: str, value: str) -> None:
         if not key or not isinstance(value, str):
             raise RepositoryError("metadata key/value must be strings")
+        if key == "schema" or key in EVENT_CHAIN_INTEGRITY_KEYS:
+            raise RepositoryError("reserved integrity metadata cannot be changed")
         with self.transaction() as connection:
             connection.execute(
                 "INSERT INTO metadata(key,value) VALUES(?,?) "

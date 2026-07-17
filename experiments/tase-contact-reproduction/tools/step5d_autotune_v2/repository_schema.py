@@ -9,7 +9,23 @@ from typing import Any
 
 DB_SCHEMA = "step5d.autotune.db/v2"
 GENESIS_HASH = "0" * 64
+EVENT_CHAIN_COUNT_KEY = "event_chain_count"
+EVENT_CHAIN_HEAD_KEY = "event_chain_head_hash"
+EVENT_CHAIN_HIGH_WATER_KEY = "event_chain_high_water_event_id"
+EVENT_CHAIN_ANCHOR_VERSION_KEY = "event_chain_anchor_version"
+EVENT_CHAIN_ANCHOR_VERSION = "1"
+EVENT_CHAIN_ANCHOR_KEYS = frozenset(
+    {
+        EVENT_CHAIN_COUNT_KEY,
+        EVENT_CHAIN_HEAD_KEY,
+        EVENT_CHAIN_HIGH_WATER_KEY,
+    }
+)
+EVENT_CHAIN_INTEGRITY_KEYS = EVENT_CHAIN_ANCHOR_KEYS | {
+    EVENT_CHAIN_ANCHOR_VERSION_KEY
+}
 REQUIRED_COLUMNS = {
+    "metadata": {"key", "value"},
     "deployments": {
         "deployment_id", "code_fingerprint", "tp_fingerprint", "guard_fingerprint",
         "profile_json", "deployment_authorized", "controller_readback_verified", "created_at",
@@ -59,9 +75,23 @@ def utc_now() -> str:
 def initialize_schema(repository: Any) -> None:
     if repository.path.is_symlink():
         raise RepositoryError("campaign database must not be a symlink")
+    database_preexisted = repository.path.exists()
     with repository.transaction() as connection:
-        connection.executescript(
-            """
+        if database_preexisted:
+            metadata_exists = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='metadata'"
+            ).fetchone()
+            existing_schema = (
+                connection.execute(
+                    "SELECT value FROM metadata WHERE key='schema'"
+                ).fetchone()
+                if metadata_exists
+                else None
+            )
+            if existing_schema is None or existing_schema["value"] != DB_SCHEMA:
+                actual = None if existing_schema is None else existing_schema["value"]
+                raise RepositoryError(f"unsupported database schema: {actual}")
+        schema_sql = """
             CREATE TABLE IF NOT EXISTS metadata (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -186,11 +216,15 @@ def initialize_schema(repository: Any) -> None:
                 imported_at TEXT NOT NULL
             );
             """
-        )
+        for statement in schema_sql.split(";"):
+            if statement.strip():
+                connection.execute(statement)
         existing = connection.execute(
             "SELECT value FROM metadata WHERE key='schema'"
         ).fetchone()
         if existing is None:
+            if database_preexisted:
+                raise RepositoryError("existing database has no schema marker")
             connection.execute(
                 "INSERT INTO metadata(key,value) VALUES('schema',?)", (DB_SCHEMA,)
             )
@@ -200,6 +234,79 @@ def initialize_schema(repository: Any) -> None:
             "INSERT OR IGNORE INTO metadata(key,value) VALUES('created_at',?)",
             (utc_now(),),
         )
+        repository._verify_event_chain(connection, allow_unanchored=True)
+        initialize_event_chain_anchor(connection)
+
+
+def read_event_chain_anchor(
+    connection: sqlite3.Connection,
+) -> tuple[int, str, int] | None:
+    rows = connection.execute(
+        "SELECT key,value FROM metadata WHERE key IN (?,?,?,?)",
+        (
+            EVENT_CHAIN_COUNT_KEY,
+            EVENT_CHAIN_HEAD_KEY,
+            EVENT_CHAIN_HIGH_WATER_KEY,
+            EVENT_CHAIN_ANCHOR_VERSION_KEY,
+        ),
+    ).fetchall()
+    if not rows:
+        return None
+    values = {str(row["key"]): str(row["value"]) for row in rows}
+    if values.get(EVENT_CHAIN_ANCHOR_VERSION_KEY) != EVENT_CHAIN_ANCHOR_VERSION:
+        raise RepositoryError("event chain anchor version is missing or unsupported")
+    if set(values) != EVENT_CHAIN_INTEGRITY_KEYS:
+        raise RepositoryError("event chain anchor metadata is incomplete")
+    try:
+        count = int(values[EVENT_CHAIN_COUNT_KEY])
+        high_water = int(values[EVENT_CHAIN_HIGH_WATER_KEY])
+        head = values[EVENT_CHAIN_HEAD_KEY]
+        int(head, 16)
+    except (TypeError, ValueError) as exc:
+        raise RepositoryError("event chain anchor metadata is invalid") from exc
+    if count < 0 or high_water < 0 or len(head) != 64 or head != head.lower():
+        raise RepositoryError("event chain anchor metadata is invalid")
+    return count, head, high_water
+
+
+def event_sequence_high_water(connection: sqlite3.Connection) -> int:
+    row = connection.execute(
+        "SELECT seq FROM sqlite_sequence WHERE name='events'"
+    ).fetchone()
+    if row is None:
+        return 0
+    try:
+        value = int(row["seq"])
+    except (TypeError, ValueError) as exc:
+        raise RepositoryError("event sequence high-water is invalid") from exc
+    if value < 0:
+        raise RepositoryError("event sequence high-water is invalid")
+    return value
+
+
+def initialize_event_chain_anchor(connection: sqlite3.Connection) -> None:
+    """Migrate a verified legacy-v2 chain without rewriting campaign events."""
+
+    if read_event_chain_anchor(connection) is not None:
+        return
+    tail = connection.execute(
+        "SELECT event_id,event_hash FROM events ORDER BY event_id DESC LIMIT 1"
+    ).fetchone()
+    count = int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
+    event_id = int(tail["event_id"]) if tail else 0
+    head = str(tail["event_hash"]) if tail else GENESIS_HASH
+    high_water = event_sequence_high_water(connection)
+    if count != event_id or count != high_water:
+        raise RepositoryError("legacy event chain cannot be anchored after truncation")
+    connection.executemany(
+        "INSERT INTO metadata(key,value) VALUES(?,?)",
+        (
+            (EVENT_CHAIN_ANCHOR_VERSION_KEY, EVENT_CHAIN_ANCHOR_VERSION),
+            (EVENT_CHAIN_COUNT_KEY, str(count)),
+            (EVENT_CHAIN_HEAD_KEY, head),
+            (EVENT_CHAIN_HIGH_WATER_KEY, str(high_water)),
+        ),
+    )
 
 
 def check_database_layout(connection: sqlite3.Connection) -> None:
@@ -218,6 +325,12 @@ def check_database_layout(connection: sqlite3.Connection) -> None:
                 f"database schema layout mismatch for {table}: "
                 f"missing={sorted(expected - actual)} extra={sorted(actual - expected)}"
             )
+    marker = connection.execute(
+        "SELECT value FROM metadata WHERE key='schema'"
+    ).fetchone()
+    if marker is None or marker["value"] != DB_SCHEMA:
+        actual = None if marker is None else marker["value"]
+        raise RepositoryError(f"unsupported database schema: {actual}")
 
 
 def math_is_finite(value: Any) -> bool:

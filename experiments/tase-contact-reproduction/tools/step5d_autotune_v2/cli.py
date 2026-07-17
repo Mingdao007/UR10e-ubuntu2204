@@ -14,7 +14,9 @@ from pathlib import Path
 from typing import Sequence
 
 from .config import ConfigError, StaticConfig, load_static_config
+from .heartbeat import REVOCATION_SCHEMA
 from .legacy import LegacyImporter
+from .mailbox import AtomicMailbox, MailboxError
 from .model import BatchSpec, ModelError
 from .readiness import evaluate_preflight
 from .report import render_trial_report
@@ -23,6 +25,7 @@ from .service import run_service
 
 
 UNIT = "step5d-autotune-v2.service"
+ALLOWED_CLOCK_SKEW_S = 1.0
 
 
 def _root_default() -> Path:
@@ -82,11 +85,11 @@ def _fresh_status(
         status["primary_blocker"] = static_blocker
     observed = status.get("observed_at")
     if observed:
-        try:
-            age = (datetime.now(timezone.utc) - datetime.fromisoformat(observed)).total_seconds()
-            status["fresh"] = age <= freshness_s
+        age = _aware_age_s(observed)
+        if age is not None:
+            status["fresh"] = -ALLOWED_CLOCK_SKEW_S <= age <= freshness_s
             status["age_s"] = age
-        except ValueError:
+        else:
             status["fresh"] = False
     if static_blocker is None and status["runtime_ready"] and not status["fresh"]:
         status["runtime_ready"] = False
@@ -99,7 +102,94 @@ def _fresh_status(
     ):
         status["runtime_ready"] = False
         status["primary_blocker"] = "runtime_deployment_mismatch"
+    if static_blocker is None:
+        _apply_bridge_revocation(status, freshness_s=freshness_s, config=config)
     return status
+
+
+def _aware_age_s(value: object) -> float | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        observed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if observed.tzinfo is None or observed.utcoffset() is None:
+        return None
+    return (datetime.now(timezone.utc) - observed).total_seconds()
+
+
+def _apply_bridge_revocation(
+    status: dict, *, freshness_s: float, config: StaticConfig
+) -> None:
+    path = (config.runtime_root_path / "bridge_revocation.json").absolute()
+    try:
+        snapshot = AtomicMailbox(path).read_latest()
+    except (MailboxError, OSError) as exc:
+        status["runtime_ready"] = False
+        status["primary_blocker"] = "bridge_revocation_evidence_invalid"
+        status["details"] = {
+            **dict(status.get("details") or {}),
+            "bridge_revocation_evidence_error": f"{type(exc).__name__}:{exc}",
+        }
+        return
+    if snapshot is None:
+        return
+    payload = snapshot.payload
+    expected_fields = {
+        "schema",
+        "deployment_id",
+        "bridge_pid",
+        "bridge_launch_nonce",
+        "observed_at",
+        "reason",
+        "durable_revocation",
+        "durable_revocation_error",
+    }
+    age_s = _aware_age_s(payload.get("observed_at"))
+    if age_s is not None and age_s > freshness_s + ALLOWED_CLOCK_SKEW_S:
+        return
+    pid = payload.get("bridge_pid")
+    nonce = payload.get("bridge_launch_nonce")
+    durable = payload.get("durable_revocation")
+    error = payload.get("durable_revocation_error")
+    valid = (
+        set(payload) == expected_fields
+        and payload.get("schema") == REVOCATION_SCHEMA
+        and payload.get("deployment_id") == config.deployment.deployment_id
+        and isinstance(pid, int)
+        and not isinstance(pid, bool)
+        and pid > 0
+        and isinstance(nonce, str)
+        and len(nonce) == 64
+        and all(character in "0123456789abcdef" for character in nonce)
+        and age_s is not None
+        and age_s >= -ALLOWED_CLOCK_SKEW_S
+        and isinstance(payload.get("reason"), str)
+        and bool(payload.get("reason"))
+        and durable in {"pending", "complete", "failed", "not_configured"}
+        and (error is None or isinstance(error, str))
+    )
+    runtime_details = dict(status.get("details") or {})
+    identity_matches = (
+        runtime_details.get("bridge_pid") == pid
+        and runtime_details.get("bridge_launch_nonce") == nonce
+    )
+    if not valid or not identity_matches:
+        status["runtime_ready"] = False
+        status["primary_blocker"] = "bridge_revocation_evidence_invalid"
+        runtime_details["bridge_revocation_evidence_error"] = (
+            "invalid_payload" if not valid else "runtime_identity_mismatch"
+        )
+        status["details"] = runtime_details
+        return
+    status["runtime_ready"] = False
+    status["primary_blocker"] = "bridge_liveness_lost"
+    status["details"] = {
+        **runtime_details,
+        "bridge_revocation_evidence": dict(payload),
+        "bridge_revocation_sequence": snapshot.sequence,
+    }
 
 
 def _start(root: Path, database: Path | None) -> int:

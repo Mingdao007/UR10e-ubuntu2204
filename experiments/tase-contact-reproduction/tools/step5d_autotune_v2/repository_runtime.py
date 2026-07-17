@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import socket
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping
 
 from .model import canonical_json_bytes
 from .repository_schema import RepositoryError, utc_now
+
+
+WRITER_OWNER_SCHEMA = "step5d.autotune.writer-owner/v2"
 
 
 class RepositoryRuntime:
@@ -116,16 +121,17 @@ class RepositoryRuntime:
                     age = (now - heartbeat).total_seconds()
                 except ValueError:
                     age = 0.0
-                same_host = row["hostname"] == socket.gethostname()
+                owner = _decode_writer_owner(row["hostname"])
+                same_host = owner["hostname"] == socket.gethostname()
                 lease_live = (
-                    _pid_alive(row["pid"])
+                    _process_matches_owner(row["pid"], owner)
                     if same_host
                     else age <= stale_after_s
                 )
                 if row["token"] != token and lease_live:
                     raise RepositoryError(
                         "another live writer owns the campaign: "
-                        f"pid={row['pid']} host={row['hostname']}"
+                        f"pid={row['pid']} host={owner['hostname']}"
                     )
             connection.execute(
                 "INSERT INTO writer_lease VALUES(1,?,?,?,?) "
@@ -135,7 +141,7 @@ class RepositoryRuntime:
                 (
                     token,
                     os.getpid(),
-                    socket.gethostname(),
+                    _encode_writer_owner(os.getpid()),
                     now.isoformat(timespec="microseconds"),
                 ),
             )
@@ -162,3 +168,85 @@ def _pid_alive(pid: int) -> bool:
     except (OSError, ValueError):
         return False
     return True
+
+
+def _boot_id() -> str | None:
+    try:
+        value = Path("/proc/sys/kernel/random/boot_id").read_text(
+            encoding="ascii"
+        ).strip()
+    except (OSError, UnicodeError):
+        return None
+    return value or None
+
+
+def _process_start_ticks(pid: int) -> int | None:
+    try:
+        encoded = Path(f"/proc/{int(pid)}/stat").read_text(encoding="ascii")
+        closing_parenthesis = encoded.rfind(")")
+        if closing_parenthesis < 0:
+            return None
+        fields_after_command = encoded[closing_parenthesis + 2 :].split()
+        # The first value after the command is field 3 (state); starttime is 22.
+        return int(fields_after_command[19])
+    except (IndexError, OSError, UnicodeError, ValueError):
+        return None
+
+
+def _encode_writer_owner(pid: int) -> str:
+    return canonical_json_bytes(
+        {
+            "schema": WRITER_OWNER_SCHEMA,
+            "hostname": socket.gethostname(),
+            "boot_id": _boot_id(),
+            "process_start_ticks": _process_start_ticks(pid),
+        }
+    ).decode("ascii")
+
+
+def _decode_writer_owner(value: str) -> dict[str, Any]:
+    legacy = {
+        "hostname": value,
+        "boot_id": None,
+        "process_start_ticks": None,
+    }
+    try:
+        payload = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return legacy
+    if (
+        not isinstance(payload, dict)
+        or set(payload)
+        != {"schema", "hostname", "boot_id", "process_start_ticks"}
+        or payload.get("schema") != WRITER_OWNER_SCHEMA
+        or not isinstance(payload.get("hostname"), str)
+        or not payload.get("hostname")
+        or (
+            payload.get("boot_id") is not None
+            and not isinstance(payload.get("boot_id"), str)
+        )
+        or (
+            payload.get("process_start_ticks") is not None
+            and (
+                isinstance(payload.get("process_start_ticks"), bool)
+                or not isinstance(payload.get("process_start_ticks"), int)
+                or payload.get("process_start_ticks") < 0
+            )
+        )
+    ):
+        return legacy
+    return payload
+
+
+def _process_matches_owner(pid: int, owner: Mapping[str, Any]) -> bool:
+    stored_boot_id = owner.get("boot_id")
+    stored_start_ticks = owner.get("process_start_ticks")
+    if stored_boot_id is None or stored_start_ticks is None:
+        return _pid_alive(pid)
+    current_boot_id = _boot_id()
+    if current_boot_id is not None and current_boot_id != stored_boot_id:
+        return False
+    observed_start_ticks = _process_start_ticks(pid)
+    if current_boot_id is None or observed_start_ticks is None:
+        return _pid_alive(pid)
+    return observed_start_ticks == stored_start_ticks

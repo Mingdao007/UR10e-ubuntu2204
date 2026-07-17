@@ -197,16 +197,23 @@ class RepositoryViews:
             ).fetchone()
         return dict(row) if row else None
 
-    def completed_trials_missing_report(self, *, deployment_id: str) -> list[str]:
-        """Return only current-epoch COMPLETE trials lacking their durable report."""
+    def artifact_record_for_trial(
+        self, trial_id: str, *, role: str
+    ) -> dict[str, Any] | None:
+        """Return an artifact binding even when a corrupt row claims mutability."""
 
         with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM artifacts WHERE trial_id=? AND role=?",
+                (trial_id, role),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def completed_trials(self, *, deployment_id: str) -> list[str]:
+        with self._connect() as connection:
             rows = connection.execute(
-                "SELECT t.trial_id FROM trials t "
-                "LEFT JOIN artifacts a ON a.trial_id=t.trial_id "
-                "AND a.role='trial_markdown_report' "
-                "WHERE t.deployment_id=? AND t.state='complete' "
-                "AND a.artifact_id IS NULL ORDER BY t.created_at,t.trial_id",
+                "SELECT trial_id FROM trials WHERE deployment_id=? AND state='complete' "
+                "ORDER BY created_at,trial_id",
                 (deployment_id,),
             ).fetchall()
         return [str(row["trial_id"]) for row in rows]

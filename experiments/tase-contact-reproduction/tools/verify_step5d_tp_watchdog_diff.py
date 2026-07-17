@@ -9,6 +9,7 @@ import hashlib
 import html
 import json
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -148,15 +149,45 @@ def _enclosing_urscript_function(
     return None
 
 
+def _main_function_names(program: str) -> tuple[str, str]:
+    return program, f"codex_{program}"
+
+
+def _has_top_level_terminator(prefix: str, *, function_name: str) -> bool:
+    """A block after an unconditional main-scope halt/return is dead code."""
+
+    stack: list[tuple[str, str | None]] = []
+    definition = re.compile(r"^def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(.*\):$")
+    nested = re.compile(r"^(?:if|while|for|thread|loop|switch)\b.*:$")
+    for raw_line in prefix.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = definition.fullmatch(line)
+        if match is not None:
+            stack.append(("def", match.group(1)))
+            continue
+        if stack == [("def", function_name)] and (
+            line == "halt" or re.fullmatch(r"return(?:\s+.*)?", line) is not None
+        ):
+            return True
+        if nested.fullmatch(line) is not None:
+            stack.append(("scope", None))
+        elif line == "end" and stack:
+            stack.pop()
+    return False
+
+
 def _validate_executable_context(
     raw: bytes,
     block: WatchdogBlock,
     *,
     source: Path,
     candidate_program: str,
+    decoded_urp_script: bool = False,
 ) -> None:
     prefix = raw[: block.start_offset]
-    if source.suffix == ".urp":
+    if source.suffix == ".urp" and not decoded_urp_script:
         opening = prefix.rfind(b"<cachedContents>")
         closing = raw.find(b"</cachedContents>", block.end_offset)
         if opening < 0 or closing < 0:
@@ -172,16 +203,270 @@ def _validate_executable_context(
             f"watchdog executable context is not UTF-8: {source}"
         ) from exc
     function_name = _enclosing_urscript_function(scope_stack)
-    if function_name != candidate_program:
+    if function_name not in _main_function_names(candidate_program):
         raise ValueError(
             "watchdog block is not inside the exact candidate program function: "
             f"{source}"
         )
-    if scope_stack != (("def", candidate_program),):
+    if scope_stack != (("def", function_name),):
         raise ValueError(
             "watchdog block is inside a nested or conditionally unreachable scope: "
             f"{source}"
         )
+    if _has_top_level_terminator(
+        prefix.decode("utf-8"), function_name=function_name
+    ):
+        raise ValueError(
+            "watchdog block is dead after a top-level halt/return: "
+            f"{source}"
+        )
+
+
+def _source_program_for_path(
+    path: Path, *, current_program: str, candidate_program: str
+) -> str:
+    if path.stem == candidate_program:
+        return candidate_program
+    if path.stem == current_program:
+        return current_program
+    raise ValueError(f"triplet filename does not bind an exact program identity: {path}")
+
+
+def _replace_spans(raw: bytes, replacements: list[tuple[int, int, bytes]]) -> bytes:
+    normalized = raw
+    for start, end, replacement in sorted(replacements, reverse=True):
+        normalized = normalized[:start] + replacement + normalized[end:]
+    return normalized
+
+
+def _normalize_urscript_identity(
+    raw: bytes, *, source_program: str, current_program: str, source: Path
+) -> bytes:
+    aliases = _main_function_names(source_program)
+    definition = re.compile(
+        rb"(?m)^def[ \t]+(?P<name>"
+        + b"|".join(re.escape(name.encode("ascii")) for name in aliases)
+        + rb")[ \t]*\([ \t]*\)[ \t]*:[ \t]*(?:\n|$)"
+    )
+    definitions = list(definition.finditer(raw))
+    if len(definitions) != 1:
+        raise ValueError(
+            f"exact main function definition count is {len(definitions)}, expected 1: {source}"
+        )
+    function_name = definitions[0].group("name").decode("ascii")
+    invocation = re.compile(
+        rb"(?m)^(?P<name>" + re.escape(function_name.encode("ascii")) + rb")"
+        rb"[ \t]*\([ \t]*\)[ \t]*(?:\n|$)"
+    )
+    invocations = list(invocation.finditer(raw))
+    if len(invocations) != 1:
+        raise ValueError(
+            f"exact main function invocation count is {len(invocations)}, expected 1: {source}"
+        )
+    replacement_name = (
+        f"codex_{current_program}"
+        if function_name.startswith("codex_")
+        else current_program
+    ).encode("ascii")
+    return _replace_spans(
+        raw,
+        [
+            (*definitions[0].span("name"), replacement_name),
+            (*invocations[0].span("name"), replacement_name),
+        ],
+    )
+
+
+def _normalize_txt_identity(
+    raw: bytes, *, source_program: str, current_program: str, source: Path
+) -> bytes:
+    pattern = re.compile(
+        rb"(?m)^(?P<prefix>[ \t]*/programs/[^\r\n]*/)"
+        + re.escape(source_program.encode("ascii"))
+        + rb"(?P<suffix>\.urp[ \t]*)(?:\r?\n|$)"
+    )
+    matches = list(pattern.finditer(raw))
+    if len(matches) != 1:
+        raise ValueError(
+            f"exact TP documentation program path count is {len(matches)}, expected 1: {source}"
+        )
+    match = matches[0]
+    old_identity_start = match.start("suffix") - len(source_program)
+    return _replace_spans(
+        raw,
+        [
+            (
+                old_identity_start,
+                match.start("suffix"),
+                current_program.encode("ascii"),
+            )
+        ],
+    )
+
+
+def _xml_local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1].rsplit(":", 1)[-1]
+
+
+def _normalized_root_start_tag(
+    raw: bytes,
+    *,
+    root: ET.Element,
+    source_program: str,
+    current_program: str,
+    source: Path,
+) -> tuple[bytes, bytes]:
+    if _xml_local_name(root.tag) not in {"Program", "URProgram"}:
+        raise ValueError(f"URP root is not Program/URProgram: {source}")
+    if root.get("name") != source_program:
+        raise ValueError(f"URP root program identity mismatch: {source}")
+    if root.get("crcValue") is None:
+        raise ValueError(f"URP root lacks crcValue: {source}")
+    tag_name = root.tag.encode("utf-8")
+    starts = list(re.finditer(rb"<" + re.escape(tag_name) + rb"\b[^>]*>", raw))
+    if len(starts) != 1:
+        raise ValueError(f"URP root start tag is missing or ambiguous: {source}")
+    old = starts[0].group(0)
+
+    def replace_attribute(tag: bytes, name: bytes, expected: bytes, replacement: bytes) -> bytes:
+        attr = re.compile(
+            rb"(?P<prefix>\s" + name + rb"\s*=\s*)(?P<quote>[\"'])(?P<value>[^\"']*)(?P=quote)"
+        )
+        matches = list(attr.finditer(tag))
+        if len(matches) != 1 or matches[0].group("value") != expected:
+            raise ValueError(
+                f"URP root {name.decode()} attribute is missing, duplicated, or mismatched: {source}"
+            )
+        return _replace_spans(
+            tag,
+            [(*matches[0].span("value"), replacement)],
+        )
+
+    new = replace_attribute(
+        old,
+        b"name",
+        source_program.encode("ascii"),
+        current_program.encode("ascii"),
+    )
+    crc_match = re.search(rb"\scrcValue\s*=\s*([\"'])(?P<value>[^\"']*)\1", new)
+    assert crc_match is not None
+    new = _replace_spans(new, [(*crc_match.span("value"), b"NORMALIZED")])
+    return old, new
+
+
+def _inspect_urp(
+    path: Path,
+    raw: bytes,
+    *,
+    current_program: str,
+    candidate_program: str,
+    require_executable_context: bool,
+) -> ContentInspection:
+    try:
+        root = ET.fromstring(raw)
+    except ET.ParseError as exc:
+        raise ValueError(f"decompressed URP is not well-formed XML: {path}: {exc}") from exc
+    source_program = _source_program_for_path(
+        path,
+        current_program=current_program,
+        candidate_program=candidate_program,
+    )
+    cached_nodes = [
+        node for node in root.iter() if _xml_local_name(node.tag) == "cachedContents"
+    ]
+    if not cached_nodes or any(list(node) for node in cached_nodes):
+        raise ValueError(f"URP cachedContents is missing or contains child XML: {path}")
+    semantic_marker_counts = {
+        BEGIN: sum((node.text or "").encode("utf-8").count(BEGIN) for node in cached_nodes),
+        END: sum((node.text or "").encode("utf-8").count(END) for node in cached_nodes),
+    }
+    for marker, expected_count in semantic_marker_counts.items():
+        if raw.count(marker) != expected_count:
+            raise ValueError(
+                f"watchdog marker occurs outside actual cachedContents text: {path}"
+            )
+
+    main_nodes: list[tuple[ET.Element, bytes, bytes, tuple[WatchdogBlock, ...]]] = []
+    for node in cached_nodes:
+        script = (node.text or "").encode("utf-8")
+        outside, blocks = _extract_watchdog_blocks(script, source=path)
+        try:
+            normalized_script = _normalize_urscript_identity(
+                outside,
+                source_program=source_program,
+                current_program=current_program,
+                source=path,
+            )
+        except ValueError:
+            continue
+        main_nodes.append((node, script, normalized_script, blocks))
+    if len(main_nodes) != 1:
+        raise ValueError(
+            f"URP executable cachedContents main program count is {len(main_nodes)}, expected 1: {path}"
+        )
+    _, script, normalized_script, semantic_blocks = main_nodes[0]
+    if sum(semantic_marker_counts.values()) != sum(
+        script.count(marker) for marker in (BEGIN, END)
+    ):
+        raise ValueError(f"watchdog marker appears outside the exact main cachedContents: {path}")
+    if require_executable_context:
+        for block in semantic_blocks:
+            _validate_executable_context(
+                script,
+                block,
+                source=path,
+                candidate_program=candidate_program,
+                decoded_urp_script=True,
+            )
+
+    escaped_script = html.escape(script.decode("utf-8"), quote=True).encode("utf-8")
+    if raw.count(escaped_script) != 1:
+        raise ValueError(f"URP cachedContents byte representation is not exact/unique: {path}")
+    escaped_normalized = html.escape(
+        normalized_script.decode("utf-8"), quote=True
+    ).encode("utf-8")
+    root_old, root_new = _normalized_root_start_tag(
+        raw,
+        root=root,
+        source_program=source_program,
+        current_program=current_program,
+        source=path,
+    )
+    normalized = raw.replace(root_old, root_new, 1).replace(
+        escaped_script, escaped_normalized, 1
+    )
+
+    file_nodes = [node for node in root.iter() if _xml_local_name(node.tag) == "file"]
+    file_suffix = f"/{source_program}.script"
+    matching_files = [node for node in file_nodes if (node.text or "").endswith(file_suffix)]
+    if len(matching_files) > 1:
+        raise ValueError(f"URP program file identity is ambiguous: {path}")
+    if matching_files:
+        old_text = matching_files[0].text or ""
+        new_text = old_text[: -len(file_suffix)] + f"/{current_program}.script"
+        old_encoded = html.escape(old_text, quote=True).encode("utf-8")
+        if normalized.count(old_encoded) != 1:
+            raise ValueError(f"URP program file text is not exact/unique: {path}")
+        normalized = normalized.replace(
+            old_encoded, html.escape(new_text, quote=True).encode("utf-8"), 1
+        )
+
+    escaped_blocks: list[WatchdogBlock] = []
+    raw_script_start = raw.index(escaped_script)
+    for block in semantic_blocks:
+        payload = html.escape(block.payload.decode("utf-8"), quote=True).encode("utf-8")
+        if escaped_script.count(payload) != 1:
+            raise ValueError(f"URP watchdog block bytes are not exact/unique: {path}")
+        relative_start = escaped_script.index(payload)
+        escaped_blocks.append(
+            WatchdogBlock(
+                block.block_id,
+                payload,
+                raw_script_start + relative_start,
+                raw_script_start + relative_start + len(payload),
+            )
+        )
+    return ContentInspection(normalized=normalized, blocks=tuple(escaped_blocks))
 
 
 def _validate_canonical_source(block: WatchdogBlock, *, source: Path) -> None:
@@ -297,6 +582,19 @@ def inspect_content(
         raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ValueError(f"triplet member is not UTF-8 after decoding: {path}") from exc
+    if path.suffix == ".urp":
+        return _inspect_urp(
+            path,
+            raw,
+            current_program=current_program,
+            candidate_program=candidate_program,
+            require_executable_context=require_executable_context,
+        )
+    source_program = _source_program_for_path(
+        path,
+        current_program=current_program,
+        candidate_program=candidate_program,
+    )
     outside, blocks = _extract_watchdog_blocks(raw, source=path)
     if require_executable_context:
         for block in blocks:
@@ -306,11 +604,24 @@ def inspect_content(
                 source=path,
                 candidate_program=candidate_program,
             )
-    normalized = outside.replace(candidate_program.encode(), current_program.encode())
-    if path.suffix == ".urp":
-        normalized = re.sub(
-            rb'crcValue="[^"]*"', b'crcValue="NORMALIZED"', normalized
+    if path.suffix == ".script":
+        normalized = _normalize_urscript_identity(
+            outside,
+            source_program=source_program,
+            current_program=current_program,
+            source=path,
         )
+    elif path.suffix == ".txt":
+        if blocks:
+            raise ValueError(f"watchdog block is forbidden in TP documentation: {path}")
+        normalized = _normalize_txt_identity(
+            outside,
+            source_program=source_program,
+            current_program=current_program,
+            source=path,
+        )
+    else:
+        raise ValueError(f"unsupported TP triplet extension: {path}")
     return ContentInspection(normalized=normalized, blocks=blocks)
 
 

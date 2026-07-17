@@ -29,6 +29,7 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
     heartbeat: HeartbeatPublisher | None = None
     transfer_worker: TransferWorker | None = None
     bridge_loss: list[str] = []
+    ready_details: dict[str, object] = {}
     try:
         repository.claim_writer(token=token)
         report_paths: list[str] = []
@@ -115,6 +116,9 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
             ready_details=ready_details,
             health_probe=health_details,
             health_failure_callback=revoke_bridge_health,
+            failure_mailbox=AtomicMailbox(
+                (runtime_root / "bridge_revocation.json").resolve()
+            ),
         )
         bridge.start_watcher(heartbeat.fail_from_bridge, interval_s=0.1)
         heartbeat.start()
@@ -181,7 +185,25 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
             except Exception:
                 pass
             heartbeat = None
-        if not bridge_loss:
+        if bridge_loss:
+            try:
+                repository.revoke_runtime_for_bridge_loss(
+                    deployment_authorized=config.deployment.deployment_authorized,
+                    primary_blocker="bridge_liveness_lost",
+                    details={
+                        **ready_details,
+                        "bridge_health_errors": bridge_loss,
+                        "service_error": f"{type(exc).__name__}:{exc}",
+                        "durable_revocation_retry": True,
+                    },
+                )
+            except Exception as revoke_exc:
+                print(
+                    "step5d-autotune-v2 durable bridge revocation retry failed: "
+                    f"{revoke_exc}",
+                    file=sys.stderr,
+                )
+        else:
             try:
                 repository.set_runtime_status(
                     deployment_authorized=config.deployment.deployment_authorized,
