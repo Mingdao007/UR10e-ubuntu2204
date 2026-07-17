@@ -7,6 +7,7 @@ on:
       - ".github/workflows/step5d-autotune-v3.yml"
       - "experiments/tase-contact-reproduction/REFACTORING_CONTRACT.md"
       - "experiments/tase-contact-reproduction/STEP5_FLOW.md"
+      - "experiments/tase-contact-reproduction/requirements-test.txt"
       - "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/**"
       - "experiments/tase-contact-reproduction/tools/validate_step5d_autotune_v3_refactor.py"
       - "experiments/tase-contact-reproduction/scripts/step5d-autotune-v3.sh"
