@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import fcntl
 import secrets
 import stat
 import subprocess
@@ -18,10 +19,48 @@ from typing import Any, Callable, Mapping, Sequence
 READY_SCHEMA = "step5d.autotune.bridge-ready/v2"
 HEALTH_SCHEMA = "step5d.autotune.bridge-health/v2"
 MAX_READY_BYTES = 64 * 1024
+LIVE_WRITER_LOCK_PATH = Path("/tmp/ur10e-resource-locks/live-writer.lock")
 
 
 class BridgeError(RuntimeError):
     """Raised when the frozen bridge command cannot prove readiness."""
+
+
+class LiveWriterLock:
+    """One machine-wide owner for RTDE inputs and every other live writer."""
+
+    def __init__(self, path: Path = LIVE_WRITER_LOCK_PATH) -> None:
+        if not path.is_absolute():
+            raise BridgeError("live-writer lock path must be absolute")
+        self.path = path
+        self.descriptor: int | None = None
+
+    def acquire(self) -> None:
+        parent = self.path.parent
+        parent.mkdir(parents=True, exist_ok=True, mode=0o755)
+        if parent.is_symlink() or self.path.is_symlink():
+            raise BridgeError("live-writer lock path must not be a symlink")
+        descriptor = os.open(
+            self.path,
+            os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            os.close(descriptor)
+            raise BridgeError("another live writer already owns the global lock") from exc
+        os.ftruncate(descriptor, 0)
+        os.write(descriptor, f"pid={os.getpid()}\n".encode("ascii"))
+        os.fsync(descriptor)
+        self.descriptor = descriptor
+
+    def release(self) -> None:
+        if self.descriptor is None:
+            return
+        fcntl.flock(self.descriptor, fcntl.LOCK_UN)
+        os.close(self.descriptor)
+        self.descriptor = None
 
 
 @dataclass(frozen=True)
@@ -30,7 +69,7 @@ class BridgeReady:
     sample_rate_hz: int
     deployment_id: str
     launch_nonce: str
-    startup_home_verified: bool
+    startup_stationary_verified: bool
     evidence_path: Path
     health_evidence_path: Path
 
@@ -107,8 +146,14 @@ class BridgeProcess:
         launch_nonce = secrets.token_hex(32)
         self._launch_nonce = launch_nonce
         environment["STEP5D_AUTOTUNE_V2_LAUNCH_NONCE"] = launch_nonce
+        argv = tuple(
+            token.replace("{root}", str(self.root)).replace(
+                "{runtime_root}", str(self.runtime_root)
+            )
+            for token in self.argv
+        )
         self.process = subprocess.Popen(
-            self.argv,
+            argv,
             cwd=self.root,
             env=environment,
             stdin=subprocess.DEVNULL,
@@ -136,7 +181,7 @@ class BridgeProcess:
                     and payload.get("bridge_ready") is True
                     and payload.get("pid") == self.process.pid
                     and payload.get("launch_nonce") == launch_nonce
-                    and payload.get("startup_home_verified") is True
+                    and payload.get("startup_stationary_verified") is True
                     and payload.get("command_transport_ready") is True
                     and payload.get("event_transport_ready") is True
                 ):
@@ -167,12 +212,12 @@ class BridgeProcess:
                         sample_rate_hz=500,
                         deployment_id=self.deployment_id,
                         launch_nonce=launch_nonce,
-                        startup_home_verified=True,
+                        startup_stationary_verified=True,
                         evidence_path=ready_path,
                         health_evidence_path=health_path,
                     )
                 raise BridgeError(
-                    "bridge readiness evidence lacks exact launch/rate/Home/transport proof"
+                    "bridge readiness evidence lacks exact launch/rate/stationary/transport proof"
                 )
             time.sleep(0.05)
         raise BridgeError(f"bridge did not publish stable 500 Hz readiness: log={log_path}")
@@ -426,7 +471,7 @@ def _read_ready_snapshot(path: Path) -> dict[str, Any] | None:
         "launch_nonce",
         "pid",
         "sample_rate_hz",
-        "startup_home_verified",
+        "startup_stationary_verified",
         "command_transport_ready",
         "event_transport_ready",
         },

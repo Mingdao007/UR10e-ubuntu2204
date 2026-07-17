@@ -402,6 +402,30 @@ class Repository(RepositoryRuntime, RepositoryViews):
             raise RepositoryError("deployment is not registered")
         return self._profile_id_from_row(row)
 
+    def deployment_binding(self, deployment_id: str) -> dict[str, Any]:
+        """Return the immutable fields required by the live mailbox adapter."""
+
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT deployment_id,code_fingerprint,tp_fingerprint,guard_fingerprint,"
+                "profile_json FROM deployments WHERE deployment_id=?",
+                (deployment_id,),
+            ).fetchone()
+        if row is None:
+            raise RepositoryError("deployment is not registered")
+        try:
+            profile = json.loads(row["profile_json"])
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise RepositoryError("deployment profile JSON is invalid") from exc
+        return {
+            "deployment_id": row["deployment_id"],
+            "code_fingerprint": row["code_fingerprint"],
+            "tp_fingerprint": row["tp_fingerprint"],
+            "guard_fingerprint": row["guard_fingerprint"],
+            "profile": profile,
+            "profile_id": self._profile_id_from_row(row),
+        }
+
     def enqueue_batch(
         self, batch: BatchSpec, *, deployment_id: str | None = None
     ) -> None:

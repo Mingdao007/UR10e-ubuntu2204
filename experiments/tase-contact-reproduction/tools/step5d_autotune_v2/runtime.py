@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from .mailbox import AtomicMailbox
+from .model import canonical_json_bytes
 from .repository import Repository
 from .supervisor import (
     AnalysisArtifact,
@@ -24,6 +25,13 @@ from .supervisor import (
 
 
 EVENT_SCHEMA = "step5d.autotune.bridge-event/v2"
+INT32_MAX = 2_147_483_647
+EXECUTION_PROFILE_ID = 533
+BACKEND_ID = "step5d_autotune_v2_live"
+
+
+def _stable_int32(material: str) -> int:
+    return int.from_bytes(hashlib.sha256(material.encode("utf-8")).digest()[:8], "big") % INT32_MAX + 1
 
 
 class JsonlBridgePort:
@@ -88,23 +96,63 @@ class JsonlBridgePort:
             "command": "ARM",
             "deployment_id": self.deployment_id,
             "trial_id": trial_id,
-            "candidate": {
-                "group_id": candidate["group_id"],
-                "p": candidate["p_text"],
-                "i": candidate["i_text"],
-                "d": candidate["d_text"],
-                "profile_id": self.profile_id,
-                "comparison_key": candidate["comparison_key"],
-                "purpose": candidate["purpose"],
-            },
+            "binding": self._runtime_binding(trial_id, candidate),
         }
 
     def _ack_payload(self, *, trial_id: str, artifact_sha256: str) -> dict[str, Any]:
+        detail = self.repository.trial_detail(trial_id)
+        candidate = self.repository.candidate(detail["candidate_id"])
         return {
             "command": "ACK_BUNDLE",
             "deployment_id": self.deployment_id,
             "trial_id": trial_id,
             "artifact_sha256": artifact_sha256,
+            "binding": self._runtime_binding(trial_id, candidate),
+        }
+
+    def _runtime_binding(
+        self, trial_id: str, candidate: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        detail = self.repository.trial_detail(trial_id)
+        deployment = self.repository.deployment_binding(self.deployment_id)
+        if detail["deployment_id"] != self.deployment_id:
+            raise RuntimeFailure("trial deployment differs from live adapter deployment")
+        if candidate["profile_id"] != deployment["profile_id"]:
+            raise RuntimeFailure("candidate profile differs from live adapter deployment")
+        arm_sequence = int(detail["arm_sequence"])
+        campaign_fingerprint = hashlib.sha256(
+            canonical_json_bytes(
+                {
+                    "deployment_id": self.deployment_id,
+                    "code_fingerprint": deployment["code_fingerprint"],
+                    "tp_fingerprint": deployment["tp_fingerprint"],
+                    "guard_fingerprint": deployment["guard_fingerprint"],
+                    "profile": deployment["profile"],
+                }
+            )
+        ).hexdigest()
+        return {
+            "trial_uid": trial_id,
+            "backend_id": BACKEND_ID,
+            "campaign_epoch": _stable_int32(self.deployment_id),
+            "tp_trial_id": arm_sequence,
+            "candidate_token": _stable_int32(candidate["comparison_key"]),
+            "arm_command_seq": arm_sequence,
+            "execution_profile_id": EXECUTION_PROFILE_ID,
+            "candidate": {
+                "group_id": candidate["group_id"],
+                "target_force_n": "12",
+                "p": candidate["p_text"],
+                "i": candidate["i_text"],
+                "d": candidate["d_text"],
+                "profile_id": deployment["profile_id"],
+                "comparison_key": candidate["comparison_key"],
+                "purpose": candidate["purpose"],
+            },
+            "profile": deployment["profile"],
+            "source_fingerprint": deployment["code_fingerprint"],
+            "config_fingerprint": deployment["guard_fingerprint"],
+            "campaign_fingerprint": campaign_fingerprint,
         }
 
     def _arm_binding(self, trial_id: str) -> tuple[int, str]:

@@ -655,8 +655,11 @@ class BridgeMailboxRuntime:
         path: Path,
         *,
         campaign_home_reference_path: Path | None = None,
+        mailbox: Any | None = None,
     ) -> None:
-        self.mailbox = AtomicCommandMailbox(path, network_mode=True)
+        self.mailbox = (
+            AtomicCommandMailbox(path, network_mode=True) if mailbox is None else mailbox
+        )
         self.campaign_home_reference_path = (
             path.parent / "campaign_home_reference.json"
             if campaign_home_reference_path is None
@@ -1202,6 +1205,24 @@ class CampaignHomeReference:
         ):
             raise MailboxError("campaign-home reference changed or binding differs")
 
+    def verify_measured_home(self, output: Mapping[str, Any]) -> None:
+        """Prove stationary measured closure against the captured campaign Home."""
+
+        pose = _vector("measured Home actual_TCP_pose", output.get("actual_TCP_pose"), 6)
+        joints = _vector("measured Home actual_q", output.get("actual_q"), 6)
+        tcp_speed = _vector("measured Home actual_TCP_speed", output.get("actual_TCP_speed"), 6)
+        qd = _vector("measured Home actual_qd", output.get("actual_qd"), 6)
+        if (
+            _safety_mode(output.get("safety_mode")) != "NORMAL"
+            or _norm(tcp_speed[:3]) > 0.001
+            or _norm(tcp_speed[3:6]) > 0.01
+            or max(abs(value) for value in qd) > 0.01
+            or _norm(tuple(pose[index] - self.home_pose[index] for index in range(3))) > 0.003
+            or _orientation_error(self.home_pose[3:6], pose[3:6]) > 0.05
+            or max(abs(joints[index] - self.home_q[index]) for index in range(6)) > 0.01
+        ):
+            raise MailboxError("measured closure does not match stationary campaign Home")
+
     def verify_trial(self, trial: TrialSpec) -> None:
         if any(
             (
@@ -1382,6 +1403,12 @@ class BridgeTrialCsvRotator:
 
     def close(self) -> None:
         self._close_partial(sync_bytes=True)
+
+    @property
+    def sealed_path(self) -> Path | None:
+        if not self._sealed or self._final_path is None:
+            return None
+        return self._final_path
 
 
 @dataclass(frozen=True)

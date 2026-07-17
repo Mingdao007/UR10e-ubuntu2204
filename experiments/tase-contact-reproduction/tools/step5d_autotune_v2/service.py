@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from .bridge import BridgeError, BridgeProcess
+from .bridge import BridgeError, BridgeProcess, LiveWriterLock
 from .config import load_static_config
 from .heartbeat import HeartbeatPublisher
 from .mailbox import AtomicMailbox
@@ -26,6 +26,7 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
     repository.register_deployment(config.deployment)
     token = secrets.token_hex(32)
     bridge: BridgeProcess | None = None
+    live_writer_lock: LiveWriterLock | None = None
     heartbeat: HeartbeatPublisher | None = None
     transfer_worker: TransferWorker | None = None
     bridge_loss: list[str] = []
@@ -51,6 +52,8 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
             return 78
         bridge_config = config.payload["bridge"]
         runtime_root = config.runtime_root_path
+        live_writer_lock = LiveWriterLock()
+        live_writer_lock.acquire()
         bridge = BridgeProcess(
             argv=bridge_config["argv"],
             root=root,
@@ -66,7 +69,7 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
             "bridge_launch_nonce": ready.launch_nonce,
             "bridge_health_evidence": str(ready.health_evidence_path),
             "sample_rate_hz": ready.sample_rate_hz,
-            "startup_home_verified": ready.startup_home_verified,
+            "startup_stationary_verified": ready.startup_stationary_verified,
         }
 
         def health_details() -> dict[str, object]:
@@ -231,6 +234,8 @@ def run_service(root: Path, *, database: Path | None = None) -> int:
                 bridge.stop()
             except BridgeError:
                 pass
+        if live_writer_lock is not None:
+            live_writer_lock.release()
         try:
             repository.release_writer(token)
         except Exception:

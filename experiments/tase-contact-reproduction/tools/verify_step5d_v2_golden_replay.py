@@ -7,6 +7,7 @@ import argparse
 import csv
 import hashlib
 import json
+import subprocess
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,6 @@ ROOT = Path(__file__).resolve().parents[1]
 GOLDEN = ROOT / "config/step5/golden_replay_g10_v1.json"
 FREEZE = ROOT / "config/step5/v1_freeze_manifest.json"
 CONTROL_PATHS = {
-    "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py",
     "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py",
     "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py",
     "experiments/tase-contact-reproduction/tools/step5d_control_contract.py",
@@ -24,6 +24,8 @@ CONTROL_PATHS = {
     "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
     "experiments/tase-contact-reproduction/config/step5d_autotune_i_scale_sanity_v1.json",
 }
+BRIDGE_PATH = "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py"
+BRIDGE_ADAPTER_PATCH_SHA256 = "50bb4c25c3a65b33c9903e9e3984d93483219e9e97e5a86c6a32bbd26e8c7c5d"
 
 
 def sha(path: Path) -> str:
@@ -62,6 +64,30 @@ def main() -> int:
         current = repo_top / repo_relative
         if expected is None or sha(current) != expected:
             raise SystemExit(f"control source differs from frozen v1: {repo_relative}")
+    bridge_base_sha256 = frozen_files.get(BRIDGE_PATH)
+    bridge_current = repo_top / BRIDGE_PATH
+    if bridge_base_sha256 is None:
+        raise SystemExit("frozen v1 bridge source binding is missing")
+    completed = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo_top),
+            "diff",
+            "--no-ext-diff",
+            "--unified=3",
+            str(freeze["tag"]),
+            "--",
+            BRIDGE_PATH,
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise SystemExit("cannot derive the reviewed v2 bridge adapter patch")
+    bridge_patch_sha256 = hashlib.sha256(completed.stdout).hexdigest()
+    if bridge_patch_sha256 != BRIDGE_ADAPTER_PATCH_SHA256:
+        raise SystemExit("bridge differs from the reviewed frozen-v1 adapter patch")
     bundle_path = (args.source_root.resolve() / golden["trial_dir"] / "immutable_trial_bundle.json")
     if sha(bundle_path) != golden["bundle_sha256"]:
         raise SystemExit("golden immutable bundle checksum differs")
@@ -124,6 +150,9 @@ def main() -> int:
         "bundle_sha256": golden["bundle_sha256"],
         "csv_sha256": golden["csv_sha256"],
         "control_sources_byte_identical": sorted(CONTROL_PATHS),
+        "bridge_frozen_v1_sha256": bridge_base_sha256,
+        "bridge_v2_sha256": sha(bridge_current),
+        "bridge_adapter_patch_sha256": bridge_patch_sha256,
     }
     encoded = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output is not None:

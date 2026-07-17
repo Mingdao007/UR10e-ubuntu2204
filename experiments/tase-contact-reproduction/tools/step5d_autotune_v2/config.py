@@ -135,7 +135,7 @@ def _controller_readback_verified(
     if (
         attestation.get("schema") != "step5d.autotune.controller-readback/v2"
         or attestation.get("verified") is not True
-        or attestation.get("deployment_id") != deployment.get("id")
+        or attestation.get("deployment_id") != deployment.get("tp_delivery_id")
         or attestation.get("controller_host") != controller.get("host")
         or attestation.get("program") != controller.get("program")
         or attestation.get("tp_fingerprint") != deployment.get("tp_fingerprint")
@@ -171,6 +171,9 @@ def _validate_golden_replay_attestation(root: Path, value: object) -> None:
         "bundle_sha256",
         "csv_sha256",
         "control_sources_byte_identical",
+        "bridge_frozen_v1_sha256",
+        "bridge_v2_sha256",
+        "bridge_adapter_patch_sha256",
     }
     if set(attestation) != required:
         raise ConfigError("golden replay attestation schema fields differ")
@@ -189,7 +192,15 @@ def _validate_golden_replay_attestation(root: Path, value: object) -> None:
         or not attestation["control_sources_byte_identical"]
     ):
         raise ConfigError("golden replay attestation identity or result differs")
-    for name in ("trial_uid", "golden_spec_sha256", "bundle_sha256", "csv_sha256"):
+    for name in (
+        "trial_uid",
+        "golden_spec_sha256",
+        "bundle_sha256",
+        "csv_sha256",
+        "bridge_frozen_v1_sha256",
+        "bridge_v2_sha256",
+        "bridge_adapter_patch_sha256",
+    ):
         digest = attestation.get(name)
         if (
             not isinstance(digest, str)
@@ -315,6 +326,7 @@ def load_static_config(root: Path, path: Path | None = None) -> StaticConfig:
         raise ConfigError("deployment block is missing")
     if set(deployment_payload) != {
         "id",
+        "tp_delivery_id",
         "code_fingerprint",
         "tp_fingerprint",
         "guard_fingerprint",
@@ -322,7 +334,7 @@ def load_static_config(root: Path, path: Path | None = None) -> StaticConfig:
         "controller_readback_verified",
         "readback_attestation",
     }:
-        raise ConfigError("deployment identity fields differ from the v2 schema")
+        raise ConfigError("deployment identity fields differ from the v2 live schema")
     controller = payload.get("controller")
     if not isinstance(controller, dict) or set(controller) != {
         "host",

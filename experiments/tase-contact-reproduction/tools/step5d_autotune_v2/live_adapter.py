@@ -1,0 +1,368 @@
+"""Production transport adapter from the v2 control plane to the proven TP bridge."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import os
+import secrets
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Mapping
+
+from step5d_autotune_contract import ExecutionProfile, ForceCandidate
+from step5d_autotune_live_driver import (
+    BridgeMailboxRuntime,
+    BridgeTrialCsvRotator,
+    MailboxCommand,
+    RuntimeTrialBinding,
+    tp_packet_from_rtde,
+)
+from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
+
+from .mailbox import AtomicMailbox, MailboxEnvelope
+from .runtime import BACKEND_ID, EVENT_SCHEMA, EXECUTION_PROFILE_ID, _stable_int32
+
+
+READY_SCHEMA = "step5d.autotune.bridge-ready/v2"
+HEALTH_SCHEMA = "step5d.autotune.bridge-health/v2"
+EXPECTED_PROFILE = {
+    "normal_max_rate_rad_s": "0.05",
+    "host_qdot_slew_rad_s2": "0.5",
+    "tp_speedj_accel_rad_s2": "0.5",
+    "qdot_cap_rad_s": "0.5",
+}
+
+
+class LiveAdapterError(RuntimeError):
+    """The v2 live transport cannot prove its immutable binding or health."""
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
+    encoded = (
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        + "\n"
+    ).encode("ascii")
+    parent = path.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    if parent.is_symlink() or path.is_symlink():
+        raise LiveAdapterError("runtime evidence path must not be a symlink")
+    temporary = parent / f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+    descriptor = os.open(
+        temporary,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    try:
+        view = memoryview(encoded)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise LiveAdapterError("short runtime evidence write")
+            view = view[written:]
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    os.replace(temporary, path)
+    directory = os.open(parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def _vector(name: str, value: Any) -> tuple[float, ...]:
+    if not isinstance(value, (list, tuple)) or len(value) != 6:
+        raise LiveAdapterError(f"{name} must contain six values")
+    result = tuple(float(item) for item in value)
+    if not all(math.isfinite(item) for item in result):
+        raise LiveAdapterError(f"{name} must be finite")
+    return result
+
+
+def _stationary_and_normal(output: Mapping[str, Any]) -> bool:
+    speed = _vector("actual_TCP_speed", output.get("actual_TCP_speed"))
+    qd = _vector("actual_qd", output.get("actual_qd"))
+    safety = output.get("safety_mode")
+    normal = (
+        str(safety).strip().upper() == "NORMAL"
+        or (not isinstance(safety, bool) and isinstance(safety, (int, float)) and int(safety) == 1)
+    )
+    return (
+        normal
+        and math.sqrt(sum(value * value for value in speed[:3])) <= 0.001
+        and math.sqrt(sum(value * value for value in speed[3:])) <= 0.01
+        and max(abs(value) for value in qd) <= 0.01
+    )
+
+
+class V2CommandMailbox:
+    """Read one strict v2 envelope and materialize the legacy runtime binding."""
+
+    def __init__(self, path: Path, deployment_id: str) -> None:
+        self.mailbox = AtomicMailbox(path)
+        self.deployment_id = deployment_id
+
+    def read_latest(self) -> MailboxCommand | None:
+        envelope = self.mailbox.read_latest()
+        if envelope is None:
+            return None
+        return self._decode(envelope)
+
+    def _decode(self, envelope: MailboxEnvelope) -> MailboxCommand:
+        payload = envelope.payload
+        command_name = payload.get("command")
+        expected = (
+            {"command", "deployment_id", "trial_id", "binding"}
+            if command_name == "ARM"
+            else {"command", "deployment_id", "trial_id", "artifact_sha256", "binding"}
+        )
+        if command_name not in {"ARM", "ACK_BUNDLE"} or set(payload) != expected:
+            raise LiveAdapterError("v2 mailbox command fields differ from the live contract")
+        if payload["deployment_id"] != self.deployment_id:
+            raise LiveAdapterError("v2 mailbox deployment identity differs")
+        binding = payload["binding"]
+        required_binding = {
+            "trial_uid",
+            "backend_id",
+            "campaign_epoch",
+            "tp_trial_id",
+            "candidate_token",
+            "arm_command_seq",
+            "execution_profile_id",
+            "candidate",
+            "profile",
+            "source_fingerprint",
+            "config_fingerprint",
+            "campaign_fingerprint",
+        }
+        if not isinstance(binding, Mapping) or set(binding) != required_binding:
+            raise LiveAdapterError("v2 mailbox runtime binding fields differ")
+        candidate = binding["candidate"]
+        if not isinstance(candidate, Mapping) or set(candidate) != {
+            "group_id",
+            "target_force_n",
+            "p",
+            "i",
+            "d",
+            "profile_id",
+            "comparison_key",
+            "purpose",
+        }:
+            raise LiveAdapterError("v2 mailbox candidate fields differ")
+        if binding["profile"] != EXPECTED_PROFILE:
+            raise LiveAdapterError("v2 mailbox execution profile differs")
+        if binding["backend_id"] != BACKEND_ID:
+            raise LiveAdapterError("v2 mailbox backend identity differs")
+        if binding["campaign_epoch"] != _stable_int32(self.deployment_id):
+            raise LiveAdapterError("v2 mailbox campaign epoch is not stable")
+        if binding["candidate_token"] != _stable_int32(str(candidate["comparison_key"])):
+            raise LiveAdapterError("v2 mailbox candidate token is not stable")
+        if binding["tp_trial_id"] != binding["arm_command_seq"]:
+            raise LiveAdapterError("v2 mailbox TP trial id differs from ARM sequence")
+        if command_name == "ARM" and envelope.sequence != binding["arm_command_seq"]:
+            raise LiveAdapterError("v2 ARM envelope sequence differs from its binding")
+        if binding["execution_profile_id"] != EXECUTION_PROFILE_ID:
+            raise LiveAdapterError("v2 mailbox execution profile code differs")
+        if payload["trial_id"] != binding["trial_uid"]:
+            raise LiveAdapterError("v2 mailbox trial identity differs")
+        runtime_binding = RuntimeTrialBinding(
+            trial_uid=str(binding["trial_uid"]),
+            backend_id=str(binding["backend_id"]),
+            campaign_epoch=int(binding["campaign_epoch"]),
+            trial_id=int(binding["tp_trial_id"]),
+            candidate_token=int(binding["candidate_token"]),
+            arm_command_seq=int(binding["arm_command_seq"]),
+            execution_profile_id=int(binding["execution_profile_id"]),
+            candidate=ForceCandidate(
+                target_force_n=float(candidate["target_force_n"]),
+                force_p_gain=float(candidate["p"]),
+                force_i_gain=float(candidate["i"]),
+                force_damping=float(candidate["d"]),
+            ),
+            profile=ExecutionProfile(
+                str(candidate["profile_id"]),
+                float(binding["profile"]["normal_max_rate_rad_s"]),
+                float(binding["profile"]["host_qdot_slew_rad_s2"]),
+                float(binding["profile"]["tp_speedj_accel_rad_s2"]),
+                float(binding["profile"]["qdot_cap_rad_s"]),
+            ),
+            source_fingerprint=str(binding["source_fingerprint"]),
+            config_fingerprint=str(binding["config_fingerprint"]),
+            campaign_fingerprint=str(binding["campaign_fingerprint"]),
+        )
+        packet = HostPacket(
+            campaign_epoch=runtime_binding.campaign_epoch,
+            trial_id=runtime_binding.trial_id,
+            command=HostCommand.ARM if command_name == "ARM" else HostCommand.ACK_BUNDLE,
+            candidate_token=runtime_binding.candidate_token,
+            execution_profile_id=runtime_binding.execution_profile_id,
+            command_seq=envelope.sequence,
+        )
+        return MailboxCommand(packet=packet, binding=runtime_binding, sha256=envelope.checksum)
+
+
+class Step5dAutotuneV2LiveAdapter:
+    """Publish exact child health and bridge events from the persistent 500 Hz loop."""
+
+    def __init__(self, *, mailbox_path: Path, runtime_root: Path, deployment_id: str, launch_nonce: str) -> None:
+        if len(launch_nonce) != 64 or any(character not in "0123456789abcdef" for character in launch_nonce):
+            raise LiveAdapterError("v2 launch nonce must be 64 lowercase hexadecimal characters")
+        self.runtime_root = runtime_root.resolve()
+        self.deployment_id = deployment_id
+        self.launch_nonce = launch_nonce
+        self.command_mailbox = V2CommandMailbox(mailbox_path, deployment_id)
+        self.event_path = self.runtime_root / "bridge_events.jsonl"
+        self.ready_path = self.runtime_root / "bridge_ready.json"
+        self.health_path = self.runtime_root / "bridge_health.json"
+        self.health_sequence = 0
+        self.ready = False
+        self.emitted: set[tuple[str, str, int]] = set()
+
+    @classmethod
+    def from_environment(cls, mailbox_path: Path) -> "Step5dAutotuneV2LiveAdapter | None":
+        if os.environ.get("STEP5D_AUTOTUNE_V2_ADAPTER") != "1":
+            return None
+        required = {
+            name: os.environ.get(name, "")
+            for name in (
+                "STEP5D_AUTOTUNE_V2_RUNTIME_ROOT",
+                "STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID",
+                "STEP5D_AUTOTUNE_V2_LAUNCH_NONCE",
+            )
+        }
+        if any(not value for value in required.values()):
+            raise LiveAdapterError("v2 adapter environment is incomplete")
+        return cls(
+            mailbox_path=mailbox_path,
+            runtime_root=Path(required["STEP5D_AUTOTUNE_V2_RUNTIME_ROOT"]),
+            deployment_id=required["STEP5D_AUTOTUNE_V2_DEPLOYMENT_ID"],
+            launch_nonce=required["STEP5D_AUTOTUNE_V2_LAUNCH_NONCE"],
+        )
+
+    def publish_health(self, output: Mapping[str, Any], sample_counter: int) -> None:
+        self.health_sequence += 1
+        _atomic_json(
+            self.health_path,
+            {
+                "schema": HEALTH_SCHEMA,
+                "pid": os.getpid(),
+                "deployment_id": self.deployment_id,
+                "launch_nonce": self.launch_nonce,
+                "health_sequence": self.health_sequence,
+                "observed_at": _now(),
+                "configured_rate_hz": 500,
+                "sample_counter": sample_counter,
+                "rtde_healthy": True,
+                "command_transport_healthy": True,
+                "event_transport_healthy": True,
+            },
+        )
+        if not self.ready and _stationary_and_normal(output):
+            _atomic_json(
+                self.ready_path,
+                {
+                    "schema": READY_SCHEMA,
+                    "pid": os.getpid(),
+                    "deployment_id": self.deployment_id,
+                    "launch_nonce": self.launch_nonce,
+                    "sample_rate_hz": 500,
+                    "bridge_ready": True,
+                    "startup_stationary_verified": True,
+                    "command_transport_ready": True,
+                    "event_transport_ready": True,
+                },
+            )
+            self.ready = True
+
+    def _emit(self, command: MailboxCommand, event: str, **details: Any) -> None:
+        key = (command.binding.trial_uid, event, command.packet.command_seq)
+        if key in self.emitted:
+            return
+        row = {
+            "schema": EVENT_SCHEMA,
+            "deployment_id": self.deployment_id,
+            "trial_id": command.binding.trial_uid,
+            "event": event,
+            "command_sequence": command.packet.command_seq,
+            "command_checksum": command.sha256,
+            "observed_at": _now(),
+            **details,
+        }
+        self.event_path.parent.mkdir(parents=True, exist_ok=True)
+        if self.event_path.is_symlink():
+            raise LiveAdapterError("bridge event stream must not be a symlink")
+        with self.event_path.open("a", encoding="ascii") as handle:
+            handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        self.emitted.add(key)
+
+    def observe(
+        self,
+        *,
+        runtime: BridgeMailboxRuntime,
+        rotator: BridgeTrialCsvRotator,
+        output: Mapping[str, Any],
+        sample_counter: int,
+    ) -> None:
+        self.publish_health(output, sample_counter)
+        active = runtime.active
+        latest = runtime.last_command
+        if active is None:
+            return
+        snapshot = tp_packet_from_rtde(output)
+        if snapshot.state is TpLoopState.FAULT:
+            self._emit(active, "safety_halt", reason="tp_fault")
+            return
+        identity_matches = (
+            snapshot.campaign_epoch_echo == active.packet.campaign_epoch
+            and snapshot.trial_id_echo == active.packet.trial_id
+            and snapshot.candidate_token_echo == active.packet.candidate_token
+            and snapshot.execution_profile_id_echo == active.packet.execution_profile_id
+        )
+        if identity_matches and snapshot.consumed_command_seq >= active.binding.arm_command_seq:
+            self._emit(active, "tp_consumed")
+            if snapshot.state.value >= TpLoopState.RUN.value:
+                self._emit(active, "run_started")
+        if snapshot.state is TpLoopState.WAIT_ACK and identity_matches:
+            if runtime.campaign_home_reference is None:
+                raise LiveAdapterError("WAIT_ACK lacks the captured campaign Home")
+            runtime.campaign_home_reference.verify_measured_home(output)
+            self._emit(active, "home_verified", safe_home_verified=True)
+            sealed = rotator.sealed_path
+            if sealed is not None:
+                self._emit(
+                    active,
+                    "raw_capture_sealed",
+                    path=str(sealed.resolve()),
+                    sha256=_sha256(sealed),
+                )
+        if (
+            latest is not None
+            and latest.packet.command is HostCommand.ACK_BUNDLE
+            and snapshot.state is TpLoopState.READY_HOME
+            and snapshot.consumed_command_seq == latest.packet.command_seq
+        ):
+            if runtime.campaign_home_reference is None:
+                raise LiveAdapterError("ACK closure lacks the captured campaign Home")
+            runtime.campaign_home_reference.verify_measured_home(output)
+            self._emit(
+                latest,
+                "ready_home",
+                command_cleared=True,
+                measured_home_verified=True,
+            )

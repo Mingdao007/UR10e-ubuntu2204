@@ -186,6 +186,13 @@ from step5d_autotune_live_driver import (  # noqa: E402
     MailboxError as Step5dAutotuneMailboxError,
     decode_execution_profile_id,
 )
+from step5d_autotune_v2.live_adapter import (  # noqa: E402
+    Step5dAutotuneV2LiveAdapter,
+)
+from step5d_autotune_v2.release import (  # noqa: E402
+    PROGRAM as STEP5D_AUTOTUNE_V2_PROGRAM,
+    verify_release_config as verify_step5d_autotune_v2_release,
+)
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
     STEP6_SAFE_FRAME_PATH,
@@ -9193,6 +9200,20 @@ def require_v29_live_bridge_authorization(
     if not isinstance(current, Mapping):
         raise SystemExit("raw bridge cannot resolve current-stage identity: JSON root is not an object")
     if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
+        if os.environ.get("STEP5D_AUTOTUNE_V2_ADAPTER") == "1":
+            release = verify_step5d_autotune_v2_release(root)
+            if current.get("program") != STEP5D_AUTOTUNE_V2_PROGRAM:
+                raise SystemExit("Step5d autotune v2 raw bridge blocked: v2 campaign is not current")
+            if args.step5d_autotune_command_mailbox is None:
+                raise SystemExit("Step5d autotune v2 raw bridge requires the continuous command mailbox")
+            if args.step5d_stage25_control_mode != "speedj_rnn_live":
+                raise SystemExit("Step5d autotune v2 raw bridge requires speedj_rnn_live")
+            return {
+                "ok": True,
+                "program": STEP5D_AUTOTUNE_V2_PROGRAM,
+                "deployment_id": release["deployment_id"],
+                "live_motion_authorized": True,
+            }
         try:
             binding = verify_step5d_binding(
                 root,
@@ -9740,8 +9761,14 @@ def require_v29_dashboard_program_binding(
     remote_state = dashboard_state_value(dashboard.get("is in remote control"))
     safety_state = dashboard_state_value(dashboard.get("safetymode"))
     robot_state = dashboard_state_value(dashboard.get("robotmode"))
+    expected_program = (
+        STEP5D_AUTOTUNE_V2_PROGRAM
+        if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+        and os.environ.get("STEP5D_AUTOTUNE_V2_ADAPTER") == "1"
+        else args.bridge_profile
+    )
     if not step5d_dashboard_program_identity_matches(
-        dashboard.get("programState"), args.bridge_profile
+        dashboard.get("programState"), expected_program
     ):
         raise SystemExit("Step5d Dashboard program identity does not match the current package")
     if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID and remote_state != "TRUE":
@@ -10296,12 +10323,25 @@ def main(argv: list[str] | None = None) -> int:
     sent_echo_heartbeat_gap = math.nan
     echo_transition_times: list[float] = []
     rtde_reconnect_events: list[dict[str, Any]] = []
+    step5d_autotune_v2_live_adapter = (
+        Step5dAutotuneV2LiveAdapter.from_environment(
+            args.step5d_autotune_command_mailbox
+        )
+        if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+        and args.step5d_autotune_command_mailbox is not None
+        else None
+    )
     step5d_autotune_mailbox_runtime = (
         BridgeMailboxRuntime(
             args.step5d_autotune_command_mailbox,
             campaign_home_reference_path=(
                 args.output_dir / "campaign_home_reference.json"
             ).absolute(),
+            mailbox=(
+                None
+                if step5d_autotune_v2_live_adapter is None
+                else step5d_autotune_v2_live_adapter.command_mailbox
+            ),
         )
         if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
         and args.step5d_autotune_command_mailbox is not None
@@ -11253,6 +11293,13 @@ def main(argv: list[str] | None = None) -> int:
                             active=step5d_autotune_mailbox_runtime.active,
                             rtde_output=latest_output,
                         )
+                        if step5d_autotune_v2_live_adapter is not None and latest_output is not None:
+                            step5d_autotune_v2_live_adapter.observe(
+                                runtime=step5d_autotune_mailbox_runtime,
+                                rotator=step5d_autotune_trial_rotator,
+                                output=latest_output,
+                                sample_counter=bridge_writes + 1,
+                            )
                     last_csv_write_s = time.perf_counter() - csv_write_start
                     bridge_writes += 1
                     bridge_write_times.append(now)
