@@ -71,6 +71,24 @@ def test_hold_smoke_rejects_missing_preplay_and_consumed_command() -> None:
             timeout_s=2.0,
         )
 
+
+def test_hil_accepts_stopped_latched_ready_but_requires_running_transition() -> None:
+    session = FakeHoldSession(
+        [
+            _sample(runtime_state=1, state=10),
+            _sample(runtime_state=1, state=10),
+            _sample(runtime_state=2, state=10),
+        ]
+    )
+    result = verify_play_startup(
+        session,
+        trigger_play=None,
+        timeout_s=2.0,
+        allow_latched_ready_baseline=True,
+    )
+    assert result.phases == ("preplay_ready_latched", "active")
+    assert result.samples == 3
+
     with pytest.raises(StartupSmokeError, match="consumed a command"):
         verify_play_startup(
             FakeHoldSession(

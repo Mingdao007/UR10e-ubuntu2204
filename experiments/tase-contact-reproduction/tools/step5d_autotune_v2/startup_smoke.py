@@ -170,6 +170,7 @@ def verify_play_startup(
     *,
     trigger_play: Callable[[], None] | None,
     timeout_s: float,
+    allow_latched_ready_baseline: bool = False,
     clock: Callable[[], float] = time.monotonic,
 ) -> StartupSmokeResult:
     decoder = TpFeedbackDecoder()
@@ -185,16 +186,35 @@ def verify_play_startup(
         observed_at = clock()
         observation = decoder.observe(output, observed_at_s=observed_at)
         samples += 1
-        if not phases or phases[-1] != observation.phase.value:
-            phases.append(observation.phase.value)
         if play_at is None:
-            if observation.phase is not TpFeedbackPhase.PREPLAY:
+            packet = observation.packet
+            latched_ready = (
+                allow_latched_ready_baseline
+                and output.get("runtime_state") == 1
+                and packet is not None
+                and packet.state is TpLoopState.READY_HOME
+                and packet.campaign_epoch_echo == 0
+                and packet.trial_id_echo == 0
+                and packet.candidate_token_echo == 0
+                and packet.execution_profile_id_echo == 0
+                and packet.consumed_command_seq == 0
+            )
+            if observation.phase is TpFeedbackPhase.PREPLAY:
+                phase = observation.phase.value
+            elif latched_ready:
+                phase = "preplay_ready_latched"
+            else:
                 raise StartupSmokeError("startup smoke requires an initial STOPPED zero-register snapshot")
+            phases.append(phase)
             play_at = observed_at
             if trigger_play is not None:
                 trigger_play()
             continue
+        if not phases or phases[-1] != observation.phase.value:
+            phases.append(observation.phase.value)
         if observation.phase is TpFeedbackPhase.ACTIVE:
+            if output.get("runtime_state") != 2:
+                continue
             packet = observation.packet
             if packet is None or packet.state is not TpLoopState.READY_HOME:
                 raise StartupSmokeError("first active TP state is not READY_HOME")

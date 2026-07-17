@@ -48,7 +48,12 @@ def run(host: str, output: Path, *, timeout_s: float) -> dict[str, Any]:
             raise RuntimeError("the frozen Step5d v2 TP package is not loaded")
         print("HIL_READY: 请在 TP 上按 Play；此 gate 只发送 heartbeat + HOLD，不发送 ARM。", flush=True)
         with RtdeHoldSession(host, timeout_s=5.0) as session:
-            result = verify_play_startup(session, trigger_play=None, timeout_s=timeout_s)
+            result = verify_play_startup(
+                session,
+                trigger_play=None,
+                timeout_s=timeout_s,
+                allow_latched_ready_baseline=True,
+            )
         dashboard.command("stop", ("Stopped", "Stop"))
         payload = {
             "schema": "step5d.autotune.hil-startup-smoke/v1",
