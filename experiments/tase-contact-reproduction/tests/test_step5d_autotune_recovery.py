@@ -45,6 +45,7 @@ from step5d_autotune_live_driver import (  # noqa: E402
     CampaignHomeReference,
     HostClosureCollector,
     TrialArtifactProducer,
+    finalize_bundle_and_dispatch_ack_for_test_fixture,
     finalize_produced_bundle_and_dispatch_ack,
 )
 from step5d_autotune_state_machine import (  # noqa: E402
@@ -460,6 +461,98 @@ class CommandIssuanceTest(RecoveryFixture):
         with self.assertRaisesRegex(CoordinatorError, "FORCE_P"):
             self.coordinator.dispatch(arm, prepared_trial=bound, sink=sink)
         self.assertEqual(sink.packets, [])
+
+    def test_safety_evaluation_failure_never_publishes_bundle_or_ack(self) -> None:
+        trial, arm = self.arm()
+        bound = prepared(trial)
+        mailbox = AtomicCommandMailbox(self.root / "command.json")
+        self.coordinator.dispatch(arm, prepared_trial=bound, sink=mailbox)
+        collector = HostClosureCollector.for_test_fixture(
+            expected_arm=arm,
+            campaign_home_pose=[0.4, -0.2, 0.3, 0.0, 0.0, 0.0],
+            campaign_home_q=[0.0] * 6,
+            max_sample_gap_s=0.02,
+        )
+        sample = {
+            "timestamp": 1.0,
+            "output_int_register_24": arm.campaign_epoch,
+            "output_int_register_25": arm.trial_id,
+            "output_int_register_26": int(TpLoopState.WAIT_ACK),
+            "output_int_register_27": arm.candidate_token,
+            "output_int_register_28": 1,
+            "output_int_register_29": arm.execution_profile_id,
+            "output_int_register_30": arm.command_seq,
+            "output_double_register_36": 0.001,
+            "output_double_register_37": 0.01,
+            "output_double_register_38": 0.005,
+            "actual_TCP_pose": [0.4, -0.2, 0.3, 0.0, 0.0, 0.0],
+            "actual_q": [0.0] * 6,
+            "actual_TCP_speed": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "safety_mode": "NORMAL",
+        }
+        for index in range(51):
+            collector.observe(sample, monotonic_s=index * 0.01)
+
+        def manifest_factory(safe: SafeClosureEvidence) -> CaptureManifest:
+            return CaptureManifest(
+                trial_uid=trial.trial_uid,
+                backend_id=trial.backend_id,
+                source_fingerprint_pre=trial.source_fingerprint,
+                source_fingerprint_post=trial.source_fingerprint,
+                config_fingerprint_pre=trial.config_fingerprint,
+                config_fingerprint_post=trial.config_fingerprint,
+                candidate_token=trial.candidate_token,
+                terminal_reason=1,
+                host_cause=None,
+                csv_sha256="d" * 64,
+                metadata_sha256="e" * 64,
+                terminal_manifest_sha256="f" * 64,
+                completion_marker=True,
+                cadence_ok=True,
+                feedback_fresh=True,
+                rnn_oracle_aligned=True,
+                safety_normal=True,
+                returned_safe=True,
+                immutable_bundle_written=True,
+                stage25_complete_s=55.0,
+                safe_closure_evidence=safe,
+            )
+
+        class FailingSafetyBackend:
+            @staticmethod
+            def evaluate_trial(*_args):
+                raise RuntimeError("structural evaluator rejected capture")
+
+        artifact_paths = CaptureArtifactPaths(
+            self.root / "capture.csv",
+            self.root / "metadata.json",
+            self.root / "terminal.json",
+        )
+        with self.assertRaisesRegex(RuntimeError, "structural evaluator"):
+            finalize_bundle_and_dispatch_ack_for_test_fixture(
+                collector=collector,
+                trial=trial,
+                manifest_factory=manifest_factory,
+                backend=FailingSafetyBackend(),
+                store=self.store,
+                coordinator=self.coordinator,
+                artifact_paths=artifact_paths,
+                csv_path=artifact_paths.csv_path,
+                prepared_trial=bound,
+                command_sink=mailbox,
+                capture_hashes_complete=True,
+                terminal_manifest_complete=True,
+                fingerprint_closed=True,
+            )
+
+        latest = self.journal.load_latest().state
+        self.assertEqual(latest.phase, "trial_active")
+        self.assertIsNone(latest.pending_ack)
+        self.assertFalse((self.root / "store" / "outcomes").exists())
+        dispatched = mailbox.read_latest()
+        assert dispatched is not None
+        self.assertIs(dispatched.packet.command, HostCommand.ARM)
 
     def test_real_per_trial_artifacts_store_receipt_and_ack_full_chain(self) -> None:
         trial, arm = self.arm()

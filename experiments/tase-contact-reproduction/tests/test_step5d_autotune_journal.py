@@ -567,6 +567,29 @@ class TpRecoveryReconcileTest(unittest.TestCase):
             self.assertEqual(decision.command_seq, 2)
             self.assertTrue(decision.command_permitted)
 
+    def test_persisted_ack_resend_requires_every_tp_echo_field_to_match(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            entry = self._entry(Path(td), wait_ack_state(Path(td)))
+            exact = tp_snapshot("WAIT_ACK", consumed=1)
+            mutations = {
+                "campaign_epoch": replace(exact, campaign_epoch_echo=8),
+                "trial_id": replace(exact, trial_id_echo=2),
+                "candidate_token": replace(exact, candidate_token_echo=2),
+                "execution_profile": replace(
+                    exact, execution_profile_integer_id_echo=112
+                ),
+                "command_sequence": replace(exact, consumed_command_seq=2),
+            }
+            for field, snapshot in mutations.items():
+                with self.subTest(field=field):
+                    decision = reconcile_tp_snapshot(entry, snapshot)
+                    self.assertTrue(decision.fail_closed)
+                    self.assertFalse(decision.command_permitted)
+                    self.assertIsNot(
+                        decision.action,
+                        ReconcileAction.SEND_PERSISTED_ACK,
+                    )
+
     def test_consumed_arm_at_wait_ack_resumes_host_closure(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             entry = self._entry(Path(td), active_state())

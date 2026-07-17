@@ -20,7 +20,7 @@ import sys
 import time
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any, Callable, Iterator, Mapping
 
 
 def _bootstrap_stable_cuda_runtime() -> None:
@@ -96,6 +96,10 @@ from step5d_autotune_supervisor import (
 
 
 STATE_NAMES = {int(state): state.name for state in TpLoopState}
+
+
+class StopAfterCurrentRequested(RuntimeError):
+    """The v3 durable latch was observed while the TP was safely Home."""
 
 
 def _finite(row: Mapping[str, str], name: str) -> float:
@@ -644,10 +648,13 @@ def _wait_for_codex_candidate(
     bridge_csv: Path,
     previous_plan: CandidateBatchPlan | None,
     timeout_s: float,
+    stop_requested: Callable[[], bool] | None = None,
 ) -> tuple[ForceCandidate | None, CandidateBatchPlan]:
     deadline = time.monotonic() + timeout_s
     announced_revision: int | None = None
     while time.monotonic() < deadline:
+        if stop_requested is not None and stop_requested():
+            raise StopAfterCurrentRequested
         if plan_path.is_file() and not plan_path.is_symlink():
             plan = load_plan(plan_path, campaign_id=campaign_id)
             if previous_plan is not None:
@@ -702,6 +709,21 @@ def _wait_for_codex_candidate(
     raise TimeoutError("timed out waiting for the next Codex five-candidate batch")
 
 
+def _v3_stop_requested(
+    stop_latch: Path | None,
+    *,
+    campaign_root: Path,
+) -> bool:
+    if stop_latch is None:
+        return False
+    expected = (campaign_root / "control" / "stop_after_current.json").absolute()
+    if stop_latch.expanduser().absolute() != expected:
+        raise RuntimeError("v3 stop latch must use campaign_root/control/stop_after_current.json")
+    from step5d_autotune_v3.state import CampaignPaths, read_stop_latch
+
+    return read_stop_latch(CampaignPaths(campaign_root))["armed"]
+
+
 def run(args: argparse.Namespace) -> int:
     root = args.experiment_root.resolve()
     bridge_run = args.bridge_run.resolve()
@@ -739,6 +761,22 @@ def run(args: argparse.Namespace) -> int:
     if campaign_root.is_symlink():
         raise RuntimeError("campaign root must not be a symlink")
     campaign_root.mkdir(parents=True, exist_ok=True)
+    stop_requested = lambda: _v3_stop_requested(
+        args.v3_stop_latch,
+        campaign_root=campaign_root,
+    )
+    derived_postprocess = None
+    if args.v3_derived_postprocess_root is not None:
+        postprocess_root = args.v3_derived_postprocess_root.expanduser().absolute()
+        expected_postprocess = (campaign_root / "postprocess").absolute()
+        if postprocess_root != expected_postprocess:
+            raise RuntimeError("v3 derived postprocess must use campaign_root/postprocess")
+        from step5d_autotune_v3.postprocess import DerivedPostprocessQueue
+
+        derived_postprocess = DerivedPostprocessQueue(
+            postprocess_root,
+            allowed_capture_root=campaign_root,
+        )
     plan_path: Path | None = None
     if args.selection_policy == "codex_batches":
         if args.candidate_plan is None:
@@ -988,20 +1026,31 @@ def run(args: argparse.Namespace) -> int:
 
     completed_trials = 0
     plan_closed = False
+    stopped_after_current = False
     current_plan: CandidateBatchPlan | None = None
     try:
         while supervisor.phase is CampaignPhase.HOME:
+            if stop_requested():
+                stopped_after_current = True
+                _event(event_path, "stop_after_current_observed", phase="home")
+                break
             if args.selection_policy == "codex_batches":
                 assert plan_path is not None
-                forced_candidate, current_plan = _wait_for_codex_candidate(
-                    plan_path=plan_path,
-                    campaign_id=campaign.campaign_id,
-                    supervisor=supervisor,
-                    coordinator=coordinator,
-                    bridge_csv=bridge_csv,
-                    previous_plan=current_plan,
-                    timeout_s=args.plan_wait_timeout_s,
-                )
+                try:
+                    forced_candidate, current_plan = _wait_for_codex_candidate(
+                        plan_path=plan_path,
+                        campaign_id=campaign.campaign_id,
+                        supervisor=supervisor,
+                        coordinator=coordinator,
+                        bridge_csv=bridge_csv,
+                        previous_plan=current_plan,
+                        timeout_s=args.plan_wait_timeout_s,
+                        stop_requested=stop_requested,
+                    )
+                except StopAfterCurrentRequested:
+                    stopped_after_current = True
+                    _event(event_path, "stop_after_current_observed", phase="ready_home")
+                    break
                 if forced_candidate is None:
                     plan_closed = True
                     _event(
@@ -1103,34 +1152,46 @@ def run(args: argparse.Namespace) -> int:
                 break
             _event(event_path, "post_ack", phase=supervisor.phase.value)
             completed_trials += 1
-            plot_command = [
-                sys.executable,
-                str(root / "tools" / "publish_step5d_autotune_plot.py"),
-                str(result.immutable_bundle_path),
-                "--output-dir",
-                str(campaign_root / "plots"),
-            ]
-            try:
-                published = subprocess.run(
-                    plot_command,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=90.0,
+            if derived_postprocess is not None:
+                job_id = derived_postprocess.submit(
+                    capture=result.immutable_bundle_path,
+                    trial_id=trial.trial_uid,
                 )
                 _event(
                     event_path,
-                    "trial_plot_published",
+                    "derived_postprocess_queued",
                     trial_uid=trial.trial_uid,
-                    result=json.loads(published.stdout),
+                    job_id=job_id,
                 )
-            except (subprocess.SubprocessError, ValueError, json.JSONDecodeError) as exc:
-                _event(
-                    event_path,
-                    "trial_plot_publish_failed",
-                    trial_uid=trial.trial_uid,
-                    error=f"{type(exc).__name__}: {exc}",
-                )
+            else:
+                plot_command = [
+                    sys.executable,
+                    str(root / "tools" / "publish_step5d_autotune_plot.py"),
+                    str(result.immutable_bundle_path),
+                    "--output-dir",
+                    str(campaign_root / "plots"),
+                ]
+                try:
+                    published = subprocess.run(
+                        plot_command,
+                        check=True,
+                        capture_output=True,
+                        text=True,
+                        timeout=90.0,
+                    )
+                    _event(
+                        event_path,
+                        "trial_plot_published",
+                        trial_uid=trial.trial_uid,
+                        result=json.loads(published.stdout),
+                    )
+                except (subprocess.SubprocessError, ValueError, json.JSONDecodeError) as exc:
+                    _event(
+                        event_path,
+                        "trial_plot_publish_failed",
+                        trial_uid=trial.trial_uid,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
             if args.one_trial:
                 break
             if supervisor.phase is CampaignPhase.WAIT_INFRA_READY:
@@ -1205,11 +1266,17 @@ def run(args: argparse.Namespace) -> int:
     print(
         json.dumps(
             {
-                "run_ok": campaign_succeeded or one_trial_complete or plan_closed,
+                "run_ok": (
+                    campaign_succeeded
+                    or one_trial_complete
+                    or plan_closed
+                    or stopped_after_current
+                ),
                 "trial_completed": completed_trials > 0,
                 "campaign_succeeded": campaign_succeeded,
                 "campaign_terminal": campaign_terminal,
                 "plan_closed": plan_closed,
+                "stopped_after_current": stopped_after_current,
                 "selection_policy": args.selection_policy,
                 "phase": supervisor.phase.value,
                 "campaign_root": str(campaign_root),
@@ -1217,7 +1284,12 @@ def run(args: argparse.Namespace) -> int:
             sort_keys=True,
         )
     )
-    return 0 if campaign_succeeded or one_trial_complete or plan_closed else 2
+    return 0 if (
+        campaign_succeeded
+        or one_trial_complete
+        or plan_closed
+        or stopped_after_current
+    ) else 2
 
 
 def parse_args() -> argparse.Namespace:
@@ -1251,6 +1323,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--force-damping", type=float)
     parser.add_argument("--one-trial", action="store_true")
     parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--v3-stop-latch", type=Path)
+    parser.add_argument("--v3-derived-postprocess-root", type=Path)
     return parser.parse_args()
 
 

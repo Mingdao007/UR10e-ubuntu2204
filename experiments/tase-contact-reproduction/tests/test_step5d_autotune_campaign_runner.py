@@ -16,9 +16,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from run_step5d_autotune_campaign import (  # noqa: E402
     CampaignEpochLayout,
+    StopAfterCurrentRequested,
     _campaign_authorization,
     _campaign_spec,
     _publish_runner_ready,
+    _v3_stop_requested,
+    _wait_for_codex_candidate,
     closure_sample_from_bridge_row,
     discover_campaign_epochs,
     ensure_mailbox_parent,
@@ -33,6 +36,7 @@ from step5d_autotune_journal import (  # noqa: E402
     SupervisorJournal,
 )
 from step5d_autotune_supervisor import execution_profile_integer_id  # noqa: E402
+from step5d_autotune_v3.state import CampaignPaths, set_stop_latch  # noqa: E402
 
 
 def test_campaign_spec_accepts_single_trial_success_policy() -> None:
@@ -231,3 +235,43 @@ def test_runner_ready_requires_completed_durable_recovery() -> None:
         payload = json.loads(ready.read_text(encoding="utf-8"))
         assert payload["durable_state_ready"] is True
         assert payload["state"] == "ready_home"
+
+
+def test_v3_stop_latch_is_default_off_exactly_scoped_and_durable(
+    tmp_path: Path,
+) -> None:
+    campaign_root = tmp_path / "campaign"
+    expected = campaign_root / "control" / "stop_after_current.json"
+    assert _v3_stop_requested(None, campaign_root=campaign_root) is False
+    assert _v3_stop_requested(expected, campaign_root=campaign_root) is False
+
+    set_stop_latch(CampaignPaths(campaign_root), armed=True)
+    assert _v3_stop_requested(expected, campaign_root=campaign_root) is True
+    with pytest.raises(RuntimeError, match="campaign_root/control"):
+        _v3_stop_requested(tmp_path / "other.json", campaign_root=campaign_root)
+
+
+def test_waiting_at_ready_home_observes_v3_latch_before_selecting_candidate(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(StopAfterCurrentRequested):
+        _wait_for_codex_candidate(
+            plan_path=tmp_path / "not-read.json",
+            campaign_id="not-read",
+            supervisor=None,  # type: ignore[arg-type]
+            coordinator=None,  # type: ignore[arg-type]
+            bridge_csv=tmp_path / "not-read.csv",
+            previous_plan=None,
+            timeout_s=1.0,
+            stop_requested=lambda: True,
+        )
+
+
+def test_v3_derived_queue_hook_is_after_exact_ack_reconcile() -> None:
+    source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
+        encoding="utf-8"
+    )
+    reconcile = source.index("coordinator.reconcile(snapshot)")
+    post_ack = source.index('_event(event_path, "post_ack"', reconcile)
+    queued = source.index("derived_postprocess.submit(", post_ack)
+    assert reconcile < post_ack < queued
