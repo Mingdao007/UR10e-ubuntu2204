@@ -42,6 +42,15 @@ READY_TO_EXECUTE_REQUIRES = [
     "live_runtime_promoted",
     "same_process_startup_gate_pass",
 ]
+HIL_AUTHORIZATION_COMMAND = [
+    "python3",
+    "tools/verify_step5d_autotune_v3_hil_authorization.py",
+    "--authorization",
+    "<current-turn-authorization.json>",
+    "--expected-thread-id",
+    "<current-thread-id>",
+    "--json",
+]
 
 # Keys are relative to the git root, not to this experiment root.
 PROTECTED_V1_SHA256 = {
@@ -290,6 +299,24 @@ def matrix_issues(payload: Any) -> list[str]:
             issues.append("test_matrix_readiness_transition_order_mismatch")
         if readiness.get("ready_to_execute_requires") != READY_TO_EXECUTE_REQUIRES:
             issues.append("test_matrix_ready_to_execute_requirements_mismatch")
+    hil_authorization = payload.get("hil_authorization_gate")
+    if not isinstance(hil_authorization, dict):
+        issues.append("test_matrix_hil_authorization_gate_missing")
+    else:
+        expected_hil_authorization = {
+            "command": HIL_AUTHORIZATION_COMMAND,
+            "scope": "hil_hold_only",
+            "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
+            "max_ttl_s": 1800,
+            "current_fingerprint_binding_required": True,
+            "current_turn_thread_binding_required": True,
+            "serial": True,
+            "hold_required": True,
+            "live_writer_allowed": False,
+            "operator_action_consumed": False,
+        }
+        if hil_authorization != expected_hil_authorization:
+            issues.append("test_matrix_hil_authorization_contract_mismatch")
     lanes = payload.get("lanes")
     if not isinstance(lanes, dict):
         return issues + ["test_matrix_lanes_not_object"]

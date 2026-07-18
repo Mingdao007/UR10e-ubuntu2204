@@ -73,6 +73,15 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     assert report["ready_to_execute"] is False
     assert report["current_stage_id"] == readiness.V1_STAGE_ID
     assert report["next_owner"] == "ur10e-live-bench"
+    assert report["authorization_gate"] == [
+        "python3",
+        "tools/verify_step5d_autotune_v3_hil_authorization.py",
+        "--authorization",
+        "<current-turn-authorization.json>",
+        "--expected-thread-id",
+        "<current-thread-id>",
+        "--json",
+    ]
 
 
 def test_historical_v1_authorization_cannot_be_reused(tmp_path: Path) -> None:

@@ -278,6 +278,15 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             "obtain a new current-turn candidate-scoped authorization for the "
             "serialized HIL HOLD-only gate"
         ),
+        "authorization_gate": [
+            "python3",
+            "tools/verify_step5d_autotune_v3_hil_authorization.py",
+            "--authorization",
+            "<current-turn-authorization.json>",
+            "--expected-thread-id",
+            "<current-thread-id>",
+            "--json",
+        ],
         "forbidden_without_later_gates": [
             "load_play",
             "bridge_start",

@@ -28,6 +28,26 @@
       "same_process_startup_gate_pass"
     ]
   },
+  "hil_authorization_gate": {
+    "command": [
+      "python3",
+      "tools/verify_step5d_autotune_v3_hil_authorization.py",
+      "--authorization",
+      "<current-turn-authorization.json>",
+      "--expected-thread-id",
+      "<current-thread-id>",
+      "--json"
+    ],
+    "scope": "hil_hold_only",
+    "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
+    "max_ttl_s": 1800,
+    "current_fingerprint_binding_required": true,
+    "current_turn_thread_binding_required": true,
+    "serial": true,
+    "hold_required": true,
+    "live_writer_allowed": false,
+    "operator_action_consumed": false
+  },
   "ci": {
     "lanes": [
       "small",
@@ -55,6 +75,7 @@
           "tests/test_step5d_autotune_v3_attempt_ledger.py",
           "tests/test_step5d_autotune_v3_artifacts.py",
           "tests/test_step5d_autotune_v3_execution_readiness.py",
+          "tests/test_step5d_autotune_v3_hil_authorization.py",
           "tests/test_step5d_autotune_v3_g10.py",
           "tests/test_step5d_autotune_v3_refactor_gate.py",
           "tests/test_step5d_autotune_v3_ursim_hold.py"
@@ -262,6 +283,16 @@
     {
       "id": "operator_readiness_signal_and_authorization_noninheritance",
       "incident_fixture": "tests/test_step5d_autotune_v3_execution_readiness.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    },
+    {
+      "id": "candidate_scoped_short_lived_hil_authorization",
+      "incident_fixture": "tests/test_step5d_autotune_v3_hil_authorization.py",
       "lanes": [
         "small",
         "medium",

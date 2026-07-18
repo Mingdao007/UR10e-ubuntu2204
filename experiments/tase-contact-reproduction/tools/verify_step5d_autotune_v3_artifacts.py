@@ -452,6 +452,34 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     )
     if "hil_no_motion_pass" not in readiness_gate.get("ready_to_execute_requires", []):
         raise ArtifactVerificationError("test matrix execution readiness omits HIL")
+    hil_authorization = matrix.get("hil_authorization_gate") or {}
+    _require_equal(
+        hil_authorization.get("command"),
+        [
+            "python3",
+            "tools/verify_step5d_autotune_v3_hil_authorization.py",
+            "--authorization",
+            "<current-turn-authorization.json>",
+            "--expected-thread-id",
+            "<current-thread-id>",
+            "--json",
+        ],
+        "test matrix HIL authorization command",
+    )
+    for field, expected in (
+        ("scope", "hil_hold_only"),
+        ("candidate_stage_id", V3_STAGE_ID),
+        ("max_ttl_s", 1800),
+        ("current_fingerprint_binding_required", True),
+        ("current_turn_thread_binding_required", True),
+        ("serial", True),
+        ("hold_required", True),
+        ("live_writer_allowed", False),
+        ("operator_action_consumed", False),
+    ):
+        _require_equal(
+            hil_authorization.get(field), expected, f"test matrix HIL authorization {field}"
+        )
     large = (matrix.get("lanes") or {}).get("large_ursim") or {}
     _require_equal(large.get("execution_status"), "pass", "large URSim lane status")
     _require_equal(large.get("container_image"), URSIM_IMAGE, "large URSim image")

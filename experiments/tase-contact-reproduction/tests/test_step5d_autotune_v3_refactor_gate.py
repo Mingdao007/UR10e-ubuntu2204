@@ -148,6 +148,17 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         self.assertIn("test_matrix_readiness_transition_order_mismatch", issues)
         self.assertIn("test_matrix_ready_to_execute_requirements_mismatch", issues)
 
+    def test_matrix_hil_authorization_contract_cannot_be_broadened(self) -> None:
+        payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
+        authorization = payload["hil_authorization_gate"]
+        authorization["scope"] = "live_motion"
+        authorization["max_ttl_s"] = 86400
+        authorization["live_writer_allowed"] = True
+        self.assertIn(
+            "test_matrix_hil_authorization_contract_mismatch",
+            gate.matrix_issues(payload),
+        )
+
     def test_matrix_loader_requires_material_incident_fixtures(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as directory:
@@ -189,6 +200,7 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         self.assertIn("tests/test_step5d_autotune_v3_attempt_ledger.py", workflow)
         self.assertIn("tests/test_step5d_autotune_v3_artifacts.py", workflow)
         self.assertIn("tests/test_step5d_autotune_v3_execution_readiness.py", workflow)
+        self.assertIn("tests/test_step5d_autotune_v3_hil_authorization.py", workflow)
         self.assertIn("tests/test_step5d_autotune_v3_g10.py", workflow)
         self.assertIn("tests/test_step5d_autotune_v3_ursim_hold.py", workflow)
         self.assertIn("STEP5D_V3_HERMETIC_PARSER_CI", workflow)

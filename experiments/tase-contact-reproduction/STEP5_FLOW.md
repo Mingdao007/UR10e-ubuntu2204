@@ -45,6 +45,22 @@ candidate-scoped UR owner authorization for a serialized HIL HOLD-only gate.
 Load/Play, bridge start, ARM, zero/tare, contact, and motion remain later and
 separate gates.
 
+Any such authorization must first pass the local machine gate below; creating
+or validating this artifact does not connect to the controller:
+
+```bash
+python3 tools/verify_step5d_autotune_v3_hil_authorization.py \
+  --authorization <current-turn-authorization.json> \
+  --expected-thread-id <current-thread-id> \
+  --json
+```
+
+The authorization expires within 30 minutes and is bound to the v3 stage,
+current control/orchestration fingerprints, current task, serial ownership,
+HOLD, and an exact read-only action allowlist. It rejects historical v1
+authorization, live-writer access, Load/Play, bridge, ARM, zero/tare, contact,
+motion, URScript, RTDE input, and controller writes.
+
 v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,
 and gross 60 N / 100 N / 3 Nm protection. The scheduler-only delta keeps the
