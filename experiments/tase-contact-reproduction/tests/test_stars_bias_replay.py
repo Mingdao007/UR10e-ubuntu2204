@@ -36,9 +36,12 @@ class SyntheticRun:
         tcp_z_m: float = 0.0,
         tcp_z_wave_m: float = 0.0,
         profile: str = "step5d_strict_rnn_contact_v1",
+        path_shape: str = "cycloid",
         contact_stage: bool = True,
         phase_offset_s: float = 0.0,
         linear_acceleration_x_m_s2: float = 0.0,
+        angular_speed_x_rad_s: float = 0.0,
+        angular_acceleration_x_rad_s2: float = 0.0,
         orientation_rotvec: tuple[float, float, float] = (0.0, 0.0, 0.0),
         stage25_force_wave_n: float = 0.0,
         free_static_force_wave_n: float = 0.0,
@@ -50,7 +53,7 @@ class SyntheticRun:
         metadata = {
             "args": {
                 "bridge_profile": profile,
-                "bridge_path_shape": "cycloid",
+                "bridge_path_shape": path_shape,
                 "bias_contact_normal_threshold_n": 0.75,
                 "bias_contact_force_norm_threshold_n": 2.0,
             }
@@ -122,15 +125,23 @@ class SyntheticRun:
                         "ur_actual_TCP_pose_4": orientation_rotvec[1],
                         "ur_actual_TCP_pose_5": orientation_rotvec[2],
                         **{
-                            f"ur_actual_TCP_speed_{axis}": 0.001
-                            if stage25 and axis == 0
-                            else 0.0
+                            f"ur_actual_TCP_speed_{axis}": (
+                                0.001
+                                if stage25 and axis == 0
+                                else angular_speed_x_rad_s
+                                if stage25 and axis == 3
+                                else 0.0
+                            )
                             for axis in range(6)
                         },
                         **{
-                            f"ur_actual_TCP_accel_{axis}": linear_acceleration_x_m_s2
-                            if axis == 0
-                            else 0.0
+                            f"ur_actual_TCP_accel_{axis}": (
+                                linear_acceleration_x_m_s2
+                                if stage25 and axis == 0
+                                else angular_acceleration_x_rad_s2
+                                if stage25 and axis == 3
+                                else 0.0
+                            )
                             for axis in range(6)
                         },
                     }
@@ -312,6 +323,51 @@ class StarsBiasReplayTest(unittest.TestCase):
         ).path
         with self.assertRaisesRegex(ValueError, "geometry validation failed"):
             validate_reference_pair(acceleration_mismatch, reference, reference_config)
+        path_mismatch = SyntheticRun(
+            pair_root,
+            "path-mismatch",
+            path_shape="line",
+        ).path
+        with self.assertRaisesRegex(ValueError, "path-shape mismatch"):
+            validate_reference_pair(path_mismatch, reference, reference_config)
+
+    def test_reference_rejects_angular_speed_mismatch(self) -> None:
+        pair_root = self.root / "angular-speed-pair"
+        reference_config = json.loads(self.config.read_text(encoding="utf-8"))["reference"]
+        reference_run = SyntheticRun(
+            pair_root,
+            "reference",
+            tcp_z_m=0.01,
+            profile="step5d_strict_rnn_no_contact_p0_v7",
+            contact_stage=False,
+        ).path
+        current = SyntheticRun(
+            pair_root,
+            "current",
+            angular_speed_x_rad_s=0.5,
+        ).path
+        reference = ReferenceTrace.from_run(reference_run, reference_config)
+        with self.assertRaisesRegex(ValueError, "geometry validation failed"):
+            validate_reference_pair(current, reference, reference_config)
+
+    def test_reference_rejects_angular_acceleration_mismatch(self) -> None:
+        pair_root = self.root / "angular-acceleration-pair"
+        reference_config = json.loads(self.config.read_text(encoding="utf-8"))["reference"]
+        reference_run = SyntheticRun(
+            pair_root,
+            "reference",
+            tcp_z_m=0.01,
+            profile="step5d_strict_rnn_no_contact_p0_v7",
+            contact_stage=False,
+        ).path
+        current = SyntheticRun(
+            pair_root,
+            "current",
+            angular_acceleration_x_rad_s2=100.0,
+        ).path
+        reference = ReferenceTrace.from_run(reference_run, reference_config)
+        with self.assertRaisesRegex(ValueError, "geometry validation failed"):
+            validate_reference_pair(current, reference, reference_config)
 
     def test_reference_rotvec_wrap_and_phase_domain_are_handled(self) -> None:
         pair_root = self.root / "domain-pair"
@@ -342,6 +398,43 @@ class StarsBiasReplayTest(unittest.TestCase):
         self.assertEqual(summary["reference_application"]["out_of_domain_stage25_rows"], 1)
         self.assertEqual(summary["reference_application"]["applied_rows"], 19)
         with (self.root / "domain-output" / "corrected_wrench.csv").open(
+            newline="", encoding="utf-8"
+        ) as stream:
+            rows = list(csv.DictReader(stream))
+        outside = [
+            row for row in rows if row["reference_domain_status"] == "outside_validated_phase"
+        ]
+        self.assertEqual(len(outside), 1)
+        self.assertEqual(outside[0]["reference_applied"], "0")
+        self.assertEqual(outside[0]["reference_wrench_fx_n"], "")
+
+    def test_reference_phase_overflow_is_not_applied(self) -> None:
+        pair_root = self.root / "overflow-pair"
+        reference_config = json.loads(self.config.read_text(encoding="utf-8"))["reference"]
+        reference_run = SyntheticRun(
+            pair_root,
+            "reference",
+            tcp_z_m=0.01,
+            profile="step5d_strict_rnn_no_contact_p0_v7",
+            contact_stage=False,
+        ).path
+        current = SyntheticRun(
+            pair_root,
+            "current",
+            phase_offset_s=0.01,
+        ).path
+        reference = ReferenceTrace.from_run(reference_run, reference_config)
+        result = validate_reference_pair(current, reference, reference_config)
+        self.assertEqual(result["status"], "pass")
+        summary = replay_run(
+            current,
+            self.root / "overflow-output",
+            self.config,
+            reference_run_dir=reference_run,
+        )
+        self.assertEqual(summary["reference_application"]["out_of_domain_stage25_rows"], 1)
+        self.assertEqual(summary["reference_application"]["applied_rows"], 19)
+        with (self.root / "overflow-output" / "corrected_wrench.csv").open(
             newline="", encoding="utf-8"
         ) as stream:
             rows = list(csv.DictReader(stream))
@@ -428,9 +521,17 @@ class StarsBiasReplayTest(unittest.TestCase):
         runs_root = self.root / "evaluation-runs"
         for index in range(5):
             SyntheticRun(runs_root, f"run-{index}")
+        SyntheticRun(
+            runs_root,
+            "excluded-header-only",
+            bridge_rows=0,
+            sensor_rows=0,
+        )
         manifest_path = self.root / "evaluation-manifest.json"
         manifest = inventory_runs(runs_root, manifest_path, self.config)
+        self.assertEqual(manifest["schema_eligible_count"], 6)
         self.assertEqual(manifest["eligible_count"], 5)
+        self.assertEqual(len(manifest["analysis_excluded"]), 1)
         first = evaluate_manifest(
             manifest_path,
             runs_root,
@@ -469,6 +570,22 @@ class StarsBiasReplayTest(unittest.TestCase):
                 jobs=1,
             )
         self.assertFalse((self.root / "evaluation-config-mismatch").exists())
+
+        excluded_bridge = (
+            runs_root / "excluded-header-only" / "bridge_rtde_500hz.csv"
+        )
+        excluded_bridge_bytes = excluded_bridge.read_bytes()
+        excluded_bridge.write_bytes(excluded_bridge_bytes + b"\n")
+        with self.assertRaisesRegex(ValueError, "manifest file hash mismatch"):
+            evaluate_manifest(
+                manifest_path,
+                runs_root,
+                self.root / "evaluation-excluded-source-drift",
+                self.config,
+                jobs=1,
+            )
+        self.assertFalse((self.root / "evaluation-excluded-source-drift").exists())
+        excluded_bridge.write_bytes(excluded_bridge_bytes)
 
         with (
             runs_root / "run-0" / "bridge_rtde_500hz.csv"

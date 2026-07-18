@@ -142,8 +142,8 @@ class ReferenceTrace:
     phase: np.ndarray
     wrench: np.ndarray
     pose: np.ndarray
-    linear_speed: np.ndarray
-    linear_acceleration: np.ndarray
+    tcp_speed: np.ndarray
+    tcp_acceleration: np.ndarray
     wrench_covariance: np.ndarray
 
     @classmethod
@@ -167,9 +167,9 @@ class ReferenceTrace:
             phase = _finite(bridge_row, "_step4e_path_time_s")
             wrench = np.array([_finite(sensor_row, field) for field in ZEROED_FIELDS])
             pose = np.array([_finite(bridge_row, f"ur_actual_TCP_pose_{idx}") for idx in range(6)])
-            speed = np.array([_finite(bridge_row, f"ur_actual_TCP_speed_{idx}") for idx in range(3)])
+            speed = np.array([_finite(bridge_row, f"ur_actual_TCP_speed_{idx}") for idx in range(6)])
             acceleration = np.array(
-                [_finite(bridge_row, f"ur_actual_TCP_accel_{idx}") for idx in range(3)]
+                [_finite(bridge_row, f"ur_actual_TCP_accel_{idx}") for idx in range(6)]
             )
             if abs(stage - 25.0) < 0.05 and math.isfinite(phase):
                 if _finite(sensor_row, "bias_estimation_contact_mask", 0.0) > 0.5:
@@ -217,8 +217,8 @@ class ReferenceTrace:
             phase=np.array([item[0] for item in ordered]),
             wrench=wrench,
             pose=np.vstack([item[1][1] for item in ordered]),
-            linear_speed=np.vstack([item[1][2] for item in ordered]),
-            linear_acceleration=np.vstack([item[1][3] for item in ordered]),
+            tcp_speed=np.vstack([item[1][2] for item in ordered]),
+            tcp_acceleration=np.vstack([item[1][3] for item in ordered]),
             wrench_covariance=covariance,
         )
 
@@ -274,8 +274,10 @@ def validate_reference_pair(
     covered_rows = 0
     xy_errors: list[float] = []
     orientation_errors: list[float] = []
-    speed_errors: list[float] = []
-    acceleration_errors: list[float] = []
+    linear_speed_errors: list[float] = []
+    angular_speed_errors: list[float] = []
+    linear_acceleration_errors: list[float] = []
+    angular_acceleration_errors: list[float] = []
     z_offsets: list[float] = []
     for _, bridge_row, _, _ in _causal_rows(bridge, sensor):
         stage = _finite(bridge_row, "ur_output_double_register_35")
@@ -286,13 +288,13 @@ def validate_reference_pair(
         if phase < reference.phase[0] or phase > reference.phase[-1]:
             continue
         pose = np.array([_finite(bridge_row, f"ur_actual_TCP_pose_{idx}") for idx in range(6)])
-        speed = np.array([_finite(bridge_row, f"ur_actual_TCP_speed_{idx}") for idx in range(3)])
+        speed = np.array([_finite(bridge_row, f"ur_actual_TCP_speed_{idx}") for idx in range(6)])
         acceleration = np.array(
-            [_finite(bridge_row, f"ur_actual_TCP_accel_{idx}") for idx in range(3)]
+            [_finite(bridge_row, f"ur_actual_TCP_accel_{idx}") for idx in range(6)]
         )
         reference_pose = reference.interpolate(reference.pose, phase)
-        reference_speed = reference.interpolate(reference.linear_speed, phase)
-        reference_acceleration = reference.interpolate(reference.linear_acceleration, phase)
+        reference_speed = reference.interpolate(reference.tcp_speed, phase)
+        reference_acceleration = reference.interpolate(reference.tcp_acceleration, phase)
         if not all(
             np.all(np.isfinite(values)) for values in (pose, speed, acceleration)
         ):
@@ -300,8 +302,14 @@ def validate_reference_pair(
         covered_rows += 1
         xy_errors.append(float(np.linalg.norm(pose[:2] - reference_pose[:2])))
         orientation_errors.append(_rotation_distance(pose[3:], reference_pose[3:]))
-        speed_errors.append(float(np.linalg.norm(speed - reference_speed)))
-        acceleration_errors.append(float(np.linalg.norm(acceleration - reference_acceleration)))
+        linear_speed_errors.append(float(np.linalg.norm(speed[:3] - reference_speed[:3])))
+        angular_speed_errors.append(float(np.linalg.norm(speed[3:] - reference_speed[3:])))
+        linear_acceleration_errors.append(
+            float(np.linalg.norm(acceleration[:3] - reference_acceleration[:3]))
+        )
+        angular_acceleration_errors.append(
+            float(np.linalg.norm(acceleration[3:] - reference_acceleration[3:]))
+        )
         z_offsets.append(float(pose[2] - reference_pose[2]))
     if stage25_rows == 0 or covered_rows == 0:
         raise ValueError("current/reference pair has no comparable stage25 geometry")
@@ -309,8 +317,10 @@ def validate_reference_pair(
     rms = lambda values: math.sqrt(statistics.fmean(value * value for value in values))
     xy_rms = rms(xy_errors)
     orientation_rms = rms(orientation_errors)
-    speed_rms = rms(speed_errors)
-    acceleration_rms = rms(acceleration_errors)
+    linear_speed_rms = rms(linear_speed_errors)
+    angular_speed_rms = rms(angular_speed_errors)
+    linear_acceleration_rms = rms(linear_acceleration_errors)
+    angular_acceleration_rms = rms(angular_acceleration_errors)
     mean_offset = statistics.fmean(z_offsets)
     expected_offset = float(config["expected_current_minus_reference_z_m"])
     offset_errors = [value - expected_offset for value in z_offsets]
@@ -320,9 +330,14 @@ def validate_reference_pair(
         "phase_coverage": coverage >= float(config["minimum_phase_coverage"]),
         "xy_rms": xy_rms <= float(config["xy_rms_tolerance_m"]),
         "orientation_rotvec_rms": orientation_rms <= float(config["orientation_rms_tolerance_rad"]),
-        "linear_speed_rms": speed_rms <= float(config["linear_speed_rms_tolerance_m_s"]),
-        "linear_acceleration_rms": acceleration_rms
+        "linear_speed_rms": linear_speed_rms
+        <= float(config["linear_speed_rms_tolerance_m_s"]),
+        "angular_speed_rms": angular_speed_rms
+        <= float(config["angular_speed_rms_tolerance_rad_s"]),
+        "linear_acceleration_rms": linear_acceleration_rms
         <= float(config["linear_acceleration_rms_tolerance_m_s2"]),
+        "angular_acceleration_rms": angular_acceleration_rms
+        <= float(config["angular_acceleration_rms_tolerance_rad_s2"]),
         "signed_z_offset_mean": abs(mean_offset - expected_offset)
         <= float(config["z_offset_mean_tolerance_m"]),
         "z_offset_rms": offset_rms <= float(config["z_offset_rms_tolerance_m"]),
@@ -340,8 +355,10 @@ def validate_reference_pair(
         "phase_coverage": coverage,
         "xy_rms_m": xy_rms,
         "orientation_rotvec_rms_rad": orientation_rms,
-        "linear_speed_rms_m_s": speed_rms,
-        "linear_acceleration_rms_m_s2": acceleration_rms,
+        "linear_speed_rms_m_s": linear_speed_rms,
+        "angular_speed_rms_rad_s": angular_speed_rms,
+        "linear_acceleration_rms_m_s2": linear_acceleration_rms,
+        "angular_acceleration_rms_rad_s2": angular_acceleration_rms,
         "expected_current_minus_reference_z_m": expected_offset,
         "mean_z_offset_m": mean_offset,
         "z_offset_error_rms_m": offset_rms,
@@ -1018,12 +1035,18 @@ def _validated_manifest_records(
     raw_records = manifest.get("records")
     if not isinstance(raw_records, list) or not raw_records:
         raise ValueError("manifest has no records")
+    raw_excluded = manifest.get("analysis_excluded")
+    if not isinstance(raw_excluded, list):
+        raise ValueError("manifest analysis_excluded must be a list")
     if manifest.get("eligible_count") != len(raw_records):
         raise ValueError("manifest eligible_count does not match records")
+    if manifest.get("schema_eligible_count") != len(raw_records) + len(raw_excluded):
+        raise ValueError("manifest schema_eligible_count does not match records and exclusions")
     records: list[dict[str, Any]] = []
     seen_relative: set[str] = set()
     seen_identity: set[str] = set()
-    for raw_record in raw_records:
+
+    def validate_source(raw_record: Any) -> tuple[str, str, str]:
         if not isinstance(raw_record, Mapping):
             raise ValueError("manifest record must be an object")
         relative = str(raw_record.get("relative_run_dir", ""))
@@ -1063,13 +1086,26 @@ def _validated_manifest_records(
             raise ValueError(f"duplicate manifest identity_sha256: {actual_identity}")
         seen_identity.add(actual_identity)
         metadata_payload = _json_load(metadata)
-        profile = str(metadata_payload.get("args", {}).get("bridge_profile", ""))
+        metadata_args = metadata_payload.get("args", {})
+        if not isinstance(metadata_args, Mapping):
+            raise ValueError(f"manifest source metadata.args is invalid: {relative}")
+        profile = str(metadata_args.get("bridge_profile", ""))
+        if raw_record.get("profile") != profile:
+            raise ValueError(f"manifest profile mismatch: {relative}")
+        return relative, actual_identity, profile
+
+    for raw_record in raw_records:
+        relative, _, profile = validate_source(raw_record)
         scenario = "no_contact" if "no_contact" in profile else "contact_capable"
-        if raw_record.get("profile") != profile or raw_record.get("scenario") != scenario:
-            raise ValueError(f"manifest profile/scenario mismatch: {relative}")
+        if raw_record.get("scenario") != scenario:
+            raise ValueError(f"manifest scenario mismatch: {relative}")
         if raw_record.get("split") not in {"train", "tune", "holdout"}:
             raise ValueError(f"manifest split is invalid: {relative}")
         records.append(dict(raw_record))
+    for raw_record in raw_excluded:
+        relative, _, _ = validate_source(raw_record)
+        if not isinstance(raw_record.get("data_quality"), Mapping):
+            raise ValueError(f"manifest exclusion data_quality is invalid: {relative}")
     return records
 
 
