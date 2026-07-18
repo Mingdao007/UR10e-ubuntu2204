@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -103,18 +104,38 @@ def test_enqueue_is_visible_to_process_boundary_status_within_one_second(
     )
     campaign = tmp_path / "campaign"
     script = ROOT / "scripts" / "step5d-autotune-v3.sh"
+    process_environment = None
+    command_prefix = [str(script)]
+    if os.environ.get("STEP5D_V3_HERMETIC_PARSER_CI") == "1":
+        process_environment = dict(os.environ)
+        inherited_pythonpath = process_environment.get("PYTHONPATH")
+        test_pythonpath = os.pathsep.join((str(ROOT / "tests"), str(ROOT / "tools")))
+        process_environment["PYTHONPATH"] = (
+            test_pythonpath
+            if not inherited_pythonpath
+            else os.pathsep.join((test_pythonpath, inherited_pythonpath))
+        )
+        command_prefix = [
+            sys.executable,
+            "-m",
+            "step5d_v3_parser_ci_stubs",
+            "--experiment-root",
+            str(ROOT),
+        ]
     started = time.perf_counter()
     enqueued = subprocess.run(
-        [str(script), "--campaign-root", str(campaign), "enqueue", "--batch", str(batch)],
+        [*command_prefix, "--campaign-root", str(campaign), "enqueue", "--batch", str(batch)],
         check=False,
         capture_output=True,
         text=True,
+        env=process_environment,
     )
     status = subprocess.run(
-        [str(script), "--campaign-root", str(campaign), "status", "--json"],
+        [*command_prefix, "--campaign-root", str(campaign), "status", "--json"],
         check=False,
         capture_output=True,
         text=True,
+        env=process_environment,
     )
     elapsed = time.perf_counter() - started
     assert enqueued.returncode == 0, enqueued.stderr
