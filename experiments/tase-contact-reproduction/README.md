@@ -266,6 +266,8 @@ Practical decision for this bench:
 
 - `UR10E_FT_CALIBRATION_REFERENCE_CHECKLIST.md`: vendor-path-aware external
   F/T calibration, wrench-frame lineage, non-rigid EOAT, and contact/bias gates.
+- `UR10E_FT_BIAS_ESTIMATOR_ROADMAP.md`: staged gated EMA/RLS, Kalman Q/R/NIS,
+  joint-state covariance, and offline sliding-window/factor-graph acceptance.
 - `config/straight_line_reference.json`: geometry, register map, gains, guards,
   and OnRobot baseline metrics.
 - `tools/preflight_readonly.py`: Dashboard/RTDE/Kunwei connect-only preflight.
