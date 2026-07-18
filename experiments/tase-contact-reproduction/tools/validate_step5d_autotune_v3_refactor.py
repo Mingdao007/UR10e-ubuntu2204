@@ -575,15 +575,14 @@ def _meaningful_text(section: str) -> str:
 
 
 def _placeholder(value: str) -> bool:
-    lowered = value.lower()
+    stripped = value.strip()
+    lowered = stripped.lower()
+    plain = lowered.lstrip("-* ").strip()
     return (
-        not value.strip()
-        or "todo" in lowered
-        or "replace" in lowered
-        or "describe" in lowered
-        or "<command" in lowered
-        or "<commit" in lowered
-        or value.strip() in {"...", "-"}
+        not stripped
+        or plain in {"...", "-", "todo", "tbd", "describe", "replace"}
+        or plain.startswith(("todo:", "tbd:", "describe this", "replace this", "replace with"))
+        or re.search(r"<(?:command|commit)(?:\b|>)", lowered) is not None
     )
 
 

@@ -55,6 +55,16 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
     def test_complete_pr_declaration_is_accepted(self) -> None:
         self.assertEqual(gate.declaration_issues(VALID_DECLARATION), [])
 
+    def test_real_replace_language_is_not_a_template_placeholder(self) -> None:
+        declaration = VALID_DECLARATION.replace(
+            "v3 orchestration and diagnostics only; frozen v1 control bytes remain unchanged.",
+            "Replace user-side HIL routing with a machine-bound startup gate.",
+        )
+
+        self.assertEqual(gate.declaration_issues(declaration), [])
+        self.assertTrue(gate._placeholder("- TODO: describe the allowed delta"))
+        self.assertTrue(gate._placeholder("git revert --no-edit <commit>"))
+
     def test_declaration_requires_one_class_and_exact_baseline(self) -> None:
         broken = VALID_DECLARATION.replace("[ ] `behavior_changing`", "[x] `behavior_changing`")
         broken = broken.replace(gate.FROZEN_COMMIT, "0" * 40)

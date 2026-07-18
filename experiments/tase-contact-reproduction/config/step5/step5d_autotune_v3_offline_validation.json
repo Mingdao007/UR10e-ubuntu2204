@@ -1,6 +1,6 @@
 {
   "schema": "step5d.autotune-v3/deterministic-validation-v2",
-  "observed_at": "2026-07-19T05:28:00+08:00",
+  "observed_at": "2026-07-19T05:32:00+08:00",
   "identity": {
     "contract_sha256": "62dc8ef25da41bc010ae07de8031a920236db1837e4a574ef0af9bfb552efaa3",
     "control_fingerprint": "63acd168cd50fb598582cf68624a042564b04433d80aa58840c3ac43c44f36bd",
@@ -9,12 +9,12 @@
   "gates": {
     "repository_validation": {
       "status": "pass",
-      "release_matrix_tests_passed": 354,
+      "release_matrix_tests_passed": 355,
       "release_matrix_subtests_passed": 7,
-      "full_autotune_regression_tests_passed": 516,
+      "full_autotune_regression_tests_passed": 517,
       "full_autotune_regression_subtests_passed": 46,
-      "parallel_manifest": "/home/andy/.codex/runs/step5d-v3-prealign-pareto-20260719/full-matrix-startup-fix-final/parallel_run_manifest.json",
-      "parallel_manifest_sha256": "1b8f1fed73eb1aafb4d49ff3196dcb0004c8cd0c424159369cc90156942eb523",
+      "parallel_manifest": "/home/andy/.codex/runs/step5d-v3-prealign-pareto-20260719/full-matrix-ci-placeholder-fix-final/parallel_run_manifest.json",
+      "parallel_manifest_sha256": "10a700bf8097bfcabdee85712460465c76666a833a60fc1690daed6c0794bdc4",
       "commands": [
         "python3 tools/run_step5d_autotune_v3_test_matrix.py --lanes small medium --workers auto --include-installed-runtime",
         "pytest all step5d_autotune tests plus plot publisher with xdist=4",
