@@ -1,7 +1,9 @@
 {
   "schema": "ur10e.stars-lite/config-v1",
   "alignment": {
-    "max_sensor_age_s": 0.1
+    "max_sensor_age_s": 0.1,
+    "minimum_causal_coverage": 0.95,
+    "minimum_valid_rows": 10
   },
   "mode": {
     "static_linear_speed_max_m_s": 0.0002,
@@ -32,11 +34,32 @@
     "q_sweep_multipliers": [0.1, 1.0, 10.0]
   },
   "reference": {
-    "nominal_offset_m": 0.01,
+    "required_profile_token": "no_contact",
+    "expected_current_minus_reference_z_m": -0.01,
     "minimum_phase_coverage": 0.95,
     "xy_rms_tolerance_m": 0.001,
     "orientation_rms_tolerance_rad": 0.03490658503988659,
     "linear_speed_rms_tolerance_m_s": 0.0005,
-    "offset_tolerance_m": 0.001
+    "linear_acceleration_rms_tolerance_m_s2": 0.02,
+    "z_offset_mean_tolerance_m": 0.001,
+    "z_offset_rms_tolerance_m": 0.001,
+    "z_offset_max_deviation_m": 0.002,
+    "minimum_samples": 10,
+    "maximum_force_variance_n2": 4.0,
+    "maximum_torque_variance_nm2": 0.04
+  },
+  "training": {
+    "minimum_static_differences": 10
+  },
+  "promotion": {
+    "static_force_rmse_max_n": 0.1,
+    "static_torque_rmse_max_nm": 0.01,
+    "minimum_free_static_nis_rows": 10,
+    "free_static_nis_p95_max": 16.812,
+    "minimum_confirmed_contact_rows": 10,
+    "minimum_contact_force_norm_n": 1.0,
+    "contact_force_retention_ratio_min": 0.95,
+    "contact_force_retention_ratio_max": 1.05,
+    "contact_force_direction_cosine_min": 0.99
   }
 }
