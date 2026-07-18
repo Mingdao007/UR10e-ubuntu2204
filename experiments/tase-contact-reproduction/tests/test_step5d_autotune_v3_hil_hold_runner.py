@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -62,13 +63,77 @@ def test_offline_check_builds_zero_identity_wrapper_command(tmp_path: Path) -> N
     assert result["bridge_started"] is False
 
 
-def test_hil_source_always_stops_program_after_ready_signal() -> None:
-    source = (ROOT / "tools/run_step5d_autotune_v3_hil_hold.py").read_text(
-        encoding="utf-8"
+class _Clock:
+    def __init__(self) -> None:
+        self.value = 0.0
+
+    def monotonic(self) -> float:
+        return self.value
+
+    def sleep(self, duration: float) -> None:
+        self.value += duration
+
+
+def test_remote_dashboard_stop_proves_stopped() -> None:
+    replies: list[dict[str, Any]] = [
+        {"programState": "PLAYING step5d_strict_rnn_autotune_v3.urp"},
+        {"stop": "Stopped", "programState": "STOPPED step5d_strict_rnn_autotune_v3.urp"},
+    ]
+
+    def exchange(*_args, **_kwargs):
+        return replies.pop(0)
+
+    result = gate._stop_v3_program("robot", exchange=exchange)
+    assert result["ok"] is True
+    assert result["method"] == "dashboard_stop"
+
+
+def test_local_stop_rejection_then_observed_stopped_is_cleanup_success() -> None:
+    replies: list[dict[str, Any]] = [
+        {"programState": "PLAYING step5d_strict_rnn_autotune_v3.urp"},
+        {
+            "stop": "Command is not allowed; switch robot to Remote Control mode",
+            "programState": "PLAYING step5d_strict_rnn_autotune_v3.urp",
+        },
+        {"programState": "STOPPED step5d_strict_rnn_autotune_v3.urp"},
+    ]
+    clock = _Clock()
+
+    def exchange(*_args, **_kwargs):
+        return replies.pop(0)
+
+    result = gate._stop_v3_program(
+        "robot",
+        exchange=exchange,
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
     )
-    finally_body = source.split("        finally:", 1)[1].split(
-        "    if dashboard_stop_error", 1
-    )[0]
-    assert "if ready_announced:" in finally_body
-    assert "_stop_v3_program" in finally_body
-    assert "process.send_signal(signal.SIGINT)" in finally_body
+    assert result["ok"] is True
+    assert result["method"] == "observed_stopped_after_stop_rejection"
+    assert "Remote Control" in result["stop_request"]["stop"]
+
+
+def test_local_stop_rejection_and_persistent_playing_requires_tp_stop() -> None:
+    clock = _Clock()
+    calls = 0
+
+    def exchange(_host, commands, **_kwargs):
+        nonlocal calls
+        calls += 1
+        result = {"programState": "PLAYING step5d_strict_rnn_autotune_v3.urp"}
+        if commands[0] == "stop":
+            result["stop"] = "Command is not allowed in Local Control"
+        return result
+
+    result = gate._stop_v3_program(
+        "robot",
+        timeout_s=0.3,
+        poll_interval_s=0.1,
+        exchange=exchange,
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
+    )
+    assert calls >= 3
+    assert result["ok"] is False
+    assert result["method"] == "tp_stop_required"
+    assert result["required_operator_action"] == "PRESS_TP_STOP"

@@ -19,7 +19,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 import verify_step5d_autotune_v3_hil_authorization as authorization_gate
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
@@ -156,18 +156,111 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
         raise HilHoldError(f"cannot read bridge CSV: {exc}") from exc
 
 
-def _stop_v3_program(robot_host: str) -> dict[str, Any]:
-    from preflight_readonly import dashboard_exchange
+def _program_stopped(result: Mapping[str, Any]) -> bool:
+    state = str(result.get("programState", result.get("program_state", ""))).upper()
+    return "STOPPED" in state
 
-    result = dashboard_exchange(
-        robot_host,
-        ["stop", "programState"],
-        timeout=2.0,
-    )
-    state = str(result.get("programState", "")).upper()
-    if "STOPPED" not in state:
-        raise HilHoldError(f"V3 HIL could not prove TP program STOPPED: {result}")
-    return result
+
+def _stop_v3_program(
+    robot_host: str,
+    *,
+    timeout_s: float = 5.0,
+    poll_interval_s: float = 0.1,
+    exchange: Callable[..., Mapping[str, Any]] | None = None,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    """Prove STOPPED even when Local Control rejects Dashboard ``stop``.
+
+    The bridge is already closed before this function runs.  A Local Control
+    rejection is retained as evidence, but it is not itself a cleanup failure
+    when the controller subsequently reports the exact program STOPPED.
+    """
+
+    if timeout_s <= 0.0 or poll_interval_s <= 0.0:
+        raise ValueError("program-stop timeout and poll interval must be positive")
+    if exchange is None:
+        from preflight_readonly import dashboard_exchange
+
+        exchange = dashboard_exchange
+
+    observations: list[dict[str, Any]] = []
+
+    def observe() -> Mapping[str, Any]:
+        result = exchange(robot_host, ["programState"], timeout=2.0)
+        observations.append(dict(result))
+        return result
+
+    initial_error: str | None = None
+    try:
+        initial = observe()
+    except Exception as exc:
+        initial = {}
+        initial_error = f"{type(exc).__name__}:{exc}"
+    if _program_stopped(initial):
+        return {
+            "ok": True,
+            "method": "observed_stopped_after_bridge_shutdown",
+            "stop_request": None,
+            "stop_request_error": None,
+            "initial_query_error": initial_error,
+            "observations": observations,
+        }
+
+    stop_request: Mapping[str, Any] | None = None
+    stop_request_error: str | None = None
+    try:
+        stop_request = exchange(
+            robot_host,
+            ["stop", "programState"],
+            timeout=2.0,
+        )
+    except Exception as exc:
+        stop_request_error = f"{type(exc).__name__}:{exc}"
+    if stop_request is not None:
+        observations.append(dict(stop_request))
+        if _program_stopped(stop_request):
+            return {
+                "ok": True,
+                "method": "dashboard_stop",
+                "stop_request": dict(stop_request),
+                "stop_request_error": None,
+                "initial_query_error": initial_error,
+                "observations": observations,
+            }
+
+    deadline = monotonic() + timeout_s
+    query_errors: list[str] = []
+    while monotonic() < deadline:
+        sleep(min(poll_interval_s, max(0.0, deadline - monotonic())))
+        try:
+            observed = observe()
+        except Exception as exc:
+            query_errors.append(f"{type(exc).__name__}:{exc}")
+            continue
+        if _program_stopped(observed):
+            return {
+                "ok": True,
+                "method": "observed_stopped_after_stop_rejection",
+                "stop_request": (
+                    None if stop_request is None else dict(stop_request)
+                ),
+                "stop_request_error": stop_request_error,
+                "initial_query_error": initial_error,
+                "query_errors": query_errors,
+                "observations": observations,
+            }
+
+    return {
+        "ok": False,
+        "method": "tp_stop_required",
+        "stop_request": None if stop_request is None else dict(stop_request),
+        "stop_request_error": stop_request_error,
+        "initial_query_error": initial_error,
+        "query_errors": query_errors,
+        "observations": observations,
+        "required_operator_action": "PRESS_TP_STOP",
+    }
 
 
 def _validate_preflight(path: Path, authorization: Mapping[str, Any]) -> dict[str, Any]:
@@ -331,13 +424,6 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             else:
                 raise HilHoldError("TP Play/READY_HOME stationary observation timeout")
         finally:
-            if ready_announced:
-                try:
-                    dashboard_stop = _stop_v3_program(
-                        str(check["effective_config"]["robot_host"])
-                    )
-                except Exception as exc:
-                    dashboard_stop_error = f"{type(exc).__name__}:{exc}"
             if process.poll() is None:
                 process.send_signal(signal.SIGINT)
                 try:
@@ -345,6 +431,18 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
                 except subprocess.TimeoutExpired:
                     process.terminate()
                     process.wait(timeout=5.0)
+            if ready_announced:
+                try:
+                    dashboard_stop = _stop_v3_program(
+                        str(check["effective_config"]["robot_host"])
+                    )
+                    if dashboard_stop.get("ok") is not True:
+                        dashboard_stop_error = (
+                            "TP program remains PLAYING after bridge cleanup; "
+                            "press TP Stop"
+                        )
+                except Exception as exc:
+                    dashboard_stop_error = f"{type(exc).__name__}:{exc}"
             atomic_json(
                 args.output_root / "cleanup.json",
                 {
