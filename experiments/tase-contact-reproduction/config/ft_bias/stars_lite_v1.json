@@ -1,0 +1,42 @@
+{
+  "schema": "ur10e.stars-lite/config-v1",
+  "alignment": {
+    "max_sensor_age_s": 0.1
+  },
+  "mode": {
+    "static_linear_speed_max_m_s": 0.0002,
+    "static_angular_speed_max_rad_s": 0.001,
+    "static_dwell_s": 0.25,
+    "impact_dwell_s": 0.05,
+    "release_dwell_s": 0.25,
+    "contact_normal_enter_n": 0.75,
+    "contact_force_enter_n": 2.0,
+    "contact_exit_scale": 0.7,
+    "stage_tolerance": 0.05
+  },
+  "ema": {
+    "force_tau_s": 30.0,
+    "torque_tau_s": 30.0,
+    "force_rate_limit_n_per_s": 0.5,
+    "torque_rate_limit_nm_per_s": 0.05
+  },
+  "kalman": {
+    "initial_force_bias_std_n": 0.25,
+    "initial_torque_bias_std_nm": 0.025,
+    "initial_force_rate_std_n_per_s": 0.05,
+    "initial_torque_rate_std_nm_per_s": 0.005,
+    "measurement_variance_floor_force_n2": 0.0001,
+    "measurement_variance_floor_torque_nm2": 1e-08,
+    "process_variance_floor_force_n2_per_s3": 1e-08,
+    "process_variance_floor_torque_nm2_per_s3": 1e-12,
+    "q_sweep_multipliers": [0.1, 1.0, 10.0]
+  },
+  "reference": {
+    "nominal_offset_m": 0.01,
+    "minimum_phase_coverage": 0.95,
+    "xy_rms_tolerance_m": 0.001,
+    "orientation_rms_tolerance_rad": 0.03490658503988659,
+    "linear_speed_rms_tolerance_m_s": 0.0005,
+    "offset_tolerance_m": 0.001
+  }
+}
