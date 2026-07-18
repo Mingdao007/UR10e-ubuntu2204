@@ -20,6 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MATRIX = ROOT / "config/step5d_autotune_v3_test_matrix.json"
 SCHEMA = "step5d.autotune-v3/parallel-test-run/v1"
 ALLOWED_LANES = {"small", "medium"}
+FAILURE_TAIL_BYTES = 64 * 1024
+FAILURE_TAIL_LINES = 200
 
 
 class TestMatrixError(RuntimeError):
@@ -32,6 +34,29 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def emit_failure_logs(payload: Mapping[str, Any], *, stream: Any = sys.stderr) -> None:
+    """Expose bounded pytest diagnostics without copying them into evidence JSON."""
+    for item in payload.get("results", []):
+        if item.get("returncode") == 0:
+            continue
+        lane = str(item.get("lane", "unknown"))
+        log = Path(str(item.get("log", "")))
+        if not log.is_absolute():
+            log = ROOT / log
+        try:
+            with log.open("rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                size = handle.tell()
+                handle.seek(max(0, size - FAILURE_TAIL_BYTES))
+                lines = handle.read().decode("utf-8", errors="replace").splitlines()
+            excerpt = "\n".join(lines[-FAILURE_TAIL_LINES:])
+        except OSError as exc:
+            excerpt = f"unable to read failed lane log: {exc}"
+        print(f"--- BEGIN FAILED LANE {lane} LOG TAIL ---", file=stream)
+        print(excerpt, file=stream)
+        print(f"--- END FAILED LANE {lane} LOG TAIL ---", file=stream)
 
 
 def load_commands(path: Path, lanes: Sequence[str], workers: int) -> dict[str, list[str]]:
@@ -157,6 +182,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"schema": SCHEMA, "ok": False, "blocker": str(exc)}))
         return 2
     print(json.dumps(payload, indent=2, sort_keys=True))
+    if not payload["ok"]:
+        emit_failure_logs(payload)
     return 0 if payload["ok"] else 1
 
 

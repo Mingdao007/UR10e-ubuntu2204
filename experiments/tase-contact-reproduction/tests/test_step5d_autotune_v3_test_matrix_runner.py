@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import sys
 from pathlib import Path
 
@@ -29,3 +30,30 @@ def test_serial_fallback_has_no_xdist() -> None:
 def test_runner_refuses_nonhermetic_or_empty_selection(lanes: list[str]) -> None:
     with pytest.raises(runner.TestMatrixError):
         runner.load_commands(runner.MATRIX, lanes, 2)
+
+
+def test_failed_lane_emits_bounded_log_tail_without_polluting_manifest(
+    tmp_path: Path,
+) -> None:
+    failed = tmp_path / "failed.log"
+    failed.write_text(
+        "\n".join(f"diagnostic-{index:03d}" for index in range(250)) + "\n",
+        encoding="utf-8",
+    )
+    passed = tmp_path / "passed.log"
+    passed.write_text("successful-secret\n", encoding="utf-8")
+    payload = {
+        "results": [
+            {"lane": "small", "returncode": 1, "log": str(failed)},
+            {"lane": "medium", "returncode": 0, "log": str(passed)},
+        ]
+    }
+    stream = io.StringIO()
+
+    runner.emit_failure_logs(payload, stream=stream)
+
+    output = stream.getvalue()
+    assert "BEGIN FAILED LANE small LOG TAIL" in output
+    assert "diagnostic-249" in output
+    assert "diagnostic-049" not in output
+    assert "successful-secret" not in output
