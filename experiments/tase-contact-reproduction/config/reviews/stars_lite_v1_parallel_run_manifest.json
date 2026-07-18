@@ -1,0 +1,21 @@
+{
+  "blas_threads_per_worker": 1,
+  "claim_class": "offline_tooling_only",
+  "completed_at": "2026-07-18T19:23:37.753307+00:00",
+  "contract_id": "ur10e_concurrency_contract_v1",
+  "cpu_workers": 14,
+  "dependencies": [
+    "inventory",
+    "train_measurement_noise",
+    "q_sweep",
+    "holdout"
+  ],
+  "exit_code": 0,
+  "output_paths": [
+    "evaluation.json"
+  ],
+  "resource_lane": "cpu_throughput",
+  "schema": "ur10e.parallel-run-manifest/v1",
+  "started_at": "2026-07-18T19:17:51.576304+00:00",
+  "task": "stars_lite_evaluate"
+}

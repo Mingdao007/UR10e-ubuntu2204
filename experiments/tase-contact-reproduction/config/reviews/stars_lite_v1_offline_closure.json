@@ -3,25 +3,32 @@
   "scope": "offline_no_motion_only",
   "source_branch": "impl/ur10e-stars-lite-replay-20260719",
   "dataset": {
-    "eligible_runs": 87,
+    "schema_eligible_runs": 87,
+    "analysis_excluded_runs": 3,
+    "analysis_eligible_runs": 84,
     "scenario_counts": {
-      "contact_capable": 61,
-      "no_contact": 26
+      "contact_capable": 60,
+      "no_contact": 24
     },
     "split_counts": {
       "holdout": 17,
-      "train": 53,
+      "train": 50,
       "tune": 17
     },
     "manifest": "config/reviews/stars_lite_v1_dataset_manifest.json",
-    "manifest_sha256": "0218c52593cc094fd645092820fe2e021df7e1acf5e746467d86c3d52a6045da"
+    "manifest_sha256": "34e145cbf97e4f9ce1764fd65e400e5f181055340a7e6b7bbaf6fe1accdd0e43"
   },
   "configuration": {
     "path": "config/ft_bias/stars_lite_v1.json",
-    "sha256": "e758e5bd427724a73c96334d07e47443e67738df0c770ce395c58407cbe392f5"
+    "sha256": "ee93393925deae8309eaf0cda34aac29132ff815e5bf014be5fe79428c358025"
   },
   "acceptance_thresholds": {
+    "minimum_causal_coverage": 0.95,
+    "minimum_valid_rows": 10,
     "contact_force_retention_ratio_min": 0.95,
+    "contact_force_retention_ratio_max": 1.05,
+    "contact_force_direction_cosine_min": 0.99,
+    "free_static_nis_p95_max": 16.812,
     "covariance_min_eigenvalue_min": -1e-12,
     "forbidden_update_count_max": 0,
     "future_sample_count_max": 0,
@@ -29,28 +36,42 @@
     "static_torque_rmse_nm_max": 0.01
   },
   "evaluation": {
-    "full_artifact_sha256": "e84bce637938295c7c751702c09d7906bd9bc68ee332c776fb72d4eee76ea029",
+    "implementation_sha256": "e31856e0a8fe0dc80c6744e8571e2001cd24abfa9ea136473781e7559a2b8c69",
+    "artifact": "config/reviews/stars_lite_v1_evaluation.json",
+    "artifact_sha256": "19fcd5eb6d393b9a8c1ee746380091db8f05608155bc7795d94aee541b4669aa",
+    "parallel_run_manifest": "config/reviews/stars_lite_v1_parallel_run_manifest.json",
+    "parallel_run_manifest_sha256": "5c9d56fe040c707b34044454e3c149608eec9b04047b59507666cae1a0afa0f6",
+    "training": {
+      "train_runs": 50,
+      "contributing_train_runs": 30,
+      "static_difference_count": 204561,
+      "method": "train_split_contiguous_free_static_first_difference_variance_over_two"
+    },
     "q_sweep": {
       "0.1": {
-        "mean_score": 0.19020236653365882,
-        "scored_tune_runs": 6
+        "mean_score": 0.19622527452008073,
+        "scored_tune_runs": 7
       },
       "1.0": {
-        "mean_score": 0.19014665125520822,
-        "scored_tune_runs": 6
+        "mean_score": 0.1961873405290331,
+        "scored_tune_runs": 7
       },
       "10.0": {
-        "mean_score": 0.19004585327003945,
-        "scored_tune_runs": 6
+        "mean_score": 0.1961272718630556,
+        "scored_tune_runs": 7
       }
     },
     "selected_q_multiplier": 10.0,
-    "software_pass_runs": 87,
+    "software_pass_runs": 84,
+    "promotion_pass_runs": 0,
     "forbidden_update_count": 0,
     "future_sample_count": 0,
-    "minimum_covariance_eigenvalue": 4.630537428050481e-12,
-    "holdout_promotion_pass_runs": 3,
-    "holdout_runs": 17,
+    "minimum_causal_coverage": 0.9937084935337295,
+    "minimum_valid_rows": 157,
+    "minimum_covariance_eigenvalue": 7.932416388326289e-12,
+    "free_static_nis_p95_min": 25.560607413764103,
+    "free_static_nis_p95_max": 1612.1683088011214,
+    "frozen_nis_rows": 1063757,
     "offline_software": "pass",
     "kalman_promotion": "not_promoted",
     "reference_physical_validation": "not_evaluated"
@@ -59,32 +80,29 @@
     "targeted_unittest": {
       "command": "python3 -m unittest tests.test_contact_mode_estimator tests.test_stars_bias_replay tests.test_stars_bias_logging_contract",
       "result": "pass",
-      "tests": 20
+      "tests": 26
     },
+    "full_historical_evaluation": "pass",
+    "canonical_artifact_path_scan": "pass",
     "local_control_textbook_alignment": "pass",
     "semantic_gate_static_scan": "pass",
     "semantic_gate_eq23_sign_probe": "pass",
     "historical_v6_controller_semantic_replay": {
-      "result": "fail_preexisting_log_semantics",
-      "scope_effect": "does_not_change_stars_lite_offline_software_result"
+      "bridge_step5d_strict_rnn_liveprep_v6_20260615_173534": "not_evaluable_no_stage25_rows",
+      "bridge_step5d_strict_rnn_liveprep_v6_20260615_173634": "pass_first_8_stage25_rows",
+      "scope_effect": "independent_from_stars_lite_offline_software_result"
     },
     "repository_unittest_discovery": {
       "result": "baseline_failures_present",
-      "tests": 1514,
+      "tests": 1520,
       "failures": 21,
       "errors": 72,
       "skipped": 1,
       "dominant_cause": "missing retained run fixtures and unrelated baseline assertions"
-    },
-    "detached_fable_shadow": {
-      "result": "provider_failed",
-      "blocking": false,
-      "runtime_provenance_verified": false,
-      "findings_used": false
     }
   },
   "claim_boundary": {
-    "estimator_origin": "logged sensor frame/origin; no rigid-tip wrench claim",
+    "estimator_origin": "logged Kunwei channel coordinates; physical wrench origin unverified; no tip-wrench claim",
     "live_contact_accepted": false,
     "package_accepted": false,
     "tase_reproduction_accepted": false
