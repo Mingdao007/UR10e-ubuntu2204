@@ -18,6 +18,7 @@ from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
 import verify_step5d_autotune_v3_execution_readiness as execution_readiness
+from preflight_step5d_autotune_v3 import PREDICATE_NAMES as LIVE_PREFLIGHT_PREDICATES
 from prepare_step5d_autotune_launch import prepare
 from preflight_readonly import dashboard_exchange
 from run_step5d_autotune_campaign import (
@@ -382,14 +383,7 @@ def _validate_preflight(path: Path, identity: Mapping[str, Any]) -> dict[str, An
         if payload.get(key) != value:
             raise LiveLaunchError(f"V3 live preflight {key} differs")
     predicates = payload.get("predicates") or {}
-    required = {
-        "safety_normal",
-        "program_safe_for_bridge",
-        "robot_stationary",
-        "no_existing_writer",
-        "mailbox_initial_zero",
-        "runtime_dependencies",
-    }
+    required = LIVE_PREFLIGHT_PREDICATES
     if set(predicates) != required or not all(
         isinstance(predicates[name], dict) and predicates[name].get("ok") is True
         for name in required

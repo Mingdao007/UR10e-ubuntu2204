@@ -37,6 +37,17 @@ from step5d_autotune_v3.state import atomic_json
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
 TP_PROGRAM_PATTERN = re.compile(r"([^<>\s]+\.urp)(?=$|[>\s])", re.IGNORECASE)
+PREDICATE_NAMES = frozenset(
+    {
+        "safety_normal",
+        "program_safe_for_bridge",
+        "robot_stationary",
+        "prealign_start_clearance",
+        "no_existing_writer",
+        "mailbox_initial_zero",
+        "runtime_dependencies",
+    }
+)
 
 
 class PreflightError(RuntimeError):
@@ -287,6 +298,8 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
             ),
         },
     }
+    if set(predicates) != PREDICATE_NAMES:
+        raise PreflightError("internal live-preflight predicate schema drift")
     transport_ok = (
         local_ok
         and "dashboard" in remote

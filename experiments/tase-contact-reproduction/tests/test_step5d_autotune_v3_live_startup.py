@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_autotune_v3_live as live  # noqa: E402
+import preflight_step5d_autotune_v3 as preflight  # noqa: E402
 
 
 def _row(*, runtime_state: int, state: int = 10) -> dict[str, str]:
@@ -36,6 +40,40 @@ def test_preplay_does_not_wait_for_stale_stopped_tp_output_registers() -> None:
     assert "_ready_home_zero_identity" not in source
     assert "pre-Play READY_HOME" not in source
     assert "stationary zero-identity READY_HOME" not in source
+
+
+def test_live_consumer_accepts_the_complete_production_preflight_schema(
+    tmp_path: Path,
+) -> None:
+    identity = {
+        "contract_sha256": "a" * 64,
+        "control_fingerprint": "b" * 64,
+        "orchestration_fingerprint": "c" * 64,
+    }
+    payload = {
+        "schema": preflight.SCHEMA,
+        "ok": True,
+        "fresh": True,
+        "candidate_stage_id": live.RELEASE_STAGE_ID,
+        "control_profile_id": live.CONTROL_PROFILE_ID,
+        "tp_program_id": live.TP_PROGRAM_ID,
+        "identity": identity,
+        "predicates": {
+            name: {"ok": True} for name in preflight.PREDICATE_NAMES
+        },
+    }
+    path = tmp_path / "live_preflight.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    observed = live._validate_preflight(path, identity)
+
+    assert observed == payload
+    assert "prealign_start_clearance" in observed["predicates"]
+
+    del payload["predicates"]["prealign_start_clearance"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(live.LiveLaunchError, match="predicates are incomplete"):
+        live._validate_preflight(path, identity)
 
 
 def test_operator_play_signal_precedes_runner_recovery_from_fresh_tp_state() -> None:
