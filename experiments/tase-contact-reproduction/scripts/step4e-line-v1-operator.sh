@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${ROOT}/../.." && pwd)"
 RUN_ROOT="${ROOT}/runs"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 ROBOT_HOST="${ROBOT_HOST:-192.168.1.18}"
@@ -70,6 +73,42 @@ case "${STEP4E_VERSION}" in
     STEP4E_VERSION="step6b_v2"
     ;;
 esac
+STEP4E_ROUTE_VERSION=""
+STEP4E_ROUTE_PROGRAM_BASENAME=""
+STEP4E_ROUTE_LOCAL_DIR=""
+STEP4E_ROUTE_CONTROLLER_DIR=""
+STEP4E_ROUTE_CONTROLLER_URP=""
+STEP4E_ROUTE_RUN_LABEL=""
+STEP4E_ROUTE_LIFECYCLE=""
+if [[ "${STEP4E_VERSION}" =~ ^v([1-9]|[12][0-9]|3[01])$ ]]; then
+  if ! STEP4E_ROUTE_LINE="$(
+    python3 "${ROOT}/tools/resolve_step4e_route.py" \
+      --version "${STEP4E_VERSION}" --format tsv
+  )"; then
+    echo "refusing unresolved Step4e route: ${STEP4E_VERSION}" >&2
+    exit 40
+  fi
+  IFS=$'\t' read -r \
+    STEP4E_ROUTE_VERSION \
+    STEP4E_ROUTE_PROGRAM_BASENAME \
+    STEP4E_ROUTE_LOCAL_DIR \
+    STEP4E_ROUTE_CONTROLLER_DIR \
+    STEP4E_ROUTE_CONTROLLER_URP \
+    STEP4E_ROUTE_RUN_LABEL \
+    STEP4E_ROUTE_LIFECYCLE <<<"${STEP4E_ROUTE_LINE}"
+  if [[ "${STEP4E_ROUTE_VERSION}" != "${STEP4E_VERSION}" || -z "${STEP4E_ROUTE_CONTROLLER_URP}" ]]; then
+    echo "refusing inconsistent Step4e route: ${STEP4E_VERSION}" >&2
+    exit 40
+  fi
+fi
+if [[ "${1:-}" == "route-info" ]]; then
+  if [[ -z "${STEP4E_ROUTE_VERSION}" ]]; then
+    echo "route-info is available only for Step4e v1..v31" >&2
+    exit 40
+  fi
+  exec python3 "${ROOT}/tools/resolve_step4e_route.py" \
+    --version "${STEP4E_ROUTE_VERSION}" --format json
+fi
 BRIDGE_DURATION_S="${BRIDGE_DURATION_S:-180}"
 STEP4E_BACKGROUND_PUSH_AFTER_LIVE="${STEP4E_BACKGROUND_PUSH_AFTER_LIVE:-0}"
 STEP5B_DIAGNOSTIC_SEND_MAC="${STEP5B_DIAGNOSTIC_SEND_MAC:-1}"
@@ -133,7 +172,7 @@ STEP4E_INTEGRAL_LIMIT_N_S="${STEP4E_INTEGRAL_LIMIT_N_S:-10.0}"
 STEP4E_REACQUIRE_VELOCITY_M_S="${STEP4E_REACQUIRE_VELOCITY_M_S:-0.001}"
 STEP5C_QDOT_LIMIT_RAD_S="${STEP5C_QDOT_LIMIT_RAD_S:-0.15}"
 STEP5C_JOINT_DAMPING="${STEP5C_JOINT_DAMPING:-0.0001}"
-STEP5C_JOINT_MODEL="${STEP5C_JOINT_MODEL:-/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml}"
+STEP5C_JOINT_MODEL="${STEP5C_JOINT_MODEL:-${REPO_ROOT}/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml}"
 STEP5C_JOINT_SITE="${STEP5C_JOINT_SITE:-tcp_site_unverified_85mm}"
 STEP4E_NORMAL_FOLLOW_MODE="${STEP4E_NORMAL_FOLLOW_MODE:-}"
 STEP4E_NORMAL_FILTER_TAU_S="${STEP4E_NORMAL_FILTER_TAU_S:-0.35}"
@@ -183,42 +222,12 @@ fi
 
 PROGRAM_PREVIEW="/programs/andyl/kunwei/step4/step4e_preview_line_${STEP4E_VERSION}.urp"
 PROGRAM_HOLD="/programs/andyl/kunwei/step4/step4e_contact_hold_line_${STEP4E_VERSION}.urp"
-PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_line_outerloop_${STEP4E_VERSION}.urp"
+PROGRAM_LINE=""
 PROGRAM_GEO="/programs/andyl/kunwei/step4/step4e_ball_first_contact_p0_v1.urp"
 PROGRAM_WITNESS="/programs/andyl/kunwei/step4/step4e_ball_vs_cyl_contact_p0_v1.urp"
 PROGRAM_AXIS_ISO="/programs/andyl/kunwei/step4/step4e_attitude_axis_iso_v1.urp"
-if [[ "${STEP4E_VERSION}" == "v21" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_detached_movel_minrot_v21.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v22" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v22.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v23" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v23.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v24" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v24.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v25" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v25.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v26" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v26.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v27" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e/step4e_seed_normal_loop_v27.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v28" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v28.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v29" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v29.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v30" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v30.urp"
-fi
-if [[ "${STEP4E_VERSION}" == "v31" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v31.urp"
+if [[ -n "${STEP4E_ROUTE_CONTROLLER_URP}" ]]; then
+  PROGRAM_LINE="${STEP4E_ROUTE_CONTROLLER_URP}"
 fi
 if [[ "${STEP4E_VERSION}" == "step4f_v1" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4f_cycloid_seed_normal_v1.urp"
@@ -464,53 +473,9 @@ select_mode() {
       ;;
     line-autowatch|line-bridge|line-bridge-fast)
       EXPECTED_PROGRAM="${PROGRAM_LINE}"
-      if [[ "${STEP4E_VERSION}" == "v21" ]]; then
-        EXPECTED_BASENAME="step4e_detached_movel_minrot_v21.urp"
-      elif [[ "${STEP4E_VERSION}" == "step4f_v1" ]]; then
-        EXPECTED_BASENAME="step4f_cycloid_seed_normal_v1.urp"
-      elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
-        EXPECTED_BASENAME="step4g_eight_seed_normal_v1.urp"
-      elif [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
-        EXPECTED_BASENAME="step5b_contact_cycloid_baseline_v1.urp"
-      elif [[ "${STEP4E_VERSION}" == "step5b_v2" ]]; then
-        EXPECTED_BASENAME="step5b_contact_cycloid_baseline_v2.urp"
-      elif [[ "${STEP4E_VERSION}" == "step5b_v3" ]]; then
-        EXPECTED_BASENAME="step5b_contact_cycloid_baseline_v3.urp"
-      elif [[ "${STEP4E_VERSION}" == step5d_strict_rnn_liveprep_v* || "${STEP4E_VERSION}" == step5d_strict_rnn_ablation_v* ]]; then
-        EXPECTED_BASENAME="${STEP4E_VERSION}.urp"
-      elif [[ "${STEP4E_VERSION}" == "step6b_v1" ]]; then
-        EXPECTED_BASENAME="step6b_contact_eight_baseline_v1.urp"
-      elif [[ "${STEP4E_VERSION}" == "step6b_v2" ]]; then
-        EXPECTED_BASENAME="step6b_contact_eight_baseline_v2.urp"
-      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" || "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" ]]; then
-        EXPECTED_BASENAME="step4e_seed_normal_loop_${STEP4E_VERSION}.urp"
-      else
-        EXPECTED_BASENAME="step4e_line_outerloop_${STEP4E_VERSION}.urp"
-      fi
+      EXPECTED_BASENAME="${PROGRAM_LINE##*/}"
       STEP4E_MODE="line"
-      if [[ "${STEP4E_VERSION}" == "v21" ]]; then
-        RUN_LABEL="step4e_detached_movel_minrot_v21"
-      elif [[ "${STEP4E_VERSION}" == "step4f_v1" ]]; then
-        RUN_LABEL="step4f_cycloid_seed_normal_v1"
-      elif [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
-        RUN_LABEL="step4g_eight_seed_normal_v1"
-      elif [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
-        RUN_LABEL="step5b_contact_cycloid_baseline_v1"
-      elif [[ "${STEP4E_VERSION}" == "step5b_v2" ]]; then
-        RUN_LABEL="step5b_contact_cycloid_baseline_v2"
-      elif [[ "${STEP4E_VERSION}" == "step5b_v3" ]]; then
-        RUN_LABEL="step5b_contact_cycloid_baseline_v3"
-      elif [[ "${STEP4E_VERSION}" == step5d_strict_rnn_liveprep_v* || "${STEP4E_VERSION}" == step5d_strict_rnn_ablation_v* ]]; then
-        RUN_LABEL="${STEP4E_VERSION}"
-      elif [[ "${STEP4E_VERSION}" == "step6b_v1" ]]; then
-        RUN_LABEL="step6b_contact_eight_baseline_v1"
-      elif [[ "${STEP4E_VERSION}" == "step6b_v2" ]]; then
-        RUN_LABEL="step6b_contact_eight_baseline_v2"
-      elif [[ "${STEP4E_VERSION}" == "v22" || "${STEP4E_VERSION}" == "v23" || "${STEP4E_VERSION}" == "v24" || "${STEP4E_VERSION}" == "v25" || "${STEP4E_VERSION}" == "v26" || "${STEP4E_VERSION}" == "v27" || "${STEP4E_VERSION}" == "v28" || "${STEP4E_VERSION}" == "v29" || "${STEP4E_VERSION}" == "v30" || "${STEP4E_VERSION}" == "v31" ]]; then
-        RUN_LABEL="step4e_seed_normal_loop_${STEP4E_VERSION}"
-      else
-        RUN_LABEL="step4e_line_outerloop_${STEP4E_VERSION}"
-      fi
+      RUN_LABEL="${EXPECTED_BASENAME%.urp}"
       if [[ -n "${RUN_LABEL_SUFFIX}" ]]; then
         RUN_LABEL="step5b_${RUN_LABEL_SUFFIX}"
       fi
@@ -892,7 +857,7 @@ maybe_start_background_push() {
   fi
   local log="${out_dir}/background_git_push.log"
   (
-    cd /home/andy/ur10e_ros2_ws
+    cd "${REPO_ROOT}"
     git push
   ) >"${log}" 2>&1 &
   echo "[operator] background git push started: pid=$! log=${log}"

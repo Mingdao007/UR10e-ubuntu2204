@@ -29,6 +29,13 @@ def manifest_from_upload_output(output: str) -> dict:
 
 
 class UploadUrTpPackageReuseTest(unittest.TestCase):
+    def test_helper_json_parser_ignores_transport_noise(self) -> None:
+        payload = upload.parse_helper_json(
+            "transport progress\n\n"
+            '{"ok": true, "operation": "readback", "files": []}\n'
+        )
+        self.assertEqual(payload["operation"], "readback")
+
     def test_upload_validator_checks_installation_relative_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
@@ -256,6 +263,33 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
             self.assertEqual(shas["readback"], local_sha)
             self.assertTrue((readback_dir / f"{program}.urp").is_file())
             remote.assert_called_once()
+
+    def test_full_delivery_uses_only_manifest_bound_helper_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            files = self._write_triplet(root, "demo_program", "same")
+            helper = root / "controller-helper.py"
+            helper.touch()
+            output = io.StringIO()
+            with redirect_stdout(output):
+                result = upload.upload_and_readback(
+                    files,
+                    "demo_program",
+                    upload.DEFAULT_CONTROLLER,
+                    "/programs/andyl/kunwei/demo",
+                    root / "readback",
+                    helper=helper,
+                    dry_run=True,
+                )
+            rendered = output.getvalue()
+
+        self.assertEqual(result, {})
+        self.assertIn("deploy-triplet", rendered)
+        self.assertIn("--confirm-deploy", rendered)
+        self.assertIn("readback", rendered)
+        self.assertNotIn(" run -- ", rendered)
+        self.assertNotIn(" put ", rendered)
+        self.assertNotIn(" get ", rendered)
 
     def test_remote_sha_mismatch_falls_back_to_full_upload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
