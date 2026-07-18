@@ -62,9 +62,12 @@ versus shadow on bit-for-bit.
   excluded because `direct_torque()` compensates gravity internally. The
   template has no invocation, defaults to disabled, and has no upload/network
   path.
-- The 5.25.2 template is not executable on the last recorded 5.11.9 controller.
-  It remains blocked until the conditional upgrade, fresh readback, and matching
-  URSim validation cover syntax, one-tick runtime, heartbeat exit, and timing.
+- The 5.25.2 template remains the exact offline compatibility target. A
+  read-only controller observation on 2026-07-19 reports PolyScope
+  `5.26.0.140462`, so installing 5.25.2 would be a downgrade and the old
+  upgrade checkpoint is closed without installation. Execution remains blocked
+  until current-version URCap/configuration/API readback and matching URSim
+  validation cover syntax, one-tick runtime, heartbeat exit, and timing.
   `controller_verified` remains false in every checked-in artifact.
 
 The RTDE manifest binds exactly 24 input doubles (equilibrium pose, K, D, and raw

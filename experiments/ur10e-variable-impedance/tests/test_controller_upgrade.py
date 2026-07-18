@@ -71,6 +71,14 @@ class ControllerUpgradeGateTests(unittest.TestCase):
             "target_already_installed_use_post_upgrade_readback", decision.blockers
         )
 
+    def test_newer_controller_blocks_target_as_downgrade(self) -> None:
+        evidence = valid_preflight()
+        evidence["current_polyscope_version"] = "5.26.0.140462"
+        decision = evaluate_upgrade_preflight(evidence)
+        self.assertFalse(decision.accepted)
+        self.assertFalse(decision.controller_verified)
+        self.assertIn("target_would_be_a_downgrade", decision.blockers)
+
     def test_post_upgrade_readback_does_not_imply_motion_authorization(self) -> None:
         evidence = {
             "polyscope_version": "5.25.2",

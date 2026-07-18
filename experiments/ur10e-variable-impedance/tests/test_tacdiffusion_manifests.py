@@ -56,14 +56,24 @@ class TacDiffusionManifestTests(unittest.TestCase):
     def test_upgrade_plan_cannot_predeclare_controller_readiness(self) -> None:
         preflight = load("controller_5_25_2_upgrade_preflight.json")
         self.assertEqual(preflight["target_controller_version"], "5.25.2")
+        self.assertEqual(
+            preflight["observed_controller"]["polyscope_version"],
+            "5.26.0.140462",
+        )
+        self.assertEqual(
+            preflight["checkpoint_decision"]["reason"],
+            "target_would_be_a_downgrade",
+        )
         self.assertFalse(preflight["controller_verified"])
-        self.assertTrue(preflight["upgrade_route"]["upgrade_is_conditional"])
+        self.assertFalse(preflight["upgrade_route"]["upgrade_is_conditional"])
         self.assertFalse(preflight["upgrade_route"]["fallback_to_5_23_allowed"])
         self.assertFalse(preflight["upgrade_route"]["downgrade_allowed"])
         stops = " ".join(preflight["mandatory_stop_conditions"])
         self.assertIn("URCap", stops)
         self.assertIn("PROFIsafe", stops)
         boundary = preflight["installation_boundary"]
+        self.assertFalse(boundary["controller_upgrade_allowed"])
+        self.assertFalse(boundary["controller_upgrade_after_all_preflight_passes"])
         for prohibited in (
             "play_program",
             "start_bridge",
@@ -72,6 +82,21 @@ class TacDiffusionManifestTests(unittest.TestCase):
             "produce_robot_motion",
         ):
             self.assertFalse(boundary[prohibited])
+
+        observation_path = ROOT / preflight["observed_controller"]["evidence"]
+        observation = json.loads(observation_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            observation["controller"]["polyscope_version"],
+            "5.26.0.140462",
+        )
+        self.assertEqual(
+            observation["checkpoint_decision"]["status"],
+            "closed_no_install",
+        )
+        self.assertFalse(observation["checkpoint_decision"]["controller_verified"])
+        self.assertFalse(
+            any(observation["actions_performed_by_capture"].values())
+        )
 
     def test_validation_ledger_stages_are_monotonic_and_isolated(self) -> None:
         ledger = load("validation_ledger.json")

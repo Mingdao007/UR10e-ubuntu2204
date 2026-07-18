@@ -24,9 +24,11 @@
       "deterministic_tested": true,
       "simulation_run": false,
       "hardware_run": false,
+      "checkpoint_state": "closed_no_install_target_superseded_by_observed_5_26_0",
       "evidence": [
         "config/controller_5_25_2_upgrade_preflight.json",
         "tools/validate_controller_5_25_2_upgrade.py",
+        "evidence/controller_5_26_0_readonly_20260719.json",
         "evidence/tacdiffusion_offline_validation.json"
       ],
       "controller_verified": false
