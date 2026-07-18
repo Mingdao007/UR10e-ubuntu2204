@@ -1,0 +1,1151 @@
+{
+  "counts": {
+    "contact_capable.holdout": 12,
+    "contact_capable.train": 37,
+    "contact_capable.tune": 12,
+    "no_contact.holdout": 5,
+    "no_contact.train": 16,
+    "no_contact.tune": 5
+  },
+  "eligible_count": 87,
+  "records": [
+    {
+      "files": {
+        "bridge_sha256": "9bbf073d33599a5de4dd392fbb67631ebfcea411977cab7c68efd3d40b49da5e",
+        "metadata_sha256": "68e06f80dc310a07ec20576d18587381c1ce94c870345251bbc1d80386badd25",
+        "sensor_sha256": "ac5547909d843c8091ff3a2240510f22c537869aaf54570243112263d8a28f52"
+      },
+      "identity_sha256": "d516b4b164b8e1383363773a27826c08ce04abd2755baec646900d13ecbd58a9",
+      "profile": "step5d_strict_rnn_liveprep_v18",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v18_20260702_170048",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v18_20260702_170048",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "e4b9cbeb4cb467cba89471fa8e9e7c675d5680be794cc578877b537d08364bba",
+        "metadata_sha256": "dc666dea796cd5f91dd5a3982e7c1a2f808d5225219a6ee243399134ff5829a7",
+        "sensor_sha256": "5d45d94ea181687e00dd2f9557d273ee652913fc6976e0bb6887af8421deada6"
+      },
+      "identity_sha256": "c20d41b04094584d38b03a3ec60edbf9d42bfead283d536f734c19fa7aa8300b",
+      "profile": "step5d_strict_rnn_liveprep_v19",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v19_20260702_173622",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v19_20260702_173622",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "5d4d2a90815f5f13b47041717d9d115169434b2ff140b936fd6a8bd561e415dd",
+        "metadata_sha256": "096823cd459b7428df17e41f67505359ca9da0c5733ab16042c6fc13a9fcedff",
+        "sensor_sha256": "471b04faa633dc1c24711de1cdc6bc7eb3061e97c83a322966488a98872a94bb"
+      },
+      "identity_sha256": "41c7206257d231c32802826b6fbde9e75eeabb35ee652bda6784e9e1c2a8d0a0",
+      "profile": "step5d_strict_rnn_liveprep_v19",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v19_20260702_173901",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v19_20260702_173901",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "7e590d76eb670d895bcb2a6350bf4c4e2f7fcaf6853ecf3530427605b7e4f225",
+        "metadata_sha256": "8ed0a8acab496e9544df1cb34b27d174ce42f99c8f5b2bf263fe8ac428174f0b",
+        "sensor_sha256": "87d78227fb466b9bd5dfd71b0235e4b8f9672bfb54c7c2b18379407f4dfcc1e9"
+      },
+      "identity_sha256": "77b70799f3c67863836b9ccac2a8e251f99355cedb2d51f2f4b75cfa644c5fe1",
+      "profile": "step5d_strict_rnn_liveprep_v20",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v20_20260702_194034",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v20_20260702_194034",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "be7ad0ac251643e8f64b756e3500eb3157bca26bf6e17a1070ef5ea3d9a656ff",
+        "metadata_sha256": "b076a6061282f5a4328b94dbdd84e1e0db8173e383cdf68bd95bf83079db0eac",
+        "sensor_sha256": "cf3f2da031dfc33aa5dc698c4c34b0de5b793cefc33660d7a0916f0c8a171703"
+      },
+      "identity_sha256": "953bd9ed75ea7dab6f8a7382bbadd481cff3e495c350e292c1840e4aaa714f22",
+      "profile": "step5d_strict_rnn_liveprep_v20",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v20_20260702_194536",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v20_20260702_194536",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "1b92e9a8a2e7d2c7d4533e4c4f06efc54c56660d5554afc4beff37eb73a40cdf",
+        "metadata_sha256": "71af6bff172c93836d3f773e9d5c0a783a7e26ca3afdf77d10705cfc2b8b6dd3",
+        "sensor_sha256": "50e61916517234250e43656c3f7a111b75ed97280a9083be87254368239f5953"
+      },
+      "identity_sha256": "fd7bff8cc00c0550538304d75ad8d03d0e455200ce2fe9ddf68bf57d6392395d",
+      "profile": "step5d_strict_rnn_liveprep_v21",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v21_20260702_211947",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v21_20260702_211947",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "f6700d9c4c48490a6c39354f252c43cdc40ef9f58907f5a1b2340cf36272fb1f",
+        "metadata_sha256": "db61b2481716c6ea27a958dc411ed977b1bf626ba8e69ab1d97fd5e7c94dd08b",
+        "sensor_sha256": "f2056deae99cc04de8e5d89c65cfa87f4f078e4c2a21b7d572089f962c9a6019"
+      },
+      "identity_sha256": "0333390408876eea823b85264740c969d602af78e5e73f270dbf57c730c0098e",
+      "profile": "step5d_strict_rnn_liveprep_v22",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_222724",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_222724",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "bc614f37f51aff6cd3ab772ba8fbc3f95f2f7ae8558f496642509c8b9f22712e",
+        "metadata_sha256": "b7fc3f3a53b2c577c7593f38333f9d3bdbc9626ff52a2a7363d9c63af5d72bd3",
+        "sensor_sha256": "730ad9a0ecf989872ecdf816cc489d1adea21673037e98c98d4cd0b7882ffa30"
+      },
+      "identity_sha256": "bdf823c7357cb84fdc13ad1a053063068e79da67c32a08e0760c64b7c1b3c5c1",
+      "profile": "step5d_strict_rnn_liveprep_v22",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_223330",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_223330",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "51e8e571c811925f40d6721d0dae1e9e935c51418efe25cb17bfb3c8b52be1d9",
+        "metadata_sha256": "ecd889654c520b5109c990fe7fd4e02692e102ae4f6e9961565161da229f589e",
+        "sensor_sha256": "4ea153f6ed335666de7579f17780a56677728237efd212b8a812d2813a8a34fe"
+      },
+      "identity_sha256": "c7e0ca24d26c84004917b33d2844cc73b005e804e818f84340d8275e59ef9224",
+      "profile": "step5d_strict_rnn_liveprep_v22",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_235134",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_235134",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "c4afd3b1cac62e08b667b4d0426eef884590c4c50ad88b3cddaa7717e2daf827",
+        "metadata_sha256": "e2f893b8350f3dffd1f283d789e07068d1302a79c2f997af33e2f3d0ab24360d",
+        "sensor_sha256": "c126cb695ba41ec5db0efb1a428680bb6c7a429724e480ec72597d874bfd72cb"
+      },
+      "identity_sha256": "d31d92677b7cb30ac07ea2791b09af72c9ec1e57723c378fac96ae30484c008f",
+      "profile": "step5d_strict_rnn_liveprep_v22",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_235213",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_235213",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "0ab4025cd7461958136f31d81388366db1a141babd7eb4f08286f8a0e1ce0a0e",
+        "metadata_sha256": "64a6b1109e3a8cfb6b11e3c9bf03e3244a27b35af848792a50b106b564268d34",
+        "sensor_sha256": "e9aeb2b75aeda81ae3b529bfda4a11f0126267f7355c6bd61db953da9ddfb73e"
+      },
+      "identity_sha256": "5aecd72f16c0e03e73b1963388e0fde2900780f5600a00df6a904e59a07fc6a0",
+      "profile": "step5d_strict_rnn_liveprep_v22",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_235312",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v22_20260702_235312",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "41f9eb3466a4a63b1e0504a1f8152ae21f6d85d0d57e94581826308a9ae5ebfb",
+        "metadata_sha256": "5ec0217bac2b6ad36ec4a3b36bc6f81cdd755733b6faebaa7ff917b8a7d1d4d9",
+        "sensor_sha256": "30c46a56e005d7be2a342f2e20d6bc40755539d2aa118d6821b48a3fb764ad43"
+      },
+      "identity_sha256": "1e7c3e2473042440a1aa5c4acba5fce9223668b3f97501489b536412f05fdba7",
+      "profile": "step5d_strict_rnn_no_contact_p0_v1",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_20260706_225716",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_20260706_225716",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "866faff260610eeaafbefeb9f015a4c17176b55f014f339bc506c30bcc10c1bf",
+        "metadata_sha256": "8d03f50f9bfdc5195e18cfb133f67865e224097acb581328ead75ec3c7bfdd91",
+        "sensor_sha256": "b1d446c08fddc32fa84b7cb4363fcca09b4aade7cab4f0ad7aeab1a30626b5df"
+      },
+      "identity_sha256": "4f6297af82012bb7d7a2a44ec6681be0c508356d90edad66b3cbda04647ea63e",
+      "profile": "step5d_strict_rnn_no_contact_p0_v1",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_20260706_230049",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_20260706_230049",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "31818bb2b812bd671e7707b07eb4197fbb4b503a2f3acce28e0725dcb5b537dd",
+        "metadata_sha256": "0df5a6ab3a79b2fafad148ee59eb87afeb976f2ece6a42eb424689bcbb9bee7a",
+        "sensor_sha256": "d67bb2d4cb024f3d0f12d5f383e6a99f8da51d51e992a25aa367a2bb8549cfd5"
+      },
+      "identity_sha256": "c927d5ddd446dd8c358b192ca5de326cca3e5f5624cc4fa90563ef80ceb95fa3",
+      "profile": "step5d_strict_rnn_no_contact_p0_v1",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_autowatch_20260706_230545",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_autowatch_20260706_230545",
+      "scenario": "no_contact",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "e6ff936701f2a94524c94311163cb05d056a525b97e16201f8914e8a91ccf151",
+        "metadata_sha256": "ccba0776a6e389195ea9d24dc257fb67222c6e00c6386a51b446d0101fcf6580",
+        "sensor_sha256": "1a88ca6022bb4cbc84e9355ba08d5a8e99911c7a8f1f23b9a976d93a29635933"
+      },
+      "identity_sha256": "dd15aec9b487e257da7ba810a51c8989ec02bbf9ae126e98777f01e5e09ca48c",
+      "profile": "step5d_strict_rnn_no_contact_p0_v1",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_autowatch_20260706_235036",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v1_autowatch_20260706_235036",
+      "scenario": "no_contact",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "5a8ef362f8226d21c2de1263b0adbcd3fbd0c51094b54b385a7195fd2ae96e4d",
+        "metadata_sha256": "8162e2356e289172b3cb72f5651bca77758176a50d0ab1836b72d12fb3309968",
+        "sensor_sha256": "783979d2d2618294e9c0e2bd06d1c042121ed3ad4282df9ca90703a890474b82"
+      },
+      "identity_sha256": "80e6bdbff475d480309b4ea37dbc2c45ebe8997f692ce16be1e7c3e07e7e8587",
+      "profile": "step5d_strict_rnn_no_contact_p0_v2",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v2_autowatch_20260707_000451",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v2_autowatch_20260707_000451",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "15c74eeb8a0b63238f166575585ce28f07b6b95744fd698dd99c39877987ebd0",
+        "metadata_sha256": "da2e4a72fa0c0c41c5cd6304133fe049cdda8d6b9ee6361f9b3780d53eb92c6d",
+        "sensor_sha256": "8064ea24ddbddf76017479b6b1c901fce23df70045e5cd7d412b3aca43dd496c"
+      },
+      "identity_sha256": "db171295b36c4140013b60e332236604717b66daeace3bd8ccaa742f9948b07e",
+      "profile": "step5d_strict_rnn_no_contact_p0_v2",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v2_autowatch_20260707_083500",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v2_autowatch_20260707_083500",
+      "scenario": "no_contact",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "65ba795ee272d4185b8fc9490c010e042000b52d0f0cf6b4f2a2f5f47e5b0b26",
+        "metadata_sha256": "733da6d959e8735d8ec996b922cef13f4449c01b034f4a380ce52957a07c79e6",
+        "sensor_sha256": "66fe1759f35189e335d877a7d34b8f4b4e128754876818fdaec9dcddcc0e3396"
+      },
+      "identity_sha256": "c8077453f74a510462dfb639ea0dafbe7f6fd065cfbd8e6c475f780a5aafce9e",
+      "profile": "step5d_strict_rnn_no_contact_p0_v3",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_084025",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_084025",
+      "scenario": "no_contact",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "a201d52ee635acbd6ea51182852d6e0c5f77ef39ba77bc6263c8a19a03993154",
+        "metadata_sha256": "fc233768de263498720bf1b89d32c50560e4f0199eba43b1515750bf80e8d117",
+        "sensor_sha256": "fcf255ce03ffff57373fea1c8dbf0379777e5adae4f6cfbc1ecd88384fe1a92d"
+      },
+      "identity_sha256": "a3b15506c5ab5475b13b6f0087e6d3b350837f9b4671073c6c1cdef9d11b9d85",
+      "profile": "step5d_strict_rnn_no_contact_p0_v3",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_094544",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_094544",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "36c2d0fd1d5cfd126b1e231c8c295a09f743b557a793853b542c1a9063353aae",
+        "metadata_sha256": "b96b6fc3ee183de8109b456762092f497e4332d5d8ec2b7e51561b572a5be2f9",
+        "sensor_sha256": "8e899dbd8e8b81bf7ee4a09d25b9b0edfc83f8c2bd18f490afd866df4dfed41a"
+      },
+      "identity_sha256": "1a3570fe9db8f09bb9d65b0229a45a418b1975ac9d171f98d663615230a81327",
+      "profile": "step5d_strict_rnn_no_contact_p0_v4",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v4_20260707_100803",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v4_20260707_100803",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "47da852d3f95dde8b5d7a1b03e26c22b226906623df77b977854c3bcada0f121",
+        "metadata_sha256": "d5f54bb337cc417c4c5606105157d3655087a27a345c2b0aaf1c060f698cc25f",
+        "sensor_sha256": "bd1468d0c832f96610a5a54479fe20e2d67fbb87936fb57564c4ec7cc582881b"
+      },
+      "identity_sha256": "f22f66e3151cc3e02baca83ffa0f71d85c80b26de143ba537d8b804c36a7eb21",
+      "profile": "step5d_strict_rnn_no_contact_p0_v5",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260707_215639",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260707_215639",
+      "scenario": "no_contact",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "43a0d6740e2ed5013d59fa354a8e30f6466cffae8df4b1262b12cda7bb777668",
+        "metadata_sha256": "b79519fc797e58c75940b6bcb79d9976f75d3544bd45137f15d41e0f32ebf10d",
+        "sensor_sha256": "e0822f015b09292cdb392b3678fdf3ce8adf7485ada05e676f12588b0deeeb2d"
+      },
+      "identity_sha256": "dd9c7931d6930ec1ac6dba4f324632c05a977e8d3efc5f52f9c17e492d155901",
+      "profile": "step5d_strict_rnn_no_contact_p0_v5",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260707_222108",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260707_222108",
+      "scenario": "no_contact",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "8b9f51cb7e5a07471713f16ea6b958d60ed9e7ebc1144fb611f977661536aacf",
+        "metadata_sha256": "00b1db9c41989b0df9301be7990870629edea5e801ba8df2f1535ad9d373e6e2",
+        "sensor_sha256": "de4baa78d2362ced99a0af35b2ed1d2c61092369afb0704278fbcc16a4844100"
+      },
+      "identity_sha256": "605293a738d95f6339774e3fbe6bd67ff0e2258235113c1433f80868a2bd6df8",
+      "profile": "step5d_strict_rnn_no_contact_p0_v5",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260707_222220",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260707_222220",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "fbe39e5af69bc595668637378368118b530c6a7b71c0eb71942bc7e431d041b6",
+        "metadata_sha256": "0585798de2d9f0f23808b167d01a1b2c9953dfb8485d6f5bf5fa6bb081fbcd4d",
+        "sensor_sha256": "0907ef43be3b132862818b03d359cb8c80d55cccc19e9c1d705e455b3d631221"
+      },
+      "identity_sha256": "acfd1ff4fb30e04fca0e9c9c20f89229723be7776905238f10f00e49e001c752",
+      "profile": "step5d_strict_rnn_no_contact_p0_v5",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260708_000016",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260708_000016",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "50ead06e8dcdf22c1e6d087651f9dee75ea40a8875c2bb8c14d634ea19fe3ab5",
+        "metadata_sha256": "e8616dcbe8252ca4bdeaec3a0ff2a0106de064f37a5e62ec2faf1a24d784134d",
+        "sensor_sha256": "b9eeeecafe0e158dcb5852c4764bb59d34164d4ad7db8f757220a2d3382a0736"
+      },
+      "identity_sha256": "6fbea7e2f7f92fa8344fa520099a7ec76b43d9ef8f30797addbba9c7dce6432b",
+      "profile": "step5d_strict_rnn_no_contact_p0_v5",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260708_015352",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260708_015352",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "2ac95d62a4675e0419068e65c6828e58d69558ea79099ffa6b45c03baf207699",
+        "metadata_sha256": "24e020cc128976061d39f87fdc30d4ed67f52421822e38945a422f16e8aecdd8",
+        "sensor_sha256": "853517d50c172fb06975cf8a1238cdf47ce1b6dc467070ba5d41aadd5e8e0ab6"
+      },
+      "identity_sha256": "4ef0860f12fbc6301db9d6db0b771008127c409cc2f3415610570dccee6a7223",
+      "profile": "step5d_strict_rnn_no_contact_p0_v5",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260708_015545",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v5_20260708_015545",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "6c8e01952dca634ccb021ddeab346256b11662ceb42f20099d7655444e07f2ff",
+        "metadata_sha256": "9a98139d6f73bf76801c43bdb0876b611825ff86412dc475760c72da539e119b",
+        "sensor_sha256": "bb1671b02f20cace6010648b62cf9f58ae9931aed6d39fd80f63f442309f5299"
+      },
+      "identity_sha256": "b649413f356c4f19b68f7ed20b06b3b7a660083725d718e7cae99c7de8129b5b",
+      "profile": "step5d_strict_rnn_no_contact_p0_v6",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_041837",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_041837",
+      "scenario": "no_contact",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "c99b1698e4db4c8ff67ee5d105ea581386a96270d1378f37b55bbace6762ea8a",
+        "metadata_sha256": "06e9238552356975919b9513b384ef3985fe976d2acd24fd2fd15d4ac1dd6906",
+        "sensor_sha256": "6e4f328a047a625351a6ecd40cebcb7b4548767a784dcd4093973eaeb38f9e87"
+      },
+      "identity_sha256": "4d244d47f7ecb944d5de6e26404af6e7f9ad09a953370680e2c5d0a704c9272d",
+      "profile": "step5d_strict_rnn_no_contact_p0_v6",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_041942",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_041942",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "fd2dbd3cb405100a9591fe670ca649e04a2a60f98ae0d655a106fda3d91170aa",
+        "metadata_sha256": "56d71efb7ad1151664ea0b088a6e029d4231ea3c0a500fcc225c3f48637e1b84",
+        "sensor_sha256": "15566056e9ad6df995b4719b02f4a5171fc556b5485752b325312e2234a055f1"
+      },
+      "identity_sha256": "f6134ab81d044dec29d8ff739568d7ebbdfb7c55ae6b2a31c37e712140b50cf5",
+      "profile": "step5d_strict_rnn_no_contact_p0_v6",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_042916",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_042916",
+      "scenario": "no_contact",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "3d7a5930a4f2db09f9abc753024ffaf7b95d07b50df99c6593db2046991e3894",
+        "metadata_sha256": "f0ca01dddf21cc928b4e0228bc7e87f3b7237147757f327d127db6606b0aa207",
+        "sensor_sha256": "c852174f83a847ef148b4c73b2be41b0170b7da86fa728a40e4dcdecdb44309c"
+      },
+      "identity_sha256": "176d4f3206b37f2e4dbea951d2d72dd65c1a53639f61f755fa505029019df10a",
+      "profile": "step5d_strict_rnn_no_contact_p0_v6",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_052125",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_052125",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "b27f874976533fe94ce77f6ca3bb8e56f3c2f40c19475c181c409cb8aafd483b",
+        "metadata_sha256": "9c5b2ecd9ac8789627b8d585873bf5f5265e3201266a4c8a79b9de68256aa133",
+        "sensor_sha256": "06802015fed72626a13cc5bf7944122167cf20dc0ee62bab8b12c0378f9ceeaf"
+      },
+      "identity_sha256": "a76d405dbace55994bbdf00c9ddcfa53905e03eae90e131f54c9cc3d82c8268e",
+      "profile": "step5d_strict_rnn_no_contact_p0_v6",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_052236",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_052236",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "20b6816cf00dd268efdbfc46eda805691013ca2bfb118d8a7ff22ef3d043eaf0",
+        "metadata_sha256": "d6e37880f5d57502d153c9e02deb42affb48899e5e0ccc6ee83823a4ce7a3764",
+        "sensor_sha256": "0b5fbe424e4a630a50ceb5914746b92234fb46159b649e8394016d691bf67570"
+      },
+      "identity_sha256": "debf96d7cf2d675d8636b8794e21395d10b7c1ed75ac7b1972787b96686e7633",
+      "profile": "step5d_strict_rnn_no_contact_p0_v6",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_053329",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v6_20260708_053329",
+      "scenario": "no_contact",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "c3fc32dcc42c10192c7f2954963a7c046b3e80e5ed93777db1047a41bd771e10",
+        "metadata_sha256": "39e5ca315d6370f77a88f620294ee527019841290cf1abd0b6034e838b0e438e",
+        "sensor_sha256": "225aeaf4646fb1eb2f12f6c33887aec164bcc2a1de5c614f379302bab17ede3b"
+      },
+      "identity_sha256": "2111c709a966f285a073be257e287fe426adc442d9885b02ca5cb82d3587d14c",
+      "profile": "step5d_strict_rnn_no_contact_p0_v7",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_060354",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_060354",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "cc5ac7d1646e5b25ca16a84add9c85d61bf1dde9b7c17a4f8cc75fda8d068bba",
+        "metadata_sha256": "a08930f351c191324352038daaf2cfa03e2a5309721a4861eae72015606d1d81",
+        "sensor_sha256": "77403d840bf17b0c665789015d28baa00f9c54e1163af9c1f56eeb58e72b184f"
+      },
+      "identity_sha256": "91dd8c4d6c1fb2f06951a1d0db5fdd5e2d24deef48b92beb8d8b7825a6969349",
+      "profile": "step5d_strict_rnn_no_contact_p0_v7",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_061015",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_061015",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "08094138780e26a883d8957b505ffc764940fd8940fbb1a159ad6e393e21f8e7",
+        "metadata_sha256": "5a9d7a897b3ee74948eef7e6efafc4d5c4a92208ecd8368f69347153ca364199",
+        "sensor_sha256": "6c1d80d91a0aff4adccd33336b0501a2937f4ca34c5197ecd862fbe0a18c1432"
+      },
+      "identity_sha256": "4caa127eb8ea63cd44be0d7619e9a7d31a4b45bb299afe9b0f8de4a7a6c64d46",
+      "profile": "step5d_strict_rnn_no_contact_p0_v7",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_061107",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_061107",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "7004882a6216f9c1a7ae4435cf2d69905b634f62a3e0010bc6aff11b9acd3cb4",
+        "metadata_sha256": "59b82263e68393ec38180de7b5f4f78f214db3cc31834c9a6ec334de4ec6eaeb",
+        "sensor_sha256": "564ef2c1fde63985dcb9c6da1a64fda5030aefb6978efc1e0f7bc44cb427622b"
+      },
+      "identity_sha256": "03c377a4922214027193058f69899a2076be338e393060502ddc3047c6796a59",
+      "profile": "step5d_strict_rnn_no_contact_p0_v7",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_061222",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_061222",
+      "scenario": "no_contact",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "75e67e4a6027aa914bcfbd68fc3a677e302c534f1a6569beb5e7a50509161352",
+        "metadata_sha256": "e14e56d62c37596cc2fa8492648c558a206959250f52b637782346731fb8d0f7",
+        "sensor_sha256": "6200b850720794eaa20d84adb4880097833336a12f458f80d4ed8865f03ea81e"
+      },
+      "identity_sha256": "f2f772538bac4e8f890dc4357689c6ee40c5e95c0c7982019b5b998e856b61a8",
+      "profile": "step5d_strict_rnn_no_contact_p0_v7",
+      "relative_run_dir": "bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_061342",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v7_20260708_061342",
+      "scenario": "no_contact",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "702fafefe7c75f663f05e488c3159974dfd70b17b7c81147bd120cc8c8eb9458",
+        "metadata_sha256": "9ec23e676b89411b226c13d5a1ebc463c93fc1bd7cf42217c43bf8a29319bbb9",
+        "sensor_sha256": "2b6a17a175d498d3ba256c663b9bab475cc68c9077a8a966929dd3528a264f16"
+      },
+      "identity_sha256": "7298a66be4629aa70340bbd74848c8b0ee4211542154c71062309647a2351cc7",
+      "profile": "step5d_strict_rnn_ablation_v25",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v25_20260703_221858",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v25_20260703_221858",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "bba0e288d24e118ce2a1df72bfb9631ef319e26482f949e576b9886f48fddc7a",
+        "metadata_sha256": "5281c29659a389d2aaea27e6df93139d3b4a16e037ce47e608c3cffd31e578dd",
+        "sensor_sha256": "42465fd5dd59cd2a2e070d2f9f42b570ec04b1afe6f9e1c25df1c055f3ebfc19"
+      },
+      "identity_sha256": "87a2be5ebf3cc02ee3213a364be6a47a544f15455053e567f348bdb2de426966",
+      "profile": "step5d_strict_rnn_ablation_v25",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v25_20260703_222008",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v25_20260703_222008",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "e167b37c77ba9f69aa4eca06651ccadcea015f60af331f4deb27cf12c9991c8c",
+        "metadata_sha256": "b4f5b92829c428c7e0a8bbab94c0ce35d7287c288233d76106d55e2e6842f3d3",
+        "sensor_sha256": "9910fc2d39bcd0287f157bf63c01cbea058f40953afdfda3c140bd058e3d17a8"
+      },
+      "identity_sha256": "be6bdf447f0925c5d26b4c44b9b64285f7450fa768c3c833d295fb946759f2e0",
+      "profile": "step5d_strict_rnn_ablation_v26",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v26_20260705_215811",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v26_20260705_215811",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "3579787545a267afc4d3e2b6a252494ec252de12dcda8ed22a066a5cf5dffa21",
+        "metadata_sha256": "1218fad07060f37fc6397b0e2c4921c349ab6e201f76f4300c8de112d18457b4",
+        "sensor_sha256": "9fd570ccd37147634ac2599191b545bb1aee305a0e1db3090ffba4c87ad27946"
+      },
+      "identity_sha256": "9d5d8f3f2d2eacdde1d624afe97e14a1950a92118954c855cf0bdb249dc9f78a",
+      "profile": "step5d_strict_rnn_ablation_v26",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v26_20260705_220328",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v26_20260705_220328",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "22d5e6a33dc6657c0e3774616eab34d01533a87778ab8ce39cd34514be3831e9",
+        "metadata_sha256": "51be338817737147d11a28e126a30002292d87ed78939efc50e97ce5d3304b8e",
+        "sensor_sha256": "3d3d73bdd5ca7c3d0c89d256185bc61af79abdb73a26f91c1498f908c33aade4"
+      },
+      "identity_sha256": "f0dcd40b70d694723d334b5928334f2dbd6c5a815f2c9801092865b2f7c9f7bc",
+      "profile": "step5d_strict_rnn_ablation_v26",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v26_20260705_221521",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v26_20260705_221521",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "66d45e94d93eda49fd14dbabec69701461903c9988eb17b1ec76ed4ee86609d3",
+        "metadata_sha256": "bc58b1c3bf351d57358f36b10ac8eea8e2fff17898103bca7bbb4d4aebd37418",
+        "sensor_sha256": "e13f0971de29408b29093ad9b3719e288aa1c4c524eda3105d4a9a3774c323cb"
+      },
+      "identity_sha256": "938b70005e4fc78e479ff8fbe85ff67572544f67c1d0695c6788409d3966a533",
+      "profile": "step5d_strict_rnn_ablation_v26",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v26_20260705_221613",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v26_20260705_221613",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "91ee908dee8658d5212b149b083ffce38a89c79c809cc856657acb2696dec3ee",
+        "metadata_sha256": "3f2a516f062eb41ac061138a8011bde8ae442233602adcd0cd2cd1e00076436a",
+        "sensor_sha256": "b00eda181bd60d05c9a92213bb9fe0c126105d9226333b28c240a2bf349348f7"
+      },
+      "identity_sha256": "4b65113b087054490338736d7aac7a16cffe6f23a9cc3351486fc23b06df17e0",
+      "profile": "step5d_strict_rnn_ablation_v26",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v26_20260705_230934",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v26_20260705_230934",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "116248df62fad2f86778e9bc606dbb92b2d5ed25f0895742aefdfbe921284c83",
+        "metadata_sha256": "fd8bf891dcb73e4588f1662a6a964af7f8ebef086bdb3283fe8c6b1f6df2f000",
+        "sensor_sha256": "523ff9687b8ae813a82b23f453fdde7ab4205a1acad2b55ef76374e1d0e5442c"
+      },
+      "identity_sha256": "2ce5d42b91a8dcb55d80875f0039fe0b2aaa4f2d83541c82736229ccd0cf82ac",
+      "profile": "step5d_strict_rnn_ablation_v26",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v26_20260705_231040",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v26_20260705_231040",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "42ec54fa5656362942856f53da190c5fe92c8de46b0a95e2467d7b3769ce446e",
+        "metadata_sha256": "c04ab50e6bcacb5d5e0fa1b65afb6a9b61afe4b053c2dee070bad888dd7a537a",
+        "sensor_sha256": "1098a41eb4fdbbcbd502e32a9dd8568ffcd02db1531a266ad2f7fcd75dcbe7a6"
+      },
+      "identity_sha256": "781509f54329352dea8737b2e9429c96e2db817478e9f475c0ea7d1988666f4a",
+      "profile": "step5d_strict_rnn_ablation_v27",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v27_20260706_020732",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v27_20260706_020732",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "69cb899f6dd0cef694909450fc7c50057a3d174e1554a18a43ed4ed5a253074c",
+        "metadata_sha256": "edd47a23d10de15ed0e5271f54bc39ea2fad012fbbc5c96bb8510ba639c5e30c",
+        "sensor_sha256": "72b41f1314eddd3bd11431a337f0570d05de4b63bea7cefd741b9438edc2892d"
+      },
+      "identity_sha256": "b3177ef7445d8f5ccbad8ee0ab5560ec9f9dba7b2c67c1ad31c14f961f71a828",
+      "profile": "step5d_strict_rnn_ablation_v27",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v27_20260706_024545",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024545",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "3df5291646cc0cf3d4b7ee7c16ce13d6fdcf5b57e7dbac67fd8942b893bde331",
+        "metadata_sha256": "911ffac5c7feb5260e1d865c96948f0bee979cb66224fb91f2745d8700c2d1ca",
+        "sensor_sha256": "ddf12408d7504319b439286539db4e279d2d8e534b5e78ffe7166726a9ba0f1e"
+      },
+      "identity_sha256": "6f47ebc2c38f4500b89d163486a16593364935e0698c4e2cbff57a421cd959a3",
+      "profile": "step5d_strict_rnn_ablation_v27",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v27_20260706_024627",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024627",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "32313f7e4d07d67b53a3c4f23601cc2927bd857605c9f5466573f2c6569c66d8",
+        "metadata_sha256": "1e10fbc5c9f2fa943241fc7f2ad008aa83e1ed7bbb3aeebb1b108d810d70cdf6",
+        "sensor_sha256": "271085477d99ba0340173e1df687df10e9ce68f329a9ffa846da5681b6257896"
+      },
+      "identity_sha256": "26d937c4b8bc6674374e316f2ccf37936ff98e263e0c07a36be89b7e062328cc",
+      "profile": "step5d_strict_rnn_ablation_v27",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v27_20260706_024722",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024722",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "d6448024bdc0f58cd4da68501b4a28683973d0f6c67251e4a77b5f2b8f0601e9",
+        "metadata_sha256": "23c410845ef8a4149a34cb26df0e548b162edb56861467c8c7fde37513c564ed",
+        "sensor_sha256": "1f9785becab067d5dc81fd457cf52da24760d7b0a535481afe05e6f5836f4e76"
+      },
+      "identity_sha256": "f66b9195183f465884a994fb37183a117fae8c226941b1f392becef589177136",
+      "profile": "step5d_strict_rnn_ablation_v27",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v27_20260706_024815",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v27_20260706_024815",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "653b8c3f7dbc231f6c5653774b9efbbad407dfdaf371bb9264a1b07f1d84335b",
+        "metadata_sha256": "1df338766bf4cfa496b668a29d377a8c4e4e513aa5bda38db3196f6e4fa5fb44",
+        "sensor_sha256": "9b45282f256b956dcbaf3bce8a21adf225ab2a96a0c53417d7226f2396bdd9d2"
+      },
+      "identity_sha256": "02257fb443f6f7ab73620a34ae3e89fac180fcde7693c303828b772efc332da9",
+      "profile": "step5d_strict_rnn_ablation_v27",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v27_20260706_025857",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v27_20260706_025857",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "8da109ff25f9ef21bfba7aecdd254c912f00d20b2fe04348ff045c048a779f5e",
+        "metadata_sha256": "0220b3523b042aff001599792a676276eebc14e387276300dd98119bb19e0e3d",
+        "sensor_sha256": "34d47b55333da0dbdf657f9a4ee5003fbe7e5ec3d245aad40c47cec65e920af8"
+      },
+      "identity_sha256": "135ce0829154d581b5cf4b4a9b8e004b698696e90835591bfee23c3e3196b908",
+      "profile": "step5d_strict_rnn_ablation_v27",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v27_20260706_033032",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v27_20260706_033032",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "4fcb89825802fa488fcf70d8fbcd11c8155d7a10c9b6f7a612079c79cb35bdb5",
+        "metadata_sha256": "f4a25046e0cde0fb42dd8acdcad94f51ad55470a24893a174cf2df79c40f715a",
+        "sensor_sha256": "497d94b3e6d1fbc262c5b664fcf46f8671423935cd736f6d0225b5de3d32667e"
+      },
+      "identity_sha256": "7d0815e622ec672ceafc1efb7d1b02bf7a5f085799c0316d9d610fddb24dfc30",
+      "profile": "step5d_strict_rnn_ablation_v27",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v27_20260706_040900",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v27_20260706_040900",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "84b597942ca9e06cc93348f86d009d188e0c14f6f70e9921fa98f3fbd8447b3f",
+        "metadata_sha256": "c68b7e63c39ed0d5054716f50cdef0234b70d42ccffa3f2d819062cde5c6e53d",
+        "sensor_sha256": "ad4f5e08a11b1b6692343f8b2a9cd9a2eb77a314843c6ffbe31ad47b894afd6b"
+      },
+      "identity_sha256": "03e50cd418a617dccff54b3b4727e3bd50afb58e409c43edec7b4cde9e84d32b",
+      "profile": "step5d_strict_rnn_ablation_v27",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v27_20260706_045513",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "e6ecca6ec5fd4a616a580e1f280b118a98cbae8a4c730bf8a5305c142271b79b",
+        "metadata_sha256": "2df6307c39ad01c0da81cc28445f41ddc58cbeb9a430d38b788e776dd22feb75",
+        "sensor_sha256": "ae368f7ce27c77b3efa5e75e61ec2e39e1fb8f110879055262923ad0fa4af370"
+      },
+      "identity_sha256": "6e7563458f3c45e84fb422e1e237ef4700f2077d07a436d536b54f211fbaf790",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_054904",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_054904",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "440fe8197e39a07e4c88d85c869ba605fb1dbebcb965f1a50f3d7c31da5b5c67",
+        "metadata_sha256": "c747096a73286ec3de3e93c94acd7dfe037509c2e2cd087a4c6adde00e51eba8",
+        "sensor_sha256": "452f324842f478e382e5d3fd6d32b981fe097eeb1cdc26adf69a9d06f7eb9277"
+      },
+      "identity_sha256": "1db1c4913aba96ec87e0e67a85a6ce0aac7d69f833712608cc180720d56e42d4",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_062908",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_062908",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "4708f6d5a606b3f26b573a2919ef47577eadb25899d336272a19c0cbc1ed55b3",
+        "metadata_sha256": "62d5cad7361bb968fa5ef4478abc88a1810533a86b4d999fd0ec3cfbbeb04855",
+        "sensor_sha256": "70c0d2336f64d19acc7d5b855aed0ec3944d476370f2e147d60eba65e5e8024c"
+      },
+      "identity_sha256": "39fd3a95c9e3c83f04b13ff70ce01bfe22c37e9f4ede470fec181b53c8c02292",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_064317",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_064317",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "ba024ddc3547b0daa17282ab145d587ced923123aefc5b3fa381092de78ea51c",
+        "metadata_sha256": "3fc139a2533fb37b05e3903601026dce0c8a0777b1b8ecaeabcc0e5e853cf51c",
+        "sensor_sha256": "e795c8eb161e054dbd98a2f99940a492572bbea75760d3600eca76f7373f7410"
+      },
+      "identity_sha256": "a37bdaf065b6bcf50528a2631a1344d61fea88e2c81697a4ce6b87008754607e",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_064801",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_064801",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "03c2d3f0a90f0ad99e4f55b3c93b4bedfc7a528f8c5632515924f3fb0fe8805c",
+        "metadata_sha256": "7467442c04125d75068f213b7dc6affb5d6f9b77265eff3caf3fa0cccb7fd27c",
+        "sensor_sha256": "57c1f14de16bb3f65cd6e3eb9df620aa791233d3e916857e1192d2e5e10f1f01"
+      },
+      "identity_sha256": "c74574ffcc857d286a14a8a8cf0f88a7ef51a94761306d5cdd199536aa18912a",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_065823",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_065823",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "09cc328497ca8d170c3faca883599353ef2528a91779c7a7de12d8d01bd33b32",
+        "metadata_sha256": "2338eef12b5b298503f7cf8bc024ecef7a302686ecb98c4f77578dd2141b5509",
+        "sensor_sha256": "c64e6c8d4a67eea0e352c49ad9fd42e442d68f65ba40a8ca62ee092e2d4c342e"
+      },
+      "identity_sha256": "93d48f2d271104c6e30024669a419e615aa9e87f1505f13008d26482c4a12dcf",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_070301",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_070301",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "ffab5a7bd315362211c80f902c6b36d13a2c5714aa42f67261f3c647b8dd7940",
+        "metadata_sha256": "0f3f9a5be528da246d67c3fbbbf4450cf86483124fbf991e574ad90217a7dc13",
+        "sensor_sha256": "aaab40d3dbda5cde975f415cab9d19c1dc3dd87767a9d9986b482881a481e97f"
+      },
+      "identity_sha256": "285ac0eca3c3b059d07e9fd6e4aac30b28101b728cc9e7639bf8bcecbe965975",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_070951",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_070951",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "75363db776ea67022c297bf70d6dced90fd219588cdc290e62298aaae1f97108",
+        "metadata_sha256": "e5ba9d354b2c1ac3f196fb8621ed4df06e9ae44cfa5750f48f1b1d2e42f8b99c",
+        "sensor_sha256": "8c4cc499c4852c19d5958154140bf27695b4d77c73aad3c4b0759d9d12068772"
+      },
+      "identity_sha256": "41e39f947d4ffa438ded58f28f6a546f9fca490e2d5f22dfead9927012db2da4",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_071202",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_071202",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "39987f1966bf2ac5538dceb685a75c6415f85cf531c25ca725db8482b4949c0f",
+        "metadata_sha256": "6f2317cbc2ccd0565fffe6a3ea24dc4b87e0cb94f2bce6af7ec40cfe2337a443",
+        "sensor_sha256": "53ff611d93d791aad7f3ec4f887969108fd438b611550bfec76a6595330a6ffa"
+      },
+      "identity_sha256": "925d67a9abece4384753efd58ce430732c312e0ee7b2d8b41b04339b97d8165f",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_071318",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_071318",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "fef75f1b8fd232f05ab96808a1a7b7816c99fea45e3d18f45d019b60eff38650",
+        "metadata_sha256": "af923faa244133ea22d6b621b05c8d6be94aeb9b22c2019698a5f98dd00586ad",
+        "sensor_sha256": "c991290ffa0706530019a825af88881d7f8cb979b00c9289b5706b50f89e40c2"
+      },
+      "identity_sha256": "1b605eea15549c35603fe68b1909a07fc5528a954f74d9b484755d96400e2541",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_071807",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_071807",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "4a997830e706dd0c7edb73aa330d3a69480285ed3ef7192a845660be639c290c",
+        "metadata_sha256": "fbbbedf2bcbfbf1d361b567dfaa501502c8f63223ebe3f17c9e20875b57d7cac",
+        "sensor_sha256": "eae8928573e3ccf6041eef908ea2b4b2110086a9e5a9264777f9694a68c99d2f"
+      },
+      "identity_sha256": "01027729e9b86a5fee95e5c767d46293e6afda8e30e7d20529c6ceb2ccb2d037",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_072243",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_072243",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "9f6264f8259a228c943c1326e18e2120c5d555bf060aaa372eb483b60bedeaa1",
+        "metadata_sha256": "f7714f8917cdeca3189a0fe9df60aa8a011ae1255a343f736cd758ac79b9c886",
+        "sensor_sha256": "c1beba2d37e4bee409ca15f28ee7f1c40be78bf8564c608a2bd4763020a1ac2b"
+      },
+      "identity_sha256": "c881966744890a6570f9446a37787a6899c39a3606aef241c98a175ce51c9523",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_072412",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_072412",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "dbfb0bbe93eeaedcdcae910ee87fa5a6c8ec212ce9e4e212fcaaae8bf5e706bf",
+        "metadata_sha256": "fdb88fa5b33df7eacc3f34d85d01d8816370ade4c09d3fdb10f39580c6325a53",
+        "sensor_sha256": "aa9140e1a3f9621f7beddeb6e28fb53a827f0c6fedc30f67c7c611b95187cdbe"
+      },
+      "identity_sha256": "4555e51071e3c3d65e1ca5debb00f1fe4ca74ad0177056b99bcc064133c5b71e",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_072721",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_072721",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "d6b14479acb0f298e98cf5211e0ba65925da950d5d18d999f7a508198da00863",
+        "metadata_sha256": "889aa78d87927d1137412449391595c44a84ab457d97fd738bc9c18c1d42a5ac",
+        "sensor_sha256": "5e6d3ef5eb718a2d9441387506475cfd6cf2be04d8460b1c697ee3c5f9721b1b"
+      },
+      "identity_sha256": "8acce4fd49b7375ce69437b3fc55c48e764b8160662b302508eb4485771342cb",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_072745",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_072745",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "54cd8eed8dc23744628b4d6ccc74073e0755932666f8de5d6a45f89ea5814026",
+        "metadata_sha256": "cde85941791de7ce45a9784f39a166829184d91d9394ff6479d67a579b65a396",
+        "sensor_sha256": "96f890d0049b4f99aa6d2acd76837784f6e8ab335859fb74e29befef4f136d15"
+      },
+      "identity_sha256": "22bb4ae5ca313f40b7e7d17ce7452c815d4ecfe741b6f7cd063b203e0cd3f921",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_072843",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_072843",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "a390c8f8bd1b53b4ba63cff4e29d363d94effbde0b924c2a5e1c7e7e38e1d56c",
+        "metadata_sha256": "c424f0e596e22b94d0a8e0c982d09938df2e6a0fda0ccc167f4ba574fec23311",
+        "sensor_sha256": "a2a8c4dd69312559dd5d0de00209435166eea57005ea8ca42bc4429fc0cf0966"
+      },
+      "identity_sha256": "2aa88f0e86360de0cc3bea79376617c3d7e5f621d8a25f9d82a88b9b219131cc",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_073030",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_073030",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "d5aacffc6f5ce6b3fa86f54ac278463bc70329712d37a41e5b8ae0a0f0046623",
+        "metadata_sha256": "8707f96dac49666570482012f6ee654b072779eae6fd567a76707c6214bf587d",
+        "sensor_sha256": "868e7cd03b66244a6b1a091f340024457173149441b0f05d459a2c6256c864d4"
+      },
+      "identity_sha256": "18d0483bf09afdbe6c2d3e38a7696593519eae7480e9233ccfa203500b735bd3",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_073115",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_073115",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "1e5ece661a0ef0b93f88ac808028b6f57173ba992cd86692d4f5f13caa047502",
+        "metadata_sha256": "7758eaea955666bf5905da94427d9b04a20f1fb8a7da357aa93898d8d1a8d7cc",
+        "sensor_sha256": "69dae7d171de09fbfe2836c42ee6773bb7c621c0139d43c072789902e9ec496d"
+      },
+      "identity_sha256": "490cceeaf4c9d7a1f0e0db6824a12cc9232effa66b1394d6c9e97ddc94276bb2",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_073309",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_073309",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "f6006381d65af4ade63991f23642972caa98c699bc5320ad6d0ce2a5166a77ea",
+        "metadata_sha256": "ebc229456de84aab7c0885da21d4b4a8ed442de4c2bfcc222c27b2de67a9723a",
+        "sensor_sha256": "6e506cc45862ab273de201efe00459e3d381e65581f9f18fe81505b7c044fd88"
+      },
+      "identity_sha256": "f271edf81e857e88af422a548b6aa083225352baae13539eca959fea56e87b4f",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_073406",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_073406",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "74c385251ae2a49903484f2ab874e2aec089935c0ff5c5b91b74dc56494c2f9e",
+        "metadata_sha256": "c3e446157666fd810646dc37915e0548861306b6c1a2ea311ab482a1d3231e92",
+        "sensor_sha256": "dcab99729862ec29b16ae3a513d4d8fb2e9f934ccdbbe9ac126ab00d9e197205"
+      },
+      "identity_sha256": "3f5e96d05aea9b00d31d4e25b4182f129cb685bea298bd457acad75989a80bba",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_073512",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_073512",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "0e0f281ce4e6319a28c754b11cd92c121660ce30a0e7317098b39f3367cb651c",
+        "metadata_sha256": "36ce49befae2888ab448f0d4a03a3e639191a87fc5a3679d3acaaba01c70e380",
+        "sensor_sha256": "2292b04d3673a1a3508571e353e2e3b990dc923eb13c6d0865d2f58ecaedf122"
+      },
+      "identity_sha256": "95d7fff60f625d371683c135f57145135d3888b4a69ce40c563a0e5f41dacd90",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_073639",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_073639",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "428387a9766d754741b33ece0e93889376cd0e3f8ebfc545a859e726cffeefaf",
+        "metadata_sha256": "b8e6f35b6cfe819b93d9fa95907701f7779ace5c060076dcc5a7d7c9ce49e115",
+        "sensor_sha256": "7ab22eea6ffd10186404baea6dfc08760370d5b143e120721aa2ae2497099904"
+      },
+      "identity_sha256": "352878a3b5eb4d7e527b3cff0d7297c75ee0a88d91b103d6f1dff529d0a41f92",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_073828",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_073828",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "38e3b9e034aa7fa587fb8e3f9b53b44cd71bde99fed5a519513e81fb29038925",
+        "metadata_sha256": "61171abd7d6e1ae84cf09a0d85ab9225834ceed373314eed5cc470bf2989fc14",
+        "sensor_sha256": "32228ebab6ee9d37885046b66e055bfd42dd98ec94c5e17d8aae7587d1590a07"
+      },
+      "identity_sha256": "72cfe0591febfeeffe561b26340fbc56d24206856a8b385834dbbcadc3d30211",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_074049",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_074049",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "487015594d2d3684c75d6753c141b57c197479d287ab4d1f0168ab8d5bbe8179",
+        "metadata_sha256": "7face7ce62b3614dcf43db85466abc4cb8c68d562cb3992bb208b6c0be317048",
+        "sensor_sha256": "141cd2882a2f33410e75a4a771270ba75f53cdd3a2f42a808aa733c02a9a32e0"
+      },
+      "identity_sha256": "b6557f0953816b2de5b978cc7cd574971a6a3dc4a7aa52b52731aefca7581abb",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_074258",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_074258",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "e7b96910067b741a54314a2f17b003688e0e0f4593653e447d5f7514e275b840",
+        "metadata_sha256": "f05ef401178ca95043ceb5460034adc4b8647ba93005a619dd6d0aeb36d58338",
+        "sensor_sha256": "1c17165bae41bed5ca9ab6331c4fdfb21338c1b3b6ea3c37f4b9fc245d9d0f39"
+      },
+      "identity_sha256": "f2ba42eed495a820170a34a03063a1cdf08fa394d59eca857c8888ffe1c744bd",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_074351",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_074351",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "2fa89c84a08475d37f9295d77a669ee3e912d25e95b77146de3b33db3bc40cef",
+        "metadata_sha256": "cc5e4c7cc43d27ea0a5f9323b6d1d20614f412735896b066faaa382dcba17b41",
+        "sensor_sha256": "5878406cf53f8db9e58dc83df4f8c7dcf6c3f0889972445c5430ada4f4b826a3"
+      },
+      "identity_sha256": "9cd0a89bfa8523767fc4f4b67bc2a44f400c6213db52911089a29446dc960b8f",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_074542",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_074542",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "232d5236b12c65ae6937c2e739832dc8a10ec7076a0bb41a60e8ac5cb2a1a6a8",
+        "metadata_sha256": "d7bb71d745f31158d7e7267913b15675721a87a7521c62535251a52afcd3039c",
+        "sensor_sha256": "2a1a41ae0bc712e212154c120045c5ceecba13cf9d8585ca3fe001c4721d222c"
+      },
+      "identity_sha256": "b2c53ccd18e6282f46a607ba110d090d24a9274103bc1ef10bc60bb4df1a0e8e",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_074725",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_074725",
+      "scenario": "contact_capable",
+      "split": "tune"
+    },
+    {
+      "files": {
+        "bridge_sha256": "a838e31d087446605fc073e9963ceaf8ec9b878363cff2215116c72a36bf7871",
+        "metadata_sha256": "95dfe0e361dad969d215f06c5a772e2aee3d483bde10f5ba83e230ce9fb63209",
+        "sensor_sha256": "cd3672721be42fd82555a09aa8b685fe843a7f63bab41865a823d1886d446074"
+      },
+      "identity_sha256": "fce668ac1e6a376ba987ae58e7206320d80a3eae2418f3a574ecb3768d43c18e",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_074812",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_074812",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "92f0a36e958835a4cb814dcd586b7d6984682b5789e22dcca1398a3ec0102803",
+        "metadata_sha256": "245d196e8fd6467aac7605a762d6bf5f8e7369c324882623bfac6f6094184538",
+        "sensor_sha256": "06f147063f2ecabd0dde0107b4f9e82c861f57ec7331c8a6ea6839d2755896df"
+      },
+      "identity_sha256": "ee302b08f35eb5ce514eb0cc8a05219b4dc24099e152de3d2c5db6f6c9261285",
+      "profile": "step5d_strict_rnn_ablation_v28",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v28_20260706_074908",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v28_20260706_074908",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+        "metadata_sha256": "01ce8a82f0fcf61e04c5abbf8d07dd7e23bcf8fed8cc8fcf3fcd53d8e873b8c3",
+        "sensor_sha256": "16de2552a83633b0431659fc248cf38d8ef44973f75548d8a55045cb21fdbce7"
+      },
+      "identity_sha256": "1b02d7bbc2c26300eb45d45d433c814eb365d3c35a497866bd89f45dc97cbd70",
+      "profile": "step5d_strict_rnn_ablation_v29",
+      "relative_run_dir": "bridge_step5d_strict_rnn_ablation_v29_20260710_104820",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "14e0b0fd478893a9f4c5bead8ac804492daeb212128eb8f1631dc96ed72bc7b5",
+        "metadata_sha256": "599ba865b65e02a7ccd777da9842e57cf33e91d5d8c62a9f021e4f1614015484",
+        "sensor_sha256": "8a936e4cecfcaa17241f2062f4b88a9d66fb15b47802c09de89fdec8ba357f05"
+      },
+      "identity_sha256": "6da1cd352914a734e2a9cb6a0fd08cc89dac464d53b45b69a12d744b026d39db",
+      "profile": "step5d_strict_rnn_liveprep_v23",
+      "relative_run_dir": "bridge_step5d_strict_rnn_liveprep_v23_20260703_004654",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_liveprep_v23_20260703_004654",
+      "scenario": "contact_capable",
+      "split": "train"
+    },
+    {
+      "files": {
+        "bridge_sha256": "7c76df53989af396405577fb6b081d6e4783dd5a61d1f34141ab488247f66e1b",
+        "metadata_sha256": "c0ee9ab17797992ff47cdac78d8abb216e214d52f7305821b1a11ba656e42b8d",
+        "sensor_sha256": "45ba8b75be6380087e418bab5249d36db09f45faf93d820235611b8809d518ab"
+      },
+      "identity_sha256": "ece68caa5daef5fdd9bfdf95256f987ebbb3b2031339aa209dd78a1ced625ebe",
+      "profile": "step5d_strict_rnn_liveprep_v24",
+      "relative_run_dir": "bridge_step5d_strict_rnn_liveprep_v24_20260703_011616",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_liveprep_v24_20260703_011616",
+      "scenario": "contact_capable",
+      "split": "holdout"
+    },
+    {
+      "files": {
+        "bridge_sha256": "87352770a8c891ba38b16b0d9c76d3eca63c991fac88dc9180a45924faefd989",
+        "metadata_sha256": "93d3a3875648023124e4537182e6d424cb6bbfb0ad524acf19ea3555b44cdfe0",
+        "sensor_sha256": "8a65bfcde5762e6a2863d93d1352276fcbc7a8c77a988970b097881ca2073ddd"
+      },
+      "identity_sha256": "7363c1a449e8f7f51c77df3ae6b8ff49e88e6ca1514eef819be1482857764c38",
+      "profile": "step5d_strict_rnn_liveprep_v24",
+      "relative_run_dir": "bridge_step5d_strict_rnn_liveprep_v24_20260703_012931",
+      "run_dir": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_liveprep_v24_20260703_012931",
+      "scenario": "contact_capable",
+      "split": "train"
+    }
+  ],
+  "runs_root": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs",
+  "schema": "ur10e.stars-lite/dataset-manifest-v1",
+  "skipped": {
+    "FileNotFoundError": 680,
+    "ValueError": 129
+  },
+  "split_policy": "sha256-stratified 60/20/20 by scenario"
+}

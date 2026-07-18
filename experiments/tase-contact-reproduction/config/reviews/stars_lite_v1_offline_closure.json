@@ -1,0 +1,92 @@
+{
+  "schema": "ur10e.stars-lite/offline-closure-v1",
+  "scope": "offline_no_motion_only",
+  "source_branch": "impl/ur10e-stars-lite-replay-20260719",
+  "dataset": {
+    "eligible_runs": 87,
+    "scenario_counts": {
+      "contact_capable": 61,
+      "no_contact": 26
+    },
+    "split_counts": {
+      "holdout": 17,
+      "train": 53,
+      "tune": 17
+    },
+    "manifest": "config/reviews/stars_lite_v1_dataset_manifest.json",
+    "manifest_sha256": "0218c52593cc094fd645092820fe2e021df7e1acf5e746467d86c3d52a6045da"
+  },
+  "configuration": {
+    "path": "config/ft_bias/stars_lite_v1.json",
+    "sha256": "e758e5bd427724a73c96334d07e47443e67738df0c770ce395c58407cbe392f5"
+  },
+  "acceptance_thresholds": {
+    "contact_force_retention_ratio_min": 0.95,
+    "covariance_min_eigenvalue_min": -1e-12,
+    "forbidden_update_count_max": 0,
+    "future_sample_count_max": 0,
+    "static_force_rmse_n_max": 0.1,
+    "static_torque_rmse_nm_max": 0.01
+  },
+  "evaluation": {
+    "full_artifact_sha256": "e84bce637938295c7c751702c09d7906bd9bc68ee332c776fb72d4eee76ea029",
+    "q_sweep": {
+      "0.1": {
+        "mean_score": 0.19020236653365882,
+        "scored_tune_runs": 6
+      },
+      "1.0": {
+        "mean_score": 0.19014665125520822,
+        "scored_tune_runs": 6
+      },
+      "10.0": {
+        "mean_score": 0.19004585327003945,
+        "scored_tune_runs": 6
+      }
+    },
+    "selected_q_multiplier": 10.0,
+    "software_pass_runs": 87,
+    "forbidden_update_count": 0,
+    "future_sample_count": 0,
+    "minimum_covariance_eigenvalue": 4.630537428050481e-12,
+    "holdout_promotion_pass_runs": 3,
+    "holdout_runs": 17,
+    "offline_software": "pass",
+    "kalman_promotion": "not_promoted",
+    "reference_physical_validation": "not_evaluated"
+  },
+  "validation": {
+    "targeted_unittest": {
+      "command": "python3 -m unittest tests.test_contact_mode_estimator tests.test_stars_bias_replay tests.test_stars_bias_logging_contract",
+      "result": "pass",
+      "tests": 20
+    },
+    "local_control_textbook_alignment": "pass",
+    "semantic_gate_static_scan": "pass",
+    "semantic_gate_eq23_sign_probe": "pass",
+    "historical_v6_controller_semantic_replay": {
+      "result": "fail_preexisting_log_semantics",
+      "scope_effect": "does_not_change_stars_lite_offline_software_result"
+    },
+    "repository_unittest_discovery": {
+      "result": "baseline_failures_present",
+      "tests": 1514,
+      "failures": 21,
+      "errors": 72,
+      "skipped": 1,
+      "dominant_cause": "missing retained run fixtures and unrelated baseline assertions"
+    },
+    "detached_fable_shadow": {
+      "result": "provider_failed",
+      "blocking": false,
+      "runtime_provenance_verified": false,
+      "findings_used": false
+    }
+  },
+  "claim_boundary": {
+    "estimator_origin": "logged sensor frame/origin; no rigid-tip wrench claim",
+    "live_contact_accepted": false,
+    "package_accepted": false,
+    "tase_reproduction_accepted": false
+  }
+}
