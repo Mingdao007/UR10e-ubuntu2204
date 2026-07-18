@@ -11,7 +11,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import verify_step5d_autotune_v3_execution_readiness as readiness
-from step5d_autotune_v3.state import ORCHESTRATION_RELATIVE_PATHS, atomic_json
+from step5d_autotune_v3.state import (
+    ORCHESTRATION_RELATIVE_PATHS,
+    atomic_json,
+    orchestration_source_sha256,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +72,7 @@ def promote(result_path: Path) -> Mapping[str, Any]:
         "claim": expected["claim"],
         "accepted_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "identity": current["identity"],
+        "orchestration_sources": orchestration_source_sha256(ROOT),
         "source_result_sha256": _sha256(result_path),
         "controller_identity_sha256": result.get("controller_identity_sha256"),
         "launch_profile_fingerprint": result.get("launch_profile_fingerprint"),
@@ -120,12 +125,30 @@ def carry_forward(prior_path: Path) -> Mapping[str, Any]:
         "orchestration_fingerprint"
     ):
         raise PromotionError("HIL carry-forward requires a real orchestration delta")
-    accepted_at = datetime.fromisoformat(str(prior.get("accepted_at"))).timestamp()
-    changed = sorted(
-        relative
-        for relative in ORCHESTRATION_RELATIVE_PATHS
-        if (ROOT / relative).stat().st_mtime > accepted_at
-    )
+    current_sources = orchestration_source_sha256(ROOT)
+    prior_sources = prior.get("orchestration_sources")
+    if (
+        isinstance(prior_sources, Mapping)
+        and set(prior_sources) == set(ORCHESTRATION_RELATIVE_PATHS)
+        and all(isinstance(value, str) and len(value) == 64 for value in prior_sources.values())
+    ):
+        changed = sorted(
+            relative
+            for relative in ORCHESTRATION_RELATIVE_PATHS
+            if prior_sources[relative] != current_sources[relative]
+        )
+        delta_basis = "content_sha256_manifest"
+    else:
+        # Compatibility for the one physical HIL acceptance created before
+        # source manifests existed.  The resulting evidence records the delta
+        # once; verification never re-evaluates checkout mtimes.
+        accepted_at = datetime.fromisoformat(str(prior.get("accepted_at"))).timestamp()
+        changed = sorted(
+            relative
+            for relative in ORCHESTRATION_RELATIVE_PATHS
+            if (ROOT / relative).stat().st_mtime > accepted_at
+        )
+        delta_basis = "legacy_acceptance_mtime_snapshot"
     if not set(changed).issubset(readiness.HIL_CARRYFORWARD_NONPHYSICAL_PATHS):
         raise PromotionError(
             "HIL carry-forward includes a physical/runtime source: "
@@ -137,12 +160,14 @@ def carry_forward(prior_path: Path) -> Mapping[str, Any]:
         **dict(prior),
         "accepted_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "identity": current_identity,
+        "orchestration_sources": current_sources,
         "carryforward": {
             "schema": "step5d.autotune-v3/hil-nonphysical-carryforward-v1",
             "prior_acceptance_path": str(prior_path.relative_to(ROOT)),
             "prior_acceptance_sha256": _sha256(prior_path),
             "prior_identity": prior_identity,
             "changed_orchestration_paths": changed,
+            "delta_basis": delta_basis,
             "policy": "no_new_tp_play_only_nonphysical_startup_sources_changed",
         },
     }

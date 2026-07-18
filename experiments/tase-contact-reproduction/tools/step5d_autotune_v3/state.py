@@ -368,6 +368,18 @@ def orchestration_fingerprint(experiment_root: Path) -> str:
     return digest.hexdigest()
 
 
+def orchestration_source_sha256(experiment_root: Path) -> dict[str, str]:
+    """Return a checkout-stable content manifest for the orchestration surface."""
+
+    manifest: dict[str, str] = {}
+    for relative in ORCHESTRATION_RELATIVE_PATHS:
+        path = experiment_root / relative
+        if path.is_symlink() or not path.is_file():
+            raise StateError(f"orchestration manifest input is missing: {relative}")
+        manifest[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return manifest
+
+
 @dataclass(frozen=True)
 class AttemptLedger:
     tuples: Mapping[tuple[Decimal, Decimal, Decimal, str], str]

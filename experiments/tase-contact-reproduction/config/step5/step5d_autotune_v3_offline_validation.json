@@ -1,13 +1,13 @@
 {
   "schema": "step5d.autotune-v3/offline-validation-v1",
-  "observed_at": "2026-07-19T03:29:13+08:00",
+  "observed_at": "2026-07-19T03:43:15+08:00",
   "frozen_baseline": {
     "tag": "archive/step5d-autotune-v1-20260715",
     "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
   },
   "identity": {
     "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
-    "orchestration_fingerprint": "a6ccea517b67808375a08a65314824541288765fe5368d498c680bd6ec41c5d8",
+    "orchestration_fingerprint": "41ee9320d492d4ab195bd462d446651d0649b569d074c50dd8bd206c2397afc1",
     "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
     "effective_field_count": 126,
     "tp_fingerprint": "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc",
@@ -16,15 +16,15 @@
   "gates": {
     "hosted_offline_release": {
       "status": "pass",
-      "tests_passed": 380,
+      "tests_passed": 381,
       "subtests_passed": 5,
-      "elapsed_s": 6.320683797006495,
-      "small_tests_passed": 275,
+      "elapsed_s": 6.339061781996861,
+      "small_tests_passed": 276,
       "medium_tests_passed": 102,
       "installed_runtime_tests_passed": 3,
       "dependency_mode": "installed_runtime_dependencies",
-      "parallel_manifest": "runs/step5d_autotune_v3_implementation/final-startup-closure-pass2-20260719/parallel_run_manifest.json",
-      "parallel_manifest_sha256": "a2dd3ef6fa77e8d9b9501fdf0f2f93856d56938803ba77df37225a69b0d7baf4",
+      "parallel_manifest": "runs/step5d_autotune_v3_implementation/ci-fix-closure-20260719T0346HKT/parallel_run_manifest.json",
+      "parallel_manifest_sha256": "669793dc66b0156514e2b290d83bef1d3f6b57a68dd1de0ab0b46aa7275e5784",
       "network_allowed": false,
       "hardware_allowed": false
     },
@@ -62,7 +62,7 @@
     "ursim_hold_only": {
       "status": "pass",
       "result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-      "result_sha256": "a6ea4c2251f97d3949032f58c036f8a3974a3c41c21111d28b8b2deeeddf742e",
+      "result_sha256": "7c832d84a586bc6d8030157fc02ee2edee91f0f44732de46037868bb40b8fd2b",
       "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
       "raw_evidence_sha256": "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c",
       "image_digest": "sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",

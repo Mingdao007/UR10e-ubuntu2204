@@ -6,7 +6,7 @@
       "status": "pass",
       "observed_at": "2026-07-18T19:28:52.797421+00:00",
       "result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-      "result_sha256": "a6ea4c2251f97d3949032f58c036f8a3974a3c41c21111d28b8b2deeeddf742e",
+      "result_sha256": "7c832d84a586bc6d8030157fc02ee2edee91f0f44732de46037868bb40b8fd2b",
       "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
       "raw_evidence_sha256": "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c",
       "cleanup_completed": true

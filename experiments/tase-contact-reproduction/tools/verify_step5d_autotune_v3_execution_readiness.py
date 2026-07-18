@@ -22,6 +22,7 @@ from step5d_autotune_v3.state import (
     ORCHESTRATION_RELATIVE_PATHS,
     StateError,
     orchestration_fingerprint,
+    orchestration_source_sha256,
 )
 
 
@@ -170,6 +171,12 @@ def _verify_live_promotion(
     _require(evidence.get("ok"), True, "HIL acceptance result")
     _require(evidence.get("claim"), "target_controller_full_bridge_hold_no_motion", "HIL acceptance claim")
     _require(evidence.get("identity"), current_identity, "HIL acceptance identity")
+    current_sources = orchestration_source_sha256(root)
+    _require(
+        evidence.get("orchestration_sources"),
+        current_sources,
+        "HIL acceptance orchestration source manifest",
+    )
     carryforward = evidence.get("carryforward")
     if carryforward is not None:
         required_carryforward = {
@@ -178,6 +185,7 @@ def _verify_live_promotion(
             "prior_acceptance_sha256",
             "prior_identity",
             "changed_orchestration_paths",
+            "delta_basis",
             "policy",
         }
         if not isinstance(carryforward, Mapping) or set(carryforward) != required_carryforward:
@@ -218,19 +226,39 @@ def _verify_live_promotion(
             "program_stop",
         ):
             _require(evidence.get(field), prior.get(field), f"carried HIL evidence {field}")
-        accepted_at = datetime.fromisoformat(str(prior.get("accepted_at"))).timestamp()
-        changed = sorted(
-            relative
-            for relative in ORCHESTRATION_RELATIVE_PATHS
-            if (root / relative).stat().st_mtime > accepted_at
-        )
-        _require(
-            carryforward.get("changed_orchestration_paths"),
-            changed,
-            "HIL carry-forward changed paths",
-        )
+        changed = carryforward.get("changed_orchestration_paths")
+        if (
+            not isinstance(changed, list)
+            or not changed
+            or changed != sorted(set(changed))
+            or not all(isinstance(relative, str) for relative in changed)
+        ):
+            raise ReadinessError("HIL carry-forward changed paths are invalid")
+        prior_sources = prior.get("orchestration_sources")
+        if carryforward.get("delta_basis") == "content_sha256_manifest":
+            if not isinstance(prior_sources, Mapping):
+                raise ReadinessError("HIL carry-forward prior source manifest is missing")
+            _require(
+                set(prior_sources),
+                set(ORCHESTRATION_RELATIVE_PATHS),
+                "prior HIL source manifest paths",
+            )
+            expected_changed = sorted(
+                relative
+                for relative in ORCHESTRATION_RELATIVE_PATHS
+                if prior_sources.get(relative) != current_sources[relative]
+            )
+            _require(changed, expected_changed, "HIL carry-forward changed paths")
+        elif carryforward.get("delta_basis") != "legacy_acceptance_mtime_snapshot":
+            raise ReadinessError("HIL carry-forward delta basis is invalid")
         if not set(changed).issubset(HIL_CARRYFORWARD_NONPHYSICAL_PATHS):
             raise ReadinessError("HIL carry-forward includes a physical/runtime source")
+        required_incident_delta = {
+            "tools/run_step5d_autotune_campaign.py",
+            "tools/run_step5d_autotune_v3_live.py",
+        }
+        if not required_incident_delta.issubset(changed):
+            raise ReadinessError("HIL carry-forward changed paths omit the startup incident")
     return promotion
 
 

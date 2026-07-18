@@ -59,6 +59,11 @@ def install() -> None:
     for name in STUBBED_MODULES:
         sys.modules[name] = _UnusedDependency(name)
 
+    # pytest probes numpy.bool_ when comparing nested numeric values.  Keep the
+    # hermetic numpy double inert while exposing the one type-shaped attribute
+    # required by pytest's own comparison machinery.
+    sys.modules["numpy"].bool_ = bool
+
     capture = sys.modules["capture_kunwei_kwr75_1khz"]
     capture.FIELDS = ("fx", "fy", "fz", "mx", "my", "mz")
     capture.FORCE_KG_TO_N = 9.80665

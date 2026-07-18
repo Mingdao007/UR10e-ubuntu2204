@@ -33,7 +33,7 @@
   "identity": {
     "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
     "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
-    "orchestration_fingerprint": "a6ccea517b67808375a08a65314824541288765fe5368d498c680bd6ec41c5d8"
+    "orchestration_fingerprint": "41ee9320d492d4ab195bd462d446651d0649b569d074c50dd8bd206c2397afc1"
   },
   "image": {
     "entrypoint": [

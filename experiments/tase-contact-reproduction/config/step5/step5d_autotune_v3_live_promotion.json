@@ -4,12 +4,12 @@
   "current_selector": "step5d_strict_rnn_autotune_v1",
   "hil_acceptance": {
     "path": "evidence/step5d_autotune_v3/hil_acceptance.json",
-    "sha256": "00e96c4d92ff18fc1498f1965a499a7699b008a2ae205770b401720c8545d94f"
+    "sha256": "8e91b7b4ca586307c1a4c4c5352f87ad32dac816810a667b2b2822f276bb410b"
   },
   "identity": {
     "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
     "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
-    "orchestration_fingerprint": "a6ccea517b67808375a08a65314824541288765fe5368d498c680bd6ec41c5d8"
+    "orchestration_fingerprint": "41ee9320d492d4ab195bd462d446651d0649b569d074c50dd8bd206c2397afc1"
   },
   "live_runtime_promoted": true,
   "same_process_startup_gate": true,

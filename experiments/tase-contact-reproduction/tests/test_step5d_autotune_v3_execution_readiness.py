@@ -122,6 +122,18 @@ def test_hil_carryforward_changed_path_attestation_is_fail_closed(
         readiness.verify(fixture, require_live=True)
 
 
+def test_hil_carryforward_verification_is_independent_of_checkout_mtime(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture_root(tmp_path)
+    for relative in readiness.ORCHESTRATION_RELATIVE_PATHS:
+        path = fixture / relative
+        path.touch()
+
+    report = readiness.verify(fixture, require_live=True)
+    assert report["state"] == "ready_for_v3_live_continuous_campaign"
+
+
 def test_user_confirmation_cannot_be_reintroduced(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     _mutate_v3(

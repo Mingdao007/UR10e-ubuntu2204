@@ -30,7 +30,7 @@ URSIM_IMAGE = (
     "a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4"
 )
 URSIM_RAW_SHA256 = "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c"
-URSIM_RESULT_SHA256 = "a6ea4c2251f97d3949032f58c036f8a3974a3c41c21111d28b8b2deeeddf742e"
+URSIM_RESULT_SHA256 = "7c832d84a586bc6d8030157fc02ee2edee91f0f44732de46037868bb40b8fd2b"
 EXPECTED_SHA256 = {
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script":
         "97ca4a9e035bc0f5b9a2345adb8711ec3275886c0939fb0f23c4a5aecd4c4f8f",
@@ -56,7 +56,7 @@ EXPECTED_SHA256 = {
     "config/step5/step5d_autotune_v3_ursim_hold_raw.json": URSIM_RAW_SHA256,
     "config/step5/step5d_autotune_v3_ursim_hold_result.json": URSIM_RESULT_SHA256,
     "config/step5/step5d_autotune_v3_offline_validation.json":
-        "e37dff069293d9dbf6e2b5881b946394a1f16cda65d970adfb8b47caa9b873e7",
+        "e9c2c14eb50333c24132f61de43c55810f0394a53251c24ef86b3c405d95b28c",
     "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json":
         "70229a0c94d4a546c1a5f27e033bf34a8c0d302776c3227a39d857f12a366a48",
 }
