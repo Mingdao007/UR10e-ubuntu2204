@@ -630,8 +630,8 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertIn('v20_low_load_active_reacquire', bridge_source)
         self.assertIn('step5d_contact_safety["action"] == "active_reacquire_solver"', bridge_source)
         self.assertNotIn('if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then\n  PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
-        self.assertIn('EXPECTED_BASENAME="${STEP4E_VERSION}.urp"', base)
-        self.assertIn('RUN_LABEL="${STEP4E_VERSION}"', base)
+        self.assertIn('EXPECTED_BASENAME="${PROGRAM_LINE##*/}"', base)
+        self.assertIn('RUN_LABEL="${EXPECTED_BASENAME%.urp}"', base)
 
     def test_step5d_v8_live_limiter_pid_and_contact_window_gate(self) -> None:
         limited, active = bridge.limit_step5d_live_xdot(

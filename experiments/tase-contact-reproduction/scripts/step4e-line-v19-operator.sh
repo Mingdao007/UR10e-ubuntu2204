@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXP_DIR="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "${SCRIPT_PATH}")" && pwd)"
+EXP_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 export STEP4E_VERSION="v19"
 export BRIDGE_DURATION_S="240"

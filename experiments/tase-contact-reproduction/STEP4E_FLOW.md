@@ -4,6 +4,10 @@ This table is the source of truth for the Step4e/TASE process. When the
 operator changes the process, update this table first, then update generator,
 bridge, and operator scripts to match it.
 
+Machine-readable version routing is owned by `config/step4e_stage_table.json`
+and resolved by `tools/resolve_step4e_route.py`. The route table contains rules
+only; run and controller read-back evidence remains under `runs/`.
+
 Current package: `step4e_seed_normal_loop_v31`
 
 Previous conservative filtered-live-normal package: `step4e_seed_normal_loop_v30`

@@ -18,9 +18,12 @@ import shutil
 import shlex
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path, PurePosixPath
+
+from resolve_step4e_route import load_routes as load_step4e_routes
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -97,6 +100,20 @@ def _target_resolution(
 
 
 def resolve_table_target(program: str, *, root: Path = EXPERIMENT_ROOT, required: bool = True) -> dict | None:
+    step4e_table = root / "config" / "step4e_stage_table.json"
+    if step4e_table.is_file():
+        routes, _ = load_step4e_routes(step4e_table)
+        for route in routes.values():
+            if route["program_basename"] == program:
+                return _target_resolution(
+                    target=route["controller_urp"],
+                    target_dir=None,
+                    row_id=route["version"],
+                    source=(
+                        "config/step4e_stage_table.json"
+                        f"#route_families[version={route['version']}]"
+                    ),
+                )
     current = load_json_if_present(root / "config" / "current_stage.json")
     table = load_json_if_present(root / "config" / "step5_stage_table.json")
 
@@ -1378,27 +1395,118 @@ def package_sha(files: dict[str, Path]) -> dict[str, str]:
     return {ext: sha256(path) for ext, path in files.items()}
 
 
-def remote_sha256(helper: Path, remote_paths: list[str], *, dry_run: bool) -> dict[str, str]:
-    if dry_run:
-        for remote_path in remote_paths:
-            run(helper_cmd(helper, "run", "--", "sha256sum", remote_path), dry_run=True)
-        return {}
-    output = run(
-        helper_cmd(helper, "run", "--", "sha256sum", *remote_paths),
-        dry_run=False,
-        capture=True,
+def helper_deployment_manifest(
+    files: dict[str, Path], program: str, target_dir: str
+) -> dict:
+    return {
+        "schema_version": 1,
+        "basename": program,
+        "controller_directory": target_dir,
+        "artifacts": [
+            {
+                "filename": files[ext].name,
+                "source": str(files[ext].resolve()),
+                "sha256": sha256(files[ext]),
+            }
+            for ext in EXTENSIONS
+        ],
+    }
+
+
+def write_helper_deployment_manifest(
+    path: Path, files: dict[str, Path], program: str, target_dir: str
+) -> None:
+    path.write_text(
+        json.dumps(
+            helper_deployment_manifest(files, program, target_dir),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
     )
-    shas: dict[str, str] = {}
-    for line in output.splitlines():
-        match = re.match(r"^([0-9a-fA-F]{64})\s+(.+)$", line.strip())
-        if not match:
+
+
+def parse_helper_json(output: str) -> dict:
+    for line in reversed(output.splitlines()):
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
             continue
-        digest, path = match.groups()
-        shas[path] = digest.lower()
-    missing = [path for path in remote_paths if path not in shas]
-    if missing:
-        die(f"could not parse controller sha256sum for: {missing}")
-    return shas
+        if isinstance(payload, dict):
+            return payload
+    die("controller helper returned no JSON object")
+
+
+def remote_sha256(
+    helper: Path,
+    remote_paths: list[str],
+    *,
+    expected_sha: dict[str, str],
+    dry_run: bool,
+) -> dict[str, str]:
+    parents = {str(PurePosixPath(path).parent) for path in remote_paths}
+    basenames = {PurePosixPath(path).stem for path in remote_paths}
+    if len(parents) != 1 or len(basenames) != 1 or len(remote_paths) != len(EXTENSIONS):
+        die("controller SHA check must bind one exact triplet")
+    target_dir = parents.pop()
+    program = basenames.pop()
+    files = {
+        PurePosixPath(path).suffix: Path("/nonexistent") / PurePosixPath(path).name
+        for path in remote_paths
+    }
+    with tempfile.TemporaryDirectory(prefix="ur10e-controller-sha-") as tmp:
+        temp_root = Path(tmp)
+        manifest_path = temp_root / "deployment-manifest.json"
+        manifest = {
+            "schema_version": 1,
+            "basename": program,
+            "controller_directory": target_dir,
+            "artifacts": [
+                {
+                    "filename": files[ext].name,
+                    "source": str(files[ext]),
+                    "sha256": expected_sha[ext],
+                }
+                for ext in EXTENSIONS
+            ],
+        }
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        output_dir = temp_root / "readback"
+        command = helper_cmd(
+            helper,
+            "readback",
+            "--manifest",
+            str(manifest_path),
+            "--output-dir",
+            str(output_dir),
+        )
+        if dry_run:
+            run(command, dry_run=True)
+            return {}
+        completed = subprocess.run(command, text=True, capture_output=True, check=False)
+        if completed.returncode != 0:
+            diagnostic = "\n".join((completed.stdout, completed.stderr))
+            if "SHA256 mismatch" in diagnostic:
+                return {}
+            die(f"controller readback check failed with exit {completed.returncode}")
+        payload = parse_helper_json(completed.stdout)
+        rows = payload.get("files", [])
+        sha_by_filename = {
+            row.get("filename"): row.get("sha256")
+            for row in rows
+            if isinstance(row, dict)
+        }
+        shas = {
+            path: sha_by_filename.get(PurePosixPath(path).name, "")
+            for path in remote_paths
+        }
+        if any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in shas.values()):
+            die("controller helper readback receipt is incomplete")
+        return shas
 
 
 def manifest_matches_package(
@@ -1503,7 +1611,15 @@ def reuse_readback_if_remote_sha_matches(
 
     manifest_path, _manifest = reusable
     remote_paths = remote_paths_for(files, target_dir)
-    controller_sha = remote_sha256(helper, remote_paths, dry_run=False)
+    controller_sha = remote_sha256(
+        helper,
+        remote_paths,
+        expected_sha=local_sha,
+        dry_run=False,
+    )
+    if not controller_sha:
+        print("Controller SHA does not match reusable read-back; falling back to full upload/read-back")
+        return None
     controller_sha_by_ext = {
         ext: controller_sha[controller_path(target_dir, files[ext].name)] for ext in EXTENSIONS
     }
@@ -1539,43 +1655,64 @@ def upload_and_readback(
     if controller != DEFAULT_CONTROLLER:
         die(f"{Path(__file__).name} uses the bench helper for {DEFAULT_CONTROLLER}; got {controller!r}")
 
-    run(helper_cmd(helper, "run", "--", "mkdir", "-p", target_dir), dry_run=dry_run)
     remote_paths = remote_paths_for(files, target_dir)
-    for ext in EXTENSIONS:
-        remote_path = controller_path(target_dir, files[ext].name)
-        run(helper_cmd(helper, "put", str(files[ext]), remote_path), dry_run=dry_run)
-
-    run(helper_cmd(helper, "run", "--", "chown", "1000:1000", *remote_paths), dry_run=dry_run)
-    run(helper_cmd(helper, "run", "--", "chmod", "664", *remote_paths), dry_run=dry_run)
-    run(helper_cmd(helper, "run", "--", "ls", "-l", *remote_paths), dry_run=dry_run)
-    controller_sha = remote_sha256(helper, remote_paths, dry_run=dry_run)
-
+    manifest_path = readback_dir / "deployment-manifest.json"
     if dry_run:
-        for ext in EXTENSIONS:
-            remote_path = controller_path(target_dir, files[ext].name)
-            run(helper_cmd(helper, "get", remote_path, str(readback_dir / files[ext].name)), dry_run=True)
+        run(
+            helper_cmd(
+                helper,
+                "deploy-triplet",
+                "--manifest",
+                str(manifest_path),
+                "--confirm-deploy",
+            ),
+            dry_run=True,
+        )
+        run(
+            helper_cmd(
+                helper,
+                "readback",
+                "--manifest",
+                str(manifest_path),
+                "--output-dir",
+                str(readback_dir),
+            ),
+            dry_run=True,
+        )
         return {}
 
     readback_dir.mkdir(parents=True, exist_ok=False)
-    for ext in EXTENSIONS:
-        remote_path = controller_path(target_dir, files[ext].name)
-        run(helper_cmd(helper, "get", remote_path, str(readback_dir / files[ext].name)), dry_run=False)
+    write_helper_deployment_manifest(manifest_path, files, program, target_dir)
+    run(
+        helper_cmd(
+            helper,
+            "deploy-triplet",
+            "--manifest",
+            str(manifest_path),
+            "--confirm-deploy",
+        ),
+        dry_run=False,
+        capture=True,
+    )
+    run(
+        helper_cmd(
+            helper,
+            "readback",
+            "--manifest",
+            str(manifest_path),
+            "--output-dir",
+            str(readback_dir),
+        ),
+        dry_run=False,
+        capture=True,
+    )
 
     local_sha = package_sha(files)
     readback_sha = {ext: sha256(readback_dir / path.name) for ext, path in files.items()}
     mismatches = [ext for ext in EXTENSIONS if local_sha[ext] != readback_sha[ext]]
     if mismatches:
         die(f"controller read-back SHA mismatch for: {mismatches}")
-    remote_mismatches = [
-        ext
-        for ext in EXTENSIONS
-        if controller_sha[controller_path(target_dir, files[ext].name)] != local_sha[ext]
-    ]
-    if remote_mismatches:
-        die(f"controller sha256sum mismatch for: {remote_mismatches}")
-    controller_sha_by_ext = {
-        ext: controller_sha[controller_path(target_dir, files[ext].name)] for ext in EXTENSIONS
-    }
+    controller_sha_by_ext = dict(readback_sha)
     return {"local": local_sha, "controller": controller_sha_by_ext, "readback": readback_sha}
 
 
@@ -1671,7 +1808,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--force-upload-readback",
         action="store_true",
-        help="disable SHA-matched read-back reuse and force put/get verification",
+        help="disable SHA-matched reuse and force manifest-bound deploy/read-back",
     )
     parser.add_argument(
         "--allow-local-candidate-promote",
@@ -1793,7 +1930,7 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=False,
         delivery_mode=delivery_mode,
         reused_from_manifest=reused_from_manifest,
-        fresh_controller_sha_verified=reused_from_manifest is not None,
+        fresh_controller_sha_verified=True,
         readback_source=readback_source,
         local_candidate_marker=local_candidate_marker,
         target_source=target_source,

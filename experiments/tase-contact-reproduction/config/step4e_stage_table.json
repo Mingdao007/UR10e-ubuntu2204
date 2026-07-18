@@ -1,0 +1,69 @@
+{
+  "schema_version": "step4e.stage-table-v1",
+  "current_version": "v31",
+  "version_domain": {"minimum": 1, "maximum": 31},
+  "route_families": [
+    {
+      "selector": {"ranges": [[1, 12], [14, 15], [17, 17], [19, 20]], "versions": []},
+      "basename_template": "step4e_line_outerloop_{version}",
+      "local_dir": "programs/step4e",
+      "controller_dir": "/programs/andyl/kunwei/step4/step4e"
+    },
+    {
+      "selector": {"ranges": [], "versions": [13, 16, 18]},
+      "basename_template": "step4e_line_outerloop_{version}",
+      "local_dir": "programs/step4e",
+      "controller_dir": "/programs/andyl/kunwei/step4"
+    },
+    {
+      "selector": {"ranges": [], "versions": [21]},
+      "basename_template": "step4e_detached_movel_minrot_{version}",
+      "local_dir": "programs/step4e",
+      "controller_dir": "/programs/andyl/kunwei/step4/step4e"
+    },
+    {
+      "selector": {"ranges": [[22, 27]], "versions": []},
+      "basename_template": "step4e_seed_normal_loop_{version}",
+      "local_dir": "programs/step4e",
+      "controller_dir": "/programs/andyl/kunwei/step4/step4e"
+    },
+    {
+      "selector": {"ranges": [[28, 30]], "versions": []},
+      "basename_template": "step4e_seed_normal_loop_{version}",
+      "local_dir": "programs/step4e",
+      "controller_dir": "/programs/andyl/kunwei/step4"
+    },
+    {
+      "selector": {"ranges": [], "versions": [31]},
+      "basename_template": "step4e_seed_normal_loop_{version}",
+      "local_dir": "programs",
+      "controller_dir": "/programs/andyl/kunwei/step4"
+    }
+  ],
+  "lifecycle_rules": [
+    {"status": "current", "selector": {"ranges": [], "versions": [31]}},
+    {"status": "previous", "selector": {"ranges": [], "versions": [30]}},
+    {"status": "fallback", "selector": {"ranges": [], "versions": [29]}},
+    {"status": "failed_archive", "selector": {"ranges": [[23, 28]], "versions": [17, 19, 20]}},
+    {"status": "historical", "selector": {"ranges": [[1, 16], [21, 22]], "versions": [18]}}
+  ],
+  "current_contract": {
+    "version": "v31",
+    "program_basename": "step4e_seed_normal_loop_v31",
+    "local_dir": "programs",
+    "controller_target": "/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v31.urp",
+    "bridge_profile": "v31",
+    "flow_source": "STEP4E_FLOW.md",
+    "bridge_contract_source": "STEP4E_BRIDGE_CONTRACT.md",
+    "contact": true,
+    "control_period_s": 0.002,
+    "default_bridge_duration_s": 180,
+    "guard_source": "STEP4E_BRIDGE_CONTRACT.md",
+    "success_condition": "STEP4E_FLOW.md stage 25.0 end-progress hold and final stage 29.0 with recorded stop reason"
+  },
+  "evidence_policy": {
+    "embedded_in_route_table": false,
+    "rule_sources": ["STEP4E_FLOW.md", "STEP4E_BRIDGE_CONTRACT.md"],
+    "runtime_evidence_location": "runs/ and controller read-back manifests"
+  }
+}

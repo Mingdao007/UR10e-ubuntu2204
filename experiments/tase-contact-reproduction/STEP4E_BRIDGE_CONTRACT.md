@@ -11,6 +11,11 @@ script guard, and upload/read-back validation.
 - Local triplet: `programs/step4e_seed_normal_loop_v31.{script,txt,urp}`
 - Controller triplet: `/programs/andyl/kunwei/step4/step4e_seed_normal_loop_v31.{script,txt,urp}`
 - Bridge profile: `--step4e-version v31`
+- Current operator entrypoint: `scripts/step4e-line-operator.sh` (defaults to
+  v31); `route-info` resolves the controller/local path without network or
+  bridge activity.
+- Historical v1..v31 controller/local routing is defined once in
+  `config/step4e_stage_table.json`; evidence is not embedded in that rule file.
 - Normal follow: `--step4e-normal-follow-mode filtered_live`
 - Alpha/min-force: `--step4e-normal-filter-alpha 0.35`, `--step4e-normal-min-force-n 2.0`
 
