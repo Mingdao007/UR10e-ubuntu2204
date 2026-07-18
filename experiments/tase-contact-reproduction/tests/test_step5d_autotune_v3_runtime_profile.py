@@ -36,7 +36,7 @@ def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() 
     profile = load_launch_profile()
     assert len(launch_mutable_flags(json.loads(
         (ROOT / "config/step5/step5d_autotune_v3_control_contract.json").read_text()
-    ))) == 39
+    ))) == 40
     overlay = normalize_trial_overlay(DEFAULT_OVERLAY, profile=profile)
     assert tuple(overlay) == OVERLAY_FIELDS
     assert len(overlay) == 13

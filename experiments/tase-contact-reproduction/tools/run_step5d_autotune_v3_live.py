@@ -175,31 +175,6 @@ def _latest_csv_row(path: Path) -> Mapping[str, str] | None:
     return rows[-1] if rows else None
 
 
-def _ready_home_zero_identity(
-    row: Mapping[str, str] | None,
-    *,
-    require_playing: bool = True,
-) -> bool:
-    if row is None:
-        return False
-    try:
-        state = int(float(row["ur_output_int_register_26"]))
-        runtime_state = int(float(row["ur_runtime_state"]))
-        safety = int(float(row["ur_safety_mode"]))
-        identity = [
-            int(float(row[f"ur_output_int_register_{index}"]))
-            for index in (24, 25, 27, 28, 29, 30)
-        ]
-    except (KeyError, TypeError, ValueError):
-        return False
-    return (
-        state == 10
-        and (runtime_state == 2 if require_playing else runtime_state != 2)
-        and safety == 1
-        and identity == [0, 0, 0, 0, 0, 0]
-    )
-
-
 def _runtime_playing_normal(row: Mapping[str, str] | None) -> bool:
     if row is None:
         return False
@@ -478,20 +453,6 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
             )
             _wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")
             csv_path = bridge_run / "bridge_rtde_500hz.csv"
-            deadline = time.monotonic() + args.ready_timeout_s
-            while time.monotonic() < deadline:
-                if bridge.poll() is not None:
-                    raise LiveLaunchError("bridge exited before pre-Play READY_HOME")
-                if _ready_home_zero_identity(
-                    _latest_csv_row(csv_path),
-                    require_playing=False,
-                ):
-                    break
-                time.sleep(0.05)
-            else:
-                raise LiveLaunchError(
-                    "TP must remain STOPPED at stationary zero-identity READY_HOME"
-                )
 
             runner_command = [
                 sys.executable,

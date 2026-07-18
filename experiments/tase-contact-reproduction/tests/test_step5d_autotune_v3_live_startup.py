@@ -22,14 +22,20 @@ def _row(*, runtime_state: int, state: int = 10) -> dict[str, str]:
     return row
 
 
-def test_preplay_home_and_postplay_runtime_are_distinct_contracts() -> None:
-    stopped = _row(runtime_state=1)
+def test_postplay_runtime_requires_playing_normal() -> None:
     playing = _row(runtime_state=2)
 
-    assert live._ready_home_zero_identity(stopped, require_playing=False) is True
-    assert live._ready_home_zero_identity(stopped, require_playing=True) is False
-    assert live._ready_home_zero_identity(playing, require_playing=False) is False
     assert live._runtime_playing_normal(playing) is True
+
+
+def test_preplay_does_not_wait_for_stale_stopped_tp_output_registers() -> None:
+    source = (ROOT / "tools/run_step5d_autotune_v3_live.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "_ready_home_zero_identity" not in source
+    assert "pre-Play READY_HOME" not in source
+    assert "stationary zero-identity READY_HOME" not in source
 
 
 def test_operator_play_signal_follows_runner_readiness_and_is_unique() -> None:
@@ -39,10 +45,13 @@ def test_operator_play_signal_follows_runner_readiness_and_is_unique() -> None:
     runner_ready = source.index(
         '_wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")'
     )
+    bridge_ready = source.index(
+        '_wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")'
+    )
     play_signal = source.index('print("READY_FOR_ONE_PLAY_TO_MOVE"')
     play_observed = source.index("if _runtime_playing_normal", play_signal)
 
-    assert runner_ready < play_signal < play_observed
+    assert bridge_ready < runner_ready < play_signal < play_observed
     assert source.count("READY_FOR_ONE_PLAY_TO_MOVE") == 1
     assert 'READY_FOR_TP_PLAY_V3"' not in source
     assert "campaign_authorization.json" not in source

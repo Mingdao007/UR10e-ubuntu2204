@@ -1,20 +1,20 @@
 {
   "schema": "step5d.autotune-v3/deterministic-validation-v2",
-  "observed_at": "2026-07-19T05:13:00+08:00",
+  "observed_at": "2026-07-19T05:28:00+08:00",
   "identity": {
-    "contract_sha256": "1dc4be0e2953d379b392d815945666a7367f6ca972870df0d3be3ab9145db902",
-    "control_fingerprint": "0fd2b0069c6d0e594c4ee6d7c45847ef0504ad146ce20370c98a1c6dec14db58",
-    "orchestration_fingerprint": "d0f0d8166ca0c1586d5973e76b0db9996d352d977c08aaec273ecd67fc8a0b37"
+    "contract_sha256": "62dc8ef25da41bc010ae07de8031a920236db1837e4a574ef0af9bfb552efaa3",
+    "control_fingerprint": "63acd168cd50fb598582cf68624a042564b04433d80aa58840c3ac43c44f36bd",
+    "orchestration_fingerprint": "72a0312124ec81d2e5e60b9365b9cbe14c5edacb6419c3f7a41625bfe75a2ea1"
   },
   "gates": {
     "repository_validation": {
       "status": "pass",
-      "release_matrix_tests_passed": 353,
+      "release_matrix_tests_passed": 354,
       "release_matrix_subtests_passed": 7,
-      "full_autotune_regression_tests_passed": 515,
+      "full_autotune_regression_tests_passed": 516,
       "full_autotune_regression_subtests_passed": 46,
-      "parallel_manifest": "/home/andy/.codex/runs/step5d-v3-prealign-pareto-20260719/full-matrix-final/parallel_run_manifest.json",
-      "parallel_manifest_sha256": "16b32a205ac6a8e6003639f49b050be2e387457771eb78a4f0bfdde3759cdfd4",
+      "parallel_manifest": "/home/andy/.codex/runs/step5d-v3-prealign-pareto-20260719/full-matrix-startup-fix-final/parallel_run_manifest.json",
+      "parallel_manifest_sha256": "1b8f1fed73eb1aafb4d49ff3196dcb0004c8cd0c424159369cc90156942eb523",
       "commands": [
         "python3 tools/run_step5d_autotune_v3_test_matrix.py --lanes small medium --workers auto --include-installed-runtime",
         "pytest all step5d_autotune tests plus plot publisher with xdist=4",

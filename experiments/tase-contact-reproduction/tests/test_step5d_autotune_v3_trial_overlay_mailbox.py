@@ -37,7 +37,6 @@ from run_step5d_autotune_v3_bridge import (  # noqa: E402
 from run_step5d_autotune_v3_live import (  # noqa: E402
     INITIAL_CONTROL_LOG2_K,
     INITIAL_LOG2,
-    _ready_home_zero_identity,
     initial_candidates,
     initial_control_overlays,
 )
@@ -240,18 +239,3 @@ def test_v3_capture_writer_is_async_compact_and_binds_real_candidate(tmp_path: P
     assert "large_unused_diagnostic" not in header
     assert "autotune_control_candidate_uid" in header
     assert "autotune_orientation_ko" in header
-
-
-def test_live_ready_requires_playing_runtime_state() -> None:
-    row = {
-        "ur_runtime_state": "2",
-        "ur_safety_mode": "1",
-        "ur_output_int_register_26": "10",
-        **{
-            f"ur_output_int_register_{index}": "0"
-            for index in (24, 25, 27, 28, 29, 30)
-        },
-    }
-    assert _ready_home_zero_identity(row) is True
-    row["ur_runtime_state"] = "1"
-    assert _ready_home_zero_identity(row) is False

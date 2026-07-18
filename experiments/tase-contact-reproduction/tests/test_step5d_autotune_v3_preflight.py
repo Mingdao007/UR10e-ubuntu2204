@@ -14,7 +14,7 @@ import preflight_step5d_autotune_v3 as gate  # noqa: E402
 def test_exact_v3_stopped_or_ready_home_program_binding() -> None:
     assert gate._program_safe_for_bridge(
         {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp"},
-        {},
+        {"output_int_register_30": 33},
     )["ok"] is True
     assert gate._program_safe_for_bridge(
         {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp"},
