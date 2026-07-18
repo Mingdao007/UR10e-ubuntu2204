@@ -38,7 +38,7 @@ def test_preplay_does_not_wait_for_stale_stopped_tp_output_registers() -> None:
     assert "stationary zero-identity READY_HOME" not in source
 
 
-def test_operator_play_signal_follows_runner_readiness_and_is_unique() -> None:
+def test_operator_play_signal_precedes_runner_recovery_from_fresh_tp_state() -> None:
     source = (ROOT / "tools/run_step5d_autotune_v3_live.py").read_text(
         encoding="utf-8"
     )
@@ -51,7 +51,7 @@ def test_operator_play_signal_follows_runner_readiness_and_is_unique() -> None:
     play_signal = source.index('print("READY_FOR_ONE_PLAY_TO_MOVE"')
     play_observed = source.index("if _runtime_playing_normal", play_signal)
 
-    assert bridge_ready < runner_ready < play_signal < play_observed
+    assert bridge_ready < play_signal < play_observed < runner_ready
     assert source.count("READY_FOR_ONE_PLAY_TO_MOVE") == 1
     assert 'READY_FOR_TP_PLAY_V3"' not in source
     assert "campaign_authorization.json" not in source

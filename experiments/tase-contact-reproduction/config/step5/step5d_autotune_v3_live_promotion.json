@@ -6,11 +6,11 @@
   "identity": {
     "contract_sha256": "62dc8ef25da41bc010ae07de8031a920236db1837e4a574ef0af9bfb552efaa3",
     "control_fingerprint": "63acd168cd50fb598582cf68624a042564b04433d80aa58840c3ac43c44f36bd",
-    "orchestration_fingerprint": "72a0312124ec81d2e5e60b9365b9cbe14c5edacb6419c3f7a41625bfe75a2ea1"
+    "orchestration_fingerprint": "9477b7e17b69ad54e4d4ab5a43490edca0eabad126e9162bb2479cba6be9aa0d"
   },
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
-    "sha256": "8b6170d003a448af38ef6a5c5da90a5d64ef0318f6e26c9a74cede2c3200cf7b"
+    "sha256": "4a4425f238435eae1b64cd91c5afd1bd058064c73c209c011891cf26bc11b0e4"
   },
   "controller_readback": {
     "path": "config/step5d_autotune_controller_readback_v3.json",

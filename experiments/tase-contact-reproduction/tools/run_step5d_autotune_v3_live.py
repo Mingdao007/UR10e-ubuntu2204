@@ -497,6 +497,17 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                         str(args.legacy_campaign_epoch),
                     ]
                 )
+            print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
+            deadline = time.monotonic() + args.play_timeout_s
+            while time.monotonic() < deadline:
+                if bridge.poll() is not None:
+                    raise LiveLaunchError("bridge exited while waiting for TP Play")
+                if _runtime_playing_normal(_latest_csv_row(csv_path)):
+                    play_observed = True
+                    break
+                time.sleep(0.05)
+            else:
+                raise LiveLaunchError("TP Play was not observed before timeout")
             with runner_log_path.open("wb") as runner_log:
                 runner = subprocess.Popen(
                     runner_command,
@@ -508,19 +519,6 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                     close_fds=True,
                 )
                 _wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")
-                print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
-                deadline = time.monotonic() + args.play_timeout_s
-                while time.monotonic() < deadline:
-                    if bridge.poll() is not None:
-                        raise LiveLaunchError("bridge exited while waiting for TP Play")
-                    if runner.poll() is not None:
-                        raise LiveLaunchError("campaign runner exited while waiting for TP Play")
-                    if _runtime_playing_normal(_latest_csv_row(csv_path)):
-                        play_observed = True
-                        break
-                    time.sleep(0.05)
-                else:
-                    raise LiveLaunchError("TP Play was not observed before timeout")
                 print("V3_CAMPAIGN_RUNNING_ONE_PLAY_CONTINUOUS", flush=True)
                 while bridge.poll() is None and runner.poll() is None:
                     time.sleep(0.2)
