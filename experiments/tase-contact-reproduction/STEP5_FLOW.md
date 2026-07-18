@@ -1,8 +1,10 @@
 # Step5 Flow
 
-`config/current_stage.json` remains on frozen V1 until the newly generated V3
-triplet receives a fresh controller upload/read-back and the deterministic live
-gates pass. V1 source and selector files are not modified by this rollout.
+`config/current_stage.json` remains on the frozen
+`step5d_strict_rnn_autotune_v1` rollback selector while the dedicated V3
+entrypoint owns the live candidate. The V3 triplet has fresh controller
+upload/read-back and deterministic live gates; V1 source and selector files are
+not modified by this rollout.
 
 V3 has one deliberate TP motion delta: before the existing guarded FAR search,
 Stage22 moves at the current safe Z to XY `[0.487795411, 0.129326793]` and the

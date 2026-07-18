@@ -80,6 +80,23 @@ TERMINAL_PHASES = {
 }
 
 
+def candidate_transition_allowed_for_policy(
+    selection_policy: str,
+    source: ForceCandidate,
+    target: ForceCandidate,
+) -> bool:
+    """Use the live supervisor's exact transition rule at pre-Play gates."""
+
+    if selection_policy not in {"adaptive", "codex_batches"}:
+        raise ValueError("selection_policy must be adaptive or codex_batches")
+    if live_trust_region_step(source, target):
+        return True
+    return (
+        selection_policy == "codex_batches"
+        and codex_i_scale_probe_transition(source, target)
+    )
+
+
 @dataclass(frozen=True)
 class TrialIntent:
     trial: TrialSpec
@@ -296,11 +313,10 @@ class CampaignSupervisor:
         source: ForceCandidate,
         target: ForceCandidate,
     ) -> bool:
-        if live_trust_region_step(source, target):
-            return True
-        return (
-            self.selection_policy == "codex_batches"
-            and codex_i_scale_probe_transition(source, target)
+        return candidate_transition_allowed_for_policy(
+            self.selection_policy,
+            source,
+            target,
         )
 
     def seed_command_sequence_from_tp(self, consumed_command_seq: int) -> None:

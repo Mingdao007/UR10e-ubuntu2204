@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,7 +24,6 @@ from step5d_autotune_live_driver import (  # noqa: E402
     BridgeMailboxRuntime,
 )
 from step5d_autotune_state_machine import HostCommand, HostPacket  # noqa: E402
-from step5d_autotune_optimizer import live_trust_region_step  # noqa: E402
 from step5d_autotune_v3.runtime_profile import (  # noqa: E402
     DEFAULT_OVERLAY,
     is_control_candidate_step,
@@ -37,9 +37,12 @@ from run_step5d_autotune_v3_bridge import (  # noqa: E402
 from run_step5d_autotune_v3_live import (  # noqa: E402
     INITIAL_CONTROL_LOG2_K,
     INITIAL_LOG2,
+    LiveLaunchError,
+    _validate_initial_candidate_path,
     initial_candidates,
     initial_control_overlays,
 )
+from run_step5d_autotune_campaign import AdoptedCandidateHistory  # noqa: E402
 
 
 def _prepared(overlay: dict) -> SimpleNamespace:
@@ -132,7 +135,7 @@ def test_v1_mailbox_schema_remains_without_trial_overlay(tmp_path: Path) -> None
     assert command.binding.trial_overlay is None
 
 
-def test_initial_live_batch_is_exact_unique_unattempted_and_reachable_from_g10() -> None:
+def test_initial_live_batch_is_reachable_from_observed_durable_history_before_play() -> None:
     candidates = initial_candidates()
     assert len(candidates) == len({item.candidate_uid for item in candidates}) == 10
     for candidate, expected in zip(candidates, INITIAL_LOG2, strict=True):
@@ -145,10 +148,37 @@ def test_initial_live_batch_is_exact_unique_unattempted_and_reachable_from_g10()
         ledger.attempted_group(candidate.payload(), "nf050-slew050-a050") is None
         for candidate in candidates
     )
-    anchors = [ForceCandidate.from_log2(p=0.75, i=0.75, damping=0.25)]
-    for candidate in candidates:
-        assert any(live_trust_region_step(anchor, candidate) for anchor in anchors)
-        anchors.append(candidate)
+    fixture = json.loads(
+        (ROOT / "tests/fixtures/v3_post_play_pre_arm_lattice_incident.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    executed = tuple(
+        ForceCandidate.from_log2(p=p, i=i, damping=damping)
+        for p, i, damping in fixture["executed_log2_candidates"]
+    )
+    history = AdoptedCandidateHistory(
+        campaign_id="step5d-native-15",
+        campaign_epoch=fixture["provenance"]["legacy_campaign_epoch"],
+        profile_id=fixture["profile_id"],
+        plant_epoch=fixture["plant_epoch"],
+        executed_candidates=executed,
+        physically_attempted_candidate_uids=frozenset(
+            candidate.candidate_uid for candidate in executed
+        ),
+        fingerprint="a" * 64,
+    )
+    rejected = ForceCandidate.from_log2(
+        p=fixture["rejected_first_log2_candidate"][0],
+        i=fixture["rejected_first_log2_candidate"][1],
+        damping=fixture["rejected_first_log2_candidate"][2],
+    )
+    with pytest.raises(LiveLaunchError, match="candidate 1 is not reachable"):
+        _validate_initial_candidate_path((rejected,), adopted_history=history)
+    validated = _validate_initial_candidate_path(candidates, adopted_history=history)
+    assert validated["executed_anchor_count"] == 11
+    assert validated["planned_candidate_count"] == 10
+    assert tuple(INITIAL_LOG2[0]) == tuple(fixture["expected_first_log2_candidate"])
 
 
 def test_initial_control_batch_is_ten_unique_quarter_octave_steps_including_k() -> None:

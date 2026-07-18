@@ -170,6 +170,10 @@
     {
       "id": "direct_live_signal_and_internal_launch_binding",
       "incident_fixture": "tests/test_step5d_autotune_v3_execution_readiness.py"
+    },
+    {
+      "id": "post_play_pre_arm_candidate_lattice_reachability",
+      "incident_fixture": "tests/fixtures/v3_post_play_pre_arm_lattice_incident.json"
     }
   ]
 }

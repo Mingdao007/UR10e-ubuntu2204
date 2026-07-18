@@ -20,9 +20,14 @@ from typing import Any, Callable, Mapping
 import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 from prepare_step5d_autotune_launch import prepare
 from preflight_readonly import dashboard_exchange
-from run_step5d_autotune_campaign import validate_legacy_campaign_adoption
+from run_step5d_autotune_campaign import (
+    AdoptedCandidateHistory,
+    adopted_candidate_history,
+    validate_legacy_campaign_adoption,
+)
 from step5d_autotune_batch_plan import load_plan
 from step5d_autotune_contract import ForceCandidate
+from step5d_autotune_supervisor import candidate_transition_allowed_for_policy
 from step5d_autotune_v3 import cli as v3_cli
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
 from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
@@ -47,6 +52,8 @@ INITIAL_BATCH_SOURCE = "v3-pareto-round-a-10-trial-batch-20260719"
 DEFAULT_LEGACY_CAMPAIGN_ROOT = ROOT / "runs/step5d_native_autotune_recovered_runtime_v2"
 DEFAULT_LEGACY_CAMPAIGN_EPOCH = 16
 INITIAL_LOG2 = (
+    (0.5, 0.25, 0.25),
+    (0.5, 0.5, 0.25),
     (0.5, 0.75, 0.25),
     (0.25, 0.75, 0.25),
     (0.0, 0.75, 0.25),
@@ -55,8 +62,6 @@ INITIAL_LOG2 = (
     (-0.75, 0.75, 0.25),
     (-1.0, 0.75, 0.25),
     (-1.0, 0.5, 0.25),
-    (-1.0, 0.25, 0.25),
-    (-1.0, 0.0, 0.25),
 )
 INITIAL_CONTROL_LOG2_K = (
     (0.75, 0.75, 0.25, 0.47568284600108846),
@@ -113,15 +118,55 @@ def initial_control_overlays(profile: Any) -> tuple[dict[str, Any], ...]:
     return tuple(overlays)
 
 
+def _validate_initial_candidate_path(
+    candidates: tuple[ForceCandidate, ...],
+    *,
+    adopted_history: AdoptedCandidateHistory,
+) -> dict[str, Any]:
+    """Reject an unreachable or repeated transport plan before bridge/Play."""
+
+    anchors = list(adopted_history.executed_candidates)
+    attempted = set(adopted_history.physically_attempted_candidate_uids)
+    for index, candidate in enumerate(candidates, start=1):
+        if candidate.candidate_uid in attempted:
+            raise LiveLaunchError(
+                f"V3 transport candidate {index} was already physically attempted"
+            )
+        if not any(
+            candidate_transition_allowed_for_policy(
+                "codex_batches",
+                anchor,
+                candidate,
+            )
+            for anchor in anchors
+        ):
+            raise LiveLaunchError(
+                f"V3 transport candidate {index} is not reachable from durable history"
+            )
+        anchors.append(candidate)
+        attempted.add(candidate.candidate_uid)
+    return {
+        "adopted_campaign_epoch": adopted_history.campaign_epoch,
+        "adopted_candidate_history_fingerprint": adopted_history.fingerprint,
+        "executed_anchor_count": len(adopted_history.executed_candidates),
+        "planned_candidate_count": len(candidates),
+    }
+
+
 def _ensure_initial_batch(
     *,
     campaign_root: Path,
     campaign_id: str,
     launch_profile_path: Path,
+    adopted_history: AdoptedCandidateHistory,
 ) -> tuple[Any, Mapping[str, Any]]:
     paths = CampaignPaths(campaign_root)
     plan = load_plan(paths.candidate_plan, campaign_id=campaign_id)
     expected = initial_candidates()
+    _validate_initial_candidate_path(
+        expected,
+        adopted_history=adopted_history,
+    )
     if plan.revision == 0:
         profile = load_launch_profile(launch_profile_path)
         overlays = initial_control_overlays(profile)
@@ -356,11 +401,18 @@ def _validate_preflight(path: Path, identity: Mapping[str, Any]) -> dict[str, An
 def run(args: argparse.Namespace) -> Mapping[str, Any]:
     readiness = execution_readiness.verify(ROOT, require_live=True)
     legacy_preflight = None
+    legacy_history = None
     if args.legacy_campaign_root is not None:
         legacy_preflight = validate_legacy_campaign_adoption(
             args.legacy_campaign_root.resolve(),
             campaign_epoch=args.legacy_campaign_epoch,
         )
+        legacy_history = adopted_candidate_history(
+            args.legacy_campaign_root.resolve(),
+            campaign_epoch=args.legacy_campaign_epoch,
+        )
+    if legacy_history is None:
+        raise LiveLaunchError("V3 initial batch requires adopted durable candidate history")
     runtime_root = args.output_root.expanduser().absolute() / "runtime"
     runtime_root.mkdir(parents=True, exist_ok=False, mode=0o700)
     bridge_run = runtime_root / "bridge"
@@ -403,6 +455,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         campaign_root=args.campaign_root,
         campaign_id=str(prepared["campaign_id"]),
         launch_profile_path=args.launch_profile,
+        adopted_history=legacy_history,
     )
     paths = CampaignPaths(args.campaign_root)
     launch_id = uuid.uuid4().hex

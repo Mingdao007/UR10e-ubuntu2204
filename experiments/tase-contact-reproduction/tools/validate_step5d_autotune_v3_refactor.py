@@ -99,7 +99,7 @@ PROTECTED_V1_SHA256 = {
 APPROVED_ORCHESTRATION_VARIANTS = {
     "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {
         "baseline_sha256": "f7485600db9571d882076f3ceeed8ee999bee998d35fdc8fe2386664bb55550c",
-        "approved_sha256": "fe76e275d5b95bd51b081961bb851ccbb466378453116d364b696d18b6aad5eb",
+        "approved_sha256": "21aace469678798557a7128e15ef673c683d6382c4c6e6e0ccda51cb0d00c60c",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_live_driver.py": {

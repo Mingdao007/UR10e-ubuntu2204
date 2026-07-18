@@ -263,6 +263,17 @@ class CampaignEpochLayout:
     campaign: CampaignSpec
 
 
+@dataclass(frozen=True)
+class AdoptedCandidateHistory:
+    campaign_id: str
+    campaign_epoch: int
+    profile_id: str
+    plant_epoch: int
+    executed_candidates: tuple[ForceCandidate, ...]
+    physically_attempted_candidate_uids: frozenset[str]
+    fingerprint: str
+
+
 def discover_campaign_epochs(campaign_root: Path) -> tuple[CampaignEpochLayout, ...]:
     """Return the verified epoch chain instead of assuming epoch 1 is parent."""
 
@@ -661,6 +672,81 @@ def _prior_resume_history(manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
     for layout in reversed(layouts):
         rows.extend(CampaignStore(layout.store_root).read_resume_history())
     return rows
+
+
+def adopted_candidate_history(
+    campaign_root: Path,
+    *,
+    campaign_epoch: int | None = None,
+    plant_epoch: int = 1,
+) -> AdoptedCandidateHistory:
+    """Load exact executed anchors and attempted identities for code-epoch adoption."""
+
+    layout = select_campaign_epoch(
+        campaign_root,
+        campaign_epoch=campaign_epoch,
+    )
+    profile_id = profile_from_epoch(layout).profile_id
+    rows = [
+        *_prior_resume_history(layout.manifest),
+        *CampaignStore(layout.store_root).read_resume_history(),
+    ]
+    executed: list[ForceCandidate] = []
+    for row in rows:
+        profile = row.get("execution_profile")
+        if (
+            not isinstance(profile, Mapping)
+            or profile.get("profile_id") != profile_id
+            or row.get("plant_epoch") != plant_epoch
+        ):
+            continue
+        payload = row.get("candidate")
+        if not isinstance(payload, Mapping):
+            raise RuntimeError("adopted candidate history lacks candidate payload")
+        candidate = ForceCandidate(
+            force_p_gain=payload.get("force_p_gain"),
+            force_i_gain=payload.get("force_i_gain"),
+            force_damping=payload.get("force_damping"),
+        )
+        if row.get("candidate_uid") != candidate.candidate_uid:
+            raise RuntimeError("adopted candidate history identity differs")
+        executed.append(candidate)
+    if not executed:
+        raise RuntimeError("adopted candidate history has no compatible executed anchor")
+
+    latest = SupervisorJournal(layout.journal_root).load_latest()
+    attempted = {candidate.candidate_uid for candidate in executed}
+    attempted.update(
+        fate.trial.candidate_uid for fate in latest.state.terminal_fates
+    )
+    fingerprint_payload = {
+        "campaign_id": layout.campaign.campaign_id,
+        "campaign_epoch": layout.epoch,
+        "journal_record_sha256": latest.record_sha256,
+        "profile_id": profile_id,
+        "plant_epoch": plant_epoch,
+        "executed_candidate_uids": [
+            candidate.candidate_uid for candidate in executed
+        ],
+        "physically_attempted_candidate_uids": sorted(attempted),
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            fingerprint_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return AdoptedCandidateHistory(
+        campaign_id=layout.campaign.campaign_id,
+        campaign_epoch=layout.epoch,
+        profile_id=profile_id,
+        plant_epoch=plant_epoch,
+        executed_candidates=tuple(executed),
+        physically_attempted_candidate_uids=frozenset(attempted),
+        fingerprint=fingerprint,
+    )
 
 
 def _infra_abort_evidence(latest: Any) -> tuple[JournalReference, TpSnapshot]:
