@@ -17,7 +17,7 @@ from typing import Any, Callable, Mapping
 
 import preflight_readonly as base
 import run_step5d_autotune_v3_bridge as bridge_wrapper
-import verify_step5d_autotune_v3_hil_authorization as authorization_gate
+import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 from step5d_autotune_v3.launcher import build_bridge_argv
 from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY
 from step5d_autotune_v3.runtime_profile import (
@@ -34,7 +34,7 @@ from step5d_autotune_v3.state import atomic_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = "step5d.autotune-v3/hil-preflight-snapshot-v1"
+SCHEMA = "step5d.autotune-v3/hil-preflight-snapshot-v2"
 TP_PROGRAM_PATTERN = re.compile(r"([^<>\s]+\.urp)(?=$|[>\s])", re.IGNORECASE)
 
 
@@ -68,13 +68,39 @@ def _value(observation: Mapping[str, Any]) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def _program_loaded_stopped(dashboard: Mapping[str, Any]) -> dict[str, Any]:
+def _program_safe_for_bridge(
+    dashboard: Mapping[str, Any], rtde: Mapping[str, Any]
+) -> dict[str, Any]:
     raw = str(dashboard.get("programState", dashboard.get("program_state", "")))
     state = raw.split(maxsplit=1)[0].upper() if raw else ""
     basenames = {Path(match).name.lower() for match in TP_PROGRAM_PATTERN.findall(raw)}
     expected = f"{TP_PROGRAM_ID}.urp".lower()
-    checks = {"stopped": state == "STOPPED", "exact_program": basenames == {expected}}
-    return {"ok": all(checks.values()), "checks": checks, "raw": raw}
+    exact_program = basenames == {expected}
+    if state == "STOPPED":
+        checks = {"exact_program": exact_program, "stopped": True}
+        return {
+            "ok": all(checks.values()),
+            "mode": "loaded_stopped",
+            "checks": checks,
+            "raw": raw,
+        }
+    identity_fields = [24, 25, 27, 28, 29, 30]
+    ready_home = rtde.get("output_int_register_26") == 10
+    zero_identity = all(
+        rtde.get(f"output_int_register_{index}") == 0 for index in identity_fields
+    )
+    checks = {
+        "exact_program": exact_program,
+        "playing": state == "PLAYING",
+        "ready_home": ready_home,
+        "zero_identity": zero_identity,
+    }
+    return {
+        "ok": all(checks.values()),
+        "mode": "playing_ready_home_zero_identity",
+        "checks": checks,
+        "raw": raw,
+    }
 
 
 def _stationary(rtde: Mapping[str, Any]) -> dict[str, Any]:
@@ -139,7 +165,18 @@ def _controller_identity(
         },
         "rtde": {
             key: rtde.get(key)
-            for key in ("robot_mode", "safety_mode", "runtime_state")
+            for key in (
+                "robot_mode",
+                "safety_mode",
+                "runtime_state",
+                "output_int_register_24",
+                "output_int_register_25",
+                "output_int_register_26",
+                "output_int_register_27",
+                "output_int_register_28",
+                "output_int_register_29",
+                "output_int_register_30",
+            )
         },
     }
     encoded = json.dumps(material, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
@@ -148,11 +185,7 @@ def _controller_identity(
 
 def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
     started = time.monotonic()
-    authorization = authorization_gate.verify_authorization(
-        args.authorization,
-        expected_thread_id=args.expected_thread_id,
-        root=ROOT,
-    )
+    readiness = execution_readiness.verify(ROOT)
     launch = load_launch_profile(args.launch_profile)
     governed_argv = build_bridge_argv(
         args.mailbox.parent,
@@ -192,7 +225,11 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
                 ),
                 "rtde": lambda: base.read_rtde_once(
                     args.robot_host,
-                    [*base.RTDE_FIELDS, "actual_qd"],
+                    [
+                        *base.RTDE_FIELDS,
+                        "actual_qd",
+                        *[f"output_int_register_{index}" for index in range(24, 31)],
+                    ],
                     frequency_hz=10.0,
                     timeout=args.timeout_s,
                 ),
@@ -211,7 +248,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
     )
     predicates = {
         "safety_normal": _safety_normal(dashboard),
-        "program_loaded_stopped": _program_loaded_stopped(dashboard),
+        "program_safe_for_bridge": _program_safe_for_bridge(dashboard, rtde),
         "robot_stationary": _stationary(rtde),
         "no_existing_writer": {
             "ok": _value(local.get("writer", {})).get("ok") is True,
@@ -250,8 +287,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
         "candidate_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
         "tp_program_id": TP_PROGRAM_ID,
-        "authorization_id": authorization["authorization_id"],
-        "identity": authorization["identity"],
+        "identity": readiness["identity"],
         "launch_profile_fingerprint": launch.fingerprint,
         "controller_identity": controller_identity,
         "controller_identity_sha256": controller_sha,
@@ -271,7 +307,8 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
             "Kunwei TCP connect-only; no stream/zero/tare command",
             "local runtime calibration artifact and installed model sources are hash-checked",
             "production startup prewarm runs locally before any device writer is started",
-            "no bridge, RTDE input, Load, Play, ARM, contact, or motion",
+            "no bridge, RTDE input, Load, ARM, contact, or motion",
+            "an operator-started exact V3 program is accepted only at READY_HOME with zero identity",
         ],
     }
     atomic_json(args.output, payload)
@@ -280,8 +317,6 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--authorization", type=Path, required=True)
-    parser.add_argument("--expected-thread-id", required=True)
     parser.add_argument("--robot-host", default="192.168.1.18")
     parser.add_argument("--sensor-ip", default="192.168.50.25")
     parser.add_argument("--sensor-port", type=int, default=5152)

@@ -23,14 +23,19 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                 "schema": wrapper.TICKET_SCHEMA,
                 "parent_pid": os.getppid(),
                 "argv_sha256": hashlib.sha256(encoded).hexdigest(),
-                "authorization_id": "019f71d6-aaaa-7bbb-8ccc-e951de6daa96",
-                "authorization_scope": "hil_full_bridge_hold",
-                "identity": {"control_fingerprint": "a" * 64},
+                "launch_id": "1" * 32,
+                "scope": "hil_full_bridge_hold",
+                "identity": {
+                    "contract_sha256": "0" * 64,
+                    "control_fingerprint": "a" * 64,
+                    "orchestration_fingerprint": "d" * 64,
+                },
                 "launch_profile_fingerprint": "b" * 64,
                 "trial_overlay_fingerprint": "c" * 64,
                 "release_stage_id": "step5d_strict_rnn_autotune_v3",
                 "control_profile_id": "step5d_strict_rnn_autotune_v1",
                 "tp_program_id": "step5d_strict_rnn_autotune_v3",
+                "campaign_binding": None,
             }
         ),
         encoding="utf-8",
@@ -41,7 +46,7 @@ def _ticket(path: Path, argv: list[str]) -> Path:
 def test_wrapper_requires_parent_and_exact_argv_ticket(tmp_path: Path) -> None:
     argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
     ticket = _ticket(tmp_path / "ticket.json", argv)
-    assert wrapper._strict_ticket(ticket, argv)["authorization_scope"] == (
+    assert wrapper._strict_ticket(ticket, argv)["scope"] == (
         "hil_full_bridge_hold"
     )
     try:
@@ -56,6 +61,24 @@ def test_wrapper_refuses_direct_start_without_runtime_ticket(capsys) -> None:
     with patch.dict(os.environ, {}, clear=True):
         assert wrapper.main([]) == 24
     assert "RUNTIME_TICKET" in capsys.readouterr().err
+
+
+def test_live_ticket_requires_exact_campaign_binding(tmp_path: Path) -> None:
+    argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
+    ticket = _ticket(tmp_path / "ticket.json", argv)
+    payload = json.loads(ticket.read_text(encoding="utf-8"))
+    payload["scope"] = "live_continuous_campaign"
+    payload["campaign_binding"] = {
+        "campaign_id": "campaign-v3",
+        "campaign_epoch": 2,
+        "candidate_plan_revision": 1,
+        "candidate_plan_sha256": "e" * 64,
+        "trial_overlay_plan_sha256": "f" * 64,
+    }
+    ticket.write_text(json.dumps(payload), encoding="utf-8")
+    assert wrapper._strict_ticket(ticket, argv)["campaign_binding"][
+        "candidate_plan_revision"
+    ] == 1
 
 
 def test_wrapper_source_has_no_campaign_runner_arm_or_motion_surface() -> None:

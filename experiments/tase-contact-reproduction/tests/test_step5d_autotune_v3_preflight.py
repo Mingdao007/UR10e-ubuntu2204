@@ -11,15 +11,34 @@ sys.path.insert(0, str(ROOT / "tools"))
 import preflight_step5d_autotune_v3 as gate  # noqa: E402
 
 
-def test_exact_v3_stopped_program_binding() -> None:
-    assert gate._program_loaded_stopped(
-        {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp"}
+def test_exact_v3_stopped_or_ready_home_program_binding() -> None:
+    assert gate._program_safe_for_bridge(
+        {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp"},
+        {},
     )["ok"] is True
-    assert gate._program_loaded_stopped(
-        {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp"}
+    assert gate._program_safe_for_bridge(
+        {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp"},
+        {},
     )["ok"] is False
-    assert gate._program_loaded_stopped(
-        {"programState": "PLAYING /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp"}
+    ready_home = {f"output_int_register_{index}": 0 for index in range(24, 31)}
+    ready_home["output_int_register_26"] = 10
+    result = gate._program_safe_for_bridge(
+        {"programState": "PLAYING /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp"},
+        ready_home,
+    )
+    assert result["ok"] is True
+    assert result["mode"] == "playing_ready_home_zero_identity"
+
+
+def test_playing_v3_before_bridge_requires_ready_home_zero_identity() -> None:
+    base = {f"output_int_register_{index}": 0 for index in range(24, 31)}
+    dashboard = {
+        "programState": "PLAYING /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp"
+    }
+    assert gate._program_safe_for_bridge(dashboard, base)["ok"] is False
+    assert gate._program_safe_for_bridge(
+        dashboard,
+        {**base, "output_int_register_26": 10, "output_int_register_24": 1},
     )["ok"] is False
 
 

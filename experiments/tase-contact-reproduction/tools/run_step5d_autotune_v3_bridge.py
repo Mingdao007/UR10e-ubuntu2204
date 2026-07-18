@@ -23,7 +23,8 @@ from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 
 ROOT = Path(__file__).resolve().parents[1]
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
-TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v1"
+TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v2"
+TICKET_SCOPES = {"hil_full_bridge_hold", "live_continuous_campaign"}
 
 
 class BridgeTicketError(RuntimeError):
@@ -41,14 +42,15 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         "schema",
         "parent_pid",
         "argv_sha256",
-        "authorization_id",
-        "authorization_scope",
+        "launch_id",
+        "scope",
         "identity",
         "launch_profile_fingerprint",
         "trial_overlay_fingerprint",
         "release_stage_id",
         "control_profile_id",
         "tp_program_id",
+        "campaign_binding",
     }
     if not isinstance(payload, dict) or set(payload) != required:
         raise BridgeTicketError("V3 runtime ticket fields differ")
@@ -60,7 +62,6 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
     if payload["argv_sha256"] != hashlib.sha256(encoded_argv).hexdigest():
         raise BridgeTicketError("V3 runtime ticket argv binding differs")
     expected = {
-        "authorization_scope": "hil_full_bridge_hold",
         "release_stage_id": "step5d_strict_rnn_autotune_v3",
         "control_profile_id": "step5d_strict_rnn_autotune_v1",
         "tp_program_id": "step5d_strict_rnn_autotune_v3",
@@ -68,6 +69,66 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
     for key, value in expected.items():
         if payload[key] != value:
             raise BridgeTicketError(f"V3 runtime ticket {key} differs")
+    if payload["scope"] not in TICKET_SCOPES:
+        raise BridgeTicketError("V3 runtime ticket scope differs")
+    launch_id = payload["launch_id"]
+    if (
+        not isinstance(launch_id, str)
+        or len(launch_id) != 32
+        or any(character not in "0123456789abcdef" for character in launch_id)
+    ):
+        raise BridgeTicketError("V3 runtime ticket launch id differs")
+    identity = payload["identity"]
+    if not isinstance(identity, dict) or set(identity) != {
+        "contract_sha256",
+        "control_fingerprint",
+        "orchestration_fingerprint",
+    }:
+        raise BridgeTicketError("V3 runtime ticket identity differs")
+    for value in (
+        *identity.values(),
+        payload["launch_profile_fingerprint"],
+        payload["trial_overlay_fingerprint"],
+    ):
+        if (
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            raise BridgeTicketError("V3 runtime ticket fingerprint differs")
+    binding = payload["campaign_binding"]
+    if payload["scope"] == "hil_full_bridge_hold":
+        if binding is not None:
+            raise BridgeTicketError("HIL HOLD runtime ticket cannot bind a campaign")
+    elif (
+        not isinstance(binding, dict)
+        or set(binding)
+        != {
+            "campaign_id",
+            "campaign_epoch",
+            "candidate_plan_revision",
+            "candidate_plan_sha256",
+            "trial_overlay_plan_sha256",
+        }
+        or not isinstance(binding["campaign_id"], str)
+        or not binding["campaign_id"]
+        or isinstance(binding["campaign_epoch"], bool)
+        or not isinstance(binding["campaign_epoch"], int)
+        or binding["campaign_epoch"] < 1
+        or isinstance(binding["candidate_plan_revision"], bool)
+        or not isinstance(binding["candidate_plan_revision"], int)
+        or binding["candidate_plan_revision"] < 1
+    ):
+        raise BridgeTicketError("live runtime ticket campaign binding differs")
+    if binding is not None:
+        for key in ("candidate_plan_sha256", "trial_overlay_plan_sha256"):
+            value = binding[key]
+            if (
+                not isinstance(value, str)
+                or len(value) != 64
+                or any(character not in "0123456789abcdef" for character in value)
+            ):
+                raise BridgeTicketError("live runtime ticket plan fingerprint differs")
     return payload
 
 

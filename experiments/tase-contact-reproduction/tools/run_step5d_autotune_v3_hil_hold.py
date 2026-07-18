@@ -21,7 +21,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
-import verify_step5d_autotune_v3_hil_authorization as authorization_gate
+import verify_step5d_autotune_v3_hil_authorization as launch_permit_gate
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
 from step5d_autotune_v3.runtime_profile import (
     DEFAULT_OVERLAY,
@@ -38,7 +38,7 @@ from step5d_autotune_v3.state import atomic_json
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER = ROOT / "tools/run_step5d_autotune_v3_bridge.py"
 RESULT_SCHEMA = "step5d.autotune-v3/hil-full-bridge-hold-result-v1"
-PREFLIGHT_SCHEMA = "step5d.autotune-v3/hil-preflight-snapshot-v1"
+PREFLIGHT_SCHEMA = "step5d.autotune-v3/hil-preflight-snapshot-v2"
 STATIONARY_WINDOW_S = 5.0
 TCP_SPEED_LIMIT_M_S = 0.001
 JOINT_DRIFT_LIMIT_RAD = 0.002
@@ -263,7 +263,7 @@ def _stop_v3_program(
     }
 
 
-def _validate_preflight(path: Path, authorization: Mapping[str, Any]) -> dict[str, Any]:
+def _validate_preflight(path: Path, launch_permit: Mapping[str, Any]) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise HilHoldError("fresh V3 HIL preflight snapshot is required")
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -275,8 +275,7 @@ def _validate_preflight(path: Path, authorization: Mapping[str, Any]) -> dict[st
         "candidate_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
         "tp_program_id": TP_PROGRAM_ID,
-        "authorization_id": authorization["authorization_id"],
-        "identity": authorization["identity"],
+        "identity": launch_permit["identity"],
     }
     for key, value in expected.items():
         if payload.get(key) != value:
@@ -284,7 +283,7 @@ def _validate_preflight(path: Path, authorization: Mapping[str, Any]) -> dict[st
     predicates = payload.get("predicates") or {}
     required = {
         "safety_normal",
-        "program_loaded_stopped",
+        "program_safe_for_bridge",
         "robot_stationary",
         "no_existing_writer",
         "mailbox_hold_zero",
@@ -354,26 +353,31 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
             "launch_profile_fingerprint": check["launch_profile_fingerprint"],
             "trial_overlay_fingerprint": check["trial_overlay_fingerprint"],
         }
-    authorization = authorization_gate.verify_authorization(
-        args.authorization,
-        expected_thread_id=args.expected_thread_id,
+    launch_permit = launch_permit_gate.build_launch_permit(
+        root=ROOT,
+        parent_pid=os.getpid(),
+    )
+    launch_permit_gate.verify_launch_permit(
+        launch_permit,
+        expected_parent_pid=os.getpid(),
         root=ROOT,
     )
-    preflight = _validate_preflight(args.preflight, authorization)
+    preflight = _validate_preflight(args.preflight, launch_permit)
     output_dir = Path(check["effective_config"]["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=False, mode=0o700)
     ticket = {
-        "schema": "step5d.autotune-v3/runtime-ticket-v1",
+        "schema": "step5d.autotune-v3/runtime-ticket-v2",
         "parent_pid": os.getpid(),
         "argv_sha256": _sha256_json(command[2:]),
-        "authorization_id": authorization["authorization_id"],
-        "authorization_scope": authorization["scope"],
-        "identity": authorization["identity"],
+        "launch_id": launch_permit["launch_id"],
+        "scope": launch_permit["scope"],
+        "identity": launch_permit["identity"],
         "launch_profile_fingerprint": check["launch_profile_fingerprint"],
         "trial_overlay_fingerprint": check["trial_overlay_fingerprint"],
         "release_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
         "tp_program_id": TP_PROGRAM_ID,
+        "campaign_binding": None,
     }
     ticket_path = runtime_root / "runtime_ticket.json"
     atomic_json(ticket_path, ticket)
@@ -462,7 +466,7 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         "schema": RESULT_SCHEMA,
         "ok": True,
         "claim": "target_controller_full_bridge_hold_no_motion",
-        "authorization_id": authorization["authorization_id"],
+        "launch_id": launch_permit["launch_id"],
         "controller_identity_sha256": preflight["controller_identity_sha256"],
         "stationary": stationary,
         "zero_events": [],
@@ -485,19 +489,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
     )
-    parser.add_argument("--authorization", type=Path)
-    parser.add_argument("--expected-thread-id")
     parser.add_argument("--preflight", type=Path)
     parser.add_argument("--play-timeout-s", type=float, default=90.0)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
-    if not args.check and (
-        args.authorization is None
-        or not args.expected_thread_id
-        or args.preflight is None
-    ):
-        parser.error("live HIL requires --authorization, --expected-thread-id, and --preflight")
+    if not args.check and args.preflight is None:
+        parser.error("live HIL requires --preflight from the canonical entrypoint")
     return args
 
 

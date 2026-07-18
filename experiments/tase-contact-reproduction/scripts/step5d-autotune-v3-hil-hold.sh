@@ -16,8 +16,6 @@ case "${MODE}" in
       --check "$@"
     ;;
   run)
-    authorization=""
-    thread_id=""
     output_root=""
     launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
     arguments=("$@")
@@ -25,15 +23,13 @@ case "${MODE}" in
     while (( index < ${#arguments[@]} )); do
       option="${arguments[index]}"
       case "${option}" in
-        --authorization|--expected-thread-id|--output-root|--launch-profile)
+        --output-root|--launch-profile)
           if (( index + 1 >= ${#arguments[@]} )); then
             echo "${option} requires a value" >&2
             exit 64
           fi
           value="${arguments[index + 1]}"
           case "${option}" in
-            --authorization) authorization="${value}" ;;
-            --expected-thread-id) thread_id="${value}" ;;
             --output-root) output_root="${value}" ;;
             --launch-profile) launch_profile="${value}" ;;
           esac
@@ -44,21 +40,34 @@ case "${MODE}" in
           ;;
       esac
     done
-    if [[ -z "${authorization}" || -z "${thread_id}" || -z "${output_root}" ]]; then
-      echo "run requires --authorization, --expected-thread-id, and --output-root" >&2
+    if [[ -z "${output_root}" ]]; then
+      echo "run requires --output-root" >&2
       exit 64
     fi
     output_root="$(readlink -m -- "${output_root}")"
     preflight="${output_root}/preflight.json"
     python3 "${EXPERIMENT_ROOT}/tools/preflight_step5d_autotune_v3.py" \
-      --authorization "${authorization}" \
-      --expected-thread-id "${thread_id}" \
       --mailbox "${output_root}/runtime/command.json" \
       --launch-profile "${launch_profile}" \
       --output "${preflight}" \
       --json
+    runner_args=()
+    index=0
+    while (( index < ${#arguments[@]} )); do
+      option="${arguments[index]}"
+      case "${option}" in
+        --output-root|--launch-profile)
+          ((index += 2))
+          ;;
+        *)
+          runner_args+=("${option}")
+          ((index += 1))
+          ;;
+      esac
+    done
     exec python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_hil_hold.py" \
-      "$@" --output-root "${output_root}" --preflight "${preflight}"
+      "${runner_args[@]}" --output-root "${output_root}" \
+      --launch-profile "${launch_profile}" --preflight "${preflight}"
     ;;
   *)
     echo "unknown mode: ${MODE}; expected check or run" >&2

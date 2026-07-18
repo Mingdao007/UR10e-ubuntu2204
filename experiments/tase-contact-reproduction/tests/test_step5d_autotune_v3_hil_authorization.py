@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import json
 import sys
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -11,172 +10,101 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-import verify_step5d_autotune_v3_execution_readiness as readiness  # noqa: E402
 import verify_step5d_autotune_v3_hil_authorization as gate  # noqa: E402
 
 
-THREAD_ID = "019f71d6-7870-7831-9362-e951de6daa96"
-AUTHORIZATION_ID = "019f71d6-aaaa-7bbb-8ccc-e951de6daa96"
-NOW = datetime(2026, 7, 18, 14, 30, tzinfo=timezone.utc)
+IDENTITY = {
+    "contract_sha256": "a" * 64,
+    "control_fingerprint": "b" * 64,
+    "orchestration_fingerprint": "c" * 64,
+}
 
 
-def _authorization(**overrides) -> dict:
-    payload = {
-        "schema": gate.SCHEMA,
-        "authorization_id": AUTHORIZATION_ID,
-        "thread_id": THREAD_ID,
-        "issued_by": "user_current_turn_explicit",
-        "issued_at": (NOW - timedelta(minutes=1)).isoformat(),
-        "expires_at": (NOW + timedelta(minutes=9)).isoformat(),
-        "user_instruction_sha256": "1" * 64,
-        "candidate_stage_id": gate.V3_STAGE_ID,
-        "scope": gate.SCOPE,
-        "identity": readiness.verify(ROOT)["identity"],
-        "controller_identity_policy": "fresh_read_only_snapshot_before_connection",
-        "serial": True,
-        "hold_required": True,
-        "live_writer_allowed": True,
-        "operator_action_consumed": False,
-        "allowed_actions": gate.ALLOWED_ACTIONS,
-        "forbidden_actions": gate.FORBIDDEN_ACTIONS,
-    }
-    payload.update(overrides)
-    return payload
+@pytest.fixture(autouse=True)
+def _current_readiness():
+    with patch.object(
+        gate.execution_readiness,
+        "verify",
+        return_value={
+            "state": gate.execution_readiness.READY_FOR_HIL,
+            "ready_to_execute": False,
+            "identity": dict(IDENTITY),
+        },
+    ):
+        yield
 
 
-def _write(tmp_path: Path, payload: dict) -> Path:
-    path = tmp_path / "authorization.json"
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    return path
-
-
-def test_candidate_scoped_current_turn_hold_authorization_passes(tmp_path: Path) -> None:
-    report = gate.verify_authorization(
-        _write(tmp_path, _authorization()),
-        expected_thread_id=THREAD_ID,
+def test_canonical_entrypoint_builds_process_bound_hold_permit() -> None:
+    permit = gate.build_launch_permit(
         root=ROOT,
-        now=NOW,
+        parent_pid=1234,
+        launch_id="1" * 32,
     )
-    assert report["ok"] is True
-    assert report["authorized"] is True
+    report = gate.verify_launch_permit(
+        permit,
+        expected_parent_pid=1234,
+        root=ROOT,
+    )
     assert report["scope"] == "hil_full_bridge_hold"
-    assert report["live_writer_allowed"] is True
-    assert report["next_legal_action"] == (
-        "capture a fresh controller snapshot, then run the serialized "
-        "full-production-bridge HOLD gate"
-    )
+    assert report["issued_by"] == "canonical_v3_hil_entrypoint"
+    assert report["hold_required"] is True
+    assert "arm" in report["forbidden_actions"]
 
 
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
-        ("candidate_stage_id", "step5d_strict_rnn_autotune_v1", "candidate"),
+        ("parent_pid", 9999, "parent_pid"),
+        ("candidate_stage_id", "step5d_strict_rnn_autotune_v1", "candidate_stage_id"),
         ("scope", "live_motion", "scope"),
-        ("issued_by", "historical_resolver", "issuer"),
-        ("live_writer_allowed", False, "live_writer_allowed"),
-        ("operator_action_consumed", True, "operator_action_consumed"),
-        ("user_instruction_sha256", "0" * 64, "placeholder"),
+        ("issued_by", "user_current_turn_explicit", "issued_by"),
+        ("hold_required", False, "hold_required"),
     ],
 )
-def test_authorization_identity_and_scope_mutations_fail_closed(
-    tmp_path: Path,
-    field: str,
-    value,
-    message: str,
-) -> None:
-    with pytest.raises(gate.AuthorizationError, match=message):
-        gate.verify_authorization(
-            _write(tmp_path, _authorization(**{field: value})),
-            expected_thread_id=THREAD_ID,
-            root=ROOT,
-            now=NOW,
-        )
-
-
-def test_control_fingerprint_mismatch_fails_closed(tmp_path: Path) -> None:
-    payload = _authorization()
-    payload["identity"]["control_fingerprint"] = "2" * 64
-    with pytest.raises(gate.AuthorizationError, match="authorization identity"):
-        gate.verify_authorization(
-            _write(tmp_path, payload),
-            expected_thread_id=THREAD_ID,
-            root=ROOT,
-            now=NOW,
-        )
-
-
-def test_authorization_must_bind_the_current_thread(tmp_path: Path) -> None:
-    with pytest.raises(gate.AuthorizationError, match="current-turn thread binding"):
-        gate.verify_authorization(
-            _write(tmp_path, _authorization()),
-            expected_thread_id="019f71d6-bbbb-7ccc-8ddd-e951de6daa96",
-            root=ROOT,
-            now=NOW,
-        )
-
-
-@pytest.mark.parametrize(
-    ("issued_at", "expires_at", "message"),
-    [
-        (NOW - timedelta(hours=1), NOW - timedelta(minutes=30), "expired"),
-        (NOW - timedelta(minutes=1), NOW + timedelta(minutes=31), "TTL"),
-        (NOW + timedelta(minutes=1), NOW + timedelta(minutes=10), "future"),
-    ],
-)
-def test_authorization_time_window_fails_closed(
-    tmp_path: Path,
-    issued_at: datetime,
-    expires_at: datetime,
-    message: str,
-) -> None:
-    payload = _authorization(
-        issued_at=issued_at.isoformat(),
-        expires_at=expires_at.isoformat(),
+def test_internal_permit_mutations_fail_closed(field: str, value, message: str) -> None:
+    permit = gate.build_launch_permit(
+        root=ROOT,
+        parent_pid=1234,
+        launch_id="2" * 32,
     )
-    with pytest.raises(gate.AuthorizationError, match=message):
-        gate.verify_authorization(
-            _write(tmp_path, payload),
-            expected_thread_id=THREAD_ID,
+    permit[field] = value
+    with pytest.raises(gate.LaunchPermitError, match=message):
+        gate.verify_launch_permit(
+            permit,
+            expected_parent_pid=1234,
             root=ROOT,
-            now=NOW,
         )
 
 
-def test_action_allowlist_and_denylist_are_exact(tmp_path: Path) -> None:
-    allowed = [*gate.ALLOWED_ACTIONS, "program_load"]
-    with pytest.raises(gate.AuthorizationError, match="allowlist"):
-        gate.verify_authorization(
-            _write(tmp_path, _authorization(allowed_actions=allowed)),
-            expected_thread_id=THREAD_ID,
+def test_internal_permit_identity_and_action_lists_are_exact() -> None:
+    permit = gate.build_launch_permit(
+        root=ROOT,
+        parent_pid=1234,
+        launch_id="3" * 32,
+    )
+    permit["identity"]["control_fingerprint"] = "f" * 64
+    with pytest.raises(gate.LaunchPermitError, match="identity"):
+        gate.verify_launch_permit(
+            permit,
+            expected_parent_pid=1234,
             root=ROOT,
-            now=NOW,
         )
-    forbidden = gate.FORBIDDEN_ACTIONS[:-1]
-    with pytest.raises(gate.AuthorizationError, match="denylist"):
-        gate.verify_authorization(
-            _write(tmp_path, _authorization(forbidden_actions=forbidden)),
-            expected_thread_id=THREAD_ID,
+
+    permit = gate.build_launch_permit(
+        root=ROOT,
+        parent_pid=1234,
+        launch_id="4" * 32,
+    )
+    permit["allowed_actions"] = [*permit["allowed_actions"], "arm"]
+    with pytest.raises(gate.LaunchPermitError, match="allowed_actions"):
+        gate.verify_launch_permit(
+            permit,
+            expected_parent_pid=1234,
             root=ROOT,
-            now=NOW,
         )
 
 
-def test_extra_authorization_field_and_cli_failure_are_blocked(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    path = _write(tmp_path, _authorization(unreviewed_override=True))
-    assert gate.main(
-        [
-            "--authorization",
-            str(path),
-            "--expected-thread-id",
-            THREAD_ID,
-            "--root",
-            str(ROOT),
-            "--json",
-        ]
-    ) == 2
-    report = json.loads(capsys.readouterr().out)
-    assert report["authorized"] is False
-    assert "fields differ" in report["blocker"]
+def test_cli_has_no_user_authorization_or_thread_arguments() -> None:
+    parser = gate.parse_args([])
+    assert not hasattr(parser, "authorization")
+    assert not hasattr(parser, "expected_thread_id")
