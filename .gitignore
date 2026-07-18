@@ -55,6 +55,10 @@ experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010
 *.swp
 *~
 
+# Canonical content-addressed evidence lives under the Git common directory.
+# This root path is only an ignored compatibility link for legacy tools.
+/.ur10e-artifacts
+
 # Obsidian local window state
 .obsidian/workspace.json
 .obsidian/workspace-mobile.json
