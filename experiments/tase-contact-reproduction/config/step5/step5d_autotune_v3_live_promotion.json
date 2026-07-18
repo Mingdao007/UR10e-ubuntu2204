@@ -4,17 +4,17 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "current_selector": "step5d_strict_rnn_autotune_v1",
   "identity": {
-    "contract_sha256": "62dc8ef25da41bc010ae07de8031a920236db1837e4a574ef0af9bfb552efaa3",
-    "control_fingerprint": "63acd168cd50fb598582cf68624a042564b04433d80aa58840c3ac43c44f36bd",
-    "orchestration_fingerprint": "64456e8c701d91a7f8bf7716b876e2705d50b83514477bfaff8e8562600dc130"
+    "contract_sha256": "96a83126c1bf4b11ed41429060e9b83c4b867f799dea337478c69bcf84ad57f0",
+    "control_fingerprint": "12a494fc44fc238a0623e951b1ae328c22cd18a3b966d79692c9c2b032ed80ea",
+    "orchestration_fingerprint": "3076abe2c0f09df70b83b9038b3c8631f7eb835eee8c4ef169cc19d378a36d8f"
   },
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
-    "sha256": "2912aa217fb77a91d66f7fb8951678405269fb692707a51a3428d6ceb2f64fa7"
+    "sha256": "28c6543701d47e162c2fcfd6124f62829eac71500569f5f8796bb03748990e75"
   },
   "controller_readback": {
     "path": "config/step5d_autotune_controller_readback_v3.json",
-    "sha256": "fafce3c5f4f619f2a470106ad848c40a7a9198512c9c0642736edff53f1c049c"
+    "sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0"
   },
   "machine_campaign_binding": "machine_generated_epoch_and_process_fingerprint",
   "same_process_startup_gate": true,

@@ -87,12 +87,12 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
         "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
         "artifact_dir": "programs/step5/step5d",
         "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-            "readback_manifest_sha256": (
-                "fafce3c5f4f619f2a470106ad848c40a7a9198512c9c0642736edff53f1c049c"
-            ),
-            "tp_fingerprint": (
-                "41d94af398d92059a97a2a9c60d8604dbf521113f0cff92e613a7b0960c387d4"
-            ),
+        "readback_manifest_sha256": (
+            "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0"
+        ),
+        "tp_fingerprint": (
+            "1c42b3f73e5c8ac27f7739117bff2f1af1e127ceb5e94d38aecc63fcbf5893a0"
+        ),
     }
     assert report["execution_profile_id"] == "nf050-slew050-a050"
     categories = report["field_categories"]

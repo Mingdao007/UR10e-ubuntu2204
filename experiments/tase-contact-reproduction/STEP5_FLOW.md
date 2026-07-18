@@ -6,12 +6,15 @@ entrypoint owns the live candidate. The V3 triplet has fresh controller
 upload/read-back and deterministic live gates; V1 source and selector files are
 not modified by this rollout.
 
-V3 has one deliberate TP motion delta: before the existing guarded FAR search,
-Stage22 moves at the current safe Z to XY `[0.487795411, 0.129326793]` and the
-evidence-bound approximate surface rotvec
-`[-3.075091258, -0.128927503, -0.200359566]`. FAR/NEAR direction, speed, depth,
-force guards, and heartbeat guards remain frozen. The compact pose evidence is
-kept separately in
+V3 has one deliberate prealign delta before guarded search. Stage22 first moves
+at the current safe Z, then descends vertically to
+`[0.487834547, 0.129337053, 0.022863519]` with rotvec
+`[3.141592654, 0, 0]`. This is the robust center of five completed poses sampled
+at first contact plus `0.1 s`, with `5 mm` retained above the observed surface;
+the current start must be another `10 mm` above that entry or preflight rejects
+the launch before Play. FAR/NEAR speeds, direction, force thresholds, force
+guards, and heartbeat guards remain frozen; the closer start can shorten or
+eliminate the FAR-speed segment. The compact pose evidence is kept separately in
 `evidence/step5d_autotune_v3/start_pose_prior_20260719.json`; raw captures remain
 under ignored `runs/` storage.
 

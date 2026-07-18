@@ -71,6 +71,7 @@ _V3_COMPACT_EXACT_FIELDS = frozenset(
         "ur_runtime_state", "ur_robot_mode", "ur_safety_mode", "ur_speed_scaling",
         "ur_output_double_register_26", "ur_output_double_register_30",
         "ur_output_double_register_35", "ur_output_double_register_36",
+        "ur_output_double_register_37", "ur_output_double_register_38",
     }
 )
 _V3_COMPACT_PREFIXES = (
@@ -86,6 +87,16 @@ _V3_CAPTURE_IDENTITY_FIELDS = (
     "autotune_force_damping",
     "autotune_orientation_ko",
 )
+_V3_RUNNER_CLOSURE_FIELDS = frozenset(
+    {
+        "t_monotonic_s",
+        "ur_timestamp",
+        "ur_safety_mode",
+        *(f"ur_{name}_{index}" for name in ("actual_TCP_pose", "actual_TCP_speed", "actual_q", "actual_qd") for index in range(6)),
+        *(f"ur_output_int_register_{index}" for index in range(24, 31)),
+        *(f"ur_output_double_register_{index}" for index in range(36, 39)),
+    }
+)
 
 
 def compact_v3_fieldnames(fieldnames: Sequence[str]) -> tuple[str, ...]:
@@ -95,12 +106,10 @@ def compact_v3_fieldnames(fieldnames: Sequence[str]) -> tuple[str, ...]:
         if name in _V3_COMPACT_EXACT_FIELDS
         or any(name.startswith(prefix) for prefix in _V3_COMPACT_PREFIXES)
     )
-    required = {
-        "t_monotonic_s",
+    required = _V3_RUNNER_CLOSURE_FIELDS | {
         "rtde_feedback_age_s",
         "_step5d_stage25_echo_consumed",
         "ur_output_double_register_35",
-        *(f"ur_output_int_register_{index}" for index in range(24, 31)),
     }
     if not required.issubset(selected):
         missing = sorted(required - set(selected))

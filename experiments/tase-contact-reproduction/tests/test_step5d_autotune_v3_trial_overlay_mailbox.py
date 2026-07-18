@@ -32,6 +32,7 @@ from step5d_autotune_v3.runtime_profile import (  # noqa: E402
 from step5d_autotune_v3.state import load_attempt_ledger  # noqa: E402
 from run_step5d_autotune_v3_bridge import (  # noqa: E402
     V3AsyncBridgeTrialCsvRotator,
+    _V3_RUNNER_CLOSURE_FIELDS,
     _apply_v3_arm_runtime,
 )
 from run_step5d_autotune_v3_live import (  # noqa: E402
@@ -222,11 +223,10 @@ def test_v3_arm_boundary_applies_real_orientation_k() -> None:
 def test_v3_capture_writer_is_async_compact_and_binds_real_candidate(tmp_path: Path) -> None:
     overlay = initial_control_overlays(load_launch_profile())[0]
     fields = (
-        "t_monotonic_s",
+        *sorted(_V3_RUNNER_CLOSURE_FIELDS),
         "rtde_feedback_age_s",
         "_step5d_stage25_echo_consumed",
         "ur_output_double_register_35",
-        *(f"ur_output_int_register_{index}" for index in range(24, 31)),
         "large_unused_diagnostic",
     )
     rotator = V3AsyncBridgeTrialCsvRotator(tmp_path.absolute(), fields)

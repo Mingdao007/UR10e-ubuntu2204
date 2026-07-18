@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_autotune_v3_bridge as wrapper  # noqa: E402
+from run_step5d_autotune_campaign import closure_sample_from_bridge_row  # noqa: E402
 
 
 def _ticket(path: Path, argv: list[str]) -> Path:
@@ -95,3 +96,36 @@ def test_wrapper_source_has_no_campaign_runner_arm_or_motion_surface() -> None:
     assert "HostCommand.ARM" not in source
     assert "speedj(" not in source
     assert "movel(" not in source
+
+
+def test_production_compact_schema_satisfies_wait_ack_closure_consumer() -> None:
+    production_fields = [
+        *wrapper._V3_COMPACT_EXACT_FIELDS,
+        *(f"ur_actual_TCP_pose_{index}" for index in range(6)),
+        *(f"ur_actual_TCP_speed_{index}" for index in range(6)),
+        *(f"ur_actual_q_{index}" for index in range(6)),
+        *(f"ur_actual_qd_{index}" for index in range(6)),
+        *(f"ur_actual_qdd_{index}" for index in range(6)),
+        *(f"ur_output_int_register_{index}" for index in range(24, 31)),
+    ]
+    compact = wrapper.compact_v3_fieldnames(production_fields)
+    assert wrapper._V3_RUNNER_CLOSURE_FIELDS.issubset(compact)
+    row = {name: "0" for name in compact}
+    row["ur_output_int_register_26"] = "70"
+    sample = closure_sample_from_bridge_row(row)
+    assert sample["output_double_register_36"] == 0.0
+    assert sample["output_double_register_37"] == 0.0
+    assert sample["output_double_register_38"] == 0.0
+
+
+def test_observed_wait_ack_schema_incident_is_exactly_closed() -> None:
+    incident = json.loads(
+        (ROOT / "tests/fixtures/v3_wait_ack_schema_incident.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    observed = set(incident["observed_compact_output_double_register_fields"])
+    required = set(incident["runner_required_output_double_register_fields"])
+    assert sorted(required - observed) == incident["missing_fields"]
+    assert required.issubset(wrapper._V3_RUNNER_CLOSURE_FIELDS)
+    assert required.issubset(wrapper._V3_COMPACT_EXACT_FIELDS)

@@ -4,7 +4,7 @@ Controller target:
   /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp
 
 Version:
-  2026-07-19T0455HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_PREALIGN_PARETO10
+  2026-07-19T0610HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3
 
 Identity:
   release_stage_id=step5d_strict_rnn_autotune_v3
@@ -14,9 +14,10 @@ Identity:
 Motion class:
   Contact motion package. Upload/read-back does not Load or Play it.
   One Play enters the live campaign; there is no HIL HOLD or second user authorization.
-  Before FAR search, Stage22 moves at the existing safe Z to the evidence-bound
-  approximate surface pose (-3.075091258, -0.128927503, -0.200359566) rad, then retains the frozen
-  guarded FAR/NEAR downward search.
+  Before guarded search, Stage22 first moves at the existing safe Z, then moves
+  vertically to (0.487834547, 0.129337053, 0.022863519) with a 0.005 m clearance
+  above the completed contact-plus-0.1 s robust surface pose. FAR/NEAR speeds and
+  force thresholds remain frozen.
 
 Frozen control contract:
   qdot cap 0.500 rad/s; target 12 N; input integer registers 24..29;

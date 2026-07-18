@@ -27,17 +27,17 @@
     "tools/step5d_runtime_interface.py": "56d388207542d5d5d93175f9d8922d3366f7fd368f0763a7304f2933844e7e2d"
   },
   "tp_artifact_sha256": {
-    ".script": "9a21ba28b2f137b011ff2125652caa8497974327c6e7f2fec9ec91f9b4df83b4",
-    ".txt": "3dee27d985150d1c4cd9048288f53c1cfa5c820b050a5dfceefae00b068ccce1",
-    ".urp": "31fa5cfc9f764bbdc64cb349aebd3c780adade886170322750d82eabb5f4f90b"
+    ".script": "b96077952db3dbbdd1f2a4af668f0f3ef96985d3d071b3e745a87665ab821855",
+    ".txt": "b9129f38a11aec1a3d546fa4ed35b8cb3453697c649cae8bc907b39f06a9b7e8",
+    ".urp": "2cba1b92e9e6cdf0a0a843e2c6c3718b104ebf9aaffef965c63a660bc31b97f0"
   },
   "deployment_tp_identity": {
     "program": "step5d_strict_rnn_autotune_v3",
     "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
     "artifact_dir": "programs/step5/step5d",
     "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-    "readback_manifest_sha256": "fafce3c5f4f619f2a470106ad848c40a7a9198512c9c0642736edff53f1c049c",
-    "tp_fingerprint": "41d94af398d92059a97a2a9c60d8604dbf521113f0cff92e613a7b0960c387d4"
+    "readback_manifest_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
+    "tp_fingerprint": "1c42b3f73e5c8ac27f7739117bff2f1af1e127ceb5e94d38aecc63fcbf5893a0"
   },
   "cli_arguments": [
     ["--allow-kunwei-stream-command"],

@@ -54,6 +54,19 @@ def test_stationary_predicate_uses_tcp_and_joint_speed() -> None:
     )["ok"] is False
 
 
+def test_prealign_start_clearance_is_checked_before_play() -> None:
+    required = gate.tp_v3.PRECONTACT_XYZ_M[2] + gate.tp_v3.MINIMUM_START_ABOVE_ENTRY_M
+    passing = gate._prealign_start_clearance(
+        {"actual_TCP_pose": [0.46, 0.12, required + 0.001, 3.14, 0.0, 0.0]}
+    )
+    assert passing["ok"] is True
+    assert passing["precontact_entry_z_m"] == gate.tp_v3.PRECONTACT_XYZ_M[2]
+    assert gate._prealign_start_clearance(
+        {"actual_TCP_pose": [0.46, 0.12, required - 0.000001, 3.14, 0.0, 0.0]}
+    )["ok"] is False
+    assert gate._prealign_start_clearance({"actual_TCP_pose": [0.0, 0.0]})["ok"] is False
+
+
 def test_mailbox_must_be_absent_before_live_bridge(tmp_path: Path) -> None:
     mailbox = tmp_path / "command.json"
     assert gate._mailbox_initial_zero(mailbox)["ok"] is True

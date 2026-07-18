@@ -1,6 +1,6 @@
 {
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
-  "delta_class": "identity_plus_precontact_pose_only",
+  "delta_class": "identity_plus_precontact_pose_and_clearance",
   "far_search_speed_m_s": 0.03375,
   "input_integer_registers": [
     24,
@@ -10,6 +10,7 @@
     28,
     29
   ],
+  "minimum_start_above_entry_m": 0.01,
   "output_integer_registers": [
     24,
     25,
@@ -19,19 +20,21 @@
     29,
     30
   ],
+  "precontact_clearance_m": 0.005,
   "precontact_entry_accel_m_s2": 0.135,
   "precontact_entry_speed_m_s": 0.09,
-  "precontact_pose_prior_id": "step5d_v3_start_pose_prior_20260719",
+  "precontact_pose_prior_id": "step5d_v3_start_pose_prior_contact_0p1_20260719",
   "precontact_rotvec_rad": [
-    -3.075091258,
-    -0.128927503,
-    -0.200359566
+    3.141592654,
+    0.0,
+    0.0
   ],
-  "precontact_xy_m": [
-    0.487795411,
-    0.129326793
+  "precontact_xyz_m": [
+    0.487834547,
+    0.129337053,
+    0.022863519
   ],
-  "precontact_z_policy": "retain_actual_safe_z_before_far_search",
+  "precontact_z_policy": "contact_plus_0p1s_robust_z_plus_0p005m_clearance",
   "program": "step5d_strict_rnn_autotune_v3",
   "qdot_cap_rad_s": 0.5,
   "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",

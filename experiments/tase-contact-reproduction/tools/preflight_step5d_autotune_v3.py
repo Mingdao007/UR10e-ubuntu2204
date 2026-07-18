@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 import preflight_readonly as base
+import build_step5d_autotune_tp_v3 as tp_v3
 import run_step5d_autotune_v3_bridge as bridge_wrapper
 import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 from step5d_autotune_v3.launcher import build_bridge_argv
@@ -126,6 +127,25 @@ def _stationary(rtde: Mapping[str, Any]) -> dict[str, Any]:
         "tcp_linear_speed_m_s": linear,
         "joint_speed_max_rad_s": joint,
         "limits": {"tcp_linear_speed_m_s": 0.001, "joint_speed_max_rad_s": 0.005},
+    }
+
+
+def _prealign_start_clearance(rtde: Mapping[str, Any]) -> dict[str, Any]:
+    pose = rtde.get("actual_TCP_pose")
+    required_z_m = tp_v3.PRECONTACT_XYZ_M[2] + tp_v3.MINIMUM_START_ABOVE_ENTRY_M
+    if not isinstance(pose, list) or len(pose) != 6:
+        return {"ok": False, "error": "RTDE actual_TCP_pose is incomplete"}
+    try:
+        observed_z_m = float(pose[2])
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "RTDE actual_TCP_pose z is nonnumeric"}
+    return {
+        "ok": math.isfinite(observed_z_m) and observed_z_m >= required_z_m,
+        "observed_start_z_m": observed_z_m,
+        "precontact_entry_z_m": tp_v3.PRECONTACT_XYZ_M[2],
+        "minimum_start_above_entry_m": tp_v3.MINIMUM_START_ABOVE_ENTRY_M,
+        "required_start_z_min_m": required_z_m,
+        "policy": "reject_before Play when two-step prealign lacks vertical clearance",
     }
 
 
@@ -250,6 +270,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
         "safety_normal": _safety_normal(dashboard),
         "program_safe_for_bridge": _program_safe_for_bridge(dashboard, rtde),
         "robot_stationary": _stationary(rtde),
+        "prealign_start_clearance": _prealign_start_clearance(rtde),
         "no_existing_writer": {
             "ok": _value(local.get("writer", {})).get("ok") is True,
             "observation": _value(local.get("writer", {})),
@@ -307,6 +328,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
             "Kunwei TCP connect-only; no stream/zero/tare command",
             "local runtime calibration artifact and installed model sources are hash-checked",
             "production startup prewarm runs locally before any device writer is started",
+            "the current TCP start Z is checked against the evidence-bound prealign Z before Play",
             "no bridge, RTDE input, Load, ARM, contact, or motion",
             "an operator-started exact V3 program is accepted only at READY_HOME with zero identity",
         ],

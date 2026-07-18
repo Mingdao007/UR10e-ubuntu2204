@@ -19,8 +19,11 @@ import build_step5d_autotune_tp as v1
 ROOT = Path(__file__).resolve().parents[1]
 PROGRAM_NAME = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-PRECONTACT_POSE_PRIOR_ID = "step5d_v3_start_pose_prior_20260719"
-PRECONTACT_ROTVEC_RAD = (-3.075091258, -0.128927503, -0.200359566)
+PRECONTACT_POSE_PRIOR_ID = "step5d_v3_start_pose_prior_contact_0p1_20260719"
+PRECONTACT_XYZ_M = (0.487834547, 0.129337053, 0.022863519)
+PRECONTACT_ROTVEC_RAD = (3.141592654, 0.0, 0.0)
+PRECONTACT_CLEARANCE_M = 0.005
+MINIMUM_START_ABOVE_ENTRY_M = 0.01
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 
@@ -54,15 +57,52 @@ def render_script() -> str:
     )
     rendered = _replace_once(
         rendered,
+        "  local entry_x = 0.487795411\n"
+        "  local entry_y = 0.129326793",
+        f"  local entry_x = {PRECONTACT_XYZ_M[0]:.9f}\n"
+        f"  local entry_y = {PRECONTACT_XYZ_M[1]:.9f}\n"
+        f"  local precontact_z = {PRECONTACT_XYZ_M[2]:.9f}\n"
+        f"  local minimum_start_above_entry_m = {MINIMUM_START_ABOVE_ENTRY_M:.9f}",
+        role="contact-plus-0.1s prealign position",
+    )
+    rendered = _replace_once(
+        rendered,
         "  # PRECONTACT_POSE_CONTRACT: pre_contact_search_gravity_down_v1; Stage22/24 TCP +Z targets base -Z.\n"
         "  local target_rx = 3.141592654\n"
         "  local target_ry = 0.000000000\n"
         "  local target_rz = 0.000000000",
-        f"  # PRECONTACT_POSE_PRIOR_ID: {PRECONTACT_POSE_PRIOR_ID}; evidence-bound approximate surface normal before FAR search.\n"
+        f"  # PRECONTACT_POSE_PRIOR_ID: {PRECONTACT_POSE_PRIOR_ID}; completed contact-plus-0.1s robust pose plus clearance before guarded search.\n"
         f"  local target_rx = {PRECONTACT_ROTVEC_RAD[0]:.9f}\n"
         f"  local target_ry = {PRECONTACT_ROTVEC_RAD[1]:.9f}\n"
         f"  local target_rz = {PRECONTACT_ROTVEC_RAD[2]:.9f}",
         role="precontact pose prior",
+    )
+    rendered = _replace_once(
+        rendered,
+        "    write_output_float_register(35, 22.0)\n"
+        "    local p_current = get_actual_tcp_pose()\n"
+        "    local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]\n"
+        "    codex_echo_step4e(stop_reason)\n"
+        "    movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)\n"
+        "    stopl(0.1)\n"
+        "    sleep(0.20)\n"
+        "    write_output_float_register(35, 23.0)",
+        "    local p_current = get_actual_tcp_pose()\n"
+        "    if p_current[2] < precontact_z + minimum_start_above_entry_m:\n"
+        "      return 17.0\n"
+        "    else:\n"
+        "      write_output_float_register(35, 22.0)\n"
+        "      local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]\n"
+        "      local entry_precontact_pose = p[entry_x, entry_y, precontact_z, target_rx, target_ry, target_rz]\n"
+        "      codex_echo_step4e(stop_reason)\n"
+        "      movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)\n"
+        "      stopl(0.1)\n"
+        "      movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)\n"
+        "      stopl(0.1)\n"
+        "      sleep(0.20)\n"
+        "    end\n"
+        "    write_output_float_register(35, 23.0)",
+        role="two-step safe prealign",
     )
     identity = (
         f"# RELEASE_STAGE_ID: {PROGRAM_NAME}\n"
@@ -86,9 +126,15 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2)",
         "codex_step5d_strict_rnn_autotune_v3()",
         f"# PRECONTACT_POSE_PRIOR_ID: {PRECONTACT_POSE_PRIOR_ID}",
+        f"local entry_x = {PRECONTACT_XYZ_M[0]:.9f}",
+        f"local entry_y = {PRECONTACT_XYZ_M[1]:.9f}",
+        f"local precontact_z = {PRECONTACT_XYZ_M[2]:.9f}",
         f"local target_rx = {PRECONTACT_ROTVEC_RAD[0]:.9f}",
         f"local target_ry = {PRECONTACT_ROTVEC_RAD[1]:.9f}",
         f"local target_rz = {PRECONTACT_ROTVEC_RAD[2]:.9f}",
+        "local entry_precontact_pose = p[entry_x, entry_y, precontact_z",
+        "if p_current[2] < precontact_z + minimum_start_above_entry_m:",
+        "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)",
         "local qdot_cap_rad_s = 0.500",
         "read_input_integer_register(26)",
         "codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)",
@@ -118,7 +164,17 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
     )
     normalized = _replace_once(
         normalized,
-        f"  # PRECONTACT_POSE_PRIOR_ID: {PRECONTACT_POSE_PRIOR_ID}; evidence-bound approximate surface normal before FAR search.\n"
+        f"  local entry_x = {PRECONTACT_XYZ_M[0]:.9f}\n"
+        f"  local entry_y = {PRECONTACT_XYZ_M[1]:.9f}\n"
+        f"  local precontact_z = {PRECONTACT_XYZ_M[2]:.9f}\n"
+        f"  local minimum_start_above_entry_m = {MINIMUM_START_ABOVE_ENTRY_M:.9f}",
+        "  local entry_x = 0.487795411\n"
+        "  local entry_y = 0.129326793",
+        role="normalized precontact position",
+    )
+    normalized = _replace_once(
+        normalized,
+        f"  # PRECONTACT_POSE_PRIOR_ID: {PRECONTACT_POSE_PRIOR_ID}; completed contact-plus-0.1s robust pose plus clearance before guarded search.\n"
         f"  local target_rx = {PRECONTACT_ROTVEC_RAD[0]:.9f}\n"
         f"  local target_ry = {PRECONTACT_ROTVEC_RAD[1]:.9f}\n"
         f"  local target_rz = {PRECONTACT_ROTVEC_RAD[2]:.9f}",
@@ -127,6 +183,33 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "  local target_ry = 0.000000000\n"
         "  local target_rz = 0.000000000",
         role="normalized precontact pose prior",
+    )
+    normalized = _replace_once(
+        normalized,
+        "    local p_current = get_actual_tcp_pose()\n"
+        "    if p_current[2] < precontact_z + minimum_start_above_entry_m:\n"
+        "      return 17.0\n"
+        "    else:\n"
+        "      write_output_float_register(35, 22.0)\n"
+        "      local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]\n"
+        "      local entry_precontact_pose = p[entry_x, entry_y, precontact_z, target_rx, target_ry, target_rz]\n"
+        "      codex_echo_step4e(stop_reason)\n"
+        "      movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)\n"
+        "      stopl(0.1)\n"
+        "      movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)\n"
+        "      stopl(0.1)\n"
+        "      sleep(0.20)\n"
+        "    end\n"
+        "    write_output_float_register(35, 23.0)",
+        "    write_output_float_register(35, 22.0)\n"
+        "    local p_current = get_actual_tcp_pose()\n"
+        "    local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]\n"
+        "    codex_echo_step4e(stop_reason)\n"
+        "    movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)\n"
+        "    stopl(0.1)\n"
+        "    sleep(0.20)\n"
+        "    write_output_float_register(35, 23.0)",
+        role="normalized two-step prealign",
     )
     if normalized != original:
         raise ValueError("V3 TP differs from frozen V1 outside identity/precontact pose")
@@ -160,9 +243,10 @@ Identity:
 Motion class:
   Contact motion package. Upload/read-back does not Load or Play it.
   One Play enters the live campaign; there is no HIL HOLD or second user authorization.
-  Before FAR search, Stage22 moves at the existing safe Z to the evidence-bound
-  approximate surface pose {PRECONTACT_ROTVEC_RAD} rad, then retains the frozen
-  guarded FAR/NEAR downward search.
+  Before guarded search, Stage22 first moves at the existing safe Z, then moves
+  vertically to {PRECONTACT_XYZ_M} with a {PRECONTACT_CLEARANCE_M:.3f} m clearance
+  above the completed contact-plus-0.1 s robust surface pose. FAR/NEAR speeds and
+  force thresholds remain frozen.
 
 Frozen control contract:
   qdot cap 0.500 rad/s; target 12 N; input integer registers 24..29;
@@ -176,11 +260,13 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
         "program": PROGRAM_NAME,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "delta_class": "identity_plus_precontact_pose_only",
+        "delta_class": "identity_plus_precontact_pose_and_clearance",
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
-        "precontact_xy_m": [0.487795411, 0.129326793],
+        "precontact_xyz_m": list(PRECONTACT_XYZ_M),
         "precontact_rotvec_rad": list(PRECONTACT_ROTVEC_RAD),
-        "precontact_z_policy": "retain_actual_safe_z_before_far_search",
+        "precontact_clearance_m": PRECONTACT_CLEARANCE_M,
+        "minimum_start_above_entry_m": MINIMUM_START_ABOVE_ENTRY_M,
+        "precontact_z_policy": "contact_plus_0p1s_robust_z_plus_0p005m_clearance",
         "qdot_cap_rad_s": 0.5,
         "precontact_entry_accel_m_s2": 0.135,
         "precontact_entry_speed_m_s": 0.09,

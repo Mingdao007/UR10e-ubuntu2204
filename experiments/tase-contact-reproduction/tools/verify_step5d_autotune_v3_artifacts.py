@@ -16,9 +16,17 @@ import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
-POSE_PRIOR_ID = "step5d_v3_start_pose_prior_20260719"
-EXPECTED_ROTVEC = [-3.075091258, -0.128927503, -0.200359566]
-EXPECTED_XY = [0.487795411, 0.129326793]
+POSE_PRIOR_ID = "step5d_v3_start_pose_prior_contact_0p1_20260719"
+EXPECTED_ROTVEC = [3.141592654, 0.0, 0.0]
+EXPECTED_XYZ = [0.487834547, 0.129337053, 0.022863519]
+EXPECTED_CONTACT_PLUS_0P1S_POSE = [
+    0.487834547,
+    0.129337053,
+    0.017863519,
+    3.141592654,
+    0.0,
+    0.0,
+]
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 BOUND_PATHS = {
     "config/current_stage.json",
@@ -153,11 +161,13 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     for key, expected in (
         ("schema", "step5d.autotune-v3/tp-numeric-sanity-v1"),
         ("program", V3_STAGE_ID),
-        ("delta_class", "identity_plus_precontact_pose_only"),
+        ("delta_class", "identity_plus_precontact_pose_and_clearance"),
         ("precontact_pose_prior_id", POSE_PRIOR_ID),
-        ("precontact_xy_m", EXPECTED_XY),
+        ("precontact_xyz_m", EXPECTED_XYZ),
         ("precontact_rotvec_rad", EXPECTED_ROTVEC),
-        ("precontact_z_policy", "retain_actual_safe_z_before_far_search"),
+        ("precontact_clearance_m", 0.005),
+        ("minimum_start_above_entry_m", 0.01),
+        ("precontact_z_policy", "contact_plus_0p1s_robust_z_plus_0p005m_clearance"),
     ):
         _require(numeric.get(key), expected, f"TP numeric sanity {key}")
 
@@ -166,14 +176,25 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     if not isinstance(prior_relative, str):
         raise ArtifactVerificationError("pose prior evidence path is missing")
     prior = _load_json(root / prior_relative, role="start pose prior")
-    _require(prior.get("schema"), "step5d.autotune-v3/start-pose-prior/v1", "pose prior schema")
+    _require(prior.get("schema"), "step5d.autotune-v3/start-pose-prior/v2", "pose prior schema")
     _require(prior.get("prior_id"), POSE_PRIOR_ID, "pose prior identity")
     scope = prior.get("scope") or {}
-    _require(scope.get("entry_xy_m"), EXPECTED_XY, "pose prior XY")
+    _require(scope.get("entry_xyz_m"), EXPECTED_XYZ, "pose prior XYZ")
+    _require(
+        scope.get("contact_plus_0p1s_tcp_pose_robust"),
+        EXPECTED_CONTACT_PLUS_0P1S_POSE,
+        "pose prior contact-plus-0.1s center",
+    )
     _require(scope.get("tcp_rotvec_rad"), EXPECTED_ROTVEC, "pose prior rotation")
+    _require(scope.get("precontact_clearance_m"), 0.005, "pose prior clearance")
     _require(scope.get("exact_surface_fit_claim"), False, "pose prior fit claim")
     derivation = prior.get("derivation") or {}
     _require(derivation.get("trial_count"), 5, "pose prior source count")
+    _require(
+        derivation.get("sample_rule"),
+        "first complete bridge row at or after contact_trigger_time + 0.100s",
+        "pose prior sample rule",
+    )
     _require(
         derivation.get("eligible_as_optimizer_objective"),
         False,

@@ -10402,7 +10402,7 @@
         "trajectory_changed": true,
         "force_frame_changed": false,
         "candidate_fields": ["force_p_gain", "force_i_gain", "force_damping", "orientation_ko"],
-        "precontact_pose_prior_id": "step5d_v3_start_pose_prior_20260719",
+        "precontact_pose_prior_id": "step5d_v3_start_pose_prior_contact_0p1_20260719",
         "precontact_pose_evidence": "evidence/step5d_autotune_v3/start_pose_prior_20260719.json"
       },
       "operator_lifecycle": {
@@ -10431,15 +10431,15 @@
         "controller_uploaded_by_v3": true,
         "controller_readback_verified": true,
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "controller_readback_manifest_sha256": "fafce3c5f4f619f2a470106ad848c40a7a9198512c9c0642736edff53f1c049c",
-        "fresh_controller_sha_at": "2026-07-19T04:51:52+08:00",
-        "tp_fingerprint": "41d94af398d92059a97a2a9c60d8604dbf521113f0cff92e613a7b0960c387d4",
+        "controller_readback_manifest_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
+        "fresh_controller_sha_at": "2026-07-19T06:12:30+08:00",
+        "tp_fingerprint": "1c42b3f73e5c8ac27f7739117bff2f1af1e127ceb5e94d38aecc63fcbf5893a0",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": false,
         "sha256": {
-          ".script": "9a21ba28b2f137b011ff2125652caa8497974327c6e7f2fec9ec91f9b4df83b4",
-          ".txt": "3dee27d985150d1c4cd9048288f53c1cfa5c820b050a5dfceefae00b068ccce1",
-          ".urp": "31fa5cfc9f764bbdc64cb349aebd3c780adade886170322750d82eabb5f4f90b"
+          ".script": "b96077952db3dbbdd1f2a4af668f0f3ef96985d3d071b3e745a87665ab821855",
+          ".txt": "b9129f38a11aec1a3d546fa4ed35b8cb3453697c649cae8bc907b39f06a9b7e8",
+          ".urp": "2cba1b92e9e6cdf0a0a843e2c6c3718b104ebf9aaffef965c63a660bc31b97f0"
         }
       },
       "acceptance": {
@@ -10456,7 +10456,7 @@
         "status": "pass_deterministic_live_entry_prerequisites",
         "acceptance_scope": "deterministic_live_entry_prerequisites",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "2912aa217fb77a91d66f7fb8951678405269fb692707a51a3428d6ceb2f64fa7",
+        "report_sha256": "28c6543701d47e162c2fcfd6124f62829eac71500569f5f8796bb03748990e75",
         "contract_mutation": "pass",
         "fake_bridge_ten_candidate": "pass",
         "crash_cut_matrix": "pass",
