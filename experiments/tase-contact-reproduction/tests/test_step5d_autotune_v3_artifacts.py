@@ -25,8 +25,18 @@ ORCHESTRATION_INPUTS = {
     "tools/step5d_autotune_v3/service.py",
     "tools/step5d_autotune_v3/postprocess.py",
     "tools/step5d_autotune_v3/cli.py",
+    "tools/step5d_autotune_v3/launcher.py",
+    "tools/step5d_autotune_v3/runtime_calibration.py",
+    "tools/step5d_autotune_v3/runtime_profile.py",
+    "tools/run_step5d_autotune_v3_bridge.py",
+    "tools/run_step5d_autotune_v3_hil_hold.py",
+    "tools/preflight_step5d_autotune_v3.py",
+    "tools/verify_step5d_autotune_v3_hil_authorization.py",
     "scripts/step5d-autotune-v3.sh",
+    "scripts/step5d-autotune-v3-hil-hold.sh",
     "config/systemd/step5d-autotune-v3.service",
+    "config/step5/step5d_autotune_v3_launch_profile.json",
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
 }
 
 
@@ -36,6 +46,7 @@ def _fixture_root(tmp_path: Path) -> Path:
         "config/current_stage.json",
         "config/step5_stage_table.json",
         "config/step5d_autotune_v3_test_matrix.json",
+        "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
     }
     for relative in relatives:
         source = ROOT / relative
@@ -50,7 +61,7 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
     assert report["ok"] is True
     assert report["current_stage_id"] == artifacts.V1_STAGE_ID
     assert report["v3_active"] is False
-    assert report["execution_readiness"] == "ready_for_hil_authorization"
+    assert report["execution_readiness"] == "ready_for_hil_full_bridge_hold_authorization"
     assert report["ready_to_execute"] is False
     assert report["acceptance_scope"] == "offline_tooling_and_ursim_hold_only"
     assert report["rollout_authorized"] is False
@@ -60,7 +71,7 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
 
 def test_triplet_byte_mutation_fails_closed(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
-    target = fixture / "programs/step5/step5d/step5d_strict_rnn_autotune_v2.script"
+    target = fixture / "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script"
     target.write_bytes(target.read_bytes() + b"\n# drift\n")
     with pytest.raises(artifacts.ArtifactVerificationError, match="digest differs"):
         artifacts.verify(fixture)

@@ -19,15 +19,22 @@ RELATIVES = {
     "config/current_stage.json",
     "config/step5_stage_table.json",
     "config/step5/step5d_autotune_v3_offline_validation.json",
-    "config/step5d_autotune_controller_readback_v2.json",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v2.deploy-manifest.json",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v2.script",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v2.txt",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v2.urp",
+    "config/step5d_autotune_controller_readback_v3.json",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.deploy-manifest.json",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp",
     "tools/step5d_autotune_v3/service.py",
     "tools/step5d_autotune_v3/state.py",
     "tools/step5d_autotune_v3/postprocess.py",
     "tools/step5d_autotune_v3/cli.py",
+    "tools/step5d_autotune_v3/launcher.py",
+    "tools/step5d_autotune_v3/runtime_calibration.py",
+    "tools/step5d_autotune_v3/runtime_profile.py",
+    "tools/run_step5d_autotune_v3_bridge.py",
+    "tools/run_step5d_autotune_v3_hil_hold.py",
+    "tools/preflight_step5d_autotune_v3.py",
+    "tools/verify_step5d_autotune_v3_hil_authorization.py",
     "tools/run_step5d_autotune_campaign.py",
     "tools/step5d_autotune_coordinator.py",
     "tools/step5d_autotune_journal.py",
@@ -35,8 +42,11 @@ RELATIVES = {
     "tools/step5d_autotune_live_driver.py",
     "tools/step5d_autotune_batch_plan.py",
     "scripts/step5d-autotune-v3.sh",
+    "scripts/step5d-autotune-v3-hil-hold.sh",
     "config/systemd/step5d-autotune-v3.service",
     "config/step5/step5d_autotune_v3_control_contract.json",
+    "config/step5/step5d_autotune_v3_launch_profile.json",
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
 }
 
 
@@ -65,10 +75,10 @@ def _mutate_v3(fixture: Path, mutate) -> None:
 def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
-    assert report["state"] == "ready_for_hil_authorization"
-    assert report["public_success_signal"] == "ready_for_hil_authorization"
+    assert report["state"] == "ready_for_hil_full_bridge_hold_authorization"
+    assert report["public_success_signal"] == "ready_for_hil_full_bridge_hold_authorization"
     assert report["package_delivery"] == (
-        "controller_readback_verified_content_addressed_reuse"
+        "controller_readback_verified_explicit_v3"
     )
     assert report["ready_to_execute"] is False
     assert report["current_stage_id"] == readiness.V1_STAGE_ID
@@ -112,14 +122,14 @@ def test_offline_success_cannot_claim_ready_to_execute(tmp_path: Path) -> None:
         readiness.verify(fixture)
 
 
-def test_content_addressed_reuse_requires_matching_fresh_readback_time(
+def test_explicit_v3_readback_requires_matching_fresh_readback_time(
     tmp_path: Path,
 ) -> None:
     fixture = _fixture_root(tmp_path)
     _mutate_v3(
         fixture,
-        lambda row: row["package_delivery"]["content_addressed_reuse"].update(
-            {"fresh_controller_sha_at": "2026-07-17T20:03:47+08:00"}
+        lambda row: row["package_delivery"].update(
+            {"fresh_controller_sha_at": "2026-07-19T00:24:05+08:00"}
         ),
     )
     with pytest.raises(readiness.ReadinessError, match="fresh controller timestamp"):
@@ -130,7 +140,7 @@ def test_local_triplet_drift_invalidates_package_readiness(tmp_path: Path) -> No
     fixture = _fixture_root(tmp_path)
     script = (
         fixture
-        / "programs/step5/step5d/step5d_strict_rnn_autotune_v2.script"
+        / "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script"
     )
     script.write_bytes(script.read_bytes() + b"\n# drift\n")
     with pytest.raises(readiness.ReadinessError, match="local package digest"):

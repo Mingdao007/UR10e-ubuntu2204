@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify a short-lived, candidate-scoped Step5d v3 HIL HOLD authorization."""
+"""Verify a short-lived V3 full-production-bridge HOLD authorization."""
 
 from __future__ import annotations
 
@@ -15,27 +15,35 @@ import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = "step5d.autotune-v3/hil-authorization-v1"
-SCOPE = "hil_hold_only"
+SCHEMA = "step5d.autotune-v3/hil-authorization-v2"
+SCOPE = "hil_full_bridge_hold"
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 MAX_TTL = timedelta(minutes=30)
 ALLOWED_ACTIONS = [
     "controller_identity_read",
     "dashboard_state_read",
     "rtde_output_read",
+    "program_load_v3",
+    "program_play_v3",
+    "kunwei_stream_start_read",
+    "production_bridge_start_hold",
+    "rtde_hold_heartbeat_write",
     "hold_observation",
+    "program_stop",
+    "bridge_cleanup",
 ]
 FORBIDDEN_ACTIONS = [
-    "controller_write",
-    "program_load",
-    "play",
-    "bridge_start",
     "arm",
+    "trial_dispatch",
+    "campaign_runner_start",
     "zero_tare",
     "contact",
     "motion",
     "urscript_send",
-    "rtde_input",
+    "tp_parameter_edit",
+    "payload_tcp_write",
+    "safety_write",
+    "arbitrary_controller_write",
 ]
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _THREAD_ID = re.compile(r"^[0-9a-f]{8}-[0-9a-f-]{27,}$")
@@ -151,7 +159,11 @@ def verify_authorization(
         raise AuthorizationError("authorization is expired")
 
     readiness = execution_readiness.verify(root)
-    _require(readiness.get("state"), "ready_for_hil_authorization", "release readiness")
+    _require(
+        readiness.get("state"),
+        "ready_for_hil_full_bridge_hold_authorization",
+        "release readiness",
+    )
     _require(readiness.get("ready_to_execute"), False, "pre-HIL execution boundary")
     _require(payload.get("identity"), readiness.get("identity"), "authorization identity")
     _require(
@@ -162,7 +174,7 @@ def verify_authorization(
     for field, expected in (
         ("serial", True),
         ("hold_required", True),
-        ("live_writer_allowed", False),
+        ("live_writer_allowed", True),
         ("operator_action_consumed", False),
     ):
         _require(payload.get(field), expected, f"authorization {field}")
@@ -170,7 +182,7 @@ def verify_authorization(
     _require(payload.get("forbidden_actions"), FORBIDDEN_ACTIONS, "HIL action denylist")
 
     return {
-        "schema": "step5d.autotune-v3/hil-authorization-report-v1",
+        "schema": "step5d.autotune-v3/hil-authorization-report-v2",
         "ok": True,
         "authorized": True,
         "authorization_id": authorization_id,
@@ -182,10 +194,13 @@ def verify_authorization(
         "expires_at": expires_at.isoformat(),
         "serial": True,
         "hold_required": True,
-        "live_writer_allowed": False,
+        "live_writer_allowed": True,
         "allowed_actions": ALLOWED_ACTIONS,
         "forbidden_actions": FORBIDDEN_ACTIONS,
-        "next_legal_action": "capture a fresh read-only controller identity snapshot",
+        "next_legal_action": (
+            "capture a fresh controller snapshot, then run the serialized "
+            "full-production-bridge HOLD gate"
+        ),
     }
 
 
@@ -208,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (AuthorizationError, execution_readiness.ReadinessError) as exc:
         report = {
-            "schema": "step5d.autotune-v3/hil-authorization-report-v1",
+            "schema": "step5d.autotune-v3/hil-authorization-report-v2",
             "ok": False,
             "authorized": False,
             "blocker": str(exc),

@@ -1,0 +1,28 @@
+{
+  "schema": "step5d.autotune-v3/launch-profile-v1",
+  "release_stage_id": "step5d_strict_rnn_autotune_v3",
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3",
+  "control_contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
+  "launch_overrides": {},
+  "trial_overlay_policy": {
+    "force_p_gain": {"min": 0.00025, "max": 0.004},
+    "force_i_gain": {"min": 0.0, "max": 0.01},
+    "force_damping": {"min": 1.75, "max": 28.0},
+    "execution_profile_id": {
+      "allowed": [
+        "nf010-slew010-a010",
+        "nf015-slew010-a010",
+        "nf020-slew010-a010",
+        "nf050-slew050-a050"
+      ]
+    },
+    "step5d_preload_filtered_min_n": {"min": 0.0, "max": 14.0},
+    "step5d_preload_filtered_max_n": {"min": 7.5, "max": 22.0},
+    "step5d_preload_raw_min_n": {"min": 0.0, "max": 15.0},
+    "step5d_preload_raw_max_n": {"min": 7.0, "max": 25.0},
+    "step5d_preload_force_norm_max_n": {"min": 15.0, "max": 25.0},
+    "step5d_preload_hold_s": {"min": 0.05, "max": 1.0},
+    "step5d_preload_timeout_s": {"min": 1.0, "max": 30.0}
+  }
+}

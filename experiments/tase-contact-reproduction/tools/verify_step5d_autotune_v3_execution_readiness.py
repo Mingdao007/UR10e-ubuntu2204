@@ -26,7 +26,7 @@ V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 OFFLINE_SCOPE = "offline_tooling_and_ursim_hold_only"
 OFFLINE_BLOCKER = "offline_only_live_start_disabled"
-READY_FOR_HIL = "ready_for_hil_authorization"
+READY_FOR_HIL = "ready_for_hil_full_bridge_hold_authorization"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -138,10 +138,11 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     package = v3.get("package_delivery") or {}
     _require(
         package.get("status"),
-        "controller_readback_verified_content_addressed_reuse_inactive",
+        "controller_readback_verified_inactive",
         "package delivery status",
     )
-    _require(package.get("controller_uploaded_by_v3"), False, "v3 upload claim")
+    _require(package.get("controller_uploaded_by_v3"), True, "v3 upload claim")
+    _require(package.get("controller_readback_verified"), True, "v3 readback claim")
     program = package.get("program_basename")
     if not isinstance(program, str) or not program:
         raise ReadinessError("package program basename is missing")
@@ -156,13 +157,10 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             raise ReadinessError(f"local package file is missing or unsafe: {extension}")
         _require(_sha256(local), expected, f"local package digest {extension}")
 
-    reuse = package.get("content_addressed_reuse") or {}
-    _require(reuse.get("accepted"), True, "content-addressed reuse acceptance")
-    _require(reuse.get("same_bytes_verified"), True, "content-addressed byte identity")
-    basis_relative = reuse.get("basis_manifest")
-    readback_relative = reuse.get("prior_readback_source")
-    if not isinstance(basis_relative, str) or not isinstance(readback_relative, str):
-        raise ReadinessError("content-addressed reuse evidence paths are missing")
+    basis_relative = f"{package.get('local_triplet')}.deploy-manifest.json"
+    readback_relative = package.get("controller_readback_manifest")
+    if not isinstance(readback_relative, str):
+        raise ReadinessError("controller readback evidence path is missing")
     basis = root / basis_relative
     readback_path = root / readback_relative
     if basis.is_symlink() or not basis.is_file():
@@ -178,7 +176,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     _require(
         package.get("controller_readback_manifest"),
         readback_relative,
-        "controller readback source binding",
+        "controller readback binding",
     )
 
     readback = _load_json(readback_path, role="controller readback manifest")
@@ -190,11 +188,13 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "controller TP fingerprint",
     )
     _require(readback.get("triplet_sha256"), triplet, "controller triplet digests")
-    readback_at = _zoned_timestamp(readback.get("readback_at"), role="readback timestamp")
+    readback_at = _zoned_timestamp(
+        readback.get("fresh_controller_checked_at"), role="readback timestamp"
+    )
     _require(
-        reuse.get("fresh_controller_sha_at"),
+        package.get("fresh_controller_sha_at"),
         readback_at,
-        "content-addressed fresh controller timestamp",
+        "fresh controller timestamp",
     )
 
     validation_path = root / "config/step5/step5d_autotune_v3_offline_validation.json"
@@ -215,7 +215,11 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     _require((gates.get("hosted_offline_release") or {}).get("status"), "pass", "offline lane")
     _require((gates.get("ursim_hold_only") or {}).get("status"), "pass", "URSim lane")
     hil = gates.get("hil_no_motion") or {}
-    _require(hil.get("status"), "blocked_not_authorized", "HIL state")
+    _require(
+        hil.get("status"),
+        "failed_before_ready_remediated_pending_new_authorization",
+        "HIL state",
+    )
     _require(hil.get("controller_touched"), False, "HIL controller boundary")
 
     binding = v3.get("current_binding") or {}
@@ -269,14 +273,14 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "state": READY_FOR_HIL,
         "public_success_signal": READY_FOR_HIL,
         "ready_to_execute": False,
-        "package_delivery": "controller_readback_verified_content_addressed_reuse",
+        "package_delivery": "controller_readback_verified_explicit_v3",
         "controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
         "next_owner": "ur10e-live-bench",
         "next_legal_action": (
             "obtain a new current-turn candidate-scoped authorization for the "
-            "serialized HIL HOLD-only gate"
+            "serialized full-production-bridge HOLD gate"
         ),
         "authorization_gate": [
             "python3",

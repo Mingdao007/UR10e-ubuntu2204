@@ -68,6 +68,9 @@ def _install_docker_fixture(
 def test_matrix_binds_manual_internal_network_hold_lane() -> None:
     matrix = json.loads(gate.MATRIX_PATH.read_text(encoding="utf-8"))
     lane = matrix["lanes"]["large_ursim"]
+    evidence = json.loads(
+        (ROOT / matrix["evidence_manifest"]).read_text(encoding="utf-8")
+    )["lanes"]["large_ursim"]
     assert gate._expected_image() == EXPECTED_IMAGE
     assert lane["network_allowed"] is True
     assert lane["network_scope"] == "single_prestarted_container_on_docker_internal_network"
@@ -77,14 +80,14 @@ def test_matrix_binds_manual_internal_network_hold_lane() -> None:
     assert lane["dashboard_commands_allowed"] == list(gate.DASHBOARD_COMMANDS)
     assert lane["rtde_output_recipe_only"] is True
     assert lane["rtde_input_recipe_allowed"] is False
-    assert lane["execution_status"] == "pass"
-    assert lane["immutable_result"].endswith(
+    assert evidence["status"] == "pass"
+    assert evidence["result"].endswith(
         "step5d_autotune_v3_ursim_hold_result.json"
     )
-    assert lane["raw_evidence_sha256"] == (
-        "83df91fbc6256d7380bd5f6761326fd9885511dbb858604e2a87324b09cc6dc3"
+    assert evidence["raw_evidence_sha256"] == (
+        "21db439abee228cdc07496e706f68cf5da7208b986ee8d61951ec1ba878291ce"
     )
-    assert lane["cleanup_completed"] is True
+    assert evidence["cleanup_completed"] is True
     assert lane["commands"][0][1].endswith("run_step5d_autotune_v3_ursim_hold_gate.py")
 
 
@@ -297,7 +300,7 @@ def test_docker_unavailable_writes_blocker_and_never_opens_network(
     )
     monkeypatch.setattr(
         gate,
-        "verify_artifacts",
+        "selector_snapshot",
         lambda _root: {"current_stage_id": "step5d_strict_rnn_autotune_v1"},
     )
     monkeypatch.setattr(gate, "_expected_image", lambda: EXPECTED_IMAGE)
@@ -350,7 +353,7 @@ def test_mocked_full_gate_records_lifecycle_watchdog_and_rollback(
             return None
 
     monkeypatch.setattr(gate, "check_effective_config", lambda **_kwargs: launch)
-    monkeypatch.setattr(gate, "verify_artifacts", lambda _root: dict(artifacts))
+    monkeypatch.setattr(gate, "selector_snapshot", lambda _root: dict(artifacts))
     monkeypatch.setattr(gate, "_expected_image", lambda: EXPECTED_IMAGE)
     monkeypatch.setattr(gate, "inspect_ursim_container", lambda *_args: dict(container))
     monkeypatch.setattr(gate, "_dashboard_snapshot", lambda *_args: dict(dashboard))

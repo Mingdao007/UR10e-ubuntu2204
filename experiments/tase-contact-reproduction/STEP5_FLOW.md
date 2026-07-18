@@ -7,16 +7,38 @@ start still revalidates the exact binding and requires the current `开bridge`
 operator trigger.
 
 `step5d_strict_rnn_autotune_v3` is present only as an inactive offline rollout
-candidate. It freezes the v1 control contract, reuses the digest-pinned v2
-watchdog-only TP triplet, and keeps `config/current_stage.json` on v1. The
-exact local triplet, deploy manifest, controller read-back manifest, SHA set,
-TP fingerprint, and zoned read-back timestamp close package delivery through
-the governed content-addressed reuse path; v3 did not perform another upload.
-The v3 service and launcher are limited to contract checks, fake-bridge
-validation, and a separately executed URSim HOLD-only gate in this phase; this
-change does not upload, select, load, Play, ARM, zero, contact, or move a real
-controller. A failed contract, replay, recovery, latency, size, URSim, or
-rollback gate is a No-Go and leaves v1 selected.
+candidate. Its explicit `step5d_strict_rnn_autotune_v3` TP triplet has been
+uploaded and fresh-read-back verified, while its normalized control/motion
+source remains byte-identical to the frozen v1 renderer after removing only V3
+identity markers. `config/current_stage.json` still selects v1. Delivery was
+SSH/SCP file transfer only and did not Load, Play, start a bridge, ARM, zero,
+contact, or move the robot.
+
+V3 now separates three identities: release stage V3, frozen control profile V1,
+and TP program V3. A strict launch profile exposes 39 safe launch-time flags,
+and an append-only per-trial overlay exposes the three force candidate values,
+execution profile, and seven preload values. Contract-bound frame, control
+mode, qdot cap, runtime identity, and structural flags remain non-overridable.
+Each launch/overlay receives its own fingerprint. Unchanged mailbox reads use a
+file-identity cache; the 50,000-iteration host benchmark measured p99 1.653 us
+versus 8.957 us for full JSON decode, so the flexibility seam did not add a
+measurable control-loop delay in that synthetic check.
+
+The V3 preflight uses one bounded parallel local stage and one bounded parallel
+remote stage, reusing Dashboard and RTDE observations instead of probing the
+same ports twice. The local stage now executes the real production startup
+prewarm, including the stable CuPy/512 runtime, before any device writer starts;
+the observed prewarm was about 0.75 s, keeping the healthy full preflight near
+one second while detecting missing runtime evidence and GPU dependencies before
+bridge launch. Small tests use at most four xdist workers; Medium remains
+internally serial while the two host lanes run concurrently. The final host run
+used installed runtime dependencies and passed 360 tests plus 5 subtests in
+6.05 s. Hosted CI alone enables its narrow parser-import stubs. The test matrix
+contains policy only. Status, timestamps, hashes, cleanup results, and
+raw-evidence references live in the separate
+`config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json`.
+A failed contract, replay, recovery, latency, size, URSim, or rollback gate is
+a No-Go and leaves v1 selected.
 The current decision is Go only for
 `offline_tooling_and_ursim_hold_only`. The digest-pinned URSim 5.11.11 lane
 observed `STOPPED -> STARTING -> READY_HOME` while the simulator remained
@@ -26,9 +48,19 @@ unchanged. The immutable result and byte-identical raw evidence are
 `config/step5/step5d_autotune_v3_ursim_hold_result.json` and
 `config/step5/step5d_autotune_v3_ursim_hold_raw.json`. Contract,
 five-candidate fake bridge, crash recovery, latency, formal G10, watchdog, and
-rollback gates are green. This is not live-run/robot acceptance:
-`rollout_authorized=false`, v3 remains inactive, HIL is not authorized, and
-`config/current_stage.json` still selects v1.
+rollback gates are green. The first authorized HIL HOLD attempt failed closed
+before READY because production startup referenced an ignored 19 MB Step5c
+calibration CSV that was absent from the worktree. It emitted no Play prompt,
+sent no ARM command, and observed no contact or motion. The failed attempt is
+retained in
+`config/step5d/manifests/step5d_strict_rnn_autotune_v3/hil_hold_failure_20260719.json`.
+The remediation uses the separately tracked, hash-bound compact calibration
+artifact at
+`config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json`
+and adds a real production-startup subprocess regression. This remains not a
+live-run/robot acceptance: `rollout_authorized=false`, v3 remains inactive, a
+fresh HIL retry authorization is required, and `config/current_stage.json`
+still selects v1.
 
 The operator-facing readiness gate is:
 
@@ -36,14 +68,15 @@ The operator-facing readiness gate is:
 python3 tools/verify_step5d_autotune_v3_execution_readiness.py --json
 ```
 
-Its current success signal is `ready_for_hil_authorization`, not
+Its current success signal is
+`ready_for_hil_full_bridge_hold_authorization`, not
 `ready_to_execute`. It fails closed if package/read-back identity drifts, if
 offline acceptance is mistaken for live acceptance, if the explicit
 `offline_only_live_start_disabled` blocker disappears, or if the historical v1
 authorization is reused for v3. The next legal transition is a new current-turn,
-candidate-scoped UR owner authorization for a serialized HIL HOLD-only gate.
-Load/Play, bridge start, ARM, zero/tare, contact, and motion remain later and
-separate gates.
+V3-scoped UR owner authorization for a serialized full-production-bridge HOLD
+gate. That exact gate may use Load/Play and zero-identity RTDE HOLD/heartbeat
+writes. ARM, trial dispatch, zero/tare, contact, and motion remain forbidden.
 
 Any such authorization must first pass the local machine gate below; creating
 or validating this artifact does not connect to the controller:
@@ -57,9 +90,14 @@ python3 tools/verify_step5d_autotune_v3_hil_authorization.py \
 
 The authorization expires within 30 minutes and is bound to the v3 stage,
 current control/orchestration fingerprints, current task, serial ownership,
-HOLD, and an exact read-only action allowlist. It rejects historical v1
-authorization, live-writer access, Load/Play, bridge, ARM, zero/tare, contact,
-motion, URScript, RTDE input, and controller writes.
+HOLD, and an exact action allowlist. It rejects historical v1 authorization,
+ARM, trial dispatch, zero/tare, contact, motion, arbitrary URScript, TP parameter
+changes, payload/TCP changes, and arbitrary controller writes. The user-facing
+entrypoint is `step5d-autotune-v3-hil-hold.sh`; it always runs the V3-specific
+preflight first and always attempts Dashboard stop plus bridge cleanup after a
+READY signal. The authorization used by the failed pre-READY attempt is stale
+because the remediation changed the orchestration fingerprint, so it must not
+be reused.
 
 v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,

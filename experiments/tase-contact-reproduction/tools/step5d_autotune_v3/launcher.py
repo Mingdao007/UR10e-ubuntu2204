@@ -77,6 +77,8 @@ def build_bridge_argv(
     *,
     contract: Mapping[str, Any] | None = None,
     experiment_root: Path = EXPERIMENT_ROOT,
+    launch_profile: Any | None = None,
+    trial_overlay: Mapping[str, Any] | None = None,
 ) -> list[str]:
     """Build, but never execute, the frozen production bridge command."""
 
@@ -86,7 +88,7 @@ def build_bridge_argv(
     bridge = experiment_root / "tools/kunwei_rtde_bridge.py"
     if bridge.is_symlink() or not bridge.is_file():
         raise ContractViolation(f"production bridge entrypoint is unavailable: {bridge}")
-    return [
+    argv = [
         sys.executable,
         str(bridge.resolve()),
         *_contract_cli_tokens(
@@ -95,6 +97,17 @@ def build_bridge_argv(
             runtime=runtime,
         ),
     ]
+    if launch_profile is not None:
+        from .runtime_profile import apply_profile_to_argv
+
+        argv = apply_profile_to_argv(
+            argv,
+            profile=launch_profile,
+            overlay=trial_overlay,
+        )
+    elif trial_overlay is not None:
+        raise ContractViolation("trial overlay requires an explicit launch profile")
+    return argv
 
 
 def _flag_shapes(contract: Mapping[str, Any]) -> dict[str, int]:
@@ -266,16 +279,34 @@ def check_effective_config(
     argv: Sequence[str] | None = None,
     contract_path: Path = DEFAULT_CONTRACT_PATH,
     verify_sources: bool = True,
+    launch_profile_path: Path | None = None,
+    trial_overlay: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a JSON-safe attestation; fail before any process or device action."""
 
     contract = load_contract(contract_path)
     candidate_values = normalize_candidate(candidate)
     runtime = runtime_values(runtime_root)
+    launch_profile = None
+    normalized_overlay = None
+    if launch_profile_path is not None:
+        from .runtime_profile import load_launch_profile, normalize_trial_overlay
+
+        launch_profile = load_launch_profile(launch_profile_path, contract=contract)
+        normalized_overlay = normalize_trial_overlay(
+            trial_overlay,
+            profile=launch_profile,
+        )
+        candidate_values = {
+            name: normalized_overlay[name]
+            for name in ("force_p_gain", "force_i_gain", "force_damping")
+        }
     expected_argv = build_bridge_argv(
         runtime_root,
         candidate_values,
         contract=contract,
+        launch_profile=launch_profile,
+        trial_overlay=normalized_overlay,
     )
     actual_argv = list(expected_argv if argv is None else argv)
     validate_raw_argv(actual_argv, expected=expected_argv, contract=contract)
@@ -286,12 +317,55 @@ def check_effective_config(
         environ=environ,
         contract=contract,
     )
-    expected = expected_effective_config(
+    baseline_expected = expected_effective_config(
         contract,
         candidate=candidate_values,
         runtime=runtime,
     )
+    missing = sorted(set(baseline_expected) - set(effective))
+    unclassified = sorted(set(effective) - set(baseline_expected))
+    if missing or unclassified:
+        raise ContractViolation(
+            "production parser field classification differs: "
+            f"missing={missing} unclassified={unclassified}"
+        )
+    expected = (
+        parse_effective_config(expected_argv, environ=environ, contract=contract)
+        if launch_profile is not None
+        else baseline_expected
+    )
     validate_effective_config(expected, effective)
+    control_effective = effective
+    if launch_profile is not None:
+        launch_argv = build_bridge_argv(
+            runtime_root,
+            candidate_values,
+            contract=contract,
+            launch_profile=launch_profile,
+            trial_overlay=None,
+        )
+        control_effective = parse_effective_config(
+            launch_argv,
+            environ=environ,
+            contract=contract,
+        )
+    profile_report: dict[str, Any] = {}
+    if launch_profile is not None and normalized_overlay is not None:
+        from .runtime_profile import (
+            comparison_profile_fingerprint,
+            overlay_fingerprint,
+        )
+
+        profile_report = {
+            "launch_profile_fingerprint": launch_profile.fingerprint,
+            "trial_overlay": normalized_overlay,
+            "trial_overlay_fingerprint": overlay_fingerprint(
+                launch_profile, normalized_overlay
+            ),
+            "comparison_profile_fingerprint": comparison_profile_fingerprint(
+                launch_profile, normalized_overlay
+            ),
+        }
     return {
         "schema": CHECK_SCHEMA,
         "ok": True,
@@ -300,7 +374,7 @@ def check_effective_config(
         "deployment_tp_identity": contract["deployment_tp_identity"],
         "execution_profile_id": contract["execution_profile_id"],
         "contract_sha256": contract_sha256(contract),
-        "control_fingerprint": control_fingerprint(contract, effective),
+        "control_fingerprint": control_fingerprint(contract, control_effective),
         "candidate": candidate_values,
         "runtime_root": str(runtime_root.resolve(strict=False)),
         "argv": actual_argv,
@@ -309,6 +383,7 @@ def check_effective_config(
             for category in CATEGORIES
         },
         "effective_config": effective,
+        **profile_report,
     }
 
 

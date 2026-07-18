@@ -181,11 +181,29 @@ class OfflineService:
         from step5d_autotune_batch_plan import load_plan
 
         plan = load_plan(self.paths.candidate_plan)
-        return {
+        details = {
             "revision": plan.revision,
             "candidate_count": len(plan.candidates),
             "closed": plan.closed,
         }
+        if self.paths.trial_overlays.is_file():
+            from .state import read_strict_json
+
+            overlays = read_strict_json(
+                self.paths.trial_overlays, role="v3 trial overlay plan"
+            )
+            if (
+                not isinstance(overlays, dict)
+                or overlays.get("schema")
+                != "step5d.autotune-v3/trial-overlay-plan-v1"
+                or overlays.get("revision") != plan.revision
+                or overlays.get("candidate_count") != len(plan.candidates)
+            ):
+                raise ServiceError("candidate and V3 trial-overlay plans are not coherent")
+            details["trial_overlay_plan_fingerprint"] = overlays.get("fingerprint")
+        elif plan.revision:
+            raise ServiceError("candidate plan lacks its V3 trial-overlay plan")
+        return details
 
     def _publish(
         self,

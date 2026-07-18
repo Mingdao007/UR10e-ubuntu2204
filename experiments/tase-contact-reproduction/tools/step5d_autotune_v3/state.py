@@ -132,6 +132,10 @@ class CampaignPaths:
         return self.control / "candidate_plan.json"
 
     @property
+    def trial_overlays(self) -> Path:
+        return self.control / "v3_trial_overlays.json"
+
+    @property
     def service_state(self) -> Path:
         return self.control / "v3_service_state.json"
 
@@ -336,8 +340,18 @@ def orchestration_fingerprint(experiment_root: Path) -> str:
         "tools/step5d_autotune_v3/service.py",
         "tools/step5d_autotune_v3/postprocess.py",
         "tools/step5d_autotune_v3/cli.py",
+        "tools/step5d_autotune_v3/launcher.py",
+        "tools/step5d_autotune_v3/runtime_calibration.py",
+        "tools/step5d_autotune_v3/runtime_profile.py",
+        "tools/run_step5d_autotune_v3_bridge.py",
+        "tools/run_step5d_autotune_v3_hil_hold.py",
+        "tools/preflight_step5d_autotune_v3.py",
+        "tools/verify_step5d_autotune_v3_hil_authorization.py",
         "scripts/step5d-autotune-v3.sh",
+        "scripts/step5d-autotune-v3-hil-hold.sh",
         "config/systemd/step5d-autotune-v3.service",
+        "config/step5/step5d_autotune_v3_launch_profile.json",
+        "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
     )
     digest = hashlib.sha256()
     for relative in relative_paths:

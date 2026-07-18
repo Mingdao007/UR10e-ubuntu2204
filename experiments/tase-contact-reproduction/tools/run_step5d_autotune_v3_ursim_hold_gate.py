@@ -10,6 +10,7 @@ v3 service remains in its explicit offline mode.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import ipaddress
 import json
 import math
@@ -30,7 +31,6 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_autotune_v3.launcher import check_effective_config  # noqa: E402
 from step5d_autotune_v3.state import CampaignPaths, read_service_state  # noqa: E402
-from verify_step5d_autotune_v3_artifacts import verify as verify_artifacts  # noqa: E402
 
 
 SCHEMA = "step5d.autotune-v3/ursim-hold-gate-v1"
@@ -64,6 +64,24 @@ class GateBlocked(RuntimeError):
     def __init__(self, code: str, detail: str) -> None:
         super().__init__(detail)
         self.code = code
+
+
+def selector_snapshot(root: Path = ROOT) -> dict[str, Any]:
+    current = json.loads((root / "config/current_stage.json").read_text(encoding="utf-8"))
+    table = json.loads((root / "config/step5_stage_table.json").read_text(encoding="utf-8"))
+    rows = [row for row in table.get("stages", []) if row.get("id") == "step5d_strict_rnn_autotune_v3"]
+    if current.get("current_stage_id") != "step5d_strict_rnn_autotune_v1" or len(rows) != 1:
+        raise GateBlocked("v1_selector_not_frozen", "V1 must remain current and V3 unique")
+    material = {
+        "current_stage_id": current.get("current_stage_id"),
+        "current_program": current.get("program"),
+        "v3_active": rows[0].get("active"),
+        "v3_current": (rows[0].get("current_binding") or {}).get("is_current"),
+    }
+    if material["current_program"] != "step5d_strict_rnn_autotune_v1" or material["v3_active"] is not False or material["v3_current"] is not False:
+        raise GateBlocked("v1_selector_not_frozen", repr(material))
+    encoded = json.dumps(material, sort_keys=True, separators=(",", ":")).encode()
+    return {**material, "selector_sha256": hashlib.sha256(encoded).hexdigest()}
 
 
 def _utc_stamp() -> str:
@@ -430,7 +448,7 @@ def run_gate(
     workspace = evidence.parent / "service-work"
     paths = CampaignPaths(workspace / "campaign")
     try:
-        artifacts_before = verify_artifacts(ROOT)
+        artifacts_before = selector_snapshot(ROOT)
         expected_image = _expected_image()
         container_report = inspect_ursim_container(container, expected_image)
         initial_dashboard = _dashboard_snapshot(container_report["container_ip"], timeout_s)
@@ -507,7 +525,7 @@ def run_gate(
                 repr((returncode, final_state.get("phase"), stderr.strip())),
             )
         lifecycle.append({"state": "STOPPED", "source": "graceful_service_rollback"})
-        artifacts_after = verify_artifacts(ROOT)
+        artifacts_after = selector_snapshot(ROOT)
         if artifacts_before != artifacts_after or artifacts_after.get("current_stage_id") != "step5d_strict_rnn_autotune_v1":
             raise GateBlocked("v1_selector_rollback_drift", repr(artifacts_after))
         payload.update(

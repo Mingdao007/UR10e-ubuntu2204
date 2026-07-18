@@ -1,0 +1,24 @@
+{
+  "schema": "step5d.autotune-v3/test-evidence-v1",
+  "test_matrix": "config/step5d_autotune_v3_test_matrix.json",
+  "lanes": {
+    "large_ursim": {
+      "status": "pass",
+      "observed_at": "2026-07-18T16:55:18.275074+00:00",
+      "result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
+      "result_sha256": "0639f5bb9a9a40fe947f48dab754117e8c74b25748e862ded2872397231a0ea3",
+      "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
+      "raw_evidence_sha256": "21db439abee228cdc07496e706f68cf5da7208b986ee8d61951ec1ba878291ce",
+      "cleanup_completed": true
+    },
+    "hil_no_motion": {
+      "status": "failed",
+      "observed_at": "2026-07-19T00:37:56+08:00",
+      "result": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/hil_hold_failure_20260719.json",
+      "result_sha256": "be4114d320938575aabdb61aa59be3c14adcd2d7ab411b5f48217020d7d10b2f",
+      "raw_evidence": null,
+      "raw_evidence_sha256": null,
+      "cleanup_completed": true
+    }
+  }
+}

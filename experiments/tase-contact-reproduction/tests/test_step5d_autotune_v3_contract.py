@@ -83,15 +83,15 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
         "6f9ef0912842ac003545eb1906b38d13c7552218"
     )
     assert report["deployment_tp_identity"] == {
-        "program": "step5d_strict_rnn_autotune_v2",
-        "mode": "watchdog_only_reuse",
+        "program": "step5d_strict_rnn_autotune_v3",
+        "mode": "explicit_v3_identity_frozen_v1_control",
         "artifact_dir": "programs/step5/step5d",
-        "readback_manifest": "config/step5d_autotune_controller_readback_v2.json",
+        "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
         "readback_manifest_sha256": (
-            "d29c98a1746c06c0fd18b928c15b24113b2abe824f00351f444eec83ec7ee06b"
+            "c6d33760cb6113d4a1fa60a9099aacda79b134ab27a4c109b47672d16d2a2ba9"
         ),
         "tp_fingerprint": (
-            "c2761f200c58d9825e37dc76907b5e25b2d9982cda7dff1cf7de9699dbad7bb9"
+            "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc"
         ),
     }
     assert report["execution_profile_id"] == "nf050-slew050-a050"

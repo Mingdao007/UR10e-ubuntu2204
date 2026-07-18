@@ -1,6 +1,7 @@
 {
-  "schema_version": "step5d.autotune-v3/test-matrix-v1",
+  "schema_version": "step5d.autotune-v3/test-matrix-v2",
   "claim_boundary": "offline_tooling_and_ursim_hold_only",
+  "evidence_manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
   "operator_readiness_gate": {
     "command": [
       "python3",
@@ -38,14 +39,14 @@
       "<current-thread-id>",
       "--json"
     ],
-    "scope": "hil_hold_only",
+    "scope": "hil_full_bridge_hold",
     "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
     "max_ttl_s": 1800,
     "current_fingerprint_binding_required": true,
     "current_turn_thread_binding_required": true,
     "serial": true,
     "hold_required": true,
-    "live_writer_allowed": false,
+    "live_writer_allowed": true,
     "operator_action_consumed": false
   },
   "ci": {
@@ -78,7 +79,14 @@
           "tests/test_step5d_autotune_v3_hil_authorization.py",
           "tests/test_step5d_autotune_v3_g10.py",
           "tests/test_step5d_autotune_v3_refactor_gate.py",
-          "tests/test_step5d_autotune_v3_ursim_hold.py"
+          "tests/test_step5d_autotune_v3_ursim_hold.py",
+          "tests/test_step5d_autotune_v3_runtime_profile.py",
+          "tests/test_step5d_autotune_v3_runtime_calibration.py",
+          "tests/test_step5d_autotune_v3_bridge_wrapper.py",
+          "tests/test_step5d_autotune_v3_preflight.py",
+          "tests/test_step5d_autotune_v3_hil_hold_runner.py",
+          "tests/test_step5d_autotune_tp_v3.py",
+          "tests/test_step5d_autotune_v3_test_matrix_runner.py"
         ]
       ],
       "ci": true,
@@ -116,7 +124,8 @@
           "tests/test_step5d_autotune_recovery.py",
           "tests/test_step5d_autotune_journal.py",
           "tests/test_step5d_autotune_campaign_runner.py",
-          "tests/test_step5d_autotune_live_driver.py"
+          "tests/test_step5d_autotune_live_driver.py",
+          "tests/test_step5d_autotune_v3_bridge_startup_integration.py"
         ]
       ],
       "ci": true,
@@ -143,12 +152,6 @@
           "runs/step5d_autotune_v3_validation/ursim"
         ]
       ],
-      "execution_status": "pass",
-      "execution_observed_at": "2026-07-17T20:59:09.542360+00:00",
-      "immutable_result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-      "immutable_result_sha256": "f4dcd36dc1a593c1f8b7c20be321904a71199e0c4281f8c31b2960c490046fb9",
-      "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
-      "raw_evidence_sha256": "83df91fbc6256d7380bd5f6761326fd9885511dbb858604e2a87324b09cc6dc3",
       "activation": "manual_with_prestarted_digest_pinned_ursim_on_docker_internal_network",
       "ci": false,
       "serial": true,
@@ -185,22 +188,32 @@
       "motion_allowed": false,
       "operator_action_consumed": false,
       "cleanup_required": true,
-      "cleanup_completed": true,
       "evidence_output": "runs/step5d_autotune_v3_validation/ursim/<control-fingerprint>-<utc>-<pid>/ursim_hold_gate.json"
     },
     "hil_no_motion": {
       "claim": "target controller startup and HOLD smoke only; never contact or motion acceptance",
-      "commands": [],
-      "execution_status": "blocked_not_authorized",
+      "commands": [
+        [
+          "scripts/step5d-autotune-v3-hil-hold.sh",
+          "run",
+          "--authorization",
+          "<current-turn-authorization.json>",
+          "--expected-thread-id",
+          "<current-thread-id>",
+          "--output-root",
+          "<fresh-output-root>"
+        ]
+      ],
       "activation": "manual_after_ur_owner_live_boundary_authorization",
       "ci": false,
       "serial": true,
       "pinned": true,
       "controller_identity_pin": "fresh_read_only_snapshot_sha256_required",
       "test_doubles_allowed": false,
-      "network_allowed": false,
-      "controller_access_allowed": false,
-      "live_writer_allowed": false,
+      "network_allowed": true,
+      "network_scope": "target_controller_and_kunwei_only_after_current_turn_authorization",
+      "controller_access_allowed": true,
+      "live_writer_allowed": true,
       "hold_required": true,
       "arm_allowed": false,
       "motion_allowed": false,
@@ -273,6 +286,16 @@
     {
       "id": "ack_boundary_safety_failure_and_async_derived_analysis",
       "incident_fixture": "tests/test_step5d_autotune_live_driver.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    },
+    {
+      "id": "escaped_production_startup_dependency",
+      "incident_fixture": "tests/test_step5d_autotune_v3_bridge_startup_integration.py",
       "lanes": [
         "small",
         "medium",

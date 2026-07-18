@@ -35,7 +35,7 @@ def _authorization(**overrides) -> dict:
         "controller_identity_policy": "fresh_read_only_snapshot_before_connection",
         "serial": True,
         "hold_required": True,
-        "live_writer_allowed": False,
+        "live_writer_allowed": True,
         "operator_action_consumed": False,
         "allowed_actions": gate.ALLOWED_ACTIONS,
         "forbidden_actions": gate.FORBIDDEN_ACTIONS,
@@ -59,10 +59,11 @@ def test_candidate_scoped_current_turn_hold_authorization_passes(tmp_path: Path)
     )
     assert report["ok"] is True
     assert report["authorized"] is True
-    assert report["scope"] == "hil_hold_only"
-    assert report["live_writer_allowed"] is False
+    assert report["scope"] == "hil_full_bridge_hold"
+    assert report["live_writer_allowed"] is True
     assert report["next_legal_action"] == (
-        "capture a fresh read-only controller identity snapshot"
+        "capture a fresh controller snapshot, then run the serialized "
+        "full-production-bridge HOLD gate"
     )
 
 
@@ -72,7 +73,7 @@ def test_candidate_scoped_current_turn_hold_authorization_passes(tmp_path: Path)
         ("candidate_stage_id", "step5d_strict_rnn_autotune_v1", "candidate"),
         ("scope", "live_motion", "scope"),
         ("issued_by", "historical_resolver", "issuer"),
-        ("live_writer_allowed", True, "live_writer_allowed"),
+        ("live_writer_allowed", False, "live_writer_allowed"),
         ("operator_action_consumed", True, "operator_action_consumed"),
         ("user_instruction_sha256", "0" * 64, "placeholder"),
     ],

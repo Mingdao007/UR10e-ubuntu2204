@@ -145,10 +145,10 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     }:
         raise ContractViolation("deployment_tp_identity schema differs")
     if (
-        deployment["program"] != "step5d_strict_rnn_autotune_v2"
-        or deployment["mode"] != "watchdog_only_reuse"
+        deployment["program"] != "step5d_strict_rnn_autotune_v3"
+        or deployment["mode"] != "explicit_v3_identity_frozen_v1_control"
     ):
-        raise ContractViolation("deployment TP must be the watchdog-only v2 package")
+        raise ContractViolation("deployment TP must be the explicit V3 identity package")
     for name in ("artifact_dir", "readback_manifest"):
         relative = deployment[name]
         path = Path(relative) if isinstance(relative, str) else Path("/")
@@ -391,7 +391,7 @@ def validate_source_bindings(
         raise ContractViolation(f"cannot parse deployment TP readback manifest: {exc}") from exc
     if (
         not isinstance(manifest, dict)
-        or manifest.get("schema") != "step5d.autotune.controller-readback/v2"
+        or manifest.get("schema") != "step5d.autotune.controller-readback/v3"
         or manifest.get("verified") is not True
         or manifest.get("program") != deployment["program"]
         or manifest.get("tp_fingerprint") != deployment["tp_fingerprint"]

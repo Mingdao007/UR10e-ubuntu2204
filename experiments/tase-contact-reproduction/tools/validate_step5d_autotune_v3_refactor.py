@@ -15,10 +15,19 @@ from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MATRIX = ROOT / "config" / "step5d_autotune_v3_test_matrix.json"
+DEFAULT_EVIDENCE = (
+    ROOT
+    / "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json"
+)
+DEFAULT_GOVERNANCE = (
+    ROOT
+    / "config/step5d/manifests/step5d_autotune_v3_implementation_20260718/governance.json"
+)
 FROZEN_COMMIT = "6f9ef0912842ac003545eb1906b38d13c7552218"
 FROZEN_TAG = "archive/step5d-autotune-v1-20260715"
-RUNTIME_MODULE_LIMIT = 7
-RUNTIME_LOC_LIMIT = 2500
+RUNTIME_MODULE_LIMIT = 9
+RUNTIME_LOC_LIMIT = 3600
+RUNTIME_FILE_LOC_LIMIT = 650
 REQUIRED_LANES = {"small", "medium", "large_ursim", "hil_no_motion"}
 PARSER_CI_DEPENDENCY_STUBS = {
     "_ur_common", "capture_kunwei_kwr75_1khz", "numpy", "pandas",
@@ -248,6 +257,12 @@ def runtime_budget(root: Path) -> tuple[list[str], dict[str, Any]]:
     total_loc = sum(loc_by_module.values())
     if total_loc > RUNTIME_LOC_LIMIT:
         issues.append(f"v3_runtime_loc_budget_exceeded:{total_loc}>{RUNTIME_LOC_LIMIT}")
+    for relative, count in loc_by_module.items():
+        if count > RUNTIME_FILE_LOC_LIMIT:
+            issues.append(
+                f"v3_runtime_file_loc_budget_exceeded:{relative}:{count}>"
+                f"{RUNTIME_FILE_LOC_LIMIT}"
+            )
     nested_modules = sorted(
         path.relative_to(root).as_posix()
         for path in runtime.rglob("*.py")
@@ -260,12 +275,13 @@ def runtime_budget(root: Path) -> tuple[list[str], dict[str, Any]]:
         "module_count": len(modules),
         "loc_limit": RUNTIME_LOC_LIMIT,
         "loc_count": total_loc,
+        "file_loc_limit": RUNTIME_FILE_LOC_LIMIT,
         "loc_by_module": loc_by_module,
     }
 
 
 def _commands_valid(value: Any) -> bool:
-    return isinstance(value, list) and all(
+    return isinstance(value, list) and bool(value) and all(
         isinstance(command, list)
         and command
         and all(isinstance(token, str) and token for token in command)
@@ -277,8 +293,12 @@ def matrix_issues(payload: Any) -> list[str]:
     issues: list[str] = []
     if not isinstance(payload, dict):
         return ["test_matrix_not_object"]
-    if payload.get("schema_version") != "step5d.autotune-v3/test-matrix-v1":
+    if payload.get("schema_version") != "step5d.autotune-v3/test-matrix-v2":
         issues.append("test_matrix_schema_mismatch")
+    if payload.get("evidence_manifest") != (
+        "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json"
+    ):
+        issues.append("test_matrix_evidence_manifest_mismatch")
     readiness = payload.get("operator_readiness_gate")
     if not isinstance(readiness, dict):
         issues.append("test_matrix_operator_readiness_gate_missing")
@@ -305,14 +325,14 @@ def matrix_issues(payload: Any) -> list[str]:
     else:
         expected_hil_authorization = {
             "command": HIL_AUTHORIZATION_COMMAND,
-            "scope": "hil_hold_only",
+            "scope": "hil_full_bridge_hold",
             "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
             "max_ttl_s": 1800,
             "current_fingerprint_binding_required": True,
             "current_turn_thread_binding_required": True,
             "serial": True,
             "hold_required": True,
-            "live_writer_allowed": False,
+            "live_writer_allowed": True,
             "operator_action_consumed": False,
         }
         if hil_authorization != expected_hil_authorization:
@@ -360,8 +380,6 @@ def matrix_issues(payload: Any) -> list[str]:
             "serial": True,
             "pinned": True,
             "test_doubles_allowed": False,
-            "controller_access_allowed": False,
-            "live_writer_allowed": False,
             "hold_required": True,
             "arm_allowed": False,
             "motion_allowed": False,
@@ -369,32 +387,13 @@ def matrix_issues(payload: Any) -> list[str]:
         for field, required in expected.items():
             if lane.get(field) is not required:
                 issues.append(f"test_matrix_realistic_lane_policy:{name}:{field}")
-        status = lane.get("execution_status")
-        if name == "large_ursim" and status == "pass":
-            required_evidence = {
-                "immutable_result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-                "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
-                "cleanup_completed": True,
-            }
-            for field, required in required_evidence.items():
-                if lane.get(field) != required:
-                    issues.append(f"test_matrix_realistic_lane_pass_evidence:{name}:{field}")
-            for field in ("immutable_result_sha256", "raw_evidence_sha256"):
-                value = lane.get(field)
-                if (
-                    not isinstance(value, str)
-                    or re.fullmatch(r"[0-9a-f]{64}", value) is None
-                    or set(value) == {"0"}
-                ):
-                    issues.append(f"test_matrix_realistic_lane_pass_evidence:{name}:{field}")
-            if not isinstance(lane.get("execution_observed_at"), str) or not lane[
-                "execution_observed_at"
-            ].strip():
-                issues.append(
-                    f"test_matrix_realistic_lane_pass_evidence:{name}:execution_observed_at"
-                )
-        elif status not in {"not_run", "blocked_not_authorized"}:
-            issues.append(f"test_matrix_realistic_lane_false_pass:{name}")
+        forbidden_evidence = {
+            "execution_status", "execution_observed_at", "immutable_result",
+            "immutable_result_sha256", "raw_evidence", "raw_evidence_sha256",
+            "cleanup_completed",
+        }
+        if forbidden_evidence & set(lane):
+            issues.append(f"test_matrix_embeds_evidence:{name}")
     image = lanes.get("large_ursim", {}).get("container_image", "")
     match = re.fullmatch(r"[^\s@]+@sha256:([0-9a-f]{64})", image) if isinstance(image, str) else None
     if not match or set(match.group(1)) == {"0"}:
@@ -425,6 +424,15 @@ def matrix_issues(payload: Any) -> list[str]:
         "fresh_read_only_snapshot_sha256_required"
     ):
         issues.append("test_matrix_hil_identity_pin_missing")
+    hil = lanes.get("hil_no_motion", {})
+    for field, required in {
+        "network_allowed": True,
+        "network_scope": "target_controller_and_kunwei_only_after_current_turn_authorization",
+        "controller_access_allowed": True,
+        "live_writer_allowed": True,
+    }.items():
+        if hil.get(field) != required:
+            issues.append(f"test_matrix_hil_full_bridge_policy:{field}")
     ci = payload.get("ci")
     if not isinstance(ci, dict):
         issues.append("test_matrix_ci_contract_missing")
@@ -439,6 +447,132 @@ def matrix_issues(payload: Any) -> list[str]:
     return issues
 
 
+def evidence_issues(payload: Any, *, root: Path) -> list[str]:
+    if not isinstance(payload, dict):
+        return ["test_evidence_not_object"]
+    issues: list[str] = []
+    if payload.get("schema") != "step5d.autotune-v3/test-evidence-v1":
+        issues.append("test_evidence_schema_mismatch")
+    if payload.get("test_matrix") != "config/step5d_autotune_v3_test_matrix.json":
+        issues.append("test_evidence_matrix_binding_mismatch")
+    lanes = payload.get("lanes")
+    if not isinstance(lanes, dict) or set(lanes) != {"large_ursim", "hil_no_motion"}:
+        return issues + ["test_evidence_lane_set_mismatch"]
+    for name, lane in lanes.items():
+        if not isinstance(lane, dict):
+            issues.append(f"test_evidence_lane_not_object:{name}")
+            continue
+        status = lane.get("status")
+        if status == "pass":
+            if name != "large_ursim":
+                issues.append(f"test_evidence_false_pass:{name}")
+                continue
+            required_paths = {
+                "result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
+                "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
+            }
+            if lane.get("cleanup_completed") is not True:
+                issues.append(f"test_evidence_pass_field:{name}:cleanup_completed")
+            if not isinstance(lane.get("observed_at"), str) or not lane["observed_at"].strip():
+                issues.append(f"test_evidence_pass_field:{name}:observed_at")
+            for path_field, required in required_paths.items():
+                sha_field = f"{path_field}_sha256"
+                relative = lane.get(path_field)
+                expected_sha = lane.get(sha_field)
+                if relative != required:
+                    issues.append(f"test_evidence_pass_field:{name}:{path_field}")
+                    continue
+                if not isinstance(expected_sha, str) or re.fullmatch(r"[0-9a-f]{64}", expected_sha) is None or set(expected_sha) == {"0"}:
+                    issues.append(f"test_evidence_pass_field:{name}:{sha_field}")
+                    continue
+                target = root / relative
+                if target.is_symlink() or not target.is_file():
+                    issues.append(f"test_evidence_unavailable:{name}:{path_field}")
+                elif _sha256(target.read_bytes()) != expected_sha:
+                    issues.append(f"test_evidence_digest:{name}:{path_field}")
+        elif status == "failed":
+            relative = lane.get("result")
+            expected_sha = lane.get("result_sha256")
+            if (
+                name != "hil_no_motion"
+                or lane.get("cleanup_completed") is not True
+                or not isinstance(lane.get("observed_at"), str)
+                or not lane["observed_at"].strip()
+            ):
+                issues.append(f"test_evidence_failed_field:{name}")
+            expected_path = (
+                "config/step5d/manifests/step5d_strict_rnn_autotune_v3/"
+                "hil_hold_failure_20260719.json"
+            )
+            if relative != expected_path:
+                issues.append(f"test_evidence_failed_field:{name}:result")
+            elif (
+                not isinstance(expected_sha, str)
+                or re.fullmatch(r"[0-9a-f]{64}", expected_sha) is None
+                or set(expected_sha) == {"0"}
+            ):
+                issues.append(f"test_evidence_failed_field:{name}:result_sha256")
+            else:
+                target = root / relative
+                if target.is_symlink() or not target.is_file():
+                    issues.append(f"test_evidence_unavailable:{name}:result")
+                elif _sha256(target.read_bytes()) != expected_sha:
+                    issues.append(f"test_evidence_digest:{name}:result")
+        elif status not in {"not_run", "blocked_not_authorized"}:
+            issues.append(f"test_evidence_status_invalid:{name}")
+    return issues
+
+
+def content_governance_issues(root: Path, matrix: Mapping[str, Any]) -> list[str]:
+    governance_path = (
+        root
+        / "config/step5d/manifests/step5d_autotune_v3_implementation_20260718/governance.json"
+    )
+    try:
+        governance = json.loads(governance_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return [f"content_governance_unreadable:{exc}"]
+    issues: list[str] = []
+    if governance.get("schema") != "step5d.autotune-v3/content-governance-v1":
+        issues.append("content_governance_schema_mismatch")
+    if governance.get("selected_policy") != "B1_broad_cleanup_staged":
+        issues.append("content_governance_selected_policy_mismatch")
+    budgets = governance.get("file_budgets") or {}
+    json_paths = [
+        root / "config/step5d_autotune_v3_test_matrix.json",
+        root / "config/step5/step5d_autotune_v3_launch_profile.json",
+        root / "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
+        governance_path,
+    ]
+    max_bytes = budgets.get("v3_hand_authored_json_max_bytes")
+    max_lines = budgets.get("v3_hand_authored_json_max_lines")
+    for path in json_paths:
+        if not isinstance(max_bytes, int) or not isinstance(max_lines, int):
+            issues.append("content_governance_json_budget_invalid")
+            break
+        if path.is_symlink() or not path.is_file():
+            issues.append(f"content_governance_json_missing:{path.relative_to(root)}")
+            continue
+        encoded = path.read_bytes()
+        if len(encoded) > max_bytes:
+            issues.append(f"content_governance_json_bytes_exceeded:{path.relative_to(root)}")
+        if len(encoded.splitlines()) > max_lines:
+            issues.append(f"content_governance_json_lines_exceeded:{path.relative_to(root)}")
+    lanes = matrix.get("lanes") or {}
+    test_paths: dict[str, str] = {}
+    for lane_name in ("small", "medium"):
+        for command in (lanes.get(lane_name) or {}).get("commands", []):
+            for token in command:
+                if isinstance(token, str) and token.startswith("tests/"):
+                    prior = test_paths.setdefault(token, lane_name)
+                    if prior != lane_name:
+                        issues.append(f"test_matrix_duplicate_test_path:{token}:{prior}:{lane_name}")
+    exception = governance.get("temporary_exception") or {}
+    if exception.get("path") != "STEP5_FLOW.md" or not exception.get("reason"):
+        issues.append("content_governance_markdown_exception_invalid")
+    return issues
+
+
 def load_matrix(path: Path) -> tuple[Any, list[str]]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -446,35 +580,17 @@ def load_matrix(path: Path) -> tuple[Any, list[str]]:
         return None, [f"test_matrix_unreadable:{exc}"]
     issues = matrix_issues(payload)
     root = path.resolve().parent.parent
-    lanes = payload.get("lanes") if isinstance(payload, dict) else None
-    large = lanes.get("large_ursim") if isinstance(lanes, dict) else None
-    if isinstance(large, dict) and large.get("execution_status") == "pass":
-        for role, path_field, sha_field, required_relative in (
-            (
-                "result",
-                "immutable_result",
-                "immutable_result_sha256",
-                "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-            ),
-            (
-                "raw",
-                "raw_evidence",
-                "raw_evidence_sha256",
-                "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
-            ),
-        ):
-            relative = large.get(path_field)
-            expected_sha = large.get(sha_field)
-            target = root / relative if relative == required_relative else None
-            if target is None or target.is_symlink() or not target.is_file():
-                issues.append(f"test_matrix_realistic_lane_evidence_unavailable:{role}")
-                continue
-            observed_sha = _sha256(target.read_bytes())
-            if observed_sha != expected_sha:
-                issues.append(
-                    f"test_matrix_realistic_lane_evidence_digest:{role}:"
-                    f"expected={expected_sha}:observed={observed_sha}"
-                )
+    evidence_relative = payload.get("evidence_manifest") if isinstance(payload, dict) else None
+    evidence_path = root / evidence_relative if isinstance(evidence_relative, str) else None
+    if evidence_path is None or evidence_path.is_symlink() or not evidence_path.is_file():
+        issues.append("test_evidence_manifest_unavailable")
+    else:
+        try:
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            issues.append(f"test_evidence_unreadable:{exc}")
+        else:
+            issues.extend(evidence_issues(evidence, root=root))
     requirements = payload.get("requirements") if isinstance(payload, dict) else None
     if not isinstance(requirements, list) or not requirements:
         issues.append("test_matrix_incident_requirements_missing")
@@ -588,12 +704,16 @@ def validate_repository(root: Path, matrix: Path = DEFAULT_MATRIX) -> dict[str, 
     repo = git_root(root)
     runtime_findings, runtime = runtime_budget(root)
     matrix_payload, matrix_findings = load_matrix(matrix.resolve())
+    governance_findings = content_governance_issues(
+        root, matrix_payload if isinstance(matrix_payload, Mapping) else {}
+    )
     issues = [
         *baseline_issues(repo),
         *protected_source_issues(repo),
         *orchestration_variant_issues(repo),
         *runtime_findings,
         *matrix_findings,
+        *governance_findings,
         *pr_template_structure_issues(repo),
     ]
     return {

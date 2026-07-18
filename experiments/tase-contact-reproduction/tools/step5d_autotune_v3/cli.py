@@ -24,10 +24,12 @@ from .state import (
     physical_status,
     read_service_state,
     set_stop_latch,
+    atomic_json,
 )
 
 
 BATCH_SCHEMA = "step5d.autotune-v3.candidate-batch/v1"
+TRIAL_BATCH_SCHEMA = "step5d.autotune-v3.trial-batch/v2"
 UNIT = "step5d-autotune-v3.service"
 
 
@@ -60,7 +62,7 @@ def _unique_object(pairs: Sequence[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _load_batch(path: Path) -> tuple[str, str, list[dict[str, Decimal]]]:
+def _load_batch(path: Path) -> tuple[str, str, list[dict[str, Any]]]:
     if path.is_symlink() or not path.is_file():
         raise CliError("batch must be a real regular JSON file")
     try:
@@ -76,7 +78,7 @@ def _load_batch(path: Path) -> tuple[str, str, list[dict[str, Decimal]]]:
     required = {"schema", "campaign_id", "source", "candidates"}
     if not isinstance(payload, dict) or set(payload) != required:
         raise CliError("batch fields differ")
-    if payload["schema"] != BATCH_SCHEMA:
+    if payload["schema"] not in {BATCH_SCHEMA, TRIAL_BATCH_SCHEMA}:
         raise CliError("batch schema differs")
     campaign_id = payload["campaign_id"]
     source = payload["source"]
@@ -87,27 +89,40 @@ def _load_batch(path: Path) -> tuple[str, str, list[dict[str, Decimal]]]:
     candidates = payload["candidates"]
     if not isinstance(candidates, list) or len(candidates) != 5:
         raise CliError("batch must contain exactly five candidates")
-    expected_candidate = {"force_p_gain", "force_i_gain", "force_damping"}
-    normalized: list[dict[str, Decimal]] = []
+    from .runtime_profile import DEFAULT_OVERLAY, OVERLAY_FIELDS
+
+    expected_candidate = (
+        {"force_p_gain", "force_i_gain", "force_damping"}
+        if payload["schema"] == BATCH_SCHEMA
+        else set(OVERLAY_FIELDS)
+    )
+    normalized: list[dict[str, Any]] = []
     for candidate in candidates:
         if not isinstance(candidate, dict) or set(candidate) != expected_candidate:
             raise CliError("candidate fields differ")
-        row: dict[str, Decimal] = {}
+        row: dict[str, Any] = dict(DEFAULT_OVERLAY)
         for name in sorted(expected_candidate):
             value = candidate[name]
+            if name == "execution_profile_id":
+                if not isinstance(value, str) or not value:
+                    raise CliError("candidate execution_profile_id must be a string")
+                row[name] = value
+                continue
             if isinstance(value, bool) or not isinstance(value, Decimal):
                 raise CliError(f"candidate {name} must be a JSON number")
-            if not value.is_finite() or value <= 0:
-                raise CliError(f"candidate {name} must be finite and positive")
+            if not value.is_finite() or value < 0:
+                raise CliError(f"candidate {name} must be finite and non-negative")
             row[name] = value
         normalized.append(row)
     return campaign_id, source.strip(), normalized
 
 
-def _candidate_mapping(candidate: Mapping[str, Decimal]) -> dict[str, float]:
+def _candidate_mapping(candidate: Mapping[str, Any]) -> dict[str, float]:
     from .profile import normalize_candidate
 
-    checked = normalize_candidate({key: float(value) for key, value in candidate.items()})
+    checked = normalize_candidate(
+        {key: float(candidate[key]) for key in ("force_p_gain", "force_i_gain", "force_damping")}
+    )
     if not isinstance(checked, Mapping) or set(checked) != {
         "force_p_gain",
         "force_i_gain",
@@ -118,10 +133,11 @@ def _candidate_mapping(candidate: Mapping[str, Decimal]) -> dict[str, float]:
 
 
 def _validate_candidates(
-    candidates: Sequence[Mapping[str, Decimal]],
+    candidates: Sequence[Mapping[str, Any]],
     *,
     ledger_path: Path,
-) -> tuple[list[Any], str, str]:
+    launch_profile_path: Path,
+) -> tuple[list[Any], list[dict[str, Any]], str, str, str]:
     from .launcher import check_effective_config
     from step5d_autotune_contract import ForceCandidate
 
@@ -129,10 +145,32 @@ def _validate_candidates(
     force_candidates: list[ForceCandidate] = []
     control_fingerprint: str | None = None
     execution_profile_id: str | None = None
+    launch_profile_fingerprint: str | None = None
     seen: set[str] = set()
+    overlays: list[dict[str, Any]] = []
+    from .runtime_profile import (
+        DEFAULT_OVERLAY,
+        comparison_profile_fingerprint,
+        load_launch_profile,
+        normalize_trial_overlay,
+    )
+
+    launch_profile = load_launch_profile(launch_profile_path)
+    legacy_comparison = comparison_profile_fingerprint(launch_profile, DEFAULT_OVERLAY)
     for raw_candidate in candidates:
         candidate = _candidate_mapping(raw_candidate)
-        report = dict(check_effective_config(candidate=candidate))
+        raw_overlay = {
+            key: (float(value) if isinstance(value, Decimal) else value)
+            for key, value in raw_candidate.items()
+        }
+        overlay = normalize_trial_overlay(raw_overlay, profile=launch_profile)
+        report = dict(
+            check_effective_config(
+                candidate=candidate,
+                launch_profile_path=launch_profile_path,
+                trial_overlay=overlay,
+            )
+        )
         if report.get("ok") is not True:
             raise CliError("candidate effective-config check did not pass")
         candidate_fingerprint = report.get("control_fingerprint")
@@ -143,9 +181,12 @@ def _validate_candidates(
             raise CliError("candidate check lacks execution profile identity")
         if control_fingerprint not in {None, candidate_fingerprint}:
             raise CliError("candidate changed the frozen control fingerprint")
-        if execution_profile_id not in {None, profile_id}:
-            raise CliError("batch crosses execution profiles")
-        attempted = ledger.attempted_group(candidate, profile_id)
+        comparison_fp = report.get("comparison_profile_fingerprint")
+        attempted = (
+            ledger.attempted_group(candidate, profile_id)
+            if comparison_fp == legacy_comparison
+            else None
+        )
         if attempted is not None:
             raise CliError(
                 f"candidate repeats physically attempted tuple {attempted}; "
@@ -156,10 +197,84 @@ def _validate_candidates(
             raise CliError("batch repeats an exact candidate")
         seen.add(force_candidate.candidate_uid)
         force_candidates.append(force_candidate)
+        overlays.append(overlay)
         control_fingerprint = candidate_fingerprint
-        execution_profile_id = profile_id
+        execution_profile_id = "per_trial_overlay"
+        launch_profile_fingerprint = report.get("launch_profile_fingerprint")
     assert control_fingerprint is not None and execution_profile_id is not None
-    return force_candidates, control_fingerprint, execution_profile_id
+    assert isinstance(launch_profile_fingerprint, str)
+    return (
+        force_candidates,
+        overlays,
+        control_fingerprint,
+        execution_profile_id,
+        launch_profile_fingerprint,
+    )
+
+
+def _append_overlay_batch(
+    paths: CampaignPaths,
+    *,
+    plan: Any,
+    source: str,
+    candidates: Sequence[Any],
+    overlays: Sequence[Mapping[str, Any]],
+    launch_profile_fingerprint: str,
+) -> dict[str, Any]:
+    if len(candidates) != len(overlays):
+        raise CliError("candidate and overlay counts differ")
+    if paths.trial_overlays.exists():
+        from .state import read_strict_json
+
+        current = read_strict_json(paths.trial_overlays, role="v3 trial overlay plan")
+        if (
+            not isinstance(current, dict)
+            or current.get("schema") != "step5d.autotune-v3/trial-overlay-plan-v1"
+            or current.get("revision") != plan.revision - 1
+            or current.get("launch_profile_fingerprint") != launch_profile_fingerprint
+        ):
+            raise CliError("existing V3 trial-overlay plan is not append-compatible")
+        batches = list(current["batches"])
+    else:
+        if plan.revision != 1:
+            raise CliError("cannot attach V3 overlays to a pre-existing candidate plan")
+        batches = []
+    batches.append(
+        {
+            "batch_id": plan.revision,
+            "source": source,
+            "trials": [
+                {
+                    "candidate_uid": candidate.candidate_uid,
+                    "overlay": dict(overlay),
+                }
+                for candidate, overlay in zip(candidates, overlays, strict=True)
+            ],
+        }
+    )
+    candidate_count = sum(len(batch["trials"]) for batch in batches)
+    fingerprint_material = {
+        "launch_profile_fingerprint": launch_profile_fingerprint,
+        "batches": batches,
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            fingerprint_material,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    payload = {
+        "schema": "step5d.autotune-v3/trial-overlay-plan-v1",
+        "revision": plan.revision,
+        "candidate_count": candidate_count,
+        "launch_profile_fingerprint": launch_profile_fingerprint,
+        "fingerprint": fingerprint,
+        "batches": batches,
+    }
+    atomic_json(paths.trial_overlays, payload)
+    return payload
 
 
 def _append_batch(
@@ -311,6 +426,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--experiment-root", type=Path, default=_root_default())
     parser.add_argument("--campaign-root", type=Path)
     parser.add_argument("--attempt-ledger", type=Path)
+    parser.add_argument("--launch-profile", type=Path)
     parser.add_argument(
         "--_service", dest="internal_service", action="store_true", help=argparse.SUPPRESS
     )
@@ -351,6 +467,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         _ledger_default(experiment_root)
         if args.attempt_ledger is None
         else args.attempt_ledger.expanduser().absolute()
+    )
+    launch_profile_path = (
+        experiment_root / "config/step5/step5d_autotune_v3_launch_profile.json"
+        if args.launch_profile is None
+        else args.launch_profile.expanduser().absolute()
     )
     paths = CampaignPaths(campaign_root)
     try:
@@ -402,14 +523,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "enqueue":
             campaign_id, source, raw_candidates = _load_batch(args.batch)
-            candidates, control_fp, profile_id = _validate_candidates(
-                raw_candidates, ledger_path=ledger_path
+            candidates, overlays, control_fp, profile_id, launch_fp = _validate_candidates(
+                raw_candidates,
+                ledger_path=ledger_path,
+                launch_profile_path=launch_profile_path,
             )
             plan = _append_batch(
                 paths,
                 campaign_id=campaign_id,
                 source=source,
                 candidates=candidates,
+            )
+            overlay_plan = _append_overlay_batch(
+                paths,
+                plan=plan,
+                source=source,
+                candidates=candidates,
+                overlays=overlays,
+                launch_profile_fingerprint=launch_fp,
             )
             payload = {
                 "ok": True,
@@ -420,6 +551,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "orchestration_fingerprint": orchestration_fingerprint(experiment_root),
                 "queue_revision": plan.revision,
                 "queue_fingerprint": _queue_fingerprint(candidates),
+                "launch_profile_fingerprint": launch_fp,
+                "trial_overlay_plan_fingerprint": overlay_plan["fingerprint"],
                 "restart_triggered": False,
                 "release_gate_triggered": False,
             }

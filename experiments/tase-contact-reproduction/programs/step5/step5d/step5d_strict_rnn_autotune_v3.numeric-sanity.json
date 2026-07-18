@@ -1,0 +1,32 @@
+{
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "far_search_speed_m_s": 0.03375,
+  "identity_only_delta_from_frozen_v1": true,
+  "input_integer_registers": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+  ],
+  "output_integer_registers": [
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30
+  ],
+  "precontact_entry_accel_m_s2": 0.135,
+  "precontact_entry_speed_m_s": 0.09,
+  "program": "step5d_strict_rnn_autotune_v3",
+  "qdot_cap_rad_s": 0.5,
+  "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
+  "speedj_acceleration_profiles_rad_s2": [
+    0.1,
+    0.2,
+    0.5
+  ]
+}

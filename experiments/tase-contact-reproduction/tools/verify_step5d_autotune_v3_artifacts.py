@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the immutable v2 migration/TP evidence reused by inactive v3."""
+"""Verify the immutable offline, TP V3, read-back, and URSim evidence bundle."""
 
 from __future__ import annotations
 
@@ -23,32 +23,32 @@ from step5d_autotune_v3.state import StateError, orchestration_fingerprint
 ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
-TP_FINGERPRINT = "c2761f200c58d9825e37dc76907b5e25b2d9982cda7dff1cf7de9699dbad7bb9"
+TP_FINGERPRINT = "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc"
 LEDGER_SHA256 = "19cf2241ea070e3dc8eccfbe118660104f4c3f8e40ea25cb6f0efecabc7acf99"
 URSIM_IMAGE = (
     "universalrobots/ursim_e-series@sha256:"
     "730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3"
 )
-URSIM_RAW_SHA256 = "83df91fbc6256d7380bd5f6761326fd9885511dbb858604e2a87324b09cc6dc3"
-URSIM_RESULT_SHA256 = "f4dcd36dc1a593c1f8b7c20be321904a71199e0c4281f8c31b2960c490046fb9"
+URSIM_RAW_SHA256 = "21db439abee228cdc07496e706f68cf5da7208b986ee8d61951ec1ba878291ce"
+URSIM_RESULT_SHA256 = "0639f5bb9a9a40fe947f48dab754117e8c74b25748e862ded2872397231a0ea3"
 EXPECTED_SHA256 = {
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v2.script":
-        "d3e52cbb341adad5c6924c155e3e4c15890379f0a251647f4f1de0235fc1ad05",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v2.txt":
-        "f734706e65c75a0f25c30d655f69523f6c32637efd5914a78261981b97c0c6cc",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v2.urp":
-        "3287e9913e8ba07f9d86549e7441f383f644e64cf33f956c7221e44df6621153",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v2.deploy-manifest.json":
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script":
+        "97ca4a9e035bc0f5b9a2345adb8711ec3275886c0939fb0f23c4a5aecd4c4f8f",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.txt":
+        "fa503d6e9db062f196b66c1125075aa4503854a329a399b31f6b7a899f955692",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp":
+        "5202d7783421cbecc6ca89d3e1c6c709d34f01868ae83d4ce0f01acbbfe7b129",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.deploy-manifest.json":
         TP_FINGERPRINT,
     "config/step5/tp_watchdog_v2.json":
         "fdea0f91364b7bf67c162b352e634b439671fdce2b42a4b07f531c05ad6c2750",
     "config/step5/tp_watchdog_blocks/host_heartbeat_fail_closed_v2.script":
         "fe0c5a2e991fcc065efde75760f5c164b14f161cc5c2b8668941c64fbf4aa8e4",
-    "config/step5d_autotune_controller_readback_v2.json":
-        "d29c98a1746c06c0fd18b928c15b24113b2abe824f00351f444eec83ec7ee06b",
+    "config/step5d_autotune_controller_readback_v3.json":
+        "c6d33760cb6113d4a1fa60a9099aacda79b134ab27a4c109b47672d16d2a2ba9",
     "config/step5/step5d_autotune_v3_attempt_ledger.json": LEDGER_SHA256,
     "config/step5/step5d_autotune_v3_control_contract.json":
-        "f1d602dce970087a26b2aac80e5a93709812665c4ec949897b37b874efcf6f54",
+        "6a06f61583200e812e4fc5d958a426fc02d9fa6fbd8d5d6e73e2723df34844ad",
     "config/step5/golden_replay_g10_v1.json":
         "f56a3eef529494b6c209ca5534abec082519848446724a94426de522852260f8",
     "config/step5/golden_replay_g10_v3_result.json":
@@ -56,17 +56,19 @@ EXPECTED_SHA256 = {
     "config/step5/step5d_autotune_v3_ursim_hold_raw.json": URSIM_RAW_SHA256,
     "config/step5/step5d_autotune_v3_ursim_hold_result.json": URSIM_RESULT_SHA256,
     "config/step5/step5d_autotune_v3_offline_validation.json":
-        "31a94f2f67205149ab2ff714828e72efebeb3b90b684fdb1c2b3a0c8dd09bf59",
+        "0c313845032e6cdace49b325551a84766dab29061e4b6e1a975dfcfaf39883e9",
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json":
+        "70229a0c94d4a546c1a5f27e033bf34a8c0d302776c3227a39d857f12a366a48",
 }
 TRIPLET_SHA256 = {
     ".script": EXPECTED_SHA256[
-        "programs/step5/step5d/step5d_strict_rnn_autotune_v2.script"
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script"
     ],
     ".txt": EXPECTED_SHA256[
-        "programs/step5/step5d/step5d_strict_rnn_autotune_v2.txt"
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v3.txt"
     ],
     ".urp": EXPECTED_SHA256[
-        "programs/step5/step5d/step5d_strict_rnn_autotune_v2.urp"
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp"
     ],
 }
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -142,27 +144,27 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         raise ArtifactVerificationError(f"current source fingerprint failed: {exc}") from exc
 
     deploy = _load_json(
-        root / "programs/step5/step5d/step5d_strict_rnn_autotune_v2.deploy-manifest.json",
+        root / "programs/step5/step5d/step5d_strict_rnn_autotune_v3.deploy-manifest.json",
         role="TP deploy manifest",
     )
     _require_equal(deploy.get("schema_version"), 1, "TP deploy schema")
-    _require_equal(deploy.get("basename"), "step5d_strict_rnn_autotune_v2", "TP basename")
+    _require_equal(deploy.get("basename"), V3_STAGE_ID, "TP basename")
     expected_artifacts = [
         {
-            "filename": f"step5d_strict_rnn_autotune_v2{extension}",
+            "filename": f"{V3_STAGE_ID}{extension}",
             "sha256": digest,
-            "source": f"step5d_strict_rnn_autotune_v2{extension}",
+            "source": f"{V3_STAGE_ID}{extension}",
         }
         for extension, digest in TRIPLET_SHA256.items()
     ]
     _require_equal(deploy.get("artifacts"), expected_artifacts, "TP deploy artifacts")
 
     readback = _load_json(
-        root / "config/step5d_autotune_controller_readback_v2.json",
+        root / "config/step5d_autotune_controller_readback_v3.json",
         role="controller readback attestation",
     )
-    _require_equal(readback.get("schema"), "step5d.autotune.controller-readback/v2", "readback schema")
-    _require_equal(readback.get("verified"), True, "historical readback verification")
+    _require_equal(readback.get("schema"), "step5d.autotune.controller-readback/v3", "readback schema")
+    _require_equal(readback.get("verified"), True, "fresh readback verification")
     _require_equal(readback.get("tp_fingerprint"), TP_FINGERPRINT, "TP fingerprint")
     _require_equal(readback.get("triplet_sha256"), TRIPLET_SHA256, "readback triplet")
 
@@ -208,37 +210,30 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     package = v3.get("package_delivery") or {}
     _require_equal(
         package.get("status"),
-        "controller_readback_verified_content_addressed_reuse_inactive",
+        "controller_readback_verified_inactive",
         "v3 package delivery status",
     )
-    _require_equal(package.get("controller_uploaded_by_v3"), False, "v3 upload claim")
+    _require_equal(package.get("controller_uploaded_by_v3"), True, "v3 upload claim")
+    _require_equal(package.get("controller_readback_verified"), True, "v3 readback claim")
     _require_equal(package.get("tp_fingerprint"), TP_FINGERPRINT, "v3 TP binding")
     _require_equal(package.get("sha256"), TRIPLET_SHA256, "v3 triplet binding")
-    reuse = package.get("content_addressed_reuse") or {}
-    _require_equal(reuse.get("accepted"), True, "v3 content-addressed reuse")
-    _require_equal(reuse.get("same_bytes_verified"), True, "v3 reused bytes")
     _require_equal(
-        reuse.get("fresh_controller_sha_at"),
-        "2026-07-17T20:03:46+08:00",
+        package.get("fresh_controller_sha_at"),
+        "2026-07-19T00:24:04+08:00",
         "v3 fresh controller SHA timestamp",
     )
     _require_equal(
-        reuse.get("basis_manifest"),
-        "programs/step5/step5d/step5d_strict_rnn_autotune_v2.deploy-manifest.json",
-        "v3 reuse basis",
-    )
-    _require_equal(
-        reuse.get("prior_readback_source"),
-        "config/step5d_autotune_controller_readback_v2.json",
-        "v3 reuse readback source",
+        package.get("controller_readback_manifest"),
+        "config/step5d_autotune_controller_readback_v3.json",
+        "v3 readback source",
     )
     readiness = v3.get("execution_readiness") or {}
     _require_equal(
-        readiness.get("state"), "ready_for_hil_authorization", "v3 readiness state"
+        readiness.get("state"), "ready_for_hil_full_bridge_hold_authorization", "v3 readiness state"
     )
     _require_equal(
         readiness.get("public_success_signal"),
-        "ready_for_hil_authorization",
+        "ready_for_hil_full_bridge_hold_authorization",
         "v3 public success signal",
     )
     _require_equal(readiness.get("package_delivery_complete"), True, "v3 package readiness")
@@ -324,12 +319,12 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     _require_equal(decision.get("v3_active"), False, "v3 inactive decision")
     _require_equal(
         decision.get("package_delivery"),
-        "controller_readback_verified_content_addressed_reuse",
+        "controller_readback_verified_explicit_v3",
         "v3 package delivery decision",
     )
     _require_equal(
         decision.get("execution_readiness"),
-        "ready_for_hil_authorization",
+        "ready_for_hil_full_bridge_hold_authorization",
         "v3 execution readiness decision",
     )
 
@@ -434,6 +429,11 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "offline_tooling_and_ursim_hold_only",
         "test matrix claim boundary",
     )
+    _require_equal(
+        matrix.get("evidence_manifest"),
+        "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
+        "test matrix evidence manifest",
+    )
     readiness_gate = matrix.get("operator_readiness_gate") or {}
     _require_equal(
         readiness_gate.get("command"),
@@ -467,24 +467,21 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "test matrix HIL authorization command",
     )
     for field, expected in (
-        ("scope", "hil_hold_only"),
+        ("scope", "hil_full_bridge_hold"),
         ("candidate_stage_id", V3_STAGE_ID),
         ("max_ttl_s", 1800),
         ("current_fingerprint_binding_required", True),
         ("current_turn_thread_binding_required", True),
         ("serial", True),
         ("hold_required", True),
-        ("live_writer_allowed", False),
+        ("live_writer_allowed", True),
         ("operator_action_consumed", False),
     ):
         _require_equal(
             hil_authorization.get(field), expected, f"test matrix HIL authorization {field}"
         )
     large = (matrix.get("lanes") or {}).get("large_ursim") or {}
-    _require_equal(large.get("execution_status"), "pass", "large URSim lane status")
     _require_equal(large.get("container_image"), URSIM_IMAGE, "large URSim image")
-    _require_equal(large.get("immutable_result_sha256"), URSIM_RESULT_SHA256, "large URSim result")
-    _require_equal(large.get("raw_evidence_sha256"), URSIM_RAW_SHA256, "large URSim raw evidence")
     for field, expected in (
         ("external_network_allowed", False),
         ("robot_network_allowed", False),
@@ -494,9 +491,18 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         ("live_writer_allowed", False),
         ("arm_allowed", False),
         ("motion_allowed", False),
-        ("cleanup_completed", True),
     ):
         _require_equal(large.get(field), expected, f"large URSim {field}")
+    evidence = _load_json(
+        root / "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
+        role="Step5d v3 test evidence",
+    )
+    _require_equal(evidence.get("schema"), "step5d.autotune-v3/test-evidence-v1", "test evidence schema")
+    evidence_large = (evidence.get("lanes") or {}).get("large_ursim") or {}
+    _require_equal(evidence_large.get("status"), "pass", "large URSim evidence status")
+    _require_equal(evidence_large.get("result_sha256"), URSIM_RESULT_SHA256, "large URSim result")
+    _require_equal(evidence_large.get("raw_evidence_sha256"), URSIM_RAW_SHA256, "large URSim raw evidence")
+    _require_equal(evidence_large.get("cleanup_completed"), True, "large URSim cleanup")
 
     fingerprint_input = json.dumps(
         {
@@ -514,7 +520,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "current_stage_id": V1_STAGE_ID,
         "v3_stage_id": V3_STAGE_ID,
         "v3_active": False,
-        "execution_readiness": "ready_for_hil_authorization",
+        "execution_readiness": "ready_for_hil_full_bridge_hold_authorization",
         "ready_to_execute": False,
         "acceptance_scope": "offline_tooling_and_ursim_hold_only",
         "rollout_authorized": False,

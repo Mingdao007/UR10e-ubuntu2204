@@ -1,102 +1,97 @@
 {
-  "schema": "step5d.autotune-v3/ursim-hold-result-v1",
-  "observed_at": "2026-07-17T20:59:09.542360+00:00",
-  "status": "pass",
   "acceptance_scope": "offline_tooling_and_ursim_hold_only",
   "claim_boundary": "digest_pinned_ursim_hold_only_not_robot_acceptance",
+  "container_lifecycle": {
+    "container_id": "59132eecd6713d416d2c5c77d7928b1b8824076fc7a8c2e1e5fca505cda878eb",
+    "devices": [],
+    "mounts": [],
+    "name": "step5d-autotune-v3-ursim-hold",
+    "privileged": false,
+    "removed_after_gate": true
+  },
+  "decision": {
+    "current_selector": "step5d_strict_rnn_autotune_v1",
+    "live_robot_acceptance": "not_run_not_authorized",
+    "offline_acceptance": "go",
+    "rollout_authorized": false,
+    "v3_active": false
+  },
+  "hold": {
+    "arm_count": 0,
+    "controller_write_count": 0,
+    "dashboard_program_state": "STOPPED",
+    "dashboard_running": false,
+    "forbidden_action_count": 0,
+    "max_abs_actual_qd_rad_s": 0.0,
+    "max_abs_actual_tcp_speed": 0.0,
+    "motion_count": 0,
+    "play_count": 0,
+    "rtde_input_recipe_created": false,
+    "rtde_output_recipe_only": true,
+    "sample_count": 3
+  },
   "identity": {
-    "control_fingerprint": "81563dcb24ffebd47ce4b16b477b819c973fbc502d81d74d6c7b06830b875f78",
-    "orchestration_fingerprint": "d4f846aa7e04d7f84800d5f616c70ff4671027efb05ccd0ad63d66c76ebd7b50",
-    "contract_sha256": "cdac9d22fef5697c9113c9e98a54ab08a6430873845bc775321326e3ef69c5f9"
+    "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
+    "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
+    "orchestration_fingerprint": "6d3933e316213d781ff7f6b8f6590f2ab63ea254f7548c9f80ae230745d13607"
   },
   "image": {
-    "reference": "universalrobots/ursim_e-series@sha256:730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3",
-    "image_id": "sha256:2defb07d45a84f988504a78184c9b8da69fea55ffec89ee1388e75a412e394a2",
-    "polyscope_version": "5.11.11",
     "entrypoint": [
       "/entrypoint.sh"
     ],
     "entrypoint_overridden": false,
+    "image_id": "sha256:2defb07d45a84f988504a78184c9b8da69fea55ffec89ee1388e75a412e394a2",
+    "polyscope_version": "5.11.11",
+    "reference": "universalrobots/ursim_e-series@sha256:730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3",
     "robot_model": "UR10"
   },
   "network": {
-    "name": "step5d-autotune-v3-ursim-internal",
-    "network_id": "85acda9b9db6b92bfeaef13d3da0d44058a4d5469a5205ec8886e84824accfad",
-    "created_at": "2026-07-18T04:53:58.278748176+08:00",
-    "internal": true,
     "external_network_connected": false,
-    "robot_network_connected": false,
     "host_ports_published": false,
-    "removed_after_gate": true
+    "internal": true,
+    "name": "step5d-autotune-v3-ursim-internal",
+    "removed_after_gate": true,
+    "robot_network_connected": false
   },
-  "container_lifecycle": {
-    "name": "step5d-autotune-v3-ursim-hold",
-    "container_id": "b104b1aaddd7b4bfe7028625f01852059d7111499b09a3ec49198077a44a9fe6",
-    "created_at": "2026-07-17T20:53:58.302491071Z",
-    "started_at": "2026-07-17T20:53:58.500187193Z",
-    "finished_at": "2026-07-17T21:00:02.241767643Z",
-    "cleanup_exit_code": 137,
-    "cleanup_note": "Docker stop reached its 10 second timeout after the successful gate; the separate v3 service rollback had already exited 0 and reached stopped.",
-    "privileged": false,
-    "mounts": [],
-    "devices": [],
-    "removed_after_gate": true
+  "observed_at": "2026-07-18T16:55:18.275074+00:00",
+  "raw_evidence": {
+    "byte_identical_copy_verified": true,
+    "original_run_path": "runs/step5d_autotune_v3_validation/ursim-v3-final-bootstrap/a1937bb530a4226a-20260718T165518.514837Z-533078/ursim_hold_gate.json",
+    "path": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
+    "sha256": "21db439abee228cdc07496e706f68cf5da7208b986ee8d61951ec1ba878291ce"
   },
+  "rollback": {
+    "service_exit_code": 0,
+    "service_final_phase": "stopped",
+    "stderr": "",
+    "stdout": "",
+    "v1_selector_after": "step5d_strict_rnn_autotune_v1",
+    "v1_selector_before": "step5d_strict_rnn_autotune_v1",
+    "v3_active_after": false
+  },
+  "schema": "step5d.autotune-v3/ursim-hold-result-v1",
   "service_lifecycle": {
+    "bridge_started": false,
+    "controller_touched": false,
     "expected_prefix": [
       "STOPPED",
       "STARTING",
       "READY_HOME"
     ],
+    "hardware_enabled": false,
     "observed": [
       "STOPPED",
       "STARTING",
       "READY_HOME",
       "STOPPED"
     ],
-    "hardware_enabled": false,
-    "bridge_started": false,
-    "controller_touched": false,
     "tp_started": false
   },
-  "hold": {
-    "dashboard_program_state": "STOPPED",
-    "dashboard_running": false,
-    "rtde_output_recipe_only": true,
-    "rtde_input_recipe_created": false,
-    "sample_count": 3,
-    "max_abs_actual_qd_rad_s": 0,
-    "max_abs_actual_tcp_speed": 0,
-    "play_count": 0,
-    "arm_count": 0,
-    "motion_count": 0,
-    "controller_write_count": 0,
-    "forbidden_action_count": 0
-  },
+  "status": "pass",
   "watchdog": {
     "hold_monitor_passed": true,
     "immutable_tp_watchdog_artifact_verified": true,
     "tp_watchdog_runtime_executed": false,
     "tp_watchdog_runtime_reason": "HOLD-only gate forbids TP Play"
-  },
-  "rollback": {
-    "service_exit_code": 0,
-    "service_final_phase": "stopped",
-    "v1_selector_before": "step5d_strict_rnn_autotune_v1",
-    "v1_selector_after": "step5d_strict_rnn_autotune_v1",
-    "v3_active_after": false
-  },
-  "raw_evidence": {
-    "path": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
-    "sha256": "83df91fbc6256d7380bd5f6761326fd9885511dbb858604e2a87324b09cc6dc3",
-    "original_run_path": "runs/step5d_autotune_v3_validation/ursim/81563dcb24ffebd4-20260717T205909.776286Z-469169/ursim_hold_gate.json",
-    "byte_identical_copy_verified": true
-  },
-  "decision": {
-    "offline_acceptance": "go",
-    "live_robot_acceptance": "not_run_not_authorized",
-    "rollout_authorized": false,
-    "v3_active": false,
-    "current_selector": "step5d_strict_rnn_autotune_v1"
   }
 }

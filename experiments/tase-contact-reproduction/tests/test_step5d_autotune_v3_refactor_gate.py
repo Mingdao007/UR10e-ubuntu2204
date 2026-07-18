@@ -137,6 +137,16 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         )
         self.assertIn("test_matrix_ursim_dashboard_allowlist_drift", issues)
 
+    def test_b1_governance_separates_evidence_and_rejects_duplicate_test_paths(self) -> None:
+        payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
+        self.assertEqual(gate.content_governance_issues(ROOT, payload), [])
+        duplicate = payload["lanes"]["small"]["commands"][0][-1]
+        payload["lanes"]["medium"]["commands"][0].append(duplicate)
+        self.assertIn(
+            f"test_matrix_duplicate_test_path:{duplicate}:small:medium",
+            gate.content_governance_issues(ROOT, payload),
+        )
+
     def test_matrix_readiness_contract_cannot_inherit_authorization_or_skip_hil(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
         readiness = payload["operator_readiness_gate"]
@@ -171,38 +181,28 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             issues,
         )
 
-    def test_matrix_realistic_pass_requires_hash_bound_evidence(self) -> None:
-        payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
-        payload["lanes"]["large_ursim"]["immutable_result_sha256"] = "0" * 64
+    def test_separate_evidence_requires_hash_binding_and_rejects_false_hil_pass(self) -> None:
+        payload = json.loads(gate.DEFAULT_EVIDENCE.read_text(encoding="utf-8"))
+        payload["lanes"]["large_ursim"]["result_sha256"] = "0" * 64
         payload["lanes"]["large_ursim"]["cleanup_completed"] = False
-        payload["lanes"]["hil_no_motion"]["execution_status"] = "pass"
-        issues = gate.matrix_issues(payload)
+        payload["lanes"]["hil_no_motion"]["status"] = "pass"
+        issues = gate.evidence_issues(payload, root=ROOT)
         self.assertIn(
-            "test_matrix_realistic_lane_pass_evidence:large_ursim:immutable_result_sha256",
+            "test_evidence_pass_field:large_ursim:result_sha256",
             issues,
         )
         self.assertIn(
-            "test_matrix_realistic_lane_pass_evidence:large_ursim:cleanup_completed",
+            "test_evidence_pass_field:large_ursim:cleanup_completed",
             issues,
         )
-        self.assertIn("test_matrix_realistic_lane_false_pass:hil_no_motion", issues)
+        self.assertIn("test_evidence_false_pass:hil_no_motion", issues)
 
     def test_workflow_runs_only_explicit_hermetic_fast_tests(self) -> None:
         workflow = (GIT_ROOT / ".github" / "workflows" / "step5d-autotune-v3.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("tests/test_step5d_autotune_v3_contract.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_v3_refactor_gate.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_v3_service.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_v3_acceptance.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_recovery.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_journal.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_v3_attempt_ledger.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_v3_artifacts.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_v3_execution_readiness.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_v3_hil_authorization.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_v3_g10.py", workflow)
-        self.assertIn("tests/test_step5d_autotune_v3_ursim_hold.py", workflow)
+        self.assertIn("tools/run_step5d_autotune_v3_test_matrix.py", workflow)
+        self.assertIn("--lanes small medium --workers 4", workflow)
         self.assertIn("STEP5D_V3_HERMETIC_PARSER_CI", workflow)
         self.assertIn("python3 -m step5d_v3_parser_ci_stubs", workflow)
         self.assertNotIn("docker run", workflow)

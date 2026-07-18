@@ -27,17 +27,17 @@
     "tools/step5d_runtime_interface.py": "56d388207542d5d5d93175f9d8922d3366f7fd368f0763a7304f2933844e7e2d"
   },
   "tp_artifact_sha256": {
-    ".script": "d3e52cbb341adad5c6924c155e3e4c15890379f0a251647f4f1de0235fc1ad05",
-    ".txt": "f734706e65c75a0f25c30d655f69523f6c32637efd5914a78261981b97c0c6cc",
-    ".urp": "3287e9913e8ba07f9d86549e7441f383f644e64cf33f956c7221e44df6621153"
+    ".script": "97ca4a9e035bc0f5b9a2345adb8711ec3275886c0939fb0f23c4a5aecd4c4f8f",
+    ".txt": "fa503d6e9db062f196b66c1125075aa4503854a329a399b31f6b7a899f955692",
+    ".urp": "5202d7783421cbecc6ca89d3e1c6c709d34f01868ae83d4ce0f01acbbfe7b129"
   },
   "deployment_tp_identity": {
-    "program": "step5d_strict_rnn_autotune_v2",
-    "mode": "watchdog_only_reuse",
+    "program": "step5d_strict_rnn_autotune_v3",
+    "mode": "explicit_v3_identity_frozen_v1_control",
     "artifact_dir": "programs/step5/step5d",
-    "readback_manifest": "config/step5d_autotune_controller_readback_v2.json",
-    "readback_manifest_sha256": "d29c98a1746c06c0fd18b928c15b24113b2abe824f00351f444eec83ec7ee06b",
-    "tp_fingerprint": "c2761f200c58d9825e37dc76907b5e25b2d9982cda7dff1cf7de9699dbad7bb9"
+    "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
+    "readback_manifest_sha256": "c6d33760cb6113d4a1fa60a9099aacda79b134ab27a4c109b47672d16d2a2ba9",
+    "tp_fingerprint": "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc"
   },
   "cli_arguments": [
     ["--allow-kunwei-stream-command"],

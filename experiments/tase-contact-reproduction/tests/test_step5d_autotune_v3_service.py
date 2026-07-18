@@ -58,6 +58,30 @@ def write_batch(
     )
 
 
+def write_trial_batch(path: Path, candidates: list[dict], *, campaign_id: str) -> None:
+    from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY
+
+    trials = []
+    for index, candidate_row in enumerate(candidates):
+        row = {**DEFAULT_OVERLAY, **candidate_row}
+        row["execution_profile_id"] = (
+            "nf020-slew010-a010" if index % 2 else "nf050-slew050-a050"
+        )
+        row["step5d_preload_hold_s"] = 0.1 + index * 0.01
+        trials.append(row)
+    path.write_text(
+        json.dumps(
+            {
+                "schema": cli.TRIAL_BATCH_SCHEMA,
+                "campaign_id": campaign_id,
+                "source": "trial-overlay unit test",
+                "candidates": trials,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def cli_args(campaign_root: Path) -> list[str]:
     return [
         "--experiment-root",
@@ -91,6 +115,31 @@ def test_enqueue_uses_v1_plan_and_keeps_three_fingerprints_separate(
     assert first_result["queue_fingerprint"] != second_result["queue_fingerprint"]
     assert second_result["restart_triggered"] is False
     assert second_result["release_gate_triggered"] is False
+
+
+def test_trial_batch_v2_persists_exact_overlay_plan_without_restarting_bridge(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    batch = tmp_path / "trial-batch.json"
+    write_trial_batch(
+        batch,
+        [candidate(value, 0.75) for value in (-1.0, -0.75, -0.5, -0.25, 0.0)],
+        campaign_id="v3-overlay-plan",
+    )
+    campaign_root = tmp_path / "campaign"
+
+    assert cli.main([*cli_args(campaign_root), "enqueue", "--batch", str(batch)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    overlay_plan = json.loads(
+        (campaign_root / "control/v3_trial_overlays.json").read_text(encoding="utf-8")
+    )
+    assert result["execution_profile_id"] == "per_trial_overlay"
+    assert result["restart_triggered"] is False
+    assert overlay_plan["schema"] == "step5d.autotune-v3/trial-overlay-plan-v1"
+    assert overlay_plan["revision"] == 1
+    assert overlay_plan["candidate_count"] == 5
+    assert len(overlay_plan["batches"][0]["trials"][0]["overlay"]) == 11
+    assert overlay_plan["fingerprint"] == result["trial_overlay_plan_fingerprint"]
 
 
 def test_enqueue_is_visible_to_process_boundary_status_within_one_second(

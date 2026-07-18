@@ -10379,7 +10379,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "offline and URSim HOLD-only acceptance plus content-addressed controller read-back are complete; v1 remains current and v3 still requires candidate-scoped HIL/live authorization and live-runtime promotion",
+      "block_reason": "explicit V3 TP upload and fresh controller read-back are complete; v1 remains current and v3 still requires current-turn full-bridge HOLD authorization, HIL evidence, and live-runtime promotion",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10407,10 +10407,10 @@
         "entrypoint": "scripts/step5d-autotune-v3.sh",
         "service": "config/systemd/step5d-autotune-v3.service",
         "service_restart": "no",
-        "mode": "single-owner-continuous-v1-store-and-mailbox",
+        "mode": "single-owner-continuous-v1-control-with-v3-launch-profile-and-trial-overlay",
         "stop_after_current": "durable-safe-home-latch",
-        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v2.urp",
-        "live_readiness_state": "ready_for_hil_authorization"
+        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
+        "live_readiness_state": "ready_for_hil_full_bridge_hold_authorization"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10422,27 +10422,22 @@
         "pending_or_automatic_retry_imported": false
       },
       "package_delivery": {
-        "status": "controller_readback_verified_content_addressed_reuse_inactive",
-        "program_basename": "step5d_strict_rnn_autotune_v2",
-        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v2",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v2.urp",
-        "controller_uploaded_by_v3": false,
-        "controller_readback_manifest": "config/step5d_autotune_controller_readback_v2.json",
-        "controller_readback_manifest_sha256": "d29c98a1746c06c0fd18b928c15b24113b2abe824f00351f444eec83ec7ee06b",
-        "content_addressed_reuse": {
-          "accepted": true,
-          "same_bytes_verified": true,
-          "fresh_controller_sha_at": "2026-07-17T20:03:46+08:00",
-          "basis_manifest": "programs/step5/step5d/step5d_strict_rnn_autotune_v2.deploy-manifest.json",
-          "prior_readback_source": "config/step5d_autotune_controller_readback_v2.json"
-        },
-        "tp_fingerprint": "c2761f200c58d9825e37dc76907b5e25b2d9982cda7dff1cf7de9699dbad7bb9",
+        "status": "controller_readback_verified_inactive",
+        "program_basename": "step5d_strict_rnn_autotune_v3",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
+        "controller_uploaded_by_v3": true,
+        "controller_readback_verified": true,
+        "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
+        "controller_readback_manifest_sha256": "c6d33760cb6113d4a1fa60a9099aacda79b134ab27a4c109b47672d16d2a2ba9",
+        "fresh_controller_sha_at": "2026-07-19T00:24:04+08:00",
+        "tp_fingerprint": "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": true,
         "sha256": {
-          ".script": "d3e52cbb341adad5c6924c155e3e4c15890379f0a251647f4f1de0235fc1ad05",
-          ".txt": "f734706e65c75a0f25c30d655f69523f6c32637efd5914a78261981b97c0c6cc",
-          ".urp": "3287e9913e8ba07f9d86549e7441f383f644e64cf33f956c7221e44df6621153"
+          ".script": "97ca4a9e035bc0f5b9a2345adb8711ec3275886c0939fb0f23c4a5aecd4c4f8f",
+          ".txt": "fa503d6e9db062f196b66c1125075aa4503854a329a399b31f6b7a899f955692",
+          ".urp": "5202d7783421cbecc6ca89d3e1c6c709d34f01868ae83d4ce0f01acbbfe7b129"
         }
       },
       "acceptance": {
@@ -10460,28 +10455,28 @@
         "status": "go_offline_tooling_and_ursim_hold_only",
         "acceptance_scope": "offline_tooling_and_ursim_hold_only",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "31a94f2f67205149ab2ff714828e72efebeb3b90b684fdb1c2b3a0c8dd09bf59",
+        "report_sha256": "0c313845032e6cdace49b325551a84766dab29061e4b6e1a975dfcfaf39883e9",
         "contract_mutation": "pass",
         "fake_bridge_five_candidate": "pass",
         "crash_cut_matrix": "pass",
         "g10_production_seam": "pass",
         "ursim_hold_only": "pass",
         "ursim_result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-        "ursim_result_sha256": "f4dcd36dc1a593c1f8b7c20be321904a71199e0c4281f8c31b2960c490046fb9",
-        "hil_no_motion": "blocked_not_authorized"
+        "ursim_result_sha256": "0639f5bb9a9a40fe947f48dab754117e8c74b25748e862ded2872397231a0ea3",
+        "hil_no_motion": "failed_before_ready_remediated_pending_new_authorization"
       },
       "current_binding": {
         "is_current": false,
         "stage_id": "step5d_strict_rnn_autotune_v3",
-        "program": "step5d_strict_rnn_autotune_v2",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v2.urp",
+        "program": "step5d_strict_rnn_autotune_v3",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
         "current_stage_pointer": "config/current_stage.json",
         "live_authorized": false
       },
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v1",
-        "state": "ready_for_hil_authorization",
-        "public_success_signal": "ready_for_hil_authorization",
+        "state": "ready_for_hil_full_bridge_hold_authorization",
+        "public_success_signal": "ready_for_hil_full_bridge_hold_authorization",
         "next_owner": "ur10e-live-bench",
         "offline_acceptance_complete": true,
         "package_delivery_complete": true,
