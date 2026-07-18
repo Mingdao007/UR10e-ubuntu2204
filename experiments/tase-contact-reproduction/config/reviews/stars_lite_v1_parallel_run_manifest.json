@@ -1,7 +1,7 @@
 {
   "blas_threads_per_worker": 1,
   "claim_class": "offline_tooling_only",
-  "completed_at": "2026-07-18T19:23:37.753307+00:00",
+  "completed_at": "2026-07-18T19:45:34.897794+00:00",
   "contract_id": "ur10e_concurrency_contract_v1",
   "cpu_workers": 14,
   "dependencies": [
@@ -16,6 +16,6 @@
   ],
   "resource_lane": "cpu_throughput",
   "schema": "ur10e.parallel-run-manifest/v1",
-  "started_at": "2026-07-18T19:17:51.576304+00:00",
+  "started_at": "2026-07-18T19:40:00.046744+00:00",
   "task": "stars_lite_evaluate"
 }

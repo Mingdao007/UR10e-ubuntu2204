@@ -27,9 +27,10 @@ identified local compliance model.
   NIS, covariance diagnostics, and the decision that gated each update.
 - An optional `--reference-run-dir` subtracts a phase-matched free-space trace
   only after the no-contact profile/mask, wrench covariance, path shape, phase
-  coverage, XY, orientation, linear speed/acceleration, and signed pointwise
-  10 mm Z-offset checks all pass. Stage-25 samples outside the validated phase
-  interval are never endpoint-clamped or reference-subtracted.
+  coverage, XY, orientation, full six-axis TCP linear/angular speed and
+  acceleration, and signed pointwise 10 mm Z-offset checks all pass. Stage-25
+  samples outside the validated phase interval are never endpoint-clamped or
+  reference-subtracted.
 
 ## Commands
 
@@ -71,7 +72,8 @@ frozen modes is retained as a diagnostic and is never treated as a bias update.
 
 The frozen historical inventory contains 87 schema-eligible runs. Three are
 hash-bound in `analysis_excluded` because they are empty or have no valid rows;
-the remaining 84 analysis-eligible runs comprise 24 no-contact and 60
+evaluation revalidates source hashes for all 87 before creating output. The
+remaining 84 analysis-eligible runs comprise 24 no-contact and 60
 contact-capable runs, stratified 50/17/17 into train/tune/holdout. All 84 pass
 the offline software checks. The train-only noise fit used 204,561 contiguous
 `FREE_STATIC` differences, and the Q multiplier sweep selected 10.0. Every run

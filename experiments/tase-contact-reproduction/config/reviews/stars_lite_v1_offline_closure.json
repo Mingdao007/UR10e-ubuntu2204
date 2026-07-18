@@ -16,15 +16,17 @@
       "tune": 17
     },
     "manifest": "config/reviews/stars_lite_v1_dataset_manifest.json",
-    "manifest_sha256": "34e145cbf97e4f9ce1764fd65e400e5f181055340a7e6b7bbaf6fe1accdd0e43"
+    "manifest_sha256": "48f02e85b591ebaaee458410e9a540d62adc84eeecfe50161930217643ad46b6"
   },
   "configuration": {
     "path": "config/ft_bias/stars_lite_v1.json",
-    "sha256": "ee93393925deae8309eaf0cda34aac29132ff815e5bf014be5fe79428c358025"
+    "sha256": "65746b767260c285e3347ef925353eac9de65ad583f0104b69ea51ef888a7228"
   },
   "acceptance_thresholds": {
     "minimum_causal_coverage": 0.95,
     "minimum_valid_rows": 10,
+    "angular_speed_rms_tolerance_rad_s": 0.01,
+    "angular_acceleration_rms_tolerance_rad_s2": 1.0,
     "contact_force_retention_ratio_min": 0.95,
     "contact_force_retention_ratio_max": 1.05,
     "contact_force_direction_cosine_min": 0.99,
@@ -36,11 +38,11 @@
     "static_torque_rmse_nm_max": 0.01
   },
   "evaluation": {
-    "implementation_sha256": "e31856e0a8fe0dc80c6744e8571e2001cd24abfa9ea136473781e7559a2b8c69",
+    "implementation_sha256": "6fd5d92c76aa01b60f593a0ccc764f7d1c505277bfeba053c00f26a504535beb",
     "artifact": "config/reviews/stars_lite_v1_evaluation.json",
-    "artifact_sha256": "19fcd5eb6d393b9a8c1ee746380091db8f05608155bc7795d94aee541b4669aa",
+    "artifact_sha256": "561ef3f5961a3d7345aa0f2e345101389dbb58edcef0d3c33d3072775cc90fed",
     "parallel_run_manifest": "config/reviews/stars_lite_v1_parallel_run_manifest.json",
-    "parallel_run_manifest_sha256": "5c9d56fe040c707b34044454e3c149608eec9b04047b59507666cae1a0afa0f6",
+    "parallel_run_manifest_sha256": "672583ff7ee33e3d2f19d8cdd65b789490d18c2c42f1a313d76b60df8b7688ae",
     "training": {
       "train_runs": 50,
       "contributing_train_runs": 30,
@@ -80,7 +82,7 @@
     "targeted_unittest": {
       "command": "python3 -m unittest tests.test_contact_mode_estimator tests.test_stars_bias_replay tests.test_stars_bias_logging_contract",
       "result": "pass",
-      "tests": 26
+      "tests": 29
     },
     "full_historical_evaluation": "pass",
     "canonical_artifact_path_scan": "pass",
@@ -94,7 +96,7 @@
     },
     "repository_unittest_discovery": {
       "result": "baseline_failures_present",
-      "tests": 1520,
+      "tests": 1523,
       "failures": 21,
       "errors": 72,
       "skipped": 1,

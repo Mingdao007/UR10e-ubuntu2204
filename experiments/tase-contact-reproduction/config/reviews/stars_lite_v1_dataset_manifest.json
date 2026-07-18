@@ -72,9 +72,9 @@
     "no_contact.train": 14,
     "no_contact.tune": 5
   },
-  "eligibility_config_sha256": "ee93393925deae8309eaf0cda34aac29132ff815e5bf014be5fe79428c358025",
+  "eligibility_config_sha256": "65746b767260c285e3347ef925353eac9de65ad583f0104b69ea51ef888a7228",
   "eligible_count": 84,
-  "inventory_implementation_sha256": "e31856e0a8fe0dc80c6744e8571e2001cd24abfa9ea136473781e7559a2b8c69",
+  "inventory_implementation_sha256": "6fd5d92c76aa01b60f593a0ccc764f7d1c505277bfeba053c00f26a504535beb",
   "records": [
     {
       "files": {
