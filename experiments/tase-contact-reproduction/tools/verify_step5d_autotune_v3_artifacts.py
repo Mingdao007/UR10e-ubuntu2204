@@ -11,6 +11,14 @@ import re
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from step5d_autotune_v3.profile import (
+    ContractViolation,
+    contract_sha256,
+    control_fingerprint,
+    load_contract,
+)
+from step5d_autotune_v3.state import StateError, orchestration_fingerprint
+
 
 ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
@@ -39,6 +47,8 @@ EXPECTED_SHA256 = {
     "config/step5d_autotune_controller_readback_v2.json":
         "d29c98a1746c06c0fd18b928c15b24113b2abe824f00351f444eec83ec7ee06b",
     "config/step5/step5d_autotune_v3_attempt_ledger.json": LEDGER_SHA256,
+    "config/step5/step5d_autotune_v3_control_contract.json":
+        "f1d602dce970087a26b2aac80e5a93709812665c4ec949897b37b874efcf6f54",
     "config/step5/golden_replay_g10_v1.json":
         "f56a3eef529494b6c209ca5534abec082519848446724a94426de522852260f8",
     "config/step5/golden_replay_g10_v3_result.json":
@@ -46,7 +56,7 @@ EXPECTED_SHA256 = {
     "config/step5/step5d_autotune_v3_ursim_hold_raw.json": URSIM_RAW_SHA256,
     "config/step5/step5d_autotune_v3_ursim_hold_result.json": URSIM_RESULT_SHA256,
     "config/step5/step5d_autotune_v3_offline_validation.json":
-        "aace17206d5f64623e8b13f59ccda3231b264ab17eceac2801107001e611ae4d",
+        "31a94f2f67205149ab2ff714828e72efebeb3b90b684fdb1c2b3a0c8dd09bf59",
 }
 TRIPLET_SHA256 = {
     ".script": EXPECTED_SHA256[
@@ -121,6 +131,15 @@ def _verify_exact_files(root: Path) -> None:
 def verify(root: Path = ROOT) -> dict[str, Any]:
     root = root.expanduser().resolve(strict=True)
     _verify_exact_files(root)
+    try:
+        contract = load_contract(
+            root / "config/step5/step5d_autotune_v3_control_contract.json"
+        )
+        current_contract_sha = contract_sha256(contract)
+        current_control_fingerprint = control_fingerprint(contract)
+        current_orchestration_fingerprint = orchestration_fingerprint(root)
+    except (ContractViolation, StateError) as exc:
+        raise ArtifactVerificationError(f"current source fingerprint failed: {exc}") from exc
 
     deploy = _load_json(
         root / "programs/step5/step5d/step5d_strict_rnn_autotune_v2.deploy-manifest.json",
@@ -187,9 +206,64 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     _require_equal(binding.get("is_current"), False, "v3 current binding")
     _require_equal(binding.get("live_authorized"), False, "v3 live authorization")
     package = v3.get("package_delivery") or {}
+    _require_equal(
+        package.get("status"),
+        "controller_readback_verified_content_addressed_reuse_inactive",
+        "v3 package delivery status",
+    )
     _require_equal(package.get("controller_uploaded_by_v3"), False, "v3 upload claim")
     _require_equal(package.get("tp_fingerprint"), TP_FINGERPRINT, "v3 TP binding")
     _require_equal(package.get("sha256"), TRIPLET_SHA256, "v3 triplet binding")
+    reuse = package.get("content_addressed_reuse") or {}
+    _require_equal(reuse.get("accepted"), True, "v3 content-addressed reuse")
+    _require_equal(reuse.get("same_bytes_verified"), True, "v3 reused bytes")
+    _require_equal(
+        reuse.get("fresh_controller_sha_at"),
+        "2026-07-17T20:03:46+08:00",
+        "v3 fresh controller SHA timestamp",
+    )
+    _require_equal(
+        reuse.get("basis_manifest"),
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v2.deploy-manifest.json",
+        "v3 reuse basis",
+    )
+    _require_equal(
+        reuse.get("prior_readback_source"),
+        "config/step5d_autotune_controller_readback_v2.json",
+        "v3 reuse readback source",
+    )
+    readiness = v3.get("execution_readiness") or {}
+    _require_equal(
+        readiness.get("state"), "ready_for_hil_authorization", "v3 readiness state"
+    )
+    _require_equal(
+        readiness.get("public_success_signal"),
+        "ready_for_hil_authorization",
+        "v3 public success signal",
+    )
+    _require_equal(readiness.get("package_delivery_complete"), True, "v3 package readiness")
+    for field in (
+        "hil_no_motion_complete",
+        "candidate_current",
+        "candidate_live_authorized",
+        "live_runtime_promoted",
+        "same_process_startup_gate_complete",
+        "ready_to_execute",
+        "ready_to_load_play",
+        "ready_to_start_bridge",
+        "ready_to_arm",
+        "ready_for_contact_or_motion",
+    ):
+        _require_equal(readiness.get(field), False, f"v3 readiness {field}")
+    authorization = readiness.get("authorization") or {}
+    _require_equal(
+        authorization.get("historical_live_authorization_reused"),
+        False,
+        "v3 historical authorization reuse",
+    )
+    _require_equal(
+        authorization.get("candidate_stage_id"), V3_STAGE_ID, "v3 authorization identity"
+    )
     migration = v3.get("migration") or {}
     _require_equal(migration.get("ledger_sha256"), LEDGER_SHA256, "v3 ledger binding")
     _require_equal(
@@ -223,6 +297,22 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         role="offline validation decision",
     )
     decision = validation.get("decision") or {}
+    validation_identity = validation.get("identity") or {}
+    _require_equal(
+        validation_identity.get("contract_sha256"),
+        current_contract_sha,
+        "current contract fingerprint",
+    )
+    _require_equal(
+        validation_identity.get("control_fingerprint"),
+        current_control_fingerprint,
+        "current control fingerprint",
+    )
+    _require_equal(
+        validation_identity.get("orchestration_fingerprint"),
+        current_orchestration_fingerprint,
+        "current orchestration fingerprint",
+    )
     _require_equal(decision.get("go_no_go"), "go", "v3 offline decision")
     _require_equal(
         decision.get("acceptance_scope"),
@@ -232,6 +322,16 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     _require_equal(decision.get("rollout_authorized"), False, "v3 rollout authorization")
     _require_equal(decision.get("current_selector"), V1_STAGE_ID, "rollback selector")
     _require_equal(decision.get("v3_active"), False, "v3 inactive decision")
+    _require_equal(
+        decision.get("package_delivery"),
+        "controller_readback_verified_content_addressed_reuse",
+        "v3 package delivery decision",
+    )
+    _require_equal(
+        decision.get("execution_readiness"),
+        "ready_for_hil_authorization",
+        "v3 execution readiness decision",
+    )
 
     ursim = _load_json(
         root / "config/step5/step5d_autotune_v3_ursim_hold_result.json",
@@ -244,7 +344,6 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "URSim acceptance scope",
     )
     identity = ursim.get("identity") or {}
-    validation_identity = validation.get("identity") or {}
     for field in ("control_fingerprint", "orchestration_fingerprint", "contract_sha256"):
         _require_equal(
             identity.get(field),
@@ -335,6 +434,24 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "offline_tooling_and_ursim_hold_only",
         "test matrix claim boundary",
     )
+    readiness_gate = matrix.get("operator_readiness_gate") or {}
+    _require_equal(
+        readiness_gate.get("command"),
+        ["python3", "tools/verify_step5d_autotune_v3_execution_readiness.py", "--json"],
+        "test matrix operator readiness command",
+    )
+    _require_equal(
+        readiness_gate.get("public_success_signal_policy"),
+        "next_legal_action_not_broad_pass",
+        "test matrix operator success signal",
+    )
+    _require_equal(
+        readiness_gate.get("historical_authorization_reuse_allowed"),
+        False,
+        "test matrix historical authorization reuse",
+    )
+    if "hil_no_motion_pass" not in readiness_gate.get("ready_to_execute_requires", []):
+        raise ArtifactVerificationError("test matrix execution readiness omits HIL")
     large = (matrix.get("lanes") or {}).get("large_ursim") or {}
     _require_equal(large.get("execution_status"), "pass", "large URSim lane status")
     _require_equal(large.get("container_image"), URSIM_IMAGE, "large URSim image")
@@ -369,10 +486,14 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "current_stage_id": V1_STAGE_ID,
         "v3_stage_id": V3_STAGE_ID,
         "v3_active": False,
+        "execution_readiness": "ready_for_hil_authorization",
+        "ready_to_execute": False,
         "acceptance_scope": "offline_tooling_and_ursim_hold_only",
         "rollout_authorized": False,
         "live_robot_acceptance": "not_run_not_authorized",
         "ursim_result_sha256": URSIM_RESULT_SHA256,
+        "control_fingerprint": current_control_fingerprint,
+        "orchestration_fingerprint": current_orchestration_fingerprint,
         "tp_fingerprint": TP_FINGERPRINT,
         "attempt_ledger_sha256": LEDGER_SHA256,
         "artifact_set_fingerprint": hashlib.sha256(fingerprint_input).hexdigest(),

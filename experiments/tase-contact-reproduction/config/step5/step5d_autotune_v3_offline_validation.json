@@ -86,6 +86,8 @@
     "current_selector": "step5d_strict_rnn_autotune_v1",
     "v3_active": false,
     "reason": "offline/tooling and digest-pinned URSim HOLD-only acceptance passed; live/robot acceptance did not run and remains separately unauthorized",
-    "next_gate": "obtain a new current-turn UR owner authorization before any HIL, controller, bridge, Play, ARM, contact, or motion work"
+    "package_delivery": "controller_readback_verified_content_addressed_reuse",
+    "execution_readiness": "ready_for_hil_authorization",
+    "next_gate": "obtain a new current-turn candidate-scoped UR owner authorization for serialized HIL HOLD-only; Load/Play, bridge, ARM, zero/tare, contact, and motion remain separately unauthorized"
   }
 }

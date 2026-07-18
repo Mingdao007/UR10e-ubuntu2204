@@ -21,6 +21,7 @@ on:
       - "experiments/tase-contact-reproduction/tests/step5d_v3_parser_ci_stubs.py"
       - "experiments/tase-contact-reproduction/tools/export_step5d_autotune_v2_attempt_ledger.py"
       - "experiments/tase-contact-reproduction/tools/verify_step5d_autotune_v3_artifacts.py"
+      - "experiments/tase-contact-reproduction/tools/verify_step5d_autotune_v3_execution_readiness.py"
       - "experiments/tase-contact-reproduction/tools/verify_step5d_autotune_v3_g10.py"
       - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v3_ursim_hold_gate.py"
       - "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v2.*"
@@ -86,6 +87,13 @@ jobs:
           --root experiments/tase-contact-reproduction
           --declaration-env STEP5D_V3_PR_BODY
 
+      - name: Verify production parser through test-only bootstrap
+        working-directory: experiments/tase-contact-reproduction
+        run: >-
+          env PYTHONPATH=tests:tools
+          python3 -m step5d_v3_parser_ci_stubs
+          --experiment-root . start --check --json
+
       - name: Run Small and hermetic Medium tests only
         working-directory: experiments/tase-contact-reproduction
         run: |
@@ -93,6 +101,7 @@ jobs:
             tests/test_step5d_autotune_v3_contract.py \
             tests/test_step5d_autotune_v3_attempt_ledger.py \
             tests/test_step5d_autotune_v3_artifacts.py \
+            tests/test_step5d_autotune_v3_execution_readiness.py \
             tests/test_step5d_autotune_v3_g10.py \
             tests/test_step5d_autotune_v3_refactor_gate.py \
             tests/test_step5d_autotune_v3_service.py \

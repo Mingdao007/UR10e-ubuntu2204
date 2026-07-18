@@ -463,5 +463,7 @@ def test_shell_entrypoint_is_location_independent_thin_wrapper() -> None:
     assert "readlink -f" in script
     assert 'dirname -- "${SCRIPT_PATH}"' in script
     assert "python3 -m step5d_autotune_v3.cli" in script
+    assert "STEP5D_V3_HERMETIC_PARSER_CI" not in script
+    assert "step5d_v3_parser_ci_stubs" not in script
     assert "bridge-line-operator" not in script
     assert "systemctl" not in script

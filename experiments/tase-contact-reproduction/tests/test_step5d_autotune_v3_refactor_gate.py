@@ -137,6 +137,17 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         )
         self.assertIn("test_matrix_ursim_dashboard_allowlist_drift", issues)
 
+    def test_matrix_readiness_contract_cannot_inherit_authorization_or_skip_hil(self) -> None:
+        payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
+        readiness = payload["operator_readiness_gate"]
+        readiness["historical_authorization_reuse_allowed"] = True
+        readiness["transition_order"].remove("hil_hold_only")
+        readiness["ready_to_execute_requires"].remove("hil_no_motion_pass")
+        issues = gate.matrix_issues(payload)
+        self.assertIn("test_matrix_historical_authorization_reuse_not_forbidden", issues)
+        self.assertIn("test_matrix_readiness_transition_order_mismatch", issues)
+        self.assertIn("test_matrix_ready_to_execute_requirements_mismatch", issues)
+
     def test_matrix_loader_requires_material_incident_fixtures(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as directory:
@@ -177,9 +188,11 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         self.assertIn("tests/test_step5d_autotune_journal.py", workflow)
         self.assertIn("tests/test_step5d_autotune_v3_attempt_ledger.py", workflow)
         self.assertIn("tests/test_step5d_autotune_v3_artifacts.py", workflow)
+        self.assertIn("tests/test_step5d_autotune_v3_execution_readiness.py", workflow)
         self.assertIn("tests/test_step5d_autotune_v3_g10.py", workflow)
         self.assertIn("tests/test_step5d_autotune_v3_ursim_hold.py", workflow)
         self.assertIn("STEP5D_V3_HERMETIC_PARSER_CI", workflow)
+        self.assertIn("python3 -m step5d_v3_parser_ci_stubs", workflow)
         self.assertNotIn("docker run", workflow)
         self.assertNotIn("large_ursim", workflow)
         self.assertNotIn("hil_no_motion", workflow)

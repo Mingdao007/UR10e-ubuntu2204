@@ -8,8 +8,11 @@ operator trigger.
 
 `step5d_strict_rnn_autotune_v3` is present only as an inactive offline rollout
 candidate. It freezes the v1 control contract, reuses the digest-pinned v2
-watchdog-only TP read-back artifact, and keeps `config/current_stage.json` on
-v1. The v3 service and launcher are limited to contract checks, fake-bridge
+watchdog-only TP triplet, and keeps `config/current_stage.json` on v1. The
+exact local triplet, deploy manifest, controller read-back manifest, SHA set,
+TP fingerprint, and zoned read-back timestamp close package delivery through
+the governed content-addressed reuse path; v3 did not perform another upload.
+The v3 service and launcher are limited to contract checks, fake-bridge
 validation, and a separately executed URSim HOLD-only gate in this phase; this
 change does not upload, select, load, Play, ARM, zero, contact, or move a real
 controller. A failed contract, replay, recovery, latency, size, URSim, or
@@ -26,6 +29,21 @@ five-candidate fake bridge, crash recovery, latency, formal G10, watchdog, and
 rollback gates are green. This is not live-run/robot acceptance:
 `rollout_authorized=false`, v3 remains inactive, HIL is not authorized, and
 `config/current_stage.json` still selects v1.
+
+The operator-facing readiness gate is:
+
+```bash
+python3 tools/verify_step5d_autotune_v3_execution_readiness.py --json
+```
+
+Its current success signal is `ready_for_hil_authorization`, not
+`ready_to_execute`. It fails closed if package/read-back identity drifts, if
+offline acceptance is mistaken for live acceptance, if the explicit
+`offline_only_live_start_disabled` blocker disappears, or if the historical v1
+authorization is reused for v3. The next legal transition is a new current-turn,
+candidate-scoped UR owner authorization for a serialized HIL HOLD-only gate.
+Load/Play, bridge start, ARM, zero/tare, contact, and motion remain later and
+separate gates.
 
 v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,

@@ -1,6 +1,33 @@
 {
   "schema_version": "step5d.autotune-v3/test-matrix-v1",
   "claim_boundary": "offline_tooling_and_ursim_hold_only",
+  "operator_readiness_gate": {
+    "command": [
+      "python3",
+      "tools/verify_step5d_autotune_v3_execution_readiness.py",
+      "--json"
+    ],
+    "public_success_signal_policy": "next_legal_action_not_broad_pass",
+    "historical_authorization_reuse_allowed": false,
+    "transition_order": [
+      "offline_acceptance",
+      "controller_readback",
+      "hil_hold_only",
+      "candidate_scoped_current_turn_authorization",
+      "current_candidate_binding",
+      "same_process_startup_gate",
+      "live_execution"
+    ],
+    "ready_to_execute_requires": [
+      "offline_acceptance_pass",
+      "controller_readback_verified",
+      "hil_no_motion_pass",
+      "candidate_scoped_current_turn_authorization",
+      "current_candidate_binding",
+      "live_runtime_promoted",
+      "same_process_startup_gate_pass"
+    ]
+  },
   "ci": {
     "lanes": [
       "small",
@@ -27,6 +54,7 @@
           "tests/test_step5d_autotune_v3_contract.py",
           "tests/test_step5d_autotune_v3_attempt_ledger.py",
           "tests/test_step5d_autotune_v3_artifacts.py",
+          "tests/test_step5d_autotune_v3_execution_readiness.py",
           "tests/test_step5d_autotune_v3_g10.py",
           "tests/test_step5d_autotune_v3_refactor_gate.py",
           "tests/test_step5d_autotune_v3_ursim_hold.py"
@@ -224,6 +252,16 @@
     {
       "id": "ack_boundary_safety_failure_and_async_derived_analysis",
       "incident_fixture": "tests/test_step5d_autotune_live_driver.py",
+      "lanes": [
+        "small",
+        "medium",
+        "large_ursim",
+        "hil_no_motion"
+      ]
+    },
+    {
+      "id": "operator_readiness_signal_and_authorization_noninheritance",
+      "incident_fixture": "tests/test_step5d_autotune_v3_execution_readiness.py",
       "lanes": [
         "small",
         "medium",

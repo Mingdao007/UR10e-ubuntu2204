@@ -14,9 +14,25 @@ sys.path.insert(0, str(ROOT / "tools"))
 import verify_step5d_autotune_v3_artifacts as artifacts  # noqa: E402
 
 
+ORCHESTRATION_INPUTS = {
+    "tools/run_step5d_autotune_campaign.py",
+    "tools/step5d_autotune_coordinator.py",
+    "tools/step5d_autotune_journal.py",
+    "tools/step5d_autotune_store.py",
+    "tools/step5d_autotune_live_driver.py",
+    "tools/step5d_autotune_batch_plan.py",
+    "tools/step5d_autotune_v3/state.py",
+    "tools/step5d_autotune_v3/service.py",
+    "tools/step5d_autotune_v3/postprocess.py",
+    "tools/step5d_autotune_v3/cli.py",
+    "scripts/step5d-autotune-v3.sh",
+    "config/systemd/step5d-autotune-v3.service",
+}
+
+
 def _fixture_root(tmp_path: Path) -> Path:
     fixture = tmp_path / "experiment"
-    relatives = set(artifacts.EXPECTED_SHA256) | {
+    relatives = set(artifacts.EXPECTED_SHA256) | ORCHESTRATION_INPUTS | {
         "config/current_stage.json",
         "config/step5_stage_table.json",
         "config/step5d_autotune_v3_test_matrix.json",
@@ -34,6 +50,8 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
     assert report["ok"] is True
     assert report["current_stage_id"] == artifacts.V1_STAGE_ID
     assert report["v3_active"] is False
+    assert report["execution_readiness"] == "ready_for_hil_authorization"
+    assert report["ready_to_execute"] is False
     assert report["acceptance_scope"] == "offline_tooling_and_ursim_hold_only"
     assert report["rollout_authorized"] is False
     assert "config/step5/step5d_autotune_v3_ursim_hold_raw.json" in report["verified_paths"]

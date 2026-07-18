@@ -24,6 +24,24 @@ PARSER_CI_DEPENDENCY_STUBS = {
     "_ur_common", "capture_kunwei_kwr75_1khz", "numpy", "pandas",
     "pinocchio", "xacro", "yaml",
 }
+READINESS_TRANSITION_ORDER = [
+    "offline_acceptance",
+    "controller_readback",
+    "hil_hold_only",
+    "candidate_scoped_current_turn_authorization",
+    "current_candidate_binding",
+    "same_process_startup_gate",
+    "live_execution",
+]
+READY_TO_EXECUTE_REQUIRES = [
+    "offline_acceptance_pass",
+    "controller_readback_verified",
+    "hil_no_motion_pass",
+    "candidate_scoped_current_turn_authorization",
+    "current_candidate_binding",
+    "live_runtime_promoted",
+    "same_process_startup_gate_pass",
+]
 
 # Keys are relative to the git root, not to this experiment root.
 PROTECTED_V1_SHA256 = {
@@ -252,6 +270,26 @@ def matrix_issues(payload: Any) -> list[str]:
         return ["test_matrix_not_object"]
     if payload.get("schema_version") != "step5d.autotune-v3/test-matrix-v1":
         issues.append("test_matrix_schema_mismatch")
+    readiness = payload.get("operator_readiness_gate")
+    if not isinstance(readiness, dict):
+        issues.append("test_matrix_operator_readiness_gate_missing")
+    else:
+        if readiness.get("command") != [
+            "python3",
+            "tools/verify_step5d_autotune_v3_execution_readiness.py",
+            "--json",
+        ]:
+            issues.append("test_matrix_operator_readiness_command_mismatch")
+        if readiness.get("public_success_signal_policy") != (
+            "next_legal_action_not_broad_pass"
+        ):
+            issues.append("test_matrix_operator_success_signal_policy_mismatch")
+        if readiness.get("historical_authorization_reuse_allowed") is not False:
+            issues.append("test_matrix_historical_authorization_reuse_not_forbidden")
+        if readiness.get("transition_order") != READINESS_TRANSITION_ORDER:
+            issues.append("test_matrix_readiness_transition_order_mismatch")
+        if readiness.get("ready_to_execute_requires") != READY_TO_EXECUTE_REQUIRES:
+            issues.append("test_matrix_ready_to_execute_requirements_mismatch")
     lanes = payload.get("lanes")
     if not isinstance(lanes, dict):
         return issues + ["test_matrix_lanes_not_object"]
