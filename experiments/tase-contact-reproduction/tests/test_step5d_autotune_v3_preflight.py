@@ -54,11 +54,11 @@ def test_stationary_predicate_uses_tcp_and_joint_speed() -> None:
     )["ok"] is False
 
 
-def test_mailbox_must_be_absent_before_hold_bridge(tmp_path: Path) -> None:
+def test_mailbox_must_be_absent_before_live_bridge(tmp_path: Path) -> None:
     mailbox = tmp_path / "command.json"
-    assert gate._mailbox_hold_zero(mailbox)["ok"] is True
+    assert gate._mailbox_initial_zero(mailbox)["ok"] is True
     mailbox.write_text("{}", encoding="utf-8")
-    assert gate._mailbox_hold_zero(mailbox)["ok"] is False
+    assert gate._mailbox_initial_zero(mailbox)["ok"] is False
 
 
 def test_controller_identity_is_canonical_and_sensitive() -> None:

@@ -12,45 +12,15 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import verify_step5d_autotune_v3_artifacts as artifacts  # noqa: E402
+from step5d_autotune_v3.state import ORCHESTRATION_RELATIVE_PATHS  # noqa: E402
 
 
-ORCHESTRATION_INPUTS = {
-    "tools/run_step5d_autotune_campaign.py",
-    "tools/step5d_autotune_coordinator.py",
-    "tools/step5d_autotune_journal.py",
-    "tools/step5d_autotune_store.py",
-    "tools/step5d_autotune_live_driver.py",
-    "tools/step5d_autotune_batch_plan.py",
-    "tools/step5d_autotune_v3/state.py",
-    "tools/step5d_autotune_v3/service.py",
-    "tools/step5d_autotune_v3/postprocess.py",
-    "tools/step5d_autotune_v3/cli.py",
-    "tools/step5d_autotune_v3/launcher.py",
-    "tools/step5d_autotune_v3/runtime_calibration.py",
-    "tools/step5d_autotune_v3/runtime_profile.py",
-    "tools/run_step5d_autotune_v3_bridge.py",
-    "tools/run_step5d_autotune_v3_hil_hold.py",
-    "tools/run_step5d_autotune_v3_live.py",
-    "tools/preflight_step5d_autotune_v3.py",
-    "tools/verify_step5d_autotune_v3_hil_authorization.py",
-    "tools/verify_step5d_autotune_v3_execution_readiness.py",
-    "tools/promote_step5d_autotune_v3_hil.py",
-    "scripts/step5d-autotune-v3.sh",
-    "scripts/step5d-autotune-v3-hil-hold.sh",
-    "config/systemd/step5d-autotune-v3.service",
-    "config/step5/step5d_autotune_v3_launch_profile.json",
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
-}
+ORCHESTRATION_INPUTS = set(ORCHESTRATION_RELATIVE_PATHS)
 
 
 def _fixture_root(tmp_path: Path) -> Path:
     fixture = tmp_path / "experiment"
-    relatives = set(artifacts.EXPECTED_SHA256) | ORCHESTRATION_INPUTS | {
-        "config/current_stage.json",
-        "config/step5_stage_table.json",
-        "config/step5d_autotune_v3_test_matrix.json",
-        "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
-    }
+    relatives = set(artifacts.BOUND_PATHS) | ORCHESTRATION_INPUTS
     for relative in relatives:
         source = ROOT / relative
         target = fixture / relative
@@ -64,19 +34,18 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
     assert report["ok"] is True
     assert report["current_stage_id"] == artifacts.V1_STAGE_ID
     assert report["v3_active"] is False
-    assert report["execution_readiness"] == "ready_for_hil_full_bridge_hold"
-    assert report["ready_to_execute"] is False
-    assert report["acceptance_scope"] == "offline_tooling_and_ursim_hold_only"
-    assert report["rollout_authorized"] is False
-    assert "config/step5/step5d_autotune_v3_ursim_hold_raw.json" in report["verified_paths"]
-    assert "config/step5/step5d_autotune_v3_ursim_hold_result.json" in report["verified_paths"]
+    assert report["execution_readiness"] == "ready_for_v3_live_continuous_campaign"
+    assert report["ready_to_execute"] is True
+    assert report["acceptance_scope"] == "deterministic_live_entry_prerequisites"
+    assert report["user_authorization_required"] is False
+    assert "evidence/step5d_autotune_v3/start_pose_prior_20260719.json" in report["verified_paths"]
 
 
 def test_triplet_byte_mutation_fails_closed(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     target = fixture / "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script"
     target.write_bytes(target.read_bytes() + b"\n# drift\n")
-    with pytest.raises(artifacts.ArtifactVerificationError, match="digest differs"):
+    with pytest.raises(artifacts.ArtifactVerificationError, match="package digest"):
         artifacts.verify(fixture)
 
 
@@ -91,15 +60,15 @@ def test_v3_selector_cannot_become_active_in_offline_bundle(tmp_path: Path) -> N
         text[:active] + text[active:].replace('"active": false', '"active": true', 1),
         encoding="utf-8",
     )
-    with pytest.raises(artifacts.ArtifactVerificationError, match="selector active"):
+    with pytest.raises(artifacts.ArtifactVerificationError, match="v3 active"):
         artifacts.verify(fixture)
 
 
-def test_ursim_matrix_cannot_allow_robot_network(tmp_path: Path) -> None:
+def test_pose_prior_cannot_become_optimizer_objective(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
-    matrix_path = fixture / "config/step5d_autotune_v3_test_matrix.json"
-    matrix = json.loads(matrix_path.read_text(encoding="utf-8"))
-    matrix["lanes"]["large_ursim"]["robot_network_allowed"] = True
-    matrix_path.write_text(json.dumps(matrix), encoding="utf-8")
-    with pytest.raises(artifacts.ArtifactVerificationError, match="robot_network_allowed"):
+    prior_path = fixture / "evidence/step5d_autotune_v3/start_pose_prior_20260719.json"
+    prior = json.loads(prior_path.read_text(encoding="utf-8"))
+    prior["derivation"]["eligible_as_optimizer_objective"] = True
+    prior_path.write_text(json.dumps(prior), encoding="utf-8")
+    with pytest.raises(artifacts.ArtifactVerificationError, match="optimizer exclusion"):
         artifacts.verify(fixture)

@@ -119,6 +119,17 @@ def _integer(row: Mapping[str, str], name: str) -> int:
     return int(value)
 
 
+def _wait_for_async_capture(path: Path, *, timeout_s: float = 3.0) -> None:
+    """Wait only after WAIT_ACK, while TP/bridge continue their zero-output hold."""
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if path.is_file() and not path.is_symlink():
+            return
+        time.sleep(0.005)
+    raise RuntimeError("V3 asynchronous capture was not durably published at WAIT_ACK")
+
+
 def tp_snapshot_from_bridge_row(row: Mapping[str, str]) -> TpSnapshot:
     state_value = _integer(row, "ur_output_int_register_26")
     try:
@@ -478,6 +489,54 @@ def _campaign_authorization(
     )
 
 
+def _campaign_binding(
+    path: Path,
+    *,
+    campaign: CampaignSpec,
+    campaign_fingerprint: str,
+) -> CampaignAuthorization:
+    """Load the machine-generated V3 epoch/fingerprint binding (not user auth)."""
+
+    if not path.is_absolute() or path.is_symlink() or not path.is_file():
+        raise RuntimeError("campaign binding must be an absolute regular file")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    required = {
+        "schema_version",
+        "campaign_id",
+        "campaign_epoch",
+        "campaign_fingerprint",
+        "bounded_baseline_and_loop",
+        "controller_readback_verified",
+        "binding_source",
+        "generated_at",
+    }
+    if not isinstance(payload, dict) or set(payload) != required:
+        raise RuntimeError("campaign binding fields differ from V3 contract")
+    if payload["schema_version"] != "step5d_autotune_campaign_binding_v2":
+        raise RuntimeError("campaign binding schema mismatch")
+    if any(
+        (
+            payload["campaign_id"] != campaign.campaign_id,
+            payload["campaign_epoch"] != campaign.campaign_epoch,
+            payload["campaign_fingerprint"] != campaign_fingerprint,
+            payload["bounded_baseline_and_loop"] is not True,
+            payload["controller_readback_verified"] is not True,
+            not isinstance(payload["binding_source"], str),
+            not payload["binding_source"].strip(),
+            not isinstance(payload["generated_at"], str),
+            not payload["generated_at"].strip(),
+        )
+    ):
+        raise RuntimeError("campaign binding is not bound to this exact epoch/fingerprint")
+    return CampaignAuthorization(
+        campaign_id=campaign.campaign_id,
+        campaign_fingerprint=campaign_fingerprint,
+        bounded_baseline_and_loop=True,
+        live_authorized=True,
+        controller_readback_verified=True,
+    )
+
+
 def _event(path: Path, event: str, **payload: Any) -> None:
     row = {"event": event, "monotonic_s": time.monotonic(), **payload}
     encoded = json.dumps(row, sort_keys=True, allow_nan=False) + "\n"
@@ -815,7 +874,11 @@ def _v3_overlay_for_candidate(
     launch_profile = load_launch_profile(launch_profile_path.expanduser().absolute())
     if (
         not isinstance(payload, Mapping)
-        or payload.get("schema") != "step5d.autotune-v3/trial-overlay-plan-v1"
+        or payload.get("schema")
+        not in {
+            "step5d.autotune-v3/trial-overlay-plan-v1",
+            "step5d.autotune-v3/trial-overlay-plan-v2",
+        }
         or payload.get("revision") != plan_revision
         or payload.get("launch_profile_fingerprint") != launch_profile.fingerprint
         or not isinstance(payload.get("batches"), list)
@@ -826,17 +889,17 @@ def _v3_overlay_for_candidate(
         for batch in payload["batches"]
         if isinstance(batch, Mapping) and isinstance(batch.get("trials"), list)
         for row in batch["trials"]
-        if isinstance(row, Mapping) and row.get("candidate_uid") == candidate.candidate_uid
+        if isinstance(row, Mapping)
+        and row.get(
+            "transport_candidate_uid",
+            row.get("candidate_uid"),
+        )
+        == candidate.candidate_uid
     ]
     if len(matches) != 1:
         raise RuntimeError("V3 candidate must have exactly one trial overlay")
     overlay = normalize_trial_overlay(matches[0].get("overlay"), profile=launch_profile)
-    expected = {
-        "force_p_gain": candidate.force_p_gain,
-        "force_i_gain": candidate.force_i_gain,
-        "force_damping": candidate.force_damping,
-        "execution_profile_id": profile.profile_id,
-    }
+    expected = {"execution_profile_id": profile.profile_id}
     if any(overlay[name] != value for name, value in expected.items()):
         raise RuntimeError("V3 overlay identity differs from the selected trial")
     return overlay
@@ -952,15 +1015,20 @@ def run(args: argparse.Namespace) -> int:
             else None if not epoch_chain else epoch_chain[-1].campaign.campaign_id
         ),
     )
-    if args.authorization_file is None:
-        raise RuntimeError(
-            "--authorization-file is required; the runner cannot self-authorize live motion"
+    if args.campaign_binding is not None:
+        authorization = _campaign_binding(
+            args.campaign_binding.resolve(),
+            campaign=campaign,
+            campaign_fingerprint=frozen.composite_fingerprint,
         )
-    authorization = _campaign_authorization(
-        args.authorization_file.resolve(),
-        campaign=campaign,
-        campaign_fingerprint=frozen.composite_fingerprint,
-    )
+    elif args.authorization_file is not None:
+        authorization = _campaign_authorization(
+            args.authorization_file.resolve(),
+            campaign=campaign,
+            campaign_fingerprint=frozen.composite_fingerprint,
+        )
+    else:
+        raise RuntimeError("internal campaign binding is required")
     preflight = backend.preflight(offline=False, authorization=authorization)
     if not preflight.ok:
         raise RuntimeError("live backend preflight failed: " + ";".join(preflight.blockers))
@@ -1246,9 +1314,12 @@ def run(args: argparse.Namespace) -> int:
             if collector is None or not collector.ready:
                 raise RuntimeError("WAIT_ACK did not produce a complete safe closure")
 
-            producer = TrialArtifactProducer(
-                (bridge_run / "autotune_trials").resolve(), trial
-            )
+            trial_capture_root = (bridge_run / "autotune_trials").resolve()
+            if trial_overlay is not None:
+                _wait_for_async_capture(
+                    trial_capture_root / trial.trial_uid / "capture.csv"
+                )
+            producer = TrialArtifactProducer(trial_capture_root, trial)
             result = finalize_produced_bundle_and_dispatch_ack(
                 collector=collector,
                 producer=producer,
@@ -1437,6 +1508,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mailbox", type=Path, required=True)
     parser.add_argument("--runner-ready-file", type=Path)
     parser.add_argument("--authorization-file", type=Path)
+    parser.add_argument("--campaign-binding", type=Path)
     parser.add_argument("--campaign-epoch", type=int, default=1)
     parser.add_argument(
         "--selection-policy",

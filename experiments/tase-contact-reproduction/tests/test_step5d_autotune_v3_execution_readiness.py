@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 import sys
@@ -13,46 +12,20 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import verify_step5d_autotune_v3_execution_readiness as readiness  # noqa: E402
+from step5d_autotune_v3 import state as v3_state  # noqa: E402
 
 
-RELATIVES = {
+RELATIVES = set(v3_state.ORCHESTRATION_RELATIVE_PATHS) | {
     "config/current_stage.json",
     "config/step5_stage_table.json",
     "config/step5/step5d_autotune_v3_offline_validation.json",
     "config/step5/step5d_autotune_v3_live_promotion.json",
-    "evidence/step5d_autotune_v3/hil_acceptance.json",
-    "evidence/step5d_autotune_v3/hil_acceptance_20260719_fe6e119f.json",
     "config/step5d_autotune_controller_readback_v3.json",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.deploy-manifest.json",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.txt",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp",
-    "tools/step5d_autotune_v3/service.py",
-    "tools/step5d_autotune_v3/state.py",
-    "tools/step5d_autotune_v3/postprocess.py",
-    "tools/step5d_autotune_v3/cli.py",
-    "tools/step5d_autotune_v3/launcher.py",
-    "tools/step5d_autotune_v3/runtime_calibration.py",
-    "tools/step5d_autotune_v3/runtime_profile.py",
-    "tools/run_step5d_autotune_v3_bridge.py",
-    "tools/run_step5d_autotune_v3_hil_hold.py",
-    "tools/run_step5d_autotune_v3_live.py",
-    "tools/preflight_step5d_autotune_v3.py",
-    "tools/verify_step5d_autotune_v3_hil_authorization.py",
-    "tools/verify_step5d_autotune_v3_execution_readiness.py",
-    "tools/promote_step5d_autotune_v3_hil.py",
-    "tools/run_step5d_autotune_campaign.py",
-    "tools/step5d_autotune_coordinator.py",
-    "tools/step5d_autotune_journal.py",
-    "tools/step5d_autotune_store.py",
-    "tools/step5d_autotune_live_driver.py",
-    "tools/step5d_autotune_batch_plan.py",
-    "scripts/step5d-autotune-v3.sh",
-    "scripts/step5d-autotune-v3-hil-hold.sh",
-    "config/systemd/step5d-autotune-v3.service",
     "config/step5/step5d_autotune_v3_control_contract.json",
-    "config/step5/step5d_autotune_v3_launch_profile.json",
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
 }
 
 
@@ -81,52 +54,42 @@ def _mutate_v3(fixture: Path, mutate) -> None:
 def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
-    assert report["state"] == "ready_for_hil_full_bridge_hold"
-    assert report["public_success_signal"] == "ready_for_hil_full_bridge_hold"
+    assert report["state"] == "ready_for_v3_live_continuous_campaign"
+    assert report["public_success_signal"] == "ready_for_v3_live_continuous_campaign"
     assert report["package_delivery"] == (
         "controller_readback_verified_explicit_v3"
     )
-    assert report["ready_to_execute"] is False
+    assert report["ready_to_execute"] is True
     assert report["current_stage_id"] == readiness.V1_STAGE_ID
     assert report["next_owner"] == "ur10e-live-bench"
-    assert report["canonical_gate"] == [
-        "python3",
-        "tools/verify_step5d_autotune_v3_hil_authorization.py",
-        "--json",
-    ]
+    assert report["canonical_gate"] == ["scripts/step5d-autotune-v3.sh", "live"]
+    assert report["user_authorization_required"] is False
+    assert report["hil_hold_required"] is False
 
 
-def test_repository_live_signal_requires_verified_nonphysical_hil_carryforward() -> None:
+def test_repository_live_signal_is_the_only_readiness_state() -> None:
     report = readiness.verify(ROOT, require_live=True)
     assert report["ok"] is True
     assert report["state"] == "ready_for_v3_live_continuous_campaign"
     assert report["ready_to_execute"] is True
 
 
-def test_hil_carryforward_changed_path_attestation_is_fail_closed(
-    tmp_path: Path,
-) -> None:
+def test_live_promotion_validation_digest_is_fail_closed(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
-    evidence_path = fixture / "evidence/step5d_autotune_v3/hil_acceptance.json"
-    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-    evidence["carryforward"]["changed_orchestration_paths"] = []
-    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
     promotion_path = fixture / "config/step5/step5d_autotune_v3_live_promotion.json"
     promotion = json.loads(promotion_path.read_text(encoding="utf-8"))
-    promotion["hil_acceptance"]["sha256"] = hashlib.sha256(
-        evidence_path.read_bytes()
-    ).hexdigest()
+    promotion["deterministic_validation"]["sha256"] = "0" * 64
     promotion_path.write_text(json.dumps(promotion), encoding="utf-8")
 
-    with pytest.raises(readiness.ReadinessError, match="changed paths"):
+    with pytest.raises(readiness.ReadinessError, match="deterministic validation digest"):
         readiness.verify(fixture, require_live=True)
 
 
-def test_hil_carryforward_verification_is_independent_of_checkout_mtime(
+def test_readiness_verification_is_independent_of_checkout_mtime(
     tmp_path: Path,
 ) -> None:
     fixture = _fixture_root(tmp_path)
-    for relative in readiness.ORCHESTRATION_RELATIVE_PATHS:
+    for relative in v3_state.ORCHESTRATION_RELATIVE_PATHS:
         path = fixture / relative
         path.touch()
 
@@ -142,16 +105,16 @@ def test_user_confirmation_cannot_be_reintroduced(tmp_path: Path) -> None:
             {"user_confirmation_required": True}
         ),
     )
-    with pytest.raises(readiness.ReadinessError, match="user confirmation"):
+    with pytest.raises(readiness.ReadinessError, match="user_confirmation_required"):
         readiness.verify(fixture)
 
 
-def test_offline_success_cannot_claim_ready_to_execute(tmp_path: Path) -> None:
+def test_stage_table_cannot_claim_a_different_readiness_state(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     _mutate_v3(
         fixture,
         lambda row: row["execution_readiness"].update(
-            {"state": "ready_to_execute", "ready_to_execute": True}
+            {"state": "not_ready", "ready_to_execute": False}
         ),
     )
     with pytest.raises(readiness.ReadinessError, match="readiness state"):
@@ -183,33 +146,11 @@ def test_local_triplet_drift_invalidates_package_readiness(tmp_path: Path) -> No
         readiness.verify(fixture)
 
 
-def test_offline_live_start_blocker_cannot_disappear(tmp_path: Path) -> None:
+def test_machine_campaign_binding_cannot_drift(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
-    service = fixture / "tools/step5d_autotune_v3/service.py"
-    service.write_text(
-        service.read_text(encoding="utf-8").replace(
-            'OFFLINE_BLOCKER = "offline_only_live_start_disabled"',
-            'OFFLINE_BLOCKER = "live_start_enabled"',
-        ),
-        encoding="utf-8",
-    )
-    validation_path = (
-        fixture / "config/step5/step5d_autotune_v3_offline_validation.json"
-    )
-    validation = json.loads(validation_path.read_text(encoding="utf-8"))
-    validation["identity"]["orchestration_fingerprint"] = (
-        readiness.orchestration_fingerprint(fixture)
-    )
-    validation_path.write_text(json.dumps(validation), encoding="utf-8")
-    validation_sha = hashlib.sha256(validation_path.read_bytes()).hexdigest()
-    stage_path = fixture / "config/step5_stage_table.json"
-    stage = json.loads(stage_path.read_text(encoding="utf-8"))
-    row = next(
-        item
-        for item in stage["stages"]
-        if item.get("id") == readiness.V3_STAGE_ID
-    )
-    row["offline_validation"]["report_sha256"] = validation_sha
-    stage_path.write_text(json.dumps(stage), encoding="utf-8")
-    with pytest.raises(readiness.ReadinessError, match="offline live-start blocker"):
+    promotion_path = fixture / "config/step5/step5d_autotune_v3_live_promotion.json"
+    promotion = json.loads(promotion_path.read_text(encoding="utf-8"))
+    promotion["machine_campaign_binding"] = "user_token"
+    promotion_path.write_text(json.dumps(promotion), encoding="utf-8")
+    with pytest.raises(readiness.ReadinessError, match="machine_campaign_binding"):
         readiness.verify(fixture)

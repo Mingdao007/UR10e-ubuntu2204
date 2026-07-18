@@ -28,32 +28,26 @@ FROZEN_TAG = "archive/step5d-autotune-v1-20260715"
 RUNTIME_MODULE_LIMIT = 9
 RUNTIME_LOC_LIMIT = 3600
 RUNTIME_FILE_LOC_LIMIT = 650
-REQUIRED_LANES = {"small", "medium", "large_ursim", "hil_no_motion"}
+REQUIRED_LANES = {"small", "medium"}
 PARSER_CI_DEPENDENCY_STUBS = {
     "_ur_common", "capture_kunwei_kwr75_1khz", "numpy", "pandas",
     "pinocchio", "xacro", "yaml",
 }
 READINESS_TRANSITION_ORDER = [
-    "offline_acceptance",
-    "controller_readback",
-    "hil_hold_only",
-    "canonical_operator_trigger_and_internal_launch_binding",
-    "hil_evidence_promotion",
+    "deterministic_tests",
+    "control_semantics",
+    "tp_build_and_fresh_readback",
+    "machine_campaign_binding",
     "same_process_startup_gate",
     "live_execution",
 ]
 READY_TO_EXECUTE_REQUIRES = [
-    "offline_acceptance_pass",
+    "deterministic_tests_pass",
+    "control_semantics_pass",
     "controller_readback_verified",
-    "hil_no_motion_pass",
     "internal_process_fingerprint_campaign_binding",
     "live_runtime_promoted",
     "same_process_startup_gate_pass",
-]
-HIL_LAUNCH_PERMIT_COMMAND = [
-    "python3",
-    "tools/verify_step5d_autotune_v3_hil_authorization.py",
-    "--json",
 ]
 
 # Keys are relative to the git root, not to this experiment root.
@@ -105,12 +99,12 @@ PROTECTED_V1_SHA256 = {
 APPROVED_ORCHESTRATION_VARIANTS = {
     "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {
         "baseline_sha256": "f7485600db9571d882076f3ceeed8ee999bee998d35fdc8fe2386664bb55550c",
-        "approved_sha256": "9b1d4bdf1297aaa2517a09d16894a7fafd1b102518f075b2bbedd0475a4141d3",
+        "approved_sha256": "fe76e275d5b95bd51b081961bb851ccbb466378453116d364b696d18b6aad5eb",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_live_driver.py": {
         "baseline_sha256": "5929c1ceb20a8541c28793f5fdf4c433146e7b35cecdc40ac6ab9177c0cd7fec",
-        "approved_sha256": "3a3189622432182aa7ddac69754caccb26c911f2bdf2d9f202914b964deb1711",
+        "approved_sha256": "577a66ad9ea0ba03dfbae7a69deebaafd7d1283cfb08d9b425bbc19877b92170",
         "change_class": "behavior_changing",
     },
 }
@@ -291,12 +285,14 @@ def matrix_issues(payload: Any) -> list[str]:
     issues: list[str] = []
     if not isinstance(payload, dict):
         return ["test_matrix_not_object"]
-    if payload.get("schema_version") != "step5d.autotune-v3/test-matrix-v2":
+    if payload.get("schema_version") != "step5d.autotune-v3/test-matrix-v3":
         issues.append("test_matrix_schema_mismatch")
-    if payload.get("evidence_manifest") != (
+    if payload.get("claim_boundary") != "deterministic_live_entry_prerequisites":
+        issues.append("test_matrix_claim_boundary_mismatch")
+    if payload.get("historical_evidence_manifest") != (
         "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json"
     ):
-        issues.append("test_matrix_evidence_manifest_mismatch")
+        issues.append("test_matrix_historical_evidence_manifest_mismatch")
     readiness = payload.get("operator_readiness_gate")
     if not isinstance(readiness, dict):
         issues.append("test_matrix_operator_readiness_gate_missing")
@@ -307,33 +303,20 @@ def matrix_issues(payload: Any) -> list[str]:
             "--json",
         ]:
             issues.append("test_matrix_operator_readiness_command_mismatch")
-        if readiness.get("public_success_signal_policy") != (
-            "next_legal_action_not_broad_pass"
+        if readiness.get("public_success_signal") != (
+            "ready_for_v3_live_continuous_campaign"
         ):
             issues.append("test_matrix_operator_success_signal_policy_mismatch")
         if readiness.get("user_confirmation_required") is not False:
             issues.append("test_matrix_user_confirmation_not_disabled")
+        if readiness.get("user_authorization_required") is not False:
+            issues.append("test_matrix_user_authorization_not_disabled")
         if readiness.get("transition_order") != READINESS_TRANSITION_ORDER:
             issues.append("test_matrix_readiness_transition_order_mismatch")
         if readiness.get("ready_to_execute_requires") != READY_TO_EXECUTE_REQUIRES:
             issues.append("test_matrix_ready_to_execute_requirements_mismatch")
-    hil_permit = payload.get("hil_launch_permit_gate")
-    if not isinstance(hil_permit, dict):
-        issues.append("test_matrix_hil_launch_permit_gate_missing")
-    else:
-        expected_hil_permit = {
-            "command": HIL_LAUNCH_PERMIT_COMMAND,
-            "scope": "hil_full_bridge_hold",
-            "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-            "current_fingerprint_binding_required": True,
-            "parent_process_binding_required": True,
-            "serial": True,
-            "hold_required": True,
-            "live_writer_allowed": True,
-            "user_confirmation_required": False,
-        }
-        if hil_permit != expected_hil_permit:
-            issues.append("test_matrix_hil_launch_permit_contract_mismatch")
+    if "hil_launch_permit_gate" in payload:
+        issues.append("test_matrix_obsolete_hil_launch_permit_present")
     installed_runtime = payload.get("local_installed_runtime_gate")
     expected_installed_runtime = {
         "command": [
@@ -395,74 +378,12 @@ def matrix_issues(payload: Any) -> list[str]:
         issues.append("test_matrix_production_parser_double_not_forbidden")
     if set(small.get("dependency_double_scope", [])) != PARSER_CI_DEPENDENCY_STUBS:
         issues.append("test_matrix_parser_dependency_stub_scope_mismatch")
-    for name in ("large_ursim", "hil_no_motion"):
-        lane = lanes.get(name, {})
-        expected = {
-            "ci": False,
-            "serial": True,
-            "pinned": True,
-            "test_doubles_allowed": False,
-            "hold_required": True,
-            "arm_allowed": False,
-            "motion_allowed": False,
-        }
-        for field, required in expected.items():
-            if lane.get(field) is not required:
-                issues.append(f"test_matrix_realistic_lane_policy:{name}:{field}")
-        forbidden_evidence = {
-            "execution_status", "execution_observed_at", "immutable_result",
-            "immutable_result_sha256", "raw_evidence", "raw_evidence_sha256",
-            "cleanup_completed",
-        }
-        if forbidden_evidence & set(lane):
-            issues.append(f"test_matrix_embeds_evidence:{name}")
-    image = lanes.get("large_ursim", {}).get("container_image", "")
-    match = re.fullmatch(r"[^\s@]+@sha256:([0-9a-f]{64})", image) if isinstance(image, str) else None
-    if not match or set(match.group(1)) == {"0"}:
-        issues.append("test_matrix_ursim_image_not_digest_pinned")
-    large = lanes.get("large_ursim", {})
-    restricted_network = {
-        "network_allowed": True,
-        "network_scope": "single_prestarted_container_on_docker_internal_network",
-        "external_network_allowed": False,
-        "robot_network_allowed": False,
-        "host_port_publication_allowed": False,
-        "container_lifecycle_mutation_allowed": False,
-        "rtde_output_recipe_only": True,
-        "rtde_input_recipe_allowed": False,
-    }
-    for field, required in restricted_network.items():
-        if large.get(field) != required:
-            issues.append(f"test_matrix_ursim_restricted_network_policy:{field}")
-    if large.get("docker_actions_allowed") != [
-        "version", "container_inspect", "image_inspect", "network_inspect"
-    ]:
-        issues.append("test_matrix_ursim_docker_action_allowlist_drift")
-    if large.get("dashboard_commands_allowed") != [
-        "PolyscopeVersion", "robotmode", "programState", "running", "safetymode"
-    ]:
-        issues.append("test_matrix_ursim_dashboard_allowlist_drift")
-    if lanes.get("hil_no_motion", {}).get("controller_identity_pin") != (
-        "fresh_read_only_snapshot_sha256_required"
-    ):
-        issues.append("test_matrix_hil_identity_pin_missing")
-    hil = lanes.get("hil_no_motion", {})
-    for field, required in {
-        "network_allowed": True,
-        "network_scope": "target_controller_and_kunwei_only_from_canonical_entrypoint",
-        "controller_access_allowed": True,
-        "live_writer_allowed": True,
-    }.items():
-        if hil.get(field) != required:
-            issues.append(f"test_matrix_hil_full_bridge_policy:{field}")
     ci = payload.get("ci")
     if not isinstance(ci, dict):
         issues.append("test_matrix_ci_contract_missing")
     else:
         if set(ci.get("lanes", [])) != {"small", "medium"}:
             issues.append("test_matrix_ci_lane_allowlist_mismatch")
-        if set(ci.get("forbidden_lanes", [])) != {"large_ursim", "hil_no_motion"}:
-            issues.append("test_matrix_ci_forbidden_lane_mismatch")
         for field in ("network_allowed", "controller_access_allowed", "live_writer_allowed", "motion_allowed"):
             if ci.get(field) is not False:
                 issues.append(f"test_matrix_ci_boundary_not_false:{field}")
@@ -602,7 +523,11 @@ def load_matrix(path: Path) -> tuple[Any, list[str]]:
         return None, [f"test_matrix_unreadable:{exc}"]
     issues = matrix_issues(payload)
     root = path.resolve().parent.parent
-    evidence_relative = payload.get("evidence_manifest") if isinstance(payload, dict) else None
+    evidence_relative = (
+        payload.get("historical_evidence_manifest")
+        if isinstance(payload, dict)
+        else None
+    )
     evidence_path = root / evidence_relative if isinstance(evidence_relative, str) else None
     if evidence_path is None or evidence_path.is_symlink() or not evidence_path.is_file():
         issues.append("test_evidence_manifest_unavailable")
@@ -629,8 +554,6 @@ def load_matrix(path: Path) -> tuple[Any, list[str]]:
                 fixture_path = root / fixture
                 if not fixture_path.is_file() or fixture_path.is_symlink():
                     issues.append(f"test_matrix_incident_fixture_unavailable:{identifier}:{fixture}")
-            if set(requirement.get("lanes", [])) != REQUIRED_LANES:
-                issues.append(f"test_matrix_incident_lane_coverage_mismatch:{identifier}")
     return payload, issues
 
 

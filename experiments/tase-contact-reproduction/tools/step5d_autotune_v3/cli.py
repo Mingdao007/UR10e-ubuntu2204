@@ -30,6 +30,7 @@ from .state import (
 
 BATCH_SCHEMA = "step5d.autotune-v3.candidate-batch/v1"
 TRIAL_BATCH_SCHEMA = "step5d.autotune-v3.trial-batch/v2"
+TRIAL_BATCH_SCHEMA_V3 = "step5d.autotune-v3.trial-batch/v3"
 UNIT = "step5d-autotune-v3.service"
 
 
@@ -78,7 +79,11 @@ def _load_batch(path: Path) -> tuple[str, str, list[dict[str, Any]]]:
     required = {"schema", "campaign_id", "source", "candidates"}
     if not isinstance(payload, dict) or set(payload) != required:
         raise CliError("batch fields differ")
-    if payload["schema"] not in {BATCH_SCHEMA, TRIAL_BATCH_SCHEMA}:
+    if payload["schema"] not in {
+        BATCH_SCHEMA,
+        TRIAL_BATCH_SCHEMA,
+        TRIAL_BATCH_SCHEMA_V3,
+    }:
         raise CliError("batch schema differs")
     campaign_id = payload["campaign_id"]
     source = payload["source"]
@@ -87,14 +92,15 @@ def _load_batch(path: Path) -> tuple[str, str, list[dict[str, Any]]]:
     if not isinstance(source, str) or not source.strip() or len(source) > 240:
         raise CliError("batch source is invalid")
     candidates = payload["candidates"]
-    if not isinstance(candidates, list) or len(candidates) != 5:
-        raise CliError("batch must contain exactly five candidates")
+    required_count = 10 if payload["schema"] == TRIAL_BATCH_SCHEMA_V3 else 5
+    if not isinstance(candidates, list) or len(candidates) != required_count:
+        raise CliError(f"batch must contain exactly {required_count} candidates")
     from .runtime_profile import DEFAULT_OVERLAY, OVERLAY_FIELDS
 
     expected_candidate = (
         {"force_p_gain", "force_i_gain", "force_damping"}
         if payload["schema"] == BATCH_SCHEMA
-        else set(OVERLAY_FIELDS)
+        else set(OVERLAY_FIELDS) - {"control_candidate_uid"}
     )
     normalized: list[dict[str, Any]] = []
     for candidate in candidates:
@@ -113,6 +119,7 @@ def _load_batch(path: Path) -> tuple[str, str, list[dict[str, Any]]]:
             if not value.is_finite() or value < 0:
                 raise CliError(f"candidate {name} must be finite and non-negative")
             row[name] = value
+        row.pop("control_candidate_uid", None)
         normalized.append(row)
     return campaign_id, source.strip(), normalized
 
@@ -151,6 +158,7 @@ def _validate_candidates(
     from .runtime_profile import (
         DEFAULT_OVERLAY,
         comparison_profile_fingerprint,
+        is_control_candidate_step,
         load_launch_profile,
         normalize_trial_overlay,
     )
@@ -193,9 +201,15 @@ def _validate_candidates(
                 "automatic retry is forbidden"
             )
         force_candidate = ForceCandidate(**candidate)
-        if force_candidate.candidate_uid in seen:
-            raise CliError("batch repeats an exact candidate")
-        seen.add(force_candidate.candidate_uid)
+        control_uid = overlay["control_candidate_uid"]
+        if control_uid in seen:
+            raise CliError("batch repeats an exact control candidate")
+        if overlays and not is_control_candidate_step(overlays[-1], overlay):
+            raise CliError(
+                "adjacent V3 control candidates must change exactly one "
+                "P/I/damping/orientation_ko coordinate by 0.25 octave"
+            )
+        seen.add(control_uid)
         force_candidates.append(force_candidate)
         overlays.append(overlay)
         control_fingerprint = candidate_fingerprint
@@ -229,7 +243,11 @@ def _append_overlay_batch(
         current = read_strict_json(paths.trial_overlays, role="v3 trial overlay plan")
         if (
             not isinstance(current, dict)
-            or current.get("schema") != "step5d.autotune-v3/trial-overlay-plan-v1"
+            or current.get("schema")
+            not in {
+                "step5d.autotune-v3/trial-overlay-plan-v1",
+                "step5d.autotune-v3/trial-overlay-plan-v2",
+            }
             or current.get("revision") != plan.revision - 1
             or current.get("launch_profile_fingerprint") != launch_profile_fingerprint
         ):
@@ -245,7 +263,8 @@ def _append_overlay_batch(
             "source": source,
             "trials": [
                 {
-                    "candidate_uid": candidate.candidate_uid,
+                    "transport_candidate_uid": candidate.candidate_uid,
+                    "control_candidate_uid": overlay["control_candidate_uid"],
                     "overlay": dict(overlay),
                 }
                 for candidate, overlay in zip(candidates, overlays, strict=True)
@@ -266,7 +285,7 @@ def _append_overlay_batch(
         ).encode("utf-8")
     ).hexdigest()
     payload = {
-        "schema": "step5d.autotune-v3/trial-overlay-plan-v1",
+        "schema": "step5d.autotune-v3/trial-overlay-plan-v2",
         "revision": plan.revision,
         "candidate_count": candidate_count,
         "launch_profile_fingerprint": launch_profile_fingerprint,
@@ -297,7 +316,11 @@ def _append_batch(
             f".{paths.candidate_plan.name}.{os.getpid()}.new"
         )
         try:
-            initialize_plan(temporary, campaign_id=campaign_id)
+            initialize_plan(
+                temporary,
+                campaign_id=campaign_id,
+                batch_size=len(candidates),
+            )
             plan = append_batch(temporary, candidates=candidates, source=source)
             os.replace(temporary, paths.candidate_plan)
             directory_fd = os.open(

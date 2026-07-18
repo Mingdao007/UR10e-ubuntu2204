@@ -18,7 +18,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_autotune_contract import ForceCandidate  # noqa: E402
 from step5d_autotune_v3 import cli  # noqa: E402
-from step5d_autotune_v3.postprocess import DerivedPostprocessQueue  # noqa: E402
+from step5d_autotune_v3.postprocess import (  # noqa: E402
+    DerivedPostprocessQueue,
+    pareto_frontier,
+)
 from step5d_autotune_v3.service import OfflineService  # noqa: E402
 from step5d_autotune_v3.state import (  # noqa: E402
     CampaignPaths,
@@ -64,6 +67,7 @@ def write_trial_batch(path: Path, candidates: list[dict], *, campaign_id: str) -
     trials = []
     for index, candidate_row in enumerate(candidates):
         row = {**DEFAULT_OVERLAY, **candidate_row}
+        row.pop("control_candidate_uid", None)
         row["execution_profile_id"] = (
             "nf020-slew010-a010" if index % 2 else "nf050-slew050-a050"
         )
@@ -135,10 +139,10 @@ def test_trial_batch_v2_persists_exact_overlay_plan_without_restarting_bridge(
     )
     assert result["execution_profile_id"] == "per_trial_overlay"
     assert result["restart_triggered"] is False
-    assert overlay_plan["schema"] == "step5d.autotune-v3/trial-overlay-plan-v1"
+    assert overlay_plan["schema"] == "step5d.autotune-v3/trial-overlay-plan-v2"
     assert overlay_plan["revision"] == 1
     assert overlay_plan["candidate_count"] == 5
-    assert len(overlay_plan["batches"][0]["trials"][0]["overlay"]) == 11
+    assert len(overlay_plan["batches"][0]["trials"][0]["overlay"]) == 13
     assert overlay_plan["fingerprint"] == result["trial_overlay_plan_fingerprint"]
 
 
@@ -317,6 +321,36 @@ def test_postprocess_failure_is_terminal_per_job_and_does_not_block_next(
     assert json.loads((queue.failed / f"{bad_id}.json").read_text())["status"] == "analysis_failed"
     assert json.loads((queue.complete / f"{good_id}.json").read_text())["status"] == "complete"
     assert not list(queue.pending.glob("*.json"))
+
+
+def test_pareto_frontier_keeps_tradeoffs_and_drops_dominated_trials() -> None:
+    def row(uid: str, force: float, orientation: float, *, eligible: bool = True) -> dict:
+        return {
+            "control_candidate_uid": uid,
+            "optimizer_eligible": eligible,
+            "rounds": {
+                "round_a": {
+                    "force_mae_n": force,
+                    "orientation_mae_rad": orientation,
+                }
+            },
+        }
+
+    report = pareto_frontier(
+        [
+            row("force-best", 0.2, 0.04),
+            row("knee", 0.3, 0.02),
+            row("orientation-best", 0.5, 0.01),
+            row("dominated", 0.6, 0.05),
+            row("unsafe", 0.1, 0.01, eligible=False),
+        ]
+    )
+    assert [item["control_candidate_uid"] for item in report["frontier"]] == [
+        "force-best",
+        "knee",
+        "orientation-best",
+    ]
+    assert report["recommended_knee"]["control_candidate_uid"] == "knee"
 
 
 def test_postprocess_worker_failure_does_not_stop_service_lifecycle(tmp_path: Path) -> None:

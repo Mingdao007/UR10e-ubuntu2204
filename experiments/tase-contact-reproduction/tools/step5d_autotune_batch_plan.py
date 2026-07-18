@@ -14,8 +14,10 @@ from step5d_autotune_contract import ForceCandidate, LOG2_LATTICE_OCTAVE
 
 
 SCHEMA_VERSION = "step5d_autotune_codex_batch_plan_v1"
+SCHEMA_VERSION_V2 = "step5d_autotune_codex_batch_plan_v2"
 ENVELOPE_ID = "positive_i_multiplier_coarse_log2_fine_v1"
 BATCH_SIZE = 5
+V3_BATCH_SIZE = 10
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,7 @@ class CandidateBatchPlan:
     revision: int
     closed: bool
     code_fix_replay_candidate_uid: str | None
+    batch_size: int
     batches: tuple[tuple[ForceCandidate, ...], ...]
     payload: Mapping[str, Any]
 
@@ -108,7 +111,7 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         set(payload) == required or set(payload) == required | optional
     ):
         raise ValueError("candidate plan schema is incomplete")
-    if payload["schema_version"] != SCHEMA_VERSION:
+    if payload["schema_version"] not in {SCHEMA_VERSION, SCHEMA_VERSION_V2}:
         raise ValueError("candidate plan schema version differs")
     if payload["envelope_id"] != ENVELOPE_ID:
         raise ValueError("candidate plan envelope differs")
@@ -122,7 +125,10 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         or payload["revision"] < 0
     ):
         raise ValueError("candidate plan revision is invalid")
-    if payload["batch_size"] != BATCH_SIZE or type(payload["closed"]) is not bool:
+    expected_batch_size = (
+        BATCH_SIZE if payload["schema_version"] == SCHEMA_VERSION else V3_BATCH_SIZE
+    )
+    if payload["batch_size"] != expected_batch_size or type(payload["closed"]) is not bool:
         raise ValueError("candidate plan batch policy differs")
     if not isinstance(payload["batches"], list):
         raise ValueError("candidate plan batches must be a list")
@@ -148,12 +154,12 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         final_closed_partial = (
             payload["closed"]
             and expected_id == len(payload["batches"])
-            and 1 <= candidate_count < BATCH_SIZE
+            and 1 <= candidate_count < expected_batch_size
         )
-        if candidate_count != BATCH_SIZE and not final_closed_partial:
+        if candidate_count != expected_batch_size and not final_closed_partial:
             raise ValueError(
-                "every open batch must contain exactly five points; only a closed "
-                "final recovery batch may contain one to four"
+                f"every open batch must contain exactly {expected_batch_size} points; "
+                "only a closed final recovery batch may be partial"
             )
         candidates = tuple(candidate_from_log2_payload(item) for item in row["candidates"])
         for candidate in candidates:
@@ -180,6 +186,7 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         revision=payload["revision"],
         closed=payload["closed"],
         code_fix_replay_candidate_uid=replay_uid,
+        batch_size=expected_batch_size,
         batches=tuple(batches),
         payload=payload,
     )
@@ -209,17 +216,26 @@ def _atomic_write(path: Path, payload: Mapping[str, Any]) -> None:
     os.replace(temporary, path)
 
 
-def initialize_plan(path: Path, *, campaign_id: str) -> CandidateBatchPlan:
+def initialize_plan(
+    path: Path,
+    *,
+    campaign_id: str,
+    batch_size: int = BATCH_SIZE,
+) -> CandidateBatchPlan:
     if path.exists() or path.is_symlink():
         raise ValueError("candidate plan already exists")
+    if batch_size not in {BATCH_SIZE, V3_BATCH_SIZE}:
+        raise ValueError("candidate plan batch size is unsupported")
     _atomic_write(
         path,
         {
-            "schema_version": SCHEMA_VERSION,
+            "schema_version": (
+                SCHEMA_VERSION if batch_size == BATCH_SIZE else SCHEMA_VERSION_V2
+            ),
             "envelope_id": ENVELOPE_ID,
             "campaign_id": campaign_id,
             "revision": 0,
-            "batch_size": BATCH_SIZE,
+            "batch_size": batch_size,
             "closed": False,
             "batches": [],
         },
@@ -236,8 +252,8 @@ def append_batch(
     plan = load_plan(path)
     if plan.closed:
         raise ValueError("candidate plan is closed")
-    if len(candidates) != BATCH_SIZE:
-        raise ValueError("append requires exactly five candidates")
+    if len(candidates) != plan.batch_size:
+        raise ValueError(f"append requires exactly {plan.batch_size} candidates")
     payload = dict(plan.payload)
     batches = list(payload["batches"])
     batches.append(

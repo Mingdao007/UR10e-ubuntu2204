@@ -82,7 +82,7 @@ def resolve_workers(value: int | str, lanes: Sequence[str]) -> int:
 
 def load_commands(path: Path, lanes: Sequence[str], workers: int) -> dict[str, list[str]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != "step5d.autotune-v3/test-matrix-v2":
+    if payload.get("schema_version") != "step5d.autotune-v3/test-matrix-v3":
         raise TestMatrixError("test matrix schema differs")
     requested = list(dict.fromkeys(lanes))
     if not requested or not set(requested).issubset(ALLOWED_LANES):
@@ -206,7 +206,7 @@ def run(
             "small_xdist_workers": resolved_workers,
             "medium_internal_parallelism": 1,
             "native_thread_caps": 1,
-            "large_and_hil_forbidden": True,
+            "nonhermetic_lanes_absent": True,
             "serial_fallback": serial,
             "installed_runtime_status": installed_runtime_status,
         },

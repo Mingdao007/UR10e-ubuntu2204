@@ -121,21 +121,14 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             self.assertTrue(any(item.startswith("v3_runtime_symlink_forbidden:") for item in issues))
             self.assertTrue(any(item.startswith("v3_runtime_unbudgeted_file:") for item in issues))
 
-    def test_matrix_has_all_lanes_and_fail_closed_realistic_policies(self) -> None:
+    def test_matrix_has_only_hermetic_ci_lanes(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
         self.assertEqual(gate.matrix_issues(payload), [])
-        payload["lanes"]["large_ursim"]["arm_allowed"] = True
-        payload["lanes"]["hil_no_motion"]["serial"] = False
-        payload["lanes"]["large_ursim"]["robot_network_allowed"] = True
-        payload["lanes"]["large_ursim"]["dashboard_commands_allowed"].append("play")
+        payload["lanes"]["small"]["network_allowed"] = True
+        payload["lanes"]["medium"]["motion_allowed"] = True
         issues = gate.matrix_issues(payload)
-        self.assertIn("test_matrix_realistic_lane_policy:large_ursim:arm_allowed", issues)
-        self.assertIn("test_matrix_realistic_lane_policy:hil_no_motion:serial", issues)
-        self.assertIn(
-            "test_matrix_ursim_restricted_network_policy:robot_network_allowed",
-            issues,
-        )
-        self.assertIn("test_matrix_ursim_dashboard_allowlist_drift", issues)
+        self.assertIn("test_matrix_ci_lane_not_hermetic:small:network_allowed", issues)
+        self.assertIn("test_matrix_ci_lane_not_hermetic:medium:motion_allowed", issues)
 
     def test_b1_governance_separates_evidence_and_rejects_duplicate_test_paths(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
@@ -147,25 +140,24 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             gate.content_governance_issues(ROOT, payload),
         )
 
-    def test_matrix_readiness_contract_cannot_restore_confirmation_or_skip_hil(self) -> None:
+    def test_matrix_readiness_cannot_restore_authorization_or_skip_validation(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
         readiness = payload["operator_readiness_gate"]
         readiness["user_confirmation_required"] = True
-        readiness["transition_order"].remove("hil_hold_only")
-        readiness["ready_to_execute_requires"].remove("hil_no_motion_pass")
+        readiness["user_authorization_required"] = True
+        readiness["transition_order"].remove("deterministic_tests")
+        readiness["ready_to_execute_requires"].remove("deterministic_tests_pass")
         issues = gate.matrix_issues(payload)
         self.assertIn("test_matrix_user_confirmation_not_disabled", issues)
+        self.assertIn("test_matrix_user_authorization_not_disabled", issues)
         self.assertIn("test_matrix_readiness_transition_order_mismatch", issues)
         self.assertIn("test_matrix_ready_to_execute_requirements_mismatch", issues)
 
-    def test_matrix_hil_launch_permit_contract_cannot_be_broadened(self) -> None:
+    def test_obsolete_hil_launch_permit_cannot_be_reintroduced(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
-        permit = payload["hil_launch_permit_gate"]
-        permit["scope"] = "live_motion"
-        permit["parent_process_binding_required"] = False
-        permit["live_writer_allowed"] = True
+        payload["hil_launch_permit_gate"] = {"scope": "hil_full_bridge_hold"}
         self.assertIn(
-            "test_matrix_hil_launch_permit_contract_mismatch",
+            "test_matrix_obsolete_hil_launch_permit_present",
             gate.matrix_issues(payload),
         )
 

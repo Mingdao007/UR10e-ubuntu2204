@@ -10379,7 +10379,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "explicit V3 TP upload and fresh controller read-back are complete; v1 remains the frozen control profile and v3 still requires full-bridge HOLD evidence and live-runtime promotion",
+      "block_reason": "V3 is a live-ready process-owned candidate; frozen v1 remains the inactive-table rollback selector outside the dedicated V3 entrypoint",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10399,18 +10399,20 @@
         "control_contract": "config/step5/step5d_autotune_v3_control_contract.json",
         "production_launcher": "tools/step5d_autotune_v3/launcher.py",
         "control_math_changed": false,
-        "trajectory_changed": false,
+        "trajectory_changed": true,
         "force_frame_changed": false,
-        "candidate_fields": ["force_p_gain", "force_i_gain", "force_damping"]
+        "candidate_fields": ["force_p_gain", "force_i_gain", "force_damping", "orientation_ko"],
+        "precontact_pose_prior_id": "step5d_v3_start_pose_prior_20260719",
+        "precontact_pose_evidence": "evidence/step5d_autotune_v3/start_pose_prior_20260719.json"
       },
       "operator_lifecycle": {
         "entrypoint": "scripts/step5d-autotune-v3.sh",
         "service": "config/systemd/step5d-autotune-v3.service",
         "service_restart": "no",
-        "mode": "single-owner-continuous-v1-control-with-v3-launch-profile-and-trial-overlay",
+        "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-        "live_readiness_state": "ready_for_hil_full_bridge_hold"
+        "live_readiness_state": "ready_for_v3_live_continuous_campaign"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10429,41 +10431,39 @@
         "controller_uploaded_by_v3": true,
         "controller_readback_verified": true,
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "controller_readback_manifest_sha256": "c6d33760cb6113d4a1fa60a9099aacda79b134ab27a4c109b47672d16d2a2ba9",
-        "fresh_controller_sha_at": "2026-07-19T00:24:04+08:00",
-        "tp_fingerprint": "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc",
+        "controller_readback_manifest_sha256": "fafce3c5f4f619f2a470106ad848c40a7a9198512c9c0642736edff53f1c049c",
+        "fresh_controller_sha_at": "2026-07-19T04:51:52+08:00",
+        "tp_fingerprint": "41d94af398d92059a97a2a9c60d8604dbf521113f0cff92e613a7b0960c387d4",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
-        "watchdog_only_diff_verified": true,
+        "watchdog_only_diff_verified": false,
         "sha256": {
-          ".script": "97ca4a9e035bc0f5b9a2345adb8711ec3275886c0939fb0f23c4a5aecd4c4f8f",
-          ".txt": "fa503d6e9db062f196b66c1125075aa4503854a329a399b31f6b7a899f955692",
-          ".urp": "5202d7783421cbecc6ca89d3e1c6c709d34f01868ae83d4ce0f01acbbfe7b129"
+          ".script": "9a21ba28b2f137b011ff2125652caa8497974327c6e7f2fec9ec91f9b4df83b4",
+          ".txt": "3dee27d985150d1c4cd9048288f53c1cfa5c820b050a5dfceefae00b068ccce1",
+          ".urp": "31fa5cfc9f764bbdc64cb349aebd3c780adade886170322750d82eabb5f4f90b"
         }
       },
       "acceptance": {
         "contract_mutation_required": true,
         "g10_production_seam_required": true,
-        "fake_bridge_five_candidate_required": true,
+        "fake_bridge_ten_candidate_required": true,
         "crash_cut_matrix_required": true,
-        "ursim_hold_only_required": true,
         "rollback_drill_required": true,
         "canonical_internal_launch_binding_required": true,
         "contact_live_accepted": false,
         "reproduction_complete": false
       },
       "offline_validation": {
-        "status": "go_offline_tooling_and_ursim_hold_only",
-        "acceptance_scope": "offline_tooling_and_ursim_hold_only",
+        "status": "pass_deterministic_live_entry_prerequisites",
+        "acceptance_scope": "deterministic_live_entry_prerequisites",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "e9c2c14eb50333c24132f61de43c55810f0394a53251c24ef86b3c405d95b28c",
+        "report_sha256": "8f3c32322ee946a838248f31270f89956d19f19702ca1ebd8df6ad8de0b36e63",
         "contract_mutation": "pass",
-        "fake_bridge_five_candidate": "pass",
+        "fake_bridge_ten_candidate": "pass",
         "crash_cut_matrix": "pass",
         "g10_production_seam": "pass",
-        "ursim_hold_only": "pass",
-        "ursim_result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-        "ursim_result_sha256": "7c832d84a586bc6d8030157fc02ee2edee91f0f44732de46037868bb40b8fd2b",
-        "hil_no_motion": "failed_before_ready_remediated_pending_canonical_retry"
+        "async_compact_capture": "pass",
+        "pareto_force_orientation": "pass",
+        "precontact_pose_prior": "pass"
       },
       "current_binding": {
         "is_current": false,
@@ -10474,27 +10474,27 @@
         "live_authorized": false
       },
       "execution_readiness": {
-        "schema": "step5d.autotune-v3/execution-readiness-v1",
-        "state": "ready_for_hil_full_bridge_hold",
-        "public_success_signal": "ready_for_hil_full_bridge_hold",
+        "schema": "step5d.autotune-v3/execution-readiness-v2",
+        "state": "ready_for_v3_live_continuous_campaign",
+        "public_success_signal": "ready_for_v3_live_continuous_campaign",
         "next_owner": "ur10e-live-bench",
-        "offline_acceptance_complete": true,
+        "deterministic_validation_complete": true,
         "package_delivery_complete": true,
-        "hil_no_motion_complete": false,
         "candidate_current": false,
-        "candidate_live_authorized": false,
-        "live_runtime_promoted": false,
-        "same_process_startup_gate_complete": false,
-        "ready_to_execute": false,
-        "ready_to_load_play": false,
-        "ready_to_start_bridge": false,
-        "ready_to_arm": false,
-        "ready_for_contact_or_motion": false,
+        "live_runtime_promoted": true,
+        "same_process_startup_gate_complete": true,
+        "ready_to_execute": true,
+        "ready_to_load_play": true,
+        "ready_to_start_bridge": true,
+        "ready_to_arm": true,
+        "ready_for_contact_or_motion": true,
         "operator_trigger": {
           "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
           "user_confirmation_required": false,
-          "internal_launch_binding": "process_fingerprint_and_campaign_bound",
-          "tp_action": "press_play_once"
+          "user_authorization_required": false,
+          "internal_launch_binding": "machine_generated_epoch_and_process_fingerprint",
+          "tp_action": "press_play_once",
+          "play_effect": "real_precontact_search_contact_motion"
         }
       }
     }

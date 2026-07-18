@@ -195,7 +195,10 @@ class OfflineService:
             if (
                 not isinstance(overlays, dict)
                 or overlays.get("schema")
-                != "step5d.autotune-v3/trial-overlay-plan-v1"
+                not in {
+                    "step5d.autotune-v3/trial-overlay-plan-v1",
+                    "step5d.autotune-v3/trial-overlay-plan-v2",
+                }
                 or overlays.get("revision") != plan.revision
                 or overlays.get("candidate_count") != len(plan.candidates)
             ):

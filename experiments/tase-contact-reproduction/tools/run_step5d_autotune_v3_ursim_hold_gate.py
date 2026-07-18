@@ -35,6 +35,7 @@ from step5d_autotune_v3.state import CampaignPaths, read_service_state  # noqa: 
 
 SCHEMA = "step5d.autotune-v3/ursim-hold-gate-v1"
 MATRIX_PATH = ROOT / "config" / "step5d_autotune_v3_test_matrix.json"
+HISTORICAL_RESULT_PATH = ROOT / "config/step5/step5d_autotune_v3_ursim_hold_result.json"
 DASHBOARD_COMMANDS = (
     "PolyscopeVersion",
     "robotmode",
@@ -111,12 +112,12 @@ def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def _expected_image() -> str:
-    payload = json.loads(MATRIX_PATH.read_text(encoding="utf-8"))
-    image = payload["lanes"]["large_ursim"]["container_image"]
+    payload = json.loads(HISTORICAL_RESULT_PATH.read_text(encoding="utf-8"))
+    image = (payload.get("image") or {}).get("reference")
     if not isinstance(image, str) or re.fullmatch(
         r"[^\s@]+@sha256:[0-9a-f]{64}", image
     ) is None:
-        raise GateBlocked("ursim_image_pin_invalid", "test matrix lacks an exact image digest")
+        raise GateBlocked("ursim_image_pin_invalid", "historical result lacks an exact image digest")
     return image
 
 

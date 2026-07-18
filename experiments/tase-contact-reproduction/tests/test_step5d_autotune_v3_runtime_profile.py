@@ -39,7 +39,7 @@ def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() 
     ))) == 39
     overlay = normalize_trial_overlay(DEFAULT_OVERLAY, profile=profile)
     assert tuple(overlay) == OVERLAY_FIELDS
-    assert len(overlay) == 11
+    assert len(overlay) == 13
     assert profile.document["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
     assert profile.document["tp_program_id"] == "step5d_strict_rnn_autotune_v3"
 
@@ -48,6 +48,7 @@ def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
     profile = load_launch_profile()
     overlay = dict(DEFAULT_OVERLAY)
     overlay["force_i_gain"] = 0.00002
+    overlay.pop("control_candidate_uid")
     overlay["execution_profile_id"] = "nf020-slew010-a010"
     overlay["step5d_preload_hold_s"] = 0.2
     argv = apply_profile_to_argv(

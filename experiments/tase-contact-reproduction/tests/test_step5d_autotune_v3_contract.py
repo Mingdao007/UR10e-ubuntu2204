@@ -84,15 +84,15 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
     )
     assert report["deployment_tp_identity"] == {
         "program": "step5d_strict_rnn_autotune_v3",
-        "mode": "explicit_v3_identity_frozen_v1_control",
+        "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
         "artifact_dir": "programs/step5/step5d",
         "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "readback_manifest_sha256": (
-            "c6d33760cb6113d4a1fa60a9099aacda79b134ab27a4c109b47672d16d2a2ba9"
-        ),
-        "tp_fingerprint": (
-            "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc"
-        ),
+            "readback_manifest_sha256": (
+                "fafce3c5f4f619f2a470106ad848c40a7a9198512c9c0642736edff53f1c049c"
+            ),
+            "tp_fingerprint": (
+                "41d94af398d92059a97a2a9c60d8604dbf521113f0cff92e613a7b0960c387d4"
+            ),
     }
     assert report["execution_profile_id"] == "nf050-slew050-a050"
     categories = report["field_categories"]

@@ -1,47 +1,32 @@
 {
-  "schema_version": "step5d.autotune-v3/test-matrix-v2",
-  "claim_boundary": "offline_tooling_and_ursim_hold_only",
-  "evidence_manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
+  "schema_version": "step5d.autotune-v3/test-matrix-v3",
+  "claim_boundary": "deterministic_live_entry_prerequisites",
+  "historical_evidence_manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
   "operator_readiness_gate": {
     "command": [
       "python3",
       "tools/verify_step5d_autotune_v3_execution_readiness.py",
       "--json"
     ],
-    "public_success_signal_policy": "next_legal_action_not_broad_pass",
+    "public_success_signal": "ready_for_v3_live_continuous_campaign",
     "user_confirmation_required": false,
+    "user_authorization_required": false,
     "transition_order": [
-      "offline_acceptance",
-      "controller_readback",
-      "hil_hold_only",
-      "canonical_operator_trigger_and_internal_launch_binding",
-      "hil_evidence_promotion",
+      "deterministic_tests",
+      "control_semantics",
+      "tp_build_and_fresh_readback",
+      "machine_campaign_binding",
       "same_process_startup_gate",
       "live_execution"
     ],
     "ready_to_execute_requires": [
-      "offline_acceptance_pass",
+      "deterministic_tests_pass",
+      "control_semantics_pass",
       "controller_readback_verified",
-      "hil_no_motion_pass",
       "internal_process_fingerprint_campaign_binding",
       "live_runtime_promoted",
       "same_process_startup_gate_pass"
     ]
-  },
-  "hil_launch_permit_gate": {
-    "command": [
-      "python3",
-      "tools/verify_step5d_autotune_v3_hil_authorization.py",
-      "--json"
-    ],
-    "scope": "hil_full_bridge_hold",
-    "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-    "current_fingerprint_binding_required": true,
-    "parent_process_binding_required": true,
-    "serial": true,
-    "hold_required": true,
-    "live_writer_allowed": true,
-    "user_confirmation_required": false
   },
   "local_installed_runtime_gate": {
     "command": [
@@ -67,10 +52,6 @@
       "small",
       "medium"
     ],
-    "forbidden_lanes": [
-      "large_ursim",
-      "hil_no_motion"
-    ],
     "controller_access_allowed": false,
     "live_writer_allowed": false,
     "network_allowed": false,
@@ -78,7 +59,7 @@
   },
   "lanes": {
     "small": {
-      "claim": "pure contracts, parsing, invariants, and refactor policy",
+      "claim": "pure contracts, parsing, identities, and fail-closed release policy",
       "commands": [
         [
           "python3",
@@ -89,17 +70,15 @@
           "tests/test_step5d_autotune_v3_attempt_ledger.py",
           "tests/test_step5d_autotune_v3_artifacts.py",
           "tests/test_step5d_autotune_v3_execution_readiness.py",
-          "tests/test_step5d_autotune_v3_hil_authorization.py",
           "tests/test_step5d_autotune_v3_g10.py",
           "tests/test_step5d_autotune_v3_refactor_gate.py",
-          "tests/test_step5d_autotune_v3_ursim_hold.py",
           "tests/test_step5d_autotune_v3_runtime_profile.py",
           "tests/test_step5d_autotune_v3_runtime_calibration.py",
           "tests/test_step5d_autotune_v3_bridge_wrapper.py",
           "tests/test_step5d_autotune_v3_preflight.py",
-          "tests/test_step5d_autotune_v3_hil_hold_runner.py",
           "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
           "tests/test_step5d_autotune_tp_v3.py",
+          "tests/test_step5d_autotune_batch_plan.py",
           "tests/test_step5d_autotune_v3_test_matrix_runner.py"
         ]
       ],
@@ -123,7 +102,7 @@
       "hold_required": false,
       "arm_allowed": false,
       "motion_allowed": false,
-      "evidence_output": "pytest JSON/JUnit result"
+      "evidence_output": "pytest log outside rule JSON"
     },
     "medium": {
       "claim": "real local process, filesystem, mailbox, service, timeout, and crash-cut behavior",
@@ -152,190 +131,45 @@
       "hold_required": false,
       "arm_allowed": false,
       "motion_allowed": false,
-      "evidence_output": "pytest JSON/JUnit result"
-    },
-    "large_ursim": {
-      "claim": "production launcher and RTDE compatibility with pinned PolyScope 5.25.2 URSim; not PolyScope 5.26 target acceptance",
-      "commands": [
-        [
-          "python3",
-          "tools/run_step5d_autotune_v3_ursim_hold_gate.py",
-          "--container",
-          "step5d-autotune-v3-ursim-hold",
-          "--output-root",
-          "runs/step5d_autotune_v3_validation/ursim"
-        ]
-      ],
-      "activation": "manual_with_prestarted_digest_pinned_ursim_on_docker_internal_network",
-      "ci": false,
-      "serial": true,
-      "pinned": true,
-      "container_image": "universalrobots/ursim_e-series:5.25.2@sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",
-      "simulator_polyscope_version": "5.25.2",
-      "target_polyscope_version_equivalence_claimed": false,
-      "pin_source": "https://hub.docker.com/r/universalrobots/ursim_e-series/tags?name=5.25.2",
-      "pin_verified_at": "2026-07-19",
-      "test_doubles_allowed": false,
-      "network_allowed": true,
-      "network_scope": "single_prestarted_container_on_docker_internal_network",
-      "external_network_allowed": false,
-      "robot_network_allowed": false,
-      "host_port_publication_allowed": false,
-      "container_lifecycle_mutation_allowed": false,
-      "docker_actions_allowed": [
-        "version",
-        "container_inspect",
-        "image_inspect",
-        "network_inspect"
-      ],
-      "dashboard_commands_allowed": [
-        "PolyscopeVersion",
-        "robotmode",
-        "programState",
-        "running",
-        "safetymode"
-      ],
-      "rtde_output_recipe_only": true,
-      "rtde_input_recipe_allowed": false,
-      "controller_access_allowed": false,
-      "live_writer_allowed": false,
-      "hold_required": true,
-      "arm_allowed": false,
-      "motion_allowed": false,
-      "operator_action_consumed": false,
-      "cleanup_required": true,
-      "evidence_output": "runs/step5d_autotune_v3_validation/ursim/<control-fingerprint>-<utc>-<pid>/ursim_hold_gate.json"
-    },
-    "hil_no_motion": {
-      "claim": "exact target PolyScope 5.26 controller startup and HOLD smoke only; never contact or motion acceptance",
-      "commands": [
-        [
-          "scripts/step5d-autotune-v3-hil-hold.sh",
-          "run",
-          "--output-root",
-          "<fresh-output-root>"
-        ]
-      ],
-      "activation": "manual_physical_tp_play_after_canonical_ready_signal",
-      "ci": false,
-      "serial": true,
-      "pinned": true,
-      "controller_identity_pin": "fresh_read_only_snapshot_sha256_required",
-      "target_polyscope_version": "URSoftware 5.26.0.140462",
-      "target_polyscope_version_source": "fresh_read_only_dashboard_snapshot",
-      "test_doubles_allowed": false,
-      "network_allowed": true,
-      "network_scope": "target_controller_and_kunwei_only_from_canonical_entrypoint",
-      "controller_access_allowed": true,
-      "live_writer_allowed": true,
-      "hold_required": true,
-      "arm_allowed": false,
-      "motion_allowed": false,
-      "operator_action_consumed": false,
-      "cleanup_required": true,
-      "evidence_output": "runs/step5d_autotune_v3_validation/hil_no_motion/<controller_identity_sha256>/"
+      "evidence_output": "pytest log outside rule JSON"
     }
   },
   "requirements": [
     {
       "id": "escaped_effective_configuration_drift",
-      "incident_fixture": "tests/test_step5d_autotune_v3_contract.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
+      "incident_fixture": "tests/test_step5d_autotune_v3_contract.py"
     },
     {
       "id": "single_owner_persistent_campaign_lifecycle",
-      "incident_fixture": "tests/test_step5d_autotune_v3_service.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
+      "incident_fixture": "tests/test_step5d_autotune_v3_service.py"
     },
     {
-      "id": "migration_watchdog_and_inactive_selector_artifact_closure",
-      "incident_fixture": "tests/test_step5d_autotune_v3_artifacts.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
+      "id": "package_readback_and_live_readiness_closure",
+      "incident_fixture": "tests/test_step5d_autotune_v3_artifacts.py"
     },
     {
-      "id": "g10_production_seam_and_executable_thresholds",
-      "incident_fixture": "tests/test_step5d_autotune_v3_g10.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
+      "id": "ten_trial_four_parameter_overlay_and_async_capture",
+      "incident_fixture": "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py"
     },
     {
-      "id": "faithful_fake_bridge_five_candidate_transaction",
-      "incident_fixture": "tests/test_step5d_autotune_v3_acceptance.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
+      "id": "precontact_pose_only_tp_delta",
+      "incident_fixture": "tests/test_step5d_autotune_tp_v3.py"
     },
     {
       "id": "crash_cut_exact_echo_and_no_duplicate_attempt",
-      "incident_fixture": "tests/test_step5d_autotune_recovery.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
+      "incident_fixture": "tests/test_step5d_autotune_recovery.py"
     },
     {
-      "id": "ack_boundary_safety_failure_and_async_derived_analysis",
-      "incident_fixture": "tests/test_step5d_autotune_live_driver.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
+      "id": "ack_boundary_safety_failure_and_pareto_analysis",
+      "incident_fixture": "tests/test_step5d_autotune_live_driver.py"
     },
     {
       "id": "escaped_production_startup_dependency",
-      "incident_fixture": "tests/test_step5d_autotune_v3_installed_runtime.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
+      "incident_fixture": "tests/test_step5d_autotune_v3_installed_runtime.py"
     },
     {
-      "id": "operator_readiness_signal_and_internal_launch_binding",
-      "incident_fixture": "tests/test_step5d_autotune_v3_execution_readiness.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
-    },
-    {
-      "id": "process_and_fingerprint_bound_hil_launch_permit",
-      "incident_fixture": "tests/test_step5d_autotune_v3_hil_authorization.py",
-      "lanes": [
-        "small",
-        "medium",
-        "large_ursim",
-        "hil_no_motion"
-      ]
+      "id": "direct_live_signal_and_internal_launch_binding",
+      "incident_fixture": "tests/test_step5d_autotune_v3_execution_readiness.py"
     }
   ]
 }

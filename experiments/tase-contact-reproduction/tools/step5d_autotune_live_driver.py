@@ -410,9 +410,6 @@ def _binding_from_prepared(
         except (OSError, ValueError) as exc:
             raise MailboxError(f"V3 trial overlay is invalid: {exc}") from exc
         expected_overlay_identity = {
-            "force_p_gain": binding.candidate.force_p_gain,
-            "force_i_gain": binding.candidate.force_i_gain,
-            "force_damping": binding.candidate.force_damping,
             "execution_profile_id": binding.profile.profile_id,
         }
         for name, expected in expected_overlay_identity.items():
@@ -638,14 +635,7 @@ def _mailbox_command_from_payload(
             )
         except (OSError, ValueError) as exc:
             raise MailboxError(f"V3 trial overlay is invalid: {exc}") from exc
-        if any(
-            (
-                normalized_overlay["force_p_gain"] != binding.candidate.force_p_gain,
-                normalized_overlay["force_i_gain"] != binding.candidate.force_i_gain,
-                normalized_overlay["force_damping"] != binding.candidate.force_damping,
-                normalized_overlay["execution_profile_id"] != binding.profile.profile_id,
-            )
-        ):
+        if normalized_overlay["execution_profile_id"] != binding.profile.profile_id:
             raise MailboxError("V3 trial overlay identity differs from runtime binding")
         object.__setattr__(binding, "trial_overlay", normalized_overlay)
     validate_execution_profile_binding(

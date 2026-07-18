@@ -19,7 +19,7 @@ from .profile import ContractViolation, canonical_json_bytes, contract_sha256, l
 
 
 LAUNCH_SCHEMA = "step5d.autotune-v3/launch-profile-v1"
-OVERLAY_SCHEMA = "step5d.autotune-v3/trial-overlay-v1"
+OVERLAY_SCHEMA = "step5d.autotune-v3/trial-overlay-v2"
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3"
@@ -28,10 +28,41 @@ DEFAULT_LAUNCH_PROFILE = (
     / "config/step5/step5d_autotune_v3_launch_profile.json"
 )
 
-OVERLAY_FIELDS = (
+CONTROL_CANDIDATE_FIELDS = (
     "force_p_gain",
     "force_i_gain",
     "force_damping",
+    "orientation_ko",
+)
+ORIENTATION_KO_LATTICE = (
+    0.4,
+    0.47568284600108846,
+    0.5656854249492381,
+    0.6727171322029717,
+    0.8,
+)
+
+
+def control_candidate_uid(candidate: Mapping[str, Any]) -> str:
+    values: dict[str, float] = {}
+    for field in CONTROL_CANDIDATE_FIELDS:
+        value = candidate[field]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ContractViolation(f"{field} must be numeric")
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            raise ContractViolation(f"{field} must be finite")
+        values[field] = numeric
+    material = {
+        "schema": "step5d.autotune-v3/control-candidate/v2",
+        **values,
+    }
+    return hashlib.sha256(canonical_json_bytes(material)).hexdigest()
+
+
+OVERLAY_FIELDS = (
+    *CONTROL_CANDIDATE_FIELDS,
+    "control_candidate_uid",
     "execution_profile_id",
     "step5d_preload_filtered_min_n",
     "step5d_preload_filtered_max_n",
@@ -41,10 +72,11 @@ OVERLAY_FIELDS = (
     "step5d_preload_hold_s",
     "step5d_preload_timeout_s",
 )
-DEFAULT_OVERLAY: dict[str, Any] = {
+_DEFAULT_OVERLAY_INPUT: dict[str, Any] = {
     "force_p_gain": 0.001,
     "force_i_gain": 0.00001,
     "force_damping": 7.0,
+    "orientation_ko": 0.4,
     "execution_profile_id": "nf050-slew050-a050",
     "step5d_preload_filtered_min_n": 7.5,
     "step5d_preload_filtered_max_n": 14.0,
@@ -53,6 +85,10 @@ DEFAULT_OVERLAY: dict[str, Any] = {
     "step5d_preload_force_norm_max_n": 25.0,
     "step5d_preload_hold_s": 0.1,
     "step5d_preload_timeout_s": 10.0,
+}
+DEFAULT_OVERLAY: dict[str, Any] = {
+    **_DEFAULT_OVERLAY_INPUT,
+    "control_candidate_uid": control_candidate_uid(_DEFAULT_OVERLAY_INPUT),
 }
 OVERLAY_FLAGS = {
     "force_p_gain": "--step5d-autotune-force-p",
@@ -244,6 +280,14 @@ def load_launch_profile(
                 or any(not isinstance(value, str) or not value for value in allowed)
             ):
                 raise ContractViolation("execution profile allowlist is invalid")
+        elif field == "orientation_ko":
+            if not isinstance(rule, dict) or set(rule) != {"allowed"}:
+                raise ContractViolation("orientation_ko overlay policy differs")
+            if rule["allowed"] != list(ORIENTATION_KO_LATTICE):
+                raise ContractViolation("orientation_ko lattice differs")
+        elif field == "control_candidate_uid":
+            if rule != {"derived": "sha256"}:
+                raise ContractViolation("control candidate UID policy differs")
         else:
             if not isinstance(rule, dict) or set(rule) != {"min", "max"}:
                 raise ContractViolation(f"trial overlay policy differs for {field}")
@@ -273,17 +317,43 @@ def normalize_trial_overlay(
     profile: LaunchProfile,
 ) -> dict[str, Any]:
     raw = DEFAULT_OVERLAY if overlay is None else overlay
-    if not isinstance(raw, Mapping) or set(raw) != set(OVERLAY_FIELDS):
+    allowed_shapes = (
+        set(OVERLAY_FIELDS),
+        set(OVERLAY_FIELDS) - {"control_candidate_uid"},
+    )
+    if not isinstance(raw, Mapping) or set(raw) not in allowed_shapes:
         raise ContractViolation("trial overlay fields or order differ")
     result: dict[str, Any] = {}
     for field in OVERLAY_FIELDS:
         rule = profile.trial_overlay_policy[field]
+        if field == "control_candidate_uid":
+            expected_control_uid = control_candidate_uid(result)
+            supplied_control_uid = raw.get(
+                "control_candidate_uid", expected_control_uid
+            )
+            if supplied_control_uid != expected_control_uid:
+                raise ContractViolation(
+                    "trial control_candidate_uid differs from parameters"
+                )
+            result[field] = expected_control_uid
+            continue
         value = raw[field]
         if field == "execution_profile_id":
             if not isinstance(value, str) or value not in rule["allowed"]:
                 raise ContractViolation("trial execution profile is not launch-authorized")
             _execution_profile(value)
             result[field] = value
+            continue
+        if field == "orientation_ko":
+            numeric = _finite(field, value)
+            matches = [
+                allowed
+                for allowed in ORIENTATION_KO_LATTICE
+                if math.isclose(numeric, allowed, rel_tol=0.0, abs_tol=1e-12)
+            ]
+            if len(matches) != 1:
+                raise ContractViolation("trial orientation_ko is outside its lattice")
+            result[field] = matches[0]
             continue
         numeric = _finite(field, value)
         if numeric < float(rule["min"]) or numeric > float(rule["max"]):
@@ -309,6 +379,39 @@ def normalize_trial_overlay(
     ):
         raise ContractViolation("preload force-norm maximum is below an axis maximum")
     return result
+
+
+def control_candidate_coordinates(overlay: Mapping[str, Any]) -> tuple[float, ...]:
+    """Return P/I/damping/K physical coordinates in log2 space."""
+
+    from step5d_autotune_contract import ForceCandidate
+
+    candidate = ForceCandidate(
+        force_p_gain=float(overlay["force_p_gain"]),
+        force_i_gain=float(overlay["force_i_gain"]),
+        force_damping=float(overlay["force_damping"]),
+    )
+    return (
+        candidate.log2_p,
+        candidate.log2_i,
+        candidate.log2_damping,
+        math.log2(float(overlay["orientation_ko"]) / ORIENTATION_KO_LATTICE[0]),
+    )
+
+
+def is_control_candidate_step(
+    previous: Mapping[str, Any], current: Mapping[str, Any]
+) -> bool:
+    before = control_candidate_coordinates(previous)
+    after = control_candidate_coordinates(current)
+    changed = [
+        abs(right - left)
+        for left, right in zip(before, after, strict=True)
+        if not math.isclose(left, right, rel_tol=0.0, abs_tol=1e-9)
+    ]
+    return len(changed) == 1 and math.isclose(
+        changed[0], 0.25, rel_tol=0.0, abs_tol=1e-9
+    )
 
 
 def overlay_fingerprint(profile: LaunchProfile, overlay: Mapping[str, Any]) -> str:

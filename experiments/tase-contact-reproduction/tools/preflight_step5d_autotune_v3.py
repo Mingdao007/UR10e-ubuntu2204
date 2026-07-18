@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fast, read-only, V3-specific preflight for the full-bridge HOLD HIL gate."""
+"""Fast, read-only preflight for the one-Play V3 live campaign."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from step5d_autotune_v3.state import atomic_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = "step5d.autotune-v3/hil-preflight-snapshot-v2"
+SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
 TP_PROGRAM_PATTERN = re.compile(r"([^<>\s]+\.urp)(?=$|[>\s])", re.IGNORECASE)
 
 
@@ -135,9 +135,9 @@ def _safety_normal(dashboard: Mapping[str, Any]) -> dict[str, Any]:
     return {"ok": value == "NORMAL", "observed": value}
 
 
-def _mailbox_hold_zero(path: Path) -> dict[str, Any]:
+def _mailbox_initial_zero(path: Path) -> dict[str, Any]:
     absent = not path.exists() and not path.is_symlink()
-    return {"ok": absent, "path": str(path), "policy": "absent_before_hold_bridge"}
+    return {"ok": absent, "path": str(path), "policy": "absent_before_live_bridge"}
 
 
 def _connect_observation_ok(observation: Mapping[str, Any]) -> bool:
@@ -254,7 +254,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
             "ok": _value(local.get("writer", {})).get("ok") is True,
             "observation": _value(local.get("writer", {})),
         },
-        "mailbox_hold_zero": _mailbox_hold_zero(args.mailbox),
+        "mailbox_initial_zero": _mailbox_initial_zero(args.mailbox),
         "runtime_dependencies": {
             "ok": all(
                 _value(local.get(name, {})).get("ok") is True

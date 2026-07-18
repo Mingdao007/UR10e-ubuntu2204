@@ -24,7 +24,7 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                 "parent_pid": os.getppid(),
                 "argv_sha256": hashlib.sha256(encoded).hexdigest(),
                 "launch_id": "1" * 32,
-                "scope": "hil_full_bridge_hold",
+                "scope": "live_continuous_campaign",
                 "identity": {
                     "contract_sha256": "0" * 64,
                     "control_fingerprint": "a" * 64,
@@ -35,7 +35,13 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                 "release_stage_id": "step5d_strict_rnn_autotune_v3",
                 "control_profile_id": "step5d_strict_rnn_autotune_v1",
                 "tp_program_id": "step5d_strict_rnn_autotune_v3",
-                "campaign_binding": None,
+                "campaign_binding": {
+                    "campaign_id": "campaign-v3",
+                    "campaign_epoch": 2,
+                    "candidate_plan_revision": 1,
+                    "candidate_plan_sha256": "e" * 64,
+                    "trial_overlay_plan_sha256": "f" * 64,
+                },
             }
         ),
         encoding="utf-8",
@@ -46,9 +52,7 @@ def _ticket(path: Path, argv: list[str]) -> Path:
 def test_wrapper_requires_parent_and_exact_argv_ticket(tmp_path: Path) -> None:
     argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
     ticket = _ticket(tmp_path / "ticket.json", argv)
-    assert wrapper._strict_ticket(ticket, argv)["scope"] == (
-        "hil_full_bridge_hold"
-    )
+    assert wrapper._strict_ticket(ticket, argv)["scope"] == "live_continuous_campaign"
     try:
         wrapper._strict_ticket(ticket, [*argv, "--duration-s", "1"])
     except wrapper.BridgeTicketError as exc:
@@ -67,18 +71,14 @@ def test_live_ticket_requires_exact_campaign_binding(tmp_path: Path) -> None:
     argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
     ticket = _ticket(tmp_path / "ticket.json", argv)
     payload = json.loads(ticket.read_text(encoding="utf-8"))
-    payload["scope"] = "live_continuous_campaign"
-    payload["campaign_binding"] = {
-        "campaign_id": "campaign-v3",
-        "campaign_epoch": 2,
-        "candidate_plan_revision": 1,
-        "candidate_plan_sha256": "e" * 64,
-        "trial_overlay_plan_sha256": "f" * 64,
-    }
+    payload["campaign_binding"].pop("trial_overlay_plan_sha256")
     ticket.write_text(json.dumps(payload), encoding="utf-8")
-    assert wrapper._strict_ticket(ticket, argv)["campaign_binding"][
-        "candidate_plan_revision"
-    ] == 1
+    try:
+        wrapper._strict_ticket(ticket, argv)
+    except wrapper.BridgeTicketError as exc:
+        assert "campaign binding" in str(exc)
+    else:
+        raise AssertionError("incomplete campaign binding was accepted")
 
 
 def test_wrapper_source_has_no_campaign_runner_arm_or_motion_surface() -> None:

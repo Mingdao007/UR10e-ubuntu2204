@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_autotune_batch_plan import (  # noqa: E402
+    V3_BATCH_SIZE,
     append_batch,
     assert_append_only,
     candidate_from_log2_payload,
@@ -43,6 +44,24 @@ class CandidateBatchPlanTest(unittest.TestCase):
             payload = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(payload["batch_size"], 5)
             self.assertEqual(payload["batches"][0]["candidates"][0]["log2_p"], -0.25)
+
+    def test_v3_plan_requires_ten_candidates_per_open_batch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "control" / "candidate_plan.json"
+            initial = initialize_plan(
+                path,
+                campaign_id="campaign-v3",
+                batch_size=V3_BATCH_SIZE,
+            )
+            points = tuple(candidate(-1.0 + index * 0.25, 0.0, 0.0) for index in range(9)) + (
+                candidate(1.0, 0.25, 0.0),
+            )
+            updated = append_batch(path, candidates=points, source="V3 batch 1")
+            self.assertEqual(initial.batch_size, V3_BATCH_SIZE)
+            self.assertEqual(updated.batch_size, V3_BATCH_SIZE)
+            self.assertEqual(len(updated.candidates), V3_BATCH_SIZE)
+            with self.assertRaisesRegex(ValueError, "exactly 10"):
+                append_batch(path, candidates=points[:5], source="too short")
 
     def test_plan_accepts_only_approved_coarse_i_scale_multipliers(self) -> None:
         approved = (10.0, 50.0, 100.0, 500.0, 1000.0)

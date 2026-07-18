@@ -10,9 +10,12 @@ or an ARM command.
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
+import multiprocessing
 import os
+import queue
 import sys
 import time
 from pathlib import Path
@@ -24,11 +27,290 @@ from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 ROOT = Path(__file__).resolve().parents[1]
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v2"
-TICKET_SCOPES = {"hil_full_bridge_hold", "live_continuous_campaign"}
+TICKET_SCOPE = "live_continuous_campaign"
 
 
 class BridgeTicketError(RuntimeError):
     pass
+
+
+_V3_COMPACT_EXACT_FIELDS = frozenset(
+    {
+        "write_index", "t_wall_ns", "t_monotonic_s", "sensor_age_s",
+        "rtde_controller_timestamp_s", "rtde_feedback_age_s",
+        "rtde_packets_drained", "rtde_feedback_stale_dwell_s",
+        "rtde_sent_echo_heartbeat_gap", "normal_force_n", "force_norm_n",
+        "torque_norm_nm", "heartbeat", "sensor_ok", "stop_request",
+        "target_force_n", "step4e_cmd_vx_m_s", "step4e_cmd_vy_m_s",
+        "step4e_cmd_vz_m_s", "step4e_cmd_wx_rad_s", "step4e_cmd_wy_rad_s",
+        "step4e_cmd_wz_rad_s", "step4e_cmd_valid", "step4e_progress_m",
+        "step4e_force_error_n", "step4e_orientation_error_rad",
+        "step4e_controller_state", "campaign_epoch", "trial_id", "command",
+        "candidate_token", "execution_profile_id", "command_seq", "guard_reason",
+        "baseline_ready", "baseline_epoch", "zero_event_id", "rtde_connected",
+        "rtde_reconnects", "_step4e_force_b_x", "_step4e_force_b_y",
+        "_step4e_force_b_z", "_step4e_normal_load_n", "_step4e_line_stage_s",
+        "_step4e_path_time_s", "_step4e_path_error_x_m", "_step4e_path_error_y_m",
+        "_step5d_expected_stage", "_step5d_stage25_control_mode",
+        "_step5d_stage25_echo_consumed", "_step5d_stage25_row_gap_s",
+        "_step5d_constraint_residual_norm", "_step5d_raw_rnn_residual_norm",
+        "_step5d_post_slew_residual_norm", "_step5d_rnn_vs_oracle_qdot_norm",
+        "_step5d_qdot_slew_limiter_active", "_step5d_normal_rate_limiter_active",
+        "_step5d_qdot_cap_rad_s", "_step5d_rnn_qdot_max_abs_raw_rad_s",
+        "_step5d_rnn_accepted", "_step5d_safe_hold_active",
+        "_step5d_contact_safety_reason", "_step5d_contact_orientation_error_rad",
+        "_step5d_outer_orientation_error_rad",
+        "_step5d_outer_xdot_limited_approach_normal_m_s",
+        "_step5d_jqdot_cmd_approach_normal_m_s",
+        "_bridge_loop_gap_s", "_bridge_loop_deadline_lateness_s",
+        "_bridge_loop_compute_deadline_overrun", "_bridge_loop_missed_slots",
+        "_bridge_loop_deadline_miss_total", "_bridge_loop_io_wait_s",
+        "_bridge_loop_sensor_recv_s", "_bridge_loop_rtde_recv_s",
+        "_bridge_loop_compute_s", "_bridge_loop_rtde_send_s",
+        "_bridge_loop_csv_write_s", "ur_kinematics_dt_s", "ur_timestamp",
+        "ur_runtime_state", "ur_robot_mode", "ur_safety_mode", "ur_speed_scaling",
+        "ur_output_double_register_26", "ur_output_double_register_30",
+        "ur_output_double_register_35", "ur_output_double_register_36",
+    }
+)
+_V3_COMPACT_PREFIXES = (
+    "ur_actual_TCP_pose_", "ur_actual_TCP_speed_", "ur_actual_q_",
+    "ur_actual_qd_", "ur_actual_qdd_", "ur_output_int_register_",
+)
+_V3_CAPTURE_IDENTITY_FIELDS = (
+    "autotune_trial_uid",
+    "autotune_backend_id",
+    "autotune_control_candidate_uid",
+    "autotune_force_p_gain",
+    "autotune_force_i_gain",
+    "autotune_force_damping",
+    "autotune_orientation_ko",
+)
+
+
+def compact_v3_fieldnames(fieldnames: Sequence[str]) -> tuple[str, ...]:
+    selected = tuple(
+        name
+        for name in fieldnames
+        if name in _V3_COMPACT_EXACT_FIELDS
+        or any(name.startswith(prefix) for prefix in _V3_COMPACT_PREFIXES)
+    )
+    required = {
+        "t_monotonic_s",
+        "rtde_feedback_age_s",
+        "_step5d_stage25_echo_consumed",
+        "ur_output_double_register_35",
+        *(f"ur_output_int_register_{index}" for index in range(24, 31)),
+    }
+    if not required.issubset(selected):
+        missing = sorted(required - set(selected))
+        raise BridgeTicketError(f"V3 compact capture lacks required fields: {missing}")
+    return selected
+
+
+def _v3_capture_worker(
+    commands: Any,
+    errors: Any,
+    root_text: str,
+    fieldnames: tuple[str, ...],
+) -> None:
+    root = Path(root_text)
+    handle: Any | None = None
+    writer: csv.DictWriter | None = None
+    partial: Path | None = None
+    final: Path | None = None
+    active_uid: str | None = None
+
+    def close_partial(sync_bytes: bool) -> None:
+        nonlocal handle, writer
+        if handle is not None:
+            handle.flush()
+            if sync_bytes:
+                os.fsync(handle.fileno())
+            handle.close()
+        handle = None
+        writer = None
+
+    try:
+        while True:
+            message = commands.get()
+            kind = message[0]
+            if kind == "close":
+                close_partial(True)
+                return
+            if kind == "row":
+                trial_uid, payload = message[1], message[2]
+                if active_uid != trial_uid:
+                    close_partial(True)
+                    trial_dir = root / trial_uid
+                    trial_dir.mkdir(parents=True, exist_ok=True)
+                    if trial_dir.is_symlink():
+                        raise BridgeTicketError("V3 capture directory is a symlink")
+                    partial = trial_dir / "capture.csv.part"
+                    final = trial_dir / "capture.csv"
+                    if final.exists() or partial.exists():
+                        raise BridgeTicketError("V3 capture identity already exists")
+                    handle = partial.open("x", newline="", encoding="utf-8")
+                    writer = csv.DictWriter(handle, fieldnames=fieldnames)
+                    writer.writeheader()
+                    active_uid = trial_uid
+                assert writer is not None
+                writer.writerow(payload)
+                continue
+            if kind == "seal":
+                trial_uid = message[1]
+                if trial_uid != active_uid or partial is None or final is None:
+                    raise BridgeTicketError("V3 capture seal identity differs")
+                close_partial(True)
+                os.replace(partial, final)
+                directory_fd = os.open(final.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+                continue
+            raise BridgeTicketError("unknown V3 capture worker command")
+    except BaseException as exc:
+        try:
+            errors.put_nowait(f"{type(exc).__name__}:{exc}")
+        except Exception:
+            pass
+        close_partial(False)
+
+
+class V3AsyncBridgeTrialCsvRotator:
+    """Bounded compact capture queue; disk I/O never runs in the control loop."""
+
+    IDENTITY_COLUMNS = _V3_CAPTURE_IDENTITY_FIELDS[:2]
+
+    def __init__(self, root: Path, fieldnames: Sequence[str]) -> None:
+        if not isinstance(root, Path) or not root.is_absolute():
+            raise BridgeTicketError("V3 capture root must be absolute")
+        compact = compact_v3_fieldnames(tuple(str(name) for name in fieldnames))
+        self.root = root
+        self.fieldnames = (*compact, *_V3_CAPTURE_IDENTITY_FIELDS)
+        context = multiprocessing.get_context("spawn")
+        self._commands = context.Queue(maxsize=4096)
+        self._errors = context.Queue(maxsize=1)
+        self._worker = context.Process(
+            target=_v3_capture_worker,
+            args=(self._commands, self._errors, str(root), self.fieldnames),
+            name="step5d-v3-capture-writer",
+            daemon=True,
+        )
+        self._worker.start()
+        self._sealed: set[str] = set()
+
+    def _check_worker(self) -> None:
+        try:
+            error = self._errors.get_nowait()
+        except queue.Empty:
+            error = None
+        if error is not None:
+            raise BridgeTicketError(f"V3 capture worker failed: {error}")
+        if not self._worker.is_alive() and self._worker.exitcode not in {None, 0}:
+            raise BridgeTicketError(
+                f"V3 capture worker exited rc={self._worker.exitcode}"
+            )
+
+    def _enqueue(self, message: tuple[Any, ...]) -> None:
+        self._check_worker()
+        try:
+            self._commands.put_nowait(message)
+        except queue.Full as exc:
+            raise BridgeTicketError("V3 capture queue overflow") from exc
+
+    def observe(self, row: Any, *, active: Any, rtde_output: Any) -> bool:
+        if active is None or rtde_output is None:
+            return False
+        from step5d_autotune_live_driver import tp_packet_from_rtde
+        from step5d_autotune_state_machine import TpLoopState
+
+        snapshot = tp_packet_from_rtde(rtde_output)
+        binding = active.binding
+        matches = (
+            snapshot.campaign_epoch_echo == binding.campaign_epoch
+            and snapshot.trial_id_echo == binding.trial_id
+            and snapshot.candidate_token_echo == binding.candidate_token
+            and snapshot.execution_profile_id_echo == binding.execution_profile_id
+            and snapshot.consumed_command_seq >= binding.arm_command_seq
+        )
+        if snapshot.state is TpLoopState.READY_HOME or not matches:
+            return False
+        if binding.trial_uid in self._sealed:
+            return False
+        overlay = binding.trial_overlay
+        if overlay is None:
+            raise BridgeTicketError("V3 capture lacks trial overlay")
+        payload = {name: row.get(name, "") for name in self.fieldnames}
+        payload.update(
+            {
+                "autotune_trial_uid": binding.trial_uid,
+                "autotune_backend_id": binding.backend_id,
+                "autotune_control_candidate_uid": overlay["control_candidate_uid"],
+                "autotune_force_p_gain": overlay["force_p_gain"],
+                "autotune_force_i_gain": overlay["force_i_gain"],
+                "autotune_force_damping": overlay["force_damping"],
+                "autotune_orientation_ko": overlay["orientation_ko"],
+            }
+        )
+        self._enqueue(("row", binding.trial_uid, payload))
+        if snapshot.state is TpLoopState.WAIT_ACK:
+            self._enqueue(("seal", binding.trial_uid))
+            self._sealed.add(binding.trial_uid)
+        return True
+
+    def close(self) -> None:
+        if self._worker.exitcode is None:
+            self._enqueue(("close",))
+            self._worker.join(timeout=5.0)
+        self._check_worker()
+        if self._worker.is_alive():
+            raise BridgeTicketError("V3 capture worker did not close")
+
+
+def _apply_v3_arm_runtime(
+    bridge: Any,
+    args: Any,
+    binding: Any,
+    original_apply: Any,
+) -> None:
+    """Apply the real V3 control candidate once, at the ARM boundary."""
+
+    original_apply(args, binding)
+    overlay = binding.trial_overlay
+    if overlay is None:
+        raise BridgeTicketError("V3 ARM requires a bound trial overlay")
+    from step5d_autotune_contract import ForceCandidate
+    from step5d_autotune_v3.runtime_profile import (
+        DEFAULT_LAUNCH_PROFILE,
+        load_launch_profile,
+        normalize_trial_overlay,
+    )
+
+    normalized = normalize_trial_overlay(
+        overlay,
+        profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+    )
+    candidate = ForceCandidate(
+        force_p_gain=normalized["force_p_gain"],
+        force_i_gain=normalized["force_i_gain"],
+        force_damping=normalized["force_damping"],
+    )
+    args.step5d_autotune_force_p = candidate.force_p_gain
+    args.step5d_autotune_force_i = candidate.force_i_gain
+    args.step5d_autotune_force_damping = candidate.force_damping
+    args.step5d_autotune_force_terms = {
+        "P": candidate.force_p_gain,
+        "I": candidate.force_i_gain,
+        "damping": candidate.force_damping,
+        **candidate.native_mapping,
+    }
+    args.step5d_autotune_control_candidate_uid = normalized[
+        "control_candidate_uid"
+    ]
+    args.step5d_autotune_orientation_ko = normalized["orientation_ko"]
+    bridge.STEP5D_V33_ORIENTATION_KO = normalized["orientation_ko"]
 
 
 def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
@@ -69,7 +351,7 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
     for key, value in expected.items():
         if payload[key] != value:
             raise BridgeTicketError(f"V3 runtime ticket {key} differs")
-    if payload["scope"] not in TICKET_SCOPES:
+    if payload["scope"] != TICKET_SCOPE:
         raise BridgeTicketError("V3 runtime ticket scope differs")
     launch_id = payload["launch_id"]
     if (
@@ -97,10 +379,7 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         ):
             raise BridgeTicketError("V3 runtime ticket fingerprint differs")
     binding = payload["campaign_binding"]
-    if payload["scope"] == "hil_full_bridge_hold":
-        if binding is not None:
-            raise BridgeTicketError("HIL HOLD runtime ticket cannot bind a campaign")
-    elif (
+    if (
         not isinstance(binding, dict)
         or set(binding)
         != {
@@ -120,15 +399,14 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         or binding["candidate_plan_revision"] < 1
     ):
         raise BridgeTicketError("live runtime ticket campaign binding differs")
-    if binding is not None:
-        for key in ("candidate_plan_sha256", "trial_overlay_plan_sha256"):
-            value = binding[key]
-            if (
-                not isinstance(value, str)
-                or len(value) != 64
-                or any(character not in "0123456789abcdef" for character in value)
-            ):
-                raise BridgeTicketError("live runtime ticket plan fingerprint differs")
+    for key in ("candidate_plan_sha256", "trial_overlay_plan_sha256"):
+        value = binding[key]
+        if (
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            raise BridgeTicketError("live runtime ticket plan fingerprint differs")
     return payload
 
 
@@ -145,8 +423,32 @@ def install_v3_seams() -> Any:
             super().__init__(original_mailbox(path, network_mode=network_mode))
 
     live.AtomicCommandMailbox = V3AtomicCommandMailbox
+    live.BridgeTrialCsvRotator = V3AsyncBridgeTrialCsvRotator
 
     import kunwei_rtde_bridge as bridge
+
+    original_dict_writer = bridge.csv.DictWriter
+
+    def v3_dict_writer(handle: Any, fieldnames: Sequence[str], *args: Any, **kwargs: Any) -> Any:
+        fields = tuple(fieldnames)
+        if "_step5d_stage25_echo_consumed" in fields:
+            fields = compact_v3_fieldnames(fields)
+            kwargs["extrasaction"] = "ignore"
+        return original_dict_writer(handle, fieldnames=fields, *args, **kwargs)
+
+    bridge.csv.DictWriter = v3_dict_writer
+
+    original_apply_arm_runtime = live.BridgeMailboxRuntime._apply_arm_runtime
+
+    def v3_apply_arm_runtime(args: Any, binding: Any) -> None:
+        _apply_v3_arm_runtime(
+            bridge,
+            args,
+            binding,
+            original_apply_arm_runtime,
+        )
+
+    live.BridgeMailboxRuntime._apply_arm_runtime = staticmethod(v3_apply_arm_runtime)
 
     original_matcher = bridge.step5d_dashboard_program_identity_matches
 

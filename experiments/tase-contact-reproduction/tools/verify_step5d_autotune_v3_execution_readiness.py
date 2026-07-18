@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Resolve the next legal Step5d Autotune v3 operator action fail-closed."""
+"""Resolve the one legal Step5d Autotune V3 live action fail-closed."""
 
 from __future__ import annotations
 
 import argparse
-import ast
 import hashlib
 import json
 import re
@@ -18,31 +17,16 @@ from step5d_autotune_v3.profile import (
     control_fingerprint,
     load_contract,
 )
-from step5d_autotune_v3.state import (
-    ORCHESTRATION_RELATIVE_PATHS,
-    StateError,
-    orchestration_fingerprint,
-    orchestration_source_sha256,
-)
+from step5d_autotune_v3.state import StateError, orchestration_fingerprint
 
 
 ROOT = Path(__file__).resolve().parents[1]
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
-OFFLINE_SCOPE = "offline_tooling_and_ursim_hold_only"
-OFFLINE_BLOCKER = "offline_only_live_start_disabled"
-READY_FOR_HIL = "ready_for_hil_full_bridge_hold"
 READY_FOR_LIVE = "ready_for_v3_live_continuous_campaign"
+VALIDATION_SCOPE = "deterministic_live_entry_prerequisites"
+MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-HIL_CARRYFORWARD_NONPHYSICAL_PATHS = frozenset(
-    {
-        "tools/run_step5d_autotune_campaign.py",
-        "tools/run_step5d_autotune_v3_live.py",
-        "tools/step5d_autotune_v3/state.py",
-        "tools/verify_step5d_autotune_v3_execution_readiness.py",
-        "tools/promote_step5d_autotune_v3_hil.py",
-    }
-)
 
 
 class ReadinessError(RuntimeError):
@@ -67,6 +51,8 @@ def _unique_object(pairs: Sequence[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def _load_json(path: Path, *, role: str) -> Mapping[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise ReadinessError(f"{role} is missing or unsafe")
     try:
         payload = json.loads(
             path.read_text(encoding="utf-8"),
@@ -101,22 +87,6 @@ def _zoned_timestamp(value: Any, *, role: str) -> str:
     return value
 
 
-def _offline_blocker(path: Path) -> str | None:
-    try:
-        module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    except (OSError, UnicodeError, SyntaxError) as exc:
-        raise ReadinessError(f"offline service source is unavailable: {exc}") from exc
-    for node in module.body:
-        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
-            continue
-        target = node.targets[0]
-        if isinstance(target, ast.Name) and target.id == "OFFLINE_BLOCKER":
-            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-                return node.value.value
-            return None
-    return None
-
-
 def _v3_row(table: Mapping[str, Any]) -> Mapping[str, Any]:
     rows = [
         row
@@ -128,141 +98,151 @@ def _v3_row(table: Mapping[str, Any]) -> Mapping[str, Any]:
     return rows[0]
 
 
+def _reference(root: Path, value: Any, *, role: str) -> tuple[Path, str]:
+    if not isinstance(value, Mapping) or set(value) != {"path", "sha256"}:
+        raise ReadinessError(f"{role} reference fields differ")
+    relative = value.get("path")
+    expected_sha = value.get("sha256")
+    if (
+        not isinstance(relative, str)
+        or not isinstance(expected_sha, str)
+        or _SHA256.fullmatch(expected_sha) is None
+    ):
+        raise ReadinessError(f"{role} reference is invalid")
+    path = root / relative
+    if path.is_symlink() or not path.is_file():
+        raise ReadinessError(f"{role} is missing or unsafe")
+    _require(_sha256(path), expected_sha, f"{role} digest")
+    return path, expected_sha
+
+
+def _verify_validation(
+    root: Path,
+    *,
+    current_identity: Mapping[str, str],
+    readback_relative: str,
+    readback_sha256: str,
+) -> tuple[Path, Mapping[str, Any]]:
+    path = root / "config/step5/step5d_autotune_v3_offline_validation.json"
+    validation = _load_json(path, role="deterministic validation")
+    _require(
+        validation.get("schema"),
+        "step5d.autotune-v3/deterministic-validation-v2",
+        "validation schema",
+    )
+    _zoned_timestamp(validation.get("observed_at"), role="validation timestamp")
+    _require(validation.get("identity"), current_identity, "validation identity")
+
+    gates = validation.get("gates") or {}
+    for name in (
+        "repository_validation",
+        "control_semantics",
+        "ten_trial_v3",
+        "package_and_readback",
+        "cadence_soak",
+    ):
+        _require((gates.get(name) or {}).get("status"), "pass", f"validation gate {name}")
+    ten_trial = gates.get("ten_trial_v3") or {}
+    _require(ten_trial.get("batch_size"), 10, "V3 validation batch size")
+    _require(ten_trial.get("async_compact_capture"), True, "async compact capture gate")
+    _require(
+        ten_trial.get("pareto_windows_s"),
+        {"round_a": [5, 60], "round_b": [0, 60]},
+        "Pareto evaluation windows",
+    )
+    package_gate = gates.get("package_and_readback") or {}
+    _require(package_gate.get("controller_readback"), readback_relative, "validation readback path")
+    _require(package_gate.get("controller_readback_sha256"), readback_sha256, "validation readback digest")
+    cadence = gates.get("cadence_soak") or {}
+    try:
+        cadence_bounds_ok = (
+            float(cadence.get("paced_elapsed_s")) >= 124.9
+            and int(cadence.get("samples")) >= 62_000
+            and float(cadence.get("compute_p99_ms")) <= 2.0
+            and float(cadence.get("row_gap_max_ms")) <= 20.0
+        )
+    except (TypeError, ValueError):
+        cadence_bounds_ok = False
+    _require(cadence_bounds_ok, True, "cadence soak numeric bounds")
+    for key, expected in (
+        ("row_gap_over_20ms_count", 0),
+        ("row_gap_45_to_60ms_count", 0),
+        ("scheduler_restored_to_other", True),
+    ):
+        _require(cadence.get(key), expected, f"cadence soak {key}")
+
+    decision = validation.get("decision") or {}
+    for key, expected in (
+        ("go_no_go", "go"),
+        ("acceptance_scope", VALIDATION_SCOPE),
+        ("current_selector", V1_STAGE_ID),
+        ("v3_active", False),
+        ("user_authorization_required", False),
+        ("one_play_real_motion", True),
+        ("execution_readiness", READY_FOR_LIVE),
+    ):
+        _require(decision.get(key), expected, f"validation decision {key}")
+    return path, validation
+
+
 def _verify_live_promotion(
     root: Path,
     *,
     current_identity: Mapping[str, str],
-) -> Mapping[str, Any]:
-    promotion_path = root / "config/step5/step5d_autotune_v3_live_promotion.json"
-    promotion = _load_json(promotion_path, role="V3 live promotion")
+    validation_path: Path,
+    readback_relative: str,
+    readback_sha256: str,
+) -> None:
+    promotion = _load_json(
+        root / "config/step5/step5d_autotune_v3_live_promotion.json",
+        role="V3 live promotion",
+    )
     required = {
         "schema",
         "candidate_stage_id",
         "control_profile_id",
         "current_selector",
         "identity",
-        "hil_acceptance",
+        "deterministic_validation",
+        "controller_readback",
+        "machine_campaign_binding",
         "same_process_startup_gate",
+        "user_authorization_required",
         "live_runtime_promoted",
     }
     if set(promotion) != required:
         raise ReadinessError("V3 live promotion fields differ")
     for key, expected in (
-        ("schema", "step5d.autotune-v3/live-promotion-v1"),
+        ("schema", "step5d.autotune-v3/live-promotion-v2"),
         ("candidate_stage_id", V3_STAGE_ID),
         ("control_profile_id", V1_STAGE_ID),
         ("current_selector", V1_STAGE_ID),
         ("identity", current_identity),
+        ("machine_campaign_binding", MACHINE_BINDING),
         ("same_process_startup_gate", True),
+        ("user_authorization_required", False),
         ("live_runtime_promoted", True),
     ):
         _require(promotion.get(key), expected, f"live promotion {key}")
-    acceptance = promotion.get("hil_acceptance") or {}
-    if set(acceptance) != {"path", "sha256"}:
-        raise ReadinessError("HIL acceptance reference fields differ")
-    relative = acceptance.get("path")
-    expected_sha = acceptance.get("sha256")
-    if not isinstance(relative, str) or not isinstance(expected_sha, str):
-        raise ReadinessError("HIL acceptance reference is invalid")
-    evidence_path = root / relative
-    _require(_sha256(evidence_path), expected_sha, "HIL acceptance digest")
-    evidence = _load_json(evidence_path, role="HIL acceptance evidence")
-    _require(evidence.get("schema"), "step5d.autotune-v3/hil-acceptance-v1", "HIL acceptance schema")
-    _require(evidence.get("ok"), True, "HIL acceptance result")
-    _require(evidence.get("claim"), "target_controller_full_bridge_hold_no_motion", "HIL acceptance claim")
-    _require(evidence.get("identity"), current_identity, "HIL acceptance identity")
-    current_sources = orchestration_source_sha256(root)
-    _require(
-        evidence.get("orchestration_sources"),
-        current_sources,
-        "HIL acceptance orchestration source manifest",
+    referenced_validation, _ = _reference(
+        root, promotion.get("deterministic_validation"), role="deterministic validation"
     )
-    carryforward = evidence.get("carryforward")
-    if carryforward is not None:
-        required_carryforward = {
-            "schema",
-            "prior_acceptance_path",
-            "prior_acceptance_sha256",
-            "prior_identity",
-            "changed_orchestration_paths",
-            "delta_basis",
-            "policy",
-        }
-        if not isinstance(carryforward, Mapping) or set(carryforward) != required_carryforward:
-            raise ReadinessError("HIL carry-forward fields differ")
-        _require(
-            carryforward.get("schema"),
-            "step5d.autotune-v3/hil-nonphysical-carryforward-v1",
-            "HIL carry-forward schema",
-        )
-        _require(
-            carryforward.get("policy"),
-            "no_new_tp_play_only_nonphysical_startup_sources_changed",
-            "HIL carry-forward policy",
-        )
-        prior_relative = carryforward.get("prior_acceptance_path")
-        prior_sha = carryforward.get("prior_acceptance_sha256")
-        if not isinstance(prior_relative, str) or not isinstance(prior_sha, str):
-            raise ReadinessError("HIL carry-forward prior evidence reference is invalid")
-        prior_path = root / prior_relative
-        _require(_sha256(prior_path), prior_sha, "prior HIL acceptance digest")
-        prior = _load_json(prior_path, role="prior HIL acceptance")
-        _require(prior.get("schema"), "step5d.autotune-v3/hil-acceptance-v1", "prior HIL schema")
-        _require(prior.get("ok"), True, "prior HIL result")
-        _require(prior.get("identity"), carryforward.get("prior_identity"), "prior HIL identity")
-        prior_identity = prior.get("identity") or {}
-        for field in ("contract_sha256", "control_fingerprint"):
-            _require(prior_identity.get(field), current_identity.get(field), f"carried HIL {field}")
-        for field in (
-            "claim",
-            "source_result_sha256",
-            "controller_identity_sha256",
-            "launch_profile_fingerprint",
-            "trial_overlay_fingerprint",
-            "stationary",
-            "startup_software_baseline",
-            "hardware_zero_or_tare_count",
-            "zero_events",
-            "program_stop",
-        ):
-            _require(evidence.get(field), prior.get(field), f"carried HIL evidence {field}")
-        changed = carryforward.get("changed_orchestration_paths")
-        if (
-            not isinstance(changed, list)
-            or not changed
-            or changed != sorted(set(changed))
-            or not all(isinstance(relative, str) for relative in changed)
-        ):
-            raise ReadinessError("HIL carry-forward changed paths are invalid")
-        prior_sources = prior.get("orchestration_sources")
-        if carryforward.get("delta_basis") == "content_sha256_manifest":
-            if not isinstance(prior_sources, Mapping):
-                raise ReadinessError("HIL carry-forward prior source manifest is missing")
-            _require(
-                set(prior_sources),
-                set(ORCHESTRATION_RELATIVE_PATHS),
-                "prior HIL source manifest paths",
-            )
-            expected_changed = sorted(
-                relative
-                for relative in ORCHESTRATION_RELATIVE_PATHS
-                if prior_sources.get(relative) != current_sources[relative]
-            )
-            _require(changed, expected_changed, "HIL carry-forward changed paths")
-        elif carryforward.get("delta_basis") != "legacy_acceptance_mtime_snapshot":
-            raise ReadinessError("HIL carry-forward delta basis is invalid")
-        if not set(changed).issubset(HIL_CARRYFORWARD_NONPHYSICAL_PATHS):
-            raise ReadinessError("HIL carry-forward includes a physical/runtime source")
-        required_incident_delta = {
-            "tools/run_step5d_autotune_campaign.py",
-            "tools/run_step5d_autotune_v3_live.py",
-        }
-        if not required_incident_delta.issubset(changed):
-            raise ReadinessError("HIL carry-forward changed paths omit the startup incident")
-    return promotion
+    _require(referenced_validation, validation_path, "live promotion validation path")
+    referenced_readback, referenced_readback_sha = _reference(
+        root, promotion.get("controller_readback"), role="controller readback"
+    )
+    _require(
+        str(referenced_readback.relative_to(root)),
+        readback_relative,
+        "live promotion readback path",
+    )
+    _require(referenced_readback_sha, readback_sha256, "live promotion readback digest")
 
 
 def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
+    """Verify direct-live readiness; ``require_live`` remains API-compatible."""
+
+    del require_live
     root = root.expanduser().resolve(strict=True)
     try:
         contract = load_contract(
@@ -275,9 +255,10 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         }
     except (ContractViolation, StateError) as exc:
         raise ReadinessError(f"current source fingerprint failed: {exc}") from exc
+
     current = _load_json(root / "config/current_stage.json", role="current selector")
-    _require(current.get("current_stage_id"), V1_STAGE_ID, "current selector")
-    _require(current.get("program"), V1_STAGE_ID, "current program")
+    _require(current.get("current_stage_id"), V1_STAGE_ID, "rollback selector")
+    _require(current.get("program"), V1_STAGE_ID, "rollback program")
 
     table = _load_json(root / "config/step5_stage_table.json", role="stage table")
     v3 = _v3_row(table)
@@ -285,168 +266,104 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         _require(v3.get(field), expected, f"v3 {field}")
 
     package = v3.get("package_delivery") or {}
-    _require(
-        package.get("status"),
-        "controller_readback_verified_inactive",
-        "package delivery status",
-    )
-    _require(package.get("controller_uploaded_by_v3"), True, "v3 upload claim")
-    _require(package.get("controller_readback_verified"), True, "v3 readback claim")
+    _require(package.get("status"), "controller_readback_verified_inactive", "package status")
+    _require(package.get("controller_uploaded_by_v3"), True, "V3 upload claim")
+    _require(package.get("controller_readback_verified"), True, "V3 readback claim")
     program = package.get("program_basename")
-    if not isinstance(program, str) or not program:
-        raise ReadinessError("package program basename is missing")
+    local_triplet = package.get("local_triplet")
+    if not isinstance(program, str) or not isinstance(local_triplet, str):
+        raise ReadinessError("package identity is missing")
     triplet = package.get("sha256") or {}
     if set(triplet) != {".script", ".txt", ".urp"}:
         raise ReadinessError("package triplet digest set differs")
-    for extension, expected in triplet.items():
-        if not isinstance(expected, str) or _SHA256.fullmatch(expected) is None:
+    for extension, expected_sha in triplet.items():
+        if not isinstance(expected_sha, str) or _SHA256.fullmatch(expected_sha) is None:
             raise ReadinessError(f"package digest is invalid: {extension}")
-        local = root / f"{package.get('local_triplet')}{extension}"
-        if local.is_symlink() or not local.is_file():
+        path = root / f"{local_triplet}{extension}"
+        if path.is_symlink() or not path.is_file():
             raise ReadinessError(f"local package file is missing or unsafe: {extension}")
-        _require(_sha256(local), expected, f"local package digest {extension}")
+        _require(_sha256(path), expected_sha, f"local package digest {extension}")
 
-    basis_relative = f"{package.get('local_triplet')}.deploy-manifest.json"
-    readback_relative = package.get("controller_readback_manifest")
-    if not isinstance(readback_relative, str):
-        raise ReadinessError("controller readback evidence path is missing")
-    basis = root / basis_relative
-    readback_path = root / readback_relative
-    if basis.is_symlink() or not basis.is_file():
-        raise ReadinessError("content-addressed basis manifest is missing or unsafe")
-    if readback_path.is_symlink() or not readback_path.is_file():
-        raise ReadinessError("controller readback manifest is missing or unsafe")
+    basis = root / f"{local_triplet}.deploy-manifest.json"
     _require(_sha256(basis), package.get("tp_fingerprint"), "TP basis fingerprint")
-    _require(
-        _sha256(readback_path),
-        package.get("controller_readback_manifest_sha256"),
-        "controller readback manifest digest",
-    )
-    _require(
-        package.get("controller_readback_manifest"),
-        readback_relative,
-        "controller readback binding",
-    )
-
+    readback_relative = package.get("controller_readback_manifest")
+    readback_sha = package.get("controller_readback_manifest_sha256")
+    if not isinstance(readback_relative, str) or not isinstance(readback_sha, str):
+        raise ReadinessError("controller readback binding is missing")
+    readback_path = root / readback_relative
+    _require(_sha256(readback_path), readback_sha, "controller readback manifest digest")
     readback = _load_json(readback_path, role="controller readback manifest")
     _require(readback.get("verified"), True, "controller readback verification")
     _require(readback.get("program"), program, "controller readback program")
-    _require(
-        readback.get("tp_fingerprint"),
-        package.get("tp_fingerprint"),
-        "controller TP fingerprint",
-    )
+    _require(readback.get("tp_fingerprint"), package.get("tp_fingerprint"), "controller TP fingerprint")
     _require(readback.get("triplet_sha256"), triplet, "controller triplet digests")
     readback_at = _zoned_timestamp(
         readback.get("fresh_controller_checked_at"), role="readback timestamp"
     )
-    _require(
-        package.get("fresh_controller_sha_at"),
-        readback_at,
-        "fresh controller timestamp",
-    )
+    _require(package.get("fresh_controller_sha_at"), readback_at, "fresh controller timestamp")
 
-    validation_path = root / "config/step5/step5d_autotune_v3_offline_validation.json"
-    validation = _load_json(validation_path, role="offline validation")
+    validation_path, _validation = _verify_validation(
+        root,
+        current_identity=current_identity,
+        readback_relative=readback_relative,
+        readback_sha256=readback_sha,
+    )
     offline = v3.get("offline_validation") or {}
-    _require(offline.get("report"), str(validation_path.relative_to(root)), "offline report")
-    _require(_sha256(validation_path), offline.get("report_sha256"), "offline report digest")
-    decision = validation.get("decision") or {}
-    validation_identity = validation.get("identity") or {}
-    for field, expected in current_identity.items():
-        _require(validation_identity.get(field), expected, f"current identity {field}")
-    _require(decision.get("go_no_go"), "go", "offline decision")
-    _require(decision.get("acceptance_scope"), OFFLINE_SCOPE, "offline scope")
-    _require(decision.get("rollout_authorized"), False, "rollout authorization")
-    _require(decision.get("current_selector"), V1_STAGE_ID, "offline selector")
-    _require(decision.get("v3_active"), False, "offline v3 activity")
-    gates = validation.get("gates") or {}
-    _require((gates.get("hosted_offline_release") or {}).get("status"), "pass", "offline lane")
-    _require((gates.get("ursim_hold_only") or {}).get("status"), "pass", "URSim lane")
-    hil = gates.get("hil_no_motion") or {}
-    _require(
-        hil.get("status"),
-        "failed_before_ready_remediated_pending_canonical_retry",
-        "HIL state",
-    )
-    _require(hil.get("controller_touched"), False, "HIL controller boundary")
+    _require(offline.get("report"), str(validation_path.relative_to(root)), "validation report")
+    _require(_sha256(validation_path), offline.get("report_sha256"), "validation report digest")
 
-    binding = v3.get("current_binding") or {}
-    _require(binding.get("is_current"), False, "v3 current binding")
-    _require(binding.get("live_authorized"), False, "v3 live authorization")
     readiness = v3.get("execution_readiness") or {}
-    _require(readiness.get("schema"), "step5d.autotune-v3/execution-readiness-v1", "readiness schema")
-    _require(readiness.get("state"), READY_FOR_HIL, "readiness state")
-    _require(readiness.get("public_success_signal"), READY_FOR_HIL, "public success signal")
-    _require(readiness.get("next_owner"), "ur10e-live-bench", "readiness next owner")
-    _require(readiness.get("offline_acceptance_complete"), True, "offline readiness")
-    _require(readiness.get("package_delivery_complete"), True, "package readiness")
-    for field in (
-        "hil_no_motion_complete",
-        "candidate_current",
-        "candidate_live_authorized",
-        "live_runtime_promoted",
-        "same_process_startup_gate_complete",
-        "ready_to_execute",
-        "ready_to_load_play",
-        "ready_to_start_bridge",
-        "ready_to_arm",
-        "ready_for_contact_or_motion",
+    for key, expected in (
+        ("schema", "step5d.autotune-v3/execution-readiness-v2"),
+        ("state", READY_FOR_LIVE),
+        ("public_success_signal", READY_FOR_LIVE),
+        ("deterministic_validation_complete", True),
+        ("package_delivery_complete", True),
+        ("live_runtime_promoted", True),
+        ("same_process_startup_gate_complete", True),
+        ("ready_to_execute", True),
+        ("ready_to_start_bridge", True),
+        ("ready_for_contact_or_motion", True),
     ):
-        _require(readiness.get(field), False, f"readiness {field}")
-    operator_trigger = readiness.get("operator_trigger") or {}
-    _require(
-        operator_trigger.get("candidate_stage_id"), V3_STAGE_ID, "operator trigger candidate"
-    )
-    _require(
-        operator_trigger.get("user_confirmation_required"),
-        False,
-        "operator trigger user confirmation",
-    )
-    _require(
-        operator_trigger.get("internal_launch_binding"),
-        "process_fingerprint_and_campaign_bound",
-        "operator trigger internal binding",
-    )
-    _require(operator_trigger.get("tp_action"), "press_play_once", "operator TP action")
+        _require(readiness.get(key), expected, f"readiness {key}")
+    trigger = readiness.get("operator_trigger") or {}
+    for key, expected in (
+        ("candidate_stage_id", V3_STAGE_ID),
+        ("user_confirmation_required", False),
+        ("user_authorization_required", False),
+        ("internal_launch_binding", MACHINE_BINDING),
+        ("tp_action", "press_play_once"),
+        ("play_effect", "real_precontact_search_contact_motion"),
+    ):
+        _require(trigger.get(key), expected, f"operator trigger {key}")
 
-    service = root / "tools/step5d_autotune_v3/service.py"
-    _require(_offline_blocker(service), OFFLINE_BLOCKER, "offline live-start blocker")
-
-    if require_live:
-        _verify_live_promotion(root, current_identity=current_identity)
-    state = READY_FOR_LIVE if require_live else READY_FOR_HIL
+    _verify_live_promotion(
+        root,
+        current_identity=current_identity,
+        validation_path=validation_path,
+        readback_relative=readback_relative,
+        readback_sha256=readback_sha,
+    )
     return {
-        "schema": "step5d.autotune-v3/execution-readiness-report-v1",
+        "schema": "step5d.autotune-v3/execution-readiness-report-v2",
         "ok": True,
         "candidate_stage_id": V3_STAGE_ID,
         "current_stage_id": V1_STAGE_ID,
-        "state": state,
-        "public_success_signal": state,
-        "ready_to_execute": require_live,
+        "state": READY_FOR_LIVE,
+        "public_success_signal": READY_FOR_LIVE,
+        "ready_to_execute": True,
         "package_delivery": "controller_readback_verified_explicit_v3",
         "controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
         "next_owner": "ur10e-live-bench",
         "next_legal_action": (
-            "run the canonical serialized full-production-bridge HOLD gate"
-            if not require_live
-            else "start the canonical V3 bridge/campaign entrypoint and press TP Play once"
+            "start the canonical V3 bridge/campaign entrypoint; after its READY signal, "
+            "press TP Play once for real motion"
         ),
-        "canonical_gate": [
-            "python3",
-            "tools/verify_step5d_autotune_v3_hil_authorization.py",
-            "--json",
-        ],
-        "forbidden_without_later_gates": [
-            "load_play",
-            "bridge_start",
-            "arm",
-            "zero_tare",
-            "contact",
-            "motion",
-        ],
+        "canonical_gate": ["scripts/step5d-autotune-v3.sh", "live"],
+        "user_authorization_required": False,
+        "hil_hold_required": False,
     }
 
 

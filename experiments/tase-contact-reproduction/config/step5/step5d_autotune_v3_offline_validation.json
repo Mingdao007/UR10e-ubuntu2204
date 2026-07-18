@@ -1,107 +1,78 @@
 {
-  "schema": "step5d.autotune-v3/offline-validation-v1",
-  "observed_at": "2026-07-19T03:43:15+08:00",
-  "frozen_baseline": {
-    "tag": "archive/step5d-autotune-v1-20260715",
-    "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
-  },
+  "schema": "step5d.autotune-v3/deterministic-validation-v2",
+  "observed_at": "2026-07-19T05:13:00+08:00",
   "identity": {
-    "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
-    "orchestration_fingerprint": "41ee9320d492d4ab195bd462d446651d0649b569d074c50dd8bd206c2397afc1",
-    "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
-    "effective_field_count": 126,
-    "tp_fingerprint": "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc",
-    "attempt_ledger_sha256": "19cf2241ea070e3dc8eccfbe118660104f4c3f8e40ea25cb6f0efecabc7acf99"
+    "contract_sha256": "1dc4be0e2953d379b392d815945666a7367f6ca972870df0d3be3ab9145db902",
+    "control_fingerprint": "0fd2b0069c6d0e594c4ee6d7c45847ef0504ad146ce20370c98a1c6dec14db58",
+    "orchestration_fingerprint": "d0f0d8166ca0c1586d5973e76b0db9996d352d977c08aaec273ecd67fc8a0b37"
   },
   "gates": {
-    "hosted_offline_release": {
+    "repository_validation": {
       "status": "pass",
-      "tests_passed": 381,
-      "subtests_passed": 5,
-      "elapsed_s": 6.339061781996861,
-      "small_tests_passed": 276,
-      "medium_tests_passed": 102,
-      "installed_runtime_tests_passed": 3,
-      "dependency_mode": "installed_runtime_dependencies",
-      "parallel_manifest": "runs/step5d_autotune_v3_implementation/ci-fix-closure-20260719T0346HKT/parallel_run_manifest.json",
-      "parallel_manifest_sha256": "669793dc66b0156514e2b290d83bef1d3f6b57a68dd1de0ab0b46aa7275e5784",
-      "network_allowed": false,
-      "hardware_allowed": false
+      "release_matrix_tests_passed": 353,
+      "release_matrix_subtests_passed": 7,
+      "full_autotune_regression_tests_passed": 515,
+      "full_autotune_regression_subtests_passed": 46,
+      "parallel_manifest": "/home/andy/.codex/runs/step5d-v3-prealign-pareto-20260719/full-matrix-final/parallel_run_manifest.json",
+      "parallel_manifest_sha256": "16b32a205ac6a8e6003639f49b050be2e387457771eb78a4f0bfdde3759cdfd4",
+      "commands": [
+        "python3 tools/run_step5d_autotune_v3_test_matrix.py --lanes small medium --workers auto --include-installed-runtime",
+        "pytest all step5d_autotune tests plus plot publisher with xdist=4",
+        "python3 tools/validate_step5d_autotune_v3_refactor.py --repository-only"
+      ]
     },
-    "crash_recovery_and_ack_boundary": {
+    "control_semantics": {
       "status": "pass",
-      "tests_passed": 81,
-      "subtests_passed": 5,
-      "physical_attempt_deduplication": true,
-      "persisted_ack_exact_echo_only": true,
-      "safety_evaluation_failure_sends_ack": false
-    },
-    "fake_bridge_five_candidate": {
-      "status": "pass",
-      "candidate_count": 5,
-      "distinct_trial_uid_count": 5,
-      "simulated_play_count": 1,
-      "candidate_restart_count": 0,
-      "operator_prompt_count": 0,
-      "arm_command_sequences": [1, 3, 5, 7, 9],
-      "ack_command_sequences": [2, 4, 6, 8, 10],
-      "ready_home_to_next_arm_p95_s": 0.062158902,
-      "process_identity_stable": true,
-      "test_only_synthetic_evaluation": true
-    },
-    "g10_production_seam": {
-      "status": "pass",
-      "result": "config/step5/golden_replay_g10_v3_result.json",
-      "result_sha256": "faab489644a52f554d01c30e4d51916173aa0b0701332438d7358e04bfca7567",
-      "replayed_rows": 30053,
-      "structural_failure_rows": 0,
-      "rnn_oracle_qdot_delta_max_rad_s": 4.603357231799312e-07,
-      "qdot_max_abs_rad_s": 0.04506710544228554,
-      "slew_violation_max_rad_s": 8.673617379884035e-19
-    },
-    "ursim_hold_only": {
-      "status": "pass",
-      "result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-      "result_sha256": "7c832d84a586bc6d8030157fc02ee2edee91f0f44732de46037868bb40b8fd2b",
-      "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
-      "raw_evidence_sha256": "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c",
-      "image_digest": "sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",
-      "simulator_polyscope_version": "5.25.2",
-      "target_polyscope_version_equivalence_claimed": false,
-      "lifecycle_prefix_observed": [
-        "STOPPED",
-        "STARTING",
-        "READY_HOME"
+      "commands": [
+        "python3 tools/audit_local_control_textbook_alignment.py --json",
+        "python3 tools/ur_contact_semantic_gate.py --csv <two immutable prior captures>"
       ],
-      "hold_sample_count": 3,
-      "play_count": 0,
-      "arm_count": 0,
-      "motion_count": 0,
-      "controller_write_count": 0,
-      "watchdog_passed": true,
-      "v1_rollback_drill_passed": true,
-      "container_and_network_removed": true,
-      "explicit_v3_tp_identity": true
+      "replay_rows": 124,
+      "strict_rnn_eq23_sign_gate": "pass"
     },
-    "hil_no_motion": {
-      "status": "failed_before_ready_remediated_pending_canonical_retry",
-      "target_polyscope_version": "URSoftware 5.26.0.140462",
-      "controller_touched": false,
-      "motion_observed": false,
-      "failure_evidence": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/hil_hold_failure_20260719.json",
-      "failure_evidence_sha256": "be4114d320938575aabdb61aa59be3c14adcd2d7ab411b5f48217020d7d10b2f",
-      "regression_gate": "real production startup prewarm before writer start"
+    "ten_trial_v3": {
+      "status": "pass",
+      "batch_size": 10,
+      "candidate_fields": [
+        "force_p_gain",
+        "force_i_gain",
+        "force_damping",
+        "orientation_ko"
+      ],
+      "async_compact_capture": true,
+      "pareto_windows_s": {
+        "round_a": [5, 60],
+        "round_b": [0, 60]
+      },
+      "old_five_pose_trials_optimizer_eligible": false
+    },
+    "package_and_readback": {
+      "status": "pass",
+      "tp_fingerprint": "41d94af398d92059a97a2a9c60d8604dbf521113f0cff92e613a7b0960c387d4",
+      "controller_readback": "config/step5d_autotune_controller_readback_v3.json",
+      "controller_readback_sha256": "fafce3c5f4f619f2a470106ad848c40a7a9198512c9c0642736edff53f1c049c",
+      "precontact_pose_prior": "evidence/step5d_autotune_v3/start_pose_prior_20260719.json"
+    },
+    "cadence_soak": {
+      "status": "pass",
+      "evidence": "/home/andy/.codex/runs/step5d-v3-prealign-pareto-20260719/cadence-soak-v35-125s.json",
+      "evidence_sha256": "2757764498af3b35f8b03f7b0e8eb7402fb6d4e1bc6b0ea1e88e955ce556418c",
+      "paced_elapsed_s": 124.9495858970331,
+      "samples": 62383,
+      "compute_p99_ms": 1.4517499948851764,
+      "row_gap_max_ms": 4.041761974804103,
+      "row_gap_over_20ms_count": 0,
+      "row_gap_45_to_60ms_count": 0,
+      "scheduler_restored_to_other": true
     }
   },
   "decision": {
     "go_no_go": "go",
-    "acceptance_scope": "offline_tooling_and_ursim_hold_only",
-    "rollout_authorized": false,
+    "acceptance_scope": "deterministic_live_entry_prerequisites",
     "current_selector": "step5d_strict_rnn_autotune_v1",
     "v3_active": false,
-    "reason": "offline/tooling, explicit V3 TP fresh read-back, and final-fingerprint PolyScope 5.25.2 URSim compatibility HOLD passed; exact PolyScope 5.26 acceptance remains owned by the target HIL gate, whose first attempt failed before READY with no TP Play or motion and is pending canonical retry",
-    "package_delivery": "controller_readback_verified_explicit_v3",
-    "execution_readiness": "ready_for_hil_full_bridge_hold",
-    "next_gate": "run the canonical serialized production-bridge HOLD gate; it may use Play and zero-identity HOLD writes, while ARM, zero/tare, contact, and motion remain forbidden"
+    "user_authorization_required": false,
+    "one_play_real_motion": true,
+    "execution_readiness": "ready_for_v3_live_continuous_campaign"
   }
 }

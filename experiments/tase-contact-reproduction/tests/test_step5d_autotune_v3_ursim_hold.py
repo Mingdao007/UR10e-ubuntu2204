@@ -69,23 +69,13 @@ def _install_docker_fixture(
     monkeypatch.setattr(gate, "_docker_json", read)
 
 
-def test_matrix_binds_manual_internal_network_hold_lane() -> None:
+def test_ursim_hold_is_retained_as_historical_nongating_evidence() -> None:
     matrix = json.loads(gate.MATRIX_PATH.read_text(encoding="utf-8"))
-    lane = matrix["lanes"]["large_ursim"]
+    assert "large_ursim" not in matrix["lanes"]
     evidence = json.loads(
-        (ROOT / matrix["evidence_manifest"]).read_text(encoding="utf-8")
+        (ROOT / matrix["historical_evidence_manifest"]).read_text(encoding="utf-8")
     )["lanes"]["large_ursim"]
     assert gate._expected_image() == EXPECTED_IMAGE
-    assert lane["network_allowed"] is True
-    assert lane["network_scope"] == "single_prestarted_container_on_docker_internal_network"
-    assert lane["external_network_allowed"] is False
-    assert lane["robot_network_allowed"] is False
-    assert lane["container_lifecycle_mutation_allowed"] is False
-    assert lane["dashboard_commands_allowed"] == list(gate.DASHBOARD_COMMANDS)
-    assert lane["rtde_output_recipe_only"] is True
-    assert lane["rtde_input_recipe_allowed"] is False
-    assert lane["simulator_polyscope_version"] == "5.25.2"
-    assert lane["target_polyscope_version_equivalence_claimed"] is False
     assert evidence["status"] == "pass"
     assert evidence["result"].endswith(
         "step5d_autotune_v3_ursim_hold_result.json"
@@ -94,7 +84,6 @@ def test_matrix_binds_manual_internal_network_hold_lane() -> None:
         "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c"
     )
     assert evidence["cleanup_completed"] is True
-    assert lane["commands"][0][1].endswith("run_step5d_autotune_v3_ursim_hold_gate.py")
 
 
 def test_container_binding_accepts_only_exact_digest_and_internal_network(

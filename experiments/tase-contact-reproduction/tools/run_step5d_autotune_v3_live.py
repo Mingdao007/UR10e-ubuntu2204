@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Own one continuous V3 bridge + campaign launch after HIL promotion."""
+"""Own one continuous V3 bridge + real-motion campaign after deterministic release gates."""
 
 from __future__ import annotations
 
@@ -15,13 +15,12 @@ import time
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 from prepare_step5d_autotune_launch import prepare
 from preflight_readonly import dashboard_exchange
 from run_step5d_autotune_campaign import validate_legacy_campaign_adoption
-from run_step5d_autotune_v3_hil_hold import _stop_v3_program, _validate_preflight
 from step5d_autotune_batch_plan import load_plan
 from step5d_autotune_contract import ForceCandidate
 from step5d_autotune_v3 import cli as v3_cli
@@ -43,15 +42,33 @@ ROOT = Path(__file__).resolve().parents[1]
 WRAPPER = ROOT / "tools/run_step5d_autotune_v3_bridge.py"
 RUNNER = ROOT / "tools/run_step5d_autotune_campaign.py"
 RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
-INITIAL_BATCH_SOURCE = "v3-initial-target-log2-batch-20260719"
+LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
+INITIAL_BATCH_SOURCE = "v3-pareto-round-a-10-trial-batch-20260719"
 DEFAULT_LEGACY_CAMPAIGN_ROOT = ROOT / "runs/step5d_native_autotune_recovered_runtime_v2"
 DEFAULT_LEGACY_CAMPAIGN_EPOCH = 16
 INITIAL_LOG2 = (
-    (1.0, 0.0, 0.25),
-    (0.75, 0.0, 0.5),
-    (0.75, 0.25, 0.25),
-    (0.75, 0.5, 0.25),
-    (0.75, 0.75, 0.25),
+    (0.5, 0.75, 0.25),
+    (0.25, 0.75, 0.25),
+    (0.0, 0.75, 0.25),
+    (-0.25, 0.75, 0.25),
+    (-0.5, 0.75, 0.25),
+    (-0.75, 0.75, 0.25),
+    (-1.0, 0.75, 0.25),
+    (-1.0, 0.5, 0.25),
+    (-1.0, 0.25, 0.25),
+    (-1.0, 0.0, 0.25),
+)
+INITIAL_CONTROL_LOG2_K = (
+    (0.75, 0.75, 0.25, 0.47568284600108846),
+    (1.0, 0.75, 0.25, 0.47568284600108846),
+    (1.0, 0.75, 0.25, 0.5656854249492381),
+    (1.0, 0.75, 0.5, 0.5656854249492381),
+    (1.0, 0.75, 0.5, 0.6727171322029717),
+    (1.0, 0.5, 0.5, 0.6727171322029717),
+    (1.0, 0.5, 0.5, 0.8),
+    (0.75, 0.5, 0.5, 0.8),
+    (0.75, 0.5, 0.25, 0.8),
+    (0.75, 0.5, 0.25, 0.6727171322029717),
 )
 
 
@@ -80,6 +97,22 @@ def initial_candidates() -> tuple[ForceCandidate, ...]:
     )
 
 
+def initial_control_overlays(profile: Any) -> tuple[dict[str, Any], ...]:
+    overlays: list[dict[str, Any]] = []
+    for p, i, damping, orientation_ko in INITIAL_CONTROL_LOG2_K:
+        candidate = ForceCandidate.from_log2(p=p, i=i, damping=damping)
+        overlay = {
+            **DEFAULT_OVERLAY,
+            "force_p_gain": candidate.force_p_gain,
+            "force_i_gain": candidate.force_i_gain,
+            "force_damping": candidate.force_damping,
+            "orientation_ko": orientation_ko,
+        }
+        overlay.pop("control_candidate_uid", None)
+        overlays.append(normalize_trial_overlay(overlay, profile=profile))
+    return tuple(overlays)
+
+
 def _ensure_initial_batch(
     *,
     campaign_root: Path,
@@ -91,17 +124,7 @@ def _ensure_initial_batch(
     expected = initial_candidates()
     if plan.revision == 0:
         profile = load_launch_profile(launch_profile_path)
-        overlays = []
-        for candidate in expected:
-            overlay = dict(DEFAULT_OVERLAY)
-            overlay.update(
-                {
-                    "force_p_gain": candidate.force_p_gain,
-                    "force_i_gain": candidate.force_i_gain,
-                    "force_damping": candidate.force_damping,
-                }
-            )
-            overlays.append(normalize_trial_overlay(overlay, profile=profile))
+        overlays = initial_control_overlays(profile)
         validated, validated_overlays, _control, _profile, _launch = (
             v3_cli._validate_candidates(
                 overlays,
@@ -109,8 +132,12 @@ def _ensure_initial_batch(
                 launch_profile_path=launch_profile_path,
             )
         )
-        if tuple(validated) != expected:
-            raise LiveLaunchError("validated V3 initial batch identity differs")
+        expected_control = tuple(
+            ForceCandidate.from_log2(p=p, i=i, damping=damping)
+            for p, i, damping, _orientation_ko in INITIAL_CONTROL_LOG2_K
+        )
+        if tuple(validated) != expected_control:
+            raise LiveLaunchError("validated V3 control batch identity differs")
         plan = v3_cli._append_batch(
             paths,
             campaign_id=campaign_id,
@@ -131,7 +158,7 @@ def _ensure_initial_batch(
         overlay_plan = read_strict_json(paths.trial_overlays, role="V3 trial-overlay plan")
         if (
             not isinstance(overlay_plan, Mapping)
-            or overlay_plan.get("schema") != "step5d.autotune-v3/trial-overlay-plan-v1"
+            or overlay_plan.get("schema") != "step5d.autotune-v3/trial-overlay-plan-v2"
             or overlay_plan.get("revision") != plan.revision
             or overlay_plan.get("candidate_count") != len(plan.candidates)
         ):
@@ -224,6 +251,133 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
     return process.returncode
 
 
+def _program_stopped(result: Mapping[str, Any]) -> bool:
+    state = str(result.get("programState", result.get("program_state", ""))).upper()
+    return "STOPPED" in state
+
+
+def _stop_v3_program(
+    robot_host: str,
+    *,
+    timeout_s: float = 5.0,
+    poll_interval_s: float = 0.1,
+    exchange: Callable[..., Mapping[str, Any]] = dashboard_exchange,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, Any]:
+    """Prove STOPPED after bridge shutdown, including Local-Control rejection."""
+
+    if timeout_s <= 0.0 or poll_interval_s <= 0.0:
+        raise ValueError("program-stop timeout and poll interval must be positive")
+    observations: list[dict[str, Any]] = []
+
+    def observe() -> Mapping[str, Any]:
+        result = exchange(robot_host, ["programState"], timeout=2.0)
+        observations.append(dict(result))
+        return result
+
+    initial_error: str | None = None
+    try:
+        initial = observe()
+    except Exception as exc:
+        initial = {}
+        initial_error = f"{type(exc).__name__}:{exc}"
+    if _program_stopped(initial):
+        return {
+            "ok": True,
+            "method": "observed_stopped_after_bridge_shutdown",
+            "stop_request": None,
+            "stop_request_error": None,
+            "initial_query_error": initial_error,
+            "observations": observations,
+        }
+
+    stop_request: Mapping[str, Any] | None = None
+    stop_request_error: str | None = None
+    try:
+        stop_request = exchange(robot_host, ["stop", "programState"], timeout=2.0)
+    except Exception as exc:
+        stop_request_error = f"{type(exc).__name__}:{exc}"
+    if stop_request is not None:
+        observations.append(dict(stop_request))
+        if _program_stopped(stop_request):
+            return {
+                "ok": True,
+                "method": "dashboard_stop",
+                "stop_request": dict(stop_request),
+                "stop_request_error": None,
+                "initial_query_error": initial_error,
+                "observations": observations,
+            }
+
+    deadline = monotonic() + timeout_s
+    query_errors: list[str] = []
+    while monotonic() < deadline:
+        sleep(min(poll_interval_s, max(0.0, deadline - monotonic())))
+        try:
+            observed = observe()
+        except Exception as exc:
+            query_errors.append(f"{type(exc).__name__}:{exc}")
+            continue
+        if _program_stopped(observed):
+            return {
+                "ok": True,
+                "method": "observed_stopped_after_stop_rejection",
+                "stop_request": None if stop_request is None else dict(stop_request),
+                "stop_request_error": stop_request_error,
+                "initial_query_error": initial_error,
+                "query_errors": query_errors,
+                "observations": observations,
+            }
+    return {
+        "ok": False,
+        "method": "tp_stop_required",
+        "stop_request": None if stop_request is None else dict(stop_request),
+        "stop_request_error": stop_request_error,
+        "initial_query_error": initial_error,
+        "query_errors": query_errors,
+        "observations": observations,
+        "required_operator_action": "PRESS_TP_STOP",
+    }
+
+
+def _validate_preflight(path: Path, identity: Mapping[str, Any]) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise LiveLaunchError("fresh V3 live preflight snapshot is required")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise LiveLaunchError(f"V3 live preflight is invalid: {exc}") from exc
+    if not isinstance(payload, dict) or payload.get("schema") != LIVE_PREFLIGHT_SCHEMA:
+        raise LiveLaunchError("V3 live preflight schema differs")
+    if payload.get("ok") is not True or payload.get("fresh") is not True:
+        raise LiveLaunchError("V3 live preflight did not pass freshly")
+    expected = {
+        "candidate_stage_id": RELEASE_STAGE_ID,
+        "control_profile_id": CONTROL_PROFILE_ID,
+        "tp_program_id": TP_PROGRAM_ID,
+        "identity": identity,
+    }
+    for key, value in expected.items():
+        if payload.get(key) != value:
+            raise LiveLaunchError(f"V3 live preflight {key} differs")
+    predicates = payload.get("predicates") or {}
+    required = {
+        "safety_normal",
+        "program_safe_for_bridge",
+        "robot_stationary",
+        "no_existing_writer",
+        "mailbox_initial_zero",
+        "runtime_dependencies",
+    }
+    if set(predicates) != required or not all(
+        isinstance(predicates[name], dict) and predicates[name].get("ok") is True
+        for name in required
+    ):
+        raise LiveLaunchError("V3 live preflight predicates are incomplete")
+    return payload
+
+
 def run(args: argparse.Namespace) -> Mapping[str, Any]:
     readiness = execution_readiness.verify(ROOT, require_live=True)
     legacy_preflight = None
@@ -252,12 +406,9 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
             trial_overlay=DEFAULT_OVERLAY,
         )[2:],
     ]
-    preflight = _validate_preflight(
-        args.preflight,
-        {"identity": readiness["identity"]},
-    )
+    preflight = _validate_preflight(args.preflight, readiness["identity"])
 
-    authorization = bridge_runtime / "campaign_authorization.json"
+    campaign_binding = bridge_runtime / "campaign_binding.json"
     launch_plan_path = bridge_runtime / "campaign_launch_plan.json"
     prepared = prepare(
         SimpleNamespace(
@@ -265,8 +416,11 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
             campaign_root=args.campaign_root,
             legacy_campaign_root=args.legacy_campaign_root,
             legacy_campaign_epoch=args.legacy_campaign_epoch,
-            authorization_file=authorization,
-            authorization_source="canonical V3 live entrypoint internal campaign binding",
+            binding_file=campaign_binding,
+            binding_source="canonical_v3_live_entrypoint",
+            authorization_file=None,
+            authorization_source=None,
+            candidate_batch_size=10,
         )
     )
     atomic_json(launch_plan_path, prepared)
@@ -352,8 +506,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 str(runtime_root / "command.json"),
                 "--runner-ready-file",
                 str(runner_ready),
-                "--authorization-file",
-                str(authorization),
+                "--campaign-binding",
+                str(campaign_binding),
                 "--campaign-epoch",
                 str(prepared["campaign_epoch"]),
                 "--selection-policy",
@@ -410,7 +564,15 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 while bridge.poll() is None and runner.poll() is None:
                     time.sleep(0.2)
                 if bridge.poll() is not None and runner.poll() is None:
-                    raise LiveLaunchError(f"bridge exited unexpectedly rc={bridge.returncode}")
+                    deadline = time.monotonic() + 3.0
+                    while runner.poll() is None and time.monotonic() < deadline:
+                        time.sleep(0.05)
+                    if runner.poll() is None or runner.returncode != 0:
+                        raise LiveLaunchError(
+                            f"bridge exited before campaign completion rc={bridge.returncode}"
+                        )
+                if runner.poll() is not None and runner.returncode == 0:
+                    print("V3_BATCH_10_COMPLETE_STOPPING_TP_NOW", flush=True)
     finally:
         runner_rc = _terminate(runner)
         bridge_rc = _terminate(bridge)
