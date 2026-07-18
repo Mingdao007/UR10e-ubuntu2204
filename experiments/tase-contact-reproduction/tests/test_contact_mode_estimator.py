@@ -70,6 +70,12 @@ class ContactModeObserverTest(unittest.TestCase):
         self.assertEqual(decision.contact_mask, 1)
         self.assertEqual(decision.update_allowed, 0)
 
+    def test_stage25_no_contact_profile_is_reference_only(self) -> None:
+        decision = ContactModeObserver(self.config).decide(observation(stage=25.0))
+        self.assertEqual(decision.mode, EstimationMode.FREE_REFERENCE)
+        self.assertEqual(decision.contact_mask, 0)
+        self.assertEqual(decision.update_allowed, 0)
+
     def test_contact_onset_impact_then_tracking(self) -> None:
         observer = ContactModeObserver(self.config)
         decisions = [

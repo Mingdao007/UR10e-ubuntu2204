@@ -418,6 +418,15 @@ class ContactModeObserver:
             )
         if track_stage:
             self.static_elapsed_s = 0.0
+            if "no_contact" in observation.bridge_profile:
+                return self._emit(
+                    EstimationMode.FREE_REFERENCE,
+                    contact_mask=0,
+                    update_allowed=0,
+                    confidence="high",
+                    freeze_reason="dynamic_reference_only",
+                    phase_s=observation.phase_s,
+                )
             return self._emit(
                 EstimationMode.UNKNOWN,
                 contact_mask=1,
