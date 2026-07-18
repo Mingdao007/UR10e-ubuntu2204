@@ -337,6 +337,25 @@ def matrix_issues(payload: Any) -> list[str]:
         }
         if hil_authorization != expected_hil_authorization:
             issues.append("test_matrix_hil_authorization_contract_mismatch")
+    installed_runtime = payload.get("local_installed_runtime_gate")
+    expected_installed_runtime = {
+        "command": [
+            "python3", "-m", "pytest", "-q",
+            "tests/test_step5d_autotune_v3_installed_runtime.py",
+        ],
+        "activation": "explicit_local_after_hermetic_small_medium",
+        "ci": False,
+        "serial": True,
+        "test_doubles_allowed": False,
+        "network_allowed": False,
+        "controller_access_allowed": False,
+        "live_writer_allowed": False,
+        "arm_allowed": False,
+        "motion_allowed": False,
+        "evidence_output": "parallel runner log and manifest outside rule JSON",
+    }
+    if installed_runtime != expected_installed_runtime:
+        issues.append("test_matrix_local_installed_runtime_gate_mismatch")
     lanes = payload.get("lanes")
     if not isinstance(lanes, dict):
         return issues + ["test_matrix_lanes_not_object"]
@@ -368,6 +387,12 @@ def matrix_issues(payload: Any) -> list[str]:
             issues.append(f"test_matrix_ci_lane_disabled:{name}")
         if not lane.get("commands"):
             issues.append(f"test_matrix_ci_lane_commands_empty:{name}")
+        if any(
+            token == "tests/test_step5d_autotune_v3_installed_runtime.py"
+            for command in lane.get("commands", [])
+            for token in command
+        ):
+            issues.append(f"test_matrix_installed_runtime_leaked_into_ci:{name}")
     small = lanes.get("small", {})
     if small.get("production_parser_test_double_allowed") is not False:
         issues.append("test_matrix_production_parser_double_not_forbidden")

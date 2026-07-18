@@ -49,6 +49,25 @@
     "live_writer_allowed": true,
     "operator_action_consumed": false
   },
+  "local_installed_runtime_gate": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_step5d_autotune_v3_installed_runtime.py"
+    ],
+    "activation": "explicit_local_after_hermetic_small_medium",
+    "ci": false,
+    "serial": true,
+    "test_doubles_allowed": false,
+    "network_allowed": false,
+    "controller_access_allowed": false,
+    "live_writer_allowed": false,
+    "arm_allowed": false,
+    "motion_allowed": false,
+    "evidence_output": "parallel runner log and manifest outside rule JSON"
+  },
   "ci": {
     "lanes": [
       "small",
@@ -124,8 +143,7 @@
           "tests/test_step5d_autotune_recovery.py",
           "tests/test_step5d_autotune_journal.py",
           "tests/test_step5d_autotune_campaign_runner.py",
-          "tests/test_step5d_autotune_live_driver.py",
-          "tests/test_step5d_autotune_v3_bridge_startup_integration.py"
+          "tests/test_step5d_autotune_live_driver.py"
         ]
       ],
       "ci": true,
@@ -295,7 +313,7 @@
     },
     {
       "id": "escaped_production_startup_dependency",
-      "incident_fixture": "tests/test_step5d_autotune_v3_bridge_startup_integration.py",
+      "incident_fixture": "tests/test_step5d_autotune_v3_installed_runtime.py",
       "lanes": [
         "small",
         "medium",

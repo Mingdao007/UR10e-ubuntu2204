@@ -106,5 +106,5 @@ jobs:
         working-directory: experiments/tase-contact-reproduction
         run: >-
           python3 tools/run_step5d_autotune_v3_test_matrix.py
-          --lanes small medium --workers 4
+          --lanes small medium --workers auto
           --output runs/ci-step5d-autotune-v3-${{ github.run_id }}

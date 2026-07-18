@@ -82,12 +82,3 @@ def test_connect_observation_requires_open_socket() -> None:
     assert gate._connect_observation_ok({"value": {"open": True}}) is True
     assert gate._connect_observation_ok({"value": {"open": False}}) is False
     assert gate._connect_observation_ok({"value": {"ok": False, "open": True}}) is False
-
-
-def test_runtime_dependency_observation_covers_exact_production_prewarm() -> None:
-    observation = gate.dependency_observation()
-    assert observation["ok"] is True
-    assert observation["finite_samples"] == 13917
-    assert observation["source_csv_sha256"] == (
-        "495d6d3ee61d7f59bfb268e79ce083eef23f6de23f40ef9f5030e1b8a9d3f4ae"
-    )

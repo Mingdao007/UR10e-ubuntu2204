@@ -14,20 +14,6 @@ sys.path.insert(0, str(ROOT / "tools"))
 from step5d_autotune_v3 import runtime_calibration as calibration  # noqa: E402
 
 
-def test_compact_runtime_calibration_is_strict_and_installed() -> None:
-    artifact = calibration.validate_installed_calibration()
-    assert artifact.calibration_hash == "calib_7367377276742883610"
-    assert artifact.finite_samples == 13917
-    assert artifact.tcp_offset_tool0_m == (
-        1.8186503701174852e-06,
-        2.2293003722353485e-07,
-        0.12209917288991741,
-    )
-    assert artifact.source_csv_sha256 == (
-        "495d6d3ee61d7f59bfb268e79ce083eef23f6de23f40ef9f5030e1b8a9d3f4ae"
-    )
-
-
 def test_runtime_calibration_vector_mutation_fails_closed(tmp_path: Path) -> None:
     target = tmp_path / "runtime_calibration.json"
     shutil.copyfile(calibration.DEFAULT_ARTIFACT, target)

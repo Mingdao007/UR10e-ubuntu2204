@@ -169,6 +169,25 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             gate.matrix_issues(payload),
         )
 
+    def test_local_installed_runtime_gate_is_serial_and_never_hosted(self) -> None:
+        payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
+        installed = payload["local_installed_runtime_gate"]
+        installed["ci"] = True
+        installed["serial"] = False
+        self.assertIn(
+            "test_matrix_local_installed_runtime_gate_mismatch",
+            gate.matrix_issues(payload),
+        )
+
+        payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
+        payload["lanes"]["small"]["commands"][0].append(
+            "tests/test_step5d_autotune_v3_installed_runtime.py"
+        )
+        self.assertIn(
+            "test_matrix_installed_runtime_leaked_into_ci:small",
+            gate.matrix_issues(payload),
+        )
+
     def test_matrix_loader_requires_material_incident_fixtures(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as directory:
@@ -202,7 +221,7 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("tools/run_step5d_autotune_v3_test_matrix.py", workflow)
-        self.assertIn("--lanes small medium --workers 4", workflow)
+        self.assertIn("--lanes small medium --workers auto", workflow)
         self.assertIn("STEP5D_V3_HERMETIC_PARSER_CI", workflow)
         self.assertIn("python3 -m step5d_v3_parser_ci_stubs", workflow)
         self.assertNotIn("docker run", workflow)
