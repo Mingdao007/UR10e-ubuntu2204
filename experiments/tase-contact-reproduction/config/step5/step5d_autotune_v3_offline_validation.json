@@ -1,13 +1,13 @@
 {
   "schema": "step5d.autotune-v3/offline-validation-v1",
-  "observed_at": "2026-07-19T00:57:16+08:00",
+  "observed_at": "2026-07-19T03:29:13+08:00",
   "frozen_baseline": {
     "tag": "archive/step5d-autotune-v1-20260715",
     "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
   },
   "identity": {
     "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
-    "orchestration_fingerprint": "6d3933e316213d781ff7f6b8f6590f2ab63ea254f7548c9f80ae230745d13607",
+    "orchestration_fingerprint": "a6ccea517b67808375a08a65314824541288765fe5368d498c680bd6ec41c5d8",
     "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
     "effective_field_count": 126,
     "tp_fingerprint": "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc",
@@ -16,14 +16,15 @@
   "gates": {
     "hosted_offline_release": {
       "status": "pass",
-      "tests_passed": 360,
+      "tests_passed": 380,
       "subtests_passed": 5,
-      "elapsed_s": 6.086,
-      "small_tests_passed": 261,
-      "medium_tests_passed": 99,
+      "elapsed_s": 6.320683797006495,
+      "small_tests_passed": 275,
+      "medium_tests_passed": 102,
+      "installed_runtime_tests_passed": 3,
       "dependency_mode": "installed_runtime_dependencies",
-      "parallel_manifest": "runs/step5d_autotune_v3_implementation/host-final-fingerprint-20260719T0057HKT/parallel_run_manifest.json",
-      "parallel_manifest_sha256": "c8544d38c88da0a45efc5842034f09bfe1e227b0d95ded6dffd75c0485847c92",
+      "parallel_manifest": "runs/step5d_autotune_v3_implementation/final-startup-closure-pass2-20260719/parallel_run_manifest.json",
+      "parallel_manifest_sha256": "a2dd3ef6fa77e8d9b9501fdf0f2f93856d56938803ba77df37225a69b0d7baf4",
       "network_allowed": false,
       "hardware_allowed": false
     },
@@ -61,10 +62,12 @@
     "ursim_hold_only": {
       "status": "pass",
       "result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-      "result_sha256": "0639f5bb9a9a40fe947f48dab754117e8c74b25748e862ded2872397231a0ea3",
+      "result_sha256": "a6ea4c2251f97d3949032f58c036f8a3974a3c41c21111d28b8b2deeeddf742e",
       "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
-      "raw_evidence_sha256": "21db439abee228cdc07496e706f68cf5da7208b986ee8d61951ec1ba878291ce",
-      "image_digest": "sha256:730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3",
+      "raw_evidence_sha256": "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c",
+      "image_digest": "sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",
+      "simulator_polyscope_version": "5.25.2",
+      "target_polyscope_version_equivalence_claimed": false,
       "lifecycle_prefix_observed": [
         "STOPPED",
         "STARTING",
@@ -81,7 +84,8 @@
       "explicit_v3_tp_identity": true
     },
     "hil_no_motion": {
-      "status": "failed_before_ready_remediated_pending_new_authorization",
+      "status": "failed_before_ready_remediated_pending_canonical_retry",
+      "target_polyscope_version": "URSoftware 5.26.0.140462",
       "controller_touched": false,
       "motion_observed": false,
       "failure_evidence": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/hil_hold_failure_20260719.json",
@@ -95,9 +99,9 @@
     "rollout_authorized": false,
     "current_selector": "step5d_strict_rnn_autotune_v1",
     "v3_active": false,
-    "reason": "offline/tooling, explicit V3 TP fresh read-back, and final-fingerprint digest-pinned URSim HOLD-only acceptance passed; the first HIL attempt failed before READY with no TP Play or motion, its startup dependency defect is remediated, and a fresh authorization is required for retry",
+    "reason": "offline/tooling, explicit V3 TP fresh read-back, and final-fingerprint PolyScope 5.25.2 URSim compatibility HOLD passed; exact PolyScope 5.26 acceptance remains owned by the target HIL gate, whose first attempt failed before READY with no TP Play or motion and is pending canonical retry",
     "package_delivery": "controller_readback_verified_explicit_v3",
-    "execution_readiness": "ready_for_hil_full_bridge_hold_authorization",
-    "next_gate": "obtain a new current-turn V3 authorization for the remediated serialized production-bridge HOLD gate; only that gate may use Play and zero-identity HOLD writes, while ARM, zero/tare, contact, and motion remain forbidden"
+    "execution_readiness": "ready_for_hil_full_bridge_hold",
+    "next_gate": "run the canonical serialized production-bridge HOLD gate; it may use Play and zero-identity HOLD writes, while ARM, zero/tare, contact, and motion remain forbidden"
   }
 }

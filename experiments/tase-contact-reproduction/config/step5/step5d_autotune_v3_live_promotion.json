@@ -1,0 +1,17 @@
+{
+  "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "current_selector": "step5d_strict_rnn_autotune_v1",
+  "hil_acceptance": {
+    "path": "evidence/step5d_autotune_v3/hil_acceptance.json",
+    "sha256": "00e96c4d92ff18fc1498f1965a499a7699b008a2ae205770b401720c8545d94f"
+  },
+  "identity": {
+    "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
+    "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
+    "orchestration_fingerprint": "a6ccea517b67808375a08a65314824541288765fe5368d498c680bd6ec41c5d8"
+  },
+  "live_runtime_promoted": true,
+  "same_process_startup_gate": true,
+  "schema": "step5d.autotune-v3/live-promotion-v1"
+}

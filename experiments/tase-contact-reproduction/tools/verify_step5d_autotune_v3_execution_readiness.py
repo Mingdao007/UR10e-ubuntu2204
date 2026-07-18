@@ -18,7 +18,11 @@ from step5d_autotune_v3.profile import (
     control_fingerprint,
     load_contract,
 )
-from step5d_autotune_v3.state import StateError, orchestration_fingerprint
+from step5d_autotune_v3.state import (
+    ORCHESTRATION_RELATIVE_PATHS,
+    StateError,
+    orchestration_fingerprint,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,8 +30,18 @@ V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 OFFLINE_SCOPE = "offline_tooling_and_ursim_hold_only"
 OFFLINE_BLOCKER = "offline_only_live_start_disabled"
-READY_FOR_HIL = "ready_for_hil_full_bridge_hold_authorization"
+READY_FOR_HIL = "ready_for_hil_full_bridge_hold"
+READY_FOR_LIVE = "ready_for_v3_live_continuous_campaign"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+HIL_CARRYFORWARD_NONPHYSICAL_PATHS = frozenset(
+    {
+        "tools/run_step5d_autotune_campaign.py",
+        "tools/run_step5d_autotune_v3_live.py",
+        "tools/step5d_autotune_v3/state.py",
+        "tools/verify_step5d_autotune_v3_execution_readiness.py",
+        "tools/promote_step5d_autotune_v3_hil.py",
+    }
+)
 
 
 class ReadinessError(RuntimeError):
@@ -113,7 +127,114 @@ def _v3_row(table: Mapping[str, Any]) -> Mapping[str, Any]:
     return rows[0]
 
 
-def verify(root: Path = ROOT) -> dict[str, Any]:
+def _verify_live_promotion(
+    root: Path,
+    *,
+    current_identity: Mapping[str, str],
+) -> Mapping[str, Any]:
+    promotion_path = root / "config/step5/step5d_autotune_v3_live_promotion.json"
+    promotion = _load_json(promotion_path, role="V3 live promotion")
+    required = {
+        "schema",
+        "candidate_stage_id",
+        "control_profile_id",
+        "current_selector",
+        "identity",
+        "hil_acceptance",
+        "same_process_startup_gate",
+        "live_runtime_promoted",
+    }
+    if set(promotion) != required:
+        raise ReadinessError("V3 live promotion fields differ")
+    for key, expected in (
+        ("schema", "step5d.autotune-v3/live-promotion-v1"),
+        ("candidate_stage_id", V3_STAGE_ID),
+        ("control_profile_id", V1_STAGE_ID),
+        ("current_selector", V1_STAGE_ID),
+        ("identity", current_identity),
+        ("same_process_startup_gate", True),
+        ("live_runtime_promoted", True),
+    ):
+        _require(promotion.get(key), expected, f"live promotion {key}")
+    acceptance = promotion.get("hil_acceptance") or {}
+    if set(acceptance) != {"path", "sha256"}:
+        raise ReadinessError("HIL acceptance reference fields differ")
+    relative = acceptance.get("path")
+    expected_sha = acceptance.get("sha256")
+    if not isinstance(relative, str) or not isinstance(expected_sha, str):
+        raise ReadinessError("HIL acceptance reference is invalid")
+    evidence_path = root / relative
+    _require(_sha256(evidence_path), expected_sha, "HIL acceptance digest")
+    evidence = _load_json(evidence_path, role="HIL acceptance evidence")
+    _require(evidence.get("schema"), "step5d.autotune-v3/hil-acceptance-v1", "HIL acceptance schema")
+    _require(evidence.get("ok"), True, "HIL acceptance result")
+    _require(evidence.get("claim"), "target_controller_full_bridge_hold_no_motion", "HIL acceptance claim")
+    _require(evidence.get("identity"), current_identity, "HIL acceptance identity")
+    carryforward = evidence.get("carryforward")
+    if carryforward is not None:
+        required_carryforward = {
+            "schema",
+            "prior_acceptance_path",
+            "prior_acceptance_sha256",
+            "prior_identity",
+            "changed_orchestration_paths",
+            "policy",
+        }
+        if not isinstance(carryforward, Mapping) or set(carryforward) != required_carryforward:
+            raise ReadinessError("HIL carry-forward fields differ")
+        _require(
+            carryforward.get("schema"),
+            "step5d.autotune-v3/hil-nonphysical-carryforward-v1",
+            "HIL carry-forward schema",
+        )
+        _require(
+            carryforward.get("policy"),
+            "no_new_tp_play_only_nonphysical_startup_sources_changed",
+            "HIL carry-forward policy",
+        )
+        prior_relative = carryforward.get("prior_acceptance_path")
+        prior_sha = carryforward.get("prior_acceptance_sha256")
+        if not isinstance(prior_relative, str) or not isinstance(prior_sha, str):
+            raise ReadinessError("HIL carry-forward prior evidence reference is invalid")
+        prior_path = root / prior_relative
+        _require(_sha256(prior_path), prior_sha, "prior HIL acceptance digest")
+        prior = _load_json(prior_path, role="prior HIL acceptance")
+        _require(prior.get("schema"), "step5d.autotune-v3/hil-acceptance-v1", "prior HIL schema")
+        _require(prior.get("ok"), True, "prior HIL result")
+        _require(prior.get("identity"), carryforward.get("prior_identity"), "prior HIL identity")
+        prior_identity = prior.get("identity") or {}
+        for field in ("contract_sha256", "control_fingerprint"):
+            _require(prior_identity.get(field), current_identity.get(field), f"carried HIL {field}")
+        for field in (
+            "claim",
+            "source_result_sha256",
+            "controller_identity_sha256",
+            "launch_profile_fingerprint",
+            "trial_overlay_fingerprint",
+            "stationary",
+            "startup_software_baseline",
+            "hardware_zero_or_tare_count",
+            "zero_events",
+            "program_stop",
+        ):
+            _require(evidence.get(field), prior.get(field), f"carried HIL evidence {field}")
+        accepted_at = datetime.fromisoformat(str(prior.get("accepted_at"))).timestamp()
+        changed = sorted(
+            relative
+            for relative in ORCHESTRATION_RELATIVE_PATHS
+            if (root / relative).stat().st_mtime > accepted_at
+        )
+        _require(
+            carryforward.get("changed_orchestration_paths"),
+            changed,
+            "HIL carry-forward changed paths",
+        )
+        if not set(changed).issubset(HIL_CARRYFORWARD_NONPHYSICAL_PATHS):
+            raise ReadinessError("HIL carry-forward includes a physical/runtime source")
+    return promotion
+
+
+def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
     root = root.expanduser().resolve(strict=True)
     try:
         contract = load_contract(
@@ -217,7 +338,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     hil = gates.get("hil_no_motion") or {}
     _require(
         hil.get("status"),
-        "failed_before_ready_remediated_pending_new_authorization",
+        "failed_before_ready_remediated_pending_canonical_retry",
         "HIL state",
     )
     _require(hil.get("controller_touched"), False, "HIL controller boundary")
@@ -245,50 +366,49 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "ready_for_contact_or_motion",
     ):
         _require(readiness.get(field), False, f"readiness {field}")
-    authorization = readiness.get("authorization") or {}
+    operator_trigger = readiness.get("operator_trigger") or {}
     _require(
-        authorization.get("candidate_stage_id"), V3_STAGE_ID, "authorization candidate"
+        operator_trigger.get("candidate_stage_id"), V3_STAGE_ID, "operator trigger candidate"
     )
-    _require(authorization.get("status"), "not_authorized", "authorization status")
-    _require(authorization.get("source"), "none", "authorization source")
     _require(
-        authorization.get("historical_live_authorization_reused"),
+        operator_trigger.get("user_confirmation_required"),
         False,
-        "historical live authorization reuse",
+        "operator trigger user confirmation",
     )
     _require(
-        authorization.get("scope"),
-        "candidate_scoped_current_turn_only",
-        "authorization scope",
+        operator_trigger.get("internal_launch_binding"),
+        "process_fingerprint_and_campaign_bound",
+        "operator trigger internal binding",
     )
+    _require(operator_trigger.get("tp_action"), "press_play_once", "operator TP action")
 
     service = root / "tools/step5d_autotune_v3/service.py"
     _require(_offline_blocker(service), OFFLINE_BLOCKER, "offline live-start blocker")
 
+    if require_live:
+        _verify_live_promotion(root, current_identity=current_identity)
+    state = READY_FOR_LIVE if require_live else READY_FOR_HIL
     return {
         "schema": "step5d.autotune-v3/execution-readiness-report-v1",
         "ok": True,
         "candidate_stage_id": V3_STAGE_ID,
         "current_stage_id": V1_STAGE_ID,
-        "state": READY_FOR_HIL,
-        "public_success_signal": READY_FOR_HIL,
-        "ready_to_execute": False,
+        "state": state,
+        "public_success_signal": state,
+        "ready_to_execute": require_live,
         "package_delivery": "controller_readback_verified_explicit_v3",
         "controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
         "next_owner": "ur10e-live-bench",
         "next_legal_action": (
-            "obtain a new current-turn candidate-scoped authorization for the "
-            "serialized full-production-bridge HOLD gate"
+            "run the canonical serialized full-production-bridge HOLD gate"
+            if not require_live
+            else "start the canonical V3 bridge/campaign entrypoint and press TP Play once"
         ),
-        "authorization_gate": [
+        "canonical_gate": [
             "python3",
             "tools/verify_step5d_autotune_v3_hil_authorization.py",
-            "--authorization",
-            "<current-turn-authorization.json>",
-            "--expected-thread-id",
-            "<current-thread-id>",
             "--json",
         ],
         "forbidden_without_later_gates": [

@@ -10379,7 +10379,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "explicit V3 TP upload and fresh controller read-back are complete; v1 remains current and v3 still requires current-turn full-bridge HOLD authorization, HIL evidence, and live-runtime promotion",
+      "block_reason": "explicit V3 TP upload and fresh controller read-back are complete; v1 remains the frozen control profile and v3 still requires full-bridge HOLD evidence and live-runtime promotion",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10410,7 +10410,7 @@
         "mode": "single-owner-continuous-v1-control-with-v3-launch-profile-and-trial-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-        "live_readiness_state": "ready_for_hil_full_bridge_hold_authorization"
+        "live_readiness_state": "ready_for_hil_full_bridge_hold"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10447,7 +10447,7 @@
         "crash_cut_matrix_required": true,
         "ursim_hold_only_required": true,
         "rollback_drill_required": true,
-        "explicit_live_contact_authorization_required": true,
+        "canonical_internal_launch_binding_required": true,
         "contact_live_accepted": false,
         "reproduction_complete": false
       },
@@ -10455,15 +10455,15 @@
         "status": "go_offline_tooling_and_ursim_hold_only",
         "acceptance_scope": "offline_tooling_and_ursim_hold_only",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "0c313845032e6cdace49b325551a84766dab29061e4b6e1a975dfcfaf39883e9",
+        "report_sha256": "e37dff069293d9dbf6e2b5881b946394a1f16cda65d970adfb8b47caa9b873e7",
         "contract_mutation": "pass",
         "fake_bridge_five_candidate": "pass",
         "crash_cut_matrix": "pass",
         "g10_production_seam": "pass",
         "ursim_hold_only": "pass",
         "ursim_result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-        "ursim_result_sha256": "0639f5bb9a9a40fe947f48dab754117e8c74b25748e862ded2872397231a0ea3",
-        "hil_no_motion": "failed_before_ready_remediated_pending_new_authorization"
+        "ursim_result_sha256": "a6ea4c2251f97d3949032f58c036f8a3974a3c41c21111d28b8b2deeeddf742e",
+        "hil_no_motion": "failed_before_ready_remediated_pending_canonical_retry"
       },
       "current_binding": {
         "is_current": false,
@@ -10475,8 +10475,8 @@
       },
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v1",
-        "state": "ready_for_hil_full_bridge_hold_authorization",
-        "public_success_signal": "ready_for_hil_full_bridge_hold_authorization",
+        "state": "ready_for_hil_full_bridge_hold",
+        "public_success_signal": "ready_for_hil_full_bridge_hold",
         "next_owner": "ur10e-live-bench",
         "offline_acceptance_complete": true,
         "package_delivery_complete": true,
@@ -10490,12 +10490,11 @@
         "ready_to_start_bridge": false,
         "ready_to_arm": false,
         "ready_for_contact_or_motion": false,
-        "authorization": {
+        "operator_trigger": {
           "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-          "status": "not_authorized",
-          "source": "none",
-          "scope": "candidate_scoped_current_turn_only",
-          "historical_live_authorization_reused": false
+          "user_confirmation_required": false,
+          "internal_launch_binding": "process_fingerprint_and_campaign_bound",
+          "tp_action": "press_play_once"
         }
       }
     }

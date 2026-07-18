@@ -2,10 +2,10 @@
   "acceptance_scope": "offline_tooling_and_ursim_hold_only",
   "claim_boundary": "digest_pinned_ursim_hold_only_not_robot_acceptance",
   "container_lifecycle": {
-    "container_id": "59132eecd6713d416d2c5c77d7928b1b8824076fc7a8c2e1e5fca505cda878eb",
+    "container_id": "86b80028924e776b907d89efb8625d616abdb8c4a0ea07df7586f150460e5fc1",
     "devices": [],
     "mounts": [],
-    "name": "step5d-autotune-v3-ursim-hold",
+    "name": "vigilant_goldwasser",
     "privileged": false,
     "removed_after_gate": true
   },
@@ -33,32 +33,33 @@
   "identity": {
     "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
     "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
-    "orchestration_fingerprint": "6d3933e316213d781ff7f6b8f6590f2ab63ea254f7548c9f80ae230745d13607"
+    "orchestration_fingerprint": "a6ccea517b67808375a08a65314824541288765fe5368d498c680bd6ec41c5d8"
   },
   "image": {
     "entrypoint": [
       "/entrypoint.sh"
     ],
     "entrypoint_overridden": false,
-    "image_id": "sha256:2defb07d45a84f988504a78184c9b8da69fea55ffec89ee1388e75a412e394a2",
-    "polyscope_version": "5.11.11",
-    "reference": "universalrobots/ursim_e-series@sha256:730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3",
-    "robot_model": "UR10"
+    "image_id": "sha256:b002fdfa81e3ecdb95246ab78b6991fc065a622b890af45a27e10b088aef98c3",
+    "polyscope_version": "5.25.2",
+    "reference": "universalrobots/ursim_e-series:5.25.2@sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",
+    "robot_model": "UR10",
+    "target_polyscope_version_equivalence_claimed": false
   },
   "network": {
     "external_network_connected": false,
     "host_ports_published": false,
     "internal": true,
-    "name": "step5d-autotune-v3-ursim-internal",
+    "name": "step5d_v3_ursim_internal_20260719",
     "removed_after_gate": true,
     "robot_network_connected": false
   },
-  "observed_at": "2026-07-18T16:55:18.275074+00:00",
+  "observed_at": "2026-07-18T19:28:52.797421+00:00",
   "raw_evidence": {
     "byte_identical_copy_verified": true,
-    "original_run_path": "runs/step5d_autotune_v3_validation/ursim-v3-final-bootstrap/a1937bb530a4226a-20260718T165518.514837Z-533078/ursim_hold_gate.json",
+    "original_run_path": "runs/step5d_autotune_v3_validation/ursim-5.25.2-startup-closure-pass-20260719/a1937bb530a4226a-20260718T192853.037909Z-567908/ursim_hold_gate.json",
     "path": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
-    "sha256": "21db439abee228cdc07496e706f68cf5da7208b986ee8d61951ec1ba878291ce"
+    "sha256": "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c"
   },
   "rollback": {
     "service_exit_code": 0,

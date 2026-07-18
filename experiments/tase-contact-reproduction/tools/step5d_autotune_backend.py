@@ -76,6 +76,9 @@ class PreparedTrial:
     frozen: FrozenFingerprint
     environment: Mapping[str, str]
     runner_arguments: tuple[str, ...]
+    # V3 may bind the complete validated per-trial overlay at READY_HOME.
+    # V1 callers leave this unset and retain the frozen legacy mailbox schema.
+    trial_overlay: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)

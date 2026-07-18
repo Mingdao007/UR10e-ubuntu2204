@@ -16,8 +16,12 @@ import run_step5d_autotune_v3_ursim_hold_gate as gate  # noqa: E402
 
 
 EXPECTED_IMAGE = (
+    "universalrobots/ursim_e-series:5.25.2@sha256:"
+    "a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4"
+)
+EXPECTED_REPO_DIGEST = (
     "universalrobots/ursim_e-series@sha256:"
-    "730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3"
+    "a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4"
 )
 
 
@@ -43,7 +47,7 @@ def _docker_fixtures() -> dict[str, object]:
     return {
         "version": "27.5.1",
         "container": [container],
-        "image": [{"Id": image_id, "RepoDigests": [EXPECTED_IMAGE]}],
+        "image": [{"Id": image_id, "RepoDigests": [EXPECTED_REPO_DIGEST]}],
         "network": [{"Name": "step5d-v3-internal", "Internal": True}],
     }
 
@@ -80,12 +84,14 @@ def test_matrix_binds_manual_internal_network_hold_lane() -> None:
     assert lane["dashboard_commands_allowed"] == list(gate.DASHBOARD_COMMANDS)
     assert lane["rtde_output_recipe_only"] is True
     assert lane["rtde_input_recipe_allowed"] is False
+    assert lane["simulator_polyscope_version"] == "5.25.2"
+    assert lane["target_polyscope_version_equivalence_claimed"] is False
     assert evidence["status"] == "pass"
     assert evidence["result"].endswith(
         "step5d_autotune_v3_ursim_hold_result.json"
     )
     assert evidence["raw_evidence_sha256"] == (
-        "21db439abee228cdc07496e706f68cf5da7208b986ee8d61951ec1ba878291ce"
+        "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c"
     )
     assert evidence["cleanup_completed"] is True
     assert lane["commands"][0][1].endswith("run_step5d_autotune_v3_ursim_hold_gate.py")

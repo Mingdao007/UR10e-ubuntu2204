@@ -45,8 +45,8 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
     def test_repository_contract_is_green(self) -> None:
         report = gate.validate_repository(ROOT)
         self.assertTrue(report["ok"], report["issues"])
-        self.assertEqual(report["protected_source_count"], 22)
-        self.assertEqual(report["approved_orchestration_variant_count"], 1)
+        self.assertEqual(report["protected_source_count"], 21)
+        self.assertEqual(report["approved_orchestration_variant_count"], 2)
         self.assertLessEqual(
             report["runtime_budget"]["module_count"],
             report["runtime_budget"]["module_limit"],
@@ -147,25 +147,25 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             gate.content_governance_issues(ROOT, payload),
         )
 
-    def test_matrix_readiness_contract_cannot_inherit_authorization_or_skip_hil(self) -> None:
+    def test_matrix_readiness_contract_cannot_restore_confirmation_or_skip_hil(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
         readiness = payload["operator_readiness_gate"]
-        readiness["historical_authorization_reuse_allowed"] = True
+        readiness["user_confirmation_required"] = True
         readiness["transition_order"].remove("hil_hold_only")
         readiness["ready_to_execute_requires"].remove("hil_no_motion_pass")
         issues = gate.matrix_issues(payload)
-        self.assertIn("test_matrix_historical_authorization_reuse_not_forbidden", issues)
+        self.assertIn("test_matrix_user_confirmation_not_disabled", issues)
         self.assertIn("test_matrix_readiness_transition_order_mismatch", issues)
         self.assertIn("test_matrix_ready_to_execute_requirements_mismatch", issues)
 
-    def test_matrix_hil_authorization_contract_cannot_be_broadened(self) -> None:
+    def test_matrix_hil_launch_permit_contract_cannot_be_broadened(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
-        authorization = payload["hil_authorization_gate"]
-        authorization["scope"] = "live_motion"
-        authorization["max_ttl_s"] = 86400
-        authorization["live_writer_allowed"] = True
+        permit = payload["hil_launch_permit_gate"]
+        permit["scope"] = "live_motion"
+        permit["parent_process_binding_required"] = False
+        permit["live_writer_allowed"] = True
         self.assertIn(
-            "test_matrix_hil_authorization_contract_mismatch",
+            "test_matrix_hil_launch_permit_contract_mismatch",
             gate.matrix_issues(payload),
         )
 

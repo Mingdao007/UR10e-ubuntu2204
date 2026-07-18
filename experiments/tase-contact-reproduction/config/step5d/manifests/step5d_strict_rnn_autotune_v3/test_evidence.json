@@ -4,11 +4,11 @@
   "lanes": {
     "large_ursim": {
       "status": "pass",
-      "observed_at": "2026-07-18T16:55:18.275074+00:00",
+      "observed_at": "2026-07-18T19:28:52.797421+00:00",
       "result": "config/step5/step5d_autotune_v3_ursim_hold_result.json",
-      "result_sha256": "0639f5bb9a9a40fe947f48dab754117e8c74b25748e862ded2872397231a0ea3",
+      "result_sha256": "a6ea4c2251f97d3949032f58c036f8a3974a3c41c21111d28b8b2deeeddf742e",
       "raw_evidence": "config/step5/step5d_autotune_v3_ursim_hold_raw.json",
-      "raw_evidence_sha256": "21db439abee228cdc07496e706f68cf5da7208b986ee8d61951ec1ba878291ce",
+      "raw_evidence_sha256": "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c",
       "cleanup_completed": true
     },
     "hil_no_motion": {

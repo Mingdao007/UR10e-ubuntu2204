@@ -1,0 +1,53 @@
+{
+  "accepted_at": "2026-07-18T19:09:42+00:00",
+  "claim": "target_controller_full_bridge_hold_no_motion",
+  "controller_identity_sha256": "2e22883a951c8d88e3ff6c1a2fcd185307404ddfd34c24c621c2e52baafedf40",
+  "hardware_zero_or_tare_count": 0,
+  "identity": {
+    "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
+    "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
+    "orchestration_fingerprint": "fe6e119f08f46b2611b95142b3ba31c62acdd8474629dffcc98b2ff838582d7f"
+  },
+  "launch_profile_fingerprint": "ec1a2ce8f3087af0d7da9e24247fdf1e4fd9858c7fa0880968b20f661e9e1d16",
+  "ok": true,
+  "program_stop": {
+    "initial_query_error": null,
+    "method": "observed_stopped_after_bridge_shutdown",
+    "observations": [
+      {
+        "banner": "Connected: Universal Robots Dashboard Server",
+        "programState": "STOPPED step5d_strict_rnn_autotune_v3.urp"
+      }
+    ],
+    "ok": true,
+    "stop_request": null,
+    "stop_request_error": null
+  },
+  "schema": "step5d.autotune-v3/hil-acceptance-v1",
+  "source_result_sha256": "fd69963fc88a5a96a79423c9dcf9fc3b96608061b5e79287b0f2fd5584ab7423",
+  "startup_software_baseline": {
+    "baseline_epoch": 0,
+    "completed_at_monotonic_s": 316290.443842511,
+    "completed_at_sample": 1030,
+    "duration_s": 1.047351938963402,
+    "samples": 1030
+  },
+  "stationary": {
+    "limits": {
+      "joint_drift_rad": 0.002,
+      "tcp_orientation_drift_rad": 0.005,
+      "tcp_speed_m_s": 0.001,
+      "tcp_translation_drift_m": 0.0005
+    },
+    "observed_maxima": {
+      "joint_drift_rad": 0.00012755393981933594,
+      "tcp_orientation_drift_rad": 0.00029372815928496433,
+      "tcp_speed_m_s": 0.0,
+      "tcp_translation_drift_m": 0.00014227323397156068
+    },
+    "ready_home_dwell_s": 5.0940040170098655,
+    "ready_home_samples": 2512
+  },
+  "trial_overlay_fingerprint": "70c528d2656daaf4ce2a89fa34b8b4c3c8ba0b29cfee673e73d61f806bc0b705",
+  "zero_events": []
+}

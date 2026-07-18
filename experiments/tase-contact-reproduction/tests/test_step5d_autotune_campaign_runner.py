@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -27,6 +29,7 @@ from run_step5d_autotune_campaign import (  # noqa: E402
     ensure_mailbox_parent,
     profile_from_epoch,
     tp_snapshot_from_bridge_row,
+    validate_legacy_campaign_adoption,
 )
 from step5d_autotune_contract import ExecutionProfile  # noqa: E402
 from step5d_autotune_journal import (  # noqa: E402
@@ -152,6 +155,95 @@ def test_prior_epoch_profile_comes_from_durable_manifest_not_current_config() ->
         )
 
         assert profile_from_epoch(layout) == retained
+
+
+def _write_home_epoch(
+    epoch_root: Path,
+    *,
+    epoch: int,
+    campaign_id: str,
+) -> None:
+    store_root = epoch_root / "store"
+    store_root.mkdir(parents=True)
+    campaign = _campaign_spec(
+        ROOT,
+        str(epoch % 10) * 64,
+        epoch,
+        campaign_id=campaign_id,
+    )
+    retained = ExecutionProfile("nf050-slew050-a050", 0.05, 0.5, 0.5)
+    manifest = {
+        "campaign": campaign.__dict__,
+        "execution_profile": retained.payload(),
+        "frozen_fingerprint": {
+            "backend_id": "step5d_v35_native_backend_v1",
+            "source_fingerprint": "b" * 64,
+            "config_fingerprint": "c" * 64,
+        },
+        "selection_policy": "codex_batches",
+    }
+    (store_root / "campaign.json").write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+    SupervisorJournal(epoch_root / "journal").append(
+        JournalState(
+            campaign=CampaignIdentity(
+                campaign_id=campaign.campaign_id,
+                campaign_epoch=campaign.campaign_epoch,
+                campaign_fingerprint=campaign.campaign_fingerprint,
+                backend_id="step5d_v35_native_backend_v1",
+                source_fingerprint="b" * 64,
+                config_fingerprint="c" * 64,
+            ),
+            phase="home",
+            high_water=HighWaterMarks(),
+            candidate_tokens={},
+            plant_epoch=1,
+            execution_profile_id=retained.profile_id,
+            execution_profile_integer_id=execution_profile_integer_id(retained),
+        )
+    )
+
+
+def test_explicit_legacy_parent_preflight_crosses_real_process_boundary(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "legacy"
+    _write_home_epoch(root, epoch=16, campaign_id="retained-campaign")
+    failed = root / "epochs" / "0000000017"
+    _write_home_epoch(failed, epoch=17, campaign_id="retained-campaign")
+    os.link(failed / "journal" / ".journal.lock", tmp_path / "linked-lock")
+
+    retained = validate_legacy_campaign_adoption(root, campaign_epoch=16)
+    assert retained["campaign_epoch"] == 16
+    assert retained["phase"] == "home"
+    with pytest.raises(Exception, match="singly-linked"):
+        validate_legacy_campaign_adoption(root, campaign_epoch=17)
+
+    command = [
+        sys.executable,
+        "-c",
+        (
+            "import json,sys; from pathlib import Path; "
+            "from run_step5d_autotune_campaign import "
+            "validate_legacy_campaign_adoption as validate; "
+            "print(json.dumps(validate(Path(sys.argv[1]), campaign_epoch=16)))"
+        ),
+        str(root),
+    ]
+    environment = {**os.environ, "PYTHONPATH": str(ROOT / "tools")}
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        env=environment,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["campaign_epoch"] == 16
 
 
 def bridge_row() -> dict[str, str]:

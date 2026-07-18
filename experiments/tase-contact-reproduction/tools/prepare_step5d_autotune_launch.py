@@ -12,6 +12,7 @@ from run_step5d_autotune_campaign import (
     _atomic_json,
     _campaign_spec,
     discover_campaign_epochs,
+    select_campaign_epoch,
 )
 from step5d_autotune_backend import Step5dV35Backend
 from step5d_autotune_batch_plan import initialize_plan, load_plan
@@ -43,11 +44,12 @@ def prepare(args: argparse.Namespace) -> dict[str, object]:
             raise RuntimeError("legacy root is forbidden after persistent campaign adoption")
     elif args.legacy_campaign_root is not None:
         legacy_root = args.legacy_campaign_root.resolve()
-        legacy = discover_campaign_epochs(legacy_root)
-        if not legacy:
-            raise RuntimeError("legacy campaign root has no durable epoch")
-        epoch = legacy[-1].epoch + 1
-        campaign_id = legacy[-1].campaign.campaign_id
+        legacy = select_campaign_epoch(
+            legacy_root,
+            campaign_epoch=getattr(args, "legacy_campaign_epoch", None),
+        )
+        epoch = legacy.epoch + 1
+        campaign_id = legacy.campaign.campaign_id
     else:
         epoch = 1
         campaign_id = None
@@ -95,6 +97,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--campaign-root", type=Path, required=True)
     parser.add_argument("--legacy-campaign-root", type=Path)
+    parser.add_argument("--legacy-campaign-epoch", type=int)
     parser.add_argument("--authorization-file", type=Path, required=True)
     parser.add_argument("--authorization-source", required=True)
     return parser.parse_args()

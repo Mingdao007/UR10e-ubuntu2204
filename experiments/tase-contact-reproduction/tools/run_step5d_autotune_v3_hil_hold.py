@@ -78,9 +78,14 @@ def evaluate_hold_rows(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     for row in rows:
         if int(_float(row, "command")) != 0:
             raise HilHoldError("HIL HOLD observed a nonzero command register")
-    ready = [row for row in rows if int(_float(row, "ur_output_int_register_26")) == 10]
+    ready = [
+        row
+        for row in rows
+        if int(_float(row, "ur_output_int_register_26")) == 10
+        and int(_float(row, "ur_runtime_state")) == 2
+    ]
     if not ready:
-        raise HilHoldError("HIL never observed TP READY_HOME")
+        raise HilHoldError("HIL never observed PLAYING TP READY_HOME")
     start = _float(ready[0], "t_monotonic_s")
     end = _float(ready[-1], "t_monotonic_s")
     if end - start < STATIONARY_WINDOW_S:
@@ -148,6 +153,41 @@ def evaluate_hold_rows(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+def validate_startup_software_baseline(summary: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Accept the mandatory startup baseline, but reject every re-zero request.
+
+    The production bridge always estimates one software-only sensor baseline
+    before it becomes ready.  That epoch-0 completion is not a Kunwei
+    zero/tare/config command.  Any later epoch or request edge remains forbidden
+    in the HOLD gate.
+    """
+
+    events = summary.get("zero_events")
+    if (
+        summary.get("baseline_ready") is not True
+        or type(summary.get("baseline_epoch")) is not int
+        or summary.get("baseline_epoch") != 0
+        or type(summary.get("last_zero_request")) not in {int, float}
+        or float(summary["last_zero_request"]) != 0.0
+        or not isinstance(events, list)
+        or len(events) != 1
+        or not isinstance(events[0], Mapping)
+    ):
+        raise HilHoldError("HIL HOLD sensor baseline/re-zero state differs")
+    event = events[0]
+    if (
+        event.get("baseline_epoch") != 0
+        or "requested_at_monotonic_s" in event
+        or "zero_request" in event
+        or type(event.get("samples")) is not int
+        or event["samples"] <= 0
+        or not isinstance(event.get("duration_s"), (int, float))
+        or float(event["duration_s"]) <= 0.0
+    ):
+        raise HilHoldError("HIL HOLD observed a sensor re-zero request")
+    return dict(event)
+
+
 def _read_csv(path: Path) -> list[dict[str, str]]:
     try:
         with path.open(newline="", encoding="utf-8") as handle:
@@ -159,6 +199,35 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
 def _program_stopped(result: Mapping[str, Any]) -> bool:
     state = str(result.get("programState", result.get("program_state", ""))).upper()
     return "STOPPED" in state
+
+
+def _wait_for_operator_tp_stop(
+    robot_host: str,
+    *,
+    timeout_s: float,
+    exchange: Callable[..., Mapping[str, Any]] | None = None,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Mapping[str, Any]:
+    """Keep the zero-command bridge alive until Local-Control TP Stop is observed."""
+
+    if exchange is None:
+        from preflight_readonly import dashboard_exchange
+
+        exchange = dashboard_exchange
+    deadline = monotonic() + timeout_s
+    observations: list[Mapping[str, Any]] = []
+    while monotonic() < deadline:
+        observed = exchange(robot_host, ["programState"], timeout=2.0)
+        observations.append(dict(observed))
+        if _program_stopped(observed):
+            return {
+                "ok": True,
+                "method": "operator_tp_stop_observed_while_bridge_held_zero",
+                "observations": observations,
+            }
+        sleep(0.1)
+    raise HilHoldError("HIL HOLD passed; press TP Stop before the cleanup timeout")
 
 
 def _stop_v3_program(
@@ -388,6 +457,7 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
     }
     log_path = args.output_root / "bridge.log"
     ready_announced = False
+    operator_stop: Mapping[str, Any] | None = None
     dashboard_stop: dict[str, Any] | None = None
     dashboard_stop_error: str | None = None
     with log_path.open("wb") as log:
@@ -427,6 +497,11 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
                 time.sleep(0.1)
             else:
                 raise HilHoldError("TP Play/READY_HOME stationary observation timeout")
+            print("HIL_HOLD_PASSED_PRESS_TP_STOP", flush=True)
+            operator_stop = _wait_for_operator_tp_stop(
+                str(check["effective_config"]["robot_host"]),
+                timeout_s=args.stop_timeout_s,
+            )
         finally:
             if process.poll() is None:
                 process.send_signal(signal.SIGINT)
@@ -460,17 +535,20 @@ def run_gate(args: argparse.Namespace) -> dict[str, Any]:
         raise HilHoldError(f"V3 HIL program-stop cleanup failed: {dashboard_stop_error}")
     summary_path = output_dir / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
-    if summary.get("zero_events") != []:
-        raise HilHoldError("HIL HOLD observed a sensor zero event")
+    startup_software_baseline = validate_startup_software_baseline(summary)
     result = {
         "schema": RESULT_SCHEMA,
         "ok": True,
         "claim": "target_controller_full_bridge_hold_no_motion",
         "launch_id": launch_permit["launch_id"],
+        "identity": launch_permit["identity"],
         "controller_identity_sha256": preflight["controller_identity_sha256"],
         "stationary": stationary,
+        "startup_software_baseline": startup_software_baseline,
+        "hardware_zero_or_tare_count": 0,
         "zero_events": [],
         "program_stop": dashboard_stop,
+        "operator_stop": operator_stop,
         "bridge_exit_code": process.returncode,
         "bridge_output": str(output_dir),
         "command_sha256": _sha256_json(command[2:]),
@@ -491,6 +569,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--preflight", type=Path)
     parser.add_argument("--play-timeout-s", type=float, default=90.0)
+    parser.add_argument("--stop-timeout-s", type=float, default=90.0)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)

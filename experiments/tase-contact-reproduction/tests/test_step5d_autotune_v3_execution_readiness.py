@@ -19,6 +19,9 @@ RELATIVES = {
     "config/current_stage.json",
     "config/step5_stage_table.json",
     "config/step5/step5d_autotune_v3_offline_validation.json",
+    "config/step5/step5d_autotune_v3_live_promotion.json",
+    "evidence/step5d_autotune_v3/hil_acceptance.json",
+    "evidence/step5d_autotune_v3/hil_acceptance_20260719_fe6e119f.json",
     "config/step5d_autotune_controller_readback_v3.json",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.deploy-manifest.json",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script",
@@ -33,8 +36,11 @@ RELATIVES = {
     "tools/step5d_autotune_v3/runtime_profile.py",
     "tools/run_step5d_autotune_v3_bridge.py",
     "tools/run_step5d_autotune_v3_hil_hold.py",
+    "tools/run_step5d_autotune_v3_live.py",
     "tools/preflight_step5d_autotune_v3.py",
     "tools/verify_step5d_autotune_v3_hil_authorization.py",
+    "tools/verify_step5d_autotune_v3_execution_readiness.py",
+    "tools/promote_step5d_autotune_v3_hil.py",
     "tools/run_step5d_autotune_campaign.py",
     "tools/step5d_autotune_coordinator.py",
     "tools/step5d_autotune_journal.py",
@@ -56,7 +62,7 @@ def _fixture_root(tmp_path: Path) -> Path:
         source = ROOT / relative
         target = fixture / relative
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(source, target)
+        shutil.copy2(source, target)
     return fixture
 
 
@@ -75,38 +81,56 @@ def _mutate_v3(fixture: Path, mutate) -> None:
 def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
-    assert report["state"] == "ready_for_hil_full_bridge_hold_authorization"
-    assert report["public_success_signal"] == "ready_for_hil_full_bridge_hold_authorization"
+    assert report["state"] == "ready_for_hil_full_bridge_hold"
+    assert report["public_success_signal"] == "ready_for_hil_full_bridge_hold"
     assert report["package_delivery"] == (
         "controller_readback_verified_explicit_v3"
     )
     assert report["ready_to_execute"] is False
     assert report["current_stage_id"] == readiness.V1_STAGE_ID
     assert report["next_owner"] == "ur10e-live-bench"
-    assert report["authorization_gate"] == [
+    assert report["canonical_gate"] == [
         "python3",
         "tools/verify_step5d_autotune_v3_hil_authorization.py",
-        "--authorization",
-        "<current-turn-authorization.json>",
-        "--expected-thread-id",
-        "<current-thread-id>",
         "--json",
     ]
 
 
-def test_historical_v1_authorization_cannot_be_reused(tmp_path: Path) -> None:
+def test_repository_live_signal_requires_verified_nonphysical_hil_carryforward() -> None:
+    report = readiness.verify(ROOT, require_live=True)
+    assert report["ok"] is True
+    assert report["state"] == "ready_for_v3_live_continuous_campaign"
+    assert report["ready_to_execute"] is True
+
+
+def test_hil_carryforward_changed_path_attestation_is_fail_closed(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture_root(tmp_path)
+    evidence_path = fixture / "evidence/step5d_autotune_v3/hil_acceptance.json"
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    evidence["carryforward"]["changed_orchestration_paths"] = []
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    promotion_path = fixture / "config/step5/step5d_autotune_v3_live_promotion.json"
+    promotion = json.loads(promotion_path.read_text(encoding="utf-8"))
+    promotion["hil_acceptance"]["sha256"] = hashlib.sha256(
+        evidence_path.read_bytes()
+    ).hexdigest()
+    promotion_path.write_text(json.dumps(promotion), encoding="utf-8")
+
+    with pytest.raises(readiness.ReadinessError, match="changed paths"):
+        readiness.verify(fixture, require_live=True)
+
+
+def test_user_confirmation_cannot_be_reintroduced(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     _mutate_v3(
         fixture,
-        lambda row: row["execution_readiness"]["authorization"].update(
-            {
-                "status": "authorized",
-                "source": "resolver_current_stage",
-                "historical_live_authorization_reused": True,
-            }
+        lambda row: row["execution_readiness"]["operator_trigger"].update(
+            {"user_confirmation_required": True}
         ),
     )
-    with pytest.raises(readiness.ReadinessError, match="authorization status"):
+    with pytest.raises(readiness.ReadinessError, match="user confirmation"):
         readiness.verify(fixture)
 
 

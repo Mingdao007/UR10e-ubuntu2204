@@ -303,6 +303,59 @@ def discover_campaign_epochs(campaign_root: Path) -> tuple[CampaignEpochLayout, 
     return tuple(sorted(layouts, key=lambda row: row.epoch))
 
 
+def select_campaign_epoch(
+    campaign_root: Path,
+    *,
+    campaign_epoch: int | None = None,
+) -> CampaignEpochLayout:
+    """Select one durable epoch explicitly when a failed newer epoch is retained."""
+
+    chain = discover_campaign_epochs(campaign_root.resolve())
+    if not chain:
+        raise RuntimeError("legacy campaign root has no durable epoch")
+    if campaign_epoch is None:
+        return chain[-1]
+    matches = tuple(row for row in chain if row.epoch == campaign_epoch)
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"legacy campaign epoch {campaign_epoch} is not uniquely available"
+        )
+    return matches[0]
+
+
+def validate_legacy_campaign_adoption(
+    campaign_root: Path,
+    *,
+    campaign_epoch: int | None = None,
+) -> dict[str, Any]:
+    """Exercise the complete retained-parent read path before operator Play."""
+
+    layout = select_campaign_epoch(
+        campaign_root,
+        campaign_epoch=campaign_epoch,
+    )
+    latest = SupervisorJournal(layout.journal_root).load_latest()
+    profile = profile_from_epoch(layout)
+    store = CampaignStore(layout.store_root)
+    history = store.read_resume_history()
+    promotion = store.read_promotion_history()
+    if latest.state.phase != "home":
+        raise RuntimeError(
+            f"legacy campaign epoch {layout.epoch} is not durably Home"
+        )
+    return {
+        "campaign_id": layout.campaign.campaign_id,
+        "campaign_epoch": layout.epoch,
+        "journal_revision": latest.revision,
+        "journal_record_sha256": latest.record_sha256,
+        "phase": latest.state.phase,
+        "execution_profile_id": profile.profile_id,
+        "resume_history_count": len(history),
+        "promotion_history_count": len(promotion),
+        "root": str(layout.root),
+    }
+
+
 def _sha256_path(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -434,10 +487,23 @@ def _event(path: Path, event: str, **payload: Any) -> None:
         os.fsync(handle.fileno())
 
 
-def ensure_mailbox_parent(mailbox_path: Path, bridge_run: Path) -> None:
-    expected = (bridge_run / "runtime").resolve()
-    if mailbox_path.parent.resolve() != expected:
-        raise RuntimeError("mailbox must belong to the selected bridge run")
+def ensure_mailbox_parent(
+    mailbox_path: Path,
+    bridge_run: Path,
+    *,
+    v3_runtime_root: Path | None = None,
+) -> None:
+    if v3_runtime_root is None:
+        expected_bridge = bridge_run.resolve()
+        expected_parent = (bridge_run / "runtime").resolve()
+    else:
+        root = v3_runtime_root.expanduser().resolve()
+        expected_bridge = (root / "bridge").resolve()
+        expected_parent = root
+    if bridge_run.resolve() != expected_bridge or mailbox_path.parent.resolve() != expected_parent:
+        raise RuntimeError(
+            "mailbox/bridge paths differ from the selected bridge run/runtime layout"
+        )
     mailbox_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     if not mailbox_path.parent.is_dir() or mailbox_path.parent.is_symlink():
         raise RuntimeError("mailbox parent must be a real directory")
@@ -724,6 +790,58 @@ def _v3_stop_requested(
     return read_stop_latch(CampaignPaths(campaign_root))["armed"]
 
 
+def _v3_overlay_for_candidate(
+    path: Path | None,
+    *,
+    candidate: ForceCandidate,
+    profile: ExecutionProfile,
+    plan_revision: int | None,
+    launch_profile_path: Path | None,
+) -> Mapping[str, Any] | None:
+    """Resolve one append-only V3 overlay immediately before READY_HOME ARM."""
+
+    if path is None:
+        return None
+    if plan_revision is None or launch_profile_path is None:
+        raise RuntimeError("V3 overlays require a candidate-plan revision and launch profile")
+    from step5d_autotune_v3.runtime_profile import (
+        load_launch_profile,
+        normalize_trial_overlay,
+    )
+    from step5d_autotune_v3.state import read_strict_json
+
+    overlay_path = path.expanduser().absolute()
+    payload = read_strict_json(overlay_path, role="v3 trial overlay plan")
+    launch_profile = load_launch_profile(launch_profile_path.expanduser().absolute())
+    if (
+        not isinstance(payload, Mapping)
+        or payload.get("schema") != "step5d.autotune-v3/trial-overlay-plan-v1"
+        or payload.get("revision") != plan_revision
+        or payload.get("launch_profile_fingerprint") != launch_profile.fingerprint
+        or not isinstance(payload.get("batches"), list)
+    ):
+        raise RuntimeError("V3 trial-overlay plan is not bound to the selected plan/profile")
+    matches = [
+        row
+        for batch in payload["batches"]
+        if isinstance(batch, Mapping) and isinstance(batch.get("trials"), list)
+        for row in batch["trials"]
+        if isinstance(row, Mapping) and row.get("candidate_uid") == candidate.candidate_uid
+    ]
+    if len(matches) != 1:
+        raise RuntimeError("V3 candidate must have exactly one trial overlay")
+    overlay = normalize_trial_overlay(matches[0].get("overlay"), profile=launch_profile)
+    expected = {
+        "force_p_gain": candidate.force_p_gain,
+        "force_i_gain": candidate.force_i_gain,
+        "force_damping": candidate.force_damping,
+        "execution_profile_id": profile.profile_id,
+    }
+    if any(overlay[name] != value for name, value in expected.items()):
+        raise RuntimeError("V3 overlay identity differs from the selected trial")
+    return overlay
+
+
 def run(args: argparse.Namespace) -> int:
     root = args.experiment_root.resolve()
     bridge_run = args.bridge_run.resolve()
@@ -754,7 +872,11 @@ def run(args: argparse.Namespace) -> int:
         )
     ):
         raise RuntimeError("bridge readiness is not live-complete")
-    ensure_mailbox_parent(mailbox_path, bridge_run)
+    ensure_mailbox_parent(
+        mailbox_path,
+        bridge_run,
+        v3_runtime_root=args.v3_runtime_root,
+    )
     campaign_root = args.campaign_root.resolve()
     if campaign_root == bridge_run or bridge_run in campaign_root.parents:
         raise RuntimeError("campaign root must be independent from the bridge run")
@@ -814,10 +936,10 @@ def run(args: argparse.Namespace) -> int:
     if args.legacy_campaign_root is not None:
         if epoch_chain:
             raise RuntimeError("legacy campaign root is allowed only for first adoption")
-        legacy_chain = discover_campaign_epochs(args.legacy_campaign_root.resolve())
-        if not legacy_chain:
-            raise RuntimeError("legacy campaign root has no durable epoch")
-        prior_layout = legacy_chain[-1]
+        prior_layout = select_campaign_epoch(
+            args.legacy_campaign_root.resolve(),
+            campaign_epoch=args.legacy_campaign_epoch,
+        )
         if args.campaign_epoch <= prior_layout.epoch:
             raise RuntimeError("adopted campaign epoch must advance beyond legacy epoch")
     campaign = _campaign_spec(
@@ -1085,6 +1207,15 @@ def run(args: argparse.Namespace) -> int:
             if trial is None:
                 raise RuntimeError("coordinator issued ARM without an active trial")
             prepared = backend.prepare_trial(trial, frozen)
+            trial_overlay = _v3_overlay_for_candidate(
+                args.v3_trial_overlays,
+                candidate=trial.candidate,
+                profile=trial.execution_profile,
+                plan_revision=plan_revision,
+                launch_profile_path=args.v3_launch_profile,
+            )
+            if trial_overlay is not None:
+                prepared = replace(prepared, trial_overlay=trial_overlay)
             coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)
             _event(
                 event_path,
@@ -1302,6 +1433,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bridge-run", type=Path, required=True)
     parser.add_argument("--campaign-root", type=Path, required=True)
     parser.add_argument("--legacy-campaign-root", type=Path)
+    parser.add_argument("--legacy-campaign-epoch", type=int)
     parser.add_argument("--mailbox", type=Path, required=True)
     parser.add_argument("--runner-ready-file", type=Path)
     parser.add_argument("--authorization-file", type=Path)
@@ -1325,6 +1457,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--v3-stop-latch", type=Path)
     parser.add_argument("--v3-derived-postprocess-root", type=Path)
+    parser.add_argument("--v3-trial-overlays", type=Path)
+    parser.add_argument("--v3-launch-profile", type=Path)
+    parser.add_argument("--v3-runtime-root", type=Path)
     return parser.parse_args()
 
 

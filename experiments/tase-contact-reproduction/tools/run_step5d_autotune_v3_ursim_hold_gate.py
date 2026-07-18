@@ -120,6 +120,12 @@ def _expected_image() -> str:
     return image
 
 
+def _canonical_repo_digest(image_reference: str) -> str:
+    repository_and_tag, digest = image_reference.rsplit("@", 1)
+    repository = repository_and_tag.rsplit(":", 1)[0]
+    return f"{repository}@{digest}"
+
+
 def _docker_text(arguments: Sequence[str]) -> str:
     shape = tuple(arguments[:3])
     allowed = any(shape[: len(prefix)] == prefix for prefix in _DOCKER_READ_ONLY_SHAPES)
@@ -176,7 +182,10 @@ def inspect_ursim_container(container: str, expected_image: str) -> dict[str, An
         raise GateBlocked("ursim_container_not_running", container)
     if (info.get("Config") or {}).get("Image") != expected_image:
         raise GateBlocked("ursim_container_image_reference_drift", container)
-    if info.get("Image") != image.get("Id") or expected_image not in image.get("RepoDigests", []):
+    if (
+        info.get("Image") != image.get("Id")
+        or _canonical_repo_digest(expected_image) not in image.get("RepoDigests", [])
+    ):
         raise GateBlocked("ursim_container_image_digest_drift", container)
     host_config = info.get("HostConfig") or {}
     if host_config.get("Privileged") is True:

@@ -16,8 +16,8 @@ from step5d_autotune_v3.state import orchestration_fingerprint
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_IMAGE = (
-    "universalrobots/ursim_e-series@sha256:"
-    "730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3"
+    "universalrobots/ursim_e-series:5.25.2@sha256:"
+    "a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4"
 )
 
 
@@ -81,6 +81,7 @@ def promote(source: Path, raw_output: Path, result_output: Path) -> dict[str, An
             "reference": EXPECTED_IMAGE,
             "image_id": container["container_image_id"],
             "polyscope_version": version_match.group(1),
+            "target_polyscope_version_equivalence_claimed": False,
             "entrypoint": ["/entrypoint.sh"],
             "entrypoint_overridden": False,
             "robot_model": "UR10",

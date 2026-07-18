@@ -13,10 +13,13 @@ sys.path.insert(0, str(ROOT / "tools"))
 import run_step5d_autotune_v3_hil_hold as gate  # noqa: E402
 
 
-def _row(t: float, *, command: int = 0, state: int = 10) -> dict[str, float]:
+def _row(
+    t: float, *, command: int = 0, state: int = 10, runtime_state: int = 2
+) -> dict[str, float]:
     row = {
         "t_monotonic_s": t,
         "command": command,
+        "ur_runtime_state": runtime_state,
         "ur_output_int_register_24": 0,
         "ur_output_int_register_25": 0,
         "ur_output_int_register_26": state,
@@ -37,10 +40,53 @@ def test_stationary_ready_home_hold_acceptance() -> None:
     assert result["observed_maxima"]["tcp_speed_m_s"] == 0.0
 
 
+def _startup_baseline_summary() -> dict[str, Any]:
+    return {
+        "baseline_ready": True,
+        "baseline_epoch": 0,
+        "last_zero_request": 0.0,
+        "zero_events": [
+            {
+                "baseline_epoch": 0,
+                "completed_at_sample": 1008,
+                "completed_at_monotonic_s": 10.0,
+                "samples": 1008,
+                "duration_s": 1.0,
+            }
+        ],
+    }
+
+
+def test_hold_accepts_only_the_mandatory_epoch_zero_software_baseline() -> None:
+    event = gate.validate_startup_software_baseline(_startup_baseline_summary())
+    assert event["baseline_epoch"] == 0
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda summary: summary.update(baseline_epoch=1),
+        lambda summary: summary.update(last_zero_request=1.0),
+        lambda summary: summary["zero_events"].append(
+            {"baseline_epoch": 1, "requested_at_monotonic_s": 11.0, "zero_request": 1.0}
+        ),
+        lambda summary: summary["zero_events"][0].update(
+            requested_at_monotonic_s=9.0, zero_request=1.0
+        ),
+    ],
+)
+def test_hold_rejects_every_sensor_rezero_request(mutation) -> None:
+    summary = _startup_baseline_summary()
+    mutation(summary)
+    with pytest.raises(gate.HilHoldError):
+        gate.validate_startup_software_baseline(summary)
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
         lambda rows: rows[2].update(command=1),
+        lambda rows: [row.update(ur_runtime_state=1) for row in rows],
         lambda rows: rows[2].update(ur_output_int_register_24=1),
         lambda rows: rows[2].update(ur_actual_TCP_speed_0=0.002),
         lambda rows: rows[-1].update(ur_actual_q_0=0.003),
@@ -86,6 +132,27 @@ def test_remote_dashboard_stop_proves_stopped() -> None:
     result = gate._stop_v3_program("robot", exchange=exchange)
     assert result["ok"] is True
     assert result["method"] == "dashboard_stop"
+
+
+def test_local_control_operator_stop_is_observed_while_hold_bridge_remains_alive() -> None:
+    replies = [
+        {"programState": "PLAYING step5d_strict_rnn_autotune_v3.urp"},
+        {"programState": "STOPPED step5d_strict_rnn_autotune_v3.urp"},
+    ]
+    clock = _Clock()
+
+    def exchange(*_args, **_kwargs):
+        return replies.pop(0)
+
+    result = gate._wait_for_operator_tp_stop(
+        "robot",
+        timeout_s=1.0,
+        exchange=exchange,
+        monotonic=clock.monotonic,
+        sleep=clock.sleep,
+    )
+    assert result["ok"] is True
+    assert result["method"] == "operator_tp_stop_observed_while_bridge_held_zero"
 
 
 def test_local_stop_rejection_then_observed_stopped_is_cleanup_success() -> None:

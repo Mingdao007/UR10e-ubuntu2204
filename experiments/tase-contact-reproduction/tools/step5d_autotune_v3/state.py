@@ -325,12 +325,11 @@ def read_service_state(paths: CampaignPaths) -> dict[str, Any]:
     return payload
 
 
-def orchestration_fingerprint(experiment_root: Path) -> str:
-    relative_paths = (
-        # Frozen v1 physical ownership and recovery sources.  Queue *data* is
-        # intentionally excluded; only the append-only plan implementation is
-        # orchestration code.
-        "tools/run_step5d_autotune_campaign.py",
+ORCHESTRATION_RELATIVE_PATHS = (
+    # Frozen v1 physical ownership and recovery sources.  Queue *data* is
+    # intentionally excluded; only the append-only plan implementation is
+    # orchestration code.
+    "tools/run_step5d_autotune_campaign.py",
         "tools/step5d_autotune_coordinator.py",
         "tools/step5d_autotune_journal.py",
         "tools/step5d_autotune_store.py",
@@ -345,16 +344,22 @@ def orchestration_fingerprint(experiment_root: Path) -> str:
         "tools/step5d_autotune_v3/runtime_profile.py",
         "tools/run_step5d_autotune_v3_bridge.py",
         "tools/run_step5d_autotune_v3_hil_hold.py",
+        "tools/run_step5d_autotune_v3_live.py",
         "tools/preflight_step5d_autotune_v3.py",
         "tools/verify_step5d_autotune_v3_hil_authorization.py",
+        "tools/verify_step5d_autotune_v3_execution_readiness.py",
+        "tools/promote_step5d_autotune_v3_hil.py",
         "scripts/step5d-autotune-v3.sh",
         "scripts/step5d-autotune-v3-hil-hold.sh",
         "config/systemd/step5d-autotune-v3.service",
         "config/step5/step5d_autotune_v3_launch_profile.json",
-        "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
-    )
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
+)
+
+
+def orchestration_fingerprint(experiment_root: Path) -> str:
     digest = hashlib.sha256()
-    for relative in relative_paths:
+    for relative in ORCHESTRATION_RELATIVE_PATHS:
         path = experiment_root / relative
         if path.is_symlink() or not path.is_file():
             raise StateError(f"orchestration fingerprint input is missing: {relative}")

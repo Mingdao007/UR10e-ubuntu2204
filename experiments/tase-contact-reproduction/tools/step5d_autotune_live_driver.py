@@ -214,6 +214,7 @@ class RuntimeTrialBinding:
     source_fingerprint: str
     config_fingerprint: str
     campaign_fingerprint: str
+    trial_overlay: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.trial_uid, str) or not _SHA256_RE.fullmatch(self.trial_uid):
@@ -238,7 +239,7 @@ class RuntimeTrialBinding:
                 raise MailboxError(f"{name} must be a lowercase SHA-256 identity")
 
     def payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "trial_uid": self.trial_uid,
             "backend_id": self.backend_id,
             "campaign_epoch": self.campaign_epoch,
@@ -257,6 +258,9 @@ class RuntimeTrialBinding:
             "config_fingerprint": self.config_fingerprint,
             "campaign_fingerprint": self.campaign_fingerprint,
         }
+        if self.trial_overlay is not None:
+            payload["trial_overlay"] = dict(self.trial_overlay)
+        return payload
 
 
 @dataclass(frozen=True)
@@ -361,6 +365,7 @@ def _binding_from_prepared(
         source_fingerprint=trial.source_fingerprint,
         config_fingerprint=trial.config_fingerprint,
         campaign_fingerprint=trial.campaign.campaign_fingerprint,
+        trial_overlay=getattr(prepared_trial, "trial_overlay", None),
     )
     if any(
         (
@@ -390,6 +395,30 @@ def _binding_from_prepared(
             raise MailboxError(f"prepared runtime differs from TrialSpec at {name}")
     if "BRIDGE_NORMAL_FILTER_ALPHA" in environment:
         raise MailboxError("normal_filter_alpha is forbidden in Step5d autotune")
+    if binding.trial_overlay is not None:
+        from step5d_autotune_v3.runtime_profile import (
+            DEFAULT_LAUNCH_PROFILE,
+            load_launch_profile,
+            normalize_trial_overlay,
+        )
+
+        try:
+            normalized = normalize_trial_overlay(
+                binding.trial_overlay,
+                profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+            )
+        except (OSError, ValueError) as exc:
+            raise MailboxError(f"V3 trial overlay is invalid: {exc}") from exc
+        expected_overlay_identity = {
+            "force_p_gain": binding.candidate.force_p_gain,
+            "force_i_gain": binding.candidate.force_i_gain,
+            "force_damping": binding.candidate.force_damping,
+            "execution_profile_id": binding.profile.profile_id,
+        }
+        for name, expected in expected_overlay_identity.items():
+            if normalized[name] != expected:
+                raise MailboxError(f"V3 trial overlay differs from TrialSpec at {name}")
+        object.__setattr__(binding, "trial_overlay", normalized)
     return binding
 
 
@@ -552,7 +581,8 @@ def _mailbox_command_from_payload(
         "config_fingerprint",
         "campaign_fingerprint",
     }
-    if not isinstance(raw_runtime, Mapping) or set(raw_runtime) != expected_runtime:
+    runtime_fields = set(raw_runtime) if isinstance(raw_runtime, Mapping) else set()
+    if runtime_fields not in {frozenset(expected_runtime), frozenset(expected_runtime | {"trial_overlay"})}:
         raise MailboxError("command mailbox runtime binding is incomplete")
     raw_candidate = raw_runtime["candidate"]
     if not isinstance(raw_candidate, Mapping) or set(raw_candidate) != {
@@ -592,7 +622,32 @@ def _mailbox_command_from_payload(
         source_fingerprint=raw_runtime["source_fingerprint"],
         config_fingerprint=raw_runtime["config_fingerprint"],
         campaign_fingerprint=raw_runtime["campaign_fingerprint"],
+        trial_overlay=raw_runtime.get("trial_overlay"),
     )
+    if binding.trial_overlay is not None:
+        from step5d_autotune_v3.runtime_profile import (
+            DEFAULT_LAUNCH_PROFILE,
+            load_launch_profile,
+            normalize_trial_overlay,
+        )
+
+        try:
+            normalized_overlay = normalize_trial_overlay(
+                binding.trial_overlay,
+                profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+            )
+        except (OSError, ValueError) as exc:
+            raise MailboxError(f"V3 trial overlay is invalid: {exc}") from exc
+        if any(
+            (
+                normalized_overlay["force_p_gain"] != binding.candidate.force_p_gain,
+                normalized_overlay["force_i_gain"] != binding.candidate.force_i_gain,
+                normalized_overlay["force_damping"] != binding.candidate.force_damping,
+                normalized_overlay["execution_profile_id"] != binding.profile.profile_id,
+            )
+        ):
+            raise MailboxError("V3 trial overlay identity differs from runtime binding")
+        object.__setattr__(binding, "trial_overlay", normalized_overlay)
     validate_execution_profile_binding(
         binding.profile,
         packet.execution_profile_id,
@@ -849,6 +904,18 @@ class BridgeMailboxRuntime:
         args.bridge_normal_max_rate_rad_s = profile.normal_max_rate_rad_s
         args.step4e_normal_max_rate_rad_s = profile.normal_max_rate_rad_s
         args.step5d_autotune_profile_eligibility = "live_eligible"
+        overlay = binding.trial_overlay
+        if overlay is not None:
+            for field in (
+                "step5d_preload_filtered_min_n",
+                "step5d_preload_filtered_max_n",
+                "step5d_preload_raw_min_n",
+                "step5d_preload_raw_max_n",
+                "step5d_preload_force_norm_max_n",
+                "step5d_preload_hold_s",
+                "step5d_preload_timeout_s",
+            ):
+                setattr(args, field, float(overlay[field]))
 
     def poll(
         self,

@@ -9,13 +9,13 @@
       "--json"
     ],
     "public_success_signal_policy": "next_legal_action_not_broad_pass",
-    "historical_authorization_reuse_allowed": false,
+    "user_confirmation_required": false,
     "transition_order": [
       "offline_acceptance",
       "controller_readback",
       "hil_hold_only",
-      "candidate_scoped_current_turn_authorization",
-      "current_candidate_binding",
+      "canonical_operator_trigger_and_internal_launch_binding",
+      "hil_evidence_promotion",
       "same_process_startup_gate",
       "live_execution"
     ],
@@ -23,31 +23,25 @@
       "offline_acceptance_pass",
       "controller_readback_verified",
       "hil_no_motion_pass",
-      "candidate_scoped_current_turn_authorization",
-      "current_candidate_binding",
+      "internal_process_fingerprint_campaign_binding",
       "live_runtime_promoted",
       "same_process_startup_gate_pass"
     ]
   },
-  "hil_authorization_gate": {
+  "hil_launch_permit_gate": {
     "command": [
       "python3",
       "tools/verify_step5d_autotune_v3_hil_authorization.py",
-      "--authorization",
-      "<current-turn-authorization.json>",
-      "--expected-thread-id",
-      "<current-thread-id>",
       "--json"
     ],
     "scope": "hil_full_bridge_hold",
     "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-    "max_ttl_s": 1800,
     "current_fingerprint_binding_required": true,
-    "current_turn_thread_binding_required": true,
+    "parent_process_binding_required": true,
     "serial": true,
     "hold_required": true,
     "live_writer_allowed": true,
-    "operator_action_consumed": false
+    "user_confirmation_required": false
   },
   "local_installed_runtime_gate": {
     "command": [
@@ -104,6 +98,7 @@
           "tests/test_step5d_autotune_v3_bridge_wrapper.py",
           "tests/test_step5d_autotune_v3_preflight.py",
           "tests/test_step5d_autotune_v3_hil_hold_runner.py",
+          "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
           "tests/test_step5d_autotune_tp_v3.py",
           "tests/test_step5d_autotune_v3_test_matrix_runner.py"
         ]
@@ -143,6 +138,7 @@
           "tests/test_step5d_autotune_recovery.py",
           "tests/test_step5d_autotune_journal.py",
           "tests/test_step5d_autotune_campaign_runner.py",
+          "tests/test_step5d_autotune_v3_live_startup.py",
           "tests/test_step5d_autotune_live_driver.py"
         ]
       ],
@@ -159,7 +155,7 @@
       "evidence_output": "pytest JSON/JUnit result"
     },
     "large_ursim": {
-      "claim": "production launcher and service compatibility with pinned URSim; never robot acceptance",
+      "claim": "production launcher and RTDE compatibility with pinned PolyScope 5.25.2 URSim; not PolyScope 5.26 target acceptance",
       "commands": [
         [
           "python3",
@@ -174,9 +170,11 @@
       "ci": false,
       "serial": true,
       "pinned": true,
-      "container_image": "universalrobots/ursim_e-series@sha256:730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3",
-      "pin_source": "https://hub.docker.com/r/universalrobots/ursim_e-series/tags?name=5.11",
-      "pin_verified_at": "2026-07-18",
+      "container_image": "universalrobots/ursim_e-series:5.25.2@sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",
+      "simulator_polyscope_version": "5.25.2",
+      "target_polyscope_version_equivalence_claimed": false,
+      "pin_source": "https://hub.docker.com/r/universalrobots/ursim_e-series/tags?name=5.25.2",
+      "pin_verified_at": "2026-07-19",
       "test_doubles_allowed": false,
       "network_allowed": true,
       "network_scope": "single_prestarted_container_on_docker_internal_network",
@@ -209,27 +207,25 @@
       "evidence_output": "runs/step5d_autotune_v3_validation/ursim/<control-fingerprint>-<utc>-<pid>/ursim_hold_gate.json"
     },
     "hil_no_motion": {
-      "claim": "target controller startup and HOLD smoke only; never contact or motion acceptance",
+      "claim": "exact target PolyScope 5.26 controller startup and HOLD smoke only; never contact or motion acceptance",
       "commands": [
         [
           "scripts/step5d-autotune-v3-hil-hold.sh",
           "run",
-          "--authorization",
-          "<current-turn-authorization.json>",
-          "--expected-thread-id",
-          "<current-thread-id>",
           "--output-root",
           "<fresh-output-root>"
         ]
       ],
-      "activation": "manual_after_ur_owner_live_boundary_authorization",
+      "activation": "manual_physical_tp_play_after_canonical_ready_signal",
       "ci": false,
       "serial": true,
       "pinned": true,
       "controller_identity_pin": "fresh_read_only_snapshot_sha256_required",
+      "target_polyscope_version": "URSoftware 5.26.0.140462",
+      "target_polyscope_version_source": "fresh_read_only_dashboard_snapshot",
       "test_doubles_allowed": false,
       "network_allowed": true,
-      "network_scope": "target_controller_and_kunwei_only_after_current_turn_authorization",
+      "network_scope": "target_controller_and_kunwei_only_from_canonical_entrypoint",
       "controller_access_allowed": true,
       "live_writer_allowed": true,
       "hold_required": true,
@@ -322,7 +318,7 @@
       ]
     },
     {
-      "id": "operator_readiness_signal_and_authorization_noninheritance",
+      "id": "operator_readiness_signal_and_internal_launch_binding",
       "incident_fixture": "tests/test_step5d_autotune_v3_execution_readiness.py",
       "lanes": [
         "small",
@@ -332,7 +328,7 @@
       ]
     },
     {
-      "id": "candidate_scoped_short_lived_hil_authorization",
+      "id": "process_and_fingerprint_bound_hil_launch_permit",
       "incident_fixture": "tests/test_step5d_autotune_v3_hil_authorization.py",
       "lanes": [
         "small",

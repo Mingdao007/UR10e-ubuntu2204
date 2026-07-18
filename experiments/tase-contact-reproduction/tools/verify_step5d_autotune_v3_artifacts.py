@@ -26,11 +26,11 @@ V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 TP_FINGERPRINT = "62cdda2e967d4c8d95d3b356751ff553ff8534043865ba957f638a810d45d8bc"
 LEDGER_SHA256 = "19cf2241ea070e3dc8eccfbe118660104f4c3f8e40ea25cb6f0efecabc7acf99"
 URSIM_IMAGE = (
-    "universalrobots/ursim_e-series@sha256:"
-    "730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3"
+    "universalrobots/ursim_e-series:5.25.2@sha256:"
+    "a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4"
 )
-URSIM_RAW_SHA256 = "21db439abee228cdc07496e706f68cf5da7208b986ee8d61951ec1ba878291ce"
-URSIM_RESULT_SHA256 = "0639f5bb9a9a40fe947f48dab754117e8c74b25748e862ded2872397231a0ea3"
+URSIM_RAW_SHA256 = "b9e7c21709b6b85b8eef6312f95ffd094ce42d20370e8df7d00c3fae59cca41c"
+URSIM_RESULT_SHA256 = "a6ea4c2251f97d3949032f58c036f8a3974a3c41c21111d28b8b2deeeddf742e"
 EXPECTED_SHA256 = {
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script":
         "97ca4a9e035bc0f5b9a2345adb8711ec3275886c0939fb0f23c4a5aecd4c4f8f",
@@ -56,7 +56,7 @@ EXPECTED_SHA256 = {
     "config/step5/step5d_autotune_v3_ursim_hold_raw.json": URSIM_RAW_SHA256,
     "config/step5/step5d_autotune_v3_ursim_hold_result.json": URSIM_RESULT_SHA256,
     "config/step5/step5d_autotune_v3_offline_validation.json":
-        "0c313845032e6cdace49b325551a84766dab29061e4b6e1a975dfcfaf39883e9",
+        "e37dff069293d9dbf6e2b5881b946394a1f16cda65d970adfb8b47caa9b873e7",
     "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json":
         "70229a0c94d4a546c1a5f27e033bf34a8c0d302776c3227a39d857f12a366a48",
 }
@@ -229,11 +229,11 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     )
     readiness = v3.get("execution_readiness") or {}
     _require_equal(
-        readiness.get("state"), "ready_for_hil_full_bridge_hold_authorization", "v3 readiness state"
+        readiness.get("state"), "ready_for_hil_full_bridge_hold", "v3 readiness state"
     )
     _require_equal(
         readiness.get("public_success_signal"),
-        "ready_for_hil_full_bridge_hold_authorization",
+        "ready_for_hil_full_bridge_hold",
         "v3 public success signal",
     )
     _require_equal(readiness.get("package_delivery_complete"), True, "v3 package readiness")
@@ -250,14 +250,19 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "ready_for_contact_or_motion",
     ):
         _require_equal(readiness.get(field), False, f"v3 readiness {field}")
-    authorization = readiness.get("authorization") or {}
+    operator_trigger = readiness.get("operator_trigger") or {}
     _require_equal(
-        authorization.get("historical_live_authorization_reused"),
+        operator_trigger.get("user_confirmation_required"),
         False,
-        "v3 historical authorization reuse",
+        "v3 user confirmation policy",
     )
     _require_equal(
-        authorization.get("candidate_stage_id"), V3_STAGE_ID, "v3 authorization identity"
+        operator_trigger.get("candidate_stage_id"), V3_STAGE_ID, "v3 operator trigger identity"
+    )
+    _require_equal(
+        operator_trigger.get("internal_launch_binding"),
+        "process_fingerprint_and_campaign_bound",
+        "v3 internal launch binding",
     )
     migration = v3.get("migration") or {}
     _require_equal(migration.get("ledger_sha256"), LEDGER_SHA256, "v3 ledger binding")
@@ -324,7 +329,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     )
     _require_equal(
         decision.get("execution_readiness"),
-        "ready_for_hil_full_bridge_hold_authorization",
+        "ready_for_hil_full_bridge_hold",
         "v3 execution readiness decision",
     )
 
@@ -446,42 +451,45 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "test matrix operator success signal",
     )
     _require_equal(
-        readiness_gate.get("historical_authorization_reuse_allowed"),
+        readiness_gate.get("user_confirmation_required"),
         False,
-        "test matrix historical authorization reuse",
+        "test matrix user confirmation policy",
     )
     if "hil_no_motion_pass" not in readiness_gate.get("ready_to_execute_requires", []):
         raise ArtifactVerificationError("test matrix execution readiness omits HIL")
-    hil_authorization = matrix.get("hil_authorization_gate") or {}
+    hil_permit = matrix.get("hil_launch_permit_gate") or {}
     _require_equal(
-        hil_authorization.get("command"),
+        hil_permit.get("command"),
         [
             "python3",
             "tools/verify_step5d_autotune_v3_hil_authorization.py",
-            "--authorization",
-            "<current-turn-authorization.json>",
-            "--expected-thread-id",
-            "<current-thread-id>",
             "--json",
         ],
-        "test matrix HIL authorization command",
+        "test matrix HIL launch permit command",
     )
     for field, expected in (
         ("scope", "hil_full_bridge_hold"),
         ("candidate_stage_id", V3_STAGE_ID),
-        ("max_ttl_s", 1800),
         ("current_fingerprint_binding_required", True),
-        ("current_turn_thread_binding_required", True),
+        ("parent_process_binding_required", True),
         ("serial", True),
         ("hold_required", True),
         ("live_writer_allowed", True),
-        ("operator_action_consumed", False),
+        ("user_confirmation_required", False),
     ):
         _require_equal(
-            hil_authorization.get(field), expected, f"test matrix HIL authorization {field}"
+            hil_permit.get(field), expected, f"test matrix HIL launch permit {field}"
         )
     large = (matrix.get("lanes") or {}).get("large_ursim") or {}
     _require_equal(large.get("container_image"), URSIM_IMAGE, "large URSim image")
+    _require_equal(
+        large.get("simulator_polyscope_version"), "5.25.2", "large URSim PolyScope"
+    )
+    _require_equal(
+        large.get("target_polyscope_version_equivalence_claimed"),
+        False,
+        "large URSim target-version claim boundary",
+    )
     for field, expected in (
         ("external_network_allowed", False),
         ("robot_network_allowed", False),
@@ -520,7 +528,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "current_stage_id": V1_STAGE_ID,
         "v3_stage_id": V3_STAGE_ID,
         "v3_active": False,
-        "execution_readiness": "ready_for_hil_full_bridge_hold_authorization",
+        "execution_readiness": "ready_for_hil_full_bridge_hold",
         "ready_to_execute": False,
         "acceptance_scope": "offline_tooling_and_ursim_hold_only",
         "rollout_authorized": False,

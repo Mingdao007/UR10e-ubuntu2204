@@ -37,8 +37,8 @@ READINESS_TRANSITION_ORDER = [
     "offline_acceptance",
     "controller_readback",
     "hil_hold_only",
-    "candidate_scoped_current_turn_authorization",
-    "current_candidate_binding",
+    "canonical_operator_trigger_and_internal_launch_binding",
+    "hil_evidence_promotion",
     "same_process_startup_gate",
     "live_execution",
 ]
@@ -46,18 +46,13 @@ READY_TO_EXECUTE_REQUIRES = [
     "offline_acceptance_pass",
     "controller_readback_verified",
     "hil_no_motion_pass",
-    "candidate_scoped_current_turn_authorization",
-    "current_candidate_binding",
+    "internal_process_fingerprint_campaign_binding",
     "live_runtime_promoted",
     "same_process_startup_gate_pass",
 ]
-HIL_AUTHORIZATION_COMMAND = [
+HIL_LAUNCH_PERMIT_COMMAND = [
     "python3",
     "tools/verify_step5d_autotune_v3_hil_authorization.py",
-    "--authorization",
-    "<current-turn-authorization.json>",
-    "--expected-thread-id",
-    "<current-thread-id>",
     "--json",
 ]
 
@@ -77,8 +72,6 @@ PROTECTED_V1_SHA256 = {
         "8e04cd0744b4df22e4fbfaaf9ee1587823b1f4ecacc317c0e0e7fdafaf7fb2b0",
     "experiments/tase-contact-reproduction/tools/step5d_autotune_store.py":
         "d483d5299f44e8c31be1f84d1e0fc03961dbe863cf2d70794108ac085f7eab4a",
-    "experiments/tase-contact-reproduction/tools/step5d_autotune_live_driver.py":
-        "5929c1ceb20a8541c28793f5fdf4c433146e7b35cecdc40ac6ab9177c0cd7fec",
     "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py":
         "56d388207542d5d5d93175f9d8922d3366f7fd368f0763a7304f2933844e7e2d",
     "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py":
@@ -112,7 +105,12 @@ PROTECTED_V1_SHA256 = {
 APPROVED_ORCHESTRATION_VARIANTS = {
     "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {
         "baseline_sha256": "f7485600db9571d882076f3ceeed8ee999bee998d35fdc8fe2386664bb55550c",
-        "approved_sha256": "13f23b82ddbae4823efb8747c891963bf21c458244c5b36622570ec5ae9077cc",
+        "approved_sha256": "9b1d4bdf1297aaa2517a09d16894a7fafd1b102518f075b2bbedd0475a4141d3",
+        "change_class": "behavior_changing",
+    },
+    "experiments/tase-contact-reproduction/tools/step5d_autotune_live_driver.py": {
+        "baseline_sha256": "5929c1ceb20a8541c28793f5fdf4c433146e7b35cecdc40ac6ab9177c0cd7fec",
+        "approved_sha256": "3a3189622432182aa7ddac69754caccb26c911f2bdf2d9f202914b964deb1711",
         "change_class": "behavior_changing",
     },
 }
@@ -313,30 +311,29 @@ def matrix_issues(payload: Any) -> list[str]:
             "next_legal_action_not_broad_pass"
         ):
             issues.append("test_matrix_operator_success_signal_policy_mismatch")
-        if readiness.get("historical_authorization_reuse_allowed") is not False:
-            issues.append("test_matrix_historical_authorization_reuse_not_forbidden")
+        if readiness.get("user_confirmation_required") is not False:
+            issues.append("test_matrix_user_confirmation_not_disabled")
         if readiness.get("transition_order") != READINESS_TRANSITION_ORDER:
             issues.append("test_matrix_readiness_transition_order_mismatch")
         if readiness.get("ready_to_execute_requires") != READY_TO_EXECUTE_REQUIRES:
             issues.append("test_matrix_ready_to_execute_requirements_mismatch")
-    hil_authorization = payload.get("hil_authorization_gate")
-    if not isinstance(hil_authorization, dict):
-        issues.append("test_matrix_hil_authorization_gate_missing")
+    hil_permit = payload.get("hil_launch_permit_gate")
+    if not isinstance(hil_permit, dict):
+        issues.append("test_matrix_hil_launch_permit_gate_missing")
     else:
-        expected_hil_authorization = {
-            "command": HIL_AUTHORIZATION_COMMAND,
+        expected_hil_permit = {
+            "command": HIL_LAUNCH_PERMIT_COMMAND,
             "scope": "hil_full_bridge_hold",
             "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-            "max_ttl_s": 1800,
             "current_fingerprint_binding_required": True,
-            "current_turn_thread_binding_required": True,
+            "parent_process_binding_required": True,
             "serial": True,
             "hold_required": True,
             "live_writer_allowed": True,
-            "operator_action_consumed": False,
+            "user_confirmation_required": False,
         }
-        if hil_authorization != expected_hil_authorization:
-            issues.append("test_matrix_hil_authorization_contract_mismatch")
+        if hil_permit != expected_hil_permit:
+            issues.append("test_matrix_hil_launch_permit_contract_mismatch")
     installed_runtime = payload.get("local_installed_runtime_gate")
     expected_installed_runtime = {
         "command": [
@@ -452,7 +449,7 @@ def matrix_issues(payload: Any) -> list[str]:
     hil = lanes.get("hil_no_motion", {})
     for field, required in {
         "network_allowed": True,
-        "network_scope": "target_controller_and_kunwei_only_after_current_turn_authorization",
+        "network_scope": "target_controller_and_kunwei_only_from_canonical_entrypoint",
         "controller_access_allowed": True,
         "live_writer_allowed": True,
     }.items():

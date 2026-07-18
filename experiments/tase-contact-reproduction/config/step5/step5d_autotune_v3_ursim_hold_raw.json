@@ -3,18 +3,18 @@
   "blocker": null,
   "claim_boundary": "digest_pinned_ursim_hold_only_not_robot_acceptance",
   "container": {
-    "container": "step5d-autotune-v3-ursim-hold",
-    "container_id": "59132eecd6713d416d2c5c77d7928b1b8824076fc7a8c2e1e5fca505cda878eb",
-    "container_image_id": "sha256:2defb07d45a84f988504a78184c9b8da69fea55ffec89ee1388e75a412e394a2",
+    "container": "vigilant_goldwasser",
+    "container_id": "86b80028924e776b907d89efb8625d616abdb8c4a0ea07df7586f150460e5fc1",
+    "container_image_id": "sha256:b002fdfa81e3ecdb95246ab78b6991fc065a622b890af45a27e10b088aef98c3",
     "container_ip": "172.18.0.2",
     "docker_server_version": "29.6.1",
-    "expected_image": "universalrobots/ursim_e-series@sha256:730c20b9609279a50a5bc5d16503e3fd0b096534c671818f7987547609558ab3",
+    "expected_image": "universalrobots/ursim_e-series:5.25.2@sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",
     "host_ports_published": false,
-    "network": "step5d-autotune-v3-ursim-internal",
+    "network": "step5d_v3_ursim_internal_20260719",
     "network_internal": true
   },
   "controller_write_allowed": false,
-  "evidence_path": "/home/andy/.codex-worktrees/ur10e-step5d-autotune-v3-20260718/experiments/tase-contact-reproduction/runs/step5d_autotune_v3_validation/ursim-v3-final-bootstrap/a1937bb530a4226a-20260718T165518.514837Z-533078/ursim_hold_gate.json",
+  "evidence_path": "/home/andy/.codex-worktrees/ur10e-step5d-autotune-v3-20260718/experiments/tase-contact-reproduction/runs/step5d_autotune_v3_validation/ursim-5.25.2-startup-closure-pass-20260719/a1937bb530a4226a-20260718T192853.037909Z-567908/ursim_hold_gate.json",
   "forbidden_action_count": 0,
   "hold_watchdog": {
     "dashboard_commands": [
@@ -37,7 +37,7 @@
     "samples": [
       {
         "dashboard": {
-          "PolyscopeVersion": "URSoftware 5.11.11.1010533 (Apr 12 2022)",
+          "PolyscopeVersion": "URSoftware 5.25.2.130406 (Apr 22 2026)",
           "banner": "Connected: Universal Robots Dashboard Server",
           "programState": "STOPPED <unnamed>",
           "robotmode": "Robotmode: POWER_OFF",
@@ -53,7 +53,7 @@
           "running": false
         },
         "index": 0,
-        "observed_at": "2026-07-18T16:55:19.892626+00:00",
+        "observed_at": "2026-07-18T19:28:53.604031+00:00",
         "rtde": {
           "fields": {
             "actual_TCP_speed": [
@@ -80,9 +80,10 @@
           "received_text_messages": [
             {
               "message": "SafetySetup has not been confirmed yet, therefore no data will be send yet",
-              "message_type": 2,
-              "payload_hex": "02536166657479536574757020686173206e6f74206265656e20636f6e6669726d6564207965742c207468657265666f7265206e6f20646174612077696c6c2062652073656e6420796574",
-              "protocol_version": 1
+              "payload_hex": "4a536166657479536574757020686173206e6f74206265656e20636f6e6669726d6564207965742c207468657265666f7265206e6f20646174612077696c6c2062652073656e6420796574095552436f6e74726f6c02",
+              "protocol_version": 2,
+              "source": "URControl",
+              "warning_level": 2
             }
           ],
           "sent_packet_types": [
@@ -94,7 +95,7 @@
       },
       {
         "dashboard": {
-          "PolyscopeVersion": "URSoftware 5.11.11.1010533 (Apr 12 2022)",
+          "PolyscopeVersion": "URSoftware 5.25.2.130406 (Apr 22 2026)",
           "banner": "Connected: Universal Robots Dashboard Server",
           "programState": "STOPPED <unnamed>",
           "robotmode": "Robotmode: POWER_OFF",
@@ -110,7 +111,7 @@
           "running": false
         },
         "index": 1,
-        "observed_at": "2026-07-18T16:55:20.610065+00:00",
+        "observed_at": "2026-07-18T19:28:53.962643+00:00",
         "rtde": {
           "fields": {
             "actual_TCP_speed": [
@@ -137,9 +138,10 @@
           "received_text_messages": [
             {
               "message": "SafetySetup has not been confirmed yet, therefore no data will be send yet",
-              "message_type": 2,
-              "payload_hex": "02536166657479536574757020686173206e6f74206265656e20636f6e6669726d6564207965742c207468657265666f7265206e6f20646174612077696c6c2062652073656e6420796574",
-              "protocol_version": 1
+              "payload_hex": "4a536166657479536574757020686173206e6f74206265656e20636f6e6669726d6564207965742c207468657265666f7265206e6f20646174612077696c6c2062652073656e6420796574095552436f6e74726f6c02",
+              "protocol_version": 2,
+              "source": "URControl",
+              "warning_level": 2
             }
           ],
           "sent_packet_types": [
@@ -151,7 +153,7 @@
       },
       {
         "dashboard": {
-          "PolyscopeVersion": "URSoftware 5.11.11.1010533 (Apr 12 2022)",
+          "PolyscopeVersion": "URSoftware 5.25.2.130406 (Apr 22 2026)",
           "banner": "Connected: Universal Robots Dashboard Server",
           "programState": "STOPPED <unnamed>",
           "robotmode": "Robotmode: POWER_OFF",
@@ -167,7 +169,7 @@
           "running": false
         },
         "index": 2,
-        "observed_at": "2026-07-18T16:55:21.330669+00:00",
+        "observed_at": "2026-07-18T19:28:54.319623+00:00",
         "rtde": {
           "fields": {
             "actual_TCP_speed": [
@@ -194,9 +196,10 @@
           "received_text_messages": [
             {
               "message": "SafetySetup has not been confirmed yet, therefore no data will be send yet",
-              "message_type": 2,
-              "payload_hex": "02536166657479536574757020686173206e6f74206265656e20636f6e6669726d6564207965742c207468657265666f7265206e6f20646174612077696c6c2062652073656e6420796574",
-              "protocol_version": 1
+              "payload_hex": "4a536166657479536574757020686173206e6f74206265656e20636f6e6669726d6564207965742c207468657265666f7265206e6f20646174612077696c6c2062652073656e6420796574095552436f6e74726f6c02",
+              "protocol_version": 2,
+              "source": "URControl",
+              "warning_level": 2
             }
           ],
           "sent_packet_types": [
@@ -247,7 +250,7 @@
     ]
   },
   "motion_allowed": false,
-  "observed_at": "2026-07-18T16:55:18.275074+00:00",
+  "observed_at": "2026-07-18T19:28:52.797421+00:00",
   "ok": true,
   "play_allowed": false,
   "production_launcher": {
