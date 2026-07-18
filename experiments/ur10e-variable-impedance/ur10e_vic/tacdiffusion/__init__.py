@@ -1,0 +1,96 @@
+"""Offline contracts and deterministic helpers for UR10e TacDiffusion."""
+
+from .contracts import (
+    CONDITION_DIMENSION,
+    CONTROL_RATE_HZ,
+    MODEL_RATE_CANDIDATES_HZ,
+    PERMITTED_PROGRAM_CLAIM,
+    RAW_WRENCH_RATE_HZ,
+    REQUIRED_EXPERT_CONTROLLER_PROFILE,
+    ExpertTraceManifest,
+    ForceDiffusionObservation,
+    ForceDiffusionProposal,
+    FrameCalibrationLineage,
+)
+from .filter import DynamicForceFilter, DynamicForceFilterState
+from .dataset import (
+    ForceDataset,
+    assign_episode_grouped_splits,
+    build_dataset_manifest,
+    load_expert_dataset_npz,
+    validate_dataset_manifest,
+    write_dataset_manifest,
+    write_expert_dataset_npz,
+)
+from .model import (
+    ConditionalDDPM,
+    ConditionalNoiseMLP,
+    InferenceResult,
+    TacDiffusionDDPMConfig,
+    TacDiffusionPredictor,
+    load_predictor,
+    torch_available,
+    train_ddpm,
+    validate_checkpoint_manifest,
+)
+from .benchmark import (
+    benchmark_paced_predictor,
+    validate_paced_benchmark_candidate,
+)
+from .signals import (
+    CanonicalWrenchSample,
+    CausalWrenchAlignment,
+    InternalWrenchEstimate,
+    causal_sync_wrench_1khz_to_control_500hz,
+    convert_wrench_to_si,
+    reconstruct_internal_wrench_from_previous_command,
+    transform_wrench_to_target_frame,
+)
+from .timing import (
+    ModelRateSelection,
+    ModelTimingEvidence,
+    select_highest_accepted_model_rate,
+)
+
+__all__ = [
+    "CONDITION_DIMENSION",
+    "CONTROL_RATE_HZ",
+    "MODEL_RATE_CANDIDATES_HZ",
+    "PERMITTED_PROGRAM_CLAIM",
+    "RAW_WRENCH_RATE_HZ",
+    "REQUIRED_EXPERT_CONTROLLER_PROFILE",
+    "CanonicalWrenchSample",
+    "CausalWrenchAlignment",
+    "DynamicForceFilter",
+    "DynamicForceFilterState",
+    "ExpertTraceManifest",
+    "ForceDiffusionObservation",
+    "ForceDiffusionProposal",
+    "FrameCalibrationLineage",
+    "ForceDataset",
+    "InternalWrenchEstimate",
+    "ModelRateSelection",
+    "ModelTimingEvidence",
+    "ConditionalDDPM",
+    "ConditionalNoiseMLP",
+    "InferenceResult",
+    "TacDiffusionDDPMConfig",
+    "TacDiffusionPredictor",
+    "assign_episode_grouped_splits",
+    "benchmark_paced_predictor",
+    "build_dataset_manifest",
+    "causal_sync_wrench_1khz_to_control_500hz",
+    "convert_wrench_to_si",
+    "load_expert_dataset_npz",
+    "load_predictor",
+    "reconstruct_internal_wrench_from_previous_command",
+    "select_highest_accepted_model_rate",
+    "torch_available",
+    "train_ddpm",
+    "transform_wrench_to_target_frame",
+    "validate_checkpoint_manifest",
+    "validate_dataset_manifest",
+    "validate_paced_benchmark_candidate",
+    "write_dataset_manifest",
+    "write_expert_dataset_npz",
+]

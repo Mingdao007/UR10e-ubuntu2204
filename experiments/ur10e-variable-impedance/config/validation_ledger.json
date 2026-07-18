@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "stage_order": [
+    "implemented",
+    "deterministic_tested",
+    "simulation_run",
+    "hardware_run"
+  ],
+  "stage_invariant": "a stage may be true only when every earlier stage is true and its own hash-bound evidence is listed",
+  "claim_invariant": "no domain may borrow another domain's evidence or advance a claim beyond its own highest evidenced stage",
+  "components": {
+    "tacdiffusion_upstream_lock": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "evidence": [
+        "config/tacdiffusion_upstream_lock.json",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
+    },
+    "controller_5_25_2_upgrade_preflight": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "checkpoint_state": "closed_no_install_target_superseded_by_observed_5_26_0",
+      "evidence": [
+        "config/controller_5_25_2_upgrade_preflight.json",
+        "tools/validate_controller_5_25_2_upgrade.py",
+        "evidence/controller_5_26_0_readonly_20260719.json",
+        "evidence/tacdiffusion_offline_validation.json"
+      ],
+      "controller_verified": false
+    },
+    "tacdiffusion_experiment_plan": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "evidence": [
+        "config/tacdiffusion_experiment_plan.json",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
+    },
+    "tacdiffusion_runtime_module": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "evidence": [
+        "ur10e_vic/tacdiffusion",
+        "tests/test_tacdiffusion_core.py",
+        "tests/test_tacdiffusion_model.py",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
+    },
+    "direct_torque_v2_tacdiffusion_extension": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "evidence": [
+        "config/direct_torque_rtde_layout.json",
+        "programs/direct_torque_vic_offline_template.script",
+        "evidence/tacdiffusion_synthetic_canary_60s.json",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
+    },
+    "ursim_5_25_2_protocol": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "evidence": [
+        "config/ursim_5_25_2_protocol.json",
+        "ur10e_vic/ursim_protocol.py",
+        "tools/run_ursim_5_25_2_protocol.py",
+        "tests/test_ursim_protocol.py",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
+    }
+  },
+  "independent_acceptance_domains": {
+    "v29": {
+      "policy": "frozen fallback",
+      "current_stage": null,
+      "canonical_external_evidence_required": true
+    },
+    "v30": {
+      "policy": "independent acceptance",
+      "current_stage": null,
+      "canonical_external_evidence_required": true
+    },
+    "P0": {
+      "policy": "independent acceptance",
+      "current_stage": null,
+      "canonical_external_evidence_required": true
+    },
+    "VIC": {
+      "policy": "independent acceptance",
+      "current_stage": null,
+      "canonical_external_evidence_required": true
+    },
+    "DBIL": {
+      "policy": "independent acceptance",
+      "current_stage": null,
+      "canonical_external_evidence_required": true
+    },
+    "Gazebo": {
+      "policy": "independent acceptance",
+      "current_stage": null,
+      "canonical_external_evidence_required": true
+    },
+    "URSim": {
+      "policy": "independent acceptance",
+      "current_stage": "deterministic_tested",
+      "canonical_external_evidence_required": true
+    },
+    "TacDiffusion": {
+      "policy": "independent acceptance",
+      "current_stage": "deterministic_tested",
+      "canonical_external_evidence_required": true,
+      "claim": "UR10e 500 Hz force-domain diffusion adaptation",
+      "hardware_run": false
+    }
+  },
+  "review_policy_v2": {
+    "offline": "0+0",
+    "no_contact_torque_canary": "1+1",
+    "contact_torque_or_model_active": "2+1"
+  },
+  "controller_verified": false,
+  "live_motion_authorized": false,
+  "contact_authorized": false
+}

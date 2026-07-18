@@ -5,6 +5,7 @@ runs/
 evidence/*
 !evidence/offline_evidence_index.json
 !evidence/external_rehash_verification.json
+!evidence/controller_5_26_0_readonly_20260719.json
 *.npz
 *.pt
 *.pth
