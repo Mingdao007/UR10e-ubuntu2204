@@ -35,6 +35,14 @@ owner performs TP Stop cleanup. Per-trial and global CSV output is compact; the
 per-trial writer is bounded and asynchronous, and durable publication occurs at
 WAIT_ACK so disk I/O cannot block the active control loop.
 
+The live preflight producer and launcher consume one shared exact predicate
+schema, including `prealign_start_clearance`; adding or removing a predicate
+cannot pass one side while being rejected as an unknown field by the other.
+Likewise, the compact bridge schema is checked against the real campaign
+closure consumer and must retain output double registers `36..38` through
+WAIT_ACK. These production-seam contracts close the two observed schema-drift
+failures rather than relying on hand-written test rows.
+
 v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,
 and gross 60 N / 100 N / 3 Nm protection. The scheduler-only delta keeps the
