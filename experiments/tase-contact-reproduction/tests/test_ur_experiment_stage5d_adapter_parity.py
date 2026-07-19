@@ -13,6 +13,8 @@ sys.path.insert(0, str(REPO / "src/ur10e_experiment_runtime"))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from ur10e_experiment_runtime import (  # noqa: E402
+    BatchIdentity,
+    BatchRow,
     RegistryError,
     load_experiment_spec,
     plan_experiment,
@@ -51,6 +53,8 @@ from step5d_autotune_state_machine import (  # noqa: E402
     TP_TO_HOST_INTEGER_REGISTERS as LEGACY_TP_TO_HOST,
 )
 from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY  # noqa: E402
+from step5d_autotune_v3.runtime_profile import load_launch_profile  # noqa: E402
+from run_step5d_autotune_v3_live import initial_control_overlays  # noqa: E402
 
 
 SPEC = (
@@ -175,6 +179,37 @@ def test_exact_ack_requires_current_identity_bundle_and_safe_closure() -> None:
         safe_closure=False,
         immutable_bundle_written=True,
     )
+
+
+def test_batch_identity_binds_the_exact_current_ten_control_overlay_rows() -> None:
+    spec = load_experiment_spec(SPEC)
+    profile = load_launch_profile()
+    overlays = initial_control_overlays(profile)
+    identity = BatchIdentity(
+        experiment_fingerprint=spec.fingerprint,
+        launch_fingerprint=profile.fingerprint,
+        plant_epoch=1,
+        rows=tuple(
+            BatchRow(
+                row_index=index,
+                control_candidate={
+                    name: overlay[name]
+                    for name in (
+                        "force_p_gain",
+                        "force_i_gain",
+                        "force_damping",
+                        "orientation_ko",
+                    )
+                },
+                trial_overlay=overlay,
+            )
+            for index, overlay in enumerate(overlays, start=1)
+        ),
+    )
+    assert len(identity.rows) == 10
+    assert [row.control_candidate_uid for row in identity.rows] == [
+        overlay["control_candidate_uid"] for overlay in overlays
+    ]
 
 
 def test_other_stage_adapter_ids_remain_unregistered_in_this_tranche() -> None:

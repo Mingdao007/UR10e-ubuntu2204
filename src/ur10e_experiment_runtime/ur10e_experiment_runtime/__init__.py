@@ -1,5 +1,15 @@
 """Manifest-first UR10e experiment runtime (offline scaffolding only)."""
 
+from .batch import (
+    BatchFate,
+    BatchIdentity,
+    BatchJournal,
+    BatchRow,
+    ExactAckReceipt,
+    ReturnReferenceKind,
+    SafeClosureReceipt,
+)
+
 from .contracts import (
     AutotuneCandidate,
     ExperimentRuntimeError,
@@ -39,15 +49,22 @@ from .runtime import (
 
 __all__ = [
     "AutotuneCandidate",
+    "BatchFate",
+    "BatchIdentity",
+    "BatchJournal",
+    "BatchRow",
     "ComponentKind",
     "ComponentRegistry",
     "ExperimentRuntimeError",
     "ExperimentSpec",
+    "ExactAckReceipt",
     "ObjectiveContract",
     "OutputPathError",
     "ResourceLockError",
     "RegistryError",
     "RunManifest",
+    "ReturnReferenceKind",
+    "SafeClosureReceipt",
     "SafetyGateError",
     "SpecValidationError",
     "StrictJSONError",

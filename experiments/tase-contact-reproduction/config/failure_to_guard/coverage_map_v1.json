@@ -83,9 +83,9 @@
     {
       "invariant_id": "f2g.exact_batch_completion",
       "lanes": {
-        "small": {"required": true, "status": "fixture_registered", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json"]},
-        "medium": {"required": true, "status": "planned_m3", "evidence": []},
-        "replay": {"required": true, "status": "planned_m3", "evidence": []},
+        "small": {"required": true, "status": "implemented_m3", "evidence": ["../../src/ur10e_experiment_runtime/tests/test_ur_experiment_batch_lifecycle.py"]},
+        "medium": {"required": true, "status": "implemented_m3", "evidence": ["tests/test_step5d_autotune_v3_acceptance.py", "tests/test_step5d_autotune_recovery.py"]},
+        "replay": {"required": true, "status": "planned_m5_latest_bundle_replay", "evidence": []},
         "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
       }
     },
