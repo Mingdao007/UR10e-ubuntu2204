@@ -176,7 +176,7 @@ def closure_sample_from_bridge_row(row: Mapping[str, str]) -> dict[str, Any]:
         sample[f"output_int_register_{index}"] = _integer(
             row, f"ur_output_int_register_{index}"
         )
-    for index in range(36, 39):
+    for index in range(35, 45):
         sample[f"output_double_register_{index}"] = _finite(
             row, f"ur_output_double_register_{index}"
         )

@@ -6,7 +6,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import math
+import os
 from pathlib import Path
+import stat
 import sys
 from typing import Any, Callable, Mapping
 
@@ -29,7 +31,10 @@ from ur10e_experiment_runtime import (  # noqa: E402
     canonical_sha256,
     return_reference,
 )
-from ur10e_experiment_runtime.identity import strict_json_loads  # noqa: E402
+from ur10e_experiment_runtime.identity import (  # noqa: E402
+    canonical_json_bytes,
+    strict_json_loads,
+)
 from ur10e_experiment_runtime.failure_to_guard import (  # noqa: E402
     MetricRole,
     ObserverStatus,
@@ -40,6 +45,9 @@ from ur10e_experiment_runtime.physical_prior import (  # noqa: E402
     STEP5D_V3_PHYSICAL_PRIOR,
 )
 from ur10e_experiment_runtime.return_route import (  # noqa: E402
+    RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+    RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+    RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
     return_policy_fingerprint,
 )
 from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
@@ -118,6 +126,13 @@ class PostAckControllerReadback:
     tcp_linear_speed_m_s: float
     tcp_angular_speed_rad_s: float
     qd_max_rad_s: float
+    return_phase_echo: float
+    return_segment_id: int
+    return_current_angular_speed_rad_s: float
+    return_current_angular_acceleration_rad_s2: float
+    return_max_angular_speed_rad_s: float
+    return_max_angular_acceleration_rad_s2: float
+    return_max_sample_gap_s: float
     dwell_s: float
     safety_mode: str
     safety_guards: Mapping[str, bool]
@@ -160,11 +175,22 @@ class PostAckControllerReadback:
             "tcp_linear_speed_m_s": 0.001,
             "tcp_angular_speed_rad_s": 0.01,
             "qd_max_rad_s": 0.01,
+            "return_current_angular_speed_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+            "return_current_angular_acceleration_rad_s2": RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+            "return_max_angular_speed_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+            "return_max_angular_acceleration_rad_s2": RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+            "return_max_sample_gap_s": RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
         }
         for name, maximum in limits.items():
             value = float(getattr(self, name))
-            if value < 0.0 or value > maximum:
+            if not math.isfinite(value) or value < 0.0 or value > maximum:
                 raise ValueError(f"post-ACK {name} exceeds the frozen limit")
+        if not math.isclose(self.return_phase_echo, 40.3, abs_tol=1e-9):
+            raise ValueError("post-ACK readback lacks completed return phase")
+        if type(self.return_segment_id) is not int or self.return_segment_id != 3:
+            raise ValueError("post-ACK readback lacks exact return segment identity")
+        if self.return_max_sample_gap_s <= 0.0:
+            raise ValueError("post-ACK readback lacks a positive return sample gap")
         if set(self.safety_guards) != _RETURN_GUARDS or not all(
             type(value) is bool and value for value in self.safety_guards.values()
         ):
@@ -172,7 +198,7 @@ class PostAckControllerReadback:
 
     def document(self) -> dict[str, Any]:
         return {
-            "schema": "step5d.autotune-v3/post-ack-controller-readback-v1",
+            "schema": "step5d.autotune-v3/post-ack-controller-readback-v2",
             "batch_uid": self.batch_uid,
             "row_index": self.row_index,
             "trial_uid": self.trial_uid,
@@ -189,6 +215,13 @@ class PostAckControllerReadback:
             "tcp_linear_speed_m_s": self.tcp_linear_speed_m_s,
             "tcp_angular_speed_rad_s": self.tcp_angular_speed_rad_s,
             "qd_max_rad_s": self.qd_max_rad_s,
+            "return_phase_echo": self.return_phase_echo,
+            "return_segment_id": self.return_segment_id,
+            "return_current_angular_speed_rad_s": self.return_current_angular_speed_rad_s,
+            "return_current_angular_acceleration_rad_s2": self.return_current_angular_acceleration_rad_s2,
+            "return_max_angular_speed_rad_s": self.return_max_angular_speed_rad_s,
+            "return_max_angular_acceleration_rad_s2": self.return_max_angular_acceleration_rad_s2,
+            "return_max_sample_gap_s": self.return_max_sample_gap_s,
             "dwell_s": self.dwell_s,
             "safety_mode": self.safety_mode,
             "safety_guards": dict(sorted(self.safety_guards.items())),
@@ -198,6 +231,124 @@ class PostAckControllerReadback:
     @property
     def controller_readback_sha256(self) -> str:
         return canonical_sha256(self.document())
+
+
+def _post_ack_readback_relative_path(
+    *, row_index: int, trial_uid: str, controller_readback_sha256: str
+) -> Path:
+    _sha256("trial_uid", trial_uid)
+    _sha256("controller_readback_sha256", controller_readback_sha256)
+    if type(row_index) is not int or not 1 <= row_index <= 10:
+        raise ValueError("post-ACK readback row index must be in [1,10]")
+    return Path("post_ack_controller_readbacks") / (
+        f"row-{row_index:02d}-{trial_uid}-{controller_readback_sha256}.json"
+    )
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _persist_post_ack_readback(
+    *, campaign_root: Path, readback: PostAckControllerReadback
+) -> tuple[str, Path]:
+    root = campaign_root.resolve()
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("campaign root is not a safe directory")
+    relative = _post_ack_readback_relative_path(
+        row_index=readback.row_index,
+        trial_uid=readback.trial_uid,
+        controller_readback_sha256=readback.controller_readback_sha256,
+    )
+    artifact_root = root / relative.parent
+    artifact_root.mkdir(mode=0o700, exist_ok=True)
+    if artifact_root.is_symlink() or not artifact_root.is_dir():
+        raise ValueError("post-ACK readback root is not a safe directory")
+    path = root / relative
+    payload = canonical_json_bytes(readback.document()) + b"\n"
+    try:
+        descriptor = os.open(
+            path,
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o444,
+        )
+    except FileExistsError:
+        if path.is_symlink() or not path.is_file() or path.read_bytes() != payload:
+            raise FileExistsError("post-ACK controller readback identity collision")
+    else:
+        try:
+            with os.fdopen(descriptor, "wb", closefd=False) as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(descriptor)
+        _fsync_directory(artifact_root)
+    return relative.as_posix(), path.resolve()
+
+
+def _load_post_ack_readback(
+    *, campaign_root: Path, ack: ExactAckReceipt
+) -> PostAckControllerReadback:
+    if ack.controller_readback_path is None:
+        raise ValueError("runtime batch exact ACK lacks controller readback path")
+    expected_relative = _post_ack_readback_relative_path(
+        row_index=ack.row_index,
+        trial_uid=ack.trial_uid,
+        controller_readback_sha256=ack.controller_readback_sha256,
+    )
+    if ack.controller_readback_path != expected_relative.as_posix():
+        raise ValueError("runtime batch controller readback path differs")
+    root = campaign_root.resolve()
+    path = root / expected_relative
+    artifact_root = root / expected_relative.parent
+    if artifact_root.is_symlink() or not artifact_root.is_dir():
+        raise ValueError("runtime batch controller readback root is unsafe")
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("runtime batch controller readback artifact is missing")
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    try:
+        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            raise ValueError("runtime batch controller readback is not a regular file")
+        with os.fdopen(descriptor, "rb", closefd=False) as stream:
+            encoded = stream.read()
+    finally:
+        os.close(descriptor)
+    document = strict_json_loads(encoded)
+    if not isinstance(document, Mapping):
+        raise ValueError("runtime batch controller readback is not an object")
+    payload = dict(document)
+    if payload.pop("schema", None) != (
+        "step5d.autotune-v3/post-ack-controller-readback-v2"
+    ):
+        raise ValueError("runtime batch controller readback schema differs")
+    try:
+        payload["return_reference"] = ReturnReferenceKind(payload["return_reference"])
+        readback = PostAckControllerReadback(**payload)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("runtime batch controller readback fields differ") from exc
+    if encoded != canonical_json_bytes(readback.document()) + b"\n":
+        raise ValueError("runtime batch controller readback encoding differs")
+    if any(
+        (
+            readback.controller_readback_sha256 != ack.controller_readback_sha256,
+            readback.batch_uid != ack.batch_uid,
+            readback.row_index != ack.row_index,
+            readback.trial_uid != ack.trial_uid,
+            readback.return_reference_uid != ack.return_reference_uid,
+            readback.ack_command_seq != ack.ack_command_seq,
+            readback.consumed_command_seq != ack.consumed_command_seq,
+        )
+    ):
+        raise ValueError("runtime batch controller readback identity differs")
+    return readback
 
 
 @dataclass(frozen=True)
@@ -252,6 +403,8 @@ class PreAckTypedClosureCollector:
         self._last_s: float | None = None
         self._last_heartbeat: float | None = None
         self._terminal_reason: int | None = None
+        self._return_phase_echo: float | None = None
+        self._return_segment_id: int | None = None
         self._maxima = {
             "tp_position_error_m": 0.0,
             "tp_orientation_error_rad": 0.0,
@@ -261,6 +414,11 @@ class PreAckTypedClosureCollector:
             "host_tcp_linear_speed_m_s": 0.0,
             "host_tcp_angular_speed_rad_s": 0.0,
             "host_qd_max_rad_s": 0.0,
+            "return_current_angular_speed_rad_s": 0.0,
+            "return_current_angular_acceleration_rad_s2": 0.0,
+            "return_max_angular_speed_rad_s": 0.0,
+            "return_max_angular_acceleration_rad_s2": 0.0,
+            "return_max_sample_gap_s": 0.0,
         }
 
     @property
@@ -344,6 +502,27 @@ class PreAckTypedClosureCollector:
             tp_qd_max = PostAckClosureCollector._number(
                 row, "ur_output_double_register_38"
             )
+            return_phase_echo = PostAckClosureCollector._number(
+                row, "ur_output_double_register_35"
+            )
+            return_segment_id = PostAckClosureCollector._integer(
+                row, "ur_output_double_register_39"
+            )
+            return_current_angular_speed = PostAckClosureCollector._number(
+                row, "ur_output_double_register_40"
+            )
+            return_current_angular_acceleration = PostAckClosureCollector._number(
+                row, "ur_output_double_register_41"
+            )
+            return_max_angular_speed = PostAckClosureCollector._number(
+                row, "ur_output_double_register_42"
+            )
+            return_max_angular_acceleration = PostAckClosureCollector._number(
+                row, "ur_output_double_register_43"
+            )
+            return_max_sample_gap = PostAckClosureCollector._number(
+                row, "ur_output_double_register_44"
+            )
             heartbeat_fresh = (
                 self._last_heartbeat is None or heartbeat != self._last_heartbeat
             )
@@ -381,6 +560,17 @@ class PreAckTypedClosureCollector:
                     host_angular_speed
                     <= self.context.reference.angular_speed_tolerance_rad_s,
                     host_qd_max <= self.context.reference.qd_tolerance_rad_s,
+                    math.isclose(return_phase_echo, 40.3, abs_tol=1e-9),
+                    return_segment_id == 3,
+                    return_current_angular_speed
+                    <= RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+                    return_current_angular_acceleration
+                    <= RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+                    return_max_angular_speed <= RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+                    return_max_angular_acceleration
+                    <= RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+                    0.0 < return_max_sample_gap
+                    <= RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
                     PostAckClosureCollector._integer(row, "ur_safety_mode") == 1,
                     all(guards.values()),
                 )
@@ -402,6 +592,8 @@ class PreAckTypedClosureCollector:
         if self._start_s is None:
             self._start_s = timestamp
             self._terminal_reason = terminal_reason
+            self._return_phase_echo = return_phase_echo
+            self._return_segment_id = return_segment_id
         self._last_s = timestamp
         self._last_heartbeat = heartbeat
         maxima = {
@@ -413,6 +605,11 @@ class PreAckTypedClosureCollector:
             "host_tcp_linear_speed_m_s": host_linear_speed,
             "host_tcp_angular_speed_rad_s": host_angular_speed,
             "host_qd_max_rad_s": host_qd_max,
+            "return_current_angular_speed_rad_s": return_current_angular_speed,
+            "return_current_angular_acceleration_rad_s2": return_current_angular_acceleration,
+            "return_max_angular_speed_rad_s": return_max_angular_speed,
+            "return_max_angular_acceleration_rad_s2": return_max_angular_acceleration,
+            "return_max_sample_gap_s": return_max_sample_gap,
         }
         for name, value in maxima.items():
             self._maxima[name] = max(self._maxima[name], value)
@@ -427,10 +624,14 @@ class PreAckTypedClosureCollector:
     ) -> TypedSafeClosureEvidence:
         if not self.ready:
             raise ClosureNotReady("no complete exact WAIT_ACK typed closure exists")
+        if self._return_phase_echo is None or self._return_segment_id is None:
+            raise ClosureNotReady("return angular-envelope identity was not observed")
         return TypedSafeClosureEvidence(
             return_reference_uid=self.context.reference.reference_uid,
             return_reference_kind=self.context.reference.kind.value,
             batch_row_index=self.context.row_index,
+            return_phase_echo=self._return_phase_echo,
+            return_segment_id=self._return_segment_id,
             **self._maxima,
             return_guard_mask=0x7F,
             safety_guards={name: True for name in _RETURN_GUARDS},
@@ -468,12 +669,19 @@ class PostAckClosureCollector:
         self._start_s: float | None = None
         self._last_s: float | None = None
         self._last_heartbeat: float | None = None
+        self._return_phase_echo: float | None = None
+        self._return_segment_id: int | None = None
         self._maxima = {
             "position_error_m": 0.0,
             "orientation_error_rad": 0.0,
             "tcp_linear_speed_m_s": 0.0,
             "tcp_angular_speed_rad_s": 0.0,
             "qd_max_rad_s": 0.0,
+            "return_current_angular_speed_rad_s": 0.0,
+            "return_current_angular_acceleration_rad_s2": 0.0,
+            "return_max_angular_speed_rad_s": 0.0,
+            "return_max_angular_acceleration_rad_s2": 0.0,
+            "return_max_sample_gap_s": 0.0,
         }
         self._transcript = hashlib.sha256()
 
@@ -572,6 +780,27 @@ class PostAckClosureCollector:
             linear_speed = self._norm(speed[:3])
             angular_speed = self._norm(speed[3:])
             qd_max = max(abs(value) for value in qd)
+            return_phase_echo = self._number(
+                row, "output_double_register_35"
+            )
+            return_segment_id = self._integer(
+                row, "output_double_register_39"
+            )
+            return_current_angular_speed = self._number(
+                row, "output_double_register_40"
+            )
+            return_current_angular_acceleration = self._number(
+                row, "output_double_register_41"
+            )
+            return_max_angular_speed = self._number(
+                row, "output_double_register_42"
+            )
+            return_max_angular_acceleration = self._number(
+                row, "output_double_register_43"
+            )
+            return_max_sample_gap = self._number(
+                row, "output_double_register_44"
+            )
             heartbeat_fresh = (
                 self._last_heartbeat is None or heartbeat != self._last_heartbeat
             )
@@ -585,6 +814,17 @@ class PostAckClosureCollector:
                     angular_speed
                     <= self.context.reference.angular_speed_tolerance_rad_s,
                     qd_max <= self.context.reference.qd_tolerance_rad_s,
+                    math.isclose(return_phase_echo, 40.3, abs_tol=1e-9),
+                    return_segment_id == 3,
+                    return_current_angular_speed
+                    <= RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+                    return_current_angular_acceleration
+                    <= RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+                    return_max_angular_speed <= RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+                    return_max_angular_acceleration
+                    <= RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+                    0.0 < return_max_sample_gap
+                    <= RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
                     self._integer(row, "ur_safety_mode") == 1,
                     abs(self._number(row, "normal_force_n")) <= 60.0,
                     self._number(row, "force_norm_n") <= 100.0,
@@ -610,6 +850,8 @@ class PostAckClosureCollector:
             return False
         if self._start_s is None:
             self._start_s = timestamp
+            self._return_phase_echo = return_phase_echo
+            self._return_segment_id = return_segment_id
         self._last_s = timestamp
         self._last_heartbeat = heartbeat
         maxima = {
@@ -618,6 +860,11 @@ class PostAckClosureCollector:
             "tcp_linear_speed_m_s": linear_speed,
             "tcp_angular_speed_rad_s": angular_speed,
             "qd_max_rad_s": qd_max,
+            "return_current_angular_speed_rad_s": return_current_angular_speed,
+            "return_current_angular_acceleration_rad_s2": return_current_angular_acceleration,
+            "return_max_angular_speed_rad_s": return_max_angular_speed,
+            "return_max_angular_acceleration_rad_s2": return_max_angular_acceleration,
+            "return_max_sample_gap_s": return_max_sample_gap,
         }
         for name, value in maxima.items():
             self._maxima[name] = max(self._maxima[name], value)
@@ -628,6 +875,15 @@ class PostAckClosureCollector:
             "pose": list(pose),
             "speed": list(speed),
             "qd": list(qd),
+            "return_angular_envelope": {
+                "phase_echo": return_phase_echo,
+                "segment_id": return_segment_id,
+                "current_speed_rad_s": return_current_angular_speed,
+                "current_acceleration_rad_s2": return_current_angular_acceleration,
+                "max_speed_rad_s": return_max_angular_speed,
+                "max_acceleration_rad_s2": return_max_angular_acceleration,
+                "max_sample_gap_s": return_max_sample_gap,
+            },
             "force": {
                 "normal_n": self._number(row, "normal_force_n"),
                 "norm_n": self._number(row, "force_norm_n"),
@@ -640,6 +896,8 @@ class PostAckClosureCollector:
     def finalize(self) -> PostAckControllerReadback:
         if not self.ready:
             raise ValueError("post-ACK closure is not ready")
+        if self._return_phase_echo is None or self._return_segment_id is None:
+            raise ValueError("post-ACK return angular-envelope identity is missing")
         return PostAckControllerReadback(
             batch_uid=self.context.identity.batch_uid,
             row_index=self.context.row_index,
@@ -656,6 +914,8 @@ class PostAckClosureCollector:
             batch_row_echo=self.context.row_index,
             return_kind_echo=self.context.reference.kind.value,
             return_guard_mask=0x7F,
+            return_phase_echo=self._return_phase_echo,
+            return_segment_id=self._return_segment_id,
             **self._maxima,
             dwell_s=self.dwell_s,
             safety_mode="NORMAL",
@@ -719,6 +979,11 @@ class BatchAttemptContext:
             )
         ):
             raise ValueError("post-ACK evidence differs from the active batch attempt")
+        campaign_root = self.trial_brief_root.parent.resolve()
+        readback_relative_path, _ = _persist_post_ack_readback(
+            campaign_root=campaign_root,
+            readback=readback,
+        )
         ack = ExactAckReceipt(
             batch_uid=self.identity.batch_uid,
             row_index=self.row_index,
@@ -730,6 +995,11 @@ class BatchAttemptContext:
             arm_command_seq=arm_packet.command_seq,
             ack_command_seq=ack_packet.command_seq,
             consumed_command_seq=readback.consumed_command_seq,
+            controller_readback_path=readback_relative_path,
+        )
+        verified_readback = _load_post_ack_readback(
+            campaign_root=campaign_root,
+            ack=ack,
         )
         self.journal.record_ack_consumed(ack)
         closure = SafeClosureReceipt(
@@ -738,17 +1008,21 @@ class BatchAttemptContext:
             trial_uid=trial.trial_uid,
             ack_uid=ack.ack_uid,
             return_reference_uid=self.reference.reference_uid,
-            controller_readback_sha256=readback.controller_readback_sha256,
-            return_reference=readback.return_reference,
+            controller_readback_sha256=verified_readback.controller_readback_sha256,
+            return_reference=verified_readback.return_reference,
         )
         self.journal.record_safe_closure(closure)
+        verified_readback = _load_post_ack_readback(
+            campaign_root=campaign_root,
+            ack=ack,
+        )
         outcome_class, metric_role = _classify(evaluation)
         artifact_digests = {
             "bundle": store_receipt.bundle_sha256,
             "capture_csv": manifest.csv_sha256,
             "capture_metadata": manifest.metadata_sha256,
             "terminal_manifest": manifest.terminal_manifest_sha256,
-            "post_ack_controller_readback": readback.controller_readback_sha256,
+            "post_ack_controller_readback": verified_readback.controller_readback_sha256,
         }
         fingerprint_verified = bool(
             manifest.fingerprint_closed
@@ -851,7 +1125,7 @@ def _ack_from_document(document: Mapping[str, Any] | None) -> ExactAckReceipt:
     if not isinstance(document, Mapping):
         raise ValueError("runtime batch lacks a recoverable exact ACK receipt")
     payload = dict(document)
-    if payload.pop("schema", None) != "ur10e.exact_ack_receipt/v1":
+    if payload.pop("schema", None) != "ur10e.exact_ack_receipt/v2":
         raise ValueError("runtime batch exact ACK receipt schema differs")
     return ExactAckReceipt(**payload)
 
@@ -894,6 +1168,7 @@ def recover_runtime_batch_trial_briefs(
         row = state.rows[row_index - 1]
         ack = _ack_from_document(row.ack_receipt_document)
         closure = _closure_from_document(row.closure_receipt_document)
+        readback = _load_post_ack_readback(campaign_root=campaign_root, ack=ack)
         if row.trial_uid is None or row.immutable_bundle_sha256 is None:
             raise ValueError("ACK-completed runtime row lacks bundle identity")
         bundle_path = (
@@ -955,7 +1230,7 @@ def recover_runtime_batch_trial_briefs(
                 "capture_csv": manifest.csv_sha256,
                 "capture_metadata": manifest.metadata_sha256,
                 "terminal_manifest": manifest.terminal_manifest_sha256,
-                "post_ack_controller_readback": ack.controller_readback_sha256,
+                "post_ack_controller_readback": readback.controller_readback_sha256,
             },
             fingerprint_verified=bool(
                 manifest.fingerprint_closed
@@ -977,6 +1252,7 @@ def recover_runtime_batch_trial_briefs(
         if row.fate is not BatchFate.ACK_COMPLETED:
             continue
         ack = _ack_from_document(row.ack_receipt_document)
+        readback = _load_post_ack_readback(campaign_root=campaign_root, ack=ack)
         if any(
             value is None
             for value in (
@@ -990,6 +1266,14 @@ def recover_runtime_batch_trial_briefs(
         path = brief_root / f"{row.trial_brief_publication_uid}.trial-brief.json"
         encoded = path.read_bytes()
         published = strict_json_loads(encoded)
+        if (
+            not isinstance(published, Mapping)
+            or published.get("artifact_digests", {}).get(
+                "post_ack_controller_readback"
+            )
+            != readback.controller_readback_sha256
+        ):
+            raise ValueError("runtime batch TrialBrief readback digest differs")
         receipt = TrialBriefAdmissionReceipt(
             trial_uid=str(row.trial_uid),
             ack_command_seq=ack.ack_command_seq,

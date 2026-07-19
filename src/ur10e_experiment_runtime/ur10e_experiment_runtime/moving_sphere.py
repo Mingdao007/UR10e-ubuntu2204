@@ -13,6 +13,19 @@ from .stage_adapters import ControllerProgress, ControllerProgressPhase
 
 SPHERE_RADIUS_M = 0.015
 PROGRESS_MAX_AGE_NS = 2_000_000
+STOPPING_BOUND_EVIDENCE_ROLES = (
+    "reaction_latency_s",
+    "acceleration_growth_m_s2",
+    "minimum_deceleration_m_s2",
+    "center_speed_bound_m_s",
+    "center_acceleration_bound_m_s2",
+    "numeric_margin_m",
+)
+STOPPING_BOUND_EVIDENCE_STATUSES = (
+    "certified_for_domain",
+    "diagnostic_only",
+    "missing",
+)
 
 
 class SphereReason(IntEnum):
@@ -32,6 +45,100 @@ class SphereReason(IntEnum):
 
 
 @dataclass(frozen=True)
+class StoppingBoundEvidenceComponent:
+    role: str
+    status: str
+    value: float | None
+    units: str
+    frame: str
+    method: str
+    evidence_sha256: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if self.role not in STOPPING_BOUND_EVIDENCE_ROLES:
+            raise ValueError(f"unknown stopping-bound evidence role: {self.role}")
+        if self.status not in STOPPING_BOUND_EVIDENCE_STATUSES:
+            raise ValueError(f"unknown stopping-bound evidence status: {self.status}")
+        if not self.units or not self.frame or not self.method:
+            raise ValueError("stopping-bound evidence metadata must be non-empty")
+        if self.status == "missing":
+            if self.value is not None or self.evidence_sha256:
+                raise ValueError("missing evidence cannot carry a value or digest")
+            return
+        if self.value is None or not math.isfinite(float(self.value)):
+            raise ValueError("present stopping-bound evidence requires a finite value")
+        if not self.evidence_sha256 or any(
+            len(value) != 64 or any(c not in "0123456789abcdef" for c in value)
+            for value in self.evidence_sha256
+        ):
+            raise ValueError("present stopping-bound evidence requires SHA256 digests")
+
+    def document(self) -> dict[str, object]:
+        return {
+            "role": self.role,
+            "status": self.status,
+            "value": self.value,
+            "units": self.units,
+            "frame": self.frame,
+            "method": self.method,
+            "evidence_sha256": list(self.evidence_sha256),
+        }
+
+
+@dataclass(frozen=True)
+class StoppingBoundEvidenceManifest:
+    components: tuple[StoppingBoundEvidenceComponent, ...]
+    validity_domain: str
+    source_binding_sha256: str | None
+    stop_transport_sha256: str | None
+    deployment_readback_sha256: str | None
+
+    def __post_init__(self) -> None:
+        if not self.validity_domain:
+            raise ValueError("stopping-bound evidence requires a validity domain")
+        roles = tuple(component.role for component in self.components)
+        if roles != STOPPING_BOUND_EVIDENCE_ROLES:
+            raise ValueError("stopping-bound evidence roles/order differ")
+        for name in (
+            "source_binding_sha256",
+            "stop_transport_sha256",
+            "deployment_readback_sha256",
+        ):
+            value = getattr(self, name)
+            if value is not None and (
+                len(value) != 64
+                or any(character not in "0123456789abcdef" for character in value)
+            ):
+                raise ValueError(f"{name} must be a lowercase SHA256 when present")
+
+    @property
+    def certified(self) -> bool:
+        return bool(
+            all(
+                component.status == "certified_for_domain"
+                for component in self.components
+            )
+            and self.source_binding_sha256 is not None
+            and self.stop_transport_sha256 is not None
+            and self.deployment_readback_sha256 is not None
+        )
+
+    @property
+    def fingerprint(self) -> str:
+        return canonical_sha256(
+            {
+                "schema": "ur-exp/stopping-bound-evidence-manifest-v1",
+                "components": [component.document() for component in self.components],
+                "validity_domain": self.validity_domain,
+                "source_binding_sha256": self.source_binding_sha256,
+                "stop_transport_sha256": self.stop_transport_sha256,
+                "deployment_readback_sha256": self.deployment_readback_sha256,
+                "certified": self.certified,
+            }
+        )
+
+
+@dataclass(frozen=True)
 class StoppingBoundArtifact:
     reaction_latency_s: float
     acceleration_growth_m_s2: float
@@ -39,9 +146,7 @@ class StoppingBoundArtifact:
     center_speed_bound_m_s: float
     center_acceleration_bound_m_s2: float
     numeric_margin_m: float
-    evidence_sha256: tuple[str, ...]
-    validity_domain: str
-    certified: bool
+    evidence_manifest: StoppingBoundEvidenceManifest
 
     def __post_init__(self) -> None:
         numbers = (
@@ -60,13 +165,22 @@ class StoppingBoundArtifact:
             raise ValueError("minimum deceleration and margin must be positive")
         if self.center_speed_bound_m_s < 0 or self.center_acceleration_bound_m_s2 < 0:
             raise ValueError("center bounds must be non-negative")
-        if not self.evidence_sha256 or any(
-            len(value) != 64 or any(c not in "0123456789abcdef" for c in value)
-            for value in self.evidence_sha256
-        ):
-            raise ValueError("stopping bound requires evidence digests")
-        if not self.validity_domain:
-            raise ValueError("stopping bound requires a validity domain")
+        if not self.evidence_manifest.certified:
+            raise ValueError("stopping-bound artifact requires complete domain evidence")
+        values = dict(zip(STOPPING_BOUND_EVIDENCE_ROLES, numbers, strict=True))
+        for component in self.evidence_manifest.components:
+            if component.value is None or component.value != values[component.role]:
+                raise ValueError(
+                    "stopping-bound numeric values differ from their evidence manifest"
+                )
+
+    @property
+    def validity_domain(self) -> str:
+        return self.evidence_manifest.validity_domain
+
+    @property
+    def certified(self) -> bool:
+        return self.evidence_manifest.certified
 
     @property
     def fingerprint(self) -> str:
@@ -82,11 +196,78 @@ class StoppingBoundArtifact:
                 "center_speed_bound_m_s": self.center_speed_bound_m_s,
                 "center_acceleration_bound_m_s2": self.center_acceleration_bound_m_s2,
                 "numeric_margin_m": self.numeric_margin_m,
-                "evidence_sha256": list(self.evidence_sha256),
+                "evidence_manifest_fingerprint": self.evidence_manifest.fingerprint,
                 "validity_domain": self.validity_domain,
                 "certified": self.certified,
             }
         )
+
+
+def build_offline_fixture_stopping_bound(
+    *,
+    reaction_latency_s: float,
+    acceleration_growth_m_s2: float,
+    minimum_deceleration_m_s2: float,
+    center_speed_bound_m_s: float,
+    center_acceleration_bound_m_s2: float,
+    numeric_margin_m: float,
+    evidence_sha256: str,
+    validity_domain: str,
+) -> StoppingBoundArtifact:
+    """Build a source-bound synthetic bound that can never match a live domain."""
+
+    if "not_live" not in validity_domain:
+        raise ValueError("offline fixture validity domain must explicitly contain not_live")
+    values = (
+        reaction_latency_s,
+        acceleration_growth_m_s2,
+        minimum_deceleration_m_s2,
+        center_speed_bound_m_s,
+        center_acceleration_bound_m_s2,
+        numeric_margin_m,
+    )
+    units = ("s", "m/s^2", "m/s^2", "m/s", "m/s^2", "m")
+    methods = (
+        "synthetic_fixture_latency",
+        "synthetic_fixture_acceleration_growth",
+        "synthetic_fixture_minimum_deceleration",
+        "analytic_cycloid_2Aomega",
+        "analytic_cycloid_Aomega_squared",
+        "synthetic_fixture_numeric_margin",
+    )
+    manifest = StoppingBoundEvidenceManifest(
+        components=tuple(
+            StoppingBoundEvidenceComponent(
+                role=role,
+                status="certified_for_domain",
+                value=value,
+                units=unit,
+                frame="base",
+                method=method,
+                evidence_sha256=(evidence_sha256,),
+            )
+            for role, value, unit, method in zip(
+                STOPPING_BOUND_EVIDENCE_ROLES,
+                values,
+                units,
+                methods,
+                strict=True,
+            )
+        ),
+        validity_domain=validity_domain,
+        source_binding_sha256=evidence_sha256,
+        stop_transport_sha256=evidence_sha256,
+        deployment_readback_sha256=evidence_sha256,
+    )
+    return StoppingBoundArtifact(
+        reaction_latency_s=reaction_latency_s,
+        acceleration_growth_m_s2=acceleration_growth_m_s2,
+        minimum_deceleration_m_s2=minimum_deceleration_m_s2,
+        center_speed_bound_m_s=center_speed_bound_m_s,
+        center_acceleration_bound_m_s2=center_acceleration_bound_m_s2,
+        numeric_margin_m=numeric_margin_m,
+        evidence_manifest=manifest,
+    )
 
 
 @dataclass(slots=True)

@@ -232,7 +232,15 @@ def test_explicit_legacy_parent_preflight_crosses_real_process_boundary(
         ),
         str(root),
     ]
-    environment = {**os.environ, "PYTHONPATH": str(ROOT / "tools")}
+    environment = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(
+            [
+                str(ROOT / "tools"),
+                str(ROOT.parents[1] / "src/ur10e_experiment_runtime"),
+            ]
+        ),
+    }
     completed = subprocess.run(
         command,
         cwd=ROOT,
@@ -257,9 +265,16 @@ def bridge_row() -> dict[str, str]:
         "ur_output_int_register_28": "1",
         "ur_output_int_register_29": "111",
         "ur_output_int_register_30": "4",
+        "ur_output_double_register_35": "40.3",
         "ur_output_double_register_36": "0.001",
         "ur_output_double_register_37": "0.002",
         "ur_output_double_register_38": "0.003",
+        "ur_output_double_register_39": "3",
+        "ur_output_double_register_40": "0.0",
+        "ur_output_double_register_41": "0.0",
+        "ur_output_double_register_42": "0.05",
+        "ur_output_double_register_43": "0.1",
+        "ur_output_double_register_44": "0.002",
     }
     for name in ("actual_TCP_pose", "actual_TCP_speed", "actual_q", "actual_qd"):
         for index in range(6):
@@ -283,6 +298,9 @@ def test_bridge_row_maps_to_safe_closure_input_shape() -> None:
     assert sample["actual_TCP_pose"] == [index / 1000.0 for index in range(6)]
     assert sample["output_int_register_26"] == 70
     assert sample["output_double_register_38"] == 0.003
+    assert sample["output_double_register_35"] == 40.3
+    assert sample["output_double_register_39"] == 3.0
+    assert sample["output_double_register_44"] == 0.002
 
 
 def test_campaign_creates_its_own_runtime_mailbox_directory() -> None:

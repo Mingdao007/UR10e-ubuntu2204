@@ -688,6 +688,13 @@ def run_runner(args: argparse.Namespace) -> int:
             tcp_linear_speed_m_s=0.0005,
             tcp_angular_speed_rad_s=0.005,
             qd_max_rad_s=0.005,
+            return_phase_echo=40.3,
+            return_segment_id=3,
+            return_current_angular_speed_rad_s=0.0,
+            return_current_angular_acceleration_rad_s2=0.0,
+            return_max_angular_speed_rad_s=0.05,
+            return_max_angular_acceleration_rad_s2=0.1,
+            return_max_sample_gap_s=0.002,
             dwell_s=0.5,
             safety_mode="NORMAL",
             safety_guards={

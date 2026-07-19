@@ -57,8 +57,8 @@ def test_real_parser_is_bound_to_sha_protected_bridge_source() -> None:
 def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> None:
     import kunwei_rtde_bridge as bridge
     from ur10e_experiment_runtime.moving_sphere import (
+        build_offline_fixture_stopping_bound,
         MovingSphereKernel,
-        StoppingBoundArtifact,
     )
     from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
     from ur10e_experiment_runtime.stage_adapters import (
@@ -70,16 +70,15 @@ def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> 
     adapter = Stage25ControllerProgressAdapter(
         physical_prior_sha256=prior.fingerprint
     )
-    bound = StoppingBoundArtifact(
+    bound = build_offline_fixture_stopping_bound(
         reaction_latency_s=0.002,
         acceleration_growth_m_s2=0.1,
         minimum_deceleration_m_s2=2.0,
-        center_speed_bound_m_s=0.002,
-        center_acceleration_bound_m_s2=0.001,
+        center_speed_bound_m_s=0.003,
+        center_acceleration_bound_m_s2=0.00015,
         numeric_margin_m=0.0001,
-        evidence_sha256=("b" * 64,),
-        validity_domain="offline_fixture_only",
-        certified=True,
+        evidence_sha256="b" * 64,
+        validity_domain="offline_fixture_only_not_live_certification",
     )
     kernel = MovingSphereKernel(
         reference_sha256=adapter.reference_sha256,

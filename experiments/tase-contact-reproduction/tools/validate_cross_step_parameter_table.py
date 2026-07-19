@@ -626,13 +626,50 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             p0_delivery_state = "archive"
             archive_manifest = root / str(p0_delivery.get("archive_manifest") or "")
             archive_readback = root / str(p0_delivery.get("controller_readback_dir") or "")
+            provenance_manifest = root / str(
+                p0_delivery.get("controller_readback_manifest") or ""
+            )
             if (
                 not archive_manifest.is_file()
                 or not archive_readback.is_dir()
+                or not provenance_manifest.is_file()
                 or p0_delivery.get("controller_uploaded") is not True
                 or p0_delivery.get("controller_readback_verified") is not True
             ):
                 failures.append("P0 v8 archive delivery is incomplete")
+            else:
+                provenance_sha = file_sha256(provenance_manifest)
+                if provenance_sha != p0_delivery.get(
+                    "controller_readback_manifest_sha256"
+                ):
+                    failures.append("P0 v8 readback provenance sha mismatch")
+                provenance = load_json(provenance_manifest)
+                if (
+                    provenance.get("schema")
+                    != "step5d.p0-v8-controller-readback-provenance/v1"
+                    or provenance.get("status")
+                    != "immutable_historical_readback_recovered"
+                    or provenance.get("source", {}).get("worktree_status")
+                    != "clean"
+                ):
+                    failures.append("P0 v8 readback provenance is invalid")
+                artifacts = provenance.get("artifacts") or {}
+                for ext in (".script", ".txt", ".urp"):
+                    artifact = artifacts.get(ext) or {}
+                    tracked_path = root / str(artifact.get("tracked_path") or "")
+                    basename = artifact.get("readback_basename")
+                    expected_sha = p0_hashes.get(ext)
+                    if (
+                        artifact.get("sha256") != expected_sha
+                        or not isinstance(basename, str)
+                        or tracked_path.parent != archive_readback
+                        or tracked_path.name != basename
+                        or not tracked_path.is_file()
+                        or file_sha256(tracked_path) != expected_sha
+                    ):
+                        failures.append(
+                            f"P0 v8 tracked readback bytes differ for {ext}"
+                        )
         else:
             p0_delivery_state, p0_delivery_failures = _validate_manifest_bound_delivery(
                 root,
@@ -734,13 +771,15 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             "decision_source_digest"
         ) != canonical_digest(decision_source):
             failures.append("P0 v8 composite decision-source binding is stale")
-        for field in (
+        delivery_binding_fields = [
             "controller_target",
             "controller_uploaded",
             "controller_readback_verified",
-            "controller_readback_manifest",
             "local_triplet",
-        ):
+        ]
+        if not p0_archived:
+            delivery_binding_fields.append("controller_readback_manifest")
+        for field in delivery_binding_fields:
             if p0_v8_capture.get(field) != p0_delivery.get(field):
                 failures.append(f"P0 v8 current-stage capture delivery mismatch: {field}")
         if p0_delivery_state == "offline" and (
@@ -1564,7 +1603,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
 
     try:
         step5_contact = resolve_experiment_profile("Step5.contact_cycloid", root)
-        step5d = resolve_experiment_profile("Step5.step5d_rnn", root)
+        step5d = resolve_experiment_profile("Step5.step5d_rnn_legacy_v27", root)
         step6a = resolve_experiment_profile("Step6.no_contact_eight", root)
         step6b_v1 = resolve_experiment_profile("Step6.contact_eight_v1", root)
         step6b_v2 = resolve_experiment_profile("Step6.contact_eight", root)
@@ -1573,11 +1612,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         return failures
 
     step5b_row = step5_rows.get("step5_contact_cycloid_baseline_v1", {})
-    current_step5d_id = (
-        str(current_program or current_stage_id)
-        if str(current_program or current_stage_id).startswith("step5d_strict_rnn_ablation_")
-        else "step5d_strict_rnn_ablation_v27"
-    )
+    current_step5d_id = "step5d_strict_rnn_ablation_v27"
     step5d_label = current_step5d_id.rsplit("_", 1)[-1]
     step5d_row = step5_rows.get(current_step5d_id, {})
     step6a_row = step6_rows.get("step6a_eight_no_contact_v1", {})

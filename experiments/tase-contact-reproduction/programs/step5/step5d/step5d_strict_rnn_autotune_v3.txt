@@ -4,7 +4,7 @@ Controller target:
   /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp
 
 Version:
-  2026-07-19T1121HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3
+  2026-07-19T1650HKT
 
 Identity:
   release_stage_id=step5d_strict_rnn_autotune_v3
@@ -24,3 +24,10 @@ Frozen control contract:
   output integer registers 24..33; Stage25 heartbeat watchdog fail-closed
   after 0.020 s of unchanged heartbeat.
   Batch row is explicit; rows 1..9 return NearReady and row 10 returns CampaignHome.
+  The three return targets are unchanged. Return motion uses bounded speedl with
+  angular command cap 0.050 rad/s, rotational
+  acceleration cap 0.100 rad/s^2,
+  observed speed/acceleration tripwires 0.060
+  rad/s and 0.500 rad/s^2, explicit
+  stopl rotational deceleration 0.100
+  rad/s^2, and a 0.349065850 rad admission cap.

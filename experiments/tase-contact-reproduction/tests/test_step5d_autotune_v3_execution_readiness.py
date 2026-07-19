@@ -27,6 +27,7 @@ RELATIVES = set(v3_state.ORCHESTRATION_RELATIVE_PATHS) | {
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp",
     "config/step5/step5d_autotune_v3_control_contract.json",
 } | set(readiness.READINESS_EVIDENCE_RELATIVE_PATHS)
+REPO_RELATIVES = set(v3_state.ORCHESTRATION_REPO_RELATIVE_PATHS)
 
 
 def _fixture_root(tmp_path: Path) -> Path:
@@ -34,6 +35,13 @@ def _fixture_root(tmp_path: Path) -> Path:
     for relative in RELATIVES:
         source = ROOT / relative
         target = fixture / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    repository_fixture = fixture.parents[1]
+    repository_source = ROOT.parents[1]
+    for relative in REPO_RELATIVES:
+        source = repository_source / relative
+        target = repository_fixture / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
     return fixture
@@ -63,7 +71,7 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     assert report["current_stage_id"] == readiness.V1_STAGE_ID
     assert report["next_owner"] == "ur10e-contact-control-prep"
     assert report["timing_diagnostic"] == (
-        "blocked_current_source_full_tick_deadline_robustness"
+        "blocked_current_source_timing_not_run_host_nice_19"
     )
     assert report["canonical_gate"] == [
         "current_source_formal_500hz_timing",
@@ -171,6 +179,9 @@ def test_readiness_verification_is_independent_of_checkout_mtime(
     for relative in v3_state.ORCHESTRATION_RELATIVE_PATHS:
         path = fixture / relative
         path.touch()
+    for relative in v3_state.ORCHESTRATION_REPO_RELATIVE_PATHS:
+        path = fixture.parents[1] / relative
+        path.touch()
 
     report = readiness.verify(fixture)
     assert report["state"] == "pre_live_blocked"
@@ -197,6 +208,36 @@ def test_stage_table_cannot_claim_a_different_readiness_state(tmp_path: Path) ->
         ),
     )
     with pytest.raises(readiness.ReadinessError, match="readiness state"):
+        readiness.verify(fixture)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("candidate_current", True),
+        ("ready_to_load_play", True),
+        ("ready_to_arm", True),
+    ),
+)
+def test_stage_table_cannot_promote_blocked_safety_fields(
+    tmp_path: Path, field: str, value: bool
+) -> None:
+    fixture = _fixture_root(tmp_path)
+    _mutate_v3(
+        fixture,
+        lambda row: row["execution_readiness"].update({field: value}),
+    )
+    with pytest.raises(readiness.ReadinessError, match=field):
+        readiness.verify(fixture)
+
+
+def test_stage_table_requires_the_exact_seven_blockers(tmp_path: Path) -> None:
+    fixture = _fixture_root(tmp_path)
+    _mutate_v3(
+        fixture,
+        lambda row: row["execution_readiness"]["blockers"].pop(),
+    )
+    with pytest.raises(readiness.ReadinessError, match="readiness blockers"):
         readiness.verify(fixture)
 
 

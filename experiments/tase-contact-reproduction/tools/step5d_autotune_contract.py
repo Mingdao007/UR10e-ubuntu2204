@@ -17,6 +17,11 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from ur10e_artifact_store import ArtifactRef, ArtifactStoreError
+from ur10e_experiment_runtime.return_route import (
+    RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+    RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+    RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
+)
 
 
 SCHEMA_VERSION = "step5d.autotune/v1"
@@ -1337,6 +1342,13 @@ class TypedSafeClosureEvidence:
     tp_position_error_m: float
     tp_orientation_error_rad: float
     tp_qd_max_rad_s: float
+    return_phase_echo: float
+    return_segment_id: int
+    return_current_angular_speed_rad_s: float
+    return_current_angular_acceleration_rad_s2: float
+    return_max_angular_speed_rad_s: float
+    return_max_angular_acceleration_rad_s2: float
+    return_max_sample_gap_s: float
     host_position_error_m: float
     host_orientation_error_rad: float
     host_tcp_linear_speed_m_s: float
@@ -1363,6 +1375,12 @@ class TypedSafeClosureEvidence:
             "tp_position_error_m",
             "tp_orientation_error_rad",
             "tp_qd_max_rad_s",
+            "return_phase_echo",
+            "return_current_angular_speed_rad_s",
+            "return_current_angular_acceleration_rad_s2",
+            "return_max_angular_speed_rad_s",
+            "return_max_angular_acceleration_rad_s2",
+            "return_max_sample_gap_s",
             "host_position_error_m",
             "host_orientation_error_rad",
             "host_tcp_linear_speed_m_s",
@@ -1374,6 +1392,25 @@ class TypedSafeClosureEvidence:
             if value < 0.0:
                 raise ValueError(f"{name} must be non-negative")
             object.__setattr__(self, name, value)
+        if not math.isclose(self.return_phase_echo, 40.3, abs_tol=1e-9):
+            raise ValueError("typed closure does not prove completion of return segment 3")
+        if type(self.return_segment_id) is not int or self.return_segment_id != 3:
+            raise ValueError("typed closure return segment identity is incomplete")
+        if any(
+            (
+                self.return_current_angular_speed_rad_s
+                > RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+                self.return_current_angular_acceleration_rad_s2
+                > RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+                self.return_max_angular_speed_rad_s
+                > RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+                self.return_max_angular_acceleration_rad_s2
+                > RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+                self.return_max_sample_gap_s <= 0.0,
+                self.return_max_sample_gap_s > RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
+            )
+        ):
+            raise ValueError("typed closure return angular envelope is incomplete or breached")
         if self.return_guard_mask != 0x7F:
             raise ValueError("typed closure return guard mask is incomplete")
         guards = _canonical_frozen_mapping("safety_guards", self.safety_guards)
@@ -1424,13 +1461,20 @@ class TypedSafeClosureEvidence:
 
     def payload(self) -> dict[str, Any]:
         return {
-            "schema": "step5d.autotune/typed-safe-closure-v1",
+            "schema": "step5d.autotune/typed-safe-closure-v2",
             "return_reference_uid": self.return_reference_uid,
             "return_reference_kind": self.return_reference_kind,
             "batch_row_index": self.batch_row_index,
             "tp_position_error_m": self.tp_position_error_m,
             "tp_orientation_error_rad": self.tp_orientation_error_rad,
             "tp_qd_max_rad_s": self.tp_qd_max_rad_s,
+            "return_phase_echo": self.return_phase_echo,
+            "return_segment_id": self.return_segment_id,
+            "return_current_angular_speed_rad_s": self.return_current_angular_speed_rad_s,
+            "return_current_angular_acceleration_rad_s2": self.return_current_angular_acceleration_rad_s2,
+            "return_max_angular_speed_rad_s": self.return_max_angular_speed_rad_s,
+            "return_max_angular_acceleration_rad_s2": self.return_max_angular_acceleration_rad_s2,
+            "return_max_sample_gap_s": self.return_max_sample_gap_s,
             "host_position_error_m": self.host_position_error_m,
             "host_orientation_error_rad": self.host_orientation_error_rad,
             "host_tcp_linear_speed_m_s": self.host_tcp_linear_speed_m_s,

@@ -23,6 +23,16 @@ if str(RUNTIME_SRC) not in sys.path:
     sys.path.insert(0, str(RUNTIME_SRC))
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+from ur10e_experiment_runtime.return_route import (
+    RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2,
+    RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+    RETURN_ANGULAR_SPEED_LIMIT_RAD_S,
+    RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+    RETURN_ANGULAR_STOP_DECELERATION_RAD_S2,
+    RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
+    RETURN_CONTROLLER_PERIOD_S,
+    RETURN_ORIENTATION_ADMISSION_LIMIT_RAD,
+)
 
 PROGRAM_NAME = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
@@ -44,18 +54,35 @@ def _replace_once(source: str, old: str, new: str, *, role: str) -> str:
 
 
 def _batch_lifecycle_replacements() -> tuple[tuple[str, str, str], ...]:
-    globals_and_guard = r'''global codex_autotune_batch_row_echo = 0
+    globals_and_guard = rf'''global codex_autotune_batch_row_echo = 0
 global codex_autotune_return_kind_echo = 0
 global codex_autotune_return_guard_mask = 0
 global codex_autotune_return_guard_active = False
 global codex_autotune_return_guard_reason = 0.0
+global codex_autotune_return_segment_id = 0
+global codex_autotune_return_max_angular_speed_rad_s = 0.0
+global codex_autotune_return_max_angular_accel_rad_s2 = 0.0
+global codex_autotune_return_max_sample_gap_s = 0.0
+
+def codex_autotune_norm3(x, y, z):
+  return sqrt(x * x + y * y + z * z)
+end
 
 thread codex_autotune_return_guard_thread():
   local last_heartbeat = read_input_float_register(26)
   local stale_s = 0.0
+  local have_angular_sample = False
+  local last_wx = 0.0
+  local last_wy = 0.0
+  local last_wz = 0.0
+  local controller_clock = time()
+  local last_controller_time_s = controller_clock.sec + controller_clock.nanosec / 1000000000.0
   while codex_autotune_return_guard_active:
     local heartbeat = read_input_float_register(26)
-    local loop_dt = get_steptime()
+    controller_clock = time()
+    local controller_time_s = controller_clock.sec + controller_clock.nanosec / 1000000000.0
+    local loop_dt = controller_time_s - last_controller_time_s
+    last_controller_time_s = controller_time_s
     if heartbeat == last_heartbeat:
       stale_s = stale_s + loop_dt
     else:
@@ -74,6 +101,31 @@ thread codex_autotune_return_guard_thread():
     end
     local pose_now = get_actual_tcp_pose()
     local workspace_ok = pose_now[0] >= 0.350 and pose_now[0] <= 0.650 and pose_now[1] >= -0.050 and pose_now[1] <= 0.250 and pose_now[2] >= 0.000 and pose_now[2] <= 0.350
+    local tcp_speed = get_actual_tcp_speed()
+    local angular_speed_rad_s = codex_autotune_norm3(tcp_speed[3], tcp_speed[4], tcp_speed[5])
+    local angular_accel_rad_s2 = 0.0
+    if have_angular_sample and loop_dt > 0.0:
+      angular_accel_rad_s2 = codex_autotune_norm3(tcp_speed[3] - last_wx, tcp_speed[4] - last_wy, tcp_speed[5] - last_wz) / loop_dt
+    end
+    last_wx = tcp_speed[3]
+    last_wy = tcp_speed[4]
+    last_wz = tcp_speed[5]
+    have_angular_sample = True
+    if angular_speed_rad_s > codex_autotune_return_max_angular_speed_rad_s:
+      codex_autotune_return_max_angular_speed_rad_s = angular_speed_rad_s
+    end
+    if angular_accel_rad_s2 > codex_autotune_return_max_angular_accel_rad_s2:
+      codex_autotune_return_max_angular_accel_rad_s2 = angular_accel_rad_s2
+    end
+    if loop_dt > codex_autotune_return_max_sample_gap_s:
+      codex_autotune_return_max_sample_gap_s = loop_dt
+    end
+    write_output_float_register(39, codex_autotune_return_segment_id)
+    write_output_float_register(40, angular_speed_rad_s)
+    write_output_float_register(41, angular_accel_rad_s2)
+    write_output_float_register(42, codex_autotune_return_max_angular_speed_rad_s)
+    write_output_float_register(43, codex_autotune_return_max_angular_accel_rad_s2)
+    write_output_float_register(44, codex_autotune_return_max_sample_gap_s)
     if stale_s > 0.100:
       codex_autotune_return_guard_reason = 2.0
     elif reason != 0.0:
@@ -82,12 +134,85 @@ thread codex_autotune_return_guard_thread():
       codex_autotune_return_guard_reason = 13.0
     elif not workspace_ok:
       codex_autotune_return_guard_reason = 17.0
+    elif loop_dt <= 0.0 or loop_dt > {RETURN_CONTROLLER_MAX_SAMPLE_GAP_S:.3f}:
+      codex_autotune_return_guard_reason = 18.0
+    elif angular_speed_rad_s > {RETURN_ANGULAR_SPEED_GUARD_RAD_S:.3f}:
+      codex_autotune_return_guard_reason = 19.0
+    elif have_angular_sample and angular_accel_rad_s2 > {RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2:.3f}:
+      codex_autotune_return_guard_reason = 20.0
     end
     if codex_autotune_return_guard_reason != 0.0:
-      stopl(0.3)
+      stopl(0.3, {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f})
     end
     sync()
   end
+end
+
+def codex_autotune_bounded_return_segment(target_pose, linear_accel_m_s2, linear_speed_limit_m_s, segment_id):
+  local start_pose = get_actual_tcp_pose()
+  local start_error = pose_trans(target_pose, pose_inv(start_pose))
+  local start_angle_rad = codex_autotune_norm3(start_error[3], start_error[4], start_error[5])
+  if start_angle_rad > {RETURN_ORIENTATION_ADMISSION_LIMIT_RAD:.9f}:
+    codex_autotune_return_guard_reason = 21.0
+    return False
+  end
+  local elapsed_s = 0.0
+  codex_autotune_return_segment_id = segment_id
+  write_output_float_register(35, 40.0 + segment_id / 10.0)
+  while elapsed_s < 30.0 and codex_autotune_return_guard_reason == 0.0:
+    local current_pose = get_actual_tcp_pose()
+    local dx = target_pose[0] - current_pose[0]
+    local dy = target_pose[1] - current_pose[1]
+    local dz = target_pose[2] - current_pose[2]
+    local position_error_m = codex_autotune_norm3(dx, dy, dz)
+    local orientation_error = pose_trans(target_pose, pose_inv(current_pose))
+    local orientation_error_rad = codex_autotune_norm3(orientation_error[3], orientation_error[4], orientation_error[5])
+    if position_error_m <= 0.0005 and orientation_error_rad <= 0.005:
+      stopl(linear_accel_m_s2, {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f})
+      return True
+    end
+    local linear_speed_m_s = linear_speed_limit_m_s
+    if position_error_m > 0.0:
+      local linear_braking_speed_m_s = sqrt(2.0 * linear_accel_m_s2 * position_error_m)
+      if linear_braking_speed_m_s < linear_speed_m_s:
+        linear_speed_m_s = linear_braking_speed_m_s
+      end
+    else:
+      linear_speed_m_s = 0.0
+    end
+    local angular_speed_rad_s = {RETURN_ANGULAR_SPEED_LIMIT_RAD_S:.3f}
+    if orientation_error_rad > 0.0:
+      local angular_braking_speed_rad_s = sqrt(2.0 * {RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2:.3f} * orientation_error_rad)
+      if angular_braking_speed_rad_s < angular_speed_rad_s:
+        angular_speed_rad_s = angular_braking_speed_rad_s
+      end
+    else:
+      angular_speed_rad_s = 0.0
+    end
+    local vx = 0.0
+    local vy = 0.0
+    local vz = 0.0
+    if position_error_m > 0.0:
+      vx = linear_speed_m_s * dx / position_error_m
+      vy = linear_speed_m_s * dy / position_error_m
+      vz = linear_speed_m_s * dz / position_error_m
+    end
+    local wx = 0.0
+    local wy = 0.0
+    local wz = 0.0
+    if orientation_error_rad > 0.0:
+      wx = angular_speed_rad_s * orientation_error[3] / orientation_error_rad
+      wy = angular_speed_rad_s * orientation_error[4] / orientation_error_rad
+      wz = angular_speed_rad_s * orientation_error[5] / orientation_error_rad
+    end
+    speedl([vx, vy, vz, wx, wy, wz], linear_accel_m_s2, {RETURN_CONTROLLER_PERIOD_S:.3f}, aRot={RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2:.3f})
+    elapsed_s = elapsed_s + get_steptime()
+  end
+  stopl(0.3, {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f})
+  if codex_autotune_return_guard_reason == 0.0:
+    codex_autotune_return_guard_reason = 22.0
+  end
+  return False
 end
 
 def codex_autotune_typed_target_verified(target_pose, campaign_home_q, require_home_q):
@@ -131,22 +256,23 @@ def codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_
   local transfer_pose = p[target_pose[0], target_pose[1], safe_z, target_pose[3], target_pose[4], target_pose[5]]
   codex_autotune_return_guard_reason = 0.0
   codex_autotune_return_guard_mask = 0
+  codex_autotune_return_segment_id = 0
+  codex_autotune_return_max_angular_speed_rad_s = 0.0
+  codex_autotune_return_max_angular_accel_rad_s2 = 0.0
+  codex_autotune_return_max_sample_gap_s = 0.0
   codex_autotune_return_guard_active = True
   local guard_handle = run codex_autotune_return_guard_thread()
-  movel(rise_pose, a=0.060, v=0.040, r=0.0)
-  stopl(0.1)
+  local rise_ok = codex_autotune_bounded_return_segment(rise_pose, 0.060, 0.040, 1.0)
   if codex_autotune_return_guard_reason == 0.0:
-    movel(transfer_pose, a=0.135, v=0.090, r=0.0)
-    stopl(0.1)
+    local transfer_ok = codex_autotune_bounded_return_segment(transfer_pose, 0.135, 0.090, 2.0)
   end
   if codex_autotune_return_guard_reason == 0.0:
-    movel(target_pose, a=0.060, v=0.040, r=0.0)
-    stopl(0.1)
+    local target_ok = codex_autotune_bounded_return_segment(target_pose, 0.060, 0.040, 3.0)
   end
   codex_autotune_return_guard_active = False
   sync()
   kill guard_handle
-  if codex_autotune_return_guard_reason != 0.0:
+  if codex_autotune_return_guard_reason != 0.0 or not rise_ok:
     return False
   end
   sleep(0.20)
@@ -404,6 +530,15 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "read_input_integer_register(30)",
         "write_output_integer_register(33, codex_autotune_return_guard_mask)",
         "codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_home_q)",
+        "def codex_autotune_bounded_return_segment(",
+        "speedl([vx, vy, vz, wx, wy, wz], linear_accel_m_s2, 0.002, aRot=0.100)",
+        "stopl(0.3, 0.100)",
+        "write_output_float_register(39, codex_autotune_return_segment_id)",
+        "write_output_float_register(44, codex_autotune_return_max_sample_gap_s)",
+        "local controller_clock = time()",
+        "local loop_dt = controller_time_s - last_controller_time_s",
+        "codex_autotune_return_guard_reason = 21.0",
+        "codex_autotune_return_guard_reason = 22.0",
         "codex_autotune_write_state(campaign_epoch, trial_id, 76",
         "codex_autotune_write_state(campaign_epoch, trial_id, 77",
         "codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)",
@@ -529,6 +664,13 @@ Frozen control contract:
   output integer registers 24..33; Stage25 heartbeat watchdog fail-closed
   after {STAGE25_STALE_COMMAND_HOLD_S:.3f} s of unchanged heartbeat.
   Batch row is explicit; rows 1..9 return NearReady and row 10 returns CampaignHome.
+  The three return targets are unchanged. Return motion uses bounded speedl with
+  angular command cap {RETURN_ANGULAR_SPEED_LIMIT_RAD_S:.3f} rad/s, rotational
+  acceleration cap {RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2:.3f} rad/s^2,
+  observed speed/acceleration tripwires {RETURN_ANGULAR_SPEED_GUARD_RAD_S:.3f}
+  rad/s and {RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2:.3f} rad/s^2, explicit
+  stopl rotational deceleration {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f}
+  rad/s^2, and a {RETURN_ORIENTATION_ADMISSION_LIMIT_RAD:.9f} rad admission cap.
 """
 
 
@@ -540,7 +682,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "control_profile_id": CONTROL_PROFILE_ID,
         "delta_class": (
             "identity_precontact_prior_exact_batch_lifecycle_return_"
-            "stage25_watchdog_v3"
+            "angular_envelope_stage25_watchdog_v3"
         ),
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
         "physical_prior_sha256": PRECONTACT_POSE_PRIOR_SHA256,
@@ -561,6 +703,28 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "output_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
         "safe_transfer_z_m": 0.033,
         "return_segment_count": 3,
+        "return_controller": "speedl_bounded_twist_v1",
+        "return_angular_speed_limit_rad_s": RETURN_ANGULAR_SPEED_LIMIT_RAD_S,
+        "return_angular_acceleration_limit_rad_s2": (
+            RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2
+        ),
+        "return_angular_speed_guard_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+        "return_angular_acceleration_guard_rad_s2": (
+            RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2
+        ),
+        "return_angular_stop_deceleration_rad_s2": (
+            RETURN_ANGULAR_STOP_DECELERATION_RAD_S2
+        ),
+        "return_orientation_admission_limit_rad": (
+            RETURN_ORIENTATION_ADMISSION_LIMIT_RAD
+        ),
+        "return_controller_period_s": RETURN_CONTROLLER_PERIOD_S,
+        "return_sample_gap_clock": "controller_monotonic_time_mode_0",
+        "return_controller_max_sample_gap_s": (
+            RETURN_CONTROLLER_MAX_SAMPLE_GAP_S
+        ),
+        "return_segment_phase_codes": [40.1, 40.2, 40.3],
+        "return_continuous_telemetry_output_float_registers": list(range(39, 45)),
         "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
     }
 

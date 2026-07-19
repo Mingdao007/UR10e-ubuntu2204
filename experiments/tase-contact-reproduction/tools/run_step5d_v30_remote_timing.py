@@ -854,9 +854,9 @@ def main() -> int:
         from ur10e_experiment_runtime import physical_prior as runtime_physical_prior
         from ur10e_experiment_runtime import stage_adapters as runtime_stage_adapters
         from ur10e_experiment_runtime.moving_sphere import (
+            build_offline_fixture_stopping_bound,
             MovingSphereKernel,
             SphereReason,
-            StoppingBoundArtifact,
         )
         from ur10e_experiment_runtime.physical_prior import (
             STEP5D_V3_PHYSICAL_PRIOR,
@@ -885,18 +885,17 @@ def main() -> int:
                 )
             v3_sphere_source_binding[field] = sha256_path(module_path)
 
-        fixture_bound = StoppingBoundArtifact(
+        fixture_bound = build_offline_fixture_stopping_bound(
             reaction_latency_s=0.002,
             acceleration_growth_m_s2=0.1,
             minimum_deceleration_m_s2=2.0,
-            center_speed_bound_m_s=0.002,
-            center_acceleration_bound_m_s2=0.001,
+            center_speed_bound_m_s=0.003,
+            center_acceleration_bound_m_s2=0.00015,
             numeric_margin_m=0.0001,
-            evidence_sha256=(v3_sphere_source_binding["moving_sphere_sha256"],),
+            evidence_sha256=v3_sphere_source_binding["moving_sphere_sha256"],
             validity_domain=(
                 "formal_timing_fixture_only_not_live_stopping_bound_certification"
             ),
-            certified=True,
         )
 
         def new_v3_sphere_timing_context() -> SimpleNamespace:

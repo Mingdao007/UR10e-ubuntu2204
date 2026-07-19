@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from ur10e_experiment_runtime.moving_sphere import (
+    build_offline_fixture_stopping_bound,
     MovingSphereKernel,
     SphereReason,
     StoppingBoundArtifact,
+    StoppingBoundEvidenceComponent,
+    StoppingBoundEvidenceManifest,
 )
 from ur10e_experiment_runtime.stage_adapters import (
     ControllerProgress,
@@ -14,6 +17,61 @@ from ur10e_experiment_runtime.stage_adapters import (
 
 
 REF = "a" * 64
+EVIDENCE = "b" * 64
+
+
+def certified_manifest(
+    *,
+    values: tuple[float, float, float, float, float, float] = (
+        0.002,
+        0.1,
+        2.0,
+        0.003,
+        0.00015,
+        0.0001,
+    ),
+    domain: str = "offline_fixture_only",
+) -> StoppingBoundEvidenceManifest:
+    units = ("s", "m/s^2", "m/s^2", "m/s", "m/s^2", "m")
+    methods = (
+        "offline_fixture_latency",
+        "offline_fixture_growth",
+        "offline_fixture_deceleration",
+        "analytic_cycloid_2Aomega",
+        "analytic_cycloid_Aomega_squared",
+        "offline_fixture_margin",
+    )
+    return StoppingBoundEvidenceManifest(
+        components=tuple(
+            StoppingBoundEvidenceComponent(
+                role=role,
+                status="certified_for_domain",
+                value=value,
+                units=unit,
+                frame="base",
+                method=method,
+                evidence_sha256=(EVIDENCE,),
+            )
+            for role, value, unit, method in zip(
+                (
+                    "reaction_latency_s",
+                    "acceleration_growth_m_s2",
+                    "minimum_deceleration_m_s2",
+                    "center_speed_bound_m_s",
+                    "center_acceleration_bound_m_s2",
+                    "numeric_margin_m",
+                ),
+                values,
+                units,
+                methods,
+                strict=True,
+            )
+        ),
+        validity_domain=domain,
+        source_binding_sha256=EVIDENCE,
+        stop_transport_sha256=EVIDENCE,
+        deployment_readback_sha256=EVIDENCE,
+    )
 
 
 def certified() -> StoppingBoundArtifact:
@@ -21,13 +79,98 @@ def certified() -> StoppingBoundArtifact:
         reaction_latency_s=0.002,
         acceleration_growth_m_s2=0.1,
         minimum_deceleration_m_s2=2.0,
-        center_speed_bound_m_s=0.002,
-        center_acceleration_bound_m_s2=0.001,
+        center_speed_bound_m_s=0.003,
+        center_acceleration_bound_m_s2=0.00015,
         numeric_margin_m=0.0001,
-        evidence_sha256=("b" * 64,),
-        validity_domain="offline_fixture_only",
-        certified=True,
+        evidence_manifest=certified_manifest(),
     )
+
+
+def test_stopping_bound_evidence_is_complete_ordered_and_numerically_bound() -> None:
+    manifest = certified_manifest()
+    assert manifest.certified is True
+    try:
+        StoppingBoundEvidenceManifest(
+            components=tuple(reversed(manifest.components)),
+            validity_domain=manifest.validity_domain,
+            source_binding_sha256=EVIDENCE,
+            stop_transport_sha256=EVIDENCE,
+            deployment_readback_sha256=EVIDENCE,
+        )
+    except ValueError as exc:
+        assert "roles/order" in str(exc)
+    else:
+        raise AssertionError("reordered stopping evidence was accepted")
+
+    incomplete = StoppingBoundEvidenceManifest(
+        components=tuple(
+            component
+            if component.role != "reaction_latency_s"
+            else StoppingBoundEvidenceComponent(
+                role=component.role,
+                status="missing",
+                value=None,
+                units=component.units,
+                frame=component.frame,
+                method="requires_attended_exact_stop_measurement",
+                evidence_sha256=(),
+            )
+            for component in manifest.components
+        ),
+        validity_domain=manifest.validity_domain,
+        source_binding_sha256=EVIDENCE,
+        stop_transport_sha256=None,
+        deployment_readback_sha256=None,
+    )
+    assert incomplete.certified is False
+    try:
+        StoppingBoundArtifact(
+            reaction_latency_s=0.002,
+            acceleration_growth_m_s2=0.1,
+            minimum_deceleration_m_s2=2.0,
+            center_speed_bound_m_s=0.003,
+            center_acceleration_bound_m_s2=0.00015,
+            numeric_margin_m=0.0001,
+            evidence_manifest=incomplete,
+        )
+    except ValueError as exc:
+        assert "complete domain evidence" in str(exc)
+    else:
+        raise AssertionError("incomplete stopping evidence was certified")
+
+    mismatched = certified_manifest(values=(0.003, 0.1, 2.0, 0.003, 0.00015, 0.0001))
+    try:
+        StoppingBoundArtifact(
+            reaction_latency_s=0.002,
+            acceleration_growth_m_s2=0.1,
+            minimum_deceleration_m_s2=2.0,
+            center_speed_bound_m_s=0.003,
+            center_acceleration_bound_m_s2=0.00015,
+            numeric_margin_m=0.0001,
+            evidence_manifest=mismatched,
+        )
+    except ValueError as exc:
+        assert "numeric values differ" in str(exc)
+    else:
+        raise AssertionError("numeric/evidence mismatch was accepted")
+
+
+def test_fixture_helper_cannot_mint_a_live_domain_artifact() -> None:
+    try:
+        build_offline_fixture_stopping_bound(
+            reaction_latency_s=0.002,
+            acceleration_growth_m_s2=0.1,
+            minimum_deceleration_m_s2=2.0,
+            center_speed_bound_m_s=0.003,
+            center_acceleration_bound_m_s2=0.00015,
+            numeric_margin_m=0.0001,
+            evidence_sha256=EVIDENCE,
+            validity_domain="step5d_v3_live",
+        )
+    except ValueError as exc:
+        assert "not_live" in str(exc)
+    else:
+        raise AssertionError("offline fixture helper minted a live-domain artifact")
 
 
 def active_progress(kernel: MovingSphereKernel, **overrides) -> ControllerProgress:

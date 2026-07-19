@@ -6,7 +6,7 @@
   ],
   "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
-  "delta_class": "identity_precontact_prior_exact_batch_lifecycle_return_stage25_watchdog_v3",
+  "delta_class": "identity_precontact_prior_exact_batch_lifecycle_return_angular_envelope_stage25_watchdog_v3",
   "far_search_speed_m_s": 0.03375,
   "input_integer_registers": [
     24,
@@ -53,7 +53,30 @@
     0.020079909,
     0.998831683
   ],
+  "return_angular_acceleration_guard_rad_s2": 0.5,
+  "return_angular_acceleration_limit_rad_s2": 0.1,
+  "return_angular_speed_guard_rad_s": 0.06,
+  "return_angular_speed_limit_rad_s": 0.05,
+  "return_angular_stop_deceleration_rad_s2": 0.1,
+  "return_continuous_telemetry_output_float_registers": [
+    39,
+    40,
+    41,
+    42,
+    43,
+    44
+  ],
+  "return_controller": "speedl_bounded_twist_v1",
+  "return_controller_max_sample_gap_s": 0.004,
+  "return_controller_period_s": 0.002,
+  "return_orientation_admission_limit_rad": 0.3490658503988659,
+  "return_sample_gap_clock": "controller_monotonic_time_mode_0",
   "return_segment_count": 3,
+  "return_segment_phase_codes": [
+    40.1,
+    40.2,
+    40.3
+  ],
   "safe_transfer_z_m": 0.033,
   "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
   "speedj_acceleration_profiles_rad_s2": [

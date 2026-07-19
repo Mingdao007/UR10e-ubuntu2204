@@ -4,13 +4,13 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "current_selector": "step5d_strict_rnn_autotune_v1",
   "identity": {
-    "contract_sha256": "c12f52dfb5915051d49b0b5775d282df1c50e803c2cc2596288eb3a5fc015160",
-    "control_fingerprint": "c1c066f73d420832a17dcc04da940643dd2188a3178552c96a3001486ad8ff93",
-    "orchestration_fingerprint": "f93301d0afcdb001219e2d232fef05098294bcd773a0e6e513ed25acc754111f"
+    "contract_sha256": "5b23d8862a335b1c92b5b3b7829d6a212fbb021438ed64cc5c06aa793371da18",
+    "control_fingerprint": "6cc7320ebf1450233cd2fb447432e613e67c8103294edbfa8f40449f518f3ac0",
+    "orchestration_fingerprint": "521c69dc45773ed296f668bdd63d8e149c5ce2796c214fd6e70bf48ecc56fcfe"
   },
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
-    "sha256": "e65e38c5c4b071bc8def724a1f98f5a56e15d6285162d8b2b5824d1f69775071"
+    "sha256": "1e8691c4b31de4da1345a13de2f6a6bec1d608dc7d0e237a0c42852cfa923c2a"
   },
   "controller_readback": {
     "path": "config/step5d_autotune_controller_readback_v3.json",

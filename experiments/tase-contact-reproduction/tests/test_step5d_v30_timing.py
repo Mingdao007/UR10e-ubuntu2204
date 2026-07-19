@@ -694,7 +694,7 @@ class Step5dV30TimingTest(unittest.TestCase):
                 "scheduler_policy": 0,
                 "scheduler_policy_name": "SCHED_OTHER",
                 "scheduler_priority": 0,
-                "nice": 19,
+                "nice": 0,
                 "cpu_affinity": [11, 13, 14, 15],
                 "scheduler_limits": {"rtprio": [0, 0]},
             }
@@ -720,6 +720,22 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertEqual(
             sched_other_result["runtime_scheduling_classification"],
             "production_sched_other_priority_0_affinity_11_13_14_15",
+        )
+        degraded_nice_payload = json.loads(json.dumps(sched_other_payload))
+        degraded_nice_payload["runtime_environment"]["nice"] = 19
+        degraded_nice_result = summarize_preaggregated(
+            degraded_nice_payload,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+            scheduler_contract=SCHEDULER_CONTRACT_OTHER0,
+        )
+        self.assertFalse(degraded_nice_result["acceptance_eligible"])
+        self.assertIn(
+            "runtime_timing_process_sched_other_contract_mismatch",
+            degraded_nice_result["blockers"],
         )
         self.assertFalse(
             result["solver_batch_reentry_evidence"][
@@ -1069,7 +1085,7 @@ class Step5dV30TimingTest(unittest.TestCase):
         sched_other_bounded_payload = json.loads(json.dumps(payload))
         sched_other_bounded_payload["runtime_environment"].update(
             {
-                "nice": 19,
+                "nice": 0,
                 "scheduler_policy": 0,
                 "scheduler_policy_name": "SCHED_OTHER",
                 "scheduler_priority": 0,

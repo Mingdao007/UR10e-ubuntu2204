@@ -12,6 +12,14 @@ from .physical_prior import PhysicalPriorArtifact
 
 
 SAFE_TRANSFER_Z_M = 0.033
+RETURN_ANGULAR_SPEED_LIMIT_RAD_S = 0.050
+RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2 = 0.100
+RETURN_ANGULAR_SPEED_GUARD_RAD_S = 0.060
+RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2 = 0.500
+RETURN_ANGULAR_STOP_DECELERATION_RAD_S2 = 0.100
+RETURN_ORIENTATION_ADMISSION_LIMIT_RAD = math.radians(20.0)
+RETURN_CONTROLLER_PERIOD_S = 0.002
+RETURN_CONTROLLER_MAX_SAMPLE_GAP_S = 0.004
 
 
 def return_policy_fingerprint(
@@ -24,12 +32,33 @@ def return_policy_fingerprint(
     home = _finite_vector("campaign_home_pose", campaign_home_pose, 6)
     return canonical_sha256(
         {
-            "schema": "ur-exp/step5d-return-policy/v3",
+            "schema": "ur-exp/step5d-return-policy/v4",
             "prior_fingerprint": prior.fingerprint,
             "near_ready_pose": list(near),
             "campaign_home_pose": list(home),
             "selection": {"rows_1_to_9": "near_ready", "row_10": "campaign_home"},
             "safe_transfer_z_m": SAFE_TRANSFER_Z_M,
+            "angular_envelope": {
+                "controller": "speedl_bounded_twist_v1",
+                "speed_limit_rad_s": RETURN_ANGULAR_SPEED_LIMIT_RAD_S,
+                "acceleration_limit_rad_s2": (
+                    RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2
+                ),
+                "observed_speed_guard_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+                "observed_acceleration_guard_rad_s2": (
+                    RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2
+                ),
+                "stop_deceleration_rad_s2": (
+                    RETURN_ANGULAR_STOP_DECELERATION_RAD_S2
+                ),
+                "orientation_admission_limit_rad": (
+                    RETURN_ORIENTATION_ADMISSION_LIMIT_RAD
+                ),
+                "controller_period_s": RETURN_CONTROLLER_PERIOD_S,
+                "max_sample_gap_s": RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
+                "segment_boundary_stillness_required": True,
+                "continuous_actual_speed_guard_required": True,
+            },
             "segments": [
                 {"name": "vertical_up", "a_m_s2": 0.060, "v_m_s": 0.040},
                 {"name": "constant_z_transfer", "a_m_s2": 0.135, "v_m_s": 0.090},
@@ -49,6 +78,49 @@ def _finite_vector(name: str, value: Sequence[float], length: int) -> tuple[floa
     return vector
 
 
+def _rotvec_matrix(rotvec_rad: Sequence[float]) -> tuple[tuple[float, ...], ...]:
+    rx, ry, rz = _finite_vector("rotvec_rad", rotvec_rad, 3)
+    angle = math.sqrt(rx * rx + ry * ry + rz * rz)
+    if angle <= 1e-15:
+        return ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+    x, y, z = rx / angle, ry / angle, rz / angle
+    sine = math.sin(angle)
+    one_minus_cosine = 1.0 - math.cos(angle)
+    return (
+        (
+            1.0 - one_minus_cosine * (y * y + z * z),
+            one_minus_cosine * x * y - sine * z,
+            one_minus_cosine * x * z + sine * y,
+        ),
+        (
+            one_minus_cosine * x * y + sine * z,
+            1.0 - one_minus_cosine * (x * x + z * z),
+            one_minus_cosine * y * z - sine * x,
+        ),
+        (
+            one_minus_cosine * x * z - sine * y,
+            one_minus_cosine * y * z + sine * x,
+            1.0 - one_minus_cosine * (x * x + y * y),
+        ),
+    )
+
+
+def return_orientation_distance_rad(
+    current_rotvec_rad: Sequence[float], target_rotvec_rad: Sequence[float]
+) -> float:
+    """Shortest SO(3) distance used by pre-motion return admission."""
+
+    current = _rotvec_matrix(current_rotvec_rad)
+    target = _rotvec_matrix(target_rotvec_rad)
+    relative_trace = sum(
+        target[row][column] * current[row][column]
+        for row in range(3)
+        for column in range(3)
+    )
+    cosine = min(1.0, max(-1.0, 0.5 * (relative_trace - 1.0)))
+    return math.acos(cosine)
+
+
 @dataclass(frozen=True)
 class ReturnSegment:
     name: str
@@ -56,6 +128,17 @@ class ReturnSegment:
     target_rotvec_rad: tuple[float, float, float] | None
     acceleration_m_s2: float
     velocity_m_s: float
+    angular_speed_limit_rad_s: float = RETURN_ANGULAR_SPEED_LIMIT_RAD_S
+    angular_acceleration_limit_rad_s2: float = (
+        RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2
+    )
+    angular_speed_guard_rad_s: float = RETURN_ANGULAR_SPEED_GUARD_RAD_S
+    angular_acceleration_guard_rad_s2: float = (
+        RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2
+    )
+    angular_stop_deceleration_rad_s2: float = (
+        RETURN_ANGULAR_STOP_DECELERATION_RAD_S2
+    )
     preserve_orientation: bool = False
 
     def __post_init__(self) -> None:
@@ -68,7 +151,15 @@ class ReturnSegment:
             raise ValueError(
                 "preserve_orientation must be true exactly when rotvec is omitted"
             )
-        for name in ("acceleration_m_s2", "velocity_m_s"):
+        for name in (
+            "acceleration_m_s2",
+            "velocity_m_s",
+            "angular_speed_limit_rad_s",
+            "angular_acceleration_limit_rad_s2",
+            "angular_speed_guard_rad_s",
+            "angular_acceleration_guard_rad_s2",
+            "angular_stop_deceleration_rad_s2",
+        ):
             value = float(getattr(self, name))
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError(f"{name} must be finite and positive")
@@ -84,6 +175,17 @@ class ReturnSegment:
             ),
             "acceleration_m_s2": self.acceleration_m_s2,
             "velocity_m_s": self.velocity_m_s,
+            "angular_speed_limit_rad_s": self.angular_speed_limit_rad_s,
+            "angular_acceleration_limit_rad_s2": (
+                self.angular_acceleration_limit_rad_s2
+            ),
+            "angular_speed_guard_rad_s": self.angular_speed_guard_rad_s,
+            "angular_acceleration_guard_rad_s2": (
+                self.angular_acceleration_guard_rad_s2
+            ),
+            "angular_stop_deceleration_rad_s2": (
+                self.angular_stop_deceleration_rad_s2
+            ),
             "preserve_orientation": self.preserve_orientation,
         }
 
@@ -185,11 +287,19 @@ class ReturnRoute:
     def route_fingerprint(self) -> str:
         return canonical_sha256(
             {
-                "schema": "ur-exp/step5d-return-route-v2",
+                "schema": "ur-exp/step5d-return-route-v3",
                 "reference_uid": self.reference_uid,
                 "prior_fingerprint": self.prior_fingerprint,
                 "segments": [segment.document() for segment in self.segments],
                 "verification_is_separate_from_motion": True,
+                "controller": "speedl_bounded_twist_v1",
+                "orientation_admission_limit_rad": (
+                    RETURN_ORIENTATION_ADMISSION_LIMIT_RAD
+                ),
+                "controller_period_s": RETURN_CONTROLLER_PERIOD_S,
+                "max_sample_gap_s": RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
+                "segment_boundary_stillness_required": True,
+                "continuous_actual_speed_guard_required": True,
             }
         )
 
@@ -271,6 +381,13 @@ def return_route(
         raise ValueError("near-ready reference must bind the exact physical prior")
     target_xyz = reference.pose_xyz_m
     target_rotvec = reference.pose_rotvec_rad
+    orientation_distance_rad = return_orientation_distance_rad(
+        current[3:], target_rotvec
+    )
+    if orientation_distance_rad > RETURN_ORIENTATION_ADMISSION_LIMIT_RAD:
+        raise ValueError(
+            "return target exceeds the certified orientation admission domain"
+        )
     segments = (
         ReturnSegment(
             "vertical_to_safe_transfer_z",

@@ -8,7 +8,7 @@ import os
 import stat
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping
 
 from .contracts import OutputPathError, SpecValidationError
@@ -42,6 +42,7 @@ class ExactAckReceipt:
     arm_command_seq: int
     ack_command_seq: int
     consumed_command_seq: int
+    controller_readback_path: str | None = None
 
     def __post_init__(self) -> None:
         _sha256("batch_uid", self.batch_uid)
@@ -64,10 +65,25 @@ class ExactAckReceipt:
             raise SpecValidationError("ACK sequence must be newer than ARM")
         if self.consumed_command_seq != self.ack_command_seq:
             raise SpecValidationError("ACK receipt must prove exact sequence consumption")
+        if self.controller_readback_path is not None:
+            path = PurePosixPath(self.controller_readback_path)
+            if (
+                not self.controller_readback_path
+                or path.is_absolute()
+                or path.as_posix() != self.controller_readback_path
+                or any(part in {"", ".", ".."} for part in path.parts)
+            ):
+                raise SpecValidationError(
+                    "controller_readback_path must be a normalized relative POSIX path"
+                )
 
     def document(self) -> dict[str, Any]:
-        return {
-            "schema": "ur10e.exact_ack_receipt/v1",
+        document = {
+            "schema": (
+                "ur10e.exact_ack_receipt/v2"
+                if self.controller_readback_path is not None
+                else "ur10e.exact_ack_receipt/v1"
+            ),
             "batch_uid": self.batch_uid,
             "row_index": self.row_index,
             "trial_uid": self.trial_uid,
@@ -79,6 +95,9 @@ class ExactAckReceipt:
             "ack_command_seq": self.ack_command_seq,
             "consumed_command_seq": self.consumed_command_seq,
         }
+        if self.controller_readback_path is not None:
+            document["controller_readback_path"] = self.controller_readback_path
+        return document
 
     @property
     def ack_uid(self) -> str:
@@ -657,10 +676,16 @@ class BatchJournal:
                     if not isinstance(document, Mapping):
                         raise OutputPathError("batch ACK receipt document is invalid")
                     candidate_document = dict(document)
-                    if candidate_document.pop("schema", None) != (
-                        "ur10e.exact_ack_receipt/v1"
-                    ):
+                    schema = candidate_document.pop("schema", None)
+                    if schema not in {
+                        "ur10e.exact_ack_receipt/v1",
+                        "ur10e.exact_ack_receipt/v2",
+                    }:
                         raise OutputPathError("batch ACK receipt schema differs")
+                    if schema == "ur10e.exact_ack_receipt/v1":
+                        candidate_document["controller_readback_path"] = None
+                    elif "controller_readback_path" not in candidate_document:
+                        raise OutputPathError("batch ACK receipt path is missing")
                     receipt = ExactAckReceipt(**candidate_document)
                     if (
                         receipt.ack_uid != state["ack_uid"]

@@ -118,6 +118,8 @@ def test_production_compact_schema_satisfies_wait_ack_closure_consumer() -> None
     assert sample["output_double_register_36"] == 0.0
     assert sample["output_double_register_37"] == 0.0
     assert sample["output_double_register_38"] == 0.0
+    assert sample["output_double_register_39"] == 0.0
+    assert sample["output_double_register_44"] == 0.0
 
 
 def test_observed_wait_ack_schema_incident_is_exactly_closed() -> None:
@@ -193,9 +195,9 @@ def test_pre_arm_hold_tick_keeps_bridge_alive_with_zero_command() -> None:
 def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
     import kunwei_rtde_bridge as bridge
     from ur10e_experiment_runtime.moving_sphere import (
+        build_offline_fixture_stopping_bound,
         MovingSphereKernel,
         SphereReason,
-        StoppingBoundArtifact,
     )
     from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
     from ur10e_experiment_runtime.stage_adapters import (
@@ -203,16 +205,15 @@ def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
         Stage25ControllerProgressAdapter,
     )
 
-    bound = StoppingBoundArtifact(
+    bound = build_offline_fixture_stopping_bound(
         reaction_latency_s=0.002,
         acceleration_growth_m_s2=0.1,
         minimum_deceleration_m_s2=2.0,
-        center_speed_bound_m_s=0.002,
-        center_acceleration_bound_m_s2=0.001,
+        center_speed_bound_m_s=0.003,
+        center_acceleration_bound_m_s2=0.00015,
         numeric_margin_m=0.0001,
-        evidence_sha256=("b" * 64,),
-        validity_domain="offline_fixture_only",
-        certified=True,
+        evidence_sha256="b" * 64,
+        validity_domain="offline_fixture_only_not_live_certification",
     )
     adapter = Stage25ControllerProgressAdapter(
         physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint

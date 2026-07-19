@@ -89,6 +89,9 @@ _V3_COMPACT_EXACT_FIELDS = frozenset(
         "ur_output_double_register_26", "ur_output_double_register_30",
         "ur_output_double_register_35", "ur_output_double_register_36",
         "ur_output_double_register_37", "ur_output_double_register_38",
+        "ur_output_double_register_39", "ur_output_double_register_40",
+        "ur_output_double_register_41", "ur_output_double_register_42",
+        "ur_output_double_register_43", "ur_output_double_register_44",
     }
 )
 _V3_COMPACT_PREFIXES = (
@@ -111,7 +114,7 @@ _V3_RUNNER_CLOSURE_FIELDS = frozenset(
         "ur_safety_mode",
         *(f"ur_{name}_{index}" for name in ("actual_TCP_pose", "actual_TCP_speed", "actual_q", "actual_qd") for index in range(6)),
         *(f"ur_output_int_register_{index}" for index in range(24, 31)),
-        *(f"ur_output_double_register_{index}" for index in range(36, 39)),
+        *(f"ur_output_double_register_{index}" for index in range(35, 45)),
     }
 )
 

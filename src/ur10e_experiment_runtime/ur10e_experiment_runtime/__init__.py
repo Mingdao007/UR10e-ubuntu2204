@@ -33,10 +33,13 @@ from .identity import (
 from .registry import ComponentKind, ComponentRegistry, build_default_registry
 from .physical_prior import PhysicalPriorArtifact, STEP5D_V3_PHYSICAL_PRIOR
 from .moving_sphere import (
+    build_offline_fixture_stopping_bound,
     MovingSphereKernel,
     SphereReason,
     SphereTickResult,
     StoppingBoundArtifact,
+    StoppingBoundEvidenceComponent,
+    StoppingBoundEvidenceManifest,
 )
 from .return_route import (
     CampaignHomeReference,
@@ -67,6 +70,7 @@ from .runtime import (
 
 __all__ = [
     "AutotuneCandidate",
+    "build_offline_fixture_stopping_bound",
     "BatchFate",
     "BatchIdentity",
     "BatchJournal",
@@ -98,6 +102,8 @@ __all__ = [
     "SphereReason",
     "SphereTickResult",
     "StoppingBoundArtifact",
+    "StoppingBoundEvidenceComponent",
+    "StoppingBoundEvidenceManifest",
     "TrialBrief",
     "STEP5D_V3_PHYSICAL_PRIOR",
     "UnsupportedExecutionError",

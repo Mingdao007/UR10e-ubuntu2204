@@ -1,7 +1,7 @@
 # Step5 Flow
 
-`config/current_stage.json` remains on the frozen
-`step5d_strict_rnn_autotune_v1` controller binding. V3 is an inactive offline
+`config/current_stage.json` currently selects
+`step5d_strict_rnn_autotune_v1` as the frozen controller binding. V3 is an inactive offline
 pre-live candidate. Its local TP triplet changed after the retained V3
 controller read-back, so the old read-back is historical diagnostic evidence,
 not current package acceptance. The public blocker is

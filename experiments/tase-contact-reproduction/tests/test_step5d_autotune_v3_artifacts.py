@@ -12,7 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import verify_step5d_autotune_v3_artifacts as artifacts  # noqa: E402
-from step5d_autotune_v3.state import ORCHESTRATION_RELATIVE_PATHS  # noqa: E402
+from step5d_autotune_v3.state import (  # noqa: E402
+    ORCHESTRATION_RELATIVE_PATHS,
+    ORCHESTRATION_REPO_RELATIVE_PATHS,
+)
 
 
 ORCHESTRATION_INPUTS = set(ORCHESTRATION_RELATIVE_PATHS)
@@ -24,6 +27,13 @@ def _fixture_root(tmp_path: Path) -> Path:
     for relative in relatives:
         source = ROOT / relative
         target = fixture / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+    repository_fixture = fixture.parents[1]
+    repository_source = ROOT.parents[1]
+    for relative in ORCHESTRATION_REPO_RELATIVE_PATHS:
+        source = repository_source / relative
+        target = repository_fixture / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
     return fixture

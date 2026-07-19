@@ -28,10 +28,12 @@ from step5d_autotune_live_driver import (  # noqa: E402
     CampaignHomeReference,
     ImmutableBundleStoreReceipt,
 )
+import step5d_autotune_runtime_lifecycle as runtime_lifecycle  # noqa: E402
 from step5d_autotune_runtime_lifecycle import (  # noqa: E402
     PostAckControllerReadback,
     PostAckClosureCollector,
     PreAckTypedClosureCollector,
+    _persist_post_ack_readback,
     next_runtime_batch_candidate,
     prepare_batch_attempt_context,
     recover_runtime_batch_trial_briefs,
@@ -109,6 +111,53 @@ def _fixture(tmp_path: Path, row: int = 1):
     return context
 
 
+def _valid_post_ack_readback(context, trial_uid: str) -> PostAckControllerReadback:
+    return PostAckControllerReadback(
+        batch_uid=context.identity.batch_uid,
+        row_index=context.row_index,
+        trial_uid=trial_uid,
+        return_reference_uid=context.reference.reference_uid,
+        return_reference=context.reference.kind,
+        ack_command_seq=2,
+        consumed_command_seq=2,
+        tp_state=(
+            "READY_HOME_CLOSED"
+            if context.reference.kind is ReturnReferenceKind.CAMPAIGN_HOME
+            else "READY_NEAR"
+        ),
+        batch_row_echo=context.row_index,
+        return_kind_echo=context.reference.kind.value,
+        return_guard_mask=0x7F,
+        position_error_m=0.001,
+        orientation_error_rad=0.01,
+        tcp_linear_speed_m_s=0.0001,
+        tcp_angular_speed_rad_s=0.001,
+        qd_max_rad_s=0.001,
+        return_phase_echo=40.3,
+        return_segment_id=3,
+        return_current_angular_speed_rad_s=0.0,
+        return_current_angular_acceleration_rad_s2=0.0,
+        return_max_angular_speed_rad_s=0.05,
+        return_max_angular_acceleration_rad_s2=0.1,
+        return_max_sample_gap_s=0.002,
+        dwell_s=0.5,
+        safety_mode="NORMAL",
+        safety_guards={
+            name: True
+            for name in (
+                "force",
+                "torque",
+                "joints",
+                "sensor_freshness",
+                "heartbeat",
+                "contact_loss",
+                "route_workspace",
+            )
+        },
+        transcript_sha256="9" * 64,
+    )
+
+
 def test_exact_batch_context_selects_typed_return_reference(tmp_path: Path) -> None:
     context = _fixture(tmp_path)
     assert context.reference.kind is ReturnReferenceKind.NEAR_READY
@@ -172,6 +221,13 @@ def test_post_ack_readback_requires_all_return_guards() -> None:
         "tcp_linear_speed_m_s": 0.0001,
         "tcp_angular_speed_rad_s": 0.001,
         "qd_max_rad_s": 0.001,
+        "return_phase_echo": 40.3,
+        "return_segment_id": 3,
+        "return_current_angular_speed_rad_s": 0.0,
+        "return_current_angular_acceleration_rad_s2": 0.0,
+        "return_max_angular_speed_rad_s": 0.05,
+        "return_max_angular_acceleration_rad_s2": 0.1,
+        "return_max_sample_gap_s": 0.002,
         "dwell_s": 0.5,
         "safety_mode": "NORMAL",
         "safety_guards": {
@@ -189,9 +245,18 @@ def test_post_ack_readback_requires_all_return_guards() -> None:
     payload["return_guard_mask"] = 0x3F
     with pytest.raises(ValueError, match="guard mask"):
         PostAckControllerReadback(**payload)
+    payload["return_guard_mask"] = 0x7F
+    payload["return_max_angular_speed_rad_s"] = 0.061
+    with pytest.raises(ValueError, match="frozen limit"):
+        PostAckControllerReadback(**payload)
 
 
-def test_trial_brief_is_durable_before_optimizer_admission(tmp_path: Path) -> None:
+@pytest.mark.parametrize("tamper_before_first_validation", (False, True))
+def test_trial_brief_is_durable_before_optimizer_admission(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tamper_before_first_validation: bool,
+) -> None:
     context = _fixture(tmp_path)
     trial_uid = "1" * 64
     source = "2" * 64
@@ -265,31 +330,41 @@ def test_trial_brief_is_durable_before_optimizer_admission(tmp_path: Path) -> No
     )
     arm = HostPacket(1, 1, HostCommand.ARM, 1, 111, 1)
     ack = HostPacket(1, 1, HostCommand.ACK_BUNDLE, 1, 111, 2)
-    readback = PostAckControllerReadback(
-        batch_uid=context.identity.batch_uid,
-        row_index=1,
-        trial_uid=trial_uid,
-        return_reference_uid=context.reference.reference_uid,
-        return_reference=ReturnReferenceKind.NEAR_READY,
-        ack_command_seq=2,
-        consumed_command_seq=2,
-        tp_state="READY_NEAR",
-        batch_row_echo=1,
-        return_kind_echo="near_ready",
-        return_guard_mask=0x7F,
-        position_error_m=0.001,
-        orientation_error_rad=0.01,
-        tcp_linear_speed_m_s=0.0001,
-        tcp_angular_speed_rad_s=0.001,
-        qd_max_rad_s=0.001,
-        dwell_s=0.5,
-        safety_mode="NORMAL",
-        safety_guards={name: True for name in (
-            "force", "torque", "joints", "sensor_freshness",
-            "heartbeat", "contact_loss", "route_workspace",
-        )},
-        transcript_sha256="9" * 64,
-    )
+    readback = _valid_post_ack_readback(context, trial_uid)
+    if tamper_before_first_validation:
+        original_load = runtime_lifecycle._load_post_ack_readback
+        tampered = False
+
+        def tamper_then_load(*, campaign_root: Path, ack: ExactAckReceipt):
+            nonlocal tampered
+            if not tampered:
+                tampered = True
+                path = campaign_root / str(ack.controller_readback_path)
+                path.chmod(0o644)
+                path.write_text("{}\n", encoding="ascii")
+            return original_load(campaign_root=campaign_root, ack=ack)
+
+        monkeypatch.setattr(
+            runtime_lifecycle,
+            "_load_post_ack_readback",
+            tamper_then_load,
+        )
+        with pytest.raises(ValueError, match="controller readback"):
+            context.complete_post_ack(
+                trial=trial,
+                arm_packet=arm,
+                ack_packet=ack,
+                store_receipt=receipt,
+                manifest=manifest,
+                evaluation=evaluation,
+                readback=readback,
+            )
+        row = context.journal.state().rows[0]
+        assert row.ack_receipt_sha256 is None
+        assert row.closure_receipt_sha256 is None
+        assert not (tmp_path / "trial_briefs").exists()
+        return
+
     admission = context.complete_post_ack(
         trial=trial,
         arm_packet=arm,
@@ -302,6 +377,13 @@ def test_trial_brief_is_durable_before_optimizer_admission(tmp_path: Path) -> No
     assert admission.optimizer_eligible is True
     assert context.journal.state().rows[0].optimizer_eligible is True
     assert len(tuple((tmp_path / "trial_briefs").glob("*.json"))) == 1
+    readback_paths = tuple((tmp_path / "post_ack_controller_readbacks").glob("*.json"))
+    assert len(readback_paths) == 1
+    ack_document = context.journal.state().rows[0].ack_receipt_document
+    assert ack_document is not None
+    assert ack_document["controller_readback_path"] == readback_paths[0].relative_to(
+        tmp_path
+    ).as_posix()
 
 
 def test_trial_brief_recovery_closes_safe_closure_crash_cut_once(
@@ -392,6 +474,11 @@ def test_trial_brief_recovery_closes_safe_closure_crash_cut_once(
     )
     bundle_sha = hashlib.sha256(bundle_path.read_bytes()).hexdigest()
     context.journal.record_bundle(1, trial_uid, bundle_sha)
+    readback = _valid_post_ack_readback(context, trial_uid)
+    readback_path, _ = _persist_post_ack_readback(
+        campaign_root=tmp_path,
+        readback=readback,
+    )
     ack = ExactAckReceipt(
         batch_uid=context.identity.batch_uid,
         row_index=1,
@@ -399,10 +486,11 @@ def test_trial_brief_recovery_closes_safe_closure_crash_cut_once(
         control_candidate_uid=context.expected_row.control_candidate_uid,
         immutable_bundle_sha256=bundle_sha,
         return_reference_uid=context.reference.reference_uid,
-        controller_readback_sha256="9" * 64,
+        controller_readback_sha256=readback.controller_readback_sha256,
         arm_command_seq=1,
         ack_command_seq=2,
         consumed_command_seq=2,
+        controller_readback_path=readback_path,
     )
     context.journal.record_ack_consumed(ack)
     context.journal.record_safe_closure(
@@ -412,7 +500,7 @@ def test_trial_brief_recovery_closes_safe_closure_crash_cut_once(
             trial_uid=trial_uid,
             ack_uid=ack.ack_uid,
             return_reference_uid=context.reference.reference_uid,
-            controller_readback_sha256="9" * 64,
+            controller_readback_sha256=readback.controller_readback_sha256,
             return_reference=ReturnReferenceKind.NEAR_READY,
         )
     )
@@ -422,6 +510,14 @@ def test_trial_brief_recovery_closes_safe_closure_crash_cut_once(
     assert first[trial_uid] == second[trial_uid]
     assert context.journal.state().unpublished_trial_brief_row_indices == ()
     assert len(tuple((tmp_path / "trial_briefs").glob("*.json"))) == 1
+
+    readback_artifact = next(
+        (tmp_path / "post_ack_controller_readbacks").glob("*.json")
+    )
+    readback_artifact.chmod(0o644)
+    readback_artifact.write_text("{}\n", encoding="ascii")
+    with pytest.raises(ValueError, match="controller readback"):
+        recover_runtime_batch_trial_briefs(campaign_root=tmp_path)
 
 
 def test_post_ack_collector_requires_continuous_typed_controller_echo(
@@ -465,6 +561,13 @@ def test_post_ack_collector_requires_continuous_typed_controller_echo(
             "ur_output_int_register_31": 1,
             "ur_output_int_register_32": 1,
             "ur_output_int_register_33": 0x7F,
+            "output_double_register_35": 40.3,
+            "output_double_register_39": 3,
+            "output_double_register_40": 0.0,
+            "output_double_register_41": 0.0,
+            "output_double_register_42": 0.05,
+            "output_double_register_43": 0.1,
+            "output_double_register_44": 0.002,
         }
         row.update(
             {
@@ -545,6 +648,13 @@ def test_pre_ack_collector_uses_typed_reference_and_qd_not_fake_joint_error(
             "ur_output_double_register_36": 0.001,
             "ur_output_double_register_37": 0.002,
             "ur_output_double_register_38": 0.003,
+            "ur_output_double_register_35": 40.3,
+            "ur_output_double_register_39": 3,
+            "ur_output_double_register_40": 0.0,
+            "ur_output_double_register_41": 0.0,
+            "ur_output_double_register_42": 0.05,
+            "ur_output_double_register_43": 0.1,
+            "ur_output_double_register_44": 0.002,
         }
         row.update(
             {f"ur_actual_TCP_pose_{axis}": pose[axis] for axis in range(6)}

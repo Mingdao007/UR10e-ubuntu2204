@@ -347,17 +347,32 @@ ORCHESTRATION_RELATIVE_PATHS = (
     "tools/run_step5d_autotune_v3_live.py",
     "tools/preflight_step5d_autotune_v3.py",
     "tools/verify_step5d_autotune_v3_execution_readiness.py",
+    "tools/build_step5d_autotune_v3_stopping_bound_evidence.py",
+    "tools/build_step5d_autotune_v3_return_route_evidence.py",
     "scripts/step5d-autotune-v3.sh",
     "config/systemd/step5d-autotune-v3.service",
     "config/step5/step5d_autotune_v3_launch_profile.json",
+    "config/step5/step5d_autotune_v3_stopping_bound_evidence.json",
+    "config/step5/step5d_autotune_v3_return_route_evidence.json",
     "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
 )
+
+ORCHESTRATION_REPO_RELATIVE_PATHS = (
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/return_route.py",
+)
+
+
+def _orchestration_sources(experiment_root: Path):
+    for relative in ORCHESTRATION_RELATIVE_PATHS:
+        yield relative, experiment_root / relative
+    repository_root = experiment_root.parents[1]
+    for relative in ORCHESTRATION_REPO_RELATIVE_PATHS:
+        yield f"repo:{relative}", repository_root / relative
 
 
 def orchestration_fingerprint(experiment_root: Path) -> str:
     digest = hashlib.sha256()
-    for relative in ORCHESTRATION_RELATIVE_PATHS:
-        path = experiment_root / relative
+    for relative, path in _orchestration_sources(experiment_root):
         if path.is_symlink() or not path.is_file():
             raise StateError(f"orchestration fingerprint input is missing: {relative}")
         digest.update(relative.encode("utf-8") + b"\0")
@@ -369,8 +384,7 @@ def orchestration_source_sha256(experiment_root: Path) -> dict[str, str]:
     """Return a checkout-stable content manifest for the orchestration surface."""
 
     manifest: dict[str, str] = {}
-    for relative in ORCHESTRATION_RELATIVE_PATHS:
-        path = experiment_root / relative
+    for relative, path in _orchestration_sources(experiment_root):
         if path.is_symlink() or not path.is_file():
             raise StateError(f"orchestration manifest input is missing: {relative}")
         manifest[relative] = hashlib.sha256(path.read_bytes()).hexdigest()

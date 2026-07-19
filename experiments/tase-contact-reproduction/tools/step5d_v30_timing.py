@@ -915,7 +915,7 @@ def summarize_preaggregated(
         and runtime_environment.get("scheduler_policy_name") == "SCHED_OTHER"
         and scheduler_priority == 0
         and type(nice_value) is int
-        and nice_value >= 0
+        and nice_value == 0
         and runtime_environment.get("cpu_affinity") == EXPECTED_V3_CPU_AFFINITY
     )
     production_scheduler_proven = bool(
@@ -1288,7 +1288,7 @@ def summarize_preaggregated(
                 "post-yield reentries remain explicit diagnostics. FIFO/20 may "
                 "support the legacy hard-realtime or bounded-hold claim; the "
                 "V3 SCHED_OTHER/0 contract requires zero observed misses and "
-                "an equal-or-more-conservative nonnegative nice value; it does "
+                "the exact production nice value 0; it does "
                 "not claim hard-realtime scheduling"
             ),
         },

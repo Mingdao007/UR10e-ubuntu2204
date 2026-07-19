@@ -94,7 +94,7 @@ APPROVED_ORCHESTRATION_VARIANTS = {
     },
     "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {
         "baseline_sha256": "f7485600db9571d882076f3ceeed8ee999bee998d35fdc8fe2386664bb55550c",
-        "approved_sha256": "651de7448fc8f0595e7607df2c4edd53c243c3ff0a7cac607ab5701cdfbd933b",
+        "approved_sha256": "0a354971e3146937b24d2b864acdfb0f18be889b692b73ac49365baf003a3fba",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_live_driver.py": {
@@ -104,7 +104,7 @@ APPROVED_ORCHESTRATION_VARIANTS = {
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_contract.py": {
         "baseline_sha256": "e54eb807ad30df95e41ca108c647d010c360e344c7f6915f76666fb96879eee9",
-        "approved_sha256": "b8b2e54e30a23199f613c37af526d1687f966f6338af55540eccc012797ae28f",
+        "approved_sha256": "87470a8ad4855bf34623eb01d51f2b4085aa4ca23d6845b7e98b8d274745644c",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_coordinator.py": {
