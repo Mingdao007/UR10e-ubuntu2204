@@ -39,7 +39,10 @@ from .moving_sphere import (
     StoppingBoundArtifact,
 )
 from .return_route import (
+    CampaignHomeReference,
+    NearReadyReference,
     ReturnReference,
+    ReturnRoute,
     ReturnSegment,
     ReturnTargetVerification,
     return_reference,
@@ -82,7 +85,10 @@ __all__ = [
     "RegistryError",
     "RunManifest",
     "ReturnReferenceKind",
+    "CampaignHomeReference",
+    "NearReadyReference",
     "ReturnReference",
+    "ReturnRoute",
     "ReturnSegment",
     "ReturnTargetVerification",
     "SafeClosureReceipt",

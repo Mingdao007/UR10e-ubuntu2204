@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from ur10e_experiment_runtime.batch import BatchIdentity, BatchRow, ReturnReferenceKind
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
-from ur10e_experiment_runtime.return_route import return_reference, return_route
+from ur10e_experiment_runtime.return_route import (
+    CampaignHomeReference,
+    NearReadyReference,
+    return_reference,
+    return_route,
+)
 from ur10e_experiment_runtime.stage_adapters import control_candidate_uid
 
 
@@ -37,6 +42,8 @@ def test_exact_batch_identity_selects_near_ready_then_campaign_home() -> None:
     home = (0.4, 0.1, 0.2, 3.14, 0.0, 0.0)
     row9 = return_reference(identity, 9, near_ready_pose=near, campaign_home_pose=home)
     row10 = return_reference(identity, 10, near_ready_pose=near, campaign_home_pose=home)
+    assert isinstance(row9, NearReadyReference)
+    assert isinstance(row10, CampaignHomeReference)
     assert row9.kind is ReturnReferenceKind.NEAR_READY
     assert row9.pose_xyz_m == near[:3]
     assert row10.kind is ReturnReferenceKind.CAMPAIGN_HOME
@@ -49,10 +56,38 @@ def test_fixed_route_has_safe_z_and_prior_orientation() -> None:
     near = (*STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m, *STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad)
     reference = return_reference(identity, 1, near_ready_pose=near, campaign_home_pose=near)
     route = return_route(current_pose=(0.5, 0.2, 0.01, 3.0, 0.0, 0.0), reference=reference, prior=STEP5D_V3_PHYSICAL_PRIOR)
-    assert route[0].target_xyz_m[2] == 0.033
-    assert route[0].preserve_orientation
-    assert route[1].target_xyz_m[2] == 0.033
-    assert route[1].acceleration_m_s2 == 0.135
-    assert route[1].velocity_m_s == 0.090
-    assert route[2].target_xyz_m[2] == 0.022863519
-    assert route[2].target_rotvec_rad == STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
+    assert len(route.segments) == 3
+    assert route.segments[0].target_xyz_m[2] == 0.033
+    assert route.segments[0].preserve_orientation
+    assert route.segments[1].target_xyz_m[2] == 0.033
+    assert route.segments[1].acceleration_m_s2 == 0.135
+    assert route.segments[1].velocity_m_s == 0.090
+    assert route.segments[1].angular_velocity_rad_s == 0.05
+    assert route.segments[2].target_xyz_m[2] == 0.022863519
+    assert route.segments[2].target_rotvec_rad == STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
+    assert len(route.route_fingerprint) == 64
+
+
+def test_campaign_home_is_direct_three_segment_route_without_precontact_excursion() -> None:
+    identity = batch()
+    near = (*STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m, *STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad)
+    home = (0.4, 0.1, 0.2, 3.14, 0.0, 0.0)
+    reference = return_reference(
+        identity,
+        10,
+        near_ready_pose=near,
+        campaign_home_pose=home,
+    )
+    route = return_route(
+        current_pose=(0.5, 0.2, 0.01, 3.0, 0.0, 0.0),
+        reference=reference,
+        prior=STEP5D_V3_PHYSICAL_PRIOR,
+    )
+    assert len(route.segments) == 3
+    assert route.segments[1].target_xyz_m == (home[0], home[1], 0.033)
+    assert route.segments[2].target_xyz_m == home[:3]
+    assert all(
+        segment.target_xyz_m[:2]
+        != STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m[:2]
+        for segment in route.segments[1:]
+    )
