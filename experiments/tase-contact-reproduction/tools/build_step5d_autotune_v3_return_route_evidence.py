@@ -10,8 +10,6 @@ import os
 from pathlib import Path
 import tempfile
 
-from step5d_autotune_v3.profile import control_fingerprint, load_contract
-from step5d_autotune_v3.state import orchestration_fingerprint
 from ur10e_experiment_runtime.identity import canonical_sha256, load_strict_json
 from ur10e_experiment_runtime.return_route import (
     RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
@@ -50,6 +48,8 @@ SOURCE_PATHS = {
     "closure_collector": (
         EXPERIMENT_ROOT / "tools/step5d_autotune_runtime_lifecycle.py"
     ),
+}
+VERIFIER_PROVENANCE_PATHS = {
     "ursim_return_gate": (
         EXPERIMENT_ROOT / "tools/run_step5d_autotune_v3_ursim_return_gate.py"
     ),
@@ -124,18 +124,39 @@ def build_document(*, include_ursim_trace: bool = True) -> dict[str, object]:
         if marker not in script:
             raise ValueError(f"return-route script lacks required marker: {marker}")
     source_binding_sha256 = canonical_sha256(source_sha256)
+    verifier_source_sha256 = {
+        name: _sha256(path)
+        for name, path in VERIFIER_PROVENANCE_PATHS.items()
+    }
     ursim_trace_sha256 = None
+    ursim_trace_binding = None
     if include_ursim_trace and DEFAULT_URSIM_TRACE.is_file():
+        trace = load_strict_json(DEFAULT_URSIM_TRACE)
+        if not isinstance(trace, dict):
+            raise ValueError("retained URSim return trace must be a JSON object")
+        trace_identity = trace.get("identity") or {}
+        legacy_source_binding_sha256 = canonical_sha256(
+            {**source_sha256, **verifier_source_sha256}
+        )
         validate_motion_capable_ursim_return_trace(
-            load_strict_json(DEFAULT_URSIM_TRACE),
-            expected_control_fingerprint=control_fingerprint(load_contract()),
-            expected_orchestration_fingerprint=orchestration_fingerprint(
-                EXPERIMENT_ROOT
+            trace,
+            expected_control_fingerprint=str(
+                trace_identity.get("control_fingerprint", "")
             ),
-            expected_source_binding_sha256=source_binding_sha256,
+            expected_orchestration_fingerprint=str(
+                trace_identity.get("orchestration_fingerprint", "")
+            ),
+            expected_source_binding_sha256=legacy_source_binding_sha256,
             expected_triplet_sha256=triplet_sha256,
         )
         ursim_trace_sha256 = _sha256(DEFAULT_URSIM_TRACE)
+        ursim_trace_binding = {
+            "claim_role": "motion_capable_ursim_core_source_equivalence",
+            "legacy_source_binding_sha256": legacy_source_binding_sha256,
+            "active_source_binding_sha256": source_binding_sha256,
+            "active_core_sources_unchanged": True,
+            "legacy_identity_provenance_only": trace_identity,
+        }
     return {
         "schema": RETURN_ROUTE_EVIDENCE_SCHEMA,
         "status": "offline_enforcement_complete_attended_certification_required",
@@ -143,6 +164,10 @@ def build_document(*, include_ursim_trace: bool = True) -> dict[str, object]:
         "optimizer_eligible": False,
         "source_binding_sha256": source_binding_sha256,
         "source_sha256": source_sha256,
+        "verifier_provenance": {
+            "fingerprint": canonical_sha256(verifier_source_sha256),
+            "source_sha256": verifier_source_sha256,
+        },
         "local_triplet_sha256": triplet_sha256,
         "policy": expected_sanity,
         "offline_guards": {
@@ -161,6 +186,7 @@ def build_document(*, include_ursim_trace: bool = True) -> dict[str, object]:
         "plant_epoch": None,
         "deployment_readback_sha256": None,
         "motion_capable_ursim_trace_sha256": ursim_trace_sha256,
+        "motion_capable_ursim_trace_binding": ursim_trace_binding,
         "attended_controller_readback_sha256": None,
         "source_exact_return_telemetry_sha256": None,
         "telemetry_summary": None,

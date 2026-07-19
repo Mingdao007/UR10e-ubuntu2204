@@ -10385,7 +10385,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is selected/current and remains pre-live blocked on timing, attended TP readback, controller identity, certification, one Sol/XHigh audit, and fresh campaign authorization.",
+      "block_reason": "V3 is the unique selected/current release and remains pre-live blocked on requires_current_source_formal_500hz_timing, requires_attended_tp_upload_readback, requires_current_poweroff_controller_identity, requires_certification_motion_authorization, requires_certified_stopping_bound, requires_certified_return_route_angular_envelope, requires_attended_sol_xhigh_pre_live_audit, requires_fresh_campaign_authorization; V1 is retained control-profile provenance only",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10424,7 +10424,7 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-        "live_readiness_state": "selected_pre_live_blocked"
+        "live_readiness_state": "requires_current_source_formal_500hz_timing"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10468,13 +10468,13 @@
         "acceptance_scope": "offline_pre_live_only",
         "diagnostic_bundle_replay": "pass",
         "exact_ten_row_lifecycle": "pass",
-        "formal_500hz_timing": "blocked_current_source_timing_not_run",
+        "formal_500hz_timing": "blocked_final_full_tick_pending",
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "2bd06ff5c0ed311e26ea434e71688caaf2e8ce118153ed009d2a396d5913b5f3",
-        "simulation": "pass_current_fingerprint_return_motion",
-        "source_exact_sphere_seam_timing": "superseded_by_combined_formal_three_lane_timing_pending",
+        "report_sha256": "4f2e2de410f75ec8c52a89d0a7312b583bb2b45e3a4741dec9a3179fb8d7deaf",
+        "simulation": "pass_motion_capable_ursim_core_source_equivalence",
+        "source_exact_sphere_seam_timing": "pass_reused_safe_hold_active_surface_equivalence",
         "status": "pass_offline_implementation_pre_live_blocked"
       },
       "current_binding": {

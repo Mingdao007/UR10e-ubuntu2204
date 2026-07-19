@@ -13,11 +13,10 @@ from typing import Any, Mapping, Sequence
 
 from step5d_autotune_v3.profile import (
     ContractViolation,
-    contract_sha256,
-    control_fingerprint,
+    active_identity_snapshot,
     load_contract,
 )
-from step5d_autotune_v3.state import StateError, orchestration_fingerprint
+from step5d_autotune_v3.state import StateError
 from step5d_timing_acceptance import evaluate_step5d_v3_timing_raw
 
 
@@ -68,6 +67,10 @@ RETURN_ROUTE_EVIDENCE_RELATIVE = (
 URSIM_RETURN_TRACE_RELATIVE = (
     "config/step5/step5d_autotune_v3_ursim_return_trace.json"
 )
+TIMING_EQUIVALENCE_RELATIVE = (
+    "config/step5/"
+    "step5d_autotune_v3_formal_timing_raw_ede7bdb5.equivalence.json"
+)
 READINESS_EVIDENCE_RELATIVE_PATHS = {
     SEAM_EVIDENCE_RELATIVE,
     FORMAL_RAW_RELATIVE,
@@ -79,6 +82,7 @@ READINESS_EVIDENCE_RELATIVE_PATHS = {
     STOPPING_BOUND_EVIDENCE_RELATIVE,
     RETURN_ROUTE_EVIDENCE_RELATIVE,
     URSIM_RETURN_TRACE_RELATIVE,
+    TIMING_EQUIVALENCE_RELATIVE,
     "config/step5d_v29_remote_evidence_sha256.json",
     "config/step5d_liveprep_solver_gate.json",
     "config/step5d_v30_profile_selection.json",
@@ -220,7 +224,7 @@ def _seam_source_path(root: Path, relative: str) -> Path:
 def _verify_validation(
     root: Path,
     *,
-    current_identity: Mapping[str, str],
+    current_identity: Mapping[str, Any],
     readback_relative: str,
     readback_sha256: str,
 ) -> tuple[Path, Mapping[str, Any], bool]:
@@ -278,7 +282,15 @@ def _verify_validation(
         "safe_hold": 30_000,
     }
     _require(set(lanes), set(lane_counts), "formal timing lanes")
-    expected_lane_status = "pass" if timing_passed else "pending_current_source"
+    expected_lane_statuses = (
+        {lane: "pass" for lane in lane_counts}
+        if timing_passed
+        else {
+            "solver": "pass_reused_active_surface_equivalence",
+            "full_tick_with_sphere": "pending_final_source_exact_capture",
+            "safe_hold": "pass_reused_active_surface_equivalence",
+        }
+    )
     for lane, samples in lane_counts.items():
         _require(
             (lanes.get(lane) or {}).get("required_samples"),
@@ -287,7 +299,7 @@ def _verify_validation(
         )
         _require(
             (lanes.get(lane) or {}).get("status"),
-            expected_lane_status,
+            expected_lane_statuses[lane],
             f"formal timing {lane} status",
         )
     if timing_passed:
@@ -359,19 +371,83 @@ def _verify_validation(
     else:
         _require(
             seam_timing.get("status"),
-            "superseded_by_combined_formal_three_lane_timing_pending",
+            "pass_reused_safe_hold_active_surface_equivalence",
             "sphere seam timing",
         )
         _require(
             seam_timing.get("claim_class"),
-            "no_current_source_timing_claim",
+            "formal_lane_reuse_not_full_acceptance",
             "sphere seam timing claim class",
         )
         _require(seam_timing.get("attempt_count"), 0, "sphere seam timing attempts")
         _require(
             seam_timing.get("blocker"),
-            "task_b_source_exact_formal_timing_pending",
+            "requires_final_source_exact_full_tick_30k",
             "sphere seam timing blocker",
+        )
+        equivalence_path, equivalence_sha = _reference(
+            root,
+            formal_timing.get("equivalence_attestation"),
+            role="timing active-surface equivalence",
+        )
+        _require(
+            seam_timing.get("equivalence_attestation"),
+            formal_timing.get("equivalence_attestation"),
+            "sphere seam timing equivalence binding",
+        )
+        equivalence = _load_json(
+            equivalence_path,
+            role="timing active-surface equivalence",
+        )
+        _require(
+            equivalence.get("schema"),
+            "step5d.autotune-v3/timing-active-surface-equivalence-v1",
+            "timing equivalence schema",
+        )
+        _require(
+            _sha256(equivalence_path),
+            equivalence_sha,
+            "timing equivalence digest",
+        )
+        subjects = equivalence.get("subject_identity") or {}
+        _require(
+            (subjects.get("tick_semantics") or {}).get(
+                "target_layered_fingerprint"
+            ),
+            current_identity["tick_semantics_fingerprint"],
+            "timing equivalence tick identity",
+        )
+        _require(
+            (subjects.get("timing_harness") or {}).get(
+                "target_layered_fingerprint"
+            ),
+            current_identity["timing_harness_fingerprint"],
+            "timing equivalence harness identity",
+        )
+        _require(
+            {
+                lane: (row or {}).get("reusable")
+                for lane, row in (equivalence.get("lane_reuse") or {}).items()
+            },
+            {"solver": True, "safe_hold": True, "full_tick": False},
+            "timing equivalence lane reuse",
+        )
+        _require(
+            formal_timing.get("bound_identity"),
+            {
+                "tick_semantics_fingerprint": current_identity[
+                    "tick_semantics_fingerprint"
+                ],
+                "timing_harness_fingerprint": current_identity[
+                    "timing_harness_fingerprint"
+                ],
+                "runtime_environment_fingerprint": (
+                    (subjects.get("runtime_environment") or {}).get(
+                        "fingerprint"
+                    )
+                ),
+            },
+            "partial timing bound identity",
         )
         prior_seam_path, _ = _reference(
             root,
@@ -402,7 +478,7 @@ def _verify_validation(
             )
         _require(
             formal_timing.get("status"),
-            "blocked_current_source_timing_not_run",
+            "blocked_final_full_tick_pending",
             "formal timing status",
         )
         _require(
@@ -413,12 +489,12 @@ def _verify_validation(
         _require(formal_timing.get("attempt_count"), 0, "formal timing attempt count")
         _require(
             formal_timing.get("acceptance_classification"),
-            "not_evaluated_current_source",
+            "partial_lane_reuse_attested",
             "formal timing classification",
         )
         _require(
             formal_timing.get("blocker"),
-            "task_b_source_exact_formal_timing_pending",
+            "requires_final_source_exact_full_tick_30k",
             "formal timing blocker",
         )
         prior_formal = formal_timing.get("retained_prior_failed_attempt") or {}
@@ -452,12 +528,12 @@ def _verify_validation(
     simulation = gates.get("simulation") or {}
     _require(
         simulation.get("status"),
-        "pass_current_fingerprint_return_motion",
+        "pass_motion_capable_ursim_core_source_equivalence",
         "simulation status",
     )
     _require(
         simulation.get("ursim"),
-        "pass_current_fingerprint_return_motion",
+        "pass_motion_capable_ursim_core_source_equivalence",
         "URSim status",
     )
     return_trace_path, _ = _reference(
@@ -467,17 +543,6 @@ def _verify_validation(
     )
     return_trace = _load_json(return_trace_path, role="current URSim return trace")
     _require(return_trace.get("status"), "pass", "URSim return trace result")
-    return_identity = return_trace.get("identity") or {}
-    _require(
-        return_identity.get("control_fingerprint"),
-        current_identity["control_fingerprint"],
-        "URSim return control identity",
-    )
-    _require(
-        return_identity.get("orchestration_fingerprint"),
-        current_identity["orchestration_fingerprint"],
-        "URSim return orchestration identity",
-    )
     _require(
         (return_trace.get("network") or {}).get("real_robot_network_connected"),
         False,
@@ -604,6 +669,8 @@ def _verify_validation(
         "bridge_capture": _sha256(root / "tools/run_step5d_autotune_v3_bridge.py"),
         "campaign_adapter": _sha256(root / "tools/run_step5d_autotune_campaign.py"),
         "closure_collector": _sha256(root / "tools/step5d_autotune_runtime_lifecycle.py"),
+    }
+    angular_verifier_sources = {
         "ursim_return_gate": _sha256(
             root / "tools/run_step5d_autotune_v3_ursim_return_gate.py"
         ),
@@ -618,6 +685,14 @@ def _verify_validation(
         "return-route evidence source binding",
     )
     _require(
+        angular_evidence.get("verifier_provenance"),
+        {
+            "fingerprint": _canonical_sha256(angular_verifier_sources),
+            "source_sha256": angular_verifier_sources,
+        },
+        "return-route verifier provenance",
+    )
+    _require(
         angular_evidence.get("local_triplet_sha256"),
         package_gate.get("local_triplet_sha256"),
         "return-route evidence triplet",
@@ -628,6 +703,23 @@ def _verify_validation(
         angular_evidence.get("motion_capable_ursim_trace_sha256"),
         ursim_return_sha,
         "return-route URSim trace binding",
+    )
+    retained_trace = _load_json(
+        ursim_return_path,
+        role="retained motion-capable URSim return trace",
+    )
+    _require(
+        angular_evidence.get("motion_capable_ursim_trace_binding"),
+        {
+            "claim_role": "motion_capable_ursim_core_source_equivalence",
+            "legacy_source_binding_sha256": _canonical_sha256(
+                {**angular_sources, **angular_verifier_sources}
+            ),
+            "active_source_binding_sha256": _canonical_sha256(angular_sources),
+            "active_core_sources_unchanged": True,
+            "legacy_identity_provenance_only": retained_trace.get("identity"),
+        },
+        "return-route URSim core-source equivalence",
     )
     _require(
         angular_evidence.get("missing_certification"),
@@ -676,7 +768,7 @@ def _verify_validation(
 def _verify_live_promotion(
     root: Path,
     *,
-    current_identity: Mapping[str, str],
+    current_identity: Mapping[str, Any],
     validation_path: Path,
     readback_relative: str,
     readback_sha256: str,
@@ -707,7 +799,7 @@ def _verify_live_promotion(
         ("schema", "step5d.autotune-v3/live-promotion-v3"),
         ("candidate_stage_id", V3_STAGE_ID),
         ("control_profile_id", V1_STAGE_ID),
-        ("current_selector", V1_STAGE_ID),
+        ("current_selector", V3_STAGE_ID),
         ("identity", current_identity),
         ("machine_campaign_binding", MACHINE_BINDING),
         ("same_process_startup_gate", True),
@@ -743,11 +835,10 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         contract = load_contract(
             root / "config/step5/step5d_autotune_v3_control_contract.json"
         )
-        current_identity = {
-            "contract_sha256": contract_sha256(contract),
-            "control_fingerprint": control_fingerprint(contract),
-            "orchestration_fingerprint": orchestration_fingerprint(root),
-        }
+        current_identity = active_identity_snapshot(
+            contract,
+            experiment_root=root,
+        )
     except (ContractViolation, StateError) as exc:
         raise ReadinessError(f"current source fingerprint failed: {exc}") from exc
 
@@ -887,12 +978,15 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
             "stopping/return measurement, close both evidence artifacts, perform one "
             "attended Sol/XHigh audit, and obtain a separate fresh campaign authorization"
             if timing_passed
-            else "run the single Task B current-source formal 500 Hz timing capture"
+            else (
+                "run the single final source-exact 30k full-tick capture; "
+                "solver and safe-hold are already reuse-attested"
+            )
         ),
         "timing_diagnostic": (
             "pass_current_source_formal_500hz_timing"
             if timing_passed
-            else "blocked_current_source_timing_not_run_task_b_pending"
+            else "partial_lane_reuse_attested_full_tick_pending"
         ),
         "canonical_gate": [
             "current_source_formal_500hz_timing",

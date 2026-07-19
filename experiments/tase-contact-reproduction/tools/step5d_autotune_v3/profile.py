@@ -13,6 +13,16 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Mapping
 
+from ur10e_experiment_runtime.identity import canonical_sha256
+
+from .identity_layers import (
+    deployment_fingerprint,
+    evidence_verifier_fingerprint,
+    source_sha256_manifest,
+    timing_harness_fingerprint,
+    tick_semantics_manifest as _layered_tick_semantics_manifest,
+)
+
 
 SCHEMA = "step5d.autotune.v3.control-contract/v1"
 CATEGORIES = (
@@ -22,6 +32,7 @@ CATEGORIES = (
     "runtime_identity",
 )
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[2]
+REPOSITORY_ROOT = EXPERIMENT_ROOT.parents[1]
 DEFAULT_CONTRACT_PATH = (
     EXPERIMENT_ROOT / "config/step5/step5d_autotune_v3_control_contract.json"
 )
@@ -421,6 +432,271 @@ def validate_source_bindings(
                 f"expected={expected} observed={digest}"
             )
     return observed
+
+
+def _identity_json(path: Path, *, role: str) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise ContractViolation(f"{role} must be a regular file: {path}")
+    try:
+        payload = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_object,
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                ContractViolation(f"{role} contains non-finite JSON: {value}")
+            ),
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ContractViolation(f"cannot parse {role}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ContractViolation(f"{role} must be a JSON object")
+    return payload
+
+
+def _identity_file_sha256(path: Path, *, role: str) -> str:
+    try:
+        resolved = path.expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise ContractViolation(f"{role} is missing: {path}") from exc
+    if not resolved.is_file():
+        raise ContractViolation(f"{role} must resolve to a regular file: {path}")
+    return hashlib.sha256(resolved.read_bytes()).hexdigest()
+
+
+def active_tick_semantics_manifest(
+    contract: Mapping[str, Any] | None = None,
+    effective_config: Mapping[str, Any] | None = None,
+    *,
+    experiment_root: Path = EXPERIMENT_ROOT,
+) -> dict[str, Any]:
+    """Build the current hot-path identity without deployment recursion.
+
+    The legacy ``control_fingerprint`` below is retained for immutable V1/V3
+    evidence compatibility.  New launch, timing, and release bindings must use
+    this explicit identity instead.
+    """
+
+    payload = dict(contract or load_contract())
+    repository_root = experiment_root.parents[1]
+    governed: dict[str, Any] = {}
+    for category in ("control_invariant", "safety_invariant"):
+        declared = payload["effective_fields"][category]
+        if effective_config is None:
+            governed[category] = dict(declared)
+            continue
+        missing = sorted(set(declared) - set(effective_config))
+        if missing:
+            raise ContractViolation(
+                f"tick semantics effective config is missing {category}: {missing}"
+            )
+        governed[category] = {
+            name: effective_config[name]
+            for name in declared
+        }
+
+    safe_frame = _identity_json(
+        experiment_root / "config/step5_safe_frame.json",
+        role="Step5 safe frame",
+    )
+    try:
+        safe_frame_axes = {
+            "u_along_xy": safe_frame["basis"]["u_along_xy"],
+            "p_lateral_xy": safe_frame["basis"]["p_lateral_xy"],
+        }
+    except (KeyError, TypeError) as exc:
+        raise ContractViolation("Step5 safe frame basis differs") from exc
+
+    liveprep = _identity_json(
+        experiment_root / "config/step5d_liveprep_solver_gate.json",
+        role="Step5d liveprep solver gate",
+    )
+    try:
+        liveprep_semantics = {
+            "strict_rnn_enabled": liveprep["strict_rnn_enabled"],
+            "scope": liveprep["scope"],
+            "assumptions": liveprep["assumptions"],
+        }
+    except KeyError as exc:
+        raise ContractViolation("Step5d liveprep solver gate differs") from exc
+
+    runtime_calibration = _identity_json(
+        experiment_root
+        / "config/step5d/manifests/step5d_strict_rnn_autotune_v3/"
+        "runtime_calibration.json",
+        role="V3 runtime calibration",
+    )
+    try:
+        calibrated_model = runtime_calibration["calibrated_model"]
+        runtime_calibration_semantics = {
+            "schema": runtime_calibration["schema"],
+            "artifact_id": runtime_calibration["artifact_id"],
+            "calibrated_model": {
+                "calibration_yaml_sha256": calibrated_model[
+                    "calibration_yaml_sha256"
+                ],
+                "calibration_hash": calibrated_model["calibration_hash"],
+                "required_frames": calibrated_model["required_frames"],
+            },
+            "runtime_value": runtime_calibration["runtime_value"],
+            "audit_metrics": runtime_calibration["audit_metrics"],
+            "thresholds": runtime_calibration["thresholds"],
+            "gates": runtime_calibration["gates"],
+        }
+        xacro_path = Path(calibrated_model["xacro_path"])
+    except (KeyError, TypeError) as exc:
+        raise ContractViolation("V3 runtime calibration semantics differ") from exc
+
+    launch_profile_document = _identity_json(
+        experiment_root / "config/step5/step5d_autotune_v3_launch_profile.json",
+        role="V3 launch profile",
+    )
+    try:
+        launch_profile = {
+            "schema": launch_profile_document["schema"],
+            "release_stage_id": launch_profile_document["release_stage_id"],
+            "control_profile_id": launch_profile_document["control_profile_id"],
+            "tp_program_id": launch_profile_document["tp_program_id"],
+            "moving_sphere_reference_sha256": launch_profile_document[
+                "moving_sphere_reference_sha256"
+            ],
+            "launch_overrides": launch_profile_document["launch_overrides"],
+            "trial_overlay_policy": launch_profile_document[
+                "trial_overlay_policy"
+            ],
+        }
+    except KeyError as exc:
+        raise ContractViolation("V3 launch profile semantics differ") from exc
+    external_inputs = {
+        "ur_description_xacro_sha256": _identity_file_sha256(
+            xacro_path,
+            role="UR description xacro",
+        ),
+    }
+    semantic_inputs = {
+        "frozen_control_profile": payload["frozen_baseline"],
+        "execution_profile_id": payload["execution_profile_id"],
+        "governed_effective_fields": governed,
+        "safe_frame_axes": safe_frame_axes,
+        "liveprep_solver": liveprep_semantics,
+        "runtime_calibration": runtime_calibration_semantics,
+        "launch_profile": launch_profile,
+    }
+    return _layered_tick_semantics_manifest(
+        repository_root,
+        semantic_inputs=semantic_inputs,
+        external_inputs=external_inputs,
+    )
+
+
+def active_tick_semantics_fingerprint(
+    contract: Mapping[str, Any] | None = None,
+    effective_config: Mapping[str, Any] | None = None,
+    *,
+    experiment_root: Path = EXPERIMENT_ROOT,
+) -> str:
+    return canonical_sha256(
+        active_tick_semantics_manifest(
+            contract,
+            effective_config,
+            experiment_root=experiment_root,
+        )
+    )
+
+
+def validate_active_source_bindings(
+    contract: Mapping[str, Any] | None = None,
+    *,
+    experiment_root: Path = EXPERIMENT_ROOT,
+) -> dict[str, str]:
+    """Validate and return only the active tick source manifest.
+
+    Historical contract source hashes, old TP read-back, selectors, builders,
+    and promotion state are deliberately not active source gates.
+    """
+
+    manifest = active_tick_semantics_manifest(
+        contract,
+        experiment_root=experiment_root,
+    )
+    sources = manifest.get("sources")
+    if not isinstance(sources, dict) or not sources:
+        raise ContractViolation("active tick source manifest is empty")
+    # Recompute through the identity owner so a caller cannot substitute a
+    # prebuilt manifest or an unsafe path.
+    observed = source_sha256_manifest(
+        experiment_root.parents[1],
+        tuple(sources),
+    )
+    if observed != sources:
+        raise ContractViolation("active tick source manifest changed while validating")
+    return observed
+
+
+def active_identity_snapshot(
+    contract: Mapping[str, Any] | None = None,
+    *,
+    experiment_root: Path = EXPERIMENT_ROOT,
+) -> dict[str, Any]:
+    """Build the static layered V3 identity from one checkout.
+
+    Runtime-environment, plant-epoch, and certified evidence components remain
+    explicitly unresolved until their respective timing and attended gates.
+    """
+
+    from .state import (
+        active_orchestration_fingerprint,
+        orchestration_fingerprint as legacy_orchestration_fingerprint,
+    )
+
+    payload = dict(contract or load_contract())
+    repository_root = experiment_root.parents[1]
+    deployment = payload["deployment_tp_identity"]
+    program = deployment["program"]
+    artifact_dir = experiment_root / deployment["artifact_dir"]
+    local_triplet = {
+        suffix: _identity_file_sha256(
+            artifact_dir / f"{program}{suffix}",
+            role=f"V3 TP artifact {suffix}",
+        )
+        for suffix in (".script", ".txt", ".urp")
+    }
+    readback = _identity_json(
+        experiment_root / deployment["readback_manifest"],
+        role="V3 controller readback",
+    )
+    return {
+        "schema": "step5d.autotune-v3/layered-identity-snapshot-v1",
+        "tick_semantics_fingerprint": active_tick_semantics_fingerprint(
+            payload,
+            experiment_root=experiment_root,
+        ),
+        "timing_harness_fingerprint": timing_harness_fingerprint(
+            repository_root
+        ),
+        "runtime_environment_fingerprint": None,
+        "deployment_fingerprint": deployment_fingerprint(
+            triplet_sha256=local_triplet,
+            controller_readback_identity=readback,
+        ),
+        "orchestration_fingerprint": active_orchestration_fingerprint(
+            experiment_root
+        ),
+        "release_basis_fingerprint": None,
+        "release_fingerprint": None,
+        "local_triplet_sha256": local_triplet,
+        "controller_readback_triplet_sha256": readback["triplet_sha256"],
+        "verifier_provenance": {
+            "evidence_verifier_fingerprint": evidence_verifier_fingerprint(
+                repository_root
+            ),
+        },
+        "legacy_provenance": {
+            "contract_sha256": contract_sha256(payload),
+            "control_fingerprint": control_fingerprint(payload),
+            "orchestration_fingerprint": legacy_orchestration_fingerprint(
+                experiment_root
+            ),
+        },
+    }
 
 
 def contract_sha256(contract: Mapping[str, Any] | None = None) -> str:

@@ -13,11 +13,35 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import verify_step5d_autotune_v3_execution_readiness as readiness  # noqa: E402
 from step5d_autotune_v3 import state as v3_state  # noqa: E402
+from step5d_autotune_v3.identity_layers import (  # noqa: E402
+    EVIDENCE_VERIFIER_PATHS,
+    ORCHESTRATION_PATHS,
+    TICK_SEMANTICS_PATHS,
+    TIMING_MEASUREMENT_PATHS,
+)
 
 
-RELATIVES = set(v3_state.ORCHESTRATION_RELATIVE_PATHS) | {
+EXPERIMENT_PREFIX = "experiments/tase-contact-reproduction/"
+ACTIVE_IDENTITY_PATHS = {
+    *TICK_SEMANTICS_PATHS,
+    *TIMING_MEASUREMENT_PATHS,
+    *ORCHESTRATION_PATHS,
+    *EVIDENCE_VERIFIER_PATHS,
+}
+ACTIVE_EXPERIMENT_RELATIVES = {
+    path.removeprefix(EXPERIMENT_PREFIX)
+    for path in ACTIVE_IDENTITY_PATHS
+    if path.startswith(EXPERIMENT_PREFIX)
+}
+ACTIVE_REPO_RELATIVES = {
+    path for path in ACTIVE_IDENTITY_PATHS if not path.startswith(EXPERIMENT_PREFIX)
+}
+
+RELATIVES = set(v3_state.ORCHESTRATION_RELATIVE_PATHS) | ACTIVE_EXPERIMENT_RELATIVES | {
     "config/current_stage.json",
     "config/step5_stage_table.json",
+    "config/step5_safe_frame.json",
+    "config/step5d_liveprep_solver_gate.json",
     "config/step5/step5d_autotune_v3_offline_validation.json",
     "config/step5/step5d_autotune_v3_live_promotion.json",
     "config/step5d_autotune_controller_readback_v3.json",
@@ -27,7 +51,9 @@ RELATIVES = set(v3_state.ORCHESTRATION_RELATIVE_PATHS) | {
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp",
     "config/step5/step5d_autotune_v3_control_contract.json",
 } | set(readiness.READINESS_EVIDENCE_RELATIVE_PATHS)
-REPO_RELATIVES = set(v3_state.ORCHESTRATION_REPO_RELATIVE_PATHS)
+REPO_RELATIVES = (
+    set(v3_state.ORCHESTRATION_REPO_RELATIVE_PATHS) | ACTIVE_REPO_RELATIVES
+)
 
 
 def _fixture_root(tmp_path: Path) -> Path:
@@ -71,7 +97,7 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     assert report["current_stage_id"] == readiness.V3_STAGE_ID
     assert report["next_owner"] == "ur10e-contact-control-prep"
     assert report["timing_diagnostic"] == (
-        "blocked_current_source_timing_not_run_task_b_pending"
+        "partial_lane_reuse_attested_full_tick_pending"
     )
     assert report["canonical_gate"] == [
         "current_source_formal_500hz_timing",
@@ -118,7 +144,7 @@ def test_current_validation_identity_is_frozen(tmp_path: Path) -> None:
         fixture / "config/step5/step5d_autotune_v3_offline_validation.json"
     )
     validation = json.loads(validation_path.read_text(encoding="utf-8"))
-    validation["identity"]["control_fingerprint"] = "0" * 64
+    validation["identity"]["tick_semantics_fingerprint"] = "0" * 64
     validation_path.write_text(json.dumps(validation), encoding="utf-8")
 
     with pytest.raises(readiness.ReadinessError, match="current validation identity"):

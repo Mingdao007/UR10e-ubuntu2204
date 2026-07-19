@@ -15,6 +15,16 @@
     "motion_capable_ursim_trace_sha256": "19f73447e69ea01819a713e2b81230ea997513fc51ec4fb9b8d62c4e53e53ea6",
     "source_exact_return_telemetry_sha256": null
   },
+  "motion_capable_ursim_trace_binding": {
+    "active_core_sources_unchanged": true,
+    "active_source_binding_sha256": "aa2a0aa259fee1857f15e9cbd3b8e4b8b517f8bb0839af8bb127f3290c287c4c",
+    "claim_role": "motion_capable_ursim_core_source_equivalence",
+    "legacy_identity_provenance_only": {
+      "control_fingerprint": "6cc7320ebf1450233cd2fb447432e613e67c8103294edbfa8f40449f518f3ac0",
+      "orchestration_fingerprint": "ede7bdb5e5aaef98c7214a4b8f1e531a84d63e11620d1dbe901f6d056e97eb23"
+    },
+    "legacy_source_binding_sha256": "7be1ca3d50fd13ba3727f6037f9b1902f724da325291d52a2b7c7c19988dfc54"
+  },
   "motion_capable_ursim_trace_sha256": "19f73447e69ea01819a713e2b81230ea997513fc51ec4fb9b8d62c4e53e53ea6",
   "offline_guards": {
     "bounded_speedl_twist": true,
@@ -57,17 +67,22 @@
     "safe_transfer_z_m": 0.033
   },
   "schema": "step5d.autotune-v3/return-route-evidence-v2",
-  "source_binding_sha256": "7be1ca3d50fd13ba3727f6037f9b1902f724da325291d52a2b7c7c19988dfc54",
+  "source_binding_sha256": "aa2a0aa259fee1857f15e9cbd3b8e4b8b517f8bb0839af8bb127f3290c287c4c",
   "source_exact_return_telemetry_sha256": null,
   "source_sha256": {
     "bridge_capture": "e8e48f280a99dd18d52cdf099e9ebed0b6d3710f2b294c016af65d1c391cfd45",
     "campaign_adapter": "0a354971e3146937b24d2b864acdfb0f18be889b692b73ac49365baf003a3fba",
     "closure_collector": "a0d69c0d4d22ccf954a4edbe4dc23eeac77b1b2d6ce22d3023c5ed8cef7c86bc",
-    "return_evidence_promoter": "c94eb19f512c915c1496cc338957eaccdcdcd41e078a96bb13c99a8026834d16",
     "return_route": "88704b24de6b9b69dc59b2254dab7a1dbc9fe7b6176b6460d935344d28b2a351",
-    "tp_generator": "320a21b15d9cc79957bf9cf49a34efe7f3c2a53ea318c96d898fdd9001ebe185",
-    "ursim_return_gate": "6a897d3bf4461d19220bc624e0391c1cc295680b0a8454adb91d64259a2d49bf"
+    "tp_generator": "320a21b15d9cc79957bf9cf49a34efe7f3c2a53ea318c96d898fdd9001ebe185"
   },
   "status": "offline_enforcement_complete_attended_certification_required",
-  "telemetry_summary": null
+  "telemetry_summary": null,
+  "verifier_provenance": {
+    "fingerprint": "74f45f252ab8691338f474ce782cbee8309ee1cfae747acd2c7553a9545fb372",
+    "source_sha256": {
+      "return_evidence_promoter": "c94eb19f512c915c1496cc338957eaccdcdcd41e078a96bb13c99a8026834d16",
+      "ursim_return_gate": "6a897d3bf4461d19220bc624e0391c1cc295680b0a8454adb91d64259a2d49bf"
+    }
+  }
 }

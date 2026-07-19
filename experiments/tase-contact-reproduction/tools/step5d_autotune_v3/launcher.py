@@ -23,6 +23,7 @@ from .profile import (
     DEFAULT_CONTRACT_PATH,
     EXPERIMENT_ROOT,
     ContractViolation,
+    active_tick_semantics_fingerprint,
     contract_sha256,
     control_fingerprint,
     expected_effective_config,
@@ -30,7 +31,7 @@ from .profile import (
     normalize_candidate,
     resolve_expected_value,
     runtime_values,
-    validate_source_bindings,
+    validate_active_source_bindings,
 )
 
 
@@ -311,7 +312,7 @@ def check_effective_config(
     actual_argv = list(expected_argv if argv is None else argv)
     validate_raw_argv(actual_argv, expected=expected_argv, contract=contract)
     if verify_sources:
-        validate_source_bindings(contract)
+        validate_active_source_bindings(contract)
     effective = parse_effective_config(
         actual_argv,
         environ=environ,
@@ -374,6 +375,10 @@ def check_effective_config(
         "deployment_tp_identity": contract["deployment_tp_identity"],
         "execution_profile_id": contract["execution_profile_id"],
         "contract_sha256": contract_sha256(contract),
+        "tick_semantics_fingerprint": active_tick_semantics_fingerprint(
+            contract,
+            control_effective,
+        ),
         "control_fingerprint": control_fingerprint(contract, control_effective),
         "candidate": candidate_values,
         "runtime_root": str(runtime_root.resolve(strict=False)),

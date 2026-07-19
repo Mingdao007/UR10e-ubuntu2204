@@ -23,6 +23,11 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 
+from .identity_layers import (
+    orchestration_fingerprint as _layered_orchestration_fingerprint,
+    orchestration_manifest as _layered_orchestration_manifest,
+)
+
 
 SERVICE_SCHEMA = "step5d.autotune-v3.service-state/v1"
 STOP_SCHEMA = "step5d.autotune-v3.stop-after-current/v1"
@@ -398,6 +403,18 @@ def orchestration_source_sha256(experiment_root: Path) -> dict[str, str]:
             raise StateError(f"orchestration manifest input is missing: {relative}")
         manifest[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
     return manifest
+
+
+def active_orchestration_manifest(experiment_root: Path) -> dict[str, Any]:
+    """Return the non-recursive current orchestration identity document."""
+
+    return _layered_orchestration_manifest(experiment_root.parents[1])
+
+
+def active_orchestration_fingerprint(experiment_root: Path) -> str:
+    """Hash current lifecycle/authorization semantics, excluding evidence code."""
+
+    return _layered_orchestration_fingerprint(experiment_root.parents[1])
 
 
 @dataclass(frozen=True)

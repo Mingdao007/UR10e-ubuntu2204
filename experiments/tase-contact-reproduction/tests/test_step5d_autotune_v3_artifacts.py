@@ -12,18 +12,47 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import verify_step5d_autotune_v3_artifacts as artifacts  # noqa: E402
+from step5d_autotune_v3.identity_layers import (  # noqa: E402
+    EVIDENCE_VERIFIER_PATHS,
+    ORCHESTRATION_PATHS,
+    TICK_SEMANTICS_PATHS,
+    TIMING_MEASUREMENT_PATHS,
+)
 from step5d_autotune_v3.state import (  # noqa: E402
     ORCHESTRATION_RELATIVE_PATHS,
     ORCHESTRATION_REPO_RELATIVE_PATHS,
 )
 
 
+EXPERIMENT_PREFIX = "experiments/tase-contact-reproduction/"
+ACTIVE_IDENTITY_PATHS = {
+    *TICK_SEMANTICS_PATHS,
+    *TIMING_MEASUREMENT_PATHS,
+    *ORCHESTRATION_PATHS,
+    *EVIDENCE_VERIFIER_PATHS,
+}
+ACTIVE_EXPERIMENT_RELATIVES = {
+    path.removeprefix(EXPERIMENT_PREFIX)
+    for path in ACTIVE_IDENTITY_PATHS
+    if path.startswith(EXPERIMENT_PREFIX)
+}
+ACTIVE_REPO_RELATIVES = {
+    path for path in ACTIVE_IDENTITY_PATHS if not path.startswith(EXPERIMENT_PREFIX)
+}
 ORCHESTRATION_INPUTS = set(ORCHESTRATION_RELATIVE_PATHS)
 
 
 def _fixture_root(tmp_path: Path) -> Path:
     fixture = tmp_path / "workspace/experiments/tase-contact-reproduction"
-    relatives = set(artifacts.BOUND_PATHS) | ORCHESTRATION_INPUTS
+    relatives = (
+        set(artifacts.BOUND_PATHS)
+        | ORCHESTRATION_INPUTS
+        | ACTIVE_EXPERIMENT_RELATIVES
+        | {
+            "config/step5_safe_frame.json",
+            "config/step5d_liveprep_solver_gate.json",
+        }
+    )
     for relative in relatives:
         source = ROOT / relative
         target = fixture / relative
@@ -31,7 +60,7 @@ def _fixture_root(tmp_path: Path) -> Path:
         shutil.copyfile(source, target)
     repository_fixture = fixture.parents[1]
     repository_source = ROOT.parents[1]
-    for relative in ORCHESTRATION_REPO_RELATIVE_PATHS:
+    for relative in set(ORCHESTRATION_REPO_RELATIVE_PATHS) | ACTIVE_REPO_RELATIVES:
         source = repository_source / relative
         target = repository_fixture / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -49,6 +78,11 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
     assert report["acceptance_scope"] == "offline_pre_live_only"
     assert report["certification_motion_authorization_required"] is True
     assert report["campaign_authorization_required"] is True
+    assert len(report["tick_semantics_fingerprint"]) == 64
+    assert len(report["timing_harness_fingerprint"]) == 64
+    assert len(report["deployment_fingerprint"]) == 64
+    assert len(report["orchestration_fingerprint"]) == 64
+    assert len(report["legacy_control_fingerprint"]) == 64
     assert "evidence/step5d_autotune_v3/start_pose_prior_20260719.json" in report["verified_paths"]
 
 
@@ -71,7 +105,7 @@ def test_v3_selector_cannot_become_inactive_in_offline_bundle(tmp_path: Path) ->
     )
     row["active"] = False
     stage_table.write_text(json.dumps(table), encoding="utf-8")
-    with pytest.raises(artifacts.ArtifactVerificationError, match="V3 selector active"):
+    with pytest.raises(artifacts.ArtifactVerificationError, match="v3 active differs"):
         artifacts.verify(fixture)
 
 

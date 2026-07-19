@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import json
 import os
@@ -34,6 +35,7 @@ from step5d_autotune_v3.launcher import (  # noqa: E402
 from step5d_autotune_v3.profile import (  # noqa: E402
     CATEGORIES,
     ContractViolation,
+    active_tick_semantics_fingerprint,
     control_fingerprint,
     load_contract,
     normalize_candidate,
@@ -329,6 +331,36 @@ def test_candidate_changes_do_not_change_deployment_control_fingerprint() -> Non
     assert candidate["effective_config"]["step5d_autotune_force_i"] == 0.0001
     assert candidate["control_fingerprint"] == baseline["control_fingerprint"]
     assert baseline["control_fingerprint"] == control_fingerprint()
+
+
+def test_deployment_publication_does_not_change_tick_semantics() -> None:
+    baseline = active_tick_semantics_fingerprint(CONTRACT)
+    republished = copy.deepcopy(CONTRACT)
+    republished["promotion_status"] = "published_elsewhere"
+    republished["tp_artifact_sha256"] = {
+        suffix: character * 64
+        for suffix, character in ((".script", "1"), (".txt", "2"), (".urp", "3"))
+    }
+    republished["candidate_tp_artifact_sha256"] = {
+        suffix: character * 64
+        for suffix, character in ((".script", "4"), (".txt", "5"), (".urp", "6"))
+    }
+    republished["deployment_tp_identity"] = {
+        **republished["deployment_tp_identity"],
+        "readback_manifest_sha256": "7" * 64,
+        "tp_fingerprint": "8" * 64,
+    }
+    assert active_tick_semantics_fingerprint(republished) == baseline
+
+
+def test_safety_semantics_change_invalidates_tick_semantics() -> None:
+    changed = copy.deepcopy(CONTRACT)
+    changed["effective_fields"]["safety_invariant"][
+        "step5d_autotune_host_slew_rad_s2"
+    ] = 0.51
+    assert active_tick_semantics_fingerprint(changed) != (
+        active_tick_semantics_fingerprint(CONTRACT)
+    )
 
 
 def test_check_cli_emits_json_without_starting_any_process(

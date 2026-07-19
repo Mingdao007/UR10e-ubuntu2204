@@ -258,7 +258,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         sort_keys=True,
     ).encode("utf-8")
     return {
-        "schema": "step5d.autotune-v3/artifact-report-v3",
+        "schema": "step5d.autotune-v3/artifact-report-v4",
         "ok": True,
         "current_stage_id": V3_STAGE_ID,
         "v3_stage_id": V3_STAGE_ID,
@@ -273,8 +273,19 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             "campaign_authorization_required"
         ],
         "tp_fingerprint": package.get("tp_fingerprint"),
-        "control_fingerprint": readiness["identity"]["control_fingerprint"],
+        "tick_semantics_fingerprint": readiness["identity"][
+            "tick_semantics_fingerprint"
+        ],
+        "timing_harness_fingerprint": readiness["identity"][
+            "timing_harness_fingerprint"
+        ],
+        "deployment_fingerprint": readiness["identity"][
+            "deployment_fingerprint"
+        ],
         "orchestration_fingerprint": readiness["identity"]["orchestration_fingerprint"],
+        "legacy_control_fingerprint": readiness["identity"]["legacy_provenance"][
+            "control_fingerprint"
+        ],
         "artifact_set_fingerprint": hashlib.sha256(fingerprint_input).hexdigest(),
         "verified_paths": verified_paths,
     }

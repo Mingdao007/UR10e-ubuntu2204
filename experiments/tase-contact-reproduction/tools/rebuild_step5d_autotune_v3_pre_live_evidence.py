@@ -16,11 +16,8 @@ from typing import Any, Mapping
 import build_step5d_autotune_v3_return_route_evidence as return_builder
 import build_step5d_autotune_v3_stopping_bound_evidence as stopping_builder
 from step5d_autotune_v3.profile import (
-    contract_sha256,
-    control_fingerprint,
-    load_contract,
+    active_identity_snapshot,
 )
-from step5d_autotune_v3.state import orchestration_fingerprint
 from step5d_timing_acceptance import evaluate_step5d_v3_timing_raw
 
 
@@ -31,6 +28,10 @@ STAGE_TABLE_RELATIVE = "config/step5_stage_table.json"
 STOPPING_RELATIVE = "config/step5/step5d_autotune_v3_stopping_bound_evidence.json"
 RETURN_RELATIVE = "config/step5/step5d_autotune_v3_return_route_evidence.json"
 URSIM_RETURN_RELATIVE = "config/step5/step5d_autotune_v3_ursim_return_trace.json"
+TIMING_EQUIVALENCE_RELATIVE = (
+    "config/step5/"
+    "step5d_autotune_v3_formal_timing_raw_ede7bdb5.equivalence.json"
+)
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
@@ -48,8 +49,8 @@ PRE_LIVE_DECISION = {
     "acceptance_scope": "offline_pre_live_only",
     "offline_implementation": "pass",
     "hardware_promotion": "blocked",
-    "current_selector": V1_STAGE_ID,
-    "v3_active": False,
+    "current_selector": V3_STAGE_ID,
+    "v3_active": True,
     "robot_power_state": "POWER_OFF_AT_AUDIT_NOT_CURRENT_ASSERTION",
     "certification_motion_authorization_required": True,
     "campaign_authorization_required": True,
@@ -171,15 +172,8 @@ def _stage_table_bytes(path: Path, payload: Mapping[str, Any]) -> bytes:
     return (text[:start] + indented + text[end:]).encode("utf-8")
 
 
-def _identity(root: Path) -> dict[str, str]:
-    contract = load_contract(
-        root / "config/step5/step5d_autotune_v3_control_contract.json"
-    )
-    return {
-        "contract_sha256": contract_sha256(contract),
-        "control_fingerprint": control_fingerprint(contract),
-        "orchestration_fingerprint": orchestration_fingerprint(root),
-    }
+def _identity(root: Path) -> dict[str, Any]:
+    return active_identity_snapshot(experiment_root=root)
 
 
 def _timing_state(
@@ -191,14 +185,43 @@ def _timing_state(
     if (raw_path is None) != (evaluation_path is None):
         raise ValueError("timing raw and evaluation must be supplied together")
     if raw_path is None:
+        equivalence_path = root / TIMING_EQUIVALENCE_RELATIVE
+        equivalence = _read(equivalence_path)
+        if (
+            equivalence.get("schema")
+            != "step5d.autotune-v3/timing-active-surface-equivalence-v1"
+        ):
+            raise ValueError("timing equivalence schema differs")
+        layered_identity = active_identity_snapshot(experiment_root=root)
+        subjects = equivalence.get("subject_identity") or {}
+        tick = subjects.get("tick_semantics") or {}
+        harness = subjects.get("timing_harness") or {}
+        runtime = subjects.get("runtime_environment") or {}
+        if (
+            tick.get("target_layered_fingerprint")
+            != layered_identity["tick_semantics_fingerprint"]
+            or harness.get("target_layered_fingerprint")
+            != layered_identity["timing_harness_fingerprint"]
+            or not isinstance(runtime.get("fingerprint"), str)
+            or len(runtime["fingerprint"]) != 64
+        ):
+            raise ValueError("timing equivalence target identity differs")
+        reuse = {
+            lane: (row or {}).get("reusable")
+            for lane, row in (equivalence.get("lane_reuse") or {}).items()
+        }
+        if reuse != {"solver": True, "safe_hold": True, "full_tick": False}:
+            raise ValueError("timing equivalence lane reuse differs")
+        equivalence_ref = _reference(root, equivalence_path)
         seam = {
-            "status": "superseded_by_combined_formal_three_lane_timing_pending",
-            "claim_class": "no_current_source_timing_claim",
+            "status": "pass_reused_safe_hold_active_surface_equivalence",
+            "claim_class": "formal_lane_reuse_not_full_acceptance",
             "attempt_count": 0,
             "scheduler_policy_required": "SCHED_OTHER",
             "scheduler_priority_required": 0,
             "nice_required": 0,
-            "blocker": "task_b_source_exact_formal_timing_pending",
+            "blocker": "requires_final_source_exact_full_tick_30k",
+            "equivalence_attestation": equivalence_ref,
             "retained_prior_attempt": {
                 "path": (
                     "config/step5/"
@@ -212,25 +235,35 @@ def _timing_state(
             },
         }
         formal = {
-            "status": "blocked_current_source_timing_not_run",
+            "status": "blocked_final_full_tick_pending",
             "release_gate_satisfied": False,
             "attempt_count": 0,
-            "acceptance_classification": "not_evaluated_current_source",
+            "acceptance_classification": "partial_lane_reuse_attested",
+            "equivalence_attestation": equivalence_ref,
+            "bound_identity": {
+                "tick_semantics_fingerprint": layered_identity[
+                    "tick_semantics_fingerprint"
+                ],
+                "timing_harness_fingerprint": layered_identity[
+                    "timing_harness_fingerprint"
+                ],
+                "runtime_environment_fingerprint": runtime["fingerprint"],
+            },
             "required_lanes": {
                 "solver": {
                     "required_samples": 10_000,
-                    "status": "pending_current_source",
+                    "status": "pass_reused_active_surface_equivalence",
                 },
                 "full_tick_with_sphere": {
                     "required_samples": 30_000,
-                    "status": "pending_current_source",
+                    "status": "pending_final_source_exact_capture",
                 },
                 "safe_hold": {
                     "required_samples": 30_000,
-                    "status": "pending_current_source",
+                    "status": "pass_reused_active_surface_equivalence",
                 },
             },
-            "blocker": "task_b_source_exact_formal_timing_pending",
+            "blocker": "requires_final_source_exact_full_tick_30k",
             "retained_prior_failed_attempt": {
                 "classification": "diagnostic_only_not_v3_acceptance",
                 "blockers": [
@@ -397,8 +430,8 @@ def build_outputs(
     simulation["claim"] = (
         "digest_pinned_ursim_return_motion_only_not_robot_acceptance"
     )
-    simulation["status"] = "pass_current_fingerprint_return_motion"
-    simulation["ursim"] = "pass_current_fingerprint_return_motion"
+    simulation["status"] = "pass_motion_capable_ursim_core_source_equivalence"
+    simulation["ursim"] = "pass_motion_capable_ursim_core_source_equivalence"
     simulation["return_route_motion_trace"] = trace_ref
     retained_hold_raw = simulation.pop(
         "raw_artifact", simulation.get("retained_hold_raw_artifact")
@@ -426,7 +459,7 @@ def build_outputs(
         "schema": "step5d.autotune-v3/live-promotion-v3",
         "candidate_stage_id": V3_STAGE_ID,
         "control_profile_id": V1_STAGE_ID,
-        "current_selector": V1_STAGE_ID,
+        "current_selector": V3_STAGE_ID,
         "identity": identity,
         "deterministic_validation": {
             "path": VALIDATION_RELATIVE,
@@ -452,9 +485,9 @@ def build_outputs(
         raise ValueError("V3 stage table row must exist exactly once")
     row = rows[0]
     row["block_reason"] = (
-        "V3 remains pre-live blocked on "
+        "V3 is the unique selected/current release and remains pre-live blocked on "
         + ", ".join(blockers)
-        + "; V1 remains the current controller binding"
+        + "; V1 is retained control-profile provenance only"
     )
     row["offline_validation"].update(
         {
@@ -471,7 +504,7 @@ def build_outputs(
         "public_success_signal": public_signal,
         "deterministic_validation_complete": True,
         "package_delivery_complete": False,
-        "candidate_current": False,
+        "candidate_current": True,
         "live_runtime_promoted": False,
         "same_process_startup_gate_complete": False,
         "ready_to_execute": False,
