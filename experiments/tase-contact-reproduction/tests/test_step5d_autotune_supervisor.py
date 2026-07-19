@@ -522,6 +522,47 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         self.assertGreater(packet.command_seq, trial.command_seq)
         return decision
 
+    def test_optimizer_admission_requires_exact_ack_and_survives_recovery(self) -> None:
+        manager = supervisor()
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            trial = manager.next_trial(require_cuda_botorch=False).trial
+            decision = manager.close_trial(
+                manifest=capture(trial, reason=1),
+                evaluation=evaluation(
+                    trial,
+                    disposition=TrialDisposition.OBJECTIVE,
+                    objective=0.25,
+                ),
+                safe_closure=closure(),
+                bundle_path=bundle(root, trial),
+            )
+
+            self.assertTrue(decision.ack_permitted)
+            self.assertEqual(len(manager.outcome_timeline), 1)
+            self.assertEqual(manager.observations, [])
+            packet = manager.prepare_ack_packet()
+
+            restored_waiting = supervisor()
+            restored_waiting.restore_recovery_snapshot(
+                manager.recovery_snapshot()
+            )
+            self.assertEqual(len(restored_waiting.outcome_timeline), 1)
+            self.assertEqual(restored_waiting.observations, [])
+
+            restored_waiting.confirm_ack_consumed(packet)
+            self.assertEqual(len(restored_waiting.observations), 1)
+            self.assertEqual(
+                restored_waiting.observations[0].evaluation.trial_uid,
+                trial.trial_uid,
+            )
+
+            restored_closed = supervisor()
+            restored_closed.restore_recovery_snapshot(
+                restored_waiting.recovery_snapshot()
+            )
+            self.assertEqual(len(restored_closed.observations), 1)
+
     def test_profile_integer_contract_uses_tp_accel_ones_digit(self) -> None:
         self.assertEqual(execution_profile_integer_id(profile()), 111)
         changed = replace(

@@ -730,11 +730,10 @@ class CampaignSupervisor:
         self.outcome_timeline.append(outcome)
         profile_diagnostic = self._is_profile_diagnostic(outcome)
         if disposition is TrialDisposition.OBJECTIVE:
-            self.observations.append(outcome)
             if self._cooldown_remaining > 0:
                 self._cooldown_remaining -= 1
             objective_confirmed = success_confirmed(
-                self.outcome_timeline,
+                [*self.observations, outcome],
                 profile_id=trial.execution_profile.profile_id,
                 plant_epoch=trial.plant_epoch,
             )
@@ -894,7 +893,25 @@ class CampaignSupervisor:
             raise RuntimeError("no pending ACK can be confirmed")
         if self._prepared_ack is None or packet != self._prepared_ack:
             raise ValueError("ACK confirmation differs from the prepared durable packet")
-        _, post_ack_phase = self._pending_ack
+        intent, post_ack_phase = self._pending_ack
+        trial_uid = intent.trial.trial_uid
+        matches = [
+            outcome
+            for outcome in self.outcome_timeline
+            if outcome.evaluation.trial_uid == trial_uid
+        ]
+        if len(matches) != 1:
+            raise RuntimeError(
+                "ACK confirmation requires one exact closed outcome"
+            )
+        outcome = matches[0]
+        if outcome.eligible:
+            if any(
+                observed.evaluation.trial_uid == trial_uid
+                for observed in self.observations
+            ):
+                raise RuntimeError("ACK outcome was already admitted to the optimizer")
+            self.observations.append(outcome)
         self._pending_ack = None
         self._prepared_ack = None
         self.phase = post_ack_phase
@@ -1637,6 +1654,21 @@ class CampaignSupervisor:
             snapshot.pending_ack is not None
         ):
             raise ValueError("recovery pending ACK differs from phase")
+        pending_trial_uid = (
+            None
+            if snapshot.pending_ack is None
+            else snapshot.pending_ack[0].trial.trial_uid
+        )
+        if pending_trial_uid is not None:
+            pending_outcomes = [
+                outcome
+                for outcome in snapshot.outcome_timeline
+                if outcome.evaluation.trial_uid == pending_trial_uid
+            ]
+            if len(pending_outcomes) != 1:
+                raise ValueError(
+                    "recovery pending ACK requires one exact closed outcome"
+                )
         if snapshot.prepared_ack is not None:
             if snapshot.pending_ack is None or not isinstance(
                 snapshot.prepared_ack, HostPacket
@@ -1711,7 +1743,12 @@ class CampaignSupervisor:
                 )
         self.phase = snapshot.phase
         self.outcome_timeline = list(snapshot.outcome_timeline)
-        self.observations = [row for row in self.outcome_timeline if row.eligible]
+        self.observations = [
+            row
+            for row in self.outcome_timeline
+            if row.eligible
+            and row.evaluation.trial_uid != pending_trial_uid
+        ]
         self._trial_counter = snapshot.trial_counter
         self._command_seq = snapshot.command_seq
         self._candidate_tokens = tokens
