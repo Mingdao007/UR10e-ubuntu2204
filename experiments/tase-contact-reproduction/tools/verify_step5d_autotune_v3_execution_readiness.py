@@ -18,6 +18,7 @@ from step5d_autotune_v3.profile import (
     load_contract,
 )
 from step5d_autotune_v3.state import StateError, orchestration_fingerprint
+from step5d_timing_acceptance import evaluate_step5d_v3_timing_raw
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,10 +32,50 @@ PRE_LIVE_VALIDATION_DECISION = {
     "hardware_promotion": "blocked",
     "current_selector": V1_STAGE_ID,
     "v3_active": False,
-    "robot_power_state": "POWER_OFF",
+    "robot_power_state": "POWER_OFF_AT_AUDIT_NOT_CURRENT_ASSERTION",
     "fresh_live_authorization_required": True,
     "live_motion_authorized": False,
     "execution_readiness": "pre_live_blocked",
+}
+SEAM_EVIDENCE_RELATIVE = (
+    "config/step5/step5d_autotune_v3_sphere_seam_timing_049da0fa.json"
+)
+FORMAL_RAW_RELATIVE = (
+    "config/step5/step5d_autotune_v3_formal_timing_raw_049da0fa.json"
+)
+FORMAL_EVALUATION_RELATIVE = (
+    "config/step5/step5d_autotune_v3_formal_timing_evaluation_049da0fa.json"
+)
+URSIM_RAW_RELATIVE = (
+    "config/step5/step5d_autotune_v3_ursim_hold_raw_049da0fa.json"
+)
+URSIM_RESULT_RELATIVE = (
+    "config/step5/step5d_autotune_v3_ursim_hold_result_049da0fa.json"
+)
+READINESS_EVIDENCE_RELATIVE_PATHS = {
+    SEAM_EVIDENCE_RELATIVE,
+    FORMAL_RAW_RELATIVE,
+    FORMAL_EVALUATION_RELATIVE,
+    URSIM_RAW_RELATIVE,
+    URSIM_RESULT_RELATIVE,
+    "config/step5d_v29_remote_evidence_sha256.json",
+    "config/step5d_liveprep_solver_gate.json",
+    "tools/contact_semantics.py",
+    "tools/step5c_strict_rnn.py",
+    "tools/step5d_paper_outer_loop.py",
+    "tools/step5d_control_contract.py",
+    "tools/step5d_runtime_interface.py",
+    "tools/step5c_calibrated_kinematics_audit.py",
+    "tools/kunwei_rtde_bridge.py",
+    "tools/run_step5d_v30_remote_timing.py",
+    "tools/build_step5d_v30_remote_timing_bundle.py",
+    "tools/step5d_v30_timing.py",
+    "tools/build_step5d_v30_offline_readiness.py",
+    "tools/benchmark_step5d_v3_sphere_seam.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/physical_prior.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py",
 }
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -126,6 +167,13 @@ def _reference(root: Path, value: Any, *, role: str) -> tuple[Path, str]:
     return path, expected_sha
 
 
+def _seam_source_path(root: Path, relative: str) -> Path:
+    experiment_prefix = "experiments/tase-contact-reproduction/"
+    if relative.startswith(experiment_prefix):
+        return root / relative.removeprefix(experiment_prefix)
+    return root.parents[1] / relative
+
+
 def _verify_validation(
     root: Path,
     *,
@@ -169,40 +217,56 @@ def _verify_validation(
     _require(replay.get("optimizer_eligible_count"), 0, "diagnostic optimizer exclusion")
 
     seam_timing = gates.get("source_exact_sphere_seam_timing") or {}
-    _require(
-        seam_timing.get("status"),
-        "diagnostic_failed_host_schedule",
-        "sphere seam timing",
-    )
+    _require(seam_timing.get("status"), "pass_source_exact_diagnostic", "sphere seam timing")
     _require(
         seam_timing.get("claim_class"),
-        "diagnostic_only_not_release_gate",
+        "diagnostic_only_not_formal_three_lane_timing",
         "sphere seam timing claim class",
     )
-    _require(seam_timing.get("scheduler_policy"), "SCHED_FIFO", "timing scheduler")
-    _require(seam_timing.get("scheduler_priority"), 20, "timing priority")
+    _require(seam_timing.get("scheduler_policy"), "SCHED_OTHER", "timing scheduler")
+    _require(seam_timing.get("scheduler_priority"), 0, "timing priority")
+    _require(seam_timing.get("cpu_affinity"), [11, 13, 14, 15], "timing affinity")
     _require(seam_timing.get("samples"), 30_000, "sphere seam timing samples")
-    _require(seam_timing.get("attempt_count"), 2, "sphere seam timing attempts")
+    _require(seam_timing.get("attempt_count"), 1, "sphere seam timing attempts")
     _require(seam_timing.get("compute_deadline_miss_count"), 0, "timing compute misses")
-    _require(seam_timing.get("absolute_deadline_miss_count"), 2, "timing absolute misses")
-    _require(
-        seam_timing.get("absolute_deadline_miss_count_per_attempt"),
-        [1, 1],
-        "timing absolute misses per attempt",
-    )
-    _require(
-        seam_timing.get("blocker"),
-        "requires_current_source_paced_seam_without_absolute_deadline_miss",
-        "sphere seam timing blocker",
-    )
+    _require(seam_timing.get("absolute_deadline_miss_count"), 0, "timing absolute misses")
+    _require(seam_timing.get("sphere_stop_count"), 0, "sphere seam stop count")
+    seam_path, _ = _reference(root, seam_timing.get("artifact"), role="sphere seam evidence")
+    seam = _load_json(seam_path, role="sphere seam evidence")
+    _require(seam.get("pass"), True, "sphere seam result")
+    _require((seam.get("compute") or {}).get("samples"), 30_000, "sphere seam artifact samples")
+    _require((seam.get("compute") or {}).get("deadline_miss_count"), 0, "sphere seam artifact compute misses")
+    _require((seam.get("schedule") or {}).get("absolute_deadline_miss_count"), 0, "sphere seam artifact absolute misses")
+    _require(seam.get("sphere_stop_count"), 0, "sphere seam artifact stops")
+    source_binding = seam.get("source_sha256") or {}
+    if not isinstance(source_binding, Mapping) or not source_binding:
+        raise ReadinessError("sphere seam source binding is missing")
+    for relative, expected_sha in source_binding.items():
+        if not isinstance(relative, str) or not isinstance(expected_sha, str):
+            raise ReadinessError("sphere seam source binding is invalid")
+        _require(_sha256(_seam_source_path(root, relative)), expected_sha, f"sphere seam source {relative}")
 
     formal_timing = gates.get("formal_500hz_timing") or {}
-    _require(formal_timing.get("status"), "blocked_not_run", "formal timing status")
+    _require(formal_timing.get("status"), "pass", "formal timing status")
+    _require(formal_timing.get("release_gate_satisfied"), True, "formal timing release gate")
+    _require(formal_timing.get("attempt_count"), 2, "formal timing attempt count")
     _require(
-        formal_timing.get("release_gate_satisfied"),
-        False,
-        "formal timing release gate",
+        formal_timing.get("acceptance_classification"),
+        "production_sched_other_bounded_last_command_hold_v3_sphere_acceptance_eligible",
+        "formal timing classification",
     )
+    raw_path, raw_sha = _reference(root, formal_timing.get("raw_artifact"), role="formal timing raw")
+    evaluation_path, _ = _reference(root, formal_timing.get("evaluation_artifact"), role="formal timing evaluation")
+    persisted_evaluation = _load_json(evaluation_path, role="formal timing evaluation")
+    _require(persisted_evaluation.get("raw_sha256"), raw_sha, "formal timing raw binding")
+    reevaluated = evaluate_step5d_v3_timing_raw(root, raw_path)
+    for field, expected in (
+        ("accepted", True),
+        ("classification", formal_timing.get("acceptance_classification")),
+        ("blockers", []),
+        ("raw_sha256", raw_sha),
+    ):
+        _require(reevaluated.get(field), expected, f"formal timing reevaluation {field}")
     lanes = formal_timing.get("required_lanes") or {}
     expected_lanes = {
         "solver": 10_000,
@@ -218,16 +282,24 @@ def _verify_validation(
         )
         _require(
             (lanes.get(lane) or {}).get("status"),
-            "not_run_current_fingerprint",
+            "pass",
             f"formal timing {lane} status",
         )
-    _require(
-        formal_timing.get("blocker"),
-        "requires_source_exact_solver_full_tick_and_safe_hold_timing",
-        "formal timing blocker",
-    )
 
-    _require((gates.get("simulation") or {}).get("status"), "unavailable", "simulation status")
+    simulation = gates.get("simulation") or {}
+    _require(simulation.get("status"), "pass_ursim_hold_current_fingerprint", "simulation status")
+    _require(simulation.get("ursim"), "pass_current_fingerprint_hold", "URSim status")
+    ursim_raw_path, ursim_raw_sha = _reference(root, simulation.get("raw_artifact"), role="URSim raw")
+    ursim_result_path, _ = _reference(root, simulation.get("result_artifact"), role="URSim result")
+    ursim_raw = _load_json(ursim_raw_path, role="URSim raw")
+    ursim_result = _load_json(ursim_result_path, role="URSim result")
+    _require(ursim_raw.get("ok"), True, "URSim raw result")
+    _require(ursim_raw.get("forbidden_action_count"), 0, "URSim forbidden actions")
+    _require((ursim_result.get("raw_evidence") or {}).get("sha256"), ursim_raw_sha, "URSim raw binding")
+    _require(ursim_result.get("status"), "pass", "URSim promoted result")
+    _require(ursim_result.get("identity"), current_identity, "URSim current identity")
+    _require((ursim_result.get("hold") or {}).get("motion_count"), 0, "URSim motion exclusion")
+    _require((ursim_result.get("hold") or {}).get("controller_write_count"), 0, "URSim write exclusion")
     power_off = gates.get("power_off_controller_audit") or {}
     _require(power_off.get("status"), "pass_read_only_boundary", "Power-OFF audit")
     _require(power_off.get("robot_mode"), "POWER_OFF", "Power-OFF robot mode")
@@ -286,7 +358,7 @@ def _verify_live_promotion(
         ("live_runtime_promoted", False),
         (
             "blocker",
-            "requires_current_source_paced_seam_formal_timing_certified_stopping_bound_and_attended_tp_upload_readback",
+            "requires_certified_stopping_bound_attended_tp_upload_readback_current_poweroff_identity_attended_sol_xhigh_audit_and_fresh_authorization",
         ),
     ):
         _require(promotion.get(key), expected, f"live promotion {key}")
@@ -417,7 +489,7 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
     )
     if require_live:
         raise ReadinessError(
-            "requires_current_source_paced_seam_formal_timing_certified_stopping_bound_and_attended_tp_upload_readback"
+            "requires_certified_stopping_bound_attended_tp_upload_readback_current_poweroff_identity_attended_sol_xhigh_audit_and_fresh_authorization"
         )
     return {
         "schema": "step5d.autotune-v3/execution-readiness-report-v2",
@@ -432,12 +504,14 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
         "next_owner": "ur10e-contact-control-prep",
-        "next_legal_action": "close current-source paced and formal timing, certify the stopping bound, then perform attended TP upload/readback",
-        "timing_diagnostic": "failed_host_schedule",
+        "next_legal_action": "certify the physical stopping bound, then perform attended TP upload/readback, current Power-OFF identity checks, and an attended Sol/XHigh audit before fresh authorization",
+        "timing_diagnostic": "accepted_bounded_last_command_hold",
         "canonical_gate": [
-            "current_source_paced_seam",
-            "formal_500hz_timing",
             "certified_stopping_bound",
+            "attended_tp_upload_readback",
+            "current_poweroff_controller_identity",
+            "attended_sol_xhigh_pre_live_audit",
+            "fresh_live_authorization",
         ],
         "user_authorization_required": True,
         "hil_hold_required": False,

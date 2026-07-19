@@ -10456,13 +10456,13 @@
         "status": "pass_offline_implementation_pre_live_blocked",
         "acceptance_scope": "offline_pre_live_only",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "338912402883ead1ddce74870fd3591e492830310a3eb9b785ef036175b83d35",
+        "report_sha256": "bd23fcb84d8251398d0e422a41c80255ae773f635bba84efc4344cd2c4662843",
         "exact_ten_row_lifecycle": "pass",
         "diagnostic_bundle_replay": "pass",
-        "source_exact_sphere_seam_timing": "diagnostic_failed_host_schedule",
-        "formal_500hz_timing": "blocked_not_run",
+        "source_exact_sphere_seam_timing": "pass_source_exact_diagnostic",
+        "formal_500hz_timing": "pass_bounded_last_command_hold",
         "power_off_controller_audit": "pass_read_only_boundary",
-        "simulation": "unavailable",
+        "simulation": "pass_ursim_hold_current_fingerprint",
         "hardware_promotion": "blocked"
       },
       "current_binding": {
@@ -10479,11 +10479,11 @@
         "public_success_signal": "requires_attended_tp_upload_readback",
         "next_owner": "ur10e-contact-control-prep",
         "blockers": [
-          "requires_current_source_paced_seam_without_absolute_deadline_miss",
-          "requires_formal_500hz_timing",
           "requires_certified_stopping_bound",
           "requires_attended_tp_upload_readback",
-          "ursim_gazebo_unavailable"
+          "requires_current_poweroff_controller_identity",
+          "requires_attended_sol_xhigh_pre_live_audit",
+          "requires_fresh_live_authorization"
         ],
         "deterministic_validation_complete": true,
         "package_delivery_complete": false,

@@ -1,10 +1,10 @@
 {
   "schema": "step5d.autotune-v3/offline-acceptance-v3",
-  "observed_at": "2026-07-19T13:27:52+08:00",
+  "observed_at": "2026-07-19T14:51:47+08:00",
   "identity": {
-    "contract_sha256": "e86d2089f8ec47d89b2cc2fb507866e777ef6dc77223aaea5dbc31b14877875d",
-    "control_fingerprint": "4b73047e22494b76737a9d66334de582224070a016fde1046afd20ea33c683bf",
-    "orchestration_fingerprint": "ab065a459fdef1cfb977a58e5f0f3bd3d157dfc212b6dcce79083ec0ae881a8e"
+    "contract_sha256": "236f207a595fe3946791bfdf51b4d61d108ed9c94789ae6a5db1fe3c7023a42b",
+    "control_fingerprint": "049da0fa6c0b9ee0a3d97009faa00b56a3f69195032bd60555566270622ee937",
+    "orchestration_fingerprint": "f355c48a7238a4348226de8ccf79a2b3d7abd1eea18f8f9d7ffc599c7b32dbc8"
   },
   "gates": {
     "repository_validation": {
@@ -52,40 +52,68 @@
       "parameter_impact": "retune_required"
     },
     "source_exact_sphere_seam_timing": {
-      "status": "diagnostic_failed_host_schedule",
-      "claim_class": "diagnostic_only_not_release_gate",
-      "scheduler_policy": "SCHED_FIFO",
-      "scheduler_priority": 20,
-      "cpu_affinity": [2],
+      "status": "pass_source_exact_diagnostic",
+      "claim_class": "diagnostic_only_not_formal_three_lane_timing",
+      "scheduler_policy": "SCHED_OTHER",
+      "scheduler_priority": 0,
+      "cpu_affinity": [11, 13, 14, 15],
       "samples": 30000,
-      "attempt_count": 2,
-      "compute_p99_ms": 0.067446,
-      "compute_max_ms": 0.098793,
+      "attempt_count": 1,
+      "compute_p99_ms": 0.070952,
+      "compute_max_ms": 0.094547,
       "compute_deadline_miss_count": 0,
-      "absolute_deadline_miss_count": 2,
-      "absolute_deadline_miss_count_per_attempt": [1, 1],
-      "evidence_sha256": "18b38173c3ac7b52b93fcc3fab0317c8df26f8d55e1d259d0233161c2c473b1e",
-      "blocker": "requires_current_source_paced_seam_without_absolute_deadline_miss",
-      "claim_boundary": "kernel seam compute showed no compute deadline miss, but paced diagnostic acceptance failed; no formal timing, certified stopping-bound, controller, bridge, or motion claim"
+      "absolute_deadline_miss_count": 0,
+      "sphere_stop_count": 0,
+      "artifact": {
+        "path": "config/step5/step5d_autotune_v3_sphere_seam_timing_049da0fa.json",
+        "sha256": "eacabc7d592be4a72f24557950b1e0c0ef2ed48667cabe6fdc3e70ad04d98f7f"
+      },
+      "blocker": null,
+      "claim_boundary": "source-exact adapter, kernel, and bridge seam passed 30000 paced diagnostic ticks; formal three-lane timing and physical stopping-bound certification remain separate"
     },
     "formal_500hz_timing": {
-      "status": "blocked_not_run",
-      "release_gate_satisfied": false,
-      "required_lanes": {
-        "solver": {"required_samples": 10000, "status": "not_run_current_fingerprint"},
-        "full_tick_with_sphere": {"required_samples": 30000, "status": "not_run_current_fingerprint"},
-        "safe_hold": {"required_samples": 30000, "status": "not_run_current_fingerprint"}
+      "status": "pass",
+      "release_gate_satisfied": true,
+      "attempt_count": 2,
+      "acceptance_classification": "production_sched_other_bounded_last_command_hold_v3_sphere_acceptance_eligible",
+      "raw_artifact": {
+        "path": "config/step5/step5d_autotune_v3_formal_timing_raw_049da0fa.json",
+        "sha256": "b0dea98d50a68a9350d5b9aeb944363b0a2e0e4fc268fb4a804b343cbb128343"
       },
-      "blocker": "requires_source_exact_solver_full_tick_and_safe_hold_timing"
+      "evaluation_artifact": {
+        "path": "config/step5/step5d_autotune_v3_formal_timing_evaluation_049da0fa.json",
+        "sha256": "60e06be3312b9f4faba3a6bfb489f95057a06f8943999da6e2da79b2a82229dc"
+      },
+      "retained_failed_attempt": {
+        "classification": "diagnostic_only_not_v3_acceptance",
+        "raw_sha256": "e1ec5412d275c578355728811fb8dc0cd1a1ecbbb6c7c20689f086cb80f779ea",
+        "evaluation_sha256": "c3d29e92e5d1e9426795d6eb6fcd27ff6e29a5f5de0d2b8c1486dc3e0e89a055",
+        "blockers": [
+          "base_formal_timing_not_accepted",
+          "v3_requires_production_sched_other_timing_contract"
+        ]
+      },
+      "required_lanes": {
+        "solver": {"required_samples": 10000, "status": "pass"},
+        "full_tick_with_sphere": {"required_samples": 30000, "status": "pass"},
+        "safe_hold": {"required_samples": 30000, "status": "pass"}
+      },
+      "blocker": null
     },
     "simulation": {
-      "status": "unavailable",
-      "ursim": "blocked_no_running_digest_pinned_container",
-      "ursim_gate_blocker": "docker_read_only_inspection_failed:no_such_container",
-      "ursim_gate_evidence_sha256": "8d3f51fd3b3af8c8e7c67b8f2786ca71f316b05f497f84c8642c66308797f1f0",
+      "status": "pass_ursim_hold_current_fingerprint",
+      "ursim": "pass_current_fingerprint_hold",
+      "raw_artifact": {
+        "path": "config/step5/step5d_autotune_v3_ursim_hold_raw_049da0fa.json",
+        "sha256": "7f154ce884575e9765dc4f733f749525b72e689b276155a0e532b149c62e5aac"
+      },
+      "result_artifact": {
+        "path": "config/step5/step5d_autotune_v3_ursim_hold_result_049da0fa.json",
+        "sha256": "4c057f46e7c4b0604d1cdd5b5fc22e27b6a83e0126b545c6f92bca3132dea90f"
+      },
       "historical_ursim_hold_role": "retained_nongating_old_fingerprint",
       "gazebo": "gz_8.14_installed_but_no_step5d_v3_backend_or_world",
-      "claim": "not_run_not_passed"
+      "claim": "digest_pinned_ursim_hold_only_not_robot_acceptance"
     },
     "power_off_controller_audit": {
       "status": "pass_read_only_boundary",
@@ -118,9 +146,9 @@
       "blocker": "requires_certified_reaction_latency_deceleration_and_numeric_margin_bound"
     },
     "advisory_fable": {
-      "status": "completed_findings_reproduced_or_dispositioned",
-      "model": "claude-fable-5",
-      "effort": "high",
+      "status": "completed_advisory_provenance_unverified_deterministic_findings_dispositioned",
+      "requested_model": "claude-fable-5",
+      "requested_effort": "high",
       "role": "read_only_nonblocking_advisory"
     }
   },
@@ -130,7 +158,7 @@
     "hardware_promotion": "blocked",
     "current_selector": "step5d_strict_rnn_autotune_v1",
     "v3_active": false,
-    "robot_power_state": "POWER_OFF",
+    "robot_power_state": "POWER_OFF_AT_AUDIT_NOT_CURRENT_ASSERTION",
     "fresh_live_authorization_required": true,
     "live_motion_authorized": false,
     "execution_readiness": "pre_live_blocked"

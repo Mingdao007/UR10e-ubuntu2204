@@ -19,7 +19,7 @@ ORCHESTRATION_INPUTS = set(ORCHESTRATION_RELATIVE_PATHS)
 
 
 def _fixture_root(tmp_path: Path) -> Path:
-    fixture = tmp_path / "experiment"
+    fixture = tmp_path / "workspace/experiments/tase-contact-reproduction"
     relatives = set(artifacts.BOUND_PATHS) | ORCHESTRATION_INPUTS
     for relative in relatives:
         source = ROOT / relative

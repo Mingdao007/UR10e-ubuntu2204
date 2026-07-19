@@ -44,7 +44,7 @@ BOUND_PATHS = {
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.txt",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp",
-}
+} | execution_readiness.READINESS_EVIDENCE_RELATIVE_PATHS
 
 
 class ArtifactVerificationError(RuntimeError):

@@ -1,0 +1,61 @@
+{
+  "claim_boundary": "source-exact adapter+kernel+bridge-seam timing with an offline-only fixture bound; not a certified stopping bound, full control-loop timing, controller connection, bridge start, or motion authorization",
+  "claim_class": "diagnostic_only_not_formal_three_lane_timing",
+  "compute": {
+    "deadline_miss_count": 0,
+    "max_ms": 0.094547,
+    "mean_ms": 0.032395465766666666,
+    "p95_ms": 0.063328,
+    "p99_ms": 0.070952,
+    "samples": 30000
+  },
+  "control_hz": 500.0,
+  "deadline_miss_diagnostics": {
+    "absolute": {
+      "overflowed": false,
+      "retained": [],
+      "total": 0
+    },
+    "capacity": 64,
+    "compute": {
+      "overflowed": false,
+      "retained": [],
+      "total": 0
+    }
+  },
+  "pass": true,
+  "period_ms": 2.0,
+  "runtime": {
+    "cpu_affinity": [
+      11,
+      13,
+      14,
+      15
+    ],
+    "python": "3.10.12",
+    "scheduler_policy": 0,
+    "scheduler_priority": 0
+  },
+  "schedule": {
+    "absolute_deadline_miss_count": 0,
+    "elapsed_s": 59.998105996,
+    "paced": true,
+    "release_lateness_max_ms": 1.921282,
+    "release_lateness_p99_ms": 0.44851
+  },
+  "schema": "step5d.autotune-v3/source-exact-sphere-seam-timing-v1",
+  "source_sha256": {
+    "experiments/tase-contact-reproduction/tools/benchmark_step5d_v3_sphere_seam.py": "e95926f5f549a895d5a9f7403ad3000ff98fcc32c203a1e0099622ddadb7a5e5",
+    "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py": "81fb883ea47088cc2902471a266721b2234e295a41b8f3c86cf7f9cde9294de2",
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py": "98f760f79d61a1d97e0018dde2b792540449d58b26f0ee10bee8cb1b29fbf842",
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py": "bb8e7d7512438eb728fbc02afa9a4ab5fe47a7cbef53140c5c656254923c0dd3"
+  },
+  "sphere_stop_count": 0,
+  "unmeasured_warmup": {
+    "adapter_reset_after": true,
+    "kernel_reset_after": true,
+    "outside_measured_loop": true,
+    "samples": 1000,
+    "stop_count": 0
+  }
+}
