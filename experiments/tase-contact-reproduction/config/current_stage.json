@@ -1,16 +1,18 @@
 {
   "version": 2,
-  "updated_at": "2026-07-15T09:19:24+08:00",
+  "updated_at": "2026-07-20T03:25:00+08:00",
   "current_step": "Step5d",
-  "current_stage_id": "step5d_strict_rnn_autotune_v1",
-  "program": "step5d_strict_rnn_autotune_v1",
+  "current_stage_id": "step5d_strict_rnn_autotune_v3",
+  "program": "step5d_strict_rnn_autotune_v3",
+  "selection_state": "current",
+  "execution_state": "pre_live_blocked",
   "flow_path": "STEP5_FLOW.md",
   "stage_table_path": "config/step5_stage_table.json",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp",
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.script",
-  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v1",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.script",
+  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3",
   "bridge_profile": {
-    "step4e_version": "step5d_strict_rnn_autotune_v1",
+    "step4e_version": "step5d_strict_rnn_autotune_v3",
     "step4e_path_shape": "cycloid",
     "step5d_qdot_limit_rad_s": 0.5,
     "target_force_n": 12.0,
@@ -19,8 +21,8 @@
     "normal_follow_settle_s": 0.15,
     "stage22_24_pose_contract": "pre_contact_search_gravity_down_v1: TCP +Z targets base -Z with rotvec [pi,0,0]",
     "stage25_3_preload_gate": "filtered 5-22N, raw sanity 3-25N, bridge param-valid state 521 with no dwell hard gate; force values are diagnostic in the current permissive policy",
-    "online_tcp_cage": "broad_stagewise_aabb_from_success_step5b_step6b",
-    "cage_primary_policy": "In speedl_cartesian_oracle, low-load re-press is bounded: <2N for 0.100s hard-stops, <5N for 0.500s stops, while cage margin, force norm, and actual speed remain hard stops.",
+    "online_tcp_cage": "moving_sphere_15mm_v3_only",
+    "cage_primary_policy": "During active Stage25 the authoritative frozen-progress moving sphere checks actual and certified predicted-stop distance; legacy AABB enforcement is disabled for V3.",
     "sensor_hard_guards": {
       "raw_normal_n": 60.0,
       "force_norm_n": 100.0,
@@ -55,12 +57,20 @@
     "stage25_speedj_live_source": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj; marker 524 exists only inside the Stage25.0 joint packet and is not a global readiness/publish gate",
     "stage25_rnn_evidence_policy": "RNN accepted rows require Stage25.0 internal marker 524, cmd_valid=1, TP echo consumption, and _step5d_rnn_accepted=1; Stage25.05/25.3/25.95 use their own typed packets."
   },
-  "status": "step5d_autotune_controller_readback_verified_current_live_authorized",
+  "status": "step5d_autotune_v3_selected_pre_live_blocked",
+  "readiness": {
+    "selected_release": "step5d_strict_rnn_autotune_v3",
+    "deployment_ready": false,
+    "bridge_start_ready": false,
+    "bridge_process_ready": false,
+    "motion_arm_ready": false,
+    "campaign_ready": false
+  },
   "strict_rnn_status": {
     "stage_id": "step5d_strict_rnn_reproduction_v1",
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
-    "reason": "v35 is the current package after fresh controller read-back, quota-safe SCHED_OTHER validation, one frozen full live-path timing run, and degraded Review v3 closure. Live/contact remains blocked until a new explicit authorization."
+    "reason": "V3 is the unique selected route. V35 and autotune V1 are retained provenance only; V3 deployment, timing, certification, audit, and campaign authorization remain separate readiness gates."
   },
   "evidence": {
     "v33c20_controller_readback_verified": true,
@@ -1077,12 +1087,12 @@
   "bridge_trigger": {
     "allowed_tokens": ["开bridge", "开 bridge", "开", "1"],
     "bridge_has_started": false,
-    "live_motion_authorized": true,
+    "live_motion_authorized": false,
     "zero_ftsensor_authorized": false,
-    "blocked_reason": null,
-    "authorized_at": "2026-07-15T08:30:00+08:00",
-    "authorization_source": "user:开bridge; reaffirmed:继续开bridge",
-    "authorization_scope": "step5d_strict_rnn_autotune_v1_exact_v35_baseline_and_bounded_continuous_loop",
+    "blocked_reason": "V3 motion ARM requires exact deployment readback, certified stopping/return evidence, and a fresh typed authorization; bridge process start remains a separate no-arm gate.",
+    "authorized_at": null,
+    "authorization_source": null,
+    "authorization_scope": null,
     "no_contact_p0_capture": {
       "profile": "step5d_strict_rnn_no_contact_p0_v7",
       "entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
@@ -1155,10 +1165,10 @@
     },
     "required_before_live": [
       "operator outside UR reach/cage boundary",
-      "TP program opened on controller read-back autotune v1 package",
-      "autotune v1 package readback verified on controller",
-      "exact-v35 source and campaign fingerprints remain closed",
-      "explicit live/contact authorization for the bounded autotune loop"
+      "exact V3 TP triplet uploaded and read back",
+      "V3 bridge process reports V3_BRIDGE_READY_NO_ARM",
+      "certified stopping and return evidence bind the release identity",
+      "fresh typed campaign authorization binds the same plant epoch"
     ]
   },
   "retained_steps": [
@@ -1193,17 +1203,18 @@
     "Earlier Step5d live-prep packages remain retained evidence only.",
     "P0v9 is user-accepted as engineering convergence from run 20260714_191925; its original formal threshold failure remains retained.",
     "v31 is superseded and retained as failed Stage25.05 transport evidence.",
-    "v32, v33c20, and v34 are immutable failure evidence; v35 is current and preserves the permissive guard profile until the user explicitly requests tightening.",
+    "v32, v33c20, v34, v35, and autotune V1 are immutable retained evidence/provenance; V3 is the only current route.",
     "v35 uses Codex/high deterministic closure plus automatic degraded 1+0 because Fable5 returned an explicit session-limit response; fresh live authorization remains missing."
   ],
   "sha256": {
-    ".script": "6af0254d27ab241c5cf6b952483c5c573255e3afee9daf95f55a62b2387dc29e",
-    ".txt": "fc6473628ee391cc9297d71fc904da0486caaaa8b36e0989a46db8444b24aca3",
-    ".urp": "0c6e21709887c6df2be00d02b868bf28bd9e72c92dd5edc5245d4e055b63b250"
+    ".script": "3dd672b4f68eba931fb8fc1e2c577e06205ff7a4e6d15a035e3619557d8e430d",
+    ".txt": "3c6dc8fd7cb0e982591b311463e9a996dcf7db85086efada125121ff730dcd14",
+    ".urp": "7f0b8ee7de9f57bd611d398d8afa0db238ebb10ce02f07f7f577e2cb9fedc3b5"
   },
-  "delivery_manifest": "config/step5d_autotune_controller_readback_v1.json",
-  "controller_readback_manifest": "config/step5d_autotune_controller_readback_v1.json",
-  "controller_readback_manifest_sha256": "e7c65c571819a67f945cd15081a2b89ec80aaa549a9a296d6f0463a8c125a3d8",
+  "delivery_manifest": "config/step5d_autotune_controller_readback_v3.json",
+  "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
+  "controller_readback_manifest_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
+  "controller_readback_verified_for_selected_triplet": false,
   "v29_contact_candidate": {
     "profile": "step5d_strict_rnn_ablation_v29",
     "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",

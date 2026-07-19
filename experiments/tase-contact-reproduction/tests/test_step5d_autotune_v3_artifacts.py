@@ -42,8 +42,8 @@ def _fixture_root(tmp_path: Path) -> Path:
 def test_repository_immutable_artifact_bundle_passes() -> None:
     report = artifacts.verify(ROOT)
     assert report["ok"] is True
-    assert report["current_stage_id"] == artifacts.V1_STAGE_ID
-    assert report["v3_active"] is False
+    assert report["current_stage_id"] == artifacts.V3_STAGE_ID
+    assert report["v3_active"] is True
     assert report["execution_readiness"] == "pre_live_blocked"
     assert report["ready_to_execute"] is False
     assert report["acceptance_scope"] == "offline_pre_live_only"
@@ -60,7 +60,7 @@ def test_triplet_byte_mutation_fails_closed(tmp_path: Path) -> None:
         artifacts.verify(fixture)
 
 
-def test_v3_selector_cannot_become_active_in_offline_bundle(tmp_path: Path) -> None:
+def test_v3_selector_cannot_become_inactive_in_offline_bundle(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     stage_table = fixture / "config/step5_stage_table.json"
     table = json.loads(stage_table.read_text(encoding="utf-8"))
@@ -69,9 +69,9 @@ def test_v3_selector_cannot_become_active_in_offline_bundle(tmp_path: Path) -> N
         for item in table["stages"]
         if item.get("id") == artifacts.V3_STAGE_ID
     )
-    row["active"] = True
+    row["active"] = False
     stage_table.write_text(json.dumps(table), encoding="utf-8")
-    with pytest.raises(artifacts.ArtifactVerificationError, match="v3 active"):
+    with pytest.raises(artifacts.ArtifactVerificationError, match="V3 selector active"):
         artifacts.verify(fixture)
 
 

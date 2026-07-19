@@ -30,8 +30,8 @@ PRE_LIVE_VALIDATION_DECISION = {
     "acceptance_scope": VALIDATION_SCOPE,
     "offline_implementation": "pass",
     "hardware_promotion": "blocked",
-    "current_selector": V1_STAGE_ID,
-    "v3_active": False,
+    "current_selector": V3_STAGE_ID,
+    "v3_active": True,
     "robot_power_state": "POWER_OFF_AT_AUDIT_NOT_CURRENT_ASSERTION",
     "certification_motion_authorization_required": True,
     "campaign_authorization_required": True,
@@ -752,12 +752,12 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         raise ReadinessError(f"current source fingerprint failed: {exc}") from exc
 
     current = _load_json(root / "config/current_stage.json", role="current selector")
-    _require(current.get("current_stage_id"), V1_STAGE_ID, "rollback selector")
-    _require(current.get("program"), V1_STAGE_ID, "rollback program")
+    _require(current.get("current_stage_id"), V3_STAGE_ID, "current selector")
+    _require(current.get("program"), V3_STAGE_ID, "current program")
 
     table = _load_json(root / "config/step5_stage_table.json", role="stage table")
     v3 = _v3_row(table)
-    for field, expected in (("active", False), ("blocked", True), ("bridge", False)):
+    for field, expected in (("active", True), ("blocked", True), ("bridge", True)):
         _require(v3.get(field), expected, f"v3 {field}")
 
     package = v3.get("package_delivery") or {}
@@ -835,7 +835,7 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         ),
         ("deterministic_validation_complete", True),
         ("package_delivery_complete", False),
-        ("candidate_current", False),
+        ("candidate_current", True),
         ("live_runtime_promoted", False),
         ("same_process_startup_gate_complete", False),
         ("ready_to_execute", False),
@@ -872,7 +872,7 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         "schema": "step5d.autotune-v3/execution-readiness-report-v3",
         "ok": True,
         "candidate_stage_id": V3_STAGE_ID,
-        "current_stage_id": V1_STAGE_ID,
+        "current_stage_id": V3_STAGE_ID,
         "state": "pre_live_blocked",
         "public_success_signal": public_success_signal,
         "ready_to_execute": False,

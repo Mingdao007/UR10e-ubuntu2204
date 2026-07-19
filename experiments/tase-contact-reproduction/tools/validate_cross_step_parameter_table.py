@@ -432,7 +432,17 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         for ext in (".script", ".txt", ".urp"):
             if delivery_sha.get(ext) != current_sha.get(ext):
                 failures.append(f"current row package sha mismatch for {ext}")
-        current_mode = current_row.get("guard", {}).get("stage25_default_control_mode")
+        control_profile_id = current_row.get("control_profile_id")
+        control_row = (
+            step5_rows.get(str(control_profile_id))
+            if control_profile_id is not None
+            else current_row
+        )
+        if control_row is None:
+            failures.append(f"current row control_profile_id is missing: {control_profile_id}")
+            current_mode = None
+        else:
+            current_mode = control_row.get("guard", {}).get("stage25_default_control_mode")
         if canonical_step5d.get("stage25_default_control_mode") != current_mode:
             failures.append("canonical Step5d control mode does not match current stage row")
         if str(current_stage_id) == "step5d_strict_rnn_ablation_v29":

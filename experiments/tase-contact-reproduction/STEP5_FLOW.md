@@ -1,8 +1,9 @@
 # Step5 Flow
 
-`config/current_stage.json` currently selects
-`step5d_strict_rnn_autotune_v1` as the frozen controller binding. V3 is an inactive offline
-pre-live candidate. Its local TP triplet changed after the retained V3
+`config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3` as the
+unique current route. V1 remains frozen control-profile provenance and cannot
+be launched or selected as a fallback. V3 is selected but pre-live blocked:
+its local TP triplet changed after the retained V3
 controller read-back, so the old read-back is historical diagnostic evidence,
 not current package acceptance. The public blocker is
 `requires_current_source_formal_500hz_timing`. Before any V3 bridge start, the
@@ -58,8 +59,9 @@ Linux RT quota. The single retained 60 s no-motion production-seam timing
 completed 30,052 ticks with compute p99 `1.181 ms`, maximum row gap `4.011 ms`,
 zero gaps over 20 ms, and zero 45–60 ms gaps.
 
-The active `step5d_strict_rnn_autotune_v1` controller is built from the exact
-frozen v35 source and controller read-back verified. Its package stamp is
+The retained `step5d_strict_rnn_autotune_v1` control profile was built from the exact
+frozen v35 source and controller read-back verified. It is historical provenance, not
+the selected controller. Its package stamp is
 `2026-07-15T0835HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1`; local, controller, and
 fresh-readback SHA agree for the `.script/.txt/.urp` triplet. Package delivery
 was an automatic file transaction and did not itself load or run the program.

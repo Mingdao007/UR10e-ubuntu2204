@@ -113,7 +113,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
 
     table = _load_json(root / "config/step5_stage_table.json", role="stage table")
     v3 = _v3_row(table)
-    for field, expected in (("active", False), ("blocked", True), ("bridge", False)):
+    for field, expected in (("active", True), ("blocked", True), ("bridge", True)):
         _require(v3.get(field), expected, f"V3 selector {field}")
 
     package = v3.get("package_delivery") or {}
@@ -260,9 +260,9 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     return {
         "schema": "step5d.autotune-v3/artifact-report-v3",
         "ok": True,
-        "current_stage_id": V1_STAGE_ID,
+        "current_stage_id": V3_STAGE_ID,
         "v3_stage_id": V3_STAGE_ID,
-        "v3_active": False,
+        "v3_active": True,
         "execution_readiness": readiness["state"],
         "ready_to_execute": readiness["ready_to_execute"],
         "acceptance_scope": execution_readiness.VALIDATION_SCOPE,

@@ -1,26 +1,21 @@
 {
-  "schema_version": "step5d_current_stage_v2",
-  "program": "step5d_strict_rnn_ablation_v35",
-  "state": "controller_verified",
-  "decision_digest": "7285d203fcbded97a18653ba91a738ac9d64f593bced3bc2ff0468db7688002a",
-  "manifests": {
-    "candidate": {
-      "path": "config/step5d/manifests/step5d_strict_rnn_ablation_v35/candidate.json",
-      "sha256": "f17ed5e9caaf7d8a21793b59e37785541eb06ed90eb63e708f6158dcfeec0bc6"
-    },
-    "controller_verification": {
-      "path": "config/step5d/manifests/step5d_strict_rnn_ablation_v35/controller_verification.json",
-      "sha256": "ccb116f6af730aac1445b14e45eb28acace9e69cb86a58a0205422117227c28d"
-    },
-    "live_ready": null
-  },
-  "artifact_locator": {
-    "path": "config/step5d/artifact_locators/step5d_v35_retained_inputs.json",
-    "sha256": "6d833f9cbc2a107dfc61e9536efaeb9512bba006047c4b75ccbfd6f2fb54c5e5"
+  "schema_version": "step5d_current_stage_v3",
+  "program": "step5d_strict_rnn_autotune_v3",
+  "release_stage_id": "step5d_strict_rnn_autotune_v3",
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3",
+  "selection_state": "current",
+  "state": "pre_live_blocked",
+  "deployment": {
+    "status": "requires_attended_tp_upload_readback",
+    "controller_verification": "config/step5d_autotune_controller_readback_v3.json",
+    "verified_for_selected_triplet": false
   },
   "execution": {
-    "live_authorized": false,
-    "live_running": false
+    "bridge_start_ready": false,
+    "bridge_process_ready": false,
+    "motion_arm_ready": false,
+    "campaign_ready": false
   },
   "compatibility_mirror": {
     "current_stage": "config/current_stage.json",
@@ -28,8 +23,8 @@
     "human_view": "STEP5_FLOW.md"
   },
   "claims": {
-    "new_version_complete": true,
-    "controller_verified": true,
+    "new_version_complete": false,
+    "controller_verified": false,
     "live_ready": false,
     "live_accepted": false
   }

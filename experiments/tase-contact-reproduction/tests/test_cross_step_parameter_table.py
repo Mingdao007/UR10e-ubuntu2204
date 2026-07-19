@@ -79,23 +79,35 @@ class CrossStepParameterTableTest(unittest.TestCase):
             failures,
         )
 
-    def test_current_v1_readback_flags_and_claim_states_are_consistent(self) -> None:
+    def test_current_v3_selection_is_distinct_from_deployment_and_motion(self) -> None:
         current = validator.load_json(ROOT / "config" / "current_stage.json")
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
         row = next(row for row in table["stages"] if row.get("id") == current["current_stage_id"])
+        v1 = next(
+            row
+            for row in table["stages"]
+            if row.get("id") == "step5d_strict_rnn_autotune_v1"
+        )
 
-        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_autotune_v1")
-        self.assertEqual(current["program"], "step5d_strict_rnn_autotune_v1")
-        self.assertTrue(row["package_delivery"]["controller_readback_verified"])
+        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_autotune_v3")
+        self.assertEqual(current["program"], "step5d_strict_rnn_autotune_v3")
+        self.assertEqual(row["control_profile_id"], "step5d_strict_rnn_autotune_v1")
+        self.assertTrue(row["active"])
+        self.assertTrue(row["blocked"])
+        self.assertTrue(row["current_binding"]["is_current"])
+        self.assertFalse(row["package_delivery"]["controller_readback_verified"])
         self.assertEqual(
             current["controller_readback_manifest"],
             row["package_delivery"]["controller_readback_manifest"],
         )
-        self.assertTrue(current["bridge_trigger"]["live_motion_authorized"])
-        self.assertTrue(row["current_binding"]["live_authorized"])
-        self.assertFalse(row["blocked"])
-        self.assertEqual(current["live_run_status"]["state"], "not_started")
-        self.assertEqual(current["reproduction_status"]["state"], "incomplete")
+        self.assertFalse(current["controller_readback_verified_for_selected_triplet"])
+        self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
+        self.assertFalse(row["current_binding"]["live_authorized"])
+        self.assertTrue(all(value is False for key, value in current["readiness"].items() if key != "selected_release"))
+        self.assertFalse(v1["active"])
+        self.assertFalse(v1["bridge"])
+        self.assertFalse(v1["current_binding"]["is_current"])
+        self.assertFalse(v1["current_binding"]["live_authorized"])
 
     def test_canonical_protocol_current_program_and_mode_are_not_stale(self) -> None:
         current = validator.load_json(ROOT / "config" / "current_stage.json")
@@ -105,7 +117,15 @@ class CrossStepParameterTableTest(unittest.TestCase):
         profile = protocol["experiment_profiles"]["Step5.step5d_rnn"]
 
         self.assertEqual(profile["current_program"], current["program"])
-        self.assertEqual(profile["stage25_default_control_mode"], row["guard"]["stage25_default_control_mode"])
+        control_row = next(
+            item
+            for item in table["stages"]
+            if item.get("id") == row.get("control_profile_id", row["id"])
+        )
+        self.assertEqual(
+            profile["stage25_default_control_mode"],
+            control_row["guard"]["stage25_default_control_mode"],
+        )
 
     def test_validator_detects_stale_canonical_protocol_pointer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -461,7 +481,8 @@ class CrossStepParameterTableTest(unittest.TestCase):
         redundant = set(step5["bridge_startup_policy"]["applies_to_stage_ids"])
 
         self.assertEqual(derived, redundant)
-        self.assertIn("step5d_strict_rnn_autotune_v1", derived)
+        self.assertNotIn("step5d_strict_rnn_autotune_v1", derived)
+        self.assertIn("step5d_strict_rnn_autotune_v3", derived)
         self.assertIn("step5d_strict_rnn_ablation_v34", derived)
         self.assertIn("step5d_strict_rnn_ablation_v35", derived)
         self.assertIn("step5d_strict_rnn_ablation_v29", derived)

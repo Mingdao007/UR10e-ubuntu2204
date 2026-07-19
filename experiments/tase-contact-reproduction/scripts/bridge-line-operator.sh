@@ -39,7 +39,7 @@ try:
 except Exception:
     raise SystemExit(0)
 program = current.get("program") or current.get("current_stage_id") or ""
-if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")) or program == "step5d_strict_rnn_autotune_v1":
+if program.startswith(("step5d_strict_rnn_liveprep_", "step5d_strict_rnn_ablation_")) or program in {"step5d_strict_rnn_autotune_v1", "step5d_strict_rnn_autotune_v3"}:
     print(program)
 PY
 }
@@ -76,6 +76,10 @@ case "${BRIDGE_PROFILE}" in
     BRIDGE_PROFILE="step6b_v2"
     ;;
 esac
+if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_autotune_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_autotune_v3" ]]; then
+  echo "refusing: generic Step5d autotune route is retired; use step5d-autotune-v3.sh bridge" >&2
+  exit 64
+fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
   STEP5D_NO_CONTACT_P0_PROFILE="${BRIDGE_PROFILE}"
 fi

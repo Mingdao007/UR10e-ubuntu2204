@@ -198,7 +198,7 @@
       "safety_limits": "step5d_v32_permissive_safety_v1",
       "evidence_profile": "step5b_v3_success",
       "runtime_family": "step5d_rnn",
-      "current_program": "step5d_strict_rnn_autotune_v1",
+      "current_program": "step5d_strict_rnn_autotune_v3",
       "stage25_default_control_mode": "speedj_rnn_live",
       "current_evidence": {
         "latest_failed_retained": "runs/bridge_step5d_strict_rnn_ablation_v31_20260714_210521",

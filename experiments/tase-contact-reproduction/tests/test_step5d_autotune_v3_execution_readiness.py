@@ -68,7 +68,7 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     )
     assert report["package_delivery"] == "requires_attended_tp_upload_readback"
     assert report["ready_to_execute"] is False
-    assert report["current_stage_id"] == readiness.V1_STAGE_ID
+    assert report["current_stage_id"] == readiness.V3_STAGE_ID
     assert report["next_owner"] == "ur10e-contact-control-prep"
     assert report["timing_diagnostic"] == (
         "blocked_current_source_timing_not_run_task_b_pending"
@@ -217,7 +217,7 @@ def test_stage_table_cannot_claim_a_different_readiness_state(tmp_path: Path) ->
 @pytest.mark.parametrize(
     ("field", "value"),
     (
-        ("candidate_current", True),
+        ("candidate_current", False),
         ("ready_to_load_play", True),
         ("ready_to_arm", True),
     ),
