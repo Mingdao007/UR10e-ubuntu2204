@@ -10,7 +10,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +30,9 @@ from step5d_autotune_contract import (  # noqa: E402
 )
 import step5d_autotune_state_machine as state_machine  # noqa: E402
 import step5d_runtime_interface as runtime  # noqa: E402
+from ur10e_experiment_runtime.physical_prior import (  # noqa: E402
+    STEP5D_V3_PHYSICAL_PRIOR,
+)
 
 
 AUTOTUNE = runtime.STEP5D_AUTOTUNE_STAGE_ID
@@ -264,6 +267,15 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
 
     def test_continuous_trials_reset_diagnostics_once_per_trial_id(self) -> None:
         args = parse_autotune()
+        prior = STEP5D_V3_PHYSICAL_PRIOR
+        args.step5d_physical_prior_reaction_normal_b = prior.reaction_normal_b
+        args.step5d_physical_prior_approach_axis_b = prior.approach_axis_b
+        args.step5d_physical_prior_precontact_rotvec_rad = prior.precontact_rotvec_rad
+        args.step5d_physical_prior_identity_payload = prior.identity_payload()
+        args.step5d_physical_prior_sha256 = prior.fingerprint
+        args.step5d_physical_prior_binding_valid = True
+        args.step5d_controller_progress_adapter = Mock()
+        args.step5d_moving_sphere_kernel = Mock()
         state = bridge.BridgeState()
         diagnostics = bridge.DeferredV30Diagnostics(capacity=2)
         state.step5d_v30_deferred_diagnostics = diagnostics
@@ -276,18 +288,24 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         )
         self.assertEqual(diagnostics.count, 0)
         self.assertFalse(diagnostics.overflowed)
+        args.step5d_controller_progress_adapter.reset.assert_called_once_with()
+        args.step5d_moving_sphere_kernel.reset.assert_called_once_with()
 
         diagnostics.count = 1
         self.assertFalse(
             bridge.reset_step5d_autotune_diagnostics_for_trial(state, args)
         )
         self.assertEqual(diagnostics.count, 1)
+        args.step5d_controller_progress_adapter.reset.assert_called_once_with()
+        args.step5d_moving_sphere_kernel.reset.assert_called_once_with()
 
         args.step5d_autotune_handshake["trial_id"] = 2
         self.assertTrue(
             bridge.reset_step5d_autotune_diagnostics_for_trial(state, args)
         )
         self.assertEqual(diagnostics.count, 0)
+        self.assertEqual(args.step5d_controller_progress_adapter.reset.call_count, 2)
+        self.assertEqual(args.step5d_moving_sphere_kernel.reset.call_count, 2)
 
     def test_qdot_tau_and_low_frequency_levels_are_fail_closed(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
@@ -319,8 +337,8 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertTrue(expected.issubset(set(bridge.STEP5D_DIAG_FIELDS)))
 
     def test_autotune_handshake_extends_only_the_autotune_rtde_recipes(self) -> None:
-        expected_inputs = [f"input_int_register_{index}" for index in range(24, 30)]
-        expected_outputs = [f"output_int_register_{index}" for index in range(24, 31)]
+        expected_inputs = [f"input_int_register_{index}" for index in range(24, 31)]
+        expected_outputs = [f"output_int_register_{index}" for index in range(24, 34)]
 
         self.assertEqual(
             bridge.rtde_input_fields_for(AUTOTUNE),
@@ -358,11 +376,17 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
             for name, register in state_machine.TP_TO_HOST_INTEGER_REGISTERS.items()
         }
         self.assertEqual(
-            runtime.STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP,
+            {
+                field: runtime.STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP[field]
+                for field in authoritative_host_to_tp
+            },
             authoritative_host_to_tp,
         )
         self.assertEqual(
-            runtime.STEP5D_AUTOTUNE_HANDSHAKE_TP_TO_HOST,
+            {
+                field: runtime.STEP5D_AUTOTUNE_HANDSHAKE_TP_TO_HOST[field]
+                for field in authoritative_tp_to_host
+            },
             authoritative_tp_to_host,
         )
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
@@ -425,6 +449,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
                 "candidate_token": 404,
                 "execution_profile_id": 111,
                 "command_seq": 606,
+                "batch_row_index": 0,
             },
         )
 

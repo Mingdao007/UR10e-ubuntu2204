@@ -25,6 +25,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -170,6 +171,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--component-outlier-threshold-ms", type=float, default=2.0)
     parser.add_argument("--component-outlier-ring-size", type=int, default=32)
     parser.add_argument("--pace-500hz", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument(
+        "--step5d-v3-moving-sphere",
+        action="store_true",
+        help=(
+            "include the source-bound V3 moving-sphere seam in execute, "
+            "safe-hold, and warmup ticks"
+        ),
+    )
     parser.add_argument(
         "--include-raw-samples",
         action="store_true",
@@ -796,9 +805,11 @@ def main() -> int:
     from kunwei_rtde_bridge import (
         BRIDGE_INPUT_NAMES,
         STEP5D_STAGE25_JOINT_LAYOUT_CODE,
+        apply_step5d_moving_sphere_guard,
         apply_step5d_deadline_overrun_hold,
         apply_step5d_explicit_stop_packet,
         apply_step5d_unpublished_startup_packet,
+        bridge_zero_values,
         finalize_step5d_publish_history,
         limit_step5d_live_xdot,
         scale_step5d_xdot_for_joint_feasibility,
@@ -806,6 +817,146 @@ def main() -> int:
         step5d_tcp_jacobian_base,
         step5d_v30_contract_pipeline,
     )
+    v3_sphere_source_binding: dict[str, str] = {}
+    v3_sphere_contract: dict[str, Any] | None = None
+    if args.step5d_v3_moving_sphere:
+        from ur10e_experiment_runtime import identity as runtime_identity
+        from ur10e_experiment_runtime import moving_sphere as runtime_moving_sphere
+        from ur10e_experiment_runtime import physical_prior as runtime_physical_prior
+        from ur10e_experiment_runtime import stage_adapters as runtime_stage_adapters
+        from ur10e_experiment_runtime.moving_sphere import (
+            MovingSphereKernel,
+            SphereReason,
+            StoppingBoundArtifact,
+        )
+        from ur10e_experiment_runtime.physical_prior import (
+            STEP5D_V3_PHYSICAL_PRIOR,
+        )
+        from ur10e_experiment_runtime.stage_adapters import (
+            Stage25ControllerProgressAdapter,
+            frozen_step5d_path_reference,
+        )
+
+        expected_runtime_root = (
+            root.parents[1]
+            / "src/ur10e_experiment_runtime/ur10e_experiment_runtime"
+        ).resolve()
+        v3_runtime_modules = {
+            "identity_sha256": runtime_identity,
+            "moving_sphere_sha256": runtime_moving_sphere,
+            "physical_prior_sha256": runtime_physical_prior,
+            "stage_adapters_sha256": runtime_stage_adapters,
+        }
+        for field, module in v3_runtime_modules.items():
+            module_path = Path(str(module.__file__)).resolve()
+            if module_path.parent != expected_runtime_root:
+                raise RuntimeError(
+                    "V3 formal timing refuses a non-source runtime module: "
+                    f"{module_path}"
+                )
+            v3_sphere_source_binding[field] = sha256_path(module_path)
+
+        fixture_bound = StoppingBoundArtifact(
+            reaction_latency_s=0.002,
+            acceleration_growth_m_s2=0.1,
+            minimum_deceleration_m_s2=2.0,
+            center_speed_bound_m_s=0.002,
+            center_acceleration_bound_m_s2=0.001,
+            numeric_margin_m=0.0001,
+            evidence_sha256=(v3_sphere_source_binding["moving_sphere_sha256"],),
+            validity_domain=(
+                "formal_timing_fixture_only_not_live_stopping_bound_certification"
+            ),
+            certified=True,
+        )
+
+        def new_v3_sphere_timing_context() -> SimpleNamespace:
+            adapter = Stage25ControllerProgressAdapter(
+                physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+            )
+            kernel = MovingSphereKernel(
+                reference_sha256=adapter.reference_sha256,
+                stopping_bound=fixture_bound,
+            )
+            return SimpleNamespace(
+                args=SimpleNamespace(
+                    step5d_controller_progress_adapter=adapter,
+                    step5d_moving_sphere_kernel=kernel,
+                    step5d_moving_sphere_progress_age_ns=0,
+                ),
+                values=bridge_zero_values(),
+                latest_output={
+                    "output_double_register_31": 0.0,
+                    "timestamp": 1.0,
+                },
+                tick_count=0,
+                ok_count=0,
+                predicted_stop_count=0,
+                unexpected_stop_count=0,
+                exact_stop_transport_count=0,
+            )
+
+        def apply_v3_sphere_timing_tick(
+            context: SimpleNamespace,
+            *,
+            register_values: Mapping[int, float],
+            pose: Sequence[float],
+            expected_stop: bool,
+        ) -> None:
+            for offset, name in enumerate(BRIDGE_INPUT_NAMES):
+                context.values[name] = float(register_values[37 + offset])
+            context.values["stop_request"] = float(register_values[28])
+            context.values["_step5d_contact_safety_reason"] = ""
+            source_tick_seq = 500 + context.tick_count
+            context.latest_output["output_double_register_31"] = min(
+                context.tick_count / 500.0,
+                60.0,
+            )
+            context.latest_output["timestamp"] = source_tick_seq / 500.0
+            apply_step5d_moving_sphere_guard(
+                values=context.values,
+                args=context.args,
+                latest_output=context.latest_output,
+                robot_stage=25.0,
+                pose=pose,
+                tcp_speed_m_s=0.5 if expected_stop else 0.0,
+            )
+            context.tick_count += 1
+            reason = context.values["_step5d_moving_sphere_reason"]
+            if expected_stop:
+                if reason != SphereReason.SPHERE_PREDICTED_STOP_BREACH.name:
+                    context.unexpected_stop_count += 1
+                if (
+                    context.values["stop_request"] == 1.0
+                    and context.values["step4e_cmd_valid"] == 0.0
+                    and all(context.values[name] == 0.0 for name in BRIDGE_INPUT_NAMES[:6])
+                ):
+                    context.exact_stop_transport_count += 1
+                context.predicted_stop_count += int(
+                    reason == SphereReason.SPHERE_PREDICTED_STOP_BREACH.name
+                )
+            else:
+                context.ok_count += int(reason == SphereReason.SPHERE_OK.name)
+                context.unexpected_stop_count += int(
+                    reason != SphereReason.SPHERE_OK.name
+                    or context.values["stop_request"] != 0.0
+                )
+
+        v3_sphere_contract = {
+            "schema": "step5d.autotune-v3/formal-moving-sphere-timing-v1",
+            "enabled": True,
+            "physical_prior_fingerprint": STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
+            "reference_sha256": Stage25ControllerProgressAdapter(
+                physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+            ).reference_sha256,
+            "fixture_stopping_bound_fingerprint": fixture_bound.fingerprint,
+            "fixture_stopping_bound_validity_domain": fixture_bound.validity_domain,
+            "source_binding": dict(sorted(v3_sphere_source_binding.items())),
+        }
+    else:
+        new_v3_sphere_timing_context = None
+        apply_v3_sphere_timing_tick = None
+        frozen_step5d_path_reference = None
     controller_stale_hold_fault_evidence = (
         exercise_bounded_last_command_hold_contract(
             apply_hold=apply_step5d_deadline_overrun_hold,
@@ -1133,6 +1284,45 @@ def main() -> int:
     )
     full_tick_deferred = DeferredV30Diagnostics(capacity=args.tick_samples)
     safe_hold_deferred = DeferredV30Diagnostics(capacity=args.safe_hold_samples)
+    if args.step5d_v3_moving_sphere:
+        assert frozen_step5d_path_reference is not None
+        sphere_pose_count = max(
+            PIPELINE_WARMUP_SAMPLES,
+            SAFE_HOLD_WARMUP_SAMPLES,
+            args.tick_samples,
+            args.safe_hold_samples,
+        )
+        v3_sphere_poses = []
+        for index in range(sphere_pose_count):
+            reference = frozen_step5d_path_reference(
+                (0.0, 0.0),
+                min(index / 500.0, 60.0),
+            )
+            desired_x, desired_y = reference["desired_xy"]
+            replay_pose = prepared_rows[index % len(prepared_rows)].pose
+            v3_sphere_poses.append(
+                (
+                    float(desired_x),
+                    float(desired_y),
+                    float(replay_pose[2]),
+                    float(replay_pose[3]),
+                    float(replay_pose[4]),
+                    float(replay_pose[5]),
+                )
+            )
+        v3_sphere_poses = tuple(v3_sphere_poses)
+        assert new_v3_sphere_timing_context is not None
+        assert apply_v3_sphere_timing_tick is not None
+        v3_warm_execute = new_v3_sphere_timing_context()
+        v3_full_tick = new_v3_sphere_timing_context()
+        v3_warm_safe_hold = new_v3_sphere_timing_context()
+        v3_safe_hold = new_v3_sphere_timing_context()
+    else:
+        v3_sphere_poses = ()
+        v3_warm_execute = None
+        v3_full_tick = None
+        v3_warm_safe_hold = None
+        v3_safe_hold = None
     pipeline_warmup_summary: dict[str, Any] = {}
     gc_was_enabled = gc.isenabled()
     gc.collect()
@@ -1266,6 +1456,15 @@ def main() -> int:
                 or register_values[43] != 1.0
             ):
                 raise RuntimeError("unmeasured execute-path warmup failed")
+            if args.step5d_v3_moving_sphere:
+                assert v3_warm_execute is not None
+                assert apply_v3_sphere_timing_tick is not None
+                apply_v3_sphere_timing_tick(
+                    v3_warm_execute,
+                    register_values=register_values,
+                    pose=v3_sphere_poses[index],
+                    expected_stop=False,
+                )
             warmup_previous_qdot = decision.qdot
             warmup_execute_count += 1
             warmup_lateness_ms = max(
@@ -1330,6 +1529,15 @@ def main() -> int:
             register_values = command.as_register_values()
             if register_values[47] != 524.0 or register_values[43] != 1.0:
                 raise RuntimeError("runtime-shaped full tick produced invalid register contract")
+            if args.step5d_v3_moving_sphere:
+                assert v3_full_tick is not None
+                assert apply_v3_sphere_timing_tick is not None
+                apply_v3_sphere_timing_tick(
+                    v3_full_tick,
+                    register_values=register_values,
+                    pose=v3_sphere_poses[index],
+                    expected_stop=False,
+                )
             previous_qdot = decision.qdot if decision.accepted else None
             full_tick_reason_counts[decision.reason] = (
                 full_tick_reason_counts.get(decision.reason, 0) + 1
@@ -1427,6 +1635,15 @@ def main() -> int:
                 or register_values[47] != 524.0
             ):
                 raise RuntimeError("unmeasured safe-hold warmup failed")
+            if args.step5d_v3_moving_sphere:
+                assert v3_warm_safe_hold is not None
+                assert apply_v3_sphere_timing_tick is not None
+                apply_v3_sphere_timing_tick(
+                    v3_warm_safe_hold,
+                    register_values=register_values,
+                    pose=v3_sphere_poses[index],
+                    expected_stop=True,
+                )
             warmup_safe_hold_count += 1
             warmup_safe_lateness_ms = max(
                 0.0,
@@ -1532,6 +1749,15 @@ def main() -> int:
                 or register_values[47] != 524.0
             ):
                 raise RuntimeError("runtime-shaped safe-hold register contract failed")
+            if args.step5d_v3_moving_sphere:
+                assert v3_safe_hold is not None
+                assert apply_v3_sphere_timing_tick is not None
+                apply_v3_sphere_timing_tick(
+                    v3_safe_hold,
+                    register_values=register_values,
+                    pose=v3_sphere_poses[index],
+                    expected_stop=True,
+                )
             safe_hold_reason_counts[decision.reason] = (
                 safe_hold_reason_counts.get(decision.reason, 0) + 1
             )
@@ -1637,6 +1863,51 @@ def main() -> int:
     raw_capture_included = bool(
         formal_raw_capture_required or args.include_raw_samples
     )
+    v3_sphere_timing: dict[str, Any] | None = None
+    if args.step5d_v3_moving_sphere:
+        assert v3_sphere_contract is not None
+        assert v3_warm_execute is not None
+        assert v3_full_tick is not None
+        assert v3_warm_safe_hold is not None
+        assert v3_safe_hold is not None
+        v3_sphere_timing = {
+            **v3_sphere_contract,
+            "warmup": {
+                "execute_samples": v3_warm_execute.tick_count,
+                "execute_ok_count": v3_warm_execute.ok_count,
+                "execute_unexpected_stop_count": (
+                    v3_warm_execute.unexpected_stop_count
+                ),
+                "safe_hold_samples": v3_warm_safe_hold.tick_count,
+                "safe_hold_predicted_stop_count": (
+                    v3_warm_safe_hold.predicted_stop_count
+                ),
+                "safe_hold_exact_stop_transport_count": (
+                    v3_warm_safe_hold.exact_stop_transport_count
+                ),
+                "safe_hold_unexpected_stop_count": (
+                    v3_warm_safe_hold.unexpected_stop_count
+                ),
+            },
+            "full_tick": {
+                "samples": v3_full_tick.tick_count,
+                "sphere_ok_count": v3_full_tick.ok_count,
+                "unexpected_stop_count": v3_full_tick.unexpected_stop_count,
+            },
+            "safe_hold": {
+                "samples": v3_safe_hold.tick_count,
+                "predicted_stop_count": v3_safe_hold.predicted_stop_count,
+                "exact_stop_transport_count": (
+                    v3_safe_hold.exact_stop_transport_count
+                ),
+                "unexpected_stop_count": v3_safe_hold.unexpected_stop_count,
+            },
+            "claim_boundary": (
+                "source-bound formal timing fixture exercises the V3 sphere "
+                "success and exact-stop paths; the fixture stopping bound is "
+                "not live stopping-bound certification"
+            ),
+        }
     payload: dict[str, Any] = {
         "schema_version": "step5d_v30_remote_timing_raw_v3",
         "profile": effective_profile,
@@ -1748,7 +2019,12 @@ def main() -> int:
             "Step5dObservation->SlewCompatibleReference->"
             "StrictRnnControlPolicy->ControlCandidate->"
             "step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->"
-            "DeferredV30Diagnostics"
+            + (
+                "apply_step5d_moving_sphere_guard->ExactStopTransport->"
+                if args.step5d_v3_moving_sphere
+                else ""
+            )
+            + "DeferredV30Diagnostics"
         ),
         "runtime_path_source": "kunwei_rtde_bridge.step5d_v30_contract_pipeline",
         "full_tick_deferred_diagnostics": {
@@ -1792,6 +2068,8 @@ def main() -> int:
             "no motion authorization",
         ],
     }
+    if v3_sphere_timing is not None:
+        payload["step5d_v3_moving_sphere"] = v3_sphere_timing
     if raw_capture_included:
         payload["raw_timing_samples"] = indexed_raw_timing_samples(
             solver_ms=solver_ms,

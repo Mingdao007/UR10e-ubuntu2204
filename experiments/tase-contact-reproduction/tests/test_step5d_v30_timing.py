@@ -36,6 +36,7 @@ from step5d_v30_timing import (  # noqa: E402
     SOURCE_BINDING_FILES,
     SOLVER_BATCH_REENTRY_BOUNDARIES,
     SOLVER_BATCH_REENTRY_SAMPLES,
+    SCHEDULER_CONTRACT_OTHER0,
     TimingThresholds,
     summarize_preaggregated,
     summarize_timing,
@@ -687,6 +688,39 @@ class Step5dV30TimingTest(unittest.TestCase):
             [98],
         )
         self.assertTrue(result["solver_batch_reentry_evidence"]["raw_samples_bound"])
+        sched_other_payload = json.loads(json.dumps(payload))
+        sched_other_payload["runtime_environment"].update(
+            {
+                "scheduler_policy": 0,
+                "scheduler_policy_name": "SCHED_OTHER",
+                "scheduler_priority": 0,
+                "nice": 19,
+                "cpu_affinity": [11, 13, 14, 15],
+                "scheduler_limits": {"rtprio": [0, 0]},
+            }
+        )
+        sched_other_result = summarize_preaggregated(
+            sched_other_payload,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+            scheduler_contract=SCHEDULER_CONTRACT_OTHER0,
+        )
+        self.assertTrue(sched_other_result["acceptance_eligible"])
+        self.assertFalse(
+            sched_other_result["deadline_robustness"]["hard_realtime_pass"]
+        )
+        self.assertTrue(
+            sched_other_result["deadline_robustness"][
+                "production_scheduler_zero_miss_pass"
+            ]
+        )
+        self.assertEqual(
+            sched_other_result["runtime_scheduling_classification"],
+            "production_sched_other_priority_0_affinity_11_13_14_15",
+        )
         self.assertFalse(
             result["solver_batch_reentry_evidence"][
                 "hard_solver_deadline_gate_applied"
@@ -1029,6 +1063,31 @@ class Step5dV30TimingTest(unittest.TestCase):
         self.assertFalse(bounded["deadline_robustness"]["hard_realtime_pass"])
         self.assertTrue(
             bounded["deadline_robustness"]["bounded_last_command_hold_pass"]
+        )
+        sched_other_bounded_payload = json.loads(json.dumps(payload))
+        sched_other_bounded_payload["runtime_environment"].update(
+            {
+                "nice": 19,
+                "scheduler_policy": 0,
+                "scheduler_policy_name": "SCHED_OTHER",
+                "scheduler_priority": 0,
+                "cpu_affinity": [11, 13, 14, 15],
+                "scheduler_limits": {"rtprio": [0, 0]},
+            }
+        )
+        sched_other_bounded = summarize_preaggregated(
+            sched_other_bounded_payload,
+            expected_source_binding={
+                field: "1" * 64 for field in SOURCE_BINDING_FILES
+            },
+            expected_replay_sha256="2" * 64,
+            expected_paper_truth_sha256="2" * 64,
+            scheduler_contract=SCHEDULER_CONTRACT_OTHER0,
+        )
+        self.assertTrue(sched_other_bounded["acceptance_eligible"])
+        self.assertEqual(
+            sched_other_bounded["classification"],
+            "production_sched_other_bounded_last_command_hold_acceptance_eligible",
         )
         payload["deadline_miss_diagnostics"]["full_tick_schedule"][
             "max_consecutive"

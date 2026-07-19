@@ -19,6 +19,7 @@ from run_step5d_parallel_workflow import (  # noqa: E402
     FORMAL_SOURCE_FILES,
     SHORT_TIMING_SAMPLES,
     formal_task,
+    timing_command_prefix,
     functional_tasks,
     postprocess_tasks,
     source_fingerprint,
@@ -64,6 +65,10 @@ class Step5dParallelWorkflowTest(unittest.TestCase):
     def test_formal_fingerprint_binds_workflow_evaluator_replay_bundle_and_environment(self) -> None:
         self.assertIn("tools/run_step5d_parallel_workflow.py", FORMAL_SOURCE_FILES)
         self.assertIn("tools/step5d_timing_acceptance.py", FORMAL_SOURCE_FILES)
+        self.assertIn(
+            "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py",
+            FORMAL_SOURCE_FILES,
+        )
         with tempfile.TemporaryDirectory() as directory:
             replay = Path(directory) / "replay.csv"
             replay.write_text("first\n", encoding="utf-8")
@@ -105,6 +110,29 @@ class Step5dParallelWorkflowTest(unittest.TestCase):
         self.assertEqual(formal.resource, "formal_timing")
         self.assertEqual(formal.claim_class, "formal_raw_capture")
         self.assertEqual(set(formal.dependencies), {task.task_id for task in functional})
+
+    def test_v3_formal_task_uses_distinct_source_bound_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            replay = root / "replay.csv"
+            replay.write_text("header\n", encoding="utf-8")
+            formal = formal_task(
+                root / "out",
+                replay_csv=replay,
+                step5d_v3=True,
+            )
+        self.assertEqual(formal.task_id, "formal-timing-v3")
+        self.assertEqual(formal.claim_class, "formal_raw_capture_step5d_v3")
+        self.assertIn("__formal-timing-v3", formal.command)
+        self.assertEqual(
+            timing_command_prefix(formal=True, step5d_v3=True),
+            ["taskset", "-c", "11,13,14,15"],
+        )
+        self.assertEqual(
+            timing_command_prefix(formal=True, step5d_v3=False),
+            ["taskset", "-c", "11,13,14,15", "chrt", "-f", "20"],
+        )
+
 
     def test_postprocess_parallel_and_serial_have_identical_derived_metrics(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

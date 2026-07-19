@@ -41,6 +41,10 @@ from ur10e_experiment_runtime.stage_adapters import (
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v2"
 TICKET_SCOPE = "live_continuous_campaign"
+LIVE_STOPPING_BOUND_VALIDITY_DOMAIN = (
+    "ur10e_step5d_autotune_v3_live_500hz_exact_controller_tp_transport_v1"
+)
+LIVE_MINIMUM_REACTION_LATENCY_S = 0.020
 
 
 class BridgeTicketError(RuntimeError):
@@ -374,6 +378,8 @@ def _apply_v3_arm_runtime(
             launch_profile.document["moving_sphere_reference_sha256"]
         ),
         stopping_bound=None,
+        required_validity_domain=LIVE_STOPPING_BOUND_VALIDITY_DOMAIN,
+        minimum_reaction_latency_s=LIVE_MINIMUM_REACTION_LATENCY_S,
     )
 
 

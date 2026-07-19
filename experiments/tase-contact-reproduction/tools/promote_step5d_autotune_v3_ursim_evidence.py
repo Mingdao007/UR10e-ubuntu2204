@@ -46,9 +46,22 @@ def promote(source: Path, raw_output: Path, result_output: Path) -> dict[str, An
         "orchestration_fingerprint": orchestration_fingerprint(ROOT),
         "contract_sha256": contract_sha256(contract),
     }
-    for field in ("control_fingerprint", "contract_sha256"):
+    for field in (
+        "control_fingerprint",
+        "orchestration_fingerprint",
+        "contract_sha256",
+    ):
         if production.get(field) != identity[field]:
             raise ValueError(f"raw URSim {field} is stale")
+    robot_model_selection = container.get("robot_model_selection")
+    if robot_model_selection != {
+        "image_family": "ursim_e-series",
+        "environment_variable": "ROBOT_MODEL",
+        "observed_token": "UR10",
+        "bench_target": "UR10e",
+        "binding": "official_e_series_image_ur10_token",
+    }:
+        raise ValueError("raw URSim robot model selection differs")
     lifecycle = raw.get("lifecycle") or {}
     observed = [item.get("state") for item in lifecycle.get("observed", [])]
     if observed[:3] != ["STOPPED", "STARTING", "READY_HOME"]:
@@ -84,7 +97,7 @@ def promote(source: Path, raw_output: Path, result_output: Path) -> dict[str, An
             "target_polyscope_version_equivalence_claimed": False,
             "entrypoint": ["/entrypoint.sh"],
             "entrypoint_overridden": False,
-            "robot_model": "UR10",
+            "robot_model_selection": robot_model_selection,
         },
         "network": {
             "name": container["network"],

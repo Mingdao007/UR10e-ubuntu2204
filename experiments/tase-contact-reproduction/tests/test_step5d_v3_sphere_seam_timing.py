@@ -17,4 +17,13 @@ def test_source_exact_sphere_seam_has_no_stop_or_compute_deadline_regression() -
     assert report["compute"]["deadline_miss_count"] == 0
     assert report["compute"]["p99_ms"] <= 2.0
     assert report["schedule"]["paced"] is False
+    assert report["unmeasured_warmup"] == {
+        "samples": 1_000,
+        "stop_count": 0,
+        "adapter_reset_after": True,
+        "kernel_reset_after": True,
+        "outside_measured_loop": True,
+    }
+    assert report["deadline_miss_diagnostics"]["compute"]["retained"] == []
+    assert report["deadline_miss_diagnostics"]["absolute"]["retained"] == []
     assert "offline-only fixture bound" in report["claim_boundary"]

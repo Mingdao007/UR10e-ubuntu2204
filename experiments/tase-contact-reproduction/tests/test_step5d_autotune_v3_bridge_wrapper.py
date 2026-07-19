@@ -155,6 +155,8 @@ def test_autotune_relatch_is_excluded_and_load_gate_is_explicit() -> None:
     assert "state.latched_normal_b = prior" in reset_hunk
     assert "state.filtered_normal_b = prior" in reset_hunk
     assert "state.step5d_stage25_normal_relatched = False" in reset_hunk
+    assert "progress_adapter.reset()" in reset_hunk
+    assert "sphere_kernel.reset()" in reset_hunk
 
 
 def test_pre_arm_hold_tick_keeps_bridge_alive_with_zero_command() -> None:

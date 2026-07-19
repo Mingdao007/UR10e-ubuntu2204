@@ -30,7 +30,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_autotune_v3.launcher import check_effective_config  # noqa: E402
-from step5d_autotune_v3.state import CampaignPaths, read_service_state  # noqa: E402
+from step5d_autotune_v3.state import (  # noqa: E402
+    CampaignPaths,
+    orchestration_fingerprint,
+    read_service_state,
+)
 
 
 SCHEMA = "step5d.autotune-v3/ursim-hold-gate-v1"
@@ -188,6 +192,21 @@ def inspect_ursim_container(container: str, expected_image: str) -> dict[str, An
         or _canonical_repo_digest(expected_image) not in image.get("RepoDigests", [])
     ):
         raise GateBlocked("ursim_container_image_digest_drift", container)
+    configured_environment = (info.get("Config") or {}).get("Env")
+    if not isinstance(configured_environment, list) or any(
+        not isinstance(value, str) for value in configured_environment
+    ):
+        raise GateBlocked("ursim_container_environment_unbound", container)
+    robot_model_values = [
+        value.split("=", 1)[1]
+        for value in configured_environment
+        if value.startswith("ROBOT_MODEL=")
+    ]
+    if robot_model_values != ["UR10"]:
+        raise GateBlocked(
+            "ursim_robot_model_not_ur10e",
+            repr(robot_model_values),
+        )
     host_config = info.get("HostConfig") or {}
     if host_config.get("Privileged") is True:
         raise GateBlocked("ursim_container_privileged", container)
@@ -220,6 +239,13 @@ def inspect_ursim_container(container: str, expected_image: str) -> dict[str, An
         "network_internal": True,
         "host_ports_published": False,
         "container_ip": host,
+        "robot_model_selection": {
+            "image_family": "ursim_e-series",
+            "environment_variable": "ROBOT_MODEL",
+            "observed_token": "UR10",
+            "bench_target": "UR10e",
+            "binding": "official_e_series_image_ur10_token",
+        },
     }
 
 
@@ -544,6 +570,7 @@ def run_gate(
             production_launcher={
                 "contract_sha256": launch["contract_sha256"],
                 "control_fingerprint": fingerprint,
+                "orchestration_fingerprint": orchestration_fingerprint(ROOT),
                 "effective_field_count": len(launch["effective_config"]),
             },
             container=container_report,

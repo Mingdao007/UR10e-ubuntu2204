@@ -3772,6 +3772,12 @@ def reset_step5d_autotune_diagnostics_for_trial(
     state.step5d_stage25_entry_relatch_angle_rad = None
     state.step5d_normal_rate_limiter_saturated_s = 0.0
     state.step5d_normal_rate_limiter_active_s = 0.0
+    progress_adapter = getattr(args, "step5d_controller_progress_adapter", None)
+    sphere_kernel = getattr(args, "step5d_moving_sphere_kernel", None)
+    if progress_adapter is None or sphere_kernel is None:
+        raise RuntimeError("autotune moving-sphere state is not preallocated")
+    progress_adapter.reset()
+    sphere_kernel.reset()
     return True
 
 

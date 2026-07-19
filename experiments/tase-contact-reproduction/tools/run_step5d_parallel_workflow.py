@@ -22,7 +22,10 @@ from ur10e_parallel import (
     verified_closed_source,
 )
 from ur10e_decision_manifest import freeze as freeze_decisions
-from step5d_timing_acceptance import evaluate_timing_raw
+from step5d_timing_acceptance import (
+    evaluate_step5d_v3_timing_raw,
+    evaluate_timing_raw,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +45,11 @@ FORMAL_SOURCE_FILES = (
     "tools/step5d_v30_timing.py",
     "tools/build_step5d_v30_offline_readiness.py",
     "tools/step5d_timing_acceptance.py",
+    "tools/benchmark_step5d_v3_sphere_seam.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/physical_prior.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py",
 )
 FORMAL_INPUT_FILES = (
     "config/step5d_liveprep_solver_gate.json",
@@ -153,17 +161,32 @@ def build_timing_bundle() -> subprocess.CompletedProcess[bytes]:
     )
 
 
+def timing_command_prefix(*, formal: bool, step5d_v3: bool) -> list[str]:
+    if not formal:
+        return []
+    affinity = ["taskset", "-c", "11,13,14,15"]
+    if step5d_v3:
+        return affinity
+    return [*affinity, "chrt", "-f", "20"]
+
+
 def run_timing(
     *,
     replay_csv: Path,
     output: Path,
     formal: bool,
+    step5d_v3: bool = False,
 ) -> int:
     environment = timing_environment()
+    command_prefix = timing_command_prefix(formal=formal, step5d_v3=step5d_v3)
     execution_contract = {
         "formal": formal,
-        "command_prefix": ["taskset", "-c", "11,13,14,15", "chrt", "-f", "20"]
-        if formal else [],
+        "step5d_v3_moving_sphere": step5d_v3,
+        "scheduler_contract": (
+            "sched_other_0" if formal and step5d_v3 else "sched_fifo_20"
+            if formal else "diagnostic_inherited"
+        ),
+        "command_prefix": command_prefix,
         "stdin_delivery": "generated_bundle_bytes",
     }
     bundle_before = build_timing_bundle()
@@ -172,9 +195,7 @@ def run_timing(
         execution_contract=execution_contract,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
-    command = [sys.executable, "-"]
-    if formal:
-        command = ["taskset", "-c", "11,13,14,15", "chrt", "-f", "20", *command]
+    command = [*command_prefix, sys.executable, "-"]
     command.extend(
         [
             "--experiment-root",
@@ -183,6 +204,8 @@ def run_timing(
             str(replay_csv),
         ]
     )
+    if step5d_v3:
+        command.append("--step5d-v3-moving-sphere")
     if not formal:
         command.extend(
             [
@@ -216,7 +239,14 @@ def run_timing(
     )
     metadata = {
         "formal": formal,
-        "claim_class": "formal_raw_capture" if formal else "diagnostic_only",
+        "claim_class": (
+            "formal_raw_capture_step5d_v3"
+            if formal and step5d_v3
+            else "formal_raw_capture"
+            if formal
+            else "diagnostic_only"
+        ),
+        "step5d_v3_moving_sphere": step5d_v3,
         "source_fingerprint_before": before,
         "source_fingerprint_after": after,
         "source_fingerprint_stable": before == after,
@@ -242,7 +272,11 @@ def run_timing(
     if bundle_before.returncode != 0 or bundle_after.returncode != 0 or completed.returncode != 0:
         return completed.returncode or bundle_before.returncode or bundle_after.returncode
     if formal:
-        evaluation = evaluate_timing_raw(ROOT, output)
+        evaluation = (
+            evaluate_step5d_v3_timing_raw(ROOT, output)
+            if step5d_v3
+            else evaluate_timing_raw(ROOT, output)
+        )
         output.with_suffix(".evaluation.json").write_text(
             json.dumps(evaluation, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
@@ -284,10 +318,28 @@ def internal_main(argv: list[str]) -> int | None:
         if args.replay_csv is None:
             parser.error("--replay-csv is required")
         return run_timing(replay_csv=args.replay_csv, output=args.output, formal=False)
+    if args.internal_mode == "__short-timing-v3":
+        if args.replay_csv is None:
+            parser.error("--replay-csv is required")
+        return run_timing(
+            replay_csv=args.replay_csv,
+            output=args.output,
+            formal=False,
+            step5d_v3=True,
+        )
     if args.internal_mode == "__formal-timing":
         if args.replay_csv is None:
             parser.error("--replay-csv is required")
         return run_timing(replay_csv=args.replay_csv, output=args.output, formal=True)
+    if args.internal_mode == "__formal-timing-v3":
+        if args.replay_csv is None:
+            parser.error("--replay-csv is required")
+        return run_timing(
+            replay_csv=args.replay_csv,
+            output=args.output,
+            formal=True,
+            step5d_v3=True,
+        )
     if args.internal_mode == "__checksums":
         if args.run_dir is None:
             parser.error("--run-dir is required")
@@ -414,22 +466,29 @@ def formal_task(
     *,
     replay_csv: Path,
     dependencies: Iterable[str] = (),
+    step5d_v3: bool = False,
 ) -> TaskSpec:
+    task_id = "formal-timing-v3" if step5d_v3 else "formal-timing"
+    internal_mode = "__formal-timing-v3" if step5d_v3 else "__formal-timing"
     return task(
         output_root,
-        "formal-timing",
+        task_id,
         [
             sys.executable,
             WORKFLOW,
-            "__formal-timing",
+            internal_mode,
             "--replay-csv",
             replay_csv,
             "--output",
-            output_root / "formal-timing" / "timing.json",
+            output_root / task_id / "timing.json",
         ],
         dependencies=dependencies,
         resource="formal_timing",
-        claim_class="formal_raw_capture",
+        claim_class=(
+            "formal_raw_capture_step5d_v3"
+            if step5d_v3
+            else "formal_raw_capture"
+        ),
         cpu_tokens=ResourceProfile.from_env().cpu_workers,
         gpu_vram_reservation_pct=0.0,
     )
@@ -544,6 +603,7 @@ def main(argv: list[str] | None = None) -> int:
             "parallel-check",
             "offline-functional",
             "formal-timing",
+            "formal-timing-v3",
             "offline-all",
             "postprocess",
         ),
@@ -564,6 +624,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode in {
         "offline-functional",
         "formal-timing",
+        "formal-timing-v3",
         "offline-all",
     } and (args.replay_csv is None or not args.replay_csv.is_file()):
         parser.error(f"replay CSV missing: {args.replay_csv}")
@@ -581,8 +642,14 @@ def main(argv: list[str] | None = None) -> int:
             replay_csv=args.replay_csv.resolve(),
             model_manifest=args.model_manifest.resolve(),
         )
-    elif args.mode == "formal-timing":
-        tasks = [formal_task(output_root, replay_csv=args.replay_csv.resolve())]
+    elif args.mode in {"formal-timing", "formal-timing-v3"}:
+        tasks = [
+            formal_task(
+                output_root,
+                replay_csv=args.replay_csv.resolve(),
+                step5d_v3=args.mode == "formal-timing-v3",
+            )
+        ]
     elif args.mode == "offline-all":
         if args.model_manifest is None or not args.model_manifest.is_file():
             parser.error(f"model manifest missing: {args.model_manifest}")

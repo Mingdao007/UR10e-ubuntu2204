@@ -47,6 +47,9 @@ EXPECTED_PROHIBITED_NETWORK_AUDIT_EVENTS = [
     "socket.getaddrinfo",
     "socket.sendto",
 ]
+SCHEDULER_CONTRACT_FIFO20 = "sched_fifo_20"
+SCHEDULER_CONTRACT_OTHER0 = "sched_other_0"
+EXPECTED_V3_CPU_AFFINITY = [11, 13, 14, 15]
 EXPECTED_PIPELINE_WARMUP = {
     "outside_measured_loops": True,
     "commands_published": False,
@@ -358,6 +361,7 @@ def summarize_preaggregated(
     expected_source_binding: Mapping[str, str] | None = None,
     expected_replay_sha256: str | None = None,
     expected_paper_truth_sha256: str | None = None,
+    scheduler_contract: str = SCHEDULER_CONTRACT_FIFO20,
 ) -> dict[str, Any]:
     """Independently validate the complete raw stdout timing evidence."""
 
@@ -370,6 +374,11 @@ def summarize_preaggregated(
         "control_hz": 500.0,
     }
     blockers: list[str] = []
+    if scheduler_contract not in {
+        SCHEDULER_CONTRACT_FIFO20,
+        SCHEDULER_CONTRACT_OTHER0,
+    }:
+        raise ValueError(f"unknown scheduler contract: {scheduler_contract}")
     if expected_source_binding is None:
         blockers.append("remote_timing_expected_source_binding_missing")
     if expected_replay_sha256 is None:
@@ -897,11 +906,28 @@ def summarize_preaggregated(
     scheduler_policy = runtime_environment.get("scheduler_policy")
     scheduler_priority = runtime_environment.get("scheduler_priority")
     production_fifo_priority_proven = bool(
-        scheduler_policy == 1
+        scheduler_contract == SCHEDULER_CONTRACT_FIFO20
+        and scheduler_policy == 1
         and scheduler_priority == 20
     )
-    if not production_fifo_priority_proven:
-        blockers.append("runtime_timing_process_priority_degraded")
+    production_sched_other_proven = bool(
+        scheduler_contract == SCHEDULER_CONTRACT_OTHER0
+        and scheduler_policy == 0
+        and runtime_environment.get("scheduler_policy_name") == "SCHED_OTHER"
+        and scheduler_priority == 0
+        and type(nice_value) is int
+        and nice_value >= 0
+        and runtime_environment.get("cpu_affinity") == EXPECTED_V3_CPU_AFFINITY
+    )
+    production_scheduler_proven = bool(
+        production_fifo_priority_proven or production_sched_other_proven
+    )
+    if not production_scheduler_proven:
+        blockers.append(
+            "runtime_timing_process_priority_degraded"
+            if scheduler_contract == SCHEDULER_CONTRACT_FIFO20
+            else "runtime_timing_process_sched_other_contract_mismatch"
+        )
     network_transport_tripwire = payload.get("network_transport_tripwire")
     if not (
         isinstance(network_transport_tripwire, dict)
@@ -917,7 +943,7 @@ def summarize_preaggregated(
         if isinstance(scheduler_limits, dict)
         else None
     )
-    if not (
+    if scheduler_contract == SCHEDULER_CONTRACT_FIFO20 and not (
         isinstance(rtprio_limits, list)
         and len(rtprio_limits) == 2
         and all(isinstance(value, int) for value in rtprio_limits)
@@ -1025,7 +1051,15 @@ def summarize_preaggregated(
             and float(normalized["solver"]["max_ms"]) >= thresholds.hard_deadline_ms
         )
     )
-    hard_realtime_pass = not blockers
+    zero_miss_scheduler_contract_pass = not blockers
+    hard_realtime_pass = bool(
+        scheduler_contract == SCHEDULER_CONTRACT_FIFO20
+        and zero_miss_scheduler_contract_pass
+    )
+    production_scheduler_zero_miss_pass = bool(
+        scheduler_contract == SCHEDULER_CONTRACT_OTHER0
+        and zero_miss_scheduler_contract_pass
+    )
     allowed_bounded_hold_blockers = {
         "full_tick_deadline_miss",
         "full_tick_max_reaches_2ms_deadline",
@@ -1110,10 +1144,13 @@ def summarize_preaggregated(
         and stale_hold_evidence.get("miss_ratio_max") == 0.01
     )
     bounded_last_command_hold_pass = bool(
-        bounded_hold_timing_candidate and bounded_hold_contract_proven
+        bounded_hold_timing_candidate
+        and bounded_hold_contract_proven
     )
     acceptance_eligible = bool(
-        hard_realtime_pass or bounded_last_command_hold_pass
+        hard_realtime_pass
+        or bounded_last_command_hold_pass
+        or production_scheduler_zero_miss_pass
     )
     classification = (
         "failed_hard_solver_deadline"
@@ -1121,6 +1158,13 @@ def summarize_preaggregated(
         else (
             "hard_realtime_acceptance_eligible"
             if hard_realtime_pass
+            else "production_sched_other_zero_observed_miss_acceptance_eligible"
+            if production_scheduler_zero_miss_pass
+            else "production_sched_other_bounded_last_command_hold_acceptance_eligible"
+            if (
+                bounded_last_command_hold_pass
+                and scheduler_contract == SCHEDULER_CONTRACT_OTHER0
+            )
             else "bounded_last_command_hold_acceptance_eligible"
             if bounded_last_command_hold_pass
             else "diagnostic_only_not_acceptance"
@@ -1206,6 +1250,8 @@ def summarize_preaggregated(
         "runtime_scheduling_classification": (
             "production_sched_fifo_priority_20"
             if production_fifo_priority_proven
+            else "production_sched_other_priority_0_affinity_11_13_14_15"
+            if production_sched_other_proven
             else "degraded_or_unbound"
         ),
         "elapsed_full_tick_wall_s": elapsed,
@@ -1222,6 +1268,10 @@ def summarize_preaggregated(
         "classification": classification,
         "deadline_robustness": {
             "hard_realtime_pass": hard_realtime_pass,
+            "production_scheduler_zero_miss_pass": (
+                production_scheduler_zero_miss_pass
+            ),
+            "scheduler_contract": scheduler_contract,
             "bounded_hold_timing_candidate": bounded_hold_timing_candidate,
             "bounded_last_command_hold_pass": bounded_last_command_hold_pass,
             "bounded_last_command_hold_contract_proven": (
@@ -1234,10 +1284,11 @@ def summarize_preaggregated(
             "unrelated_blockers": bounded_hold_unrelated_blockers,
             "claim_boundary": (
                 "the 2 ms solver gate applies to 10,000 steady samples; all 99 "
-                "post-yield reentries remain explicit diagnostics, and a hard "
-                "500 Hz hard-realtime claim still requires zero full-tick "
-                "deadline misses; bounded acceptance permits at most 1% held "
-                "ticks and at most 10 consecutive held ticks"
+                "post-yield reentries remain explicit diagnostics. FIFO/20 may "
+                "support the legacy hard-realtime or bounded-hold claim; the "
+                "V3 SCHED_OTHER/0 contract requires zero observed misses and "
+                "an equal-or-more-conservative nonnegative nice value; it does "
+                "not claim hard-realtime scheduling"
             ),
         },
         "safety_boundary": payload.get("safety_boundary", []),

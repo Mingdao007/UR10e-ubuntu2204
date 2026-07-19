@@ -40,7 +40,10 @@ from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
 
 CONTROL_HZ = 500.0
 PERIOD_NS = 2_000_000
+WARMUP_SAMPLES = 1_000
+MISS_EVENT_CAPACITY = 64
 SOURCE_FILES = (
+    Path(__file__).resolve(),
     ROOT.parents[1]
     / "src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py",
     ROOT.parents[1]
@@ -105,10 +108,32 @@ def run(*, samples: int, paced: bool) -> dict[str, Any]:
         }
     )
     latest_output = {"output_double_register_31": 0.0, "timestamp": 1.0}
+    warmup_stop_count = 0
+    for index in range(WARMUP_SAMPLES):
+        progress_s = min(index / CONTROL_HZ, 60.0)
+        reference = frozen_step5d_path_reference((0.0, 0.0), progress_s)
+        desired = reference["desired_xy"]
+        latest_output["output_double_register_31"] = progress_s
+        latest_output["timestamp"] = 1.0 + index / CONTROL_HZ
+        bridge.apply_step5d_moving_sphere_guard(
+            values=values,
+            args=args,
+            latest_output=latest_output,
+            robot_stage=25.0,
+            pose=(desired[0], desired[1], 0.008, 0.0, 0.0, 0.0),
+            tcp_speed_m_s=0.0,
+        )
+        warmup_stop_count += int(values["stop_request"] != 0.0)
+    adapter.reset()
+    kernel.reset()
+    values["stop_request"] = 0.0
+    values["step4e_cmd_valid"] = 0.0
     compute_ms: list[float] = []
     release_lateness_ms: list[float] = []
     absolute_deadline_misses = 0
     compute_deadline_misses = 0
+    compute_miss_events: list[dict[str, int]] = []
+    absolute_miss_events: list[dict[str, int]] = []
     stopped = 0
     start_ns = time.perf_counter_ns()
     for index, (progress_s, pose) in enumerate(inputs):
@@ -134,8 +159,18 @@ def run(*, samples: int, paced: bool) -> dict[str, Any]:
         elapsed_ms = (finish_ns - tick_start_ns) / 1_000_000.0
         compute_ms.append(elapsed_ms)
         release_lateness_ms.append(max(0, actual_release_ns - release_ns) / 1_000_000.0)
-        compute_deadline_misses += int(elapsed_ms > 2.0)
-        absolute_deadline_misses += int(paced and finish_ns > deadline_ns)
+        if elapsed_ms > 2.0:
+            compute_deadline_misses += 1
+            if len(compute_miss_events) < MISS_EVENT_CAPACITY:
+                compute_miss_events.append(
+                    {"index": index, "monotonic_ns": finish_ns}
+                )
+        if paced and finish_ns > deadline_ns:
+            absolute_deadline_misses += 1
+            if len(absolute_miss_events) < MISS_EVENT_CAPACITY:
+                absolute_miss_events.append(
+                    {"index": index, "monotonic_ns": finish_ns}
+                )
         stopped += int(values["stop_request"] != 0.0)
     elapsed_s = (time.perf_counter_ns() - start_ns) / 1_000_000_000.0
     compute = {
@@ -154,12 +189,14 @@ def run(*, samples: int, paced: bool) -> dict[str, Any]:
         "absolute_deadline_miss_count": absolute_deadline_misses,
     }
     passed = bool(
-        stopped == 0
+        warmup_stop_count == 0
+        and stopped == 0
         and compute_deadline_misses == 0
         and (not paced or absolute_deadline_misses == 0)
     )
     return {
         "schema": "step5d.autotune-v3/source-exact-sphere-seam-timing-v1",
+        "claim_class": "diagnostic_only_not_formal_three_lane_timing",
         "control_hz": CONTROL_HZ,
         "period_ms": 2.0,
         "source_sha256": {
@@ -172,8 +209,28 @@ def run(*, samples: int, paced: bool) -> dict[str, Any]:
             "scheduler_priority": os.sched_getparam(0).sched_priority,
             "cpu_affinity": sorted(os.sched_getaffinity(0)),
         },
+        "unmeasured_warmup": {
+            "samples": WARMUP_SAMPLES,
+            "stop_count": warmup_stop_count,
+            "adapter_reset_after": True,
+            "kernel_reset_after": True,
+            "outside_measured_loop": True,
+        },
         "compute": compute,
         "schedule": schedule,
+        "deadline_miss_diagnostics": {
+            "capacity": MISS_EVENT_CAPACITY,
+            "compute": {
+                "total": compute_deadline_misses,
+                "retained": compute_miss_events,
+                "overflowed": compute_deadline_misses > MISS_EVENT_CAPACITY,
+            },
+            "absolute": {
+                "total": absolute_deadline_misses,
+                "retained": absolute_miss_events,
+                "overflowed": absolute_deadline_misses > MISS_EVENT_CAPACITY,
+            },
+        },
         "sphere_stop_count": stopped,
         "pass": passed,
         "claim_boundary": (

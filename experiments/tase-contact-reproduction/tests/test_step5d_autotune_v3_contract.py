@@ -50,15 +50,41 @@ def test_real_parser_is_bound_to_sha_protected_bridge_source() -> None:
     protected = (ROOT / "tools/kunwei_rtde_bridge.py").resolve()
     assert Path(bridge.parse_args.__code__.co_filename).resolve() == protected
     assert hashlib.sha256(protected.read_bytes()).hexdigest() == (
-        "eabf49d6c8f6fb5ff72c08e6195039da67aed7963446201ae6f9a1d5f37b3f6f"
+        "81fb883ea47088cc2902471a266721b2234e295a41b8f3c86cf7f9cde9294de2"
     )
 
 
 def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> None:
     import kunwei_rtde_bridge as bridge
+    from ur10e_experiment_runtime.moving_sphere import (
+        MovingSphereKernel,
+        StoppingBoundArtifact,
+    )
     from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+    from ur10e_experiment_runtime.stage_adapters import (
+        PATH_ORIGIN_XY_M,
+        Stage25ControllerProgressAdapter,
+    )
 
     prior = STEP5D_V3_PHYSICAL_PRIOR
+    adapter = Stage25ControllerProgressAdapter(
+        physical_prior_sha256=prior.fingerprint
+    )
+    bound = StoppingBoundArtifact(
+        reaction_latency_s=0.002,
+        acceleration_growth_m_s2=0.1,
+        minimum_deceleration_m_s2=2.0,
+        center_speed_bound_m_s=0.002,
+        center_acceleration_bound_m_s2=0.001,
+        numeric_margin_m=0.0001,
+        evidence_sha256=("b" * 64,),
+        validity_domain="offline_fixture_only",
+        certified=True,
+    )
+    kernel = MovingSphereKernel(
+        reference_sha256=adapter.reference_sha256,
+        stopping_bound=bound,
+    )
     args = SimpleNamespace(
         bridge_profile=bridge.STEP5D_AUTOTUNE_STAGE_ID,
         step5d_autotune_handshake={"trial_id": 1},
@@ -68,6 +94,8 @@ def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> 
         step5d_physical_prior_identity_payload=prior.identity_payload(),
         step5d_physical_prior_sha256=prior.fingerprint,
         step5d_physical_prior_binding_valid=True,
+        step5d_controller_progress_adapter=adapter,
+        step5d_moving_sphere_kernel=kernel,
     )
     state = bridge.BridgeState()
     state.step5d_v30_deferred_diagnostics = SimpleNamespace(
@@ -76,6 +104,38 @@ def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> 
     assert bridge.reset_step5d_autotune_diagnostics_for_trial(state, args) is True
     assert state.step5d_physical_prior_approach_axis_b == prior.approach_axis_b
     assert state.step5d_physical_prior_sha256 == prior.fingerprint
+
+    first = adapter.sample(
+        stage=25.0,
+        controller_progress_s=0.0,
+        controller_tick_seq=500,
+        controller_timestamp_s=1.0,
+        age_ns=0,
+        tcp_z_m=0.008,
+    )
+    first_result = kernel.tick(
+        progress=first,
+        tcp_base=(*PATH_ORIGIN_XY_M, 0.008),
+        tcp_speed_m_s=0.0,
+    )
+    assert first_result.stop is False
+
+    args.step5d_autotune_handshake = {"trial_id": 2}
+    assert bridge.reset_step5d_autotune_diagnostics_for_trial(state, args) is True
+    second = adapter.sample(
+        stage=25.0,
+        controller_progress_s=0.0,
+        controller_tick_seq=1000,
+        controller_timestamp_s=2.0,
+        age_ns=0,
+        tcp_z_m=0.008,
+    )
+    second_result = kernel.tick(
+        progress=second,
+        tcp_base=(*PATH_ORIGIN_XY_M, 0.008),
+        tcp_speed_m_s=0.0,
+    )
+    assert second_result.stop is False
 
     values = {name: 1.0 for name in bridge.BRIDGE_INPUT_NAMES[:6]}
     values["step4e_cmd_valid"] = 1.0
@@ -89,7 +149,7 @@ def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> 
     )
 
     args.step5d_physical_prior_approach_axis_b = (0.0, 0.0, -1.0)
-    args.step5d_autotune_handshake = {"trial_id": 2}
+    args.step5d_autotune_handshake = {"trial_id": 3}
     with pytest.raises(RuntimeError, match="fingerprint binding differs"):
         bridge.reset_step5d_autotune_diagnostics_for_trial(state, args)
 

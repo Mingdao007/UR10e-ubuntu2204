@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_autotune_v3_ursim_hold_gate as gate  # noqa: E402
+import promote_step5d_autotune_v3_ursim_evidence as promotion  # noqa: E402
 
 
 EXPECTED_IMAGE = (
@@ -30,7 +31,7 @@ def _docker_fixtures() -> dict[str, object]:
     container = {
         "Id": "b" * 64,
         "Image": image_id,
-        "Config": {"Image": EXPECTED_IMAGE},
+        "Config": {"Image": EXPECTED_IMAGE, "Env": ["ROBOT_MODEL=UR10"]},
         "State": {"Running": True},
         "HostConfig": {
             "Privileged": False,
@@ -95,6 +96,7 @@ def test_container_binding_accepts_only_exact_digest_and_internal_network(
     assert report["network_internal"] is True
     assert report["host_ports_published"] is False
     assert report["container_ip"] == "172.29.0.2"
+    assert report["robot_model_selection"]["bench_target"] == "UR10e"
 
 
 @pytest.mark.parametrize(
@@ -125,6 +127,12 @@ def test_container_binding_accepts_only_exact_digest_and_internal_network(
         (
             lambda payload: payload["image"][0].update(RepoDigests=[]),
             "ursim_container_image_digest_drift",
+        ),
+        (
+            lambda payload: payload["container"][0]["Config"].update(
+                Env=["ROBOT_MODEL=UR5"]
+            ),
+            "ursim_robot_model_not_ur10e",
         ),
     ],
 )
@@ -338,7 +346,17 @@ def test_mocked_full_gate_records_lifecycle_watchdog_and_rollback(
         "v3_active": False,
     }
     dashboard, rtde = _hold_sample()
-    container = {"container_ip": "172.29.0.2", "expected_image": EXPECTED_IMAGE}
+    container = {
+        "container_ip": "172.29.0.2",
+        "expected_image": EXPECTED_IMAGE,
+        "robot_model_selection": {
+            "image_family": "ursim_e-series",
+            "environment_variable": "ROBOT_MODEL",
+            "observed_token": "UR10",
+            "bench_target": "UR10e",
+            "binding": "official_e_series_image_ur10_token",
+        },
+    }
 
     class FakeProcess:
         returncode = None
@@ -389,5 +407,91 @@ def test_mocked_full_gate_records_lifecycle_watchdog_and_rollback(
         "STOPPED",
     ]
     assert report["watchdog"]["tp_watchdog_runtime_executed"] is False
+    assert len(report["production_launcher"]["orchestration_fingerprint"]) == 64
     assert report["rollback"]["v1_selector_after"] == "step5d_strict_rnn_autotune_v1"
     assert Path(report["evidence_path"]).is_file()
+
+
+def _promotion_raw() -> dict[str, object]:
+    dashboard = {
+        "PolyscopeVersion": "URSoftware 5.25.2.0",
+        "programState": "STOPPED",
+        "running": "Program running: false",
+    }
+    sample = {
+        "dashboard": dashboard,
+        "hold": {
+            "max_abs": {"actual_qd": 0.0, "actual_TCP_speed": 0.0}
+        },
+    }
+    return {
+        "ok": True,
+        "forbidden_action_count": 0,
+        "observed_at": "2026-07-19T00:00:00+00:00",
+        "claim_boundary": "digest_pinned_ursim_hold_only_not_robot_acceptance",
+        "production_launcher": {
+            "control_fingerprint": "c" * 64,
+            "orchestration_fingerprint": "o" * 64,
+            "contract_sha256": "d" * 64,
+        },
+        "container": {
+            "expected_image": EXPECTED_IMAGE,
+            "network_internal": True,
+            "host_ports_published": False,
+            "container_image_id": "sha256:" + "a" * 64,
+            "network": "isolated",
+            "container": "ursim",
+            "container_id": "b" * 64,
+            "robot_model_selection": {
+                "image_family": "ursim_e-series",
+                "environment_variable": "ROBOT_MODEL",
+                "observed_token": "UR10",
+                "bench_target": "UR10e",
+                "binding": "official_e_series_image_ur10_token",
+            },
+        },
+        "lifecycle": {
+            "observed": [
+                {"state": "STOPPED"},
+                {"state": "STARTING"},
+                {"state": "READY_HOME"},
+                {"state": "STOPPED"},
+            ]
+        },
+        "hold_watchdog": {"samples": [sample, sample, sample]},
+        "rollback": {"service_final_phase": "stopped"},
+    }
+
+
+def test_promotion_binds_current_orchestration_and_observed_ur10e_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(promotion, "ROOT", tmp_path)
+    monkeypatch.setattr(promotion, "load_contract", lambda: {})
+    monkeypatch.setattr(promotion, "control_fingerprint", lambda _contract: "c" * 64)
+    monkeypatch.setattr(promotion, "contract_sha256", lambda _contract: "d" * 64)
+    monkeypatch.setattr(
+        promotion,
+        "orchestration_fingerprint",
+        lambda _root: "o" * 64,
+    )
+    source = tmp_path / "source.json"
+    raw_output = tmp_path / "raw.json"
+    result_output = tmp_path / "result.json"
+    source.write_text(json.dumps(_promotion_raw()), encoding="utf-8")
+
+    promotion.promote(source, raw_output, result_output)
+    result = json.loads(result_output.read_text(encoding="utf-8"))
+    assert result["identity"]["orchestration_fingerprint"] == "o" * 64
+    assert result["image"]["robot_model_selection"]["bench_target"] == "UR10e"
+
+    stale = _promotion_raw()
+    stale["production_launcher"]["orchestration_fingerprint"] = "x" * 64
+    stale_source = tmp_path / "stale.json"
+    stale_source.write_text(json.dumps(stale), encoding="utf-8")
+    with pytest.raises(ValueError, match="orchestration_fingerprint is stale"):
+        promotion.promote(
+            stale_source,
+            tmp_path / "stale-raw.json",
+            tmp_path / "stale-result.json",
+        )

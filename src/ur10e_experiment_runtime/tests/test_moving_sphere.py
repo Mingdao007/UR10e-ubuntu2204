@@ -84,6 +84,28 @@ def test_missing_nonfinite_reference_stale_and_uncertified_fail_closed() -> None
     assert tick(kernel).reason is SphereReason.SPHERE_STOP_BOUND_UNCERTIFIED
 
 
+def test_certified_bound_outside_required_live_domain_fails_closed() -> None:
+    kernel = MovingSphereKernel(
+        reference_sha256=REF,
+        stopping_bound=certified(),
+        required_validity_domain="exact_live_domain",
+    )
+    result = tick(kernel, tcp_base=(0.0, 0.0, 0.0))
+    assert result.stop is True
+    assert result.reason is SphereReason.SPHERE_STOP_BOUND_DOMAIN_MISMATCH
+
+
+def test_certified_bound_must_cover_explicit_tp_watchdog_latency() -> None:
+    kernel = MovingSphereKernel(
+        reference_sha256=REF,
+        stopping_bound=certified(),
+        minimum_reaction_latency_s=0.020,
+    )
+    result = tick(kernel, tcp_base=(0.0, 0.0, 0.0))
+    assert result.stop is True
+    assert result.reason is SphereReason.SPHERE_STOP_BOUND_LATENCY_INSUFFICIENT
+
+
 def test_only_enumerated_inactive_phase_bypasses_sphere() -> None:
     kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified())
     inactive = ControllerProgress(phase=ControllerProgressPhase.INACTIVE)

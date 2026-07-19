@@ -27,6 +27,8 @@ class SphereReason(IntEnum):
     SPHERE_STOP_BOUND_UNCERTIFIED = 8
     SPHERE_OK = 9
     SPHERE_PROGRESS_NONSEQUENTIAL = 10
+    SPHERE_STOP_BOUND_DOMAIN_MISMATCH = 11
+    SPHERE_STOP_BOUND_LATENCY_INSUFFICIENT = 12
 
 
 @dataclass(frozen=True)
@@ -101,6 +103,8 @@ class MovingSphereKernel:
     __slots__ = (
         "reference_sha256",
         "stopping_bound",
+        "required_validity_domain",
+        "minimum_reaction_latency_s",
         "result",
         "last_controller_tick_seq",
         "last_controller_timestamp_ns",
@@ -111,15 +115,36 @@ class MovingSphereKernel:
         *,
         reference_sha256: str,
         stopping_bound: StoppingBoundArtifact | None,
+        required_validity_domain: str | None = None,
+        minimum_reaction_latency_s: float = 0.0,
         result: SphereTickResult | None = None,
     ) -> None:
         if len(reference_sha256) != 64 or any(c not in "0123456789abcdef" for c in reference_sha256):
             raise ValueError("reference_sha256 must be a lowercase SHA256")
         self.reference_sha256 = reference_sha256
         self.stopping_bound = stopping_bound
+        if required_validity_domain is not None and not required_validity_domain:
+            raise ValueError("required_validity_domain must be non-empty when set")
+        if (
+            not math.isfinite(minimum_reaction_latency_s)
+            or minimum_reaction_latency_s < 0.0
+        ):
+            raise ValueError("minimum_reaction_latency_s must be finite and non-negative")
+        self.required_validity_domain = required_validity_domain
+        self.minimum_reaction_latency_s = minimum_reaction_latency_s
         self.result = result if result is not None else SphereTickResult()
         self.last_controller_tick_seq = 0
         self.last_controller_timestamp_ns = 0
+
+    def reset(self) -> None:
+        """Forget controller-stream continuity at an explicit trial boundary."""
+
+        self.last_controller_tick_seq = 0
+        self.last_controller_timestamp_ns = 0
+        self.result.stop = True
+        self.result.reason = SphereReason.SPHERE_INPUT_MISSING
+        self.result.actual_distance_m = math.nan
+        self.result.predicted_radial_bound_m = math.nan
 
     def tick(
         self,
@@ -191,6 +216,15 @@ class MovingSphereKernel:
         bound = self.stopping_bound
         if bound is None or not bound.certified:
             out.reason = SphereReason.SPHERE_STOP_BOUND_UNCERTIFIED
+            return out
+        if (
+            self.required_validity_domain is not None
+            and bound.validity_domain != self.required_validity_domain
+        ):
+            out.reason = SphereReason.SPHERE_STOP_BOUND_DOMAIN_MISMATCH
+            return out
+        if bound.reaction_latency_s < self.minimum_reaction_latency_s:
+            out.reason = SphereReason.SPHERE_STOP_BOUND_LATENCY_INSUFFICIENT
             return out
         dx = tcp_x - progress.center_x_m
         dy = tcp_y - progress.center_y_m
