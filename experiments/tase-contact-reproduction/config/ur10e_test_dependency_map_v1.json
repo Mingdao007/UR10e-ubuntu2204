@@ -8,6 +8,7 @@
   ],
   "cache_external_fixture_globs": [
     "config/**/*.json",
+    "config/failure_to_guard/*.jsonl",
     "tools/ur10e_artifact_store.py",
     "tools/step5d_workflow_state.py",
     "tests/fixtures/**/*",
@@ -116,6 +117,10 @@
       "tests": ["tests/test_publish_step5d_autotune_plot.py"]
     },
     {
+      "paths": ["src/ur10e_experiment_runtime/**", "config/failure_to_guard/**", "tests/fixtures/failure_to_guard_*.json"],
+      "tests": ["../../src/ur10e_experiment_runtime/tests/test_ur_experiment_runtime_core.py", "tests/test_failure_to_guard.py", "tests/test_rollout_extractor.py"]
+    },
+    {
       "paths": ["check.sh", "pytest.ini", "tests/conftest.py", "tools/run_ur10e_impacted_tests.py", "tools/ur10e_impact_selector.py", "config/ur10e_test_dependency_map_v1.json"],
       "tests": ["tests/test_project_check_entrypoint.py", "tests/test_ur10e_impact_selector.py"]
     },
@@ -148,7 +153,10 @@
     "shared_fixture": [
       "tests/test_cross_step_parameter_table.py",
       "tests/test_project_check_entrypoint.py"
-    ]
+    ],
+    "live_writer": [],
+    "visible_gazebo": [],
+    "formal_timing": []
   },
   "validators": [
     "tools/validate_tase_protocol_table.py",

@@ -14,7 +14,14 @@ from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MAP = ROOT / "config/ur10e_test_dependency_map_v1.json"
-FAIL_CLOSED_PREFIXES = ("tools/", "scripts/", "config/", "programs/", "tests/")
+FAIL_CLOSED_PREFIXES = (
+    "tools/",
+    "scripts/",
+    "config/",
+    "programs/",
+    "tests/",
+    "src/ur10e_experiment_runtime/",
+)
 FAIL_CLOSED_ROOT_FILES = {"check.sh", "pytest.ini", "requirements-test.txt"}
 
 
@@ -94,9 +101,21 @@ def _test_file(node: str) -> str:
     return node.split("::", 1)[0]
 
 
+def _dependency_path(root: Path, path: str, *, repository_root: Path | None) -> Path:
+    """Resolve validation-root and repository-root dependency paths safely."""
+
+    local = root / path
+    if local.is_file() or repository_root is None:
+        return local
+    repository_relative = repository_root / path
+    return repository_relative if repository_relative.is_file() else local
+
+
 def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
            full_suite: bool = False, comparison: dict[str, str] | None = None) -> dict[str, Any]:
     mapping = json.loads(dependency_map.read_text(encoding="utf-8"))
+    repository_lines = _git_lines(root, ["rev-parse", "--show-toplevel"], check=False)
+    repository_root = Path(repository_lines[0]).resolve() if repository_lines else None
     tests = set(mapping["always_run"])
     all_tests = sorted(
         path.relative_to(root).as_posix() for path in (root / "tests").glob("test_*.py")
@@ -138,10 +157,14 @@ def select(*, root: Path, paths: list[str], dependency_map: Path = DEFAULT_MAP,
     dependency_files = sorted(
         set([_test_file(test) for test in selected] + mapping["validators"] + paths)
     )
-    file_hashes = {
-        path: sha(root / path)
+    resolved_dependencies = {
+        path: _dependency_path(root, path, repository_root=repository_root)
         for path in dependency_files
-        if (root / path).is_file()
+    }
+    file_hashes = {
+        path: sha(resolved)
+        for path, resolved in resolved_dependencies.items()
+        if resolved.is_file()
     }
     fingerprint_payload = {
         "dependency_map_sha256": sha(dependency_map),

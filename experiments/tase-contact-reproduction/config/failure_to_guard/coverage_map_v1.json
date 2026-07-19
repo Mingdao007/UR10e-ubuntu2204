@@ -1,0 +1,130 @@
+{
+  "schema": "failure_to_guard.coverage_map/v1",
+  "coverage_map_id": "ur10e_failure_to_guard_coverage_v1",
+  "invariants": [
+    {
+      "invariant_id": "f2g.optimizer_eligibility",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "planned", "evidence": []},
+        "gazebo_ursim": {"required": false, "status": "not_required_for_pure_gate", "evidence": []},
+        "hil": {"required": true, "status": "historical_incident", "evidence": ["tests/fixtures/failure_to_guard_hil_bridge_startup_incident_v1.json"]},
+        "live": {"required": true, "status": "not_run_requires_operator_authorization", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.parameter_semantics",
+      "lanes": {
+        "small": {"required": true, "status": "planned", "evidence": []},
+        "medium": {"required": true, "status": "planned", "evidence": []},
+        "gazebo_ursim": {"required": true, "status": "planned", "evidence": []},
+        "hil": {"required": true, "status": "not_run_requires_serial_no_motion_gate", "evidence": []},
+        "live": {"required": true, "status": "not_run_requires_operator_authorization", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.bridge_startup_artifact_closure",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "existing_installed_runtime_lane", "evidence": ["tests/test_step5d_autotune_v3_installed_runtime.py"]},
+        "gazebo_ursim": {"required": false, "status": "cannot_faithfully_prove_controller_artifact_closure", "evidence": []},
+        "hil": {"required": true, "status": "historical_failure_not_a_pass", "evidence": ["tests/fixtures/failure_to_guard_hil_bridge_startup_incident_v1.json"]},
+        "live": {"required": false, "status": "not_required_before_hold_ready", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.failure_recurrence",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "planned_debt_worktree_orchestrator", "evidence": []},
+        "gazebo_ursim": {"required": false, "status": "not_required_for_pure_trigger", "evidence": []},
+        "hil": {"required": false, "status": "incident_is_input_not_test_execution", "evidence": ["tests/fixtures/failure_to_guard_hil_bridge_startup_incident_v1.json"]},
+        "live": {"required": false, "status": "incident_is_input_not_test_execution", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.rollout_sanitization",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_rollout_extractor.py"]},
+        "medium": {"required": false, "status": "not_required", "evidence": []},
+        "gazebo_ursim": {"required": false, "status": "not_required", "evidence": []},
+        "hil": {"required": false, "status": "not_required", "evidence": []},
+        "live": {"required": false, "status": "not_required", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.step5d_physical_prior_binding",
+      "lanes": {
+        "small": {"required": true, "status": "fixture_registered", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json"]},
+        "medium": {"required": true, "status": "planned_m4", "evidence": []},
+        "replay": {"required": true, "status": "planned_m4", "evidence": []},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []},
+        "live": {"required": true, "status": "not_run_requires_authorization", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.step5d_trial_reset_no_relatch",
+      "lanes": {
+        "small": {"required": true, "status": "fixture_registered", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json"]},
+        "medium": {"required": true, "status": "planned_m4", "evidence": []},
+        "replay": {"required": true, "status": "planned_m4", "evidence": []},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []},
+        "live": {"required": true, "status": "not_run_requires_authorization", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.actual_overlay_identity",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "planned_m4", "evidence": []},
+        "replay": {"required": true, "status": "planned_m4", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.exact_batch_completion",
+      "lanes": {
+        "small": {"required": true, "status": "fixture_registered", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json"]},
+        "medium": {"required": true, "status": "planned_m3", "evidence": []},
+        "replay": {"required": true, "status": "planned_m3", "evidence": []},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.metric_role_optimizer_gate",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "planned_m4", "evidence": []},
+        "replay": {"required": true, "status": "planned_m4", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.typed_return_reference",
+      "lanes": {
+        "small": {"required": true, "status": "fixture_registered", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json"]},
+        "medium": {"required": true, "status": "planned_m4", "evidence": []},
+        "simulation": {"required": true, "status": "planned_m5", "evidence": []},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.trajectory_reference_binding",
+      "lanes": {
+        "small": {"required": true, "status": "fixture_registered", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json"]},
+        "medium": {"required": true, "status": "planned_m4", "evidence": []},
+        "replay": {"required": true, "status": "planned_m4", "evidence": []},
+        "timing": {"required": true, "status": "planned_m5", "evidence": []},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.moving_sphere_exclusive_guard",
+      "lanes": {
+        "small": {"required": true, "status": "fixture_registered", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json"]},
+        "medium": {"required": true, "status": "planned_m4", "evidence": []},
+        "replay": {"required": true, "status": "planned_m4", "evidence": []},
+        "timing": {"required": true, "status": "planned_m5", "evidence": []},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
+      }
+    }
+  ]
+}

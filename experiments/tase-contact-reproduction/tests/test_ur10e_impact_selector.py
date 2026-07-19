@@ -35,6 +35,29 @@ class Ur10eImpactSelectorTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unmapped code paths"):
             select(root=ROOT, paths=["tools/not-yet-mapped-control.py"])
 
+    def test_repository_level_runtime_source_is_selected_and_content_addressed(self) -> None:
+        path = "src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py"
+        result = select(root=ROOT, paths=[path])
+        self.assertIn(
+            "../../src/ur10e_experiment_runtime/tests/"
+            "test_ur_experiment_runtime_core.py",
+            result["selected_tests"],
+        )
+        self.assertIn("tests/test_failure_to_guard.py", result["selected_tests"])
+        self.assertIn("tests/test_rollout_extractor.py", result["selected_tests"])
+        self.assertIn(path, result["dependency_hashes"])
+        self.assertEqual(result["unmapped_changed_paths"], [])
+
+    def test_new_global_runtime_resource_contracts_are_declared(self) -> None:
+        mapping = json.loads(
+            (ROOT / "config/ur10e_test_dependency_map_v1.json").read_text()
+        )
+        self.assertTrue(
+            {"live_writer", "visible_gazebo", "formal_timing"}.issubset(
+                mapping["resource_groups"]
+            )
+        )
+
     def test_control_and_outer_loop_sources_have_explicit_impact_rules(self) -> None:
         control = select(root=ROOT, paths=["tools/step5d_control_contract.py"])
         outer = select(root=ROOT, paths=["tools/step5d_paper_outer_loop.py"])
