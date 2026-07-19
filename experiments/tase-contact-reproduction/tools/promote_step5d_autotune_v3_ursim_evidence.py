@@ -25,6 +25,16 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _recorded_path(path: Path) -> str:
+    """Keep repo artifacts portable and external immutable evidence addressable."""
+
+    resolved = path.resolve()
+    try:
+        return resolved.relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(resolved)
+
+
 def promote(source: Path, raw_output: Path, result_output: Path) -> dict[str, Any]:
     encoded = source.read_bytes()
     raw = json.loads(encoded)
@@ -145,9 +155,9 @@ def promote(source: Path, raw_output: Path, result_output: Path) -> dict[str, An
         },
         "rollback": raw["rollback"],
         "raw_evidence": {
-            "path": raw_output.relative_to(ROOT).as_posix(),
+            "path": _recorded_path(raw_output),
             "sha256": raw_sha,
-            "original_run_path": source.resolve().relative_to(ROOT).as_posix(),
+            "original_run_path": _recorded_path(source),
             "byte_identical_copy_verified": _sha256(raw_output.read_bytes()) == raw_sha,
         },
         "decision": {

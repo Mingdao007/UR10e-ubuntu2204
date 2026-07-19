@@ -484,6 +484,8 @@ def test_promotion_binds_current_orchestration_and_observed_ur10e_model(
     result = json.loads(result_output.read_text(encoding="utf-8"))
     assert result["identity"]["orchestration_fingerprint"] == "o" * 64
     assert result["image"]["robot_model_selection"]["bench_target"] == "UR10e"
+    assert result["raw_evidence"]["path"] == "raw.json"
+    assert result["raw_evidence"]["original_run_path"] == "source.json"
 
     stale = _promotion_raw()
     stale["production_launcher"]["orchestration_fingerprint"] = "x" * 64
@@ -495,3 +497,30 @@ def test_promotion_binds_current_orchestration_and_observed_ur10e_model(
             tmp_path / "stale-raw.json",
             tmp_path / "stale-result.json",
         )
+
+
+def test_promotion_records_external_immutable_evidence_as_absolute_paths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_root = tmp_path / "repo"
+    evidence_root = tmp_path / "immutable-evidence"
+    repo_root.mkdir()
+    evidence_root.mkdir()
+    monkeypatch.setattr(promotion, "ROOT", repo_root)
+    monkeypatch.setattr(promotion, "load_contract", lambda: {})
+    monkeypatch.setattr(promotion, "control_fingerprint", lambda _contract: "c" * 64)
+    monkeypatch.setattr(promotion, "contract_sha256", lambda _contract: "d" * 64)
+    monkeypatch.setattr(
+        promotion,
+        "orchestration_fingerprint",
+        lambda _root: "o" * 64,
+    )
+    source = evidence_root / "source.json"
+    raw_output = evidence_root / "raw.json"
+    result_output = evidence_root / "result.json"
+    source.write_text(json.dumps(_promotion_raw()), encoding="utf-8")
+
+    promotion.promote(source, raw_output, result_output)
+    result = json.loads(result_output.read_text(encoding="utf-8"))
+    assert result["raw_evidence"]["path"] == str(raw_output.resolve())
+    assert result["raw_evidence"]["original_run_path"] == str(source.resolve())
