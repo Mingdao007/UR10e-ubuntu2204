@@ -5,9 +5,12 @@
 pre-live candidate. Its local TP triplet changed after the retained V3
 controller read-back, so the old read-back is historical diagnostic evidence,
 not current package acceptance. The public blocker is
-`requires_attended_tp_upload_readback`; a certified stopping bound and fresh
-live authorization are also required before any bridge, load/Play, contact, or
-motion action.
+`requires_current_source_formal_500hz_timing`. Before any V3 bridge start, the
+current-source formal timing gate, certified stopping bound, certified
+return-route angular envelope, attended exact TP upload/read-back, current
+Power-OFF controller identity, attended Sol/XHigh audit, and fresh live
+authorization must all close. Load/Play, contact, and motion remain separately
+forbidden by the offline tranche.
 
 The V3 physical prior binds reaction normal
 `[-0.043955267, 0.020079909, 0.998831683]`, approach axis
@@ -40,9 +43,12 @@ conservative predicted-stop distance against a `15 mm` radius using the
 authoritative frozen cycloid progress. Frozen progress freezes the center.
 Missing, nonfinite, mismatched, or uncertified stopping-bound inputs fail
 closed through the existing exact-stop transport. The legacy AABB is not
-simultaneously enforced. Current source-exact adapter+kernel+bridge timing
-passes 30,000 ticks under `SCHED_FIFO/20`, but the stopping bound itself is not
-certified, so V3 remains `pre_live_blocked`.
+simultaneously enforced. Two current-source, 30,000-tick seam diagnostics each
+had zero compute misses and zero sphere stops but one absolute host-schedule
+miss, so they remain `diagnostic_failed_host_schedule`. The exact production
+`SCHED_OTHER/0` formal harness also failed two current-source attempts because
+the full-tick P99/deadline robustness gate was not accepted. Neither result is
+promoted by retrying until lucky; V3 remains `pre_live_blocked`.
 
 v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,

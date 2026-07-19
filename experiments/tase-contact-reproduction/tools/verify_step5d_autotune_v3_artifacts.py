@@ -176,8 +176,9 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         ("program", V3_STAGE_ID),
         (
             "delta_class",
-            "identity_precontact_prior_exact_batch_lifecycle_return_v2",
+            "identity_precontact_prior_exact_batch_lifecycle_return_stage25_watchdog_v3",
         ),
+        ("stage25_stale_command_hold_s", 0.02),
         ("precontact_pose_prior_id", POSE_PRIOR_ID),
         ("precontact_xyz_m", EXPECTED_XYZ),
         ("precontact_rotvec_rad", EXPECTED_ROTVEC),

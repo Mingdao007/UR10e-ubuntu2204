@@ -10379,7 +10379,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is an offline pre-live candidate blocked on current-source paced timing, formal three-lane timing, a certified stopping bound, simulation availability, and attended TP upload/readback; v1 remains the current controller binding",
+      "block_reason": "V3 is an offline pre-live candidate blocked on current-source formal 500 Hz timing, a certified stopping bound, a certified return-route angular envelope, attended TP upload/readback, current Power-OFF identity, attended Sol/XHigh audit, and fresh authorization; v1 remains the current controller binding",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10412,7 +10412,7 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-        "live_readiness_state": "requires_attended_tp_upload_readback"
+        "live_readiness_state": "requires_current_source_formal_500hz_timing"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10433,13 +10433,13 @@
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
         "controller_readback_manifest_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
         "fresh_controller_sha_at": "2026-07-19T06:12:30+08:00",
-        "tp_fingerprint": "02f6a72c8c83b41fd5782e76a6ac470ea86dde58793108f18dcce503997b5855",
+        "tp_fingerprint": "bdbbe2378476b39cd92423f55f6f21f984ba1ed0462ad513dc6b5798f18f7cfe",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": false,
         "sha256": {
-          ".script": "7492cf4eff893049386e9a813959f4c1909f46483b20fd9ad12394b65a73a946",
-          ".txt": "8dca806076be51e4ca045f8fc810c7388dad628da6c25404d75978faad932e79",
-          ".urp": "5134519ba46ca828559093f89b71032a8480e8e61e3146a1ca7d10dff5ba9c74"
+          ".script": "4aad17709f091cdab95c0f5c2594884fba9456015d6c0db4dff8543cb8f67bbc",
+          ".txt": "8d8b331754ea3a50ac56bd23cbac3d1ea0b5da0dd07abc5b69a5895be6e0c6ac",
+          ".urp": "ef10ce676a95ebe57ff368aa5e7773bf1089c28afe5ac8fd0cf41a005c3f5e9b"
         }
       },
       "acceptance": {
@@ -10456,11 +10456,11 @@
         "status": "pass_offline_implementation_pre_live_blocked",
         "acceptance_scope": "offline_pre_live_only",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "bd23fcb84d8251398d0e422a41c80255ae773f635bba84efc4344cd2c4662843",
+        "report_sha256": "e65e38c5c4b071bc8def724a1f98f5a56e15d6285162d8b2b5824d1f69775071",
         "exact_ten_row_lifecycle": "pass",
         "diagnostic_bundle_replay": "pass",
-        "source_exact_sphere_seam_timing": "pass_source_exact_diagnostic",
-        "formal_500hz_timing": "pass_bounded_last_command_hold",
+        "source_exact_sphere_seam_timing": "diagnostic_failed_host_schedule",
+        "formal_500hz_timing": "blocked_current_production_fingerprint",
         "power_off_controller_audit": "pass_read_only_boundary",
         "simulation": "pass_ursim_hold_current_fingerprint",
         "hardware_promotion": "blocked"
@@ -10476,10 +10476,12 @@
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v2",
         "state": "pre_live_blocked",
-        "public_success_signal": "requires_attended_tp_upload_readback",
+        "public_success_signal": "requires_current_source_formal_500hz_timing",
         "next_owner": "ur10e-contact-control-prep",
         "blockers": [
+          "requires_current_source_formal_500hz_timing",
           "requires_certified_stopping_bound",
+          "requires_certified_return_route_angular_envelope",
           "requires_attended_tp_upload_readback",
           "requires_current_poweroff_controller_identity",
           "requires_attended_sol_xhigh_pre_live_audit",

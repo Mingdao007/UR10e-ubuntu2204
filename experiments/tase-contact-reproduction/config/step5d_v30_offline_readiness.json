@@ -30,7 +30,7 @@
     "path": "Step5dObservation -> SlewCompatibleReference -> StrictRnnControlPolicy -> ControlCandidate -> step5d_v30_contract_pipeline -> DLS shadow -> SafetyEnvelope -> RegisterCommand -> DeferredV30Diagnostics"
   },
   "current_pointer": {
-    "program": "step5d_strict_rnn_ablation_v29",
+    "program": "step5d_strict_rnn_autotune_v1",
     "v30_is_current": false
   },
   "deadline_overrun_policy": {
@@ -181,11 +181,11 @@
   "source_contract": {
     "aggregator_sha256": {
       "path": "tools/step5d_v30_timing.py",
-      "sha256": "da56886cc53f1ebb05438fecaaf1b98980f8e89bbbd5de43fe0dd0b1571b8d97"
+      "sha256": "6335fde3a1cea7278b4b7d6ccc3695b11a25c5810aa00ae90291dd73c25101e5"
     },
     "bridge_sha256": {
       "path": "tools/kunwei_rtde_bridge.py",
-      "sha256": "e0d447d22d8246a5f103c7b71158eb5efa55b4d3bfb9c1037aca849e258adbd5"
+      "sha256": "dad5b5b8e37dfddd22447738e7aeb5d61bf0348eee5f527f08a99132f8c204ed"
     },
     "bundler_sha256": {
       "path": "tools/build_step5d_v30_remote_timing_bundle.py",
@@ -197,11 +197,11 @@
     },
     "control_contract_sha256": {
       "path": "tools/step5d_control_contract.py",
-      "sha256": "c34b0ad788e319a24e12ea6a1304201d0312045beee9339e8affbb1a9d6d50ee"
+      "sha256": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2"
     },
     "harness_sha256": {
       "path": "tools/run_step5d_v30_remote_timing.py",
-      "sha256": "c83e7cafa7d8a9be6b687e21996d4f650e9bef63209b2f935bffec875ae72333"
+      "sha256": "1ec2439294a3af2494bdf2185216a6c15d621b31a83f500bf877aceb4d31c1f8"
     },
     "kinematics_sha256": {
       "path": "tools/step5c_calibrated_kinematics_audit.py",
@@ -217,7 +217,7 @@
     },
     "runtime_interface_sha256": {
       "path": "tools/step5d_runtime_interface.py",
-      "sha256": "b0856a338c5ba05d012ad1100aba8a72c10ec99595aceeebcc54ea475e17e8c4"
+      "sha256": "a36306325de4720fc53a6354878edc45c0598518e060df0926f98dc5c699bcd1"
     },
     "solver_sha256": {
       "path": "tools/step5c_strict_rnn.py",
@@ -298,7 +298,6 @@
             "remote_timing_solver_sha256_does_not_match_local_source",
             "remote_timing_solver_sha256_missing",
             "remote_timing_source_bundle_unbound",
-            "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
             "runtime_cuda_versions_unbound",
             "runtime_gpu_device_identity_unbound",
@@ -334,12 +333,14 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {},
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "cupy_dedicated_stream_not_proven",
               "cupy_host_staging_not_pinned",
@@ -392,7 +393,6 @@
               "remote_timing_solver_sha256_does_not_match_local_source",
               "remote_timing_solver_sha256_missing",
               "remote_timing_source_bundle_unbound",
-              "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
               "runtime_cuda_versions_unbound",
               "runtime_gpu_device_identity_unbound",
@@ -687,7 +687,6 @@
             "remote_timing_runtime_interface_sha256_missing",
             "remote_timing_schema_mismatch",
             "remote_timing_solver_sha256_does_not_match_local_source",
-            "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
             "runtime_cuda_versions_unbound",
             "runtime_gpu_device_identity_unbound",
@@ -723,12 +722,14 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {},
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",
@@ -774,7 +775,6 @@
               "remote_timing_runtime_interface_sha256_missing",
               "remote_timing_schema_mismatch",
               "remote_timing_solver_sha256_does_not_match_local_source",
-              "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
               "runtime_cuda_versions_unbound",
               "runtime_gpu_device_identity_unbound",
@@ -1070,7 +1070,6 @@
             "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "remote_timing_schema_mismatch",
             "remote_timing_solver_sha256_does_not_match_local_source",
-            "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
             "runtime_cuda_versions_unbound",
             "runtime_gpu_device_identity_unbound",
@@ -1106,12 +1105,14 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {},
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "cupy_dedicated_stream_not_proven",
               "cupy_host_staging_not_pinned",
@@ -1153,7 +1154,6 @@
               "remote_timing_runtime_interface_sha256_does_not_match_local_source",
               "remote_timing_schema_mismatch",
               "remote_timing_solver_sha256_does_not_match_local_source",
-              "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
               "runtime_cuda_versions_unbound",
               "runtime_gpu_device_identity_unbound",
@@ -1461,7 +1461,6 @@
             "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "remote_timing_schema_mismatch",
             "remote_timing_solver_sha256_does_not_match_local_source",
-            "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
             "runtime_cuda_versions_unbound",
             "runtime_gpu_device_identity_unbound",
@@ -1499,12 +1498,14 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {},
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "cupy_dedicated_stream_not_proven",
               "cupy_host_staging_not_pinned",
@@ -1547,7 +1548,6 @@
               "remote_timing_runtime_interface_sha256_does_not_match_local_source",
               "remote_timing_schema_mismatch",
               "remote_timing_solver_sha256_does_not_match_local_source",
-              "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
               "runtime_cuda_versions_unbound",
               "runtime_gpu_device_identity_unbound",
@@ -1860,7 +1860,6 @@
             "remote_timing_schema_mismatch",
             "remote_timing_solver_sha256_does_not_match_local_source",
             "remote_timing_source_bundle_unbound",
-            "remote_timing_stage_table_artifact_unbound",
             "remote_timing_ur_xacro_artifact_unbound",
             "runtime_cuda_versions_unbound",
             "runtime_gpu_device_identity_unbound",
@@ -1898,12 +1897,14 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {},
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "cupy_dedicated_stream_not_proven",
               "cupy_host_staging_not_pinned",
@@ -1956,7 +1957,6 @@
               "remote_timing_schema_mismatch",
               "remote_timing_solver_sha256_does_not_match_local_source",
               "remote_timing_source_bundle_unbound",
-              "remote_timing_stage_table_artifact_unbound",
               "remote_timing_ur_xacro_artifact_unbound",
               "runtime_cuda_versions_unbound",
               "runtime_gpu_device_identity_unbound",
@@ -2238,12 +2238,14 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {},
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",
@@ -2723,7 +2725,7 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -2767,7 +2769,9 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",
@@ -3132,12 +3136,14 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {},
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",
@@ -3503,12 +3509,14 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {},
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",
@@ -3835,6 +3843,7 @@
             "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "remote_timing_schema_mismatch",
             "safe_hold_deferred_diagnostics_incomplete",
             "safe_hold_insufficient_samples",
@@ -3853,7 +3862,7 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -3901,7 +3910,9 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",
@@ -3919,6 +3930,7 @@
               "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "remote_timing_runtime_interface_sha256_does_not_match_local_source",
               "remote_timing_schema_mismatch",
               "safe_hold_deferred_diagnostics_incomplete",
               "safe_hold_insufficient_samples",
@@ -4266,15 +4278,17 @@
           "blockers": [
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
-            "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source"
           ],
           "canonical_evaluator": "tools/step5d_timing_acceptance.py:evaluate_timing_raw",
           "deadline_robustness": {
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -4322,12 +4336,16 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
-              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "remote_timing_runtime_interface_sha256_does_not_match_local_source"
             ]
           },
           "elapsed_full_tick_wall_s": 59.99876062106341,
@@ -4684,6 +4702,7 @@
             "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "remote_timing_schema_mismatch",
             "runtime_sched_rt_bandwidth_unbound",
             "safe_hold_deferred_diagnostics_incomplete",
@@ -4703,7 +4722,7 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -4751,7 +4770,9 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",
@@ -4771,6 +4792,7 @@
               "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "remote_timing_runtime_interface_sha256_does_not_match_local_source",
               "remote_timing_schema_mismatch",
               "runtime_sched_rt_bandwidth_unbound",
               "safe_hold_deferred_diagnostics_incomplete",
@@ -5099,8 +5121,10 @@
             "full_tick_schedule_deadline_miss",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "safe_hold_deadline_miss",
             "safe_hold_max_reaches_2ms_deadline",
             "safe_hold_schedule_deadline_miss"
@@ -5110,7 +5134,7 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -5172,12 +5196,16 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
-              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "remote_timing_runtime_interface_sha256_does_not_match_local_source"
             ]
           },
           "elapsed_full_tick_wall_s": 59.99868035899999,
@@ -5518,8 +5546,10 @@
             "full_tick_schedule_deadline_miss",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "safe_hold_deadline_miss",
             "safe_hold_max_reaches_2ms_deadline",
             "safe_hold_schedule_deadline_miss"
@@ -5529,7 +5559,7 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -5633,12 +5663,16 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
-              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "remote_timing_runtime_interface_sha256_does_not_match_local_source"
             ]
           },
           "elapsed_full_tick_wall_s": 59.998721916999784,
@@ -5979,8 +6013,10 @@
             "full_tick_schedule_deadline_miss",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
             "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "runtime_timing_process_priority_degraded",
             "runtime_timing_thread_environment_unbound",
             "safe_hold_deadline_miss",
@@ -5992,7 +6028,7 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -6100,12 +6136,16 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
               "remote_timing_harness_sha256_does_not_match_local_source",
               "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "remote_timing_runtime_interface_sha256_does_not_match_local_source",
               "runtime_timing_process_priority_degraded",
               "runtime_timing_thread_environment_unbound"
             ]
@@ -6448,7 +6488,10 @@
             "full_tick_schedule_deadline_miss",
             "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "safe_hold_deadline_miss",
             "safe_hold_max_reaches_2ms_deadline",
             "safe_hold_schedule_deadline_miss"
@@ -6456,9 +6499,9 @@
           "canonical_evaluator": "tools/step5d_timing_acceptance.py:evaluate_timing_raw",
           "deadline_robustness": {
             "bounded_hold_timing_candidate": false,
-            "bounded_last_command_hold_contract_proven": true,
+            "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -6546,11 +6589,16 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
-              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
+              "remote_timing_harness_sha256_does_not_match_local_source",
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "remote_timing_runtime_interface_sha256_does_not_match_local_source"
             ]
           },
           "elapsed_full_tick_wall_s": 59.99885156500022,
@@ -6889,8 +6937,12 @@
             "full_tick_deadline_miss",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_schedule_deadline_miss",
+            "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_harness_sha256_does_not_match_local_source",
             "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source",
             "safe_hold_deadline_miss",
             "safe_hold_max_reaches_2ms_deadline",
             "safe_hold_schedule_deadline_miss"
@@ -6898,9 +6950,9 @@
           "canonical_evaluator": "tools/step5d_timing_acceptance.py:evaluate_timing_raw",
           "deadline_robustness": {
             "bounded_hold_timing_candidate": false,
-            "bounded_last_command_hold_contract_proven": true,
+            "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -6989,10 +7041,16 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
+              "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
-              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
+              "remote_timing_harness_sha256_does_not_match_local_source",
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "remote_timing_runtime_interface_sha256_does_not_match_local_source"
             ]
           },
           "elapsed_full_tick_wall_s": 59.99868308399891,
@@ -7331,15 +7389,19 @@
             "full_tick_deadline_miss",
             "full_tick_max_reaches_2ms_deadline",
             "full_tick_schedule_deadline_miss",
+            "remote_timing_aggregator_sha256_does_not_match_local_source",
             "remote_timing_bridge_sha256_does_not_match_local_source",
-            "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+            "remote_timing_control_contract_sha256_does_not_match_local_source",
+            "remote_timing_harness_sha256_does_not_match_local_source",
+            "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+            "remote_timing_runtime_interface_sha256_does_not_match_local_source"
           ],
           "canonical_evaluator": "tools/step5d_timing_acceptance.py:evaluate_timing_raw",
           "deadline_robustness": {
             "bounded_hold_timing_candidate": false,
-            "bounded_last_command_hold_contract_proven": true,
+            "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -7405,10 +7467,16 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": true,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
+              "remote_timing_aggregator_sha256_does_not_match_local_source",
               "remote_timing_bridge_sha256_does_not_match_local_source",
-              "remote_timing_readiness_builder_sha256_does_not_match_local_source"
+              "remote_timing_control_contract_sha256_does_not_match_local_source",
+              "remote_timing_harness_sha256_does_not_match_local_source",
+              "remote_timing_readiness_builder_sha256_does_not_match_local_source",
+              "remote_timing_runtime_interface_sha256_does_not_match_local_source"
             ]
           },
           "elapsed_full_tick_wall_s": 59.99877786400248,
@@ -7797,7 +7865,7 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -7844,7 +7912,9 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",
@@ -8248,7 +8318,7 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -8288,7 +8358,9 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",
@@ -8691,7 +8763,7 @@
             "bounded_hold_timing_candidate": false,
             "bounded_last_command_hold_contract_proven": false,
             "bounded_last_command_hold_pass": false,
-            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics, and a hard 500 Hz hard-realtime claim still requires zero full-tick deadline misses; bounded acceptance permits at most 1% held ticks and at most 10 consecutive held ticks",
+            "claim_boundary": "the 2 ms solver gate applies to 10,000 steady samples; all 99 post-yield reentries remain explicit diagnostics. FIFO/20 may support the legacy hard-realtime or bounded-hold claim; the V3 SCHED_OTHER/0 contract requires zero observed misses and an equal-or-more-conservative nonnegative nice value; it does not claim hard-realtime scheduling",
             "compute_miss_budget": 300,
             "deadline_miss_diagnostics": {
               "full_tick_compute": {
@@ -8731,7 +8803,9 @@
             },
             "hard_realtime_pass": false,
             "miss_index_diagnostics_valid": false,
+            "production_scheduler_zero_miss_pass": false,
             "safe_hold_miss_budget": 300,
+            "scheduler_contract": "sched_fifo_20",
             "unrelated_blockers": [
               "first_post_warm_exceeds_1p75_ms",
               "first_post_warm_summary_binding_mismatch",

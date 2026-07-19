@@ -55,13 +55,18 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
     assert report["state"] == "pre_live_blocked"
-    assert report["public_success_signal"] == "requires_attended_tp_upload_readback"
+    assert report["public_success_signal"] == (
+        "requires_current_source_formal_500hz_timing"
+    )
     assert report["package_delivery"] == "requires_attended_tp_upload_readback"
     assert report["ready_to_execute"] is False
     assert report["current_stage_id"] == readiness.V1_STAGE_ID
     assert report["next_owner"] == "ur10e-contact-control-prep"
-    assert report["timing_diagnostic"] == "accepted_bounded_last_command_hold"
+    assert report["timing_diagnostic"] == (
+        "blocked_current_source_full_tick_deadline_robustness"
+    )
     assert report["canonical_gate"] == [
+        "current_source_formal_500hz_timing",
         "certified_stopping_bound",
         "certified_return_route_angular_envelope",
         "attended_tp_upload_readback",
@@ -77,7 +82,8 @@ def test_repository_live_signal_is_the_only_readiness_state() -> None:
     with pytest.raises(
         readiness.ReadinessError,
         match=(
-            "requires_certified_stopping_bound_"
+            "requires_current_source_formal_500hz_timing_"
+            "certified_stopping_bound_"
             "certified_return_route_angular_envelope"
         ),
     ):
@@ -133,8 +139,8 @@ def test_sphere_seam_cannot_substitute_for_formal_three_lane_timing(
         fixture / "config/step5/step5d_autotune_v3_offline_validation.json"
     )
     validation = json.loads(validation_path.read_text(encoding="utf-8"))
-    validation["gates"]["formal_500hz_timing"]["status"] = "blocked_not_run"
-    validation["gates"]["formal_500hz_timing"]["release_gate_satisfied"] = False
+    validation["gates"]["formal_500hz_timing"]["status"] = "pass"
+    validation["gates"]["formal_500hz_timing"]["release_gate_satisfied"] = True
     validation_path.write_text(json.dumps(validation), encoding="utf-8")
 
     with pytest.raises(readiness.ReadinessError, match="formal timing status"):
@@ -150,8 +156,8 @@ def test_failed_current_source_paced_seam_cannot_be_mislabeled_pass(
     )
     validation = json.loads(validation_path.read_text(encoding="utf-8"))
     seam = validation["gates"]["source_exact_sphere_seam_timing"]
-    seam["status"] = "diagnostic_failed_host_schedule"
-    seam["absolute_deadline_miss_count"] = 1
+    seam["status"] = "pass_source_exact_diagnostic"
+    seam["absolute_deadline_miss_count"] = 0
     validation_path.write_text(json.dumps(validation), encoding="utf-8")
 
     with pytest.raises(readiness.ReadinessError, match="sphere seam timing"):
