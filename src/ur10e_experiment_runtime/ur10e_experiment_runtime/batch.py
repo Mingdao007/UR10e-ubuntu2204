@@ -179,14 +179,32 @@ class BatchRow:
 
 @dataclass(frozen=True)
 class BatchIdentity:
+    campaign_uid: str
     experiment_fingerprint: str
     launch_fingerprint: str
+    adapter_fingerprint: str
+    physical_prior_fingerprint: str
+    safety_envelope_fingerprint: str
+    return_policy_fingerprint: str
+    controller_readback_fingerprint: str
+    authorization_ref_sha256: str
     plant_epoch: int
     rows: tuple[BatchRow, ...]
 
     def __post_init__(self) -> None:
+        if not isinstance(self.campaign_uid, str) or not self.campaign_uid.strip():
+            raise SpecValidationError("campaign_uid must be a non-empty string")
         _sha256("experiment_fingerprint", self.experiment_fingerprint)
         _sha256("launch_fingerprint", self.launch_fingerprint)
+        for name in (
+            "adapter_fingerprint",
+            "physical_prior_fingerprint",
+            "safety_envelope_fingerprint",
+            "return_policy_fingerprint",
+            "controller_readback_fingerprint",
+            "authorization_ref_sha256",
+        ):
+            _sha256(name, getattr(self, name))
         if (
             isinstance(self.plant_epoch, bool)
             or not isinstance(self.plant_epoch, int)
@@ -209,9 +227,16 @@ class BatchIdentity:
 
     def identity_document(self) -> dict[str, Any]:
         return {
-            "schema": "ur10e.batch_identity/v1",
+            "schema": "ur10e.batch_identity/v2",
+            "campaign_uid": self.campaign_uid,
             "experiment_fingerprint": self.experiment_fingerprint,
             "launch_fingerprint": self.launch_fingerprint,
+            "adapter_fingerprint": self.adapter_fingerprint,
+            "physical_prior_fingerprint": self.physical_prior_fingerprint,
+            "safety_envelope_fingerprint": self.safety_envelope_fingerprint,
+            "return_policy_fingerprint": self.return_policy_fingerprint,
+            "controller_readback_fingerprint": self.controller_readback_fingerprint,
+            "authorization_ref_sha256": self.authorization_ref_sha256,
             "plant_epoch": self.plant_epoch,
             "rows": [row.to_dict() for row in self.rows],
         }
@@ -223,14 +248,21 @@ class BatchIdentity:
     def from_document(cls, document: Mapping[str, Any]) -> "BatchIdentity":
         if not isinstance(document, Mapping) or set(document) != {
             "schema",
+            "campaign_uid",
             "experiment_fingerprint",
             "launch_fingerprint",
+            "adapter_fingerprint",
+            "physical_prior_fingerprint",
+            "safety_envelope_fingerprint",
+            "return_policy_fingerprint",
+            "controller_readback_fingerprint",
+            "authorization_ref_sha256",
             "plant_epoch",
             "rows",
             "batch_uid",
         }:
             raise SpecValidationError("BatchIdentity document fields differ")
-        if document["schema"] != "ur10e.batch_identity/v1":
+        if document["schema"] != "ur10e.batch_identity/v2":
             raise SpecValidationError("BatchIdentity schema differs")
         raw_rows = document["rows"]
         if not isinstance(raw_rows, list):
@@ -253,8 +285,17 @@ class BatchIdentity:
                 raise SpecValidationError("BatchIdentity row UID differs")
             rows.append(row)
         identity = cls(
+            campaign_uid=document["campaign_uid"],
             experiment_fingerprint=document["experiment_fingerprint"],
             launch_fingerprint=document["launch_fingerprint"],
+            adapter_fingerprint=document["adapter_fingerprint"],
+            physical_prior_fingerprint=document["physical_prior_fingerprint"],
+            safety_envelope_fingerprint=document["safety_envelope_fingerprint"],
+            return_policy_fingerprint=document["return_policy_fingerprint"],
+            controller_readback_fingerprint=document[
+                "controller_readback_fingerprint"
+            ],
+            authorization_ref_sha256=document["authorization_ref_sha256"],
             plant_epoch=document["plant_epoch"],
             rows=tuple(rows),
         )
@@ -580,6 +621,10 @@ class BatchJournal:
                     raise OutputPathError("batch journal skipped an incomplete prior row")
                 if state["closure_receipt"] is not None:
                     raise OutputPathError("batch journal reattempted a completed row")
+                if state["bundle"] is not None or state["ack_receipt"] is not None:
+                    raise OutputPathError(
+                        "batch journal reattempted a durable post-execution row"
+                    )
                 state.update(
                     trial_uid=trial_uid,
                     bundle=None,
@@ -735,6 +780,14 @@ class BatchJournal:
             if current.next_row_index != row_index:
                 raise SpecValidationError(
                     "attempt must target the exact next incomplete row"
+                )
+            row = current.rows[row_index - 1]
+            if (
+                row.immutable_bundle_sha256 is not None
+                or row.ack_receipt_sha256 is not None
+            ):
+                raise SpecValidationError(
+                    "durable post-execution row requires reconciliation, not re-ARM"
                 )
 
         self._append(

@@ -102,7 +102,7 @@ class MovingSphereKernel:
         "reference_sha256",
         "stopping_bound",
         "result",
-        "last_sample_sequence",
+        "last_controller_tick_seq",
         "last_controller_timestamp_ns",
     )
 
@@ -118,7 +118,7 @@ class MovingSphereKernel:
         self.reference_sha256 = reference_sha256
         self.stopping_bound = stopping_bound
         self.result = result if result is not None else SphereTickResult()
-        self.last_sample_sequence = 0
+        self.last_controller_tick_seq = 0
         self.last_controller_timestamp_ns = 0
 
     def tick(
@@ -159,12 +159,17 @@ class MovingSphereKernel:
             return out
         if (
             not progress.monotonic
-            or progress.sample_sequence <= self.last_sample_sequence
+            or progress.controller_tick_seq <= 0
+            or (
+                self.last_controller_tick_seq != 0
+                and progress.controller_tick_seq
+                != self.last_controller_tick_seq + 1
+            )
             or progress.controller_timestamp_ns <= self.last_controller_timestamp_ns
         ):
             out.reason = SphereReason.SPHERE_PROGRESS_NONSEQUENTIAL
             return out
-        self.last_sample_sequence = progress.sample_sequence
+        self.last_controller_tick_seq = progress.controller_tick_seq
         self.last_controller_timestamp_ns = progress.controller_timestamp_ns
         tcp_x = float(tcp_base[0])
         tcp_y = float(tcp_base[1])

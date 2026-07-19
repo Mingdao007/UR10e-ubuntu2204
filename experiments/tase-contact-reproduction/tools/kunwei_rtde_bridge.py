@@ -7933,14 +7933,17 @@ def apply_step5d_moving_sphere_guard(
     try:
         controller_progress_s = float(latest_output["output_double_register_31"])
         controller_timestamp_s = float(latest_output["timestamp"])
+        controller_tick_seq = int(round(controller_timestamp_s * 500.0))
         progress_age_ns = int(args.step5d_moving_sphere_progress_age_ns)
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError, OverflowError):
         controller_progress_s = math.nan
         controller_timestamp_s = math.nan
+        controller_tick_seq = None
         progress_age_ns = None
     controller_progress = args.step5d_controller_progress_adapter.sample(
         stage=robot_stage,
         controller_progress_s=controller_progress_s,
+        controller_tick_seq=controller_tick_seq,
         controller_timestamp_s=controller_timestamp_s,
         age_ns=progress_age_ns,
         tcp_z_m=float(pose[2]),

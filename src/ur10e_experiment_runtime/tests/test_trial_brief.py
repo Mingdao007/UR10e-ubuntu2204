@@ -39,7 +39,19 @@ def identity() -> BatchIdentity:
             "step5d_preload_timeout_s": 60.0,
         }
         rows.append(BatchRow(index, candidate, overlay))
-    return BatchIdentity("a" * 64, "b" * 64, 1, tuple(rows))
+    return BatchIdentity(
+        campaign_uid="campaign-uid",
+        experiment_fingerprint="a" * 64,
+        launch_fingerprint="b" * 64,
+        adapter_fingerprint="c" * 64,
+        physical_prior_fingerprint="d" * 64,
+        safety_envelope_fingerprint="e" * 64,
+        return_policy_fingerprint="f" * 64,
+        controller_readback_fingerprint="1" * 64,
+        authorization_ref_sha256="2" * 64,
+        plant_epoch=1,
+        rows=tuple(rows),
+    )
 
 
 def receipts(batch: BatchIdentity, row_index: int = 1):

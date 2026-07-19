@@ -69,7 +69,12 @@ from step5d_autotune_batch_plan import (
     assert_append_only,
     load_plan,
 )
-from step5d_autotune_contract import CampaignSpec, ExecutionProfile, ForceCandidate
+from step5d_autotune_contract import (
+    CampaignSpec,
+    ExecutionProfile,
+    ForceCandidate,
+    sha256_json,
+)
 from step5d_autotune_coordinator import CampaignCoordinator, MailboxObservation
 from step5d_autotune_journal import (
     JournalIntegrityError,
@@ -503,6 +508,7 @@ def _campaign_authorization(
     return CampaignAuthorization(
         campaign_id=campaign.campaign_id,
         campaign_fingerprint=campaign_fingerprint,
+        authorization_ref_sha256=sha256_json(payload),
         bounded_baseline_and_loop=True,
         live_authorized=True,
         controller_readback_verified=True,
@@ -551,6 +557,7 @@ def _campaign_binding(
     return CampaignAuthorization(
         campaign_id=campaign.campaign_id,
         campaign_fingerprint=campaign_fingerprint,
+        authorization_ref_sha256=sha256_json(payload),
         bounded_baseline_and_loop=True,
         live_authorized=True,
         controller_readback_verified=True,
@@ -1405,8 +1412,16 @@ def run(args: argparse.Namespace) -> int:
                     selected_candidate=forced_candidate,
                     profile=supervisor.execution_profile,
                     overlay_resolver=overlay_for,
+                    campaign_uid=campaign.campaign_id,
                     experiment_fingerprint=frozen.composite_fingerprint,
                     launch_fingerprint=launch_profile.fingerprint,
+                    controller_readback_fingerprint=(
+                        frozen.controller_readback_manifest_sha256
+                    ),
+                    authorization_ref_sha256=(
+                        authorization.authorization_ref_sha256
+                    ),
+                    stopping_bound_fingerprint=None,
                     plant_epoch=supervisor.plant_epoch,
                     campaign_root=epoch_root,
                     campaign_home_pose=home.home_pose,

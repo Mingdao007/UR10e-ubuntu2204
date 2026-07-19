@@ -1,31 +1,34 @@
 {
   "schema": "step5d.autotune-v3/offline-acceptance-v3",
-  "observed_at": "2026-07-19T12:17:08+08:00",
+  "observed_at": "2026-07-19T13:27:52+08:00",
   "identity": {
-    "contract_sha256": "168648e776fadeb58b74bf5c9c232a70012098a83484aeb4c097f0eed0895c46",
-    "control_fingerprint": "ea2d844ef5790d90525bdd0290f438f5969c4b87ba37e99a6ca1f25920e1661f",
-    "orchestration_fingerprint": "ca43eac3f5a85056269d1c46ceab04a58c678871744fcb8717431cd3fe6f045a"
+    "contract_sha256": "e86d2089f8ec47d89b2cc2fb507866e777ef6dc77223aaea5dbc31b14877875d",
+    "control_fingerprint": "4b73047e22494b76737a9d66334de582224070a016fde1046afd20ea33c683bf",
+    "orchestration_fingerprint": "ab065a459fdef1cfb977a58e5f0f3bd3d157dfc212b6dcce79083ec0ae881a8e"
   },
   "gates": {
     "repository_validation": {
       "status": "pass",
-      "small_tests_passed": 254,
+      "small_tests_passed": 256,
       "small_subtests_passed": 2,
       "medium_tests_passed": 109,
       "medium_subtests_passed": 5,
       "installed_runtime_tests_passed": 3,
       "fault_recovery_tests_passed": 104,
       "fault_recovery_subtests_passed": 12,
-      "shared_runtime_tests_passed": 55,
+      "shared_runtime_tests_passed": 58,
       "shared_runtime_subtests_passed": 12,
-      "acceptance_replay_tests_passed": 4
+      "acceptance_replay_tests_passed": 4,
+      "changed_surface_regression_tests_passed": 228,
+      "test_matrix_manifest_sha256": "c96d77f0795ef8e39964fc8166d3adbd6ef51c3f972b97e1fec9758897a1bdaa"
     },
     "control_semantics": {
       "status": "pass",
       "textbook_alignment": "pass",
+      "textbook_alignment_evidence_sha256": "7a285c071693368db8105bbfaf31e16f201acefb5fd6683ab1663a4ca3eec734",
       "replay_rows": 124,
       "strict_rnn_eq23_sign_gate": "pass",
-      "semantic_gate_summary_sha256": "0c68b208442747e9396b446a251682710399fb85825ab3cdf78fd27838604eef"
+      "semantic_gate_summary_sha256": "90ec07c303551675b5510000a0845453df0bf8e5d222a7995ac994316087241e"
     },
     "exact_batch_lifecycle": {
       "status": "pass",
@@ -41,24 +44,39 @@
       "bundle_count": 10,
       "source_trials": [13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
       "audit_identity_sha256": "e8e526747e4517e9c7f1b1f790399767d100f6d05e798cb3bc463a3083cde455",
+      "evidence_sha256": "0c5857d4b1d7b45321f8c9bb68d19315892f86603ef69c99909c1365b02ef055",
       "actual_sphere_breach_count": 0,
       "predicted_stop_replay": "unavailable_uncertified_stopping_bound",
       "trial21_force_metric_role": "unavailable",
       "optimizer_eligible_count": 0,
       "parameter_impact": "retune_required"
     },
-    "source_exact_timing": {
-      "status": "pass",
+    "source_exact_sphere_seam_timing": {
+      "status": "diagnostic_failed_host_schedule",
+      "claim_class": "diagnostic_only_not_release_gate",
       "scheduler_policy": "SCHED_FIFO",
       "scheduler_priority": 20,
       "cpu_affinity": [2],
       "samples": 30000,
-      "compute_p99_ms": 0.05877,
-      "compute_max_ms": 0.09613,
+      "attempt_count": 2,
+      "compute_p99_ms": 0.067446,
+      "compute_max_ms": 0.098793,
       "compute_deadline_miss_count": 0,
-      "absolute_deadline_miss_count": 0,
-      "evidence_sha256": "f78b0110264601f218b45006eaa3e15fa2a398df72330aab405a893348f4b86a",
-      "claim_boundary": "source-exact adapter+kernel+bridge seam only; offline fixture stopping bound, not a full control loop or stopping-bound certification"
+      "absolute_deadline_miss_count": 2,
+      "absolute_deadline_miss_count_per_attempt": [1, 1],
+      "evidence_sha256": "18b38173c3ac7b52b93fcc3fab0317c8df26f8d55e1d259d0233161c2c473b1e",
+      "blocker": "requires_current_source_paced_seam_without_absolute_deadline_miss",
+      "claim_boundary": "kernel seam compute showed no compute deadline miss, but paced diagnostic acceptance failed; no formal timing, certified stopping-bound, controller, bridge, or motion claim"
+    },
+    "formal_500hz_timing": {
+      "status": "blocked_not_run",
+      "release_gate_satisfied": false,
+      "required_lanes": {
+        "solver": {"required_samples": 10000, "status": "not_run_current_fingerprint"},
+        "full_tick_with_sphere": {"required_samples": 30000, "status": "not_run_current_fingerprint"},
+        "safe_hold": {"required_samples": 30000, "status": "not_run_current_fingerprint"}
+      },
+      "blocker": "requires_source_exact_solver_full_tick_and_safe_hold_timing"
     },
     "simulation": {
       "status": "unavailable",

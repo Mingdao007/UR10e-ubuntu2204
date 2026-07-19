@@ -140,6 +140,7 @@ def _replay_csv(path: Path) -> dict[str, Any]:
             progress = adapter.sample(
                 stage=stage,
                 controller_progress_s=progress_s,
+                controller_tick_seq=int(round(timestamp_s * 500.0)),
                 controller_timestamp_s=timestamp_s,
                 age_ns=0,
                 tcp_z_m=tcp[2],

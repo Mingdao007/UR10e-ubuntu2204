@@ -14,6 +14,32 @@ from .physical_prior import PhysicalPriorArtifact
 SAFE_TRANSFER_Z_M = 0.033
 
 
+def return_policy_fingerprint(
+    *,
+    near_ready_pose: Sequence[float],
+    campaign_home_pose: Sequence[float],
+    prior: PhysicalPriorArtifact,
+) -> str:
+    near = _finite_vector("near_ready_pose", near_ready_pose, 6)
+    home = _finite_vector("campaign_home_pose", campaign_home_pose, 6)
+    return canonical_sha256(
+        {
+            "schema": "ur-exp/step5d-return-policy/v3",
+            "prior_fingerprint": prior.fingerprint,
+            "near_ready_pose": list(near),
+            "campaign_home_pose": list(home),
+            "selection": {"rows_1_to_9": "near_ready", "row_10": "campaign_home"},
+            "safe_transfer_z_m": SAFE_TRANSFER_Z_M,
+            "segments": [
+                {"name": "vertical_up", "a_m_s2": 0.060, "v_m_s": 0.040},
+                {"name": "constant_z_transfer", "a_m_s2": 0.135, "v_m_s": 0.090},
+                {"name": "vertical_down", "a_m_s2": 0.060, "v_m_s": 0.040},
+            ],
+            "wait_ack_after_typed_safe_closure": True,
+        }
+    )
+
+
 def _finite_vector(name: str, value: Sequence[float], length: int) -> tuple[float, ...]:
     if len(value) != length:
         raise ValueError(f"{name} must contain exactly {length} values")

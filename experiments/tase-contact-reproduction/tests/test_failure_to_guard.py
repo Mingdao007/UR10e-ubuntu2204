@@ -319,6 +319,32 @@ def test_registry_coverage_ledger_and_incident_provenance_are_closed() -> None:
     coverage_ids = {item["invariant_id"] for item in coverage["invariants"]}
     assert coverage_ids == registry_ids
     assert set(entries[0]["invariant_ids"]) <= registry_ids
+    implemented_m4_ids = {
+        "f2g.step5d_physical_prior_binding",
+        "f2g.step5d_trial_reset_no_relatch",
+        "f2g.actual_overlay_identity",
+        "f2g.exact_batch_completion",
+        "f2g.metric_role_optimizer_gate",
+        "f2g.typed_return_reference",
+        "f2g.trajectory_reference_binding",
+        "f2g.moving_sphere_exclusive_guard",
+    }
+    for row in coverage["invariants"]:
+        if row["invariant_id"] not in implemented_m4_ids:
+            continue
+        for lane in row["lanes"].values():
+            assert "planned_m4" not in lane["status"]
+            assert "planned_m5" not in lane["status"]
+    timing_statuses = {
+        row["lanes"]["timing"]["status"]
+        for row in coverage["invariants"]
+        if "timing" in row["lanes"]
+    }
+    assert timing_statuses == {
+        "diagnostic_seam_failed_host_schedule_formal_full_path_blocked"
+    }
+    for entry in entries:
+        assert "pending_m4" not in entry["guard_status"]
 
     contract = build_change_contract(
         [

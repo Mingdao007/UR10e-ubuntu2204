@@ -168,13 +168,64 @@ def _verify_validation(
     _require(replay.get("trial21_force_metric_role"), "unavailable", "trial21 metric role")
     _require(replay.get("optimizer_eligible_count"), 0, "diagnostic optimizer exclusion")
 
-    timing = gates.get("source_exact_timing") or {}
-    _require(timing.get("status"), "pass", "source-exact timing")
-    _require(timing.get("scheduler_policy"), "SCHED_FIFO", "timing scheduler")
-    _require(timing.get("scheduler_priority"), 20, "timing priority")
-    _require(timing.get("samples"), 30_000, "timing samples")
-    _require(timing.get("compute_deadline_miss_count"), 0, "timing compute misses")
-    _require(timing.get("absolute_deadline_miss_count"), 0, "timing absolute misses")
+    seam_timing = gates.get("source_exact_sphere_seam_timing") or {}
+    _require(
+        seam_timing.get("status"),
+        "diagnostic_failed_host_schedule",
+        "sphere seam timing",
+    )
+    _require(
+        seam_timing.get("claim_class"),
+        "diagnostic_only_not_release_gate",
+        "sphere seam timing claim class",
+    )
+    _require(seam_timing.get("scheduler_policy"), "SCHED_FIFO", "timing scheduler")
+    _require(seam_timing.get("scheduler_priority"), 20, "timing priority")
+    _require(seam_timing.get("samples"), 30_000, "sphere seam timing samples")
+    _require(seam_timing.get("attempt_count"), 2, "sphere seam timing attempts")
+    _require(seam_timing.get("compute_deadline_miss_count"), 0, "timing compute misses")
+    _require(seam_timing.get("absolute_deadline_miss_count"), 2, "timing absolute misses")
+    _require(
+        seam_timing.get("absolute_deadline_miss_count_per_attempt"),
+        [1, 1],
+        "timing absolute misses per attempt",
+    )
+    _require(
+        seam_timing.get("blocker"),
+        "requires_current_source_paced_seam_without_absolute_deadline_miss",
+        "sphere seam timing blocker",
+    )
+
+    formal_timing = gates.get("formal_500hz_timing") or {}
+    _require(formal_timing.get("status"), "blocked_not_run", "formal timing status")
+    _require(
+        formal_timing.get("release_gate_satisfied"),
+        False,
+        "formal timing release gate",
+    )
+    lanes = formal_timing.get("required_lanes") or {}
+    expected_lanes = {
+        "solver": 10_000,
+        "full_tick_with_sphere": 30_000,
+        "safe_hold": 30_000,
+    }
+    _require(set(lanes), set(expected_lanes), "formal timing lanes")
+    for lane, samples in expected_lanes.items():
+        _require(
+            (lanes.get(lane) or {}).get("required_samples"),
+            samples,
+            f"formal timing {lane} samples",
+        )
+        _require(
+            (lanes.get(lane) or {}).get("status"),
+            "not_run_current_fingerprint",
+            f"formal timing {lane} status",
+        )
+    _require(
+        formal_timing.get("blocker"),
+        "requires_source_exact_solver_full_tick_and_safe_hold_timing",
+        "formal timing blocker",
+    )
 
     _require((gates.get("simulation") or {}).get("status"), "unavailable", "simulation status")
     power_off = gates.get("power_off_controller_audit") or {}
@@ -233,7 +284,10 @@ def _verify_live_promotion(
         ("same_process_startup_gate", True),
         ("user_authorization_required", True),
         ("live_runtime_promoted", False),
-        ("blocker", "requires_attended_tp_upload_readback_and_certified_stopping_bound"),
+        (
+            "blocker",
+            "requires_current_source_paced_seam_formal_timing_certified_stopping_bound_and_attended_tp_upload_readback",
+        ),
     ):
         _require(promotion.get(key), expected, f"live promotion {key}")
     referenced_validation, _ = _reference(
@@ -363,7 +417,7 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
     )
     if require_live:
         raise ReadinessError(
-            "requires_attended_tp_upload_readback_and_certified_stopping_bound"
+            "requires_current_source_paced_seam_formal_timing_certified_stopping_bound_and_attended_tp_upload_readback"
         )
     return {
         "schema": "step5d.autotune-v3/execution-readiness-report-v2",
@@ -377,9 +431,14 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         "historical_controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
-        "next_owner": "attended_tp_owner",
-        "next_legal_action": "certify the stopping bound, then perform attended TP upload/readback",
-        "canonical_gate": [],
+        "next_owner": "ur10e-contact-control-prep",
+        "next_legal_action": "close current-source paced and formal timing, certify the stopping bound, then perform attended TP upload/readback",
+        "timing_diagnostic": "failed_host_schedule",
+        "canonical_gate": [
+            "current_source_paced_seam",
+            "formal_500hz_timing",
+            "certified_stopping_bound",
+        ],
         "user_authorization_required": True,
         "hil_hold_required": False,
     }

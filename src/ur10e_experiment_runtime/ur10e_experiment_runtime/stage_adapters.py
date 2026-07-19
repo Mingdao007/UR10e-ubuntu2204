@@ -65,6 +65,7 @@ PATH_U_ALONG_XY = (-0.010785642631908187, 0.9999418332648238)
 PATH_P_LATERAL_XY = (-0.9999418332648239, -0.010785642631908406)
 ACTIVE_STAGE25_CODE = 25.0
 STAGE_CODE_TOLERANCE = 0.03
+CONTROLLER_TICK_PERIOD_NS = 2_000_000
 KNOWN_INACTIVE_CONTROLLER_STAGES = (
     20.0,
     22.0,
@@ -89,7 +90,7 @@ class ControllerProgressPhase(IntEnum):
 @dataclass(slots=True)
 class ControllerProgress:
     phase: ControllerProgressPhase = ControllerProgressPhase.UNKNOWN
-    sample_sequence: int = 0
+    controller_tick_seq: int = 0
     controller_timestamp_ns: int = 0
     age_ns: int = -1
     progress_s: float = math.nan
@@ -116,6 +117,52 @@ def moving_sphere_reference_sha256(physical_prior_sha256: str) -> str:
             "u_along_xy": list(PATH_U_ALONG_XY),
             "p_lateral_xy": list(PATH_P_LATERAL_XY),
             "physical_prior_sha256": physical_prior_sha256,
+        }
+    )
+
+
+def stage_autotune_adapter_fingerprint() -> str:
+    return canonical_sha256(
+        {
+            "schema": "ur10e.stage-autotune-adapter-identity/v1",
+            "component_id": ADAPTER_ID,
+            "component_version": COMPONENT_VERSION,
+            "stage_id": STAGE_ID,
+            "source_stage_id": SOURCE_STAGE_ID,
+            "controller_id": CONTROLLER_ID,
+            "trajectory_parameters_sha256": TRAJECTORY_PARAMETERS_SHA256,
+            "frame_contract_sha256": FRAME_CONTRACT_SHA256,
+            "surface_sha256": SURFACE_SHA256,
+            "safety_policy_sha256": SAFETY_POLICY_SHA256,
+            "register_contract": integer_register_contract(),
+        }
+    )
+
+
+def moving_sphere_safety_envelope_fingerprint(
+    physical_prior_sha256: str,
+    *,
+    stopping_bound_fingerprint: str | None,
+) -> str:
+    reference_sha256 = moving_sphere_reference_sha256(physical_prior_sha256)
+    if stopping_bound_fingerprint is not None and (
+        len(stopping_bound_fingerprint) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in stopping_bound_fingerprint
+        )
+    ):
+        raise ValueError("stopping bound fingerprint must be a lowercase SHA256")
+    return canonical_sha256(
+        {
+            "schema": "ur10e.moving-sphere-safety-envelope/v1",
+            "active_stage": ACTIVE_STAGE25_CODE,
+            "radius_m": 0.015,
+            "reference_sha256": reference_sha256,
+            "safety_policy_sha256": SAFETY_POLICY_SHA256,
+            "stopping_bound_fingerprint": stopping_bound_fingerprint,
+            "legacy_aabb_enforced": False,
+            "fail_closed": True,
         }
     )
 
@@ -190,6 +237,7 @@ class Stage25ControllerProgressAdapter:
         "reference_sha256",
         "progress",
         "last_controller_timestamp_ns",
+        "_last_controller_tick_seq",
         "last_progress_s",
         "anchor_z_m",
     )
@@ -200,12 +248,13 @@ class Stage25ControllerProgressAdapter:
         )
         self.progress = ControllerProgress(reference_sha256=self.reference_sha256)
         self.last_controller_timestamp_ns = 0
+        self._last_controller_tick_seq = 0
         self.last_progress_s = math.nan
         self.anchor_z_m = math.nan
 
     def reset(self) -> None:
         self.progress.phase = ControllerProgressPhase.UNKNOWN
-        self.progress.sample_sequence = 0
+        self.progress.controller_tick_seq = 0
         self.progress.controller_timestamp_ns = 0
         self.progress.age_ns = -1
         self.progress.progress_s = math.nan
@@ -216,6 +265,7 @@ class Stage25ControllerProgressAdapter:
         self.progress.monotonic = False
         self.progress.center_frozen = False
         self.last_controller_timestamp_ns = 0
+        self._last_controller_tick_seq = 0
         self.last_progress_s = math.nan
         self.anchor_z_m = math.nan
 
@@ -224,6 +274,7 @@ class Stage25ControllerProgressAdapter:
         *,
         stage: float | None,
         controller_progress_s: float | None,
+        controller_tick_seq: int | None,
         controller_timestamp_s: float | None,
         age_ns: int | None,
         tcp_z_m: float | None,
@@ -263,15 +314,28 @@ class Stage25ControllerProgressAdapter:
             if controller_timestamp_s is not None
             else math.nan
         )
-        if math.isfinite(timestamp_value) and timestamp_value > 0.0:
+        tick_valid = (
+            isinstance(controller_tick_seq, int)
+            and not isinstance(controller_tick_seq, bool)
+            and controller_tick_seq > 0
+        )
+        if math.isfinite(timestamp_value) and timestamp_value > 0.0 and tick_valid:
             timestamp_ns = int(timestamp_value * 1_000_000_000.0)
             out.controller_timestamp_ns = timestamp_ns
-            if timestamp_ns > self.last_controller_timestamp_ns:
-                out.sample_sequence += 1
+            out.controller_tick_seq = controller_tick_seq
+            if (
+                timestamp_ns > self.last_controller_timestamp_ns
+                and (
+                    self.last_controller_timestamp_ns == 0
+                    or controller_tick_seq == self._last_controller_tick_seq + 1
+                )
+            ):
                 out.monotonic = True
                 self.last_controller_timestamp_ns = timestamp_ns
+                self._last_controller_tick_seq = controller_tick_seq
         else:
             out.controller_timestamp_ns = 0
+            out.controller_tick_seq = 0
         if not math.isfinite(out.progress_s):
             return out
         if not 0.0 <= out.progress_s <= float(TRAJECTORY_PARAMETERS["duration_s"]):
@@ -310,6 +374,7 @@ HOST_TO_TP_INTEGER_REGISTERS = {
     "candidate_token": 27,
     "execution_profile_id": 28,
     "command_seq": 29,
+    "batch_row_index": 30,
 }
 TP_TO_HOST_INTEGER_REGISTERS = {
     "campaign_epoch_echo": 24,
@@ -319,10 +384,13 @@ TP_TO_HOST_INTEGER_REGISTERS = {
     "terminal_reason": 28,
     "execution_profile_id_echo": 29,
     "consumed_command_seq": 30,
+    "batch_row_index_echo": 31,
+    "return_reference_kind_echo": 32,
+    "return_guard_mask": 33,
 }
 CSV_IDENTITY_COLUMNS = ("autotune_trial_uid", "autotune_backend_id")
 CSV_HANDSHAKE_COLUMNS = tuple(
-    f"ur_output_int_register_{index}" for index in range(24, 31)
+    f"ur_output_int_register_{index}" for index in range(24, 34)
 )
 OVERLAY_FIELDS = (
     "force_p_gain",

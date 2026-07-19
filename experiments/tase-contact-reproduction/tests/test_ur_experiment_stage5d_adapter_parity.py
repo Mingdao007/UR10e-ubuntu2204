@@ -105,22 +105,25 @@ def test_step5d_spec_and_plan_freeze_current_behavior_without_external_actions()
 
 
 def test_register_and_csv_contracts_match_the_current_bridge_and_state_machine() -> None:
-    assert HOST_TO_TP_INTEGER_REGISTERS == LEGACY_HOST_TO_TP
-    assert TP_TO_HOST_INTEGER_REGISTERS == LEGACY_TP_TO_HOST
+    assert {
+        name: HOST_TO_TP_INTEGER_REGISTERS[name] for name in LEGACY_HOST_TO_TP
+    } == LEGACY_HOST_TO_TP
+    assert {
+        name: TP_TO_HOST_INTEGER_REGISTERS[name] for name in LEGACY_TP_TO_HOST
+    } == LEGACY_TP_TO_HOST
     assert STEP5D_AUTOTUNE_HANDSHAKE_INPUT_FIELDS == [
-        f"input_int_register_{index}" for index in range(24, 30)
+        f"input_int_register_{index}" for index in range(24, 31)
     ]
-    assert STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES == list(
-        HOST_TO_TP_INTEGER_REGISTERS
-    )
+    assert STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES == list(HOST_TO_TP_INTEGER_REGISTERS)
     assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_FIELDS == [
-        f"output_int_register_{index}" for index in range(24, 31)
+        f"output_int_register_{index}" for index in range(24, 34)
     ]
-    assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES == list(
-        TP_TO_HOST_INTEGER_REGISTERS
-    )
+    assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES == list(TP_TO_HOST_INTEGER_REGISTERS)
     assert CSV_IDENTITY_COLUMNS == BridgeTrialCsvRotator.IDENTITY_COLUMNS
-    assert CSV_HANDSHAKE_COLUMNS == TrialArtifactProducer.HANDSHAKE_COLUMNS
+    assert CSV_HANDSHAKE_COLUMNS == tuple(
+        f"ur_output_int_register_{index}" for index in range(24, 34)
+    )
+    assert TrialArtifactProducer.HANDSHAKE_COLUMNS == CSV_HANDSHAKE_COLUMNS[:7]
 
 
 def test_trial_uid_and_overlay_are_golden_parity_with_current_v3() -> None:
@@ -186,8 +189,15 @@ def test_batch_identity_binds_the_exact_current_ten_control_overlay_rows() -> No
     profile = load_launch_profile()
     overlays = initial_control_overlays(profile)
     identity = BatchIdentity(
+        campaign_uid="campaign-uid",
         experiment_fingerprint=spec.fingerprint,
         launch_fingerprint=profile.fingerprint,
+        adapter_fingerprint="a" * 64,
+        physical_prior_fingerprint="b" * 64,
+        safety_envelope_fingerprint="c" * 64,
+        return_policy_fingerprint="d" * 64,
+        controller_readback_fingerprint="e" * 64,
+        authorization_ref_sha256="f" * 64,
         plant_epoch=1,
         rows=tuple(
             BatchRow(

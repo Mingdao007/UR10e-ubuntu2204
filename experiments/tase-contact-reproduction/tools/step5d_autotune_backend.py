@@ -87,6 +87,7 @@ class PreparedTrial:
 class CampaignAuthorization:
     campaign_id: str
     campaign_fingerprint: str
+    authorization_ref_sha256: str
     bounded_baseline_and_loop: bool
     live_authorized: bool
     controller_readback_verified: bool

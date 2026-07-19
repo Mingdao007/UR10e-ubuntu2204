@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -235,6 +236,28 @@ def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
     )
     assert values["_step5d_moving_sphere_reason"] == SphereReason.SPHERE_OK.name
     assert values["stop_request"] == 0.0
+
+    for nonfinite_timestamp in (math.inf, -math.inf):
+        values.update({name: 0.1 for name in bridge.BRIDGE_INPUT_NAMES[:6]})
+        values["step4e_cmd_valid"] = 1.0
+        values["stop_request"] = 0.0
+        bridge.apply_step5d_moving_sphere_guard(
+            values=values,
+            args=args,
+            latest_output={
+                "output_double_register_31": 0.0,
+                "timestamp": nonfinite_timestamp,
+            },
+            robot_stage=25.0,
+            pose=pose,
+            tcp_speed_m_s=0.0,
+        )
+        assert values["_step5d_moving_sphere_reason"] == (
+            SphereReason.SPHERE_PROGRESS_STALE.name
+        )
+        assert values["stop_request"] == 1.0
+        assert values["step4e_cmd_valid"] == 0.0
+        assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES[:6])
 
     mismatch_adapter = Stage25ControllerProgressAdapter(
         physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint

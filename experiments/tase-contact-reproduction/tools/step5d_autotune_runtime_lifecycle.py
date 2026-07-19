@@ -39,6 +39,13 @@ from ur10e_experiment_runtime.failure_to_guard import (  # noqa: E402
 from ur10e_experiment_runtime.physical_prior import (  # noqa: E402
     STEP5D_V3_PHYSICAL_PRIOR,
 )
+from ur10e_experiment_runtime.return_route import (  # noqa: E402
+    return_policy_fingerprint,
+)
+from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
+    moving_sphere_safety_envelope_fingerprint,
+    stage_autotune_adapter_fingerprint,
+)
 
 from step5d_autotune_batch_plan import CandidateBatchPlan  # noqa: E402
 from step5d_autotune_contract import (  # noqa: E402
@@ -1004,14 +1011,22 @@ def prepare_batch_attempt_context(
     selected_candidate: ForceCandidate,
     profile: ExecutionProfile,
     overlay_resolver: Callable[[ForceCandidate], Mapping[str, Any]],
+    campaign_uid: str,
     experiment_fingerprint: str,
     launch_fingerprint: str,
+    controller_readback_fingerprint: str,
+    authorization_ref_sha256: str,
+    stopping_bound_fingerprint: str | None,
     plant_epoch: int,
     campaign_root: Path,
     campaign_home_pose: tuple[float, ...],
 ) -> BatchAttemptContext:
     _sha256("experiment_fingerprint", experiment_fingerprint)
     _sha256("launch_fingerprint", launch_fingerprint)
+    _sha256("controller_readback_fingerprint", controller_readback_fingerprint)
+    _sha256("authorization_ref_sha256", authorization_ref_sha256)
+    if stopping_bound_fingerprint is not None:
+        _sha256("stopping_bound_fingerprint", stopping_bound_fingerprint)
     matches = [
         (batch_index, row_index)
         for batch_index, batch in enumerate(plan.batches, start=1)
@@ -1034,11 +1049,29 @@ def prepare_batch_attempt_context(
             "orientation_ko": overlay["orientation_ko"],
         }
         rows.append(BatchRow(index, control_candidate, overlay))
+    near_pose = (
+        *STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m,
+        *STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad,
+    )
     identity = BatchIdentity(
-        experiment_fingerprint,
-        launch_fingerprint,
-        plant_epoch,
-        tuple(rows),
+        campaign_uid=campaign_uid,
+        experiment_fingerprint=experiment_fingerprint,
+        launch_fingerprint=launch_fingerprint,
+        adapter_fingerprint=stage_autotune_adapter_fingerprint(),
+        physical_prior_fingerprint=STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
+        safety_envelope_fingerprint=moving_sphere_safety_envelope_fingerprint(
+            STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
+            stopping_bound_fingerprint=stopping_bound_fingerprint,
+        ),
+        return_policy_fingerprint=return_policy_fingerprint(
+            near_ready_pose=near_pose,
+            campaign_home_pose=campaign_home_pose,
+            prior=STEP5D_V3_PHYSICAL_PRIOR,
+        ),
+        controller_readback_fingerprint=controller_readback_fingerprint,
+        authorization_ref_sha256=authorization_ref_sha256,
+        plant_epoch=plant_epoch,
+        rows=tuple(rows),
     )
     batch_root = (
         campaign_root.resolve() / "runtime_batches" / identity.batch_uid
@@ -1053,10 +1086,16 @@ def prepare_batch_attempt_context(
     if state.next_row_index != row_index:
         raise ValueError("selected candidate is not the exact next incomplete batch row")
     selected_state = state.rows[row_index - 1]
-    near_pose = (
-        *STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m,
-        *STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad,
-    )
+    if (
+        selected_state.fate is BatchFate.ATTEMPTED_INCOMPLETE
+        and (
+            selected_state.immutable_bundle_sha256 is not None
+            or selected_state.ack_receipt_sha256 is not None
+        )
+    ):
+        raise ValueError(
+            "durable post-execution batch row requires phase-specific reconciliation"
+        )
     reference = return_reference(
         identity,
         row_index,
@@ -1069,7 +1108,11 @@ def prepare_batch_attempt_context(
         row_index=row_index,
         reference=reference,
         trial_brief_root=(campaign_root.resolve() / "trial_briefs"),
-        retrying_incomplete=(selected_state.fate is BatchFate.ATTEMPTED_INCOMPLETE),
+        retrying_incomplete=(
+            selected_state.fate is BatchFate.ATTEMPTED_INCOMPLETE
+            and selected_state.immutable_bundle_sha256 is None
+            and selected_state.ack_receipt_sha256 is None
+        ),
     )
 
 

@@ -31,11 +31,11 @@ def certified() -> StoppingBoundArtifact:
 
 
 def active_progress(kernel: MovingSphereKernel, **overrides) -> ControllerProgress:
-    sequence = kernel.last_sample_sequence + 1
+    sequence = kernel.last_controller_tick_seq + 1
     timestamp_ns = kernel.last_controller_timestamp_ns + 2_000_000
     values = {
         "phase": ControllerProgressPhase.ACTIVE_STAGE25,
-        "sample_sequence": sequence,
+        "controller_tick_seq": sequence,
         "controller_timestamp_ns": timestamp_ns,
         "age_ns": 2_000_000,
         "progress_s": 0.0,
@@ -104,6 +104,7 @@ def test_adapter_owns_stage_classification_reference_and_frozen_center() -> None
     inactive = adapter.sample(
         stage=24.2,
         controller_progress_s=0.0,
+        controller_tick_seq=500,
         controller_timestamp_s=1.0,
         age_ns=0,
         tcp_z_m=0.01,
@@ -112,6 +113,7 @@ def test_adapter_owns_stage_classification_reference_and_frozen_center() -> None
     unknown = adapter.sample(
         stage=99.0,
         controller_progress_s=0.0,
+        controller_tick_seq=501,
         controller_timestamp_s=1.002,
         age_ns=0,
         tcp_z_m=0.01,
@@ -120,23 +122,59 @@ def test_adapter_owns_stage_classification_reference_and_frozen_center() -> None
     first = adapter.sample(
         stage=25.0,
         controller_progress_s=0.0,
+        controller_tick_seq=502,
         controller_timestamp_s=1.004,
         age_ns=0,
         tcp_z_m=0.008,
     )
     first_center = (first.center_x_m, first.center_y_m, first.center_z_m)
-    first_sequence = first.sample_sequence
+    first_sequence = first.controller_tick_seq
     assert first_center == (*PATH_ORIGIN_XY_M, 0.008)
     second = adapter.sample(
         stage=25.0,
         controller_progress_s=0.0,
+        controller_tick_seq=503,
         controller_timestamp_s=1.006,
         age_ns=0,
         tcp_z_m=0.009,
     )
     assert second.center_frozen is True
     assert (second.center_x_m, second.center_y_m, second.center_z_m) == first_center
-    assert second.sample_sequence == first_sequence + 1
+    assert second.controller_tick_seq == first_sequence + 1
+
+
+def test_adapter_and_kernel_reject_skipped_controller_tick() -> None:
+    adapter = Stage25ControllerProgressAdapter(physical_prior_sha256="d" * 64)
+    kernel = MovingSphereKernel(
+        reference_sha256=adapter.reference_sha256,
+        stopping_bound=certified(),
+    )
+    first = adapter.sample(
+        stage=25.0,
+        controller_progress_s=0.0,
+        controller_tick_seq=500,
+        controller_timestamp_s=1.0,
+        age_ns=0,
+        tcp_z_m=0.008,
+    )
+    assert kernel.tick(
+        progress=first,
+        tcp_base=(first.center_x_m, first.center_y_m, first.center_z_m),
+        tcp_speed_m_s=0.0,
+    ).reason is SphereReason.SPHERE_OK
+    jumped = adapter.sample(
+        stage=25.0,
+        controller_progress_s=0.01,
+        controller_tick_seq=505,
+        controller_timestamp_s=1.01,
+        age_ns=0,
+        tcp_z_m=0.008,
+    )
+    assert kernel.tick(
+        progress=jumped,
+        tcp_base=(jumped.center_x_m, jumped.center_y_m, jumped.center_z_m),
+        tcp_speed_m_s=0.0,
+    ).reason is SphereReason.SPHERE_PROGRESS_NONSEQUENTIAL
 
 
 def test_active_bound_remains_conservative_when_center_is_frozen() -> None:

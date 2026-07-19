@@ -24,6 +24,7 @@ from ur10e_experiment_runtime.contracts import (  # noqa: E402
     OutputPathError,
     SpecValidationError,
 )
+from ur10e_experiment_runtime.identity import canonical_sha256  # noqa: E402
 from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
     control_candidate_uid,
 )
@@ -70,11 +71,33 @@ def _identity() -> BatchIdentity:
             )
         )
     return BatchIdentity(
+        campaign_uid="campaign-uid",
         experiment_fingerprint="a" * 64,
         launch_fingerprint="b" * 64,
+        adapter_fingerprint="c" * 64,
+        physical_prior_fingerprint="d" * 64,
+        safety_envelope_fingerprint="e" * 64,
+        return_policy_fingerprint="f" * 64,
+        controller_readback_fingerprint="1" * 64,
+        authorization_ref_sha256="2" * 64,
         plant_epoch=2,
         rows=tuple(rows),
     )
+
+
+def _identity_kwargs(identity: BatchIdentity) -> dict:
+    return {
+        "campaign_uid": identity.campaign_uid,
+        "experiment_fingerprint": identity.experiment_fingerprint,
+        "launch_fingerprint": identity.launch_fingerprint,
+        "adapter_fingerprint": identity.adapter_fingerprint,
+        "physical_prior_fingerprint": identity.physical_prior_fingerprint,
+        "safety_envelope_fingerprint": identity.safety_envelope_fingerprint,
+        "return_policy_fingerprint": identity.return_policy_fingerprint,
+        "controller_readback_fingerprint": identity.controller_readback_fingerprint,
+        "authorization_ref_sha256": identity.authorization_ref_sha256,
+        "plant_epoch": identity.plant_epoch,
+    }
 
 
 def _complete_row(journal: BatchJournal, identity: BatchIdentity, row_index: int):
@@ -125,9 +148,7 @@ class BatchLifecycleTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(SpecValidationError, "exact ordered"):
             BatchIdentity(
-                experiment_fingerprint="a" * 64,
-                launch_fingerprint="b" * 64,
-                plant_epoch=1,
+                **_identity_kwargs(identity),
                 rows=identity.rows[:-1],
             )
         duplicate = list(identity.rows)
@@ -138,11 +159,32 @@ class BatchLifecycleTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(SpecValidationError, "unique"):
             BatchIdentity(
-                experiment_fingerprint="a" * 64,
-                launch_fingerprint="b" * 64,
-                plant_epoch=1,
+                **_identity_kwargs(identity),
                 rows=tuple(duplicate),
             )
+
+    def test_batch_identity_changes_for_every_campaign_binding(self):
+        identity = _identity()
+        baseline = identity.batch_uid
+        for field in (
+            "campaign_uid",
+            "experiment_fingerprint",
+            "launch_fingerprint",
+            "adapter_fingerprint",
+            "physical_prior_fingerprint",
+            "safety_envelope_fingerprint",
+            "return_policy_fingerprint",
+            "controller_readback_fingerprint",
+            "authorization_ref_sha256",
+            "plant_epoch",
+        ):
+            values = {**_identity_kwargs(identity), "rows": identity.rows}
+            values[field] = (
+                "different-campaign"
+                if field == "campaign_uid"
+                else 3 if field == "plant_epoch" else "3" * 64
+            )
+            self.assertNotEqual(BatchIdentity(**values).batch_uid, baseline)
 
     def test_bundle_and_ack_are_not_completion_until_post_ack_safe_closure(self):
         identity = _identity()
@@ -293,6 +335,41 @@ class BatchLifecycleTest(unittest.TestCase):
                         else BatchFate.ATTEMPTED_INCOMPLETE
                     ),
                 )
+
+    def test_durable_bundle_or_ack_cannot_be_erased_by_restart(self):
+        identity = _identity()
+        with tempfile.TemporaryDirectory() as directory:
+            journal = BatchJournal.create(Path(directory) / "batch", identity)
+            trial_uid = "1" * 64
+            journal.start_attempt(1, trial_uid)
+            journal.record_bundle(1, trial_uid, "3" * 64)
+            with self.assertRaisesRegex(SpecValidationError, "reconciliation"):
+                journal.start_attempt(1, "2" * 64)
+            bundled = journal.state().rows[0]
+            self.assertEqual(bundled.trial_uid, trial_uid)
+            self.assertEqual(bundled.immutable_bundle_sha256, "3" * 64)
+            ack = ExactAckReceipt(
+                batch_uid=identity.batch_uid,
+                row_index=1,
+                trial_uid=trial_uid,
+                control_candidate_uid=identity.rows[0].control_candidate_uid,
+                immutable_bundle_sha256="3" * 64,
+                return_reference_uid="4" * 64,
+                controller_readback_sha256="5" * 64,
+                arm_command_seq=1,
+                ack_command_seq=2,
+                consumed_command_seq=2,
+            )
+            journal.record_ack_consumed(ack)
+            with self.assertRaisesRegex(SpecValidationError, "reconciliation"):
+                journal.start_attempt(1, "2" * 64)
+            acknowledged = BatchJournal.open(journal.root).state().rows[0]
+            self.assertEqual(acknowledged.trial_uid, trial_uid)
+            self.assertEqual(acknowledged.immutable_bundle_sha256, "3" * 64)
+            self.assertEqual(
+                acknowledged.ack_receipt_sha256,
+                canonical_sha256(ack.document()),
+            )
 
     def test_exact_ten_rows_require_final_home_and_durable_result_before_exit_zero(self):
         identity = _identity()

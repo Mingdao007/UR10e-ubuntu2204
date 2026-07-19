@@ -10379,7 +10379,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is an offline pre-live candidate blocked on a certified stopping bound and attended TP upload/readback; v1 remains the current controller binding",
+      "block_reason": "V3 is an offline pre-live candidate blocked on current-source paced timing, formal three-lane timing, a certified stopping bound, simulation availability, and attended TP upload/readback; v1 remains the current controller binding",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10453,13 +10453,14 @@
         "reproduction_complete": false
       },
       "offline_validation": {
-        "status": "pass_offline_pre_live",
+        "status": "pass_offline_implementation_pre_live_blocked",
         "acceptance_scope": "offline_pre_live_only",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "b6c60dd04169d9eaef4b0be6b7d378a712494bcb6538a13b58dba20200d22c7f",
+        "report_sha256": "338912402883ead1ddce74870fd3591e492830310a3eb9b785ef036175b83d35",
         "exact_ten_row_lifecycle": "pass",
         "diagnostic_bundle_replay": "pass",
-        "source_exact_sphere_seam_timing": "pass",
+        "source_exact_sphere_seam_timing": "diagnostic_failed_host_schedule",
+        "formal_500hz_timing": "blocked_not_run",
         "power_off_controller_audit": "pass_read_only_boundary",
         "simulation": "unavailable",
         "hardware_promotion": "blocked"
@@ -10478,6 +10479,8 @@
         "public_success_signal": "requires_attended_tp_upload_readback",
         "next_owner": "ur10e-contact-control-prep",
         "blockers": [
+          "requires_current_source_paced_seam_without_absolute_deadline_miss",
+          "requires_formal_500hz_timing",
           "requires_certified_stopping_bound",
           "requires_attended_tp_upload_readback",
           "ursim_gazebo_unavailable"

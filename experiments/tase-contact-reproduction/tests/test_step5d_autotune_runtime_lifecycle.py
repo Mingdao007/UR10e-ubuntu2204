@@ -96,8 +96,12 @@ def _fixture(tmp_path: Path, row: int = 1):
         selected_candidate=candidates[row - 1],
         profile=profile,
         overlay_resolver=overlay,
+        campaign_uid="campaign",
         experiment_fingerprint="a" * 64,
         launch_fingerprint="b" * 64,
+        controller_readback_fingerprint="c" * 64,
+        authorization_ref_sha256="d" * 64,
+        stopping_bound_fingerprint=None,
         plant_epoch=1,
         campaign_root=tmp_path,
         campaign_home_pose=(0.4, 0.1, 0.2, 3.14, 0.0, 0.0),
@@ -139,6 +143,15 @@ def test_runtime_batch_resume_reselects_attempted_incomplete_row(tmp_path: Path)
     )
     selected = next_runtime_batch_candidate(plan=plan, campaign_root=tmp_path)
     assert selected == candidates[0]
+
+
+def test_runtime_batch_resume_refuses_durable_post_execution_row(tmp_path: Path) -> None:
+    context = _fixture(tmp_path)
+    trial_uid = "1" * 64
+    context.journal.start_attempt(1, trial_uid)
+    context.journal.record_bundle(1, trial_uid, "2" * 64)
+    with pytest.raises(ValueError, match="phase-specific reconciliation"):
+        _fixture(tmp_path)
 
 
 def test_post_ack_readback_requires_all_return_guards() -> None:
