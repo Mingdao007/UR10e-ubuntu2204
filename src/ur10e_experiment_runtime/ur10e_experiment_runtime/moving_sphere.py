@@ -8,6 +8,7 @@ import math
 from typing import Sequence
 
 from .identity import canonical_sha256
+from .stage_adapters import ControllerProgress, ControllerProgressPhase
 
 
 SPHERE_RADIUS_M = 0.015
@@ -25,6 +26,7 @@ class SphereReason(IntEnum):
     SPHERE_PROGRESS_STALE = 7
     SPHERE_STOP_BOUND_UNCERTIFIED = 8
     SPHERE_OK = 9
+    SPHERE_PROGRESS_NONSEQUENTIAL = 10
 
 
 @dataclass(frozen=True)
@@ -96,7 +98,13 @@ class SphereTickResult:
 class MovingSphereKernel:
     """Writes into a caller-owned result so the 500 Hz path reuses storage."""
 
-    __slots__ = ("reference_sha256", "stopping_bound", "result")
+    __slots__ = (
+        "reference_sha256",
+        "stopping_bound",
+        "result",
+        "last_sample_sequence",
+        "last_controller_timestamp_ns",
+    )
 
     def __init__(
         self,
@@ -110,59 +118,85 @@ class MovingSphereKernel:
         self.reference_sha256 = reference_sha256
         self.stopping_bound = stopping_bound
         self.result = result if result is not None else SphereTickResult()
+        self.last_sample_sequence = 0
+        self.last_controller_timestamp_ns = 0
 
     def tick(
         self,
         *,
-        stage: float | None,
+        progress: ControllerProgress | None,
         tcp_base: Sequence[float] | None,
-        center_base: Sequence[float] | None,
         tcp_speed_m_s: float | None,
-        progress_age_ns: int | None,
-        progress_reference_sha256: str,
-        phase_frozen: bool,
     ) -> SphereTickResult:
         out = self.result
         out.stop = True
         out.actual_distance_m = math.nan
         out.predicted_radial_bound_m = math.nan
-        if stage is None or not math.isfinite(stage):
+        if progress is None:
+            out.reason = SphereReason.SPHERE_INPUT_MISSING
+            return out
+        if progress.phase is ControllerProgressPhase.UNKNOWN:
             out.reason = SphereReason.SPHERE_STAGE_UNKNOWN
             return out
-        if abs(stage - 25.0) >= 0.05:
+        if progress.phase is ControllerProgressPhase.INACTIVE:
             out.stop = False
             out.reason = SphereReason.SPHERE_INACTIVE
             return out
-        if tcp_base is None or center_base is None or tcp_speed_m_s is None or progress_age_ns is None:
+        if progress.phase is not ControllerProgressPhase.ACTIVE_STAGE25:
+            out.reason = SphereReason.SPHERE_STAGE_UNKNOWN
+            return out
+        if tcp_base is None or tcp_speed_m_s is None:
             out.reason = SphereReason.SPHERE_INPUT_MISSING
             return out
-        if len(tcp_base) < 3 or len(center_base) < 3:
+        if len(tcp_base) < 3:
             out.reason = SphereReason.SPHERE_INPUT_MISSING
             return out
-        if progress_reference_sha256 != self.reference_sha256:
+        if progress.reference_sha256 != self.reference_sha256:
             out.reason = SphereReason.SPHERE_REFERENCE_MISMATCH
             return out
-        if progress_age_ns < 0 or progress_age_ns > PROGRESS_MAX_AGE_NS:
+        if progress.age_ns < 0 or progress.age_ns > PROGRESS_MAX_AGE_NS:
             out.reason = SphereReason.SPHERE_PROGRESS_STALE
             return out
-        values = (*tcp_base[:3], *center_base[:3], tcp_speed_m_s)
-        if not all(math.isfinite(float(value)) for value in values) or tcp_speed_m_s < 0:
+        if (
+            not progress.monotonic
+            or progress.sample_sequence <= self.last_sample_sequence
+            or progress.controller_timestamp_ns <= self.last_controller_timestamp_ns
+        ):
+            out.reason = SphereReason.SPHERE_PROGRESS_NONSEQUENTIAL
+            return out
+        self.last_sample_sequence = progress.sample_sequence
+        self.last_controller_timestamp_ns = progress.controller_timestamp_ns
+        tcp_x = float(tcp_base[0])
+        tcp_y = float(tcp_base[1])
+        tcp_z = float(tcp_base[2])
+        speed = float(tcp_speed_m_s)
+        if (
+            not math.isfinite(tcp_x)
+            or not math.isfinite(tcp_y)
+            or not math.isfinite(tcp_z)
+            or not math.isfinite(speed)
+            or speed < 0.0
+            or not math.isfinite(progress.progress_s)
+            or not math.isfinite(progress.center_x_m)
+            or not math.isfinite(progress.center_y_m)
+            or not math.isfinite(progress.center_z_m)
+        ):
             out.reason = SphereReason.SPHERE_INPUT_NONFINITE
             return out
         bound = self.stopping_bound
         if bound is None or not bound.certified:
             out.reason = SphereReason.SPHERE_STOP_BOUND_UNCERTIFIED
             return out
-        dx = float(tcp_base[0]) - float(center_base[0])
-        dy = float(tcp_base[1]) - float(center_base[1])
-        dz = float(tcp_base[2]) - float(center_base[2])
+        dx = tcp_x - progress.center_x_m
+        dy = tcp_y - progress.center_y_m
+        dz = tcp_z - progress.center_z_m
         d0 = math.sqrt(dx * dx + dy * dy + dz * dz)
         out.actual_distance_m = d0
         if d0 > SPHERE_RADIUS_M:
             out.reason = SphereReason.SPHERE_ACTUAL_BREACH
             return out
         latency = bound.reaction_latency_s
-        v0 = float(tcp_speed_m_s)
+        v0 = speed
         v_latency = v0 + bound.acceleration_growth_m_s2 * latency
         stop_time = v_latency / bound.minimum_deceleration_m_s2
         tcp_sweep = (
@@ -170,10 +204,11 @@ class MovingSphereKernel:
             + 0.5 * bound.acceleration_growth_m_s2 * latency * latency
             + v_latency * v_latency / (2.0 * bound.minimum_deceleration_m_s2)
         )
-        center_speed = 0.0 if phase_frozen else bound.center_speed_bound_m_s
-        center_accel = 0.0 if phase_frozen else bound.center_acceleration_bound_m_s2
         interval = latency + stop_time
-        center_sweep = center_speed * interval + 0.5 * center_accel * interval * interval
+        center_sweep = (
+            bound.center_speed_bound_m_s * interval
+            + 0.5 * bound.center_acceleration_bound_m_s2 * interval * interval
+        )
         out.predicted_radial_bound_m = d0 + tcp_sweep + center_sweep + bound.numeric_margin_m
         if out.predicted_radial_bound_m > SPHERE_RADIUS_M:
             out.reason = SphereReason.SPHERE_PREDICTED_STOP_BREACH

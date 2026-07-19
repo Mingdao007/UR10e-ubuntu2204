@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -184,3 +185,81 @@ def test_pre_arm_hold_tick_keeps_bridge_alive_with_zero_command() -> None:
     assert values["_step5d_autotune_pre_arm_hold"] == 1.0
     assert values["_step5d_contact_safety_reason"] == "autotune_pre_arm_hold"
     assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES)
+
+
+def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
+    import kunwei_rtde_bridge as bridge
+    from ur10e_experiment_runtime.moving_sphere import (
+        MovingSphereKernel,
+        SphereReason,
+        StoppingBoundArtifact,
+    )
+    from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+    from ur10e_experiment_runtime.stage_adapters import (
+        PATH_ORIGIN_XY_M,
+        Stage25ControllerProgressAdapter,
+    )
+
+    bound = StoppingBoundArtifact(
+        reaction_latency_s=0.002,
+        acceleration_growth_m_s2=0.1,
+        minimum_deceleration_m_s2=2.0,
+        center_speed_bound_m_s=0.002,
+        center_acceleration_bound_m_s2=0.001,
+        numeric_margin_m=0.0001,
+        evidence_sha256=("b" * 64,),
+        validity_domain="offline_fixture_only",
+        certified=True,
+    )
+    adapter = Stage25ControllerProgressAdapter(
+        physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+    )
+    args = SimpleNamespace(
+        step5d_controller_progress_adapter=adapter,
+        step5d_moving_sphere_kernel=MovingSphereKernel(
+            reference_sha256=adapter.reference_sha256,
+            stopping_bound=bound,
+        ),
+        step5d_moving_sphere_progress_age_ns=0,
+    )
+    values = bridge.bridge_zero_values()
+    values["stop_request"] = 0.0
+    pose = [*PATH_ORIGIN_XY_M, 0.008, 0.0, 0.0, 0.0]
+    bridge.apply_step5d_moving_sphere_guard(
+        values=values,
+        args=args,
+        latest_output={"output_double_register_31": 0.0, "timestamp": 1.0},
+        robot_stage=25.0,
+        pose=pose,
+        tcp_speed_m_s=0.0,
+    )
+    assert values["_step5d_moving_sphere_reason"] == SphereReason.SPHERE_OK.name
+    assert values["stop_request"] == 0.0
+
+    mismatch_adapter = Stage25ControllerProgressAdapter(
+        physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+    )
+    mismatch_args = SimpleNamespace(
+        step5d_controller_progress_adapter=mismatch_adapter,
+        step5d_moving_sphere_kernel=MovingSphereKernel(
+            reference_sha256="c" * 64,
+            stopping_bound=bound,
+        ),
+        step5d_moving_sphere_progress_age_ns=0,
+    )
+    values.update({name: 0.1 for name in bridge.BRIDGE_INPUT_NAMES[:6]})
+    values["step4e_cmd_valid"] = 1.0
+    bridge.apply_step5d_moving_sphere_guard(
+        values=values,
+        args=mismatch_args,
+        latest_output={"output_double_register_31": 0.0, "timestamp": 2.0},
+        robot_stage=25.0,
+        pose=pose,
+        tcp_speed_m_s=0.0,
+    )
+    assert values["_step5d_moving_sphere_reason"] == (
+        SphereReason.SPHERE_REFERENCE_MISMATCH.name
+    )
+    assert values["stop_request"] == 1.0
+    assert values["step4e_cmd_valid"] == 0.0
+    assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES[:6])

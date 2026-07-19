@@ -238,6 +238,7 @@ def load_launch_profile(
         "control_profile_id",
         "tp_program_id",
         "control_contract_sha256",
+        "moving_sphere_reference_sha256",
         "launch_overrides",
         "trial_overlay_policy",
     }
@@ -253,6 +254,10 @@ def load_launch_profile(
         if payload[key] != expected:
             raise ContractViolation(f"launch profile {key} differs")
     _sha256(payload["control_contract_sha256"], name="control_contract_sha256")
+    _sha256(
+        payload["moving_sphere_reference_sha256"],
+        name="moving_sphere_reference_sha256",
+    )
     if payload["control_contract_sha256"] != contract_sha256(payload_contract):
         raise ContractViolation("launch profile control contract binding differs")
     mutable = launch_mutable_flags(payload_contract)

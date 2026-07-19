@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass
+from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Mapping
 
 from .identity import canonical_sha256
@@ -59,6 +60,248 @@ SURFACE_SHA256 = (
 SAFETY_POLICY_SHA256 = (
     "e240e1f8b291c43bcb2df01bfc1c12e9393a1cdbce59618e2d103ea0e06c52e8"
 )
+PATH_ORIGIN_XY_M = (0.487795411149049, 0.12932679270060748)
+PATH_U_ALONG_XY = (-0.010785642631908187, 0.9999418332648238)
+PATH_P_LATERAL_XY = (-0.9999418332648239, -0.010785642631908406)
+ACTIVE_STAGE25_CODE = 25.0
+STAGE_CODE_TOLERANCE = 0.03
+KNOWN_INACTIVE_CONTROLLER_STAGES = (
+    20.0,
+    22.0,
+    23.0,
+    24.0,
+    24.2,
+    25.05,
+    25.15,
+    25.3,
+    25.95,
+    29.0,
+    70.0,
+)
+
+
+class ControllerProgressPhase(IntEnum):
+    UNKNOWN = 0
+    INACTIVE = 1
+    ACTIVE_STAGE25 = 2
+
+
+@dataclass(slots=True)
+class ControllerProgress:
+    phase: ControllerProgressPhase = ControllerProgressPhase.UNKNOWN
+    sample_sequence: int = 0
+    controller_timestamp_ns: int = 0
+    age_ns: int = -1
+    progress_s: float = math.nan
+    center_x_m: float = math.nan
+    center_y_m: float = math.nan
+    center_z_m: float = math.nan
+    reference_sha256: str = ""
+    monotonic: bool = False
+    center_frozen: bool = False
+
+
+def moving_sphere_reference_sha256(physical_prior_sha256: str) -> str:
+    if (
+        len(physical_prior_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in physical_prior_sha256)
+    ):
+        raise ValueError("physical prior fingerprint must be a lowercase SHA256")
+    return canonical_sha256(
+        {
+            "schema": "step5d.moving-sphere-reference/v2",
+            "trajectory_parameters_sha256": TRAJECTORY_PARAMETERS_SHA256,
+            "trajectory": TRAJECTORY_PARAMETERS,
+            "origin_xy_m": list(PATH_ORIGIN_XY_M),
+            "u_along_xy": list(PATH_U_ALONG_XY),
+            "p_lateral_xy": list(PATH_P_LATERAL_XY),
+            "physical_prior_sha256": physical_prior_sha256,
+        }
+    )
+
+
+def _cycloid_scalars(elapsed_s: float) -> tuple[float, float, float, float, float]:
+    duration_s = float(TRAJECTORY_PARAMETERS["duration_s"])
+    parameters = TRAJECTORY_PARAMETERS["parameters"]
+    amplitude_m = float(parameters["amplitude_m"])
+    omega_rad_s = float(parameters["omega_rad_s"])
+    progress_s = min(max(float(elapsed_s), 0.0), duration_s)
+    phase_rad = omega_rad_s * progress_s
+    local_x_m = amplitude_m * (phase_rad - math.sin(phase_rad))
+    local_y_m = amplitude_m * (1.0 - math.cos(phase_rad))
+    return progress_s, phase_rad, local_x_m, local_y_m, omega_rad_s
+
+
+def frozen_step5d_path_reference(
+    pose_xy: tuple[float, float],
+    elapsed_s: float,
+) -> dict[str, Any]:
+    """Legacy bridge-shaped view of the adapter-owned frozen trajectory."""
+
+    progress_s, phase_rad, local_x_m, local_y_m, omega_rad_s = _cycloid_scalars(
+        elapsed_s
+    )
+    desired_x = (
+        PATH_ORIGIN_XY_M[0]
+        + local_x_m * PATH_U_ALONG_XY[0]
+        + local_y_m * PATH_P_LATERAL_XY[0]
+    )
+    desired_y = (
+        PATH_ORIGIN_XY_M[1]
+        + local_x_m * PATH_U_ALONG_XY[1]
+        + local_y_m * PATH_P_LATERAL_XY[1]
+    )
+    amplitude_m = float(TRAJECTORY_PARAMETERS["parameters"]["amplitude_m"])
+    local_vx_m_s = amplitude_m * omega_rad_s * (1.0 - math.cos(phase_rad))
+    local_vy_m_s = amplitude_m * omega_rad_s * math.sin(phase_rad)
+    desired_vx = (
+        local_vx_m_s * PATH_U_ALONG_XY[0]
+        + local_vy_m_s * PATH_P_LATERAL_XY[0]
+    )
+    desired_vy = (
+        local_vx_m_s * PATH_U_ALONG_XY[1]
+        + local_vy_m_s * PATH_P_LATERAL_XY[1]
+    )
+    local = {
+        "path_time_s": progress_s,
+        "progress": progress_s,
+        "phase_rad": phase_rad,
+        "local_x_m": local_x_m,
+        "local_y_m": local_y_m,
+        "local_vx_m_s": local_vx_m_s,
+        "local_vy_m_s": local_vy_m_s,
+    }
+    return {
+        "stage_id": STAGE_ID,
+        "progress": progress_s,
+        "path_time_s": progress_s,
+        "phase_rad": phase_rad,
+        "desired_xy": (desired_x, desired_y),
+        "desired_velocity_xy": (desired_vx, desired_vy),
+        "path_error_xy": (desired_x - pose_xy[0], desired_y - pose_xy[1]),
+        "local": local,
+    }
+
+
+class Stage25ControllerProgressAdapter:
+    """Allocation-free typed controller-progress owner for the sphere tick."""
+
+    __slots__ = (
+        "reference_sha256",
+        "progress",
+        "last_controller_timestamp_ns",
+        "last_progress_s",
+        "anchor_z_m",
+    )
+
+    def __init__(self, *, physical_prior_sha256: str) -> None:
+        self.reference_sha256 = moving_sphere_reference_sha256(
+            physical_prior_sha256
+        )
+        self.progress = ControllerProgress(reference_sha256=self.reference_sha256)
+        self.last_controller_timestamp_ns = 0
+        self.last_progress_s = math.nan
+        self.anchor_z_m = math.nan
+
+    def reset(self) -> None:
+        self.progress.phase = ControllerProgressPhase.UNKNOWN
+        self.progress.sample_sequence = 0
+        self.progress.controller_timestamp_ns = 0
+        self.progress.age_ns = -1
+        self.progress.progress_s = math.nan
+        self.progress.center_x_m = math.nan
+        self.progress.center_y_m = math.nan
+        self.progress.center_z_m = math.nan
+        self.progress.reference_sha256 = self.reference_sha256
+        self.progress.monotonic = False
+        self.progress.center_frozen = False
+        self.last_controller_timestamp_ns = 0
+        self.last_progress_s = math.nan
+        self.anchor_z_m = math.nan
+
+    def sample(
+        self,
+        *,
+        stage: float | None,
+        controller_progress_s: float | None,
+        controller_timestamp_s: float | None,
+        age_ns: int | None,
+        tcp_z_m: float | None,
+    ) -> ControllerProgress:
+        out = self.progress
+        out.reference_sha256 = self.reference_sha256
+        out.age_ns = age_ns if isinstance(age_ns, int) and not isinstance(age_ns, bool) else -1
+        out.progress_s = (
+            float(controller_progress_s)
+            if controller_progress_s is not None
+            else math.nan
+        )
+        out.center_x_m = math.nan
+        out.center_y_m = math.nan
+        out.center_z_m = math.nan
+        out.monotonic = False
+        out.center_frozen = False
+        if stage is None or not math.isfinite(float(stage)):
+            out.phase = ControllerProgressPhase.UNKNOWN
+            return out
+        stage_value = float(stage)
+        if abs(stage_value - ACTIVE_STAGE25_CODE) < STAGE_CODE_TOLERANCE:
+            out.phase = ControllerProgressPhase.ACTIVE_STAGE25
+        else:
+            inactive = False
+            for known in KNOWN_INACTIVE_CONTROLLER_STAGES:
+                if abs(stage_value - known) < STAGE_CODE_TOLERANCE:
+                    inactive = True
+                    break
+            if inactive:
+                out.phase = ControllerProgressPhase.INACTIVE
+                return out
+            out.phase = ControllerProgressPhase.UNKNOWN
+            return out
+        timestamp_value = (
+            float(controller_timestamp_s)
+            if controller_timestamp_s is not None
+            else math.nan
+        )
+        if math.isfinite(timestamp_value) and timestamp_value > 0.0:
+            timestamp_ns = int(timestamp_value * 1_000_000_000.0)
+            out.controller_timestamp_ns = timestamp_ns
+            if timestamp_ns > self.last_controller_timestamp_ns:
+                out.sample_sequence += 1
+                out.monotonic = True
+                self.last_controller_timestamp_ns = timestamp_ns
+        else:
+            out.controller_timestamp_ns = 0
+        if not math.isfinite(out.progress_s):
+            return out
+        if not 0.0 <= out.progress_s <= float(TRAJECTORY_PARAMETERS["duration_s"]):
+            return out
+        if not math.isfinite(self.anchor_z_m):
+            if tcp_z_m is None or not math.isfinite(float(tcp_z_m)):
+                return out
+            self.anchor_z_m = float(tcp_z_m)
+        amplitude_m = float(TRAJECTORY_PARAMETERS["parameters"]["amplitude_m"])
+        omega_rad_s = float(TRAJECTORY_PARAMETERS["parameters"]["omega_rad_s"])
+        phase_rad = omega_rad_s * out.progress_s
+        local_x_m = amplitude_m * (phase_rad - math.sin(phase_rad))
+        local_y_m = amplitude_m * (1.0 - math.cos(phase_rad))
+        out.center_x_m = (
+            PATH_ORIGIN_XY_M[0]
+            + local_x_m * PATH_U_ALONG_XY[0]
+            + local_y_m * PATH_P_LATERAL_XY[0]
+        )
+        out.center_y_m = (
+            PATH_ORIGIN_XY_M[1]
+            + local_x_m * PATH_U_ALONG_XY[1]
+            + local_y_m * PATH_P_LATERAL_XY[1]
+        )
+        out.center_z_m = self.anchor_z_m
+        out.center_frozen = (
+            math.isfinite(self.last_progress_s)
+            and out.progress_s == self.last_progress_s
+        )
+        self.last_progress_s = out.progress_s
+        return out
 
 HOST_TO_TP_INTEGER_REGISTERS = {
     "campaign_epoch": 24,

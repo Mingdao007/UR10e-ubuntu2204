@@ -97,7 +97,7 @@ PROTECTED_V1_SHA256 = {
 APPROVED_ORCHESTRATION_VARIANTS = {
     "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py": {
         "baseline_sha256": "5f913259826dcaff0d54bcae43d6c30b0efffe63ad8b8565e43459fa954fe3db",
-        "approved_sha256": "057992a2753c917dd0f0f16c5cf4310f72bf46423cd7762c1434481f75cbeaa6",
+        "approved_sha256": "c9b3b9a51d2ec9f630cdcc676de63c161e344bdb80a78ed4ab43a577493f8ed7",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {

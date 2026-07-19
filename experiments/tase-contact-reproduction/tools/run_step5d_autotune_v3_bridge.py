@@ -32,7 +32,11 @@ if str(RUNTIME_SRC) not in sys.path:
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 from ur10e_experiment_runtime.identity import canonical_sha256
 from ur10e_experiment_runtime.moving_sphere import MovingSphereKernel
-from ur10e_experiment_runtime.stage_adapters import TRAJECTORY_PARAMETERS_SHA256
+from ur10e_experiment_runtime.stage_adapters import (
+    STAGE_ID,
+    Stage25ControllerProgressAdapter,
+    frozen_step5d_path_reference,
+)
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v2"
@@ -306,9 +310,10 @@ def _apply_v3_arm_runtime(
         normalize_trial_overlay,
     )
 
+    launch_profile = load_launch_profile(DEFAULT_LAUNCH_PROFILE)
     normalized = normalize_trial_overlay(
         overlay,
-        profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+        profile=launch_profile,
     )
     candidate = ForceCandidate(
         force_p_gain=normalized["force_p_gain"],
@@ -356,17 +361,18 @@ def _apply_v3_arm_runtime(
     args.step4e_normal_max_rate_rad_s = (
         STEP5D_V3_PHYSICAL_PRIOR.normal_rate_limit_rad_s
     )
-    args.step5d_moving_sphere_reference_sha256 = canonical_sha256(
-        {
-            "schema": "step5d.moving-sphere-reference/v1",
-            "trajectory_parameters_sha256": TRAJECTORY_PARAMETERS_SHA256,
-            "physical_prior_sha256": STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
-        }
+    args.step5d_controller_progress_adapter = Stage25ControllerProgressAdapter(
+        physical_prior_sha256=STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+    )
+    args.step5d_moving_sphere_reference_sha256 = (
+        args.step5d_controller_progress_adapter.reference_sha256
     )
     # No certified reaction/braking artifact exists in this offline tranche.
     # Stage25 therefore fails closed until attended evidence supplies one.
     args.step5d_moving_sphere_kernel = MovingSphereKernel(
-        reference_sha256=args.step5d_moving_sphere_reference_sha256,
+        reference_sha256=str(
+            launch_profile.document["moving_sphere_reference_sha256"]
+        ),
         stopping_bound=None,
     )
 
@@ -495,6 +501,19 @@ def install_v3_seams() -> Any:
         return original_dict_writer(handle, fieldnames=fields, *args, **kwargs)
 
     bridge.csv.DictWriter = v3_dict_writer
+
+    original_path_reference = bridge.step5_contact_path_reference
+
+    def v3_path_reference(
+        pose_xy: tuple[float, float],
+        elapsed_s: float,
+        stage_id: str = STAGE_ID,
+    ) -> dict[str, Any]:
+        if stage_id == STAGE_ID:
+            return frozen_step5d_path_reference(pose_xy, elapsed_s)
+        return original_path_reference(pose_xy, elapsed_s, stage_id=stage_id)
+
+    bridge.step5_contact_path_reference = v3_path_reference
 
     original_apply_arm_runtime = live.BridgeMailboxRuntime._apply_arm_runtime
 
