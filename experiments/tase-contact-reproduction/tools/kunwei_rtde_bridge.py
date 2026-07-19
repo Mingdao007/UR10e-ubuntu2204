@@ -4123,6 +4123,9 @@ class BridgeState:
         self.step5d_physical_prior_sha256 = ""
         self.step5d_live_normal_load_gate_s = 0.0
         self.step5d_live_normal_blend_enabled = False
+        self.step5d_moving_sphere_anchor_z_m: float | None = None
+        self.step5d_moving_sphere_last_progress_s: float | None = None
+        self.step5d_moving_sphere_last_controller_timestamp_s: float | None = None
         self.step5d_normal_rate_limiter_saturated_s = 0.0
         self.step5d_normal_rate_limiter_active_s = 0.0
         self.step5b_15n_anchor_xy: tuple[float, float] | None = None
@@ -4201,6 +4204,9 @@ class BridgeState:
         self.step5d_stage25_entry_relatch_angle_rad = None
         self.step5d_live_normal_load_gate_s = 0.0
         self.step5d_live_normal_blend_enabled = False
+        self.step5d_moving_sphere_anchor_z_m = None
+        self.step5d_moving_sphere_last_progress_s = None
+        self.step5d_moving_sphere_last_controller_timestamp_s = None
         self.reset_step5b_15n_trial()
 
     def reset_step5b_15n_trial(self) -> None:
@@ -4390,7 +4396,10 @@ def compute_bridge_values(
             if (step5d_liveprep_v19_profile or step5d_liveprep_v20_profile)
             else STEP5D_V17_ENTRY_RAW_NORMAL_LOAD_MAX_N
         )
-    step5d_liveprep_online_cage_profile = args.bridge_profile in STEP5D_TCP_CAGE_PROFILES
+    step5d_liveprep_online_cage_profile = (
+        args.bridge_profile in STEP5D_TCP_CAGE_PROFILES
+        and args.bridge_profile != STEP5D_AUTOTUNE_STAGE_ID
+    )
     step5d_liveprep_guarded_profile = (
         step5d_liveprep_v3_profile
         or step5d_liveprep_v4_profile
@@ -6983,6 +6992,64 @@ def compute_bridge_values(
             values["_step5d_contact_safety_reason"] = (
                 f"p0_v8_canary_{canary_phase_s:g}s_complete"
             )
+    if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
+        sphere = args.step5d_moving_sphere_kernel
+        if line_stage_active and state.step5d_moving_sphere_anchor_z_m is None:
+            state.step5d_moving_sphere_anchor_z_m = float(pose[2])
+        try:
+            controller_progress_s = float(latest_output["output_double_register_31"])
+            controller_timestamp_s = float(latest_output["timestamp"])
+            progress_age_ns = int(args.step5d_moving_sphere_progress_age_ns)
+            if (
+                state.step5d_moving_sphere_last_controller_timestamp_s is not None
+                and controller_timestamp_s
+                <= state.step5d_moving_sphere_last_controller_timestamp_s
+            ):
+                progress_age_ns = 2_000_001
+        except (KeyError, TypeError, ValueError):
+            controller_progress_s = math.nan
+            controller_timestamp_s = math.nan
+            progress_age_ns = None
+        phase_frozen = (
+            state.step5d_moving_sphere_last_progress_s is not None
+            and controller_progress_s == state.step5d_moving_sphere_last_progress_s
+        )
+        state.step5d_moving_sphere_last_progress_s = controller_progress_s
+        state.step5d_moving_sphere_last_controller_timestamp_s = controller_timestamp_s
+        sphere_reference = (
+            step5_contact_path_reference(
+                (float(pose[0]), float(pose[1])),
+                controller_progress_s,
+                stage_id=args.bridge_profile,
+            )
+            if math.isfinite(controller_progress_s)
+            else None
+        )
+        result = sphere.tick(
+            stage=robot_stage,
+            tcp_base=pose,
+            center_base=(
+                float(sphere_reference["desired_xy"][0]),
+                float(sphere_reference["desired_xy"][1]),
+                state.step5d_moving_sphere_anchor_z_m,
+            )
+            if state.step5d_moving_sphere_anchor_z_m is not None
+            and sphere_reference is not None
+            else None,
+            tcp_speed_m_s=step5d_line_tcp_speed_m_s,
+            progress_age_ns=progress_age_ns,
+            progress_reference_sha256=str(args.step5d_moving_sphere_reference_sha256),
+            phase_frozen=phase_frozen,
+        )
+        values["_step5d_moving_sphere_reason"] = result.reason.name
+        values["_step5d_moving_sphere_actual_distance_m"] = result.actual_distance_m
+        values["_step5d_moving_sphere_predicted_bound_m"] = result.predicted_radial_bound_m
+        if result.stop:
+            for name in BRIDGE_INPUT_NAMES[:6]:
+                values[name] = 0.0
+            values["step4e_cmd_valid"] = 0.0
+            values["stop_request"] = 1.0
+            values["_step5d_contact_safety_reason"] = result.reason.name
     return values
 
 
@@ -11011,6 +11078,9 @@ def main(argv: list[str] | None = None) -> int:
                             )
                         if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
                             bridge_values.update(args.step5d_autotune_handshake)
+                            args.step5d_moving_sphere_progress_age_ns = int(
+                                max(0.0, feedback_age_s) * 1_000_000_000
+                            ) if math.isfinite(feedback_age_s) else 2_000_001
                             reset_step5d_autotune_diagnostics_for_trial(
                                 step4e_state, args
                             )

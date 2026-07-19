@@ -32,6 +32,12 @@ from .identity import (
 )
 from .registry import ComponentKind, ComponentRegistry, build_default_registry
 from .physical_prior import PhysicalPriorArtifact, STEP5D_V3_PHYSICAL_PRIOR
+from .moving_sphere import (
+    MovingSphereKernel,
+    SphereReason,
+    SphereTickResult,
+    StoppingBoundArtifact,
+)
 from .runtime import (
     HostResourceLock,
     append_run_state_event,
@@ -62,6 +68,7 @@ __all__ = [
     "ObjectiveContract",
     "OutputPathError",
     "PhysicalPriorArtifact",
+    "MovingSphereKernel",
     "ResourceLockError",
     "RegistryError",
     "RunManifest",
@@ -70,6 +77,9 @@ __all__ = [
     "SafetyGateError",
     "SpecValidationError",
     "StrictJSONError",
+    "SphereReason",
+    "SphereTickResult",
+    "StoppingBoundArtifact",
     "STEP5D_V3_PHYSICAL_PRIOR",
     "UnsupportedExecutionError",
     "build_default_registry",

@@ -136,6 +136,8 @@ def test_autotune_relatch_is_excluded_and_load_gate_is_explicit() -> None:
     assert "physical_prior_load_gate" in source
     assert "args.bridge_profile != STEP5D_AUTOTUNE_STAGE_ID" in source
     assert "step5d_live_normal_load_gate_dwell_s" in source
+    assert "step5d_moving_sphere_kernel" in source
+    assert "_step5d_moving_sphere_reason" in source
     reset_hunk = source.split("def reset_step5d_autotune_diagnostics_for_trial", 1)[1].split(
         "def step5d_liveprep_runtime_missing", 1
     )[0]

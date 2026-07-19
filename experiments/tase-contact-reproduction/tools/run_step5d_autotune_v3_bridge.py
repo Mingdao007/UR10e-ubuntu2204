@@ -30,6 +30,9 @@ if str(RUNTIME_SRC) not in sys.path:
     sys.path.insert(0, str(RUNTIME_SRC))
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+from ur10e_experiment_runtime.identity import canonical_sha256
+from ur10e_experiment_runtime.moving_sphere import MovingSphereKernel
+from ur10e_experiment_runtime.stage_adapters import TRAJECTORY_PARAMETERS_SHA256
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v2"
@@ -339,6 +342,19 @@ def _apply_v3_arm_runtime(
     )
     args.step4e_normal_max_rate_rad_s = (
         STEP5D_V3_PHYSICAL_PRIOR.normal_rate_limit_rad_s
+    )
+    args.step5d_moving_sphere_reference_sha256 = canonical_sha256(
+        {
+            "schema": "step5d.moving-sphere-reference/v1",
+            "trajectory_parameters_sha256": TRAJECTORY_PARAMETERS_SHA256,
+            "physical_prior_sha256": STEP5D_V3_PHYSICAL_PRIOR.fingerprint,
+        }
+    )
+    # No certified reaction/braking artifact exists in this offline tranche.
+    # Stage25 therefore fails closed until attended evidence supplies one.
+    args.step5d_moving_sphere_kernel = MovingSphereKernel(
+        reference_sha256=args.step5d_moving_sphere_reference_sha256,
+        stopping_bound=None,
     )
 
 
