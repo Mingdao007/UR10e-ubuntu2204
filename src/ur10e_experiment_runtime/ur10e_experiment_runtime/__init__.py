@@ -38,6 +38,13 @@ from .moving_sphere import (
     SphereTickResult,
     StoppingBoundArtifact,
 )
+from .return_route import (
+    ReturnReference,
+    ReturnSegment,
+    ReturnTargetVerification,
+    return_reference,
+    return_route,
+)
 from .runtime import (
     HostResourceLock,
     append_run_state_event,
@@ -73,6 +80,9 @@ __all__ = [
     "RegistryError",
     "RunManifest",
     "ReturnReferenceKind",
+    "ReturnReference",
+    "ReturnSegment",
+    "ReturnTargetVerification",
     "SafeClosureReceipt",
     "SafetyGateError",
     "SpecValidationError",
@@ -94,6 +104,8 @@ __all__ = [
     "load_strict_json",
     "plan_experiment",
     "run_experiment",
+    "return_reference",
+    "return_route",
     "status",
     "strict_json_loads",
     "validate_experiment_spec",
