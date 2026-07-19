@@ -1,0 +1,82 @@
+{
+  "schema": "step5d.autotune-v3/active-surface-v1",
+  "release_stage_id": "step5d_strict_rnn_autotune_v3",
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3",
+  "entrypoints": {
+    "operator": "scripts/step5d-autotune-v3.sh",
+    "live": "tools/run_step5d_autotune_v3_live.py",
+    "bridge": "tools/run_step5d_autotune_v3_bridge.py"
+  },
+  "selector_paths": [
+    "STEP5_FLOW.md",
+    "config/current_stage.json",
+    "config/step5_stage_table.json",
+    "config/tase_protocol_table.json",
+    "config/step5d/current.json"
+  ],
+  "tick_semantics_paths": [
+    "tools/contact_semantics.py",
+    "tools/kunwei_rtde_bridge.py",
+    "tools/step5c_calibrated_kinematics_audit.py",
+    "tools/step5c_dls_joint_solver.py",
+    "tools/step5c_strict_rnn.py",
+    "tools/step5d_control_contract.py",
+    "tools/step5d_p0_v9_control_core.py",
+    "tools/step5d_paper_outer_loop.py",
+    "tools/step5d_runtime_interface.py",
+    "tools/run_step5d_autotune_v3_bridge.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/physical_prior.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py"
+  ],
+  "timing_harness_paths": [
+    "tools/run_step5d_v30_remote_timing.py",
+    "tools/build_step5d_v30_remote_timing_bundle.py",
+    "tools/step5d_v30_timing.py",
+    "tools/step5d_timing_acceptance.py"
+  ],
+  "deployment_paths": [
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp",
+    "config/step5d_autotune_controller_readback_v3.json"
+  ],
+  "orchestration_paths": [
+    "tools/run_step5d_autotune_v3_live.py",
+    "tools/run_step5d_autotune_campaign.py",
+    "tools/step5d_autotune_v3/cli.py",
+    "tools/step5d_autotune_v3/launcher.py",
+    "tools/step5d_autotune_v3/runtime_profile.py",
+    "tools/step5d_autotune_v3/state.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/authorization.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/batch.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/evidence.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/return_route.py"
+  ],
+  "runtime_input_paths": [
+    "config/step5_liveprep_solver_gate.json",
+    "config/step5_safe_frame.json",
+    "config/step5d_v30_profile_selection.json",
+    "config/step5/step5d_autotune_v3_launch_profile.json",
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json"
+  ],
+  "retired_runtime_entrypoints": [
+    "scripts/step5d-autotune-live.sh",
+    "tools/prepare_step5d_autotune_launch.py --authorization-file",
+    "V1 resolver special-case",
+    "V3 legacy campaign adoption"
+  ],
+  "excluded_identity_inputs": [
+    "absolute_paths",
+    "timestamps",
+    "process_ids",
+    "hostnames",
+    "output_roots",
+    "current_or_latest_pointers",
+    "selector_documentation",
+    "promotion_status",
+    "evidence_artifact_self_hash",
+    "verifier_or_builder_source"
+  ]
+}
