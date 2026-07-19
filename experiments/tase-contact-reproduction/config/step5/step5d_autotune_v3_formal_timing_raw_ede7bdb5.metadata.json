@@ -1,0 +1,159 @@
+{
+  "bundler_after_exit_code": 0,
+  "bundler_exit_code": 0,
+  "bundler_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "claim_class": "formal_raw_capture_step5d_v3",
+  "formal": true,
+  "harness_exit_code": 0,
+  "output": "experiments/tase-contact-reproduction/config/step5/step5d_autotune_v3_formal_timing_raw_ede7bdb5.json",
+  "source_fingerprint_after": {
+    "cpu_affinity": [
+      11,
+      13,
+      14,
+      15
+    ],
+    "effective_environment": {
+      "CUDA_VISIBLE_DEVICES": "0",
+      "LD_LIBRARY_PATH": "/home/andy/.codex-python/ur10e-digital-twin-20260711/nvidia/cuda_runtime/lib:/home/andy/.codex-python/ur10e-digital-twin-20260711/nvidia/cuda_nvrtc/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "PYTHONPATH": "/home/andy/.codex-worktrees/ur10e-step5d-v3-source-exact-timing-20260720/src/ur10e_experiment_runtime:/home/andy/.codex-python/ur10e-digital-twin-20260711:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages",
+      "UR10E_RNN_GPU_DEVICE": "0"
+    },
+    "execution_contract": {
+      "command_prefix": [
+        "taskset",
+        "-c",
+        "11,13,14,15"
+      ],
+      "formal": true,
+      "scheduler_contract": "sched_other_0",
+      "stdin_delivery": "generated_bundle_bytes",
+      "step5d_v3_moving_sphere": true
+    },
+    "external_model_inputs": {
+      "/home/andy/.codex-worktrees/ur10e-step5d-v3-source-exact-timing-20260720/src/ur10e_bringup/config/ur10e_calibration.yaml": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+      "/opt/ros/humble/share/ur_description/urdf/inc/ur_common.xacro": "6f01bf71dc8073b5cd7458c12ed39d87eb99ffec7d6bb31d534d96f83c534304",
+      "/opt/ros/humble/share/ur_description/urdf/inc/ur_transmissions.xacro": "85096b2102ef26cb11313956e9ba737f3fae63a0b702108f8cf3253de1cdadf3",
+      "/opt/ros/humble/share/ur_description/urdf/ur.ros2_control.xacro": "0f5c0dd643502bc0be10d7068ecf6ce66da3114d9fbfcd1fdadec801836409fd",
+      "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c",
+      "/opt/ros/humble/share/ur_description/urdf/ur_macro.xacro": "7cc01c5779723f60397309216b295885a1a64741f7f61f212a92fe8da5116674"
+    },
+    "files": {
+      "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py": "59d2862cfe0d445890c6a305f099bfa3d6f08a9ce6de4b8408122f22097334a6",
+      "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py": "552d02a0f6eff7aa25c4029098c8c7ac6564279bfa3e9f65444c5ef17b1aad3b",
+      "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/physical_prior.py": "d93b9e3fb2031bafa4e0d25a850931ff619d57e6fde4b34b66f67195e6657f70",
+      "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py": "bb8e7d7512438eb728fbc02afa9a4ab5fe47a7cbef53140c5c656254923c0dd3",
+      "config/current_stage.json": "8d6684717008a3d4bfbdd948a03083188f6456afb5313d58edbecfa6cb0e6132",
+      "config/step5_stage_table.json": "ee064a161501ff47b87ec70e193f4c8cd441d3aa1bd12bd1aa61a41a9d1095f0",
+      "config/step5d_liveprep_solver_gate.json": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555",
+      "config/step5d_v29_remote_evidence_sha256.json": "c43f74e5d5e842e347eee915df83b44429c120cb42416ea2a48c12f95775cfa8",
+      "config/step5d_v30_profile_selection.json": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906",
+      "config/ur10e_user_decisions_v1.json": "d853416023f6964c41d379b9b5e128592a58b478290d34ad7c5ad7386272fa8f",
+      "tools/benchmark_step5d_v3_sphere_seam.py": "d9b1937ed7f6b77c949cd337895fb4bf7b81693539c3cdc2cbe1bea15573610f",
+      "tools/build_step5d_v30_offline_readiness.py": "0c3d2e8dc19712f95acf7d0343e54cb2729f6177fe7804896ea6234e276e5be3",
+      "tools/build_step5d_v30_remote_timing_bundle.py": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+      "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+      "tools/kunwei_rtde_bridge.py": "dad5b5b8e37dfddd22447738e7aeb5d61bf0348eee5f527f08a99132f8c204ed",
+      "tools/run_step5d_parallel_workflow.py": "2c00850ed062d22b818ad66d8cc3d84697c3a319105a5c0ee5e2342737eeeb25",
+      "tools/run_step5d_v30_remote_timing.py": "8984e6ca5eece9ede91e58b0860b52e30b83631ea82f397a7f2cdfa6ed94afec",
+      "tools/step5c_calibrated_kinematics_audit.py": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+      "tools/step5c_strict_rnn.py": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+      "tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
+      "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+      "tools/step5d_runtime_interface.py": "a36306325de4720fc53a6354878edc45c0598518e060df0926f98dc5c699bcd1",
+      "tools/step5d_timing_acceptance.py": "67339680ebf7929fdfb7777db26db337408702d16acbf212ab00caeb53f1d648",
+      "tools/step5d_v30_timing.py": "72d272456ed1d271e3f63a7e3d1b74bbd305fc7554c46fa2ec614d55653dda47"
+    },
+    "interpreter": {
+      "path": "/usr/bin/python3.10",
+      "platform": "Linux-5.15.0-1110-realtime-x86_64-with-glibc2.35",
+      "sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86",
+      "version": "3.10.12 (main, Jun 22 2026, 18:55:27) [GCC 11.4.0]"
+    },
+    "replay_csv": {
+      "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+      "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335"
+    },
+    "timing_bundle_sha256": "cbadc743824e8e9de24eac0ac67cf4323c1e214bc0e462d15a03cd251d5c4b92"
+  },
+  "source_fingerprint_before": {
+    "cpu_affinity": [
+      11,
+      13,
+      14,
+      15
+    ],
+    "effective_environment": {
+      "CUDA_VISIBLE_DEVICES": "0",
+      "LD_LIBRARY_PATH": "/home/andy/.codex-python/ur10e-digital-twin-20260711/nvidia/cuda_runtime/lib:/home/andy/.codex-python/ur10e-digital-twin-20260711/nvidia/cuda_nvrtc/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib",
+      "MKL_NUM_THREADS": "1",
+      "NUMEXPR_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1",
+      "PYTHONPATH": "/home/andy/.codex-worktrees/ur10e-step5d-v3-source-exact-timing-20260720/src/ur10e_experiment_runtime:/home/andy/.codex-python/ur10e-digital-twin-20260711:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages",
+      "UR10E_RNN_GPU_DEVICE": "0"
+    },
+    "execution_contract": {
+      "command_prefix": [
+        "taskset",
+        "-c",
+        "11,13,14,15"
+      ],
+      "formal": true,
+      "scheduler_contract": "sched_other_0",
+      "stdin_delivery": "generated_bundle_bytes",
+      "step5d_v3_moving_sphere": true
+    },
+    "external_model_inputs": {
+      "/home/andy/.codex-worktrees/ur10e-step5d-v3-source-exact-timing-20260720/src/ur10e_bringup/config/ur10e_calibration.yaml": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+      "/opt/ros/humble/share/ur_description/urdf/inc/ur_common.xacro": "6f01bf71dc8073b5cd7458c12ed39d87eb99ffec7d6bb31d534d96f83c534304",
+      "/opt/ros/humble/share/ur_description/urdf/inc/ur_transmissions.xacro": "85096b2102ef26cb11313956e9ba737f3fae63a0b702108f8cf3253de1cdadf3",
+      "/opt/ros/humble/share/ur_description/urdf/ur.ros2_control.xacro": "0f5c0dd643502bc0be10d7068ecf6ce66da3114d9fbfcd1fdadec801836409fd",
+      "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c",
+      "/opt/ros/humble/share/ur_description/urdf/ur_macro.xacro": "7cc01c5779723f60397309216b295885a1a64741f7f61f212a92fe8da5116674"
+    },
+    "files": {
+      "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py": "59d2862cfe0d445890c6a305f099bfa3d6f08a9ce6de4b8408122f22097334a6",
+      "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py": "552d02a0f6eff7aa25c4029098c8c7ac6564279bfa3e9f65444c5ef17b1aad3b",
+      "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/physical_prior.py": "d93b9e3fb2031bafa4e0d25a850931ff619d57e6fde4b34b66f67195e6657f70",
+      "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py": "bb8e7d7512438eb728fbc02afa9a4ab5fe47a7cbef53140c5c656254923c0dd3",
+      "config/current_stage.json": "8d6684717008a3d4bfbdd948a03083188f6456afb5313d58edbecfa6cb0e6132",
+      "config/step5_stage_table.json": "ee064a161501ff47b87ec70e193f4c8cd441d3aa1bd12bd1aa61a41a9d1095f0",
+      "config/step5d_liveprep_solver_gate.json": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555",
+      "config/step5d_v29_remote_evidence_sha256.json": "c43f74e5d5e842e347eee915df83b44429c120cb42416ea2a48c12f95775cfa8",
+      "config/step5d_v30_profile_selection.json": "7df2f006edbe6210668eaa39ff2a3d85e03ac2bf9e81cd509aebeab57aa1b906",
+      "config/ur10e_user_decisions_v1.json": "d853416023f6964c41d379b9b5e128592a58b478290d34ad7c5ad7386272fa8f",
+      "tools/benchmark_step5d_v3_sphere_seam.py": "d9b1937ed7f6b77c949cd337895fb4bf7b81693539c3cdc2cbe1bea15573610f",
+      "tools/build_step5d_v30_offline_readiness.py": "0c3d2e8dc19712f95acf7d0343e54cb2729f6177fe7804896ea6234e276e5be3",
+      "tools/build_step5d_v30_remote_timing_bundle.py": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+      "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+      "tools/kunwei_rtde_bridge.py": "dad5b5b8e37dfddd22447738e7aeb5d61bf0348eee5f527f08a99132f8c204ed",
+      "tools/run_step5d_parallel_workflow.py": "2c00850ed062d22b818ad66d8cc3d84697c3a319105a5c0ee5e2342737eeeb25",
+      "tools/run_step5d_v30_remote_timing.py": "8984e6ca5eece9ede91e58b0860b52e30b83631ea82f397a7f2cdfa6ed94afec",
+      "tools/step5c_calibrated_kinematics_audit.py": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+      "tools/step5c_strict_rnn.py": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+      "tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
+      "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+      "tools/step5d_runtime_interface.py": "a36306325de4720fc53a6354878edc45c0598518e060df0926f98dc5c699bcd1",
+      "tools/step5d_timing_acceptance.py": "67339680ebf7929fdfb7777db26db337408702d16acbf212ab00caeb53f1d648",
+      "tools/step5d_v30_timing.py": "72d272456ed1d271e3f63a7e3d1b74bbd305fc7554c46fa2ec614d55653dda47"
+    },
+    "interpreter": {
+      "path": "/usr/bin/python3.10",
+      "platform": "Linux-5.15.0-1110-realtime-x86_64-with-glibc2.35",
+      "sha256": "7d51cd6b48b521277f5caa4610a82126e315fa2be4df069823a8b1eeb5bd4a86",
+      "version": "3.10.12 (main, Jun 22 2026, 18:55:27) [GCC 11.4.0]"
+    },
+    "replay_csv": {
+      "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+      "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335"
+    },
+    "timing_bundle_sha256": "cbadc743824e8e9de24eac0ac67cf4323c1e214bc0e462d15a03cd251d5c4b92"
+  },
+  "source_fingerprint_stable": true,
+  "step5d_v3_moving_sphere": true
+}
