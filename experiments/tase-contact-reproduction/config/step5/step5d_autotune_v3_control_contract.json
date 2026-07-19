@@ -20,7 +20,7 @@
     "scripts/bridge-line-operator.sh": "2fdc3faa70c57614d5a731fbf1024d046d11da23f374711c9002a1b9d6be58ec",
     "scripts/step5d-autotune-live.sh": "301cf94d9bed54518443075abada22b61981b4aa342f9c4aa458e5292b3b2b38",
     "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
-    "tools/kunwei_rtde_bridge.py": "1851e3a1052be524ce96b991a94685fbd13fcebdcddc4225044e231b92c3d359",
+    "tools/kunwei_rtde_bridge.py": "2929839f7ffa12502935fefdccd0ed850d62a879f4f1c63521c5e4295613a8ab",
     "tools/step5d_autotune_contract.py": "e54eb807ad30df95e41ca108c647d010c360e344c7f6915f76666fb96879eee9",
     "tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
     "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",

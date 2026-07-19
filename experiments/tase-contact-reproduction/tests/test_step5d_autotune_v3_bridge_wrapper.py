@@ -138,6 +138,13 @@ def test_autotune_relatch_is_excluded_and_load_gate_is_explicit() -> None:
     assert "step5d_live_normal_load_gate_dwell_s" in source
     assert "step5d_moving_sphere_kernel" in source
     assert "_step5d_moving_sphere_reason" in source
+    assert "state.step5d_physical_prior_approach_axis_b" in source
+    assert "physical_prior_search_pose_mismatch" in source
+    search_guard = source.split(
+        "def apply_step5d_search_pose_fail_stop", 1
+    )[1].split("def apply_v29_fail_stop", 1)[0]
+    assert 'values["step4e_cmd_valid"] = 0.0' in search_guard
+    assert 'values["stop_request"] = 1.0' in search_guard
     reset_hunk = source.split("def reset_step5d_autotune_diagnostics_for_trial", 1)[1].split(
         "def step5d_liveprep_runtime_missing", 1
     )[0]

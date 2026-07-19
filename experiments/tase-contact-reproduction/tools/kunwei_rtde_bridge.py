@@ -3723,9 +3723,36 @@ def reset_step5d_autotune_diagnostics_for_trial(
     diagnostics.reset_for_trial()
     state.step5d_v30_diagnostics_trial_id = trial_id
     prior = tuple(args.step5d_physical_prior_reaction_normal_b)
+    approach = tuple(args.step5d_physical_prior_approach_axis_b)
+    rotvec = tuple(args.step5d_physical_prior_precontact_rotvec_rad)
+    identity_payload = args.step5d_physical_prior_identity_payload
+    if (
+        not bool(args.step5d_physical_prior_binding_valid)
+        or not isinstance(identity_payload, Mapping)
+        or str(args.step5d_physical_prior_sha256) == ""
+        or tuple(identity_payload.get("reaction_normal_b", ())) != prior
+        or tuple(identity_payload.get("approach_axis_b", ())) != approach
+        or tuple(identity_payload.get("precontact_rotvec_rad", ())) != rotvec
+    ):
+        raise RuntimeError("autotune physical prior fingerprint binding differs")
     if len(prior) != 3 or not all(math.isfinite(value) for value in prior):
         raise RuntimeError("autotune physical prior is invalid")
+    if len(approach) != 3 or not all(math.isfinite(value) for value in approach):
+        raise RuntimeError("autotune physical prior approach axis is invalid")
+    if len(rotvec) != 3 or not all(math.isfinite(value) for value in rotvec):
+        raise RuntimeError("autotune physical prior rotvec is invalid")
+    if max(abs(prior[index] + approach[index]) for index in range(3)) > 1e-8:
+        raise RuntimeError("autotune physical prior direction roles differ")
+    prior_rotation = rotvec_to_matrix(*rotvec)
+    prior_tool_z = (
+        prior_rotation[0][2],
+        prior_rotation[1][2],
+        prior_rotation[2][2],
+    )
+    if angle_between_unit(prior_tool_z, approach) > 1e-8:
+        raise RuntimeError("autotune physical prior orientation differs")
     state.step5d_physical_prior_reaction_normal_b = prior
+    state.step5d_physical_prior_approach_axis_b = approach
     state.step5d_physical_prior_sha256 = str(args.step5d_physical_prior_sha256)
     state.integral_error_n_s = 0.0
     state.normal_velocity_m_s = 0.0
@@ -4120,6 +4147,7 @@ class BridgeState:
         self.step5d_stage25_normal_relatched = False
         self.step5d_stage25_entry_relatch_angle_rad: float | None = None
         self.step5d_physical_prior_reaction_normal_b: tuple[float, float, float] | None = None
+        self.step5d_physical_prior_approach_axis_b: tuple[float, float, float] | None = None
         self.step5d_physical_prior_sha256 = ""
         self.step5d_live_normal_load_gate_s = 0.0
         self.step5d_live_normal_blend_enabled = False
@@ -4751,10 +4779,16 @@ def compute_bridge_values(
             or abs(robot_stage - 24.2) < 0.05
         )
     )
+    step5d_search_pose_target_axis_b = (
+        state.step5d_physical_prior_approach_axis_b
+        if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+        else STEP5D_SEARCH_POSE_TARGET_AXIS_B
+    )
     step5d_search_pose_contract_axis_error_rad = (
-        angle_between_unit(tcp_z_axis_b, STEP5D_SEARCH_POSE_TARGET_AXIS_B)
+        angle_between_unit(tcp_z_axis_b, step5d_search_pose_target_axis_b)
         if step5d_search_pose_contract_active
-        else math.nan
+        and step5d_search_pose_target_axis_b is not None
+        else math.inf if step5d_search_pose_contract_active else math.nan
     )
     step5d_search_pose_contract_ok = (
         step5d_search_pose_contract_active
@@ -6879,7 +6913,11 @@ def compute_bridge_values(
         values["_step5d_search_pose_contract_active"] = 1.0 if step5d_search_pose_contract_active else 0.0
         values["_step5d_search_pose_contract_ok"] = 1.0 if step5d_search_pose_contract_ok else 0.0
         values["_step5d_search_pose_contract_axis_error_rad"] = step5d_search_pose_contract_axis_error_rad
-        values["_step5d_search_pose_contract_tcp_z_dot_down"] = dot3(tcp_z_axis_b, STEP5D_SEARCH_POSE_TARGET_AXIS_B)
+        values["_step5d_search_pose_contract_tcp_z_dot_down"] = (
+            dot3(tcp_z_axis_b, step5d_search_pose_target_axis_b)
+            if step5d_search_pose_target_axis_b is not None
+            else math.nan
+        )
         values["_step5d_force_settle_filtered_normal_load_n"] = (
             state.step5d_settle_filtered_normal_load_n
             if state.step5d_settle_filtered_normal_load_n is not None
@@ -6992,6 +7030,12 @@ def compute_bridge_values(
             values["_step5d_contact_safety_reason"] = (
                 f"p0_v8_canary_{canary_phase_s:g}s_complete"
             )
+    if (
+        args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+        and step5d_search_pose_contract_active
+        and not step5d_search_pose_contract_ok
+    ):
+        apply_step5d_search_pose_fail_stop(values)
     if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
         sphere = args.step5d_moving_sphere_kernel
         if line_stage_active and state.step5d_moving_sphere_anchor_z_m is None:
@@ -7899,6 +7943,18 @@ def guard_stop_reason(args: argparse.Namespace, bridge_values: dict[str, float])
     if bridge_values["torque_norm_nm"] > args.max_torque_norm_nm:
         return "torque_norm_guard"
     return None
+
+
+def apply_step5d_search_pose_fail_stop(values: dict[str, Any]) -> None:
+    """Clear every motion carrier and request the existing same-tick stop."""
+
+    for name in BRIDGE_INPUT_NAMES[:6]:
+        values[name] = 0.0
+    values["step4e_cmd_valid"] = 0.0
+    values["stop_request"] = 1.0
+    values["_step5d_contact_safety_reason"] = (
+        "physical_prior_search_pose_mismatch"
+    )
 
 
 def apply_v29_fail_stop(bridge_values: dict[str, float]) -> None:

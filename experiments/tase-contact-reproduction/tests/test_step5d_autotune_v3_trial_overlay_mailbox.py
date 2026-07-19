@@ -218,6 +218,15 @@ def test_v3_arm_boundary_applies_real_orientation_k() -> None:
     assert args.step5d_autotune_orientation_ko == overlay["orientation_ko"]
     assert args.step5d_autotune_force_p == overlay["force_p_gain"]
     assert args.step5d_autotune_control_candidate_uid == overlay["control_candidate_uid"]
+    assert args.step5d_physical_prior_sha256 == (
+        "c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f"
+    )
+    assert args.step5d_physical_prior_binding_valid is True
+    assert args.step5d_physical_prior_identity_payload["approach_axis_b"] == [
+        0.043955267,
+        -0.020079909,
+        -0.998831683,
+    ]
 
 
 def test_v3_capture_writer_is_async_compact_and_binds_real_candidate(tmp_path: Path) -> None:

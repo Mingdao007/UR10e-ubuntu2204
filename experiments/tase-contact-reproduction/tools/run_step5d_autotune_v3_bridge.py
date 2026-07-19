@@ -332,7 +332,20 @@ def _apply_v3_arm_runtime(
     args.step5d_physical_prior_reaction_normal_b = (
         STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b
     )
+    args.step5d_physical_prior_approach_axis_b = (
+        STEP5D_V3_PHYSICAL_PRIOR.approach_axis_b
+    )
+    args.step5d_physical_prior_precontact_rotvec_rad = (
+        STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
+    )
+    args.step5d_physical_prior_identity_payload = (
+        STEP5D_V3_PHYSICAL_PRIOR.identity_payload()
+    )
     args.step5d_physical_prior_sha256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+    args.step5d_physical_prior_binding_valid = (
+        canonical_sha256(args.step5d_physical_prior_identity_payload)
+        == args.step5d_physical_prior_sha256
+    )
     args.step5d_live_normal_load_gate_n = STEP5D_V3_PHYSICAL_PRIOR.load_gate_n
     args.step5d_live_normal_load_gate_dwell_s = (
         STEP5D_V3_PHYSICAL_PRIOR.load_gate_dwell_s

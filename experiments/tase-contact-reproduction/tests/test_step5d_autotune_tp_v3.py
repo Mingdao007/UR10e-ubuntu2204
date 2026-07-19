@@ -24,6 +24,7 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     assert rendered.count("read_input_integer_register(26)") >= 2
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
     assert "# PRECONTACT_POSE_PRIOR_ID: step5d_v3_physical_prior_contact_0p1_20260719" in rendered
+    assert "# PHYSICAL_PRIOR_SHA256: c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f" in rendered
     assert "local entry_x = 0.487834547" in rendered
     assert "local entry_y = 0.129337053" in rendered
     assert "local precontact_z = 0.022863519" in rendered
@@ -59,6 +60,9 @@ def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
     assert sanity["precontact_rotvec_rad"] == [3.120752062, 0.0, 0.068626833]
     assert sanity["reaction_normal_b"] == [-0.043955267, 0.020079909, 0.998831683]
     assert sanity["approach_axis_b"] == [0.043955267, -0.020079909, -0.998831683]
+    assert sanity["physical_prior_sha256"] == (
+        "c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f"
+    )
     assert sanity["precontact_clearance_m"] == 0.005
     assert sanity["minimum_start_above_entry_m"] == 0.01
     assert sanity["qdot_cap_rad_s"] == 0.5

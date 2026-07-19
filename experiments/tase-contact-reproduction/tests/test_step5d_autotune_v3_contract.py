@@ -10,11 +10,14 @@ import os
 import sys
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_SRC = ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
+sys.path.insert(0, str(RUNTIME_SRC))
 if os.environ.get("STEP5D_V3_HERMETIC_PARSER_CI") == "1":
     sys.path.insert(0, str(ROOT / "tests"))
     from step5d_v3_parser_ci_stubs import install as install_parser_ci_stubs
@@ -47,8 +50,48 @@ def test_real_parser_is_bound_to_sha_protected_bridge_source() -> None:
     protected = (ROOT / "tools/kunwei_rtde_bridge.py").resolve()
     assert Path(bridge.parse_args.__code__.co_filename).resolve() == protected
     assert hashlib.sha256(protected.read_bytes()).hexdigest() == (
-        "1851e3a1052be524ce96b991a94685fbd13fcebdcddc4225044e231b92c3d359"
+        "2929839f7ffa12502935fefdccd0ed850d62a879f4f1c63521c5e4295613a8ab"
     )
+
+
+def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> None:
+    import kunwei_rtde_bridge as bridge
+    from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+
+    prior = STEP5D_V3_PHYSICAL_PRIOR
+    args = SimpleNamespace(
+        bridge_profile=bridge.STEP5D_AUTOTUNE_STAGE_ID,
+        step5d_autotune_handshake={"trial_id": 1},
+        step5d_physical_prior_reaction_normal_b=prior.reaction_normal_b,
+        step5d_physical_prior_approach_axis_b=prior.approach_axis_b,
+        step5d_physical_prior_precontact_rotvec_rad=prior.precontact_rotvec_rad,
+        step5d_physical_prior_identity_payload=prior.identity_payload(),
+        step5d_physical_prior_sha256=prior.fingerprint,
+        step5d_physical_prior_binding_valid=True,
+    )
+    state = bridge.BridgeState()
+    state.step5d_v30_deferred_diagnostics = SimpleNamespace(
+        reset_for_trial=lambda: None
+    )
+    assert bridge.reset_step5d_autotune_diagnostics_for_trial(state, args) is True
+    assert state.step5d_physical_prior_approach_axis_b == prior.approach_axis_b
+    assert state.step5d_physical_prior_sha256 == prior.fingerprint
+
+    values = {name: 1.0 for name in bridge.BRIDGE_INPUT_NAMES[:6]}
+    values["step4e_cmd_valid"] = 1.0
+    values["stop_request"] = 0.0
+    bridge.apply_step5d_search_pose_fail_stop(values)
+    assert [values[name] for name in bridge.BRIDGE_INPUT_NAMES[:6]] == [0.0] * 6
+    assert values["step4e_cmd_valid"] == 0.0
+    assert values["stop_request"] == 1.0
+    assert values["_step5d_contact_safety_reason"] == (
+        "physical_prior_search_pose_mismatch"
+    )
+
+    args.step5d_physical_prior_approach_axis_b = (0.0, 0.0, -1.0)
+    args.step5d_autotune_handshake = {"trial_id": 2}
+    with pytest.raises(RuntimeError, match="fingerprint binding differs"):
+        bridge.reset_step5d_autotune_diagnostics_for_trial(state, args)
 
 
 def _remove_flag(argv: list[str], flag: str) -> list[str]:
