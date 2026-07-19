@@ -45,6 +45,7 @@ from .return_route import (
     return_reference,
     return_route,
 )
+from .evidence import EvidenceSink, TrialBrief, build_trial_brief
 from .runtime import (
     HostResourceLock,
     append_run_state_event,
@@ -72,6 +73,7 @@ __all__ = [
     "ExperimentRuntimeError",
     "ExperimentSpec",
     "ExactAckReceipt",
+    "EvidenceSink",
     "ObjectiveContract",
     "OutputPathError",
     "PhysicalPriorArtifact",
@@ -90,9 +92,11 @@ __all__ = [
     "SphereReason",
     "SphereTickResult",
     "StoppingBoundArtifact",
+    "TrialBrief",
     "STEP5D_V3_PHYSICAL_PRIOR",
     "UnsupportedExecutionError",
     "build_default_registry",
+    "build_trial_brief",
     "append_run_state_event",
     "canonical_json_bytes",
     "canonical_sha256",
