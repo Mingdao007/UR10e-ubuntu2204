@@ -4351,6 +4351,16 @@ def compute_bridge_values(
     step5d_liveprep_v33_profile = args.bridge_profile == STEP5D_ABLATION_V33_STAGE_ID
     step5d_liveprep_v34_profile = args.bridge_profile in STEP5D_V34_OR_NEWER_PROFILE_IDS
     step5d_autotune_profile = args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+    if step5d_autotune_profile:
+        handshake = getattr(args, "step5d_autotune_handshake", None)
+        try:
+            autotune_command = int(handshake["command"])
+        except (KeyError, TypeError, ValueError):
+            autotune_command = 0
+        if autotune_command == 0:
+            values["_step5d_autotune_pre_arm_hold"] = 1.0
+            values["_step5d_contact_safety_reason"] = "autotune_pre_arm_hold"
+            return values
     autotune_force_terms = (
         getattr(
             args,

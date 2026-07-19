@@ -153,3 +153,34 @@ def test_autotune_relatch_is_excluded_and_load_gate_is_explicit() -> None:
     assert "state.latched_normal_b = prior" in reset_hunk
     assert "state.filtered_normal_b = prior" in reset_hunk
     assert "state.step5d_stage25_normal_relatched = False" in reset_hunk
+
+
+def test_pre_arm_hold_tick_keeps_bridge_alive_with_zero_command() -> None:
+    import kunwei_rtde_bridge as bridge
+
+    args = bridge.parse_args(
+        [
+            "--bridge-profile",
+            "step5d_strict_rnn_autotune_v1",
+            "--bridge-mode",
+            "line",
+        ]
+    )
+    latest_output = {
+        "actual_TCP_pose": [0.49, 0.14, 0.033, 3.12, 0.0, 0.0686],
+        "actual_TCP_speed": [0.0] * 6,
+        "actual_q": [0.0] * 6,
+        "actual_qd": [0.0] * 6,
+        "output_double_register_35": 70.0,
+    }
+    values = bridge.compute_bridge_values(
+        args,
+        [0.0] * 6,
+        latest_output,
+        1.0,
+        bridge.BridgeState(),
+        0.002,
+    )
+    assert values["_step5d_autotune_pre_arm_hold"] == 1.0
+    assert values["_step5d_contact_safety_reason"] == "autotune_pre_arm_hold"
+    assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES)

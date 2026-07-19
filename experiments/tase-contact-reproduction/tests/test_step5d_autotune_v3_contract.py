@@ -50,7 +50,7 @@ def test_real_parser_is_bound_to_sha_protected_bridge_source() -> None:
     protected = (ROOT / "tools/kunwei_rtde_bridge.py").resolve()
     assert Path(bridge.parse_args.__code__.co_filename).resolve() == protected
     assert hashlib.sha256(protected.read_bytes()).hexdigest() == (
-        "2929839f7ffa12502935fefdccd0ed850d62a879f4f1c63521c5e4295613a8ab"
+        "057992a2753c917dd0f0f16c5cf4310f72bf46423cd7762c1434481f75cbeaa6"
     )
 
 

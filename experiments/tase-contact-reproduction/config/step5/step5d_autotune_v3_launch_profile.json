@@ -3,7 +3,7 @@
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "tp_program_id": "step5d_strict_rnn_autotune_v3",
-  "control_contract_sha256": "7effd626cdb2e89d257142ab5e643bb24d05cbd4aa3fe204235601fd7cfe28bc",
+  "control_contract_sha256": "3a9ad524b330050c6472737eb2e80fae3134acb98cf60c1dc5244e7348f050ed",
   "launch_overrides": {},
   "trial_overlay_policy": {
     "force_p_gain": {"min": 0.00025, "max": 0.004},

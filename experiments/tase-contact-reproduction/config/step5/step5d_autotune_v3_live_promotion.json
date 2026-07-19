@@ -4,9 +4,9 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "current_selector": "step5d_strict_rnn_autotune_v1",
   "identity": {
-    "contract_sha256": "7effd626cdb2e89d257142ab5e643bb24d05cbd4aa3fe204235601fd7cfe28bc",
-    "control_fingerprint": "c7b5f49af37de47521551813776cac8d706d7b816ccec0aaad840585c7cf0ba4",
-    "orchestration_fingerprint": "bd1abd269368f8137e42cab3064f26094067b894cdaecb88acaa4259ec4e5791"
+    "contract_sha256": "3a9ad524b330050c6472737eb2e80fae3134acb98cf60c1dc5244e7348f050ed",
+    "control_fingerprint": "d53dcd4a31dd6b4e3d90706c89aa83bf41f7fd5e4250a21d1f2bfce78f945c4c",
+    "orchestration_fingerprint": "7f348a54f57489ab8ebb8e93c001997063898dee561f1027457e39ecda493959"
   },
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
