@@ -25,7 +25,7 @@ RETURN_ORIENTATION_ADMISSION_LIMIT_RAD = math.radians(20.0)
 RETURN_CONTROLLER_PERIOD_S = 0.002
 RETURN_CONTROLLER_MAX_SAMPLE_GAP_S = 0.004
 URSIM_RETURN_TRACE_SCHEMA = "step5d.autotune-v3/ursim-return-trace-v1"
-RETURN_TELEMETRY_SCHEMA = "step5d.autotune-v3/return-route-telemetry-v1"
+RETURN_TELEMETRY_SCHEMA = "step5d.autotune-v3/return-route-telemetry-v2"
 RETURN_ROUTE_EVIDENCE_SCHEMA = "step5d.autotune-v3/return-route-evidence-v2"
 
 
@@ -230,8 +230,8 @@ def validate_motion_capable_ursim_return_trace(
 def analyze_source_exact_return_telemetry(
     payload: object,
     *,
-    expected_control_fingerprint: str,
-    expected_orchestration_fingerprint: str,
+    expected_release_basis_fingerprint: str,
+    expected_deployment_fingerprint: str,
     expected_source_binding_sha256: str,
     expected_triplet_sha256: Mapping[str, str],
     expected_plant_epoch: int,
@@ -245,8 +245,8 @@ def analyze_source_exact_return_telemetry(
         {
             "schema",
             "candidate_stage_id",
-            "control_fingerprint",
-            "orchestration_fingerprint",
+            "release_basis_fingerprint",
+            "deployment_fingerprint",
             "source_binding_sha256",
             "triplet_sha256",
             "plant_epoch",
@@ -262,8 +262,8 @@ def analyze_source_exact_return_telemetry(
     expected = {
         "schema": RETURN_TELEMETRY_SCHEMA,
         "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-        "control_fingerprint": expected_control_fingerprint,
-        "orchestration_fingerprint": expected_orchestration_fingerprint,
+        "release_basis_fingerprint": expected_release_basis_fingerprint,
+        "deployment_fingerprint": expected_deployment_fingerprint,
         "source_binding_sha256": expected_source_binding_sha256,
         "triplet_sha256": dict(expected_triplet_sha256),
         "plant_epoch": expected_plant_epoch,

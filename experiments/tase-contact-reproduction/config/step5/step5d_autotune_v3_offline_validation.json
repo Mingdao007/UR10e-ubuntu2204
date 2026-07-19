@@ -20,10 +20,10 @@
       "status": "completed_read_only_nonblocking_advisory"
     },
     "authorization_separation": {
-      "campaign_schema": "ur-exp/step5d-campaign-authorization-v1",
+      "campaign_schema": "ur-exp/step5d-campaign-authorization-v2",
       "certification_no_contact_only": true,
       "certification_optimizer_eligible": false,
-      "certification_schema": "ur-exp/step5d-certification-motion-authorization-v1",
+      "certification_schema": "ur-exp/step5d-certification-motion-authorization-v2",
       "interchangeable": false,
       "procedure_ticket_required_before_motion": true,
       "status": "pass_offline_contract"
@@ -191,7 +191,7 @@
       "certified": false,
       "evidence": {
         "path": "config/step5/step5d_autotune_v3_return_route_evidence.json",
-        "sha256": "38167bc53ef31013044170ff032847cef946604bb0a967a6317916774358d56e"
+        "sha256": "a0e04802892b4304e47dc1b7f32873539ce018467ff6f914576b62bb663062f2"
       },
       "fail_closed": true,
       "offline_enforcement_complete": true,
@@ -253,14 +253,14 @@
     "legacy_provenance": {
       "contract_sha256": "5b23d8862a335b1c92b5b3b7829d6a212fbb021438ed64cc5c06aa793371da18",
       "control_fingerprint": "6cc7320ebf1450233cd2fb447432e613e67c8103294edbfa8f40449f518f3ac0",
-      "orchestration_fingerprint": "24e95321a2fdddd89ffd0e70238566e62e1b189be131fbe5ca0137b3258c2f01"
+      "orchestration_fingerprint": "01e67c10c38efa0f63c593e0faaef565c55dfbe93a777c0d0daacd314ecdf921"
     },
     "local_triplet_sha256": {
       ".script": "3dd672b4f68eba931fb8fc1e2c577e06205ff7a4e6d15a035e3619557d8e430d",
       ".txt": "3c6dc8fd7cb0e982591b311463e9a996dcf7db85086efada125121ff730dcd14",
       ".urp": "7f0b8ee7de9f57bd611d398d8afa0db238ebb10ce02f07f7f577e2cb9fedc3b5"
     },
-    "orchestration_fingerprint": "f2d8361b13b4c29067c74fe29371b48a5f8a845a44f184ec7604f713d52eae33",
+    "orchestration_fingerprint": "67ea0116a0565ab9ee46490dc0a5fb12e9102369c41d33c2240aea3699606f0d",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
@@ -268,7 +268,7 @@
     "tick_semantics_fingerprint": "7c41f7bceb42c92a0e4b4f0ac717975647009b2cf8c75733dfc768004e1b4b5d",
     "timing_harness_fingerprint": "7c00ea65d4e6d09b55fd486c6c6714344287d595e55ded8ead07845cec679daa",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "7d2c6b281ce14a68b4e1f75925966cc0ec6633586144ce39815ae575b93021d1"
+      "evidence_verifier_fingerprint": "68ebe84e9336a84582f18c0d3ad65ae3c8c32ce6ec09f0a8f84f58e1c0adc180"
     }
   },
   "observed_at": "2026-07-20T12:45:00+08:00",

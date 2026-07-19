@@ -35,6 +35,7 @@ from ur10e_artifact_store import artifact_store
 
 
 BACKEND_ID = "step5d_v35_native_backend_v1"
+V3_RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 
 
 class LiveAuthorizationRequired(RuntimeError):
@@ -296,13 +297,24 @@ class Step5dV35Backend:
         self._validate_campaign_source_contract()
         source_hashes = {path: _sha256_file(self.root / path) for path in self.SOURCE_PATHS}
         config_hashes = {path: _sha256_file(self.root / path) for path in self.CONFIG_PATHS}
-        workflow = verify_current(root=self.root, store=artifact_store(self.root))
-        if workflow.get("program") not in {SOURCE_STAGE_ID, CAMPAIGN_STAGE_ID} or not workflow.get(
-            "controller_verified"
-        ):
-            raise ValueError(
-                "current Step5d binding must be controller-verified v35 or autotune"
+        promoted = _json(self.root / "config" / "current_stage.json")
+        selected_program = promoted.get("program")
+        v3_selected = selected_program == V3_RELEASE_STAGE_ID
+        if v3_selected:
+            if promoted.get("current_stage_id") != V3_RELEASE_STAGE_ID:
+                raise ValueError("selected V3 stage/program identity differs")
+        else:
+            workflow = verify_current(
+                root=self.root,
+                store=artifact_store(self.root),
             )
+            if workflow.get("program") not in {
+                SOURCE_STAGE_ID,
+                CAMPAIGN_STAGE_ID,
+            } or not workflow.get("controller_verified"):
+                raise ValueError(
+                    "current Step5d binding must be controller-verified v35 or autotune"
+                )
         row = self._stage_row(SOURCE_STAGE_ID)
         campaign_row = self._stage_row(CAMPAIGN_STAGE_ID)
         outer = row.get("stage25_outer_profile", {})
@@ -324,18 +336,34 @@ class Step5dV35Backend:
         for key, expected in expected_runtime.items():
             if runtime.get(key) != expected:
                 raise ValueError(f"v35 runtime contract mismatch for {key}: {runtime.get(key)!r}")
-        promoted = _json(self.root / "config" / "current_stage.json")
         campaign_is_current = promoted.get("program") == CAMPAIGN_STAGE_ID
         source_binding = campaign_row.get("source_binding") or {}
         rendered_script = render_autotune_tp_script()
         rendered_script_bytes = rendered_script.encode("utf-8")
         rendered_script_sha256 = hashlib.sha256(rendered_script_bytes).hexdigest()
+        if v3_selected:
+            selection_inconsistent = any(
+                (
+                    row.get("active") is not False,
+                    (row.get("current_binding") or {}).get("is_current") is not False,
+                    campaign_row.get("active") is not False,
+                    (campaign_row.get("current_binding") or {}).get("is_current")
+                    is not False,
+                )
+            )
+        else:
+            selection_inconsistent = any(
+                (
+                    row.get("active") is campaign_is_current,
+                    (row.get("current_binding") or {}).get("is_current")
+                    is campaign_is_current,
+                    campaign_row.get("active") is not campaign_is_current,
+                    (campaign_row.get("current_binding") or {}).get("is_current")
+                    is not campaign_is_current,
+                )
+            )
         if (
-            row.get("active") is campaign_is_current
-            or (row.get("current_binding") or {}).get("is_current") is campaign_is_current
-            or campaign_row.get("active") is not campaign_is_current
-            or (campaign_row.get("current_binding") or {}).get("is_current")
-            is not campaign_is_current
+            selection_inconsistent
             or source_binding.get("stage_id") != SOURCE_STAGE_ID
             or source_binding.get("program_source_sha256")
             != source_hashes[
@@ -443,9 +471,11 @@ class Step5dV35Backend:
             blockers.append(f"fingerprint_freeze_failed:{type(exc).__name__}:{exc}")
         try:
             campaign_row = self._stage_row(CAMPAIGN_STAGE_ID)
+            selected_release_row = self._stage_row(V3_RELEASE_STAGE_ID)
             campaign_delivery = campaign_row.get("package_delivery", {})
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             campaign_row = {}
+            selected_release_row = {}
             campaign_delivery = {}
             blockers.append(
                 f"campaign_stage_delivery_unreadable:{type(exc).__name__}:{exc}"
@@ -460,13 +490,15 @@ class Step5dV35Backend:
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             current = {}
             blockers.append(f"current_stage_unreadable:{type(exc).__name__}:{exc}")
-        campaign_current_active = bool(
-            current.get("program") == CAMPAIGN_STAGE_ID
-            and isinstance(campaign_row, Mapping)
-            and campaign_row.get("active") is True
-            and (campaign_row.get("current_binding") or {}).get("is_current") is True
+        selected_release_current = bool(
+            current.get("program") == V3_RELEASE_STAGE_ID
+            and current.get("current_stage_id") == V3_RELEASE_STAGE_ID
+            and isinstance(selected_release_row, Mapping)
+            and selected_release_row.get("active") is True
+            and (selected_release_row.get("current_binding") or {}).get("is_current")
+            is True
         )
-        evidence["campaign_current_active"] = campaign_current_active
+        evidence["selected_release_current"] = selected_release_current
         cuda_available = False
         try:
             import cupy
@@ -498,7 +530,7 @@ class Step5dV35Backend:
             and authorization.controller_readback_verified
             and authorization.bounded_baseline_and_loop
             and readback_verified
-            and campaign_current_active
+            and selected_release_current
             and evidence.get("composite_fingerprint") == authorization.campaign_fingerprint
         )
         if not offline and not cuda_available:
@@ -507,8 +539,8 @@ class Step5dV35Backend:
             blockers.append("bounded_campaign_live_authorization_missing_or_mismatched")
         if not offline and not readback_verified:
             blockers.append("autotune_controller_delivery_and_fresh_readback_required")
-        if not offline and not campaign_current_active:
-            blockers.append("autotune_campaign_must_be_current_and_active")
+        if not offline and not selected_release_current:
+            blockers.append("selected_release_must_be_current_and_active")
         return BackendPreflight(
             ok=not blockers,
             offline_only=offline,

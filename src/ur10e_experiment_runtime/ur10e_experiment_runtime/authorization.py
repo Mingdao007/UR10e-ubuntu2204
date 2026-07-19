@@ -12,12 +12,12 @@ from .identity import canonical_sha256, load_strict_json
 
 
 CERTIFICATION_AUTHORIZATION_SCHEMA = (
-    "ur-exp/step5d-certification-motion-authorization-v1"
+    "ur-exp/step5d-certification-motion-authorization-v2"
 )
 CERTIFICATION_PROCEDURE_TICKET_SCHEMA = (
-    "ur-exp/step5d-certification-procedure-ticket-v1"
+    "ur-exp/step5d-certification-procedure-ticket-v2"
 )
-CAMPAIGN_AUTHORIZATION_SCHEMA = "ur-exp/step5d-campaign-authorization-v1"
+CAMPAIGN_AUTHORIZATION_SCHEMA = "ur-exp/step5d-campaign-authorization-v2"
 CERTIFICATION_PROCEDURES = (
     "direct_exact_stop",
     "stale_watchdog_exact_stop",
@@ -120,8 +120,8 @@ class CertificationMotionAuthorization:
     """One expiring authorization for no-contact certification procedures only."""
 
     stage_identity: Step5dV3StageIdentity
-    control_fingerprint: str
-    orchestration_fingerprint: str
+    release_basis_fingerprint: str
+    deployment_fingerprint: str
     plant_epoch: int
     deployment_readback_sha256: str
     allowed_procedures: tuple[str, ...]
@@ -137,8 +137,8 @@ class CertificationMotionAuthorization:
     def __post_init__(self) -> None:
         if self.stage_identity != STEP5D_V3_STAGE_IDENTITY:
             raise AuthorizationError("certification authorization stage differs")
-        _sha256("control_fingerprint", self.control_fingerprint)
-        _sha256("orchestration_fingerprint", self.orchestration_fingerprint)
+        _sha256("release_basis_fingerprint", self.release_basis_fingerprint)
+        _sha256("deployment_fingerprint", self.deployment_fingerprint)
         _sha256("deployment_readback_sha256", self.deployment_readback_sha256)
         if isinstance(self.plant_epoch, bool) or not isinstance(self.plant_epoch, int):
             raise AuthorizationError("plant_epoch must be an integer")
@@ -182,8 +182,8 @@ class CertificationMotionAuthorization:
         return {
             "schema": CERTIFICATION_AUTHORIZATION_SCHEMA,
             "stage_identity": self.stage_identity.document(),
-            "control_fingerprint": self.control_fingerprint,
-            "orchestration_fingerprint": self.orchestration_fingerprint,
+            "release_basis_fingerprint": self.release_basis_fingerprint,
+            "deployment_fingerprint": self.deployment_fingerprint,
             "plant_epoch": self.plant_epoch,
             "deployment_readback_sha256": self.deployment_readback_sha256,
             "allowed_procedures": list(self.allowed_procedures),
@@ -229,8 +229,8 @@ class CertificationMotionAuthorization:
         required = {
             "schema",
             "stage_identity",
-            "control_fingerprint",
-            "orchestration_fingerprint",
+            "release_basis_fingerprint",
+            "deployment_fingerprint",
             "plant_epoch",
             "deployment_readback_sha256",
             "allowed_procedures",
@@ -269,8 +269,8 @@ class CertificationMotionAuthorization:
             stage_identity=Step5dV3StageIdentity.from_document(
                 payload["stage_identity"]
             ),
-            control_fingerprint=payload["control_fingerprint"],
-            orchestration_fingerprint=payload["orchestration_fingerprint"],
+            release_basis_fingerprint=payload["release_basis_fingerprint"],
+            deployment_fingerprint=payload["deployment_fingerprint"],
             plant_epoch=payload["plant_epoch"],
             deployment_readback_sha256=payload["deployment_readback_sha256"],
             allowed_procedures=tuple(procedures),
@@ -298,8 +298,8 @@ class CertificationProcedureTicket:
     procedure: str
     plant_epoch: int
     deployment_readback_sha256: str
-    control_fingerprint: str
-    orchestration_fingerprint: str
+    release_basis_fingerprint: str
+    deployment_fingerprint: str
     max_linear_speed_m_s: float
     max_linear_acceleration_m_s2: float
     max_angular_speed_rad_s: float
@@ -318,8 +318,8 @@ class CertificationProcedureTicket:
         if self.plant_epoch < 1:
             raise AuthorizationError("plant_epoch must be positive")
         _sha256("deployment_readback_sha256", self.deployment_readback_sha256)
-        _sha256("control_fingerprint", self.control_fingerprint)
-        _sha256("orchestration_fingerprint", self.orchestration_fingerprint)
+        _sha256("release_basis_fingerprint", self.release_basis_fingerprint)
+        _sha256("deployment_fingerprint", self.deployment_fingerprint)
         _positive_limit(
             "max_linear_speed_m_s",
             self.max_linear_speed_m_s,
@@ -353,8 +353,8 @@ class CertificationProcedureTicket:
             "procedure": self.procedure,
             "plant_epoch": self.plant_epoch,
             "deployment_readback_sha256": self.deployment_readback_sha256,
-            "control_fingerprint": self.control_fingerprint,
-            "orchestration_fingerprint": self.orchestration_fingerprint,
+            "release_basis_fingerprint": self.release_basis_fingerprint,
+            "deployment_fingerprint": self.deployment_fingerprint,
             "motion_envelope": {
                 "max_linear_speed_m_s": self.max_linear_speed_m_s,
                 "max_linear_acceleration_m_s2": self.max_linear_acceleration_m_s2,
@@ -395,8 +395,8 @@ def issue_certification_procedure_ticket(
         procedure=procedure,
         plant_epoch=authorization.plant_epoch,
         deployment_readback_sha256=authorization.deployment_readback_sha256,
-        control_fingerprint=authorization.control_fingerprint,
-        orchestration_fingerprint=authorization.orchestration_fingerprint,
+        release_basis_fingerprint=authorization.release_basis_fingerprint,
+        deployment_fingerprint=authorization.deployment_fingerprint,
         max_linear_speed_m_s=authorization.max_linear_speed_m_s,
         max_linear_acceleration_m_s2=authorization.max_linear_acceleration_m_s2,
         max_angular_speed_rad_s=authorization.max_angular_speed_rad_s,
@@ -411,8 +411,8 @@ def issue_certification_procedure_ticket(
 def load_certification_motion_authorization(
     path: str | Path,
     *,
-    expected_control_fingerprint: str,
-    expected_orchestration_fingerprint: str,
+    expected_release_basis_fingerprint: str,
+    expected_deployment_fingerprint: str,
     expected_plant_epoch: int,
     expected_deployment_readback_sha256: str,
     now: datetime | None = None,
@@ -428,9 +428,10 @@ def load_certification_motion_authorization(
         load_strict_json(source)
     )
     if (
-        authorization.control_fingerprint != expected_control_fingerprint
-        or authorization.orchestration_fingerprint
-        != expected_orchestration_fingerprint
+        authorization.release_basis_fingerprint
+        != expected_release_basis_fingerprint
+        or authorization.deployment_fingerprint
+        != expected_deployment_fingerprint
         or authorization.plant_epoch != expected_plant_epoch
         or authorization.deployment_readback_sha256
         != expected_deployment_readback_sha256
@@ -450,8 +451,8 @@ class CampaignAuthorization:
     campaign_id: str
     campaign_epoch: int
     campaign_fingerprint: str
-    control_fingerprint: str
-    orchestration_fingerprint: str
+    release_fingerprint: str
+    deployment_fingerprint: str
     plant_epoch: int
     deployment_readback_sha256: str
     authorization_source: str
@@ -465,8 +466,8 @@ class CampaignAuthorization:
             raise AuthorizationError("campaign_id must be non-empty")
         for name in (
             "campaign_fingerprint",
-            "control_fingerprint",
-            "orchestration_fingerprint",
+            "release_fingerprint",
+            "deployment_fingerprint",
             "deployment_readback_sha256",
         ):
             _sha256(name, getattr(self, name))
@@ -491,8 +492,8 @@ class CampaignAuthorization:
             "campaign_id": self.campaign_id,
             "campaign_epoch": self.campaign_epoch,
             "campaign_fingerprint": self.campaign_fingerprint,
-            "control_fingerprint": self.control_fingerprint,
-            "orchestration_fingerprint": self.orchestration_fingerprint,
+            "release_fingerprint": self.release_fingerprint,
+            "deployment_fingerprint": self.deployment_fingerprint,
             "plant_epoch": self.plant_epoch,
             "deployment_readback_sha256": self.deployment_readback_sha256,
             "bounded_baseline_and_loop": True,
@@ -526,8 +527,8 @@ class CampaignAuthorization:
             "campaign_id",
             "campaign_epoch",
             "campaign_fingerprint",
-            "control_fingerprint",
-            "orchestration_fingerprint",
+            "release_fingerprint",
+            "deployment_fingerprint",
             "plant_epoch",
             "deployment_readback_sha256",
             "bounded_baseline_and_loop",
@@ -554,8 +555,8 @@ class CampaignAuthorization:
             campaign_id=payload["campaign_id"],
             campaign_epoch=payload["campaign_epoch"],
             campaign_fingerprint=payload["campaign_fingerprint"],
-            control_fingerprint=payload["control_fingerprint"],
-            orchestration_fingerprint=payload["orchestration_fingerprint"],
+            release_fingerprint=payload["release_fingerprint"],
+            deployment_fingerprint=payload["deployment_fingerprint"],
             plant_epoch=payload["plant_epoch"],
             deployment_readback_sha256=payload["deployment_readback_sha256"],
             authorization_source=payload["authorization_source"],
@@ -570,8 +571,8 @@ def load_campaign_authorization(
     expected_campaign_id: str,
     expected_campaign_epoch: int,
     expected_campaign_fingerprint: str,
-    expected_control_fingerprint: str,
-    expected_orchestration_fingerprint: str,
+    expected_release_fingerprint: str,
+    expected_deployment_fingerprint: str,
     expected_plant_epoch: int,
     expected_deployment_readback_sha256: str,
     now: datetime | None = None,
@@ -586,8 +587,8 @@ def load_campaign_authorization(
         expected_campaign_id,
         expected_campaign_epoch,
         expected_campaign_fingerprint,
-        expected_control_fingerprint,
-        expected_orchestration_fingerprint,
+        expected_release_fingerprint,
+        expected_deployment_fingerprint,
         expected_plant_epoch,
         expected_deployment_readback_sha256,
     )
@@ -595,8 +596,8 @@ def load_campaign_authorization(
         authorization.campaign_id,
         authorization.campaign_epoch,
         authorization.campaign_fingerprint,
-        authorization.control_fingerprint,
-        authorization.orchestration_fingerprint,
+        authorization.release_fingerprint,
+        authorization.deployment_fingerprint,
         authorization.plant_epoch,
         authorization.deployment_readback_sha256,
     )

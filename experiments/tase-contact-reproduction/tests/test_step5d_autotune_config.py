@@ -84,8 +84,10 @@ class Step5dAutotuneConfigTest(unittest.TestCase):
             row["review_v3"]["status"],
             "accepted_degraded_0+0_fable_unavailable",
         )
-        self.assertTrue(row["current_binding"]["is_current"])
-        self.assertTrue(row["current_binding"]["live_authorized"])
+        self.assertFalse(row["active"])
+        self.assertFalse(row["bridge"])
+        self.assertFalse(row["current_binding"]["is_current"])
+        self.assertFalse(row["current_binding"]["live_authorized"])
         self.assertEqual(
             row["package_delivery"]["controller_readback_manifest"],
             "config/step5d_autotune_controller_readback_v1.json",

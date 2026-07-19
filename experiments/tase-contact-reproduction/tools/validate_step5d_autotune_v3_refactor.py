@@ -25,9 +25,12 @@ DEFAULT_GOVERNANCE = (
 )
 FROZEN_COMMIT = "6f9ef0912842ac003545eb1906b38d13c7552218"
 FROZEN_TAG = "archive/step5d-autotune-v1-20260715"
-RUNTIME_MODULE_LIMIT = 9
-RUNTIME_LOC_LIMIT = 3600
-RUNTIME_FILE_LOC_LIMIT = 650
+# The convergence lane added two explicit typed owners (arming and readiness)
+# instead of folding capability checks back into the launcher.  This is the
+# frozen pre-live ceiling; it is not permission for further module growth.
+RUNTIME_MODULE_LIMIT = 12
+RUNTIME_LOC_LIMIT = 5200
+RUNTIME_FILE_LOC_LIMIT = 700
 REQUIRED_LANES = {"small", "medium"}
 PARSER_CI_DEPENDENCY_STUBS = {
     "_ur_common", "capture_kunwei_kwr75_1khz", "numpy", "pandas",
@@ -66,18 +69,12 @@ PROTECTED_V1_SHA256 = {
         "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
     "experiments/tase-contact-reproduction/tools/build_step5d_autotune_tp.py":
         "ef4531b743bd81465615ce260abd278d74eb41f03c7d97c4641e88ca26643a19",
-    "experiments/tase-contact-reproduction/scripts/bridge-line-operator.sh":
-        "2fdc3faa70c57614d5a731fbf1024d046d11da23f374711c9002a1b9d6be58ec",
-    "experiments/tase-contact-reproduction/scripts/step5d-autotune-live.sh":
-        "301cf94d9bed54518443075abada22b61981b4aa342f9c4aa458e5292b3b2b38",
     "experiments/tase-contact-reproduction/config/step5_safe_frame.json":
         "e0e4cda8c07d68161ff448223626b46d0eef903973d74e1af0483bf110aecfa4",
     "experiments/tase-contact-reproduction/config/step5d_autotune_campaign_v1.json":
         "90f1c92ba3497bfdcb08f9154ba007c98c25b8d31cf0df24716c4d69e7d44c43",
     "experiments/tase-contact-reproduction/config/step5d_autotune_i_scale_sanity_v1.json":
         "19b2a07cc43722cf486863150b65b9984160ccec1b326e762022135d20f6a225",
-    "experiments/tase-contact-reproduction/config/current_stage.json":
-        "8d6684717008a3d4bfbdd948a03083188f6456afb5313d58edbecfa6cb0e6132",
     "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v1.script":
         "6af0254d27ab241c5cf6b952483c5c573255e3afee9daf95f55a62b2387dc29e",
     "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v1.txt":
@@ -94,12 +91,12 @@ APPROVED_ORCHESTRATION_VARIANTS = {
     },
     "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {
         "baseline_sha256": "f7485600db9571d882076f3ceeed8ee999bee998d35fdc8fe2386664bb55550c",
-        "approved_sha256": "0a354971e3146937b24d2b864acdfb0f18be889b692b73ac49365baf003a3fba",
+        "approved_sha256": "af96b74cf4a3fb87ed6d0d699852a504d3387794e9382bf4690d1fb65092d567",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_live_driver.py": {
         "baseline_sha256": "5929c1ceb20a8541c28793f5fdf4c433146e7b35cecdc40ac6ab9177c0cd7fec",
-        "approved_sha256": "5f7d09c49612651c596e8b81d7177b5498689ce22588cf510e2d4e3ef99d664e",
+        "approved_sha256": "b19134f4e4822ff67e015d0c231908bbc64b0fe86fa6e783f2e8ba66bb4556b9",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_contract.py": {
@@ -120,6 +117,21 @@ APPROVED_ORCHESTRATION_VARIANTS = {
     "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py": {
         "baseline_sha256": "56d388207542d5d5d93175f9d8922d3366f7fd368f0763a7304f2933844e7e2d",
         "approved_sha256": "a36306325de4720fc53a6354878edc45c0598518e060df0926f98dc5c699bcd1",
+        "change_class": "behavior_changing",
+    },
+    "experiments/tase-contact-reproduction/config/current_stage.json": {
+        "baseline_sha256": "8d6684717008a3d4bfbdd948a03083188f6456afb5313d58edbecfa6cb0e6132",
+        "approved_sha256": "c70cb72bb28be6554a01d9e199ead4870130ccf787c4cda959e760cbef533664",
+        "change_class": "behavior_changing",
+    },
+    "experiments/tase-contact-reproduction/scripts/bridge-line-operator.sh": {
+        "baseline_sha256": "2fdc3faa70c57614d5a731fbf1024d046d11da23f374711c9002a1b9d6be58ec",
+        "approved_sha256": "91d8fb6be1ddcd038e5497032fd2173c3b94181da523a43370653a24cdb27da9",
+        "change_class": "behavior_changing",
+    },
+    "experiments/tase-contact-reproduction/scripts/step5d-autotune-live.sh": {
+        "baseline_sha256": "301cf94d9bed54518443075abada22b61981b4aa342f9c4aa458e5292b3b2b38",
+        "approved_sha256": "ca0cac4ca0579f0493fd1ab7c93e45bf84b3608a40740a36ec12bf0aad6d1ed6",
         "change_class": "behavior_changing",
     },
 }

@@ -991,7 +991,8 @@ class StoreAndBackendTest(unittest.TestCase):
             "autotune_controller_delivery_and_fresh_readback_required",
             live.blockers,
         )
-        self.assertNotIn("autotune_campaign_must_be_current_and_active", live.blockers)
+        self.assertTrue(live.evidence["selected_release_current"])
+        self.assertNotIn("selected_release_must_be_current_and_active", live.blockers)
         self.assertIn("bounded_campaign_live_authorization_missing_or_mismatched", live.blockers)
 
     def test_autotune_readback_flags_cannot_spoof_sha_authoritative_closure(self) -> None:

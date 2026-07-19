@@ -726,6 +726,7 @@ class BridgeMailboxRuntime:
         path: Path,
         *,
         campaign_home_reference_path: Path | None = None,
+        arming_context_provider: Callable[[], Any | None] | None = None,
     ) -> None:
         self.mailbox = AtomicCommandMailbox(path, network_mode=True)
         self.campaign_home_reference_path = (
@@ -736,6 +737,7 @@ class BridgeMailboxRuntime:
         if not self.campaign_home_reference_path.is_absolute():
             raise MailboxError("campaign-home reference path must be absolute")
         self.campaign_home_reference: CampaignHomeReference | None = None
+        self.arming_context_provider = arming_context_provider
         self.active: MailboxCommand | None = None
         self.last_command: MailboxCommand | None = None
         self.last_command_seq = 0
@@ -759,6 +761,7 @@ class BridgeMailboxRuntime:
         command: MailboxCommand,
         snapshot: TpPacket,
         args: Any,
+        arming_context: Any | None = None,
     ) -> bool:
         """Reattach a fresh bridge to the durable mailbox/TP identity.
 
@@ -808,7 +811,7 @@ class BridgeMailboxRuntime:
         }:
             raise MailboxError("TP consumed sequence is absent from the durable mailbox")
         self.active = arm
-        self._apply_arm_runtime(args, arm.binding)
+        self._apply_arm_runtime(args, arm.binding, arming_context)
         args.step5d_autotune_handshake = command.handshake
         if snapshot.consumed_command_seq == command.packet.command_seq:
             self.last_command = command
@@ -912,7 +915,11 @@ class BridgeMailboxRuntime:
         raise MailboxError("unsupported mailbox command")
 
     @staticmethod
-    def _apply_arm_runtime(args: Any, binding: RuntimeTrialBinding) -> None:
+    def _apply_arm_runtime(
+        args: Any,
+        binding: RuntimeTrialBinding,
+        arming_context: Any | None = None,
+    ) -> None:
         candidate = binding.candidate
         profile = binding.profile
         args.step5d_autotune_force_p = candidate.force_p_gain
@@ -953,6 +960,11 @@ class BridgeMailboxRuntime:
         *,
         connection_epoch: int = 0,
     ) -> bool:
+        arming_context = None
+        if self.arming_context_provider is not None:
+            arming_context = self.arming_context_provider()
+            if arming_context is None:
+                return False
         command = self.mailbox.read_latest()
         if command is None or output is None:
             return False
@@ -969,7 +981,12 @@ class BridgeMailboxRuntime:
                     connection_epoch=connection_epoch,
                 )
             )
-        consumed_latest = self._bootstrap_active(command, snapshot, args)
+        consumed_latest = self._bootstrap_active(
+            command,
+            snapshot,
+            args,
+            arming_context,
+        )
         self._reconcile_snapshot(
             snapshot,
             durable_command_seq=max(self.last_command_seq, command.packet.command_seq),
@@ -983,7 +1000,7 @@ class BridgeMailboxRuntime:
             raise MailboxError("mailbox command sequence did not increase monotonically")
         self._validate_phase(command, snapshot)
         if command.packet.command is HostCommand.ARM:
-            self._apply_arm_runtime(args, command.binding)
+            self._apply_arm_runtime(args, command.binding, arming_context)
             self.active = command
         args.step5d_autotune_handshake = command.handshake
         self.last_command = command

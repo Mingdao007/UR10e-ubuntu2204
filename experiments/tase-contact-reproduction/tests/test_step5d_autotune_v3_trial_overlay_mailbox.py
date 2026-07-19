@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -29,21 +29,20 @@ from step5d_autotune_v3.runtime_profile import (  # noqa: E402
     is_control_candidate_step,
     load_launch_profile,
 )
-from step5d_autotune_v3.state import load_attempt_ledger  # noqa: E402
+from step5d_autotune_batch_plan import initialize_plan  # noqa: E402
+import run_step5d_autotune_v3_bridge as bridge_wrapper  # noqa: E402
 from run_step5d_autotune_v3_bridge import (  # noqa: E402
     V3AsyncBridgeTrialCsvRotator,
     _V3_RUNNER_CLOSURE_FIELDS,
     _apply_v3_arm_runtime,
 )
+import run_step5d_autotune_v3_live as live  # noqa: E402
 from run_step5d_autotune_v3_live import (  # noqa: E402
     INITIAL_CONTROL_LOG2_K,
     INITIAL_LOG2,
-    LiveLaunchError,
-    _validate_initial_candidate_path,
     initial_candidates,
     initial_control_overlays,
 )
-from run_step5d_autotune_campaign import AdoptedCandidateHistory  # noqa: E402
 
 
 def _prepared(overlay: dict) -> SimpleNamespace:
@@ -136,50 +135,43 @@ def test_v1_mailbox_schema_remains_without_trial_overlay(tmp_path: Path) -> None
     assert command.binding.trial_overlay is None
 
 
-def test_initial_live_batch_is_reachable_from_observed_durable_history_before_play() -> None:
+def test_initial_live_batch_uses_fresh_campaign_local_history(
+    tmp_path: Path,
+) -> None:
     candidates = initial_candidates()
     assert len(candidates) == len({item.candidate_uid for item in candidates}) == 10
     for candidate, expected in zip(candidates, INITIAL_LOG2, strict=True):
         observed = (candidate.log2_p, candidate.log2_i, candidate.log2_damping)
         assert observed == pytest.approx(expected, abs=1e-12)
-    ledger = load_attempt_ledger(
-        ROOT / "config/step5/step5d_autotune_v3_attempt_ledger.json"
+    campaign_root = tmp_path / "fresh-v3"
+    candidate_plan = campaign_root / "control/candidate_plan.json"
+    initialize_plan(
+        candidate_plan,
+        campaign_id="fresh-v3-plant-epoch",
+        batch_size=10,
     )
-    assert all(
-        ledger.attempted_group(candidate.payload(), "nf050-slew050-a050") is None
-        for candidate in candidates
-    )
-    fixture = json.loads(
-        (ROOT / "tests/fixtures/v3_post_play_pre_arm_lattice_incident.json").read_text(
-            encoding="utf-8"
+    with patch.object(
+        live.v3_cli,
+        "_validate_candidates",
+        wraps=live.v3_cli._validate_candidates,
+    ) as validate:
+        plan, overlays = live._ensure_initial_batch(
+            campaign_root=campaign_root,
+            campaign_id="fresh-v3-plant-epoch",
+            launch_profile_path=(
+                ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+            ),
         )
-    )
-    executed = tuple(
-        ForceCandidate.from_log2(p=p, i=i, damping=damping)
-        for p, i, damping in fixture["executed_log2_candidates"]
-    )
-    history = AdoptedCandidateHistory(
-        campaign_id="step5d-native-15",
-        campaign_epoch=fixture["provenance"]["legacy_campaign_epoch"],
-        profile_id=fixture["profile_id"],
-        plant_epoch=fixture["plant_epoch"],
-        executed_candidates=executed,
-        physically_attempted_candidate_uids=frozenset(
-            candidate.candidate_uid for candidate in executed
-        ),
-        fingerprint="a" * 64,
-    )
-    rejected = ForceCandidate.from_log2(
-        p=fixture["rejected_first_log2_candidate"][0],
-        i=fixture["rejected_first_log2_candidate"][1],
-        damping=fixture["rejected_first_log2_candidate"][2],
-    )
-    with pytest.raises(LiveLaunchError, match="candidate 1 is not reachable"):
-        _validate_initial_candidate_path((rejected,), adopted_history=history)
-    validated = _validate_initial_candidate_path(candidates, adopted_history=history)
-    assert validated["executed_anchor_count"] == 11
-    assert validated["planned_candidate_count"] == 10
-    assert tuple(INITIAL_LOG2[0]) == tuple(fixture["expected_first_log2_candidate"])
+    assert plan.revision == 1
+    assert len(plan.batches[0]) == 10
+    assert overlays["candidate_count"] == 10
+    ledger = validate.call_args.kwargs["attempt_ledger"]
+    assert ledger.tuples == {}
+    assert ledger.summary["attempt_records"] == 0
+    assert "ledger_path" not in validate.call_args.kwargs
+    source = Path(live.__file__).read_text(encoding="utf-8")
+    assert "AdoptedCandidateHistory" not in source
+    assert "legacy_campaign_root" not in source
 
 
 def test_initial_control_batch_is_ten_unique_quarter_octave_steps_including_k() -> None:
@@ -208,11 +200,34 @@ def test_initial_control_batch_is_ten_unique_quarter_octave_steps_including_k() 
 def test_v3_arm_boundary_applies_real_orientation_k() -> None:
     profile = load_launch_profile()
     overlay = initial_control_overlays(profile)[0]
-    binding = SimpleNamespace(trial_overlay=overlay)
+    binding = SimpleNamespace(
+        trial_overlay=overlay,
+        campaign_epoch=1,
+        campaign_fingerprint="a" * 64,
+    )
     args = SimpleNamespace()
     bridge = SimpleNamespace(STEP5D_V33_ORIENTATION_KO=0.4)
+    arming_context = SimpleNamespace(
+        campaign_epoch=1,
+        campaign_fingerprint="a" * 64,
+        stopping_bound=object(),
+    )
 
-    _apply_v3_arm_runtime(bridge, args, binding, lambda *_args: None)
+    with (
+        patch.object(bridge_wrapper, "ArmingContext", SimpleNamespace),
+        patch.object(
+            bridge_wrapper,
+            "MovingSphereKernel",
+            side_effect=lambda **kwargs: SimpleNamespace(**kwargs),
+        ),
+    ):
+        _apply_v3_arm_runtime(
+            bridge,
+            args,
+            binding,
+            arming_context,
+            lambda *_args: None,
+        )
 
     assert bridge.STEP5D_V33_ORIENTATION_KO == overlay["orientation_ko"]
     assert args.step5d_autotune_orientation_ko == overlay["orientation_ko"]

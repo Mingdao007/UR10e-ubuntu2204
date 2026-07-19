@@ -17,20 +17,18 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
-import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 from preflight_step5d_autotune_v3 import PREDICATE_NAMES as LIVE_PREFLIGHT_PREDICATES
-from prepare_step5d_autotune_launch import prepare
-from preflight_readonly import dashboard_exchange
-from run_step5d_autotune_campaign import (
-    AdoptedCandidateHistory,
-    adopted_candidate_history,
-    validate_legacy_campaign_adoption,
+from prepare_step5d_autotune_launch import (
+    prepare,
+    write_machine_campaign_binding,
 )
+from preflight_readonly import dashboard_exchange
 from step5d_autotune_batch_plan import load_plan
 from step5d_autotune_contract import ForceCandidate
-from step5d_autotune_supervisor import candidate_transition_allowed_for_policy
 from step5d_autotune_v3 import cli as v3_cli
+from step5d_autotune_v3.arming import load_campaign_arming_context
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
+from step5d_autotune_v3.readiness import require_bridge_start
 from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 from step5d_autotune_v3.runtime_profile import (
     CONTROL_PROFILE_ID,
@@ -41,7 +39,12 @@ from step5d_autotune_v3.runtime_profile import (
     normalize_trial_overlay,
     overlay_fingerprint,
 )
-from step5d_autotune_v3.state import CampaignPaths, atomic_json, read_strict_json
+from step5d_autotune_v3.state import (
+    CampaignPaths,
+    atomic_json,
+    fresh_attempt_ledger,
+    read_strict_json,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,8 +53,6 @@ RUNNER = ROOT / "tools/run_step5d_autotune_campaign.py"
 RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
 LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
 INITIAL_BATCH_SOURCE = "v3-pareto-round-a-10-trial-batch-20260719"
-DEFAULT_LEGACY_CAMPAIGN_ROOT = ROOT / "runs/step5d_native_autotune_recovered_runtime_v2"
-DEFAULT_LEGACY_CAMPAIGN_EPOCH = 16
 INITIAL_LOG2 = (
     (0.5, 0.25, 0.25),
     (0.5, 0.5, 0.25),
@@ -119,62 +120,22 @@ def initial_control_overlays(profile: Any) -> tuple[dict[str, Any], ...]:
     return tuple(overlays)
 
 
-def _validate_initial_candidate_path(
-    candidates: tuple[ForceCandidate, ...],
-    *,
-    adopted_history: AdoptedCandidateHistory,
-) -> dict[str, Any]:
-    """Reject an unreachable or repeated transport plan before bridge/Play."""
-
-    anchors = list(adopted_history.executed_candidates)
-    attempted = set(adopted_history.physically_attempted_candidate_uids)
-    for index, candidate in enumerate(candidates, start=1):
-        if candidate.candidate_uid in attempted:
-            raise LiveLaunchError(
-                f"V3 transport candidate {index} was already physically attempted"
-            )
-        if not any(
-            candidate_transition_allowed_for_policy(
-                "codex_batches",
-                anchor,
-                candidate,
-            )
-            for anchor in anchors
-        ):
-            raise LiveLaunchError(
-                f"V3 transport candidate {index} is not reachable from durable history"
-            )
-        anchors.append(candidate)
-        attempted.add(candidate.candidate_uid)
-    return {
-        "adopted_campaign_epoch": adopted_history.campaign_epoch,
-        "adopted_candidate_history_fingerprint": adopted_history.fingerprint,
-        "executed_anchor_count": len(adopted_history.executed_candidates),
-        "planned_candidate_count": len(candidates),
-    }
-
-
 def _ensure_initial_batch(
     *,
     campaign_root: Path,
     campaign_id: str,
     launch_profile_path: Path,
-    adopted_history: AdoptedCandidateHistory,
 ) -> tuple[Any, Mapping[str, Any]]:
     paths = CampaignPaths(campaign_root)
     plan = load_plan(paths.candidate_plan, campaign_id=campaign_id)
     expected = initial_candidates()
-    _validate_initial_candidate_path(
-        expected,
-        adopted_history=adopted_history,
-    )
     if plan.revision == 0:
         profile = load_launch_profile(launch_profile_path)
         overlays = initial_control_overlays(profile)
         validated, validated_overlays, _control, _profile, _launch = (
             v3_cli._validate_candidates(
                 overlays,
-                ledger_path=ROOT / "config/step5/step5d_autotune_v3_attempt_ledger.json",
+                attempt_ledger=fresh_attempt_ledger(),
                 launch_profile_path=launch_profile_path,
             )
         )
@@ -253,6 +214,124 @@ def _wait_file(path: Path, process: subprocess.Popen[Any], timeout_s: float, rol
             return
         time.sleep(0.05)
     raise LiveLaunchError(f"{role} readiness timeout")
+
+
+def _write_runtime_readiness(
+    path: Path,
+    *,
+    identity: Mapping[str, Any],
+    bridge_start_context_sha256: str,
+    campaign_arming_context_sha256: str | None,
+    bridge_process_pid: int,
+    bridge_launch_id: str,
+    release_fingerprint: str | None,
+    bridge_process_ready: bool,
+    motion_arm_ready: bool,
+    campaign_ready: bool,
+) -> None:
+    atomic_json(
+        path,
+        {
+            "schema": "step5d.autotune-v3/runtime-readiness-v1",
+            "selected_release": RELEASE_STAGE_ID,
+            "deployment_ready": True,
+            "bridge_start_ready": True,
+            "bridge_process_ready": bridge_process_ready,
+            "motion_arm_ready": motion_arm_ready,
+            "campaign_ready": campaign_ready,
+            "identity": dict(identity),
+            "bridge_start_context_sha256": bridge_start_context_sha256,
+            "campaign_arming_context_sha256": campaign_arming_context_sha256,
+            "bridge_process_pid": bridge_process_pid,
+            "bridge_launch_id": bridge_launch_id,
+            "release_fingerprint": release_fingerprint,
+        },
+    )
+
+
+def _await_v3_no_arm_ready(
+    path: Path,
+    process: subprocess.Popen[Any],
+    timeout_s: float,
+    *,
+    launch_nonce: str,
+    bridge_identity: Mapping[str, Any],
+    bridge_start_context_sha256: str,
+    bridge_launch_id: str,
+    status_path: Path,
+) -> Mapping[str, Any]:
+    _wait_file(path, process, timeout_s, "bridge")
+    payload = read_strict_json(path, role="V3 raw bridge readiness")
+    scheduler = payload.get("runtime_scheduler") or {}
+    if any(
+        (
+            payload.get("ready_schema") != "step5d_bridge_ready_v2",
+            payload.get("ok") is not True,
+            payload.get("pid") != process.pid,
+            payload.get("launch_nonce") != launch_nonce,
+            payload.get("bridge_profile") != CONTROL_PROFILE_ID,
+            payload.get("prewarm_status") != "ok",
+            payload.get("rtde_connected") is not True,
+            payload.get("rtde_send_succeeded") is not True,
+            payload.get("sensor_stream_ready") is not True,
+            scheduler.get("policy") != "SCHED_OTHER",
+            scheduler.get("priority") != 0,
+        )
+    ):
+        raise LiveLaunchError("V3 bridge readiness differs from NO_ARM contract")
+    _write_runtime_readiness(
+        status_path,
+        identity=bridge_identity,
+        bridge_start_context_sha256=bridge_start_context_sha256,
+        campaign_arming_context_sha256=None,
+        bridge_process_pid=process.pid,
+        bridge_launch_id=bridge_launch_id,
+        release_fingerprint=None,
+        bridge_process_ready=True,
+        motion_arm_ready=False,
+        campaign_ready=False,
+    )
+    print("V3_BRIDGE_READY_NO_ARM", flush=True)
+    return payload
+
+
+def _wait_for_campaign_arming_context(
+    path: Path,
+    process: subprocess.Popen[Any],
+    timeout_s: float,
+    *,
+    expected_static_identity: Mapping[str, Any],
+    campaign_id: str,
+    campaign_epoch: int,
+    campaign_fingerprint: str,
+) -> Any:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise LiveLaunchError(
+                f"bridge exited while awaiting campaign authorization rc={process.returncode}"
+            )
+        if path.exists() or path.is_symlink():
+            try:
+                context = load_campaign_arming_context(
+                    path,
+                    expected_static_identity=expected_static_identity,
+                )
+            except Exception as exc:
+                raise LiveLaunchError(
+                    f"campaign arming context failed closed: {exc}"
+                ) from exc
+            if (
+                context.campaign_id != campaign_id
+                or context.campaign_epoch != campaign_epoch
+                or context.campaign_fingerprint != campaign_fingerprint
+            ):
+                raise LiveLaunchError(
+                    "campaign arming context differs from machine plan/epoch"
+                )
+            return context
+        time.sleep(0.1)
+    raise LiveLaunchError("campaign arming context readiness timeout")
 
 
 def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
@@ -393,20 +472,16 @@ def _validate_preflight(path: Path, identity: Mapping[str, Any]) -> dict[str, An
 
 
 def run(args: argparse.Namespace) -> Mapping[str, Any]:
-    readiness = execution_readiness.verify(ROOT, require_live=True)
-    legacy_preflight = None
-    legacy_history = None
-    if args.legacy_campaign_root is not None:
-        legacy_preflight = validate_legacy_campaign_adoption(
-            args.legacy_campaign_root.resolve(),
-            campaign_epoch=args.legacy_campaign_epoch,
-        )
-        legacy_history = adopted_candidate_history(
-            args.legacy_campaign_root.resolve(),
-            campaign_epoch=args.legacy_campaign_epoch,
-        )
-    if legacy_history is None:
-        raise LiveLaunchError("V3 initial batch requires adopted durable candidate history")
+    bridge_context_path = args.bridge_start_context.expanduser().resolve()
+    _readiness, bridge_context = require_bridge_start(
+        ROOT,
+        bridge_context_path,
+    )
+    campaign_arming_context_path = (
+        args.campaign_arming_context.expanduser().absolute()
+    )
+    if campaign_arming_context_path.is_symlink():
+        raise LiveLaunchError("campaign arming context path must not be a symlink")
     runtime_root = args.output_root.expanduser().absolute() / "runtime"
     runtime_root.mkdir(parents=True, exist_ok=False, mode=0o700)
     bridge_run = runtime_root / "bridge"
@@ -427,7 +502,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
             trial_overlay=DEFAULT_OVERLAY,
         )[2:],
     ]
-    preflight = _validate_preflight(args.preflight, readiness["identity"])
+    preflight = _validate_preflight(args.preflight, bridge_context.identity)
 
     campaign_binding = bridge_runtime / "campaign_binding.json"
     launch_plan_path = bridge_runtime / "campaign_launch_plan.json"
@@ -435,12 +510,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         SimpleNamespace(
             experiment_root=ROOT,
             campaign_root=args.campaign_root,
-            legacy_campaign_root=args.legacy_campaign_root,
-            legacy_campaign_epoch=args.legacy_campaign_epoch,
             binding_file=campaign_binding,
             binding_source="canonical_v3_live_entrypoint",
-            authorization_file=None,
-            authorization_source=None,
             candidate_batch_size=10,
         )
     )
@@ -449,36 +520,43 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         campaign_root=args.campaign_root,
         campaign_id=str(prepared["campaign_id"]),
         launch_profile_path=args.launch_profile,
-        adopted_history=legacy_history,
     )
     paths = CampaignPaths(args.campaign_root)
+    write_machine_campaign_binding(
+        campaign_binding,
+        campaign_id=str(prepared["campaign_id"]),
+        campaign_epoch=int(prepared["campaign_epoch"]),
+        campaign_fingerprint=str(prepared["campaign_fingerprint"]),
+        candidate_plan_path=paths.candidate_plan,
+        trial_overlay_plan_path=paths.trial_overlays,
+        binding_source="canonical_v3_live_entrypoint",
+    )
     launch_id = uuid.uuid4().hex
     ticket = {
-        "schema": "step5d.autotune-v3/runtime-ticket-v2",
+        "schema": "step5d.autotune-v3/runtime-ticket-v3",
         "parent_pid": os.getpid(),
         "argv_sha256": _sha256_json(command[2:]),
         "launch_id": launch_id,
-        "scope": "live_continuous_campaign",
-        "identity": readiness["identity"],
+        "scope": "bridge_no_arm",
+        "identity": bridge_context.identity,
         "launch_profile_fingerprint": launch_profile.fingerprint,
         "trial_overlay_fingerprint": overlay_fingerprint(launch_profile, DEFAULT_OVERLAY),
         "release_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
         "tp_program_id": TP_PROGRAM_ID,
-        "campaign_binding": {
-            "campaign_id": prepared["campaign_id"],
-            "campaign_epoch": prepared["campaign_epoch"],
-            "candidate_plan_revision": plan.revision,
-            "candidate_plan_sha256": _sha256_path(paths.candidate_plan),
-            "trial_overlay_plan_sha256": _sha256_path(paths.trial_overlays),
+        "bridge_start_context": {
+            "path": str(bridge_context_path),
+            "sha256": _sha256_path(bridge_context_path),
         },
+        "campaign_arming_context_path": str(campaign_arming_context_path),
     }
     ticket_path = runtime_root / "runtime_ticket.json"
     atomic_json(ticket_path, ticket)
+    launch_nonce = uuid.uuid4().hex
     environment = {
         **os.environ,
         "STEP5D_V3_RUNTIME_TICKET": str(ticket_path),
-        "STEP5D_BRIDGE_LAUNCH_NONCE": uuid.uuid4().hex,
+        "STEP5D_BRIDGE_LAUNCH_NONCE": launch_nonce,
     }
     runner_ready = bridge_runtime / "campaign_runner_ready.json"
     bridge_log_path = args.output_root / "bridge.log"
@@ -498,8 +576,41 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 stderr=subprocess.STDOUT,
                 close_fds=True,
             )
-            _wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")
+            _await_v3_no_arm_ready(
+                bridge_run / "bridge_ready.json",
+                bridge,
+                args.ready_timeout_s,
+                launch_nonce=launch_nonce,
+                bridge_identity=bridge_context.identity,
+                bridge_start_context_sha256=_sha256_path(bridge_context_path),
+                bridge_launch_id=launch_id,
+                status_path=runtime_root / "readiness.json",
+            )
             csv_path = bridge_run / "bridge_rtde_500hz.csv"
+
+            arming_context = _wait_for_campaign_arming_context(
+                campaign_arming_context_path,
+                bridge,
+                args.arming_timeout_s,
+                expected_static_identity=bridge_context.identity,
+                campaign_id=str(prepared["campaign_id"]),
+                campaign_epoch=int(prepared["campaign_epoch"]),
+                campaign_fingerprint=str(prepared["campaign_fingerprint"]),
+            )
+            _write_runtime_readiness(
+                runtime_root / "readiness.json",
+                identity=bridge_context.identity,
+                bridge_start_context_sha256=_sha256_path(bridge_context_path),
+                campaign_arming_context_sha256=_sha256_path(
+                    campaign_arming_context_path
+                ),
+                bridge_process_pid=bridge.pid,
+                bridge_launch_id=launch_id,
+                release_fingerprint=arming_context.release_fingerprint,
+                bridge_process_ready=True,
+                motion_arm_ready=True,
+                campaign_ready=True,
+            )
 
             runner_command = [
                 sys.executable,
@@ -516,6 +627,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 str(runner_ready),
                 "--campaign-binding",
                 str(campaign_binding),
+                "--campaign-arming-context",
+                str(campaign_arming_context_path),
                 "--campaign-epoch",
                 str(prepared["campaign_epoch"]),
                 "--selection-policy",
@@ -535,15 +648,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 "--v3-runtime-root",
                 str(runtime_root),
             ]
-            if args.legacy_campaign_root is not None:
-                runner_command.extend(
-                    [
-                        "--legacy-campaign-root",
-                        str(args.legacy_campaign_root),
-                        "--legacy-campaign-epoch",
-                        str(args.legacy_campaign_epoch),
-                    ]
-                )
+            print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
             print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
             deadline = time.monotonic() + args.play_timeout_s
             while time.monotonic() < deadline:
@@ -602,8 +707,9 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         "launch_id": launch_id,
         "campaign_id": prepared["campaign_id"],
         "campaign_epoch": prepared["campaign_epoch"],
-        "legacy_preflight": legacy_preflight,
         "candidate_plan_revision": plan.revision,
+        "machine_campaign_binding_sha256": _sha256_path(campaign_binding),
+        "release_fingerprint": arming_context.release_fingerprint,
         "bridge_run": str(bridge_run),
         "preflight_controller_identity_sha256": preflight["controller_identity_sha256"],
         "program_stop": cleanup,
@@ -623,22 +729,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=ROOT / "runs/step5d_autotune_v3",
     )
-    parser.add_argument(
-        "--legacy-campaign-root",
-        type=Path,
-        default=DEFAULT_LEGACY_CAMPAIGN_ROOT,
-    )
-    parser.add_argument(
-        "--legacy-campaign-epoch",
-        type=int,
-        default=DEFAULT_LEGACY_CAMPAIGN_EPOCH,
-    )
+    parser.add_argument("--bridge-start-context", type=Path, required=True)
+    parser.add_argument("--campaign-arming-context", type=Path, required=True)
     parser.add_argument(
         "--launch-profile",
         type=Path,
         default=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
     )
     parser.add_argument("--ready-timeout-s", type=float, default=45.0)
+    parser.add_argument("--arming-timeout-s", type=float, default=86400.0)
     parser.add_argument("--play-timeout-s", type=float, default=120.0)
     return parser.parse_args(argv)
 

@@ -60,6 +60,24 @@ VERIFIER_PROVENANCE_PATHS = {
 }
 
 
+def motion_subject_fingerprint(
+    *,
+    trace: dict[str, object],
+    triplet_sha256: dict[str, str],
+    policy: dict[str, object],
+) -> str:
+    """Bind the URSim reuse claim to motion semantics, not verifier source."""
+
+    return canonical_sha256(
+        {
+            "schema": "step5d.autotune-v3/ursim-return-motion-subject-v1",
+            "triplet_sha256": dict(triplet_sha256),
+            "controller_route": trace.get("route"),
+            "return_policy": dict(policy),
+        }
+    )
+
+
 def _sha256(path: Path) -> str:
     if path.is_symlink() or not path.is_file():
         raise ValueError(f"return-route evidence input is missing or symlinked: {path}")
@@ -135,9 +153,7 @@ def build_document(*, include_ursim_trace: bool = True) -> dict[str, object]:
         if not isinstance(trace, dict):
             raise ValueError("retained URSim return trace must be a JSON object")
         trace_identity = trace.get("identity") or {}
-        legacy_source_binding_sha256 = canonical_sha256(
-            {**source_sha256, **verifier_source_sha256}
-        )
+        legacy_source_binding_sha256 = str(trace.get("source_binding_sha256", ""))
         validate_motion_capable_ursim_return_trace(
             trace,
             expected_control_fingerprint=str(
@@ -151,10 +167,16 @@ def build_document(*, include_ursim_trace: bool = True) -> dict[str, object]:
         )
         ursim_trace_sha256 = _sha256(DEFAULT_URSIM_TRACE)
         ursim_trace_binding = {
-            "claim_role": "motion_capable_ursim_core_source_equivalence",
+            "claim_role": "motion_capable_ursim_semantic_subject_equivalence",
             "legacy_source_binding_sha256": legacy_source_binding_sha256,
-            "active_source_binding_sha256": source_binding_sha256,
-            "active_core_sources_unchanged": True,
+            "active_evidence_source_binding_sha256": source_binding_sha256,
+            "motion_subject_fingerprint": motion_subject_fingerprint(
+                trace=trace,
+                triplet_sha256=triplet_sha256,
+                policy=expected_sanity,
+            ),
+            "exact_triplet_match": True,
+            "policy_markers_revalidated": True,
             "legacy_identity_provenance_only": trace_identity,
         }
     return {

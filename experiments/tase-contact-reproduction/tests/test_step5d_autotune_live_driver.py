@@ -232,6 +232,58 @@ def fake_bridge_args() -> SimpleNamespace:
 
 
 class Step5dAutotuneLiveDriverTest(unittest.TestCase):
+    def test_no_arm_provider_blocks_before_mailbox_read(self) -> None:
+        trial = make_trial()
+        arm = packet_for(trial, HostCommand.ARM)
+        with tempfile.TemporaryDirectory() as directory:
+            mailbox_path = Path(directory) / "command.json"
+            sink = AtomicCommandMailbox(mailbox_path)
+            sink.send_command(arm, prepared_trial=make_prepared(trial))
+            runtime = BridgeMailboxRuntime(
+                mailbox_path,
+                arming_context_provider=lambda: None,
+            )
+            args = fake_bridge_args()
+            with patch.object(
+                runtime.mailbox,
+                "read_latest",
+                wraps=runtime.mailbox.read_latest,
+            ) as read_latest:
+                self.assertFalse(
+                    runtime.poll(
+                        args,
+                        fake_rtde(TpLoopState.READY_HOME, None, consumed_seq=0),
+                    )
+                )
+                read_latest.assert_not_called()
+            self.assertEqual(args.step5d_autotune_handshake["command"], 0)
+
+    def test_published_arming_context_allows_one_mailbox_read(self) -> None:
+        trial = make_trial()
+        arm = packet_for(trial, HostCommand.ARM)
+        with tempfile.TemporaryDirectory() as directory:
+            mailbox_path = Path(directory) / "command.json"
+            sink = AtomicCommandMailbox(mailbox_path)
+            sink.send_command(arm, prepared_trial=make_prepared(trial))
+            runtime = BridgeMailboxRuntime(
+                mailbox_path,
+                arming_context_provider=lambda: object(),
+            )
+            args = fake_bridge_args()
+            with patch.object(
+                runtime.mailbox,
+                "read_latest",
+                wraps=runtime.mailbox.read_latest,
+            ) as read_latest:
+                self.assertTrue(
+                    runtime.poll(
+                        args,
+                        fake_rtde(TpLoopState.READY_HOME, None, consumed_seq=0),
+                    )
+                )
+                read_latest.assert_called_once_with()
+            self.assertEqual(args.step5d_autotune_handshake["command"], 1)
+
     def test_terminal_float_crosscheck_ignores_transient_search_reason(self) -> None:
         def tp(state: TpLoopState, reason: int) -> TpPacket:
             return TpPacket(7, 1, state, 20, reason, 111, 10)

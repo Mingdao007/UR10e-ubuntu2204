@@ -64,6 +64,11 @@ from step5d_autotune_backend import (
     CampaignAuthorization,
     Step5dV35Backend,
 )
+from step5d_autotune_v3.arming import (
+    ArmingContext,
+    load_campaign_arming_context,
+)
+from step5d_autotune_v3.profile import active_identity_snapshot
 from step5d_autotune_batch_plan import (
     CandidateBatchPlan,
     assert_append_only,
@@ -464,55 +469,51 @@ def profile_from_epoch(layout: CampaignEpochLayout) -> ExecutionProfile:
     return profile
 
 
+@dataclass(frozen=True)
+class MachineCampaignBinding:
+    campaign_id: str
+    campaign_epoch: int
+    campaign_fingerprint: str
+    candidate_plan_revision: int
+    candidate_plan_sha256: str
+    trial_overlay_plan_sha256: str
+    binding_ref_sha256: str
+
+
 def _campaign_authorization(
     path: Path,
     *,
     campaign: CampaignSpec,
     campaign_fingerprint: str,
-) -> CampaignAuthorization:
-    """Load an external owner-produced authorization bound to one fingerprint."""
+) -> tuple[CampaignAuthorization, ArmingContext]:
+    """Adapt one strict runtime arming context to the legacy backend seam."""
 
-    if not path.is_absolute() or path.is_symlink() or not path.is_file():
-        raise RuntimeError("campaign authorization must be an absolute regular file")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    required = {
-        "schema_version",
-        "campaign_id",
-        "campaign_epoch",
-        "campaign_fingerprint",
-        "bounded_baseline_and_loop",
-        "live_authorized",
-        "controller_readback_verified",
-        "authorization_source",
-        "authorized_at",
-    }
-    if not isinstance(payload, dict) or set(payload) != required:
-        raise RuntimeError("campaign authorization fields differ from v1 contract")
-    if payload["schema_version"] != "step5d_autotune_campaign_authorization_v1":
-        raise RuntimeError("campaign authorization schema mismatch")
-    if any(
-        (
-            payload["campaign_id"] != campaign.campaign_id,
-            payload["campaign_epoch"] != campaign.campaign_epoch,
-            payload["campaign_fingerprint"] != campaign_fingerprint,
-            payload["bounded_baseline_and_loop"] is not True,
-            payload["live_authorized"] is not True,
-            payload["controller_readback_verified"] is not True,
-            not isinstance(payload["authorization_source"], str),
-            not payload["authorization_source"].strip(),
-            not isinstance(payload["authorized_at"], str),
-            not payload["authorized_at"].strip(),
+    try:
+        context = load_campaign_arming_context(
+            path,
+            expected_static_identity=active_identity_snapshot(),
         )
+    except Exception as exc:
+        raise RuntimeError(f"campaign arming context is invalid: {exc}") from exc
+    if (
+        context.campaign_id != campaign.campaign_id
+        or context.campaign_epoch != campaign.campaign_epoch
+        or context.campaign_fingerprint != campaign_fingerprint
     ):
-        raise RuntimeError("campaign authorization is not bound to this exact epoch/fingerprint")
-    return CampaignAuthorization(
+        raise RuntimeError(
+            "campaign arming context is not bound to this exact epoch/fingerprint"
+        )
+    authorization = CampaignAuthorization(
         campaign_id=campaign.campaign_id,
         campaign_fingerprint=campaign_fingerprint,
-        authorization_ref_sha256=sha256_json(payload),
+        authorization_ref_sha256=(
+            context.campaign_authorization.authorization_ref_sha256
+        ),
         bounded_baseline_and_loop=True,
         live_authorized=True,
         controller_readback_verified=True,
     )
+    return authorization, context
 
 
 def _campaign_binding(
@@ -520,7 +521,7 @@ def _campaign_binding(
     *,
     campaign: CampaignSpec,
     campaign_fingerprint: str,
-) -> CampaignAuthorization:
+) -> MachineCampaignBinding:
     """Load the machine-generated V3 epoch/fingerprint binding (not user auth)."""
 
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
@@ -531,22 +532,24 @@ def _campaign_binding(
         "campaign_id",
         "campaign_epoch",
         "campaign_fingerprint",
-        "bounded_baseline_and_loop",
-        "controller_readback_verified",
+        "candidate_plan_revision",
+        "candidate_plan_sha256",
+        "trial_overlay_plan_sha256",
         "binding_source",
         "generated_at",
     }
     if not isinstance(payload, dict) or set(payload) != required:
         raise RuntimeError("campaign binding fields differ from V3 contract")
-    if payload["schema_version"] != "step5d_autotune_campaign_binding_v2":
+    if payload["schema_version"] != "step5d_autotune_campaign_binding_v3":
         raise RuntimeError("campaign binding schema mismatch")
     if any(
         (
             payload["campaign_id"] != campaign.campaign_id,
             payload["campaign_epoch"] != campaign.campaign_epoch,
             payload["campaign_fingerprint"] != campaign_fingerprint,
-            payload["bounded_baseline_and_loop"] is not True,
-            payload["controller_readback_verified"] is not True,
+            isinstance(payload["candidate_plan_revision"], bool),
+            not isinstance(payload["candidate_plan_revision"], int),
+            payload["candidate_plan_revision"] < 1,
             not isinstance(payload["binding_source"], str),
             not payload["binding_source"].strip(),
             not isinstance(payload["generated_at"], str),
@@ -554,13 +557,22 @@ def _campaign_binding(
         )
     ):
         raise RuntimeError("campaign binding is not bound to this exact epoch/fingerprint")
-    return CampaignAuthorization(
+    for name in ("candidate_plan_sha256", "trial_overlay_plan_sha256"):
+        value = payload[name]
+        if (
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            raise RuntimeError("campaign binding plan digest differs")
+    return MachineCampaignBinding(
         campaign_id=campaign.campaign_id,
+        campaign_epoch=campaign.campaign_epoch,
         campaign_fingerprint=campaign_fingerprint,
-        authorization_ref_sha256=sha256_json(payload),
-        bounded_baseline_and_loop=True,
-        live_authorized=True,
-        controller_readback_verified=True,
+        candidate_plan_revision=payload["candidate_plan_revision"],
+        candidate_plan_sha256=payload["candidate_plan_sha256"],
+        trial_overlay_plan_sha256=payload["trial_overlay_plan_sha256"],
+        binding_ref_sha256=sha256_json(payload),
     )
 
 
@@ -1103,14 +1115,7 @@ def run(args: argparse.Namespace) -> int:
         None,
     )
     if args.legacy_campaign_root is not None:
-        if epoch_chain:
-            raise RuntimeError("legacy campaign root is allowed only for first adoption")
-        prior_layout = select_campaign_epoch(
-            args.legacy_campaign_root.resolve(),
-            campaign_epoch=args.legacy_campaign_epoch,
-        )
-        if args.campaign_epoch <= prior_layout.epoch:
-            raise RuntimeError("adopted campaign epoch must advance beyond legacy epoch")
+        raise RuntimeError("V3 active campaign forbids legacy campaign adoption")
     campaign = _campaign_spec(
         root,
         frozen.composite_fingerprint,
@@ -1121,20 +1126,37 @@ def run(args: argparse.Namespace) -> int:
             else None if not epoch_chain else epoch_chain[-1].campaign.campaign_id
         ),
     )
-    if args.campaign_binding is not None:
-        authorization = _campaign_binding(
-            args.campaign_binding.resolve(),
-            campaign=campaign,
-            campaign_fingerprint=frozen.composite_fingerprint,
+    if args.campaign_binding is None or args.campaign_arming_context is None:
+        raise RuntimeError(
+            "both machine campaign binding and typed campaign arming context are required"
         )
-    elif args.authorization_file is not None:
-        authorization = _campaign_authorization(
-            args.authorization_file.resolve(),
-            campaign=campaign,
-            campaign_fingerprint=frozen.composite_fingerprint,
-        )
-    else:
-        raise RuntimeError("internal campaign binding is required")
+    machine_binding = _campaign_binding(
+        args.campaign_binding.resolve(),
+        campaign=campaign,
+        campaign_fingerprint=frozen.composite_fingerprint,
+    )
+    authorization, arming_context = _campaign_authorization(
+        args.campaign_arming_context.resolve(),
+        campaign=campaign,
+        campaign_fingerprint=frozen.composite_fingerprint,
+    )
+    if (
+        machine_binding.campaign_epoch != arming_context.campaign_epoch
+        or machine_binding.campaign_fingerprint
+        != arming_context.campaign_fingerprint
+    ):
+        raise RuntimeError("machine binding and typed authorization context differ")
+    if plan_path is None or args.v3_trial_overlays is None:
+        raise RuntimeError("V3 campaign binding requires exact candidate/overlay plans")
+    overlay_path = args.v3_trial_overlays.resolve()
+    if (
+        machine_binding.candidate_plan_revision
+        != load_plan(plan_path, campaign_id=campaign.campaign_id).revision
+        or machine_binding.candidate_plan_sha256 != _sha256_path(plan_path)
+        or machine_binding.trial_overlay_plan_sha256
+        != _sha256_path(overlay_path)
+    ):
+        raise RuntimeError("machine campaign binding plan identity differs")
     preflight = backend.preflight(offline=False, authorization=authorization)
     if not preflight.ok:
         raise RuntimeError("live backend preflight failed: " + ";".join(preflight.blockers))
@@ -1779,8 +1801,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--legacy-campaign-epoch", type=int)
     parser.add_argument("--mailbox", type=Path, required=True)
     parser.add_argument("--runner-ready-file", type=Path)
-    parser.add_argument("--authorization-file", type=Path)
     parser.add_argument("--campaign-binding", type=Path)
+    parser.add_argument("--campaign-arming-context", type=Path)
     parser.add_argument("--campaign-epoch", type=int, default=1)
     parser.add_argument(
         "--selection-policy",

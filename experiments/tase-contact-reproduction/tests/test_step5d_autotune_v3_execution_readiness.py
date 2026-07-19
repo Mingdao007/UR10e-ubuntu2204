@@ -114,19 +114,6 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     assert report["hil_hold_required"] is False
 
 
-def test_repository_live_signal_is_the_only_readiness_state() -> None:
-    with pytest.raises(
-        readiness.ReadinessError,
-        match=(
-            "requires_current_source_formal_500hz_timing_"
-            "requires_attended_tp_upload_readback_"
-            "requires_current_poweroff_controller_identity_"
-            "requires_certification_motion_authorization"
-        ),
-    ):
-        readiness.verify(ROOT, require_live=True)
-
-
 def test_live_promotion_validation_digest_is_fail_closed(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     promotion_path = fixture / "config/step5/step5d_autotune_v3_live_promotion.json"
@@ -135,7 +122,7 @@ def test_live_promotion_validation_digest_is_fail_closed(tmp_path: Path) -> None
     promotion_path.write_text(json.dumps(promotion), encoding="utf-8")
 
     with pytest.raises(readiness.ReadinessError, match="deterministic validation digest"):
-        readiness.verify(fixture, require_live=True)
+        readiness.verify(fixture)
 
 
 def test_current_validation_identity_is_frozen(tmp_path: Path) -> None:

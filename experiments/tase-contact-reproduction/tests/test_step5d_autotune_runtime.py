@@ -37,6 +37,7 @@ from ur10e_experiment_runtime.physical_prior import (  # noqa: E402
 
 AUTOTUNE = runtime.STEP5D_AUTOTUNE_STAGE_ID
 V35 = runtime.STEP5D_ABLATION_V35_STAGE_ID
+V3 = "step5d_strict_rnn_autotune_v3"
 
 
 def parse_autotune(*extra: str):
@@ -44,20 +45,21 @@ def parse_autotune(*extra: str):
 
 
 class Step5dAutotuneRuntimeTest(unittest.TestCase):
-    def test_stage_is_active_readback_verified_and_current(self) -> None:
+    def test_v1_stage_is_historical_while_v3_is_current(self) -> None:
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
         row = next(item for item in table["stages"] if item["id"] == AUTOTUNE)
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
 
-        self.assertTrue(row["active"])
-        self.assertTrue(row["current_binding"]["is_current"])
+        self.assertFalse(row["active"])
+        self.assertFalse(row["bridge"])
+        self.assertFalse(row["current_binding"]["is_current"])
         self.assertTrue(row["package_delivery"]["controller_uploaded"])
         self.assertTrue(row["package_delivery"]["controller_readback_verified"])
         self.assertEqual(
             row["package_delivery"]["status"], "controller_readback_verified_current"
         )
-        self.assertEqual(current["program"], AUTOTUNE)
-        self.assertEqual(current["current_stage_id"], AUTOTUNE)
+        self.assertEqual(current["program"], V3)
+        self.assertEqual(current["current_stage_id"], V3)
 
     def test_stage_binds_exact_v35_script_bytes(self) -> None:
         table = json.loads((ROOT / "config" / "step5_stage_table.json").read_text(encoding="utf-8"))
@@ -318,10 +320,10 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "must be one of"):
                 parse_autotune("--step5d-autotune-speedj-acceleration-rad-s2", "0.3")
 
-    def test_raw_bridge_execution_requires_continuous_mailbox(self) -> None:
+    def test_raw_v1_bridge_is_rejected_before_mailbox_or_hardware(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             args = parse_autotune()
-        with self.assertRaisesRegex(SystemExit, "continuous command mailbox"):
+        with self.assertRaisesRegex(SystemExit, "binding verification failed"):
             bridge.require_v29_live_bridge_authorization(args, root=ROOT)
 
     def test_saturation_telemetry_fields_are_part_of_csv_contract(self) -> None:

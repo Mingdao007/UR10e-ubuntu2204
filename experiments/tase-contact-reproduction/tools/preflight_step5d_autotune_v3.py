@@ -18,8 +18,8 @@ from typing import Any, Callable, Mapping
 import preflight_readonly as base
 import build_step5d_autotune_tp_v3 as tp_v3
 import run_step5d_autotune_v3_bridge as bridge_wrapper
-import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 from step5d_autotune_v3.launcher import build_bridge_argv
+from step5d_autotune_v3.readiness import require_bridge_start
 from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY
 from step5d_autotune_v3.runtime_profile import (
     CONTROL_PROFILE_ID,
@@ -216,7 +216,10 @@ def _controller_identity(
 
 def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
     started = time.monotonic()
-    readiness = execution_readiness.verify(ROOT)
+    _readiness, bridge_context = require_bridge_start(
+        ROOT,
+        args.bridge_start_context,
+    )
     launch = load_launch_profile(args.launch_profile)
     governed_argv = build_bridge_argv(
         args.mailbox.parent,
@@ -321,7 +324,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
         "candidate_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
         "tp_program_id": TP_PROGRAM_ID,
-        "identity": readiness["identity"],
+        "identity": bridge_context.identity,
         "launch_profile_fingerprint": launch.fingerprint,
         "controller_identity": controller_identity,
         "controller_identity_sha256": controller_sha,
@@ -357,6 +360,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sensor-port", type=int, default=5152)
     parser.add_argument("--timeout-s", type=float, default=2.0)
     parser.add_argument("--mailbox", type=Path, required=True)
+    parser.add_argument("--bridge-start-context", type=Path, required=True)
     parser.add_argument(
         "--launch-profile",
         type=Path,

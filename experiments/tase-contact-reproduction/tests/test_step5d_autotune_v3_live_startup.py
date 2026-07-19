@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import sys
 from pathlib import Path
 from typing import Any
@@ -46,9 +47,12 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
     tmp_path: Path,
 ) -> None:
     identity = {
-        "contract_sha256": "a" * 64,
-        "control_fingerprint": "b" * 64,
-        "orchestration_fingerprint": "c" * 64,
+        "tick_semantics_fingerprint": "a" * 64,
+        "timing_harness_fingerprint": "b" * 64,
+        "runtime_environment_fingerprint": "c" * 64,
+        "deployment_fingerprint": "d" * 64,
+        "orchestration_fingerprint": "e" * 64,
+        "release_basis_fingerprint": "f" * 64,
     }
     payload = {
         "schema": preflight.SCHEMA,
@@ -77,25 +81,39 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
 
 
 def test_operator_play_signal_precedes_runner_recovery_from_fresh_tp_state() -> None:
-    source = (ROOT / "tools/run_step5d_autotune_v3_live.py").read_text(
-        encoding="utf-8"
-    )
+    source = inspect.getsource(live.run)
     runner_ready = source.index(
         '_wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")'
     )
-    bridge_ready = source.index(
-        '_wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")'
-    )
+    bridge_ready = source.index("_await_v3_no_arm_ready(")
+    arming_context = source.index("_wait_for_campaign_arming_context(", bridge_ready)
+    campaign_ready = source.index('print("V3_CAMPAIGN_READY_FOR_TP_PLAY"', arming_context)
     play_signal = source.index('print("READY_FOR_ONE_PLAY_TO_MOVE"')
     play_observed = source.index("if _runtime_playing_normal", play_signal)
 
-    assert bridge_ready < play_signal < play_observed < runner_ready
+    assert bridge_ready < arming_context < campaign_ready < play_signal < play_observed < runner_ready
+    assert 'print("V3_BRIDGE_READY_NO_ARM"' in inspect.getsource(
+        live._await_v3_no_arm_ready
+    )
     assert source.count("READY_FOR_ONE_PLAY_TO_MOVE") == 1
     assert 'READY_FOR_TP_PLAY_V3"' not in source
     assert "campaign_authorization.json" not in source
     assert '"--authorization-file"' not in source
     assert '"--campaign-binding"' in source
+    assert '"--campaign-arming-context"' in source
+    assert "legacy_campaign_root" not in source
     assert "V3_BATCH_10_COMPLETE_STOPPING_TP_NOW" in source
+
+
+def test_canonical_shell_bridge_route_cannot_fall_back_to_v1() -> None:
+    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+
+    assert '"${1:-}" == "bridge"' in source
+    assert "--bridge-start-context" in source
+    assert "--campaign-arming-context" in source
+    assert "run_step5d_autotune_v3_live.py" in source
+    assert "step5d-autotune-live.sh" not in source
+    assert "bridge-line-operator.sh" not in source
 
 
 def test_fault_after_play_has_one_immediate_operator_action(monkeypatch, capsys) -> None:

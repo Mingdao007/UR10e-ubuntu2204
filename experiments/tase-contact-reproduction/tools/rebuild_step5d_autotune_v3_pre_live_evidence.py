@@ -400,9 +400,9 @@ def build_outputs(
     gates["authorization_separation"] = {
         "status": "pass_offline_contract",
         "certification_schema": (
-            "ur-exp/step5d-certification-motion-authorization-v1"
+            "ur-exp/step5d-certification-motion-authorization-v2"
         ),
-        "campaign_schema": "ur-exp/step5d-campaign-authorization-v1",
+        "campaign_schema": "ur-exp/step5d-campaign-authorization-v2",
         "interchangeable": False,
         "certification_no_contact_only": True,
         "certification_optimizer_eligible": False,

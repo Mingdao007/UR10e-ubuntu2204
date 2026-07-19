@@ -20,6 +20,7 @@ from run_step5d_autotune_campaign import (  # noqa: E402
     CampaignEpochLayout,
     StopAfterCurrentRequested,
     _campaign_authorization,
+    _campaign_binding,
     _campaign_spec,
     _publish_runner_ready,
     _v3_stop_requested,
@@ -49,7 +50,7 @@ def test_campaign_spec_accepts_single_trial_success_policy() -> None:
     assert campaign.success_mae_n == 0.3
 
 
-def test_campaign_authorization_must_be_external_and_exactly_fingerprint_bound() -> None:
+def test_legacy_authorization_document_cannot_arm_v3_campaign() -> None:
     campaign = _campaign_spec(ROOT, "a" * 64, 9)
     payload = {
         "schema_version": "step5d_autotune_campaign_authorization_v1",
@@ -65,21 +66,41 @@ def test_campaign_authorization_must_be_external_and_exactly_fingerprint_bound()
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "authorization.json"
         path.write_text(json.dumps(payload), encoding="utf-8")
-        authorization = _campaign_authorization(
-            path,
-            campaign=campaign,
-            campaign_fingerprint=campaign.campaign_fingerprint,
-        )
-        assert authorization.live_authorized is True
-
-        payload["campaign_fingerprint"] = "b" * 64
-        path.write_text(json.dumps(payload), encoding="utf-8")
-        with pytest.raises(RuntimeError, match="exact epoch/fingerprint"):
+        with pytest.raises(RuntimeError, match="campaign arming context is invalid"):
             _campaign_authorization(
                 path,
                 campaign=campaign,
                 campaign_fingerprint=campaign.campaign_fingerprint,
             )
+
+
+def test_machine_campaign_binding_is_plan_identity_not_authorization(
+    tmp_path: Path,
+) -> None:
+    campaign = _campaign_spec(ROOT, "a" * 64, 9)
+    payload = {
+        "schema_version": "step5d_autotune_campaign_binding_v3",
+        "campaign_id": campaign.campaign_id,
+        "campaign_epoch": campaign.campaign_epoch,
+        "campaign_fingerprint": campaign.campaign_fingerprint,
+        "candidate_plan_revision": 1,
+        "candidate_plan_sha256": "b" * 64,
+        "trial_overlay_plan_sha256": "c" * 64,
+        "binding_source": "test machine plan",
+        "generated_at": "2026-07-20T08:00:00+08:00",
+    }
+    path = tmp_path / "machine-binding.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    binding = _campaign_binding(
+        path.resolve(),
+        campaign=campaign,
+        campaign_fingerprint=campaign.campaign_fingerprint,
+    )
+
+    assert binding.candidate_plan_revision == 1
+    assert not hasattr(binding, "live_authorized")
+    assert not hasattr(binding, "authorization_ref_sha256")
 
 
 def test_campaign_epoch_discovery_selects_every_epoch_in_order() -> None:

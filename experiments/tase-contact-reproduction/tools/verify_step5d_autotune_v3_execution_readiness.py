@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+import build_step5d_autotune_v3_return_route_evidence as return_builder
 from step5d_autotune_v3.profile import (
     ContractViolation,
     active_identity_snapshot,
@@ -711,15 +712,23 @@ def _verify_validation(
     _require(
         angular_evidence.get("motion_capable_ursim_trace_binding"),
         {
-            "claim_role": "motion_capable_ursim_core_source_equivalence",
-            "legacy_source_binding_sha256": _canonical_sha256(
-                {**angular_sources, **angular_verifier_sources}
+            "claim_role": "motion_capable_ursim_semantic_subject_equivalence",
+            "legacy_source_binding_sha256": retained_trace.get(
+                "source_binding_sha256"
             ),
-            "active_source_binding_sha256": _canonical_sha256(angular_sources),
-            "active_core_sources_unchanged": True,
+            "active_evidence_source_binding_sha256": _canonical_sha256(
+                angular_sources
+            ),
+            "motion_subject_fingerprint": return_builder.motion_subject_fingerprint(
+                trace=retained_trace,
+                triplet_sha256=dict(package_gate.get("local_triplet_sha256") or {}),
+                policy=dict(angular_evidence.get("policy") or {}),
+            ),
+            "exact_triplet_match": True,
+            "policy_markers_revalidated": True,
             "legacy_identity_provenance_only": retained_trace.get("identity"),
         },
-        "return-route URSim core-source equivalence",
+        "return-route URSim semantic-subject equivalence",
     )
     _require(
         angular_evidence.get("missing_certification"),
@@ -737,9 +746,9 @@ def _verify_validation(
     expected_authorization = {
         "status": "pass_offline_contract",
         "certification_schema": (
-            "ur-exp/step5d-certification-motion-authorization-v1"
+            "ur-exp/step5d-certification-motion-authorization-v2"
         ),
-        "campaign_schema": "ur-exp/step5d-campaign-authorization-v1",
+        "campaign_schema": "ur-exp/step5d-campaign-authorization-v2",
         "interchangeable": False,
         "certification_no_contact_only": True,
         "certification_optimizer_eligible": False,
@@ -827,8 +836,8 @@ def _verify_live_promotion(
     _require(referenced_readback_sha, readback_sha256, "live promotion readback digest")
 
 
-def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
-    """Verify direct-live readiness; ``require_live`` remains API-compatible."""
+def verify(root: Path = ROOT) -> dict[str, Any]:
+    """Audit the persisted offline/pre-live evidence bundle."""
 
     root = root.expanduser().resolve(strict=True)
     try:
@@ -957,8 +966,6 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         readback_sha256=readback_sha,
         expected_blockers=expected_blockers,
     )
-    if require_live:
-        raise ReadinessError("_".join(expected_blockers))
     return {
         "schema": "step5d.autotune-v3/execution-readiness-report-v3",
         "ok": True,

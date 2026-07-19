@@ -17,9 +17,10 @@ import multiprocessing
 import os
 import queue
 import sys
+import threading
 import time
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 
@@ -37,10 +38,15 @@ from ur10e_experiment_runtime.stage_adapters import (
     Stage25ControllerProgressAdapter,
     frozen_step5d_path_reference,
 )
+from step5d_autotune_v3.arming import (
+    ArmingContext,
+    load_bridge_start_context,
+    load_campaign_arming_context,
+)
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
-TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v2"
-TICKET_SCOPE = "live_continuous_campaign"
+TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v3"
+TICKET_SCOPE = "bridge_no_arm"
 LIVE_STOPPING_BOUND_VALIDITY_DOMAIN = (
     "ur10e_step5d_autotune_v3_live_500hz_exact_controller_tp_transport_v1"
 )
@@ -49,6 +55,10 @@ LIVE_MINIMUM_REACTION_LATENCY_S = 0.020
 
 class BridgeTicketError(RuntimeError):
     pass
+
+
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 _V3_COMPACT_EXACT_FIELDS = frozenset(
@@ -298,15 +308,82 @@ class V3AsyncBridgeTrialCsvRotator:
             raise BridgeTicketError("V3 capture worker did not close")
 
 
+class CampaignArmingContextProvider:
+    """Load the immutable campaign context off-loop and publish it once."""
+
+    def __init__(
+        self,
+        path: Path,
+        *,
+        expected_static_identity: dict[str, Any],
+        poll_interval_s: float = 0.1,
+    ) -> None:
+        if not path.is_absolute() or path.is_symlink():
+            raise BridgeTicketError(
+                "campaign arming context path must be absolute and non-symlinked"
+            )
+        if poll_interval_s <= 0.0:
+            raise BridgeTicketError("arming-context poll interval must be positive")
+        self.path = path
+        self.expected_static_identity = dict(expected_static_identity)
+        self.poll_interval_s = poll_interval_s
+        self._context: ArmingContext | None = None
+        self._error: str | None = None
+        self._stop = threading.Event()
+        self._thread = threading.Thread(
+            target=self._watch,
+            name="step5d-v3-arming-context-loader",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def close(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=2.0)
+
+    def __call__(self) -> ArmingContext | None:
+        if self._error is not None:
+            raise BridgeTicketError(self._error)
+        return self._context
+
+    def _watch(self) -> None:
+        while not self._stop.is_set():
+            if self.path.exists() or self.path.is_symlink():
+                try:
+                    context = load_campaign_arming_context(
+                        self.path,
+                        expected_static_identity=self.expected_static_identity,
+                    )
+                except Exception as exc:
+                    self._error = (
+                        "campaign arming context failed closed: "
+                        f"{type(exc).__name__}:{exc}"
+                    )
+                    return
+                self._context = context
+                return
+            self._stop.wait(self.poll_interval_s)
+
+
 def _apply_v3_arm_runtime(
     bridge: Any,
     args: Any,
     binding: Any,
+    arming_context: Any | None,
     original_apply: Any,
 ) -> None:
     """Apply the real V3 control candidate once, at the ARM boundary."""
 
-    original_apply(args, binding)
+    if not isinstance(arming_context, ArmingContext):
+        raise BridgeTicketError("V3 ARM requires a strict campaign arming context")
+    if (
+        binding.campaign_epoch != arming_context.campaign_epoch
+        or binding.campaign_fingerprint != arming_context.campaign_fingerprint
+    ):
+        raise BridgeTicketError("V3 ARM binding differs from the arming context")
+    original_apply(args, binding, arming_context)
     overlay = binding.trial_overlay
     if overlay is None:
         raise BridgeTicketError("V3 ARM requires a bound trial overlay")
@@ -374,13 +451,11 @@ def _apply_v3_arm_runtime(
     args.step5d_moving_sphere_reference_sha256 = (
         args.step5d_controller_progress_adapter.reference_sha256
     )
-    # No certified reaction/braking artifact exists in this offline tranche.
-    # Stage25 therefore fails closed until attended evidence supplies one.
     args.step5d_moving_sphere_kernel = MovingSphereKernel(
         reference_sha256=str(
             launch_profile.document["moving_sphere_reference_sha256"]
         ),
-        stopping_bound=None,
+        stopping_bound=arming_context.stopping_bound,
         required_validity_domain=LIVE_STOPPING_BOUND_VALIDITY_DOMAIN,
         minimum_reaction_latency_s=LIVE_MINIMUM_REACTION_LATENCY_S,
     )
@@ -405,7 +480,8 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         "release_stage_id",
         "control_profile_id",
         "tp_program_id",
-        "campaign_binding",
+        "bridge_start_context",
+        "campaign_arming_context_path",
     }
     if not isinstance(payload, dict) or set(payload) != required:
         raise BridgeTicketError("V3 runtime ticket fields differ")
@@ -435,9 +511,12 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         raise BridgeTicketError("V3 runtime ticket launch id differs")
     identity = payload["identity"]
     if not isinstance(identity, dict) or set(identity) != {
-        "contract_sha256",
-        "control_fingerprint",
+        "tick_semantics_fingerprint",
+        "timing_harness_fingerprint",
+        "runtime_environment_fingerprint",
+        "deployment_fingerprint",
         "orchestration_fingerprint",
+        "release_basis_fingerprint",
     }:
         raise BridgeTicketError("V3 runtime ticket identity differs")
     for value in (
@@ -451,39 +530,47 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
             or any(character not in "0123456789abcdef" for character in value)
         ):
             raise BridgeTicketError("V3 runtime ticket fingerprint differs")
-    binding = payload["campaign_binding"]
+    bridge_reference = payload["bridge_start_context"]
     if (
-        not isinstance(binding, dict)
-        or set(binding)
-        != {
-            "campaign_id",
-            "campaign_epoch",
-            "candidate_plan_revision",
-            "candidate_plan_sha256",
-            "trial_overlay_plan_sha256",
-        }
-        or not isinstance(binding["campaign_id"], str)
-        or not binding["campaign_id"]
-        or isinstance(binding["campaign_epoch"], bool)
-        or not isinstance(binding["campaign_epoch"], int)
-        or binding["campaign_epoch"] < 1
-        or isinstance(binding["candidate_plan_revision"], bool)
-        or not isinstance(binding["candidate_plan_revision"], int)
-        or binding["candidate_plan_revision"] < 1
+        not isinstance(bridge_reference, dict)
+        or set(bridge_reference) != {"path", "sha256"}
+        or not isinstance(bridge_reference["path"], str)
+        or not bridge_reference["path"]
     ):
-        raise BridgeTicketError("live runtime ticket campaign binding differs")
-    for key in ("candidate_plan_sha256", "trial_overlay_plan_sha256"):
-        value = binding[key]
-        if (
-            not isinstance(value, str)
-            or len(value) != 64
-            or any(character not in "0123456789abcdef" for character in value)
-        ):
-            raise BridgeTicketError("live runtime ticket plan fingerprint differs")
+        raise BridgeTicketError("V3 runtime ticket bridge-start reference differs")
+    bridge_context_path = Path(bridge_reference["path"])
+    bridge_sha256 = bridge_reference["sha256"]
+    if (
+        not bridge_context_path.is_absolute()
+        or bridge_context_path.is_symlink()
+        or not bridge_context_path.is_file()
+        or not isinstance(bridge_sha256, str)
+        or _file_sha256(bridge_context_path) != bridge_sha256
+    ):
+        raise BridgeTicketError("V3 runtime ticket bridge-start digest differs")
+    try:
+        bridge_context = load_bridge_start_context(
+            bridge_context_path,
+            expected_static_identity=identity,
+        )
+    except Exception as exc:
+        raise BridgeTicketError(f"V3 bridge-start context differs: {exc}") from exc
+    if bridge_context.identity != identity:
+        raise BridgeTicketError("V3 ticket identity differs from bridge-start context")
+    arming_path_text = payload["campaign_arming_context_path"]
+    if not isinstance(arming_path_text, str) or not arming_path_text:
+        raise BridgeTicketError("V3 campaign arming context path differs")
+    arming_path = Path(arming_path_text)
+    if not arming_path.is_absolute() or arming_path.is_symlink():
+        raise BridgeTicketError(
+            "V3 campaign arming context path must be absolute and non-symlinked"
+        )
     return payload
 
 
-def install_v3_seams() -> Any:
+def install_v3_seams(
+    arming_context_provider: Callable[[], ArmingContext | None] | None = None,
+) -> Any:
     import step5d_autotune_live_driver as live
     from step5d_autotune_v3.runtime_calibration import validate_installed_calibration
     from step5d_autotune_v3.runtime_profile import IdentityCachedMailbox
@@ -497,8 +584,47 @@ def install_v3_seams() -> Any:
 
     live.AtomicCommandMailbox = V3AtomicCommandMailbox
     live.BridgeTrialCsvRotator = V3AsyncBridgeTrialCsvRotator
+    original_runtime = live.BridgeMailboxRuntime
+    provider = arming_context_provider or (lambda: None)
+
+    class V3BridgeMailboxRuntime(original_runtime):
+        def __init__(
+            self,
+            path: Path,
+            *,
+            campaign_home_reference_path: Path | None = None,
+        ) -> None:
+            super().__init__(
+                path,
+                campaign_home_reference_path=campaign_home_reference_path,
+                arming_context_provider=provider,
+            )
+
+    live.BridgeMailboxRuntime = V3BridgeMailboxRuntime
 
     import kunwei_rtde_bridge as bridge
+
+    original_bridge_authorization = bridge.require_v29_live_bridge_authorization
+
+    def v3_no_arm_bridge_authorization(
+        args: Any,
+        *,
+        root: Path = ROOT,
+    ) -> dict[str, Any] | None:
+        if (
+            args.bridge_profile == "step5d_strict_rnn_autotune_v1"
+            and args.step5d_autotune_command_mailbox is not None
+        ):
+            return {
+                "ok": True,
+                "scope": TICKET_SCOPE,
+                "release_stage_id": "step5d_strict_rnn_autotune_v3",
+                "control_profile_provenance": args.bridge_profile,
+                "motion_authorized": False,
+            }
+        return original_bridge_authorization(args, root=root)
+
+    bridge.require_v29_live_bridge_authorization = v3_no_arm_bridge_authorization
 
     original_dict_writer = bridge.csv.DictWriter
 
@@ -524,13 +650,18 @@ def install_v3_seams() -> Any:
 
     bridge.step5_contact_path_reference = v3_path_reference
 
-    original_apply_arm_runtime = live.BridgeMailboxRuntime._apply_arm_runtime
+    original_apply_arm_runtime = original_runtime._apply_arm_runtime
 
-    def v3_apply_arm_runtime(args: Any, binding: Any) -> None:
+    def v3_apply_arm_runtime(
+        args: Any,
+        binding: Any,
+        arming_context: Any | None = None,
+    ) -> None:
         _apply_v3_arm_runtime(
             bridge,
             args,
             binding,
+            arming_context,
             original_apply_arm_runtime,
         )
 
@@ -596,13 +727,24 @@ def main(argv: list[str] | None = None) -> int:
     if not ticket_text:
         print("refusing: STEP5D_V3_RUNTIME_TICKET is required", file=sys.stderr)
         return 24
+    provider: CampaignArmingContextProvider | None = None
     try:
-        _strict_ticket(Path(ticket_text), bridge_argv)
-        bridge = install_v3_seams()
+        ticket = _strict_ticket(Path(ticket_text), bridge_argv)
+        provider = CampaignArmingContextProvider(
+            Path(ticket["campaign_arming_context_path"]),
+            expected_static_identity=dict(ticket["identity"]),
+        )
+        provider.start()
+        bridge = install_v3_seams(provider)
     except BridgeTicketError as exc:
+        if provider is not None:
+            provider.close()
         print(f"refusing: {exc}", file=sys.stderr)
         return 24
-    return int(bridge.main(bridge_argv))
+    try:
+        return int(bridge.main(bridge_argv))
+    finally:
+        provider.close()
 
 
 if __name__ == "__main__":

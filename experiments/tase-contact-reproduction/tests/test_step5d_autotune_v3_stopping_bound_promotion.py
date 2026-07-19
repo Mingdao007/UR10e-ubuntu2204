@@ -14,8 +14,11 @@ sys.path.insert(0, str(ROOT.parents[1] / "src" / "ur10e_experiment_runtime"))
 
 import promote_step5d_autotune_v3_stopping_bound_evidence as promotion  # noqa: E402
 import run_step5d_autotune_campaign as campaign_runner  # noqa: E402
-from step5d_autotune_v3.profile import control_fingerprint, load_contract  # noqa: E402
-from step5d_autotune_v3.state import orchestration_fingerprint  # noqa: E402
+from step5d_autotune_v3.arming import BridgeStartContext  # noqa: E402
+from step5d_autotune_v3.identity_layers import (  # noqa: E402
+    release_basis_fingerprint,
+)
+from step5d_autotune_v3.profile import active_identity_snapshot  # noqa: E402
 from ur10e_experiment_runtime.authorization import (  # noqa: E402
     CERTIFICATION_PROCEDURES,
     CertificationMotionAuthorization,
@@ -35,15 +38,42 @@ def _write(path: Path, payload: object) -> Path:
 
 
 def _fixture(tmp_path: Path) -> dict[str, object]:
-    control = control_fingerprint(load_contract())
-    orchestration = orchestration_fingerprint(ROOT)
-    readback = _write(tmp_path / "readback.json", {"schema": "fixture-readback-v1"})
+    identity = active_identity_snapshot()
+    readback = (tmp_path / "readback.json").resolve()
+    readback.write_bytes(
+        (ROOT / "config/step5d_autotune_controller_readback_v3.json").read_bytes()
+    )
     readback_sha = promotion._sha256_path(readback)
+    runtime_environment = "d" * 64
+    release_basis = release_basis_fingerprint(
+        tick_semantics_fingerprint=identity["tick_semantics_fingerprint"],
+        timing_harness_fingerprint=identity["timing_harness_fingerprint"],
+        runtime_environment_fingerprint=runtime_environment,
+        deployment_fingerprint=identity["deployment_fingerprint"],
+        orchestration_fingerprint=identity["orchestration_fingerprint"],
+        plant_epoch=7,
+    )
+    bridge_context = BridgeStartContext(
+        tick_semantics_fingerprint=identity["tick_semantics_fingerprint"],
+        timing_harness_fingerprint=identity["timing_harness_fingerprint"],
+        runtime_environment_fingerprint=runtime_environment,
+        deployment_fingerprint=identity["deployment_fingerprint"],
+        orchestration_fingerprint=identity["orchestration_fingerprint"],
+        release_basis_fingerprint=release_basis,
+        local_triplet_sha256=identity["local_triplet_sha256"],
+        plant_epoch=7,
+        deployment_readback_sha256=readback_sha,
+        timing_acceptance_sha256="e" * 64,
+    )
+    bridge_context_path = _write(
+        tmp_path / "bridge-start-context.json",
+        bridge_context.document(),
+    )
     issued = datetime.now(timezone.utc) - timedelta(minutes=1)
     authorization = CertificationMotionAuthorization(
         stage_identity=STEP5D_V3_STAGE_IDENTITY,
-        control_fingerprint=control,
-        orchestration_fingerprint=orchestration,
+        release_basis_fingerprint=release_basis,
+        deployment_fingerprint=identity["deployment_fingerprint"],
         plant_epoch=7,
         deployment_readback_sha256=readback_sha,
         allowed_procedures=CERTIFICATION_PROCEDURES,
@@ -84,8 +114,8 @@ def _fixture(tmp_path: Path) -> dict[str, object]:
     measurement = {
         "schema": promotion.RAW_SCHEMA,
         "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-        "control_fingerprint": control,
-        "orchestration_fingerprint": orchestration,
+        "release_basis_fingerprint": release_basis,
+        "deployment_fingerprint": identity["deployment_fingerprint"],
         "plant_epoch": 7,
         "deployment_readback_sha256": readback_sha,
         "certification_authorization_sha256": authorization.authorization_ref_sha256,
@@ -98,8 +128,8 @@ def _fixture(tmp_path: Path) -> dict[str, object]:
     }
     measurement_path = _write(tmp_path / "measurement.json", measurement)
     return {
-        "control": control,
-        "orchestration": orchestration,
+        "bridge_context": bridge_context,
+        "bridge_context_path": bridge_context_path,
         "readback": readback,
         "readback_sha": readback_sha,
         "authorization": authorization,
@@ -114,9 +144,9 @@ def test_promoted_stopping_bound_round_trips_through_strict_loader(tmp_path: Pat
     output = (tmp_path / "promoted.json").resolve()
     document = promotion.promote(
         measurement_path=fixture["measurement_path"],
+        bridge_start_context_path=fixture["bridge_context_path"],
         authorization_path=fixture["authorization_path"],
         deployment_readback_path=fixture["readback"],
-        plant_epoch=7,
         output_path=output,
     )
     artifact = load_stopping_bound_artifact(
@@ -156,9 +186,9 @@ def test_stopping_promotion_fails_closed_on_measurement_mutation(
     with pytest.raises(ValueError):
         promotion.promote(
             measurement_path=measurement,
+            bridge_start_context_path=fixture["bridge_context_path"],
             authorization_path=fixture["authorization_path"],
             deployment_readback_path=fixture["readback"],
-            plant_epoch=7,
             output_path=(tmp_path / "promoted.json").resolve(),
         )
 
@@ -170,18 +200,18 @@ def test_stopping_promotion_rejects_nonfinite_and_readback_drift(tmp_path: Path)
     with pytest.raises(ValueError, match="non-finite"):
         promotion.promote(
             measurement_path=nonfinite,
+            bridge_start_context_path=fixture["bridge_context_path"],
             authorization_path=fixture["authorization_path"],
             deployment_readback_path=fixture["readback"],
-            plant_epoch=7,
             output_path=(tmp_path / "promoted.json").resolve(),
         )
     fixture["readback"].write_text("drift", encoding="utf-8")
-    with pytest.raises(ValueError, match="exact deployment epoch"):
+    with pytest.raises(ValueError, match="deployment readback differs"):
         promotion.promote(
             measurement_path=fixture["measurement_path"],
+            bridge_start_context_path=fixture["bridge_context_path"],
             authorization_path=fixture["authorization_path"],
             deployment_readback_path=fixture["readback"],
-            plant_epoch=7,
             output_path=(tmp_path / "promoted.json").resolve(),
         )
 
@@ -191,9 +221,9 @@ def test_strict_loader_rejects_bound_artifact_tamper(tmp_path: Path) -> None:
     output = (tmp_path / "promoted.json").resolve()
     document = promotion.promote(
         measurement_path=fixture["measurement_path"],
+        bridge_start_context_path=fixture["bridge_context_path"],
         authorization_path=fixture["authorization_path"],
         deployment_readback_path=fixture["readback"],
-        plant_epoch=7,
         output_path=output,
     )
     document["certification_binding_sha256"] = "0" * 64
@@ -212,7 +242,7 @@ def test_strict_loader_rejects_bound_artifact_tamper(tmp_path: Path) -> None:
 
 def test_certification_authorization_cannot_authorize_a_campaign(tmp_path: Path) -> None:
     fixture = _fixture(tmp_path)
-    with pytest.raises(RuntimeError, match="campaign authorization fields differ"):
+    with pytest.raises(RuntimeError, match="campaign arming context is invalid"):
         campaign_runner._campaign_authorization(
             fixture["authorization_path"],
             campaign=object(),

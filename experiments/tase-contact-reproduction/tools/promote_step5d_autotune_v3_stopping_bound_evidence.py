@@ -14,8 +14,8 @@ import tempfile
 from typing import Any, Mapping, Sequence
 
 from build_step5d_autotune_v3_stopping_bound_evidence import SOURCE_PATHS
-from step5d_autotune_v3.profile import control_fingerprint, load_contract
-from step5d_autotune_v3.state import orchestration_fingerprint
+from step5d_autotune_v3.arming import load_bridge_start_context
+from step5d_autotune_v3.profile import active_identity_snapshot
 from ur10e_experiment_runtime.authorization import (
     CERTIFICATION_PROCEDURES,
     STEP5D_V3_STAGE_ID,
@@ -34,7 +34,7 @@ from ur10e_experiment_runtime.moving_sphere import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RAW_SCHEMA = "step5d.autotune-v3/stopping-bound-measurement-v1"
+RAW_SCHEMA = "step5d.autotune-v3/stopping-bound-measurement-v2"
 STOP_PROCEDURES = CERTIFICATION_PROCEDURES[:2]
 MINIMUM_SAMPLES_PER_PROCEDURE = 3
 STATIONARY_SPEED_M_S = 0.001
@@ -135,8 +135,8 @@ def _analyze_trial(row: object, *, procedure: str, sample_index: int) -> tuple[f
 def _analyze_measurement(
     payload: object,
     *,
-    expected_control_fingerprint: str,
-    expected_orchestration_fingerprint: str,
+    expected_release_basis_fingerprint: str,
+    expected_deployment_fingerprint: str,
     expected_plant_epoch: int,
     expected_deployment_readback_sha256: str,
     expected_authorization_sha256: str,
@@ -146,8 +146,8 @@ def _analyze_measurement(
         {
             "schema",
             "candidate_stage_id",
-            "control_fingerprint",
-            "orchestration_fingerprint",
+            "release_basis_fingerprint",
+            "deployment_fingerprint",
             "plant_epoch",
             "deployment_readback_sha256",
             "certification_authorization_sha256",
@@ -159,8 +159,8 @@ def _analyze_measurement(
     expected = {
         "schema": RAW_SCHEMA,
         "candidate_stage_id": STEP5D_V3_STAGE_ID,
-        "control_fingerprint": expected_control_fingerprint,
-        "orchestration_fingerprint": expected_orchestration_fingerprint,
+        "release_basis_fingerprint": expected_release_basis_fingerprint,
+        "deployment_fingerprint": expected_deployment_fingerprint,
         "plant_epoch": expected_plant_epoch,
         "deployment_readback_sha256": expected_deployment_readback_sha256,
         "certification_authorization_sha256": expected_authorization_sha256,
@@ -211,25 +211,31 @@ def _atomic_new(path: Path, payload: Mapping[str, object]) -> None:
 def promote(
     *,
     measurement_path: Path,
+    bridge_start_context_path: Path,
     authorization_path: Path,
     deployment_readback_path: Path,
-    plant_epoch: int,
     output_path: Path,
     now: datetime | None = None,
 ) -> dict[str, object]:
     measurement_source = _regular(measurement_path, "stopping measurement")
+    bridge_context_source = _regular(
+        bridge_start_context_path, "bridge-start context"
+    )
     authorization_source = _regular(authorization_path, "certification authorization")
     readback_source = _regular(deployment_readback_path, "deployment readback")
-    if isinstance(plant_epoch, bool) or not isinstance(plant_epoch, int) or plant_epoch < 1:
-        raise ValueError("plant_epoch must be positive")
-    control = control_fingerprint(load_contract())
-    orchestration = orchestration_fingerprint(ROOT)
     readback_sha256 = _sha256_path(readback_source)
+    bridge_context = load_bridge_start_context(
+        bridge_context_source,
+        expected_static_identity=active_identity_snapshot(),
+        expected_deployment_readback_sha256=readback_sha256,
+    )
     authorization = load_certification_motion_authorization(
         authorization_source,
-        expected_control_fingerprint=control,
-        expected_orchestration_fingerprint=orchestration,
-        expected_plant_epoch=plant_epoch,
+        expected_release_basis_fingerprint=(
+            bridge_context.release_basis_fingerprint
+        ),
+        expected_deployment_fingerprint=bridge_context.deployment_fingerprint,
+        expected_plant_epoch=bridge_context.plant_epoch,
         expected_deployment_readback_sha256=readback_sha256,
         now=now,
     )
@@ -240,9 +246,13 @@ def promote(
     reaction_latency_s, acceleration_growth_m_s2, minimum_deceleration_m_s2 = (
         _analyze_measurement(
             measurement,
-            expected_control_fingerprint=control,
-            expected_orchestration_fingerprint=orchestration,
-            expected_plant_epoch=plant_epoch,
+            expected_release_basis_fingerprint=(
+                bridge_context.release_basis_fingerprint
+            ),
+            expected_deployment_fingerprint=(
+                bridge_context.deployment_fingerprint
+            ),
+            expected_plant_epoch=bridge_context.plant_epoch,
             expected_deployment_readback_sha256=readback_sha256,
             expected_authorization_sha256=authorization_sha256,
         )
@@ -258,7 +268,7 @@ def promote(
             "stop_transport_sha256": source_sha256["bridge"],
             "deployment_readback_sha256": readback_sha256,
             "certification_authorization_sha256": authorization_sha256,
-            "plant_epoch": plant_epoch,
+            "plant_epoch": bridge_context.plant_epoch,
             "measurement_sha256": measurement_sha256,
         }
     )
@@ -331,7 +341,7 @@ def promote(
         "deployment_readback_sha256": readback_sha256,
         "certification_authorization_sha256": authorization_sha256,
         "certification_binding_sha256": certification_binding_sha256,
-        "plant_epoch": plant_epoch,
+        "plant_epoch": bridge_context.plant_epoch,
         "measurement_sha256": measurement_sha256,
         "source_sha256": source_sha256,
         "components": [component.document() for component in components],
@@ -345,16 +355,16 @@ def promote(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--measurement", type=Path, required=True)
+    parser.add_argument("--bridge-start-context", type=Path, required=True)
     parser.add_argument("--certification-authorization", type=Path, required=True)
     parser.add_argument("--deployment-readback", type=Path, required=True)
-    parser.add_argument("--plant-epoch", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     promote(
         measurement_path=args.measurement,
+        bridge_start_context_path=args.bridge_start_context,
         authorization_path=args.certification_authorization,
         deployment_readback_path=args.deployment_readback,
-        plant_epoch=args.plant_epoch,
         output_path=args.output,
     )
     return 0

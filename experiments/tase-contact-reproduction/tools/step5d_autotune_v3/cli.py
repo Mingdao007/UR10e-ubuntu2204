@@ -15,6 +15,7 @@ from typing import Any, Mapping, Sequence
 from .service import run_service
 from .state import (
     CampaignPaths,
+    AttemptLedger,
     StateError,
     campaign_history,
     campaign_status,
@@ -142,13 +143,21 @@ def _candidate_mapping(candidate: Mapping[str, Any]) -> dict[str, float]:
 def _validate_candidates(
     candidates: Sequence[Mapping[str, Any]],
     *,
-    ledger_path: Path,
+    ledger_path: Path | None = None,
+    attempt_ledger: AttemptLedger | None = None,
     launch_profile_path: Path,
 ) -> tuple[list[Any], list[dict[str, Any]], str, str, str]:
     from .launcher import check_effective_config
     from step5d_autotune_contract import ForceCandidate
 
-    ledger = load_attempt_ledger(ledger_path)
+    if (ledger_path is None) == (attempt_ledger is None):
+        raise CliError("exactly one attempt-ledger source is required")
+    ledger = (
+        load_attempt_ledger(ledger_path)
+        if ledger_path is not None
+        else attempt_ledger
+    )
+    assert ledger is not None
     force_candidates: list[ForceCandidate] = []
     control_fingerprint: str | None = None
     execution_profile_id: str | None = None
@@ -466,6 +475,9 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--resume", action="store_true")
     status = commands.add_parser("status")
     status.add_argument("--json", action="store_true")
+    status.add_argument("--bridge-start-context", type=Path)
+    status.add_argument("--campaign-arming-context", type=Path)
+    status.add_argument("--runtime-readiness", type=Path)
     enqueue = commands.add_parser("enqueue")
     enqueue.add_argument("--batch", type=Path, required=True)
     report = commands.add_parser("report")
@@ -526,9 +538,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(payload, json_output=args.json, text="offline v3 service start requested")
             return 0
         if args.command == "status":
+            from .readiness import resolve_release_readiness
+
             ledger = load_attempt_ledger(ledger_path)
             payload = {
                 **campaign_status(paths),
+                "release_readiness": resolve_release_readiness(
+                    experiment_root,
+                    bridge_start_context_path=args.bridge_start_context,
+                    campaign_arming_context_path=args.campaign_arming_context,
+                    runtime_readiness_path=args.runtime_readiness,
+                ),
                 "attempt_ledger": {
                     "sha256": ledger.sha256,
                     "summary": dict(ledger.summary),
@@ -540,7 +560,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 text=(
                     f"phase={payload['service']['phase']} "
                     f"queue_revision={payload['queue']['revision']} "
-                    f"stop_after_current={str(payload['stop_after_current']['armed']).lower()}"
+                    f"stop_after_current={str(payload['stop_after_current']['armed']).lower()} "
+                    f"selected_release={payload['release_readiness']['selected_release']} "
+                    f"campaign_ready={str(payload['release_readiness']['campaign_ready']).lower()}"
                 ),
             )
             return 0

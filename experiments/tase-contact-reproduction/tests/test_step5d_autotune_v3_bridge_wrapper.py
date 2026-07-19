@@ -16,9 +16,37 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_autotune_v3_bridge as wrapper  # noqa: E402
 from run_step5d_autotune_campaign import closure_sample_from_bridge_row  # noqa: E402
+from step5d_autotune_v3.arming import BridgeStartContext  # noqa: E402
+from step5d_autotune_v3.identity_layers import release_basis_fingerprint  # noqa: E402
 
 
 def _ticket(path: Path, argv: list[str]) -> Path:
+    identity = {
+        "tick_semantics_fingerprint": "0" * 64,
+        "timing_harness_fingerprint": "1" * 64,
+        "runtime_environment_fingerprint": "2" * 64,
+        "deployment_fingerprint": "3" * 64,
+        "orchestration_fingerprint": "4" * 64,
+    }
+    identity["release_basis_fingerprint"] = release_basis_fingerprint(
+        **identity,
+        plant_epoch=2,
+    )
+    bridge_context = BridgeStartContext(
+        **identity,
+        local_triplet_sha256={
+            ".script": "5" * 64,
+            ".txt": "6" * 64,
+            ".urp": "7" * 64,
+        },
+        plant_epoch=2,
+        deployment_readback_sha256="8" * 64,
+        timing_acceptance_sha256="9" * 64,
+    )
+    bridge_context_path = path.with_name("bridge-start-context.json").resolve()
+    bridge_context_path.write_text(
+        json.dumps(bridge_context.document()), encoding="utf-8"
+    )
     encoded = json.dumps(argv, sort_keys=True, separators=(",", ":")).encode()
     path.write_text(
         json.dumps(
@@ -27,24 +55,22 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                 "parent_pid": os.getppid(),
                 "argv_sha256": hashlib.sha256(encoded).hexdigest(),
                 "launch_id": "1" * 32,
-                "scope": "live_continuous_campaign",
-                "identity": {
-                    "contract_sha256": "0" * 64,
-                    "control_fingerprint": "a" * 64,
-                    "orchestration_fingerprint": "d" * 64,
-                },
+                "scope": "bridge_no_arm",
+                "identity": identity,
                 "launch_profile_fingerprint": "b" * 64,
                 "trial_overlay_fingerprint": "c" * 64,
                 "release_stage_id": "step5d_strict_rnn_autotune_v3",
                 "control_profile_id": "step5d_strict_rnn_autotune_v1",
                 "tp_program_id": "step5d_strict_rnn_autotune_v3",
-                "campaign_binding": {
-                    "campaign_id": "campaign-v3",
-                    "campaign_epoch": 2,
-                    "candidate_plan_revision": 1,
-                    "candidate_plan_sha256": "e" * 64,
-                    "trial_overlay_plan_sha256": "f" * 64,
+                "bridge_start_context": {
+                    "path": str(bridge_context_path),
+                    "sha256": hashlib.sha256(
+                        bridge_context_path.read_bytes()
+                    ).hexdigest(),
                 },
+                "campaign_arming_context_path": str(
+                    path.with_name("campaign-arming-context.json").resolve()
+                ),
             }
         ),
         encoding="utf-8",
@@ -55,7 +81,7 @@ def _ticket(path: Path, argv: list[str]) -> Path:
 def test_wrapper_requires_parent_and_exact_argv_ticket(tmp_path: Path) -> None:
     argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
     ticket = _ticket(tmp_path / "ticket.json", argv)
-    assert wrapper._strict_ticket(ticket, argv)["scope"] == "live_continuous_campaign"
+    assert wrapper._strict_ticket(ticket, argv)["scope"] == "bridge_no_arm"
     try:
         wrapper._strict_ticket(ticket, [*argv, "--duration-s", "1"])
     except wrapper.BridgeTicketError as exc:
@@ -70,18 +96,18 @@ def test_wrapper_refuses_direct_start_without_runtime_ticket(capsys) -> None:
     assert "RUNTIME_TICKET" in capsys.readouterr().err
 
 
-def test_live_ticket_requires_exact_campaign_binding(tmp_path: Path) -> None:
+def test_bridge_ticket_requires_exact_bridge_start_binding(tmp_path: Path) -> None:
     argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
     ticket = _ticket(tmp_path / "ticket.json", argv)
     payload = json.loads(ticket.read_text(encoding="utf-8"))
-    payload["campaign_binding"].pop("trial_overlay_plan_sha256")
+    payload["bridge_start_context"].pop("sha256")
     ticket.write_text(json.dumps(payload), encoding="utf-8")
     try:
         wrapper._strict_ticket(ticket, argv)
     except wrapper.BridgeTicketError as exc:
-        assert "campaign binding" in str(exc)
+        assert "bridge-start reference" in str(exc)
     else:
-        raise AssertionError("incomplete campaign binding was accepted")
+        raise AssertionError("incomplete bridge-start binding was accepted")
 
 
 def test_wrapper_source_has_no_campaign_runner_arm_or_motion_surface() -> None:

@@ -15,7 +15,15 @@ sys.path.insert(0, str(ROOT.parents[1] / "src" / "ur10e_experiment_runtime"))
 
 import build_step5d_autotune_v3_return_route_evidence as baseline  # noqa: E402
 import promote_step5d_autotune_v3_return_route_evidence as promotion  # noqa: E402
-from step5d_autotune_v3.profile import control_fingerprint, load_contract  # noqa: E402
+from step5d_autotune_v3.arming import BridgeStartContext  # noqa: E402
+from step5d_autotune_v3.identity_layers import (  # noqa: E402
+    release_basis_fingerprint,
+)
+from step5d_autotune_v3.profile import (  # noqa: E402
+    active_identity_snapshot,
+    control_fingerprint,
+    load_contract,
+)
 from step5d_autotune_v3.state import orchestration_fingerprint  # noqa: E402
 from ur10e_experiment_runtime.authorization import (  # noqa: E402
     CERTIFICATION_PROCEDURES,
@@ -38,15 +46,44 @@ def _write(path: Path, payload: object) -> Path:
 
 def _fixture(tmp_path: Path) -> dict[str, object]:
     base = baseline.build_document(include_ursim_trace=False)
-    control = control_fingerprint(load_contract())
-    orchestration = orchestration_fingerprint(ROOT)
-    readback = _write(tmp_path / "readback.json", {"schema": "fixture-readback-v1"})
+    legacy_control = control_fingerprint(load_contract())
+    legacy_orchestration = orchestration_fingerprint(ROOT)
+    identity = active_identity_snapshot()
+    readback = (tmp_path / "readback.json").resolve()
+    readback.write_bytes(
+        (ROOT / "config/step5d_autotune_controller_readback_v3.json").read_bytes()
+    )
     readback_sha = promotion._sha256(readback)
+    runtime_environment = "d" * 64
+    release_basis = release_basis_fingerprint(
+        tick_semantics_fingerprint=identity["tick_semantics_fingerprint"],
+        timing_harness_fingerprint=identity["timing_harness_fingerprint"],
+        runtime_environment_fingerprint=runtime_environment,
+        deployment_fingerprint=identity["deployment_fingerprint"],
+        orchestration_fingerprint=identity["orchestration_fingerprint"],
+        plant_epoch=9,
+    )
+    bridge_context = BridgeStartContext(
+        tick_semantics_fingerprint=identity["tick_semantics_fingerprint"],
+        timing_harness_fingerprint=identity["timing_harness_fingerprint"],
+        runtime_environment_fingerprint=runtime_environment,
+        deployment_fingerprint=identity["deployment_fingerprint"],
+        orchestration_fingerprint=identity["orchestration_fingerprint"],
+        release_basis_fingerprint=release_basis,
+        local_triplet_sha256=identity["local_triplet_sha256"],
+        plant_epoch=9,
+        deployment_readback_sha256=readback_sha,
+        timing_acceptance_sha256="e" * 64,
+    )
+    bridge_context_path = _write(
+        tmp_path / "bridge-start-context.json",
+        bridge_context.document(),
+    )
     issued = datetime.now(timezone.utc) - timedelta(minutes=1)
     authorization = CertificationMotionAuthorization(
         stage_identity=STEP5D_V3_STAGE_IDENTITY,
-        control_fingerprint=control,
-        orchestration_fingerprint=orchestration,
+        release_basis_fingerprint=release_basis,
+        deployment_fingerprint=identity["deployment_fingerprint"],
         plant_epoch=9,
         deployment_readback_sha256=readback_sha,
         allowed_procedures=CERTIFICATION_PROCEDURES,
@@ -79,8 +116,8 @@ def _fixture(tmp_path: Path) -> dict[str, object]:
         "status": "pass",
         "claim_boundary": "isolated_ursim_motion_only_not_live_certification",
         "identity": {
-            "control_fingerprint": control,
-            "orchestration_fingerprint": orchestration,
+            "control_fingerprint": legacy_control,
+            "orchestration_fingerprint": legacy_orchestration,
         },
         "source_binding_sha256": base["source_binding_sha256"],
         "triplet_sha256": base["local_triplet_sha256"],
@@ -141,8 +178,8 @@ def _fixture(tmp_path: Path) -> dict[str, object]:
     telemetry = {
         "schema": RETURN_TELEMETRY_SCHEMA,
         "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-        "control_fingerprint": control,
-        "orchestration_fingerprint": orchestration,
+        "release_basis_fingerprint": release_basis,
+        "deployment_fingerprint": identity["deployment_fingerprint"],
         "source_binding_sha256": base["source_binding_sha256"],
         "triplet_sha256": base["local_triplet_sha256"],
         "plant_epoch": 9,
@@ -165,6 +202,8 @@ def _fixture(tmp_path: Path) -> dict[str, object]:
     telemetry_path = _write(tmp_path / "telemetry.json", telemetry)
     return {
         "base": base,
+        "bridge_context": bridge_context,
+        "bridge_context_path": bridge_context_path,
         "readback": readback,
         "authorization": authorization,
         "authorization_path": authorization_path,
@@ -181,9 +220,9 @@ def test_return_route_promotion_binds_all_three_evidence_classes(tmp_path: Path)
     document = promotion.promote(
         ursim_trace_path=fixture["ursim_path"],
         telemetry_path=fixture["telemetry_path"],
+        bridge_start_context_path=fixture["bridge_context_path"],
         authorization_path=fixture["authorization_path"],
         deployment_readback_path=fixture["readback"],
-        plant_epoch=9,
         output_path=output,
     )
     assert document["certified"] is True
@@ -215,9 +254,9 @@ def test_return_route_promotion_fails_closed_on_evidence_mutation(
     kwargs = {
         "ursim_trace_path": fixture["ursim_path"],
         "telemetry_path": fixture["telemetry_path"],
+        "bridge_start_context_path": fixture["bridge_context_path"],
         "authorization_path": fixture["authorization_path"],
         "deployment_readback_path": fixture["readback"],
-        "plant_epoch": 9,
         "output_path": (tmp_path / "promoted.json").resolve(),
     }
     kwargs["ursim_trace_path" if artifact == "ursim" else "telemetry_path"] = changed_path

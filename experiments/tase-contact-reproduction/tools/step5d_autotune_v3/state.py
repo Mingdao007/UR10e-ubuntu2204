@@ -438,6 +438,26 @@ class AttemptLedger:
         return self.tuples.get(key)
 
 
+def fresh_attempt_ledger() -> AttemptLedger:
+    """Return the empty population for a new V3 plant epoch.
+
+    The immutable migration ledger remains diagnostic provenance.  A fresh
+    campaign must not inherit those physical attempts as optimizer state.
+    Within-campaign retry prevention is owned by the exact batch lifecycle.
+    """
+
+    summary = {
+        "unique_parameter_tuples": 0,
+        "complete_tuples": 0,
+        "uncertain_attempt_tuples": 0,
+        "attempt_records": 0,
+    }
+    digest = hashlib.sha256(
+        b"step5d-v3-fresh-plant-epoch-empty-attempt-ledger-v1"
+    ).hexdigest()
+    return AttemptLedger(tuples={}, summary=summary, sha256=digest)
+
+
 def _exact_mapping(name: str, value: Any, keys: set[str]) -> Mapping[str, Any]:
     if not isinstance(value, dict) or set(value) != keys:
         raise StateError(f"{name} fields differ")

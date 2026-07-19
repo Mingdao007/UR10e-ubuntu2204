@@ -17,16 +17,18 @@ from ur10e_experiment_runtime.authorization import (
 )
 
 
-CONTROL = "a" * 64
-ORCHESTRATION = "b" * 64
+RELEASE_BASIS = "a" * 64
+DEPLOYMENT = "b" * 64
 READBACK = "c" * 64
+RELEASE = "d" * 64
+CAMPAIGN = "e" * 64
 
 
 def document() -> dict[str, object]:
     return CertificationMotionAuthorization(
         stage_identity=STEP5D_V3_STAGE_IDENTITY,
-        control_fingerprint=CONTROL,
-        orchestration_fingerprint=ORCHESTRATION,
+        release_basis_fingerprint=RELEASE_BASIS,
+        deployment_fingerprint=DEPLOYMENT,
         plant_epoch=7,
         deployment_readback_sha256=READBACK,
         allowed_procedures=CERTIFICATION_PROCEDURES,
@@ -47,8 +49,8 @@ def test_certification_authorization_is_narrow_and_identity_bound(tmp_path) -> N
 
     authorization = load_certification_motion_authorization(
         path,
-        expected_control_fingerprint=CONTROL,
-        expected_orchestration_fingerprint=ORCHESTRATION,
+        expected_release_basis_fingerprint=RELEASE_BASIS,
+        expected_deployment_fingerprint=DEPLOYMENT,
         expected_plant_epoch=7,
         expected_deployment_readback_sha256=READBACK,
         now=datetime(2026, 7, 20, 1, 30, tzinfo=timezone.utc),
@@ -90,8 +92,8 @@ def test_certification_authorization_rejects_wrong_epoch_and_expiry(tmp_path) ->
     with pytest.raises(AuthorizationError, match="exact deployment epoch"):
         load_certification_motion_authorization(
             path,
-            expected_control_fingerprint=CONTROL,
-            expected_orchestration_fingerprint=ORCHESTRATION,
+            expected_release_basis_fingerprint=RELEASE_BASIS,
+            expected_deployment_fingerprint=DEPLOYMENT,
             expected_plant_epoch=8,
             expected_deployment_readback_sha256=READBACK,
             now=datetime(2026, 7, 20, 1, 30, tzinfo=timezone.utc),
@@ -99,8 +101,8 @@ def test_certification_authorization_rejects_wrong_epoch_and_expiry(tmp_path) ->
     with pytest.raises(AuthorizationError, match="not currently valid"):
         load_certification_motion_authorization(
             path,
-            expected_control_fingerprint=CONTROL,
-            expected_orchestration_fingerprint=ORCHESTRATION,
+            expected_release_basis_fingerprint=RELEASE_BASIS,
+            expected_deployment_fingerprint=DEPLOYMENT,
             expected_plant_epoch=7,
             expected_deployment_readback_sha256=READBACK,
             now=datetime(2026, 7, 20, 2, 0, tzinfo=timezone.utc),
@@ -115,8 +117,8 @@ def test_certification_authorization_rejects_duplicate_and_nonfinite_json(
     with pytest.raises(ValueError, match="duplicate"):
         load_certification_motion_authorization(
             duplicate,
-            expected_control_fingerprint=CONTROL,
-            expected_orchestration_fingerprint=ORCHESTRATION,
+            expected_release_basis_fingerprint=RELEASE_BASIS,
+            expected_deployment_fingerprint=DEPLOYMENT,
             expected_plant_epoch=7,
             expected_deployment_readback_sha256=READBACK,
         )
@@ -128,8 +130,8 @@ def test_certification_authorization_rejects_duplicate_and_nonfinite_json(
     with pytest.raises(ValueError, match="non-finite"):
         load_certification_motion_authorization(
             invalid,
-            expected_control_fingerprint=CONTROL,
-            expected_orchestration_fingerprint=ORCHESTRATION,
+            expected_release_basis_fingerprint=RELEASE_BASIS,
+            expected_deployment_fingerprint=DEPLOYMENT,
             expected_plant_epoch=7,
             expected_deployment_readback_sha256=READBACK,
         )
@@ -156,9 +158,9 @@ def test_campaign_authorization_is_typed_and_rejects_certification_schema(
         stage_identity=STEP5D_V3_STAGE_IDENTITY,
         campaign_id="round-a",
         campaign_epoch=3,
-        campaign_fingerprint="d" * 64,
-        control_fingerprint=CONTROL,
-        orchestration_fingerprint=ORCHESTRATION,
+        campaign_fingerprint=CAMPAIGN,
+        release_fingerprint=RELEASE,
+        deployment_fingerprint=DEPLOYMENT,
         plant_epoch=7,
         deployment_readback_sha256=READBACK,
         authorization_source="attended owner gate",
@@ -171,9 +173,9 @@ def test_campaign_authorization_is_typed_and_rejects_certification_schema(
         path,
         expected_campaign_id="round-a",
         expected_campaign_epoch=3,
-        expected_campaign_fingerprint="d" * 64,
-        expected_control_fingerprint=CONTROL,
-        expected_orchestration_fingerprint=ORCHESTRATION,
+        expected_campaign_fingerprint=CAMPAIGN,
+        expected_release_fingerprint=RELEASE,
+        expected_deployment_fingerprint=DEPLOYMENT,
         expected_plant_epoch=7,
         expected_deployment_readback_sha256=READBACK,
         now=datetime(2026, 7, 20, 1, 30, tzinfo=timezone.utc),
@@ -188,9 +190,9 @@ def test_campaign_authorization_is_typed_and_rejects_certification_schema(
             path,
             expected_campaign_id="round-a",
             expected_campaign_epoch=3,
-            expected_campaign_fingerprint="d" * 64,
-            expected_control_fingerprint=CONTROL,
-            expected_orchestration_fingerprint=ORCHESTRATION,
+            expected_campaign_fingerprint=CAMPAIGN,
+            expected_release_fingerprint=RELEASE,
+            expected_deployment_fingerprint=DEPLOYMENT,
             expected_plant_epoch=7,
             expected_deployment_readback_sha256=READBACK,
         )
@@ -223,9 +225,9 @@ def test_campaign_authorization_cannot_issue_a_certification_ticket() -> None:
         stage_identity=STEP5D_V3_STAGE_IDENTITY,
         campaign_id="round-a",
         campaign_epoch=3,
-        campaign_fingerprint="d" * 64,
-        control_fingerprint=CONTROL,
-        orchestration_fingerprint=ORCHESTRATION,
+        campaign_fingerprint=CAMPAIGN,
+        release_fingerprint=RELEASE,
+        deployment_fingerprint=DEPLOYMENT,
         plant_epoch=7,
         deployment_readback_sha256=READBACK,
         authorization_source="attended owner gate",
