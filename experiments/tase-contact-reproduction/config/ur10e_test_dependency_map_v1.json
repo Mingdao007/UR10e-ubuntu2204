@@ -117,8 +117,8 @@
       "tests": ["tests/test_publish_step5d_autotune_plot.py"]
     },
     {
-      "paths": ["src/ur10e_experiment_runtime/**", "config/failure_to_guard/**", "tests/fixtures/failure_to_guard_*.json"],
-      "tests": ["../../src/ur10e_experiment_runtime/tests/test_ur_experiment_runtime_core.py", "tests/test_failure_to_guard.py", "tests/test_rollout_extractor.py"]
+      "paths": ["src/ur10e_experiment_runtime/**", "config/experiments/**", "config/failure_to_guard/**", "tests/fixtures/failure_to_guard_*.json"],
+      "tests": ["../../src/ur10e_experiment_runtime/tests/test_ur_experiment_runtime_core.py", "tests/test_ur_experiment_stage5d_adapter_parity.py", "tests/test_failure_to_guard.py", "tests/test_rollout_extractor.py"]
     },
     {
       "paths": ["check.sh", "pytest.ini", "tests/conftest.py", "tools/run_ur10e_impacted_tests.py", "tools/ur10e_impact_selector.py", "config/ur10e_test_dependency_map_v1.json"],
