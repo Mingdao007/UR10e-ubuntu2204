@@ -334,6 +334,7 @@ ORCHESTRATION_RELATIVE_PATHS = (
     "tools/step5d_autotune_journal.py",
     "tools/step5d_autotune_store.py",
     "tools/step5d_autotune_live_driver.py",
+    "tools/step5d_autotune_runtime_lifecycle.py",
     "tools/step5d_autotune_batch_plan.py",
     "tools/step5d_autotune_v3/state.py",
     "tools/step5d_autotune_v3/service.py",

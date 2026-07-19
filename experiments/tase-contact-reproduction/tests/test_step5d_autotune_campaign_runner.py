@@ -353,6 +353,7 @@ def test_waiting_at_ready_home_observes_v3_latch_before_selecting_candidate(
             supervisor=None,  # type: ignore[arg-type]
             coordinator=None,  # type: ignore[arg-type]
             bridge_csv=tmp_path / "not-read.csv",
+            campaign_root=tmp_path / "campaign",
             previous_plan=None,
             timeout_s=1.0,
             stop_requested=lambda: True,

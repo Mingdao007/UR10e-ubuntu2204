@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve the one legal Step5d Autotune V3 live action fail-closed."""
+"""Resolve the Step5d Autotune V3 pre-live state fail-closed."""
 
 from __future__ import annotations
 
@@ -23,21 +23,18 @@ from step5d_autotune_v3.state import StateError, orchestration_fingerprint
 ROOT = Path(__file__).resolve().parents[1]
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
-VALIDATION_SCOPE = "deterministic_live_entry_prerequisites"
+VALIDATION_SCOPE = "offline_pre_live_only"
 MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
-HISTORICAL_VALIDATION_IDENTITY = {
-    "contract_sha256": "96a83126c1bf4b11ed41429060e9b83c4b867f799dea337478c69bcf84ad57f0",
-    "control_fingerprint": "12a494fc44fc238a0623e951b1ae328c22cd18a3b966d79692c9c2b032ed80ea",
-    "orchestration_fingerprint": "8fdeb1b435bbafeff84877a354d41830f6ccfa7d7033d80401a3ae559cb29e94",
-}
-HISTORICAL_VALIDATION_DECISION = {
-    "go_no_go": "go",
+PRE_LIVE_VALIDATION_DECISION = {
     "acceptance_scope": VALIDATION_SCOPE,
+    "offline_implementation": "pass",
+    "hardware_promotion": "blocked",
     "current_selector": V1_STAGE_ID,
     "v3_active": False,
-    "user_authorization_required": False,
-    "one_play_real_motion": True,
-    "execution_readiness": "ready_for_v3_live_continuous_campaign",
+    "robot_power_state": "POWER_OFF",
+    "fresh_live_authorization_required": True,
+    "live_motion_authorized": False,
+    "execution_readiness": "pre_live_blocked",
 }
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -140,62 +137,60 @@ def _verify_validation(
     validation = _load_json(path, role="deterministic validation")
     _require(
         validation.get("schema"),
-        "step5d.autotune-v3/deterministic-validation-v2",
+        "step5d.autotune-v3/offline-acceptance-v3",
         "validation schema",
     )
     _zoned_timestamp(validation.get("observed_at"), role="validation timestamp")
     _require(
         validation.get("identity"),
-        HISTORICAL_VALIDATION_IDENTITY,
-        "historical validation identity",
+        current_identity,
+        "current validation identity",
     )
     _require(
         validation.get("decision"),
-        HISTORICAL_VALIDATION_DECISION,
-        "historical validation decision",
+        PRE_LIVE_VALIDATION_DECISION,
+        "pre-live validation decision",
     )
-    if validation.get("identity") == current_identity:
-        raise ReadinessError(
-            "historical validation must not promote the current candidate identity"
-        )
 
     gates = validation.get("gates") or {}
-    for name in (
-        "repository_validation",
-        "control_semantics",
-        "ten_trial_v3",
-        "package_and_readback",
-        "cadence_soak",
-    ):
+    for name in ("repository_validation", "control_semantics", "exact_batch_lifecycle"):
         _require((gates.get(name) or {}).get("status"), "pass", f"validation gate {name}")
-    ten_trial = gates.get("ten_trial_v3") or {}
+    ten_trial = gates.get("exact_batch_lifecycle") or {}
     _require(ten_trial.get("batch_size"), 10, "V3 validation batch size")
-    _require(ten_trial.get("async_compact_capture"), True, "async compact capture gate")
-    _require(
-        ten_trial.get("pareto_windows_s"),
-        {"round_a": [5, 60], "round_b": [0, 60]},
-        "Pareto evaluation windows",
-    )
+    _require(ten_trial.get("ack_completed_rows"), 10, "ACK-completed rows")
+    _require(ten_trial.get("trial_briefs"), 10, "post-closure TrialBrief rows")
+    _require(ten_trial.get("batch_result_exit_code"), 0, "BatchResult exit code")
+
+    replay = gates.get("diagnostic_bundle_replay") or {}
+    _require(replay.get("status"), "pass", "diagnostic bundle replay")
+    _require(replay.get("bundle_count"), 10, "diagnostic bundle count")
+    _require(replay.get("actual_sphere_breach_count"), 0, "actual sphere breaches")
+    _require(replay.get("trial21_force_metric_role"), "unavailable", "trial21 metric role")
+    _require(replay.get("optimizer_eligible_count"), 0, "diagnostic optimizer exclusion")
+
+    timing = gates.get("source_exact_timing") or {}
+    _require(timing.get("status"), "pass", "source-exact timing")
+    _require(timing.get("scheduler_policy"), "SCHED_FIFO", "timing scheduler")
+    _require(timing.get("scheduler_priority"), 20, "timing priority")
+    _require(timing.get("samples"), 30_000, "timing samples")
+    _require(timing.get("compute_deadline_miss_count"), 0, "timing compute misses")
+    _require(timing.get("absolute_deadline_miss_count"), 0, "timing absolute misses")
+
+    _require((gates.get("simulation") or {}).get("status"), "unavailable", "simulation status")
+    power_off = gates.get("power_off_controller_audit") or {}
+    _require(power_off.get("status"), "pass_read_only_boundary", "Power-OFF audit")
+    _require(power_off.get("robot_mode"), "POWER_OFF", "Power-OFF robot mode")
+    _require(power_off.get("program_state"), "STOPPED", "Power-OFF program state")
+    _require(power_off.get("writes_performed"), False, "Power-OFF write exclusion")
+
     package_gate = gates.get("package_and_readback") or {}
-    _require(package_gate.get("controller_readback"), readback_relative, "validation readback path")
-    _require(package_gate.get("controller_readback_sha256"), readback_sha256, "validation readback digest")
-    cadence = gates.get("cadence_soak") or {}
-    try:
-        cadence_bounds_ok = (
-            float(cadence.get("paced_elapsed_s")) >= 124.9
-            and int(cadence.get("samples")) >= 62_000
-            and float(cadence.get("compute_p99_ms")) <= 2.0
-            and float(cadence.get("row_gap_max_ms")) <= 20.0
-        )
-    except (TypeError, ValueError):
-        cadence_bounds_ok = False
-    _require(cadence_bounds_ok, True, "cadence soak numeric bounds")
-    for key, expected in (
-        ("row_gap_over_20ms_count", 0),
-        ("row_gap_45_to_60ms_count", 0),
-        ("scheduler_restored_to_other", True),
-    ):
-        _require(cadence.get(key), expected, f"cadence soak {key}")
+    _require(package_gate.get("status"), "blocked", "package/readback status")
+    _require(package_gate.get("blocker"), "requires_attended_tp_upload_readback", "package blocker")
+    _require(package_gate.get("historical_controller_readback"), readback_relative, "historical readback path")
+    _require(package_gate.get("historical_controller_readback_sha256"), readback_sha256, "historical readback digest")
+    stopping = gates.get("stopping_bound") or {}
+    _require(stopping.get("status"), "blocked", "stopping-bound status")
+    _require(stopping.get("certified"), False, "stopping-bound certification")
 
     return path, validation
 
@@ -317,6 +312,8 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         "controller TP fingerprint",
     )
     _require(readback.get("triplet_sha256"), contract["tp_artifact_sha256"], "controller triplet digests")
+    if readback.get("triplet_sha256") == triplet:
+        raise ReadinessError("historical controller readback unexpectedly matches new local triplet")
     readback_at = _zoned_timestamp(
         readback.get("fresh_controller_checked_at"), role="readback timestamp"
     )
@@ -335,7 +332,7 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
     readiness = v3.get("execution_readiness") or {}
     for key, expected in (
         ("schema", "step5d.autotune-v3/execution-readiness-v2"),
-        ("state", "requires_attended_tp_upload_readback"),
+        ("state", "pre_live_blocked"),
         ("public_success_signal", "requires_attended_tp_upload_readback"),
         ("deterministic_validation_complete", True),
         ("package_delivery_complete", False),
@@ -373,15 +370,15 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         "ok": True,
         "candidate_stage_id": V3_STAGE_ID,
         "current_stage_id": V1_STAGE_ID,
-        "state": "requires_attended_tp_upload_readback",
+        "state": "pre_live_blocked",
         "public_success_signal": "requires_attended_tp_upload_readback",
         "ready_to_execute": False,
         "package_delivery": "requires_attended_tp_upload_readback",
-        "controller_readback_at": readback_at,
+        "historical_controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
         "next_owner": "attended_tp_owner",
-        "next_legal_action": "attended TP upload/readback, then certify stopping bound",
+        "next_legal_action": "certify the stopping bound, then perform attended TP upload/readback",
         "canonical_gate": [],
         "user_authorization_required": True,
         "hil_hold_required": False,

@@ -1314,6 +1314,142 @@ class SafeClosureEvidence:
         return asdict(self)
 
 
+_TYPED_RETURN_GUARDS = frozenset(
+    {
+        "force",
+        "torque",
+        "joints",
+        "sensor_freshness",
+        "heartbeat",
+        "contact_loss",
+        "route_workspace",
+    }
+)
+
+
+@dataclass(frozen=True)
+class TypedSafeClosureEvidence:
+    """Exact pre-ACK closure at a sealed near-ready or campaign-home target."""
+
+    return_reference_uid: str
+    return_reference_kind: str
+    batch_row_index: int
+    tp_position_error_m: float
+    tp_orientation_error_rad: float
+    tp_qd_max_rad_s: float
+    host_position_error_m: float
+    host_orientation_error_rad: float
+    host_tcp_linear_speed_m_s: float
+    host_tcp_angular_speed_rad_s: float
+    host_qd_max_rad_s: float
+    return_guard_mask: int
+    safety_guards: Mapping[str, bool]
+    host_safety_mode: str
+    host_dwell_s: float
+    trial_token_match: bool
+    capture_hashes_complete: bool
+    terminal_manifest_complete: bool
+    fingerprint_closed: bool
+
+    def __post_init__(self) -> None:
+        require_sha256("return_reference_uid", self.return_reference_uid)
+        _positive_int("batch_row_index", self.batch_row_index)
+        if self.batch_row_index > 10:
+            raise ValueError("batch_row_index exceeds the exact ten-row batch")
+        expected_kind = "campaign_home" if self.batch_row_index == 10 else "near_ready"
+        if self.return_reference_kind != expected_kind:
+            raise ValueError("typed closure reference differs from exact batch row")
+        for name in (
+            "tp_position_error_m",
+            "tp_orientation_error_rad",
+            "tp_qd_max_rad_s",
+            "host_position_error_m",
+            "host_orientation_error_rad",
+            "host_tcp_linear_speed_m_s",
+            "host_tcp_angular_speed_rad_s",
+            "host_qd_max_rad_s",
+            "host_dwell_s",
+        ):
+            value = _finite(name, getattr(self, name))
+            if value < 0.0:
+                raise ValueError(f"{name} must be non-negative")
+            object.__setattr__(self, name, value)
+        if self.return_guard_mask != 0x7F:
+            raise ValueError("typed closure return guard mask is incomplete")
+        guards = _canonical_frozen_mapping("safety_guards", self.safety_guards)
+        if set(guards) != _TYPED_RETURN_GUARDS or not all(
+            type(value) is bool and value for value in guards.values()
+        ):
+            raise ValueError("typed closure safety guards are incomplete or failed")
+        object.__setattr__(self, "safety_guards", guards)
+        if self.host_safety_mode != "NORMAL":
+            raise ValueError("typed closure host safety mode is not NORMAL")
+        for name in (
+            "trial_token_match",
+            "capture_hashes_complete",
+            "terminal_manifest_complete",
+            "fingerprint_closed",
+        ):
+            _strict_bool(name, getattr(self, name))
+
+    def failures(self) -> tuple[str, ...]:
+        limits = (
+            ("tp_position", self.tp_position_error_m, 0.003),
+            ("tp_orientation", self.tp_orientation_error_rad, 0.05),
+            ("tp_qd", self.tp_qd_max_rad_s, 0.01),
+            ("host_position", self.host_position_error_m, 0.003),
+            ("host_orientation", self.host_orientation_error_rad, 0.05),
+            ("host_tcp_linear_speed", self.host_tcp_linear_speed_m_s, 0.001),
+            ("host_tcp_angular_speed", self.host_tcp_angular_speed_rad_s, 0.01),
+            ("host_qd", self.host_qd_max_rad_s, 0.01),
+        )
+        failures = [
+            f"{name}_outside_limit" for name, value, limit in limits if value > limit
+        ]
+        if self.host_dwell_s < 0.5:
+            failures.append("host_safe_dwell_short")
+        for name, value in (
+            ("trial_token", self.trial_token_match),
+            ("capture_hashes", self.capture_hashes_complete),
+            ("terminal_manifest", self.terminal_manifest_complete),
+            ("fingerprint", self.fingerprint_closed),
+        ):
+            if not value:
+                failures.append(f"{name}_not_closed")
+        return tuple(failures)
+
+    @property
+    def returned_safe(self) -> bool:
+        return not self.failures()
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "schema": "step5d.autotune/typed-safe-closure-v1",
+            "return_reference_uid": self.return_reference_uid,
+            "return_reference_kind": self.return_reference_kind,
+            "batch_row_index": self.batch_row_index,
+            "tp_position_error_m": self.tp_position_error_m,
+            "tp_orientation_error_rad": self.tp_orientation_error_rad,
+            "tp_qd_max_rad_s": self.tp_qd_max_rad_s,
+            "host_position_error_m": self.host_position_error_m,
+            "host_orientation_error_rad": self.host_orientation_error_rad,
+            "host_tcp_linear_speed_m_s": self.host_tcp_linear_speed_m_s,
+            "host_tcp_angular_speed_rad_s": self.host_tcp_angular_speed_rad_s,
+            "host_qd_max_rad_s": self.host_qd_max_rad_s,
+            "return_guard_mask": self.return_guard_mask,
+            "safety_guards": dict(sorted(self.safety_guards.items())),
+            "host_safety_mode": self.host_safety_mode,
+            "host_dwell_s": self.host_dwell_s,
+            "trial_token_match": self.trial_token_match,
+            "capture_hashes_complete": self.capture_hashes_complete,
+            "terminal_manifest_complete": self.terminal_manifest_complete,
+            "fingerprint_closed": self.fingerprint_closed,
+        }
+
+
+ClosureEvidence = SafeClosureEvidence | TypedSafeClosureEvidence
+
+
 @dataclass(frozen=True)
 class CaptureArtifactPaths:
     """Filesystem provenance kept outside every stable trial/capture identity."""
@@ -1358,7 +1494,7 @@ class CaptureManifest:
     returned_safe: bool
     immutable_bundle_written: bool
     stage25_complete_s: float
-    safe_closure_evidence: SafeClosureEvidence | Mapping[str, Any]
+    safe_closure_evidence: ClosureEvidence | Mapping[str, Any]
     evidence: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -1396,11 +1532,17 @@ class CaptureManifest:
         closure = self.safe_closure_evidence
         if isinstance(closure, Mapping):
             try:
-                closure = SafeClosureEvidence(**dict(closure))
+                closure_payload = dict(closure)
+                if closure_payload.pop("schema", None) == (
+                    "step5d.autotune/typed-safe-closure-v1"
+                ):
+                    closure = TypedSafeClosureEvidence(**closure_payload)
+                else:
+                    closure = SafeClosureEvidence(**closure_payload)
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"safe_closure_evidence is invalid: {exc}") from exc
-        if not isinstance(closure, SafeClosureEvidence):
-            raise ValueError("safe_closure_evidence must be SafeClosureEvidence")
+        if not isinstance(closure, (SafeClosureEvidence, TypedSafeClosureEvidence)):
+            raise ValueError("safe_closure_evidence has an unsupported closure schema")
         if self.returned_safe is not closure.returned_safe:
             raise ValueError("returned_safe must equal the detailed safe closure proof")
         if self.safety_normal is not (closure.host_safety_mode == "NORMAL"):

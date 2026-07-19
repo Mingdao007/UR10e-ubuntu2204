@@ -62,7 +62,14 @@ def test_fixed_route_has_safe_z_and_prior_orientation() -> None:
     assert route.segments[1].target_xyz_m[2] == 0.033
     assert route.segments[1].acceleration_m_s2 == 0.135
     assert route.segments[1].velocity_m_s == 0.090
-    assert route.segments[1].angular_velocity_rad_s == 0.05
+    assert set(route.segments[1].document()) == {
+        "name",
+        "target_xyz_m",
+        "target_rotvec_rad",
+        "acceleration_m_s2",
+        "velocity_m_s",
+        "preserve_orientation",
+    }
     assert route.segments[2].target_xyz_m[2] == 0.022863519
     assert route.segments[2].target_rotvec_rad == STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
     assert len(route.route_fingerprint) == 64

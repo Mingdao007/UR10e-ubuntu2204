@@ -160,6 +160,10 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         root / "config/step5/step5d_autotune_v3_control_contract.json"
     )
     _require(readback.get("triplet_sha256"), contract["tp_artifact_sha256"], "controller readback triplet")
+    if readback.get("triplet_sha256") == triplet:
+        raise ArtifactVerificationError(
+            "historical controller readback unexpectedly matches new local triplet"
+        )
     _require(
         readback.get("tp_fingerprint"),
         contract["deployment_tp_identity"]["tp_fingerprint"],
@@ -170,13 +174,24 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     for key, expected in (
         ("schema", "step5d.autotune-v3/tp-numeric-sanity-v1"),
         ("program", V3_STAGE_ID),
-        ("delta_class", "identity_plus_precontact_pose_and_clearance"),
+        (
+            "delta_class",
+            "identity_precontact_prior_exact_batch_lifecycle_return_v2",
+        ),
         ("precontact_pose_prior_id", POSE_PRIOR_ID),
         ("precontact_xyz_m", EXPECTED_XYZ),
         ("precontact_rotvec_rad", EXPECTED_ROTVEC),
         ("precontact_clearance_m", 0.005),
         ("minimum_start_above_entry_m", 0.01),
         ("precontact_z_policy", "contact_plus_0p1s_robust_z_plus_0p005m_clearance"),
+        ("input_integer_registers", list(range(24, 31))),
+        ("output_integer_registers", list(range(24, 34))),
+        ("safe_transfer_z_m", 0.033),
+        ("return_segment_count", 3),
+        (
+            "batch_row_policy",
+            "rows_1_to_9_near_ready_row_10_campaign_home",
+        ),
     ):
         _require(numeric.get(key), expected, f"TP numeric sanity {key}")
 
@@ -234,7 +249,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "v3_active": False,
         "execution_readiness": readiness["state"],
         "ready_to_execute": readiness["ready_to_execute"],
-        "acceptance_scope": "deterministic_live_entry_prerequisites",
+        "acceptance_scope": execution_readiness.VALIDATION_SCOPE,
         "user_authorization_required": readiness["user_authorization_required"],
         "tp_fingerprint": package.get("tp_fingerprint"),
         "control_fingerprint": readiness["identity"]["control_fingerprint"],

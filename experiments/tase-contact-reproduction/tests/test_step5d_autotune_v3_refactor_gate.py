@@ -45,8 +45,8 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
     def test_repository_contract_is_green(self) -> None:
         report = gate.validate_repository(ROOT)
         self.assertTrue(report["ok"], report["issues"])
-        self.assertEqual(report["protected_source_count"], 20)
-        self.assertEqual(report["approved_orchestration_variant_count"], 3)
+        self.assertEqual(report["protected_source_count"], 16)
+        self.assertEqual(report["approved_orchestration_variant_count"], 7)
         self.assertLessEqual(
             report["runtime_budget"]["module_count"],
             report["runtime_budget"]["module_limit"],

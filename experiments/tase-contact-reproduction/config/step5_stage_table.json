@@ -10330,8 +10330,8 @@
         "joint_marker_internal": 524,
         "layout_is_not_a_global_publish_gate": true,
         "autotune_handshake": {
-          "host_to_tp": {"input_int_register_24": "campaign_epoch", "input_int_register_25": "trial_id", "input_int_register_26": "command", "input_int_register_27": "candidate_token", "input_int_register_28": "execution_profile_id", "input_int_register_29": "command_seq"},
-          "tp_to_host": {"output_int_register_24": "campaign_epoch_echo", "output_int_register_25": "trial_id_echo", "output_int_register_26": "state", "output_int_register_27": "candidate_token_echo", "output_int_register_28": "terminal_reason", "output_int_register_29": "execution_profile_id_echo", "output_int_register_30": "consumed_command_seq"},
+          "host_to_tp": {"input_int_register_24": "campaign_epoch", "input_int_register_25": "trial_id", "input_int_register_26": "command", "input_int_register_27": "candidate_token", "input_int_register_28": "execution_profile_id", "input_int_register_29": "command_seq", "input_int_register_30": "batch_row_index"},
+          "tp_to_host": {"output_int_register_24": "campaign_epoch_echo", "output_int_register_25": "trial_id_echo", "output_int_register_26": "state", "output_int_register_27": "candidate_token_echo", "output_int_register_28": "terminal_reason", "output_int_register_29": "execution_profile_id_echo", "output_int_register_30": "consumed_command_seq", "output_int_register_31": "batch_row_index_echo", "output_int_register_32": "return_reference_kind_echo", "output_int_register_33": "return_guard_mask"},
           "freshness": "exact identity echoes plus consumed command_seq"
         }
       },
@@ -10379,7 +10379,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is a live-ready process-owned candidate; frozen v1 remains the inactive-table rollback selector outside the dedicated V3 entrypoint",
+      "block_reason": "V3 is an offline pre-live candidate blocked on a certified stopping bound and attended TP upload/readback; v1 remains the current controller binding",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10433,13 +10433,13 @@
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
         "controller_readback_manifest_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
         "fresh_controller_sha_at": "2026-07-19T06:12:30+08:00",
-        "tp_fingerprint": "db3b833e6dde45cee45be7c5e6bdb74ecf043c8e649ad24fa1748278a49742ad",
+        "tp_fingerprint": "02f6a72c8c83b41fd5782e76a6ac470ea86dde58793108f18dcce503997b5855",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": false,
         "sha256": {
-          ".script": "613269164aeb21a34e0af6e5e999538a60e2bc9a9483aad7cd4f9fcdd3f01612",
-          ".txt": "b9129f38a11aec1a3d546fa4ed35b8cb3453697c649cae8bc907b39f06a9b7e8",
-          ".urp": "bf77cfe0c4df4c12e980ea178f14f20887d7baa665168c42eabd71c5cba79ff1"
+          ".script": "7492cf4eff893049386e9a813959f4c1909f46483b20fd9ad12394b65a73a946",
+          ".txt": "8dca806076be51e4ca045f8fc810c7388dad628da6c25404d75978faad932e79",
+          ".urp": "5134519ba46ca828559093f89b71032a8480e8e61e3146a1ca7d10dff5ba9c74"
         }
       },
       "acceptance": {
@@ -10453,17 +10453,16 @@
         "reproduction_complete": false
       },
       "offline_validation": {
-        "status": "pass_deterministic_live_entry_prerequisites",
-        "acceptance_scope": "deterministic_live_entry_prerequisites",
+        "status": "pass_offline_pre_live",
+        "acceptance_scope": "offline_pre_live_only",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "887ff0e9029fb8342e13d379d341c9e4bd1bf9d38830424eb5b1acb7dcbe1cdf",
-        "contract_mutation": "pass",
-        "fake_bridge_ten_candidate": "pass",
-        "crash_cut_matrix": "pass",
-        "g10_production_seam": "pass",
-        "async_compact_capture": "pass",
-        "pareto_force_orientation": "pass",
-        "precontact_pose_prior": "pass"
+        "report_sha256": "b6c60dd04169d9eaef4b0be6b7d378a712494bcb6538a13b58dba20200d22c7f",
+        "exact_ten_row_lifecycle": "pass",
+        "diagnostic_bundle_replay": "pass",
+        "source_exact_sphere_seam_timing": "pass",
+        "power_off_controller_audit": "pass_read_only_boundary",
+        "simulation": "unavailable",
+        "hardware_promotion": "blocked"
       },
       "current_binding": {
         "is_current": false,
@@ -10475,9 +10474,14 @@
       },
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v2",
-        "state": "requires_attended_tp_upload_readback",
+        "state": "pre_live_blocked",
         "public_success_signal": "requires_attended_tp_upload_readback",
-        "next_owner": "ur10e-live-bench",
+        "next_owner": "ur10e-contact-control-prep",
+        "blockers": [
+          "requires_certified_stopping_bound",
+          "requires_attended_tp_upload_readback",
+          "ursim_gazebo_unavailable"
+        ],
         "deterministic_validation_complete": true,
         "package_delivery_complete": false,
         "candidate_current": false,

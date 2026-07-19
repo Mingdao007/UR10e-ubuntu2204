@@ -90,6 +90,7 @@ STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP = {
     "input_int_register_27": "candidate_token",
     "input_int_register_28": "execution_profile_id",
     "input_int_register_29": "command_seq",
+    "input_int_register_30": "batch_row_index",
 }
 STEP5D_AUTOTUNE_HANDSHAKE_TP_TO_HOST = {
     "output_int_register_24": "campaign_epoch_echo",
@@ -99,6 +100,9 @@ STEP5D_AUTOTUNE_HANDSHAKE_TP_TO_HOST = {
     "output_int_register_28": "terminal_reason",
     "output_int_register_29": "execution_profile_id_echo",
     "output_int_register_30": "consumed_command_seq",
+    "output_int_register_31": "batch_row_index_echo",
+    "output_int_register_32": "return_reference_kind_echo",
+    "output_int_register_33": "return_guard_mask",
 }
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
 STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE = 523.0

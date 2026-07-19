@@ -26,10 +26,12 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from step5d_autotune_contract import (
     CaptureArtifactPaths,
     CaptureManifest,
+    ClosureEvidence,
     Evaluation,
     ExecutionProfile,
     ForceCandidate,
     SafeClosureEvidence,
+    TypedSafeClosureEvidence,
     TrialSpec,
 )
 from step5d_autotune_state_machine import (
@@ -215,6 +217,7 @@ class RuntimeTrialBinding:
     config_fingerprint: str
     campaign_fingerprint: str
     trial_overlay: Mapping[str, Any] | None = None
+    batch_row_index: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.trial_uid, str) or not _SHA256_RE.fullmatch(self.trial_uid):
@@ -237,6 +240,12 @@ class RuntimeTrialBinding:
             value = getattr(self, name)
             if not isinstance(value, str) or not _SHA256_RE.fullmatch(value):
                 raise MailboxError(f"{name} must be a lowercase SHA-256 identity")
+        if self.batch_row_index is not None and (
+            isinstance(self.batch_row_index, bool)
+            or not isinstance(self.batch_row_index, int)
+            or not 1 <= self.batch_row_index <= 10
+        ):
+            raise MailboxError("batch_row_index must be in [1,10]")
 
     def payload(self) -> dict[str, Any]:
         payload = {
@@ -260,6 +269,8 @@ class RuntimeTrialBinding:
         }
         if self.trial_overlay is not None:
             payload["trial_overlay"] = dict(self.trial_overlay)
+        if self.batch_row_index is not None:
+            payload["batch_row_index"] = self.batch_row_index
         return payload
 
 
@@ -271,7 +282,7 @@ class MailboxCommand:
 
     @property
     def handshake(self) -> dict[str, int]:
-        return {
+        payload = {
             "campaign_epoch": self.packet.campaign_epoch,
             "trial_id": self.packet.trial_id,
             "command": int(self.packet.command),
@@ -279,6 +290,8 @@ class MailboxCommand:
             "execution_profile_id": self.packet.execution_profile_id,
             "command_seq": self.packet.command_seq,
         }
+        payload["batch_row_index"] = self.binding.batch_row_index or 0
+        return payload
 
 
 def _reject_constant(value: str) -> None:
@@ -366,6 +379,7 @@ def _binding_from_prepared(
         config_fingerprint=trial.config_fingerprint,
         campaign_fingerprint=trial.campaign.campaign_fingerprint,
         trial_overlay=getattr(prepared_trial, "trial_overlay", None),
+        batch_row_index=getattr(prepared_trial, "batch_row_index", None),
     )
     if any(
         (
@@ -579,7 +593,10 @@ def _mailbox_command_from_payload(
         "campaign_fingerprint",
     }
     runtime_fields = set(raw_runtime) if isinstance(raw_runtime, Mapping) else set()
-    if runtime_fields not in {frozenset(expected_runtime), frozenset(expected_runtime | {"trial_overlay"})}:
+    optional_runtime = {"trial_overlay", "batch_row_index"}
+    if not expected_runtime.issubset(runtime_fields) or not runtime_fields.issubset(
+        expected_runtime | optional_runtime
+    ):
         raise MailboxError("command mailbox runtime binding is incomplete")
     raw_candidate = raw_runtime["candidate"]
     if not isinstance(raw_candidate, Mapping) or set(raw_candidate) != {
@@ -620,6 +637,15 @@ def _mailbox_command_from_payload(
         config_fingerprint=raw_runtime["config_fingerprint"],
         campaign_fingerprint=raw_runtime["campaign_fingerprint"],
         trial_overlay=raw_runtime.get("trial_overlay"),
+        batch_row_index=(
+            None
+            if raw_runtime.get("batch_row_index") is None
+            else _strict_int(
+                "runtime batch_row_index",
+                raw_runtime["batch_row_index"],
+                positive=True,
+            )
+        ),
     )
     if binding.trial_overlay is not None:
         from step5d_autotune_v3.runtime_profile import (
@@ -742,7 +768,11 @@ class BridgeMailboxRuntime:
 
         if self.active is not None:
             return False
-        if snapshot.state is TpLoopState.READY_HOME:
+        if snapshot.state in {
+            TpLoopState.READY_HOME,
+            TpLoopState.READY_NEAR,
+            TpLoopState.READY_HOME_CLOSED,
+        }:
             if (
                 command.packet.command is HostCommand.ACK_BUNDLE
                 and snapshot.campaign_epoch_echo == 0
@@ -801,7 +831,11 @@ class BridgeMailboxRuntime:
                 snapshot.state is TpLoopState.WAIT_INFRA_READY
                 and durable_command_seq > snapshot.consumed_command_seq
             )
-            if snapshot.state is not TpLoopState.READY_HOME and not pending_retry_arm:
+            if snapshot.state not in {
+                TpLoopState.READY_HOME,
+                TpLoopState.READY_NEAR,
+                TpLoopState.READY_HOME_CLOSED,
+            } and not pending_retry_arm:
                 raise MailboxError(
                     "fresh bridge runtime requires READY_HOME; non-home TP state "
                     "must be reconciled with an existing active binding"
@@ -818,6 +852,8 @@ class BridgeMailboxRuntime:
             TpLoopState.HOME_VERIFY,
             TpLoopState.WAIT_ACK,
             TpLoopState.WAIT_INFRA_READY,
+            TpLoopState.READY_NEAR,
+            TpLoopState.READY_HOME_CLOSED,
             TpLoopState.FAULT,
         }
         if snapshot.state in identity_states and not _tp_identity_matches(
@@ -838,6 +874,8 @@ class BridgeMailboxRuntime:
         if packet.command is HostCommand.ARM:
             if snapshot.state not in {
                 TpLoopState.READY_HOME,
+                TpLoopState.READY_NEAR,
+                TpLoopState.READY_HOME_CLOSED,
                 TpLoopState.WAIT_INFRA_READY,
             }:
                 raise MailboxError("fresh ARM is valid only at READY_HOME/WAIT_INFRA_READY")
@@ -894,6 +932,7 @@ class BridgeMailboxRuntime:
         args.bridge_normal_max_rate_rad_s = profile.normal_max_rate_rad_s
         args.step4e_normal_max_rate_rad_s = profile.normal_max_rate_rad_s
         args.step5d_autotune_profile_eligibility = "live_eligible"
+        args.step5d_autotune_batch_row_index = binding.batch_row_index or 0
         overlay = binding.trial_overlay
         if overlay is not None:
             for field in (
@@ -1846,7 +1885,7 @@ class TrialArtifactProducer:
 
     def _build_manifest(
         self,
-        closure: SafeClosureEvidence,
+        closure: ClosureEvidence,
         assessment: TrialCaptureAssessment,
         *,
         campaign_home_reference_sha256: str | None,
@@ -1854,8 +1893,8 @@ class TrialArtifactProducer:
         source_fingerprint_post: str | None = None,
         config_fingerprint_post: str | None = None,
     ) -> CaptureManifest:
-        if not isinstance(closure, SafeClosureEvidence):
-            raise TypeError("closure must be SafeClosureEvidence")
+        if not isinstance(closure, (SafeClosureEvidence, TypedSafeClosureEvidence)):
+            raise TypeError("closure has an unsupported evidence schema")
         row_count = (
             int(assessment.evidence.get("capture_rows", 0))
             if production_derived
@@ -1948,7 +1987,7 @@ class TrialArtifactProducer:
 
     def build_manifest(
         self,
-        closure: SafeClosureEvidence,
+        closure: ClosureEvidence,
         *,
         expected_arm: HostPacket,
         expected_terminal_reason: int,
@@ -1974,7 +2013,7 @@ class TrialArtifactProducer:
 
     def build_manifest_for_test_fixture(
         self,
-        closure: SafeClosureEvidence,
+        closure: ClosureEvidence,
         assessment: TrialCaptureAssessment,
         *,
         source_fingerprint_post: str | None = None,
@@ -2302,7 +2341,7 @@ class ImmutableBundleStoreReceipt:
 class ClosureAckResult:
     """Durable result of closure, bundle publication, and ACK dispatch."""
 
-    closure: SafeClosureEvidence
+    closure: ClosureEvidence
     manifest: CaptureManifest
     evaluation: Evaluation
     immutable_bundle_path: Path
@@ -2313,9 +2352,9 @@ class ClosureAckResult:
 
 def _finalize_bundle_and_dispatch_ack(
     *,
-    collector: HostClosureCollector,
+    collector: Any,
     trial: TrialSpec,
-    manifest_factory: Callable[[SafeClosureEvidence], CaptureManifest],
+    manifest_factory: Callable[[ClosureEvidence], CaptureManifest],
     backend: Any,
     store: Any,
     coordinator: Any,
@@ -2326,6 +2365,7 @@ def _finalize_bundle_and_dispatch_ack(
     capture_hashes_complete: bool,
     terminal_manifest_complete: bool,
     fingerprint_closed: bool,
+    bundle_committed: Callable[[ImmutableBundleStoreReceipt], None] | None = None,
 ) -> ClosureAckResult:
     """Internal ordering primitive shared by production and the fixture seam.
 
@@ -2399,6 +2439,8 @@ def _finalize_bundle_and_dispatch_ack(
         bundle_sha256=_sha256_regular(bundle_path),
         history_identity=matching_rows[0]["history_identity"],
     )
+    if bundle_committed is not None:
+        bundle_committed(store_receipt)
     if bool(getattr(decision, "ack_permitted", False)):
         ack_packet = coordinator.issue_ack(
             bundle_path,
@@ -2432,7 +2474,7 @@ def finalize_bundle_and_dispatch_ack_for_test_fixture(**kwargs: Any) -> ClosureA
 
 def finalize_produced_bundle_and_dispatch_ack(
     *,
-    collector: HostClosureCollector,
+    collector: Any,
     producer: TrialArtifactProducer,
     backend: Any,
     store: Any,
@@ -2441,6 +2483,7 @@ def finalize_produced_bundle_and_dispatch_ack(
     command_sink: Any,
     source_fingerprint_post: str | None = None,
     config_fingerprint_post: str | None = None,
+    bundle_committed: Callable[[ImmutableBundleStoreReceipt], None] | None = None,
 ) -> ClosureAckResult:
     """Production full-chain seam from rotated CSV through verified ACK.
 
@@ -2458,7 +2501,7 @@ def finalize_produced_bundle_and_dispatch_ack(
     source_post = source_fingerprint_post or trial.source_fingerprint
     config_post = config_fingerprint_post or trial.config_fingerprint
 
-    def manifest_factory(closure: SafeClosureEvidence) -> CaptureManifest:
+    def manifest_factory(closure: ClosureEvidence) -> CaptureManifest:
         return producer.build_manifest(
             closure,
             expected_arm=collector.expected_arm,
@@ -2485,4 +2528,5 @@ def finalize_produced_bundle_and_dispatch_ack(
             source_post == trial.source_fingerprint
             and config_post == trial.config_fingerprint
         ),
+        bundle_committed=bundle_committed,
     )

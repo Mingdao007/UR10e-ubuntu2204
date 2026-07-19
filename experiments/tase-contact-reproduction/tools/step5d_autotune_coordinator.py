@@ -14,9 +14,24 @@ import json
 import math
 import os
 import stat
+import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Callable, Mapping, Protocol, Sequence
+
+
+RUNTIME_SOURCE = (
+    Path(__file__).resolve().parents[3]
+    / "src"
+    / "ur10e_experiment_runtime"
+)
+if str(RUNTIME_SOURCE) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_SOURCE))
+
+from ur10e_experiment_runtime.identity import (  # noqa: E402
+    canonical_json_bytes as runtime_canonical_json_bytes,
+    strict_json_loads as runtime_strict_json_loads,
+)
 
 from step5d_autotune_contract import (
     CampaignSpec,
@@ -94,6 +109,16 @@ class ContinuousTpCommandSink(Protocol):
     def read_latest(self) -> Any | None: ...
 
 
+class TrialBriefAdmissionLike(Protocol):
+    trial_uid: str
+    ack_command_seq: int
+    publication_uid: str
+    document_sha256: str
+    path: Path
+    file_sha256: str
+    optimizer_eligible: bool
+
+
 class CoordinatorError(RuntimeError):
     """Base class for fail-closed coordinator failures."""
 
@@ -106,6 +131,55 @@ class RecoveryError(CoordinatorError):
 class ReconcileResult:
     decision: ReconcileDecision
     packet: HostPacket | None
+
+
+def _trial_brief_reference(
+    receipt: TrialBriefAdmissionLike,
+    *,
+    trial_uid: str,
+    ack_command_seq: int,
+    optimizer_eligible: bool,
+) -> JournalReference:
+    if any(
+        (
+            receipt.trial_uid != trial_uid,
+            receipt.ack_command_seq != ack_command_seq,
+            receipt.optimizer_eligible is not optimizer_eligible,
+            not isinstance(receipt.path, Path),
+            not receipt.path.is_absolute(),
+            receipt.path.is_symlink(),
+            not receipt.path.is_file(),
+        )
+    ):
+        raise RecoveryError(
+            "post-ACK TrialBrief admission differs from the pending outcome"
+        )
+    encoded = receipt.path.read_bytes()
+    file_sha256 = hashlib.sha256(encoded).hexdigest()
+    try:
+        document = runtime_strict_json_loads(encoded)
+    except ValueError as exc:
+        raise RecoveryError("post-ACK TrialBrief is malformed") from exc
+    canonical = runtime_canonical_json_bytes(document)
+    if any(
+        (
+            encoded != canonical + b"\n",
+            receipt.file_sha256 != file_sha256,
+            receipt.document_sha256 != hashlib.sha256(canonical).hexdigest(),
+            document.get("publication_uid") != receipt.publication_uid,
+            document.get("trial_uid") != trial_uid,
+            document.get("optimizer_eligible") is not optimizer_eligible,
+            document.get("publication_unique") is not True,
+        )
+    ):
+        raise RecoveryError(
+            "post-ACK TrialBrief bytes differ from the admission receipt"
+        )
+    return JournalReference(
+        reference_id=receipt.publication_uid,
+        path=str(receipt.path),
+        sha256=file_sha256,
+    )
 
 
 @dataclass(frozen=True)
@@ -355,6 +429,27 @@ def _verify_infra_abort_evidence(fate: TerminalFate) -> None:
             _, summary = _read_reference(actual, role="infra-abort summary")
             if not isinstance(summary, Mapping) or summary.get("stop_reason") != "signal_sigint":
                 raise RecoveryError("infra-abort summary stop reason is not signal_sigint")
+
+
+def _verify_trial_brief_evidence(fate: TerminalFate, *, required: bool) -> None:
+    if fate.kind != "ack_consumed":
+        return
+    reference = fate.evidence
+    if reference is None:
+        if required:
+            raise RecoveryError("codex batch ACK fate lacks durable TrialBrief")
+        return
+    encoded, document = _read_reference(reference, role="post-ACK TrialBrief")
+    if not isinstance(document, Mapping) or any(
+        (
+            encoded != canonical_json_bytes(document) + b"\n",
+            document.get("publication_uid") != reference.reference_id,
+            document.get("trial_uid") != fate.trial.trial_uid,
+            document.get("publication_unique") is not True,
+            not isinstance(document.get("optimizer_eligible"), bool),
+        )
+    ):
+        raise RecoveryError("post-ACK TrialBrief evidence is not exact and closed")
 
 
 def _candidate_from_payload(payload: Any) -> ForceCandidate:
@@ -965,6 +1060,8 @@ class CampaignCoordinator:
         search_attestations: Sequence[SearchAttestation] = (),
         forced_candidate: ForceCandidate | None = None,
         allow_archived_code_fix_replay: bool = False,
+        allow_exact_incomplete_batch_retry: bool = False,
+        attempt_started: Callable[[TrialSpec], None] | None = None,
     ) -> HostPacket:
         """Register TrialSpec, fsync ARM intent, then return its HostPacket."""
 
@@ -977,6 +1074,9 @@ class CampaignCoordinator:
                 search_attestations=search_attestations,
                 forced_candidate=forced_candidate,
                 allow_archived_code_fix_replay=allow_archived_code_fix_replay,
+                allow_exact_incomplete_batch_retry=(
+                    allow_exact_incomplete_batch_retry
+                ),
                 forbidden_candidate_uids={
                     fate.trial.candidate_uid
                     for fate in self._terminal_fates
@@ -1002,6 +1102,8 @@ class CampaignCoordinator:
             )
             reference = _trial_reference(intent.trial, trial_dir)
             self._trial_spec_references[intent.trial.trial_uid] = reference
+            if attempt_started is not None:
+                attempt_started(intent.trial)
             self._append_snapshot(self.supervisor.recovery_snapshot())
             return host_packet_for_trial(
                 intent.trial,
@@ -1299,7 +1401,12 @@ class CampaignCoordinator:
                     "mailbox contains a non-current command not proven consumed"
                 )
 
-    def reconcile(self, tp_snapshot: TpSnapshot) -> ReconcileResult:
+    def reconcile(
+        self,
+        tp_snapshot: TpSnapshot,
+        *,
+        trial_brief_admission: TrialBriefAdmissionLike | None = None,
+    ) -> ReconcileResult:
         self._require_healthy()
         if self.latest is None:
             raise RecoveryError("no durable journal revision exists")
@@ -1313,6 +1420,28 @@ class CampaignCoordinator:
                 self._poisoned = True
                 raise RecoveryError("post-ACK recovery lacks prepared policy state")
             _, post_phase = snapshot.pending_ack
+            intent, _ = snapshot.pending_ack
+            matching_outcomes = [
+                outcome
+                for outcome in snapshot.outcome_timeline
+                if outcome.evaluation.trial_uid == intent.trial.trial_uid
+            ]
+            if len(matching_outcomes) != 1:
+                self._poisoned = True
+                raise RecoveryError("post-ACK policy state lacks one exact outcome")
+            brief_reference = None
+            if self.supervisor.selection_policy == "codex_batches":
+                if trial_brief_admission is None:
+                    self._poisoned = True
+                    raise RecoveryError(
+                        "codex batch ACK requires durable post-closure TrialBrief"
+                    )
+                brief_reference = _trial_brief_reference(
+                    trial_brief_admission,
+                    trial_uid=intent.trial.trial_uid,
+                    ack_command_seq=snapshot.prepared_ack.command_seq,
+                    optimizer_eligible=matching_outcomes[0].eligible,
+                )
             predicted = replace(
                 snapshot,
                 phase=post_phase,
@@ -1331,6 +1460,7 @@ class CampaignCoordinator:
                         command_seq=pending.ack_command_seq,
                         tp_snapshot=tp_snapshot,
                         dispatch_receipt=self._dispatch_receipt,
+                        evidence=brief_reference,
                     ),
                 )
                 self._dispatch_receipt = None
@@ -1583,6 +1713,10 @@ class CampaignCoordinator:
         state = latest.state
         for fate in state.terminal_fates:
             _verify_infra_abort_evidence(fate)
+            _verify_trial_brief_evidence(
+                fate,
+                required=supervisor.selection_policy == "codex_batches",
+            )
         if any(
             (
                 state.execution_profile_id

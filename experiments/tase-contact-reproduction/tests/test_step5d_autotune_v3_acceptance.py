@@ -69,7 +69,7 @@ def wait_until(
                 f"acceptance subprocess exited early: {exited}; {diagnostics}"
             )
         time.sleep(0.005)
-    raise AssertionError("timed out waiting for five-candidate acceptance evidence")
+    raise AssertionError("timed out waiting for exact ten-row acceptance evidence")
 
 
 def spawn(*arguments: str) -> subprocess.Popen[str]:
@@ -83,7 +83,7 @@ def spawn(*arguments: str) -> subprocess.Popen[str]:
     )
 
 
-def test_five_candidate_fake_bridge_uses_v1_durable_physical_truth(
+def test_exact_ten_row_fake_bridge_uses_durable_batch_and_trial_brief_truth(
     tmp_path: Path,
 ) -> None:
     contract = check_effective_config()
@@ -206,51 +206,62 @@ def test_five_candidate_fake_bridge_uses_v1_durable_physical_truth(
             row for row in runner_events if row["event"] == "bundle_evaluated"
         ]
         ack_events = [row for row in runner_events if row["event"] == "ack_dispatched"]
-        ready_events = [row for row in bridge_events if row["event"] == "ready_home"]
-        persisted_home_events = [
+        ready_events = [
+            row
+            for row in bridge_events
+            if row["event"] in {"ready_near", "ready_home_closed"}
+        ]
+        persisted_return_events = [
             row
             for row in runner_events
-            if row["event"] == "ready_home_persisted"
+            if row["event"] == "typed_return_persisted"
         ]
         assert all(
-            len(rows) == 5
+            len(rows) == 10
             for rows in (
                 arm_events,
                 wait_events,
                 bundle_events,
                 ack_events,
                 ready_events,
-                persisted_home_events,
+                persisted_return_events,
             )
         )
         assert [row["event"] for row in bridge_events] == [
             "process_started",
             "simulated_play",
-            *[event for _ in range(5) for event in ("wait_ack", "ready_home")],
+            *[
+                event
+                for index in range(1, 11)
+                for event in (
+                    "wait_ack",
+                    "ready_home_closed" if index == 10 else "ready_near",
+                )
+            ],
         ]
         assert [row["event"] for row in runner_events] == [
             "process_started",
             *[
                 event
-                for _ in range(5)
+                for _ in range(10)
                 for event in (
                     "arm_dispatched",
                     "wait_ack_reconciled",
                     "bundle_evaluated",
                     "ack_dispatched",
-                    "ready_home_persisted",
+                    "typed_return_persisted",
                 )
             ],
             "campaign_complete",
         ]
 
         trial_uids = [row["trial_uid"] for row in arm_events]
-        assert len(set(trial_uids)) == 5
+        assert len(set(trial_uids)) == 10
         assert [row["trial_uid"] for row in wait_events] == trial_uids
         assert [row["trial_uid"] for row in bundle_events] == trial_uids
         assert [row["trial_uid"] for row in ack_events] == trial_uids
         assert [row["trial_uid"] for row in ready_events] == trial_uids
-        assert [row["trial_uid"] for row in persisted_home_events] == trial_uids
+        assert [row["trial_uid"] for row in persisted_return_events] == trial_uids
         assert {
             row["control_fingerprint"] for row in runner_events
         } == {control_fingerprint}
@@ -258,7 +269,7 @@ def test_five_candidate_fake_bridge_uses_v1_durable_physical_truth(
         store = CampaignStore(gate / "store")
         history = store.read_resume_history()
         assert [row["trial_uid"] for row in history] == trial_uids
-        assert len({row["candidate_uid"] for row in history}) == 5
+        assert len({row["candidate_uid"] for row in history}) == 10
         assert all(row["evaluation"]["eligible"] is True for row in history)
         assert all(
             row["evaluation"]["disposition"] == "objective" for row in history
@@ -270,7 +281,7 @@ def test_five_candidate_fake_bridge_uses_v1_durable_physical_truth(
         ):
             trial = history_row["trial"]
             wait_snapshot = wait["snapshot"]
-            ready_snapshot = ready["snapshot"]
+            typed_ready_snapshot = ready["snapshot"]
             assert arm["candidate_index"] == index
             assert arm["command_seq"] == trial["command_seq"]
             assert wait["packet"]["command"] == int(HostCommand.ARM)
@@ -289,13 +300,15 @@ def test_five_candidate_fake_bridge_uses_v1_durable_physical_truth(
             assert ack["command_seq"] > arm["command_seq"]
             assert ready["packet"]["command"] == int(HostCommand.ACK_BUNDLE)
             assert ready["packet"]["command_seq"] == ack["command_seq"]
-            assert ready_snapshot == {
-                "campaign_epoch_echo": 0,
-                "trial_id_echo": 0,
-                "state": "READY_HOME",
-                "candidate_token_echo": 0,
-                "terminal_reason": 0,
-                "execution_profile_integer_id_echo": 0,
+            assert typed_ready_snapshot == {
+                "campaign_epoch_echo": trial["campaign"]["campaign_epoch"],
+                "trial_id_echo": trial["trial_id"],
+                "state": "READY_HOME_CLOSED" if index == 10 else "READY_NEAR",
+                "candidate_token_echo": trial["candidate_token"],
+                "terminal_reason": 1,
+                "execution_profile_integer_id_echo": ready["packet"][
+                    "execution_profile_id"
+                ],
                 "consumed_command_seq": ack["command_seq"],
             }
 
@@ -305,11 +318,16 @@ def test_five_candidate_fake_bridge_uses_v1_durable_physical_truth(
         assert latest.state.pending_ack is None
         assert [fate.kind for fate in latest.state.terminal_fates] == [
             "ack_consumed"
-        ] * 5
+        ] * 10
         assert [fate.trial.trial_uid for fate in latest.state.terminal_fates] == trial_uids
         for fate, ack in zip(latest.state.terminal_fates, ack_events, strict=True):
             assert fate.command_seq == ack["command_seq"]
-            assert fate.tp_snapshot.state == "READY_HOME"
+            expected_state = (
+                "READY_HOME_CLOSED"
+                if fate.trial.trial_uid == trial_uids[-1]
+                else "READY_NEAR"
+            )
+            assert fate.tp_snapshot.state == expected_state
             assert fate.tp_snapshot.consumed_command_seq == ack["command_seq"]
             assert (
                 fate.tp_snapshot.campaign_epoch_echo,
@@ -317,7 +335,40 @@ def test_five_candidate_fake_bridge_uses_v1_durable_physical_truth(
                 fate.tp_snapshot.candidate_token_echo,
                 fate.tp_snapshot.execution_profile_integer_id_echo,
                 fate.tp_snapshot.terminal_reason,
-            ) == (0, 0, 0, 0, 0)
+            ) == (
+                latest.state.campaign.campaign_epoch,
+                fate.trial.trial_id,
+                fate.trial.candidate_token,
+                fate.trial.execution_profile_integer_id,
+                1,
+            )
+
+        trial_briefs = sorted((gate / "trial_briefs").glob("*.trial-brief.json"))
+        assert len(trial_briefs) == 10
+        brief_documents = [
+            json.loads(path.read_text(encoding="utf-8")) for path in trial_briefs
+        ]
+        assert {row["trial_uid"] for row in brief_documents} == set(trial_uids)
+        assert all(row["publication_unique"] is True for row in brief_documents)
+        assert all(row["optimizer_eligible"] is True for row in brief_documents)
+
+        batch_roots = [
+            path
+            for path in (gate / "runtime_batches").iterdir()
+            if path.is_dir()
+        ]
+        assert len(batch_roots) == 1
+        batch_result = json.loads(
+            (batch_roots[0] / "batch_result.json").read_text(encoding="utf-8")
+        )
+        assert batch_result["row_count"] == 10
+        assert batch_result["exit_code"] == 0
+        assert [row["fate"] for row in batch_result["rows"]] == [
+            "ack_completed"
+        ] * 10
+        done_document = json.loads(done.read_text(encoding="utf-8"))
+        assert done_document["batch_result_uid"] == batch_result["batch_result_uid"]
+        assert done_document["verified_exit_code"] == 0
 
         final_mailbox = AtomicCommandMailbox(
             (gate / "control" / "command_mailbox.json").absolute()
@@ -328,22 +379,23 @@ def test_five_candidate_fake_bridge_uses_v1_durable_physical_truth(
         assert final_mailbox.binding.trial_uid == trial_uids[-1]
 
         # Derive non-motion queue overhead from independent event timestamps:
-        # durable READY_HOME persisted for trial N -> next ARM mailbox dispatch.
+        # Durable typed return persisted for trial N -> next ARM mailbox dispatch.
         ready_by_trial = {
-            row["trial_uid"]: row["monotonic_ns"] for row in persisted_home_events
+            row["trial_uid"]: row["monotonic_ns"]
+            for row in persisted_return_events
         }
         latencies_s = [
             (arm_events[index]["monotonic_ns"] - ready_by_trial[trial_uids[index - 1]])
             / 1_000_000_000.0
-            for index in range(1, 5)
+            for index in range(1, 10)
         ]
         assert all(value >= 0.0 for value in latencies_s)
         rank = max(0, math.ceil(0.95 * len(latencies_s)) - 1)
         p95_s = sorted(latencies_s)[rank]
         derived_evidence = {
             "schema": "step5d.autotune-v3.fake-bridge-acceptance/v1",
-            "ready_home_to_next_arm_s": latencies_s,
-            "ready_home_to_next_arm_p95_s": p95_s,
+            "typed_return_to_next_arm_s": latencies_s,
+            "typed_return_to_next_arm_p95_s": p95_s,
             "trial_uids": trial_uids,
             "mailbox_command_sequences": {
                 "arm": [row["command_seq"] for row in arm_events],

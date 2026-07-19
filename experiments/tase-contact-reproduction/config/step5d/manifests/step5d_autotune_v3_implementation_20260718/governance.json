@@ -1,7 +1,7 @@
 {
   "schema": "step5d.autotune-v3/content-governance-v1",
   "selected_policy": "B1_broad_cleanup_staged",
-  "current_phase": "v3_runtime_and_evidence_first",
+  "current_phase": "v3_exact_batch_typed_return_and_trial_brief",
   "rules_and_evidence": {
     "test_policy": "config/step5d_autotune_v3_test_matrix.json",
     "test_evidence": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
@@ -25,6 +25,11 @@
       "phase": 1,
       "status": "implemented",
       "scope": "V3 policy/evidence split, bounded parallel tests, parameter profile, preflight, HIL HOLD seam"
+    },
+    {
+      "phase": "M4-offline",
+      "status": "implemented_pending_sol_xhigh_audit",
+      "scope": "Exact ten-row BatchIdentity, typed near-ready/final-home return, exact ACK plus post-ACK safe closure, and write-once TrialBrief admission"
     },
     {
       "phase": 2,

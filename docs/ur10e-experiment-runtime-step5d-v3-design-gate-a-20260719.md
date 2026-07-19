@@ -26,7 +26,7 @@ The sole public executable remains `ur-exp` with `validate`, `plan`, `run`, `cam
 - `logical_stage_id = step5d_strict_rnn_autotune_v1`;
 - `tp_program_id = step5d_strict_rnn_autotune_v3`;
 - `source_stage_id = step5d_strict_rnn_ablation_v35`;
-- `adapter_id = step5d_strict_rnn_autotune_adapter_v3`.
+- `adapter_id = step5d_strict_rnn_autotune_adapter_v1`.
 
 All four are typed and fingerprinted. Equality is field-wise; a current pointer or matching suffix is never evidence.
 
@@ -120,7 +120,7 @@ The sphere radius is exactly 0.015 m and is enforced only during active Stage25.
 
 `ControllerProgress` is typed as `(tick_seq:uint64, controller_mono_ns:uint64, u:float64, phase:ACTIVE|HOLD|DELAY, reference_sha256)`. `u` is finite, monotone, and within `[0,1]`; the adapter evaluates cycloid XY at `u` with per-trial anchor Z in base metres. Every 500 Hz invocation requires the same current `tick_seq`, a non-regressing monotonic clock, and input age `<=2_000_000 ns`. A stale or skipped source tick fails closed. HOLD/DELAY advances `tick_seq` and time but must keep `u` bit-identical, so the center freezes. A reference/progress hash mismatch fails closed.
 
-The kernel receives preallocated, finite scalar/vector inputs and returns a fixed-size result. It performs zero dynamic allocation and no file I/O, JSON, terminal output, CSV scan, lock acquisition, or dynamic registry lookup.
+The kernel receives a caller-owned `ControllerProgress` and writes into a caller-owned fixed-size result. Its tick performs no result/container construction, file I/O, JSON, terminal output, CSV scan, lock acquisition, or dynamic registry lookup; the Python seam is allocation-bounded rather than claiming a language-level zero-allocation proof.
 
 For each tick:
 
@@ -141,14 +141,14 @@ Sphere checks supplement, never replace, orientation, force, torque, joint, sens
 
 Stage22 is retained for the first row. After rows 1–9, closure targets the typed `NearReadyReference`; after row 10, closure targets `CampaignHomeReference`.
 
-`ReturnRouteV1` is a fingerprinted base-frame `movel` route. Translational `a` is in m/s² and `v` in m/s; rotvec and angular limits are in rad, rad/s, and rad/s². It holds/approaches the frozen prior with geodesic orientation interpolation capped at 0.05 rad/s and 0.10 rad/s². The fixed route is:
+`ReturnRouteV1` is a fingerprinted base-frame `movel` route. Translational `a` is in m/s² and `v` in m/s; rotvec is in radians. URScript `movel` does not expose an independently verifiable angular acceleration/velocity parameter, so this contract does not invent one. Orientation is instead bound by the exact target rotvec and verified after motion together with TCP/joint stillness. The fixed route is:
 
 1. vertical rise to `safe_transfer_z=0.033 m`, `a=0.060`, `v=0.040`;
 2. constant-Z translation to precontact XY and prior orientation, `a=0.135`, `v=0.090`;
 3. vertical descent to `precontact_z=0.022863519 m`, `a=0.060 m/s²`, `v=0.040 m/s`;
 4. pose, stillness, and enumerated guard verification, persist `RETURN_TARGET_VERIFIED`, then enter `WAIT_ACK`.
 
-Each segment binds guards for force, torque, joints, sensor freshness, heartbeat, contact loss, route workspace, pose error, orientation error, stillness, and exact TP/controller identity. Segment 1 preserves current orientation; segment 2 interpolates to the prior under the angular caps; segment 3 holds the prior. Any transport unable to prove these limits is rejected. Failure preserves evidence, produces a non-optimizer outcome, and blocks ACK completion. Selection depends on exact batch/row identity, never an implicit counter. After exact ACK, closure is verification-only and commands no motion.
+The return thread continuously guards force, torque, joints, sensor freshness, heartbeat, and route workspace. The active-Stage25 contact-loss invariant must already have closed in the exact terminal transition before return; it is not misrepresented as a condition that contact must remain present during retract. Segment 1 preserves current orientation; segment 2 moves to the typed target orientation; segment 3 holds it. Pose error, orientation error, TCP/joint stillness, all guard facts, and exact TP/controller identity are verified before `WAIT_ACK` and again after ACK without motion. Failure preserves evidence, produces a non-optimizer outcome, and blocks ACK completion. Selection depends on exact batch/row identity, never an implicit counter.
 
 ## 8. TrialBrief and optimizer gate
 

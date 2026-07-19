@@ -49,9 +49,9 @@ from step5d_autotune_optimizer import (
     unlocked_tier,
 )
 from step5d_autotune_state_machine import (
+    ClosureEvidence,
     HostCommand,
     HostPacket,
-    SafeClosureEvidence,
     classify_terminal_reason,
 )
 
@@ -407,6 +407,7 @@ class CampaignSupervisor:
         forced_candidate: ForceCandidate | None = None,
         forbidden_candidate_uids: Collection[str] = (),
         allow_archived_code_fix_replay: bool = False,
+        allow_exact_incomplete_batch_retry: bool = False,
     ) -> TrialIntent:
         if self.phase is not CampaignPhase.HOME:
             raise RuntimeError(f"campaign cannot arm from phase {self.phase.value}")
@@ -459,7 +460,10 @@ class CampaignSupervisor:
                 "force_candidate_frozen": True,
             }
         elif forced_candidate is not None:
-            if forced_candidate.candidate_uid in external_forbidden:
+            if (
+                forced_candidate.candidate_uid in external_forbidden
+                and not allow_exact_incomplete_batch_retry
+            ):
                 raise ValueError("forced live candidate was already physically attempted")
             context = [
                 outcome
@@ -474,6 +478,11 @@ class CampaignSupervisor:
                 and outcome.evaluation.trial_uid in self._archived_trial_sources
                 and outcome.profile_id == trial_profile.profile_id
                 and outcome.plant_epoch == self.plant_epoch
+            ]
+            incomplete_retry_sources = [
+                outcome
+                for outcome in context
+                if outcome.candidate == forced_candidate
             ]
             code_fix_replay = bool(
                 allow_archived_code_fix_replay
@@ -498,13 +507,23 @@ class CampaignSupervisor:
                 )
             ]
             baseline_start = not context and forced_candidate == ForceCandidate()
-            if not anchors and not baseline_start and not code_fix_replay:
+            if (
+                not anchors
+                and not baseline_start
+                and not code_fix_replay
+                and not (
+                    allow_exact_incomplete_batch_retry
+                    and incomplete_retry_sources
+                )
+            ):
                 raise ValueError(
                     "forced live candidate must be one lattice step from an executed candidate"
                 )
             source_outcome = (
                 None
                 if baseline_start
+                else incomplete_retry_sources[-1]
+                if allow_exact_incomplete_batch_retry and incomplete_retry_sources
                 else replay_sources[-1]
                 if code_fix_replay
                 else anchors[-1]
@@ -517,6 +536,8 @@ class CampaignSupervisor:
                 kind=(
                     TrialTransitionKind.BASELINE
                     if source_outcome is None
+                    else TrialTransitionKind.RETRY
+                    if allow_exact_incomplete_batch_retry
                     else TrialTransitionKind.RETRY
                     if code_fix_replay
                     else TrialTransitionKind.CODE_EPOCH_SEARCH
@@ -534,7 +555,14 @@ class CampaignSupervisor:
                     if source_outcome is None
                     else self._source_from_outcome(source_outcome)
                 ),
-                retry_kind="code_fix" if code_fix_replay else None,
+                retry_kind=(
+                    "evidence"
+                    if allow_exact_incomplete_batch_retry
+                    and source_outcome is not None
+                    else "code_fix"
+                    if code_fix_replay
+                    else None
+                ),
             )
             selection = {
                 "selection": (
@@ -557,7 +585,10 @@ class CampaignSupervisor:
                 "source_trial_uid": (
                     None if source_outcome is None else source_outcome.evaluation.trial_uid
                 ),
-                "exact_parameter_set_reuse_allowed": code_fix_replay,
+                "exact_parameter_set_reuse_allowed": (
+                    code_fix_replay or allow_exact_incomplete_batch_retry
+                ),
+                "exact_incomplete_batch_retry": allow_exact_incomplete_batch_retry,
             }
         else:
             candidate, selection = choose_candidate(
@@ -623,6 +654,7 @@ class CampaignSupervisor:
                 )
         if (
             not code_fix_replay
+            and not allow_exact_incomplete_batch_retry
             and candidate.candidate_uid
             in self._forbidden_candidate_uids(trial_profile.profile_id)
         ):
@@ -668,7 +700,7 @@ class CampaignSupervisor:
         *,
         manifest: CaptureManifest,
         evaluation: Evaluation,
-        safe_closure: SafeClosureEvidence,
+        safe_closure: ClosureEvidence,
         bundle_path: Path | None,
         failure_cause: str = "evidence",
     ) -> CloseDecision:

@@ -8,6 +8,7 @@ from enum import IntEnum
 from typing import Iterable, Mapping
 
 from step5d_autotune_contract import (
+    ClosureEvidence,
     SafeClosureEvidence,
     TrialDisposition,
     TrialSpec,
@@ -51,6 +52,8 @@ class TpLoopState(IntEnum):
     HOME_VERIFY = 60
     WAIT_ACK = 70
     WAIT_INFRA_READY = 75
+    READY_NEAR = 76
+    READY_HOME_CLOSED = 77
     FAULT = 90
 
 
@@ -200,7 +203,7 @@ class LoopCoordinator:
         *,
         reason: int,
         host_cause: str | None,
-        evidence: SafeClosureEvidence,
+        evidence: ClosureEvidence,
         eligible_evidence: bool,
         immutable_bundle_written: bool,
     ) -> TrialDisposition:

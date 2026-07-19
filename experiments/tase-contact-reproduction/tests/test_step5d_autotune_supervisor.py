@@ -417,6 +417,36 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         self.assertEqual(trial.transition.kind, TrialTransitionKind.FORCE_SEARCH)
         self.assertEqual(trial.transition.source.trial_uid, identity.trial_uid)
 
+    def test_only_explicit_incomplete_batch_retry_can_reuse_exact_candidate(self) -> None:
+        identity = SimpleNamespace(trial_uid="9" * 64, backend_id="step5d_v35_native")
+        seed = ForceCandidate()
+
+        def seeded() -> CampaignSupervisor:
+            manager = supervisor(selection_policy="codex_batches")
+            manager.outcome_timeline.append(
+                Observation(
+                    candidate=seed,
+                    evaluation=profile_diagnostic_evaluation(identity),
+                    profile_id=manager.execution_profile.profile_id,
+                    plant_epoch=manager.plant_epoch,
+                    latest_trace_sha256="8" * 64,
+                )
+            )
+            return manager
+
+        with self.assertRaisesRegex(
+            (ValueError, RuntimeError),
+            "one lattice step|already been executed",
+        ):
+            seeded().next_trial(forced_candidate=seed)
+        intent = seeded().next_trial(
+            forced_candidate=seed,
+            allow_exact_incomplete_batch_retry=True,
+        )
+        self.assertEqual(intent.trial.transition.kind, TrialTransitionKind.RETRY)
+        self.assertEqual(intent.trial.transition.retry_kind, "evidence")
+        self.assertTrue(intent.selection["exact_incomplete_batch_retry"])
+
     def test_codex_batch_can_probe_positive_i_early_without_widening_p_d(self) -> None:
         identity = SimpleNamespace(trial_uid="9" * 64, backend_id="step5d_v35_native")
         seed = ForceCandidate()

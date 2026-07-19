@@ -12,8 +12,6 @@ from .physical_prior import PhysicalPriorArtifact
 
 
 SAFE_TRANSFER_Z_M = 0.033
-RETURN_ANGULAR_ACCELERATION_RAD_S2 = 0.10
-RETURN_ANGULAR_VELOCITY_RAD_S = 0.05
 
 
 def _finite_vector(name: str, value: Sequence[float], length: int) -> tuple[float, ...]:
@@ -32,8 +30,6 @@ class ReturnSegment:
     target_rotvec_rad: tuple[float, float, float] | None
     acceleration_m_s2: float
     velocity_m_s: float
-    angular_acceleration_rad_s2: float
-    angular_velocity_rad_s: float
     preserve_orientation: bool = False
 
     def __post_init__(self) -> None:
@@ -46,12 +42,7 @@ class ReturnSegment:
             raise ValueError(
                 "preserve_orientation must be true exactly when rotvec is omitted"
             )
-        for name in (
-            "acceleration_m_s2",
-            "velocity_m_s",
-            "angular_acceleration_rad_s2",
-            "angular_velocity_rad_s",
-        ):
+        for name in ("acceleration_m_s2", "velocity_m_s"):
             value = float(getattr(self, name))
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError(f"{name} must be finite and positive")
@@ -67,8 +58,6 @@ class ReturnSegment:
             ),
             "acceleration_m_s2": self.acceleration_m_s2,
             "velocity_m_s": self.velocity_m_s,
-            "angular_acceleration_rad_s2": self.angular_acceleration_rad_s2,
-            "angular_velocity_rad_s": self.angular_velocity_rad_s,
             "preserve_orientation": self.preserve_orientation,
         }
 
@@ -263,8 +252,6 @@ def return_route(
             None,
             0.060,
             0.040,
-            RETURN_ANGULAR_ACCELERATION_RAD_S2,
-            RETURN_ANGULAR_VELOCITY_RAD_S,
             preserve_orientation=True,
         ),
         ReturnSegment(
@@ -273,8 +260,6 @@ def return_route(
             target_rotvec,
             0.135,
             0.090,
-            RETURN_ANGULAR_ACCELERATION_RAD_S2,
-            RETURN_ANGULAR_VELOCITY_RAD_S,
         ),
         ReturnSegment(
             "vertical_to_typed_reference",
@@ -282,8 +267,6 @@ def return_route(
             target_rotvec,
             0.060,
             0.040,
-            RETURN_ANGULAR_ACCELERATION_RAD_S2,
-            RETURN_ANGULAR_VELOCITY_RAD_S,
         ),
     )
     return ReturnRoute(reference.reference_uid, prior.fingerprint, segments)

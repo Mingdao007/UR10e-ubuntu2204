@@ -54,7 +54,7 @@ def _mutate_v3(fixture: Path, mutate) -> None:
 def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
-    assert report["state"] == "requires_attended_tp_upload_readback"
+    assert report["state"] == "pre_live_blocked"
     assert report["public_success_signal"] == "requires_attended_tp_upload_readback"
     assert report["package_delivery"] == "requires_attended_tp_upload_readback"
     assert report["ready_to_execute"] is False
@@ -81,7 +81,7 @@ def test_live_promotion_validation_digest_is_fail_closed(tmp_path: Path) -> None
         readiness.verify(fixture, require_live=True)
 
 
-def test_historical_validation_identity_is_frozen(tmp_path: Path) -> None:
+def test_current_validation_identity_is_frozen(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     validation_path = (
         fixture / "config/step5/step5d_autotune_v3_offline_validation.json"
@@ -90,11 +90,11 @@ def test_historical_validation_identity_is_frozen(tmp_path: Path) -> None:
     validation["identity"]["control_fingerprint"] = "0" * 64
     validation_path.write_text(json.dumps(validation), encoding="utf-8")
 
-    with pytest.raises(readiness.ReadinessError, match="historical validation identity"):
+    with pytest.raises(readiness.ReadinessError, match="current validation identity"):
         readiness.verify(fixture)
 
 
-def test_historical_validation_decision_cannot_promote_current_candidate(
+def test_pre_live_validation_decision_cannot_promote_current_candidate(
     tmp_path: Path,
 ) -> None:
     fixture = _fixture_root(tmp_path)
@@ -103,11 +103,11 @@ def test_historical_validation_decision_cannot_promote_current_candidate(
     )
     validation = json.loads(validation_path.read_text(encoding="utf-8"))
     validation["decision"]["execution_readiness"] = (
-        "requires_attended_tp_upload_readback"
+        "ready_for_v3_live_continuous_campaign"
     )
     validation_path.write_text(json.dumps(validation), encoding="utf-8")
 
-    with pytest.raises(readiness.ReadinessError, match="historical validation decision"):
+    with pytest.raises(readiness.ReadinessError, match="pre-live validation decision"):
         readiness.verify(fixture)
 
 
@@ -120,7 +120,7 @@ def test_readiness_verification_is_independent_of_checkout_mtime(
         path.touch()
 
     report = readiness.verify(fixture)
-    assert report["state"] == "requires_attended_tp_upload_readback"
+    assert report["state"] == "pre_live_blocked"
 
 
 def test_user_confirmation_is_required_while_pre_live_blocked(tmp_path: Path) -> None:

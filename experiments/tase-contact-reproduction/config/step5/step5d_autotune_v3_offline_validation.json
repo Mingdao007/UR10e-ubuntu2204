@@ -1,80 +1,120 @@
 {
-  "schema": "step5d.autotune-v3/deterministic-validation-v2",
-  "observed_at": "2026-07-19T06:27:17+08:00",
+  "schema": "step5d.autotune-v3/offline-acceptance-v3",
+  "observed_at": "2026-07-19T12:17:08+08:00",
   "identity": {
-    "contract_sha256": "96a83126c1bf4b11ed41429060e9b83c4b867f799dea337478c69bcf84ad57f0",
-    "control_fingerprint": "12a494fc44fc238a0623e951b1ae328c22cd18a3b966d79692c9c2b032ed80ea",
-    "orchestration_fingerprint": "8fdeb1b435bbafeff84877a354d41830f6ccfa7d7033d80401a3ae559cb29e94"
+    "contract_sha256": "168648e776fadeb58b74bf5c9c232a70012098a83484aeb4c097f0eed0895c46",
+    "control_fingerprint": "ea2d844ef5790d90525bdd0290f438f5969c4b87ba37e99a6ca1f25920e1661f",
+    "orchestration_fingerprint": "ca43eac3f5a85056269d1c46ceab04a58c678871744fcb8717431cd3fe6f045a"
   },
   "gates": {
     "repository_validation": {
       "status": "pass",
-      "release_matrix_tests_passed": 359,
-      "release_matrix_subtests_passed": 7,
-      "full_autotune_regression_tests_passed": 521,
-      "full_autotune_regression_subtests_passed": 46,
-      "parallel_manifest": "/home/andy/.codex/runs/step5d-v3-preflight-schema-20260719/parallel_run_manifest.json",
-      "parallel_manifest_sha256": "e841157836858e58869d33cc0fa0d324ace8471e8a2d789d37135879ea78dcf9",
-      "commands": [
-        "python3 tools/run_step5d_autotune_v3_test_matrix.py --lanes small medium --workers auto --include-installed-runtime",
-        "pytest all step5d_autotune tests plus plot publisher with xdist=4",
-        "python3 tools/validate_step5d_autotune_v3_refactor.py --repository-only"
-      ]
+      "small_tests_passed": 254,
+      "small_subtests_passed": 2,
+      "medium_tests_passed": 109,
+      "medium_subtests_passed": 5,
+      "installed_runtime_tests_passed": 3,
+      "fault_recovery_tests_passed": 104,
+      "fault_recovery_subtests_passed": 12,
+      "shared_runtime_tests_passed": 55,
+      "shared_runtime_subtests_passed": 12,
+      "acceptance_replay_tests_passed": 4
     },
     "control_semantics": {
       "status": "pass",
-      "commands": [
-        "python3 tools/audit_local_control_textbook_alignment.py --json",
-        "python3 tools/ur_contact_semantic_gate.py --csv <two immutable prior captures>"
-      ],
+      "textbook_alignment": "pass",
       "replay_rows": 124,
-      "strict_rnn_eq23_sign_gate": "pass"
+      "strict_rnn_eq23_sign_gate": "pass",
+      "semantic_gate_summary_sha256": "0c68b208442747e9396b446a251682710399fb85825ab3cdf78fd27838604eef"
     },
-    "ten_trial_v3": {
+    "exact_batch_lifecycle": {
       "status": "pass",
       "batch_size": 10,
-      "candidate_fields": [
-        "force_p_gain",
-        "force_i_gain",
-        "force_damping",
-        "orientation_ko"
-      ],
-      "async_compact_capture": true,
-      "production_wait_ack_schema": "pass",
-      "pareto_windows_s": {
-        "round_a": [5, 60],
-        "round_b": [0, 60]
-      },
-      "contact_plus_0p1_pose_trials": 5,
-      "pose_prior_optimizer_eligible": false
+      "ack_completed_rows": 10,
+      "trial_briefs": 10,
+      "rows_1_to_9_return": "near_ready",
+      "row_10_return": "campaign_home",
+      "batch_result_exit_code": 0
+    },
+    "diagnostic_bundle_replay": {
+      "status": "pass",
+      "bundle_count": 10,
+      "source_trials": [13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+      "audit_identity_sha256": "e8e526747e4517e9c7f1b1f790399767d100f6d05e798cb3bc463a3083cde455",
+      "actual_sphere_breach_count": 0,
+      "predicted_stop_replay": "unavailable_uncertified_stopping_bound",
+      "trial21_force_metric_role": "unavailable",
+      "optimizer_eligible_count": 0,
+      "parameter_impact": "retune_required"
+    },
+    "source_exact_timing": {
+      "status": "pass",
+      "scheduler_policy": "SCHED_FIFO",
+      "scheduler_priority": 20,
+      "cpu_affinity": [2],
+      "samples": 30000,
+      "compute_p99_ms": 0.05877,
+      "compute_max_ms": 0.09613,
+      "compute_deadline_miss_count": 0,
+      "absolute_deadline_miss_count": 0,
+      "evidence_sha256": "f78b0110264601f218b45006eaa3e15fa2a398df72330aab405a893348f4b86a",
+      "claim_boundary": "source-exact adapter+kernel+bridge seam only; offline fixture stopping bound, not a full control loop or stopping-bound certification"
+    },
+    "simulation": {
+      "status": "unavailable",
+      "ursim": "blocked_no_running_digest_pinned_container",
+      "ursim_gate_blocker": "docker_read_only_inspection_failed:no_such_container",
+      "ursim_gate_evidence_sha256": "8d3f51fd3b3af8c8e7c67b8f2786ca71f316b05f497f84c8642c66308797f1f0",
+      "historical_ursim_hold_role": "retained_nongating_old_fingerprint",
+      "gazebo": "gz_8.14_installed_but_no_step5d_v3_backend_or_world",
+      "claim": "not_run_not_passed"
+    },
+    "power_off_controller_audit": {
+      "status": "pass_read_only_boundary",
+      "robot_mode": "POWER_OFF",
+      "safety_mode": "NORMAL",
+      "program_state": "STOPPED",
+      "loaded_program_basename": "step5d_strict_rnn_autotune_v3.urp",
+      "content_identity_verified": false,
+      "rtde_output_read": true,
+      "kunwei_tcp_connect_only": true,
+      "writes_performed": false,
+      "evidence_sha256": "03b242cbd04a4749d8eab47a51dbf56db3f942272ee2f91a1873b50965ae7757"
     },
     "package_and_readback": {
-      "status": "pass",
-      "tp_fingerprint": "1c42b3f73e5c8ac27f7739117bff2f1af1e127ceb5e94d38aecc63fcbf5893a0",
-      "controller_readback": "config/step5d_autotune_controller_readback_v3.json",
-      "controller_readback_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
-      "precontact_pose_prior": "evidence/step5d_autotune_v3/start_pose_prior_20260719.json"
+      "status": "blocked",
+      "blocker": "requires_attended_tp_upload_readback",
+      "local_triplet_sha256": {
+        ".script": "7492cf4eff893049386e9a813959f4c1909f46483b20fd9ad12394b65a73a946",
+        ".txt": "8dca806076be51e4ca045f8fc810c7388dad628da6c25404d75978faad932e79",
+        ".urp": "5134519ba46ca828559093f89b71032a8480e8e61e3146a1ca7d10dff5ba9c74"
+      },
+      "historical_controller_readback": "config/step5d_autotune_controller_readback_v3.json",
+      "historical_controller_readback_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
+      "historical_readback_matches_local_triplet": false
     },
-    "cadence_soak": {
-      "status": "pass",
-      "evidence": "/home/andy/.codex/runs/step5d-v3-prealign-pareto-20260719/cadence-soak-v35-125s.json",
-      "evidence_sha256": "2757764498af3b35f8b03f7b0e8eb7402fb6d4e1bc6b0ea1e88e955ce556418c",
-      "paced_elapsed_s": 124.9495858970331,
-      "samples": 62383,
-      "compute_p99_ms": 1.4517499948851764,
-      "row_gap_max_ms": 4.041761974804103,
-      "row_gap_over_20ms_count": 0,
-      "row_gap_45_to_60ms_count": 0,
-      "scheduler_restored_to_other": true
+    "stopping_bound": {
+      "status": "blocked",
+      "certified": false,
+      "fail_closed": true,
+      "blocker": "requires_certified_reaction_latency_deceleration_and_numeric_margin_bound"
+    },
+    "advisory_fable": {
+      "status": "completed_findings_reproduced_or_dispositioned",
+      "model": "claude-fable-5",
+      "effort": "high",
+      "role": "read_only_nonblocking_advisory"
     }
   },
   "decision": {
-    "go_no_go": "go",
-    "acceptance_scope": "deterministic_live_entry_prerequisites",
+    "acceptance_scope": "offline_pre_live_only",
+    "offline_implementation": "pass",
+    "hardware_promotion": "blocked",
     "current_selector": "step5d_strict_rnn_autotune_v1",
     "v3_active": false,
-    "user_authorization_required": false,
-    "one_play_real_motion": true,
-    "execution_readiness": "ready_for_v3_live_continuous_campaign"
+    "robot_power_state": "POWER_OFF",
+    "fresh_live_authorization_required": true,
+    "live_motion_authorized": false,
+    "execution_readiness": "pre_live_blocked"
   }
 }

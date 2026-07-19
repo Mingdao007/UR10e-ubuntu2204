@@ -51,6 +51,8 @@ TRANSIENT_TP_STATES = frozenset(
 )
 TP_STATES = TRANSIENT_TP_STATES | {
     "READY_HOME",
+    "READY_NEAR",
+    "READY_HOME_CLOSED",
     "WAIT_ACK",
     "WAIT_INFRA_READY",
     "FAULT",
@@ -614,8 +616,6 @@ class TerminalFate:
                 raise ValueError("infra-abort fate requires dispatch and stop evidence")
         elif self.command != "ack_bundle" or self.command_seq <= self.trial.arm_command_seq:
             raise ValueError("ACK fate must bind a sequence newer than ARM")
-        elif self.evidence is not None:
-            raise ValueError("ACK fate does not accept external stop evidence")
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -850,7 +850,12 @@ def _validate_terminal_fate(
             )
         ):
             raise ValueError("READY_HOME ACK fate retains non-zero identity echoes")
-    elif snapshot.state in {"WAIT_INFRA_READY", "FAULT"}:
+    elif snapshot.state in {
+        "READY_NEAR",
+        "READY_HOME_CLOSED",
+        "WAIT_INFRA_READY",
+        "FAULT",
+    }:
         if any(
             (
                 snapshot.campaign_epoch_echo != campaign.campaign_epoch,
@@ -1903,6 +1908,38 @@ def reconcile_tp_snapshot(
                 "code_contract_bug_remains_durably_paused",
             )
         return _fail("tp_fault_requires_manual_recovery")
+
+    if snapshot.state in {"READY_NEAR", "READY_HOME_CLOSED"}:
+        pending = state.pending_ack
+        if (
+            state.phase == "wait_ack"
+            and pending is not None
+            and pending.terminal_reason == 1
+            and pending.post_ack_phase in {"home", "succeeded"}
+            and _snapshot_matches_cursor(state.campaign, snapshot, pending.trial)
+            and snapshot.terminal_reason == pending.terminal_reason
+            and snapshot.consumed_command_seq == pending.ack_command_seq
+        ):
+            return ReconcileDecision(
+                ReconcileAction.PERSIST_POST_ACK,
+                "persisted_ack_exactly_consumed_at_typed_return_reference",
+                pending.ack_command_seq,
+            )
+        matching_fates = [
+            fate
+            for fate in state.terminal_fates
+            if fate.kind == "ack_consumed"
+            and fate.tp_snapshot == snapshot
+        ]
+        if (
+            state.phase in {"home", "succeeded"}
+            and len(matching_fates) == 1
+        ):
+            return ReconcileDecision(
+                ReconcileAction.RESUME_HOME,
+                "durable_typed_return_reference_agrees",
+            )
+        return _fail("typed_return_reference_disagrees_with_durable_phase")
 
     if snapshot.state == "READY_HOME":
         if snapshot.campaign_epoch_echo not in {0, state.campaign.campaign_epoch}:

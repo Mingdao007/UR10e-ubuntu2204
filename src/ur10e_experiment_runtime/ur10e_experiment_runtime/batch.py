@@ -271,9 +271,11 @@ class BatchRowState:
     immutable_bundle_sha256: str | None
     ack_uid: str | None
     ack_receipt_sha256: str | None
+    ack_receipt_document: Mapping[str, Any] | None
     return_reference_uid: str | None
     controller_readback_sha256: str | None
     closure_receipt_sha256: str | None
+    closure_receipt_document: Mapping[str, Any] | None
     trial_brief_publication_uid: str | None
     trial_brief_document_sha256: str | None
     optimizer_eligible: bool | None
@@ -287,9 +289,11 @@ class BatchRowState:
             "immutable_bundle_sha256": self.immutable_bundle_sha256,
             "ack_uid": self.ack_uid,
             "ack_receipt_sha256": self.ack_receipt_sha256,
+            "ack_receipt_document": self.ack_receipt_document,
             "return_reference_uid": self.return_reference_uid,
             "controller_readback_sha256": self.controller_readback_sha256,
             "closure_receipt_sha256": self.closure_receipt_sha256,
+            "closure_receipt_document": self.closure_receipt_document,
             "trial_brief_publication_uid": self.trial_brief_publication_uid,
             "trial_brief_document_sha256": self.trial_brief_document_sha256,
             "optimizer_eligible": self.optimizer_eligible,
@@ -548,9 +552,11 @@ class BatchJournal:
                 "bundle": None,
                 "ack_uid": None,
                 "ack_receipt": None,
+                "ack_receipt_document": None,
                 "return_reference_uid": None,
                 "controller_readback_sha256": None,
                 "closure_receipt": None,
+                "closure_receipt_document": None,
                 "trial_brief_publication_uid": None,
                 "trial_brief_document_sha256": None,
                 "optimizer_eligible": None,
@@ -579,9 +585,11 @@ class BatchJournal:
                     bundle=None,
                     ack_uid=None,
                     ack_receipt=None,
+                    ack_receipt_document=None,
                     return_reference_uid=None,
                     controller_readback_sha256=None,
                     closure_receipt=None,
+                    closure_receipt_document=None,
                     trial_brief_publication_uid=None,
                     trial_brief_document_sha256=None,
                     optimizer_eligible=None,
@@ -599,6 +607,23 @@ class BatchJournal:
                 state["ack_receipt"] = _sha256(
                     "ack_receipt_sha256", event.get("ack_receipt_sha256")
                 )
+                document = event.get("ack_receipt_document")
+                if document is not None:
+                    if not isinstance(document, Mapping):
+                        raise OutputPathError("batch ACK receipt document is invalid")
+                    candidate_document = dict(document)
+                    if candidate_document.pop("schema", None) != (
+                        "ur10e.exact_ack_receipt/v1"
+                    ):
+                        raise OutputPathError("batch ACK receipt schema differs")
+                    receipt = ExactAckReceipt(**candidate_document)
+                    if (
+                        receipt.ack_uid != state["ack_uid"]
+                        or canonical_sha256(receipt.document())
+                        != state["ack_receipt"]
+                    ):
+                        raise OutputPathError("batch ACK receipt document differs")
+                    state["ack_receipt_document"] = receipt.document()
                 state["return_reference_uid"] = _sha256(
                     "return_reference_uid", event.get("return_reference_uid")
                 )
@@ -622,6 +647,27 @@ class BatchJournal:
                 state["closure_receipt"] = _sha256(
                     "closure_receipt_sha256", event.get("closure_receipt_sha256")
                 )
+                document = event.get("closure_receipt_document")
+                if document is not None:
+                    if not isinstance(document, Mapping):
+                        raise OutputPathError("batch closure receipt document is invalid")
+                    candidate_document = dict(document)
+                    if candidate_document.pop("schema", None) != (
+                        "ur10e.safe_closure_receipt/v1"
+                    ):
+                        raise OutputPathError("batch closure receipt schema differs")
+                    try:
+                        candidate_document["return_reference"] = ReturnReferenceKind(
+                            candidate_document["return_reference"]
+                        )
+                        receipt = SafeClosureReceipt(**candidate_document)
+                    except (KeyError, TypeError, ValueError) as exc:
+                        raise OutputPathError(
+                            "batch closure receipt document differs"
+                        ) from exc
+                    if receipt.receipt_sha256 != state["closure_receipt"]:
+                        raise OutputPathError("batch closure receipt document differs")
+                    state["closure_receipt_document"] = receipt.document()
             elif kind == "trial_brief_published":
                 if state["closure_receipt"] is None:
                     raise OutputPathError("TrialBrief publication precedes safe closure")
@@ -657,9 +703,11 @@ class BatchJournal:
                     immutable_bundle_sha256=state["bundle"],
                     ack_uid=state["ack_uid"],
                     ack_receipt_sha256=state["ack_receipt"],
+                    ack_receipt_document=state["ack_receipt_document"],
                     return_reference_uid=state["return_reference_uid"],
                     controller_readback_sha256=state["controller_readback_sha256"],
                     closure_receipt_sha256=state["closure_receipt"],
+                    closure_receipt_document=state["closure_receipt_document"],
                     trial_brief_publication_uid=state[
                         "trial_brief_publication_uid"
                     ],
@@ -760,6 +808,7 @@ class BatchJournal:
                 "trial_uid": receipt.trial_uid,
                 "ack_uid": receipt.ack_uid,
                 "ack_receipt_sha256": canonical_sha256(receipt.document()),
+                "ack_receipt_document": receipt.document(),
                 "return_reference_uid": receipt.return_reference_uid,
                 "controller_readback_sha256": receipt.controller_readback_sha256,
             },
@@ -800,6 +849,7 @@ class BatchJournal:
                 "return_reference_uid": receipt.return_reference_uid,
                 "controller_readback_sha256": receipt.controller_readback_sha256,
                 "closure_receipt_sha256": receipt.receipt_sha256,
+                "closure_receipt_document": receipt.document(),
             },
             validator=validate,
         )

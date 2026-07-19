@@ -93,6 +93,15 @@ from step5d_autotune_supervisor import (
     CampaignSupervisor,
     execution_profile_integer_id,
 )
+from step5d_autotune_runtime_lifecycle import (
+    BatchAttemptContext,
+    PostAckClosureCollector,
+    PreAckTypedClosureCollector,
+    next_runtime_batch_candidate,
+    prepare_batch_attempt_context,
+    recover_runtime_batch_trial_briefs,
+    runtime_batch_verified_complete,
+)
 
 
 STATE_NAMES = {int(state): state.name for state in TpLoopState}
@@ -828,6 +837,7 @@ def _settle_home_after_restart(
     *,
     persist: bool,
     recover_infra_aborted_active: bool,
+    trial_brief_admissions: Mapping[str, Any] | None = None,
 ) -> ReconcileAction:
     latest = coordinator.latest
     active = None if latest is None else latest.state.active_trial
@@ -847,7 +857,16 @@ def _settle_home_after_restart(
             persist=persist,
         )
         return ReconcileAction.RESUME_HOME
-    return coordinator.reconcile(snapshot).decision.action
+    pending = None if latest is None else latest.state.pending_ack
+    admission = (
+        None
+        if pending is None or trial_brief_admissions is None
+        else trial_brief_admissions.get(pending.trial.trial_uid)
+    )
+    return coordinator.reconcile(
+        snapshot,
+        trial_brief_admission=admission,
+    ).decision.action
 
 
 def _wait_for_codex_candidate(
@@ -857,6 +876,7 @@ def _wait_for_codex_candidate(
     supervisor: CampaignSupervisor,
     coordinator: CampaignCoordinator,
     bridge_csv: Path,
+    campaign_root: Path,
     previous_plan: CandidateBatchPlan | None,
     timeout_s: float,
     stop_requested: Callable[[], bool] | None = None,
@@ -870,22 +890,9 @@ def _wait_for_codex_candidate(
             plan = load_plan(plan_path, campaign_id=campaign_id)
             if previous_plan is not None:
                 assert_append_only(previous_plan, plan)
-            attempted = (
-                supervisor.attempted_candidate_uids
-                | coordinator.terminal_candidate_uids
-            )
-            candidate = next(
-                (
-                    item
-                    for item in plan.candidates
-                    if item.candidate_uid not in attempted
-                    or (
-                        item.candidate_uid == plan.code_fix_replay_candidate_uid
-                        and item.candidate_uid
-                        not in supervisor.current_epoch_attempted_candidate_uids
-                    )
-                ),
-                None,
+            candidate = next_runtime_batch_candidate(
+                plan=plan,
+                campaign_root=campaign_root,
             )
             if candidate is not None:
                 if not supervisor.planned_candidate_within_policy_envelope(candidate):
@@ -894,8 +901,7 @@ def _wait_for_codex_candidate(
                         f"envelope (evidence tier {supervisor.current_search_tier.value})"
                     )
                 return candidate, plan
-            if plan.closed:
-                return None, plan
+            return None, plan
             if announced_revision != plan.revision:
                 announced_revision = plan.revision
                 print(
@@ -903,7 +909,10 @@ def _wait_for_codex_candidate(
                         {
                             "waiting_for_codex_batch": True,
                             "plan_revision": plan.revision,
-                            "attempted_parameter_sets": len(attempted),
+                            "attempted_parameter_sets": len(
+                                supervisor.attempted_candidate_uids
+                                | coordinator.terminal_candidate_uids
+                            ),
                             "current_search_tier": supervisor.current_search_tier.value,
                         },
                         sort_keys=True,
@@ -914,8 +923,12 @@ def _wait_for_codex_candidate(
         row = _latest_complete_row(bridge_csv)
         if _integer(row, "ur_safety_mode") != 1:
             raise RuntimeError("UR Safety left NORMAL while waiting for a Codex batch")
-        if tp_snapshot_from_bridge_row(row).state != "READY_HOME":
-            raise RuntimeError("TP left READY_HOME while waiting for a Codex batch")
+        if tp_snapshot_from_bridge_row(row).state not in {
+            "READY_HOME",
+            "READY_NEAR",
+            "READY_HOME_CLOSED",
+        }:
+            raise RuntimeError("TP left a typed ready state while waiting for a Codex batch")
         time.sleep(0.25)
     raise TimeoutError("timed out waiting for the next Codex five-candidate batch")
 
@@ -1119,7 +1132,8 @@ def run(args: argparse.Namespace) -> int:
     if not preflight.ok:
         raise RuntimeError("live backend preflight failed: " + ";".join(preflight.blockers))
     follower = BridgeCsvFollower(bridge_csv)
-    if initial.state != "READY_HOME":
+    ready_states = {"READY_HOME", "READY_NEAR", "READY_HOME_CLOSED"}
+    if initial.state not in ready_states:
         if not args.wait_for_home:
             follower.close()
             raise RuntimeError(f"TP must start at READY_HOME, got {initial.state}")
@@ -1128,7 +1142,7 @@ def run(args: argparse.Namespace) -> int:
                 follower.close()
                 raise RuntimeError("UR Safety left NORMAL while waiting for READY_HOME")
             candidate = tp_snapshot_from_bridge_row(row)
-            if candidate.state == "READY_HOME":
+            if candidate.state in ready_states:
                 initial = candidate
                 break
     if args.preflight_only:
@@ -1182,6 +1196,9 @@ def run(args: argparse.Namespace) -> int:
             "parent_epoch": parent_epoch,
         })
     journal = SupervisorJournal(epoch_root / "journal")
+    batch_trial_brief_admissions = recover_runtime_batch_trial_briefs(
+        campaign_root=epoch_root
+    )
     migrating = bool(
         prior_layout is not None
         and existing_layout is None
@@ -1216,6 +1233,7 @@ def run(args: argparse.Namespace) -> int:
             initial,
             persist=False,
             recover_infra_aborted_active=args.recover_infra_aborted_active,
+            trial_brief_admissions=batch_trial_brief_admissions,
         )
         if settled is not ReconcileAction.RESUME_HOME:
             raise RuntimeError(
@@ -1268,6 +1286,7 @@ def run(args: argparse.Namespace) -> int:
                 initial,
                 persist=True,
                 recover_infra_aborted_active=args.recover_infra_aborted_active,
+                trial_brief_admissions=batch_trial_brief_admissions,
             )
             if settled is not ReconcileAction.RESUME_HOME:
                 raise RuntimeError(
@@ -1302,6 +1321,7 @@ def run(args: argparse.Namespace) -> int:
 
     completed_trials = 0
     plan_closed = False
+    batch_completed = False
     stopped_after_current = False
     current_plan: CandidateBatchPlan | None = None
     try:
@@ -1319,6 +1339,7 @@ def run(args: argparse.Namespace) -> int:
                         supervisor=supervisor,
                         coordinator=coordinator,
                         bridge_csv=bridge_csv,
+                        campaign_root=epoch_root,
                         previous_plan=current_plan,
                         timeout_s=args.plan_wait_timeout_s,
                         stop_requested=stop_requested,
@@ -1328,13 +1349,68 @@ def run(args: argparse.Namespace) -> int:
                     _event(event_path, "stop_after_current_observed", phase="ready_home")
                     break
                 if forced_candidate is None:
-                    plan_closed = True
+                    batch_completed = runtime_batch_verified_complete(
+                        campaign_root=epoch_root
+                    )
+                    plan_closed = not batch_completed and current_plan.closed
                     _event(
                         event_path,
-                        "codex_batch_plan_closed",
+                        (
+                            "exact_ten_trial_batch_already_completed"
+                            if batch_completed
+                            else "codex_batch_plan_closed"
+                        ),
                         plan_revision=current_plan.revision,
                     )
                     break
+            plan_revision = None if current_plan is None else current_plan.revision
+            batch_context: BatchAttemptContext | None = None
+            home_path = bridge_run / "campaign_home_reference.json"
+            home = CampaignHomeReference.load(home_path)
+            if args.selection_policy == "codex_batches":
+                if any(
+                    value is None
+                    for value in (
+                        current_plan,
+                        forced_candidate,
+                        args.v3_trial_overlays,
+                        args.v3_launch_profile,
+                    )
+                ):
+                    raise RuntimeError(
+                        "codex batch runtime requires exact plan/overlay/launch bindings"
+                    )
+                assert current_plan is not None
+                assert forced_candidate is not None
+                from step5d_autotune_v3.runtime_profile import load_launch_profile
+
+                launch_profile = load_launch_profile(
+                    args.v3_launch_profile.expanduser().absolute()
+                )
+
+                def overlay_for(candidate: ForceCandidate) -> Mapping[str, Any]:
+                    overlay = _v3_overlay_for_candidate(
+                        args.v3_trial_overlays,
+                        candidate=candidate,
+                        profile=supervisor.execution_profile,
+                        plan_revision=plan_revision,
+                        launch_profile_path=args.v3_launch_profile,
+                    )
+                    if overlay is None:
+                        raise RuntimeError("exact batch row lacks a V3 trial overlay")
+                    return overlay
+
+                batch_context = prepare_batch_attempt_context(
+                    plan=current_plan,
+                    selected_candidate=forced_candidate,
+                    profile=supervisor.execution_profile,
+                    overlay_resolver=overlay_for,
+                    experiment_fingerprint=frozen.composite_fingerprint,
+                    launch_fingerprint=launch_profile.fingerprint,
+                    plant_epoch=supervisor.plant_epoch,
+                    campaign_root=epoch_root,
+                    campaign_home_pose=home.home_pose,
+                )
             arm = coordinator.issue_arm(
                 store,
                 provenance_run_dir=bridge_run,
@@ -1347,8 +1423,19 @@ def run(args: argparse.Namespace) -> int:
                     and forced_candidate.candidate_uid
                     == current_plan.code_fix_replay_candidate_uid
                 ),
+                allow_exact_incomplete_batch_retry=(
+                    batch_context is not None
+                    and batch_context.retrying_incomplete
+                ),
+                attempt_started=(
+                    None
+                    if batch_context is None
+                    else lambda selected_trial: batch_context.start_attempt(
+                        selected_trial,
+                        batch_context.expected_row.trial_overlay,
+                    )
+                ),
             )
-            plan_revision = None if current_plan is None else current_plan.revision
             if args.selection_policy == "codex_batches":
                 _event(
                     event_path,
@@ -1370,6 +1457,19 @@ def run(args: argparse.Namespace) -> int:
             )
             if trial_overlay is not None:
                 prepared = replace(prepared, trial_overlay=trial_overlay)
+            if batch_context is not None and (
+                trial_overlay is None
+                or dict(trial_overlay)
+                != dict(batch_context.expected_row.trial_overlay)
+            ):
+                raise RuntimeError(
+                    "prepared trial overlay differs from durable BatchIdentity"
+                )
+            if batch_context is not None:
+                prepared = replace(
+                    prepared,
+                    batch_row_index=batch_context.row_index,
+                )
             coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)
             _event(
                 event_path,
@@ -1381,20 +1481,34 @@ def run(args: argparse.Namespace) -> int:
                 plan_revision=plan_revision,
             )
 
-            home_path = bridge_run / "campaign_home_reference.json"
-            collector: HostClosureCollector | None = None
+            collector: HostClosureCollector | PreAckTypedClosureCollector | None = None
             for row in follower.rows(timeout_s=args.trial_timeout_s):
                 snapshot = tp_snapshot_from_bridge_row(row)
                 if snapshot.state != "WAIT_ACK":
                     continue
                 if collector is None:
-                    home = CampaignHomeReference.load(home_path)
-                    collector = HostClosureCollector(
-                        expected_arm=arm,
-                        home_reference=home,
+                    collector = (
+                        HostClosureCollector(
+                            expected_arm=arm,
+                            home_reference=home,
+                        )
+                        if batch_context is None
+                        else PreAckTypedClosureCollector(
+                            context=batch_context,
+                            trial=trial,
+                            expected_arm=arm,
+                            campaign_home_reference=home,
+                        )
                     )
-                sample = closure_sample_from_bridge_row(row)
-                collector.observe(sample, monotonic_s=_finite(row, "t_monotonic_s"))
+                sample = (
+                    closure_sample_from_bridge_row(row)
+                    if isinstance(collector, HostClosureCollector)
+                    else row
+                )
+                collector.observe(
+                    sample,
+                    monotonic_s=_finite(row, "t_monotonic_s"),
+                )
                 if collector.ready:
                     break
             if collector is None or not collector.ready:
@@ -1414,6 +1528,11 @@ def run(args: argparse.Namespace) -> int:
                 coordinator=coordinator,
                 prepared_trial=prepared,
                 command_sink=mailbox,
+                bundle_committed=(
+                    None
+                    if batch_context is None
+                    else batch_context.record_bundle
+                ),
             )
             _event(
                 event_path,
@@ -1426,18 +1545,64 @@ def run(args: argparse.Namespace) -> int:
             if result.ack_packet is None:
                 break
 
-            for row in follower.rows(timeout_s=args.ack_timeout_s):
-                snapshot = tp_snapshot_from_bridge_row(row)
-                if snapshot.consumed_command_seq != result.ack_packet.command_seq:
-                    continue
-                if snapshot.state not in {
-                    "READY_HOME",
-                    "WAIT_INFRA_READY",
-                    "FAULT",
-                }:
-                    continue
-                coordinator.reconcile(snapshot)
-                break
+            if batch_context is None:
+                for row in follower.rows(timeout_s=args.ack_timeout_s):
+                    snapshot = tp_snapshot_from_bridge_row(row)
+                    if snapshot.consumed_command_seq != result.ack_packet.command_seq:
+                        continue
+                    if snapshot.state not in {
+                        "READY_HOME",
+                        "WAIT_INFRA_READY",
+                        "FAULT",
+                    }:
+                        continue
+                    coordinator.reconcile(snapshot)
+                    break
+            else:
+                post_ack_collector = PostAckClosureCollector(
+                    context=batch_context,
+                    trial=trial,
+                    ack_packet=result.ack_packet,
+                )
+                post_ack_snapshot: TpSnapshot | None = None
+                for row in follower.rows(timeout_s=args.ack_timeout_s):
+                    snapshot = tp_snapshot_from_bridge_row(row)
+                    if snapshot.consumed_command_seq != result.ack_packet.command_seq:
+                        continue
+                    if post_ack_collector.observe(
+                        row,
+                        monotonic_s=_finite(row, "t_monotonic_s"),
+                    ):
+                        post_ack_snapshot = snapshot
+                        break
+                if post_ack_snapshot is None:
+                    raise RuntimeError(
+                        "exact ACK lacked a complete typed post-ACK safe closure"
+                    )
+                admission = batch_context.complete_post_ack(
+                    trial=trial,
+                    arm_packet=arm,
+                    ack_packet=result.ack_packet,
+                    store_receipt=result.store_receipt,
+                    manifest=result.manifest,
+                    evaluation=result.evaluation,
+                    readback=post_ack_collector.finalize(),
+                )
+                coordinator.reconcile(
+                    post_ack_snapshot,
+                    trial_brief_admission=admission,
+                )
+                if batch_context.journal.state().complete:
+                    batch_result = batch_context.journal.finalize()
+                    if batch_context.journal.verified_exit_code() != 0:
+                        raise RuntimeError("durable BatchResult exit code differs")
+                    batch_completed = True
+                    _event(
+                        event_path,
+                        "exact_ten_trial_batch_completed",
+                        batch_uid=batch_context.identity.batch_uid,
+                        batch_result_uid=batch_result["batch_result_uid"],
+                    )
             _event(event_path, "post_ack", phase=supervisor.phase.value)
             completed_trials += 1
             if derived_postprocess is not None:
@@ -1481,6 +1646,8 @@ def run(args: argparse.Namespace) -> int:
                         error=f"{type(exc).__name__}: {exc}",
                     )
             if args.one_trial:
+                break
+            if batch_completed:
                 break
             if supervisor.phase is CampaignPhase.WAIT_INFRA_READY:
                 break
@@ -1550,6 +1717,7 @@ def run(args: argparse.Namespace) -> int:
         one_trial_limit_reached=one_trial_complete,
         campaign_succeeded=campaign_succeeded,
         plan_closed=plan_closed,
+        batch_completed=batch_completed,
     )
     print(
         json.dumps(
@@ -1558,12 +1726,14 @@ def run(args: argparse.Namespace) -> int:
                     campaign_succeeded
                     or one_trial_complete
                     or plan_closed
+                    or batch_completed
                     or stopped_after_current
                 ),
                 "trial_completed": completed_trials > 0,
                 "campaign_succeeded": campaign_succeeded,
                 "campaign_terminal": campaign_terminal,
                 "plan_closed": plan_closed,
+                "batch_completed": batch_completed,
                 "stopped_after_current": stopped_after_current,
                 "selection_policy": args.selection_policy,
                 "phase": supervisor.phase.value,
@@ -1576,6 +1746,7 @@ def run(args: argparse.Namespace) -> int:
         campaign_succeeded
         or one_trial_complete
         or plan_closed
+        or batch_completed
         or stopped_after_current
     ) else 2
 

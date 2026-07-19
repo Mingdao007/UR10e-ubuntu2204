@@ -22,6 +22,7 @@ from step5d_autotune_contract import (  # noqa: E402
     Evaluation,
     ExecutionProfile,
     TrialDisposition,
+    canonical_json_bytes,
 )
 from step5d_autotune_coordinator import (  # noqa: E402
     CampaignCoordinator,
@@ -86,6 +87,7 @@ def supervisor(
     config: str = SHA_C,
     execution_profile: ExecutionProfile | None = None,
     plant_epoch: int = 1,
+    selection_policy: str = "adaptive",
 ) -> CampaignSupervisor:
     return CampaignSupervisor(
         campaign=campaign_spec or campaign(),
@@ -94,6 +96,7 @@ def supervisor(
         config_fingerprint=config,
         execution_profile=execution_profile or profile(),
         plant_epoch=plant_epoch,
+        selection_policy=selection_policy,
     )
 
 
@@ -430,6 +433,64 @@ class RecoveryFixture(unittest.TestCase):
 
 
 class CommandIssuanceTest(RecoveryFixture):
+    def test_codex_batch_reconcile_requires_durable_trial_brief(self) -> None:
+        manager = supervisor(selection_policy="codex_batches")
+        coordinator = CampaignCoordinator(
+            supervisor=manager,
+            journal=SupervisorJournal(self.root / "codex-journal"),
+        )
+        arm = coordinator.issue_arm(self.store, require_cuda_botorch=False)
+        trial = manager.active_trial
+        assert trial is not None
+        bundle, manifest, evaluation = write_bundle(
+            self.store,
+            trial,
+            self.root,
+            objective=0.4,
+        )
+        coordinator.close_trial(
+            manifest=manifest,
+            evaluation=evaluation,
+            safe_closure=manifest.safe_closure_evidence,
+            bundle_path=bundle,
+        )
+        ack = coordinator.issue_ack(
+            bundle,
+            verified_resume_history=self.store.read_resume_history(),
+        )
+        publication_uid = "9" * 64
+        brief_path = (self.root / "trial-brief.json").resolve()
+        brief_document = {
+            "optimizer_eligible": True,
+            "publication_uid": publication_uid,
+            "publication_unique": True,
+            "trial_uid": trial.trial_uid,
+        }
+        encoded = canonical_json_bytes(brief_document) + b"\n"
+        brief_path.write_bytes(encoded)
+        admission = SimpleNamespace(
+            trial_uid=trial.trial_uid,
+            ack_command_seq=ack.command_seq,
+            publication_uid=publication_uid,
+            document_sha256=hashlib.sha256(
+                canonical_json_bytes(brief_document)
+            ).hexdigest(),
+            path=brief_path,
+            file_sha256=hashlib.sha256(encoded).hexdigest(),
+            optimizer_eligible=True,
+        )
+
+        result = coordinator.reconcile(
+            tp_ready(consumed=ack.command_seq),
+            trial_brief_admission=admission,
+        )
+
+        self.assertIs(result.decision.action, ReconcileAction.PERSIST_POST_ACK)
+        self.assertEqual(len(manager.observations), 1)
+        fate = coordinator.latest.state.terminal_fates[-1]
+        self.assertEqual(fate.evidence.reference_id, publication_uid)
+        self.assertGreater(ack.command_seq, arm.command_seq)
+
     def test_arm_and_fresh_ack_are_fsynced_then_sent_to_same_continuous_sink(self) -> None:
         trial, arm = self.arm()
         arm_entry = self.journal.load_latest()

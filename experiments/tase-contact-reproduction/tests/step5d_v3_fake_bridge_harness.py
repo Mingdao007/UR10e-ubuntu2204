@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Filesystem-only subprocess harness for the v3 five-candidate acceptance gate.
+"""Filesystem-only subprocess harness for the v3 exact ten-row acceptance gate.
 
 This file is test infrastructure, not a production bridge.  It deliberately
 uses the frozen v1 CampaignStore, SupervisorJournal, CampaignCoordinator and
@@ -38,6 +38,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by hermetic CI.
     )
     sys.modules["numpy"] = numpy_stub
 
+from step5d_autotune_batch_plan import CandidateBatchPlan  # noqa: E402
 from step5d_autotune_contract import (  # noqa: E402
     CampaignSpec,
     CaptureArtifactPaths,
@@ -55,7 +56,12 @@ from step5d_autotune_journal import (  # noqa: E402
 )
 from step5d_autotune_live_driver import (  # noqa: E402
     AtomicCommandMailbox,
+    ImmutableBundleStoreReceipt,
     MailboxError,
+)
+from step5d_autotune_runtime_lifecycle import (  # noqa: E402
+    PostAckControllerReadback,
+    prepare_batch_attempt_context,
 )
 from step5d_autotune_state_machine import (  # noqa: E402
     HostCommand,
@@ -66,6 +72,9 @@ from step5d_autotune_supervisor import (  # noqa: E402
     CampaignPhase,
     CampaignSupervisor,
     execution_profile_integer_id,
+)
+from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
+    control_candidate_uid,
 )
 
 
@@ -263,7 +272,12 @@ def write_evaluated_bundle(
     return bundle, manifest, evaluation
 
 
-def prepared_trial(trial: Any) -> SimpleNamespace:
+def prepared_trial(
+    trial: Any,
+    *,
+    batch_row_index: int,
+    trial_overlay: Mapping[str, Any],
+) -> SimpleNamespace:
     candidate = trial.candidate
     execution = trial.execution_profile
     environment = {
@@ -322,7 +336,33 @@ def prepared_trial(trial: Any) -> SimpleNamespace:
         frozen=frozen,
         environment=environment,
         runner_arguments=arguments,
+        batch_row_index=batch_row_index,
+        trial_overlay=dict(trial_overlay),
     )
+
+
+def exact_trial_overlay(
+    candidate: ForceCandidate,
+    profile: ExecutionProfile,
+) -> dict[str, Any]:
+    control = {
+        "force_p_gain": candidate.force_p_gain,
+        "force_i_gain": candidate.force_i_gain,
+        "force_damping": candidate.force_damping,
+        "orientation_ko": 0.4,
+    }
+    return {
+        **control,
+        "control_candidate_uid": control_candidate_uid(control),
+        "execution_profile_id": profile.profile_id,
+        "step5d_preload_filtered_min_n": 5.0,
+        "step5d_preload_filtered_max_n": 22.0,
+        "step5d_preload_raw_min_n": 3.0,
+        "step5d_preload_raw_max_n": 25.0,
+        "step5d_preload_force_norm_max_n": 25.0,
+        "step5d_preload_hold_s": 0.1,
+        "step5d_preload_timeout_s": 10.0,
+    }
 
 
 def snapshot_from_payload(payload: Mapping[str, Any]) -> TpSnapshot:
@@ -410,16 +450,24 @@ def run_bridge(args: argparse.Namespace) -> int:
             }
             event = "wait_ack"
         elif packet.command is HostCommand.ACK_BUNDLE:
+            batch_row_index = command.binding.batch_row_index
+            if batch_row_index is None:
+                raise RuntimeError("exact batch ACK lacks batch_row_index binding")
+            typed_state = (
+                "READY_HOME_CLOSED" if batch_row_index == 10 else "READY_NEAR"
+            )
             snapshot = {
-                "campaign_epoch_echo": 0,
-                "trial_id_echo": 0,
-                "state": "READY_HOME",
-                "candidate_token_echo": 0,
-                "terminal_reason": 0,
-                "execution_profile_integer_id_echo": 0,
+                "campaign_epoch_echo": packet.campaign_epoch,
+                "trial_id_echo": packet.trial_id,
+                "state": typed_state,
+                "candidate_token_echo": packet.candidate_token,
+                "terminal_reason": 1,
+                "execution_profile_integer_id_echo": packet.execution_profile_id,
                 "consumed_command_seq": packet.command_seq,
             }
-            event = "ready_home"
+            event = (
+                "ready_home_closed" if batch_row_index == 10 else "ready_near"
+            )
         else:
             raise RuntimeError(f"unexpected fake-bridge command: {packet.command}")
         payload = {
@@ -496,10 +544,34 @@ def run_runner(args: argparse.Namespace) -> int:
     wait_for_file(start_gate)
 
     candidates = tuple(
-        ForceCandidate.from_log2(p=coordinate, damping=0.0, i=0.0)
-        for coordinate in (0.0, 0.25, 0.50, 0.75, 1.0)
+        ForceCandidate.from_log2(p=p, damping=damping, i=0.0)
+        for damping in (0.0, 0.25)
+        for p in (0.0, 0.25, 0.50, 0.75, 1.0)
+    )
+    batch_plan = CandidateBatchPlan(
+        campaign_id=campaign.campaign_id,
+        revision=1,
+        closed=False,
+        code_fix_replay_candidate_uid=None,
+        batch_size=10,
+        batches=(candidates,),
+        payload={},
     )
     for index, candidate in enumerate(candidates, 1):
+        batch_context = prepare_batch_attempt_context(
+            plan=batch_plan,
+            selected_candidate=candidate,
+            profile=profile,
+            overlay_resolver=lambda selected: exact_trial_overlay(
+                selected,
+                profile,
+            ),
+            experiment_fingerprint=CAMPAIGN_FINGERPRINT,
+            launch_fingerprint=args.control_fingerprint,
+            plant_epoch=campaign.campaign_epoch,
+            campaign_root=root,
+            campaign_home_pose=(0.45, 0.10, 0.20, 3.14, 0.0, 0.0),
+        )
         arm = coordinator.issue_arm(
             store,
             forced_candidate=candidate,
@@ -508,7 +580,12 @@ def run_runner(args: argparse.Namespace) -> int:
         trial = supervisor.active_trial
         if trial is None:
             raise RuntimeError("v1 supervisor did not retain the issued ARM")
-        prepared = prepared_trial(trial)
+        prepared = prepared_trial(
+            trial,
+            batch_row_index=index,
+            trial_overlay=batch_context.expected_row.trial_overlay,
+        )
+        batch_context.start_attempt(trial, prepared.trial_overlay)
         arm_receipt = coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)
         runner_event(
             "arm_dispatched",
@@ -549,6 +626,20 @@ def run_runner(args: argparse.Namespace) -> int:
         )
         if not decision.ack_permitted:
             raise RuntimeError("safe evaluated bundle did not permit ACK")
+        history_rows = [
+            row
+            for row in store.read_resume_history()
+            if row.get("trial_uid") == trial.trial_uid
+        ]
+        if len(history_rows) != 1:
+            raise RuntimeError("immutable bundle lacks one exact store history row")
+        store_receipt = ImmutableBundleStoreReceipt(
+            trial_uid=trial.trial_uid,
+            bundle_path=bundle.resolve(),
+            bundle_sha256=sha256(bundle.read_bytes()),
+            history_identity=history_rows[0]["history_identity"],
+        )
+        batch_context.record_bundle(store_receipt)
         runner_event(
             "bundle_evaluated",
             bundle_path=str(bundle),
@@ -570,12 +661,62 @@ def run_runner(args: argparse.Namespace) -> int:
             trial_uid=trial.trial_uid,
         )
 
-        _, ready_home = wait_snapshot(
+        typed_state = "READY_HOME_CLOSED" if index == 10 else "READY_NEAR"
+        _, typed_ready = wait_snapshot(
             snapshot_path,
-            state="READY_HOME",
+            state=typed_state,
             consumed_command_seq=ack.command_seq,
         )
-        persisted = coordinator.reconcile(ready_home)
+        readback = PostAckControllerReadback(
+            batch_uid=batch_context.identity.batch_uid,
+            row_index=index,
+            trial_uid=trial.trial_uid,
+            return_reference_uid=batch_context.reference.reference_uid,
+            return_reference=batch_context.reference.kind,
+            ack_command_seq=ack.command_seq,
+            consumed_command_seq=typed_ready.consumed_command_seq,
+            tp_state=typed_ready.state,
+            batch_row_echo=index,
+            return_kind_echo=batch_context.reference.kind.value,
+            return_guard_mask=0x7F,
+            position_error_m=0.001,
+            orientation_error_rad=0.01,
+            tcp_linear_speed_m_s=0.0005,
+            tcp_angular_speed_rad_s=0.005,
+            qd_max_rad_s=0.005,
+            dwell_s=0.5,
+            safety_mode="NORMAL",
+            safety_guards={
+                name: True
+                for name in (
+                    "force",
+                    "torque",
+                    "joints",
+                    "sensor_freshness",
+                    "heartbeat",
+                    "contact_loss",
+                    "route_workspace",
+                )
+            },
+            transcript_sha256=sha256(
+                f"typed-return:{index}:{trial.trial_uid}:{ack.command_seq}".encode(
+                    "ascii"
+                )
+            ),
+        )
+        admission = batch_context.complete_post_ack(
+            trial=trial,
+            arm_packet=arm,
+            ack_packet=ack,
+            store_receipt=store_receipt,
+            manifest=manifest,
+            evaluation=evaluation,
+            readback=readback,
+        )
+        persisted = coordinator.reconcile(
+            typed_ready,
+            trial_brief_admission=admission,
+        )
         if (
             persisted.decision.action is not ReconcileAction.PERSIST_POST_ACK
             or supervisor.phase is not CampaignPhase.HOME
@@ -584,18 +725,34 @@ def run_runner(args: argparse.Namespace) -> int:
                 f"exact ACK echo did not return durable HOME: {persisted.decision}"
             )
         runner_event(
-            "ready_home_persisted",
+            "typed_return_persisted",
             candidate_index=index,
-            consumed_command_seq=ready_home.consumed_command_seq,
+            consumed_command_seq=typed_ready.consumed_command_seq,
+            return_reference=batch_context.reference.kind.value,
+            trial_brief_publication_uid=admission.publication_uid,
             trial_uid=trial.trial_uid,
         )
 
+    batch_result = batch_context.journal.finalize()
+    if batch_context.journal.verified_exit_code() != 0:
+        raise RuntimeError("durable exact BatchResult did not authorize exit 0")
     runner_event(
         "campaign_complete",
         history_count=len(store.read_resume_history()),
+        batch_uid=batch_context.identity.batch_uid,
+        batch_result_uid=batch_result["batch_result_uid"],
         trial_uid=None,
     )
-    atomic_json(done, {"pid": os.getpid(), "status": "complete"})
+    atomic_json(
+        done,
+        {
+            "pid": os.getpid(),
+            "status": "complete",
+            "batch_uid": batch_context.identity.batch_uid,
+            "batch_result_uid": batch_result["batch_result_uid"],
+            "verified_exit_code": 0,
+        },
+    )
     while not stop.exists():
         time.sleep(POLL_S)
     runner_event("process_stopped", role="runner")

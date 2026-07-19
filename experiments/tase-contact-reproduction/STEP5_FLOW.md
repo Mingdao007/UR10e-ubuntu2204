@@ -1,47 +1,48 @@
 # Step5 Flow
 
 `config/current_stage.json` remains on the frozen
-`step5d_strict_rnn_autotune_v1` rollback selector while the dedicated V3
-entrypoint owns the live candidate. The V3 triplet has fresh controller
-upload/read-back and deterministic live gates; V1 source and selector files are
-not modified by this rollout.
+`step5d_strict_rnn_autotune_v1` controller binding. V3 is an inactive offline
+pre-live candidate. Its local TP triplet changed after the retained V3
+controller read-back, so the old read-back is historical diagnostic evidence,
+not current package acceptance. The public blocker is
+`requires_attended_tp_upload_readback`; a certified stopping bound and fresh
+live authorization are also required before any bridge, load/Play, contact, or
+motion action.
 
-V3 has one deliberate prealign delta before guarded search. Stage22 first moves
-at the current safe Z, then descends vertically to
-`[0.487834547, 0.129337053, 0.022863519]` with rotvec
-`[3.141592654, 0, 0]`. This is the robust center of five completed poses sampled
-at first contact plus `0.1 s`, with `5 mm` retained above the observed surface;
-the current start must be another `10 mm` above that entry or preflight rejects
-the launch before Play. FAR/NEAR speeds, direction, force thresholds, force
-guards, and heartbeat guards remain frozen; the closer start can shorten or
-eliminate the FAR-speed segment. The compact pose evidence is kept separately in
-`evidence/step5d_autotune_v3/start_pose_prior_20260719.json`; raw captures remain
-under ignored `runs/` storage.
+The V3 physical prior binds reaction normal
+`[-0.043955267, 0.020079909, 0.998831683]`, approach axis
+`[0.043955267, -0.020079909, -0.998831683]`, and precontact rotvec
+`[3.120752062, 0.0, 0.068626833]`. TP precontact orientation and the bridge
+initial normal must carry the same prior fingerprint. Every trial resets
+integral, outer-loop, normal, filter, and rate-limit state. The first loaded
+tick cannot relatch; live-normal blending starts only after load is at least
+`8 N` continuously for `0.10 s` and remains limited to `0.05 rad/s`.
 
 Each V3 trial binds four real control coordinates: force P, I, damping, and
-`orientation_ko`. They are applied once at the ARM boundary; the 500 Hz loop
-does not read JSON. Search batches contain exactly 10 unique adjacent
-quarter-octave candidates. Round A scores force/orientation over `[5,60)`;
-Round B later removes the start-pose assumption and scores `[0,60)`. Safety,
-cadence, feedback freshness, RNN-oracle alignment, and safe return remain hard
-eligibility gates. Normal-rate limiter duty is retained as a diagnostic rather
-than a third optimization objective.
+`orientation_ko`. A `BatchIdentity` binds exactly ten candidate/overlay rows.
+Rows remain `unattempted` or `attempted_incomplete` until exact ACK consumption
+and typed safe closure make them `ack_completed`; resume executes only the
+remaining rows. TrialBrief publication happens once, after immutable bundle,
+exact ACK, and safe closure. Trials 13--22 remain diagnostic-only evidence;
+trial 21's force metric is `unavailable`, never zero, and none of those ten
+trials is optimizer eligible.
 
-V3 uses a machine-generated epoch/fingerprint campaign binding, not a user
-authorization step. Once the entrypoint prints `READY_FOR_ONE_PLAY_TO_MOVE`,
-one TP Play enters real precontact/search/contact motion and runs the complete
-10-trial batch. Completion prints `V3_BATCH_10_COMPLETE_STOPPING_TP_NOW` and the
-owner performs TP Stop cleanup. Per-trial and global CSV output is compact; the
-per-trial writer is bounded and asynchronous, and durable publication occurs at
-WAIT_ACK so disk I/O cannot block the active control loop.
+Return is typed by exact batch identity: rows 1--9 close at
+`NearReadyReference`, and row 10 closes at `CampaignHomeReference`. Both use
+the fixed three-segment route: vertical transfer to `z=0.033 m` at
+`a=0.060 m/s^2`, `v=0.040 m/s`; constant-Z translation to precontact XY/prior
+orientation at `a=0.135 m/s^2`, `v=0.090 m/s`; then vertical descent to
+`z=0.022863519 m`. Pose, stillness, and transfer guards must pass before
+`WAIT_ACK`.
 
-The live preflight producer and launcher consume one shared exact predicate
-schema, including `prealign_start_clearance`; adding or removing a predicate
-cannot pass one side while being rejected as an unknown field by the other.
-Likewise, the compact bridge schema is checked against the real campaign
-closure consumer and must retain output double registers `36..38` through
-WAIT_ACK. These production-seam contracts close the two observed schema-drift
-failures rather than relying on hand-written test rows.
+During active Stage25, the shared moving-sphere kernel checks actual and
+conservative predicted-stop distance against a `15 mm` radius using the
+authoritative frozen cycloid progress. Frozen progress freezes the center.
+Missing, nonfinite, mismatched, or uncertified stopping-bound inputs fail
+closed through the existing exact-stop transport. The legacy AABB is not
+simultaneously enforced. Current source-exact adapter+kernel+bridge timing
+passes 30,000 ticks under `SCHED_FIFO/20`, but the stopping bound itself is not
+certified, so V3 remains `pre_live_blocked`.
 
 v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,

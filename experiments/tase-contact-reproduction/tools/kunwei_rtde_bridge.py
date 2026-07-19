@@ -501,7 +501,7 @@ STEP5D_DIAG_FIELDS = [
 INPUT_FIELDS = BASE_INPUT_FIELDS + BRIDGE_INPUT_FIELDS
 INPUT_NAMES = BASE_INPUT_NAMES + BRIDGE_INPUT_NAMES
 STEP5D_AUTOTUNE_HANDSHAKE_INPUT_FIELDS = [
-    f"input_int_register_{index}" for index in range(24, 30)
+    f"input_int_register_{index}" for index in range(24, 31)
 ]
 STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES = [
     "campaign_epoch",
@@ -510,9 +510,10 @@ STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES = [
     "candidate_token",
     "execution_profile_id",
     "command_seq",
+    "batch_row_index",
 ]
 STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_FIELDS = [
-    f"output_int_register_{index}" for index in range(24, 31)
+    f"output_int_register_{index}" for index in range(24, 34)
 ]
 STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES = [
     "campaign_epoch_echo",
@@ -522,6 +523,9 @@ STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES = [
     "terminal_reason",
     "execution_profile_id_echo",
     "consumed_command_seq",
+    "batch_row_index_echo",
+    "return_reference_kind_echo",
+    "return_guard_mask",
 ]
 OUTPUT_FIELDS = [
     "timestamp",
@@ -7708,6 +7712,9 @@ def step5d_autotune_handshake_input_values(args: argparse.Namespace) -> dict[str
         "candidate_token": int(args.step5d_autotune_candidate_token),
         "execution_profile_id": int(args.step5d_autotune_execution_profile_id),
         "command_seq": int(args.step5d_autotune_command_sequence),
+        "batch_row_index": int(
+            getattr(args, "step5d_autotune_batch_row_index", 0)
+        ),
     }
     invalid = {
         name: value
