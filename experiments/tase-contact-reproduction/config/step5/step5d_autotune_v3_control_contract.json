@@ -20,7 +20,7 @@
     "scripts/bridge-line-operator.sh": "2fdc3faa70c57614d5a731fbf1024d046d11da23f374711c9002a1b9d6be58ec",
     "scripts/step5d-autotune-live.sh": "301cf94d9bed54518443075abada22b61981b4aa342f9c4aa458e5292b3b2b38",
     "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
-    "tools/kunwei_rtde_bridge.py": "5f913259826dcaff0d54bcae43d6c30b0efffe63ad8b8565e43459fa954fe3db",
+    "tools/kunwei_rtde_bridge.py": "1851e3a1052be524ce96b991a94685fbd13fcebdcddc4225044e231b92c3d359",
     "tools/step5d_autotune_contract.py": "e54eb807ad30df95e41ca108c647d010c360e344c7f6915f76666fb96879eee9",
     "tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
     "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
@@ -31,6 +31,11 @@
     ".txt": "b9129f38a11aec1a3d546fa4ed35b8cb3453697c649cae8bc907b39f06a9b7e8",
     ".urp": "2cba1b92e9e6cdf0a0a843e2c6c3718b104ebf9aaffef965c63a660bc31b97f0"
   },
+  "candidate_tp_artifact_sha256": {
+    ".script": "613269164aeb21a34e0af6e5e999538a60e2bc9a9483aad7cd4f9fcdd3f01612",
+    ".txt": "b9129f38a11aec1a3d546fa4ed35b8cb3453697c649cae8bc907b39f06a9b7e8",
+    ".urp": "bf77cfe0c4df4c12e980ea178f14f20887d7baa665168c42eabd71c5cba79ff1"
+  },
   "deployment_tp_identity": {
     "program": "step5d_strict_rnn_autotune_v3",
     "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
@@ -39,6 +44,7 @@
     "readback_manifest_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
     "tp_fingerprint": "1c42b3f73e5c8ac27f7739117bff2f1af1e127ceb5e94d38aecc63fcbf5893a0"
   },
+  "promotion_status": "requires_attended_tp_upload_readback",
   "cli_arguments": [
     ["--allow-kunwei-stream-command"],
     ["--write-rtde-inputs"],

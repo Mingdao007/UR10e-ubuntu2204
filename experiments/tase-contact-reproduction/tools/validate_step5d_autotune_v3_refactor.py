@@ -52,8 +52,6 @@ READY_TO_EXECUTE_REQUIRES = [
 
 # Keys are relative to the git root, not to this experiment root.
 PROTECTED_V1_SHA256 = {
-    "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py":
-        "5f913259826dcaff0d54bcae43d6c30b0efffe63ad8b8565e43459fa954fe3db",
     "experiments/tase-contact-reproduction/tools/step5d_p0_v9_control_core.py":
         "e48051466beecc41045d35d4a4f39b5f61cce51c5fb314007a6b011de1083514",
     "experiments/tase-contact-reproduction/tools/step5d_p0_v9_bridge.py":
@@ -97,6 +95,11 @@ PROTECTED_V1_SHA256 = {
 }
 
 APPROVED_ORCHESTRATION_VARIANTS = {
+    "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py": {
+        "baseline_sha256": "5f913259826dcaff0d54bcae43d6c30b0efffe63ad8b8565e43459fa954fe3db",
+        "approved_sha256": "1851e3a1052be524ce96b991a94685fbd13fcebdcddc4225044e231b92c3d359",
+        "change_class": "behavior_changing",
+    },
     "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {
         "baseline_sha256": "f7485600db9571d882076f3ceeed8ee999bee998d35fdc8fe2386664bb55550c",
         "approved_sha256": "21aace469678798557a7128e15ef673c683d6382c4c6e6e0ccda51cb0d00c60c",

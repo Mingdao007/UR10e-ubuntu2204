@@ -10402,7 +10402,7 @@
         "trajectory_changed": true,
         "force_frame_changed": false,
         "candidate_fields": ["force_p_gain", "force_i_gain", "force_damping", "orientation_ko"],
-        "precontact_pose_prior_id": "step5d_v3_start_pose_prior_contact_0p1_20260719",
+        "precontact_pose_prior_id": "step5d_v3_physical_prior_contact_0p1_20260719",
         "precontact_pose_evidence": "evidence/step5d_autotune_v3/start_pose_prior_20260719.json"
       },
       "operator_lifecycle": {
@@ -10412,7 +10412,7 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-        "live_readiness_state": "ready_for_v3_live_continuous_campaign"
+        "live_readiness_state": "requires_attended_tp_upload_readback"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10424,22 +10424,22 @@
         "pending_or_automatic_retry_imported": false
       },
       "package_delivery": {
-        "status": "controller_readback_verified_inactive",
+        "status": "requires_attended_tp_upload_readback",
         "program_basename": "step5d_strict_rnn_autotune_v3",
         "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-        "controller_uploaded_by_v3": true,
-        "controller_readback_verified": true,
+        "controller_uploaded_by_v3": false,
+        "controller_readback_verified": false,
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
         "controller_readback_manifest_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
         "fresh_controller_sha_at": "2026-07-19T06:12:30+08:00",
-        "tp_fingerprint": "1c42b3f73e5c8ac27f7739117bff2f1af1e127ceb5e94d38aecc63fcbf5893a0",
+        "tp_fingerprint": "db3b833e6dde45cee45be7c5e6bdb74ecf043c8e649ad24fa1748278a49742ad",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": false,
         "sha256": {
-          ".script": "b96077952db3dbbdd1f2a4af668f0f3ef96985d3d071b3e745a87665ab821855",
+          ".script": "613269164aeb21a34e0af6e5e999538a60e2bc9a9483aad7cd4f9fcdd3f01612",
           ".txt": "b9129f38a11aec1a3d546fa4ed35b8cb3453697c649cae8bc907b39f06a9b7e8",
-          ".urp": "2cba1b92e9e6cdf0a0a843e2c6c3718b104ebf9aaffef965c63a660bc31b97f0"
+          ".urp": "bf77cfe0c4df4c12e980ea178f14f20887d7baa665168c42eabd71c5cba79ff1"
         }
       },
       "acceptance": {
@@ -10475,26 +10475,26 @@
       },
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v2",
-        "state": "ready_for_v3_live_continuous_campaign",
-        "public_success_signal": "ready_for_v3_live_continuous_campaign",
+        "state": "requires_attended_tp_upload_readback",
+        "public_success_signal": "requires_attended_tp_upload_readback",
         "next_owner": "ur10e-live-bench",
         "deterministic_validation_complete": true,
-        "package_delivery_complete": true,
+        "package_delivery_complete": false,
         "candidate_current": false,
-        "live_runtime_promoted": true,
-        "same_process_startup_gate_complete": true,
-        "ready_to_execute": true,
-        "ready_to_load_play": true,
-        "ready_to_start_bridge": true,
-        "ready_to_arm": true,
-        "ready_for_contact_or_motion": true,
+        "live_runtime_promoted": false,
+        "same_process_startup_gate_complete": false,
+        "ready_to_execute": false,
+        "ready_to_load_play": false,
+        "ready_to_start_bridge": false,
+        "ready_to_arm": false,
+        "ready_for_contact_or_motion": false,
         "operator_trigger": {
           "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-          "user_confirmation_required": false,
-          "user_authorization_required": false,
+          "user_confirmation_required": true,
+          "user_authorization_required": true,
           "internal_launch_binding": "machine_generated_epoch_and_process_fingerprint",
-          "tp_action": "press_play_once",
-          "play_effect": "real_precontact_search_contact_motion"
+          "tp_action": "attended_upload_readback_required",
+          "play_effect": "forbidden_in_offline_tranche"
         }
       }
     }

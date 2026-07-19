@@ -34,10 +34,10 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
     assert report["ok"] is True
     assert report["current_stage_id"] == artifacts.V1_STAGE_ID
     assert report["v3_active"] is False
-    assert report["execution_readiness"] == "ready_for_v3_live_continuous_campaign"
-    assert report["ready_to_execute"] is True
+    assert report["execution_readiness"] == "requires_attended_tp_upload_readback"
+    assert report["ready_to_execute"] is False
     assert report["acceptance_scope"] == "deterministic_live_entry_prerequisites"
-    assert report["user_authorization_required"] is False
+    assert report["user_authorization_required"] is True
     assert "evidence/step5d_autotune_v3/start_pose_prior_20260719.json" in report["verified_paths"]
 
 

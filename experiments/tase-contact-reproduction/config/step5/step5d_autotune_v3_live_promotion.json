@@ -4,9 +4,9 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "current_selector": "step5d_strict_rnn_autotune_v1",
   "identity": {
-    "contract_sha256": "96a83126c1bf4b11ed41429060e9b83c4b867f799dea337478c69bcf84ad57f0",
-    "control_fingerprint": "12a494fc44fc238a0623e951b1ae328c22cd18a3b966d79692c9c2b032ed80ea",
-    "orchestration_fingerprint": "8fdeb1b435bbafeff84877a354d41830f6ccfa7d7033d80401a3ae559cb29e94"
+    "contract_sha256": "2451265edd6fa84839b922681c52d9e4255ec7a4a7d32647bff2bbdcaa193d3d",
+    "control_fingerprint": "bb108a182df92731cdbeff10910d18b089cb1cdc0b16fcb28f67be40cb781620",
+    "orchestration_fingerprint": "538860d2cc01fb357ed98175beb069272e3ca067e3940f6201e0b0d81787062e"
   },
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
@@ -18,6 +18,7 @@
   },
   "machine_campaign_binding": "machine_generated_epoch_and_process_fingerprint",
   "same_process_startup_gate": true,
-  "user_authorization_required": false,
-  "live_runtime_promoted": true
+  "user_authorization_required": true,
+  "live_runtime_promoted": false,
+  "blocker": "requires_attended_tp_upload_readback_and_certified_stopping_bound"
 }

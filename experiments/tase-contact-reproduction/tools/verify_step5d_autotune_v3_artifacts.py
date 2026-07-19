@@ -16,8 +16,10 @@ import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
-POSE_PRIOR_ID = "step5d_v3_start_pose_prior_contact_0p1_20260719"
-EXPECTED_ROTVEC = [3.141592654, 0.0, 0.0]
+POSE_PRIOR_ID = "step5d_v3_physical_prior_contact_0p1_20260719"
+EXPECTED_ROTVEC = [3.120752062, 0.0, 0.068626833]
+HISTORICAL_POSE_PRIOR_ID = "step5d_v3_start_pose_prior_contact_0p1_20260719"
+HISTORICAL_ROTVEC = [3.141592654, 0.0, 0.0]
 EXPECTED_XYZ = [0.487834547, 0.129337053, 0.022863519]
 EXPECTED_CONTACT_PLUS_0P1S_POSE = [
     0.487834547,
@@ -154,8 +156,15 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     readback = _load_json(readback_path, role="controller readback")
     _require(readback.get("verified"), True, "controller readback result")
     _require(readback.get("program"), basename, "controller readback program")
-    _require(readback.get("triplet_sha256"), triplet, "controller readback triplet")
-    _require(readback.get("tp_fingerprint"), package.get("tp_fingerprint"), "controller TP fingerprint")
+    contract = execution_readiness.load_contract(
+        root / "config/step5/step5d_autotune_v3_control_contract.json"
+    )
+    _require(readback.get("triplet_sha256"), contract["tp_artifact_sha256"], "controller readback triplet")
+    _require(
+        readback.get("tp_fingerprint"),
+        contract["deployment_tp_identity"]["tp_fingerprint"],
+        "controller TP fingerprint",
+    )
 
     numeric = _load_json(root / f"{prefix}.numeric-sanity.json", role="TP numeric sanity")
     for key, expected in (
@@ -177,7 +186,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         raise ArtifactVerificationError("pose prior evidence path is missing")
     prior = _load_json(root / prior_relative, role="start pose prior")
     _require(prior.get("schema"), "step5d.autotune-v3/start-pose-prior/v2", "pose prior schema")
-    _require(prior.get("prior_id"), POSE_PRIOR_ID, "pose prior identity")
+    _require(prior.get("prior_id"), HISTORICAL_POSE_PRIOR_ID, "pose prior identity")
     scope = prior.get("scope") or {}
     _require(scope.get("entry_xyz_m"), EXPECTED_XYZ, "pose prior XYZ")
     _require(
@@ -185,7 +194,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         EXPECTED_CONTACT_PLUS_0P1S_POSE,
         "pose prior contact-plus-0.1s center",
     )
-    _require(scope.get("tcp_rotvec_rad"), EXPECTED_ROTVEC, "pose prior rotation")
+    _require(scope.get("tcp_rotvec_rad"), HISTORICAL_ROTVEC, "pose prior rotation")
     _require(scope.get("precontact_clearance_m"), 0.005, "pose prior clearance")
     _require(scope.get("exact_surface_fit_claim"), False, "pose prior fit claim")
     derivation = prior.get("derivation") or {}
@@ -226,7 +235,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "execution_readiness": readiness["state"],
         "ready_to_execute": readiness["ready_to_execute"],
         "acceptance_scope": "deterministic_live_entry_prerequisites",
-        "user_authorization_required": False,
+        "user_authorization_required": readiness["user_authorization_required"],
         "tp_fingerprint": package.get("tp_fingerprint"),
         "control_fingerprint": readiness["identity"]["control_fingerprint"],
         "orchestration_fingerprint": readiness["identity"]["orchestration_fingerprint"],

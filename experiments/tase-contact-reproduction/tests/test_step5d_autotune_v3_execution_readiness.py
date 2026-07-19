@@ -54,24 +54,20 @@ def _mutate_v3(fixture: Path, mutate) -> None:
 def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
-    assert report["state"] == "ready_for_v3_live_continuous_campaign"
-    assert report["public_success_signal"] == "ready_for_v3_live_continuous_campaign"
-    assert report["package_delivery"] == (
-        "controller_readback_verified_explicit_v3"
-    )
-    assert report["ready_to_execute"] is True
+    assert report["state"] == "requires_attended_tp_upload_readback"
+    assert report["public_success_signal"] == "requires_attended_tp_upload_readback"
+    assert report["package_delivery"] == "requires_attended_tp_upload_readback"
+    assert report["ready_to_execute"] is False
     assert report["current_stage_id"] == readiness.V1_STAGE_ID
-    assert report["next_owner"] == "ur10e-live-bench"
-    assert report["canonical_gate"] == ["scripts/step5d-autotune-v3.sh", "live"]
-    assert report["user_authorization_required"] is False
+    assert report["next_owner"] == "attended_tp_owner"
+    assert report["canonical_gate"] == []
+    assert report["user_authorization_required"] is True
     assert report["hil_hold_required"] is False
 
 
 def test_repository_live_signal_is_the_only_readiness_state() -> None:
-    report = readiness.verify(ROOT, require_live=True)
-    assert report["ok"] is True
-    assert report["state"] == "ready_for_v3_live_continuous_campaign"
-    assert report["ready_to_execute"] is True
+    with pytest.raises(readiness.ReadinessError, match="requires_attended_tp_upload"):
+        readiness.verify(ROOT, require_live=True)
 
 
 def test_live_promotion_validation_digest_is_fail_closed(tmp_path: Path) -> None:
@@ -85,6 +81,36 @@ def test_live_promotion_validation_digest_is_fail_closed(tmp_path: Path) -> None
         readiness.verify(fixture, require_live=True)
 
 
+def test_historical_validation_identity_is_frozen(tmp_path: Path) -> None:
+    fixture = _fixture_root(tmp_path)
+    validation_path = (
+        fixture / "config/step5/step5d_autotune_v3_offline_validation.json"
+    )
+    validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    validation["identity"]["control_fingerprint"] = "0" * 64
+    validation_path.write_text(json.dumps(validation), encoding="utf-8")
+
+    with pytest.raises(readiness.ReadinessError, match="historical validation identity"):
+        readiness.verify(fixture)
+
+
+def test_historical_validation_decision_cannot_promote_current_candidate(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture_root(tmp_path)
+    validation_path = (
+        fixture / "config/step5/step5d_autotune_v3_offline_validation.json"
+    )
+    validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    validation["decision"]["execution_readiness"] = (
+        "requires_attended_tp_upload_readback"
+    )
+    validation_path.write_text(json.dumps(validation), encoding="utf-8")
+
+    with pytest.raises(readiness.ReadinessError, match="historical validation decision"):
+        readiness.verify(fixture)
+
+
 def test_readiness_verification_is_independent_of_checkout_mtime(
     tmp_path: Path,
 ) -> None:
@@ -93,16 +119,16 @@ def test_readiness_verification_is_independent_of_checkout_mtime(
         path = fixture / relative
         path.touch()
 
-    report = readiness.verify(fixture, require_live=True)
-    assert report["state"] == "ready_for_v3_live_continuous_campaign"
+    report = readiness.verify(fixture)
+    assert report["state"] == "requires_attended_tp_upload_readback"
 
 
-def test_user_confirmation_cannot_be_reintroduced(tmp_path: Path) -> None:
+def test_user_confirmation_is_required_while_pre_live_blocked(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     _mutate_v3(
         fixture,
         lambda row: row["execution_readiness"]["operator_trigger"].update(
-            {"user_confirmation_required": True}
+            {"user_confirmation_required": False}
         ),
     )
     with pytest.raises(readiness.ReadinessError, match="user_confirmation_required"):

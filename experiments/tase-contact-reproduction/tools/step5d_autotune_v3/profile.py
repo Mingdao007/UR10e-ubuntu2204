@@ -87,7 +87,9 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
         "candidate_schema",
         "source_sha256",
         "tp_artifact_sha256",
+        "candidate_tp_artifact_sha256",
         "deployment_tp_identity",
+        "promotion_status",
         "cli_arguments",
         "forbidden_cli_flags",
         "forbidden_environment",
@@ -134,6 +136,13 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
         raise ContractViolation("TP artifact hash set differs")
     for suffix, digest in artifacts.items():
         _sha256(digest, name=f"tp_artifact_sha256.{suffix}")
+    candidate_artifacts = payload["candidate_tp_artifact_sha256"]
+    if not isinstance(candidate_artifacts, dict) or set(candidate_artifacts) != {".urp", ".script", ".txt"}:
+        raise ContractViolation("candidate TP artifact hash set differs")
+    for suffix, digest in candidate_artifacts.items():
+        _sha256(digest, name=f"candidate_tp_artifact_sha256.{suffix}")
+    if payload["promotion_status"] != "requires_attended_tp_upload_readback":
+        raise ContractViolation("candidate TP promotion status differs")
     deployment = payload["deployment_tp_identity"]
     if not isinstance(deployment, dict) or set(deployment) != {
         "program",
@@ -399,7 +408,7 @@ def validate_source_bindings(
         or manifest.get("triplet_sha256") != contract["tp_artifact_sha256"]
     ):
         raise ContractViolation("deployment TP readback identity differs from the contract")
-    for suffix, expected in contract["tp_artifact_sha256"].items():
+    for suffix, expected in contract["candidate_tp_artifact_sha256"].items():
         relative = Path(deployment["artifact_dir"]) / f"{deployment['program']}{suffix}"
         artifact = experiment_root / relative
         if artifact.is_symlink() or not artifact.is_file():
@@ -408,7 +417,7 @@ def validate_source_bindings(
         observed[str(relative)] = digest
         if digest != expected:
             raise ContractViolation(
-                f"deployment TP artifact drifted: {relative} "
+                f"candidate TP artifact drifted: {relative} "
                 f"expected={expected} observed={digest}"
             )
     return observed
@@ -437,6 +446,8 @@ def control_fingerprint(
         "execution_profile_id": payload["execution_profile_id"],
         "source_sha256": payload["source_sha256"],
         "tp_artifact_sha256": payload["tp_artifact_sha256"],
+        "candidate_tp_artifact_sha256": payload["candidate_tp_artifact_sha256"],
+        "promotion_status": payload["promotion_status"],
         "deployment_tp_identity": payload["deployment_tp_identity"],
         "governed_effective_fields": governed,
     }

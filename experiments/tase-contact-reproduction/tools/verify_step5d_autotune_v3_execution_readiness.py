@@ -23,9 +23,22 @@ from step5d_autotune_v3.state import StateError, orchestration_fingerprint
 ROOT = Path(__file__).resolve().parents[1]
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
-READY_FOR_LIVE = "ready_for_v3_live_continuous_campaign"
 VALIDATION_SCOPE = "deterministic_live_entry_prerequisites"
 MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
+HISTORICAL_VALIDATION_IDENTITY = {
+    "contract_sha256": "96a83126c1bf4b11ed41429060e9b83c4b867f799dea337478c69bcf84ad57f0",
+    "control_fingerprint": "12a494fc44fc238a0623e951b1ae328c22cd18a3b966d79692c9c2b032ed80ea",
+    "orchestration_fingerprint": "8fdeb1b435bbafeff84877a354d41830f6ccfa7d7033d80401a3ae559cb29e94",
+}
+HISTORICAL_VALIDATION_DECISION = {
+    "go_no_go": "go",
+    "acceptance_scope": VALIDATION_SCOPE,
+    "current_selector": V1_STAGE_ID,
+    "v3_active": False,
+    "user_authorization_required": False,
+    "one_play_real_motion": True,
+    "execution_readiness": "ready_for_v3_live_continuous_campaign",
+}
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -131,7 +144,20 @@ def _verify_validation(
         "validation schema",
     )
     _zoned_timestamp(validation.get("observed_at"), role="validation timestamp")
-    _require(validation.get("identity"), current_identity, "validation identity")
+    _require(
+        validation.get("identity"),
+        HISTORICAL_VALIDATION_IDENTITY,
+        "historical validation identity",
+    )
+    _require(
+        validation.get("decision"),
+        HISTORICAL_VALIDATION_DECISION,
+        "historical validation decision",
+    )
+    if validation.get("identity") == current_identity:
+        raise ReadinessError(
+            "historical validation must not promote the current candidate identity"
+        )
 
     gates = validation.get("gates") or {}
     for name in (
@@ -171,17 +197,6 @@ def _verify_validation(
     ):
         _require(cadence.get(key), expected, f"cadence soak {key}")
 
-    decision = validation.get("decision") or {}
-    for key, expected in (
-        ("go_no_go", "go"),
-        ("acceptance_scope", VALIDATION_SCOPE),
-        ("current_selector", V1_STAGE_ID),
-        ("v3_active", False),
-        ("user_authorization_required", False),
-        ("one_play_real_motion", True),
-        ("execution_readiness", READY_FOR_LIVE),
-    ):
-        _require(decision.get(key), expected, f"validation decision {key}")
     return path, validation
 
 
@@ -209,6 +224,7 @@ def _verify_live_promotion(
         "same_process_startup_gate",
         "user_authorization_required",
         "live_runtime_promoted",
+        "blocker",
     }
     if set(promotion) != required:
         raise ReadinessError("V3 live promotion fields differ")
@@ -220,8 +236,9 @@ def _verify_live_promotion(
         ("identity", current_identity),
         ("machine_campaign_binding", MACHINE_BINDING),
         ("same_process_startup_gate", True),
-        ("user_authorization_required", False),
-        ("live_runtime_promoted", True),
+        ("user_authorization_required", True),
+        ("live_runtime_promoted", False),
+        ("blocker", "requires_attended_tp_upload_readback_and_certified_stopping_bound"),
     ):
         _require(promotion.get(key), expected, f"live promotion {key}")
     referenced_validation, _ = _reference(
@@ -242,7 +259,6 @@ def _verify_live_promotion(
 def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
     """Verify direct-live readiness; ``require_live`` remains API-compatible."""
 
-    del require_live
     root = root.expanduser().resolve(strict=True)
     try:
         contract = load_contract(
@@ -266,9 +282,9 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         _require(v3.get(field), expected, f"v3 {field}")
 
     package = v3.get("package_delivery") or {}
-    _require(package.get("status"), "controller_readback_verified_inactive", "package status")
-    _require(package.get("controller_uploaded_by_v3"), True, "V3 upload claim")
-    _require(package.get("controller_readback_verified"), True, "V3 readback claim")
+    _require(package.get("status"), "requires_attended_tp_upload_readback", "package status")
+    _require(package.get("controller_uploaded_by_v3"), False, "V3 upload claim")
+    _require(package.get("controller_readback_verified"), False, "V3 readback claim")
     program = package.get("program_basename")
     local_triplet = package.get("local_triplet")
     if not isinstance(program, str) or not isinstance(local_triplet, str):
@@ -295,8 +311,12 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
     readback = _load_json(readback_path, role="controller readback manifest")
     _require(readback.get("verified"), True, "controller readback verification")
     _require(readback.get("program"), program, "controller readback program")
-    _require(readback.get("tp_fingerprint"), package.get("tp_fingerprint"), "controller TP fingerprint")
-    _require(readback.get("triplet_sha256"), triplet, "controller triplet digests")
+    _require(
+        readback.get("tp_fingerprint"),
+        contract["deployment_tp_identity"]["tp_fingerprint"],
+        "controller TP fingerprint",
+    )
+    _require(readback.get("triplet_sha256"), contract["tp_artifact_sha256"], "controller triplet digests")
     readback_at = _zoned_timestamp(
         readback.get("fresh_controller_checked_at"), role="readback timestamp"
     )
@@ -315,25 +335,25 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
     readiness = v3.get("execution_readiness") or {}
     for key, expected in (
         ("schema", "step5d.autotune-v3/execution-readiness-v2"),
-        ("state", READY_FOR_LIVE),
-        ("public_success_signal", READY_FOR_LIVE),
+        ("state", "requires_attended_tp_upload_readback"),
+        ("public_success_signal", "requires_attended_tp_upload_readback"),
         ("deterministic_validation_complete", True),
-        ("package_delivery_complete", True),
-        ("live_runtime_promoted", True),
-        ("same_process_startup_gate_complete", True),
-        ("ready_to_execute", True),
-        ("ready_to_start_bridge", True),
-        ("ready_for_contact_or_motion", True),
+        ("package_delivery_complete", False),
+        ("live_runtime_promoted", False),
+        ("same_process_startup_gate_complete", False),
+        ("ready_to_execute", False),
+        ("ready_to_start_bridge", False),
+        ("ready_for_contact_or_motion", False),
     ):
         _require(readiness.get(key), expected, f"readiness {key}")
     trigger = readiness.get("operator_trigger") or {}
     for key, expected in (
         ("candidate_stage_id", V3_STAGE_ID),
-        ("user_confirmation_required", False),
-        ("user_authorization_required", False),
+        ("user_confirmation_required", True),
+        ("user_authorization_required", True),
         ("internal_launch_binding", MACHINE_BINDING),
-        ("tp_action", "press_play_once"),
-        ("play_effect", "real_precontact_search_contact_motion"),
+        ("tp_action", "attended_upload_readback_required"),
+        ("play_effect", "forbidden_in_offline_tranche"),
     ):
         _require(trigger.get(key), expected, f"operator trigger {key}")
 
@@ -344,25 +364,26 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         readback_relative=readback_relative,
         readback_sha256=readback_sha,
     )
+    if require_live:
+        raise ReadinessError(
+            "requires_attended_tp_upload_readback_and_certified_stopping_bound"
+        )
     return {
         "schema": "step5d.autotune-v3/execution-readiness-report-v2",
         "ok": True,
         "candidate_stage_id": V3_STAGE_ID,
         "current_stage_id": V1_STAGE_ID,
-        "state": READY_FOR_LIVE,
-        "public_success_signal": READY_FOR_LIVE,
-        "ready_to_execute": True,
-        "package_delivery": "controller_readback_verified_explicit_v3",
+        "state": "requires_attended_tp_upload_readback",
+        "public_success_signal": "requires_attended_tp_upload_readback",
+        "ready_to_execute": False,
+        "package_delivery": "requires_attended_tp_upload_readback",
         "controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
-        "next_owner": "ur10e-live-bench",
-        "next_legal_action": (
-            "start the canonical V3 bridge/campaign entrypoint; after its READY signal, "
-            "press TP Play once for real motion"
-        ),
-        "canonical_gate": ["scripts/step5d-autotune-v3.sh", "live"],
-        "user_authorization_required": False,
+        "next_owner": "attended_tp_owner",
+        "next_legal_action": "attended TP upload/readback, then certify stopping bound",
+        "canonical_gate": [],
+        "user_authorization_required": True,
         "hil_hold_required": False,
     }
 
