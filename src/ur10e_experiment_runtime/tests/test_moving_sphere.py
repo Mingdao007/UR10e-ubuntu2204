@@ -7,6 +7,7 @@ from ur10e_experiment_runtime.moving_sphere import (
     StoppingBoundArtifact,
     StoppingBoundEvidenceComponent,
     StoppingBoundEvidenceManifest,
+    load_stopping_bound_artifact,
 )
 from ur10e_experiment_runtime.stage_adapters import (
     ControllerProgress,
@@ -18,6 +19,7 @@ from ur10e_experiment_runtime.stage_adapters import (
 
 REF = "a" * 64
 EVIDENCE = "b" * 64
+OFFLINE_DOMAIN = "offline_fixture_only"
 
 
 def certified_manifest(
@@ -71,6 +73,7 @@ def certified_manifest(
         source_binding_sha256=EVIDENCE,
         stop_transport_sha256=EVIDENCE,
         deployment_readback_sha256=EVIDENCE,
+        certification_binding_sha256=EVIDENCE,
     )
 
 
@@ -96,6 +99,7 @@ def test_stopping_bound_evidence_is_complete_ordered_and_numerically_bound() -> 
             source_binding_sha256=EVIDENCE,
             stop_transport_sha256=EVIDENCE,
             deployment_readback_sha256=EVIDENCE,
+            certification_binding_sha256=EVIDENCE,
         )
     except ValueError as exc:
         assert "roles/order" in str(exc)
@@ -121,6 +125,7 @@ def test_stopping_bound_evidence_is_complete_ordered_and_numerically_bound() -> 
         source_binding_sha256=EVIDENCE,
         stop_transport_sha256=None,
         deployment_readback_sha256=None,
+        certification_binding_sha256=None,
     )
     assert incomplete.certified is False
     try:
@@ -205,14 +210,14 @@ def tick(kernel: MovingSphereKernel, **overrides):
 
 
 def test_actual_and_predicted_breaches_have_distinct_reasons() -> None:
-    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified())
+    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified(), required_validity_domain=OFFLINE_DOMAIN)
     assert tick(kernel, tcp_base=(0.016, 0.0, 0.0)).reason is SphereReason.SPHERE_ACTUAL_BREACH
     result = tick(kernel, tcp_base=(0.014, 0.0, 0.0), tcp_speed_m_s=0.1)
     assert result.reason is SphereReason.SPHERE_PREDICTED_STOP_BREACH
 
 
 def test_missing_nonfinite_reference_stale_and_uncertified_fail_closed() -> None:
-    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified())
+    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified(), required_validity_domain=OFFLINE_DOMAIN)
     assert kernel.tick(progress=None, tcp_base=None, tcp_speed_m_s=None).reason is SphereReason.SPHERE_INPUT_MISSING
     assert tick(kernel, tcp_speed_m_s=float("nan")).reason is SphereReason.SPHERE_INPUT_NONFINITE
     assert tick(
@@ -223,7 +228,7 @@ def test_missing_nonfinite_reference_stale_and_uncertified_fail_closed() -> None
         kernel,
         progress_overrides={"age_ns": 2_000_001},
     ).reason is SphereReason.SPHERE_PROGRESS_STALE
-    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=None)
+    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=None, required_validity_domain=OFFLINE_DOMAIN)
     assert tick(kernel).reason is SphereReason.SPHERE_STOP_BOUND_UNCERTIFIED
 
 
@@ -242,6 +247,7 @@ def test_certified_bound_must_cover_explicit_tp_watchdog_latency() -> None:
     kernel = MovingSphereKernel(
         reference_sha256=REF,
         stopping_bound=certified(),
+        required_validity_domain=OFFLINE_DOMAIN,
         minimum_reaction_latency_s=0.020,
     )
     result = tick(kernel, tcp_base=(0.0, 0.0, 0.0))
@@ -250,7 +256,7 @@ def test_certified_bound_must_cover_explicit_tp_watchdog_latency() -> None:
 
 
 def test_only_enumerated_inactive_phase_bypasses_sphere() -> None:
-    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified())
+    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified(), required_validity_domain=OFFLINE_DOMAIN)
     inactive = ControllerProgress(phase=ControllerProgressPhase.INACTIVE)
     assert not kernel.tick(progress=inactive, tcp_base=None, tcp_speed_m_s=None).stop
     unknown = ControllerProgress(phase=ControllerProgressPhase.UNKNOWN)
@@ -258,7 +264,7 @@ def test_only_enumerated_inactive_phase_bypasses_sphere() -> None:
 
 
 def test_repeated_or_regressing_controller_sample_fails_closed() -> None:
-    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified())
+    kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified(), required_validity_domain=OFFLINE_DOMAIN)
     first = active_progress(kernel)
     assert kernel.tick(progress=first, tcp_base=(0.0, 0.0, 0.0), tcp_speed_m_s=0.0).reason is SphereReason.SPHERE_OK
     assert kernel.tick(progress=first, tcp_base=(0.0, 0.0, 0.0), tcp_speed_m_s=0.0).reason is SphereReason.SPHERE_PROGRESS_NONSEQUENTIAL
@@ -313,6 +319,7 @@ def test_adapter_and_kernel_reject_skipped_controller_tick() -> None:
     kernel = MovingSphereKernel(
         reference_sha256=adapter.reference_sha256,
         stopping_bound=certified(),
+        required_validity_domain=OFFLINE_DOMAIN,
     )
     first = adapter.sample(
         stage=25.0,
@@ -343,8 +350,8 @@ def test_adapter_and_kernel_reject_skipped_controller_tick() -> None:
 
 
 def test_active_bound_remains_conservative_when_center_is_frozen() -> None:
-    moving_kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified())
-    frozen_kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified())
+    moving_kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified(), required_validity_domain=OFFLINE_DOMAIN)
+    frozen_kernel = MovingSphereKernel(reference_sha256=REF, stopping_bound=certified(), required_validity_domain=OFFLINE_DOMAIN)
     moving = tick(
         moving_kernel,
         tcp_base=(0.0148, 0.0, 0.0),
@@ -355,4 +362,4 @@ def test_active_bound_remains_conservative_when_center_is_frozen() -> None:
         tcp_base=(0.0148, 0.0, 0.0),
         progress_overrides={"center_frozen": True},
     ).predicted_radial_bound_m
-    assert frozen == moving
+    assert frozen < moving

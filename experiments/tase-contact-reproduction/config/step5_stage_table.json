@@ -10384,7 +10384,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is an offline pre-live candidate blocked on current-source formal 500 Hz timing, a certified stopping bound, a certified return-route angular envelope, attended TP upload/readback, current Power-OFF identity, attended Sol/XHigh audit, and fresh authorization; v1 remains the current controller binding",
+      "block_reason": "V3 remains pre-live blocked on requires_current_source_formal_500hz_timing, requires_attended_tp_upload_readback, requires_current_poweroff_controller_identity, requires_certification_motion_authorization, requires_certified_stopping_bound, requires_certified_return_route_angular_envelope, requires_attended_sol_xhigh_pre_live_audit, requires_fresh_campaign_authorization; V1 remains the current controller binding",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10406,7 +10406,12 @@
         "control_math_changed": false,
         "trajectory_changed": true,
         "force_frame_changed": false,
-        "candidate_fields": ["force_p_gain", "force_i_gain", "force_damping", "orientation_ko"],
+        "candidate_fields": [
+          "force_p_gain",
+          "force_i_gain",
+          "force_damping",
+          "orientation_ko"
+        ],
         "precontact_pose_prior_id": "step5d_v3_physical_prior_contact_0p1_20260719",
         "precontact_pose_evidence": "evidence/step5d_autotune_v3/start_pose_prior_20260719.json"
       },
@@ -10458,17 +10463,17 @@
         "reproduction_complete": false
       },
       "offline_validation": {
-        "status": "pass_offline_implementation_pre_live_blocked",
         "acceptance_scope": "offline_pre_live_only",
-        "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "1e8691c4b31de4da1345a13de2f6a6bec1d608dc7d0e237a0c42852cfa923c2a",
-        "exact_ten_row_lifecycle": "pass",
         "diagnostic_bundle_replay": "pass",
-        "source_exact_sphere_seam_timing": "blocked_current_source_timing_not_run",
+        "exact_ten_row_lifecycle": "pass",
         "formal_500hz_timing": "blocked_current_source_timing_not_run",
+        "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
-        "simulation": "pass_ursim_hold_current_fingerprint",
-        "hardware_promotion": "blocked"
+        "report": "config/step5/step5d_autotune_v3_offline_validation.json",
+        "report_sha256": "2bd06ff5c0ed311e26ea434e71688caaf2e8ce118153ed009d2a396d5913b5f3",
+        "simulation": "pass_current_fingerprint_return_motion",
+        "source_exact_sphere_seam_timing": "superseded_by_combined_formal_three_lane_timing_pending",
+        "status": "pass_offline_implementation_pre_live_blocked"
       },
       "current_binding": {
         "is_current": false,
@@ -10479,19 +10484,9 @@
         "live_authorized": false
       },
       "execution_readiness": {
-        "schema": "step5d.autotune-v3/execution-readiness-v2",
+        "schema": "step5d.autotune-v3/execution-readiness-v3",
         "state": "pre_live_blocked",
         "public_success_signal": "requires_current_source_formal_500hz_timing",
-        "next_owner": "ur10e-contact-control-prep",
-        "blockers": [
-          "requires_current_source_formal_500hz_timing",
-          "requires_certified_stopping_bound",
-          "requires_certified_return_route_angular_envelope",
-          "requires_attended_tp_upload_readback",
-          "requires_current_poweroff_controller_identity",
-          "requires_attended_sol_xhigh_pre_live_audit",
-          "requires_fresh_live_authorization"
-        ],
         "deterministic_validation_complete": true,
         "package_delivery_complete": false,
         "candidate_current": false,
@@ -10502,10 +10497,22 @@
         "ready_to_start_bridge": false,
         "ready_to_arm": false,
         "ready_for_contact_or_motion": false,
+        "blockers": [
+          "requires_current_source_formal_500hz_timing",
+          "requires_attended_tp_upload_readback",
+          "requires_current_poweroff_controller_identity",
+          "requires_certification_motion_authorization",
+          "requires_certified_stopping_bound",
+          "requires_certified_return_route_angular_envelope",
+          "requires_attended_sol_xhigh_pre_live_audit",
+          "requires_fresh_campaign_authorization"
+        ],
+        "next_owner": "ur10e-contact-control-prep",
         "operator_trigger": {
           "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
           "user_confirmation_required": true,
-          "user_authorization_required": true,
+          "certification_motion_authorization_required": true,
+          "campaign_authorization_required": true,
           "internal_launch_binding": "machine_generated_epoch_and_process_fingerprint",
           "tp_action": "attended_upload_readback_required",
           "play_effect": "forbidden_in_offline_tranche"

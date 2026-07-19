@@ -47,7 +47,8 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
     assert report["execution_readiness"] == "pre_live_blocked"
     assert report["ready_to_execute"] is False
     assert report["acceptance_scope"] == "offline_pre_live_only"
-    assert report["user_authorization_required"] is True
+    assert report["certification_motion_authorization_required"] is True
+    assert report["campaign_authorization_required"] is True
     assert "evidence/step5d_autotune_v3/start_pose_prior_20260719.json" in report["verified_paths"]
 
 
@@ -62,14 +63,14 @@ def test_triplet_byte_mutation_fails_closed(tmp_path: Path) -> None:
 def test_v3_selector_cannot_become_active_in_offline_bundle(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     stage_table = fixture / "config/step5_stage_table.json"
-    text = stage_table.read_text(encoding="utf-8")
-    marker = '"id": "step5d_strict_rnn_autotune_v3"'
-    start = text.index(marker)
-    active = text.index('"active": false', start)
-    stage_table.write_text(
-        text[:active] + text[active:].replace('"active": false', '"active": true', 1),
-        encoding="utf-8",
+    table = json.loads(stage_table.read_text(encoding="utf-8"))
+    row = next(
+        item
+        for item in table["stages"]
+        if item.get("id") == artifacts.V3_STAGE_ID
     )
+    row["active"] = True
+    stage_table.write_text(json.dumps(table), encoding="utf-8")
     with pytest.raises(artifacts.ArtifactVerificationError, match="v3 active"):
         artifacts.verify(fixture)
 

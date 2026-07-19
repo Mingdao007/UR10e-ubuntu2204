@@ -5,10 +5,15 @@
     "exact_source_and_deployment_fingerprints_required": true,
     "latency_upper_bound_required": true,
     "minimum_deceleration_lower_bound_required": true,
+    "minimum_samples_per_stop_path": 3,
+    "no_contact_motion_only": true,
     "numeric_margin_preregistered": true,
+    "procedure_ticket_required_before_each_motion": true,
     "robot_power_and_motion_required": true,
     "speed_growth_upper_bound_required": true
   },
+  "certification_authorization_sha256": null,
+  "certification_binding_sha256": null,
   "certified": false,
   "components": [
     {
@@ -72,16 +77,19 @@
   ],
   "deployment_readback_sha256": null,
   "live_effect": "stopping_bound_none_fail_closed",
-  "manifest_fingerprint": "96d91d00079b191acf5e9bcc9af1b37abc69b01f46c250dbcdb99515a25ee7a7",
+  "manifest_fingerprint": "e65198b3e8384833e17b0c2e536e2de8327df78878766dce7bb29cb9d370d3cd",
+  "measurement_sha256": null,
   "optimizer_eligible": false,
-  "schema": "step5d.autotune-v3/stopping-bound-evidence-v1",
-  "source_binding_sha256": "84edff9952deba44621581ee405ea40c44d4f1afec8ce5ddff0b9d6dff247f7a",
+  "plant_epoch": null,
+  "schema": "step5d.autotune-v3/stopping-bound-evidence-v2",
+  "source_binding_sha256": "7d759cc474ea218d0fa61bb7c8e1f94ea34023c66b19a4b7e267926db15ff230",
   "source_sha256": {
     "bridge": "dad5b5b8e37dfddd22447738e7aeb5d61bf0348eee5f527f08a99132f8c204ed",
-    "moving_sphere": "ea5858c675c2b95afb3635b2c15e2ad37c6a9972b92cf99152f658eca1e1266d",
+    "moving_sphere": "552d02a0f6eff7aa25c4029098c8c7ac6564279bfa3e9f65444c5ef17b1aad3b",
     "stage_adapter": "bb8e7d7512438eb728fbc02afa9a4ab5fe47a7cbef53140c5c656254923c0dd3"
   },
   "status": "incomplete_attended_measurement_required",
   "stop_transport_sha256": "dad5b5b8e37dfddd22447738e7aeb5d61bf0348eee5f527f08a99132f8c204ed",
-  "validity_domain": "step5d_v3_exact_source_controller_and_plant_epoch"
+  "stopping_bound_fingerprint": null,
+  "validity_domain": "ur10e_step5d_autotune_v3_live_500hz_exact_controller_tp_transport_v1"
 }

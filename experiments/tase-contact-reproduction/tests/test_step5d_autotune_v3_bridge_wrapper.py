@@ -223,6 +223,7 @@ def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
         step5d_moving_sphere_kernel=MovingSphereKernel(
             reference_sha256=adapter.reference_sha256,
             stopping_bound=bound,
+            required_validity_domain=bound.validity_domain,
         ),
         step5d_moving_sphere_progress_age_ns=0,
     )
@@ -270,6 +271,7 @@ def test_production_sphere_seam_uses_typed_progress_and_exact_stop() -> None:
         step5d_moving_sphere_kernel=MovingSphereKernel(
             reference_sha256="c" * 64,
             stopping_bound=bound,
+            required_validity_domain=bound.validity_domain,
         ),
         step5d_moving_sphere_progress_age_ns=0,
     )

@@ -71,18 +71,20 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     assert report["current_stage_id"] == readiness.V1_STAGE_ID
     assert report["next_owner"] == "ur10e-contact-control-prep"
     assert report["timing_diagnostic"] == (
-        "blocked_current_source_timing_not_run_host_nice_19"
+        "blocked_current_source_timing_not_run_task_b_pending"
     )
     assert report["canonical_gate"] == [
         "current_source_formal_500hz_timing",
-        "certified_stopping_bound",
-        "certified_return_route_angular_envelope",
         "attended_tp_upload_readback",
         "current_poweroff_controller_identity",
+        "certification_motion_authorization",
+        "certified_stopping_bound",
+        "certified_return_route_angular_envelope",
         "attended_sol_xhigh_pre_live_audit",
-        "fresh_live_authorization",
+        "fresh_campaign_authorization",
     ]
-    assert report["user_authorization_required"] is True
+    assert report["certification_motion_authorization_required"] is True
+    assert report["campaign_authorization_required"] is True
     assert report["hil_hold_required"] is False
 
 
@@ -91,8 +93,9 @@ def test_repository_live_signal_is_the_only_readiness_state() -> None:
         readiness.ReadinessError,
         match=(
             "requires_current_source_formal_500hz_timing_"
-            "certified_stopping_bound_"
-            "certified_return_route_angular_envelope"
+            "requires_attended_tp_upload_readback_"
+            "requires_current_poweroff_controller_identity_"
+            "requires_certification_motion_authorization"
         ),
     ):
         readiness.verify(ROOT, require_live=True)
@@ -231,13 +234,48 @@ def test_stage_table_cannot_promote_blocked_safety_fields(
         readiness.verify(fixture)
 
 
-def test_stage_table_requires_the_exact_seven_blockers(tmp_path: Path) -> None:
+def test_stage_table_requires_the_exact_pre_live_blockers(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     _mutate_v3(
         fixture,
         lambda row: row["execution_readiness"]["blockers"].pop(),
     )
     with pytest.raises(readiness.ReadinessError, match="readiness blockers"):
+        readiness.verify(fixture)
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "certification_motion_authorization_required",
+        "campaign_authorization_required",
+    ),
+)
+def test_both_authorization_types_remain_explicit(
+    tmp_path: Path, field: str
+) -> None:
+    fixture = _fixture_root(tmp_path)
+    _mutate_v3(
+        fixture,
+        lambda row: row["execution_readiness"]["operator_trigger"].update(
+            {field: False}
+        ),
+    )
+    with pytest.raises(readiness.ReadinessError, match=field):
+        readiness.verify(fixture)
+
+
+def test_certification_and_campaign_authorizations_cannot_be_collapsed(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture_root(tmp_path)
+    validation_path = (
+        fixture / "config/step5/step5d_autotune_v3_offline_validation.json"
+    )
+    validation = json.loads(validation_path.read_text(encoding="utf-8"))
+    validation["gates"]["authorization_separation"]["interchangeable"] = True
+    validation_path.write_text(json.dumps(validation), encoding="utf-8")
+    with pytest.raises(readiness.ReadinessError, match="authorization separation"):
         readiness.verify(fixture)
 
 

@@ -5,9 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
 import math
+from pathlib import Path
 from typing import Sequence
 
-from .identity import canonical_sha256
+from .authorization import CertificationMotionAuthorization
+from .identity import canonical_sha256, load_strict_json
 from .stage_adapters import ControllerProgress, ControllerProgressPhase
 
 
@@ -26,6 +28,23 @@ STOPPING_BOUND_EVIDENCE_STATUSES = (
     "diagnostic_only",
     "missing",
 )
+STOPPING_BOUND_EVIDENCE_SCHEMA = "step5d.autotune-v3/stopping-bound-evidence-v2"
+STOPPING_BOUND_VALIDITY_DOMAIN = (
+    "ur10e_step5d_autotune_v3_live_500hz_exact_controller_tp_transport_v1"
+)
+ATTENDED_STOPPING_MEASUREMENT_CONTRACT = {
+    "exact_source_and_deployment_fingerprints_required": True,
+    "direct_exact_stop_and_stale_watchdog_paths_required": True,
+    "minimum_samples_per_stop_path": 3,
+    "latency_upper_bound_required": True,
+    "speed_growth_upper_bound_required": True,
+    "minimum_deceleration_lower_bound_required": True,
+    "numeric_margin_preregistered": True,
+    "all_samples_retained_no_silent_outlier_deletion": True,
+    "no_contact_motion_only": True,
+    "robot_power_and_motion_required": True,
+    "procedure_ticket_required_before_each_motion": True,
+}
 
 
 class SphereReason(IntEnum):
@@ -92,6 +111,7 @@ class StoppingBoundEvidenceManifest:
     source_binding_sha256: str | None
     stop_transport_sha256: str | None
     deployment_readback_sha256: str | None
+    certification_binding_sha256: str | None
 
     def __post_init__(self) -> None:
         if not self.validity_domain:
@@ -103,6 +123,7 @@ class StoppingBoundEvidenceManifest:
             "source_binding_sha256",
             "stop_transport_sha256",
             "deployment_readback_sha256",
+            "certification_binding_sha256",
         ):
             value = getattr(self, name)
             if value is not None and (
@@ -121,6 +142,7 @@ class StoppingBoundEvidenceManifest:
             and self.source_binding_sha256 is not None
             and self.stop_transport_sha256 is not None
             and self.deployment_readback_sha256 is not None
+            and self.certification_binding_sha256 is not None
         )
 
     @property
@@ -133,6 +155,7 @@ class StoppingBoundEvidenceManifest:
                 "source_binding_sha256": self.source_binding_sha256,
                 "stop_transport_sha256": self.stop_transport_sha256,
                 "deployment_readback_sha256": self.deployment_readback_sha256,
+                "certification_binding_sha256": self.certification_binding_sha256,
                 "certified": self.certified,
             }
         )
@@ -258,6 +281,7 @@ def build_offline_fixture_stopping_bound(
         source_binding_sha256=evidence_sha256,
         stop_transport_sha256=evidence_sha256,
         deployment_readback_sha256=evidence_sha256,
+        certification_binding_sha256=evidence_sha256,
     )
     return StoppingBoundArtifact(
         reaction_latency_s=reaction_latency_s,
@@ -268,6 +292,185 @@ def build_offline_fixture_stopping_bound(
         numeric_margin_m=numeric_margin_m,
         evidence_manifest=manifest,
     )
+
+
+def _strict_sha256(name: str, value: object) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(f"{name} must be a lowercase SHA256")
+    return value
+
+
+def load_stopping_bound_artifact(
+    path: str | Path,
+    *,
+    expected_validity_domain: str,
+    expected_source_binding_sha256: str,
+    expected_stop_transport_sha256: str,
+    expected_deployment_readback_sha256: str,
+    certification_authorization: CertificationMotionAuthorization,
+    expected_plant_epoch: int,
+) -> StoppingBoundArtifact:
+    """Load a promoted attended bound before entering the 500 Hz path."""
+
+    source = Path(path)
+    if not source.is_absolute() or source.is_symlink() or not source.is_file():
+        raise ValueError("stopping-bound artifact must be an absolute regular file")
+    payload = load_strict_json(source)
+    required = {
+        "schema",
+        "status",
+        "certified",
+        "optimizer_eligible",
+        "manifest_fingerprint",
+        "stopping_bound_fingerprint",
+        "validity_domain",
+        "source_binding_sha256",
+        "stop_transport_sha256",
+        "deployment_readback_sha256",
+        "certification_authorization_sha256",
+        "certification_binding_sha256",
+        "plant_epoch",
+        "measurement_sha256",
+        "source_sha256",
+        "components",
+        "attended_measurement_contract",
+        "live_effect",
+    }
+    if not isinstance(payload, dict) or set(payload) != required:
+        raise ValueError("stopping-bound artifact fields differ")
+    if payload["schema"] != STOPPING_BOUND_EVIDENCE_SCHEMA:
+        raise ValueError("stopping-bound artifact schema differs")
+    if (
+        payload["status"] != "certified_attended_measurement"
+        or payload["certified"] is not True
+        or payload["optimizer_eligible"] is not False
+        or payload["live_effect"] != "certified_bound_available_for_explicit_runtime_load"
+    ):
+        raise ValueError("stopping-bound artifact is not a promoted certification")
+    if payload["attended_measurement_contract"] != ATTENDED_STOPPING_MEASUREMENT_CONTRACT:
+        raise ValueError("stopping-bound measurement contract differs")
+    if isinstance(expected_plant_epoch, bool) or expected_plant_epoch < 1:
+        raise ValueError("expected_plant_epoch must be positive")
+    if (
+        certification_authorization.plant_epoch != expected_plant_epoch
+        or certification_authorization.deployment_readback_sha256
+        != expected_deployment_readback_sha256
+    ):
+        raise ValueError(
+            "certification authorization differs from the stopping deployment"
+        )
+    expected = {
+        "validity_domain": expected_validity_domain,
+        "source_binding_sha256": _strict_sha256(
+            "expected_source_binding_sha256", expected_source_binding_sha256
+        ),
+        "stop_transport_sha256": _strict_sha256(
+            "expected_stop_transport_sha256", expected_stop_transport_sha256
+        ),
+        "deployment_readback_sha256": _strict_sha256(
+            "expected_deployment_readback_sha256",
+            expected_deployment_readback_sha256,
+        ),
+        "certification_authorization_sha256": (
+            certification_authorization.authorization_ref_sha256
+        ),
+        "plant_epoch": expected_plant_epoch,
+    }
+    for name, value in expected.items():
+        if payload[name] != value:
+            raise ValueError(f"stopping-bound artifact {name} differs")
+    _strict_sha256("measurement_sha256", payload["measurement_sha256"])
+    source_sha256 = payload["source_sha256"]
+    if (
+        not isinstance(source_sha256, dict)
+        or set(source_sha256) != {"bridge", "moving_sphere", "stage_adapter"}
+    ):
+        raise ValueError("stopping-bound source digest fields differ")
+    for name, value in source_sha256.items():
+        _strict_sha256(f"source_sha256.{name}", value)
+    if canonical_sha256(source_sha256) != payload["source_binding_sha256"]:
+        raise ValueError("stopping-bound source binding is not canonical")
+    if source_sha256["bridge"] != payload["stop_transport_sha256"]:
+        raise ValueError("stopping-bound stop transport differs from bridge source")
+    certification_binding = canonical_sha256(
+        {
+            "schema": "ur-exp/step5d-stopping-certification-binding-v1",
+            "validity_domain": payload["validity_domain"],
+            "source_binding_sha256": payload["source_binding_sha256"],
+            "stop_transport_sha256": payload["stop_transport_sha256"],
+            "deployment_readback_sha256": payload[
+                "deployment_readback_sha256"
+            ],
+            "certification_authorization_sha256": payload[
+                "certification_authorization_sha256"
+            ],
+            "plant_epoch": payload["plant_epoch"],
+            "measurement_sha256": payload["measurement_sha256"],
+        }
+    )
+    if payload["certification_binding_sha256"] != certification_binding:
+        raise ValueError("stopping-bound certification binding differs")
+    component_rows = payload["components"]
+    if not isinstance(component_rows, list) or len(component_rows) != len(
+        STOPPING_BOUND_EVIDENCE_ROLES
+    ):
+        raise ValueError("stopping-bound evidence components differ")
+    components: list[StoppingBoundEvidenceComponent] = []
+    for role, row in zip(STOPPING_BOUND_EVIDENCE_ROLES, component_rows, strict=True):
+        fields = {
+            "role",
+            "status",
+            "value",
+            "units",
+            "frame",
+            "method",
+            "evidence_sha256",
+        }
+        if not isinstance(row, dict) or set(row) != fields or row["role"] != role:
+            raise ValueError("stopping-bound evidence role/order differs")
+        digests = row["evidence_sha256"]
+        if not isinstance(digests, list):
+            raise ValueError("stopping-bound evidence digests must be an array")
+        components.append(
+            StoppingBoundEvidenceComponent(
+                role=row["role"],
+                status=row["status"],
+                value=row["value"],
+                units=row["units"],
+                frame=row["frame"],
+                method=row["method"],
+                evidence_sha256=tuple(digests),
+            )
+        )
+    manifest = StoppingBoundEvidenceManifest(
+        components=tuple(components),
+        validity_domain=payload["validity_domain"],
+        source_binding_sha256=payload["source_binding_sha256"],
+        stop_transport_sha256=payload["stop_transport_sha256"],
+        deployment_readback_sha256=payload["deployment_readback_sha256"],
+        certification_binding_sha256=payload["certification_binding_sha256"],
+    )
+    if manifest.fingerprint != payload["manifest_fingerprint"]:
+        raise ValueError("stopping-bound evidence manifest fingerprint differs")
+    values = {component.role: component.value for component in manifest.components}
+    artifact = StoppingBoundArtifact(
+        reaction_latency_s=values["reaction_latency_s"],
+        acceleration_growth_m_s2=values["acceleration_growth_m_s2"],
+        minimum_deceleration_m_s2=values["minimum_deceleration_m_s2"],
+        center_speed_bound_m_s=values["center_speed_bound_m_s"],
+        center_acceleration_bound_m_s2=values[
+            "center_acceleration_bound_m_s2"
+        ],
+        numeric_margin_m=values["numeric_margin_m"],
+        evidence_manifest=manifest,
+    )
+    if artifact.fingerprint != payload["stopping_bound_fingerprint"]:
+        raise ValueError("stopping-bound artifact fingerprint differs")
+    return artifact
 
 
 @dataclass(slots=True)
@@ -296,7 +499,7 @@ class MovingSphereKernel:
         *,
         reference_sha256: str,
         stopping_bound: StoppingBoundArtifact | None,
-        required_validity_domain: str | None = None,
+        required_validity_domain: str,
         minimum_reaction_latency_s: float = 0.0,
         result: SphereTickResult | None = None,
     ) -> None:
@@ -304,8 +507,8 @@ class MovingSphereKernel:
             raise ValueError("reference_sha256 must be a lowercase SHA256")
         self.reference_sha256 = reference_sha256
         self.stopping_bound = stopping_bound
-        if required_validity_domain is not None and not required_validity_domain:
-            raise ValueError("required_validity_domain must be non-empty when set")
+        if not required_validity_domain:
+            raise ValueError("required_validity_domain must be explicit and non-empty")
         if (
             not math.isfinite(minimum_reaction_latency_s)
             or minimum_reaction_latency_s < 0.0
@@ -398,10 +601,7 @@ class MovingSphereKernel:
         if bound is None or not bound.certified:
             out.reason = SphereReason.SPHERE_STOP_BOUND_UNCERTIFIED
             return out
-        if (
-            self.required_validity_domain is not None
-            and bound.validity_domain != self.required_validity_domain
-        ):
+        if bound.validity_domain != self.required_validity_domain:
             out.reason = SphereReason.SPHERE_STOP_BOUND_DOMAIN_MISMATCH
             return out
         if bound.reaction_latency_s < self.minimum_reaction_latency_s:
@@ -425,10 +625,12 @@ class MovingSphereKernel:
             + v_latency * v_latency / (2.0 * bound.minimum_deceleration_m_s2)
         )
         interval = latency + stop_time
-        center_sweep = (
-            bound.center_speed_bound_m_s * interval
-            + 0.5 * bound.center_acceleration_bound_m_s2 * interval * interval
-        )
+        center_sweep = 0.0
+        if not progress.center_frozen:
+            center_sweep = (
+                bound.center_speed_bound_m_s * interval
+                + 0.5 * bound.center_acceleration_bound_m_s2 * interval * interval
+            )
         out.predicted_radial_bound_m = d0 + tcp_sweep + center_sweep + bound.numeric_margin_m
         if out.predicted_radial_bound_m > SPHERE_RADIUS_M:
             out.reason = SphereReason.SPHERE_PREDICTED_STOP_BREACH

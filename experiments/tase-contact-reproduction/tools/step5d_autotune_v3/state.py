@@ -348,16 +348,25 @@ ORCHESTRATION_RELATIVE_PATHS = (
     "tools/preflight_step5d_autotune_v3.py",
     "tools/verify_step5d_autotune_v3_execution_readiness.py",
     "tools/build_step5d_autotune_v3_stopping_bound_evidence.py",
+    "tools/promote_step5d_autotune_v3_stopping_bound_evidence.py",
     "tools/build_step5d_autotune_v3_return_route_evidence.py",
+    "tools/promote_step5d_autotune_v3_return_route_evidence.py",
+    "tools/run_step5d_autotune_v3_ursim_return_gate.py",
+    "tools/rebuild_step5d_autotune_v3_pre_live_evidence.py",
+    "tools/run_step5d_parallel_workflow.py",
+    "tools/run_step5d_v30_remote_timing.py",
+    "tools/build_step5d_v30_remote_timing_bundle.py",
+    "tools/step5d_v30_timing.py",
+    "tools/step5d_timing_acceptance.py",
     "scripts/step5d-autotune-v3.sh",
     "config/systemd/step5d-autotune-v3.service",
     "config/step5/step5d_autotune_v3_launch_profile.json",
-    "config/step5/step5d_autotune_v3_stopping_bound_evidence.json",
-    "config/step5/step5d_autotune_v3_return_route_evidence.json",
     "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
 )
 
 ORCHESTRATION_REPO_RELATIVE_PATHS = (
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/authorization.py",
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py",
     "src/ur10e_experiment_runtime/ur10e_experiment_runtime/return_route.py",
 )
 

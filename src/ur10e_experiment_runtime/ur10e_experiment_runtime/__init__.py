@@ -30,10 +30,23 @@ from .identity import (
     load_strict_json,
     strict_json_loads,
 )
+from .authorization import (
+    AuthorizationError,
+    CampaignAuthorization,
+    CERTIFICATION_PROCEDURES,
+    CertificationMotionAuthorization,
+    CertificationProcedureTicket,
+    STEP5D_V3_STAGE_IDENTITY,
+    Step5dV3StageIdentity,
+    issue_certification_procedure_ticket,
+    load_campaign_authorization,
+    load_certification_motion_authorization,
+)
 from .registry import ComponentKind, ComponentRegistry, build_default_registry
 from .physical_prior import PhysicalPriorArtifact, STEP5D_V3_PHYSICAL_PRIOR
 from .moving_sphere import (
     build_offline_fixture_stopping_bound,
+    load_stopping_bound_artifact,
     MovingSphereKernel,
     SphereReason,
     SphereTickResult,
@@ -69,14 +82,20 @@ from .runtime import (
 
 
 __all__ = [
+    "AuthorizationError",
     "AutotuneCandidate",
     "build_offline_fixture_stopping_bound",
+    "load_stopping_bound_artifact",
     "BatchFate",
     "BatchIdentity",
     "BatchJournal",
     "BatchRow",
     "ComponentKind",
     "ComponentRegistry",
+    "CERTIFICATION_PROCEDURES",
+    "CampaignAuthorization",
+    "CertificationMotionAuthorization",
+    "CertificationProcedureTicket",
     "ExperimentRuntimeError",
     "ExperimentSpec",
     "ExactAckReceipt",
@@ -106,6 +125,8 @@ __all__ = [
     "StoppingBoundEvidenceManifest",
     "TrialBrief",
     "STEP5D_V3_PHYSICAL_PRIOR",
+    "STEP5D_V3_STAGE_IDENTITY",
+    "Step5dV3StageIdentity",
     "UnsupportedExecutionError",
     "build_default_registry",
     "build_trial_brief",
@@ -115,7 +136,10 @@ __all__ = [
     "create_exclusive_run_directory",
     "finalize_run_manifest",
     "HostResourceLock",
+    "issue_certification_procedure_ticket",
     "load_experiment_spec",
+    "load_campaign_authorization",
+    "load_certification_motion_authorization",
     "load_run_manifest",
     "load_strict_json",
     "plan_experiment",

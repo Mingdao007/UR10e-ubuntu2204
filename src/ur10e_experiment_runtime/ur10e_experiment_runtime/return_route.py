@@ -12,6 +12,10 @@ from .physical_prior import PhysicalPriorArtifact
 
 
 SAFE_TRANSFER_Z_M = 0.033
+RETURN_SEGMENT_VERTICAL_ACCELERATION_M_S2 = 0.060
+RETURN_SEGMENT_VERTICAL_SPEED_M_S = 0.040
+RETURN_SEGMENT_HORIZONTAL_ACCELERATION_M_S2 = 0.135
+RETURN_SEGMENT_HORIZONTAL_SPEED_M_S = 0.090
 RETURN_ANGULAR_SPEED_LIMIT_RAD_S = 0.050
 RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2 = 0.100
 RETURN_ANGULAR_SPEED_GUARD_RAD_S = 0.060
@@ -20,6 +24,354 @@ RETURN_ANGULAR_STOP_DECELERATION_RAD_S2 = 0.100
 RETURN_ORIENTATION_ADMISSION_LIMIT_RAD = math.radians(20.0)
 RETURN_CONTROLLER_PERIOD_S = 0.002
 RETURN_CONTROLLER_MAX_SAMPLE_GAP_S = 0.004
+URSIM_RETURN_TRACE_SCHEMA = "step5d.autotune-v3/ursim-return-trace-v1"
+RETURN_TELEMETRY_SCHEMA = "step5d.autotune-v3/return-route-telemetry-v1"
+RETURN_ROUTE_EVIDENCE_SCHEMA = "step5d.autotune-v3/return-route-evidence-v2"
+
+
+def _sha256_value(name: str, value: object) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(f"{name} must be a lowercase SHA256")
+    return value
+
+
+def _finite_number(name: str, value: object, *, minimum: float = 0.0) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{name} must be numeric")
+    result = float(value)
+    if not math.isfinite(result) or result < minimum:
+        raise ValueError(f"{name} is outside its finite range")
+    return result
+
+
+def _exact_mapping(value: object, fields: set[str], role: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping) or set(value) != fields:
+        raise ValueError(f"{role} fields differ")
+    return value
+
+
+def validate_motion_capable_ursim_return_trace(
+    payload: object,
+    *,
+    expected_control_fingerprint: str,
+    expected_orchestration_fingerprint: str,
+    expected_source_binding_sha256: str,
+    expected_triplet_sha256: Mapping[str, str],
+) -> Mapping[str, object]:
+    """Validate isolated URSim motion without granting a live-plant claim."""
+
+    trace = _exact_mapping(
+        payload,
+        {
+            "schema",
+            "status",
+            "claim_boundary",
+            "identity",
+            "source_binding_sha256",
+            "triplet_sha256",
+            "image",
+            "network",
+            "route",
+            "samples",
+            "summary",
+            "cleanup",
+        },
+        "URSim return trace",
+    )
+    if trace["schema"] != URSIM_RETURN_TRACE_SCHEMA or trace["status"] != "pass":
+        raise ValueError("URSim return trace is not a passed v1 artifact")
+    if trace["claim_boundary"] != "isolated_ursim_motion_only_not_live_certification":
+        raise ValueError("URSim return trace claim boundary differs")
+    identity = _exact_mapping(
+        trace["identity"],
+        {"control_fingerprint", "orchestration_fingerprint"},
+        "URSim return identity",
+    )
+    if identity != {
+        "control_fingerprint": expected_control_fingerprint,
+        "orchestration_fingerprint": expected_orchestration_fingerprint,
+    }:
+        raise ValueError("URSim return trace identity differs")
+    if trace["source_binding_sha256"] != _sha256_value(
+        "expected_source_binding_sha256", expected_source_binding_sha256
+    ):
+        raise ValueError("URSim return trace source binding differs")
+    triplet = _exact_mapping(
+        trace["triplet_sha256"], {".script", ".txt", ".urp"}, "URSim triplet"
+    )
+    if dict(triplet) != dict(expected_triplet_sha256):
+        raise ValueError("URSim return trace TP triplet differs")
+    image = _exact_mapping(
+        trace["image"],
+        {"reference", "image_id", "polyscope_version", "robot_model"},
+        "URSim image",
+    )
+    if (
+        not isinstance(image["reference"], str)
+        or "@sha256:" not in image["reference"]
+        or image["robot_model"] != "UR10"
+    ):
+        raise ValueError("URSim return trace image is not digest-bound UR10e simulation")
+    network = _exact_mapping(
+        trace["network"],
+        {"internal", "host_ports_published", "real_robot_network_connected"},
+        "URSim network",
+    )
+    if network != {
+        "internal": True,
+        "host_ports_published": False,
+        "real_robot_network_connected": False,
+    }:
+        raise ValueError("URSim return trace was not isolated")
+    route = _exact_mapping(
+        trace["route"],
+        {
+            "controller_function",
+            "controller_function_sha256",
+            "segment_order",
+            "vertical_transfer_vertical",
+            "relative_test_motion_only",
+            "no_contact",
+        },
+        "URSim return route",
+    )
+    if (
+        route["controller_function"] != "codex_autotune_bounded_return_segment"
+        or route["segment_order"] != [1, 2, 3]
+        or route["vertical_transfer_vertical"] is not True
+        or route["relative_test_motion_only"] is not True
+        or route["no_contact"] is not True
+    ):
+        raise ValueError("URSim return route contract differs")
+    _sha256_value("controller_function_sha256", route["controller_function_sha256"])
+    samples = trace["samples"]
+    if not isinstance(samples, Sequence) or isinstance(samples, (str, bytes)) or len(samples) < 20:
+        raise ValueError("URSim return trace sample count is insufficient")
+    last_timestamp = -1.0
+    observed_segments: list[int] = []
+    for row in samples:
+        sample = _exact_mapping(
+            row,
+            {
+                "controller_timestamp_s",
+                "actual_tcp_pose",
+                "actual_tcp_speed",
+                "actual_qd",
+                "return_phase_echo",
+                "return_segment_id",
+                "completion_state",
+                "safety_mode",
+            },
+            "URSim return sample",
+        )
+        timestamp = _finite_number("URSim controller timestamp", sample["controller_timestamp_s"])
+        if timestamp <= last_timestamp:
+            raise ValueError("URSim controller timestamps are not strictly increasing")
+        last_timestamp = timestamp
+        _finite_vector("URSim actual_tcp_pose", sample["actual_tcp_pose"], 6)
+        _finite_vector("URSim actual_tcp_speed", sample["actual_tcp_speed"], 6)
+        _finite_vector("URSim actual_qd", sample["actual_qd"], 6)
+        segment_value = sample["return_segment_id"]
+        if isinstance(segment_value, bool) or not isinstance(segment_value, int):
+            raise ValueError("URSim return segment must be an integer")
+        if segment_value in (1, 2, 3) and (
+            not observed_segments or observed_segments[-1] != segment_value
+        ):
+            observed_segments.append(segment_value)
+        if sample["safety_mode"] != 1:
+            raise ValueError("URSim return trace left NORMAL safety mode")
+    summary = _exact_mapping(
+        trace["summary"],
+        {
+            "sample_count",
+            "motion_observed",
+            "max_position_excursion_m",
+            "max_angular_excursion_rad",
+            "max_angular_speed_rad_s",
+            "max_angular_acceleration_rad_s2",
+            "max_abs_qd_rad_s",
+            "segment_order_observed",
+            "completion_state",
+            "forbidden_action_count",
+        },
+        "URSim return summary",
+    )
+    if (
+        summary["sample_count"] != len(samples)
+        or summary["motion_observed"] is not True
+        or summary["segment_order_observed"] != [1, 2, 3]
+        or observed_segments != [1, 2, 3]
+        or summary["completion_state"] != 104
+        or summary["forbidden_action_count"] != 0
+        or _finite_number("URSim position excursion", summary["max_position_excursion_m"])
+        <= 0.001
+        or _finite_number("URSim angular speed", summary["max_angular_speed_rad_s"])
+        > RETURN_ANGULAR_SPEED_GUARD_RAD_S
+        or _finite_number(
+            "URSim angular acceleration", summary["max_angular_acceleration_rad_s2"]
+        )
+        > RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2
+    ):
+        raise ValueError("URSim return trace summary does not prove bounded motion")
+    cleanup = _exact_mapping(
+        trace["cleanup"],
+        {"container_removed", "network_removed", "program_stopped"},
+        "URSim cleanup",
+    )
+    if not all(value is True for value in cleanup.values()):
+        raise ValueError("URSim return trace cleanup is incomplete")
+    return trace
+
+
+def analyze_source_exact_return_telemetry(
+    payload: object,
+    *,
+    expected_control_fingerprint: str,
+    expected_orchestration_fingerprint: str,
+    expected_source_binding_sha256: str,
+    expected_triplet_sha256: Mapping[str, str],
+    expected_plant_epoch: int,
+    expected_deployment_readback_sha256: str,
+    expected_certification_authorization_sha256: str,
+) -> Mapping[str, object]:
+    """Validate all retained attended return samples and final readback."""
+
+    telemetry = _exact_mapping(
+        payload,
+        {
+            "schema",
+            "candidate_stage_id",
+            "control_fingerprint",
+            "orchestration_fingerprint",
+            "source_binding_sha256",
+            "triplet_sha256",
+            "plant_epoch",
+            "deployment_readback_sha256",
+            "certification_authorization_sha256",
+            "all_samples_retained",
+            "no_contact",
+            "samples",
+            "final_readback",
+        },
+        "return telemetry",
+    )
+    expected = {
+        "schema": RETURN_TELEMETRY_SCHEMA,
+        "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
+        "control_fingerprint": expected_control_fingerprint,
+        "orchestration_fingerprint": expected_orchestration_fingerprint,
+        "source_binding_sha256": expected_source_binding_sha256,
+        "triplet_sha256": dict(expected_triplet_sha256),
+        "plant_epoch": expected_plant_epoch,
+        "deployment_readback_sha256": expected_deployment_readback_sha256,
+        "certification_authorization_sha256": expected_certification_authorization_sha256,
+        "all_samples_retained": True,
+        "no_contact": True,
+    }
+    for name, value in expected.items():
+        if telemetry[name] != value:
+            raise ValueError(f"return telemetry {name} differs")
+    samples = telemetry["samples"]
+    if not isinstance(samples, Sequence) or isinstance(samples, (str, bytes)) or len(samples) < 20:
+        raise ValueError("return telemetry sample count is insufficient")
+    last_timestamp = -1.0
+    observed_segments: list[int] = []
+    maxima = {"angular_speed_rad_s": 0.0, "angular_acceleration_rad_s2": 0.0, "sample_gap_s": 0.0}
+    for row in samples:
+        sample = _exact_mapping(
+            row,
+            {
+                "controller_timestamp_s",
+                "return_phase_echo",
+                "return_segment_id",
+                "angular_speed_rad_s",
+                "angular_acceleration_rad_s2",
+                "max_angular_speed_rad_s",
+                "max_angular_acceleration_rad_s2",
+                "max_sample_gap_s",
+                "guard_reason",
+                "safety_mode",
+            },
+            "return telemetry sample",
+        )
+        timestamp = _finite_number("return controller timestamp", sample["controller_timestamp_s"])
+        if timestamp <= last_timestamp:
+            raise ValueError("return telemetry timestamps are not strictly increasing")
+        last_timestamp = timestamp
+        if sample["safety_mode"] != "NORMAL" or sample["guard_reason"] != 0:
+            raise ValueError("return telemetry reports a guard or safety failure")
+        segment = sample["return_segment_id"]
+        if isinstance(segment, bool) or not isinstance(segment, int) or segment not in (1, 2, 3):
+            raise ValueError("return telemetry segment identity differs")
+        if not observed_segments or observed_segments[-1] != segment:
+            observed_segments.append(segment)
+        speed = _finite_number("return angular speed", sample["angular_speed_rad_s"])
+        acceleration = _finite_number(
+            "return angular acceleration", sample["angular_acceleration_rad_s2"]
+        )
+        gap = _finite_number("return sample gap", sample["max_sample_gap_s"])
+        if gap <= 0.0:
+            raise ValueError("return telemetry sample gap must be positive")
+        maxima["angular_speed_rad_s"] = max(maxima["angular_speed_rad_s"], speed)
+        maxima["angular_acceleration_rad_s2"] = max(
+            maxima["angular_acceleration_rad_s2"], acceleration
+        )
+        maxima["sample_gap_s"] = max(maxima["sample_gap_s"], gap)
+        if (
+            speed > RETURN_ANGULAR_SPEED_GUARD_RAD_S
+            or acceleration > RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2
+            or _finite_number("return max angular speed", sample["max_angular_speed_rad_s"])
+            > RETURN_ANGULAR_SPEED_GUARD_RAD_S
+            or _finite_number(
+                "return max angular acceleration",
+                sample["max_angular_acceleration_rad_s2"],
+            )
+            > RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2
+            or gap > RETURN_CONTROLLER_MAX_SAMPLE_GAP_S
+        ):
+            raise ValueError("return telemetry exceeds the frozen envelope")
+    if observed_segments != [1, 2, 3]:
+        raise ValueError("return telemetry does not contain the exact three-segment route")
+    final = _exact_mapping(
+        telemetry["final_readback"],
+        {
+            "completed",
+            "return_phase_echo",
+            "return_segment_id",
+            "return_guard_mask",
+            "max_angular_speed_rad_s",
+            "max_angular_acceleration_rad_s2",
+            "max_sample_gap_s",
+            "safety_mode",
+        },
+        "return final readback",
+    )
+    if (
+        final["completed"] is not True
+        or final["return_phase_echo"] != 40.3
+        or final["return_segment_id"] != 3
+        or final["return_guard_mask"] != 0x7F
+        or final["safety_mode"] != "NORMAL"
+        or _finite_number("final max angular speed", final["max_angular_speed_rad_s"])
+        > RETURN_ANGULAR_SPEED_GUARD_RAD_S
+        or _finite_number(
+            "final max angular acceleration", final["max_angular_acceleration_rad_s2"]
+        )
+        > RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2
+        or _finite_number("final max sample gap", final["max_sample_gap_s"])
+        > RETURN_CONTROLLER_MAX_SAMPLE_GAP_S
+    ):
+        raise ValueError("return final readback is not certified")
+    return {
+        "sample_count": len(samples),
+        "segment_order": observed_segments,
+        "maxima": maxima,
+        "controller_readback_sha256": canonical_sha256(final),
+    }
 
 
 def return_policy_fingerprint(
@@ -393,23 +745,23 @@ def return_route(
             "vertical_to_safe_transfer_z",
             (current[0], current[1], SAFE_TRANSFER_Z_M),
             None,
-            0.060,
-            0.040,
+            RETURN_SEGMENT_VERTICAL_ACCELERATION_M_S2,
+            RETURN_SEGMENT_VERTICAL_SPEED_M_S,
             preserve_orientation=True,
         ),
         ReturnSegment(
             "constant_z_transfer_to_reference_xy_orientation",
             (target_xyz[0], target_xyz[1], SAFE_TRANSFER_Z_M),
             target_rotvec,
-            0.135,
-            0.090,
+            RETURN_SEGMENT_HORIZONTAL_ACCELERATION_M_S2,
+            RETURN_SEGMENT_HORIZONTAL_SPEED_M_S,
         ),
         ReturnSegment(
             "vertical_to_typed_reference",
             target_xyz,
             target_rotvec,
-            0.060,
-            0.040,
+            RETURN_SEGMENT_VERTICAL_ACCELERATION_M_S2,
+            RETURN_SEGMENT_VERTICAL_SPEED_M_S,
         ),
     )
     return ReturnRoute(reference.reference_uid, prior.fingerprint, segments)

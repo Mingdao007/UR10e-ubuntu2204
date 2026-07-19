@@ -12,7 +12,10 @@ import tempfile
 
 from ur10e_experiment_runtime.identity import canonical_sha256
 from ur10e_experiment_runtime.moving_sphere import (
+    ATTENDED_STOPPING_MEASUREMENT_CONTRACT,
     STOPPING_BOUND_EVIDENCE_ROLES,
+    STOPPING_BOUND_EVIDENCE_SCHEMA,
+    STOPPING_BOUND_VALIDITY_DOMAIN,
     StoppingBoundEvidenceComponent,
     StoppingBoundEvidenceManifest,
 )
@@ -101,33 +104,30 @@ def build_document() -> dict[str, object]:
     source_binding_sha256 = canonical_sha256(source_sha256)
     manifest = StoppingBoundEvidenceManifest(
         components=tuple(components),
-        validity_domain="step5d_v3_exact_source_controller_and_plant_epoch",
+        validity_domain=STOPPING_BOUND_VALIDITY_DOMAIN,
         source_binding_sha256=source_binding_sha256,
         stop_transport_sha256=source_sha256["bridge"],
         deployment_readback_sha256=None,
+        certification_binding_sha256=None,
     )
     return {
-        "schema": "step5d.autotune-v3/stopping-bound-evidence-v1",
+        "schema": STOPPING_BOUND_EVIDENCE_SCHEMA,
         "status": "incomplete_attended_measurement_required",
         "certified": manifest.certified,
         "optimizer_eligible": False,
         "manifest_fingerprint": manifest.fingerprint,
+        "stopping_bound_fingerprint": None,
         "validity_domain": manifest.validity_domain,
         "source_binding_sha256": manifest.source_binding_sha256,
         "stop_transport_sha256": manifest.stop_transport_sha256,
         "deployment_readback_sha256": manifest.deployment_readback_sha256,
+        "certification_authorization_sha256": None,
+        "certification_binding_sha256": None,
+        "plant_epoch": None,
+        "measurement_sha256": None,
         "source_sha256": source_sha256,
         "components": [component.document() for component in manifest.components],
-        "attended_measurement_contract": {
-            "exact_source_and_deployment_fingerprints_required": True,
-            "direct_exact_stop_and_stale_watchdog_paths_required": True,
-            "latency_upper_bound_required": True,
-            "speed_growth_upper_bound_required": True,
-            "minimum_deceleration_lower_bound_required": True,
-            "numeric_margin_preregistered": True,
-            "all_samples_retained_no_silent_outlier_deletion": True,
-            "robot_power_and_motion_required": True,
-        },
+        "attended_measurement_contract": ATTENDED_STOPPING_MEASUREMENT_CONTRACT,
         "live_effect": "stopping_bound_none_fail_closed",
     }
 

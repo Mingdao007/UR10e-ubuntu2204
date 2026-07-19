@@ -84,6 +84,7 @@ def run(*, samples: int, paced: bool) -> dict[str, Any]:
     kernel = MovingSphereKernel(
         reference_sha256=adapter.reference_sha256,
         stopping_bound=_fixture_bound(),
+        required_validity_domain="offline_timing_fixture_only_not_live_certification",
     )
     args = SimpleNamespace(
         step5d_controller_progress_adapter=adapter,

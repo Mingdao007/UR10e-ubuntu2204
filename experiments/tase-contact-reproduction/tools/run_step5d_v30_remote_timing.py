@@ -905,6 +905,7 @@ def main() -> int:
             kernel = MovingSphereKernel(
                 reference_sha256=adapter.reference_sha256,
                 stopping_bound=fixture_bound,
+                required_validity_domain=fixture_bound.validity_domain,
             )
             return SimpleNamespace(
                 args=SimpleNamespace(

@@ -15,6 +15,12 @@ def test_current_stopping_bound_evidence_is_partial_and_fail_closed() -> None:
     assert document["certified"] is False
     assert document["optimizer_eligible"] is False
     assert document["deployment_readback_sha256"] is None
+    assert document["certification_authorization_sha256"] is None
+    assert document["certification_binding_sha256"] is None
+    assert document["plant_epoch"] is None
+    assert document["measurement_sha256"] is None
+    assert document["stopping_bound_fingerprint"] is None
+    assert document["schema"].endswith("stopping-bound-evidence-v2")
     assert document["live_effect"] == "stopping_bound_none_fail_closed"
     components = {row["role"]: row for row in document["components"]}
     assert components["center_speed_bound_m_s"]["value"] == 0.003

@@ -1,5 +1,9 @@
 {
+  "attended_controller_readback_sha256": null,
+  "certification_authorization_sha256": null,
+  "certification_binding_sha256": null,
   "certified": false,
+  "deployment_readback_sha256": null,
   "live_effect": "return_route_angular_envelope_gate_blocked",
   "local_triplet_sha256": {
     ".script": "3dd672b4f68eba931fb8fc1e2c577e06205ff7a4e6d15a035e3619557d8e430d",
@@ -8,9 +12,10 @@
   },
   "missing_certification": {
     "attended_controller_readback_sha256": null,
-    "motion_capable_ursim_trace_sha256": null,
+    "motion_capable_ursim_trace_sha256": "19f73447e69ea01819a713e2b81230ea997513fc51ec4fb9b8d62c4e53e53ea6",
     "source_exact_return_telemetry_sha256": null
   },
+  "motion_capable_ursim_trace_sha256": "19f73447e69ea01819a713e2b81230ea997513fc51ec4fb9b8d62c4e53e53ea6",
   "offline_guards": {
     "bounded_speedl_twist": true,
     "continuous_actual_angular_speed_guard": true,
@@ -22,6 +27,8 @@
     "pre_and_post_ack_closure_validation": true,
     "three_segment_route_exact": true
   },
+  "optimizer_eligible": false,
+  "plant_epoch": null,
   "policy": {
     "return_angular_acceleration_guard_rad_s2": 0.5,
     "return_angular_acceleration_limit_rad_s2": 0.1,
@@ -49,14 +56,18 @@
     ],
     "safe_transfer_z_m": 0.033
   },
-  "schema": "step5d.autotune-v3/return-route-evidence-v1",
-  "source_binding_sha256": "8d234e5598893119228fde922c983014c67cd4910f41a1f297b7eae597660a3e",
+  "schema": "step5d.autotune-v3/return-route-evidence-v2",
+  "source_binding_sha256": "7be1ca3d50fd13ba3727f6037f9b1902f724da325291d52a2b7c7c19988dfc54",
+  "source_exact_return_telemetry_sha256": null,
   "source_sha256": {
     "bridge_capture": "e8e48f280a99dd18d52cdf099e9ebed0b6d3710f2b294c016af65d1c391cfd45",
     "campaign_adapter": "0a354971e3146937b24d2b864acdfb0f18be889b692b73ac49365baf003a3fba",
     "closure_collector": "a0d69c0d4d22ccf954a4edbe4dc23eeac77b1b2d6ce22d3023c5ed8cef7c86bc",
-    "return_route": "22e6a71066d085d49d653ee832ea4f32d8bf0eca6384eda2af02a81a5619d91c",
-    "tp_generator": "320a21b15d9cc79957bf9cf49a34efe7f3c2a53ea318c96d898fdd9001ebe185"
+    "return_evidence_promoter": "c94eb19f512c915c1496cc338957eaccdcdcd41e078a96bb13c99a8026834d16",
+    "return_route": "88704b24de6b9b69dc59b2254dab7a1dbc9fe7b6176b6460d935344d28b2a351",
+    "tp_generator": "320a21b15d9cc79957bf9cf49a34efe7f3c2a53ea318c96d898fdd9001ebe185",
+    "ursim_return_gate": "6a897d3bf4461d19220bc624e0391c1cc295680b0a8454adb91d64259a2d49bf"
   },
-  "status": "offline_enforcement_complete_attended_certification_required"
+  "status": "offline_enforcement_complete_attended_certification_required",
+  "telemetry_summary": null
 }

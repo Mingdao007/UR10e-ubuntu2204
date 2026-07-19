@@ -10,7 +10,9 @@ import os
 from pathlib import Path
 import tempfile
 
-from ur10e_experiment_runtime.identity import canonical_sha256
+from step5d_autotune_v3.profile import control_fingerprint, load_contract
+from step5d_autotune_v3.state import orchestration_fingerprint
+from ur10e_experiment_runtime.identity import canonical_sha256, load_strict_json
 from ur10e_experiment_runtime.return_route import (
     RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
     RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2,
@@ -20,7 +22,9 @@ from ur10e_experiment_runtime.return_route import (
     RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
     RETURN_CONTROLLER_PERIOD_S,
     RETURN_ORIENTATION_ADMISSION_LIMIT_RAD,
+    RETURN_ROUTE_EVIDENCE_SCHEMA,
     SAFE_TRANSFER_Z_M,
+    validate_motion_capable_ursim_return_trace,
 )
 
 
@@ -29,6 +33,9 @@ REPOSITORY_ROOT = EXPERIMENT_ROOT.parents[1]
 DEFAULT_OUTPUT = (
     EXPERIMENT_ROOT
     / "config/step5/step5d_autotune_v3_return_route_evidence.json"
+)
+DEFAULT_URSIM_TRACE = (
+    EXPERIMENT_ROOT / "config/step5/step5d_autotune_v3_ursim_return_trace.json"
 )
 PACKAGE_ROOT = EXPERIMENT_ROOT / "programs/step5/step5d"
 BASENAME = "step5d_strict_rnn_autotune_v3"
@@ -43,6 +50,13 @@ SOURCE_PATHS = {
     "closure_collector": (
         EXPERIMENT_ROOT / "tools/step5d_autotune_runtime_lifecycle.py"
     ),
+    "ursim_return_gate": (
+        EXPERIMENT_ROOT / "tools/run_step5d_autotune_v3_ursim_return_gate.py"
+    ),
+    "return_evidence_promoter": (
+        EXPERIMENT_ROOT
+        / "tools/promote_step5d_autotune_v3_return_route_evidence.py"
+    ),
 }
 
 
@@ -56,7 +70,7 @@ def _strict_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def build_document() -> dict[str, object]:
+def build_document(*, include_ursim_trace: bool = True) -> dict[str, object]:
     source_sha256 = {name: _sha256(path) for name, path in SOURCE_PATHS.items()}
     triplet_sha256 = {
         suffix: _sha256(PACKAGE_ROOT / f"{BASENAME}{suffix}")
@@ -109,11 +123,25 @@ def build_document() -> dict[str, object]:
     ):
         if marker not in script:
             raise ValueError(f"return-route script lacks required marker: {marker}")
+    source_binding_sha256 = canonical_sha256(source_sha256)
+    ursim_trace_sha256 = None
+    if include_ursim_trace and DEFAULT_URSIM_TRACE.is_file():
+        validate_motion_capable_ursim_return_trace(
+            load_strict_json(DEFAULT_URSIM_TRACE),
+            expected_control_fingerprint=control_fingerprint(load_contract()),
+            expected_orchestration_fingerprint=orchestration_fingerprint(
+                EXPERIMENT_ROOT
+            ),
+            expected_source_binding_sha256=source_binding_sha256,
+            expected_triplet_sha256=triplet_sha256,
+        )
+        ursim_trace_sha256 = _sha256(DEFAULT_URSIM_TRACE)
     return {
-        "schema": "step5d.autotune-v3/return-route-evidence-v1",
+        "schema": RETURN_ROUTE_EVIDENCE_SCHEMA,
         "status": "offline_enforcement_complete_attended_certification_required",
         "certified": False,
-        "source_binding_sha256": canonical_sha256(source_sha256),
+        "optimizer_eligible": False,
+        "source_binding_sha256": source_binding_sha256,
         "source_sha256": source_sha256,
         "local_triplet_sha256": triplet_sha256,
         "policy": expected_sanity,
@@ -128,8 +156,16 @@ def build_document() -> dict[str, object]:
             "phase_and_telemetry_capture": True,
             "pre_and_post_ack_closure_validation": True,
         },
+        "certification_authorization_sha256": None,
+        "certification_binding_sha256": None,
+        "plant_epoch": None,
+        "deployment_readback_sha256": None,
+        "motion_capable_ursim_trace_sha256": ursim_trace_sha256,
+        "attended_controller_readback_sha256": None,
+        "source_exact_return_telemetry_sha256": None,
+        "telemetry_summary": None,
         "missing_certification": {
-            "motion_capable_ursim_trace_sha256": None,
+            "motion_capable_ursim_trace_sha256": ursim_trace_sha256,
             "attended_controller_readback_sha256": None,
             "source_exact_return_telemetry_sha256": None,
         },

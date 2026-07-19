@@ -83,6 +83,7 @@ def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> 
     kernel = MovingSphereKernel(
         reference_sha256=adapter.reference_sha256,
         stopping_bound=bound,
+        required_validity_domain=bound.validity_domain,
     )
     args = SimpleNamespace(
         bridge_profile=bridge.STEP5D_AUTOTUNE_STAGE_ID,
