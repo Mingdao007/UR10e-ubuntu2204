@@ -36,6 +36,9 @@ class ExactAckReceipt:
     row_index: int
     trial_uid: str
     control_candidate_uid: str
+    immutable_bundle_sha256: str
+    return_reference_uid: str
+    controller_readback_sha256: str
     arm_command_seq: int
     ack_command_seq: int
     consumed_command_seq: int
@@ -44,6 +47,9 @@ class ExactAckReceipt:
         _sha256("batch_uid", self.batch_uid)
         _sha256("trial_uid", self.trial_uid)
         _sha256("control_candidate_uid", self.control_candidate_uid)
+        _sha256("immutable_bundle_sha256", self.immutable_bundle_sha256)
+        _sha256("return_reference_uid", self.return_reference_uid)
+        _sha256("controller_readback_sha256", self.controller_readback_sha256)
         if (
             isinstance(self.row_index, bool)
             or not isinstance(self.row_index, int)
@@ -66,6 +72,9 @@ class ExactAckReceipt:
             "row_index": self.row_index,
             "trial_uid": self.trial_uid,
             "control_candidate_uid": self.control_candidate_uid,
+            "immutable_bundle_sha256": self.immutable_bundle_sha256,
+            "return_reference_uid": self.return_reference_uid,
+            "controller_readback_sha256": self.controller_readback_sha256,
             "arm_command_seq": self.arm_command_seq,
             "ack_command_seq": self.ack_command_seq,
             "consumed_command_seq": self.consumed_command_seq,
@@ -82,6 +91,8 @@ class SafeClosureReceipt:
     row_index: int
     trial_uid: str
     ack_uid: str
+    return_reference_uid: str
+    controller_readback_sha256: str
     return_reference: ReturnReferenceKind
     post_ack_verified: bool = True
 
@@ -89,6 +100,8 @@ class SafeClosureReceipt:
         _sha256("batch_uid", self.batch_uid)
         _sha256("trial_uid", self.trial_uid)
         _sha256("ack_uid", self.ack_uid)
+        _sha256("return_reference_uid", self.return_reference_uid)
+        _sha256("controller_readback_sha256", self.controller_readback_sha256)
         if self.return_reference is not return_reference_for_row(self.row_index):
             raise SpecValidationError("closure reference differs from exact batch row")
         if self.post_ack_verified is not True:
@@ -101,6 +114,8 @@ class SafeClosureReceipt:
             "row_index": self.row_index,
             "trial_uid": self.trial_uid,
             "ack_uid": self.ack_uid,
+            "return_reference_uid": self.return_reference_uid,
+            "controller_readback_sha256": self.controller_readback_sha256,
             "return_reference": self.return_reference.value,
             "post_ack_verified": self.post_ack_verified,
         }
@@ -256,7 +271,12 @@ class BatchRowState:
     immutable_bundle_sha256: str | None
     ack_uid: str | None
     ack_receipt_sha256: str | None
+    return_reference_uid: str | None
+    controller_readback_sha256: str | None
     closure_receipt_sha256: str | None
+    trial_brief_publication_uid: str | None
+    trial_brief_document_sha256: str | None
+    optimizer_eligible: bool | None
     return_reference: ReturnReferenceKind
 
     def to_dict(self) -> dict[str, Any]:
@@ -267,7 +287,12 @@ class BatchRowState:
             "immutable_bundle_sha256": self.immutable_bundle_sha256,
             "ack_uid": self.ack_uid,
             "ack_receipt_sha256": self.ack_receipt_sha256,
+            "return_reference_uid": self.return_reference_uid,
+            "controller_readback_sha256": self.controller_readback_sha256,
             "closure_receipt_sha256": self.closure_receipt_sha256,
+            "trial_brief_publication_uid": self.trial_brief_publication_uid,
+            "trial_brief_document_sha256": self.trial_brief_document_sha256,
+            "optimizer_eligible": self.optimizer_eligible,
             "return_reference": self.return_reference.value,
         }
 
@@ -292,6 +317,15 @@ class BatchState:
         return rows[0] if rows else None
 
     @property
+    def unpublished_trial_brief_row_indices(self) -> tuple[int, ...]:
+        return tuple(
+            row.row_index
+            for row in self.rows
+            if row.fate is BatchFate.ACK_COMPLETED
+            and row.trial_brief_document_sha256 is None
+        )
+
+    @property
     def complete(self) -> bool:
         return not self.resume_row_indices
 
@@ -303,6 +337,9 @@ class BatchState:
             "resume_row_indices": list(self.resume_row_indices),
             "next_row_index": self.next_row_index,
             "complete": self.complete,
+            "unpublished_trial_brief_row_indices": list(
+                self.unpublished_trial_brief_row_indices
+            ),
             "journal_record_count": self.journal_record_count,
             "journal_head_sha256": self.journal_head_sha256,
             "result_published": self.result_published,
@@ -511,7 +548,12 @@ class BatchJournal:
                 "bundle": None,
                 "ack_uid": None,
                 "ack_receipt": None,
+                "return_reference_uid": None,
+                "controller_readback_sha256": None,
                 "closure_receipt": None,
+                "trial_brief_publication_uid": None,
+                "trial_brief_document_sha256": None,
+                "optimizer_eligible": None,
             }
             for _ in identity.rows
         ]
@@ -537,7 +579,12 @@ class BatchJournal:
                     bundle=None,
                     ack_uid=None,
                     ack_receipt=None,
+                    return_reference_uid=None,
+                    controller_readback_sha256=None,
                     closure_receipt=None,
+                    trial_brief_publication_uid=None,
+                    trial_brief_document_sha256=None,
+                    optimizer_eligible=None,
                 )
             elif state["trial_uid"] != trial_uid:
                 raise OutputPathError("batch journal trial identity differs")
@@ -552,15 +599,46 @@ class BatchJournal:
                 state["ack_receipt"] = _sha256(
                     "ack_receipt_sha256", event.get("ack_receipt_sha256")
                 )
+                state["return_reference_uid"] = _sha256(
+                    "return_reference_uid", event.get("return_reference_uid")
+                )
+                state["controller_readback_sha256"] = _sha256(
+                    "controller_readback_sha256",
+                    event.get("controller_readback_sha256"),
+                )
             elif kind == "safe_closure_completed":
                 if state["ack_receipt"] is None:
                     raise OutputPathError("batch safe closure precedes exact ACK")
                 expected_reference = return_reference_for_row(row_index).value
                 if event.get("return_reference") != expected_reference:
                     raise OutputPathError("batch closure return reference differs")
+                if event.get("return_reference_uid") != state["return_reference_uid"]:
+                    raise OutputPathError("batch closure reference UID differs")
+                if (
+                    event.get("controller_readback_sha256")
+                    != state["controller_readback_sha256"]
+                ):
+                    raise OutputPathError("batch closure controller readback differs")
                 state["closure_receipt"] = _sha256(
                     "closure_receipt_sha256", event.get("closure_receipt_sha256")
                 )
+            elif kind == "trial_brief_published":
+                if state["closure_receipt"] is None:
+                    raise OutputPathError("TrialBrief publication precedes safe closure")
+                if state["trial_brief_document_sha256"] is not None:
+                    raise OutputPathError("TrialBrief publication is duplicated")
+                optimizer_eligible = event.get("optimizer_eligible")
+                if not isinstance(optimizer_eligible, bool):
+                    raise OutputPathError("TrialBrief optimizer eligibility is invalid")
+                state["trial_brief_publication_uid"] = _sha256(
+                    "trial_brief_publication_uid",
+                    event.get("trial_brief_publication_uid"),
+                )
+                state["trial_brief_document_sha256"] = _sha256(
+                    "trial_brief_document_sha256",
+                    event.get("trial_brief_document_sha256"),
+                )
+                state["optimizer_eligible"] = optimizer_eligible
             else:
                 raise OutputPathError("unknown batch journal event")
         rows = []
@@ -579,7 +657,16 @@ class BatchJournal:
                     immutable_bundle_sha256=state["bundle"],
                     ack_uid=state["ack_uid"],
                     ack_receipt_sha256=state["ack_receipt"],
+                    return_reference_uid=state["return_reference_uid"],
+                    controller_readback_sha256=state["controller_readback_sha256"],
                     closure_receipt_sha256=state["closure_receipt"],
+                    trial_brief_publication_uid=state[
+                        "trial_brief_publication_uid"
+                    ],
+                    trial_brief_document_sha256=state[
+                        "trial_brief_document_sha256"
+                    ],
+                    optimizer_eligible=state["optimizer_eligible"],
                     return_reference=return_reference_for_row(index),
                 )
             )
@@ -657,6 +744,7 @@ class BatchJournal:
                 or row.fate is not BatchFate.ATTEMPTED_INCOMPLETE
                 or row.trial_uid != receipt.trial_uid
                 or row.immutable_bundle_sha256 is None
+                or receipt.immutable_bundle_sha256 != row.immutable_bundle_sha256
                 or row.ack_receipt_sha256 is not None
                 or receipt.control_candidate_uid != identity_row.control_candidate_uid
             ):
@@ -672,6 +760,8 @@ class BatchJournal:
                 "trial_uid": receipt.trial_uid,
                 "ack_uid": receipt.ack_uid,
                 "ack_receipt_sha256": canonical_sha256(receipt.document()),
+                "return_reference_uid": receipt.return_reference_uid,
+                "controller_readback_sha256": receipt.controller_readback_sha256,
             },
             validator=validate,
         )
@@ -691,6 +781,9 @@ class BatchJournal:
                 or row.trial_uid != receipt.trial_uid
                 or row.ack_uid != receipt.ack_uid
                 or row.ack_receipt_sha256 is None
+                or row.return_reference_uid != receipt.return_reference_uid
+                or row.controller_readback_sha256
+                != receipt.controller_readback_sha256
                 or row.closure_receipt_sha256 is not None
             ):
                 raise SpecValidationError(
@@ -704,7 +797,50 @@ class BatchJournal:
                 "row_index": receipt.row_index,
                 "trial_uid": receipt.trial_uid,
                 "return_reference": receipt.return_reference.value,
+                "return_reference_uid": receipt.return_reference_uid,
+                "controller_readback_sha256": receipt.controller_readback_sha256,
                 "closure_receipt_sha256": receipt.receipt_sha256,
+            },
+            validator=validate,
+        )
+
+    def record_trial_brief_published(
+        self,
+        *,
+        row_index: int,
+        trial_uid: str,
+        publication_uid: str,
+        document_sha256: str,
+        optimizer_eligible: bool,
+    ) -> None:
+        identity = self.identity()
+        return_reference_for_row(row_index)
+        _sha256("trial_brief_publication_uid", publication_uid)
+        _sha256("trial_brief_document_sha256", document_sha256)
+        if not isinstance(optimizer_eligible, bool):
+            raise SpecValidationError("optimizer_eligible must be boolean")
+
+        def validate(current: BatchState) -> None:
+            row = current.rows[row_index - 1]
+            if (
+                row.fate is not BatchFate.ACK_COMPLETED
+                or row.trial_uid != trial_uid
+                or row.closure_receipt_sha256 is None
+                or row.trial_brief_document_sha256 is not None
+            ):
+                raise SpecValidationError(
+                    "TrialBrief publication requires exact ACK-completed row"
+                )
+
+        self._append(
+            {
+                "kind": "trial_brief_published",
+                "batch_uid": identity.batch_uid,
+                "row_index": row_index,
+                "trial_uid": _sha256("trial_uid", trial_uid),
+                "trial_brief_publication_uid": publication_uid,
+                "trial_brief_document_sha256": document_sha256,
+                "optimizer_eligible": optimizer_eligible,
             },
             validator=validate,
         )
@@ -720,6 +856,10 @@ class BatchJournal:
             state = self.state()
             if not state.complete:
                 raise SpecValidationError("BatchResult requires 10 ack_completed rows")
+            if state.unpublished_trial_brief_row_indices:
+                raise SpecValidationError(
+                    "BatchResult requires TrialBrief publication for every row"
+                )
             result = {
                 "schema": "ur10e.batch_result/v1",
                 "batch_uid": state.batch_uid,

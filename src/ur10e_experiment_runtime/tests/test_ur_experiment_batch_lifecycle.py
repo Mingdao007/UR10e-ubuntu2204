@@ -79,13 +79,17 @@ def _identity() -> BatchIdentity:
 
 def _complete_row(journal: BatchJournal, identity: BatchIdentity, row_index: int):
     trial_uid = f"{row_index:064x}"
+    bundle_sha256 = f"{100 + row_index:064x}"
     journal.start_attempt(row_index, trial_uid)
-    journal.record_bundle(row_index, trial_uid, f"{100 + row_index:064x}")
+    journal.record_bundle(row_index, trial_uid, bundle_sha256)
     ack = ExactAckReceipt(
         batch_uid=identity.batch_uid,
         row_index=row_index,
         trial_uid=trial_uid,
         control_candidate_uid=identity.rows[row_index - 1].control_candidate_uid,
+        immutable_bundle_sha256=bundle_sha256,
+        return_reference_uid=f"{200 + row_index:064x}",
+        controller_readback_sha256="f" * 64,
         arm_command_seq=row_index * 2 - 1,
         ack_command_seq=row_index * 2,
         consumed_command_seq=row_index * 2,
@@ -96,9 +100,18 @@ def _complete_row(journal: BatchJournal, identity: BatchIdentity, row_index: int
         row_index=row_index,
         trial_uid=trial_uid,
         ack_uid=ack.ack_uid,
+        return_reference_uid=ack.return_reference_uid,
+        controller_readback_sha256=ack.controller_readback_sha256,
         return_reference=return_reference_for_row(row_index),
     )
     journal.record_safe_closure(closure)
+    journal.record_trial_brief_published(
+        row_index=row_index,
+        trial_uid=trial_uid,
+        publication_uid=f"{300 + row_index:064x}",
+        document_sha256=f"{400 + row_index:064x}",
+        optimizer_eligible=False,
+    )
     return trial_uid, ack, closure
 
 
@@ -149,6 +162,9 @@ class BatchLifecycleTest(unittest.TestCase):
                 row_index=1,
                 trial_uid=trial_uid,
                 control_candidate_uid=identity.rows[0].control_candidate_uid,
+                immutable_bundle_sha256="2" * 64,
+                return_reference_uid="3" * 64,
+                controller_readback_sha256="4" * 64,
                 arm_command_seq=3,
                 ack_command_seq=4,
                 consumed_command_seq=4,
@@ -163,12 +179,15 @@ class BatchLifecycleTest(unittest.TestCase):
                     row_index=1,
                     trial_uid=trial_uid,
                     ack_uid=ack.ack_uid,
+                    return_reference_uid=ack.return_reference_uid,
+                    controller_readback_sha256=ack.controller_readback_sha256,
                     return_reference=ReturnReferenceKind.NEAR_READY,
                 )
             )
             state = journal.state()
             self.assertIs(state.rows[0].fate, BatchFate.ACK_COMPLETED)
             self.assertEqual(state.next_row_index, 2)
+            self.assertEqual(state.unpublished_trial_brief_row_indices, (1,))
 
     def test_ack_and_closure_fail_closed_on_wrong_identity_or_order(self):
         identity = _identity()
@@ -178,6 +197,9 @@ class BatchLifecycleTest(unittest.TestCase):
                 row_index=1,
                 trial_uid="1" * 64,
                 control_candidate_uid=identity.rows[0].control_candidate_uid,
+                immutable_bundle_sha256="2" * 64,
+                return_reference_uid="3" * 64,
+                controller_readback_sha256="4" * 64,
                 arm_command_seq=1,
                 ack_command_seq=2,
                 consumed_command_seq=3,
@@ -193,6 +215,9 @@ class BatchLifecycleTest(unittest.TestCase):
                         row_index=1,
                         trial_uid=trial_uid,
                         control_candidate_uid=identity.rows[0].control_candidate_uid,
+                        immutable_bundle_sha256="2" * 64,
+                        return_reference_uid="3" * 64,
+                        controller_readback_sha256="4" * 64,
                         arm_command_seq=1,
                         ack_command_seq=2,
                         consumed_command_seq=2,
@@ -208,6 +233,9 @@ class BatchLifecycleTest(unittest.TestCase):
                         row_index=1,
                         trial_uid=trial_uid,
                         control_candidate_uid=identity.rows[1].control_candidate_uid,
+                        immutable_bundle_sha256="2" * 64,
+                        return_reference_uid="3" * 64,
+                        controller_readback_sha256="4" * 64,
                         arm_command_seq=1,
                         ack_command_seq=2,
                         consumed_command_seq=2,
@@ -232,6 +260,9 @@ class BatchLifecycleTest(unittest.TestCase):
                     row_index=1,
                     trial_uid=trial_uid,
                     control_candidate_uid=identity.rows[0].control_candidate_uid,
+                    immutable_bundle_sha256="2" * 64,
+                    return_reference_uid="3" * 64,
+                    controller_readback_sha256="4" * 64,
                     arm_command_seq=1,
                     ack_command_seq=2,
                     consumed_command_seq=2,
@@ -245,6 +276,8 @@ class BatchLifecycleTest(unittest.TestCase):
                             row_index=1,
                             trial_uid=trial_uid,
                             ack_uid=ack.ack_uid,
+                            return_reference_uid=ack.return_reference_uid,
+                            controller_readback_sha256=ack.controller_readback_sha256,
                             return_reference=ReturnReferenceKind.NEAR_READY,
                         )
                     )
@@ -288,6 +321,21 @@ class BatchLifecycleTest(unittest.TestCase):
             self.assertEqual(journal.finalize(), result)
             with self.assertRaisesRegex(OutputPathError, "already final"):
                 journal.start_attempt(10, "f" * 64)
+
+    def test_batch_result_rejects_missing_trial_brief_publication(self):
+        identity = _identity()
+        with tempfile.TemporaryDirectory() as directory:
+            journal = BatchJournal.create(Path(directory) / "batch", identity)
+            for row_index in range(1, 11):
+                _complete_row(journal, identity, row_index)
+            records = journal.journal_path.read_text(encoding="utf-8").splitlines()
+            journal.journal_path.write_text(
+                "\n".join(records[:-1]) + "\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(journal.state().unpublished_trial_brief_row_indices, (10,))
+            with self.assertRaisesRegex(SpecValidationError, "TrialBrief publication"):
+                journal.finalize()
 
     def test_tampered_journal_or_result_fails_closed(self):
         identity = _identity()
