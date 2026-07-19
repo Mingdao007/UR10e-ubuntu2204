@@ -15,6 +15,7 @@ from step5d_timing_acceptance import (  # noqa: E402
     V3_RUNTIME_SOURCE_BINDING_FILES,
     evaluate_step5d_v3_timing_raw,
 )
+import step5c_calibrated_kinematics_audit as kinematics  # noqa: E402
 from ur10e_experiment_runtime.physical_prior import (  # noqa: E402
     STEP5D_V3_PHYSICAL_PRIOR,
 )
@@ -28,7 +29,32 @@ def _sha256(path: Path) -> str:
 
 
 def _raw() -> dict[str, object]:
+    tp_script = ROOT / "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script"
+    tp_script_sha256 = _sha256(tp_script)
     return {
+        "artifact_binding": {
+            "profile_selection": {
+                "sha256": _sha256(ROOT / "config/step5d_v30_profile_selection.json"),
+            },
+            "calibration_yaml": {
+                "sha256": _sha256(Path(kinematics.DEFAULT_CALIBRATION_YAML)),
+            },
+            "ur_xacro": {
+                "sha256": _sha256(Path(kinematics.DEFAULT_XACRO_PATH)),
+            },
+            "v3_tp_script": {
+                "path": str(tp_script),
+                "sha256": tp_script_sha256,
+            }
+        },
+        "controller_stale_hold_fault_evidence": {
+            "production_profile_id": "step5d_strict_rnn_autotune_v1",
+            "transport_publish_action": "hold_last",
+            "publish_guard_approved_late_command": False,
+            "tp_watchdog_script_sha256": tp_script_sha256,
+            "tp_watchdog_threshold_s": 0.020,
+            "continuous_stale_stop_s": 0.020,
+        },
         "runtime_path": (
             "Step5dObservation->step5d_v30_contract_pipeline->"
             "apply_step5d_moving_sphere_guard->ExactStopTransport->"
@@ -149,3 +175,22 @@ def test_v3_timing_accepts_exact_bounded_last_command_hold_contract(
         result = evaluate_step5d_v3_timing_raw(ROOT, raw_path)
     assert result["accepted"] is True
     assert "bounded_last_command_hold" in result["classification"]
+
+
+def test_v3_timing_rejects_transport_or_tp_watchdog_drift(tmp_path: Path) -> None:
+    raw = _raw()
+    raw["controller_stale_hold_fault_evidence"][
+        "publish_guard_approved_late_command"
+    ] = True
+    raw_path = tmp_path / "timing.json"
+    raw_path.write_text(json.dumps(raw), encoding="utf-8")
+    with patch(
+        "step5d_timing_acceptance.evaluate_timing_raw",
+        return_value=_accepted_base(),
+    ):
+        result = evaluate_step5d_v3_timing_raw(ROOT, raw_path)
+    assert result["accepted"] is False
+    assert (
+        "v3_transport_hold_mismatch:publish_guard_approved_late_command"
+        in result["blockers"]
+    )

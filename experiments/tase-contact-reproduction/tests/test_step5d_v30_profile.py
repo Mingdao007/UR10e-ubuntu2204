@@ -245,6 +245,11 @@ class Step5dV30ProfileTest(unittest.TestCase):
             ),
             "hold_last",
         )
+        self.assertFalse(
+            bridge.step5d_publish_guard_approved_late_command(
+                bridge.STEP5D_AUTOTUNE_STAGE_ID
+            )
+        )
 
     def test_stage_aware_transport_preserves_scaffold_before_joint_stage(self) -> None:
         base = {name: 0.0 for name in bridge.BRIDGE_INPUT_NAMES[:6]}

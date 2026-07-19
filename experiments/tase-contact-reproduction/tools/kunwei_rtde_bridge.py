@@ -8109,6 +8109,26 @@ def step5d_publish_action(
     return "startup_invalid"
 
 
+def step5d_publish_guard_approved_late_command(bridge_profile: str) -> bool:
+    """Return the production late-candidate policy for one exact profile.
+
+    The V3 autotune profile is contact-capable and therefore keeps the strict
+    policy: a late candidate is discarded while the last guard-approved
+    command and heartbeat are held until the TP watchdog stops Stage25.
+    """
+
+    return bridge_profile in {
+        STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+        STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+        STEP5D_ABLATION_V31_STAGE_ID,
+        STEP5D_ABLATION_V32_STAGE_ID,
+        STEP5D_ABLATION_V33C20_STAGE_ID,
+        STEP5D_ABLATION_V33_STAGE_ID,
+        STEP5D_ABLATION_V34_STAGE_ID,
+        STEP5D_ABLATION_V35_STAGE_ID,
+    }
+
+
 def step5d_startup_health_heartbeat_published(
     *,
     v30_contract_profile: bool,
@@ -11285,18 +11305,9 @@ def main(argv: list[str] | None = None) -> int:
                         stop_dominant=stop_dominant,
                         schedule_late=deadline_overrun_detected,
                         publish_guard_approved_late_command=(
-                            args.bridge_profile
-                            in {
-                                STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
-                                STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
-                                STEP5D_ABLATION_V31_STAGE_ID,
-                                STEP5D_ABLATION_V32_STAGE_ID,
-                                STEP5D_ABLATION_V33C20_STAGE_ID,
-                                STEP5D_ABLATION_V33_STAGE_ID,
-                                STEP5D_ABLATION_V34_STAGE_ID,
-                                STEP5D_ABLATION_V35_STAGE_ID,
-                                STEP5D_AUTOTUNE_STAGE_ID,
-                            }
+                            step5d_publish_guard_approved_late_command(
+                                args.bridge_profile
+                            )
                         ),
                         last_published_command=last_published_step5d_command,
                     )

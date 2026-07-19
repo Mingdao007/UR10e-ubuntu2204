@@ -63,6 +63,7 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     assert report["timing_diagnostic"] == "accepted_bounded_last_command_hold"
     assert report["canonical_gate"] == [
         "certified_stopping_bound",
+        "certified_return_route_angular_envelope",
         "attended_tp_upload_readback",
         "current_poweroff_controller_identity",
         "attended_sol_xhigh_pre_live_audit",
@@ -75,7 +76,10 @@ def test_repository_signal_names_the_next_legal_action() -> None:
 def test_repository_live_signal_is_the_only_readiness_state() -> None:
     with pytest.raises(
         readiness.ReadinessError,
-        match="requires_certified_stopping_bound_attended_tp_upload_readback",
+        match=(
+            "requires_certified_stopping_bound_"
+            "certified_return_route_angular_envelope"
+        ),
     ):
         readiness.verify(ROOT, require_live=True)
 

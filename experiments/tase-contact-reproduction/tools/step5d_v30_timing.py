@@ -646,7 +646,6 @@ def summarize_preaggregated(
         ("replay_csv", replay_binding),
         ("paper_truth", paper_binding),
         ("profile_selection", artifact_binding.get("profile_selection") or {}),
-        ("stage_table", artifact_binding.get("stage_table") or {}),
         ("calibration_yaml", artifact_binding.get("calibration_yaml") or {}),
         ("ur_xacro", artifact_binding.get("ur_xacro") or {}),
     ):
@@ -1139,6 +1138,8 @@ def summarize_preaggregated(
         is True
         and stale_hold_evidence.get("stop_dominates_hold") is True
         and stale_hold_evidence.get("held_tick_counts_as_consumed") is True
+        and stale_hold_evidence.get("transport_publish_action") == "hold_last"
+        and stale_hold_evidence.get("publish_guard_approved_late_command") is False
         and stale_hold_evidence.get("continuous_stale_stop_s") == 0.020
         and stale_hold_evidence.get("max_consecutive_held_ticks") == 10
         and stale_hold_evidence.get("miss_ratio_max") == 0.01

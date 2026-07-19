@@ -45,6 +45,8 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     assert "codex_autotune_write_state(campaign_epoch, trial_id, 76" in rendered
     assert "codex_autotune_write_state(campaign_epoch, trial_id, 77" in rendered
     assert "write_output_integer_register(33, codex_autotune_return_guard_mask)" in rendered
+    assert "if stale_s2 > 0.020:" in rendered
+    assert "if stale_s2 > 1.000:" not in rendered
 
 
 def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
@@ -65,7 +67,8 @@ def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
         (tmp_path / "step5d_strict_rnn_autotune_v3.numeric-sanity.json").read_text()
     )
     assert sanity["delta_class"] == (
-        "identity_precontact_prior_exact_batch_lifecycle_return_v2"
+        "identity_precontact_prior_exact_batch_lifecycle_return_"
+        "stage25_watchdog_v3"
     )
     assert sanity["precontact_pose_prior_id"] == "step5d_v3_physical_prior_contact_0p1_20260719"
     assert sanity["precontact_xyz_m"] == [0.487834547, 0.129337053, 0.022863519]
@@ -78,6 +81,7 @@ def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
     assert sanity["precontact_clearance_m"] == 0.005
     assert sanity["minimum_start_above_entry_m"] == 0.01
     assert sanity["qdot_cap_rad_s"] == 0.5
+    assert sanity["stage25_stale_command_hold_s"] == 0.020
     assert sanity["precontact_entry_speed_m_s"] == 0.09
     assert sanity["input_integer_registers"] == list(range(24, 31))
     assert sanity["output_integer_registers"] == list(range(24, 34))

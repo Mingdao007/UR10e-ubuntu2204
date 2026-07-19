@@ -586,7 +586,7 @@ def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2, b
         end_hold_s = 0.0
       end
       codex_echo_step4e(stop_reason)
-      if stale_s2 > 1.000:
+      if stale_s2 > 0.020:
         stop_reason = 2.0
       else:
         stop_reason = codex_step4e_guard_stop_reason()

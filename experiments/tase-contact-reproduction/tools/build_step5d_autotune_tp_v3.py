@@ -32,6 +32,7 @@ PRECONTACT_XYZ_M = STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m
 PRECONTACT_ROTVEC_RAD = STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
 PRECONTACT_CLEARANCE_M = 0.005
 MINIMUM_START_ABOVE_ENTRY_M = 0.01
+STAGE25_STALE_COMMAND_HOLD_S = 0.020
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 
@@ -311,6 +312,12 @@ def render_script() -> str:
     )
     rendered = _replace_once(
         rendered,
+        "      if stale_s2 > 1.000:",
+        f"      if stale_s2 > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:",
+        role="Stage25 stale-command watchdog",
+    )
+    rendered = _replace_once(
+        rendered,
         "  local entry_x = 0.487795411\n"
         "  local entry_y = 0.129326793",
         f"  local entry_x = {PRECONTACT_XYZ_M[0]:.9f}\n"
@@ -392,6 +399,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "if p_current[2] < precontact_z + minimum_start_above_entry_m:",
         "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)",
         "local qdot_cap_rad_s = 0.500",
+        f"if stale_s2 > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:",
         "read_input_integer_register(26)",
         "read_input_integer_register(30)",
         "write_output_integer_register(33, codex_autotune_return_guard_mask)",
@@ -424,6 +432,12 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         role="normalized main call",
     )
     normalized = _remove_batch_lifecycle(normalized)
+    normalized = _replace_once(
+        normalized,
+        f"      if stale_s2 > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:",
+        "      if stale_s2 > 1.000:",
+        role="normalized Stage25 stale-command watchdog",
+    )
     normalized = _replace_once(
         normalized,
         f"  local entry_x = {PRECONTACT_XYZ_M[0]:.9f}\n"
@@ -512,7 +526,8 @@ Motion class:
 
 Frozen control contract:
   qdot cap 0.500 rad/s; target 12 N; input integer registers 24..30;
-  output integer registers 24..33; heartbeat watchdog fail-closed.
+  output integer registers 24..33; Stage25 heartbeat watchdog fail-closed
+  after {STAGE25_STALE_COMMAND_HOLD_S:.3f} s of unchanged heartbeat.
   Batch row is explicit; rows 1..9 return NearReady and row 10 returns CampaignHome.
 """
 
@@ -523,7 +538,10 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
         "program": PROGRAM_NAME,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "delta_class": "identity_precontact_prior_exact_batch_lifecycle_return_v2",
+        "delta_class": (
+            "identity_precontact_prior_exact_batch_lifecycle_return_"
+            "stage25_watchdog_v3"
+        ),
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
         "physical_prior_sha256": PRECONTACT_POSE_PRIOR_SHA256,
         "reaction_normal_b": list(STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b),
@@ -534,6 +552,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "minimum_start_above_entry_m": MINIMUM_START_ABOVE_ENTRY_M,
         "precontact_z_policy": "contact_plus_0p1s_robust_z_plus_0p005m_clearance",
         "qdot_cap_rad_s": 0.5,
+        "stage25_stale_command_hold_s": STAGE25_STALE_COMMAND_HOLD_S,
         "precontact_entry_accel_m_s2": 0.135,
         "precontact_entry_speed_m_s": 0.09,
         "far_search_speed_m_s": 0.03375,

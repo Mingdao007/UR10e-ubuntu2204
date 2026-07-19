@@ -6,7 +6,7 @@
   ],
   "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
-  "delta_class": "identity_precontact_prior_exact_batch_lifecycle_return_v2",
+  "delta_class": "identity_precontact_prior_exact_batch_lifecycle_return_stage25_watchdog_v3",
   "far_search_speed_m_s": 0.03375,
   "input_integer_registers": [
     24,
@@ -60,5 +60,6 @@
     0.1,
     0.2,
     0.5
-  ]
+  ],
+  "stage25_stale_command_hold_s": 0.02
 }

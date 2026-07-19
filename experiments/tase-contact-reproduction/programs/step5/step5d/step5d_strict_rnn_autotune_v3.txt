@@ -21,5 +21,6 @@ Motion class:
 
 Frozen control contract:
   qdot cap 0.500 rad/s; target 12 N; input integer registers 24..30;
-  output integer registers 24..33; heartbeat watchdog fail-closed.
+  output integer registers 24..33; Stage25 heartbeat watchdog fail-closed
+  after 0.020 s of unchanged heartbeat.
   Batch row is explicit; rows 1..9 return NearReady and row 10 returns CampaignHome.

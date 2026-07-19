@@ -114,6 +114,68 @@ def evaluate_step5d_v3_timing_raw(root: Path, raw_path: Path) -> dict[str, Any]:
     ):
         blockers.append("v3_requires_production_sched_other_timing_contract")
 
+    tp_script = root / "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script"
+    tp_script_sha256 = _sha256(tp_script)
+    artifact_binding = raw.get("artifact_binding")
+    v3_tp_binding = (
+        artifact_binding.get("v3_tp_script")
+        if isinstance(artifact_binding, dict)
+        else None
+    )
+    if (
+        not isinstance(v3_tp_binding, dict)
+        or v3_tp_binding.get("sha256") != tp_script_sha256
+    ):
+        blockers.append("v3_tp_watchdog_artifact_binding_mismatch")
+    watchdog_markers = [
+        line.strip()
+        for line in tp_script.read_text(encoding="utf-8").splitlines()
+        if line.strip().startswith("if stale_s2 > ")
+    ]
+    if watchdog_markers != ["if stale_s2 > 0.020:"]:
+        blockers.append("v3_tp_watchdog_not_exact_20ms")
+    if isinstance(artifact_binding, dict) and "stage_table" in artifact_binding:
+        blockers.append("v3_legacy_mutable_stage_table_binding_present")
+
+    import step5c_calibrated_kinematics_audit as kinematics
+
+    expected_artifacts = {
+        "profile_selection": root / "config/step5d_v30_profile_selection.json",
+        "calibration_yaml": Path(kinematics.DEFAULT_CALIBRATION_YAML),
+        "ur_xacro": Path(kinematics.DEFAULT_XACRO_PATH),
+    }
+    for label, path in expected_artifacts.items():
+        binding = (
+            artifact_binding.get(label)
+            if isinstance(artifact_binding, dict)
+            else None
+        )
+        if not isinstance(binding, dict) or binding.get("sha256") != _sha256(path):
+            blockers.append(f"v3_runtime_artifact_mismatch:{label}")
+
+    transport = raw.get("controller_stale_hold_fault_evidence")
+    if not isinstance(transport, dict):
+        blockers.append("v3_transport_hold_evidence_missing")
+        transport = {}
+    from kunwei_rtde_bridge import (
+        STEP5D_AUTOTUNE_STAGE_ID,
+        step5d_publish_guard_approved_late_command,
+    )
+
+    expected_transport = {
+        "production_profile_id": STEP5D_AUTOTUNE_STAGE_ID,
+        "transport_publish_action": "hold_last",
+        "publish_guard_approved_late_command": False,
+        "tp_watchdog_script_sha256": tp_script_sha256,
+        "tp_watchdog_threshold_s": 0.020,
+        "continuous_stale_stop_s": 0.020,
+    }
+    for field, expected in expected_transport.items():
+        if transport.get(field) != expected:
+            blockers.append(f"v3_transport_hold_mismatch:{field}")
+    if step5d_publish_guard_approved_late_command(STEP5D_AUTOTUNE_STAGE_ID):
+        blockers.append("v3_production_profile_allows_late_candidate")
+
     sphere = raw.get("step5d_v3_moving_sphere")
     if not isinstance(sphere, dict):
         blockers.append("v3_moving_sphere_timing_missing")

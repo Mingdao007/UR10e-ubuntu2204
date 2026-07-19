@@ -673,8 +673,13 @@ def exercise_bounded_last_command_hold_contract(
     apply_stop: Any,
     apply_startup: Any,
     finalize_history: Any,
+    publish_action: Any,
     carrier_names: Sequence[str],
     joint_layout_code: float,
+    production_profile_id: str,
+    publish_guard_approved_late_command: bool,
+    tp_watchdog_threshold_s: float,
+    tp_watchdog_script_sha256: str | None,
 ) -> dict[str, Any]:
     """Exercise the source-bound publish/hold/stop seam without controller I/O."""
 
@@ -697,7 +702,19 @@ def exercise_bounded_last_command_hold_contract(
         "heartbeat": 11.0,
         "stop_request": 0.0,
     }
-    apply_hold(late_packet, held_command)
+    transport_publish_action = publish_action(
+        late_packet,
+        robot_stage=25.0,
+        v30_contract_profile=True,
+        stop_dominant=False,
+        schedule_late=True,
+        publish_guard_approved_late_command=(
+            publish_guard_approved_late_command
+        ),
+        last_published_command=held_command,
+    )
+    if transport_publish_action == "hold_last":
+        apply_hold(late_packet, held_command)
 
     class RecordingSolver:
         def __init__(self) -> None:
@@ -737,6 +754,8 @@ def exercise_bounded_last_command_hold_contract(
     apply_startup(startup_packet)
     pass_gate = bool(
         not published
+        and transport_publish_action == "hold_last"
+        and publish_guard_approved_late_command is False
         and tuple(float(late_packet[name]) for name in carrier_names) == held_qdot
         and late_packet["heartbeat"] == 11.0
         and state.step5d_last_qdot == held_qdot
@@ -761,7 +780,14 @@ def exercise_bounded_last_command_hold_contract(
         ),
         "pre_first_command_policy": "invalid_packet_tp_sync_no_speed_command",
         "held_tick_counts_as_consumed": True,
-        "continuous_stale_stop_s": 0.020,
+        "production_profile_id": production_profile_id,
+        "transport_publish_action": transport_publish_action,
+        "publish_guard_approved_late_command": (
+            publish_guard_approved_late_command
+        ),
+        "tp_watchdog_script_sha256": tp_watchdog_script_sha256,
+        "tp_watchdog_threshold_s": tp_watchdog_threshold_s,
+        "continuous_stale_stop_s": tp_watchdog_threshold_s,
         "max_consecutive_held_ticks": 10,
         "miss_ratio_max": 0.01,
     }
@@ -804,6 +830,7 @@ def main() -> int:
     )
     from kunwei_rtde_bridge import (
         BRIDGE_INPUT_NAMES,
+        STEP5D_AUTOTUNE_STAGE_ID,
         STEP5D_STAGE25_JOINT_LAYOUT_CODE,
         apply_step5d_moving_sphere_guard,
         apply_step5d_deadline_overrun_hold,
@@ -814,6 +841,8 @@ def main() -> int:
         limit_step5d_live_xdot,
         scale_step5d_xdot_for_joint_feasibility,
         step5d_omega_bounds,
+        step5d_publish_action,
+        step5d_publish_guard_approved_late_command,
         step5d_tcp_jacobian_base,
         step5d_v30_contract_pipeline,
     )
@@ -957,14 +986,51 @@ def main() -> int:
         new_v3_sphere_timing_context = None
         apply_v3_sphere_timing_tick = None
         frozen_step5d_path_reference = None
+    production_profile_id = (
+        STEP5D_AUTOTUNE_STAGE_ID
+        if args.step5d_v3_moving_sphere
+        else "generic_v30_formal_fixture"
+    )
+    production_late_command_policy = (
+        step5d_publish_guard_approved_late_command(production_profile_id)
+    )
+    tp_watchdog_script_sha256: str | None = None
+    tp_watchdog_threshold_s = 0.020
+    if args.step5d_v3_moving_sphere:
+        tp_watchdog_script = (
+            root
+            / "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script"
+        )
+        tp_watchdog_script_sha256 = sha256_path(tp_watchdog_script)
+        watchdog_markers = [
+            line.strip()
+            for line in tp_watchdog_script.read_text(encoding="utf-8").splitlines()
+            if line.strip().startswith("if stale_s2 > ")
+        ]
+        if len(watchdog_markers) != 1 or not watchdog_markers[0].endswith(":"):
+            raise RuntimeError("V3 formal timing requires one Stage25 stale watchdog")
+        tp_watchdog_threshold_s = float(
+            watchdog_markers[0].removeprefix("if stale_s2 > ").removesuffix(":")
+        )
+        if tp_watchdog_threshold_s != 0.020:
+            raise RuntimeError("V3 formal timing requires the exact 20 ms TP watchdog")
+        if production_late_command_policy:
+            raise RuntimeError("V3 formal timing refuses guard-approved late candidates")
     controller_stale_hold_fault_evidence = (
         exercise_bounded_last_command_hold_contract(
             apply_hold=apply_step5d_deadline_overrun_hold,
             apply_stop=apply_step5d_explicit_stop_packet,
             apply_startup=apply_step5d_unpublished_startup_packet,
             finalize_history=finalize_step5d_publish_history,
+            publish_action=step5d_publish_action,
             carrier_names=BRIDGE_INPUT_NAMES[:6],
             joint_layout_code=float(STEP5D_STAGE25_JOINT_LAYOUT_CODE),
+            production_profile_id=production_profile_id,
+            publish_guard_approved_late_command=(
+                production_late_command_policy
+            ),
+            tp_watchdog_threshold_s=tp_watchdog_threshold_s,
+            tp_watchdog_script_sha256=tp_watchdog_script_sha256,
         )
     )
 
@@ -1028,10 +1094,6 @@ def main() -> int:
                 root / "config" / "step5d_v30_profile_selection.json"
             ),
         },
-        "stage_table": {
-            "path": str(root / "config" / "step5_stage_table.json"),
-            "sha256": sha256_path(root / "config" / "step5_stage_table.json"),
-        },
         "calibration_yaml": {
             "path": str(kinematics.DEFAULT_CALIBRATION_YAML),
             "sha256": sha256_path(kinematics.DEFAULT_CALIBRATION_YAML),
@@ -1041,6 +1103,11 @@ def main() -> int:
             "sha256": sha256_path(kinematics.DEFAULT_XACRO_PATH),
         },
     }
+    if tp_watchdog_script_sha256 is not None:
+        artifact_binding["v3_tp_script"] = {
+            "path": str(tp_watchdog_script),
+            "sha256": tp_watchdog_script_sha256,
+        }
     rows = load_rows(replay_csv)
     model_started = time.perf_counter()
     model_bundle = kinematics.build_calibrated_model()

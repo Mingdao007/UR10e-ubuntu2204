@@ -1047,6 +1047,8 @@ class Step5dV30TimingTest(unittest.TestCase):
             "solver_history_restored_to_held_qdot": True,
             "stop_dominates_hold": True,
             "held_tick_counts_as_consumed": True,
+            "transport_publish_action": "hold_last",
+            "publish_guard_approved_late_command": False,
             "continuous_stale_stop_s": 0.020,
             "max_consecutive_held_ticks": 10,
             "miss_ratio_max": 0.01,

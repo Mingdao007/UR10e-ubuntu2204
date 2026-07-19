@@ -358,7 +358,7 @@ def _verify_live_promotion(
         ("live_runtime_promoted", False),
         (
             "blocker",
-            "requires_certified_stopping_bound_attended_tp_upload_readback_current_poweroff_identity_attended_sol_xhigh_audit_and_fresh_authorization",
+            "requires_certified_stopping_bound_certified_return_route_angular_envelope_attended_tp_upload_readback_current_poweroff_identity_attended_sol_xhigh_audit_and_fresh_authorization",
         ),
     ):
         _require(promotion.get(key), expected, f"live promotion {key}")
@@ -489,7 +489,7 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
     )
     if require_live:
         raise ReadinessError(
-            "requires_certified_stopping_bound_attended_tp_upload_readback_current_poweroff_identity_attended_sol_xhigh_audit_and_fresh_authorization"
+            "requires_certified_stopping_bound_certified_return_route_angular_envelope_attended_tp_upload_readback_current_poweroff_identity_attended_sol_xhigh_audit_and_fresh_authorization"
         )
     return {
         "schema": "step5d.autotune-v3/execution-readiness-report-v2",
@@ -504,10 +504,11 @@ def verify(root: Path = ROOT, *, require_live: bool = False) -> dict[str, Any]:
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
         "next_owner": "ur10e-contact-control-prep",
-        "next_legal_action": "certify the physical stopping bound, then perform attended TP upload/readback, current Power-OFF identity checks, and an attended Sol/XHigh audit before fresh authorization",
+        "next_legal_action": "certify the physical stopping bound and return-route angular envelope, then perform attended TP upload/readback, current Power-OFF identity checks, and an attended Sol/XHigh audit before fresh authorization",
         "timing_diagnostic": "accepted_bounded_last_command_hold",
         "canonical_gate": [
             "certified_stopping_bound",
+            "certified_return_route_angular_envelope",
             "attended_tp_upload_readback",
             "current_poweroff_controller_identity",
             "attended_sol_xhigh_pre_live_audit",
