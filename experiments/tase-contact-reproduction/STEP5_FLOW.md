@@ -1,28 +1,282 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects
-`step5d_strict_rnn_ablation_v29` as the read-back-verified Step5d Local
-TP/script package. Its controller evidence is
-`runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948`.
-v29 defaults Stage25.0 to strict-RNN `speedj` with layout `524`, CuPy backend,
-1024 inner iterations, epsilon `0.010`, finite-time exponent `r=0.8`, and a
-`0.05 rad/s` qdot cap. Stage25.3 retains the filtered `5-22 N`, raw `3-25 N`,
-force-norm `<=35 N`, and `0.100 s` evidence tube; Stage25.95 clears registers
-`37..47` before Stage25.0 command consumption.
+`step5d_strict_rnn_autotune_v1` as the frozen controller binding. V3 is an inactive offline
+pre-live candidate. Its local TP triplet changed after the retained V3
+controller read-back, so the old read-back is historical diagnostic evidence,
+not current package acceptance. The public blocker is
+`requires_current_source_formal_500hz_timing`. Before any V3 bridge start, the
+current-source formal timing gate, certified stopping bound, certified
+return-route angular envelope, attended exact TP upload/read-back, current
+Power-OFF controller identity, attended Sol/XHigh audit, and fresh live
+authorization must all close. Load/Play, contact, and motion remain separately
+forbidden by the offline tranche.
+
+The V3 physical prior binds reaction normal
+`[-0.043955267, 0.020079909, 0.998831683]`, approach axis
+`[0.043955267, -0.020079909, -0.998831683]`, and precontact rotvec
+`[3.120752062, 0.0, 0.068626833]`. TP precontact orientation and the bridge
+initial normal must carry the same prior fingerprint. Every trial resets
+integral, outer-loop, normal, filter, and rate-limit state. The first loaded
+tick cannot relatch; live-normal blending starts only after load is at least
+`8 N` continuously for `0.10 s` and remains limited to `0.05 rad/s`.
+
+Each V3 trial binds four real control coordinates: force P, I, damping, and
+`orientation_ko`. A `BatchIdentity` binds exactly ten candidate/overlay rows.
+Rows remain `unattempted` or `attempted_incomplete` until exact ACK consumption
+and typed safe closure make them `ack_completed`; resume executes only the
+remaining rows. TrialBrief publication happens once, after immutable bundle,
+exact ACK, and safe closure. Trials 13--22 remain diagnostic-only evidence;
+trial 21's force metric is `unavailable`, never zero, and none of those ten
+trials is optimizer eligible.
+
+Return is typed by exact batch identity: rows 1--9 close at
+`NearReadyReference`, and row 10 closes at `CampaignHomeReference`. Both use
+the fixed three-segment route: vertical transfer to `z=0.033 m` at
+`a=0.060 m/s^2`, `v=0.040 m/s`; constant-Z translation to precontact XY/prior
+orientation at `a=0.135 m/s^2`, `v=0.090 m/s`; then vertical descent to
+`z=0.022863519 m`. Pose, stillness, and transfer guards must pass before
+`WAIT_ACK`.
+
+During active Stage25, the shared moving-sphere kernel checks actual and
+conservative predicted-stop distance against a `15 mm` radius using the
+authoritative frozen cycloid progress. Frozen progress freezes the center.
+Missing, nonfinite, mismatched, or uncertified stopping-bound inputs fail
+closed through the existing exact-stop transport. The legacy AABB is not
+simultaneously enforced. Two current-source, 30,000-tick seam diagnostics each
+had zero compute misses and zero sphere stops but one absolute host-schedule
+miss, so they remain `diagnostic_failed_host_schedule`. The exact production
+`SCHED_OTHER/0` formal harness also failed two current-source attempts because
+the full-tick P99/deadline robustness gate was not accepted. Neither result is
+promoted by retrying until lucky; V3 remains `pre_live_blocked`.
+
+v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
+acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,
+and gross 60 N / 100 N / 3 Nm protection. The scheduler-only delta keeps the
+control thread and every helper thread at `SCHED_OTHER/0`; it never writes the
+Linux RT quota. The single retained 60 s no-motion production-seam timing
+completed 30,052 ticks with compute p99 `1.181 ms`, maximum row gap `4.011 ms`,
+zero gaps over 20 ms, and zero 45–60 ms gaps.
+
+The active `step5d_strict_rnn_autotune_v1` controller is built from the exact
+frozen v35 source and controller read-back verified. Its package stamp is
+`2026-07-15T0835HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1`; local, controller, and
+fresh-readback SHA agree for the `.script/.txt/.urp` triplet. Package delivery
+was an automatic file transaction and did not itself load or run the program.
+The host accepts append-only Codex-managed batches of exactly five candidates.
+P and damping remain on the 0.25-octave `log2` lattice inside +/-1 octave. I
+uses a two-stage policy: first probe exact positive multipliers
+`[10,50,100,500,1000] * I0`, then refine around the best I scale with ordinary
+`log2 +/-0.25` steps. The force integral state remains clamped to `+/-1 N*s`,
+so the largest coarse I contribution is `0.01 m/s^2`; at the group-10 anchor,
+the P contribution at 12 N error is about `0.0202 m/s^2`. The current
+`qdot<=0.5 rad/s`, matched host/TP `0.5 rad/s^2` slew/acceleration, and gross
+force/torque guards are unchanged. Parameter-only batch updates live under the
+persistent campaign control directory and do not change the code fingerprint
+or require code tests. The TP/bridge stays at verified Home while waiting for
+the next five-point batch, so the next direction can be chosen from the
+preceding results without another Play.
+
+v34 is retained as immutable physical failure evidence. Its Stage25 feedback,
+XY, qd alignment, RNN consumption, Safety NORMAL, and gross guards passed, but
+the FIFO control thread exhausted Linux's default 950 ms/s RT budget and was
+throttled for roughly 43–50 ms almost every second. v33c20 is also retained as
+earlier cadence failure evidence; neither package is current or authorized.
+
+That timing gate is not a generic post-edit check. Its freeze invalidates only
+when the timing-critical bridge, outer, RNN, control contract, operator, or
+timing harness changes; status/reporting-only edits use short deterministic
+tests and do not trigger another 60 s no-motion run.
+
+The Codex/high Review v3 lane found four P1 defects in the first v35 freeze; all
+are deterministically closed. The final closure also binds the raw bridge to
+the exact v35 source/package/read-back/timing/review fingerprint before any
+RTDE write path may proceed.
+The required Fable5/high invocation returned an external session-limit error,
+not a verdict. The standing user rule records that lane as
+`skipped_unavailable` and automatically uses the owner-approved degraded `1+0`
+stack without another confirmation. A fresh explicit authorization is still
+required for the current v35 run.
+
+v32 fixed the v31 failure at Stage25.05. Register state is interpreted by
+TP stage: Stage25.05 passes latch-ready state `33`, Stage25.3 passes preload
+state `521`, Stage25.95 passes zero-invalid clear state `522`, and only
+Stage25.0 carries strict-RNN qdot with internal marker `524`. Therefore `524`
+is no longer a global publisher/readiness gate. Its live run is immutable
+failure evidence: the bridge consumed one RTDE packet per loop while the
+controller produced faster, so feedback accumulated to roughly 2.7 s stale;
+the aggressive outer then drifted in XY and hit the 60 N gross guard.
+
+v33 drains every currently readable RTDE packet and controls from only the
+latest sample. It logs controller timestamp, estimated feedback age, drained
+packet count, and sent/echo heartbeat gap. Feedback age above 50 ms is a
+structural stop only after 0.1 s continuous dwell. Stage25 outer is exactly
+bound to the Step5b-equivalent discrete profile: tangential `kp=1.5`,
+orientation `ko=0.4`, force `Md=1000`, `Bd=7000`, `kf=0.01`, and integral
+limit `1 N·s`; contact-search CLI gains are explicitly not these active outer
+parameters.
+
+The user-selected permissive policy remains in force: qdot cap `0.5 rad/s`,
+`0.05 rad/s²` shaping, 2 s sensor stale, 1 s heartbeat stale, and Stage25
+runtime limits of 35 s for v33c20 / 75 s for v33. Force-window,
+Cartesian/normal speed and displacement, DLS,
+residual, active-bound, and ordinary normal-direction checks are diagnostic.
+No guard may be tightened until the user explicitly requests it. The user
+required a fresh `1×Sol/xhigh + 1×Fable5/high` audit for this delivery. Both
+lanes returned NO-GO findings; every finding was repaired and closed by the
+single deterministic owner-validation pass. Both TP identities are uploaded
+and fresh-read-back verified. Review and read-back still do not authorize
+motion. The first v33c20 live attempt did not show the former stale-feedback
+XY drift, but failed cadence acceptance and remains blocked pending analysis
+plus a new explicit user command.
+
+The historical `step5d_strict_rnn_ablation_v30` is an inactive offline
+candidate. It keeps CuPy, epsilon `0.010`, finite-time exponent `r=0.8`, qdot
+cap `0.05 rad/s`, and now uses the 512-iteration candidate. A source-bound
+SCHED_FIFO/20 diagnostic sweep compared 128/256/512: 128 executed 333/500
+ticks with 167 normal-sign mismatches, 256 executed 461/500 with 39 mismatches,
+and 512 executed 500/500 with zero mismatch while keeping solver p99 about
+`0.248 ms` and full-tick p99/max about `0.700/0.914 ms`. Selection requires
+zero normal-sign mismatch before timing speed; it did not simply choose the
+fastest profile. The 128 artifacts remain immutable historical evidence marked
+superseded by `config/step5d_v30_profile_selection.json`. It retains the canonical
+`n_reaction = -n_approach`, `SafetyEnvelope`, solver status `40`, and DLS as
+shadow-only with no runtime fallback. Manifest-bound v30 upload/readback
+preparation may occur before P0, but v30 cannot become current, start a bridge,
+or run contact until all of the following are frozen and pass:
+
+Controller TP cleanup keeps current/successful evidence in
+`/programs/andyl/kunwei/step5/` and moves only failed or abandoned P0 packages
+v1-v4 and v6-v8 into `/programs/andyl/kunwei/step5/archive/`. Each archived
+triplet has a mirrored local package under `programs/step5/step5d/archive`, a
+rewritten Script-node path, and fresh controller read-back evidence. Successful
+v27/v28 evidence, v29 fallback, v30 candidate, P0v5, and current P0v9 remain in
+the outer controller folder.
+
+Wall-clock evidence has two non-interchangeable classifications. A strict
+500 Hz hard-real-time claim still requires zero samples at or beyond 2 ms.
+Contact v30 retains the strict bounded route: a late host candidate is
+discarded, heartbeat remains unchanged, and TP continues the last successfully
+published guard-approved qdot for at most 0.020 s. P0 v8 is deliberately more
+tolerant: a completed safety-approved GPU qdot publishes even after the nominal
+release; while a new accepted result is unavailable, heartbeat remains
+unchanged and TP continues the previous accepted qdot for at most 0.250 s,
+without injecting a zero-qdot safe hold. Before the first accepted command TP
+only syncs and issues no speed command. At the 0.05 rad/s qdot cap, the P0 v8
+maximum theoretical 250 ms stale displacement is 0.0125 rad per joint. P0 v8
+is now frozen failed historical evidence: its press-only target conflicted
+with the intended no-contact semantics and its TP package did not provide the
+full command echo required for semantic qualification.
+
+1. `step5d_strict_rnn_no_contact_p0_v9` is the inactive permissive successor.
+   It freezes the actual Stage25 entry TCP pose and tracks the canonical Step5
+   cycloid in the safe-frame XY basis: `A=15 mm`, `theta=0.1*t`, `theta=0..6`
+   over 60 s, giving about 94.19 mm along travel and a 30 mm lateral peak.
+   In parallel, base Z follows a quintic smoothstep from the anchor to +20 mm,
+   with zero Z velocity at both endpoints. It performs no contact search,
+   preload, force target, or active orientation oscillation. Weak posture hold
+   remains at `effective_ko=0.01`. The regenerated TP triplet was uploaded and
+   freshly read back at `20260714_185412`; the next required evidence is the
+   canonical full-path live run.
+2. v30 has a complete 10,000-solve and 60 s / 500 Hz timing plus safe-hold
+   pass. The fresh source-bound RNN512 run satisfies the bounded
+   last-command-hold route under the revised `1.5 ms` schedule-lateness
+   bound. The former `0.5 ms`-gate failure remains retained history.
+3. The v30 package/readback hashes and evidence are frozen.
+4. Immediately before real contact, the current composite fingerprint passes
+   one Review v3 `1+1` gate (or an evidence-backed degraded `1+0`).
+
+The v30/P0 production runtime and formal timing harness share one scheduler
+contract: `SCHED_FIFO` priority `20`, with `OPENBLAS_NUM_THREADS`,
+`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, and `NUMEXPR_NUM_THREADS` all fixed to
+`1`. Leaving the numeric worker pools unbounded made the combined MuJoCo
+process consume the Linux `950000/1000000 us` RT budget and produced periodic
+about-50 ms throttling; the v2 verifier now rejects that runtime environment
+instead of blaming the RNN profile. The accepted Ubuntu run additionally binds
+CPU affinity `11,13,14,15`. Before each measured branch, the harness runs the
+same production-shaped path without a command sink: execute `1000` ticks at
+500 Hz immediately before the full-tick lane, and safe-hold `100` ticks at
+500 Hz immediately before its lane. Both branches reset solver/control state
+before measurement, and a Python audit-hook tripwire rejects network transport.
+This prewarm is part of offline timing evidence only; equivalent no-output
+prewarm is not yet integrated or verified in the future live bridge and remains
+a readiness blocker. The 10,000-solve microbenchmark yields
+for an unmeasured `2 ms` after each 100 steady solves to avoid Linux RT
+throttling. After each of the 99 yields at steady-sample boundaries
+`100..9900`, the harness times one separate solver batch-reentry and retains
+all 99 raw values plus their miss indices. These reentries are explicit
+diagnostics, not discarded outliers and not members of the 10,000-sample
+steady solver distribution to which the 2 ms solver gate applies. A hard
+500 Hz claim still independently requires zero full-tick deadline misses; the
+500 Hz full-tick and safe-hold loops keep their original pacing unchanged.
+The required raw timing schema is now `step5d_v30_remote_timing_raw_v3`.
+It retains indexed elapsed-time arrays for all 10,000 solver, 30,000 full-tick,
+and 30,000 safe-hold samples; the independent validator recomputes every
+distribution and miss count. Pre-v3 compact formal candidates cannot satisfy
+the current aggregator binding.
+
+The current formal artifact is
+`config/step5d_v30_rnn512_last_command_hold_lateness1p5_formal_timing_raw.json`
+(SHA-256 `72fbadbb632ec0df6b3b3e2efed16aa62a31f98b5a470f7d11f5f7d04edf18a3`),
+with independent summary
+`config/step5d_v30_rnn512_last_command_hold_lateness1p5_formal_timing_summary.json`
+(SHA-256 `1159d79b4778f7669019977283abfd05b8f03cba98a43955303f2c8c1d71805b`).
+The 10,000-solve p99/max were `0.384/1.369 ms`; the 60 s full-tick p99/max
+were `1.381/2.420 ms` with 18 compute misses, 19 schedule misses, and maximum
+consecutive count one; and the independent 60 s safe-hold p99/max were
+`1.064/2.236 ms` with one compute/schedule miss and maximum consecutive count
+one. Full-tick and safe-hold schedule lateness were `0.422128 ms` and
+`0.238373 ms`, respectively. Hard-real-time remains false, while bounded
+last-command-hold acceptance passes. The P0 v8 triplet has retained controller
+upload and byte-for-byte read-back evidence. The v30 triplet remains a local
+offline candidate pending a fresh controller read-back. The P0 canary and
+live-runtime prewarm gate remain separate from this offline timing result.
+
+The retained source-bound P0 MuJoCo diagnostic uses the v4 evidence contract
+as a separate legacy hard-deadline lane; it is not the controller
+last-command-hold acceptance path.
+The retained historical offline `2 -> 10 -> 60 s` diagnostic sequence is not
+the active controller-canary contract. Before that historical measured
+sequence it completed exactly 1,000 source-bound,
+unmeasured, no-output production-path execute ticks paced at 500 Hz. The lane
+still crosses `SafetyEnvelope`, DLS-shadow, layout-524 `RegisterCommand`, and
+`SimulationCommand`, but never calls the plant command sink. Actual release
+intervals and burst count are retained; solver, control-adapter, and simulator
+state are then reset before measured sequence zero. Prewarm samples cannot be
+discarded measured samples or satisfy a timing/P0 claim.
+
+For v4, every measured control duration at or beyond 2 ms is classified before
+the command sink and replaced by exact-zero qdot plus `stop_request=1`. The
+original candidate, full timing sample, and miss remain in the trace. In the
+latest isolated run the 2/10/60-second phases retained `40/369/198` misses;
+every one became an exact-zero stop and the nonzero-rejection count was zero.
+The final 60-second p99 was `0.799 ms`, but its max was `5.408 ms`, so the
+fail-closed control-path diagnostic passes while the hard timing gate remains
+failed. The canonical offline state is therefore `bound_timing_blocked`, not a
+P0 pass. The earlier v3 zero-miss 60-second result remains historical evidence
+for its older fingerprint and cannot satisfy the v4 gate. Geometry remains
+provisional, controller canaries have not run, and no simulator result can set
+P0 live passed or promote v30.
+
+Review v3 uses `0+0` for ordinary coding, no-contact P0, package, commit, push,
+and handoff. Direction changes join the next contact composite instead of
+triggering a separate review. Frozen v29/v30 contact pre-live uses exactly one
+`1+1`, or an evidence-backed degraded `1+0` if Fable5 is unavailable. Reviews
+begin only after evidence freeze, and one composite fingerprint cannot trigger
+a second full review. P0/P1 findings block; P2 is backlog-only. Finding fixes
+close through decision-digest-bound deterministic owner validation and never
+start a targeted reviewer closer.
 
 Package acceptance is not live-run acceptance and is not reproduction
-completion. v29 remains `liveprep_blocked` until the canonical offline timing,
-DLS-shadow, package-binding, and milestone-review artifact passes; after that
-it may advance only to `awaiting_live_authorization`. Bridge start, TP program
-load/Play, robot motion, payload/TCP writes, and `zero_ftsensor()` remain
-separate explicit live gates. The retained v27 fix-validation run
+completion. Bridge start, TP program load/Play, robot motion, payload/TCP
+writes, and `zero_ftsensor()` remain separate explicit gates. The retained v27 fix-validation run
 `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513` passed the 10 s
 Step5b-live / Step5d-shadow window: live `vx/vy/vz` came from the Step5b speedl
 controller, live `wx/wy/wz=0`, Step5d paper/RNN linear and angular outputs were
 shadow diagnostics, normal load stayed in the 10.05-14.44 N range, and command
 consumption ratio was about `0.998`. That is retained fix-validation evidence,
-not a 60 s reproduction claim. v29 has a Stage25 success target of `60 s` and
-runtime limit of `65 s`; neither is exercised by offline live-prep.
+not a 60 s reproduction claim. v29/v30 have a Stage25 success target of `60 s`
+and runtime limit of `65 s`; neither is exercised by this offline round.
 The full reproduction target remains separate and not complete.
 Step4f, Step4g, Step5b, and Step5d v1-v27 remain retained evidence packages
 only. The ROS2 source package for the current route is now
@@ -187,7 +441,14 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v26` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Retained read-back/live-attempt evidence: default `speedl_cartesian_oracle`, Stage25.3 Step5b/Step6b evidence tube filtered 7-18 N / raw 5-20 N, superseded by v27 wider tube and 35 N hard guards; not current. |
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
-| `step5d_strict_rnn_ablation_v29` | bridge+TP | true | true | strict TASE RNN speedj live | `v31_filtered_live` | Current read-back verified package. Offline live-prep requires the pinned CuPy/1024/epsilon 0.010/r 0.8/qdot 0.05 profile, full timing evidence, diagnostic-only DLS shadow, package binding, and milestone review. Passing these advances only to `awaiting_live_authorization`; no live run or reproduction is claimed. |
+| `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Superseded historical fallback. A future reactivation requires fresh readback/timing fingerprint and explicit live/contact authorization. |
+| `step5d_strict_rnn_no_contact_p0_v8` | frozen failed P0 evidence | false | false | v30 strict-RNN contract | none | Retained 60 s failed canary and controller readback evidence. Its press-only target conflicts with the intended no-contact experiment and its TP package lacks the full command echo required for semantic qualification. It cannot be promoted and is superseded by P0 v9. |
+| `step5d_strict_rnn_no_contact_p0_v9` | permissive P0 guard v2 | false | false | strict-RNN layout-524 structural contract | none | Canonical free-space candidate: 60 s cycloid with `A=15 mm`, `theta=0..6`, about 94.19 mm along travel, 30 mm lateral peak, and smooth relative base `Z=+20 mm`; `qdot<=0.5 rad/s`; 2 s sensor stale, 1 s heartbeat stale, 75 s TP runtime. Force/torque, Cartesian/normal speed, approach-normal displacement, DLS, residual magnitude, and active bounds are diagnostic-only. Success requires 60 continuous consumed/accepted seconds, along endpoint >=90 mm, lateral peak >=25 mm, relative Z endpoint >=18 mm, and terminal TP stop acknowledgement. |
+| `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, a passing successor no-contact canary, and frozen package/readback. Contact requires separate authorization. |
+| `step5d_strict_rnn_ablation_v31` | superseded failure evidence | true | false | strict TASE RNN layout-524; DLS/Cartesian shadow-only | latched contact normal | Immutable failed run: TP reached Stage25.05, but the old global 524 publisher gate suppressed latch-ready state 33, so TP timed out before preload/continuous contact. Superseded by v32. |
+| `step5d_strict_rnn_ablation_v32` | immutable failure evidence | true | false | stage-aware strict TASE RNN speedj; DLS/Cartesian shadow-only | latched contact normal | Live run reached Stage25 but accumulated about 2.7 s stale RTDE feedback, drifted in XY, and ended at the 60 N gross normal guard. Superseded by v33; never rerun or reinterpret. |
+| `step5d_strict_rnn_ablation_v33c20` | current 20 s canary; first live attempt failed cadence acceptance | true | false | latest-sample strict TASE RNN speedj; Step5b-equivalent outer | latched contact normal | Freshness/XY/qd/RNN/Safety/gross criteria passed in `20260715_002234`; 28 row gaps >20 ms, max 53.3 ms, sent/echo gap 6. Retry requires analysis and new explicit authorization. |
+| `step5d_strict_rnn_ablation_v33` | staged 60 s full candidate | true | false | latest-sample strict TASE RNN speedj; Step5b-equivalent outer | latched contact normal | Separate full-run identity; may become current only after v33c20 passes and the user separately authorizes the full run. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
 
@@ -855,9 +1116,11 @@ On a valid trigger:
      scripts/step5b-contact-operator.sh contact-bridge
    ```
 
-3. Long checks (network/Kunwei route) come from the operator's 30-min TTL
-   cache. Warm it with `prep-long-checks` once at bench-session start. If the
-   cache is stale the operator refreshes it itself; do not add manual checks.
+3. The fast trigger has no TTL cache, duplicate RTDE probe, or blocking full
+   bench preflight. Exact package binding, live authorization, Dashboard
+   snapshot, realtime launcher, and ready sentinel remain. `diagnose-bench`
+   (`prep-long-checks` compatibility alias) is an explicit optional snapshot
+   whose result never grants bridge authorization.
 4. Target from user trigger to bridge process start is a few seconds.
 
 ## Step5b Post-Run Diagnostic Bundle
@@ -905,7 +1168,12 @@ gate, the qdot register path is repaired, strict RNN paper-truth extraction is
 closed where applicable, numeric sanity passes, and a separate live plan is
 explicitly accepted.
 
-There is no valid full Step5d reproduction bridge command yet. Step5d remains
-the full RNN completion target. `scripts/step5d-liveprep-operator.sh
-contact-bridge` is only the explicitly accepted live-prep bridge route after
-package read-back; it is not a full reproduction authorization.
+Step5d v35 is the current full-run candidate. It preserves the v34
+Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP acceleration
+`0.1 rad/s^2`, fresh-feedback drain, permissive ordinary guards, and gross
+60 N / 100 N / 3 Nm protection. Its scheduler-only delta keeps the control
+thread and every helper thread at `SCHED_OTHER/0`; it never writes Linux RT
+quota settings. Package upload/read-back, offline timing, freeze, and review
+remain distinct from live authorization. `scripts/step5d-strict-rnn-contact-v35.sh
+contact-bridge` must stay blocked until v35 is the canonical current binding
+and the user issues a fresh bridge authorization.

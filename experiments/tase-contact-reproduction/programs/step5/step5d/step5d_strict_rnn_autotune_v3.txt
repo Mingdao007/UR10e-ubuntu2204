@@ -1,0 +1,33 @@
+Step5d Autotune V3 TP package
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp
+
+Version:
+  2026-07-19T1650HKT
+
+Identity:
+  release_stage_id=step5d_strict_rnn_autotune_v3
+  control_profile_id=step5d_strict_rnn_autotune_v1
+  tp_program_id=step5d_strict_rnn_autotune_v3
+
+Motion class:
+  Contact motion package. Upload/read-back does not Load or Play it.
+  One Play enters the live campaign; there is no HIL HOLD or second user authorization.
+  Before guarded search, Stage22 first moves at the existing safe Z, then moves
+  vertically to (0.487834547, 0.129337053, 0.022863519) with a 0.005 m clearance
+  above the completed contact-plus-0.1 s robust surface pose. FAR/NEAR speeds and
+  force thresholds remain frozen.
+
+Frozen control contract:
+  qdot cap 0.500 rad/s; target 12 N; input integer registers 24..30;
+  output integer registers 24..33; Stage25 heartbeat watchdog fail-closed
+  after 0.020 s of unchanged heartbeat.
+  Batch row is explicit; rows 1..9 return NearReady and row 10 returns CampaignHome.
+  The three return targets are unchanged. Return motion uses bounded speedl with
+  angular command cap 0.050 rad/s, rotational
+  acceleration cap 0.100 rad/s^2,
+  observed speed/acceleration tripwires 0.060
+  rad/s and 0.500 rad/s^2, explicit
+  stopl rotational deceleration 0.100
+  rad/s^2, and a 0.349065850 rad admission cap.

@@ -1,0 +1,130 @@
+{
+  "schema": "failure_to_guard.coverage_map/v1",
+  "coverage_map_id": "ur10e_failure_to_guard_coverage_v1",
+  "invariants": [
+    {
+      "invariant_id": "f2g.optimizer_eligibility",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "planned", "evidence": []},
+        "gazebo_ursim": {"required": false, "status": "not_required_for_pure_gate", "evidence": []},
+        "hil": {"required": true, "status": "historical_incident", "evidence": ["tests/fixtures/failure_to_guard_hil_bridge_startup_incident_v1.json"]},
+        "live": {"required": true, "status": "not_run_requires_operator_authorization", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.parameter_semantics",
+      "lanes": {
+        "small": {"required": true, "status": "planned", "evidence": []},
+        "medium": {"required": true, "status": "planned", "evidence": []},
+        "gazebo_ursim": {"required": true, "status": "planned", "evidence": []},
+        "hil": {"required": true, "status": "not_run_requires_serial_no_motion_gate", "evidence": []},
+        "live": {"required": true, "status": "not_run_requires_operator_authorization", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.bridge_startup_artifact_closure",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "existing_installed_runtime_lane", "evidence": ["tests/test_step5d_autotune_v3_installed_runtime.py"]},
+        "gazebo_ursim": {"required": false, "status": "cannot_faithfully_prove_controller_artifact_closure", "evidence": []},
+        "hil": {"required": true, "status": "historical_failure_not_a_pass", "evidence": ["tests/fixtures/failure_to_guard_hil_bridge_startup_incident_v1.json"]},
+        "live": {"required": false, "status": "not_required_before_hold_ready", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.failure_recurrence",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "planned_debt_worktree_orchestrator", "evidence": []},
+        "gazebo_ursim": {"required": false, "status": "not_required_for_pure_trigger", "evidence": []},
+        "hil": {"required": false, "status": "incident_is_input_not_test_execution", "evidence": ["tests/fixtures/failure_to_guard_hil_bridge_startup_incident_v1.json"]},
+        "live": {"required": false, "status": "incident_is_input_not_test_execution", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.rollout_sanitization",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_rollout_extractor.py"]},
+        "medium": {"required": false, "status": "not_required", "evidence": []},
+        "gazebo_ursim": {"required": false, "status": "not_required", "evidence": []},
+        "hil": {"required": false, "status": "not_required", "evidence": []},
+        "live": {"required": false, "status": "not_required", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.step5d_physical_prior_binding",
+      "lanes": {
+        "small": {"required": true, "status": "implemented_m4", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json", "../../src/ur10e_experiment_runtime/tests/test_physical_prior.py"]},
+        "medium": {"required": true, "status": "implemented_m4", "evidence": ["tests/test_step5d_autotune_v3_bridge_wrapper.py", "tests/test_step5d_autotune_tp_v3.py"]},
+        "replay": {"required": true, "status": "diagnostic_replay_pass", "evidence": ["tools/audit_step5d_v3_diagnostic_bundles.py", "config/step5/step5d_autotune_v3_offline_validation.json"]},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []},
+        "live": {"required": true, "status": "not_run_requires_authorization", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.step5d_trial_reset_no_relatch",
+      "lanes": {
+        "small": {"required": true, "status": "implemented_m4", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json"]},
+        "medium": {"required": true, "status": "implemented_m4", "evidence": ["tests/test_step5d_autotune_v3_bridge_wrapper.py", "tests/test_step5d_autotune_runtime.py"]},
+        "replay": {"required": true, "status": "diagnostic_replay_pass", "evidence": ["tools/audit_step5d_v3_diagnostic_bundles.py"]},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []},
+        "live": {"required": true, "status": "not_run_requires_authorization", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.actual_overlay_identity",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "implemented_m4", "evidence": ["tests/test_step5d_autotune_runtime_lifecycle.py", "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py"]},
+        "replay": {"required": true, "status": "diagnostic_replay_pass_optimizer_excluded", "evidence": ["tools/audit_step5d_v3_diagnostic_bundles.py"]}
+      }
+    },
+    {
+      "invariant_id": "f2g.exact_batch_completion",
+      "lanes": {
+        "small": {"required": true, "status": "implemented_m3", "evidence": ["../../src/ur10e_experiment_runtime/tests/test_ur_experiment_batch_lifecycle.py"]},
+        "medium": {"required": true, "status": "implemented_m3", "evidence": ["tests/test_step5d_autotune_v3_acceptance.py", "tests/test_step5d_autotune_recovery.py"]},
+        "replay": {"required": true, "status": "implemented_m5_offline_lifecycle_simulation", "evidence": ["tests/step5d_v3_fake_bridge_harness.py", "tests/test_step5d_autotune_v3_acceptance.py"]},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.metric_role_optimizer_gate",
+      "lanes": {
+        "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},
+        "medium": {"required": true, "status": "implemented_m4", "evidence": ["tests/test_step5d_autotune_runtime_lifecycle.py", "../../src/ur10e_experiment_runtime/tests/test_trial_brief.py"]},
+        "replay": {"required": true, "status": "diagnostic_replay_pass_trial21_unavailable", "evidence": ["tools/audit_step5d_v3_diagnostic_bundles.py"]}
+      }
+    },
+    {
+      "invariant_id": "f2g.typed_return_reference",
+      "lanes": {
+        "small": {"required": true, "status": "implemented_m4", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json", "../../src/ur10e_experiment_runtime/tests/test_return_route.py"]},
+        "medium": {"required": true, "status": "implemented_m4", "evidence": ["tests/test_step5d_autotune_runtime_lifecycle.py", "tests/test_step5d_autotune_tp_v3.py"]},
+        "simulation": {"required": true, "status": "unavailable_not_run_no_current_v3_backend", "evidence": ["config/step5/step5d_autotune_v3_offline_validation.json"]},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.trajectory_reference_binding",
+      "lanes": {
+        "small": {"required": true, "status": "implemented_m4", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json", "../../src/ur10e_experiment_runtime/tests/test_moving_sphere.py"]},
+        "medium": {"required": true, "status": "implemented_m4", "evidence": ["tests/test_step5d_autotune_v3_bridge_wrapper.py"]},
+        "replay": {"required": true, "status": "diagnostic_replay_pass_actual_geometry_only", "evidence": ["tools/audit_step5d_v3_diagnostic_bundles.py"]},
+        "timing": {"required": true, "status": "diagnostic_seam_failed_host_schedule_formal_full_path_blocked", "evidence": ["tools/benchmark_step5d_v3_sphere_seam.py", "config/step5/step5d_autotune_v3_offline_validation.json"]},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.moving_sphere_exclusive_guard",
+      "lanes": {
+        "small": {"required": true, "status": "implemented_m4", "evidence": ["tests/fixtures/failure_to_guard_step5d_v3_incidents_v1.json", "../../src/ur10e_experiment_runtime/tests/test_moving_sphere.py"]},
+        "medium": {"required": true, "status": "implemented_m4", "evidence": ["tests/test_step5d_autotune_v3_contract.py", "tests/test_step5d_autotune_v3_bridge_wrapper.py"]},
+        "replay": {"required": true, "status": "diagnostic_replay_pass_actual_geometry_only", "evidence": ["tools/audit_step5d_v3_diagnostic_bundles.py"]},
+        "timing": {"required": true, "status": "diagnostic_seam_failed_host_schedule_formal_full_path_blocked", "evidence": ["tools/benchmark_step5d_v3_sphere_seam.py", "config/step5/step5d_autotune_v3_offline_validation.json"]},
+        "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
+      }
+    }
+  ]
+}

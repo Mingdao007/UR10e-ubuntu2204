@@ -119,10 +119,51 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
         self.assertIn("strict RNN live", runtime.register_contract["stage25_0"])
         self.assertIn("layout 524", runtime.register_contract["stage25_0"])
 
+    def test_p0_v9_guard_v2_accepts_disabled_force_controller(self) -> None:
+        stage_env = iface.build_stage_env(iface.STEP5D_NO_CONTACT_P0_V9_STAGE_ID, ROOT)
+        runtime = iface.resolve_runtime_interface(
+            program=iface.STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+            root=ROOT,
+            env={},
+        )
+
+        self.assertEqual(runtime.bridge_defaults.target_force_n, 0.0)
+        self.assertEqual(runtime.bridge_defaults.force_p_gain, 0.0)
+        self.assertEqual(runtime.bridge_defaults.force_i_gain, 0.0)
+        self.assertEqual(runtime.bridge_defaults.integral_limit_n_s, 0.0)
+        self.assertEqual(stage_env["STEP5D_QDOT_LIMIT_RAD_S"], "0.500")
+        self.assertEqual(stage_env["BRIDGE_SENSOR_STALE_S"], "2.00")
+        self.assertEqual(runtime.hard_contract["runtime_profile"]["guard_schema"], "p0_v9_guard_v2")
+        self.assertFalse(runtime.hard_contract["runtime_profile"]["force_guards_enabled"])
+        self.assertFalse(runtime.hard_contract["runtime_profile"]["cartesian_speed_guards_enabled"])
+        self.assertFalse(runtime.hard_contract["runtime_profile"]["normal_motion_guards_enabled"])
+        self.assertEqual(runtime.hard_contract["stage25_runtime_limit_s"], 75.0)
+        self.assertTrue(runtime.hard_contract["no_contact_p0_capture"])
+
+    def test_p0_v9_live_ready_does_not_print_removed_guards(self) -> None:
+        runtime = iface.resolve_runtime_interface(
+            program=iface.STEP5D_NO_CONTACT_P0_V9_STAGE_ID,
+            root=ROOT,
+            env={},
+        )
+
+        joined = "\n".join(
+            iface.live_ready_lines(
+                runtime,
+            )
+        )
+
+        self.assertIn("schema=p0_v9_guard_v2", joined)
+        self.assertIn("[guards-disabled] force, Cartesian speed, normal speed/displacement", joined)
+        self.assertIn("qdot_slew=0.05rad/s^2", joined)
+        self.assertNotIn("[tuning] preload", joined)
+        self.assertNotIn("hard_force=", joined)
+        self.assertNotIn("legacy_total_linear_debug=", joined)
+
     def test_live_ready_without_authorization_never_claims_live_bridge(self) -> None:
         runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=ROOT, env={})
 
-        lines = iface.live_ready_lines(runtime, {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True})
+        lines = iface.live_ready_lines(runtime)
 
         joined = "\n".join(lines)
         self.assertIn("[step5d][phase=liveprep-blocked][rebuild=no][upload=no]", lines)
@@ -141,7 +182,6 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
 
         lines = iface.live_ready_lines(
             runtime,
-            {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True},
             readiness=readiness,
         )
 
@@ -163,7 +203,7 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
             table_path.write_text(json.dumps(table), encoding="utf-8")
             runtime = iface.resolve_runtime_interface(program=iface.STEP5D_ABLATION_V29_STAGE_ID, root=tmp_root, env={})
 
-        lines = iface.live_ready_lines(runtime, {"state": "HIT", "age_s": 60.0, "ttl_s": 7200.0, "fingerprint_ok": True})
+        lines = iface.live_ready_lines(runtime)
 
         joined = "\n".join(lines)
         self.assertIn("[step5d][phase=readback-blocked][rebuild=no][upload=required]", lines)
@@ -186,6 +226,33 @@ class Step5dRuntimeInterfaceTest(unittest.TestCase):
                 "joint_layout_code": 524.0,
             },
         )
+
+    def test_v34_live_ready_requires_review_current_and_explicit_authorization(self) -> None:
+        current = {
+            "program": iface.STEP5D_ABLATION_V33C20_STAGE_ID,
+            "v34_candidate": {
+                "current": False,
+                "package": {
+                    "controller_uploaded": True,
+                    "controller_readback_verified": True,
+                },
+                "review_v3": {"status": "blocked_fable5_session_limit"},
+                "live_authorized": False,
+            },
+        }
+        readiness = iface.v34_live_readiness(current)
+        runtime = iface.resolve_runtime_interface(
+            program=iface.STEP5D_ABLATION_V34_STAGE_ID,
+            root=ROOT,
+            env={},
+        )
+        joined = "\n".join(iface.live_ready_lines(runtime, readiness=readiness))
+
+        self.assertIn("phase=liveprep-blocked", joined)
+        self.assertIn("review_v3_1+1_not_accepted", joined)
+        self.assertIn("v34_not_current", joined)
+        self.assertIn("explicit_live_authorization_missing", joined)
+        self.assertNotIn("TP Play wait", joined)
 
     def test_step5d_env_overrides_use_step5d_namespace(self) -> None:
         runtime = iface.resolve_runtime_interface(

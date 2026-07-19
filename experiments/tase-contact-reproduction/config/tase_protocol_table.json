@@ -75,6 +75,24 @@
       "force_damping": 7.0,
       "integral_limit_n_s": 1.0
     },
+    "step5d_v32_contact_v1": {
+      "trajectory_duration_s": 60.0,
+      "bridge_duration_s": 180.0,
+      "diagnostic_window_s": 10.0,
+      "line_runtime_limit_s": 75.0,
+      "target_force_n": 12.0,
+      "normal_filter": "v31_filtered_live",
+      "normal_filter_alpha": 0.55,
+      "normal_filter_min_force_n": 2.0,
+      "zero_timing": "after_far_search_before_near_search",
+      "zero_hold_s": 1.0,
+      "first_search_far_speed_m_s": -0.0225,
+      "first_search_near_speed_m_s": -0.0025,
+      "force_p_gain": 0.001,
+      "force_i_gain": 0.00001,
+      "force_damping": 7.0,
+      "integral_limit_n_s": 1.0
+    },
     "step6_eight_shared_v1": {
       "trajectory_duration_s": 30.0,
       "bridge_duration_s": 180.0,
@@ -118,6 +136,26 @@
       "preload_recovery_normal_load_max_n": 35.0,
       "preload_force_norm_stop_n": 35.0
     },
+    "step5d_v32_permissive_safety_v1": {
+      "max_normal_force_n": 60.0,
+      "force_norm_guard_n": 100.0,
+      "max_torque_norm_nm": 3.0,
+      "total_linear_limit_m_s": 1.0,
+      "normal_velocity_limit_m_s": 1.0,
+      "angular_limit_rad_s": 1.0,
+      "speedl_linear_cap_m_s": 1.0,
+      "speedl_angular_cap_rad_s": 1.0,
+      "stage25_cadence_max_gap_s": 0.02,
+      "preload_filtered_min_n": 5.0,
+      "preload_filtered_max_n": 22.0,
+      "preload_raw_min_n": 3.0,
+      "preload_raw_max_n": 25.0,
+      "preload_force_norm_max_n": 100.0,
+      "preload_hold_s": 0.0,
+      "preload_recovery_normal_load_min_n": 0.0,
+      "preload_recovery_normal_load_max_n": 100.0,
+      "preload_force_norm_stop_n": 100.0
+    },
     "step6a_no_contact_safety_v1": {
       "velocity_cap_m_s": 0.009,
       "zero_ftsensor": false,
@@ -156,19 +194,29 @@
       "step": "Step5",
       "task": "contact_cycloid",
       "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step5d_v32_contact_v1",
+      "safety_limits": "step5d_v32_permissive_safety_v1",
+      "evidence_profile": "step5b_v3_success",
+      "runtime_family": "step5d_rnn",
+      "current_program": "step5d_strict_rnn_autotune_v1",
+      "stage25_default_control_mode": "speedj_rnn_live",
+      "current_evidence": {
+        "latest_failed_retained": "runs/bridge_step5d_strict_rnn_ablation_v31_20260714_210521",
+        "result": "v32_delivered_not_live_accepted_not_reproduction_complete",
+        "classification": "v31_stage25_05_cmd_valid_timeout_fixed_by_v32_stage_aware_transport",
+        "evidence_classification": "v32_package_readback_verified_user_review_waived",
+        "live_retry_blocked_until": "explicit v32 live/contact authorization"
+      }
+    },
+    "Step5.step5d_rnn_legacy_v27": {
+      "step": "Step5",
+      "task": "contact_cycloid",
+      "flow_profile": "contact_search_then_control_v1",
       "parameter_profile": "step5_contact_shared_v1",
       "safety_limits": "step5d_v27_safety_v1",
       "evidence_profile": "step5b_v3_success",
-      "runtime_family": "step5d_rnn",
-      "current_program": "step5d_strict_rnn_ablation_v27",
-      "stage25_default_control_mode": "speedl_cartesian_oracle",
-      "current_evidence": {
-        "latest_failed_retained": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_040900/step5d_bridge_analysis.json",
-        "result": "failed_retained_fix_validation_evidence_not_acceptance",
-        "classification": "stage25_control_force_oscillation/force_norm_hard_stop",
-        "evidence_classification": "old_v27_paper_outer_linear_live_gain_mismatch_force_norm_hard_stop",
-        "live_retry_blocked_until": "offline copy-Step5b-live / Step5d-shadow fix audit plus explicit user authorization"
-      }
+      "runtime_family": "step5d_rnn_legacy",
+      "scope": "historical runtime compatibility for v25-v30"
     },
     "Step6.no_contact_eight": {
       "step": "Step6",

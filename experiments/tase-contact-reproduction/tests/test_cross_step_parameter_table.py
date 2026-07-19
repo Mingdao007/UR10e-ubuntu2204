@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sys
 import shutil
@@ -26,9 +27,39 @@ def add_no_contact_p0_capture_fixture(root: Path) -> None:
     (root / "config" / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
 
 
+def copy_project_fixture(destination: Path) -> None:
+    """Preserve optional archive symlinks instead of following 14 GB runs."""
+    for attempt in range(3):
+        try:
+            shutil.copytree(ROOT, destination, dirs_exist_ok=True, symlinks=True)
+            return
+        except shutil.Error:
+            if attempt == 2:
+                raise
+            shutil.rmtree(destination, ignore_errors=True)
+
+
 class CrossStepParameterTableTest(unittest.TestCase):
     def test_cross_step_parameter_table_contract_passes(self) -> None:
         self.assertEqual([], validator.validate(ROOT))
+
+    def test_v30_profile_selection_hash_drift_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            copy_project_fixture(tmp_root)
+            selection_path = (
+                tmp_root / "config" / "step5d_v30_profile_selection.json"
+            )
+            selection = validator.load_json(selection_path)
+            selection["decision"] = "tampered"
+            selection_path.write_text(json.dumps(selection), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn(
+            "v30 strict-RNN profile selection sha mismatch",
+            failures,
+        )
 
     def test_step5_flow_current_summary_must_match_current_pointer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -48,51 +79,371 @@ class CrossStepParameterTableTest(unittest.TestCase):
             failures,
         )
 
-    def test_current_v29_readback_flags_and_claim_states_are_consistent(self) -> None:
+    def test_current_v1_readback_flags_and_claim_states_are_consistent(self) -> None:
         current = validator.load_json(ROOT / "config" / "current_stage.json")
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
         row = next(row for row in table["stages"] if row.get("id") == current["current_stage_id"])
 
-        self.assertTrue(row["acceptance"]["controller_readback_verified"])
-        self.assertTrue(current["v29_contact_candidate"]["controller_readback_verified"])
-        self.assertEqual(current["liveprep_status"]["state"], "blocked")
-        self.assertTrue(row["blocked"])
-        self.assertEqual(row["blocked"], current["liveprep_status"]["state"] == "blocked")
+        self.assertEqual(current["current_stage_id"], "step5d_strict_rnn_autotune_v1")
+        self.assertEqual(current["program"], "step5d_strict_rnn_autotune_v1")
+        self.assertTrue(row["package_delivery"]["controller_readback_verified"])
+        self.assertEqual(
+            current["controller_readback_manifest"],
+            row["package_delivery"]["controller_readback_manifest"],
+        )
+        self.assertTrue(current["bridge_trigger"]["live_motion_authorized"])
+        self.assertTrue(row["current_binding"]["live_authorized"])
+        self.assertFalse(row["blocked"])
         self.assertEqual(current["live_run_status"]["state"], "not_started")
         self.assertEqual(current["reproduction_status"]["state"], "incomplete")
 
-    def test_awaiting_v29_requires_matching_readiness_pointer_and_sha(self) -> None:
+    def test_canonical_protocol_current_program_and_mode_are_not_stale(self) -> None:
+        current = validator.load_json(ROOT / "config" / "current_stage.json")
+        table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        protocol = validator.load_json(ROOT / "config" / "tase_protocol_table.json")
+        row = next(item for item in table["stages"] if item.get("id") == current["current_stage_id"])
+        profile = protocol["experiment_profiles"]["Step5.step5d_rnn"]
+
+        self.assertEqual(profile["current_program"], current["program"])
+        self.assertEqual(profile["stage25_default_control_mode"], row["guard"]["stage25_default_control_mode"])
+
+    def test_validator_detects_stale_canonical_protocol_pointer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_root = Path(tmp)
             shutil.copytree(ROOT / "config", tmp_root / "config")
             shutil.copy2(ROOT / "STEP5_FLOW.md", tmp_root / "STEP5_FLOW.md")
-            current_path = tmp_root / "config" / "current_stage.json"
+            protocol_path = tmp_root / "config" / "tase_protocol_table.json"
+            protocol = validator.load_json(protocol_path)
+            protocol["experiment_profiles"]["Step5.step5d_rnn"]["current_program"] = "step5d_strict_rnn_ablation_v27"
+            protocol_path.write_text(json.dumps(protocol), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn("canonical Step5d current_program does not match current_stage.json", failures)
+
+    def test_v30_rejects_partial_controller_delivery_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            shutil.copytree(ROOT / "config", tmp_root / "config")
+            shutil.copytree(ROOT / "programs", tmp_root / "programs")
+            shutil.copy2(ROOT / "STEP5_FLOW.md", tmp_root / "STEP5_FLOW.md")
             table_path = tmp_root / "config" / "step5_stage_table.json"
-            current = validator.load_json(current_path)
             table = validator.load_json(table_path)
-            row = next(item for item in table["stages"] if item.get("id") == current["current_stage_id"])
-            current["liveprep_status"] = {
-                "state": "awaiting_live_authorization",
-                "readiness_artifact": "runs/final/liveprep_readiness.json",
-                "blockers": [],
-            }
-            row["blocked"] = False
-            row["liveprep_status"] = {
-                "state": "awaiting_live_authorization",
-                "readiness_artifact": "runs/final/liveprep_readiness.json",
-            }
-            current_path.write_text(json.dumps(current), encoding="utf-8")
+            v30 = next(item for item in table["stages"] if item.get("id") == "step5d_strict_rnn_ablation_v30")
+            v30["package_delivery"]["controller_uploaded"] = True
             table_path.write_text(json.dumps(table), encoding="utf-8")
 
             failures = validator.validate(tmp_root)
-            self.assertTrue(any("readiness sha" in failure for failure in failures), failures)
 
-            current["liveprep_status"]["readiness_sha256"] = "a" * 64
-            row["liveprep_status"]["readiness_sha256"] = "a" * 64
+        self.assertIn(
+            "v30 inactive package controller delivery must be entirely offline or a "
+            "complete manifest-bound upload+readback",
+            failures,
+        )
+
+    def test_manifest_bound_delivery_accepts_offline_or_complete_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            program = "step5d_strict_rnn_ablation_v30"
+            local_base = root / "programs" / program
+            local_base.parent.mkdir(parents=True)
+            hashes = {}
+            for ext in validator.PACKAGE_EXTENSIONS:
+                path = local_base.with_suffix(ext)
+                path.write_bytes(f"{program}{ext}".encode())
+                hashes[ext] = validator.file_sha256(path)
+            delivery = {
+                "program_basename": program,
+                "local_triplet": str(local_base.relative_to(root)),
+                "sha256": hashes,
+                "controller_target": None,
+                "controller_uploaded": False,
+                "controller_readback_verified": False,
+                "controller_readback_manifest": None,
+            }
+            state, failures = validator._validate_manifest_bound_delivery(
+                root, label="v30 inactive package", delivery=delivery
+            )
+            self.assertEqual("offline", state)
+            self.assertEqual([], failures)
+
+            target_dir = "/programs/andyl/kunwei/step5"
+            readback_dir = root / "runs" / "controller_readback_v30_test"
+            readback_dir.mkdir(parents=True)
+            for ext in validator.PACKAGE_EXTENSIONS:
+                shutil.copy2(local_base.with_suffix(ext), readback_dir / f"{program}{ext}")
+            target = f"{target_dir}/{program}.urp"
+            manifest = {
+                "status": "controller read-back verified",
+                "target_dir": target_dir,
+                "validation": {"program": program, "target_dir": target_dir},
+                "target_resolution": {"controller_target": target},
+                "sha256": {
+                    "local": hashes,
+                    "controller": hashes,
+                    "readback": hashes,
+                },
+            }
+            manifest_path = readback_dir / "manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            delivery.update(
+                {
+                    "controller_target": target,
+                    "controller_uploaded": True,
+                    "controller_readback_verified": True,
+                    "controller_readback_manifest": str(manifest_path.relative_to(root)),
+                }
+            )
+            state, failures = validator._validate_manifest_bound_delivery(
+                root, label="v30 inactive package", delivery=delivery
+            )
+            self.assertEqual("delivered", state)
+            self.assertEqual([], failures)
+
+    def test_v30_current_promotion_is_blocked_until_p0_review_timing_and_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            copy_project_fixture(tmp_root)
+            current_path = tmp_root / "config" / "current_stage.json"
+            current = validator.load_json(current_path)
+            current["current_stage_id"] = validator.V30_PROGRAM
+            current["program"] = validator.V30_PROGRAM
             current_path.write_text(json.dumps(current), encoding="utf-8")
-            table_path.write_text(json.dumps(table), encoding="utf-8")
+
             failures = validator.validate(tmp_root)
-            self.assertFalse(any("readiness sha" in failure for failure in failures), failures)
+
+        self.assertIn(
+            "v30 current promotion requires P0 v8, manifest-bound readback, ready "
+            "timing/safe-hold, and accepted Review v3 1+1 or valid degraded 1+0",
+            failures,
+        )
+
+    def test_inactive_v30_accepts_manifest_bound_upload_and_readback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            copy_project_fixture(tmp_root)
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = validator.load_json(table_path)
+            v30 = next(
+                row for row in table["stages"] if row.get("id") == validator.V30_PROGRAM
+            )
+            delivery = v30["package_delivery"]
+            hashes = delivery["sha256"]
+            target_dir = "/programs/andyl/kunwei/step5"
+            target = f"{target_dir}/{validator.V30_PROGRAM}.urp"
+            readback_dir = tmp_root / "runs" / "controller_readback_v30_test"
+            readback_dir.mkdir(parents=True)
+            local_base = tmp_root / delivery["local_triplet"]
+            for ext in validator.PACKAGE_EXTENSIONS:
+                shutil.copy2(
+                    local_base.with_suffix(ext),
+                    readback_dir / f"{validator.V30_PROGRAM}{ext}",
+                )
+            manifest_path = readback_dir / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "status": "controller read-back verified",
+                        "target_dir": target_dir,
+                        "validation": {
+                            "program": validator.V30_PROGRAM,
+                            "target_dir": target_dir,
+                        },
+                        "target_resolution": {"controller_target": target},
+                        "sha256": {
+                            "local": hashes,
+                            "controller": hashes,
+                            "readback": hashes,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            delivery.update(
+                {
+                    "controller_target": target,
+                    "controller_uploaded": True,
+                    "controller_readback_verified": True,
+                    "controller_readback_manifest": str(manifest_path.relative_to(tmp_root)),
+                }
+            )
+            readiness_path = tmp_root / v30["local_analysis_evidence"]["offline_readiness"]
+            readiness = validator.load_json(readiness_path)
+            readiness["package"]["controller_readback_verified"] = True
+            readiness["package"]["controller_readback_manifest"] = str(
+                manifest_path.relative_to(tmp_root)
+            )
+            readiness_path.write_text(json.dumps(readiness), encoding="utf-8")
+            v30["local_analysis_evidence"]["offline_readiness_sha256"] = (
+                validator.file_sha256(readiness_path)
+            )
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertEqual([], failures)
+
+    def test_v30_p0_gate_cannot_drift_from_current_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            copy_project_fixture(tmp_root)
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = validator.load_json(table_path)
+            v30 = next(
+                row for row in table["stages"] if row.get("id") == validator.V30_PROGRAM
+            )
+            v30["p0_v8_gate"]["passed"] = True
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn("v30 P0 v8 gate is inconsistent with current_stage.json", failures)
+
+    def test_p0_v8_layout_hash_and_fingerprint_are_cross_checked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            copy_project_fixture(tmp_root)
+            table_path = tmp_root / "config" / "step5_stage_table.json"
+            table = validator.load_json(table_path)
+            p0_v8 = next(
+                row for row in table["stages"] if row.get("id") == validator.P0_V8_PROGRAM
+            )
+            p0_v8["guard"]["stage25_allowed_layout_tags"] = [523.0, 524.0]
+            p0_v8["package_delivery"]["semantic_fingerprint"] = "0" * 64
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn("P0 v8 must allow only Stage25 layout 524", failures)
+        self.assertIn(
+            "P0 v8 current-stage semantic fingerprint does not match stage table",
+            failures,
+        )
+        self.assertNotIn("P0 v8 marker/package hash/fingerprint binding mismatch", failures)
+
+    def test_p0_v8_offline_diagnostic_is_hash_bound_without_controller_promotion(self) -> None:
+        current = validator.load_json(ROOT / "config" / "current_stage.json")
+        table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        row = next(
+            item for item in table["stages"]
+            if item.get("id") == validator.P0_V8_PROGRAM
+        )
+        pointer = current["p0_v8_candidate"]["offline_simulation_diagnostic"]
+        summary = validator.load_json(ROOT / pointer["summary_artifact"])
+        state = validator.load_json(ROOT / pointer["state_artifact"])
+
+        self.assertEqual(pointer, row["offline_simulation_diagnostic"])
+        self.assertEqual(pointer["status"], "bound_diagnostic_complete")
+        self.assertTrue(pointer["control_path_diagnostic_pass"])
+        self.assertTrue(pointer["all_required_faults_exact_zero"])
+        self.assertEqual(
+            pointer["timing_scope_status"],
+            "current_control_hard_500hz_measurement_scope",
+        )
+        self.assertTrue(pointer["offline_control_timing_pass"])
+        self.assertFalse(pointer["simulator_cycle_500hz_diagnostic_pass"])
+        self.assertFalse(pointer["p0_sim_physics_pass"])
+        self.assertEqual(pointer["controller_canaries_completed"], [])
+        self.assertEqual(state["controller_canaries"]["completed"], [])
+        self.assertFalse(state["evidence_frozen"])
+        self.assertFalse(summary["claims"]["p0_v8_passed"])
+        self.assertEqual(
+            summary["diagnostic"]["source_result"],
+            "diagnostic_pass",
+        )
+        self.assertTrue(summary["diagnostic"]["offline_control_timing_pass"])
+        historical = pointer["historical_artifacts"]
+        self.assertEqual(len(historical), 2)
+        self.assertEqual(
+            historical[0]["status"],
+            "historical_superseded_by_v3_production_path_prewarm",
+        )
+        self.assertEqual(
+            historical[0]["summary_sha256"],
+            "9ee7d9995f630689f73a24f965a852a6528b55dfbf700dbfaf0f0dff1cc96093",
+        )
+        self.assertEqual(
+            historical[0]["state_sha256"],
+            "14b71f51de4c352f68f11a99b438f08d140f630d57deb64a0b53e2b57bf79a5e",
+        )
+        self.assertEqual(
+            historical[0]["source_run_manifest_sha256"],
+            "b4aa84309a699cd2d4543f0b6239d22a1777746e14ecdcb28afbd79b70aaaf89",
+        )
+        self.assertEqual(historical[0]["cold_2s_control_deadline_miss_count"], 25)
+        self.assertFalse(historical[0]["acceptance_eligible"])
+        self.assertEqual(
+            historical[1]["status"],
+            "historical_superseded_measurement_scope",
+        )
+        self.assertFalse(historical[1]["acceptance_eligible"])
+
+    def test_p0_v8_offline_diagnostic_hash_drift_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            copy_project_fixture(tmp_root)
+            current = validator.load_json(tmp_root / "config" / "current_stage.json")
+            pointer = current["p0_v8_candidate"]["offline_simulation_diagnostic"]
+            summary_path = tmp_root / pointer["summary_artifact"]
+            summary_path.write_text(
+                summary_path.read_text(encoding="utf-8") + "\n",
+                encoding="utf-8",
+            )
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn(
+            "P0 v8 offline-simulation pointer is stale or does not preserve the non-promotion boundary",
+            failures,
+        )
+
+    def test_review_v2_index_detects_historical_evidence_hash_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            copy_project_fixture(tmp_root)
+            historical = tmp_root / "config" / "step5d_v30_milestone_reviews.json"
+            historical.write_text(historical.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+
+            failures = validator.validate(tmp_root)
+
+        self.assertIn(
+            "Review v2 historical evidence hash/size mismatch: config/step5d_v30_milestone_reviews.json",
+            failures,
+        )
+
+    def test_v30_stage_binds_current_source_solver_10k_hard_failure(self) -> None:
+        table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        v30 = next(
+            item
+            for item in table["stages"]
+            if item.get("id") == "step5d_strict_rnn_ablation_v30"
+        )
+        evidence = v30["local_analysis_evidence"]
+        raw_path = ROOT / evidence["current_source_solver_10k_raw"]
+        raw = validator.load_json(raw_path)
+
+        self.assertEqual(
+            hashlib.sha256(raw_path.read_bytes()).hexdigest(),
+            evidence["current_source_solver_10k_raw_sha256"],
+        )
+        self.assertEqual(raw["classification"], "failed_hard_solver_deadline")
+        self.assertFalse(raw["acceptance_eligible"])
+        self.assertEqual(raw["solver"]["samples"], 10_000)
+        self.assertGreater(raw["solver"]["compute_deadline_miss_count"], 0)
+
+    def test_historical_v32_failure_is_not_current_or_live_authorized(self) -> None:
+        table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
+        row = next(
+            item
+            for item in table["stages"]
+            if item.get("id") == "step5d_strict_rnn_ablation_v32"
+        )
+
+        self.assertFalse(row["active"])
+        self.assertTrue(row["blocked"])
+        self.assertFalse(row["current_binding"]["is_current"])
+        self.assertFalse(row["current_binding"]["live_authorized"])
+        self.assertFalse(row["acceptance"]["contact_live_accepted"])
 
     def test_live_startup_gates_are_not_cacheable(self) -> None:
         table = validator.load_json(ROOT / "config" / "step5_stage_table.json")
@@ -110,7 +461,9 @@ class CrossStepParameterTableTest(unittest.TestCase):
         redundant = set(step5["bridge_startup_policy"]["applies_to_stage_ids"])
 
         self.assertEqual(derived, redundant)
-        self.assertEqual(len(derived), 11)
+        self.assertIn("step5d_strict_rnn_autotune_v1", derived)
+        self.assertIn("step5d_strict_rnn_ablation_v34", derived)
+        self.assertIn("step5d_strict_rnn_ablation_v35", derived)
         self.assertIn("step5d_strict_rnn_ablation_v29", derived)
         self.assertIn("step5d_strict_rnn_no_contact_p0_v4", derived)
         self.assertIn("step5d_strict_rnn_no_contact_p0_v7", derived)

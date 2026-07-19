@@ -1,0 +1,55 @@
+{
+  "schema": "step5d_v32_immutable_failure_evidence_v1",
+  "program": "step5d_strict_rnn_ablation_v32",
+  "run": "runs/bridge_step5d_strict_rnn_ablation_v32_20260714_225729",
+  "immutable": true,
+  "superseded_by": "step5d_strict_rnn_ablation_v33c20",
+  "stage25_duration_s": 16.562,
+  "stage25_rows": 6506,
+  "stage25_row_rate_hz": 392.82,
+  "terminal_stop_reason": "normal_force_guard",
+  "trusted_normal_load_min_n": -60.506,
+  "trusted_force_norm_max_n": 68.04,
+  "final_safety_mode": "NORMAL",
+  "sent_echo_heartbeat_gap": {
+    "stage25_s_0": 4,
+    "stage25_s_2": 169,
+    "stage25_s_4": 332,
+    "stage25_s_6": 504,
+    "stage25_s_8": 682,
+    "stage25_s_10": 849,
+    "stage25_s_12": 1021,
+    "stage25_s_14": 1180,
+    "stage25_s_16": 1357,
+    "estimated_terminal_feedback_staleness_s": 2.7,
+    "trend": "monotonic_growth"
+  },
+  "timing": {
+    "stage25_compute_mean_ms": 2.1795,
+    "stage25_compute_p99_ms": 2.34,
+    "stage25_compute_max_ms": 51.7,
+    "stage25_loop_gap_mean_ms": 2.546,
+    "rnn_solver_wall_mean_ms": 0.2898,
+    "rnn_solver_wall_p99_ms": 0.386
+  },
+  "rnn_oracle_alignment": {
+    "accepted_rows": 6506,
+    "raw_qdot_delta_norm_mean": 9.09e-8,
+    "raw_qdot_delta_norm_max": 1.64e-6,
+    "conclusion": "RNN numerical convergence was not the primary failure"
+  },
+  "xy_tracking": {
+    "desired_net_x_m": -0.01106,
+    "desired_net_y_m": 0.00494,
+    "actual_net_x_m": -0.00839,
+    "actual_net_y_m": -0.000483,
+    "terminal_error_x_m": -0.002702,
+    "terminal_error_y_m": 0.005382
+  },
+  "root_cause": [
+    "RTDE output consumer read one packet per loop while controller production was faster",
+    "queue backlog made pose/q/qd feedback increasingly stale",
+    "v32 Stage25 paper outer used kp=4, ko=0.5, Md=240, Bd=11000, kf=1 and amplified tracking error under stale feedback"
+  ],
+  "claim_boundary": "retained failure evidence only; never authorizes rerun or live motion"
+}

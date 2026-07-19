@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1259,6 +1260,55 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertEqual(analysis["classification"], "stage20_bridge_ready_handshake_failed")
         self.assertEqual(analysis["next_action"], "fix P0 bridge/TP lifecycle handshake before retrying capture")
 
+    def test_stage25_05_cmd_valid_timeout_is_not_misclassified_as_stage20(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            csv_path = run_dir / "bridge_rtde_500hz.csv"
+            fieldnames = [*FIELDNAMES, "ur_output_double_register_36", "step4e_cmd_valid"]
+            write_bridge_csv(
+                csv_path,
+                [
+                    {
+                        "t_monotonic_s": "1.000",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "20.0",
+                        "ur_output_double_register_36": "20.02",
+                        "step4e_cmd_valid": "0",
+                        "_step4e_normal_load_n": "0",
+                        "_step5d_force_settle_filtered_normal_load_n": "",
+                        "force_norm_n": "0.2",
+                    },
+                    {
+                        "t_monotonic_s": "2.000",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.05",
+                        "ur_output_double_register_36": "0",
+                        "step4e_cmd_valid": "0",
+                        "_step4e_normal_load_n": "7.9",
+                        "_step5d_force_settle_filtered_normal_load_n": "7.9",
+                        "force_norm_n": "8.0",
+                    },
+                    {
+                        "t_monotonic_s": "3.000",
+                        "ur_output_double_register_30": "12",
+                        "ur_output_double_register_35": "26.0",
+                        "ur_output_double_register_36": "0",
+                        "step4e_cmd_valid": "0",
+                        "_step4e_normal_load_n": "7.9",
+                        "_step5d_force_settle_filtered_normal_load_n": "7.9",
+                        "force_norm_n": "8.0",
+                    },
+                ],
+                fieldnames=fieldnames,
+            )
+
+            analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        self.assertEqual(analysis["classification"], "stage25_05_cmd_valid_timeout")
+        self.assertEqual(analysis["stage25_05_rows"], 1)
+        self.assertEqual(analysis["stage25_05_cmd_valid_rows"], 0)
+        self.assertGreater(analysis["max_tp_stage"], 20.1)
+
     def test_p0_joint_layout_uses_command_carrier_when_tp_echo_layout_is_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
@@ -1455,6 +1505,138 @@ class Step5dBridgeRunAnalysisTest(unittest.TestCase):
         self.assertFalse(analysis["no_contact_p0_verifier"]["ok"])
         self.assertIn("first_speedj_rnn_tick_cmd_press_unload_mismatch", analysis["no_contact_p0_verifier"]["blockers"])
         self.assertIsNone(analysis["first_tp_stop_reason"])
+
+    def test_p0_v8_analyzer_accepts_only_configured_direct_manifest_phase(self) -> None:
+        cases = ((60.0, True, True, "p0_v8_passed", "p0_v8_direct_duration_passed"),)
+        for phase_s, canary_passed, p0_passed, classification, acceptance in cases:
+            with self.subTest(phase_s=phase_s), tempfile.TemporaryDirectory() as tmp:
+                run_dir = Path(tmp)
+                (run_dir / "metadata.json").write_text(
+                    json.dumps(
+                        {
+                            "args": {
+                                "bridge_profile": "step5d_strict_rnn_no_contact_p0_v8",
+                                "step5d_stage25_control_mode": "speedj_rnn_live",
+                            }
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                (run_dir / "bridge_run_manifest.json").write_text(
+                    json.dumps(
+                        {
+                            "profile": "step5d_strict_rnn_no_contact_p0_v8",
+                            "p0_v8_canary": {"phase_s": phase_s},
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                write_bridge_csv(
+                    run_dir / "bridge_rtde_500hz.csv",
+                    [
+                        {
+                            "t_monotonic_s": "1.000",
+                            "ur_output_double_register_30": "0",
+                            "ur_output_double_register_35": "25.0",
+                            "_step4e_normal_load_n": "0.0",
+                            "_step5d_force_settle_filtered_normal_load_n": "0.0",
+                            "force_norm_n": "0.0",
+                        }
+                    ],
+                )
+                verifier_result = {
+                    "ok": True,
+                    "canary_passed": canary_passed,
+                    "p0_v8_passed": p0_passed,
+                    "phase_s": phase_s,
+                    "blockers": [],
+                }
+
+                with patch.object(
+                    analyze_step5d_bridge_run.verify_step5d_no_contact_p0_v8,
+                    "verify",
+                    return_value=verifier_result,
+                ) as verifier:
+                    analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+                verifier.assert_called_once_with(run_dir, phase_s=phase_s)
+                self.assertEqual(analysis["no_contact_p0_verifier_tool"], "verify_step5d_no_contact_p0_v8.py")
+                self.assertEqual(analysis["no_contact_p0_v8_phase_s"], phase_s)
+                self.assertEqual(analysis["classification"], classification)
+                self.assertEqual(analysis["acceptance_status"], acceptance)
+
+    def test_p0_v8_analyzer_rejects_retired_short_canary_phases(self) -> None:
+        for phase_s in (2.0, 10.0):
+            with self.subTest(phase_s=phase_s), tempfile.TemporaryDirectory() as tmp:
+                run_dir = Path(tmp)
+                (run_dir / "bridge_run_manifest.json").write_text(
+                    json.dumps(
+                        {
+                            "profile": "step5d_strict_rnn_no_contact_p0_v8",
+                            "p0_v8_canary": {"phase_s": phase_s},
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                with patch.object(
+                    analyze_step5d_bridge_run.verify_step5d_no_contact_p0_v8,
+                    "verify",
+                ) as verifier:
+                    result, observed_phase, tool = (
+                        analyze_step5d_bridge_run.no_contact_p0_verification(
+                            "step5d_strict_rnn_no_contact_p0_v8",
+                            run_dir=run_dir,
+                            csv_path=run_dir / "bridge_rtde_500hz.csv",
+                        )
+                    )
+
+                verifier.assert_not_called()
+                self.assertIsNone(observed_phase)
+                self.assertEqual(tool, "verify_step5d_no_contact_p0_v8.py")
+                self.assertFalse(result["ok"])
+                self.assertIn("bridge_run_manifest_canary_phase_missing_or_invalid", result["blockers"])
+
+    def test_p0_v8_analyzer_fails_closed_when_manifest_phase_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "metadata.json").write_text(
+                json.dumps({"args": {"bridge_profile": "step5d_strict_rnn_no_contact_p0_v8"}}) + "\n",
+                encoding="utf-8",
+            )
+            (run_dir / "bridge_run_manifest.json").write_text(
+                json.dumps({"profile": "step5d_strict_rnn_no_contact_p0_v8"}) + "\n",
+                encoding="utf-8",
+            )
+            write_bridge_csv(
+                run_dir / "bridge_rtde_500hz.csv",
+                [
+                    {
+                        "t_monotonic_s": "1.000",
+                        "ur_output_double_register_30": "0",
+                        "ur_output_double_register_35": "25.0",
+                        "_step4e_normal_load_n": "0.0",
+                        "_step5d_force_settle_filtered_normal_load_n": "0.0",
+                        "force_norm_n": "0.0",
+                    }
+                ],
+            )
+
+            with patch.object(
+                analyze_step5d_bridge_run.verify_step5d_no_contact_p0_v8,
+                "verify",
+            ) as verifier:
+                analysis = analyze_step5d_bridge_run.analyze_run_dir(run_dir)
+
+        verifier.assert_not_called()
+        self.assertEqual(analysis["classification"], "p0_v8_canary_verifier_failed")
+        self.assertEqual(analysis["acceptance_status"], "failed_p0_v8_canary_verifier")
+        self.assertIn(
+            "bridge_run_manifest_canary_phase_missing_or_invalid",
+            analysis["no_contact_p0_verifier"]["blockers"],
+        )
 
     def test_v29_speedj_rnn_live_success_counts_only_accepted_echo_consumed_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

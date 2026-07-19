@@ -1,0 +1,27 @@
+{
+  "actual_effort": "high",
+  "actual_model": "gpt-5.6-sol",
+  "findings": [
+    {
+      "backlog_ref": null,
+      "evidence": "The authoritative packet and actual allowlisted triplet bind files under programs/step5/step5d/, but config/current_stage.json:11 points local_triplet to programs/step5/step5d_strict_rnn_ablation_v29, while config/current_stage.json:1163 uses the correct nested path. config/step5_stage_table.json:7561-7562 and :7702-7703 repeat the incorrect non-nested location. Although all three actual file hashes match the packet, package identity does not agree across the bound files.",
+      "id": "V29-CC-001",
+      "resolution": null,
+      "severity": "P1",
+      "status": "open",
+      "title": "Bound v29 package paths disagree"
+    },
+    {
+      "backlog_ref": null,
+      "evidence": "The packet declares evidence_frozen=true and binds portable evidence at config/step5d_v29_imported_evidence_manifest.json, but config/current_stage.json:1178 and config/step5_stage_table.json:7449-7452 still state blocked_evidence_not_portable_in_sparse_worktree, evidence_frozen=false, composite_fingerprint=null, and manifest=null. These stale bound records conflict with the authoritative portable frozen-review state, even though separate fields correctly deny live authorization and require fresh readback/timing, Review v2 2+1, and explicit live/contact authorization for reactivation.",
+      "id": "V29-CC-002",
+      "resolution": null,
+      "severity": "P1",
+      "status": "open",
+      "title": "Bound Review v2 state contradicts the frozen portable packet"
+    }
+  ],
+  "status": "block",
+  "summary": "Block: package hashes, replay normal/frame semantics, no-command replay boundary, safe-hold focused-test record, and package/live/reproduction claim bounds are otherwise consistent, but two P1 cross-file contradictions prevent the lane from being internally unambiguous.",
+  "verdict": "block"
+}

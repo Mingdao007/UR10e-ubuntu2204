@@ -1,0 +1,115 @@
+<?xml version="1.0" ?>
+<sdf version="1.8">
+  <world name="ur10e_gazebo_v2_fortress">
+    <gravity>0 0 -9.81</gravity>
+    <physics name="gazebo_v2_2khz" type="ignored">
+      <max_step_size>0.0005</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>2000</real_time_update_rate>
+    </physics>
+
+    <!-- Fortress-only systems.  Do not replace these with gz-sim-* plugins. -->
+    <plugin filename="ignition-gazebo-physics-system" name="ignition::gazebo::systems::Physics"/>
+    <plugin filename="ignition-gazebo-user-commands-system" name="ignition::gazebo::systems::UserCommands"/>
+    <plugin filename="ignition-gazebo-scene-broadcaster-system" name="ignition::gazebo::systems::SceneBroadcaster"/>
+    <plugin filename="ignition-gazebo-contact-system" name="ignition::gazebo::systems::Contact"/>
+    <plugin filename="ignition-gazebo-forcetorque-system" name="ignition::gazebo::systems::ForceTorque"/>
+    <plugin filename="ignition-gazebo-sensors-system" name="ignition::gazebo::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 6 0 0 0</pose>
+      <diffuse>0.82 0.82 0.82 1</diffuse>
+      <specular>0.18 0.18 0.18 1</specular>
+      <direction>-0.4 0.2 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry><plane><normal>0 0 1</normal><size>4 4</size></plane></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><plane><normal>0 0 1</normal><size>4 4</size></plane></geometry>
+          <material>
+            <ambient>0.78 0.78 0.74 1</ambient>
+            <diffuse>0.78 0.78 0.74 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!--
+      Gazebo world is base_link.  The calibrated UR base frame is rotated pi
+      about +Z from base_link, so retained base-frame (+x,+y) evidence maps to
+      world (-x,-y).  Collision is the explicit physics surface; the STL is
+      visual-only and must never be used to infer contact wrench.
+    -->
+    <model name="step5_contact_surface">
+      <static>true</static>
+      <pose>-0.487795411149049 -0.12932679270060748 0.0040224195 0 0 0</pose>
+      <link name="surface">
+        <collision name="collision">
+          <geometry><box><size>0.18 0.10 0.008044839</size></box></geometry>
+          <surface>
+            <contact><ode><kp>1000000</kp><kd>100</kd></ode></contact>
+            <friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode></friction>
+          </surface>
+        </collision>
+        <visual name="real_surface_mesh_visual">
+          <pose>0.0364678879 0.075 -0.0968663777 1.57079632679 0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>package://ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl</uri>
+              <scale>0.001 0.001 0.001</scale>
+            </mesh>
+          </geometry>
+          <material>
+            <ambient>0.10 0.34 0.35 1</ambient>
+            <diffuse>0.10 0.50 0.54 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Four fixed observer sensors; their output is evidence only. -->
+    <model name="gazebo_v2_observers">
+      <static>true</static>
+      <link name="wide_link">
+        <pose>-1.35 -1.10 1.35 0 0.55 0.66</pose>
+        <sensor name="wide" type="camera">
+          <always_on>true</always_on><update_rate>10</update_rate>
+          <topic>/ur10e/gazebo_v2/camera/wide</topic>
+          <camera><horizontal_fov>1.20</horizontal_fov><image><width>1280</width><height>720</height><format>R8G8B8</format></image><clip><near>0.05</near><far>8</far></clip></camera>
+        </sensor>
+      </link>
+      <link name="oblique_link">
+        <pose>-1.10 0.72 0.92 0 0.46 -0.62</pose>
+        <sensor name="oblique" type="camera">
+          <always_on>true</always_on><update_rate>10</update_rate>
+          <topic>/ur10e/gazebo_v2/camera/oblique</topic>
+          <camera><horizontal_fov>1.05</horizontal_fov><image><width>1280</width><height>720</height><format>R8G8B8</format></image><clip><near>0.05</near><far>6</far></clip></camera>
+        </sensor>
+      </link>
+      <link name="close_link">
+        <pose>-0.82 -0.48 0.50 0 0.30 0.40</pose>
+        <sensor name="close" type="camera">
+          <always_on>true</always_on><update_rate>15</update_rate>
+          <topic>/ur10e/gazebo_v2/camera/close</topic>
+          <camera><horizontal_fov>0.88</horizontal_fov><image><width>1280</width><height>720</height><format>R8G8B8</format></image><clip><near>0.03</near><far>3</far></clip></camera>
+        </sensor>
+      </link>
+      <link name="contact_link">
+        <pose>-0.68 -0.28 0.20 0 0.20 0.28</pose>
+        <sensor name="contact" type="camera">
+          <always_on>true</always_on><update_rate>20</update_rate>
+          <topic>/ur10e/gazebo_v2/camera/contact</topic>
+          <camera><horizontal_fov>0.72</horizontal_fov><image><width>1280</width><height>720</height><format>R8G8B8</format></image><clip><near>0.02</near><far>1.5</far></clip></camera>
+        </sensor>
+      </link>
+    </model>
+  </world>
+</sdf>

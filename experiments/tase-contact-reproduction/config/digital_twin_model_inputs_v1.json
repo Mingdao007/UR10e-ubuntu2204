@@ -1,0 +1,139 @@
+{
+  "schema": "ur10e_digital_twin_model_inputs_v1",
+  "active_variant": "current_kunwei_stack_122p1_geometry_provisional",
+  "legacy_denylist": {
+    "sha256": [
+      "f186a335c39d74979b62ea32eacbe15a8a893baab110ae3fa2bdd5db07f065d5"
+    ],
+    "tokens": [
+      "tcp_site_unverified_85mm",
+      "eoat_v13_tcp_guess",
+      "ur10e_nominal.xml"
+    ]
+  },
+  "robot": {
+    "type": "ur10e",
+    "calibration_yaml": "src/ur10e_bringup/config/ur10e_calibration.yaml",
+    "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+    "calibration_hash": "calib_7367377276742883610",
+    "xacro_path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+    "initial_positions_yaml": "src/ur10e_example_controllers/config/gazebo_matrix_initial_positions.yaml",
+    "initial_positions_yaml_sha256": "5a4bffd53597c9e436f16ec1d474b4bd614b01a0a12eeb1ac3b54e5f8c478eb4",
+    "initial_state": {
+      "source": "v29 first speedj_rnn_live Stage25 row",
+      "source_manifest": "experiments/tase-contact-reproduction/config/step5d_v29_remote_evidence_sha256.json",
+      "source_manifest_sha256": "c43f74e5d5e842e347eee915df83b44429c120cb42416ea2a48c12f95775cfa8",
+      "source_csv_sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+      "write_index": 14426,
+      "q": [
+        0.6102393865585327,
+        -1.7801138363280238,
+        -2.525437831878662,
+        -0.4061522048762818,
+        1.5725568532943726,
+        -0.9584739843951624
+      ],
+      "tcp_pose_base": [
+        0.4877918275124068,
+        0.12932878998673886,
+        0.017740363012625646,
+        -3.141575908677934,
+        0.000030131370907626014,
+        0.000008761324002251835
+      ]
+    },
+    "joint_order": [
+      "shoulder_pan_joint",
+      "shoulder_lift_joint",
+      "elbow_joint",
+      "wrist_1_joint",
+      "wrist_2_joint",
+      "wrist_3_joint"
+    ]
+  },
+  "variants": {
+    "current_kunwei_stack_122p1_geometry_provisional": {
+      "status": "geometry_provisional_robustness_only",
+      "active_tcp_offset_tool0_m": [
+        0.0000018186503701174852,
+        0.00000022293003722353485,
+        0.12209917288991741
+      ],
+      "tcp_source": "step5c calibrated Pinocchio/RTDE inference; norm gate 0.1218-0.1224 m",
+      "mass_interval_kg": [0.331, 0.4014],
+      "mass_nominal_kg": 0.3662,
+      "mass_source": "pending portable import of bench scale evidence; used only for seeded robustness",
+      "cog_nominal_tool0_m": [0.0, 0.0, 0.06105],
+      "inertia_model": "bounding_box_estimate_0p10_by_0p10_by_0p1221_m",
+      "visual_model": "gray_primitives_for_current_kunwei_sensor_adapter_tool_stack",
+      "collision_model": "seven_named_conservative_primitives",
+      "claim_ceiling": "geometry_provisional"
+    },
+    "v13_direct_flange_85_separate_not_current": {
+      "status": "separate_visual_reference_not_current_stack",
+      "contact_point_from_flange_m": 0.085,
+      "mesh": "src/ur10e_example_controllers/meshes/eoat/ur5e_ksm8n_ball_transfer_tool_v13_assembly.stl",
+      "mesh_sha256": "0abffc1633959513ff2a6a0e4fbf71a4082af0abc028c860e38da04436fe9778",
+      "known_missing": [
+        "purchased_KSM_8N_geometry",
+        "assembled_mass",
+        "assembled_COG",
+        "assembled_inertia",
+        "UR10e_current_stack_transform"
+      ],
+      "claim_ceiling": "visual_reference_only"
+    }
+  },
+  "surface": {
+    "mesh": "src/ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl",
+    "mesh_sha256": "c68d176a88260f7845f102c1dc6e9a60549d7c270738d1757050c0d79036c1cc",
+    "pose_source": "experiments/tase-contact-reproduction/config/step5_safe_frame.json:basis.origin_xy_m",
+    "pose_source_sha256": "e0e4cda8c07d68161ff448223626b46d0eef903973d74e1af0483bf110aecfa4",
+    "pose_source_frame": "base",
+    "model_pose_frame": "gazebo_world",
+    "base_to_model_xyz_rule": "[-base_x,-base_y,base_z]",
+    "source_pose_xyz_base_m": [0.487795411149049, 0.12932679270060748, 0.0040224195],
+    "world_pose_xyz_m": [-0.487795411149049, -0.12932679270060748, 0.0040224195],
+    "mesh_pose_xyz_rpy": [0.0364678879, 0.075, -0.0968663777, 1.5707963267948966, 0.0, 0.0],
+    "reaction_normal": [0.0, 0.0, 1.0],
+    "approach_normal": [0.0, 0.0, -1.0],
+    "friction_nominal": 1.0,
+    "contact_stiffness_nominal_n_m": 1000000.0,
+    "contact_damping_nominal_n_s_m": 100.0,
+    "parameter_claim": "falsification_only_until_material_and_full_2d_surface_calibration",
+    "p0_no_contact_scene": {
+      "id": "p0_v8_surface_retracted_x_250mm",
+      "translation_offset_m": [
+        0.25,
+        0.0,
+        0.0
+      ],
+      "translation_offset_frame": "gazebo_world",
+      "collision_enabled": true,
+      "minimum_initial_clearance_m": 0.1,
+      "max_canary_approach_m": 0.00975,
+      "claim": "hash_bound_no_contact_falsification_scene_not_bench_geometry"
+    }
+  },
+  "rates_hz": {
+    "physics": 2000,
+    "control": 500,
+    "dbil": 200
+  },
+  "claim_boundary": {
+    "physics_provenance": "geometry_provisional",
+    "calibrated_physics_claim_allowed": false,
+    "p0_sim_physics_pass_allowed": false,
+    "live_motion_authorized": false,
+    "package_accepted": false,
+    "live_accepted": false,
+    "reproduction_complete": false
+  },
+  "blockers": [
+    "combined_eoat_mass_cog_inertia_unvalidated",
+    "current_kunwei_stack_full_cad_missing",
+    "kunwei_fz_sign_not_independently_calibrated",
+    "surface_material_contact_parameters_unvalidated",
+    "surface_full_2d_geometry_not_calibrated"
+  ]
+}

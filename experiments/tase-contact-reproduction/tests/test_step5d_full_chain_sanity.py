@@ -50,7 +50,9 @@ class Step5dFullChainSanityTest(unittest.TestCase):
             if not isinstance(value, str) or "step5d_strict_rnn" not in value:
                 return
             if current_program in value:
-                self.assertTrue(value.startswith(f"programs/step5/{current_program}"))
+                self.assertTrue(
+                    value.startswith(f"programs/step5/step5d/{current_program}")
+                )
             else:
                 self.assertTrue(value.startswith("programs/step5/step5d/"), value)
 
@@ -608,7 +610,10 @@ class Step5dFullChainSanityTest(unittest.TestCase):
         self.assertNotIn('STEP4E_VERSION="${STEP5D_VERSION}"', operator)
         self.assertIn('--bridge-profile "${BRIDGE_PROFILE}"', bridge_operator)
         self.assertIn('--bridge-mode "${BRIDGE_MODE}"', bridge_operator)
-        self.assertIn('Type START_BRIDGE_${CONFIRM_TOKEN}_${BRIDGE_PROFILE^^} to continue:', bridge_operator)
+        self.assertIn(
+            'Type START_BRIDGE_${CONFIRM_TOKEN}_${BRIDGE_PROFILE_CONFIRM_TOKEN} to continue:',
+            bridge_operator,
+        )
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${STEP4E_VERSION}.urp"', base)
         self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"', base)
         self.assertIn('"step5d_strict_rnn_liveprep_v10" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v11"', base)

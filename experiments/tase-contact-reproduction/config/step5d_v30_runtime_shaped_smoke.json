@@ -1,0 +1,76 @@
+{
+  "acceptance_evidence": false,
+  "artifact_binding": {
+    "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+    "paper_truth_sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555",
+    "replay_csv_sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+    "replay_csv_size": 43700470,
+    "remote_stage_table_sha256": "0910873eed35411dad0739e2b15cd3742e21075c4623b3f184552096726fc5f2",
+    "ur_xacro_sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+  },
+  "cupy_parallel_equivalence": {
+    "bitwise_equal": true,
+    "compared_float32_values_per_sample": 48,
+    "inner_iterations": 1024,
+    "max_abs_difference": 0.0,
+    "parallel_block_threads": 6,
+    "samples": 100,
+    "serial_reference_threads": 1
+  },
+  "full_tick": {
+    "compute_deadline_miss_count": 0,
+    "max_ms": 1.219936995767057,
+    "mean_ms": 0.9368865052238107,
+    "nonfinite_count": 0,
+    "p95_ms": 1.0081553889904173,
+    "p99_ms": 1.1775806744117288,
+    "samples": 20
+  },
+  "full_tick_deferred_diagnostics": {
+    "capacity": 20,
+    "count": 20,
+    "overflowed": false
+  },
+  "full_tick_reason_counts": {
+    "ok": 20
+  },
+  "paced_500hz": false,
+  "profile": {
+    "backend": "cupy",
+    "control_hz": 500.0,
+    "epsilon": 0.01,
+    "inner_iterations": 1024,
+    "qdot_cap_rad_s": 0.05,
+    "sigr_exponent_r": 0.8
+  },
+  "runtime_path": "Step5dObservation->StrictRnnControlPolicy->ControlCandidate->step5d_v30_contract_pipeline->DLS-shadow->SafetyEnvelope->RegisterCommand->DeferredV30Diagnostics",
+  "safe_hold": {
+    "compute_deadline_miss_count": 0,
+    "max_ms": 0.989816035144031,
+    "mean_ms": 0.897852354682982,
+    "nonfinite_count": 0,
+    "p95_ms": 0.9893685695715249,
+    "p99_ms": 0.9897265420295298,
+    "samples": 20
+  },
+  "safe_hold_deferred_diagnostics": {
+    "capacity": 20,
+    "count": 20,
+    "overflowed": false
+  },
+  "safe_hold_reason_counts": {
+    "outer_approach_not_pressing": 20
+  },
+  "schema_version": "step5d_v30_runtime_shaped_smoke_v1",
+  "source_binding": {
+    "bridge_sha256": "02bd1c6e07424b3bd5b634bb249bb776d6d36c0748bdb8b2df02f9a24bbd547f",
+    "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+    "control_contract_sha256": "f2b09c6d6170fda37218f2d5fa7235606be14b55fd8033a0e15798bd4d4f00cb",
+    "delivery": "stdin_bundle",
+    "harness_sha256": "7cfafa7ad0f24ca59a764be75a175e93a7f35754a55d448a9ffd59c560f304b4",
+    "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+    "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+    "runtime_interface_sha256": "e815615ab3686bd17b800177ab9661bec9ec5b173d290b48e06b2b7f09cda092",
+    "solver_sha256": "629782ec5ce0c9aadeb04894b8424427cf44410843b603e6f29f3af82b6be304"
+  }
+}

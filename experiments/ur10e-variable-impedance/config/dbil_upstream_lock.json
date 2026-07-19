@@ -1,0 +1,23 @@
+{
+  "active_enabled": false,
+  "claim_boundary": "public-data pipeline reproduction and UR10e shadow adapter only; no KUKA-to-UR zero-shot or hardware reproduction claim",
+  "dataset_binding": {
+    "manifest_required": true,
+    "present_in_git": false,
+    "status": "full_20_file_conversion_hash_bound_external; trained_checkpoint_remains_five_log_subset"
+  },
+  "implemented_variants": {
+    "portable_component_ddpm_v0": "subset checkpoint available; explicitly non-upstream-faithful",
+    "upstream_slerp_cross_attention_v1": "mathematical core implemented/tested; no trained checkpoint"
+  },
+  "license": "MIT",
+  "license_git_blob_oid": "be3bf7ab90662b53a7f376ddda43e0af2811a2b6",
+  "license_sha256": "4515e7bdab12b171031edd73e264a339351d4f2dae00f519d905ba205f238d81",
+  "paper_title": "Diffusion-Based Impedance Learning for Contact-Rich Manipulation Tasks",
+  "paper_url": "https://arxiv.org/abs/2509.19696",
+  "paper_version": "arXiv:2509.19696v3",
+  "pretrained_checkpoint": "not_present_in_pinned_git_tree",
+  "repository_url": "https://github.com/StrokeAIRobotics/DiffusionBasedImpedanceLearning",
+  "schema_version": 1,
+  "upstream_commit": "8c05a4d4aca8012927a9fdf5bfcd8313247f6a30"
+}

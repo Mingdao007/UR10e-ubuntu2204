@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/ur10e/parallel-run-manifest-v1.schema.json",
+  "title": "UR10e ParallelRunManifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "contract",
+    "task",
+    "dependencies",
+    "resource_lane",
+    "claim_class",
+    "started_at",
+    "ended_at",
+    "exit_code",
+    "output_paths",
+    "serial_fallback",
+    "source_fingerprints",
+    "resource_receipts"
+  ],
+  "properties": {
+    "schema": {"const": "ur10e.parallel_run_manifest/v1"},
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "source_sha256"],
+      "properties": {
+        "id": {"const": "ur10e_concurrency_contract_v1"},
+        "source_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "task": {"$ref": "#/$defs/sha256"},
+    "dependencies": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/sha256"},
+      "uniqueItems": true
+    },
+    "resource_lane": {
+      "enum": ["offline", "replay", "gazebo", "ursim", "hil", "live_autotune"]
+    },
+    "claim_class": {
+      "enum": ["offline_scaffold", "diagnostic_only", "formal", "live"]
+    },
+    "started_at": {"$ref": "#/$defs/timestamp"},
+    "ended_at": {"$ref": "#/$defs/timestamp"},
+    "exit_code": {"type": "integer"},
+    "output_paths": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "serial_fallback": {"type": "boolean"},
+    "source_fingerprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pre", "post"],
+      "properties": {
+        "pre": {"$ref": "#/$defs/sha256"},
+        "post": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "resource_receipts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["acquisition_sha256", "release_sha256"],
+      "properties": {
+        "acquisition_sha256": {"$ref": "#/$defs/sha256"},
+        "release_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    }
+  }
+}

@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -104,6 +105,8 @@ def _p0_fake_runtime(state: bridge.BridgeState, _args: object) -> None:
     state.step5d_tcp_offset_tool0 = np.zeros(3)
 
     class FakeSolver:
+        config = SimpleNamespace(epsilon=0.010, sigr_exponent_r=0.8)
+
         def reset_state(self) -> None:
             return None
 
@@ -129,6 +132,8 @@ def _p0_fake_runtime(state: bridge.BridgeState, _args: object) -> None:
             )
 
     state.step5d_solver = FakeSolver()
+    state.step5d_v30_policy = bridge.StrictRnnControlPolicy(state.step5d_solver)
+    state.step5d_v30_deferred_diagnostics = bridge.DeferredV30Diagnostics(capacity=32)
 
 
 def _p0_fake_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
@@ -186,6 +191,7 @@ def _p0_upward_outer(*_args: object, **_kwargs: object) -> SimpleNamespace:
 def _p0_no_contact_runtime_values(
     *,
     normal_acquired: bool,
+    profile: str = iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
     sensor_ok: float = 1.0,
     outer_side_effect: object = _p0_fake_outer,
     rnn_target_side_effect: object | None = None,
@@ -193,6 +199,8 @@ def _p0_no_contact_runtime_values(
     latest_zeroed_override: list[float] | None = None,
     tcp_pose_override: list[float] | None = None,
     solver: object | None = None,
+    robot_stage: float = 25.0,
+    state_override: bridge.BridgeState | None = None,
 ) -> dict[str, float]:
     args = bridge.parse_args(
         [
@@ -201,7 +209,7 @@ def _p0_no_contact_runtime_values(
             "--bridge-mode",
             "line",
             "--bridge-profile",
-            iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
+            profile,
             "--bridge-path-shape",
             "cycloid",
             "--step5d-stage25-control-mode",
@@ -214,12 +222,18 @@ def _p0_no_contact_runtime_values(
         "actual_TCP_speed": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         "actual_q": [0.0] * 6,
         "actual_qd": [0.0] * 6,
-        "output_double_register_35": 25.0,
+        "output_double_register_35": robot_stage,
     }
     if tcp_pose_override is not None:
         latest_output["actual_TCP_pose"] = tcp_pose_override
-    state = _p0_no_contact_state(normal_acquired=normal_acquired)
-    _p0_fake_runtime(state, args)
+    state = (
+        _p0_no_contact_state(normal_acquired=normal_acquired)
+        if state_override is None
+        else state_override
+    )
+    state.normal_acquired = normal_acquired
+    if state.step5d_model_bundle is None:
+        _p0_fake_runtime(state, args)
     if solver is not None:
         state.step5d_solver = solver
     rnn_target = {"shadow": True} if rnn_target_side_effect is None else rnn_target_side_effect
@@ -247,6 +261,13 @@ def _p0_no_contact_runtime_values(
             state,
             0.002,
         )
+
+
+def _p0_v8_runtime_values() -> dict[str, float]:
+    return _p0_no_contact_runtime_values(
+        normal_acquired=False,
+        profile=iface.STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+    )
 
 
 def write_p0_run(run_dir: Path, rows: list[dict[str, str]]) -> None:
@@ -319,8 +340,8 @@ def verify_p0_unit_run(run_dir: Path, **kwargs: object) -> dict[str, object]:
 P0_V7_STAGE_ID = "step5d_strict_rnn_no_contact_p0_v7"
 P0_V7_SHA256 = {
     ".script": "2e22e7bc89355d7d01c6f0102bcce4103f104bce0a4f1bab72a044934745a297",
-    ".txt": "2d88b3f6d670a9eaf8790c50b4286b1000d9c4121ba65d0c4fcf3a2e3ead8663",
-    ".urp": "e06d7da1949a2f76ab57e6786296a6f65e8c2a6808223fe95ef9709b687de251",
+    ".txt": "4f0fc12fd85d92b90d7ab1732766cd1eb4535c5569953838445dd21211dec5b9",
+    ".urp": "c44cf75baadac584f5e98341186eb0492dc2bc07cd0e22437b577d53d9eba736",
 }
 
 
@@ -333,8 +354,8 @@ def install_sandbox_p0_readback(config_root: Path, run_root: Path) -> Path:
             {
                 "validation": {
                     "program": iface.STEP5D_NO_CONTACT_P0_STAGE_ID,
-                    "target_dir": "/programs/andyl/kunwei/step5",
-                    "script_node_path": f"/programs/andyl/kunwei/step5/{iface.STEP5D_NO_CONTACT_P0_STAGE_ID}.script",
+                    "target_dir": "/programs/andyl/kunwei/step5/archive",
+                    "script_node_path": f"/programs/andyl/kunwei/step5/archive/{iface.STEP5D_NO_CONTACT_P0_STAGE_ID}.script",
                 },
                 "sha256": {
                     "local": P0_V7_SHA256,
@@ -368,6 +389,13 @@ def install_sandbox_p0_readback(config_root: Path, run_root: Path) -> Path:
 
 
 class Step5dNoContactP0Test(unittest.TestCase):
+    def test_p0_v8_stage_has_complete_cycloid_reference_for_bridge_setup(self) -> None:
+        values = _p0_v8_runtime_values()
+
+        self.assertIn("step4e_cmd_valid", values)
+        self.assertEqual(values["_step5d_p0_v8_contract_active"], 1.0)
+        self.assertNotIn("amplitude_m", values.get("_step5d_solver_error", ""))
+
     def test_bridge_run_manifest_and_latest_pointer_are_written_before_loop(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -515,26 +543,51 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(ref["path_time_s"], 0.0)
         self.assertIn("desired_velocity_xy", ref)
 
-    def test_no_contact_p0_version_is_single_v7_across_current_runtime_wrapper_and_table(self) -> None:
+    def test_no_contact_p0_version_is_single_v7_across_retained_runtime_wrapper_and_table(self) -> None:
         wrapper = (ROOT / "scripts" / "step5d-strict-rnn-p0.sh").read_text(encoding="utf-8")
         bridge_operator = (ROOT / "scripts" / "bridge-line-operator.sh").read_text(encoding="utf-8")
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
         stage = step5_table.step5_stage(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
-        active_row = step5_table.step5_stage(current["current_stage_id"])
-        active_p0 = active_row["package_delivery"]["strict_rnn_no_contact_p0"]
+        retained_row = step5_table.step5_stage("step5d_strict_rnn_ablation_v28")
+        retained_p0 = retained_row["package_delivery"]["strict_rnn_no_contact_p0"]
         capture = current["bridge_trigger"]["no_contact_p0_capture"]
 
         self.assertEqual(iface.STEP5D_NO_CONTACT_P0_STAGE_ID, P0_V7_STAGE_ID)
-        self.assertIn(f'P0_PROFILE="{P0_V7_STAGE_ID}"', wrapper)
-        self.assertIn(f'STEP5D_NO_CONTACT_P0_PROFILE="{P0_V7_STAGE_ID}"', bridge_operator)
+        self.assertIn(
+            f'P0_PROFILE="${{STEP5D_P0_PROFILE_OVERRIDE:-{P0_V7_STAGE_ID}}}"',
+            wrapper,
+        )
+        self.assertIn(
+            f'STEP5D_NO_CONTACT_P0_PROFILE="{P0_V7_STAGE_ID}"',
+            bridge_operator,
+        )
+        v8_wrapper = (ROOT / "scripts" / "step5d-strict-rnn-p0-v8.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            'STEP5D_P0_PROFILE_OVERRIDE="step5d_strict_rnn_no_contact_p0_v8"',
+            v8_wrapper,
+        )
+        self.assertIn("ur10e_decision_manifest.py", v8_wrapper)
+        self.assertNotIn("capture-bridge PHASE_S", v8_wrapper)
+        v8_capture = current["bridge_trigger"]["no_contact_p0_v8_capture"]
+        v8_stage = step5_table.step5_stage("step5d_strict_rnn_no_contact_p0_v8")
+        self.assertEqual(
+            v8_capture["entrypoint"],
+            "scripts/step5d-strict-rnn-p0-v8.sh capture-bridge",
+        )
+        self.assertEqual(
+            v8_stage["operator_lifecycle"]["canary_duration_source"],
+            "frozen_stage_row.duration_s",
+        )
         self.assertEqual(capture["profile"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
         self.assertIn("P0_PROFILE", wrapper)
         self.assertEqual(capture["controller_target"], stage["package_delivery"]["controller_target"])
-        self.assertEqual(active_row["operator_lifecycle"]["no_contact_p0_expected_program"], capture["controller_target"])
-        self.assertEqual(active_p0["program_basename"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
-        self.assertEqual(active_p0["controller_target"], capture["controller_target"])
-        self.assertEqual(active_p0["controller_readback_manifest"], capture["controller_readback_manifest"])
-        self.assertEqual(active_p0["sha256"], capture["sha256"])
+        self.assertEqual(retained_row["operator_lifecycle"]["no_contact_p0_expected_program"], capture["controller_target"])
+        self.assertEqual(retained_p0["program_basename"], iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+        self.assertEqual(retained_p0["controller_target"], capture["controller_target"])
+        self.assertEqual(retained_p0["controller_readback_manifest"], capture["controller_readback_manifest"])
+        self.assertEqual(retained_p0["sha256"], capture["sha256"])
 
     def test_no_contact_p0_runtime_interface_ignores_ambient_live_caps(self) -> None:
         runtime = iface.resolve_runtime_interface(
@@ -979,6 +1032,80 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertTrue(metadata["before_socket_connect"])
         self.assertTrue(metadata["before_rtde_open"])
 
+    def test_no_contact_p0_v8_stage25_95_emits_zero_layout_522_clear_packet(self) -> None:
+        values = _p0_no_contact_runtime_values(
+            normal_acquired=False,
+            profile=iface.STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+            robot_stage=25.95,
+        )
+
+        self.assertEqual(values["step4e_cmd_valid"], 0.0)
+        self.assertEqual(values["step4e_controller_state"], 522.0)
+        self.assertEqual(
+            [values[name] for name in bridge.BRIDGE_INPUT_NAMES[:6]],
+            [0.0] * 6,
+        )
+        self.assertTrue(
+            bridge.step5d_qdot_clear_packet_publishable(
+                values,
+                v30_contract_profile=True,
+                stop_dominant=False,
+            )
+        )
+
+    def test_p0_v8_complete_stage_and_transport_chain(self) -> None:
+        state = _p0_no_contact_state(normal_acquired=False)
+        _p0_fake_runtime(state, object())
+        stages = {}
+        for robot_stage in (26.0, 20.0, 25.95, 25.0):
+            stages[robot_stage] = _p0_no_contact_runtime_values(
+                normal_acquired=False,
+                profile=iface.STEP5D_NO_CONTACT_P0_V8_STAGE_ID,
+                robot_stage=robot_stage,
+                state_override=state,
+            )
+
+        self.assertEqual(stages[26.0]["step4e_cmd_valid"], 0.0)
+        self.assertEqual(stages[20.0]["step4e_cmd_valid"], 0.0)
+        self.assertEqual(stages[25.95]["step4e_controller_state"], 522.0)
+        self.assertEqual(stages[25.95]["step4e_cmd_valid"], 0.0)
+        self.assertEqual(
+            [stages[25.95][name] for name in bridge.BRIDGE_INPUT_NAMES[:6]],
+            [0.0] * 6,
+        )
+        self.assertEqual(stages[25.0]["step4e_controller_state"], 524.0)
+        self.assertEqual(stages[25.0]["step4e_cmd_valid"], 1.0)
+        self.assertEqual(stages[25.0]["_step5d_p0_rnn_accepted"], 1.0)
+
+        clear_action = bridge.step5d_publish_action(
+            stages[25.95],
+            robot_stage=25.95,
+            v30_contract_profile=True,
+            stop_dominant=False,
+            schedule_late=False,
+            publish_guard_approved_late_command=True,
+            last_published_command=None,
+        )
+        fresh_action = bridge.step5d_publish_action(
+            stages[25.0],
+            robot_stage=25.0,
+            v30_contract_profile=True,
+            stop_dominant=False,
+            schedule_late=True,
+            publish_guard_approved_late_command=True,
+            last_published_command=None,
+        )
+        stop_action = bridge.step5d_publish_action(
+            dict(stages[25.0], stop_request=1.0),
+            robot_stage=25.0,
+            v30_contract_profile=True,
+            stop_dominant=True,
+            schedule_late=False,
+            publish_guard_approved_late_command=True,
+            last_published_command=stages[25.0],
+        )
+        self.assertEqual((clear_action, fresh_action, stop_action), ("qdot_clear", "fresh_command", "stop"))
+
     def test_no_contact_p0_bridge_default_uses_v7_tuned_rnn_inner_loop(self) -> None:
         args = bridge.parse_args(
             [
@@ -1092,7 +1219,7 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertEqual(args.max_torque_norm_nm, 3.0)
 
     def test_worktree_no_contact_p0_triplet_matches_current_stage_metadata(self) -> None:
-        stem = ROOT / "programs" / "step5" / "step5d" / iface.STEP5D_NO_CONTACT_P0_STAGE_ID
+        stem = ROOT / "programs" / "step5" / "step5d" / "archive" / iface.STEP5D_NO_CONTACT_P0_STAGE_ID
         files = {ext: stem.with_suffix(ext) for ext in (".script", ".txt", ".urp")}
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
         capture = current["bridge_trigger"]["no_contact_p0_capture"]
@@ -1105,16 +1232,19 @@ class Step5dNoContactP0Test(unittest.TestCase):
         else:
             self.assertTrue(capture["archived_not_gate_for_v29"])
             self.assertEqual(capture["status"], "abandoned_archived_not_v29_gate")
-        self.assertEqual(capture["local_triplet"], f"programs/step5/step5d/{P0_V7_STAGE_ID}")
+        self.assertEqual(capture["local_triplet"], f"programs/step5/step5d/archive/{P0_V7_STAGE_ID}")
         self.assertEqual(
             capture["controller_target"],
-            f"/programs/andyl/kunwei/step5/{P0_V7_STAGE_ID}.urp",
+            f"/programs/andyl/kunwei/step5/archive/{P0_V7_STAGE_ID}.urp",
         )
         for ext, path in files.items():
             self.assertTrue(path.exists(), path)
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), capture["sha256"][ext])
 
-        spec = liveprep.spec_for(iface.STEP5D_NO_CONTACT_P0_STAGE_ID)
+        spec = replace(
+            liveprep.spec_for(iface.STEP5D_NO_CONTACT_P0_STAGE_ID),
+            controller_dir="/programs/andyl/kunwei/step5/archive",
+        )
         liveprep.validate_package(
             files[".script"].read_text(encoding="utf-8"),
             files[".txt"].read_text(encoding="utf-8"),
@@ -1631,6 +1761,39 @@ class Step5dNoContactP0Test(unittest.TestCase):
         self.assertNotIn("BRIDGE_FORCE_I_GAIN=0.00001", script)
         self.assertNotIn("contact-bridge", script)
 
+    def test_v8_operator_resolves_one_direct_duration_from_current_stage(self) -> None:
+        wrapper = ROOT / "scripts" / "step5d-strict-rnn-p0-v8.sh"
+        help_result = subprocess.run(
+            ["bash", str(wrapper), "--help"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(help_result.returncode, 0, help_result.stdout + help_result.stderr)
+        self.assertIn("resolved from the frozen current-stage config", help_result.stdout)
+        self.assertNotIn("PHASE_S", help_result.stdout)
+        for argv in (
+            ["capture-ready", "5"],
+            ["capture-bridge", "11"],
+            ["validate-run", "runs/fake", "3"],
+        ):
+            with self.subTest(argv=argv):
+                completed = subprocess.run(
+                    ["bash", str(wrapper), *argv],
+                    cwd=ROOT,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(
+                    completed.returncode,
+                    2,
+                    completed.stdout + completed.stderr,
+                )
+                self.assertNotIn("bridge output:", completed.stdout + completed.stderr)
+
     def test_capture_bridge_refuses_without_p0_confirm_before_starting_bridge(self) -> None:
         completed = subprocess.run(
             ["bash", str(ROOT / "scripts" / "step5d-strict-rnn-p0.sh"), "capture-bridge"],
@@ -1862,8 +2025,11 @@ out.write_text(json.dumps({{"ok": True}}), encoding="utf-8")
                 completed.stdout + completed.stderr,
             )
 
-    def test_existing_failed_v3_artifact_is_still_rejected_with_no_speedj_rnn_live_rows(self) -> None:
-        run_dir = ROOT / "runs/bridge_step4e_line_outerloop_step5d_strict_rnn_no_contact_p0_v3_autowatch_20260707_084025"
+    def test_portable_failed_v3_projection_is_rejected_with_no_speedj_rnn_live_rows(self) -> None:
+        # The original v3 run is retained outside sparse worktrees.  This
+        # tracked projection preserves the decisive failure field so the
+        # regression remains portable and deterministic.
+        run_dir = ROOT / "tests" / "fixtures" / "p0_v3_no_speedj"
         completed = subprocess.run(
             [
                 "python3",

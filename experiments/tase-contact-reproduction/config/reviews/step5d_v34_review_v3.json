@@ -1,0 +1,46 @@
+{
+  "schema": "step5d_v34_review_v3_v1",
+  "program": "step5d_strict_rnn_ablation_v34",
+  "reviewed_composite_fingerprint": "7f8c0811cf89836f380773b1ef4ab2eeecc9e68075e3be3bb4b9f0acb7aba9eb",
+  "decision": "ACCEPT_AFTER_DETERMINISTIC_FINDING_CLOSURE",
+  "degraded_review": true,
+  "effective_stack": "1+0",
+  "degraded_reason": "fable5_skipped_unavailable_session_limit",
+  "automatic_unavailable_lane_policy": true,
+  "lanes": {
+    "codex_high": {
+      "requested_model": "gpt-5.6-sol",
+      "requested_effort": "high",
+      "actual_model": "gpt-5.6-sol",
+      "actual_effort": "high",
+      "status": "completed_findings_closed",
+      "runtime_evidence_path": "config/reviews/step5d_v34_codex_high.md",
+      "runtime_evidence_sha256": "873b5add64e4cc953d99179a9f2fd387829d0830b7a68a240b4e4385bac27a69",
+      "findings": [
+        {"id": "V34-TIMING-001", "severity": "P1"},
+        {"id": "V34-FEEDBACK-002", "severity": "P1"},
+        {"id": "V34-FREEZE-003", "severity": "P1"},
+        {"id": "V34-RESIDUAL-004", "severity": "P1"}
+      ]
+    },
+    "fable5_high": {
+      "requested_model": "claude-fable-5",
+      "requested_effort": "high",
+      "actual_model": null,
+      "actual_effort": null,
+      "status": "skipped_unavailable",
+      "runtime_evidence_path": "config/reviews/step5d_v34_fable5_unavailable.md",
+      "runtime_evidence_sha256": "9c4463300fed19a52c6e2cac810478d85c9e0d797b81b89c08007a8c5871343c",
+      "findings": []
+    }
+  },
+  "deterministic_finding_closure": {
+    "path": "config/reviews/step5d_v34_deterministic_closure.json",
+    "sha256": "8a18947482542b3179b54a043636570288d66b807da826aa67647709cfb66d5d"
+  },
+  "authorization_evidence": [
+    "user: 开 bridge",
+    "user: 是无额度就自动豁免而不需要明确"
+  ],
+  "claim_boundary": "review availability fallback and live authorization are recorded separately; no live acceptance is claimed"
+}

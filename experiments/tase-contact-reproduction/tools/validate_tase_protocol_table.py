@@ -34,7 +34,14 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
     for key in ("paper_shared", "step_profiles", "parameter_profiles", "safety_limits", "experiment_profiles", "evidence"):
         _require(isinstance(table.get(key), dict), failures, f"missing object: {key}")
 
-    for profile_id in ("Step5.contact_cycloid", "Step5.step5d_rnn", "Step6.no_contact_eight", "Step6.contact_eight_v1", "Step6.contact_eight"):
+    for profile_id in (
+        "Step5.contact_cycloid",
+        "Step5.step5d_rnn",
+        "Step5.step5d_rnn_legacy_v27",
+        "Step6.no_contact_eight",
+        "Step6.contact_eight_v1",
+        "Step6.contact_eight",
+    ):
         try:
             resolve_experiment_profile(profile_id, root)
         except ProtocolTableError as exc:
@@ -45,8 +52,20 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         flow = step5["flow"]["steps"]
         _require(step5["flow"]["zero_timing"] == "after_far_search_before_near_search", failures, "Step5 zero timing mismatch")
         _require(flow.index("fast_search_down") < flow.index("zero_after_far_search") < flow.index("near_search_down"), failures, "Step5 zero step must be between far and near search")
-        _require(step5["parameters"]["zero_hold_s"] == 0.25, failures, "Step5 zero hold mismatch")
+        _require(step5["parameters"]["zero_hold_s"] == 1.0, failures, "Step5 v32 zero hold mismatch")
         _require(step5["parameters"]["normal_filter_alpha"] == 0.55, failures, "Step5 normal filter alpha mismatch")
+        _require(
+            step5["safety_limits"]["angular_limit_rad_s"] == 1.0,
+            failures,
+            "Step5 v32 permissive angular diagnostic limit mismatch",
+        )
+        legacy = resolve_experiment_profile("Step5.step5d_rnn_legacy_v27", root)
+        _require(legacy["parameters"]["zero_hold_s"] == 0.25, failures, "Step5 legacy zero hold mismatch")
+        _require(
+            legacy["safety_limits"]["angular_limit_rad_s"] == 0.015,
+            failures,
+            "Step5 legacy angular limit mismatch",
+        )
     except Exception as exc:
         failures.append(f"Step5 resolved profile validation failed: {exc}")
 

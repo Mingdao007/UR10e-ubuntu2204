@@ -1,0 +1,477 @@
+{
+  "blockers": [
+    "combined_eoat_mass_cog_inertia_unvalidated",
+    "controller_canaries_not_run",
+    "controller_readback_missing",
+    "current_control_timing_evidence_missing",
+    "current_kunwei_stack_full_cad_missing",
+    "evidence_not_frozen",
+    "geometry_provisional_no_p0_physics_claim",
+    "kunwei_fz_sign_not_independently_calibrated",
+    "offline_simulation_cannot_promote_live_state",
+    "surface_full_2d_geometry_not_calibrated",
+    "surface_material_contact_parameters_unvalidated",
+    "wall_timing_gate_failed_60s"
+  ],
+  "claims": {
+    "controller_readback_verified": false,
+    "live_accepted": false,
+    "live_motion_authorized": false,
+    "no_contact_p0_accepted": false,
+    "p0_sim_physics_pass": false,
+    "p0_v8_passed": false,
+    "package_accepted": false,
+    "reproduction_complete": false,
+    "v30_offline_ready": false
+  },
+  "diagnostic": {
+    "all_control_paths_diagnostic_pass": true,
+    "all_required_faults_exact_zero": true,
+    "canonical_phase_sequence_complete": true,
+    "historical_combined_scope_timing_pass": false,
+    "offline_control_timing_pass": false,
+    "source_manifest_structurally_valid": true,
+    "source_result": "control_diagnostic_pass_timing_blocked",
+    "timing_scope_status": "historical_superseded_measurement_scope"
+  },
+  "diagnostic_sha256": "e431d2f6b5060f1390b872e26acba73e5b4b6594e1b7c6b25f4452bb6b2bce56",
+  "generated_at": "2026-07-11T18:02:27.926928+00:00",
+  "model_binding": {
+    "engine": "mujoco",
+    "engine_version": "3.8.1",
+    "model_manifest": {
+      "path": "runs/digital_twin_models_20260711_v6/model_manifest.json",
+      "sha256": "8ba6c41b0daac2dfaf92bbd628fe29a8e1ec332bfb1bd712a757b4ddbf391613",
+      "size_bytes": 17539
+    },
+    "model_sha256": "03e73a061599fc3935660ee680c0ffb54c4bf93739dfe011a81c3ef62403f7d2",
+    "physics_provenance": "geometry_provisional"
+  },
+  "phases": [
+    {
+      "control_counters": {
+        "absolute_deadline_miss_count": 303,
+        "accepted_tick_count": 1000,
+        "cage_collision_count": 0,
+        "control_deadline_miss_count": null,
+        "cycle_compute_deadline_miss_count": null,
+        "max_qdot_abs_rad_s": 0.00044349522795528173,
+        "missed_sequence_count": 0,
+        "nonfinite_output_count": 0,
+        "qdot_bound_violation_count": 0,
+        "safe_hold_count": 0,
+        "stop_count": 0,
+        "tick_count": 1000,
+        "unexpected_contact_count": 0
+      },
+      "control_hard_500hz": {},
+      "control_path_diagnostic_pass": true,
+      "duration_s": 2.0,
+      "evidence": {
+        "path": "phase_0_2s/evidence.json",
+        "sha256": "d2e6ff9834f181274bb424aa2c8f663015f7f2cd7c338b33693ef4c73eaf67f0",
+        "size_bytes": 16615
+      },
+      "evidence_schema": "ur10e_simulation_evidence_v1",
+      "fault_injection": {
+        "all_required_faults_exact_zero": true,
+        "fault_count": 18,
+        "observed_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ],
+        "required_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ]
+      },
+      "sequence_index": 0,
+      "simulator_cycle_diagnostic": {},
+      "source_composite_sha256": "833df9d35bbf725501f39c19833a0050815cbf0c8dd7b8f22481877c22a9c62a",
+      "structurally_valid": true,
+      "timing_scope_binding": {
+        "numeric_thread_environment": {
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1"
+        },
+        "timing_scope_contract": null,
+        "timing_scope_version": null,
+        "trace_buffers_prefaulted": null,
+        "trace_prefault": null
+      },
+      "validation_blockers": [],
+      "wall_timing": {
+        "absolute_deadline_miss_count": 303,
+        "absolute_finish_lateness_ms": {
+          "max_ms": 4.20333887450397,
+          "p50_ms": 0.0,
+          "p95_ms": 3.331272024661302,
+          "p99_ms": 3.5279591986909504
+        },
+        "absolute_finish_within_deadline": false,
+        "compute_deadline_miss_count": 72,
+        "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
+        "deadline_miss_count": 303,
+        "deadline_ms": 2.0,
+        "max_ms": 6.20204396545887,
+        "max_within_deadline": false,
+        "p50_ms": 1.199708553031087,
+        "p95_ms": 5.331085890065879,
+        "p99_limit_ms": 1.8,
+        "p99_ms": 5.52748906891793,
+        "p99_within_limit": false,
+        "paced": true,
+        "pass": false,
+        "release_lateness_ms": {
+          "max_ms": 4.221805837005377,
+          "p50_ms": 0.0005170004442334175,
+          "p95_ms": 3.3494438044726844,
+          "p99_ms": 3.5462613031268115
+        },
+        "samples": 1000,
+        "scope": "read_state_to_shared_control_to_four_physics_substeps"
+      }
+    },
+    {
+      "control_counters": {
+        "absolute_deadline_miss_count": 1377,
+        "accepted_tick_count": 5000,
+        "cage_collision_count": 0,
+        "control_deadline_miss_count": null,
+        "cycle_compute_deadline_miss_count": null,
+        "max_qdot_abs_rad_s": 0.00044349522795528173,
+        "missed_sequence_count": 0,
+        "nonfinite_output_count": 0,
+        "qdot_bound_violation_count": 0,
+        "safe_hold_count": 0,
+        "stop_count": 0,
+        "tick_count": 5000,
+        "unexpected_contact_count": 0
+      },
+      "control_hard_500hz": {},
+      "control_path_diagnostic_pass": true,
+      "duration_s": 10.0,
+      "evidence": {
+        "path": "phase_1_10s/evidence.json",
+        "sha256": "ab179b538e6bd73ad6e96a7ee03c7f7faa55e04e7f72ce2b2d27aa6662c46982",
+        "size_bytes": 16622
+      },
+      "evidence_schema": "ur10e_simulation_evidence_v1",
+      "fault_injection": {
+        "all_required_faults_exact_zero": true,
+        "fault_count": 18,
+        "observed_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ],
+        "required_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ]
+      },
+      "sequence_index": 1,
+      "simulator_cycle_diagnostic": {},
+      "source_composite_sha256": "833df9d35bbf725501f39c19833a0050815cbf0c8dd7b8f22481877c22a9c62a",
+      "structurally_valid": true,
+      "timing_scope_binding": {
+        "numeric_thread_environment": {
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1"
+        },
+        "timing_scope_contract": null,
+        "timing_scope_version": null,
+        "trace_buffers_prefaulted": null,
+        "trace_prefault": null
+      },
+      "validation_blockers": [],
+      "wall_timing": {
+        "absolute_deadline_miss_count": 1377,
+        "absolute_finish_lateness_ms": {
+          "max_ms": 4.00782679207623,
+          "p50_ms": 0.0,
+          "p95_ms": 2.632330299820751,
+          "p99_ms": 3.1354195903986697
+        },
+        "absolute_finish_within_deadline": false,
+        "compute_deadline_miss_count": 391,
+        "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
+        "deadline_miss_count": 1377,
+        "deadline_ms": 2.0,
+        "max_ms": 6.006850861012936,
+        "max_within_deadline": false,
+        "p50_ms": 1.1996979592368007,
+        "p95_ms": 4.60379816358909,
+        "p99_limit_ms": 1.8,
+        "p99_ms": 5.134199063759297,
+        "p99_within_limit": false,
+        "paced": true,
+        "pass": false,
+        "release_lateness_ms": {
+          "max_ms": 4.026583861559629,
+          "p50_ms": 0.0005317851901054382,
+          "p95_ms": 2.650669659487903,
+          "p99_ms": 3.153940958436579
+        },
+        "samples": 5000,
+        "scope": "read_state_to_shared_control_to_four_physics_substeps"
+      }
+    },
+    {
+      "control_counters": {
+        "absolute_deadline_miss_count": 1841,
+        "accepted_tick_count": 30000,
+        "cage_collision_count": 0,
+        "control_deadline_miss_count": null,
+        "cycle_compute_deadline_miss_count": null,
+        "max_qdot_abs_rad_s": 0.00044349522795528173,
+        "missed_sequence_count": 0,
+        "nonfinite_output_count": 0,
+        "qdot_bound_violation_count": 0,
+        "safe_hold_count": 0,
+        "stop_count": 0,
+        "tick_count": 30000,
+        "unexpected_contact_count": 0
+      },
+      "control_hard_500hz": {},
+      "control_path_diagnostic_pass": true,
+      "duration_s": 60.0,
+      "evidence": {
+        "path": "phase_2_60s/evidence.json",
+        "sha256": "b4af515d69208849d755e4124a138cbca2b79149a7bcc8a211e0875f4201b81d",
+        "size_bytes": 16639
+      },
+      "evidence_schema": "ur10e_simulation_evidence_v1",
+      "fault_injection": {
+        "all_required_faults_exact_zero": true,
+        "fault_count": 18,
+        "observed_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ],
+        "required_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ]
+      },
+      "sequence_index": 2,
+      "simulator_cycle_diagnostic": {},
+      "source_composite_sha256": "833df9d35bbf725501f39c19833a0050815cbf0c8dd7b8f22481877c22a9c62a",
+      "structurally_valid": true,
+      "timing_scope_binding": {
+        "numeric_thread_environment": {
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1"
+        },
+        "timing_scope_contract": null,
+        "timing_scope_version": null,
+        "trace_buffers_prefaulted": null,
+        "trace_prefault": null
+      },
+      "validation_blockers": [],
+      "wall_timing": {
+        "absolute_deadline_miss_count": 1841,
+        "absolute_finish_lateness_ms": {
+          "max_ms": 4.223270807415247,
+          "p50_ms": 0.0,
+          "p95_ms": 0.47538704238831736,
+          "p99_ms": 2.5937564112245988
+        },
+        "absolute_finish_within_deadline": false,
+        "compute_deadline_miss_count": 548,
+        "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
+        "deadline_miss_count": 1841,
+        "deadline_ms": 2.0,
+        "max_ms": 6.222439929842949,
+        "max_within_deadline": false,
+        "p50_ms": 1.1207649949938059,
+        "p95_ms": 1.7898921621963382,
+        "p99_limit_ms": 1.8,
+        "p99_ms": 4.568104862701147,
+        "p99_within_limit": false,
+        "paced": true,
+        "pass": false,
+        "release_lateness_ms": {
+          "max_ms": 4.241737769916654,
+          "p50_ms": 0.0005068723112344742,
+          "p95_ms": 0.4973397939465936,
+          "p99_ms": 2.6123793399892707
+        },
+        "samples": 30000,
+        "scope": "read_state_to_shared_control_to_four_physics_substeps"
+      }
+    }
+  ],
+  "profile": "step5d_strict_rnn_no_contact_p0_v8",
+  "run_binding": {
+    "path": "runs/p0_v8_mujoco_20260712T020100HKT_rnn512_fifo20/run_manifest.json",
+    "sha256": "85e32862353bd29a07147ab2a07bda13269bdc3b07b4d8c22936d76309531717",
+    "size_bytes": 3697
+  },
+  "schema": "step5d_p0_v8_offline_simulation_diagnostic_v1",
+  "source_binding": {
+    "base_commit": "d0de3ac91dce92e4a4192f99c05760147414077f",
+    "frame_lineage_sha256": "f9aa5ff44e9c0140be64ecb6421efd3514ab24d35787c7c310a8a44a83156051",
+    "head_commit": "d0de3ac91dce92e4a4192f99c05760147414077f",
+    "host": "andy7",
+    "source_composite_sha256": "833df9d35bbf725501f39c19833a0050815cbf0c8dd7b8f22481877c22a9c62a"
+  },
+  "state_projection": {
+    "controller_canaries": {
+      "completed": [],
+      "p0_v8_passed": false
+    },
+    "controller_readback_verified": false,
+    "current_program": "step5d_strict_rnn_ablation_v29",
+    "evidence_frozen": false,
+    "v29_current": true,
+    "v29_frozen_fallback": true,
+    "v30_active": false,
+    "v30_program": "step5d_strict_rnn_ablation_v30",
+    "v30_state": "inactive_offline_candidate",
+    "workflow_state": "liveprep_blocked"
+  },
+  "timing_evidence": {
+    "control_hard_500hz_gate": null,
+    "historical_combined_scope_timing_gate": {
+      "complete_sequence_evaluated": true,
+      "deadline_accounting": "compute_elapsed_and_absolute_release_deadline_v2",
+      "deadline_ms": 2.0,
+      "p99_limit_ms": 1.8,
+      "pass": false,
+      "phase_results": [
+        {
+          "absolute_deadline_miss_count": 303,
+          "compute_deadline_miss_count": 72,
+          "duration_s": 2.0,
+          "pass": false
+        },
+        {
+          "absolute_deadline_miss_count": 1377,
+          "compute_deadline_miss_count": 391,
+          "duration_s": 10.0,
+          "pass": false
+        },
+        {
+          "absolute_deadline_miss_count": 1841,
+          "compute_deadline_miss_count": 548,
+          "duration_s": 60.0,
+          "pass": false
+        }
+      ],
+      "required_phase_duration_s": 60.0,
+      "requires_zero_absolute_deadline_misses": true,
+      "requires_zero_compute_deadline_misses": true,
+      "scope": "separate_wall_timing_acceptance"
+    },
+    "phase_evidence_schemas": [
+      "ur10e_simulation_evidence_v1",
+      "ur10e_simulation_evidence_v1",
+      "ur10e_simulation_evidence_v1"
+    ],
+    "run_manifest_schema": "step5d_p0_v8_mujoco_run_v1",
+    "simulator_cycle_diagnostic": null,
+    "timing_scope_status": "historical_superseded_measurement_scope"
+  }
+}

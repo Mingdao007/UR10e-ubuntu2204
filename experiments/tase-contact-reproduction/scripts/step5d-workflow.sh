@@ -9,7 +9,9 @@ BUILD_TOOL="${ROOT}/tools/build_step5d_liveprep.py"
 UPLOAD_TOOL="${ROOT}/tools/upload_ur_tp_package.py"
 READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"
 PROMOTE_TOOL="${ROOT}/tools/promote_step5d_current.py"
+TP_COORDINATOR="${ROOT}/tools/run_step5d_tp_transaction.py"
 PUBLISH_GATE="${ROOT}/tools/verify_step5d_publish_gate.py"
+PARALLEL_TOOL="${ROOT}/tools/run_step5d_parallel_workflow.py"
 OPERATOR="${SCRIPT_DIR}/step5d-liveprep-operator.sh"
 DRYRUN_READBACK_ROOT="${STEP5D_DRYRUN_READBACK_ROOT:-/tmp/ur10e_tp_readback_dryrun}"
 LATEST_CANDIDATE_INDEX="${RUN_ROOT}/local_tp_packages/.latest_step5d_candidate.json"
@@ -19,12 +21,20 @@ usage() {
 Usage:
   step5d-workflow.sh status
   step5d-workflow.sh dev-loop
+  step5d-workflow.sh parallel-check
+  step5d-workflow.sh offline-functional --replay-csv <csv> --model-manifest <json>
+  step5d-workflow.sh formal-timing --replay-csv <csv>
+  step5d-workflow.sh offline-all --replay-csv <csv> --model-manifest <json>
+  step5d-workflow.sh postprocess <immutable-run-dir>
   step5d-workflow.sh promote-package
   step5d-workflow.sh prep-long-checks
   STEP5D_CONFIRM='LIVE STEP5D STRICT RNN LIVEPREP' step5d-workflow.sh contact-bridge
 
 Boundary:
   - dev-loop is local-only; it never uploads, updates current_stage, or starts bridge.
+  - offline-functional uses short feature-bearing RNN windows and is diagnostic_only.
+  - formal-timing is the only full timing acceptance mode and takes the exclusive throughput lock.
+  - postprocess requires a closed immutable capture and writes only to a separate derived tree.
   - promote-package is controller file delivery plus read-back; it never starts bridge or motion.
   - contact-bridge delegates to the live-gated Step5d operator; it never rebuilds or uploads.
 EOF
@@ -115,25 +125,6 @@ for key, value in values.items():
 PY
 }
 
-cache_status() {
-  python3 - "${RUN_ROOT}/.bridge_long_checks_cache.json" "${LONG_CHECK_TTL_S:-7200}" <<'PY'
-import json
-import sys
-import time
-from pathlib import Path
-
-path = Path(sys.argv[1])
-ttl = float(sys.argv[2])
-if not path.is_file():
-    print("long_check_cache=missing")
-    raise SystemExit(0)
-payload = json.loads(path.read_text(encoding="utf-8"))
-age = time.time() - float(payload.get("checked_at_epoch", 0.0))
-state = "fresh" if 0 <= age <= ttl else "stale"
-print(f"long_check_cache={state} age_s={age:.1f} ttl_s={ttl:.1f} path={path}")
-PY
-}
-
 run_quick_tests() {
   (
     cd "${ROOT}"
@@ -154,7 +145,6 @@ case "${mode}" in
     if [[ -n "${program}" ]]; then
       python3 "${READBACK_GATE}" --root "${ROOT}" --program "${program}" --json
     fi
-    cache_status
     ;;
   dev-loop)
     program="$(builder_program)"
@@ -169,6 +159,19 @@ case "${mode}" in
     echo "local-only candidate verified: ${candidate_dir}"
     echo "not delivered; current_stage unchanged; do not open on Teach Pendant"
     ;;
+  parallel-check|offline-functional|formal-timing|offline-all)
+    python3 "${PARALLEL_TOOL}" "${mode}" "${@:2}"
+    ;;
+  postprocess)
+    run_dir="${2:-}"
+    if [[ -z "${run_dir}" ]]; then
+      echo "postprocess requires <immutable-run-dir>" >&2
+      exit 2
+    fi
+    derived_root="${STEP5D_DERIVED_ROOT:-${RUN_ROOT}/derived}"
+    output_root="${derived_root}/$(basename "$(readlink -f "${run_dir}")")_$(date +%Y%m%d_%H%M%S)"
+    python3 "${PARALLEL_TOOL}" postprocess "${run_dir}" --output-root "${output_root}"
+    ;;
   promote-package)
     current="$(current_program)"
     if [[ -n "${STEP5D_PACKAGE_DIR:-}" ]]; then
@@ -181,22 +184,11 @@ case "${mode}" in
       program="${STEP5D_VERSION:-${current:-$(builder_program)}}"
       local_dir="${ROOT}/programs/step5"
     fi
-    extra_args=()
+    transaction_args=()
     if [[ "${STEP5D_PROMOTE_DRY_RUN:-0}" == "1" ]]; then
-      extra_args+=(--dry-run --readback-root "${DRYRUN_READBACK_ROOT}")
+      transaction_args+=(--dry-run --readback-root "${DRYRUN_READBACK_ROOT}")
     fi
-    python3 "${UPLOAD_TOOL}" "${program}" \
-      --local-dir "${local_dir}" \
-      --allow-local-candidate-promote \
-      "${extra_args[@]}"
-    if [[ "${STEP5D_PROMOTE_DRY_RUN:-0}" != "1" ]]; then
-      python3 "${PROMOTE_TOOL}" \
-        --root "${ROOT}" \
-        --program "${program}" \
-        --local-dir "${local_dir}" \
-        --json
-      python3 "${READBACK_GATE}" --root "${ROOT}" --program "${program}" --json
-    fi
+    python3 "${TP_COORDINATOR}" "${program}" --root "${ROOT}" --local-dir "${local_dir}" "${transaction_args[@]}"
     ;;
   prep-long-checks)
     "${OPERATOR}" prep-long-checks

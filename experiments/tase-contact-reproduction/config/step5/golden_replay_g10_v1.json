@@ -1,0 +1,35 @@
+{
+  "schema": "step5d.autotune.golden-replay/v1",
+  "group_id": "G10",
+  "trial_uid": "61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210",
+  "trial_dir": "step5d_native_autotune_recovered_runtime_v2/store/trials/61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210",
+  "bundle_sha256": "016c6ff0e74f68215779732d3f8177c6bc50223d6da1dabd33e20fea8a5a350f",
+  "csv_sha256": "ac837bd001ec5fede3bc20a1d4773dd27b40045043285dfd0d48504b74a80930",
+  "csv_size_bytes": 131810888,
+  "host_packet": {
+    "campaign_epoch": 16,
+    "trial_id": 12,
+    "command": 1,
+    "candidate_token": 12,
+    "execution_profile_id": 533,
+    "command_seq": 22
+  },
+  "tp_transitions": [
+    [16, 12, 20, 12, 0, 533, 22],
+    [16, 12, 40, 12, 1, 533, 22],
+    [16, 12, 50, 12, 1, 533, 22],
+    [16, 12, 70, 12, 1, 533, 22]
+  ],
+  "candidate": {
+    "p": "0.001681792830507429",
+    "i": "0.00001",
+    "d": "8.324449805019047",
+    "profile_id": "nf050-slew050-a050"
+  },
+  "acceptance": {
+    "safe_closure": true,
+    "complete_bins": 550,
+    "terminal_reason": 1,
+    "returned_safe": true
+  }
+}

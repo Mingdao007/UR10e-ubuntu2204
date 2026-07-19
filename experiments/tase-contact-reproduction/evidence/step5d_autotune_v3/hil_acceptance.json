@@ -1,0 +1,99 @@
+{
+  "accepted_at": "2026-07-18T19:40:50+00:00",
+  "carryforward": {
+    "changed_orchestration_paths": [
+      "tools/promote_step5d_autotune_v3_hil.py",
+      "tools/run_step5d_autotune_campaign.py",
+      "tools/run_step5d_autotune_v3_live.py",
+      "tools/step5d_autotune_v3/state.py",
+      "tools/verify_step5d_autotune_v3_execution_readiness.py"
+    ],
+    "delta_basis": "legacy_acceptance_mtime_snapshot",
+    "policy": "no_new_tp_play_only_nonphysical_startup_sources_changed",
+    "prior_acceptance_path": "evidence/step5d_autotune_v3/hil_acceptance_20260719_fe6e119f.json",
+    "prior_acceptance_sha256": "0e163086f005639e94563227698a3e4c4ff4876bb12ca413d6a0d160dab73ccf",
+    "prior_identity": {
+      "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
+      "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
+      "orchestration_fingerprint": "fe6e119f08f46b2611b95142b3ba31c62acdd8474629dffcc98b2ff838582d7f"
+    },
+    "schema": "step5d.autotune-v3/hil-nonphysical-carryforward-v1"
+  },
+  "claim": "target_controller_full_bridge_hold_no_motion",
+  "controller_identity_sha256": "2e22883a951c8d88e3ff6c1a2fcd185307404ddfd34c24c621c2e52baafedf40",
+  "hardware_zero_or_tare_count": 0,
+  "identity": {
+    "contract_sha256": "2efd8c8718289c4c76697d7fa1d038009d7e703c1afbd67966efa6a254794e22",
+    "control_fingerprint": "a1937bb530a4226a41c390778a964a21d148be995a8721416c2911c405a7ef4e",
+    "orchestration_fingerprint": "41ee9320d492d4ab195bd462d446651d0649b569d074c50dd8bd206c2397afc1"
+  },
+  "launch_profile_fingerprint": "ec1a2ce8f3087af0d7da9e24247fdf1e4fd9858c7fa0880968b20f661e9e1d16",
+  "ok": true,
+  "orchestration_sources": {
+    "config/step5/step5d_autotune_v3_launch_profile.json": "9a8ea02aee0475e230e9eb1c329a1395acfea3bbf92284dd2be71de6b51f9fa7",
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json": "70229a0c94d4a546c1a5f27e033bf34a8c0d302776c3227a39d857f12a366a48",
+    "config/systemd/step5d-autotune-v3.service": "193edf407c2647ca1eb49288e44d62fc7eebc19d6a97581efb133d7cd35287d9",
+    "scripts/step5d-autotune-v3-hil-hold.sh": "59fe67b133ec634fdcf693493805baf7102c3c1fe1bf8fca7fed6ece978840ed",
+    "scripts/step5d-autotune-v3.sh": "8ef9b1beed9970a5e83357ce30e87b2ee224e5c6d14239fedc7cca78dfcbe10f",
+    "tools/preflight_step5d_autotune_v3.py": "564467b23d9c6843ed60c6a28e11884b11df6b61067600cddc5bf43066ceb875",
+    "tools/promote_step5d_autotune_v3_hil.py": "14b13cb4df571c0a96ba98287ac6e5f65d655bc5e9a510cc38be94a2ae974616",
+    "tools/run_step5d_autotune_campaign.py": "9b1d4bdf1297aaa2517a09d16894a7fafd1b102518f075b2bbedd0475a4141d3",
+    "tools/run_step5d_autotune_v3_bridge.py": "4d7575f4fd62f84014d19f25fb3810e2c157c3d5b25b8253854c9fc2bf50fd32",
+    "tools/run_step5d_autotune_v3_hil_hold.py": "0507bdcdf00bb8cf6342cc0167ccdb1b94ff9590ea33953b3a3c3c8328eb7cc8",
+    "tools/run_step5d_autotune_v3_live.py": "66c006fec81e581333991bf7798ce501f648dce059ad8cebeb0ba7d41eabc692",
+    "tools/step5d_autotune_batch_plan.py": "165fc0ac117ad9a2b99efdb60df066185409c0361f27496d6fca4fd2843fc772",
+    "tools/step5d_autotune_coordinator.py": "1e0a0b1a6cc739ec259575c8e1e0f06c54bfc9dd77e504c78a6a6ad7f2b6f71a",
+    "tools/step5d_autotune_journal.py": "8e04cd0744b4df22e4fbfaaf9ee1587823b1f4ecacc317c0e0e7fdafaf7fb2b0",
+    "tools/step5d_autotune_live_driver.py": "3a3189622432182aa7ddac69754caccb26c911f2bdf2d9f202914b964deb1711",
+    "tools/step5d_autotune_store.py": "d483d5299f44e8c31be1f84d1e0fc03961dbe863cf2d70794108ac085f7eab4a",
+    "tools/step5d_autotune_v3/cli.py": "1e7aac7c842a0bb72235f4f2cf81007c73052c53ef8921ad060a2f06b6b22f4e",
+    "tools/step5d_autotune_v3/launcher.py": "9ac103b3adfc1dda7c620a858be66363f7ffe097085685e9cd4720647f8aadb2",
+    "tools/step5d_autotune_v3/postprocess.py": "a8b2554c1f18a41f4a1e51cbeaa4f70b37b37b056e2e6fff3fca000b9438b205",
+    "tools/step5d_autotune_v3/runtime_calibration.py": "b9e0f1c6c3e26678fdf8808b9caa617175fcaf3063b6bed5e70511b7a4ef334d",
+    "tools/step5d_autotune_v3/runtime_profile.py": "7e37e69f3c7eb804f0766c28e7fd2714defc321fc2e8fba876b1716f692f2ffd",
+    "tools/step5d_autotune_v3/service.py": "f8a8f7515c3a9deec98ee16b2ff65ca36820890f082740f68c3ddd9007d3e368",
+    "tools/step5d_autotune_v3/state.py": "412fd3ff55b804a5a55a9791551100056503bb37e883b38c804ccaa796ce8010",
+    "tools/verify_step5d_autotune_v3_execution_readiness.py": "802276a0f9b808585a97755a3dcadc5640810a1ee32cb78ddf474379a4a7f164",
+    "tools/verify_step5d_autotune_v3_hil_authorization.py": "2700ee577618282385d33d52f22bf8a59782f141f7973eb05de06c3b0f28ae05"
+  },
+  "program_stop": {
+    "initial_query_error": null,
+    "method": "observed_stopped_after_bridge_shutdown",
+    "observations": [
+      {
+        "banner": "Connected: Universal Robots Dashboard Server",
+        "programState": "STOPPED step5d_strict_rnn_autotune_v3.urp"
+      }
+    ],
+    "ok": true,
+    "stop_request": null,
+    "stop_request_error": null
+  },
+  "schema": "step5d.autotune-v3/hil-acceptance-v1",
+  "source_result_sha256": "fd69963fc88a5a96a79423c9dcf9fc3b96608061b5e79287b0f2fd5584ab7423",
+  "startup_software_baseline": {
+    "baseline_epoch": 0,
+    "completed_at_monotonic_s": 316290.443842511,
+    "completed_at_sample": 1030,
+    "duration_s": 1.047351938963402,
+    "samples": 1030
+  },
+  "stationary": {
+    "limits": {
+      "joint_drift_rad": 0.002,
+      "tcp_orientation_drift_rad": 0.005,
+      "tcp_speed_m_s": 0.001,
+      "tcp_translation_drift_m": 0.0005
+    },
+    "observed_maxima": {
+      "joint_drift_rad": 0.00012755393981933594,
+      "tcp_orientation_drift_rad": 0.00029372815928496433,
+      "tcp_speed_m_s": 0.0,
+      "tcp_translation_drift_m": 0.00014227323397156068
+    },
+    "ready_home_dwell_s": 5.0940040170098655,
+    "ready_home_samples": 2512
+  },
+  "trial_overlay_fingerprint": "70c528d2656daaf4ce2a89fa34b8b4c3c8ba0b29cfee673e73d61f806bc0b705",
+  "zero_events": []
+}

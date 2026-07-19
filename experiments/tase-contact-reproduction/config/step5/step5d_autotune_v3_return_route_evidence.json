@@ -1,0 +1,73 @@
+{
+  "attended_controller_readback_sha256": null,
+  "certification_authorization_sha256": null,
+  "certification_binding_sha256": null,
+  "certified": false,
+  "deployment_readback_sha256": null,
+  "live_effect": "return_route_angular_envelope_gate_blocked",
+  "local_triplet_sha256": {
+    ".script": "3dd672b4f68eba931fb8fc1e2c577e06205ff7a4e6d15a035e3619557d8e430d",
+    ".txt": "3c6dc8fd7cb0e982591b311463e9a996dcf7db85086efada125121ff730dcd14",
+    ".urp": "7f0b8ee7de9f57bd611d398d8afa0db238ebb10ce02f07f7f577e2cb9fedc3b5"
+  },
+  "missing_certification": {
+    "attended_controller_readback_sha256": null,
+    "motion_capable_ursim_trace_sha256": "19f73447e69ea01819a713e2b81230ea997513fc51ec4fb9b8d62c4e53e53ea6",
+    "source_exact_return_telemetry_sha256": null
+  },
+  "motion_capable_ursim_trace_sha256": "19f73447e69ea01819a713e2b81230ea997513fc51ec4fb9b8d62c4e53e53ea6",
+  "offline_guards": {
+    "bounded_speedl_twist": true,
+    "continuous_actual_angular_speed_guard": true,
+    "continuous_finite_difference_angular_acceleration_guard": true,
+    "controller_monotonic_sample_gap_guard": true,
+    "dynamic_start_orientation_admission": true,
+    "exact_stop_angular_deceleration": true,
+    "phase_and_telemetry_capture": true,
+    "pre_and_post_ack_closure_validation": true,
+    "three_segment_route_exact": true
+  },
+  "optimizer_eligible": false,
+  "plant_epoch": null,
+  "policy": {
+    "return_angular_acceleration_guard_rad_s2": 0.5,
+    "return_angular_acceleration_limit_rad_s2": 0.1,
+    "return_angular_speed_guard_rad_s": 0.06,
+    "return_angular_speed_limit_rad_s": 0.05,
+    "return_angular_stop_deceleration_rad_s2": 0.1,
+    "return_continuous_telemetry_output_float_registers": [
+      39,
+      40,
+      41,
+      42,
+      43,
+      44
+    ],
+    "return_controller": "speedl_bounded_twist_v1",
+    "return_controller_max_sample_gap_s": 0.004,
+    "return_controller_period_s": 0.002,
+    "return_orientation_admission_limit_rad": 0.3490658503988659,
+    "return_sample_gap_clock": "controller_monotonic_time_mode_0",
+    "return_segment_count": 3,
+    "return_segment_phase_codes": [
+      40.1,
+      40.2,
+      40.3
+    ],
+    "safe_transfer_z_m": 0.033
+  },
+  "schema": "step5d.autotune-v3/return-route-evidence-v2",
+  "source_binding_sha256": "7be1ca3d50fd13ba3727f6037f9b1902f724da325291d52a2b7c7c19988dfc54",
+  "source_exact_return_telemetry_sha256": null,
+  "source_sha256": {
+    "bridge_capture": "e8e48f280a99dd18d52cdf099e9ebed0b6d3710f2b294c016af65d1c391cfd45",
+    "campaign_adapter": "0a354971e3146937b24d2b864acdfb0f18be889b692b73ac49365baf003a3fba",
+    "closure_collector": "a0d69c0d4d22ccf954a4edbe4dc23eeac77b1b2d6ce22d3023c5ed8cef7c86bc",
+    "return_evidence_promoter": "c94eb19f512c915c1496cc338957eaccdcdcd41e078a96bb13c99a8026834d16",
+    "return_route": "88704b24de6b9b69dc59b2254dab7a1dbc9fe7b6176b6460d935344d28b2a351",
+    "tp_generator": "320a21b15d9cc79957bf9cf49a34efe7f3c2a53ea318c96d898fdd9001ebe185",
+    "ursim_return_gate": "6a897d3bf4461d19220bc624e0391c1cc295680b0a8454adb91d64259a2d49bf"
+  },
+  "status": "offline_enforcement_complete_attended_certification_required",
+  "telemetry_summary": null
+}

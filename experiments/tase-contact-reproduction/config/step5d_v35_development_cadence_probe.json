@@ -1,0 +1,727 @@
+{
+  "acceptance_scope": "development_short_probe_not_live_authorization",
+  "claim_boundary": "paced local replay only; no network, controller write, bridge start, or motion authorization",
+  "components": [
+    "SCHED_OTHER CUDA/RNN/BLAS prewarm",
+    "quota-safe all-thread SCHED_OTHER/0",
+    "rtde drain-latest decode",
+    "feedback age guard",
+    "Step5b-equivalent outer",
+    "calibrated Jacobian",
+    "CuPy RNN512",
+    "production candidate-to-slew-to-safety-to-register seam",
+    "host qdot slew 0.1",
+    "full 24-register RTDE input transport encode",
+    "full input-register CSV serialization"
+  ],
+  "deferred_control_rows": 2573,
+  "encoded_bytes": 496589,
+  "missed_slots_total": 3,
+  "paced_elapsed_s": 5.149800649000099,
+  "pass": true,
+  "profile": "step5d_strict_rnn_ablation_v35",
+  "replay_source": "/home/andy/.codex-worktrees/ur10e-step5d-concurrency-20260714/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v33c20_20260715_002234/bridge_rtde_500hz.csv",
+  "replay_source_sha256": "7bf03acd68e0bd48cbcfb4f327a765968d96b9bc212ab45f31635bc8c543123f",
+  "row_gap_45_to_60ms_count": 0,
+  "row_gap_max_s": 0.004006242990726605,
+  "row_gap_over_20ms_count": 0,
+  "samples": 2573,
+  "scheduler_lifecycle": {
+    "after_promotion_threads": {
+      "current_tid": 1175988,
+      "policy_counts": {
+        "SCHED_OTHER/0": 45
+      },
+      "thread_count": 45,
+      "threads": [
+        {
+          "is_control_thread": true,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175988
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175990
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175991
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175992
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175993
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175994
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175995
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175996
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175997
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175998
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175999
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176000
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176001
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176002
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176003
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176004
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176005
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176006
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176007
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176008
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176009
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176010
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176011
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176012
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176013
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176014
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176015
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176016
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176017
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176018
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176019
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176020
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176022
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176023
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176024
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176025
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176026
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176027
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176028
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176029
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176030
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176032
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176036
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176037
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176038
+        }
+      ]
+    },
+    "before_promotion_threads": {
+      "current_tid": 1175988,
+      "policy_counts": {
+        "SCHED_OTHER/0": 45
+      },
+      "thread_count": 45,
+      "threads": [
+        {
+          "is_control_thread": true,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175988
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175990
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175991
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175992
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175993
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175994
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175995
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175996
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175997
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175998
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1175999
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176000
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176001
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176002
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176003
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176004
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176005
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176006
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176007
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176008
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176009
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176010
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176011
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176012
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176013
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176014
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176015
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176016
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176017
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176018
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176019
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176020
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176022
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176023
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176024
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176025
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176026
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176027
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176028
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176029
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176030
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176032
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176036
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176037
+        },
+        {
+          "is_control_thread": false,
+          "policy": "SCHED_OTHER",
+          "policy_value": 0,
+          "priority": 0,
+          "tid": 1176038
+        }
+      ]
+    },
+    "control_thread_scheduler": {
+      "policy": "SCHED_OTHER",
+      "policy_value": 0,
+      "priority": 0
+    },
+    "helper_non_other_thread_count": 0,
+    "helper_realtime_thread_count": 0,
+    "initial_process_scheduler": {
+      "policy": "SCHED_OTHER",
+      "policy_value": 0,
+      "priority": 0
+    },
+    "kernel_rt_bandwidth": {
+      "sched_rt_period_us": 1000000,
+      "sched_rt_runtime_us": 950000
+    },
+    "kernel_rt_bandwidth_after_promotion": {
+      "sched_rt_period_us": 1000000,
+      "sched_rt_runtime_us": 950000
+    },
+    "kernel_rt_bandwidth_unchanged": true,
+    "mode": "quota_safe_sched_other_after_prewarm",
+    "promotion_verified": false,
+    "python_gc_enabled_during_control": false,
+    "python_gc_was_enabled": true,
+    "quota_safe_verified": true,
+    "rt_runtime_consumption_policy": "no_sched_fifo_threads"
+  },
+  "scheduler_restored_to_other": true,
+  "schema": "step5d_v35_development_cadence_probe_v1",
+  "source_binding": {
+    "scripts/bridge-line-operator.sh": "752f144fb4e6e7f686cf4a8aa8771bb25a04960fac33483b528cf89b15027126",
+    "step5d_strict_rnn_ablation_v35_stage_contract": "092a043d70ac4a53d437b20cc3d35c0e51c7dd763e6ab11bce229ff919d0e39f",
+    "tools/kunwei_rtde_bridge.py": "f257b000383d1a3edf44edac825622702eedd3ecb47077838089b51f97107668",
+    "tools/run_step5d_v34_live_path_timing.py": "0631b4c0ca158db60041e3635d826d08aaa8b7ee133bdc73e73d6b867c11cd4c",
+    "tools/step5c_strict_rnn.py": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+    "tools/step5d_control_contract.py": "488c67a4f7f5e54807cd125cf707821cfea70fcf4d47ed7b8c7ee5bb348508b9",
+    "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+    "tools/step5d_runtime_interface.py": "9587d761cbe83f8b366089b75b67bd256693b672d915b8375a076bbd18964fbd"
+  },
+  "source_binding_sha256": "9f0eea2d6ce644a98ed85e2af7275b021ea803146c27e6e035733270ebfa75e6",
+  "timing": {
+    "max_ms": 2.4544499901821837,
+    "mean_ms": 0.9508245527540058,
+    "p50_ms": 0.9574809955665842,
+    "p95_ms": 1.1443300027167425,
+    "p99_ms": 1.1561020073713735
+  },
+  "transport_frames": 2573
+}

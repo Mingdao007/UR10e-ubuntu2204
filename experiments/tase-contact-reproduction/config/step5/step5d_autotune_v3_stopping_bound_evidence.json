@@ -1,0 +1,95 @@
+{
+  "attended_measurement_contract": {
+    "all_samples_retained_no_silent_outlier_deletion": true,
+    "direct_exact_stop_and_stale_watchdog_paths_required": true,
+    "exact_source_and_deployment_fingerprints_required": true,
+    "latency_upper_bound_required": true,
+    "minimum_deceleration_lower_bound_required": true,
+    "minimum_samples_per_stop_path": 3,
+    "no_contact_motion_only": true,
+    "numeric_margin_preregistered": true,
+    "procedure_ticket_required_before_each_motion": true,
+    "robot_power_and_motion_required": true,
+    "speed_growth_upper_bound_required": true
+  },
+  "certification_authorization_sha256": null,
+  "certification_binding_sha256": null,
+  "certified": false,
+  "components": [
+    {
+      "evidence_sha256": [],
+      "frame": "base",
+      "method": "attended_exact_stop_latency_upper_bound",
+      "role": "reaction_latency_s",
+      "status": "missing",
+      "units": "s",
+      "value": null
+    },
+    {
+      "evidence_sha256": [],
+      "frame": "base",
+      "method": "attended_exact_stop_speed_growth_upper_bound",
+      "role": "acceleration_growth_m_s2",
+      "status": "missing",
+      "units": "m/s^2",
+      "value": null
+    },
+    {
+      "evidence_sha256": [],
+      "frame": "base",
+      "method": "attended_exact_stop_minimum_deceleration_lower_bound",
+      "role": "minimum_deceleration_m_s2",
+      "status": "missing",
+      "units": "m/s^2",
+      "value": null
+    },
+    {
+      "evidence_sha256": [
+        "bb8e7d7512438eb728fbc02afa9a4ab5fe47a7cbef53140c5c656254923c0dd3"
+      ],
+      "frame": "base",
+      "method": "analytic_cycloid_bound_2_amplitude_times_omega",
+      "role": "center_speed_bound_m_s",
+      "status": "certified_for_domain",
+      "units": "m/s",
+      "value": 0.003
+    },
+    {
+      "evidence_sha256": [
+        "bb8e7d7512438eb728fbc02afa9a4ab5fe47a7cbef53140c5c656254923c0dd3"
+      ],
+      "frame": "base",
+      "method": "analytic_cycloid_bound_amplitude_times_omega_squared",
+      "role": "center_acceleration_bound_m_s2",
+      "status": "certified_for_domain",
+      "units": "m/s^2",
+      "value": 0.00015
+    },
+    {
+      "evidence_sha256": [],
+      "frame": "base",
+      "method": "preregistered_numeric_margin",
+      "role": "numeric_margin_m",
+      "status": "missing",
+      "units": "m",
+      "value": null
+    }
+  ],
+  "deployment_readback_sha256": null,
+  "live_effect": "stopping_bound_none_fail_closed",
+  "manifest_fingerprint": "e65198b3e8384833e17b0c2e536e2de8327df78878766dce7bb29cb9d370d3cd",
+  "measurement_sha256": null,
+  "optimizer_eligible": false,
+  "plant_epoch": null,
+  "schema": "step5d.autotune-v3/stopping-bound-evidence-v2",
+  "source_binding_sha256": "7d759cc474ea218d0fa61bb7c8e1f94ea34023c66b19a4b7e267926db15ff230",
+  "source_sha256": {
+    "bridge": "dad5b5b8e37dfddd22447738e7aeb5d61bf0348eee5f527f08a99132f8c204ed",
+    "moving_sphere": "552d02a0f6eff7aa25c4029098c8c7ac6564279bfa3e9f65444c5ef17b1aad3b",
+    "stage_adapter": "bb8e7d7512438eb728fbc02afa9a4ab5fe47a7cbef53140c5c656254923c0dd3"
+  },
+  "status": "incomplete_attended_measurement_required",
+  "stop_transport_sha256": "dad5b5b8e37dfddd22447738e7aeb5d61bf0348eee5f527f08a99132f8c204ed",
+  "stopping_bound_fingerprint": null,
+  "validity_domain": "ur10e_step5d_autotune_v3_live_500hz_exact_controller_tp_transport_v1"
+}

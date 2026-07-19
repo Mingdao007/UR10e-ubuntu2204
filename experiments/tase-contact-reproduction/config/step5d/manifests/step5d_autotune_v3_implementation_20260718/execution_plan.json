@@ -1,0 +1,167 @@
+{
+  "schema": "codex.long_task_execution_plan/v1",
+  "resource_snapshot": {
+    "schema": "compute.resource_snapshot/v1",
+    "path": "config/step5d/manifests/step5d_autotune_v3_implementation_20260718/resource_snapshot.json",
+    "sha256": "1d54655455bf11d109dfa5315fc3a533138fb3ce0e90dcd3165a670481202b42"
+  },
+  "cpu_tokens": 14,
+  "gpu_consideration": {
+    "considered": true,
+    "decision": "not_use",
+    "reason": "The V3 implementation, host test lanes, TP builder, and HOLD-only protocol validation do not require GPU execution."
+  },
+  "acceptance_cache": "deny",
+  "artifact_policy": "native_only",
+  "tasks": [
+    {
+      "id": "parameter_runtime",
+      "depends_on": [],
+      "cpu_tokens": 4,
+      "execution_class": "parallel",
+      "mode": "primary",
+      "blocking": true,
+      "parallel_group": "implementation",
+      "outputs": [
+        {
+          "path": "config/step5d/manifests/step5d_autotune_v3_implementation_20260718/parameter_runtime_result.json",
+          "native_format": "json"
+        }
+      ]
+    },
+    {
+      "id": "preflight_bridge",
+      "depends_on": [],
+      "cpu_tokens": 4,
+      "execution_class": "parallel",
+      "mode": "primary",
+      "blocking": true,
+      "parallel_group": "implementation",
+      "outputs": [
+        {
+          "path": "config/step5d/manifests/step5d_autotune_v3_implementation_20260718/preflight_bridge_result.json",
+          "native_format": "json"
+        }
+      ]
+    },
+    {
+      "id": "test_evidence_governance",
+      "depends_on": [],
+      "cpu_tokens": 4,
+      "execution_class": "parallel",
+      "mode": "primary",
+      "blocking": true,
+      "parallel_group": "implementation",
+      "outputs": [
+        {
+          "path": "config/step5d/manifests/step5d_autotune_v3_implementation_20260718/test_evidence_result.json",
+          "native_format": "json"
+        }
+      ]
+    },
+    {
+      "id": "host_validation",
+      "depends_on": [
+        "parameter_runtime",
+        "preflight_bridge",
+        "test_evidence_governance"
+      ],
+      "cpu_tokens": 5,
+      "execution_class": "parallel",
+      "mode": "primary",
+      "blocking": true,
+      "parallel_group": "host_validation",
+      "outputs": [
+        {
+          "path": "runs/step5d_autotune_v3_implementation/host_validation_manifest.json",
+          "native_format": "json"
+        }
+      ]
+    },
+    {
+      "id": "tp_package_build",
+      "depends_on": [
+        "host_validation"
+      ],
+      "cpu_tokens": 2,
+      "execution_class": "exclusive",
+      "mode": "primary",
+      "blocking": true,
+      "parallel_group": null,
+      "outputs": [
+        {
+          "path": "config/step5d/manifests/step5d_autotune_v3_implementation_20260718/tp_package_result.json",
+          "native_format": "json"
+        }
+      ]
+    },
+    {
+      "id": "formal_timing",
+      "depends_on": [
+        "tp_package_build"
+      ],
+      "cpu_tokens": 1,
+      "execution_class": "timing",
+      "mode": "primary",
+      "blocking": true,
+      "parallel_group": null,
+      "outputs": [
+        {
+          "path": "runs/step5d_autotune_v3_implementation/formal_timing_result.json",
+          "native_format": "json"
+        }
+      ]
+    },
+    {
+      "id": "ursim_hold",
+      "depends_on": [
+        "formal_timing"
+      ],
+      "cpu_tokens": 2,
+      "execution_class": "exclusive",
+      "mode": "primary",
+      "blocking": true,
+      "parallel_group": null,
+      "outputs": [
+        {
+          "path": "config/step5d/manifests/step5d_autotune_v3_implementation_20260718/ursim_hold_result.json",
+          "native_format": "json"
+        }
+      ]
+    },
+    {
+      "id": "controller_delivery",
+      "depends_on": [
+        "ursim_hold"
+      ],
+      "cpu_tokens": 1,
+      "execution_class": "exclusive",
+      "mode": "primary",
+      "blocking": true,
+      "parallel_group": null,
+      "outputs": [
+        {
+          "path": "config/step5d/manifests/step5d_autotune_v3_implementation_20260718/controller_readback_result.json",
+          "native_format": "json"
+        }
+      ]
+    },
+    {
+      "id": "hil_full_bridge_hold",
+      "depends_on": [
+        "controller_delivery"
+      ],
+      "cpu_tokens": 1,
+      "execution_class": "live",
+      "mode": "primary",
+      "blocking": true,
+      "parallel_group": null,
+      "outputs": [
+        {
+          "path": "runs/step5d_autotune_v3_implementation/hil_full_bridge_hold_result.json",
+          "native_format": "json"
+        }
+      ]
+    }
+  ]
+}

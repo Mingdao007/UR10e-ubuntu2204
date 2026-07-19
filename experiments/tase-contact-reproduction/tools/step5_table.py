@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import math
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -13,8 +14,32 @@ EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 TABLE_PATH = EXPERIMENT_ROOT / "config" / "step5_stage_table.json"
 
 
+@lru_cache(maxsize=16)
+def _load_json_snapshot(
+    resolved_path: str,
+    device: int,
+    inode: int,
+    mtime_ns: int,
+    size: int,
+) -> dict[str, Any]:
+    """Decode one immutable file version; identity fields form the cache key."""
+
+    del device, inode, mtime_ns, size
+    return json.loads(Path(resolved_path).read_text(encoding="utf-8"))
+
+
 def load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    """Load read-only configuration, reusing it until the file version changes."""
+
+    resolved = path.resolve()
+    stat = resolved.stat()
+    return _load_json_snapshot(
+        str(resolved),
+        stat.st_dev,
+        stat.st_ino,
+        stat.st_mtime_ns,
+        stat.st_size,
+    )
 
 
 def load_step5_table(path: Path = TABLE_PATH) -> dict[str, Any]:

@@ -1,0 +1,65 @@
+{
+  "schema_version": "step5d_v31_numeric_sanity_v1",
+  "generated_at": "2026-07-14T19:47:04+08:00",
+  "stage_id": "step5d_strict_rnn_ablation_v31",
+  "overall_pass": true,
+  "profile": {
+    "backend": "cupy",
+    "inner_iterations": 512,
+    "epsilon": 0.01,
+    "sigr_exponent_r": 0.8,
+    "qdot_cap_rad_s": 0.5,
+    "qdot_slew_rad_s2": 0.05,
+    "normal_motion_policy": "frame_contract_only",
+    "control_mode": "speedj_rnn_live",
+    "joint_layout_code": 524.0
+  },
+  "package": {
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v31.urp",
+    "sha256": {
+      ".script": "ad09917dff170b6536425dc834a96f0f19b1e7fafb1e1204f3ddc9d8ef4b675b",
+      ".txt": "1946e95133beb11e3c4811d9f10df06484e7b5a91366985aeb5f742d663ba141",
+      ".urp": "a4ce194ed7b64af1bbdaa6bb8af166434bbc66e9ca6db6ec719863dc1a503818"
+    }
+  },
+  "full_chain": {
+    "artifact": "runs/step5d_v31_numeric_sanity_20260714_1948/step5d_numeric_sanity.json",
+    "sha256": "00063b89224ff5d8b56996e47541b43cc479ceaecec5837887678fd45305938c",
+    "samples": 82,
+    "overall_pass": true,
+    "qdot_max_abs_rad_s": 0.5,
+    "register_order_pass": true,
+    "finite_outputs_pass": true,
+    "strict_rnn_eq23_sign_gate_pass": true,
+    "contact_evidence": "not_claimed"
+  },
+  "guards": {
+    "sensor_stale_s": 2.0,
+    "heartbeat_stale_stop_s": 1.0,
+    "raw_normal_guard_n": 60.0,
+    "force_norm_guard_n": 100.0,
+    "torque_norm_guard_nm": 3.0,
+    "force_window_role": "diagnostic_only",
+    "cartesian_normal_speed_displacement_role": "diagnostic_only",
+    "dls_residual_active_bounds_role": "diagnostic_only"
+  },
+  "gates": {
+    "exact_profile_bound": true,
+    "package_hashes_bound": true,
+    "finite_outputs_pass": true,
+    "register_order_pass": true,
+    "qdot_within_cap": true,
+    "force_frame_semantic_gate_pass": true,
+    "textbook_alignment_pass": true,
+    "controller_upload_readback_pending": false,
+    "controller_upload_readback_verified": true
+  },
+  "claim_boundary": {
+    "offline_structural_sanity_only": true,
+    "controller_uploaded": true,
+    "controller_readback_verified": true,
+    "live_motion_authorized": false,
+    "contact_accepted": false,
+    "v31_current": false
+  }
+}

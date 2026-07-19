@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +29,7 @@ V26 = "step5d_strict_rnn_ablation_v26"
 V27 = "step5d_strict_rnn_ablation_v27"
 V28 = "step5d_strict_rnn_ablation_v28"
 V29 = "step5d_strict_rnn_ablation_v29"
+V30 = "step5d_strict_rnn_ablation_v30"
 
 
 def _sha(data: bytes) -> str:
@@ -409,6 +411,161 @@ def _write_v26_fixture(root: Path) -> tuple[Path, Path]:
 
 
 class Step5dCurrentPromotionTest(unittest.TestCase):
+    def test_v30_promotion_rejects_current_incomplete_evidence_before_local_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate = root / "candidate_v30"
+            v30_sha = _write_triplet(candidate, V30, "v30")
+            manifest_path = _write_readback(root, V30, candidate, v30_sha)
+            config = root / "config"
+            config.mkdir(parents=True)
+            current = {
+                "program": V29,
+                "current_stage_id": V29,
+                "stage_table_path": "config/step5_stage_table.json",
+                "p0_v8_candidate": {"p0_v8_passed": False},
+            }
+            table = {
+                "stages": [
+                    {"id": V29, "active": True},
+                    {
+                        "id": V30,
+                        "active": False,
+                        "runtime_profile": {
+                            "backend": "cupy",
+                            "inner_iterations": 512,
+                            "epsilon": 0.01,
+                            "sigr_exponent_r": 0.8,
+                            "qdot_cap_rad_s": 0.05,
+                            "control_mode": "speedj_rnn_live",
+                            "joint_layout_code": 524.0,
+                        },
+                        "runtime_scheduler": {
+                            "policy": "SCHED_FIFO",
+                            "priority": 20,
+                        },
+                        "contact_policy": {
+                            "dls_shadow_only": True,
+                            "dls_fallback_allowed": False,
+                        },
+                        "guard": {"dls_runtime_fallback_allowed": False},
+                        "p0_v8_gate": {"passed": False},
+                        "package_delivery": {"sha256": v30_sha},
+                    },
+                ]
+            }
+            (config / "current_stage.json").write_text(json.dumps(current), encoding="utf-8")
+            (config / "step5_stage_table.json").write_text(json.dumps(table), encoding="utf-8")
+
+            with self.assertRaisesRegex(RuntimeError, "direct frozen-duration P0 v8 pass"):
+                promote.promote(root, V30, TARGET_DIR, candidate, manifest_path)
+
+            self.assertFalse((root / "programs" / "step5" / f"{V30}.script").exists())
+            self.assertEqual(
+                json.loads((config / "current_stage.json").read_text(encoding="utf-8"))["program"],
+                V29,
+            )
+
+    def test_v30_promotion_does_not_require_live_authorization(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            v26_dir, manifest_path = _write_v26_fixture(root)
+            promote.promote(root, V26, TARGET_DIR, v26_dir, manifest_path)
+            candidate = root / "candidate_v30"
+            v30_sha = _write_triplet(candidate, V30, "v30")
+            v30_manifest = _write_readback(root, V30, candidate, v30_sha)
+            table_path = root / "config/step5_stage_table.json"
+            table = json.loads(table_path.read_text(encoding="utf-8"))
+            template = next(row for row in table["stages"] if row["id"] == V26)
+            candidate_row = json.loads(json.dumps(template))
+            candidate_row.update(
+                {
+                    "id": V30,
+                    "active": False,
+                    "blocked": True,
+                    "runtime_profile": {
+                        "backend": "cupy",
+                        "inner_iterations": 512,
+                        "epsilon": 0.01,
+                        "sigr_exponent_r": 0.8,
+                        "qdot_cap_rad_s": 0.05,
+                        "control_mode": "speedj_rnn_live",
+                        "joint_layout_code": 524.0,
+                    },
+                    "runtime_scheduler": {
+                        "policy": "SCHED_FIFO",
+                        "priority": 20,
+                    },
+                    "contact_policy": {
+                        "dls_shadow_only": True,
+                        "dls_fallback_allowed": False,
+                    },
+                    "guard": {"dls_runtime_fallback_allowed": False},
+                    "p0_v8_gate": {"passed": True},
+                    "review_v3": {"required_stack": "1+1", "evidence_frozen": True},
+                    "promotion_gate": {"current_promotion_allowed": True},
+                }
+            )
+            table["stages"].append(candidate_row)
+            table_path.write_text(json.dumps(table), encoding="utf-8")
+            current_path = root / "config/current_stage.json"
+            current = json.loads(current_path.read_text(encoding="utf-8"))
+            current["bridge_trigger"]["live_motion_authorized"] = False
+            current_path.write_text(json.dumps(current), encoding="utf-8")
+            frozen = {
+                "ok": True,
+                "program": V30,
+                "review_v3": {"composite_fingerprint": "2" * 64},
+                "live_motion_authorized": False,
+            }
+
+            with mock.patch.object(promote, "verify_v30_evidence_freeze", return_value=frozen):
+                result = promote.promote(root, V30, TARGET_DIR, candidate, v30_manifest)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["promotion_evidence"], frozen)
+            current = json.loads(current_path.read_text(encoding="utf-8"))
+            self.assertEqual(current["program"], V30)
+            self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
+            self.assertEqual(current["v30_promotion_evidence"], frozen)
+            rows = {
+                row["id"]: row
+                for row in json.loads(table_path.read_text(encoding="utf-8"))["stages"]
+            }
+            self.assertTrue(rows[V30]["package_delivery"]["controller_readback_verified"])
+            self.assertFalse(rows[V30]["promotion_gate"]["bridge_start_allowed"])
+            self.assertTrue(rows[V30]["contact_policy"]["dls_shadow_only"])
+            self.assertFalse(rows[V30]["contact_policy"]["dls_fallback_allowed"])
+            self.assertNotIn("stage25_control_modes", rows[V30]["contact_policy"])
+
+    def test_v29_freeze_for_v30_preserves_historical_evidence_payloads(self) -> None:
+        evidence = {"sha256": {".script": "a" * 64}, "portable": "frozen"}
+        package = {"sha256": {".script": "a" * 64}, "controller_readback_status": "verified"}
+        table = {
+            "stages": [
+                {
+                    "id": V29,
+                    "active": True,
+                    "blocked": False,
+                    "complete": False,
+                    "completion_target": True,
+                    "local_analysis_evidence": json.loads(json.dumps(evidence)),
+                    "package_delivery": json.loads(json.dumps(package)),
+                    "current_binding": {"is_current": True},
+                    "lifecycle": {"current_candidate": True},
+                }
+            ]
+        }
+
+        promote.freeze_v29_fallback_for_v30(table)
+
+        row = table["stages"][0]
+        self.assertEqual(row["local_analysis_evidence"], evidence)
+        self.assertEqual(row["package_delivery"], package)
+        self.assertFalse(row["active"])
+        self.assertTrue(row["blocked"])
+        self.assertFalse(row["current_binding"]["is_current"])
+
     def test_promote_v22_archives_v21_and_updates_current(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

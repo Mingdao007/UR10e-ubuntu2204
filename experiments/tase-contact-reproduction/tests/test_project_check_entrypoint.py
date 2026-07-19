@@ -20,9 +20,16 @@ class ProjectCheckEntrypointTest(unittest.TestCase):
         self.assertTrue(mode & stat.S_IXUSR, "check.sh must be executable")
 
         text = check.read_text(encoding="utf-8")
-        self.assertIn("tools/validate_tase_protocol_table.py", text)
-        self.assertIn("tools/validate_cross_step_parameter_table.py", text)
-        self.assertIn("python3 -m pytest tests -q -p no:anyio", text)
+        self.assertIn("tools/run_ur10e_impacted_tests.py", text)
+        dependency_map = (ROOT / "config/ur10e_test_dependency_map_v1.json").read_text()
+        self.assertIn("tools/validate_tase_protocol_table.py", dependency_map)
+        self.assertIn("tools/validate_cross_step_parameter_table.py", dependency_map)
+        self.assertIn("PYTEST_DISABLE_PLUGIN_AUTOLOAD=1", text)
+        self.assertIn("UR10E_CHANGED_PATHS_FILE", text)
+        self.assertIn("UR10E_FULL_SUITE", text)
+        self.assertIn("UR10E_TEST_REUSE", text)
+        self.assertIn("UR10E_PARALLEL", text)
+        self.assertIn("requirements-test.txt", text)
         self.assertNotIn("/home/andy/.local/bin/check.sh", text)
 
 

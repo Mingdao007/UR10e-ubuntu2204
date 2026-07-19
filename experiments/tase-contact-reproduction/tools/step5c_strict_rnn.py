@@ -156,12 +156,25 @@ class StrictTaseRnnSolver:
         self.lambda_state = np.zeros(6, dtype=float)
         self._cp: Any | None = None
         self._cupy_kernel: Any | None = None
+        self._cupy_serial_reference_kernel: Any | None = None
+        self._cupy_stream: Any | None = None
+        self._cupy_stream_priority: int | None = None
+        self._cupy_stream_priority_capability = "not_applicable"
+        self._cupy_component_events: tuple[Any, Any, Any, Any] | None = None
+        self._cupy_completion_event: Any | None = None
+        self._last_cupy_component_timing: dict[str, float] | None = None
         self._cupy_theta_dot_state: Any | None = None
         self._cupy_lambda_state: Any | None = None
         self._cupy_input_buffer: Any | None = None
         self._cupy_work_buffer: Any | None = None
+        self._cupy_input_views: tuple[Any, Any, Any, Any] | None = None
+        self._cupy_work_views: tuple[Any, Any, Any, Any, Any, Any, Any, Any] | None = None
+        self._cupy_host_input_owner: Any | None = None
+        self._cupy_host_work_owner: Any | None = None
         self._cupy_host_input: np.ndarray | None = None
         self._cupy_host_work: np.ndarray | None = None
+        self._cupy_host_input_views: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None = None
+        self._cupy_parallel_equivalence: dict[str, Any] | None = None
         if self.config.backend == "cupy":
             self._init_cupy_backend()
 
@@ -288,7 +301,7 @@ class StrictTaseRnnSolver:
             raise ValueError("target_state must be a dict")
         started = time.perf_counter()
         if self.config.backend == "cupy":
-            diag = self._solve_cupy(target_state)
+            diag = self._solve_cupy(target_state, capture_components=False)
             executed_inner_iterations = int(self.config.inner_iterations)
         else:
             diag = None
@@ -305,6 +318,46 @@ class StrictTaseRnnSolver:
                     cmd_valid=bool(target_state.get("cmd_valid", True)),
                 )
             assert diag is not None
+        return self._command_result(diag, started, executed_inner_iterations)
+
+    def solve_component_timed(
+        self,
+        *,
+        actual_q: Any,
+        actual_qd: Any,
+        target_state: dict[str, Any],
+    ) -> tuple[StrictRnnCommandResult, dict[str, float]]:
+        """Run one unchanged CuPy solve with preallocated component events.
+
+        This diagnostic path is intentionally separate from acceptance timing;
+        CUDA event synchronization can add overhead.  It identifies whether a
+        wall-time outlier is dominated by CPU packing/enqueue, device kernel,
+        D2H, or host completion wait and never discards the sample.
+        """
+
+        if self.config.backend != "cupy":
+            raise RuntimeError("component timing requires the CuPy backend")
+        _finite_vector(actual_q, 6, "actual_q")
+        _finite_vector(actual_qd, 6, "actual_qd")
+        if not isinstance(target_state, dict):
+            raise ValueError("target_state must be a dict")
+        started = time.perf_counter()
+        diag = self._solve_cupy(target_state, capture_components=True)
+        result = self._command_result(
+            diag,
+            started,
+            int(self.config.inner_iterations),
+        )
+        components = dict(self._last_cupy_component_timing or {})
+        components["solve_api_wall_ms"] = (time.perf_counter() - started) * 1000.0
+        return result, components
+
+    def _command_result(
+        self,
+        diag: StrictRnnStepDiagnostics,
+        started: float,
+        executed_inner_iterations: int,
+    ) -> StrictRnnCommandResult:
         diagnostics = dict(diag.__dict__)
         diagnostics.update(
             {
@@ -327,15 +380,121 @@ class StrictTaseRnnSolver:
         except Exception as exc:
             raise RuntimeError("Strict RNN backend 'cupy' requires importable CuPy before live bridge start") from exc
         self._cp = cp
+        # CuPy 13.6 on the Ubuntu runtime exposes a dedicated nonblocking
+        # Stream but neither deviceGetStreamPriorityRange nor Stream(priority).
+        # Priority is therefore an observed capability, never a startup gate.
+        try:
+            priority_range = getattr(cp.cuda.runtime, "deviceGetStreamPriorityRange", None)
+            if priority_range is None:
+                raise TypeError("priority API unavailable")
+            _least_priority, greatest_priority = priority_range()
+            self._cupy_stream_priority = int(greatest_priority)
+            self._cupy_stream = cp.cuda.Stream(
+                non_blocking=True,
+                priority=self._cupy_stream_priority,
+            )
+            self._cupy_stream_priority_capability = "highest_priority_enabled"
+        except (AttributeError, TypeError):
+            self._cupy_stream_priority = None
+            self._cupy_stream = cp.cuda.Stream(non_blocking=True)
+            self._cupy_stream_priority_capability = "unsupported_by_cupy_13_6"
+        self._cupy_component_events = (
+            cp.cuda.Event(),
+            cp.cuda.Event(),
+            cp.cuda.Event(),
+            cp.cuda.Event(),
+        )
+        self._cupy_completion_event = cp.cuda.Event()
         # Fixed-size host/device staging removes all per-tick CuPy allocations
-        # and collapses result readback to one contiguous transfer.
+        # and collapses result readback to one contiguous transfer.  The host
+        # arrays are page-locked to avoid a possible CUDA-driver staging copy.
+        # The v30 A/B evidence did not eliminate the periodic outlier, so this
+        # is a bounded marshaling optimization, not a claimed root-cause fix.
         self._cupy_input_buffer = cp.empty(54, dtype=cp.float32)
         self._cupy_work_buffer = cp.zeros(48, dtype=cp.float32)
-        self._cupy_host_input = np.empty(54, dtype=np.float32)
-        self._cupy_host_work = np.empty(48, dtype=np.float32)
-        self._cupy_theta_dot_state = self._cupy_work_buffer[0:6]
-        self._cupy_lambda_state = self._cupy_work_buffer[6:12]
+        try:
+            self._cupy_host_input_owner = cp.cuda.alloc_pinned_memory(54 * np.dtype(np.float32).itemsize)
+            self._cupy_host_work_owner = cp.cuda.alloc_pinned_memory(48 * np.dtype(np.float32).itemsize)
+        except Exception as exc:
+            raise RuntimeError("Strict RNN CuPy backend requires pinned host staging buffers") from exc
+        self._cupy_host_input = np.frombuffer(
+            self._cupy_host_input_owner,
+            dtype=np.float32,
+            count=54,
+        )
+        self._cupy_host_work = np.frombuffer(
+            self._cupy_host_work_owner,
+            dtype=np.float32,
+            count=48,
+        )
+        self._cupy_input_views = (
+            self._cupy_input_buffer[0:36],
+            self._cupy_input_buffer[36:42],
+            self._cupy_input_buffer[42:48],
+            self._cupy_input_buffer[48:54],
+        )
+        self._cupy_work_views = tuple(
+            self._cupy_work_buffer[start : start + 6]
+            for start in range(0, 48, 6)
+        )  # type: ignore[assignment]
+        self._cupy_host_input_views = (
+            self._cupy_host_input[0:36].reshape(6, 6),
+            self._cupy_host_input[36:42],
+            self._cupy_host_input[42:48],
+            self._cupy_host_input[48:54],
+        )
+        self._cupy_theta_dot_state = self._cupy_work_views[0]
+        self._cupy_lambda_state = self._cupy_work_views[1]
         self._precompile_cupy_backend()
+        self._cupy_parallel_equivalence = self.validate_cupy_parallel_equivalence(samples=100)
+
+    @property
+    def cupy_host_staging_pinned(self) -> bool:
+        """Whether both fixed host/device transfer buffers are page-locked."""
+
+        return bool(
+            self.config.backend == "cupy"
+            and self._cupy_host_input_owner is not None
+            and self._cupy_host_work_owner is not None
+            and self._cupy_host_input is not None
+            and self._cupy_host_work is not None
+        )
+
+    @property
+    def cupy_dedicated_stream(self) -> bool:
+        """Whether solver transfers/kernel/readback use one private stream."""
+
+        return bool(
+            self.config.backend == "cupy"
+            and self._cupy_stream is not None
+        )
+
+    @property
+    def cupy_busy_poll_completion(self) -> bool:
+        """Whether normal solves use the preallocated event completion path."""
+
+        return bool(
+            self.config.backend == "cupy"
+            and self._cupy_completion_event is not None
+        )
+
+    @property
+    def cupy_stream_priority(self) -> int | None:
+        return self._cupy_stream_priority
+
+    @property
+    def cupy_stream_priority_capability(self) -> str:
+        return self._cupy_stream_priority_capability
+
+    @property
+    def cupy_parallel_equivalence(self) -> dict[str, Any] | None:
+        """Startup proof that block-6 and retained serial equations agree."""
+
+        return (
+            dict(self._cupy_parallel_equivalence)
+            if self._cupy_parallel_equivalence is not None
+            else None
+        )
 
     def _precompile_cupy_backend(self) -> None:
         if self._cp is None:
@@ -356,15 +515,22 @@ class StrictTaseRnnSolver:
     def _sync_cupy_state_from_numpy(self) -> None:
         if self._cp is None:
             return
-        if self._cupy_work_buffer is None or self._cupy_host_work is None:
+        if (
+            self._cupy_work_buffer is None
+            or self._cupy_host_work is None
+            or self._cupy_stream is None
+        ):
             raise RuntimeError("CuPy state buffers are not initialized")
         np.copyto(self._cupy_host_work[0:6], self.theta_dot_state, casting="unsafe")
         np.copyto(self._cupy_host_work[6:12], self.lambda_state, casting="unsafe")
-        self._cupy_work_buffer[0:12].set(self._cupy_host_work[0:12])
+        self._cupy_work_buffer[0:12].set(
+            self._cupy_host_work[0:12],
+            stream=self._cupy_stream,
+        )
         # State reset/warm-start is outside the 500 Hz loop.  Complete both
         # host-to-device copies here so their deferred cost cannot leak into
         # the first post-boundary solve tick.
-        self._cp.cuda.Stream.null.synchronize()
+        self._cupy_stream.synchronize()
 
     def _cupy_solve_kernel(self) -> Any:
         if self._cupy_kernel is not None:
@@ -375,6 +541,91 @@ class StrictTaseRnnSolver:
             r"""
 extern "C" __global__
 void strict_rnn_solve(
+    const float* J,
+    const float* xdot,
+    const float* lower,
+    const float* upper,
+    float* theta,
+    float* lambda_state,
+    float* proj_input_out,
+    float* projected_out,
+    float* sigr_arg_out,
+    float* sigr_val_out,
+    float* limited_out,
+    float* residual_out,
+    const float dt,
+    const float epsilon,
+    const float r,
+    const int inner_iterations,
+    const int cmd_valid
+) {
+    const int i = (int)threadIdx.x;
+    if (i >= 6) {
+        return;
+    }
+    __shared__ float proj[6];
+    __shared__ float projected[6];
+    __shared__ float sigr_arg[6];
+    __shared__ float sigr_val[6];
+    __shared__ float limited[6];
+    __shared__ float residual[6];
+    for (int iter = 0; iter < inner_iterations; ++iter) {
+        float projection_accum = 0.0f;
+        for (int row = 0; row < 6; ++row) {
+            projection_accum += J[row * 6 + i] * lambda_state[row];
+        }
+        proj[i] = projection_accum;
+        projected[i] = fminf(fmaxf(projection_accum, lower[i]), upper[i]);
+        sigr_arg[i] = theta[i] - projected[i];
+        __syncthreads();
+        if (cmd_valid) {
+            float abs_arg = fabsf(sigr_arg[i]);
+            float sign_arg = (sigr_arg[i] > 0.0f) - (sigr_arg[i] < 0.0f);
+            sigr_val[i] = powf(abs_arg, r) * sign_arg;
+            float theta_delta = -(dt / epsilon) * sigr_val[i];
+            limited[i] = fabsf(theta_delta) > abs_arg ? 1.0f : 0.0f;
+            theta[i] = limited[i] > 0.5f ? projected[i] : theta[i] + theta_delta;
+        } else {
+            sigr_val[i] = 0.0f;
+            limited[i] = 0.0f;
+        }
+        // Every row residual must observe all six updated theta values.
+        __syncthreads();
+        float residual_accum = 0.0f;
+        for (int col = 0; col < 6; ++col) {
+            residual_accum += J[i * 6 + col] * theta[col];
+        }
+        residual[i] = residual_accum - xdot[i];
+        __syncthreads();
+        if (cmd_valid) {
+            lambda_state[i] -= (dt / epsilon) * residual[i];
+        }
+        // The next projection must observe all six updated lambda values.
+        __syncthreads();
+    }
+    proj_input_out[i] = proj[i];
+    projected_out[i] = projected[i];
+    sigr_arg_out[i] = sigr_arg[i];
+    sigr_val_out[i] = sigr_val[i];
+    limited_out[i] = limited[i];
+    residual_out[i] = residual[i];
+}
+""",
+            "strict_rnn_solve",
+        )
+        return self._cupy_kernel
+
+    def _get_cupy_serial_reference_kernel(self) -> Any:
+        """Retained scalar equations used only by the startup equivalence gate."""
+
+        if self._cupy_serial_reference_kernel is not None:
+            return self._cupy_serial_reference_kernel
+        if self._cp is None:
+            raise RuntimeError("CuPy backend is not initialized")
+        self._cupy_serial_reference_kernel = self._cp.RawKernel(
+            r"""
+extern "C" __global__
+void strict_rnn_solve_serial_reference(
     const float* J,
     const float* xdot,
     const float* lower,
@@ -443,22 +694,135 @@ void strict_rnn_solve(
     }
 }
 """,
-            "strict_rnn_solve",
+            "strict_rnn_solve_serial_reference",
         )
-        return self._cupy_kernel
+        return self._cupy_serial_reference_kernel
 
-    def _solve_cupy(self, target_state: dict[str, Any]) -> StrictRnnStepDiagnostics:
+    def validate_cupy_parallel_equivalence(self, *, samples: int = 100) -> dict[str, Any]:
+        """Fail startup unless block-6 matches the original serial equations.
+
+        Both device states evolve independently across deterministic inputs;
+        all 48 state/diagnostic float32 values are compared bit-for-bit after
+        every solve.  This runs before the control loop and never touches the
+        production state buffers.
+        """
+
+        if int(samples) < 1:
+            raise ValueError("parallel equivalence samples must be positive")
+        if self._cp is None or self._cupy_stream is None:
+            raise RuntimeError("CuPy backend is not initialized")
+        cp = self._cp
+        input_device = cp.empty(54, dtype=cp.float32)
+        parallel_work = cp.zeros(48, dtype=cp.float32)
+        serial_work = cp.zeros(48, dtype=cp.float32)
+        host_input = np.empty(54, dtype=np.float32)
+        parallel_host = np.empty(48, dtype=np.float32)
+        serial_host = np.empty(48, dtype=np.float32)
+        rng = np.random.default_rng(56030)
+
+        def args_for(work: Any) -> tuple[Any, ...]:
+            return (
+                input_device[0:36],
+                input_device[36:42],
+                input_device[42:48],
+                input_device[48:54],
+                work[0:6],
+                work[6:12],
+                work[12:18],
+                work[18:24],
+                work[24:30],
+                work[30:36],
+                work[36:42],
+                work[42:48],
+                np.float32(0.002),
+                np.float32(self.config.epsilon),
+                np.float32(self.config.sigr_exponent_r),
+                np.int32(int(self.config.inner_iterations)),
+                np.int32(1),
+            )
+
+        max_abs_difference = 0.0
+        for index in range(int(samples)):
+            jacobian = np.eye(6, dtype=np.float32)
+            jacobian += rng.normal(0.0, 0.02, size=(6, 6)).astype(np.float32)
+            host_input[0:36] = jacobian.reshape(36)
+            host_input[36:42] = rng.uniform(-0.003, 0.003, size=6).astype(np.float32)
+            host_input[42:48] = -0.05
+            host_input[48:54] = 0.05
+            input_device.set(host_input, stream=self._cupy_stream)
+            self._cupy_solve_kernel()(
+                (1,),
+                (6,),
+                args_for(parallel_work),
+                stream=self._cupy_stream,
+            )
+            self._get_cupy_serial_reference_kernel()(
+                (1,),
+                (1,),
+                args_for(serial_work),
+                stream=self._cupy_stream,
+            )
+            parallel_work.get(
+                out=parallel_host,
+                stream=self._cupy_stream,
+                blocking=True,
+            )
+            serial_work.get(
+                out=serial_host,
+                stream=self._cupy_stream,
+                blocking=True,
+            )
+            difference = float(np.max(np.abs(parallel_host - serial_host)))
+            max_abs_difference = max(max_abs_difference, difference)
+            if not np.array_equal(parallel_host, serial_host):
+                raise RuntimeError(
+                    "parallel strict-RNN kernel failed serial-equation equivalence "
+                    f"at sample {index}: max_abs_difference={difference}"
+                )
+        return {
+            "samples": int(samples),
+            "compared_float32_values_per_sample": 48,
+            "bitwise_equal": True,
+            "max_abs_difference": max_abs_difference,
+            "inner_iterations": int(self.config.inner_iterations),
+            "parallel_block_threads": 6,
+            "serial_reference_threads": 1,
+        }
+
+    def _solve_cupy(
+        self,
+        target_state: dict[str, Any],
+        *,
+        capture_components: bool = False,
+    ) -> StrictRnnStepDiagnostics:
         if (
             self._cp is None
             or self._cupy_theta_dot_state is None
             or self._cupy_lambda_state is None
             or self._cupy_input_buffer is None
             or self._cupy_work_buffer is None
+            or self._cupy_input_views is None
+            or self._cupy_work_views is None
             or self._cupy_host_input is None
             or self._cupy_host_work is None
+            or self._cupy_host_input_views is None
+            or self._cupy_stream is None
+            or (capture_components and self._cupy_component_events is None)
         ):
             raise RuntimeError("CuPy backend is not initialized")
         cp = self._cp
+        input_j, input_xdot, input_lower, input_upper = self._cupy_input_views
+        (
+            _theta_state,
+            _lambda_state,
+            proj_input,
+            projected,
+            sigr_arg,
+            sigr_val,
+            limited,
+            residual,
+        ) = self._cupy_work_views
+        host_j, host_xdot, host_lower, host_upper = self._cupy_host_input_views
         jacobian = _finite_matrix(target_state["J"], (6, 6), "J")
         xdot = _finite_array(target_state["xdot_c"], 6, "xdot_c")
         lower = _finite_array(target_state["omega_minus"], 6, "omega_minus")
@@ -475,25 +839,34 @@ void strict_rnn_solve(
         if not math.isfinite(float(exponent)) or not 0.0 < float(exponent) <= 1.0:
             raise ValueError("sigr exponent r must be in (0, 1]")
 
-        np.copyto(self._cupy_host_input[0:36], jacobian.reshape(36), casting="unsafe")
-        np.copyto(self._cupy_host_input[36:42], xdot, casting="unsafe")
-        np.copyto(self._cupy_host_input[42:48], lower, casting="unsafe")
-        np.copyto(self._cupy_host_input[48:54], upper, casting="unsafe")
-        self._cupy_input_buffer.set(self._cupy_host_input)
-        proj_input = self._cupy_work_buffer[12:18]
-        projected = self._cupy_work_buffer[18:24]
-        sigr_arg = self._cupy_work_buffer[24:30]
-        sigr_val = self._cupy_work_buffer[30:36]
-        limited = self._cupy_work_buffer[36:42]
-        residual = self._cupy_work_buffer[42:48]
+        component_started = time.perf_counter()
+        pack_started = time.perf_counter()
+        np.copyto(host_j, jacobian, casting="unsafe")
+        np.copyto(host_xdot, xdot, casting="unsafe")
+        np.copyto(host_lower, lower, casting="unsafe")
+        np.copyto(host_upper, upper, casting="unsafe")
+        cpu_pack_ms = (time.perf_counter() - pack_started) * 1000.0
+        if capture_components:
+            assert self._cupy_component_events is not None
+            event_start, event_h2d, event_kernel, event_d2h = self._cupy_component_events
+            event_start.record(self._cupy_stream)
+        h2d_enqueue_started = time.perf_counter()
+        self._cupy_input_buffer.set(
+            self._cupy_host_input,
+            stream=self._cupy_stream,
+        )
+        h2d_enqueue_ms = (time.perf_counter() - h2d_enqueue_started) * 1000.0
+        if capture_components:
+            event_h2d.record(self._cupy_stream)
+        kernel_enqueue_started = time.perf_counter()
         self._cupy_solve_kernel()(
             (1,),
-            (1,),
+            (6,),
             (
-                self._cupy_input_buffer[0:36],
-                self._cupy_input_buffer[36:42],
-                self._cupy_input_buffer[42:48],
-                self._cupy_input_buffer[48:54],
+                input_j,
+                input_xdot,
+                input_lower,
+                input_upper,
                 self._cupy_theta_dot_state,
                 self._cupy_lambda_state,
                 proj_input,
@@ -508,9 +881,51 @@ void strict_rnn_solve(
                 np.int32(int(self.config.inner_iterations)),
                 np.int32(1 if bool(target_state.get("cmd_valid", True)) else 0),
             ),
+            stream=self._cupy_stream,
         )
-        cp.cuda.Stream.null.synchronize()
-        self._cupy_work_buffer.get(out=self._cupy_host_work)
+        kernel_enqueue_ms = (time.perf_counter() - kernel_enqueue_started) * 1000.0
+        if capture_components:
+            event_kernel.record(self._cupy_stream)
+            d2h_enqueue_started = time.perf_counter()
+            self._cupy_work_buffer.get(
+                out=self._cupy_host_work,
+                stream=self._cupy_stream,
+                blocking=False,
+            )
+            d2h_enqueue_ms = (time.perf_counter() - d2h_enqueue_started) * 1000.0
+            event_d2h.record(self._cupy_stream)
+            completion_wait_started = time.perf_counter()
+            event_d2h.synchronize()
+            completion_wait_ms = (time.perf_counter() - completion_wait_started) * 1000.0
+            self._last_cupy_component_timing = {
+                "cpu_pack_ms": cpu_pack_ms,
+                "h2d_enqueue_ms": h2d_enqueue_ms,
+                "kernel_enqueue_ms": kernel_enqueue_ms,
+                "d2h_enqueue_ms": d2h_enqueue_ms,
+                "host_completion_wait_ms": completion_wait_ms,
+                "cuda_h2d_ms": float(cp.cuda.get_elapsed_time(event_start, event_h2d)),
+                "cuda_kernel_ms": float(cp.cuda.get_elapsed_time(event_h2d, event_kernel)),
+                "cuda_d2h_ms": float(cp.cuda.get_elapsed_time(event_kernel, event_d2h)),
+                "cupy_component_wall_ms": (time.perf_counter() - component_started) * 1000.0,
+            }
+        else:
+            if self._cupy_completion_event is None:
+                raise RuntimeError("CuPy completion event is not initialized")
+            self._cupy_work_buffer.get(
+                out=self._cupy_host_work,
+                stream=self._cupy_stream,
+                blocking=False,
+            )
+            self._cupy_completion_event.record(self._cupy_stream)
+            # cudaMemcpy(..., blocking=True) sleeps in the driver and the
+            # Ubuntu PREEMPT_RT scheduler can wake this thread 4-10 ms late
+            # even though CUDA event timing shows the kernel itself below
+            # 0.4 ms.  Polling one preallocated completion event preserves the
+            # exact H2D/kernel/D2H sequence and result bytes while avoiding
+            # scheduler wake-up latency.  No allocation, extra iteration, or
+            # algorithm change occurs in the 500 Hz loop.
+            while not self._cupy_completion_event.done:
+                pass
         np.copyto(self.theta_dot_state, self._cupy_host_work[0:6], casting="unsafe")
         np.copyto(self.lambda_state, self._cupy_host_work[6:12], casting="unsafe")
         proj_input_np = self._cupy_host_work[12:18]

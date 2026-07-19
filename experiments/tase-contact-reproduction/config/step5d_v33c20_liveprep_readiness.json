@@ -1,0 +1,73 @@
+{
+  "schema_version": "step5d_liveprep_readiness_v1",
+  "generated_at": "2026-07-15T00:18:00+08:00",
+  "profile": "step5d_strict_rnn_ablation_v33c20",
+  "program": "step5d_strict_rnn_ablation_v33c20",
+  "workflow_state": "awaiting_live_authorization",
+  "ready_for_explicit_live_authorization": true,
+  "live_motion_authorized": false,
+  "bridge_has_started": false,
+  "runtime_profile_match": true,
+  "runtime_profile": {
+    "backend": "cupy",
+    "inner_iterations": 512,
+    "epsilon": 0.01,
+    "sigr_exponent_r": 0.8,
+    "qdot_cap_rad_s": 0.5,
+    "speedj_acceleration_rad_s2": 0.05,
+    "control_mode": "speedj_rnn_live",
+    "wire_protocol": "stage_aware_joint_v1",
+    "feedback_policy": "drain_all_currently_readable_rtde_output_packets_and_use_latest_sample",
+    "feedback_age_limit_s": 0.05,
+    "feedback_age_dwell_stop_s": 0.1,
+    "outer_profile_id": "step5d_v33_step5b_discrete_equivalent_v1"
+  },
+  "timing": {
+    "ok": true,
+    "claim": "one frozen-fingerprint live-path timing run covered receive drain, age guard, outer, calibrated Jacobian, CuPy RNN512, packet encoding, and CSV logging",
+    "artifact": "config/step5d_v33_live_path_timing.json",
+    "artifact_sha256": "8008c661bae1953cb08dc47deef1b624d86e0062be30565c8d7bc7c15644c30e",
+    "samples": 2000,
+    "p99_ms": 0.282819,
+    "max_ms": 0.308667,
+    "claim_class": "offline_exact_live_path_timing"
+  },
+  "dls_shadow": {
+    "ok": true,
+    "diagnostic_only": true,
+    "runtime_fallback_allowed": false,
+    "claim": "DLS is not an alternate v33c20 command source; the active command remains the unchanged CuPy RNN solver"
+  },
+  "review": {
+    "ok": true,
+    "status": "accepted_1+1_with_deterministic_closure",
+    "effective_stack": "1xCodex_xhigh+1xFable5_high",
+    "manifest": "config/reviews/step5d_v33_review_v3.json",
+    "manifest_sha256": "e361cca334ee4bd0b8377ec657ddb1067eeb1cf466a15f0f82ccb15578a6617c",
+    "freeze_binding": "config/step5d_v33_freeze_binding.json",
+    "freeze_binding_sha256": "4967288854d09ae5da174dc0bfac94d29db52634cd46daa7636e451fed5eff39",
+    "composite_fingerprint": "552d5748d02d932d54bbea05f4fb859c45b68a7c1309790afa1556b348090b0c"
+  },
+  "controller_readback_verified": true,
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v33c20_20260715_000210/manifest.json",
+  "controller_readback_manifest_sha256": "27642bedb00a7d35b0ccadda257a8e604d51ac828017003b15306d0e84ae0030",
+  "package_hashes_match": true,
+  "package_sha256": {
+    ".script": "c25a3b5a232ec76b32ee83b87853061d7f8f080eb9623b789661c21798d779ac",
+    ".txt": "c9c510e358f9fc7f8ade675843c1bd357c24ab9008eb67d8e684837d51b45b90",
+    ".urp": "3d9f04c4d762747b541a3041c0a0f62b40215b39ace2a5e2deeebf90a3a3fe3c"
+  },
+  "blockers": [],
+  "claims": {
+    "package_accepted": true,
+    "live_run_accepted": false,
+    "reproduction_complete": false
+  },
+  "safety_boundary": [
+    "offline readiness and controller read-back evidence only",
+    "not a two-hour liveness or communication cache",
+    "does not start bridge, load the TP program, press TP Play, or authorize motion",
+    "per-run Dashboard, RTDE, Kunwei, sensor, and real-time writer checks remain startup checks",
+    "v33 60 s full run remains blocked behind accepted v33c20 live evidence and a separate explicit authorization"
+  ]
+}

@@ -35,6 +35,13 @@ DEFAULT_HELPER = Path(
 )
 EXTENSIONS = (".script", ".txt", ".urp")
 LOCAL_CANDIDATE_MARKER = ".local_tp_candidate.json"
+INACTIVE_PRELIVE_DELIVERY_PROGRAMS = frozenset(
+    {
+        "step5d_strict_rnn_ablation_v30",
+        "step5d_strict_rnn_ablation_v31",
+        "step5d_strict_rnn_no_contact_p0_v8",
+    }
+)
 
 
 def die(message: str) -> None:
@@ -99,7 +106,13 @@ def _target_resolution(
     }
 
 
-def resolve_table_target(program: str, *, root: Path = EXPERIMENT_ROOT, required: bool = True) -> dict | None:
+def resolve_table_target(
+    program: str,
+    *,
+    root: Path = EXPERIMENT_ROOT,
+    required: bool = True,
+    local_dir: Path | None = None,
+) -> dict | None:
     step4e_table = root / "config" / "step4e_stage_table.json"
     if step4e_table.is_file():
         routes, _ = load_step4e_routes(step4e_table)
@@ -128,16 +141,17 @@ def resolve_table_target(program: str, *, root: Path = EXPERIMENT_ROOT, required
         if resolution is not None:
             return resolution
 
-    capture = current.get("bridge_trigger", {}).get("no_contact_p0_capture", {})
-    if capture.get("profile") == program:
-        resolution = _target_resolution(
-            target=capture.get("controller_target"),
-            target_dir=None,
-            row_id=program,
-            source="config/current_stage.json#bridge_trigger.no_contact_p0_capture",
-        )
-        if resolution is not None:
-            return resolution
+    for capture_key in ("no_contact_p0_v8_capture", "no_contact_p0_capture"):
+        capture = current.get("bridge_trigger", {}).get(capture_key, {})
+        if capture.get("profile") == program:
+            resolution = _target_resolution(
+                target=capture.get("controller_target") or capture.get("planned_controller_target"),
+                target_dir=None,
+                row_id=program,
+                source=f"config/current_stage.json#bridge_trigger.{capture_key}",
+            )
+            if resolution is not None:
+                return resolution
 
     for row in table.get("stages", []):
         row_id = str(row.get("id") or "")
@@ -155,10 +169,25 @@ def resolve_table_target(program: str, *, root: Path = EXPERIMENT_ROOT, required
             continue
         for section in sections:
             resolution = _target_resolution(
-                target=section.get("controller_target") or section.get("expected_program"),
+                target=(
+                    section.get("controller_target")
+                    or section.get("planned_controller_target")
+                    or section.get("expected_program")
+                ),
                 target_dir=section.get("controller_dir"),
                 row_id=row_id,
                 source=f"config/step5_stage_table.json#stages[id={row_id}]",
+            )
+            if resolution is not None:
+                return resolution
+    if local_dir is not None and program in INACTIVE_PRELIVE_DELIVERY_PROGRAMS:
+        marker = load_local_candidate_marker(local_dir, program)
+        if marker is not None and marker.get("program") == program:
+            resolution = _target_resolution(
+                target=marker.get("controller_urp"),
+                target_dir=marker.get("target_dir"),
+                row_id=program,
+                source=f"{local_dir}/.{program}.local_candidate.json",
             )
             if resolution is not None:
                 return resolution
@@ -183,17 +212,151 @@ def triplet(local_dir: Path, program: str) -> dict[str, Path]:
     return files
 
 
-def load_local_candidate_marker(local_dir: Path) -> dict | None:
-    marker_path = local_dir / LOCAL_CANDIDATE_MARKER
+def load_local_candidate_marker(local_dir: Path, program: str | None = None) -> dict | None:
+    marker_path = (
+        local_dir / f".{program}.local_candidate.json"
+        if program and (local_dir / f".{program}.local_candidate.json").is_file()
+        else local_dir / LOCAL_CANDIDATE_MARKER
+    )
     if not marker_path.is_file():
         return None
     try:
         marker = json.loads(marker_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         die(f"invalid local candidate marker {marker_path}: {exc}")
-    if marker.get("local_only") is not True:
-        die(f"local candidate marker does not declare local_only=true: {marker_path}")
+    if marker.get("local_only") is not True and marker.get("controller_readback_verified") is not True:
+        die(f"candidate marker has neither staged-local nor verified-readback state: {marker_path}")
     return marker
+
+
+def promote_local_candidate_marker_after_readback(
+    local_dir: Path,
+    program: str,
+    marker: dict,
+    *,
+    controller: str,
+    target_dir: str,
+    readback_dir: Path,
+    delivery_mode: str,
+) -> Path:
+    """Persist the successful upload/read-back state beside the exact triplet."""
+
+    marker_path = (
+        local_dir / f".{program}.local_candidate.json"
+        if (local_dir / f".{program}.local_candidate.json").is_file()
+        else local_dir / LOCAL_CANDIDATE_MARKER
+    )
+    manifest_path = readback_dir / "manifest.json"
+    try:
+        manifest_ref = str(manifest_path.resolve().relative_to(EXPERIMENT_ROOT.resolve()))
+    except ValueError:
+        manifest_ref = str(manifest_path.resolve())
+    promoted = dict(marker)
+    promoted.update(
+        {
+            "status": "controller read-back verified",
+            "local_only": False,
+            "not_delivered": False,
+            "controller": controller,
+            "controller_target": str(PurePosixPath(target_dir) / f"{program}.urp"),
+            "controller_readback_verified": True,
+            "controller_readback_manifest": manifest_ref,
+            "delivery_mode": delivery_mode,
+            "safety_boundary": [
+                "controller package upload and fresh read-back only",
+                "not current_stage",
+                "no live bridge or TP Play performed by delivery",
+            ],
+        }
+    )
+    marker_path.write_text(json.dumps(promoted, indent=2) + "\n", encoding="utf-8")
+    return marker_path
+
+
+def enforce_offline_candidate_delivery_block(
+    program: str,
+    *,
+    root: Path = EXPERIMENT_ROOT,
+) -> dict | None:
+    """Return the exact inactive-delivery policy or reject non-allowlisted candidates."""
+
+    table = load_json_if_present(root / "config" / "step5_stage_table.json")
+    row = next((item for item in table.get("stages", []) if item.get("id") == program), None)
+    if not isinstance(row, dict):
+        return None
+    delivery = row.get("package_delivery") or {}
+    if delivery.get("status") in {
+        "local_offline_candidate_only",
+        "controller_readback_verified_inactive",
+    }:
+        if program not in INACTIVE_PRELIVE_DELIVERY_PROGRAMS:
+            die(f"refusing controller delivery for inactive offline candidate {program}")
+        if program == "step5d_strict_rnn_ablation_v30" and delivery.get(
+            "delivery_preparation_allowed_before_p0_v8"
+        ) is not True:
+            die("v30 inactive package delivery preparation is not enabled by the stage table")
+        if program == "step5d_strict_rnn_no_contact_p0_v8" and row.get("gate_for") != (
+            "step5d_strict_rnn_ablation_v30"
+        ):
+            die("P0 v8 inactive package is not bound as the v30 pre-live gate")
+        return {
+            "program": program,
+            "status": "inactive_prelive_delivery_preparation",
+            "stage_row": row,
+            "package_delivery": delivery,
+            "promotion_performed": False,
+            "program_start_performed": False,
+            "bridge_start_performed": False,
+        }
+    return None
+
+
+def validate_inactive_candidate_delivery_binding(
+    policy: dict,
+    marker: dict,
+    *,
+    program: str,
+    target_dir: str,
+    local_sha: dict[str, str],
+    root: Path = EXPERIMENT_ROOT,
+) -> dict:
+    """Bind an inactive upload/read-back preparation to table, marker, bytes, and target."""
+
+    row = policy["stage_row"]
+    delivery = policy["package_delivery"]
+    if delivery.get("program_basename") != program:
+        die("inactive candidate stage-table program basename mismatch")
+    if delivery.get("sha256") != local_sha:
+        die("inactive candidate stage-table sha256 does not match current package")
+    if delivery.get("semantic_fingerprint") != marker.get("semantic_fingerprint"):
+        die("inactive candidate marker/stage-table semantic fingerprint mismatch")
+    marker_target = str(marker.get("controller_urp") or "")
+    expected_target = str(PurePosixPath(target_dir) / f"{program}.urp")
+    if marker_target != expected_target:
+        die(f"inactive candidate marker controller_urp is {marker_target!r}, expected {expected_target!r}")
+    planned_target = str(delivery.get("planned_controller_target") or "")
+    if planned_target and planned_target != expected_target:
+        die("inactive candidate stage-table planned controller target mismatch")
+    current = load_json_if_present(root / "config" / "current_stage.json")
+    if program in {
+        str(current.get("program") or ""),
+        str(current.get("current_stage_id") or ""),
+    }:
+        die("inactive candidate delivery preparation cannot target the current program")
+    current_binding = row.get("current_binding") or {}
+    if current_binding.get("is_current") is True:
+        die("inactive candidate stage-table current binding must remain false")
+    return {
+        "policy": "manifest_bound_inactive_prelive_delivery_v1",
+        "program": program,
+        "stage_status": delivery.get("status"),
+        "semantic_fingerprint": marker.get("semantic_fingerprint"),
+        "package_sha256": local_sha,
+        "controller_target": expected_target,
+        "promotion_performed": False,
+        "program_start_performed": False,
+        "bridge_start_performed": False,
+    }
 
 
 def validate_local_candidate_marker(
@@ -1377,8 +1540,8 @@ def run(cmd: list[str], *, dry_run: bool, capture: bool = False) -> str:
     return ""
 
 
-def helper_cmd(helper: Path, *args: str) -> list[str]:
-    if not helper.is_file():
+def helper_cmd(helper: Path, *args: str, require_exists: bool = True) -> list[str]:
+    if require_exists and not helper.is_file():
         die(f"controller helper not found: {helper}")
     return [sys.executable, str(helper), *args]
 
@@ -1451,10 +1614,6 @@ def remote_sha256(
         die("controller SHA check must bind one exact triplet")
     target_dir = parents.pop()
     program = basenames.pop()
-    files = {
-        PurePosixPath(path).suffix: Path("/nonexistent") / PurePosixPath(path).name
-        for path in remote_paths
-    }
     with tempfile.TemporaryDirectory(prefix="ur10e-controller-sha-") as tmp:
         temp_root = Path(tmp)
         manifest_path = temp_root / "deployment-manifest.json"
@@ -1464,13 +1623,14 @@ def remote_sha256(
             "controller_directory": target_dir,
             "artifacts": [
                 {
-                    "filename": files[ext].name,
-                    "source": str(files[ext]),
+                    "filename": PurePosixPath(remote_paths[index]).name,
+                    "source": str(Path("/nonexistent") / PurePosixPath(remote_paths[index]).name),
                     "sha256": expected_sha[ext],
                 }
-                for ext in EXTENSIONS
+                for index, ext in enumerate(EXTENSIONS)
             ],
         }
+
         manifest_path.write_text(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
@@ -1507,6 +1667,45 @@ def remote_sha256(
         if any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in shas.values()):
             die("controller helper readback receipt is incomplete")
         return shas
+
+
+def triplet_sha_sets_match(shas: dict[str, dict[str, str]]) -> bool:
+    return all(
+        shas["local"][ext]
+        == shas["controller"][ext]
+        == shas["readback"][ext]
+        for ext in EXTENSIONS
+    )
+
+
+def readback_controller_sha256(
+    helper: Path,
+    files: dict[str, Path],
+    program: str,
+    target_dir: str,
+    *,
+    local_sha: dict[str, str],
+) -> dict[str, str] | None:
+    """Verify the remote triplet through the manifest-bound readback surface."""
+    remote_paths = remote_paths_for(files, target_dir)
+    controller_sha = remote_sha256(
+        helper,
+        remote_paths,
+        expected_sha=local_sha,
+        dry_run=False,
+    )
+    if not controller_sha:
+        return None
+    controller_sha_by_ext = {
+        ext: controller_sha[controller_path(target_dir, files[ext].name)]
+        for ext in EXTENSIONS
+    }
+    if any(
+        controller_sha_by_ext[ext] != local_sha[ext]
+        for ext in EXTENSIONS
+    ):
+        return None
+    return controller_sha_by_ext
 
 
 def manifest_matches_package(
@@ -1610,25 +1809,14 @@ def reuse_readback_if_remote_sha_matches(
         return None
 
     manifest_path, _manifest = reusable
-    remote_paths = remote_paths_for(files, target_dir)
-    controller_sha = remote_sha256(
+    controller_sha_by_ext = readback_controller_sha256(
         helper,
-        remote_paths,
-        expected_sha=local_sha,
-        dry_run=False,
+        files,
+        program,
+        target_dir,
+        local_sha=local_sha,
     )
-    if not controller_sha:
-        print("Controller SHA does not match reusable read-back; falling back to full upload/read-back")
-        return None
-    controller_sha_by_ext = {
-        ext: controller_sha[controller_path(target_dir, files[ext].name)] for ext in EXTENSIONS
-    }
-    remote_mismatches = [ext for ext in EXTENSIONS if controller_sha_by_ext[ext] != local_sha[ext]]
-    if remote_mismatches:
-        print(
-            "Controller SHA does not match reusable read-back; "
-            f"falling back to full upload/read-back for: {remote_mismatches}"
-        )
+    if controller_sha_by_ext is None:
         return None
 
     readback_dir.mkdir(parents=True, exist_ok=False)
@@ -1655,20 +1843,57 @@ def upload_and_readback(
     if controller != DEFAULT_CONTROLLER:
         die(f"{Path(__file__).name} uses the bench helper for {DEFAULT_CONTROLLER}; got {controller!r}")
 
-    remote_paths = remote_paths_for(files, target_dir)
-    manifest_path = readback_dir / "deployment-manifest.json"
-    if dry_run:
-        run(
+    local_sha = package_sha(files)
+    manifest = {
+        "schema_version": 1,
+        "basename": program,
+        "controller_directory": target_dir,
+        "artifacts": [
+            {
+                "filename": files[ext].name,
+                "source": str(files[ext].resolve()),
+                "sha256": local_sha[ext],
+            }
+            for ext in EXTENSIONS
+        ],
+    }
+    with tempfile.TemporaryDirectory(prefix="ur10e-tp-deploy-") as tmp:
+        manifest_path = Path(tmp) / "deploy-manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        deploy_output = run(
             helper_cmd(
                 helper,
                 "deploy-triplet",
                 "--manifest",
                 str(manifest_path),
                 "--confirm-deploy",
+                require_exists=not dry_run,
             ),
-            dry_run=True,
+            dry_run=dry_run,
+            capture=not dry_run,
         )
-        run(
+        if dry_run:
+            run(
+                helper_cmd(
+                    helper,
+                    "readback",
+                    "--manifest",
+                    str(manifest_path),
+                    "--output-dir",
+                    str(readback_dir),
+                    require_exists=False,
+                ),
+                dry_run=True,
+            )
+            return {}
+        deploy_result = json.loads(deploy_output.strip().splitlines()[-1])
+        if deploy_result.get("ok") is not True:
+            die("controller helper did not verify deployed triplet")
+        readback_dir.mkdir(parents=True, exist_ok=False)
+        readback_output = run(
             helper_cmd(
                 helper,
                 "readback",
@@ -1677,42 +1902,31 @@ def upload_and_readback(
                 "--output-dir",
                 str(readback_dir),
             ),
-            dry_run=True,
+            dry_run=False,
+            capture=True,
         )
-        return {}
+        readback_result = json.loads(readback_output.strip().splitlines()[-1])
+        if readback_result.get("ok") is not True:
+            die("controller helper did not verify fetched-back triplet")
 
-    readback_dir.mkdir(parents=True, exist_ok=False)
-    write_helper_deployment_manifest(manifest_path, files, program, target_dir)
-    run(
-        helper_cmd(
-            helper,
-            "deploy-triplet",
-            "--manifest",
-            str(manifest_path),
-            "--confirm-deploy",
-        ),
-        dry_run=False,
-        capture=True,
-    )
-    run(
-        helper_cmd(
-            helper,
-            "readback",
-            "--manifest",
-            str(manifest_path),
-            "--output-dir",
-            str(readback_dir),
-        ),
-        dry_run=False,
-        capture=True,
-    )
-
-    local_sha = package_sha(files)
     readback_sha = {ext: sha256(readback_dir / path.name) for ext, path in files.items()}
     mismatches = [ext for ext in EXTENSIONS if local_sha[ext] != readback_sha[ext]]
     if mismatches:
         die(f"controller read-back SHA mismatch for: {mismatches}")
-    controller_sha_by_ext = dict(readback_sha)
+    controller_sha_by_name = {
+        item["filename"]: item["sha256"]
+        for item in deploy_result.get("verified_readback", [])
+        if isinstance(item, dict)
+    }
+    remote_mismatches = [
+        ext for ext in EXTENSIONS
+        if controller_sha_by_name.get(files[ext].name) != local_sha[ext]
+    ]
+    if remote_mismatches:
+        die(f"controller sha256sum mismatch for: {remote_mismatches}")
+    controller_sha_by_ext = {
+        ext: controller_sha_by_name[files[ext].name] for ext in EXTENSIONS
+    }
     return {"local": local_sha, "controller": controller_sha_by_ext, "readback": readback_sha}
 
 
@@ -1734,7 +1948,9 @@ def write_manifest(
     target_resolution: dict | None = None,
     target_override_reason: str | None = None,
     program: str | None = None,
-) -> None:
+    inactive_candidate_delivery: dict | None = None,
+    upload_transaction_id: str | None = None,
+) -> Path | None:
     manifest = {
         "status": "dry-run" if dry_run else "controller read-back verified",
         "controller": controller,
@@ -1766,18 +1982,47 @@ def write_manifest(
         manifest["fresh_controller_checked_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     if readback_source is not None:
         manifest["readback_source"] = readback_source
-    if program is not None and local_candidate_marker is not None and local_candidate_marker.get("program") == program:
+    if inactive_candidate_delivery is not None:
+        manifest["inactive_candidate_delivery"] = inactive_candidate_delivery
+        manifest["promotion_performed"] = False
+    elif program is not None and local_candidate_marker is not None and local_candidate_marker.get("program") == program:
         manifest["promoted_from_local_candidate"] = {
             "marker_schema": local_candidate_marker.get("schema"),
             "semantic_fingerprint": local_candidate_marker.get("semantic_fingerprint"),
             "stamp": local_candidate_marker.get("stamp"),
         }
+    if upload_transaction_id is not None:
+        manifest["upload_transaction_id"] = upload_transaction_id
     if not dry_run:
-        (readback_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        manifest_path = readback_dir / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    else:
+        manifest_path = None
     print(json.dumps(manifest, indent=2))
+    return manifest_path
 
 
-def main(argv: list[str] | None = None) -> int:
+def write_manifest_result(
+    output: Path,
+    *,
+    manifest_path: Path,
+    upload_transaction_id: str,
+) -> None:
+    if output.exists():
+        die(f"refusing to overwrite manifest-path output: {output}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "ur10e_upload_result_v1",
+        "upload_transaction_id": upload_transaction_id,
+        "manifest_path": str(manifest_path.resolve()),
+        "manifest_sha256": sha256(manifest_path),
+    }
+    temporary = output.with_suffix(output.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(output)
+
+
+def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("program", help="program basename, for example step4e_seed_normal_loop_v29")
     parser.add_argument(
@@ -1804,21 +2049,46 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--local-dir", type=Path, default=PROGRAM_DIR, help=f"default: {PROGRAM_DIR}")
     parser.add_argument("--readback-root", type=Path, default=RUN_ROOT, help=f"default: {RUN_ROOT}")
+    parser.add_argument(
+        "--upload-transaction-id",
+        default=None,
+        help="opaque identity supplied by a serialized transaction coordinator",
+    )
+    parser.add_argument(
+        "--manifest-path-output",
+        type=Path,
+        default=None,
+        help="write an exact manifest-path handoff for the transaction coordinator",
+    )
     parser.add_argument("--dry-run", action="store_true", help="print SSH/SCP plan and validate local files only")
     parser.add_argument(
         "--force-upload-readback",
         action="store_true",
-        help="disable SHA-matched reuse and force manifest-bound deploy/read-back",
+        help="compatibility flag; fresh put/get verification is already the default",
     )
     parser.add_argument(
-        "--allow-local-candidate-promote",
+        "--allow-readback-reuse",
         action="store_true",
-        help="explicitly promote a directory marked local_only=true; ignored for --dry-run",
+        help="development-only optimization; controller_verified promotion still requires fresh put/get",
     )
     args = parser.parse_args(argv)
 
+    if (args.upload_transaction_id is None) != (args.manifest_path_output is None):
+        die("--upload-transaction-id and --manifest-path-output must be supplied together")
+    if args.dry_run and args.manifest_path_output is not None:
+        die("dry-run cannot publish a controller read-back manifest path")
+
     program = normalize_program(args.program)
-    table_resolution = resolve_table_target(program, required=not args.override_table)
+    inactive_delivery_policy = enforce_offline_candidate_delivery_block(program)
+    table_resolution = (
+        None
+        if args.override_table
+        else resolve_table_target(
+            program,
+            required=True,
+            local_dir=args.local_dir,
+        )
+    )
     target_source = "table"
     target_override_reason = None
     if args.target_dir:
@@ -1836,7 +2106,8 @@ def main(argv: list[str] | None = None) -> int:
         target_dir = table_resolution["controller_dir"]
     files = triplet(args.local_dir, program)
     local_sha = package_sha(files)
-    local_candidate_marker = load_local_candidate_marker(args.local_dir)
+    local_candidate_marker = load_local_candidate_marker(args.local_dir, program)
+    inactive_candidate_delivery: dict | None = None
     if local_candidate_marker is not None and local_candidate_marker.get("program") == program:
         validate_local_candidate_marker(
             local_candidate_marker,
@@ -1845,11 +2116,16 @@ def main(argv: list[str] | None = None) -> int:
             target_dir=target_dir,
             local_sha=local_sha,
         )
-        if not args.dry_run and not args.allow_local_candidate_promote:
-            die(
-                "refusing to upload local-only TP candidate without "
-                "--allow-local-candidate-promote; run a local dev-loop dry-run or promote explicitly"
+        if inactive_delivery_policy is not None:
+            inactive_candidate_delivery = validate_inactive_candidate_delivery_binding(
+                inactive_delivery_policy,
+                local_candidate_marker,
+                program=program,
+                target_dir=target_dir,
+                local_sha=local_sha,
             )
+    elif inactive_delivery_policy is not None:
+        die("inactive pre-live delivery requires the exact program-specific local candidate marker")
     local_validation = validate_package(files, program, target_dir, require_exact_cached_script=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     readback_dir = args.readback_root / f"controller_readback_{program}_{stamp}"
@@ -1866,7 +2142,7 @@ def main(argv: list[str] | None = None) -> int:
     delivery_mode = "full_upload_readback"
     readback_source = "fresh_controller_get"
     reuse_result = None
-    if not args.dry_run and not args.force_upload_readback:
+    if args.allow_readback_reuse and not args.dry_run and not args.force_upload_readback:
         reuse_result = reuse_readback_if_remote_sha_matches(
             files,
             program,
@@ -1909,6 +2185,8 @@ def main(argv: list[str] | None = None) -> int:
             target_source=target_source,
             target_resolution=table_resolution,
             target_override_reason=target_override_reason,
+            inactive_candidate_delivery=inactive_candidate_delivery,
+            upload_transaction_id=args.upload_transaction_id,
         )
         return 0
 
@@ -1919,7 +2197,7 @@ def main(argv: list[str] | None = None) -> int:
         target_dir,
         require_exact_cached_script=True,
     )
-    write_manifest(
+    manifest_path = write_manifest(
         readback_dir,
         program=program,
         controller=args.controller,
@@ -1930,18 +2208,50 @@ def main(argv: list[str] | None = None) -> int:
         dry_run=False,
         delivery_mode=delivery_mode,
         reused_from_manifest=reused_from_manifest,
-        fresh_controller_sha_verified=True,
+        fresh_controller_sha_verified=triplet_sha_sets_match(shas),
         readback_source=readback_source,
         local_candidate_marker=local_candidate_marker,
         target_source=target_source,
         target_resolution=table_resolution,
         target_override_reason=target_override_reason,
+        inactive_candidate_delivery=inactive_candidate_delivery,
+        upload_transaction_id=args.upload_transaction_id,
     )
+    assert manifest_path is not None
+    if args.manifest_path_output is not None:
+        assert args.upload_transaction_id is not None
+        write_manifest_result(
+            args.manifest_path_output,
+            manifest_path=manifest_path,
+            upload_transaction_id=args.upload_transaction_id,
+        )
+    if local_candidate_marker is not None and local_candidate_marker.get("program") == program:
+        promote_local_candidate_marker_after_readback(
+            args.local_dir,
+            program,
+            local_candidate_marker,
+            controller=args.controller,
+            target_dir=target_dir,
+            readback_dir=readback_dir,
+            delivery_mode=delivery_mode,
+        )
     if reused_from_manifest is None:
         print(f"controller read-back verified: {readback_dir}")
     else:
         print(f"controller read-back verified via SHA-matched reuse: {readback_dir}")
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    values = list(argv) if argv is not None else list(sys.argv[1:])
+    if "--dry-run" in values:
+        return _main(values)
+    from ur10e_mutation_lock import acquire_controller_mutation_locks, release_controller_mutation_locks
+    handles = acquire_controller_mutation_locks()
+    try:
+        return _main(values)
+    finally:
+        release_controller_mutation_locks(handles)
 
 
 if __name__ == "__main__":

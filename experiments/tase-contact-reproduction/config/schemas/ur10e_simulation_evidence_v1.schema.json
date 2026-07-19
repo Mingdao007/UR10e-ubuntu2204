@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ur10e_simulation_evidence_v1.schema.json",
+  "title": "UR10e offline simulation evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generated_at",
+    "profile",
+    "engine",
+    "source_binding",
+    "schedule",
+    "phase",
+    "nominal",
+    "faults",
+    "control_contract",
+    "claims",
+    "claim_boundary",
+    "artifacts",
+    "blockers"
+  ],
+  "properties": {
+    "schema": {"const": "ur10e_simulation_evidence_v1"},
+    "generated_at": {"type": "string", "minLength": 1},
+    "profile": {
+      "type": "object",
+      "required": ["id", "backend", "inner_iterations", "epsilon", "sigr_exponent_r", "qdot_cap_rad_s", "effective_ko", "dls_runtime_fallback_allowed"],
+      "properties": {
+        "id": {"const": "step5d_strict_rnn_no_contact_p0_v8"},
+        "backend": {"const": "cupy"},
+        "inner_iterations": {"const": 512},
+        "epsilon": {"const": 0.01},
+        "sigr_exponent_r": {"const": 0.8},
+        "qdot_cap_rad_s": {"const": 0.05},
+        "effective_ko": {"const": 0.01},
+        "dls_runtime_fallback_allowed": {"const": false}
+      }
+    },
+    "engine": {
+      "type": "object",
+      "required": ["name", "version", "lane", "physics_provenance", "command_jacobian_source", "engine_oracle_is_command_source"],
+      "properties": {
+        "name": {"enum": ["mujoco", "gazebo_fortress", "gazebo_harmonic", "ursim_5_11", "ursim_5_23", "deterministic_stub"]},
+        "version": {"type": "string", "minLength": 1},
+        "lane": {"type": "string", "minLength": 1},
+        "physics_provenance": {"enum": ["calibrated_physics", "geometry_provisional", "protocol_only", "software_only", "deterministic_unit"]},
+        "command_jacobian_source": {"const": "calibrated_pinocchio"},
+        "engine_oracle_is_command_source": {"const": false}
+      }
+    },
+    "source_binding": {
+      "type": "object",
+      "required": ["base_commit", "head_commit", "composite_sha256", "calibration_hash", "model_sha256", "frame_lineage_sha256"],
+      "properties": {
+        "base_commit": {"type": "string", "minLength": 7},
+        "head_commit": {"type": "string", "minLength": 7},
+        "composite_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "calibration_hash": {"type": "string", "minLength": 1},
+        "model_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "frame_lineage_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "runtime_timing_environment": {"type": "object"}
+      }
+    },
+    "schedule": {
+      "type": "object",
+      "required": ["physics_hz", "control_hz", "dbil_hz", "integer_schedule", "sim_tick_miss_count"],
+      "properties": {
+        "physics_hz": {"const": 2000},
+        "control_hz": {"const": 500},
+        "dbil_hz": {"const": 200},
+        "integer_schedule": {"const": true},
+        "sim_tick_miss_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "phase": {
+      "type": "object",
+      "required": ["duration_s", "sequence_index", "same_fingerprint_as_previous"],
+      "properties": {
+        "duration_s": {"enum": [2.0, 10.0, 60.0]},
+        "sequence_index": {"enum": [0, 1, 2]},
+        "same_fingerprint_as_previous": {"type": "boolean"}
+      }
+    },
+    "wall_timing": {
+      "type": "object",
+      "required": ["scope", "deadline_accounting", "paced", "samples", "deadline_ms", "p99_limit_ms", "p50_ms", "p95_ms", "p99_ms", "max_ms", "deadline_miss_count", "compute_deadline_miss_count", "absolute_deadline_miss_count", "release_lateness_ms", "absolute_finish_lateness_ms", "p99_within_limit", "max_within_deadline", "absolute_finish_within_deadline", "pass"],
+      "properties": {
+        "scope": {"const": "read_state_to_shared_control_to_four_physics_substeps"},
+        "deadline_accounting": {"const": "compute_elapsed_and_absolute_release_deadline_v2"},
+        "paced": {"type": "boolean"},
+        "samples": {"type": "integer", "minimum": 1},
+        "deadline_ms": {"const": 2.0},
+        "p99_limit_ms": {"const": 1.8},
+        "p50_ms": {"type": "number", "minimum": 0},
+        "p95_ms": {"type": "number", "minimum": 0},
+        "p99_ms": {"type": "number", "minimum": 0},
+        "max_ms": {"type": "number", "minimum": 0},
+        "deadline_miss_count": {"type": "integer", "minimum": 0},
+        "compute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "absolute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "release_lateness_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["p50_ms", "p95_ms", "p99_ms", "max_ms"],
+          "properties": {
+            "p50_ms": {"type": "number", "minimum": 0},
+            "p95_ms": {"type": "number", "minimum": 0},
+            "p99_ms": {"type": "number", "minimum": 0},
+            "max_ms": {"type": "number", "minimum": 0}
+          }
+        },
+        "absolute_finish_lateness_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["p50_ms", "p95_ms", "p99_ms", "max_ms"],
+          "properties": {
+            "p50_ms": {"type": "number", "minimum": 0},
+            "p95_ms": {"type": "number", "minimum": 0},
+            "p99_ms": {"type": "number", "minimum": 0},
+            "max_ms": {"type": "number", "minimum": 0}
+          }
+        },
+        "p99_within_limit": {"type": "boolean"},
+        "max_within_deadline": {"type": "boolean"},
+        "absolute_finish_within_deadline": {"type": "boolean"},
+        "pass": {"type": "boolean"}
+      }
+    },
+    "nominal": {
+      "type": "object",
+      "required": ["tick_count", "accepted_tick_count", "safe_hold_count", "stop_count", "missed_sequence_count", "nonfinite_output_count", "qdot_bound_violation_count", "unexpected_contact_count", "cage_collision_count", "deadline_miss_count", "compute_deadline_miss_count", "absolute_deadline_miss_count", "max_qdot_abs_rad_s", "exact_zero_rejection_count"],
+      "properties": {
+        "tick_count": {"type": "integer", "minimum": 1},
+        "accepted_tick_count": {"type": "integer", "minimum": 0},
+        "safe_hold_count": {"type": "integer", "minimum": 0},
+        "stop_count": {"type": "integer", "minimum": 0},
+        "missed_sequence_count": {"type": "integer", "minimum": 0},
+        "nonfinite_output_count": {"type": "integer", "minimum": 0},
+        "qdot_bound_violation_count": {"type": "integer", "minimum": 0},
+        "unexpected_contact_count": {"type": "integer", "minimum": 0},
+        "cage_collision_count": {"type": "integer", "minimum": 0},
+        "deadline_miss_count": {"type": "integer", "minimum": 0},
+        "compute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "absolute_deadline_miss_count": {"type": "integer", "minimum": 0},
+        "max_qdot_abs_rad_s": {"type": "number", "minimum": 0},
+        "exact_zero_rejection_count": {"type": "integer", "minimum": 0}
+      }
+    },
+    "faults": {"type": "array", "items": {"type": "object"}},
+    "control_contract": {
+      "type": "object",
+      "required": ["path", "dls_shadow_only", "exact_zero_rejection", "same_production_code"],
+      "properties": {
+        "path": {"const": "SimulatorState->Step5dObservation->StrictRnnControlPolicy->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->SimulationCommand"},
+        "dls_shadow_only": {"const": true},
+        "exact_zero_rejection": {"const": true},
+        "same_production_code": {"const": true}
+      }
+    },
+    "claims": {
+      "type": "object",
+      "required": ["p0_sim_physics_pass", "p0_ursim_protocol_pass", "contact_sim_pass", "direct_torque_ursim_software_pass", "v30_offline_ready"],
+      "properties": {
+        "p0_sim_physics_pass": {"type": "boolean"},
+        "p0_ursim_protocol_pass": {"type": "boolean"},
+        "contact_sim_pass": {"type": "boolean"},
+        "direct_torque_ursim_software_pass": {"type": "boolean"},
+        "v30_offline_ready": {"type": "boolean"}
+      }
+    },
+    "claim_boundary": {
+      "type": "object",
+      "required": ["workflow_state", "current_program", "v30_active", "live_motion_authorized", "package_accepted", "live_accepted", "reproduction_complete", "sim_pass_cannot_promote_live_state"],
+      "properties": {
+        "workflow_state": {"const": "liveprep_blocked"},
+        "current_program": {"const": "step5d_strict_rnn_ablation_v29"},
+        "v30_active": {"const": false},
+        "live_motion_authorized": {"const": false},
+        "package_accepted": {"const": false},
+        "live_accepted": {"const": false},
+        "reproduction_complete": {"const": false},
+        "sim_pass_cannot_promote_live_state": {"const": true}
+      }
+    },
+    "artifacts": {"type": "array", "items": {"type": "object"}},
+    "blockers": {"type": "array", "items": {"type": "string"}}
+  }
+}

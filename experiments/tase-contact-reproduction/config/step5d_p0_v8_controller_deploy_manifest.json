@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "basename": "step5d_strict_rnn_no_contact_p0_v8",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "artifacts": [
+    {
+      "filename": "step5d_strict_rnn_no_contact_p0_v8.script",
+      "source": "../programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.script",
+      "sha256": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2"
+    },
+    {
+      "filename": "step5d_strict_rnn_no_contact_p0_v8.txt",
+      "source": "../programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.txt",
+      "sha256": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6"
+    },
+    {
+      "filename": "step5d_strict_rnn_no_contact_p0_v8.urp",
+      "source": "../programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v8.urp",
+      "sha256": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f"
+    }
+  ]
+}

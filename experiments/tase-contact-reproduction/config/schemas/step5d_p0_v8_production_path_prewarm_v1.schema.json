@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "step5d_p0_v8_production_path_prewarm_v1.schema.json",
+  "title": "Step5d P0 v8 source-bound no-output production-path prewarm",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "generated_at", "source_composite_sha256", "profile",
+    "contract", "result", "reset", "claim_boundary"
+  ],
+  "properties": {
+    "schema": {"const": "step5d_p0_v8_production_path_prewarm_v1"},
+    "generated_at": {"type": "string", "minLength": 1},
+    "source_composite_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "profile": {
+      "const": {
+        "id": "step5d_strict_rnn_no_contact_p0_v8",
+        "backend": "cupy",
+        "inner_iterations": 512,
+        "epsilon": 0.01,
+        "sigr_exponent_r": 0.8,
+        "qdot_cap_rad_s": 0.05,
+        "effective_ko": 0.01,
+        "dls_runtime_fallback_allowed": false
+      }
+    },
+    "contract": {
+      "const": {
+        "schema": "step5d_p0_v8_production_path_prewarm_v1",
+        "mode": "source_bound_unmeasured_no_output_500hz",
+        "execute_ticks": 1000,
+        "control_hz": 500,
+        "paced": true,
+        "pacing_strategy": "previous_tick_start_plus_2ms_no_catch_up",
+        "burst_tolerance_s": 0.00005,
+        "control_path": "SimulatorState->Step5dObservation->StrictRnnControlPolicy->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->SimulationCommand",
+        "complete_production_path": true,
+        "safety_envelope_exercised": true,
+        "dls_shadow_only": true,
+        "register_command_generated": true,
+        "command_sink_write_allowed": false,
+        "timing_acceptance_eligible": false,
+        "measured_samples_may_be_discarded": false
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execute_tick_count", "accepted_tick_count", "safe_hold_count",
+        "stop_count", "nonfinite_output_count", "qdot_bound_violation_count",
+        "dls_shadow_count", "dls_runtime_fallback_count",
+        "register_command_generation_count", "command_sink_write_count",
+        "first_sequence", "last_sequence", "release_wait_count",
+        "deferred_diagnostic_count", "first_release_elapsed_s",
+        "last_release_elapsed_s", "elapsed_release_span_s",
+        "min_inter_release_s", "max_inter_release_s", "burst_interval_count",
+        "pacing_hz", "paced", "unmeasured", "no_output",
+        "timing_acceptance_eligible", "measured_sample_count", "pass"
+      ],
+      "properties": {
+        "execute_tick_count": {"const": 1000},
+        "accepted_tick_count": {"const": 1000},
+        "safe_hold_count": {"const": 0},
+        "stop_count": {"const": 0},
+        "nonfinite_output_count": {"const": 0},
+        "qdot_bound_violation_count": {"const": 0},
+        "dls_shadow_count": {"const": 1000},
+        "dls_runtime_fallback_count": {"const": 0},
+        "register_command_generation_count": {"const": 1000},
+        "command_sink_write_count": {"const": 0},
+        "first_sequence": {"const": 0},
+        "last_sequence": {"const": 999},
+        "release_wait_count": {"const": 999},
+        "deferred_diagnostic_count": {"const": 1000},
+        "first_release_elapsed_s": {"type": "number", "minimum": 0},
+        "last_release_elapsed_s": {"type": "number", "minimum": 0},
+        "elapsed_release_span_s": {"type": "number", "minimum": 1.94805},
+        "min_inter_release_s": {"type": "number", "minimum": 0.00195},
+        "max_inter_release_s": {"type": "number", "minimum": 0.00195},
+        "burst_interval_count": {"const": 0},
+        "pacing_hz": {"const": 500},
+        "paced": {"const": true},
+        "unmeasured": {"const": true},
+        "no_output": {"const": true},
+        "timing_acceptance_eligible": {"const": false},
+        "measured_sample_count": {"const": 0},
+        "pass": {"const": true}
+      }
+    },
+    "reset": {
+      "const": {
+        "simulator_state_reset_after_prewarm": true,
+        "solver_state_reset_after_prewarm": true,
+        "control_adapter_discarded_after_prewarm": true,
+        "measured_phase_first_sequence": 0,
+        "post_reset_unmeasured_execute_tick_count": 0,
+        "next_action": "measured_direct_frozen_current_stage_duration"
+      }
+    },
+    "claim_boundary": {
+      "const": {
+        "prewarm_is_not_measured_timing_evidence": true,
+        "prewarm_is_not_p0_pass": true,
+        "prewarm_is_not_live_acceptance": true
+      }
+    }
+  }
+}

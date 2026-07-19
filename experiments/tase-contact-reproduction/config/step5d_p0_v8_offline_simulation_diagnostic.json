@@ -1,0 +1,817 @@
+{
+  "blockers": [
+    "combined_eoat_mass_cog_inertia_unvalidated",
+    "controller_canaries_not_run",
+    "controller_readback_missing",
+    "current_kunwei_stack_full_cad_missing",
+    "evidence_not_frozen",
+    "geometry_provisional_no_p0_physics_claim",
+    "kunwei_fz_sign_not_independently_calibrated",
+    "offline_simulation_cannot_promote_live_state",
+    "surface_full_2d_geometry_not_calibrated",
+    "surface_material_contact_parameters_unvalidated"
+  ],
+  "claims": {
+    "controller_readback_verified": false,
+    "live_accepted": false,
+    "live_motion_authorized": false,
+    "no_contact_p0_accepted": false,
+    "p0_sim_physics_pass": false,
+    "p0_v8_passed": false,
+    "package_accepted": false,
+    "reproduction_complete": false,
+    "v30_offline_ready": false
+  },
+  "diagnostic": {
+    "all_control_paths_diagnostic_pass": true,
+    "all_required_faults_exact_zero": true,
+    "canonical_phase_sequence_complete": true,
+    "historical_combined_scope_timing_pass": false,
+    "offline_control_timing_pass": true,
+    "source_manifest_structurally_valid": true,
+    "source_result": "diagnostic_pass",
+    "timing_scope_status": "current_control_hard_500hz_measurement_scope"
+  },
+  "diagnostic_sha256": "d5d0ddaebd0276a92946c7de8e226d1b4b3e550babd9afdbbf56fa1bfdbf6526",
+  "generated_at": "2026-07-13T17:58:13.624667+00:00",
+  "model_binding": {
+    "engine": "mujoco",
+    "engine_version": "3.8.1",
+    "model_manifest": {
+      "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/runs/digital_twin_models_20260711_v6/model_manifest.json",
+      "sha256": "8ba6c41b0daac2dfaf92bbd628fe29a8e1ec332bfb1bd712a757b4ddbf391613",
+      "size_bytes": 17539
+    },
+    "model_sha256": "03e73a061599fc3935660ee680c0ffb54c4bf93739dfe011a81c3ef62403f7d2",
+    "physics_provenance": "geometry_provisional"
+  },
+  "phases": [
+    {
+      "control_counters": {
+        "absolute_deadline_miss_count": 0,
+        "accepted_tick_count": 1000,
+        "cage_collision_count": 0,
+        "control_deadline_miss_count": 0,
+        "cycle_compute_deadline_miss_count": 0,
+        "deadline_rejection_count": 0,
+        "deadline_zero_rejection_count": 0,
+        "exact_zero_rejection_count": 0,
+        "max_qdot_abs_rad_s": 0.00044349522795528173,
+        "missed_sequence_count": 0,
+        "nonfinite_output_count": 0,
+        "nonzero_rejection_count": 0,
+        "qdot_bound_violation_count": 0,
+        "safe_hold_count": 0,
+        "stop_count": 0,
+        "tick_count": 1000,
+        "unexpected_contact_count": 0
+      },
+      "control_hard_500hz": {
+        "deadline_miss_count": 0,
+        "deadline_ms": 2.0,
+        "max_ms": 0.9706729997560615,
+        "max_within_deadline": true,
+        "p50_ms": 0.5252609998933622,
+        "p95_ms": 0.6079474514990577,
+        "p99_limit_ms": 1.8,
+        "p99_ms": 0.754364330714452,
+        "p99_within_limit": true,
+        "paced": true,
+        "pass": true,
+        "prefault_required": true,
+        "prefault_verified": true,
+        "samples": 1000,
+        "scope": "simulator_state_ready_to_adapter_step_complete"
+      },
+      "control_path_diagnostic_pass": true,
+      "duration_s": 2.0,
+      "evidence": {
+        "path": "phase_0_2s/evidence.json",
+        "sha256": "22adfedad11eb086d91b0af725b709e7a995b967d89fc9a96dc935da6100fc78",
+        "size_bytes": 20758
+      },
+      "evidence_schema": "ur10e_simulation_evidence_v4",
+      "fault_injection": {
+        "all_required_faults_exact_zero": true,
+        "fault_count": 18,
+        "observed_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ],
+        "required_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ]
+      },
+      "prewarm_binding": {
+        "execute_tick_count": 1000,
+        "paced": true,
+        "pacing_hz": 500,
+        "pass": true,
+        "path": "production_path_prewarm.json",
+        "schema": "step5d_p0_v8_production_path_prewarm_v1",
+        "sha256": "4a461ae0682dfad02d62cacfb5ba6ef9006a770daa406efcc43787025809ed38",
+        "size_bytes": 2617,
+        "source_composite_sha256": "a84890f848d8f835d177e53c8e35905f360a994583c44e6e06d0dace4a960d24"
+      },
+      "sequence_index": 0,
+      "simulator_cycle_diagnostic": {
+        "absolute_deadline_miss_count": 0,
+        "absolute_finish_lateness_ms": {
+          "max_ms": 0.0,
+          "p50_ms": 0.0,
+          "p95_ms": 0.0,
+          "p99_ms": 0.0
+        },
+        "command_apply_and_physics_ms": {
+          "max_ms": 0.06993100032559596,
+          "p50_ms": 0.04360150069260271,
+          "p95_ms": 0.04771350022565457,
+          "p99_ms": 0.05429823941085486
+        },
+        "cycle_compute_deadline_miss_count": 0,
+        "cycle_wall_ms": {
+          "max_ms": 1.7263720001210459,
+          "p50_ms": 1.0219890000371379,
+          "p95_ms": 1.1250979993747023,
+          "p99_ms": 1.4033933098471607
+        },
+        "diagnostic_only": true,
+        "meets_500hz_diagnostic": true,
+        "oracle_snapshot_ms": {
+          "max_ms": 0.8903620000637602,
+          "p50_ms": 0.4505314991547493,
+          "p95_ms": 0.49691159929352574,
+          "p99_ms": 0.5433937101588526
+        },
+        "physics_substeps_per_control_tick": 4,
+        "release_lateness_ms": {
+          "max_ms": 0.00531899968336802,
+          "p50_ms": 0.00020449988369364291,
+          "p95_ms": 0.0003009991814906243,
+          "p99_ms": 0.0003850400207738857
+        },
+        "samples": 1000,
+        "scope": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
+      },
+      "source_composite_sha256": "a84890f848d8f835d177e53c8e35905f360a994583c44e6e06d0dace4a960d24",
+      "structurally_valid": true,
+      "timing_scope_binding": {
+        "deadline_classification_point": "after_adapter_step_before_plant_write",
+        "deadline_command_contract": {
+          "classification_point": "after_adapter_step_before_plant_write",
+          "comparison": "control_elapsed_ms_gte_deadline",
+          "deadline_ms": 2.0,
+          "deadline_rejection_may_satisfy_timing_gate": false,
+          "late_action": "stop",
+          "late_cmd_valid": false,
+          "late_qdot": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "late_reason": "control_deadline_miss_ge_2ms",
+          "late_stop_request": true,
+          "measured_samples_may_be_discarded": false,
+          "version": "pre_write_exact_zero_stop_v1"
+        },
+        "deadline_command_contract_version": "pre_write_exact_zero_stop_v1",
+        "deadline_comparison": "control_elapsed_ms_gte_deadline",
+        "deadline_ms": 2.0,
+        "deadline_rejection_action": "stop",
+        "deadline_rejection_cmd_valid": false,
+        "deadline_rejection_may_satisfy_timing_gate": false,
+        "deadline_rejection_qdot": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deadline_rejection_reason": "control_deadline_miss_ge_2ms",
+        "deadline_rejection_stop_request": true,
+        "measured_samples_excluded": 0,
+        "measured_sequence_restarts_at_zero": true,
+        "numeric_thread_environment": {
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1"
+        },
+        "prewarm_samples_in_control_trace": 0,
+        "production_path_prewarm_contract": {
+          "burst_tolerance_s": 5e-05,
+          "command_sink_write_allowed": false,
+          "complete_production_path": true,
+          "control_hz": 500,
+          "control_path": "SimulatorState->Step5dObservation->StrictRnnControlPolicy->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->SimulationCommand",
+          "dls_shadow_only": true,
+          "execute_ticks": 1000,
+          "measured_samples_may_be_discarded": false,
+          "mode": "source_bound_unmeasured_no_output_500hz",
+          "paced": true,
+          "pacing_strategy": "previous_tick_start_plus_2ms_no_catch_up",
+          "register_command_generated": true,
+          "safety_envelope_exercised": true,
+          "schema": "step5d_p0_v8_production_path_prewarm_v1",
+          "timing_acceptance_eligible": false
+        },
+        "timing_scope_contract": {
+          "control_hard_500hz": "simulator_state_ready_to_adapter_step_complete",
+          "simulator_cycle_diagnostic": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps",
+          "version": "p0_v8_timing_lane_split_v2"
+        },
+        "timing_scope_version": "p0_v8_timing_lane_split_v2",
+        "trace_buffers_prefaulted": true,
+        "trace_prefault": {
+          "completed": true,
+          "required": true,
+          "strategy": "numpy_fill_zero_before_gc_collect_and_measured_loop"
+        }
+      },
+      "validation_blockers": [],
+      "wall_timing": {}
+    },
+    {
+      "control_counters": {
+        "absolute_deadline_miss_count": 2,
+        "accepted_tick_count": 5000,
+        "cage_collision_count": 0,
+        "control_deadline_miss_count": 0,
+        "cycle_compute_deadline_miss_count": 2,
+        "deadline_rejection_count": 0,
+        "deadline_zero_rejection_count": 0,
+        "exact_zero_rejection_count": 0,
+        "max_qdot_abs_rad_s": 0.00044349522795528173,
+        "missed_sequence_count": 0,
+        "nonfinite_output_count": 0,
+        "nonzero_rejection_count": 0,
+        "qdot_bound_violation_count": 0,
+        "safe_hold_count": 0,
+        "stop_count": 0,
+        "tick_count": 5000,
+        "unexpected_contact_count": 0
+      },
+      "control_hard_500hz": {
+        "deadline_miss_count": 0,
+        "deadline_ms": 2.0,
+        "max_ms": 1.7801920002966654,
+        "max_within_deadline": true,
+        "p50_ms": 0.5115399999340298,
+        "p95_ms": 0.577619000159757,
+        "p99_limit_ms": 1.8,
+        "p99_ms": 0.7527580114765443,
+        "p99_within_limit": true,
+        "paced": true,
+        "pass": true,
+        "prefault_required": true,
+        "prefault_verified": true,
+        "samples": 5000,
+        "scope": "simulator_state_ready_to_adapter_step_complete"
+      },
+      "control_path_diagnostic_pass": true,
+      "duration_s": 10.0,
+      "evidence": {
+        "path": "phase_1_10s/evidence.json",
+        "sha256": "16ea1f4f579c49cd973f47b2e56c5d150476f914cf2cf18b9036c6e100597e6c",
+        "size_bytes": 20775
+      },
+      "evidence_schema": "ur10e_simulation_evidence_v4",
+      "fault_injection": {
+        "all_required_faults_exact_zero": true,
+        "fault_count": 18,
+        "observed_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ],
+        "required_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ]
+      },
+      "prewarm_binding": {
+        "execute_tick_count": 1000,
+        "paced": true,
+        "pacing_hz": 500,
+        "pass": true,
+        "path": "production_path_prewarm.json",
+        "schema": "step5d_p0_v8_production_path_prewarm_v1",
+        "sha256": "4a461ae0682dfad02d62cacfb5ba6ef9006a770daa406efcc43787025809ed38",
+        "size_bytes": 2617,
+        "source_composite_sha256": "a84890f848d8f835d177e53c8e35905f360a994583c44e6e06d0dace4a960d24"
+      },
+      "sequence_index": 1,
+      "simulator_cycle_diagnostic": {
+        "absolute_deadline_miss_count": 2,
+        "absolute_finish_lateness_ms": {
+          "max_ms": 0.2827619991876418,
+          "p50_ms": 0.0,
+          "p95_ms": 0.0,
+          "p99_ms": 0.0
+        },
+        "command_apply_and_physics_ms": {
+          "max_ms": 0.08255499960796442,
+          "p50_ms": 0.04233899926475715,
+          "p95_ms": 0.04798000009031966,
+          "p99_ms": 0.06077530031689096
+        },
+        "cycle_compute_deadline_miss_count": 2,
+        "cycle_wall_ms": {
+          "max_ms": 2.28251599946816,
+          "p50_ms": 0.9968869999283925,
+          "p95_ms": 1.1219120011446648,
+          "p99_ms": 1.4251204091669933
+        },
+        "diagnostic_only": true,
+        "meets_500hz_diagnostic": false,
+        "oracle_snapshot_ms": {
+          "max_ms": 0.9787979997781804,
+          "p50_ms": 0.44123300085630035,
+          "p95_ms": 0.49903750077646697,
+          "p99_ms": 0.6614922212975218
+        },
+        "physics_substeps_per_control_tick": 4,
+        "release_lateness_ms": {
+          "max_ms": 0.30024499938008375,
+          "p50_ms": 0.0002080014382954687,
+          "p95_ms": 0.00034000004234258085,
+          "p99_ms": 0.00047801129767322003
+        },
+        "samples": 5000,
+        "scope": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
+      },
+      "source_composite_sha256": "a84890f848d8f835d177e53c8e35905f360a994583c44e6e06d0dace4a960d24",
+      "structurally_valid": true,
+      "timing_scope_binding": {
+        "deadline_classification_point": "after_adapter_step_before_plant_write",
+        "deadline_command_contract": {
+          "classification_point": "after_adapter_step_before_plant_write",
+          "comparison": "control_elapsed_ms_gte_deadline",
+          "deadline_ms": 2.0,
+          "deadline_rejection_may_satisfy_timing_gate": false,
+          "late_action": "stop",
+          "late_cmd_valid": false,
+          "late_qdot": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "late_reason": "control_deadline_miss_ge_2ms",
+          "late_stop_request": true,
+          "measured_samples_may_be_discarded": false,
+          "version": "pre_write_exact_zero_stop_v1"
+        },
+        "deadline_command_contract_version": "pre_write_exact_zero_stop_v1",
+        "deadline_comparison": "control_elapsed_ms_gte_deadline",
+        "deadline_ms": 2.0,
+        "deadline_rejection_action": "stop",
+        "deadline_rejection_cmd_valid": false,
+        "deadline_rejection_may_satisfy_timing_gate": false,
+        "deadline_rejection_qdot": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deadline_rejection_reason": "control_deadline_miss_ge_2ms",
+        "deadline_rejection_stop_request": true,
+        "measured_samples_excluded": 0,
+        "measured_sequence_restarts_at_zero": true,
+        "numeric_thread_environment": {
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1"
+        },
+        "prewarm_samples_in_control_trace": 0,
+        "production_path_prewarm_contract": {
+          "burst_tolerance_s": 5e-05,
+          "command_sink_write_allowed": false,
+          "complete_production_path": true,
+          "control_hz": 500,
+          "control_path": "SimulatorState->Step5dObservation->StrictRnnControlPolicy->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->SimulationCommand",
+          "dls_shadow_only": true,
+          "execute_ticks": 1000,
+          "measured_samples_may_be_discarded": false,
+          "mode": "source_bound_unmeasured_no_output_500hz",
+          "paced": true,
+          "pacing_strategy": "previous_tick_start_plus_2ms_no_catch_up",
+          "register_command_generated": true,
+          "safety_envelope_exercised": true,
+          "schema": "step5d_p0_v8_production_path_prewarm_v1",
+          "timing_acceptance_eligible": false
+        },
+        "timing_scope_contract": {
+          "control_hard_500hz": "simulator_state_ready_to_adapter_step_complete",
+          "simulator_cycle_diagnostic": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps",
+          "version": "p0_v8_timing_lane_split_v2"
+        },
+        "timing_scope_version": "p0_v8_timing_lane_split_v2",
+        "trace_buffers_prefaulted": true,
+        "trace_prefault": {
+          "completed": true,
+          "required": true,
+          "strategy": "numpy_fill_zero_before_gc_collect_and_measured_loop"
+        }
+      },
+      "validation_blockers": [],
+      "wall_timing": {}
+    },
+    {
+      "control_counters": {
+        "absolute_deadline_miss_count": 10,
+        "accepted_tick_count": 30000,
+        "cage_collision_count": 0,
+        "control_deadline_miss_count": 0,
+        "cycle_compute_deadline_miss_count": 7,
+        "deadline_rejection_count": 0,
+        "deadline_zero_rejection_count": 0,
+        "exact_zero_rejection_count": 0,
+        "max_qdot_abs_rad_s": 0.00044349522795528173,
+        "missed_sequence_count": 0,
+        "nonfinite_output_count": 0,
+        "nonzero_rejection_count": 0,
+        "qdot_bound_violation_count": 0,
+        "safe_hold_count": 0,
+        "stop_count": 0,
+        "tick_count": 30000,
+        "unexpected_contact_count": 0
+      },
+      "control_hard_500hz": {
+        "deadline_miss_count": 0,
+        "deadline_ms": 2.0,
+        "max_ms": 1.6500780002388638,
+        "max_within_deadline": true,
+        "p50_ms": 0.5380350003179046,
+        "p95_ms": 0.7032720495772082,
+        "p99_limit_ms": 1.8,
+        "p99_ms": 0.8457486998486273,
+        "p99_within_limit": true,
+        "paced": true,
+        "pass": true,
+        "prefault_required": true,
+        "prefault_verified": true,
+        "samples": 30000,
+        "scope": "simulator_state_ready_to_adapter_step_complete"
+      },
+      "control_path_diagnostic_pass": true,
+      "duration_s": 60.0,
+      "evidence": {
+        "path": "phase_2_60s/evidence.json",
+        "sha256": "11750860b179462fe06c3ab6db373dc6564416f67a90f449b2b30fe0e58f7b4b",
+        "size_bytes": 20789
+      },
+      "evidence_schema": "ur10e_simulation_evidence_v4",
+      "fault_injection": {
+        "all_required_faults_exact_zero": true,
+        "fault_count": 18,
+        "observed_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ],
+        "required_fault_ids": [
+          "cage_collision",
+          "control_jitter",
+          "direction_unload",
+          "force_guard",
+          "missing_observation",
+          "missing_policy_output",
+          "nan_state",
+          "normal_mismatch",
+          "packet_drop",
+          "qdot_rail",
+          "sequence_duplicate",
+          "sequence_gap",
+          "sequence_reordered",
+          "tcp_outside_cage",
+          "torque_guard",
+          "unexpected_contact",
+          "watchdog_stale",
+          "wrong_frame"
+        ]
+      },
+      "prewarm_binding": {
+        "execute_tick_count": 1000,
+        "paced": true,
+        "pacing_hz": 500,
+        "pass": true,
+        "path": "production_path_prewarm.json",
+        "schema": "step5d_p0_v8_production_path_prewarm_v1",
+        "sha256": "4a461ae0682dfad02d62cacfb5ba6ef9006a770daa406efcc43787025809ed38",
+        "size_bytes": 2617,
+        "source_composite_sha256": "a84890f848d8f835d177e53c8e35905f360a994583c44e6e06d0dace4a960d24"
+      },
+      "sequence_index": 2,
+      "simulator_cycle_diagnostic": {
+        "absolute_deadline_miss_count": 10,
+        "absolute_finish_lateness_ms": {
+          "max_ms": 0.2894950011977926,
+          "p50_ms": 0.0,
+          "p95_ms": 0.0,
+          "p99_ms": 0.0
+        },
+        "command_apply_and_physics_ms": {
+          "max_ms": 0.11240099956921767,
+          "p50_ms": 0.04392299979372183,
+          "p95_ms": 0.05748849962401436,
+          "p99_ms": 0.06791709891331264
+        },
+        "cycle_compute_deadline_miss_count": 7,
+        "cycle_wall_ms": {
+          "max_ms": 2.2891480002726894,
+          "p50_ms": 1.0456985000928398,
+          "p95_ms": 1.3768400000117254,
+          "p99_ms": 1.5692181113445254
+        },
+        "diagnostic_only": true,
+        "meets_500hz_diagnostic": false,
+        "oracle_snapshot_ms": {
+          "max_ms": 1.0812400014401646,
+          "p50_ms": 0.4582605006362428,
+          "p95_ms": 0.6266564993893553,
+          "p99_ms": 0.7468026994138198
+        },
+        "physics_substeps_per_control_tick": 4,
+        "release_lateness_ms": {
+          "max_ms": 0.31744700027047656,
+          "p50_ms": 0.0002110009518219158,
+          "p95_ms": 0.00036500205169431865,
+          "p99_ms": 0.00048800031436257996
+        },
+        "samples": 30000,
+        "scope": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
+      },
+      "source_composite_sha256": "a84890f848d8f835d177e53c8e35905f360a994583c44e6e06d0dace4a960d24",
+      "structurally_valid": true,
+      "timing_scope_binding": {
+        "deadline_classification_point": "after_adapter_step_before_plant_write",
+        "deadline_command_contract": {
+          "classification_point": "after_adapter_step_before_plant_write",
+          "comparison": "control_elapsed_ms_gte_deadline",
+          "deadline_ms": 2.0,
+          "deadline_rejection_may_satisfy_timing_gate": false,
+          "late_action": "stop",
+          "late_cmd_valid": false,
+          "late_qdot": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "late_reason": "control_deadline_miss_ge_2ms",
+          "late_stop_request": true,
+          "measured_samples_may_be_discarded": false,
+          "version": "pre_write_exact_zero_stop_v1"
+        },
+        "deadline_command_contract_version": "pre_write_exact_zero_stop_v1",
+        "deadline_comparison": "control_elapsed_ms_gte_deadline",
+        "deadline_ms": 2.0,
+        "deadline_rejection_action": "stop",
+        "deadline_rejection_cmd_valid": false,
+        "deadline_rejection_may_satisfy_timing_gate": false,
+        "deadline_rejection_qdot": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "deadline_rejection_reason": "control_deadline_miss_ge_2ms",
+        "deadline_rejection_stop_request": true,
+        "measured_samples_excluded": 0,
+        "measured_sequence_restarts_at_zero": true,
+        "numeric_thread_environment": {
+          "MKL_NUM_THREADS": "1",
+          "NUMEXPR_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "OPENBLAS_NUM_THREADS": "1"
+        },
+        "prewarm_samples_in_control_trace": 0,
+        "production_path_prewarm_contract": {
+          "burst_tolerance_s": 5e-05,
+          "command_sink_write_allowed": false,
+          "complete_production_path": true,
+          "control_hz": 500,
+          "control_path": "SimulatorState->Step5dObservation->StrictRnnControlPolicy->step5d_v30_contract_pipeline->SafetyEnvelope->RegisterCommand->SimulationCommand",
+          "dls_shadow_only": true,
+          "execute_ticks": 1000,
+          "measured_samples_may_be_discarded": false,
+          "mode": "source_bound_unmeasured_no_output_500hz",
+          "paced": true,
+          "pacing_strategy": "previous_tick_start_plus_2ms_no_catch_up",
+          "register_command_generated": true,
+          "safety_envelope_exercised": true,
+          "schema": "step5d_p0_v8_production_path_prewarm_v1",
+          "timing_acceptance_eligible": false
+        },
+        "timing_scope_contract": {
+          "control_hard_500hz": "simulator_state_ready_to_adapter_step_complete",
+          "simulator_cycle_diagnostic": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps",
+          "version": "p0_v8_timing_lane_split_v2"
+        },
+        "timing_scope_version": "p0_v8_timing_lane_split_v2",
+        "trace_buffers_prefaulted": true,
+        "trace_prefault": {
+          "completed": true,
+          "required": true,
+          "strategy": "numpy_fill_zero_before_gc_collect_and_measured_loop"
+        }
+      },
+      "validation_blockers": [],
+      "wall_timing": {}
+    }
+  ],
+  "profile": "step5d_strict_rnn_no_contact_p0_v8",
+  "run_binding": {
+    "path": "/home/andy/codex_handoffs/step5d-v30-p0-v8-20260714-attempt2/run_manifest.json",
+    "sha256": "f946a7549869abb803c9fc668448d279983648799d78084cba2590648f32f493",
+    "size_bytes": 5198
+  },
+  "schema": "step5d_p0_v8_offline_simulation_diagnostic_v1",
+  "source_binding": {
+    "base_commit": "efedcf141ea17f61194c1b2f0f7d20c5c816fe0b",
+    "frame_lineage_sha256": "f9aa5ff44e9c0140be64ecb6421efd3514ab24d35787c7c310a8a44a83156051",
+    "head_commit": "efedcf141ea17f61194c1b2f0f7d20c5c816fe0b",
+    "host": "ubuntu-local-rt-affinity-11-13-14-15",
+    "source_composite_sha256": "a84890f848d8f835d177e53c8e35905f360a994583c44e6e06d0dace4a960d24"
+  },
+  "state_projection": {
+    "controller_canaries": {
+      "completed": [],
+      "p0_v8_passed": false
+    },
+    "controller_readback_verified": false,
+    "current_program": "step5d_strict_rnn_ablation_v29",
+    "evidence_frozen": false,
+    "v29_current": true,
+    "v29_frozen_fallback": true,
+    "v30_active": false,
+    "v30_program": "step5d_strict_rnn_ablation_v30",
+    "v30_state": "inactive_offline_candidate",
+    "workflow_state": "liveprep_blocked"
+  },
+  "timing_evidence": {
+    "control_hard_500hz_gate": {
+      "complete_sequence_evaluated": true,
+      "deadline_ms": 2.0,
+      "p99_limit_ms": 1.8,
+      "pass": true,
+      "phase_results": [
+        {
+          "deadline_miss_count": 0,
+          "duration_s": 2.0,
+          "pass": true
+        },
+        {
+          "deadline_miss_count": 0,
+          "duration_s": 10.0,
+          "pass": true
+        },
+        {
+          "deadline_miss_count": 0,
+          "duration_s": 60.0,
+          "pass": true
+        }
+      ],
+      "required_phase_duration_s": 60.0,
+      "requires_prefault": true,
+      "requires_zero_deadline_misses": true,
+      "scope": "simulator_state_ready_to_adapter_step_complete"
+    },
+    "historical_combined_scope_timing_gate": null,
+    "phase_evidence_schemas": [
+      "ur10e_simulation_evidence_v4",
+      "ur10e_simulation_evidence_v4",
+      "ur10e_simulation_evidence_v4"
+    ],
+    "production_path_prewarm": {
+      "execute_tick_count": 1000,
+      "paced": true,
+      "pacing_hz": 500,
+      "pass": true,
+      "path": "production_path_prewarm.json",
+      "schema": "step5d_p0_v8_production_path_prewarm_v1",
+      "sha256": "4a461ae0682dfad02d62cacfb5ba6ef9006a770daa406efcc43787025809ed38",
+      "size_bytes": 2617,
+      "source_composite_sha256": "a84890f848d8f835d177e53c8e35905f360a994583c44e6e06d0dace4a960d24"
+    },
+    "run_manifest_schema": "step5d_p0_v8_mujoco_run_v4",
+    "simulator_cycle_diagnostic": {
+      "diagnostic_only": true,
+      "phase_results": [
+        {
+          "absolute_deadline_miss_count": 0,
+          "cycle_compute_deadline_miss_count": 0,
+          "duration_s": 2.0,
+          "meets_500hz_diagnostic": true
+        },
+        {
+          "absolute_deadline_miss_count": 2,
+          "cycle_compute_deadline_miss_count": 2,
+          "duration_s": 10.0,
+          "meets_500hz_diagnostic": false
+        },
+        {
+          "absolute_deadline_miss_count": 10,
+          "cycle_compute_deadline_miss_count": 7,
+          "duration_s": 60.0,
+          "meets_500hz_diagnostic": false
+        }
+      ],
+      "scope": "release_to_oracle_snapshot_to_adapter_step_to_command_apply_and_four_physics_substeps"
+    },
+    "timing_scope_status": "current_control_hard_500hz_measurement_scope"
+  }
+}

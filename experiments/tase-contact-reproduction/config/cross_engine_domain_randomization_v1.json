@@ -1,0 +1,209 @@
+{
+  "schema": "ur10e_cross_engine_domain_randomization_config_v1",
+  "artifact_epoch": "2026-07-11T00:00:00+08:00",
+  "seed": 20260711,
+  "combined_scenario_count": 16,
+  "mode": "offline_falsification_plan_only",
+  "parameter_groups": {
+    "command_drop": {
+      "parameters": {
+        "command_drop_probability": {
+          "default": 0.0,
+          "maximum": 0.02,
+          "minimum": 0.0,
+          "unit": "ratio"
+        }
+      }
+    },
+    "contact_compliance": {
+      "parameters": {
+        "contact_damping_scale": {
+          "default": 1.0,
+          "maximum": 1.5,
+          "minimum": 0.5,
+          "unit": "nominal_scale"
+        },
+        "contact_stiffness_scale": {
+          "default": 1.0,
+          "maximum": 1.5,
+          "minimum": 0.5,
+          "unit": "nominal_scale"
+        }
+      }
+    },
+    "eoat_dynamics": {
+      "parameters": {
+        "eoat_cog_x_offset_m": {
+          "default": 0.0,
+          "maximum": 0.005,
+          "minimum": -0.005,
+          "unit": "m"
+        },
+        "eoat_cog_y_offset_m": {
+          "default": 0.0,
+          "maximum": 0.005,
+          "minimum": -0.005,
+          "unit": "m"
+        },
+        "eoat_cog_z_offset_m": {
+          "default": 0.0,
+          "maximum": 0.005,
+          "minimum": -0.005,
+          "unit": "m"
+        },
+        "eoat_inertia_scale": {
+          "default": 1.0,
+          "maximum": 1.25,
+          "minimum": 0.75,
+          "unit": "nominal_scale"
+        },
+        "eoat_mass_scale": {
+          "default": 1.0,
+          "maximum": 1.1,
+          "minimum": 0.9,
+          "unit": "nominal_scale"
+        }
+      }
+    },
+    "sensor_bias": {
+      "parameters": {
+        "force_bias_x_n": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": -1.0,
+          "unit": "N"
+        },
+        "force_bias_y_n": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": -1.0,
+          "unit": "N"
+        },
+        "force_bias_z_n": {
+          "default": 0.0,
+          "maximum": 1.0,
+          "minimum": -1.0,
+          "unit": "N"
+        },
+        "torque_bias_x_nm": {
+          "default": 0.0,
+          "maximum": 0.05,
+          "minimum": -0.05,
+          "unit": "Nm"
+        },
+        "torque_bias_y_nm": {
+          "default": 0.0,
+          "maximum": 0.05,
+          "minimum": -0.05,
+          "unit": "Nm"
+        },
+        "torque_bias_z_nm": {
+          "default": 0.0,
+          "maximum": 0.05,
+          "minimum": -0.05,
+          "unit": "Nm"
+        }
+      }
+    },
+    "sensor_delay": {
+      "parameters": {
+        "sensor_delay_s": {
+          "default": 0.0,
+          "maximum": 0.006,
+          "minimum": 0.0,
+          "unit": "s"
+        }
+      }
+    },
+    "sensor_noise": {
+      "parameters": {
+        "force_noise_std_n": {
+          "default": 0.0,
+          "maximum": 0.25,
+          "minimum": 0.0,
+          "unit": "N"
+        },
+        "torque_noise_std_nm": {
+          "default": 0.0,
+          "maximum": 0.015,
+          "minimum": 0.0,
+          "unit": "Nm"
+        }
+      }
+    },
+    "servo_lag": {
+      "parameters": {
+        "servo_lag_s": {
+          "default": 0.0,
+          "maximum": 0.01,
+          "minimum": 0.0,
+          "unit": "s"
+        }
+      }
+    },
+    "surface_friction": {
+      "parameters": {
+        "surface_friction_coefficient": {
+          "default": 1.0,
+          "maximum": 1.5,
+          "minimum": 0.5,
+          "unit": "coefficient"
+        }
+      }
+    },
+    "surface_geometry": {
+      "parameters": {
+        "surface_height_offset_m": {
+          "default": 0.0,
+          "maximum": 0.003,
+          "minimum": -0.003,
+          "unit": "m"
+        },
+        "surface_tilt_pitch_rad": {
+          "default": 0.0,
+          "maximum": 0.05235987756,
+          "minimum": -0.05235987756,
+          "unit": "rad"
+        },
+        "surface_tilt_roll_rad": {
+          "default": 0.0,
+          "maximum": 0.05235987756,
+          "minimum": -0.05235987756,
+          "unit": "rad"
+        }
+      }
+    },
+    "tcp_extrinsics": {
+      "parameters": {
+        "tcp_x_offset_m": {
+          "default": 0.0,
+          "maximum": 0.002,
+          "minimum": -0.002,
+          "unit": "m"
+        },
+        "tcp_y_offset_m": {
+          "default": 0.0,
+          "maximum": 0.002,
+          "minimum": -0.002,
+          "unit": "m"
+        },
+        "tcp_z_offset_m": {
+          "default": 0.0,
+          "maximum": 0.002,
+          "minimum": -0.002,
+          "unit": "m"
+        }
+      }
+    }
+  },
+  "claim_boundary": {
+    "parameters_are_calibrated": false,
+    "scenario_execution_authorized": false,
+    "robustness_pass_allowed_from_plan": false,
+    "physics_pass_allowed_from_plan": false,
+    "live_motion_authorized": false,
+    "package_accepted": false,
+    "live_accepted": false,
+    "reproduction_complete": false
+  }
+}

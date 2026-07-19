@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -34,6 +36,23 @@ class Step5TableAndContactArchitectureTest(unittest.TestCase):
         self.no_contact = step5_table.active_no_contact_stage(self.table)
         self.contact = step5_table.step5_stage("step5_contact_cycloid_baseline_v1", self.table)
         self.frame = step5_table.load_stage_frame(self.contact)
+
+    def test_json_config_cache_reuses_unchanged_version_and_invalidates_on_replace(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.json"
+            path.write_text('{"version":1}', encoding="utf-8")
+
+            first = step5_table.load_json(path)
+            second = step5_table.load_json(path)
+            self.assertIs(first, second)
+
+            replacement = path.with_suffix(".next")
+            replacement.write_text('{"version":2}', encoding="utf-8")
+            os.replace(replacement, path)
+            third = step5_table.load_json(path)
+
+            self.assertEqual(third, {"version": 2})
+            self.assertIsNot(first, third)
 
     def test_step5_table_separates_no_contact_and_contact_owners(self) -> None:
         self.assertEqual(self.no_contact["owner"], "TP")

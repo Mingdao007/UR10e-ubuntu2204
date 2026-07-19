@@ -1,0 +1,73 @@
+{
+  "bundle_sha256": "016c6ff0e74f68215779732d3f8177c6bc50223d6da1dabd33e20fea8a5a350f",
+  "capture_rnn_profile": {
+    "step5d_epsilon": "0.01",
+    "step5d_rnn_backend": "cupy",
+    "step5d_rnn_inner_iterations": "512",
+    "step5d_sigr_exponent_r": "0.8"
+  },
+  "contract_sha256": "cdac9d22fef5697c9113c9e98a54ab08a6430873845bc775321326e3ef69c5f9",
+  "control_fingerprint": "81563dcb24ffebd47ce4b16b477b819c973fbc502d81d74d6c7b06830b875f78",
+  "csv_sha256": "ac837bd001ec5fede3bc20a1d4773dd27b40045043285dfd0d48504b74a80930",
+  "executable_replay": {
+    "accepted_rows": 30053,
+    "active_bounds_rows": 0,
+    "qdot_max_abs_rad_s": 0.04506710544228554,
+    "replayed_rows": 30053,
+    "rnn_oracle_qdot_delta_max_rad_s": 4.603357231799312e-07,
+    "rnn_residual_max": 0.02785487856763624,
+    "slew_violation_max_rad_s": 8.673617379884035e-19,
+    "structural_failure_rows": 0
+  },
+  "golden_spec_sha256": "f56a3eef529494b6c209ca5534abec082519848446724a94426de522852260f8",
+  "group_id": "G10",
+  "launcher_rnn_profile": {
+    "step5d_epsilon": "0.01",
+    "step5d_rnn_backend": "cupy",
+    "step5d_rnn_inner_iterations": "512",
+    "step5d_sigr_exponent_r": "0.8"
+  },
+  "no_motion": true,
+  "ok": true,
+  "packet_rows": 37121,
+  "schema": "step5d.autotune-v3/g10-production-seam-result-v1",
+  "tp_transitions": [
+    [
+      16,
+      12,
+      20,
+      12,
+      0,
+      533,
+      22
+    ],
+    [
+      16,
+      12,
+      40,
+      12,
+      1,
+      533,
+      22
+    ],
+    [
+      16,
+      12,
+      50,
+      12,
+      1,
+      533,
+      22
+    ],
+    [
+      16,
+      12,
+      70,
+      12,
+      1,
+      533,
+      22
+    ]
+  ],
+  "trial_uid": "61e0b10306466a8bcb65afe2d820f52028612eccb923960722b94246da8eb210"
+}

@@ -1,8 +1,13 @@
 from pathlib import Path
 import csv
+import hashlib
+import json
 import os
+import socket
 import subprocess
 import tempfile
+import threading
+import time
 import unittest
 
 
@@ -14,29 +19,128 @@ def read_script(name: str) -> str:
 
 
 class BridgeOperatorStartupPolicyTest(unittest.TestCase):
-    def test_failed_bench_gate_cannot_refresh_long_check_cache(self) -> None:
+    def _dashboard_server(self, responses: list[dict[str, object]]):
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        commands: list[str] = []
+
+        def serve() -> None:
+            try:
+                for response in responses:
+                    conn, _ = listener.accept()
+                    with conn:
+                        delay = float(response.get("greeting_delay", 0.0))
+                        if delay:
+                            time.sleep(delay)
+                        conn.sendall(b"Connected: Universal Robots Dashboard Server\n")
+                        command = b""
+                        while b"\n" not in command:
+                            command += conn.recv(4096)
+                        commands.append(command.decode().strip())
+                        for chunk in response["chunks"]:
+                            conn.sendall(chunk)
+                            time.sleep(0.01)
+            finally:
+                listener.close()
+
+        thread = threading.Thread(target=serve, daemon=True)
+        thread.start()
+        return listener.getsockname()[1], commands, thread
+
+    def _dashboard_snapshot(self, port: int) -> subprocess.CompletedProcess[str]:
+        script = f'''
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+ROBOT_HOST=127.0.0.1
+DASHBOARD_PORT={port}
+EXPECTED_PROGRAM=/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp
+EXPECTED_BASENAME=step5d_strict_rnn_autotune_v1.urp
+dashboard_snapshot
+'''
+        return subprocess.run(
+            ["bash", "-lc", script],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    def test_dashboard_snapshot_frames_delayed_multiline_fragmented_and_stale_lines(self) -> None:
+        port, commands, thread = self._dashboard_server(
+            [
+                {
+                    "greeting_delay": 0.20,
+                    "chunks": [b"stale line\nProgram running: false\n"],
+                },
+                {
+                    "chunks": [
+                        b"unrelated\nConnected: Universal Robots Dashboard Server\n",
+                        b"Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp\n",
+                    ]
+                },
+                {"chunks": [b"STO", b"PPED step5d_strict_rnn_autotune_v1.urp\n"]},
+                {"chunks": [b"old response\nSafetymode: NORMAL\n"]},
+            ]
+        )
+
+        completed = self._dashboard_snapshot(port)
+        thread.join(timeout=2.0)
+
+        self.assertEqual(completed.returncode, 11, completed.stdout + completed.stderr)
+        self.assertEqual(
+            commands,
+            ["running", "get loaded program", "programState", "safetymode"],
+        )
+        self.assertIn("Program running: false", completed.stdout)
+        self.assertIn("Safetymode: NORMAL", completed.stdout)
+        self.assertNotIn("old response", completed.stdout)
+
+    def test_dashboard_snapshot_real_non_normal_safety_still_fails_closed(self) -> None:
+        port, _, thread = self._dashboard_server(
+            [
+                {"chunks": [b"Program running: false\n"]},
+                {
+                    "chunks": [
+                        b"Loaded program: /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v1.urp\n"
+                    ]
+                },
+                {"chunks": [b"STOPPED step5d_strict_rnn_autotune_v1.urp\n"]},
+                {"chunks": [b"Safetymode: PROTECTIVE_STOP\n"]},
+            ]
+        )
+
+        completed = self._dashboard_snapshot(port)
+        thread.join(timeout=2.0)
+
+        self.assertEqual(completed.returncode, 20, completed.stdout + completed.stderr)
+        self.assertIn("Safetymode: PROTECTIVE_STOP", completed.stdout)
+
+    def test_failed_optional_bench_diagnostic_is_logged_without_cache(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             bench_gate = root / "bench_gate.py"
-            cache = root / "long-check-cache.json"
-            cache.write_text('{"ok": true, "seed": "must be invalidated"}\n', encoding="utf-8")
             bench_gate.write_text(
-                'print(\'{"ok": false, "issues": ["robot_ping_failed"]}\')\n',
+                'print(\'{"ok": false, "issues": ["robot_ping_failed"]}\')\nraise SystemExit(2)\n',
                 encoding="utf-8",
             )
             script = f"""
 set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
 source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
-BENCH_GATE="{bench_gate}"
-LONG_CHECK_CACHE="{cache}"
+READONLY_PREFLIGHT="{bench_gate}"
+RUN_ROOT="{root}"
+STAMP="test"
 set +e
-refresh_bench_gate_cache
+run_bench_diagnostics
 rc=$?
 set -e
 printf 'rc=%s\n' "$rc"
-test "$rc" -eq 24
-test ! -e "{cache}"
+test "$rc" -eq 2
+test -s "{root}/diagnose_bench_v31_test/preflight.json"
+test ! -e "{root}/.bridge_long_checks_cache.json"
 """
             completed = subprocess.run(
                 ["bash", "-lc", script],
@@ -46,18 +150,21 @@ test ! -e "{cache}"
                 check=False,
             )
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            self.assertIn("rc=24", completed.stdout)
+            self.assertIn("rc=2", completed.stdout)
 
-    def test_bridge_line_operator_exposes_explicit_long_gate_skip_knob(self) -> None:
+    def test_bridge_line_operator_keeps_bench_diagnostics_optional(self) -> None:
         script = read_script("bridge-line-operator.sh")
 
-        self.assertIn("BRIDGE_SKIP_BENCH_GATE", script)
-        self.assertIn("BRIDGE_SKIP_LONG_CHECKS", script)
-        self.assertIn("skipping long bench gate by request", script)
+        self.assertIn("run_bench_diagnostics", script)
+        self.assertIn("diagnostic snapshot only", script)
+        self.assertNotIn("LONG_CHECK_CACHE", script)
+        self.assertNotIn("BRIDGE_SKIP_LONG_CHECKS", script)
 
     def test_bridge_postprocess_emits_step5d_fast_analysis_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            run_dir = Path(tmp)
+            base = Path(tmp)
+            run_dir = base / "run"
+            run_dir.mkdir()
             bridge_csv = run_dir / "bridge_rtde_500hz.csv"
             with bridge_csv.open("w", newline="", encoding="utf-8") as handle:
                 writer = csv.DictWriter(
@@ -82,10 +189,18 @@ test ! -e "{cache}"
                         "force_norm_n": "11.2",
                     }
                 )
+            marker = run_dir / ".capture_complete.json"
+            marker.write_text(json.dumps({
+                "capture_closed": True, "immutable": True, "closure_nonce": "a" * 32,
+                "exit_codes": {"capture": 0},
+                "source_files": [{"path": bridge_csv.name, "size": bridge_csv.stat().st_size,
+                                  "sha256": hashlib.sha256(bridge_csv.read_bytes()).hexdigest()}],
+            }) + "\n", encoding="utf-8")
             script = f"""
 set -euo pipefail
 export BRIDGE_OPERATOR_SOURCE_ONLY=1
 export BRIDGE_PROFILE=step5d_strict_rnn_ablation_v25
+export STEP5D_DERIVED_ROOT="{base / 'derived'}"
 source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
 postprocess_run "{run_dir}"
 """
@@ -98,11 +213,17 @@ postprocess_run "{run_dir}"
             )
 
             self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
-            self.assertTrue((run_dir / "stage_frequency_summary.json").exists())
-            self.assertTrue((run_dir / "step5d_bridge_analysis.json").exists())
-            self.assertIn("[operator] run dir:", completed.stdout)
-            self.assertIn("[operator] stage frequency summary:", completed.stdout)
-            self.assertIn("[operator] Step5d bridge analysis:", completed.stdout)
+            derived = next((base / "derived").iterdir())
+            self.assertTrue(
+                (derived / "frequency-summary/stage_frequency_summary.json").exists()
+            )
+            self.assertTrue(
+                (derived / "step5d-analysis/step5d_bridge_analysis.json").exists()
+            )
+            self.assertFalse((run_dir / "stage_frequency_summary.json").exists())
+            self.assertFalse((run_dir / "step5d_bridge_analysis.json").exists())
+            self.assertIn("[operator] immutable source run:", completed.stdout)
+            self.assertIn("[operator] derived artifacts:", completed.stdout)
             self.assertIn("root-cause classification: no_stage25_preload_dwell_short", completed.stdout)
 
     def test_step5d_contact_bridge_defaults_to_short_start_path(self) -> None:
@@ -134,7 +255,7 @@ postprocess_run "{run_dir}"
         self.assertIn('STEP5D_SIGR_EXPONENT_R="${STEP5D_SIGR_EXPONENT_R:-0.800}"', script)
         self.assertIn('STEP5D_RNN_INNER_ITERATIONS="${STEP5D_RNN_INNER_ITERATIONS:-1024}"', script)
         self.assertIn('STEP5D_RNN_BACKEND="${STEP5D_RNN_BACKEND:-cupy}"', script)
-        self.assertIn('STEP5D_ALLOW_PENDING_OFFLINE_AUDIT="${STEP5D_ALLOW_PENDING_OFFLINE_AUDIT:-1}"', script)
+        self.assertNotIn("STEP5D_ALLOW_PENDING_OFFLINE_AUDIT", script)
         self.assertIn(
             '[[ "${STEP5D_VERSION}" == "step5d_strict_rnn_ablation_v29"',
             script,
@@ -160,6 +281,36 @@ printf '%s\\n' "$STEP5D_EPSILON" "$STEP5D_SIGR_EXPONENT_R" "$STEP5D_RNN_INNER_IT
 
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertEqual(completed.stdout.splitlines()[-4:], ["0.010", "0.800", "1024", "cupy"])
+
+    def test_v30_and_p0_operator_profiles_export_canonical_rnn512(self) -> None:
+        for profile in (
+            "step5d_strict_rnn_ablation_v30",
+            "step5d_strict_rnn_no_contact_p0_v8",
+        ):
+            script = f"""
+set -euo pipefail
+export BRIDGE_OPERATOR_SOURCE_ONLY=1
+export BRIDGE_PROFILE={profile}
+source "{ROOT / 'scripts' / 'bridge-line-operator.sh'}"
+printf '%s\\n' "$STEP5D_EPSILON" "$STEP5D_SIGR_EXPONENT_R" "$STEP5D_RNN_INNER_ITERATIONS" "$STEP5D_RNN_BACKEND" "$STEP5D_QDOT_LIMIT_RAD_S"
+"""
+            completed = subprocess.run(
+                ["bash", "-lc", script],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(
+                completed.returncode,
+                0,
+                profile + "\n" + completed.stdout + completed.stderr,
+            )
+            self.assertEqual(
+                completed.stdout.splitlines()[-5:],
+                ["0.010", "0.800", "512", "cupy", "0.050"],
+            )
 
     def test_v29_bridge_operator_binds_ros_python_and_realtime_launcher(self) -> None:
         script = read_script("bridge-line-operator.sh")
@@ -224,7 +375,7 @@ import time
 from pathlib import Path
 
 Path(sys.argv[1]).write_text(json.dumps({{
-    "ready_schema": "v29_bridge_ready_v1",
+    "ready_schema": "step5d_bridge_ready_v2",
     "ok": True,
     "pid": os.getpid(),
     "launch_nonce": os.environ["STEP5D_BRIDGE_LAUNCH_NONCE"],
@@ -232,7 +383,15 @@ Path(sys.argv[1]).write_text(json.dumps({{
     "rtde_hz": 500.0,
     "runtime_scheduler": {{"policy": "SCHED_FIFO", "priority": 20}},
     "prewarm_status": "ok",
+    "v30_runtime_complete": True,
     "rtde_connected": True,
+    "rtde_send_succeeded": True,
+    "sensor_stream_ready": True,
+    "sensor_samples": 1000,
+    "baseline_ready": True,
+    "sensor_age_s": 0.001,
+    "sensor_stale_s": 0.1,
+    "parse_errors": 0,
 }}), encoding="utf-8")
 time.sleep(0.2)
 PY
@@ -247,7 +406,7 @@ wait "$pid"
                 check=False,
             )
             self.assertEqual(success.returncode, 0, success.stdout + success.stderr)
-            self.assertIn("v29 bridge startup confirmed", success.stdout)
+            self.assertIn("bridge armed: step5d_strict_rnn_ablation_v29", success.stdout)
 
             stale = subprocess.run(
                 [
@@ -263,7 +422,7 @@ import sys
 from pathlib import Path
 
 Path(sys.argv[1]).write_text(json.dumps({{
-    "ready_schema": "v29_bridge_ready_v1",
+    "ready_schema": "step5d_bridge_ready_v2",
     "ok": True,
     "pid": int(sys.argv[2]),
     "launch_nonce": "old-nonce",
@@ -271,7 +430,15 @@ Path(sys.argv[1]).write_text(json.dumps({{
     "rtde_hz": 500.0,
     "runtime_scheduler": {{"policy": "SCHED_FIFO", "priority": 20}},
     "prewarm_status": "ok",
+    "v30_runtime_complete": True,
     "rtde_connected": True,
+    "rtde_send_succeeded": True,
+    "sensor_stream_ready": True,
+    "sensor_samples": 1000,
+    "baseline_ready": True,
+    "sensor_age_s": 0.001,
+    "sensor_stale_s": 0.1,
+    "parse_errors": 0,
 }}), encoding="utf-8")
 PY
 wait_for_bridge_output_started "{run_dir}" "$pid" new-nonce
@@ -322,7 +489,7 @@ test "$BRIDGE_EARLY_EXIT_RC" -eq 77
 
     def test_v29_direct_bridge_gate_receives_every_exact_profile_field(self) -> None:
         script = read_script("bridge-line-operator.sh")
-        section = script.split("step5d_live_bridge_authorized()", 1)[1].split("refresh_bench_gate_cache()", 1)[0]
+        section = script.split("step5d_live_bridge_authorized()", 1)[1].split("run_bench_diagnostics()", 1)[0]
 
         for flag in (
             "--stage25-control-mode",
@@ -335,15 +502,12 @@ test "$BRIDGE_EARLY_EXIT_RC" -eq 77
             self.assertIn(flag, section)
         self.assertIn('--step5d-qdot-limit-rad-s "${STEP5D_QDOT_LIMIT_RAD_S:-0.050}"', script)
 
-    def test_step5d_contact_bridge_override_still_requires_fresh_long_check_before_start(self) -> None:
-        missing_cache = Path(tempfile.gettempdir()) / "missing-step5d-v29-live-cache.json"
-        missing_cache.unlink(missing_ok=True)
+    def test_step5d_contact_bridge_override_cannot_bypass_exact_current_profile(self) -> None:
         env = os.environ.copy()
         env.update(
             {
                 "STEP5D_STAGE25_CONTROL_MODE": "speedj_rnn_live",
                 "STEP5D_CONFIRM": "LIVE STEP5D STRICT RNN LIVEPREP",
-                "LONG_CHECK_CACHE": str(missing_cache),
             }
         )
 
@@ -356,9 +520,8 @@ test "$BRIDGE_EARLY_EXIT_RC" -eq 77
             check=False,
         )
 
-        self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
-        self.assertIn("long-check cache", completed.stderr or completed.stdout)
-        self.assertIn("explicit user override", completed.stdout)
+        self.assertNotEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertIn("exact runtime profile", completed.stderr or completed.stdout)
         self.assertNotIn("bridge output:", completed.stdout)
 
     def test_no_contact_p0_capture_profile_has_separate_bridge_gate(self) -> None:
@@ -501,60 +664,50 @@ PY
 
     def test_step5d_workflow_upload_uses_table_resolved_target(self) -> None:
         script = read_script("step5d-workflow.sh")
-        upload_calls = [line for line in script.splitlines() if 'python3 "${UPLOAD_TOOL}"' in line]
+        upload_calls = [line for line in script.splitlines() if 'python3 "${TP_COORDINATOR}"' in line]
 
-        self.assertGreaterEqual(len(upload_calls), 2)
+        self.assertEqual(len(upload_calls), 1)
         self.assertNotIn('--target-dir "${TARGET_DIR}"', script)
         self.assertNotIn('--target-dir "${target_dir}"', script)
 
     def test_no_contact_p0_fast_bridge_refuses_without_capture_env_before_start(self) -> None:
-        env = os.environ.copy()
-        env.update(
-            {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v7",
-                "STEP5D_P0_CONFIRM": "LIVE STEP5D STRICT RNN NO CONTACT P0",
-                "BRIDGE_SKIP_BENCH_GATE": "1",
-                "BRIDGE_SKIP_LONG_CHECKS": "1",
-                "LONG_CHECK_CACHE": str(Path(tempfile.gettempdir()) / "missing-step5d-p0-cache.json"),
-            }
-        )
-
         completed = subprocess.run(
-            [str(ROOT / "scripts" / "bridge-line-operator.sh"), "line-bridge-fast"],
+            [
+                "bash",
+                "-lc",
+                f'export BRIDGE_OPERATOR_SOURCE_ONLY=1 BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v7 '
+                f'STEP5D_P0_CONFIRM="LIVE STEP5D STRICT RNN NO CONTACT P0"; '
+                f'source "{ROOT / "scripts" / "bridge-line-operator.sh"}"; '
+                "step5d_no_contact_p0_capture_authorized",
+            ],
             cwd=ROOT,
-            env=env,
             text=True,
             capture_output=True,
             check=False,
         )
 
-        self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
+        self.assertNotEqual(completed.returncode, 0, completed.stdout + completed.stderr)
         self.assertIn("no-contact P0 capture is not authorized", completed.stdout + completed.stderr)
         self.assertNotIn("RTDE quick probe passed", completed.stdout + completed.stderr)
 
     def test_no_contact_p0_fast_bridge_refuses_allow_flag_without_confirm_token(self) -> None:
-        env = os.environ.copy()
-        env.update(
-            {
-                "BRIDGE_PROFILE": "step5d_strict_rnn_no_contact_p0_v7",
-                "BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE": "1",
-                "BRIDGE_SKIP_BENCH_GATE": "1",
-                "BRIDGE_SKIP_LONG_CHECKS": "1",
-                "LONG_CHECK_CACHE": str(Path(tempfile.gettempdir()) / "missing-step5d-p0-cache.json"),
-            }
-        )
-
         completed = subprocess.run(
-            [str(ROOT / "scripts" / "bridge-line-operator.sh"), "line-bridge-fast"],
+            [
+                "bash",
+                "-lc",
+                f'export BRIDGE_OPERATOR_SOURCE_ONLY=1 BRIDGE_PROFILE=step5d_strict_rnn_no_contact_p0_v7 '
+                "BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE=1; "
+                f'source "{ROOT / "scripts" / "bridge-line-operator.sh"}"; '
+                "step5d_no_contact_p0_capture_authorized",
+            ],
             cwd=ROOT,
-            env=env,
             text=True,
             capture_output=True,
             check=False,
         )
 
         output = completed.stdout + completed.stderr
-        self.assertEqual(completed.returncode, 40, output)
+        self.assertNotEqual(completed.returncode, 0, output)
         self.assertIn("STEP5D_P0_CONFIRM", output)
         self.assertNotIn("skipping long bench gate", output)
         self.assertNotIn("RTDE quick probe passed", output)
@@ -816,15 +969,16 @@ maybe_start_background_push "{tmp}"
         self.assertLess(gate_idx, wait_idx)
         self.assertLess(gate_idx, run_idx)
 
-    def test_fast_bridge_uses_two_hour_fingerprint_cache_and_rtde_probe(self) -> None:
+    def test_fast_bridge_uses_exact_binding_without_cached_preflight(self) -> None:
         script = read_script("bridge-line-operator.sh")
 
-        self.assertIn('LONG_CHECK_TTL_S="${LONG_CHECK_TTL_S:-7200}"', script)
-        self.assertIn("step5d_runtime_interface", script)
-        self.assertIn('"fingerprint": current_fingerprint(gate)', script)
-        self.assertIn("long_check_cache_status", script)
-        self.assertIn("require_rtde_quick_probe", script)
-        self.assertIn("(host, 30004)", script)
+        fast_body = script.split("*-bridge-fast)", 1)[1].split("*-bridge)", 1)[0]
+        self.assertIn("step5d_live_ready", fast_body)
+        self.assertIn("step5d_live_bridge_authorized", fast_body)
+        self.assertIn("dashboard_snapshot.log", fast_body)
+        self.assertNotIn("run_bench_gate", fast_body)
+        self.assertNotIn("LONG_CHECK", script)
+        self.assertNotIn("quick_probe", script)
 
     def test_step5d_workflow_separates_dev_promote_and_live(self) -> None:
         script = read_script("step5d-workflow.sh")
@@ -837,43 +991,25 @@ maybe_start_background_push "{tmp}"
         self.assertIn('record_latest_candidate "${candidate_dir}"', script)
         self.assertIn("promoting latest local-only candidate", script)
         self.assertIn('READBACK_GATE="${ROOT}/tools/verify_step5d_current_binding.py"', script)
-        self.assertIn('python3 "${PROMOTE_TOOL}"', script)
+        self.assertIn('python3 "${TP_COORDINATOR}"', script)
         self.assertIn('python3 "${PUBLISH_GATE}" --root "${ROOT}" --json', script)
         self.assertIn("dev-loop)", script)
         self.assertIn("--local-only --output-dir", script)
         self.assertIn("--dry-run", script)
         self.assertIn("not delivered; current_stage unchanged", script)
         self.assertIn("promote-package)", script)
-        self.assertIn("--allow-local-candidate-promote", script)
+        self.assertIn('TP_COORDINATOR="${ROOT}/tools/run_step5d_tp_transaction.py"', script)
         self.assertIn("contact-bridge)", script)
         self.assertIn('"${OPERATOR}" contact-bridge', script)
         contact_section = script.split("contact-bridge)", 1)[1]
         self.assertNotIn("build_step5d_liveprep.py", contact_section)
         self.assertNotIn("upload_ur_tp_package.py", contact_section)
 
-    def test_fast_bridge_requires_fresh_cache_even_when_skip_env_is_set(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            env = os.environ.copy()
-            env.update(
-                {
-                    "BRIDGE_PROFILE": "step5d_strict_rnn_liveprep_v19",
-                    "LONG_CHECK_CACHE": str(Path(tmp) / "missing-cache.json"),
-                    "BRIDGE_SKIP_BENCH_GATE": "1",
-                    "BRIDGE_SKIP_LONG_CHECKS": "1",
-                }
-            )
-            completed = subprocess.run(
-                [str(ROOT / "scripts" / "bridge-line-operator.sh"), "line-bridge-fast"],
-                cwd=ROOT,
-                env=env,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-
-        self.assertEqual(completed.returncode, 24, completed.stdout + completed.stderr)
-        self.assertIn("refusing fast bridge", completed.stdout)
-        self.assertNotIn("skipping long bench gate cache requirement", completed.stdout)
+    def test_fast_bridge_has_no_long_check_cache_compatibility_path(self) -> None:
+        script = read_script("bridge-line-operator.sh")
+        self.assertNotIn("require_bench_gate_cache", script)
+        self.assertNotIn("refresh_bench_gate_cache", script)
+        self.assertNotIn("LONG_CHECK_TTL_S", script)
 
 
 if __name__ == "__main__":

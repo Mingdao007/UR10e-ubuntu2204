@@ -1,0 +1,49 @@
+{
+  "schema": "step5d.autotune-v3/content-governance-v1",
+  "selected_policy": "B1_broad_cleanup_staged",
+  "current_phase": "v3_exact_batch_typed_return_and_trial_brief",
+  "rules_and_evidence": {
+    "test_policy": "config/step5d_autotune_v3_test_matrix.json",
+    "test_evidence": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
+    "raw_evidence_in_rule_files_allowed": false
+  },
+  "test_redundancy": {
+    "duplicate_test_path_across_small_and_medium_allowed": false,
+    "empty_lane_commands_allowed": false,
+    "ci_entrypoint": "tools/run_step5d_autotune_v3_test_matrix.py",
+    "small_parallel_workers_max": 4,
+    "medium_internal_parallelism": 1
+  },
+  "file_budgets": {
+    "v3_hand_authored_json_max_bytes": 65536,
+    "v3_hand_authored_json_max_lines": 500,
+    "v3_runtime_python_max_physical_source_lines": 650,
+    "canonical_markdown_target_max_lines": 500
+  },
+  "staged_cleanup": [
+    {
+      "phase": 1,
+      "status": "implemented",
+      "scope": "V3 policy/evidence split, bounded parallel tests, parameter profile, preflight, HIL HOLD seam"
+    },
+    {
+      "phase": "M4-offline",
+      "status": "implemented_pending_sol_xhigh_audit",
+      "scope": "Exact ten-row BatchIdentity, typed near-ready/final-home return, exact ACK plus post-ACK safe closure, and write-once TrialBrief admission"
+    },
+    {
+      "phase": 2,
+      "status": "blocked_until_hil_hold_evidence",
+      "scope": "split legacy STEP5_FLOW history into generated compatibility mirrors and focused owner documents"
+    },
+    {
+      "phase": 3,
+      "status": "not_started",
+      "scope": "deduplicate older stage-table prose after compatibility consumers are inventoried"
+    }
+  ],
+  "temporary_exception": {
+    "path": "STEP5_FLOW.md",
+    "reason": "legacy compatibility monolith; broad split is intentionally deferred until the V3 HIL HOLD boundary is closed"
+  }
+}

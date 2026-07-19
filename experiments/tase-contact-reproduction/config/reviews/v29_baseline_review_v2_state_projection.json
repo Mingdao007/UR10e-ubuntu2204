@@ -1,0 +1,201 @@
+{
+  "blockers": [],
+  "current_projection_matches_reviewed": true,
+  "current_projection_sha256": "5c3e0bc3d1fc3d0fb50a3bc54388d308fe426a31460d6a7b17c3a8cfcdea362a",
+  "milestone": "baseline_re_review",
+  "program": "step5d_strict_rnn_ablation_v29",
+  "review_artifacts": {
+    "config/reviews/v29_baseline_review_v2_closer_manifest.json": {
+      "file_sha256": "5ddb1e14e1f6ba84e3fdef6a3cd77b1acb1e738cca708c7cd1c2b37d032b0acf"
+    },
+    "config/reviews/v29_baseline_review_v2_closer_packet.json": {
+      "canonical_sha256": "6b63980210ec8f874dd378c1e7719b7c0b512a2433881a8cbc7da1277632d479",
+      "file_sha256": "80b639b048de486adabdbe64d51397e028a3c70ee8bf865fc524cc73d6c1f742"
+    },
+    "config/reviews/v29_baseline_review_v2_closer_validation.json": {
+      "file_sha256": "951725f621e725745947d2aea495d22c936d2d803eb5be8aaec477a0c21fdb7c"
+    }
+  },
+  "reviewed_composite_fingerprint": "9d6b00ba760a617086dca5db4bae74b0867f899bc7b7cf7e6d0ac8d742505ea0",
+  "reviewed_head_commit": "7e6e5278d8c7ce0a13ce5b444918d89eb3d23a58",
+  "reviewed_projection": {
+    "current_stage_v29_candidate": {
+      "controller_readback_verified": true,
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
+      "frozen_fallback": true,
+      "future_reactivation_requires": [
+        "fresh controller readback and timing fingerprint",
+        "Review v2 2+1 contact pre-live gate",
+        "new explicit live/contact authorization"
+      ],
+      "live_authorized": false,
+      "local_candidate_marker": "programs/step5/step5d/.local_tp_candidate.json",
+      "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",
+      "p0_gate_required": false,
+      "profile": "step5d_strict_rnn_ablation_v29",
+      "review_v2_baseline_rereview": {
+        "evidence_frozen": true,
+        "manifest_source": "config/step5d_review_index_v2.json",
+        "milestone": "v29_baseline_re_review",
+        "policy_id": "ur10e_review_policy_v2",
+        "required_stack": "1+0",
+        "source_review_manifest": "config/reviews/v29_baseline_review_v2_manifest.json",
+        "status": "resolved_by_review_index"
+      },
+      "sha256": {
+        ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
+        ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
+        ".urp": "a0f26a974945f8de6b9ec21d96810b602746000a9aebc751cbdf380737a1ba0b"
+      },
+      "stage25_default_control_mode": "speedj_rnn_live"
+    },
+    "program": "step5d_strict_rnn_ablation_v29",
+    "stage_table_v29": {
+      "acceptance": {
+        "controller_readback_required": true,
+        "controller_readback_verified": true,
+        "live_bridge_authorization_required": true,
+        "local_package_validated": true,
+        "not_a_completed_reproduction_claim": true,
+        "owner_audit_required_before_live": "liveprep_milestone_three_lane_review",
+        "package_generation_required": true,
+        "strict_rnn_no_contact_p0_archived_not_gate_for_v29": true,
+        "strict_rnn_no_contact_p0_required_before_live": false
+      },
+      "active": true,
+      "blocked": true,
+      "bridge": true,
+      "complete": false,
+      "contact": true,
+      "contact_policy": {
+        "bridge_required": true,
+        "bridge_startup_policy_ref": "bridge_startup_policy",
+        "contact_search": true,
+        "controller_readback_status": "verified",
+        "deadband_acquire_stage": "25.3",
+        "default_stage25_control_mode": "speedj_rnn_live",
+        "force_control": true,
+        "live_authorization": "frozen_fallback_no_live_authorization",
+        "reference_owner": "bridge",
+        "speedj_dls_oracle_policy": "feasibility-scaled xdot_c is converted through the DLS/Jacobian qdot oracle and sent to TP speedj for diagnostic comparison only",
+        "speedj_rnn_live_policy": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj after solver lambda/theta_dot reset on Stage25 lifecycle boundaries; evidence rejection records diagnostics and uses bounded hold without clearing cmd_valid unless a hard safety or command-contract violation occurs",
+        "speedl_cartesian_oracle_policy": "v29 keeps speedl_cartesian_oracle as an explicit fallback/debug path; default live source is strict RNN speedj",
+        "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses Step5b/Step6b evidence tube preload parameters (5-22N filtered, 3-25N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25/v26/v27/v28 default to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; v29 defaults to speedj_rnn_live with speedl_cartesian_oracle and speedj_dls_oracle as explicit fallback/debug modes. v29 speedj_rnn_live sends strict RNN qdot to TP speedj on layout 524 after solver warm-start; residual/lambda evidence failures are diagnostics unless a hard safety or command-contract violation occurs.",
+        "stage25_control_modes": [
+          "speedl_cartesian_oracle",
+          "speedj_dls_oracle",
+          "speedj_rnn_live"
+        ],
+        "timing_policy": "step5d_v29_contact_strict_rnn_live_stage25_speedj_candidate_with_v28_envelope",
+        "tp_package_status": "generated_uploaded_readback_verified_current",
+        "tp_role": "multimode_executor_and_guard_only",
+        "virtual_clock_freeze": false
+      },
+      "id": "step5d_strict_rnn_ablation_v29",
+      "live_run_status": {
+        "state": "not_started"
+      },
+      "liveprep_status": {
+        "readiness_artifact": "runs/step5d_v29_liveprep_offline_20260710_0317/liveprep_readiness.json",
+        "readiness_source": "tools/step5d_liveprep_readiness.py",
+        "state": "blocked"
+      },
+      "local_delivery_evidence": {
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "controller_readback": "runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948/manifest.json",
+        "controller_readback_verified": true,
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
+        "delivery_mode": "full_upload_readback",
+        "fetched_back_urp_internal_gate_pass": true,
+        "installation_relative_path": "../../../default",
+        "local_controller_readback_sha_match": true,
+        "local_package_validated": true,
+        "local_program_dir": "programs/step5/step5d",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29.{script,txt,urp}",
+        "program_basename": "step5d_strict_rnn_ablation_v29",
+        "promoted_from_local_candidate": {
+          "marker_schema": "ur_tp_local_candidate_v1",
+          "semantic_fingerprint": "0da3076513f4425f8880bd5714338b53188263e8da23e43e64377b5784a978a6",
+          "stamp": "2026-07-08T0700HKT_STEP5D_STRICT_RNN_ABLATION_V29"
+        },
+        "sha256": {
+          ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
+          ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
+          ".urp": "a0f26a974945f8de6b9ec21d96810b602746000a9aebc751cbdf380737a1ba0b"
+        },
+        "stamp": "2026-07-08T0700HKT_STEP5D_STRICT_RNN_ABLATION_V29"
+      },
+      "package_delivery": {
+        "controller_dir": "/programs/andyl/kunwei/step5",
+        "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948/manifest.json",
+        "controller_readback_status": "verified_current",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
+        "delivery_mode": "full_upload_readback",
+        "local_program_dir": "programs/step5/step5d",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29.{script,txt,urp}",
+        "program_basename": "step5d_strict_rnn_ablation_v29",
+        "sha256": {
+          ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
+          ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
+          ".urp": "a0f26a974945f8de6b9ec21d96810b602746000a9aebc751cbdf380737a1ba0b"
+        },
+        "strict_rnn_no_contact_p0": {
+          "archived_not_gate_for_v29": true,
+          "controller_dir": "/programs/andyl/kunwei/step5",
+          "controller_readback": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v7_20260708_055730/manifest.json",
+          "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v7_20260708_055730/manifest.json",
+          "controller_readback_status": "controller read-back verified",
+          "controller_readback_verified": true,
+          "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v7.urp",
+          "delivery_mode": "full_upload_readback",
+          "fetched_back_urp_internal_gate_pass": true,
+          "local_controller_readback_sha_match": true,
+          "local_package_validated": true,
+          "local_program_dir": "programs/step5/step5d",
+          "local_triplet": "programs/step5/step5d/step5d_strict_rnn_no_contact_p0_v7.{script,txt,urp}",
+          "p0_capture_passed": false,
+          "program_basename": "step5d_strict_rnn_no_contact_p0_v7",
+          "readback_source": "fresh_controller_get",
+          "sha256": {
+            ".script": "2e22e7bc89355d7d01c6f0102bcce4103f104bce0a4f1bab72a044934745a297",
+            ".txt": "2d88b3f6d670a9eaf8790c50b4286b1000d9c4121ba65d0c4fcf3a2e3ead8663",
+            ".urp": "e06d7da1949a2f76ab57e6786296a6f65e8c2a6808223fe95ef9709b687de251"
+          }
+        }
+      },
+      "reproduction_status": {
+        "state": "incomplete"
+      },
+      "review_v2": {
+        "composite_fingerprint_source": "config/step5d_review_index_v2.json",
+        "evidence_frozen": true,
+        "future_reactivation_required_stack": "2+1",
+        "manifest_source": "config/step5d_review_index_v2.json",
+        "milestone": "v29_baseline_re_review",
+        "policy_id": "ur10e_review_policy_v2",
+        "required_stack": "1+0",
+        "source_review_manifest": "config/reviews/v29_baseline_review_v2_manifest.json",
+        "status": "resolved_by_review_index"
+      },
+      "runtime_profile": {
+        "backend": "cupy",
+        "control_mode": "speedj_rnn_live",
+        "epsilon": 0.01,
+        "inner_iterations": 1024,
+        "joint_layout_code": 524.0,
+        "qdot_cap_rad_s": 0.05,
+        "sigr_exponent_r": 0.8
+      },
+      "strict_rnn": true,
+      "success_condition": "v29 remains frozen fallback evidence. A baseline Review v2 1+0 may re-review portable historical evidence; any future live reactivation instead requires fresh readback/timing fingerprint, Review v2 2+1, and explicit live/contact authorization."
+    }
+  },
+  "reviewed_projection_sha256": "5c3e0bc3d1fc3d0fb50a3bc54388d308fe426a31460d6a7b17c3a8cfcdea362a",
+  "reviewed_source_files": {
+    "config/current_stage.json": "c3b218356ea60e507cb1442cc530a8ded8df56d4decc28ff68fba40f2b3facad",
+    "config/step5_stage_table.json": "be2e5937da6cc7753728e97deb3595c16df47bb506cb42576115c7b41059307e",
+    "config/step5d_review_policy_v2.json": "6f94c804be381af5aa0facb9fef66fdff3d7222f9870cb96aaf5db060da55e0e"
+  },
+  "schema_version": "ur10e_v29_review_state_projection_v1",
+  "workflow": "v29"
+}

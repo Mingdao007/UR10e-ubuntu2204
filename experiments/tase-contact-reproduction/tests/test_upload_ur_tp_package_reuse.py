@@ -36,6 +36,131 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
         )
         self.assertEqual(payload["operation"], "readback")
 
+    def test_v30_inactive_candidate_allows_manifest_bound_dry_run_without_promotion(self) -> None:
+        out = io.StringIO()
+        with redirect_stdout(out):
+            result = upload.main(
+                [
+                    "step5d_strict_rnn_ablation_v30",
+                    "--dry-run",
+                    "--local-dir",
+                    str(ROOT / "programs" / "step5" / "step5d"),
+                    "--controller-helper",
+                    str(ROOT / "tools" / "upload_ur_tp_package.py"),
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        manifest = manifest_from_upload_output(out.getvalue())
+        self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5")
+        self.assertEqual(manifest["delivery_mode"], "dry-run")
+        self.assertIn("promoted_from_local_candidate", manifest)
+        self.assertIn("no program start", manifest["safety_boundary"])
+        self.assertIn("no live bridge", manifest["safety_boundary"])
+
+    def test_p0_v8_target_resolves_from_current_planned_capture_target(self) -> None:
+        resolution = upload.resolve_table_target(
+            "step5d_strict_rnn_no_contact_p0_v8",
+            root=ROOT,
+            local_dir=ROOT / "programs" / "step5" / "step5d",
+        )
+
+        self.assertIsNotNone(resolution)
+        assert resolution is not None
+        self.assertEqual(resolution["controller_dir"], "/programs/andyl/kunwei/step5/archive")
+        self.assertEqual(
+            resolution["controller_target"],
+            "/programs/andyl/kunwei/step5/archive/step5d_strict_rnn_no_contact_p0_v8.urp",
+        )
+        self.assertEqual(
+            resolution["source"],
+            "config/current_stage.json#bridge_trigger.no_contact_p0_v8_capture",
+        )
+
+    def test_audited_target_override_skips_invalid_table_placeholder(self) -> None:
+        out = io.StringIO()
+        with (
+            patch.object(
+                upload,
+                "resolve_table_target",
+                side_effect=AssertionError("table resolution must be skipped"),
+            ),
+            redirect_stdout(out),
+        ):
+            result = upload.main(
+                [
+                    "step5d_strict_rnn_no_contact_p0_v9",
+                    "--dry-run",
+                    "--local-dir",
+                    str(ROOT / "programs" / "step5" / "step5d"),
+                    "--target-dir",
+                    "/programs/andyl/kunwei/step5",
+                    "--override-table",
+                    "--override-reason",
+                    "replace local-only placeholder for manifest-bound delivery",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        manifest = manifest_from_upload_output(out.getvalue())
+        self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5")
+        self.assertEqual(manifest["target_source"], "override")
+
+    def test_other_offline_candidate_stays_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "config").mkdir()
+            (root / "config" / "step5_stage_table.json").write_text(
+                json.dumps(
+                    {
+                        "stages": [
+                            {
+                                "id": "step5d_future_offline_candidate",
+                                "package_delivery": {"status": "local_offline_candidate_only"},
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "inactive offline candidate"):
+                upload.enforce_offline_candidate_delivery_block(
+                    "step5d_future_offline_candidate",
+                    root=root,
+                )
+
+    def test_v30_program_specific_local_candidate_marker_is_discovered(self) -> None:
+        marker = upload.load_local_candidate_marker(
+            ROOT / "programs" / "step5" / "step5d",
+            "step5d_strict_rnn_ablation_v30",
+        )
+
+        self.assertIsNotNone(marker)
+        assert marker is not None
+        self.assertTrue(marker["local_only"])
+        self.assertTrue(marker["not_delivered"])
+
+    def test_p0_v9_marker_records_verified_controller_readback(self) -> None:
+        marker = upload.load_local_candidate_marker(
+            ROOT / "programs" / "step5" / "step5d",
+            "step5d_strict_rnn_no_contact_p0_v9",
+        )
+
+        self.assertIsNotNone(marker)
+        assert marker is not None
+        self.assertFalse(marker["local_only"])
+        self.assertFalse(marker["not_delivered"])
+        self.assertTrue(marker["controller_readback_verified"])
+        manifest = str(marker["controller_readback_manifest"])
+        self.assertTrue(
+            manifest.startswith(
+                "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_"
+            )
+        )
+        self.assertTrue(manifest.endswith("/manifest.json"))
+        self.assertTrue((ROOT / manifest).is_file())
+
     def test_upload_validator_checks_installation_relative_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output_dir = Path(tmp)
@@ -237,12 +362,11 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 files=files,
             )
             readback_dir = readback_root / f"controller_readback_{program}_20260702_120100"
-            remote_sha = {
-                upload.controller_path(target_dir, files[ext].name): local_sha[ext]
-                for ext in upload.EXTENSIONS
-            }
-
-            with patch.object(upload, "remote_sha256", return_value=remote_sha) as remote:
+            with patch.object(
+                upload,
+                "readback_controller_sha256",
+                return_value=local_sha,
+            ) as remote:
                 result = upload.reuse_readback_if_remote_sha_matches(
                     files,
                     program,
@@ -308,13 +432,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 target_dir=target_dir,
                 files=files,
             )
-            remote_sha = {
-                upload.controller_path(target_dir, files[ext].name): local_sha[ext]
-                for ext in upload.EXTENSIONS
-            }
-            remote_sha[upload.controller_path(target_dir, files[".urp"].name)] = "0" * 64
-
-            with patch.object(upload, "remote_sha256", return_value=remote_sha):
+            with patch.object(upload, "readback_controller_sha256", return_value=None):
                 result = upload.reuse_readback_if_remote_sha_matches(
                     files,
                     program,
@@ -328,14 +446,20 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
 
             self.assertIsNone(result)
 
-    def test_local_only_candidate_blocks_non_dry_upload_without_promote_flag(self) -> None:
+    def test_local_candidate_automatically_runs_upload_and_readback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            program = "demo_program"
-            target_dir = "/programs/andyl/kunwei/demo"
+            program = "step5d_strict_rnn_no_contact_p0_v9"
+            target_dir = "/programs/andyl/kunwei/step5"
+            source_dir = ROOT / "programs" / "step5" / "step5d"
             local_dir = tmp_path / "local"
             local_dir.mkdir()
-            files = self._write_triplet(local_dir, program, "candidate")
+            files = {
+                ext: local_dir / f"{program}{ext}"
+                for ext in upload.EXTENSIONS
+            }
+            for ext, destination in files.items():
+                destination.write_bytes((source_dir / f"{program}{ext}").read_bytes())
             self._write_local_candidate_marker(
                 local_dir,
                 program=program,
@@ -343,19 +467,64 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 files=files,
             )
 
-            with self.assertRaisesRegex(RuntimeError, "refusing to upload local-only TP candidate"):
-                upload.main(
+            def fake_upload_and_readback(
+                package_files,
+                _program,
+                _controller,
+                _target_dir,
+                readback_dir,
+                *,
+                helper,
+                dry_run,
+            ):
+                self.assertFalse(dry_run)
+                self.assertIsNotNone(helper)
+                readback_dir.mkdir(parents=True)
+                local_sha = upload.package_sha(package_files)
+                for ext, source in package_files.items():
+                    (readback_dir / source.name).write_bytes(source.read_bytes())
+                return {
+                    "local": local_sha,
+                    "controller": local_sha,
+                    "readback": local_sha,
+                }
+
+            out = io.StringIO()
+            with (
+                patch.object(
+                    upload,
+                    "upload_and_readback",
+                    side_effect=fake_upload_and_readback,
+                ) as deploy,
+                redirect_stdout(out),
+            ):
+                result = upload.main(
                     [
                         program,
                         "--target-dir",
                         target_dir,
                         "--override-table",
                         "--override-reason",
-                        "offline demo fixture",
+                        "test automatic candidate delivery",
                         "--local-dir",
                         str(local_dir),
+                        "--readback-root",
+                        str(tmp_path / "readbacks"),
                     ]
                 )
+
+            self.assertEqual(result, 0)
+            deploy.assert_called_once()
+            manifests = list((tmp_path / "readbacks").glob("*/manifest.json"))
+            self.assertEqual(len(manifests), 1)
+            manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+            self.assertEqual(manifest["status"], "controller read-back verified")
+            marker = upload.load_local_candidate_marker(local_dir, program)
+            assert marker is not None
+            self.assertFalse(marker["local_only"])
+            self.assertFalse(marker["not_delivered"])
+            self.assertTrue(marker["controller_readback_verified"])
+            self.assertEqual(marker["delivery_mode"], "full_upload_readback")
 
     def test_upload_derives_step5d_p0_target_from_table_without_target_dir(self) -> None:
         out = io.StringIO()
@@ -365,14 +534,14 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 [
                     "step5d_strict_rnn_no_contact_p0_v7",
                     "--local-dir",
-                    str(ROOT / "programs" / "step5" / "step5d"),
+                    str(ROOT / "programs" / "step5" / "step5d" / "archive"),
                     "--dry-run",
                 ]
             )
 
         self.assertEqual(result, 0)
         manifest = manifest_from_upload_output(out.getvalue())
-        self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5")
+        self.assertEqual(manifest["target_dir"], "/programs/andyl/kunwei/step5/archive")
         self.assertEqual(manifest["target_source"], "table")
         self.assertEqual(manifest["target_resolution"]["row_id"], "step5d_strict_rnn_no_contact_p0_v7")
 
@@ -482,6 +651,17 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
             self.assertTrue(manifest["fresh_controller_sha_verified"])
             self.assertEqual(manifest["readback_source"], "prior_full_readback")
             self.assertIn("fresh_controller_checked_at", manifest)
+
+    def test_manifest_fresh_controller_flag_accepts_full_readback_sha_agreement(self) -> None:
+        shas = {
+            "local": {".script": "1", ".txt": "2", ".urp": "3"},
+            "controller": {".script": "1", ".txt": "2", ".urp": "3"},
+            "readback": {".script": "1", ".txt": "2", ".urp": "3"},
+        }
+
+        self.assertTrue(upload.triplet_sha_sets_match(shas))
+        shas["readback"][".urp"] = "different"
+        self.assertFalse(upload.triplet_sha_sets_match(shas))
 
 
 if __name__ == "__main__":
