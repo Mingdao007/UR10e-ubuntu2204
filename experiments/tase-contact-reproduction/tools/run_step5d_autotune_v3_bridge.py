@@ -25,6 +25,12 @@ from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_SRC = ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
+if str(RUNTIME_SRC) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_SRC))
+
+from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v2"
 TICKET_SCOPE = "live_continuous_campaign"
@@ -320,6 +326,20 @@ def _apply_v3_arm_runtime(
     ]
     args.step5d_autotune_orientation_ko = normalized["orientation_ko"]
     bridge.STEP5D_V33_ORIENTATION_KO = normalized["orientation_ko"]
+    args.step5d_physical_prior_reaction_normal_b = (
+        STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b
+    )
+    args.step5d_physical_prior_sha256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+    args.step5d_live_normal_load_gate_n = STEP5D_V3_PHYSICAL_PRIOR.load_gate_n
+    args.step5d_live_normal_load_gate_dwell_s = (
+        STEP5D_V3_PHYSICAL_PRIOR.load_gate_dwell_s
+    )
+    args.bridge_normal_max_rate_rad_s = (
+        STEP5D_V3_PHYSICAL_PRIOR.normal_rate_limit_rad_s
+    )
+    args.step4e_normal_max_rate_rad_s = (
+        STEP5D_V3_PHYSICAL_PRIOR.normal_rate_limit_rad_s
+    )
 
 
 def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:

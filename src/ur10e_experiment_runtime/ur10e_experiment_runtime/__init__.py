@@ -31,6 +31,7 @@ from .identity import (
     strict_json_loads,
 )
 from .registry import ComponentKind, ComponentRegistry, build_default_registry
+from .physical_prior import PhysicalPriorArtifact, STEP5D_V3_PHYSICAL_PRIOR
 from .runtime import (
     HostResourceLock,
     append_run_state_event,
@@ -60,6 +61,7 @@ __all__ = [
     "ExactAckReceipt",
     "ObjectiveContract",
     "OutputPathError",
+    "PhysicalPriorArtifact",
     "ResourceLockError",
     "RegistryError",
     "RunManifest",
@@ -68,6 +70,7 @@ __all__ = [
     "SafetyGateError",
     "SpecValidationError",
     "StrictJSONError",
+    "STEP5D_V3_PHYSICAL_PRIOR",
     "UnsupportedExecutionError",
     "build_default_registry",
     "append_run_state_event",

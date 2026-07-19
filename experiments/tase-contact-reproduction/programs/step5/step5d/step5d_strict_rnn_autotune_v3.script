@@ -2,6 +2,7 @@
 # RELEASE_STAGE_ID: step5d_strict_rnn_autotune_v3
 # CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1
 # TP_PROGRAM_ID: step5d_strict_rnn_autotune_v3
+# PHYSICAL_PRIOR_SHA256: c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f
 # PARENT_AUTOTUNE_V1_RENDERED_SHA256: eca2c7acaa878b1944c24b46c823ed64ffc0fb9e8658021dfd863a9f624f6676
 # Step5d strict RNN ablation v35.
 # VERSION: 2026-07-15T0204HKT_STEP5D_STRICT_RNN_ABLATION_V35_QUOTA_SAFE_SCHED_OTHER_ACCEL_0P1
@@ -285,10 +286,10 @@ def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2):
   local entry_y = 0.129337053
   local precontact_z = 0.022863519
   local minimum_start_above_entry_m = 0.010000000
-  # PRECONTACT_POSE_PRIOR_ID: step5d_v3_start_pose_prior_contact_0p1_20260719; completed contact-plus-0.1s robust pose plus clearance before guarded search.
-  local target_rx = 3.141592654
+  # PRECONTACT_POSE_PRIOR_ID: step5d_v3_physical_prior_contact_0p1_20260719; completed contact-plus-0.1s robust pose plus clearance before guarded search.
+  local target_rx = 3.120752062
   local target_ry = 0.000000000
-  local target_rz = 0.000000000
+  local target_rz = 0.068626833
   local line_accel_m_s2 = 0.300
   local line_hold_s = 0.002
   local line_runtime_limit_s = 75.000

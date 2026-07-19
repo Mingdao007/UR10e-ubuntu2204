@@ -8,6 +8,7 @@ import gzip
 import hashlib
 import html
 import json
+import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -17,11 +18,18 @@ import build_step5d_autotune_tp as v1
 
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_SRC = ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
+if str(RUNTIME_SRC) not in sys.path:
+    sys.path.insert(0, str(RUNTIME_SRC))
+
+from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+
 PROGRAM_NAME = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-PRECONTACT_POSE_PRIOR_ID = "step5d_v3_start_pose_prior_contact_0p1_20260719"
-PRECONTACT_XYZ_M = (0.487834547, 0.129337053, 0.022863519)
-PRECONTACT_ROTVEC_RAD = (3.141592654, 0.0, 0.0)
+PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
+PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+PRECONTACT_XYZ_M = STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m
+PRECONTACT_ROTVEC_RAD = STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
 PRECONTACT_CLEARANCE_M = 0.005
 MINIMUM_START_ABOVE_ENTRY_M = 0.01
 CONTROLLER_DIR = v1.CONTROLLER_DIR
@@ -108,6 +116,7 @@ def render_script() -> str:
         f"# RELEASE_STAGE_ID: {PROGRAM_NAME}\n"
         f"# CONTROL_PROFILE_ID: {CONTROL_PROFILE_ID}\n"
         f"# TP_PROGRAM_ID: {PROGRAM_NAME}\n"
+        f"# PHYSICAL_PRIOR_SHA256: {PRECONTACT_POSE_PRIOR_SHA256}\n"
         f"# PARENT_AUTOTUNE_V1_RENDERED_SHA256: {parent_sha}\n"
     )
     rendered = identity + rendered
@@ -142,7 +151,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
     missing = [marker for marker in required if marker not in script]
     if missing:
         raise ValueError(f"V3 TP script lacks required markers: {missing}")
-    prefix_lines = 4
+    prefix_lines = 5
     normalized = "".join(script.splitlines(keepends=True)[prefix_lines:])
     normalized = _replace_once(
         normalized,
@@ -262,6 +271,9 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "control_profile_id": CONTROL_PROFILE_ID,
         "delta_class": "identity_plus_precontact_pose_and_clearance",
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
+        "physical_prior_sha256": PRECONTACT_POSE_PRIOR_SHA256,
+        "reaction_normal_b": list(STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b),
+        "approach_axis_b": list(STEP5D_V3_PHYSICAL_PRIOR.approach_axis_b),
         "precontact_xyz_m": list(PRECONTACT_XYZ_M),
         "precontact_rotvec_rad": list(PRECONTACT_ROTVEC_RAD),
         "precontact_clearance_m": PRECONTACT_CLEARANCE_M,

@@ -23,13 +23,13 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     assert "def codex_step5d_strict_rnn_autotune_v3():" in rendered
     assert rendered.count("read_input_integer_register(26)") >= 2
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
-    assert "# PRECONTACT_POSE_PRIOR_ID: step5d_v3_start_pose_prior_contact_0p1_20260719" in rendered
+    assert "# PRECONTACT_POSE_PRIOR_ID: step5d_v3_physical_prior_contact_0p1_20260719" in rendered
     assert "local entry_x = 0.487834547" in rendered
     assert "local entry_y = 0.129337053" in rendered
     assert "local precontact_z = 0.022863519" in rendered
-    assert "local target_rx = 3.141592654" in rendered
+    assert "local target_rx = 3.120752062" in rendered
     assert "local target_ry = 0.000000000" in rendered
-    assert "local target_rz = 0.000000000" in rendered
+    assert "local target_rz = 0.068626833" in rendered
     assert "local entry_xy_pose = p[entry_x, entry_y, p_current[2]" in rendered
     assert "local entry_precontact_pose = p[entry_x, entry_y, precontact_z" in rendered
     assert "if p_current[2] < precontact_z + minimum_start_above_entry_m:" in rendered
@@ -54,9 +54,11 @@ def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
         (tmp_path / "step5d_strict_rnn_autotune_v3.numeric-sanity.json").read_text()
     )
     assert sanity["delta_class"] == "identity_plus_precontact_pose_and_clearance"
-    assert sanity["precontact_pose_prior_id"] == "step5d_v3_start_pose_prior_contact_0p1_20260719"
+    assert sanity["precontact_pose_prior_id"] == "step5d_v3_physical_prior_contact_0p1_20260719"
     assert sanity["precontact_xyz_m"] == [0.487834547, 0.129337053, 0.022863519]
-    assert sanity["precontact_rotvec_rad"] == [3.141592654, 0.0, 0.0]
+    assert sanity["precontact_rotvec_rad"] == [3.120752062, 0.0, 0.068626833]
+    assert sanity["reaction_normal_b"] == [-0.043955267, 0.020079909, 0.998831683]
+    assert sanity["approach_axis_b"] == [0.043955267, -0.020079909, -0.998831683]
     assert sanity["precontact_clearance_m"] == 0.005
     assert sanity["minimum_start_above_entry_m"] == 0.01
     assert sanity["qdot_cap_rad_s"] == 0.5

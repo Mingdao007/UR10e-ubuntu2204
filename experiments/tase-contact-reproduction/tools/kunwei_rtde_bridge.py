@@ -3722,6 +3722,25 @@ def reset_step5d_autotune_diagnostics_for_trial(
         raise RuntimeError("autotune trial started before diagnostics preallocation")
     diagnostics.reset_for_trial()
     state.step5d_v30_diagnostics_trial_id = trial_id
+    prior = tuple(args.step5d_physical_prior_reaction_normal_b)
+    if len(prior) != 3 or not all(math.isfinite(value) for value in prior):
+        raise RuntimeError("autotune physical prior is invalid")
+    state.step5d_physical_prior_reaction_normal_b = prior
+    state.step5d_physical_prior_sha256 = str(args.step5d_physical_prior_sha256)
+    state.integral_error_n_s = 0.0
+    state.normal_velocity_m_s = 0.0
+    state.step5d_outer_state = Step5dOuterLoopState()
+    reset_step5d_solver_state_for_boundary(state, "inactive")
+    state.latched_normal_b = prior
+    state.filtered_normal_b = prior
+    state.latched_normal_locked = True
+    state.normal_acquired = True
+    state.step5d_live_normal_load_gate_s = 0.0
+    state.step5d_live_normal_blend_enabled = False
+    state.step5d_stage25_normal_relatched = False
+    state.step5d_stage25_entry_relatch_angle_rad = None
+    state.step5d_normal_rate_limiter_saturated_s = 0.0
+    state.step5d_normal_rate_limiter_active_s = 0.0
     return True
 
 
@@ -4100,6 +4119,10 @@ class BridgeState:
         self.step5d_normal_direction_prev_load_n: float | None = None
         self.step5d_stage25_normal_relatched = False
         self.step5d_stage25_entry_relatch_angle_rad: float | None = None
+        self.step5d_physical_prior_reaction_normal_b: tuple[float, float, float] | None = None
+        self.step5d_physical_prior_sha256 = ""
+        self.step5d_live_normal_load_gate_s = 0.0
+        self.step5d_live_normal_blend_enabled = False
         self.step5d_normal_rate_limiter_saturated_s = 0.0
         self.step5d_normal_rate_limiter_active_s = 0.0
         self.step5b_15n_anchor_xy: tuple[float, float] | None = None
@@ -4133,10 +4156,10 @@ class BridgeState:
     def reset_line_contact(self) -> None:
         self.integral_error_n_s = 0.0
         self.normal_velocity_m_s = 0.0
-        self.latched_normal_b = None
-        self.filtered_normal_b = None
-        self.latched_normal_locked = False
-        self.normal_acquired = False
+        self.latched_normal_b = self.step5d_physical_prior_reaction_normal_b
+        self.filtered_normal_b = self.step5d_physical_prior_reaction_normal_b
+        self.latched_normal_locked = self.step5d_physical_prior_reaction_normal_b is not None
+        self.normal_acquired = self.step5d_physical_prior_reaction_normal_b is not None
         self.line_stage_s = 0.0
         self.last_robot_stage = None
         self.step5d_outer_state = Step5dOuterLoopState()
@@ -4174,6 +4197,10 @@ class BridgeState:
         self.step5d_no_contact_s = 0.0
         self.step5d_normal_rate_limiter_saturated_s = 0.0
         self.step5d_normal_rate_limiter_active_s = 0.0
+        self.step5d_stage25_normal_relatched = False
+        self.step5d_stage25_entry_relatch_angle_rad = None
+        self.step5d_live_normal_load_gate_s = 0.0
+        self.step5d_live_normal_blend_enabled = False
         self.reset_step5b_15n_trial()
 
     def reset_step5b_15n_trial(self) -> None:
@@ -4583,6 +4610,26 @@ def compute_bridge_values(
     normal_filter_dt_s = step5d_normal_filter_dt_s(args.bridge_profile, dt_s)
     live_candidate_angle_rad: float | str = ""
     live_candidate_angle_from_latch_rad: float | str = ""
+    if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
+        prior = state.step5d_physical_prior_reaction_normal_b
+        if prior is None or state.step5d_physical_prior_sha256 != str(
+            args.step5d_physical_prior_sha256
+        ):
+            raise RuntimeError("autotune physical prior binding differs")
+        prior_load_n = max(0.0, dot3(force_b, prior))
+        if (
+            line_stage_active
+            and sensor_ok > 0.5
+            and math.isfinite(prior_load_n)
+            and prior_load_n >= float(args.step5d_live_normal_load_gate_n)
+        ):
+            state.step5d_live_normal_load_gate_s += max(0.0, normal_filter_dt_s)
+        else:
+            state.step5d_live_normal_load_gate_s = 0.0
+        if state.step5d_live_normal_load_gate_s >= float(
+            args.step5d_live_normal_load_gate_dwell_s
+        ):
+            state.step5d_live_normal_blend_enabled = True
     normal_follow_active = (
         (v30_profile or v31_profile or step4f_profile or step4g_profile or step5b_profile or step5c_contact_profile or step5d_liveprep_profile or step6b_profile)
         and args.bridge_normal_follow_mode == "filtered_live"
@@ -4593,7 +4640,15 @@ def compute_bridge_values(
     if normal_follow_active:
         filtered_current = state.filtered_normal_b if state.filtered_normal_b is not None else state.latched_normal_b
         if (
+            args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+            and not state.step5d_live_normal_blend_enabled
+        ):
+            state.filtered_normal_b = state.latched_normal_b
+            n_control_b = state.latched_normal_b
+            normal_filter_source = "physical_prior_load_gate"
+        elif (
             step5d_step5b_speedl_live_profile
+            and args.bridge_profile != STEP5D_AUTOTUNE_STAGE_ID
             and not state.step5d_stage25_normal_relatched
             and live_candidate_force_n >= args.bridge_normal_min_force_n
             and dot3(state.latched_normal_b, live_candidate_b) > 0.0

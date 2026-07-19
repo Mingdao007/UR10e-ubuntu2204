@@ -129,3 +129,18 @@ def test_observed_wait_ack_schema_incident_is_exactly_closed() -> None:
     assert sorted(required - observed) == incident["missing_fields"]
     assert required.issubset(wrapper._V3_RUNNER_CLOSURE_FIELDS)
     assert required.issubset(wrapper._V3_COMPACT_EXACT_FIELDS)
+
+
+def test_autotune_relatch_is_excluded_and_load_gate_is_explicit() -> None:
+    source = (ROOT / "tools/kunwei_rtde_bridge.py").read_text(encoding="utf-8")
+    assert "physical_prior_load_gate" in source
+    assert "args.bridge_profile != STEP5D_AUTOTUNE_STAGE_ID" in source
+    assert "step5d_live_normal_load_gate_dwell_s" in source
+    reset_hunk = source.split("def reset_step5d_autotune_diagnostics_for_trial", 1)[1].split(
+        "def step5d_liveprep_runtime_missing", 1
+    )[0]
+    assert "state.integral_error_n_s = 0.0" in reset_hunk
+    assert "state.normal_velocity_m_s = 0.0" in reset_hunk
+    assert "state.latched_normal_b = prior" in reset_hunk
+    assert "state.filtered_normal_b = prior" in reset_hunk
+    assert "state.step5d_stage25_normal_relatched = False" in reset_hunk
