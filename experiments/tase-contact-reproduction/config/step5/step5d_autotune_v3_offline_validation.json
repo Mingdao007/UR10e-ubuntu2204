@@ -81,14 +81,14 @@
     "package_and_readback": {
       "blocker": null,
       "controller_readback": "config/step5d_autotune_controller_readback_v3.json",
-      "controller_readback_sha256": "63924753586f34443d1dc347234f75e0aaa4757a95e991df97668a6bb5a3b9dc",
+      "controller_readback_sha256": "be7928577490a84f33e8bd612f403b5a3cb1a6039b0b9d3067af4877e96a734b",
       "historical_controller_readback": null,
       "historical_controller_readback_sha256": null,
       "historical_readback_matches_local_triplet": true,
       "local_triplet_sha256": {
-        ".script": "c5f7bdc4a28cc63bfbf396f1380b87b3d2f1b63a9d324cd47649a31049ed2ee6",
-        ".txt": "83cb7c10f03187c7954c6a643ffbf2d9ae07bb09d2edbf90a5e684df3a8fd8ff",
-        ".urp": "96f14b3f22340632bee07449c4c216e660c728a712b2b9f07d32ee1e741e3514"
+        ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
+        ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
+        ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
       },
       "status": "pass_current_triplet_controller_readback"
     },
@@ -158,7 +158,7 @@
       "certified": false,
       "evidence": {
         "path": "config/step5/step5d_autotune_v3_return_route_evidence.json",
-        "sha256": "268981f9b6bb38a9f222b1b797aa875161de3774a4af82c7f1eb6793d611fb5c"
+        "sha256": "1a60d39e3cce11d35a17b03288b0d2710b5a180cc91ca108537c88b0ece74d96"
       },
       "fail_closed": true,
       "offline_enforcement_complete": true,
@@ -177,7 +177,7 @@
       },
       "return_route_motion_trace": {
         "path": "config/step5/step5d_autotune_v3_ursim_return_trace.json",
-        "sha256": "f8ca4d1ea24b22145e13916207e7a683712645621dd15c6b0a914f13e0b76140"
+        "sha256": "e2928b756dbd4d66dba328711e4cb579ee704f5a7b12dca55adf632a7a2db537"
       },
       "status": "pass_motion_capable_ursim_core_source_equivalence",
       "ursim": "pass_motion_capable_ursim_core_source_equivalence"
@@ -209,22 +209,22 @@
   },
   "identity": {
     "controller_readback_triplet_sha256": {
-      ".script": "c5f7bdc4a28cc63bfbf396f1380b87b3d2f1b63a9d324cd47649a31049ed2ee6",
-      ".txt": "83cb7c10f03187c7954c6a643ffbf2d9ae07bb09d2edbf90a5e684df3a8fd8ff",
-      ".urp": "96f14b3f22340632bee07449c4c216e660c728a712b2b9f07d32ee1e741e3514"
+      ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
+      ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
+      ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
     },
-    "deployment_fingerprint": "889d5f2a2063fd106e8e1d64607f0d9806cd45a3d38278b89b5ea783b9792271",
+    "deployment_fingerprint": "1d32c4f49af6873cf8c19ed9fc402870ea767c071bf004f226adc24955cf6349",
     "legacy_provenance": {
-      "contract_sha256": "d3ec85fc6b51036674a12f57f4b6112e766fa4780d24a921b2161df1275b1ff5",
-      "control_fingerprint": "a468cc8d3f8268291ac54fdb0174901717924ed5c4a8ecd872e6db3b2b328615",
-      "orchestration_fingerprint": "2443007d0502656f63e3d8d22ae561386c6b7c0265a0f23568752632c9cd71cf"
+      "contract_sha256": "d814dc21f920ff1a1a5668953153eeee1b8f832470a8a878ca09c68c8aaca1eb",
+      "control_fingerprint": "fb8c5d36f62387f931b000fcefdfdf487fb24798505ca95ba65ae4d568a1d171",
+      "orchestration_fingerprint": "04883df3a604a2191fef3a41a1cff0d1ed609e2685e01ebcd6af2f619df7e131"
     },
     "local_triplet_sha256": {
-      ".script": "c5f7bdc4a28cc63bfbf396f1380b87b3d2f1b63a9d324cd47649a31049ed2ee6",
-      ".txt": "83cb7c10f03187c7954c6a643ffbf2d9ae07bb09d2edbf90a5e684df3a8fd8ff",
-      ".urp": "96f14b3f22340632bee07449c4c216e660c728a712b2b9f07d32ee1e741e3514"
+      ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
+      ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
+      ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
     },
-    "orchestration_fingerprint": "23c9323558bbda043b438ec78ef1899474bddff28eaeed0570b9a22d79ad30b0",
+    "orchestration_fingerprint": "0580b4f7f4fa3ecfd7dd8e62bf67d8ff3ca62007f775e056d01de4f3fe876c43",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,

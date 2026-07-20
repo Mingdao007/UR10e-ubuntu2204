@@ -6,33 +6,33 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "controller": "root@192.168.1.18",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-  "fresh_controller_checked_at": "2026-07-20T12:38:12+08:00",
-  "source_stamp": "2026-07-20T1238HKT",
+  "fresh_controller_checked_at": "2026-07-20T12:52:43+08:00",
+  "source_stamp": "2026-07-20T1255HKT",
   "triplet_sha256": {
-    ".script": "c5f7bdc4a28cc63bfbf396f1380b87b3d2f1b63a9d324cd47649a31049ed2ee6",
-    ".txt": "83cb7c10f03187c7954c6a643ffbf2d9ae07bb09d2edbf90a5e684df3a8fd8ff",
-    ".urp": "96f14b3f22340632bee07449c4c216e660c728a712b2b9f07d32ee1e741e3514"
+    ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
+    ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
+    ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
   },
   "sha256": {
     "local": {
-      ".script": "c5f7bdc4a28cc63bfbf396f1380b87b3d2f1b63a9d324cd47649a31049ed2ee6",
-      ".txt": "83cb7c10f03187c7954c6a643ffbf2d9ae07bb09d2edbf90a5e684df3a8fd8ff",
-      ".urp": "96f14b3f22340632bee07449c4c216e660c728a712b2b9f07d32ee1e741e3514"
+      ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
+      ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
+      ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
     },
     "controller": {
-      ".script": "c5f7bdc4a28cc63bfbf396f1380b87b3d2f1b63a9d324cd47649a31049ed2ee6",
-      ".txt": "83cb7c10f03187c7954c6a643ffbf2d9ae07bb09d2edbf90a5e684df3a8fd8ff",
-      ".urp": "96f14b3f22340632bee07449c4c216e660c728a712b2b9f07d32ee1e741e3514"
+      ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
+      ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
+      ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
     },
     "readback": {
-      ".script": "c5f7bdc4a28cc63bfbf396f1380b87b3d2f1b63a9d324cd47649a31049ed2ee6",
-      ".txt": "83cb7c10f03187c7954c6a643ffbf2d9ae07bb09d2edbf90a5e684df3a8fd8ff",
-      ".urp": "96f14b3f22340632bee07449c4c216e660c728a712b2b9f07d32ee1e741e3514"
+      ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
+      ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
+      ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
     }
   },
-  "tp_fingerprint": "e8495187d35a1cc1e720f31df4def630c721568fc4e0a19b32b2bf31521b7b30",
-  "fresh_readback_manifest_sha256": "2f192ef39ab88e08476c03b7adb463b6bb2ff9e1ab77356b924f876cc3636515",
-  "fresh_readback_source": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/controller_readback_20260720T123812HKT.json",
+  "tp_fingerprint": "c59598ccfb657834e95e6bd8bb4e73c810fc4dc04e14d0f0cb39a97e5fdce42d",
+  "fresh_readback_manifest_sha256": "96c1ef7b532e1f8ac1dcecf7f1e7dba5eb0755c3d260b229bb73d5c6c450028b",
+  "fresh_readback_source": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/controller_readback_20260720T125243HKT.json",
   "safety_boundary": [
     "controller package upload and fresh read-back only",
     "V3 remains the unique selected/current release",
