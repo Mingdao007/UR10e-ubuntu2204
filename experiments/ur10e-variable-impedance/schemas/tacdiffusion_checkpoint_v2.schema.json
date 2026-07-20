@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ur10e_tacdiffusion_checkpoint_manifest/v2",
+  "type": "object",
+  "required": [
+    "schema_version", "model_variant", "checkpoint_artifact",
+    "checkpoint_sha256", "dataset_sha256", "config",
+    "faithfulness_contract", "normalization", "epoch_completed",
+    "scheduler", "resume", "runtime", "training_status", "evidence_scope",
+    "active_enabled", "manifest_payload_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 2},
+    "model_variant": {"const": "clean_room_tacdiffusion_force_ddpm_v2"},
+    "checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "dataset_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "normalization": {
+      "type": "object",
+      "required": ["scope", "train_indices_sha256", "condition_mean", "condition_std", "action_mean", "action_std", "payload_sha256"],
+      "properties": {"scope": {"const": "train_split_only"}}
+    },
+    "evidence_scope": {"enum": ["offline_training", "fixture_only"]},
+    "active_enabled": {"const": false},
+    "manifest_payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

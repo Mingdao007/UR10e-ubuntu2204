@@ -20,8 +20,11 @@ from ur10e_vic.tacdiffusion.dataset import (
     write_expert_dataset_npz,
 )
 from ur10e_vic.tacdiffusion.model import (
+    CHECKPOINT_SCHEMA_VERSION,
+    MODEL_VARIANT,
     ConditionalDDPM,
     TacDiffusionDDPMConfig,
+    evaluate_checkpoint,
     load_predictor,
     torch_available,
     train_ddpm,
@@ -203,13 +206,14 @@ class ModelContractTests(unittest.TestCase):
                 config.per_observation_dim,
                 config.condition_dim,
                 config.action_dim,
+                config.embedding_dim,
                 config.hidden_dim,
                 config.diffusion_steps,
                 config.beta_start,
                 config.beta_end,
                 config.seed,
             ),
-            (2, 18, 36, 6, 512, 50, 1e-4, 0.02, 42),
+            (2, 18, 36, 6, 128, 512, 50, 1e-4, 0.02, 42),
         )
         self.assertFalse(config.active_enabled)
         with self.assertRaisesRegex(ValueError, "active mode"):
@@ -219,6 +223,29 @@ class ModelContractTests(unittest.TestCase):
     def test_missing_torch_has_explicit_non_model_fallback_boundary(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "require optional PyTorch"):
             ConditionalDDPM()
+
+    def test_legacy_v1_checkpoint_manifest_is_explicitly_nonfaithful(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint = root / "legacy.pt"
+            checkpoint.write_bytes(b"legacy")
+            manifest = root / "legacy.json"
+            manifest.write_text('{"schema_version": 1}\n', encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "nonfaithful"):
+                validate_checkpoint_manifest(checkpoint, manifest)
+
+    @unittest.skipUnless(torch_available(), "optional PyTorch environment is not active")
+    def test_denoiser_has_separate_embeddings_timesiren_and_bn_gelu_blocks(self) -> None:
+        model = ConditionalDDPM()
+        estimator = model.noise_estimator
+        self.assertIsNot(
+            estimator.current_observation_embedding,
+            estimator.previous_observation_embedding,
+        )
+        names = {type(module).__name__ for module in estimator.modules()}
+        self.assertIn("TimeSiren", names)
+        self.assertIn("BatchNorm1d", names)
+        self.assertIn("GELU", names)
 
     @unittest.skipUnless(torch_available(), "optional PyTorch environment is not active")
     def test_train_checkpoint_and_infer_are_hash_bound_when_torch_exists(self) -> None:
@@ -238,6 +265,7 @@ class ModelContractTests(unittest.TestCase):
                 epochs=1,
                 batch_size=4,
                 device="cpu",
+                evidence_scope="fixture_only",
             )
             validated = validate_checkpoint_manifest(
                 checkpoint,
@@ -254,6 +282,46 @@ class ModelContractTests(unittest.TestCase):
             result = predictor.predict(np.zeros(36), seed=42)
             self.assertEqual(len(result.raw_f_df), 6)
             self.assertEqual(result.checkpoint_sha256, trained["checkpoint_sha256"])
+            self.assertEqual(trained["schema_version"], CHECKPOINT_SCHEMA_VERSION)
+            self.assertEqual(trained["model_variant"], MODEL_VARIANT)
+            self.assertEqual(trained["normalization"]["scope"], "train_split_only")
+            self.assertFalse(trained["resume"]["resumed"])
+
+            resumed_checkpoint = root / "model-resumed.pt"
+            resumed_manifest = root / "model-resumed-manifest.json"
+            resumed = train_ddpm(
+                dataset_path=dataset_path,
+                dataset_manifest_path=dataset_manifest_path,
+                expert_trace_manifest_paths=trace_paths,
+                checkpoint_path=resumed_checkpoint,
+                checkpoint_manifest_path=resumed_manifest,
+                epochs=1,
+                batch_size=4,
+                device="cpu",
+                resume_checkpoint_path=checkpoint,
+                evidence_scope="fixture_only",
+            )
+            self.assertTrue(resumed["resume"]["resumed"])
+            self.assertTrue(resumed["resume"]["optimizer_state_restored"])
+            self.assertTrue(resumed["resume"]["scheduler_state_restored"])
+            self.assertTrue(resumed["resume"]["rng_state_restored"])
+            self.assertEqual(resumed["epoch_completed"], 2)
+            evaluation = evaluate_checkpoint(
+                checkpoint_path=resumed_checkpoint,
+                checkpoint_manifest_path=resumed_manifest,
+                dataset_path=dataset_path,
+                dataset_manifest_path=dataset_manifest_path,
+                expert_trace_manifest_paths=trace_paths,
+                split="validation",
+                max_samples=1,
+                device="cpu",
+            )
+            self.assertEqual(
+                evaluation["schema"], "ur10e_tacdiffusion_evaluation/v1"
+            )
+            self.assertEqual(evaluation["evidence_scope"], "fixture_only")
+            self.assertFalse(evaluation["simulation_run"])
+            self.assertFalse(evaluation["active_enabled"])
 
 
 class PacedBenchmarkTests(unittest.TestCase):

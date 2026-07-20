@@ -19,6 +19,7 @@ from .dataset import (
     write_dataset_manifest,
 )
 from .model import (
+    evaluate_checkpoint,
     load_predictor,
     train_ddpm,
     validate_checkpoint_manifest,
@@ -72,15 +73,34 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--trace-manifest", action="append", required=True)
     train.add_argument("--checkpoint", required=True)
     train.add_argument("--checkpoint-manifest", required=True)
-    train.add_argument("--epochs", type=int, default=100)
-    train.add_argument("--batch-size", type=int, default=256)
-    train.add_argument("--learning-rate", type=float, default=1e-4)
+    train.add_argument("--epochs", type=int, default=1500)
+    train.add_argument("--batch-size", type=int, default=4096)
+    train.add_argument("--learning-rate", type=float, default=1e-3)
     train.add_argument("--device", default="auto")
+    train.add_argument("--resume-checkpoint")
+    train.add_argument(
+        "--evidence-scope",
+        choices=("offline_training", "fixture_only"),
+        default="offline_training",
+    )
 
     validate_checkpoint = subparsers.add_parser("validate-checkpoint")
     validate_checkpoint.add_argument("--checkpoint", required=True)
     validate_checkpoint.add_argument("--manifest", required=True)
     validate_checkpoint.add_argument("--expected-dataset-sha256")
+
+    evaluate = subparsers.add_parser("evaluate")
+    evaluate.add_argument("--checkpoint", required=True)
+    evaluate.add_argument("--checkpoint-manifest", required=True)
+    evaluate.add_argument("--dataset", required=True)
+    evaluate.add_argument("--dataset-manifest", required=True)
+    evaluate.add_argument("--trace-manifest", action="append", required=True)
+    evaluate.add_argument(
+        "--split", choices=("validation", "test"), default="validation"
+    )
+    evaluate.add_argument("--max-samples", type=int)
+    evaluate.add_argument("--device", default="auto")
+    evaluate.add_argument("--output")
 
     infer = subparsers.add_parser("infer")
     infer.add_argument("--checkpoint", required=True)
@@ -135,6 +155,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,
             device=args.device,
+            resume_checkpoint_path=args.resume_checkpoint,
+            evidence_scope=args.evidence_scope,
         )
     if args.command == "validate-checkpoint":
         return validate_checkpoint_manifest(
@@ -142,6 +164,20 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             args.manifest,
             expected_dataset_sha256=args.expected_dataset_sha256,
         )
+    if args.command == "evaluate":
+        result = evaluate_checkpoint(
+            checkpoint_path=args.checkpoint,
+            checkpoint_manifest_path=args.checkpoint_manifest,
+            dataset_path=args.dataset,
+            dataset_manifest_path=args.dataset_manifest,
+            expert_trace_manifest_paths=_trace_paths(args),
+            split=args.split,
+            max_samples=args.max_samples,
+            device=args.device,
+        )
+        if args.output:
+            _write_json(args.output, result)
+        return result
     if args.command in {"infer", "benchmark"}:
         checkpoint_manifest = validate_checkpoint_manifest(
             args.checkpoint, args.checkpoint_manifest
