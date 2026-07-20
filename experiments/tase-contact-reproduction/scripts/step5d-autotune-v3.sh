@@ -3,7 +3,13 @@ set -euo pipefail
 
 SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
 EXPERIMENT_ROOT="$(cd -- "$(dirname -- "${SCRIPT_PATH}")/.." && pwd)"
-export PYTHONPATH="${EXPERIMENT_ROOT}/tools${PYTHONPATH:+:${PYTHONPATH}}"
+REPOSITORY_ROOT="$(cd -- "${EXPERIMENT_ROOT}/../.." && pwd)"
+RUNTIME_SOURCE="${REPOSITORY_ROOT}/src/ur10e_experiment_runtime"
+if [[ ! -d "${RUNTIME_SOURCE}/ur10e_experiment_runtime" ]]; then
+  echo "missing ur10e_experiment_runtime source: ${RUNTIME_SOURCE}" >&2
+  exit 66
+fi
+export PYTHONPATH="${EXPERIMENT_ROOT}/tools:${RUNTIME_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}"
 if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
   mode="$1"
   shift

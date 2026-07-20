@@ -72,3 +72,23 @@ print(json.dumps(result, sort_keys=True))
     assert result["ok"] is True
     assert result["missing"] == []
     assert result["rnn_backend"] == "numpy"
+
+
+def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
+    environment = dict(os.environ)
+    environment.pop("PYTHONPATH", None)
+    completed = subprocess.run(
+        [str(ROOT / "scripts/step5d-autotune-v3.sh"), "status", "--json"],
+        cwd=ROOT,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=20.0,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    status = json.loads(completed.stdout)
+    assert status["release_readiness"]["selected_release"] == (
+        "step5d_strict_rnn_autotune_v3"
+    )

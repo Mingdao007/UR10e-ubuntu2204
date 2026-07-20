@@ -211,14 +211,14 @@
     "legacy_provenance": {
       "contract_sha256": "e63fb5b159afd2426a2e8d610c72d6f6d19997e59410a870f8ce9876a1a1489d",
       "control_fingerprint": "bc6ab9069e30e6a1937cd7a924d83fbc1b0a49d5b855fa07368b8e3fedf89246",
-      "orchestration_fingerprint": "c4c5bf5973894a43279b3d1885e37cf1e884ab6607f9fa40590c45fce11f9192"
+      "orchestration_fingerprint": "00f9de0786aaa3ca6644ae6405f8ffa011174988cbb54c93bab9b5161e00d946"
     },
     "local_triplet_sha256": {
       ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
       ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
       ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
     },
-    "orchestration_fingerprint": "570c4fb334c52ceac7947125104d51e074fb250e7ebcb4d63447c2049c0efa65",
+    "orchestration_fingerprint": "508eb7ad19a88ea95b7fe59d10c5926e7e2ce3a4b94c634fa455eeb09ba19f22",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
