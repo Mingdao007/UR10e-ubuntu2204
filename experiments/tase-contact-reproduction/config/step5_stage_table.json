@@ -10385,7 +10385,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is the unique selected/current release; exact controller readback is verified and the direct command-1 lane awaits formal-runtime deploy, fresh bridge context, user Play, Stage25, and exact 10/10 closure. V1 is retained control-profile provenance only.",
+      "block_reason": "V3 remains the unique selected/current release and r004 readback remains verified, but r004 is known_incompatible_do_not_retry because its WAIT_ACK return telemetry violates the collector contract. Bridge start is blocked until an exact r005 controller readback is promoted.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10424,7 +10424,7 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r004.urp",
-        "live_readiness_state": "controller_readback_verified_ready_for_bridge_context"
+        "live_readiness_state": "r004_known_incompatible_waiting_for_r005_readback"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10487,19 +10487,21 @@
       },
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v3",
-        "state": "bridge_start_ready",
-        "public_success_signal": "controller_readback_verified_ready_for_bridge_context",
+        "state": "pre_live_blocked",
+        "public_success_signal": "r004_known_incompatible_do_not_retry",
         "deterministic_validation_complete": true,
         "package_delivery_complete": true,
         "candidate_current": true,
         "live_runtime_promoted": false,
         "same_process_startup_gate_complete": false,
-        "ready_to_execute": true,
+        "ready_to_execute": false,
         "ready_to_load_play": false,
-        "ready_to_start_bridge": true,
+        "ready_to_start_bridge": false,
         "ready_to_arm": false,
         "ready_for_contact_or_motion": false,
-        "blockers": [],
+        "blockers": [
+          "r004_return_telemetry_contract_mismatch"
+        ],
         "next_owner": "ur10e-bridge-ops",
         "operator_trigger": {
           "candidate_stage_id": "step5d_strict_rnn_autotune_v3",

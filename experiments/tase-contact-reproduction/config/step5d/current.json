@@ -4,6 +4,7 @@
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "tp_program_id": "step5d_strict_rnn_autotune_v3_r004",
+  "tp_program_disposition": "known_incompatible_do_not_retry",
   "selection_state": "current",
   "state": "pre_live_blocked",
   "deployment": {
@@ -12,10 +13,13 @@
     "verified_for_selected_triplet": true
   },
   "execution": {
-    "bridge_start_ready": true,
+    "bridge_start_ready": false,
     "bridge_process_ready": false,
     "motion_arm_ready": false,
-    "campaign_ready": false
+    "campaign_ready": false,
+    "blockers": [
+      "r004_return_telemetry_contract_mismatch"
+    ]
   },
   "compatibility_mirror": {
     "current_stage": "config/current_stage.json",

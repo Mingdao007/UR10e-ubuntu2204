@@ -1374,11 +1374,14 @@
   "program": "step5d_strict_rnn_autotune_v3",
   "readiness": {
     "bridge_process_ready": false,
-    "bridge_start_ready": true,
+    "bridge_start_ready": false,
     "campaign_ready": false,
     "deployment_ready": true,
     "motion_arm_ready": false,
-    "selected_release": "step5d_strict_rnn_autotune_v3"
+    "selected_release": "step5d_strict_rnn_autotune_v3",
+    "blockers": [
+      "r004_return_telemetry_contract_mismatch"
+    ]
   },
   "reproduction_status": {
     "accepted_artifact": null,
@@ -1410,14 +1413,14 @@
     ".urp": "a28258fa5f2b60acb88d3f167321f0442486f366745f2eebc666bb55242dbf9b"
   },
   "stage_table_path": "config/step5_stage_table.json",
-  "status": "step5d_autotune_v3_r004_controller_readback_verified_pre_live",
+  "status": "step5d_autotune_v3_r004_known_incompatible_do_not_retry",
   "strict_rnn_status": {
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
     "reason": "V3 is the unique selected route. V35 and autotune V1 are retained provenance only; V3 deployment, timing, certification, audit, and campaign authorization remain separate readiness gates.",
     "stage_id": "step5d_strict_rnn_reproduction_v1"
   },
-  "updated_at": "2026-07-20T19:21:27+08:00",
+  "updated_at": "2026-07-20T20:40:00+08:00",
   "v29_contact_candidate": {
     "controller_readback_verified": true,
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",

@@ -19,10 +19,13 @@ from step5d_autotune_v3.arming import (  # noqa: E402
 )
 
 
-def _readiness(*, deployment_ready: bool = True) -> dict[str, object]:
+def _readiness(
+    *, deployment_ready: bool = True, tp_program_start_allowed: bool = True
+) -> dict[str, object]:
     triplet = {".script": "a" * 64, ".txt": "b" * 64, ".urp": "c" * 64}
     return {
         "deployment_ready": deployment_ready,
+        "tp_program_start_allowed": tp_program_start_allowed,
         "controller_readback_sha256": "d" * 64,
         "identity": {
             "tick_semantics_fingerprint": "1" * 64,
@@ -83,6 +86,26 @@ def test_builder_fails_closed_before_matching_v3_readback(
     with pytest.raises(
         builder.BridgeContextBuildError,
         match="fresh V3 TP read-back",
+    ):
+        builder.build_context(
+            tmp_path,
+            plant_epoch=1,
+            runtime_environment={"capture_mode": "passive"},
+        )
+
+
+def test_builder_rejects_known_incompatible_tp_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        builder,
+        "resolve_release_readiness",
+        lambda _root: _readiness(tp_program_start_allowed=False),
+    )
+
+    with pytest.raises(
+        builder.BridgeContextBuildError,
+        match="known_incompatible_do_not_retry",
     ):
         builder.build_context(
             tmp_path,

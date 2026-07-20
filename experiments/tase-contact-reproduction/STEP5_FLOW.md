@@ -1,12 +1,13 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3` as the
-unique current release route; its immutable TP package is
-`step5d_strict_rnn_autotune_v3_r004`. V1 remains frozen control-profile provenance and cannot
-be launched or selected as a fallback. The exact r004 triplet has fresh
-controller upload/read-back evidence and is deployment-ready. The remaining
-pre-live steps are formal-runtime deployment, opening the exact r004 program
-on the TP, and creating a fresh identity-bound campaign/bridge context. Formal
+unique current release route. Its immutable r004 TP package has fresh
+controller upload/read-back evidence, but is `known_incompatible_do_not_retry`:
+the real trial-1 return reached `WAIT_ACK` with typed identity and guard mask
+intact while output float registers 35/39--44 still carried old Stage25/echo
+telemetry. V1 remains frozen control-profile provenance and cannot be launched
+or selected as a fallback. Bridge start is fail-closed until the exact r005
+triplet is generated, validated, deployed, and freshly read back. Formal
 10k/30k timing pressure testing and the temporary CPU/GPU timing service are
 not prerequisites. The bridge starts in `NO_ARM`; Codex never presses Play or
 Stop, and only the user's TP Play enters the command-1 campaign path.

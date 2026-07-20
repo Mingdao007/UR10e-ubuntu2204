@@ -187,6 +187,11 @@ def build_context(
         raise BridgeContextBuildError("plant_epoch must be a positive integer")
     root = root.expanduser().resolve(strict=True)
     report = resolve_release_readiness(root)
+    if report.get("tp_program_start_allowed") is not True:
+        raise BridgeContextBuildError(
+            "selected TP program is known_incompatible_do_not_retry: "
+            "r004_return_telemetry_contract_mismatch"
+        )
     if report.get("deployment_ready") is not True:
         raise BridgeContextBuildError(
             "fresh V3 TP read-back does not match the local triplet"

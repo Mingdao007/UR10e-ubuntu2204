@@ -60,7 +60,7 @@ def _load(path: Path, role: str) -> Mapping[str, Any]:
     return payload
 
 
-def _selected_v3(root: Path) -> None:
+def _selected_v3(root: Path) -> Mapping[str, Any]:
     current = _load(root / "config/current_stage.json", "current selector")
     if (
         current.get("current_stage_id") != RELEASE_STAGE_ID
@@ -95,6 +95,7 @@ def _selected_v3(root: Path) -> None:
         or compatibility.get("selection_state") != "current"
     ):
         raise ReleaseReadinessError("V3 selector surfaces differ")
+    return compatibility
 
 
 def _deployment_state(
@@ -213,7 +214,7 @@ def resolve_release_readiness(
     """Resolve readiness without turning absent future artifacts into errors."""
 
     root = root.expanduser().resolve(strict=True)
-    _selected_v3(root)
+    compatibility = _selected_v3(root)
     try:
         contract = load_contract(
             root / "config/step5/step5d_autotune_v3_control_contract.json"
@@ -227,6 +228,10 @@ def resolve_release_readiness(
     blockers: list[str] = []
     if not deployment_ready:
         blockers.append("requires_matching_v3_tp_readback")
+    tp_program_disposition = compatibility.get("tp_program_disposition")
+    tp_program_start_allowed = tp_program_disposition != "known_incompatible_do_not_retry"
+    if not tp_program_start_allowed:
+        blockers.append("r004_return_telemetry_contract_mismatch")
 
     bridge_context: BridgeStartContext | None = None
     bridge_context_sha256: str | None = None
@@ -252,7 +257,11 @@ def resolve_release_readiness(
             blockers.append("requires_bridge_start_context")
     else:
         blockers.append("requires_bridge_start_context")
-    bridge_start_ready = bridge_context is not None and deployment_ready
+    bridge_start_ready = (
+        bridge_context is not None
+        and deployment_ready
+        and tp_program_start_allowed
+    )
 
     arming_context: ArmingContext | None = None
     arming_context_sha256: str | None = None
@@ -323,6 +332,8 @@ def resolve_release_readiness(
         ),
         "controller_readback_path": str(readback_path),
         "controller_readback_sha256": readback_sha256,
+        "tp_program_disposition": tp_program_disposition,
+        "tp_program_start_allowed": tp_program_start_allowed,
         "blockers": blockers,
     }
 
