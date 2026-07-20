@@ -117,6 +117,19 @@ def test_canonical_shell_bridge_route_cannot_fall_back_to_v1() -> None:
     assert "bridge-line-operator.sh" not in source
 
 
+def test_first_campaign_home_is_loaded_only_after_arm_dispatch() -> None:
+    source = (ROOT / "tools/run_step5d_autotune_campaign.py").read_text(
+        encoding="utf-8"
+    )
+    loop = source.index("while supervisor.phase is CampaignPhase.HOME")
+    dispatch = source.index(
+        "coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)", loop
+    )
+    wait_home = source.index("_wait_for_campaign_home_reference(home_path)", dispatch)
+
+    assert dispatch < wait_home
+
+
 def test_fault_after_play_has_one_immediate_operator_action(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         live,

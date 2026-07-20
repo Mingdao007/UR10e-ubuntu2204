@@ -144,6 +144,21 @@ def _wait_for_async_capture(path: Path, *, timeout_s: float = 3.0) -> None:
     raise RuntimeError("V3 asynchronous capture was not durably published at WAIT_ACK")
 
 
+def _wait_for_campaign_home_reference(
+    path: Path, *, timeout_s: float = 3.0
+) -> CampaignHomeReference:
+    """Wait for the bridge to bind READY_HOME to the just-dispatched ARM."""
+
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if path.is_file() and not path.is_symlink():
+            return CampaignHomeReference.load(path)
+        time.sleep(0.005)
+    raise RuntimeError(
+        "campaign home reference was not durably published after ARM dispatch"
+    )
+
+
 def tp_snapshot_from_bridge_row(row: Mapping[str, str]) -> TpSnapshot:
     state_value = _integer(row, "ur_output_int_register_26")
     try:
@@ -1374,7 +1389,31 @@ def run(args: argparse.Namespace) -> int:
             plan_revision = None if current_plan is None else current_plan.revision
             batch_context: BatchAttemptContext | None = None
             home_path = bridge_run / "campaign_home_reference.json"
-            home = CampaignHomeReference.load(home_path)
+            home = (
+                CampaignHomeReference.load(home_path)
+                if home_path.is_file() and not home_path.is_symlink()
+                else None
+            )
+            if home is None:
+                if initial.state != "READY_HOME" or any(
+                    value != 0
+                    for value in (
+                        initial.campaign_epoch_echo,
+                        initial.trial_id_echo,
+                        initial.candidate_token_echo,
+                        initial.terminal_reason,
+                        initial.execution_profile_integer_id_echo,
+                    )
+                ):
+                    raise RuntimeError(
+                        "first campaign home requires a zero-identity READY_HOME row"
+                    )
+                campaign_home_pose = tuple(
+                    _finite(initial_row, f"ur_actual_TCP_pose_{index}")
+                    for index in range(6)
+                )
+            else:
+                campaign_home_pose = home.home_pose
             if args.selection_policy == "codex_batches":
                 if any(
                     value is None
@@ -1425,7 +1464,7 @@ def run(args: argparse.Namespace) -> int:
                     stopping_bound_fingerprint=None,
                     plant_epoch=supervisor.plant_epoch,
                     campaign_root=epoch_root,
-                    campaign_home_pose=home.home_pose,
+                    campaign_home_pose=campaign_home_pose,
                 )
             arm = coordinator.issue_arm(
                 store,
@@ -1487,6 +1526,12 @@ def run(args: argparse.Namespace) -> int:
                     batch_row_index=batch_context.row_index,
                 )
             coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)
+            if home is None:
+                home = _wait_for_campaign_home_reference(home_path)
+                if home.home_pose != campaign_home_pose:
+                    raise RuntimeError(
+                        "bridge campaign home differs from the pre-ARM READY_HOME pose"
+                    )
             _event(
                 event_path,
                 "arm_dispatched",
