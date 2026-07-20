@@ -77,6 +77,7 @@
   "return_angular_speed_guard_rad_s": 0.06,
   "return_angular_speed_limit_rad_s": 0.05,
   "return_angular_stop_deceleration_rad_s2": 0.1,
+  "return_angular_velocity_filter_tau_s": 0.02,
   "return_continuous_telemetry_output_float_registers": [
     39,
     40,

@@ -1,4 +1,4 @@
-# VERSION: 2026-07-20T1238HKT
+# VERSION: 2026-07-20T1255HKT
 # RELEASE_STAGE_ID: step5d_strict_rnn_autotune_v3
 # CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1
 # TP_PROGRAM_ID: step5d_strict_rnn_autotune_v3
@@ -710,11 +710,19 @@ thread codex_autotune_return_guard_thread():
     local angular_speed_rad_s = codex_autotune_norm3(tcp_speed[3], tcp_speed[4], tcp_speed[5])
     local angular_accel_rad_s2 = 0.0
     if timing_sample_valid and have_angular_sample and loop_dt > 0.0:
-      angular_accel_rad_s2 = codex_autotune_norm3(tcp_speed[3] - last_wx, tcp_speed[4] - last_wy, tcp_speed[5] - last_wz) / loop_dt
+      local angular_filter_alpha = loop_dt / (0.020 + loop_dt)
+      local filtered_wx = last_wx + angular_filter_alpha * (tcp_speed[3] - last_wx)
+      local filtered_wy = last_wy + angular_filter_alpha * (tcp_speed[4] - last_wy)
+      local filtered_wz = last_wz + angular_filter_alpha * (tcp_speed[5] - last_wz)
+      angular_accel_rad_s2 = codex_autotune_norm3(filtered_wx - last_wx, filtered_wy - last_wy, filtered_wz - last_wz) / loop_dt
+      last_wx = filtered_wx
+      last_wy = filtered_wy
+      last_wz = filtered_wz
+    else:
+      last_wx = tcp_speed[3]
+      last_wy = tcp_speed[4]
+      last_wz = tcp_speed[5]
     end
-    last_wx = tcp_speed[3]
-    last_wy = tcp_speed[4]
-    last_wz = tcp_speed[5]
     have_angular_sample = True
     if angular_speed_rad_s > codex_autotune_return_max_angular_speed_rad_s:
       codex_autotune_return_max_angular_speed_rad_s = angular_speed_rad_s

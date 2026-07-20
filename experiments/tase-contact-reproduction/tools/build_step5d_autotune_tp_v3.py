@@ -54,6 +54,7 @@ MINIMUM_START_ABOVE_ENTRY_M = 0.01
 STAGE25_STALE_COMMAND_HOLD_S = 0.020
 CERTIFICATION_SAFE_Z_MIN_M = 0.033
 CERTIFICATION_EXCURSION_M = 0.004
+RETURN_ANGULAR_VELOCITY_FILTER_TAU_S = 0.020
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 
@@ -124,11 +125,19 @@ thread codex_autotune_return_guard_thread():
     local angular_speed_rad_s = codex_autotune_norm3(tcp_speed[3], tcp_speed[4], tcp_speed[5])
     local angular_accel_rad_s2 = 0.0
     if timing_sample_valid and have_angular_sample and loop_dt > 0.0:
-      angular_accel_rad_s2 = codex_autotune_norm3(tcp_speed[3] - last_wx, tcp_speed[4] - last_wy, tcp_speed[5] - last_wz) / loop_dt
+      local angular_filter_alpha = loop_dt / ({RETURN_ANGULAR_VELOCITY_FILTER_TAU_S:.3f} + loop_dt)
+      local filtered_wx = last_wx + angular_filter_alpha * (tcp_speed[3] - last_wx)
+      local filtered_wy = last_wy + angular_filter_alpha * (tcp_speed[4] - last_wy)
+      local filtered_wz = last_wz + angular_filter_alpha * (tcp_speed[5] - last_wz)
+      angular_accel_rad_s2 = codex_autotune_norm3(filtered_wx - last_wx, filtered_wy - last_wy, filtered_wz - last_wz) / loop_dt
+      last_wx = filtered_wx
+      last_wy = filtered_wy
+      last_wz = filtered_wz
+    else:
+      last_wx = tcp_speed[3]
+      last_wy = tcp_speed[4]
+      last_wz = tcp_speed[5]
     end
-    last_wx = tcp_speed[3]
-    last_wy = tcp_speed[4]
-    last_wz = tcp_speed[5]
     have_angular_sample = True
     if angular_speed_rad_s > codex_autotune_return_max_angular_speed_rad_s:
       codex_autotune_return_max_angular_speed_rad_s = angular_speed_rad_s
@@ -929,6 +938,9 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "return_angular_speed_guard_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
         "return_angular_acceleration_guard_rad_s2": (
             RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2
+        ),
+        "return_angular_velocity_filter_tau_s": (
+            RETURN_ANGULAR_VELOCITY_FILTER_TAU_S
         ),
         "return_angular_stop_deceleration_rad_s2": (
             RETURN_ANGULAR_STOP_DECELERATION_RAD_S2

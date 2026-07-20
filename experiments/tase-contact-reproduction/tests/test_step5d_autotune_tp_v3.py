@@ -45,6 +45,8 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     assert "start_angle_rad > 0.349065850" in rendered
     assert "angular_speed_rad_s > 0.060" in rendered
     assert "angular_accel_rad_s2 > 0.500" in rendered
+    assert "local angular_filter_alpha = loop_dt / (0.020 + loop_dt)" in rendered
+    assert "filtered_wx - last_wx" in rendered
     assert "stopl(0.3, 0.100)" in rendered
     assert "write_output_float_register(39, codex_autotune_return_segment_id)" in rendered
     assert "write_output_float_register(44, codex_autotune_return_max_sample_gap_s)" in rendered
@@ -142,6 +144,7 @@ def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
     assert sanity["return_angular_acceleration_limit_rad_s2"] == 0.1
     assert sanity["return_angular_speed_guard_rad_s"] == 0.06
     assert sanity["return_angular_acceleration_guard_rad_s2"] == 0.5
+    assert sanity["return_angular_velocity_filter_tau_s"] == 0.02
     assert sanity["return_angular_stop_deceleration_rad_s2"] == 0.1
     assert sanity["return_controller_period_s"] == 0.002
     assert sanity["return_sample_gap_clock"] == "controller_monotonic_time_mode_0"
