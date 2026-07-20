@@ -41,7 +41,7 @@
       "stage25_95": "zero-invalid clear state 522"
     },
     "step4e_path_shape": "cycloid",
-    "step4e_version": "step5d_strict_rnn_autotune_v3_r001",
+    "step4e_version": "step5d_strict_rnn_autotune_v3",
     "step5d_qdot_limit_rad_s": 0.5,
     "target_force_n": 12.0
   },
@@ -1371,7 +1371,7 @@
     },
     "state": "user_accepted_engineering_convergence"
   },
-  "program": "step5d_strict_rnn_autotune_v3_r001",
+  "program": "step5d_strict_rnn_autotune_v3",
   "readiness": {
     "bridge_process_ready": false,
     "bridge_start_ready": false,

@@ -10480,7 +10480,7 @@
       "current_binding": {
         "is_current": true,
         "stage_id": "step5d_strict_rnn_autotune_v3",
-        "program": "step5d_strict_rnn_autotune_v3_r001",
+        "program": "step5d_strict_rnn_autotune_v3",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r001.urp",
         "current_stage_pointer": "config/current_stage.json",
         "live_authorized": false
