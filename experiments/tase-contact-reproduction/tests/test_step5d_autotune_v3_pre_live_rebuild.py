@@ -92,7 +92,8 @@ def test_current_readback_promotes_only_direct_bridge_start_readiness() -> None:
         "bridge_process_ready": False,
         "bridge_start_ready": True,
         "campaign_ready": False,
-        "deployment_ready": True,
-        "motion_arm_ready": False,
+            "deployment_ready": True,
+            "host_runtime_disposition": "verified_typed_closure_v2_cold_read",
+            "motion_arm_ready": False,
         "selected_release": rebuild.V3_STAGE_ID,
     }

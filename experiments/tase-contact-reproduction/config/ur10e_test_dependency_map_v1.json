@@ -123,13 +123,16 @@
         "tools/run_step5d_autotune_v3_bridge.py",
         "tools/build_step5d_autotune_tp_v3.py",
         "tools/build_step5d_autotune_v3_*_evidence.py",
+        "tools/rebuild_step5d_autotune_v3_pre_live_evidence.py",
         "tools/benchmark_step5d_v3_sphere_seam.py",
         "tools/step5d_v30_timing.py",
         "tools/validate_step5d_autotune_v3_refactor.py",
         "tools/verify_step5d_autotune_v3_*.py",
         "config/step5/step5d_autotune_v3_*.json",
         "programs/step5/step5d/step5d_strict_rnn_autotune_v3.*",
-        "tests/step5d_v3_fake_bridge_harness.py"
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.*",
+        "tests/step5d_v3_fake_bridge_harness.py",
+        "tests/fixtures/step5d_r005_typed_closure_v2_incident.json"
       ],
       "tests": [
         "tests/test_step5d_autotune_v3_contract.py",

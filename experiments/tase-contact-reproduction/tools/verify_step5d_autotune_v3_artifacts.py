@@ -16,6 +16,7 @@ import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r005"
 POSE_PRIOR_ID = "step5d_v3_physical_prior_contact_0p1_20260719"
 EXPECTED_ROTVEC = [3.120752062, 0.0, 0.068626833]
 HISTORICAL_POSE_PRIOR_ID = "step5d_v3_start_pose_prior_contact_0p1_20260719"
@@ -39,11 +40,11 @@ BOUND_PATHS = {
     "config/step5/step5d_autotune_v3_attempt_ledger.json",
     "config/step5d_autotune_controller_readback_v3.json",
     "evidence/step5d_autotune_v3/start_pose_prior_20260719.json",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.deploy-manifest.json",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.numeric-sanity.json",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.txt",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp",
+    f"programs/step5/step5d/{TP_PROGRAM_ID}.deploy-manifest.json",
+    f"programs/step5/step5d/{TP_PROGRAM_ID}.numeric-sanity.json",
+    f"programs/step5/step5d/{TP_PROGRAM_ID}.script",
+    f"programs/step5/step5d/{TP_PROGRAM_ID}.txt",
+    f"programs/step5/step5d/{TP_PROGRAM_ID}.urp",
 } | execution_readiness.READINESS_EVIDENCE_RELATIVE_PATHS
 
 
@@ -120,7 +121,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     basename = package.get("program_basename")
     prefix = package.get("local_triplet")
     triplet = package.get("sha256") or {}
-    if basename != V3_STAGE_ID or not isinstance(prefix, str):
+    if basename != TP_PROGRAM_ID or not isinstance(prefix, str):
         raise ArtifactVerificationError("V3 package identity differs")
     if set(triplet) != {".script", ".txt", ".urp"}:
         raise ArtifactVerificationError("V3 package triplet fields differ")
@@ -174,12 +175,12 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     numeric = _load_json(root / f"{prefix}.numeric-sanity.json", role="TP numeric sanity")
     for key, expected in (
         ("schema", "step5d.autotune-v3/tp-numeric-sanity-v1"),
-        ("program", V3_STAGE_ID),
+        ("program", TP_PROGRAM_ID),
         (
             "delta_class",
-            "identity_precontact_prior_exact_batch_lifecycle_return_angular_envelope_stage25_watchdog_ticketed_certification_v3",
+            "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_read_only_telemetry_v5",
         ),
-        ("stage25_stale_command_hold_s", 0.02),
+        ("stage25_stale_command_hold_s", 1.0),
         ("precontact_pose_prior_id", POSE_PRIOR_ID),
         ("precontact_xyz_m", EXPECTED_XYZ),
         ("precontact_rotvec_rad", EXPECTED_ROTVEC),
@@ -190,36 +191,6 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         ("output_integer_registers", list(range(24, 34))),
         ("safe_transfer_z_m", 0.033),
         ("return_segment_count", 3),
-        ("return_controller", "speedl_bounded_twist_v1"),
-        ("return_angular_speed_limit_rad_s", 0.05),
-        ("return_angular_acceleration_limit_rad_s2", 0.1),
-        ("return_angular_speed_guard_rad_s", 0.06),
-        ("return_angular_acceleration_guard_rad_s2", 0.5),
-        ("return_angular_stop_deceleration_rad_s2", 0.1),
-        ("return_orientation_admission_limit_rad", 0.3490658503988659),
-        ("return_controller_period_s", 0.002),
-        ("return_controller_max_sample_gap_s", 0.004),
-        ("return_sample_gap_clock", "controller_monotonic_time_mode_0"),
-        ("return_segment_phase_codes", [40.1, 40.2, 40.3]),
-        (
-            "return_continuous_telemetry_output_float_registers",
-            list(range(39, 45)),
-        ),
-        (
-            "certification_commands",
-            {
-                "direct_exact_stop": 4,
-                "stale_watchdog_exact_stop": 5,
-                "return_route": 6,
-            },
-        ),
-        ("certification_execution_profile_id", 9001),
-        ("certification_samples_per_stop_procedure", 3),
-        ("certification_safe_z_min_m", 0.033),
-        ("certification_excursion_m", 0.004),
-        ("certification_linear_speed_m_s", 0.01),
-        ("certification_linear_acceleration_m_s2", 0.06),
-        ("certification_stop_telemetry_output_float_registers", [45, 46, 47]),
         (
             "batch_row_policy",
             "rows_1_to_9_near_ready_row_10_campaign_home",

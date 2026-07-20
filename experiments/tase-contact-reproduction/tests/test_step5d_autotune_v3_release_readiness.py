@@ -95,6 +95,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "program": V3,
             "tp_program_id": R005,
             "tp_program_disposition": "controller_readback_verified",
+            "host_runtime_disposition": "verified_typed_closure_v2_cold_read",
             "selection_state": "current",
         },
     )
@@ -196,6 +197,26 @@ def test_known_incompatible_tp_program_cannot_reuse_a_bridge_context(
     assert report["bridge_start_ready"] is False
     assert report["tp_program_start_allowed"] is False
     assert "r004_return_telemetry_contract_mismatch" in report["blockers"]
+
+
+def test_known_incompatible_host_runtime_cannot_reuse_a_bridge_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _identity, _bridge, bridge_path = _fixture(tmp_path, monkeypatch)
+    current_path = root / "config/step5d/current.json"
+    current = json.loads(current_path.read_text(encoding="utf-8"))
+    current["host_runtime_disposition"] = "known_incompatible_do_not_retry"
+    _write(current_path, current)
+
+    report = readiness.resolve_release_readiness(
+        root,
+        bridge_start_context_path=bridge_path,
+    )
+
+    assert report["deployment_ready"] is True
+    assert report["bridge_start_ready"] is False
+    assert report["host_runtime_start_allowed"] is False
+    assert "r005_typed_closure_v2_cold_read_incompatible" in report["blockers"]
 
 
 def test_runtime_no_arm_claim_requires_live_pid_and_cannot_claim_campaign(

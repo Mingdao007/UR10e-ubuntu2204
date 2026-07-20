@@ -304,6 +304,7 @@ def test_registry_coverage_ledger_and_incident_provenance_are_closed() -> None:
         "step5d-v3-near-ready-home-confusion",
         "step5d-v3-trajectory-reference-mismatch",
         "step5d-v3-aabb-sphere-dual-enforcement",
+        "step5d-v3-r005-typed-closure-cold-read",
     }
     assert {row["incident_id"] for row in fixture_rows} == expected_ids
     ledger_by_signature = {entry["canonical_signature"]: entry for entry in entries}
@@ -313,7 +314,7 @@ def test_registry_coverage_ledger_and_incident_provenance_are_closed() -> None:
         ledger_row = ledger_by_signature[signature]
         assert ledger_row["counts_for_recurrence"] is row["counts_for_recurrence"]
         assert ledger_row["outcome_class"] == row["outcome_class"]
-    assert len(entries) == 9
+    assert len(entries) == 10
 
     registry_ids = {item["id"] for item in registry["invariants"]}
     coverage_ids = {item["invariant_id"] for item in coverage["invariants"]}
@@ -324,6 +325,7 @@ def test_registry_coverage_ledger_and_incident_provenance_are_closed() -> None:
         "f2g.step5d_trial_reset_no_relatch",
         "f2g.actual_overlay_identity",
         "f2g.exact_batch_completion",
+        "f2g.trial_bundle_cold_read_ack_next_arm",
         "f2g.metric_role_optimizer_gate",
         "f2g.typed_return_reference",
         "f2g.trajectory_reference_binding",

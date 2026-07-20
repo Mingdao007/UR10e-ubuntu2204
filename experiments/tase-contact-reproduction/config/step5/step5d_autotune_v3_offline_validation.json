@@ -201,7 +201,7 @@
       "certified": false,
       "evidence": {
         "path": "config/step5/step5d_autotune_v3_stopping_bound_evidence.json",
-        "sha256": "53c75a0849bed4ee26b48b4168fe2acef56634824e1020a3da5c9c2f77782f47"
+        "sha256": "1a1ea6adca9b78a4db76cb6ee1a2102d062902cbc0a26422e355e1ae15fce2ee"
       },
       "fail_closed": true,
       "status": "blocked"
@@ -215,24 +215,24 @@
     },
     "deployment_fingerprint": "a7aa7f38da19b322e55b229cbc70c460b2d5d9bf728bd6982997429f4223fbc3",
     "legacy_provenance": {
-      "contract_sha256": "28f405fca98866543cc9617ead5c4f885e6adb5d415734f5a196f60cbcfc83eb",
-      "control_fingerprint": "cd99fef7856ad9cc27441c5581dab362b1af22a699274e07dd999c7731b1c568",
-      "orchestration_fingerprint": "fc0a4494e0a89293e914357ff4ebf1776ef9f305d4f70b887fe4d8a1fce09d1f"
+      "contract_sha256": "b72b2e8096ed2f71f23bf261681b4b7984f0994a6efcb391283fb2abe328f1b8",
+      "control_fingerprint": "a6077c44ba216a93c693fdf54bb3c2ca951a4e5bf33bdaa4acb2c565df42193a",
+      "orchestration_fingerprint": "1fcfcc22197ab208062b1374e9ff1c88c46f9fa232c4df55ad9b80bd0749f026"
     },
     "local_triplet_sha256": {
       ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
       ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
       ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
     },
-    "orchestration_fingerprint": "87c370ff53bb697c2ba0749709959d08a90146f26ba9e7b30318c5a8995f1041",
+    "orchestration_fingerprint": "3e42f764a89f3102afb3192e2ab71a437504e88b132a43c6a69ac50b41fa94d4",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
     "schema": "step5d.autotune-v3/layered-identity-snapshot-v1",
-    "tick_semantics_fingerprint": "35b3d58cf95065a25c1c4203fe228c39a101e3c173dbaeb4cda08f298a8fdf80",
+    "tick_semantics_fingerprint": "907c583ecae75741aa0a9c1dde65d0d1e3ed10c969526a265a93f18e29532633",
     "timing_harness_fingerprint": "016e7af37c89391d4b7652da5ae91ae95ec50c547aaa86cb8d1cfc1185196ae2",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "6fbc2fc5a4457af26768a4ee64792fc8bf4e3f6390b9d97c971a9ceb8d038d80"
+      "evidence_verifier_fingerprint": "72e9ff20fdfed01b7e7beb08e636a0872a3d06a0563204429e61574c2be207c7"
     }
   },
   "observed_at": "2026-07-20T20:52:00+08:00",

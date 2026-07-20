@@ -1,6 +1,12 @@
 {
   "bridge_profile": {
     "cage_primary_policy": "During active Stage25 the authoritative frozen-progress moving sphere checks actual and certified predicted-stop distance; legacy AABB enforcement is disabled for V3.",
+    "force_baseline_policy": {
+      "anchor_source": "first_qualified_stage23_window",
+      "hardware_zero_or_tare": false,
+      "later_windows": "diagnostic_only_nonblocking_when_complete_and_finite",
+      "mode": "fixed_campaign_anchor_plus_per_trial_diagnostic"
+    },
     "normal_filter_alpha": 0.55,
     "normal_follow_mode": "filtered_live",
     "normal_follow_settle_s": 0.15,
@@ -1378,6 +1384,7 @@
     "bridge_start_ready": true,
     "campaign_ready": false,
     "deployment_ready": true,
+    "host_runtime_disposition": "verified_typed_closure_v2_cold_read",
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },

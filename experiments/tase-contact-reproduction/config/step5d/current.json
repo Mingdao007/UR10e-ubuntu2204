@@ -5,6 +5,7 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "tp_program_id": "step5d_strict_rnn_autotune_v3_r005",
   "tp_program_disposition": "controller_readback_verified",
+  "host_runtime_disposition": "verified_typed_closure_v2_cold_read",
   "selection_state": "current",
   "state": "controller_readback_verified_ready_for_bridge_context",
   "deployment": {

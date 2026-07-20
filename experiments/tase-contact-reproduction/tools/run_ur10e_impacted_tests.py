@@ -215,6 +215,16 @@ def pytest_command(python: Path, tests: list[str], *, workers: int, parallel: bo
     return command
 
 
+def runtime_pythonpath(root: Path, inherited: str | None) -> str | None:
+    """Expose the repository runtime package when the experiment is nested in-tree."""
+    runtime_source = root.parent.parent / "src" / "ur10e_experiment_runtime"
+    if not runtime_source.is_dir():
+        return inherited
+    return os.pathsep.join(
+        value for value in (str(runtime_source.resolve()), inherited) if value
+    )
+
+
 def execute(selection: dict[str, Any], *, python: Path, root: Path, output: Path,
             mode: str, workers: int) -> list[dict[str, Any]]:
     env = os.environ.copy()
@@ -227,6 +237,9 @@ def execute(selection: dict[str, Any], *, python: Path, root: Path, output: Path
         "NUMEXPR_NUM_THREADS": "1",
         "UR10E_TEST_PYTHON": str(python.resolve()),
     })
+    pythonpath = runtime_pythonpath(root, env.get("PYTHONPATH"))
+    if pythonpath is not None:
+        env["PYTHONPATH"] = pythonpath
     validators = [
         (Path(path).stem, [str(python), path]) for path in selection["validators"]
     ]

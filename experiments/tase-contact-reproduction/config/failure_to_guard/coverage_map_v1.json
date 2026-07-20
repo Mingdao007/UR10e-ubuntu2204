@@ -90,6 +90,16 @@
       }
     },
     {
+      "invariant_id": "f2g.trial_bundle_cold_read_ack_next_arm",
+      "lanes": {
+        "small": {"required": true, "status": "implemented_r005", "evidence": ["tests/fixtures/step5d_r005_typed_closure_v2_incident.json", "tests/test_step5d_autotune_store.py"]},
+        "medium": {"required": true, "status": "implemented_r005", "evidence": ["tests/test_step5d_autotune_runtime_lifecycle.py", "tests/test_step5d_autotune_recovery.py"]},
+        "replay": {"required": true, "status": "implemented_r005_typed_ten_trial", "evidence": ["tests/step5d_v3_fake_bridge_harness.py", "tests/test_step5d_autotune_v3_acceptance.py"]},
+        "hil": {"required": true, "status": "historical_incident_not_a_pass", "evidence": ["tests/fixtures/step5d_r005_typed_closure_v2_incident.json"]},
+        "live": {"required": true, "status": "not_run_requires_authorization", "evidence": []}
+      }
+    },
+    {
       "invariant_id": "f2g.metric_role_optimizer_gate",
       "lanes": {
         "small": {"required": true, "status": "implemented", "evidence": ["tests/test_failure_to_guard.py"]},

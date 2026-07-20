@@ -594,6 +594,18 @@ def rtde_output_fields_for(bridge_profile: str) -> list[str]:
 BIAS_VECTOR_NAMES = ("fx_n", "fy_n", "fz_n", "mx_nm", "my_nm", "mz_nm")
 BIAS_ESTIMATE_FIELDS = [f"bias_est_{name}" for name in BIAS_VECTOR_NAMES]
 BIAS_RATE_ESTIMATE_FIELDS = [f"bias_rate_est_{name}_per_s" for name in BIAS_VECTOR_NAMES]
+DIAGNOSTIC_BIAS_FIELDS = [f"diagnostic_bias_{name}" for name in BIAS_VECTOR_NAMES]
+BASELINE_DRIFT_FIELDS = [f"baseline_drift_{name}" for name in BIAS_VECTOR_NAMES]
+BASELINE_DIAGNOSTIC_FIELDS = [
+    "anchor_ready",
+    "anchor_epoch",
+    "diagnostic_epoch",
+    "diagnostic_samples",
+    "baseline_quality_ok",
+    "baseline_quality_flags",
+    *DIAGNOSTIC_BIAS_FIELDS,
+    *BASELINE_DRIFT_FIELDS,
+]
 BIAS_LOG_FIELDS = [
     "zero_event_id",
     "contact_mask",
@@ -601,6 +613,7 @@ BIAS_LOG_FIELDS = [
     "bias_contact_reason",
     *BIAS_ESTIMATE_FIELDS,
     *BIAS_RATE_ESTIMATE_FIELDS,
+    *BASELINE_DIAGNOSTIC_FIELDS,
 ]
 BIAS_BRIDGE_LOG_FIELDS = [
     *BIAS_LOG_FIELDS,
@@ -613,6 +626,12 @@ KINEMATIC_DERIVED_FIELDS = [
 ]
 DEFAULT_BIAS_CONTACT_NORMAL_THRESHOLD_N = 0.75
 DEFAULT_BIAS_CONTACT_FORCE_NORM_THRESHOLD_N = 2.0
+CAMPAIGN_ANCHOR_MIN_SAMPLES = 400
+CAMPAIGN_ANCHOR_FORCE_STD_MAX_N = 0.5
+CAMPAIGN_ANCHOR_TORQUE_STD_MAX_NM = 0.02
+CAMPAIGN_ANCHOR_TCP_LINEAR_MAX_M_S = 0.001
+CAMPAIGN_ANCHOR_TCP_ANGULAR_MAX_RAD_S = 0.01
+CAMPAIGN_ANCHOR_QD_MAX_RAD_S = 0.01
 
 
 STEP4E_START_XY = (0.43301, 0.10802)
@@ -1164,6 +1183,141 @@ def bias_estimate_row(bias_estimate: list[float], bias_rate_estimate: list[float
     for name, value in zip(BIAS_RATE_ESTIMATE_FIELDS, bias_rate_estimate):
         row[name] = float(value)
     return row
+
+
+def evaluate_baseline_window(
+    samples: Sequence[Sequence[float]],
+    *,
+    bootstrap_baseline: Sequence[float],
+    normal_axis: str,
+    normal_sign: float,
+    tcp_linear_max_m_s: float,
+    tcp_angular_max_rad_s: float,
+    qd_max_rad_s: float,
+) -> dict[str, Any]:
+    flags: list[str] = []
+    complete = len(samples) >= CAMPAIGN_ANCHOR_MIN_SAMPLES
+    if not complete:
+        flags.append("sample_count_incomplete")
+    finite = bool(samples) and all(
+        len(row) >= 6 and all(math.isfinite(float(value)) for value in row[:6])
+        for row in samples
+    )
+    if not finite:
+        flags.append("nonfinite_sample")
+    if not finite:
+        mean = [math.nan] * 6
+        std = [math.nan] * 6
+    else:
+        axes = tuple(zip(*(tuple(float(value) for value in row[:6]) for row in samples)))
+        mean = [statistics.fmean(axis) for axis in axes]
+        std = [statistics.pstdev(axis) for axis in axes]
+    bootstrap = [float(value) for value in bootstrap_baseline[:6]]
+    drift = [value - offset for value, offset in zip(mean, bootstrap)]
+    normal_drift = normal_component(drift, normal_axis, normal_sign)
+    force_drift_norm = vec_norm(drift[:3])
+    if finite and abs(normal_drift) >= DEFAULT_BIAS_CONTACT_NORMAL_THRESHOLD_N:
+        flags.append("normal_contact_threshold")
+    if finite and force_drift_norm >= DEFAULT_BIAS_CONTACT_FORCE_NORM_THRESHOLD_N:
+        flags.append("force_contact_threshold")
+    if finite and any(value > CAMPAIGN_ANCHOR_FORCE_STD_MAX_N for value in std[:3]):
+        flags.append("force_noise_threshold")
+    if finite and any(value > CAMPAIGN_ANCHOR_TORQUE_STD_MAX_NM for value in std[3:]):
+        flags.append("torque_noise_threshold")
+    motion = (
+        ("tcp_linear_motion", tcp_linear_max_m_s, CAMPAIGN_ANCHOR_TCP_LINEAR_MAX_M_S),
+        ("tcp_angular_motion", tcp_angular_max_rad_s, CAMPAIGN_ANCHOR_TCP_ANGULAR_MAX_RAD_S),
+        ("joint_motion", qd_max_rad_s, CAMPAIGN_ANCHOR_QD_MAX_RAD_S),
+    )
+    for name, value, limit in motion:
+        if not math.isfinite(value) or value > limit:
+            flags.append(name)
+    return {
+        "complete": complete and finite,
+        "qualified": complete and finite and not flags,
+        "mean": mean,
+        "std": std,
+        "drift_from_bootstrap": drift,
+        "normal_drift_n": normal_drift,
+        "force_drift_norm_n": force_drift_norm,
+        "flags": tuple(flags),
+    }
+
+
+def baseline_diagnostic_row(
+    *,
+    anchor_ready: bool,
+    anchor_epoch: int,
+    diagnostic_epoch: int,
+    diagnostic_samples: int,
+    quality_ok: bool,
+    quality_flags: Sequence[str],
+    diagnostic_baseline: Sequence[float],
+    baseline_drift: Sequence[float],
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "anchor_ready": int(anchor_ready),
+        "anchor_epoch": int(anchor_epoch),
+        "diagnostic_epoch": int(diagnostic_epoch),
+        "diagnostic_samples": int(diagnostic_samples),
+        "baseline_quality_ok": int(quality_ok),
+        "baseline_quality_flags": ",".join(quality_flags),
+    }
+    row.update({name: float(value) for name, value in zip(DIAGNOSTIC_BIAS_FIELDS, diagnostic_baseline)})
+    row.update({name: float(value) for name, value in zip(BASELINE_DRIFT_FIELDS, baseline_drift)})
+    return row
+
+
+def resolve_dual_baseline_update(
+    *,
+    epoch: int,
+    bootstrap_baseline: Sequence[float],
+    campaign_anchor: Sequence[float],
+    anchor_ready: bool,
+    candidate_baseline: Sequence[float],
+    complete: bool,
+    qualified: bool,
+) -> dict[str, Any]:
+    bootstrap = [float(value) for value in bootstrap_baseline[:6]]
+    anchor = [float(value) for value in campaign_anchor[:6]]
+    candidate = [float(value) for value in candidate_baseline[:6]]
+    if epoch == 0:
+        return {
+            "applied": candidate,
+            "bootstrap": candidate,
+            "anchor": anchor,
+            "anchor_ready": anchor_ready,
+            "anchor_epoch": 0,
+            "diagnostic": [math.nan] * 6,
+            "diagnostic_epoch": 0,
+            "ready": complete,
+            "retry_required": False,
+        }
+    if epoch == 1:
+        latched = complete and qualified
+        return {
+            "applied": candidate if latched else bootstrap,
+            "bootstrap": bootstrap,
+            "anchor": candidate if latched else anchor,
+            "anchor_ready": latched,
+            "anchor_epoch": 1 if latched else 0,
+            "diagnostic": candidate,
+            "diagnostic_epoch": 1,
+            "ready": latched,
+            "retry_required": complete and not qualified,
+        }
+    diagnostic_ready = complete and anchor_ready
+    return {
+        "applied": anchor,
+        "bootstrap": bootstrap,
+        "anchor": anchor,
+        "anchor_ready": anchor_ready,
+        "anchor_epoch": 1 if anchor_ready else 0,
+        "diagnostic": candidate,
+        "diagnostic_epoch": epoch,
+        "ready": diagnostic_ready,
+        "retry_required": False,
+    }
 
 
 def bias_contact_mask(
@@ -10586,6 +10740,20 @@ def main(argv: list[str] | None = None) -> int:
     baseline_ready = args.baseline_s == 0
     baseline_start_mono: float | None = None
     baseline_epoch = 0
+    dual_baseline_policy = args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+    bootstrap_baseline = list(baseline)
+    campaign_anchor = list(baseline)
+    anchor_ready = False
+    anchor_epoch = 0
+    diagnostic_baseline = [math.nan] * 6
+    diagnostic_epoch = 0
+    diagnostic_samples = 0
+    baseline_drift = [math.nan] * 6
+    baseline_quality_ok = False
+    baseline_quality_flags: tuple[str, ...] = ()
+    baseline_motion_max = [math.inf, math.inf, math.inf]
+    baseline_motion_samples = 0
+    baseline_window_evaluated = False
     bias_rate_estimate = [0.0] * 6
     bias_estimate_initialized = baseline_ready
     bias_estimate_update_mono: float | None = start_mono if baseline_ready else None
@@ -11004,20 +11172,80 @@ def main(argv: list[str] | None = None) -> int:
                                 baseline_start_mono = latest_frame_time
                             baseline_raw_si.append(raw_si)
                             target_baseline_s = args.baseline_s if baseline_epoch == 0 else args.rezero_s
-                            if latest_frame_time - baseline_start_mono >= target_baseline_s:
-                                new_baseline = [statistics.fmean(axis) for axis in zip(*baseline_raw_si)]
-                                if bias_estimate_initialized and bias_estimate_update_mono is not None:
-                                    bias_rate_estimate = finite_vector_derivative(
-                                        new_baseline,
-                                        baseline,
-                                        latest_frame_time - bias_estimate_update_mono,
+                            window_complete = (
+                                latest_frame_time - baseline_start_mono >= target_baseline_s
+                                and (
+                                    not dual_baseline_policy
+                                    or baseline_epoch == 0
+                                    or (
+                                        len(baseline_raw_si) >= CAMPAIGN_ANCHOR_MIN_SAMPLES
+                                        and baseline_motion_samples > 0
                                     )
+                                )
+                            )
+                            if window_complete and not baseline_window_evaluated:
+                                baseline_window_evaluated = True
+                                new_baseline = [statistics.fmean(axis) for axis in zip(*baseline_raw_si)]
+                                quality = evaluate_baseline_window(
+                                    baseline_raw_si,
+                                    bootstrap_baseline=bootstrap_baseline,
+                                    normal_axis=args.normal_axis,
+                                    normal_sign=args.normal_sign,
+                                    tcp_linear_max_m_s=baseline_motion_max[0],
+                                    tcp_angular_max_rad_s=baseline_motion_max[1],
+                                    qd_max_rad_s=baseline_motion_max[2],
+                                )
+                                baseline_quality_ok = bool(quality["qualified"])
+                                baseline_quality_flags = tuple(quality["flags"])
+                                diagnostic_samples = len(baseline_raw_si)
+                                if not dual_baseline_policy:
+                                    baseline = new_baseline
+                                    bootstrap_baseline = list(new_baseline)
+                                    campaign_anchor = list(new_baseline)
+                                    anchor_ready = True
+                                    anchor_epoch = baseline_epoch
+                                    baseline_ready = True
                                 else:
-                                    bias_rate_estimate = [0.0] * 6
-                                baseline = new_baseline
-                                bias_estimate_initialized = True
-                                bias_estimate_update_mono = latest_frame_time
-                                baseline_ready = True
+                                    previous_diagnostic = list(diagnostic_baseline)
+                                    update = resolve_dual_baseline_update(
+                                        epoch=baseline_epoch,
+                                        bootstrap_baseline=bootstrap_baseline,
+                                        campaign_anchor=campaign_anchor,
+                                        anchor_ready=anchor_ready,
+                                        candidate_baseline=new_baseline,
+                                        complete=bool(quality["complete"]),
+                                        qualified=bool(quality["qualified"]),
+                                    )
+                                    baseline = list(update["applied"])
+                                    bootstrap_baseline = list(update["bootstrap"])
+                                    campaign_anchor = list(update["anchor"])
+                                    anchor_ready = bool(update["anchor_ready"])
+                                    anchor_epoch = int(update["anchor_epoch"])
+                                    diagnostic_baseline = list(update["diagnostic"])
+                                    diagnostic_epoch = int(update["diagnostic_epoch"])
+                                    baseline_ready = bool(update["ready"])
+                                    if baseline_epoch == 1:
+                                        baseline_drift = list(quality["drift_from_bootstrap"])
+                                        bias_rate_estimate = [0.0] * 6
+                                    elif baseline_ready:
+                                        rate_reference = (
+                                            previous_diagnostic
+                                            if all(math.isfinite(value) for value in previous_diagnostic)
+                                            else campaign_anchor
+                                        )
+                                        if bias_estimate_update_mono is not None:
+                                            bias_rate_estimate = finite_vector_derivative(
+                                                new_baseline,
+                                                rate_reference,
+                                                latest_frame_time - bias_estimate_update_mono,
+                                            )
+                                        baseline_drift = [
+                                            value - offset
+                                            for value, offset in zip(new_baseline, campaign_anchor)
+                                        ]
+                                bias_estimate_initialized = baseline_ready
+                                if baseline_ready:
+                                    bias_estimate_update_mono = latest_frame_time
                                 zero_events.append(
                                     {
                                         "baseline_epoch": baseline_epoch,
@@ -11025,8 +11253,26 @@ def main(argv: list[str] | None = None) -> int:
                                         "completed_at_monotonic_s": latest_frame_time,
                                         "samples": len(baseline_raw_si),
                                         "duration_s": latest_frame_time - baseline_start_mono,
+                                        "anchor_ready": anchor_ready,
+                                        "anchor_epoch": anchor_epoch,
+                                        "diagnostic_epoch": diagnostic_epoch,
+                                        "quality_ok": baseline_quality_ok,
+                                        "quality_flags": list(baseline_quality_flags),
+                                        "retry_required": bool(
+                                            dual_baseline_policy
+                                            and update["retry_required"]
+                                        ),
                                     }
                                 )
+                                if (
+                                    dual_baseline_policy
+                                    and bool(update["retry_required"])
+                                ):
+                                    baseline_raw_si = []
+                                    baseline_start_mono = latest_frame_time
+                                    baseline_motion_max = [math.inf, math.inf, math.inf]
+                                    baseline_motion_samples = 0
+                                    baseline_window_evaluated = False
                         latest_zeroed = [value - offset for value, offset in zip(raw_si, baseline)]
                         normal = normal_component(latest_zeroed, args.normal_axis, args.normal_sign)
                         force_norm = vec_norm(latest_zeroed[:3])
@@ -11083,6 +11329,19 @@ def main(argv: list[str] | None = None) -> int:
                                 **{
                                     key: csv_value(value)
                                     for key, value in bias_estimate_row(baseline, bias_rate_estimate).items()
+                                },
+                                **{
+                                    key: csv_value(value)
+                                    for key, value in baseline_diagnostic_row(
+                                        anchor_ready=anchor_ready,
+                                        anchor_epoch=anchor_epoch,
+                                        diagnostic_epoch=diagnostic_epoch,
+                                        diagnostic_samples=diagnostic_samples,
+                                        quality_ok=baseline_quality_ok,
+                                        quality_flags=baseline_quality_flags,
+                                        diagnostic_baseline=diagnostic_baseline,
+                                        baseline_drift=baseline_drift,
+                                    ).items()
                                 },
                                 "frame_hex": frame.hex(),
                             }
@@ -11197,6 +11456,31 @@ def main(argv: list[str] | None = None) -> int:
                                 0.0, float(last_published_heartbeat) - echo_float
                             )
                         zero_request = float(sample.get("output_double_register_34", 0.0))
+                        if not baseline_ready:
+                            tcp_speed = sample.get("actual_TCP_speed")
+                            actual_qd = sample.get("actual_qd")
+                            if (
+                                isinstance(tcp_speed, Sequence)
+                                and len(tcp_speed) >= 6
+                                and isinstance(actual_qd, Sequence)
+                                and len(actual_qd) >= 6
+                            ):
+                                motion_values = (
+                                    vec_norm([float(value) for value in tcp_speed[:3]]),
+                                    vec_norm([float(value) for value in tcp_speed[3:6]]),
+                                    max(abs(float(value)) for value in actual_qd[:6]),
+                                )
+                                if all(math.isfinite(value) for value in motion_values):
+                                    if baseline_motion_samples == 0:
+                                        baseline_motion_max = list(motion_values)
+                                    else:
+                                        baseline_motion_max = [
+                                            max(previous, current)
+                                            for previous, current in zip(
+                                                baseline_motion_max, motion_values
+                                            )
+                                        ]
+                                    baseline_motion_samples += 1
                         if last_zero_request is None:
                             last_zero_request = zero_request
                         elif abs(zero_request - last_zero_request) > zero_request_epsilon:
@@ -11211,6 +11495,9 @@ def main(argv: list[str] | None = None) -> int:
                                 baseline_ready = False
                                 baseline_raw_si = []
                                 baseline_start_mono = time.monotonic()
+                                baseline_motion_max = [math.inf, math.inf, math.inf]
+                                baseline_motion_samples = 0
+                                baseline_window_evaluated = False
                                 zero_events.append(
                                     {
                                         "baseline_epoch": baseline_epoch,
@@ -11587,6 +11874,19 @@ def main(argv: list[str] | None = None) -> int:
                             key: csv_value(value)
                             for key, value in bias_estimate_row(baseline, bias_rate_estimate).items()
                         },
+                        **{
+                            key: csv_value(value)
+                            for key, value in baseline_diagnostic_row(
+                                anchor_ready=anchor_ready,
+                                anchor_epoch=anchor_epoch,
+                                diagnostic_epoch=diagnostic_epoch,
+                                diagnostic_samples=diagnostic_samples,
+                                quality_ok=baseline_quality_ok,
+                                quality_flags=baseline_quality_flags,
+                                diagnostic_baseline=diagnostic_baseline,
+                                baseline_drift=baseline_drift,
+                            ).items()
+                        },
                         "control_contact_window": int(control_contact_window),
                         "last_zero_request": "" if last_zero_request is None else last_zero_request,
                         "rtde_connected": int(rtde_connected),
@@ -11723,6 +12023,14 @@ def main(argv: list[str] | None = None) -> int:
         "baseline_ready": baseline_ready,
         "baseline_samples": len(baseline_raw_si),
         "baseline_epoch": baseline_epoch,
+        "anchor_ready": anchor_ready,
+        "anchor_epoch": anchor_epoch,
+        "campaign_anchor_si_offsets": dict(zip(BIAS_VECTOR_NAMES, campaign_anchor)),
+        "diagnostic_epoch": diagnostic_epoch,
+        "diagnostic_baseline_si_offsets": dict(zip(BIAS_VECTOR_NAMES, diagnostic_baseline)),
+        "baseline_drift_si": dict(zip(BIAS_VECTOR_NAMES, baseline_drift)),
+        "baseline_quality_ok": baseline_quality_ok,
+        "baseline_quality_flags": list(baseline_quality_flags),
         "last_zero_request": last_zero_request,
         "zero_events": zero_events,
         "rtde_reconnect_events": rtde_reconnect_events,

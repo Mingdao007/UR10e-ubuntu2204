@@ -45,10 +45,10 @@ RELATIVES = set(v3_state.ORCHESTRATION_RELATIVE_PATHS) | ACTIVE_EXPERIMENT_RELAT
     "config/step5/step5d_autotune_v3_offline_validation.json",
     "config/step5/step5d_autotune_v3_live_promotion.json",
     "config/step5d_autotune_controller_readback_v3.json",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.deploy-manifest.json",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.txt",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.deploy-manifest.json",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.urp",
     "config/step5/step5d_autotune_v3_control_contract.json",
 } | set(readiness.READINESS_EVIDENCE_RELATIVE_PATHS)
 REPO_RELATIVES = (
@@ -88,25 +88,23 @@ def _mutate_v3(fixture: Path, mutate) -> None:
 def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
-    assert report["state"] == "pre_live_blocked"
-    assert report["public_success_signal"] == "requires_current_poweroff_controller_identity"
+    assert report["state"] == "bridge_start_ready"
+    assert report["public_success_signal"] == "controller_readback_verified_ready_for_bridge_context"
     assert report["package_delivery"] == "controller_readback_verified"
-    assert report["ready_to_execute"] is False
+    assert report["ready_to_execute"] is True
     assert report["current_stage_id"] == readiness.V3_STAGE_ID
-    assert report["next_owner"] == "ur10e-contact-control-prep"
+    assert report["next_owner"] == "ur10e-bridge-ops"
     assert report["timing_diagnostic"] == (
         "diagnostic_only_partial_lane_reuse_not_required_by_user"
     )
     assert report["canonical_gate"] == [
-        "current_poweroff_controller_identity",
-        "certification_motion_authorization",
-        "certified_stopping_bound",
-        "certified_return_route_angular_envelope",
-        "fresh_campaign_authorization",
+        "exact_r005_controller_readback",
+        "fresh_bridge_start_context",
+        "same_process_runtime_binding",
     ]
     assert report["audit_policy"] == "parallel_advisory_nonblocking"
-    assert report["certification_motion_authorization_required"] is True
-    assert report["campaign_authorization_required"] is True
+    assert report["certification_motion_authorization_required"] is False
+    assert report["campaign_authorization_required"] is False
     assert report["hil_hold_required"] is False
 
 
@@ -196,7 +194,7 @@ def test_readiness_verification_is_independent_of_checkout_mtime(
         path.touch()
 
     report = readiness.verify(fixture)
-    assert report["state"] == "pre_live_blocked"
+    assert report["state"] == "bridge_start_ready"
 
 
 def test_user_confirmation_is_required_while_pre_live_blocked(tmp_path: Path) -> None:
@@ -243,11 +241,11 @@ def test_stage_table_cannot_promote_blocked_safety_fields(
         readiness.verify(fixture)
 
 
-def test_stage_table_requires_the_exact_pre_live_blockers(tmp_path: Path) -> None:
+def test_stage_table_rejects_unexpected_bridge_start_blockers(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     _mutate_v3(
         fixture,
-        lambda row: row["execution_readiness"]["blockers"].pop(),
+        lambda row: row["execution_readiness"]["blockers"].append("unexpected"),
     )
     with pytest.raises(readiness.ReadinessError, match="readiness blockers"):
         readiness.verify(fixture)
@@ -267,7 +265,7 @@ def test_both_authorization_types_remain_explicit(
     _mutate_v3(
         fixture,
         lambda row: row["execution_readiness"]["operator_trigger"].update(
-            {field: False}
+            {field: True}
         ),
     )
     with pytest.raises(readiness.ReadinessError, match=field):
@@ -306,7 +304,7 @@ def test_local_triplet_drift_invalidates_package_readiness(tmp_path: Path) -> No
     fixture = _fixture_root(tmp_path)
     script = (
         fixture
-        / "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script"
+        / "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.script"
     )
     script.write_bytes(script.read_bytes() + b"\n# drift\n")
     with pytest.raises(readiness.ReadinessError, match="local package digest"):

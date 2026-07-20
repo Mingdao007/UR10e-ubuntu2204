@@ -28,6 +28,7 @@ STAGE_TABLE_RELATIVE = "config/step5_stage_table.json"
 CURRENT_STAGE_RELATIVE = "config/current_stage.json"
 CONTROL_CONTRACT_RELATIVE = "config/step5/step5d_autotune_v3_control_contract.json"
 LAUNCH_PROFILE_RELATIVE = "config/step5/step5d_autotune_v3_launch_profile.json"
+CURRENT_RELEASE_RELATIVE = "config/step5d/current.json"
 STOPPING_RELATIVE = "config/step5/step5d_autotune_v3_stopping_bound_evidence.json"
 RETURN_RELATIVE = "config/step5/step5d_autotune_v3_return_route_evidence.json"
 URSIM_RETURN_RELATIVE = "config/step5/step5d_autotune_v3_ursim_return_trace.json"
@@ -37,6 +38,7 @@ MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
 ATTENDED_BLOCKERS = [
     "requires_attended_tp_upload_readback",
 ]
+HOST_RUNTIME_DISPOSITION = "verified_typed_closure_v2_cold_read"
 PRE_LIVE_DECISION = {
     "acceptance_scope": "offline_pre_live_only",
     "offline_implementation": "pass",
@@ -235,13 +237,18 @@ def build_outputs(
         identity.get("controller_readback_triplet_sha256")
         == local_triplet_sha256
     )
+    host_runtime_current = (
+        _read(root / CURRENT_RELEASE_RELATIVE).get("host_runtime_disposition")
+        == HOST_RUNTIME_DISPOSITION
+    )
+    bridge_start_ready = readback_current and host_runtime_current
     validation["decision"] = {
         **PRE_LIVE_DECISION,
         "hardware_promotion": (
             "deployment_ready" if readback_current else "blocked"
         ),
         "execution_readiness": (
-            "bridge_start_ready" if readback_current else "pre_live_blocked"
+            "bridge_start_ready" if bridge_start_ready else "pre_live_blocked"
         ),
     }
     gates["package_and_readback"]["local_triplet_sha256"] = (
@@ -334,6 +341,8 @@ def build_outputs(
             and blocker == "requires_attended_tp_upload_readback"
         )
     ]
+    if not host_runtime_current:
+        blockers.append("r005_typed_closure_v2_cold_read_incompatible")
     public_signal = (
         blockers[0]
         if blockers
@@ -414,22 +423,22 @@ def build_outputs(
     )
     row["execution_readiness"] = {
         "schema": "step5d.autotune-v3/execution-readiness-v3",
-        "state": "bridge_start_ready" if readback_current else "pre_live_blocked",
+        "state": "bridge_start_ready" if bridge_start_ready else "pre_live_blocked",
         "public_success_signal": public_signal,
         "deterministic_validation_complete": True,
         "package_delivery_complete": readback_current,
         "candidate_current": True,
         "live_runtime_promoted": False,
         "same_process_startup_gate_complete": False,
-        "ready_to_execute": readback_current,
+        "ready_to_execute": bridge_start_ready,
         "ready_to_load_play": False,
-        "ready_to_start_bridge": readback_current,
+        "ready_to_start_bridge": bridge_start_ready,
         "ready_to_arm": False,
         "ready_for_contact_or_motion": False,
         "blockers": blockers,
         "next_owner": (
             "ur10e-bridge-ops"
-            if readback_current
+            if bridge_start_ready
             else "ur10e-tp-package-delivery"
         ),
         "operator_trigger": {
@@ -456,7 +465,8 @@ def build_outputs(
         root / "config/step5d_autotune_controller_readback_v3.json"
     )
     current_stage["readiness"]["deployment_ready"] = readback_current
-    current_stage["readiness"]["bridge_start_ready"] = readback_current
+    current_stage["readiness"]["bridge_start_ready"] = bridge_start_ready
+    current_stage["readiness"]["blockers"] = blockers
     current_stage["readiness"]["bridge_process_ready"] = False
     current_stage["readiness"]["motion_arm_ready"] = False
     current_stage["readiness"]["campaign_ready"] = False

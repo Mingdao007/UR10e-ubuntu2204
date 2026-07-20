@@ -16,10 +16,18 @@ from run_ur10e_impacted_tests import (  # noqa: E402
     atomic_publish_cache,
     cache_key_lock,
     main as run_impacted,
+    runtime_pythonpath,
 )
 
 
 class Ur10eImpactSelectorTest(unittest.TestCase):
+    def test_runtime_pythonpath_exposes_repository_package(self) -> None:
+        expected = ROOT.parent.parent / "src" / "ur10e_experiment_runtime"
+        self.assertEqual(
+            runtime_pythonpath(ROOT, "/existing/path"),
+            f"{expected.resolve()}:/existing/path",
+        )
+
     def test_selects_impacted_plus_always_run_and_resource_groups(self) -> None:
         result = select(root=ROOT, paths=["tools/ur10e_parallel.py"])
         self.assertIn("tests/test_ur10e_parallel.py", result["selected_tests"])

@@ -10424,7 +10424,20 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r005.urp",
-        "live_readiness_state": "controller_readback_verified_ready_for_bridge_context"
+        "live_readiness_state": "controller_readback_verified_ready_for_bridge_context",
+        "force_baseline_policy": {
+          "mode": "fixed_campaign_anchor_plus_per_trial_diagnostic",
+          "anchor_source": "first_qualified_stage23_window",
+          "anchor_applies_to": [
+            "control",
+            "guards",
+            "optimizer_force"
+          ],
+          "later_window_policy": "record_quality_and_drift_never_overwrite_anchor",
+          "later_quality_failure": "nonblocking_when_complete_and_finite",
+          "handshake": "register34_request_and_sensor_ready_dip_rise_unchanged",
+          "hardware_zero_or_tare": false
+        }
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10461,18 +10474,19 @@
         "crash_cut_matrix_required": true,
         "rollback_drill_required": true,
         "canonical_internal_launch_binding_required": true,
+        "typed_closure_v2_cold_read_ack_next_arm_verified": true,
         "contact_live_accepted": false,
         "reproduction_complete": false
       },
       "offline_validation": {
         "acceptance_scope": "offline_pre_live_only",
         "diagnostic_bundle_replay": "pass",
-        "exact_ten_row_lifecycle": "pass",
+        "exact_ten_row_lifecycle": "pass_generated_r005_telemetry_typed_v2_cold_read",
         "formal_500hz_timing": "not_required_by_user",
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "abd980fa0047bde50d6e44c37698124d5333f2a1ba8bdc66e4091ae180716fb9",
+        "report_sha256": "0fd6abaa1d36d9f3e19e0d7f684f1ec3f70df2eaaf0c47e27074da3542945186",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
         "source_exact_sphere_seam_timing": "diagnostic_only_not_required_by_user",
         "status": "pass_offline_implementation_pre_live_blocked"

@@ -39,6 +39,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by hermetic CI.
     sys.modules["numpy"] = numpy_stub
 
 from step5d_autotune_batch_plan import CandidateBatchPlan  # noqa: E402
+import build_step5d_autotune_tp_v3 as tp_v3  # noqa: E402
 from step5d_autotune_contract import (  # noqa: E402
     CampaignSpec,
     CaptureArtifactPaths,
@@ -47,6 +48,7 @@ from step5d_autotune_contract import (  # noqa: E402
     ExecutionProfile,
     ForceCandidate,
     TrialDisposition,
+    TypedSafeClosureEvidence,
 )
 from step5d_autotune_coordinator import CampaignCoordinator  # noqa: E402
 from step5d_autotune_journal import (  # noqa: E402
@@ -63,10 +65,7 @@ from step5d_autotune_runtime_lifecycle import (  # noqa: E402
     PostAckControllerReadback,
     prepare_batch_attempt_context,
 )
-from step5d_autotune_state_machine import (  # noqa: E402
-    HostCommand,
-    SafeClosureEvidence,
-)
+from step5d_autotune_state_machine import HostCommand  # noqa: E402
 from step5d_autotune_store import CampaignStore  # noqa: E402
 from step5d_autotune_supervisor import (  # noqa: E402
     CampaignPhase,
@@ -148,17 +147,42 @@ def read_json(path: Path) -> dict[str, Any]:
     raise TimeoutError(f"timed out reading {path}: {last_error}")
 
 
-def safe_closure() -> SafeClosureEvidence:
-    return SafeClosureEvidence(
+def safe_closure(*, candidate_index: int, reference: Any) -> TypedSafeClosureEvidence:
+    telemetry = tp_v3.simulate_return_telemetry(
+        tuple((index * 0.002, 0.0, 0.0, 0.0) for index in range(301))
+    )
+    return TypedSafeClosureEvidence(
+        return_reference_uid=reference.reference_uid,
+        return_reference_kind=reference.kind.value,
+        batch_row_index=candidate_index,
         tp_position_error_m=0.001,
         tp_orientation_error_rad=0.01,
-        tp_joint_error_max_rad=0.005,
+        tp_qd_max_rad_s=0.005,
+        return_phase_echo=telemetry["ur_output_double_register_35"],
+        return_segment_id=int(telemetry["ur_output_double_register_39"]),
+        return_current_angular_speed_rad_s=telemetry["ur_output_double_register_40"],
+        return_current_angular_acceleration_rad_s2=telemetry["ur_output_double_register_41"],
+        return_max_angular_speed_rad_s=telemetry["ur_output_double_register_42"],
+        return_max_angular_acceleration_rad_s2=telemetry["ur_output_double_register_43"],
+        return_max_sample_gap_s=telemetry["ur_output_double_register_44"],
         host_position_error_m=0.001,
         host_orientation_error_rad=0.01,
-        host_joint_error_max_rad=0.005,
         host_tcp_linear_speed_m_s=0.0005,
         host_tcp_angular_speed_rad_s=0.005,
         host_qd_max_rad_s=0.005,
+        return_guard_mask=0x7F,
+        safety_guards={
+            name: True
+            for name in (
+                "force",
+                "torque",
+                "joints",
+                "sensor_freshness",
+                "heartbeat",
+                "contact_loss",
+                "route_workspace",
+            )
+        },
         host_safety_mode="NORMAL",
         host_dwell_s=0.5,
         trial_token_match=True,
@@ -178,8 +202,9 @@ def write_evaluated_bundle(
     root: Path,
     *,
     candidate_index: int,
+    reference: Any,
 ) -> tuple[Path, CaptureManifest, Evaluation]:
-    closure = safe_closure()
+    closure = safe_closure(candidate_index=candidate_index, reference=reference)
     artifact_dir = root / "captures" / trial.trial_uid
     artifact_dir.mkdir(parents=True)
     csv_bytes = (
@@ -621,6 +646,7 @@ def run_runner(args: argparse.Namespace) -> int:
             trial,
             root,
             candidate_index=index,
+            reference=batch_context.reference,
         )
         decision = coordinator.close_trial(
             manifest=manifest,

@@ -232,6 +232,12 @@ def resolve_release_readiness(
     tp_program_start_allowed = tp_program_disposition != "known_incompatible_do_not_retry"
     if not tp_program_start_allowed:
         blockers.append("r004_return_telemetry_contract_mismatch")
+    host_runtime_disposition = compatibility.get("host_runtime_disposition")
+    host_runtime_start_allowed = (
+        host_runtime_disposition == "verified_typed_closure_v2_cold_read"
+    )
+    if not host_runtime_start_allowed:
+        blockers.append("r005_typed_closure_v2_cold_read_incompatible")
 
     bridge_context: BridgeStartContext | None = None
     bridge_context_sha256: str | None = None
@@ -261,6 +267,7 @@ def resolve_release_readiness(
         bridge_context is not None
         and deployment_ready
         and tp_program_start_allowed
+        and host_runtime_start_allowed
     )
 
     arming_context: ArmingContext | None = None
@@ -334,6 +341,8 @@ def resolve_release_readiness(
         "controller_readback_sha256": readback_sha256,
         "tp_program_disposition": tp_program_disposition,
         "tp_program_start_allowed": tp_program_start_allowed,
+        "host_runtime_disposition": host_runtime_disposition,
+        "host_runtime_start_allowed": host_runtime_start_allowed,
         "blockers": blockers,
     }
 

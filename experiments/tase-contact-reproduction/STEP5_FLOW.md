@@ -5,11 +5,22 @@ unique current release route. Its immutable r005 TP package has exact local,
 controller, and fresh read-back SHA closure. r004 remains immutable
 `known_incompatible_do_not_retry` incident evidence and is never an optimizer
 observation. V1 remains frozen control-profile provenance and cannot be
-launched or selected as a fallback. r005 bridge-context generation is enabled;
+launched or selected as a fallback. The first r005 live attempt is retained as
+`attempted_incomplete`: typed-v2 closure and its bundle were written, but the
+bundle dropped the schema discriminator and cold-read stopped before ACK. The
+host serializer/decoder regression is now covered by generated r005 telemetry,
+cold store read, exactly-once ACK, trial-2 ARM, and a typed ten-trial fake bridge.
+r005 bridge-context generation is enabled only for this verified host runtime;
 the bridge and campaign still require fresh runtime identity binding. Formal
 10k/30k timing pressure testing and the temporary CPU/GPU timing service are
 not prerequisites. The bridge starts in `NO_ARM`; Codex never presses Play or
 Stop, and only the user's TP Play enters the command-1 campaign path.
+
+Kunwei software zero now uses two evidence roles. The first qualified Stage23
+window latches one campaign anchor used by control, guards, and optimizer force
+for all ten trials. Later register-34 requests retain the TP sensor-ready
+dip/rise handshake but update diagnostic baseline/drift only; contaminated
+finite diagnostic windows are recorded and never overwrite the anchor.
 
 Stage22 means `PREALIGN_IN_PROGRESS`, so the bridge does not apply the final
 pose-admission guard before the two blocking `movel` calls. Stage23 is the

@@ -90,27 +90,27 @@ PROTECTED_V1_SHA256 = {
 APPROVED_ORCHESTRATION_VARIANTS = {
     "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py": {
         "baseline_sha256": "5f913259826dcaff0d54bcae43d6c30b0efffe63ad8b8565e43459fa954fe3db",
-        "approved_sha256": "89d6da152678afb47744e782d2eeecf86c9c9a4b673e4ddcbdb4e9302dfd5153",
+        "approved_sha256": "f82d61f005d91719481299398d1bcd296d79db12fd5030b2e1fa801af3eac8f3",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {
         "baseline_sha256": "f7485600db9571d882076f3ceeed8ee999bee998d35fdc8fe2386664bb55550c",
-        "approved_sha256": "af96b74cf4a3fb87ed6d0d699852a504d3387794e9382bf4690d1fb65092d567",
+        "approved_sha256": "43468bc6a277b924185f29e58d7209ea568c59aa4634c1692037ccde3f910cb1",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_live_driver.py": {
         "baseline_sha256": "5929c1ceb20a8541c28793f5fdf4c433146e7b35cecdc40ac6ab9177c0cd7fec",
-        "approved_sha256": "b19134f4e4822ff67e015d0c231908bbc64b0fe86fa6e783f2e8ba66bb4556b9",
+        "approved_sha256": "d07f0df784aa69124744b63c1a8cff68abd89ac24010827668c46b1ba58ba80d",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_contract.py": {
         "baseline_sha256": "e54eb807ad30df95e41ca108c647d010c360e344c7f6915f76666fb96879eee9",
-        "approved_sha256": "87470a8ad4855bf34623eb01d51f2b4085aa4ca23d6845b7e98b8d274745644c",
+        "approved_sha256": "f0e98b5c55a980ce7df6216589d179b84f408da51e83b2b1080f43e6757b6709",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_coordinator.py": {
         "baseline_sha256": "1e0a0b1a6cc739ec259575c8e1e0f06c54bfc9dd77e504c78a6a6ad7f2b6f71a",
-        "approved_sha256": "c16b77a81311ef79917ebaab90de59a304551aee5bd57503cdd9e4db8a1ab78f",
+        "approved_sha256": "a2ff4944afe8ed9fbd64ac288113857038f133fb3859140b48fcab1183915a8f",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/step5d_autotune_journal.py": {
@@ -125,7 +125,7 @@ APPROVED_ORCHESTRATION_VARIANTS = {
     },
     "experiments/tase-contact-reproduction/config/current_stage.json": {
         "baseline_sha256": "8d6684717008a3d4bfbdd948a03083188f6456afb5313d58edbecfa6cb0e6132",
-        "approved_sha256": "b6da5b72f5735b179acb7aec55162d5d13298f800113f960ac3943c28b4f0b13",
+        "approved_sha256": "b26bce0476608410ba7186e735af84c645bafe2652ea7ed4fb9f0389a8bea0a1",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/scripts/bridge-line-operator.sh": {

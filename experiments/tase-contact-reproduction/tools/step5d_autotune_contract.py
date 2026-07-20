@@ -1371,6 +1371,10 @@ class TypedSafeClosureEvidence:
     capture_hashes_complete: bool
     terminal_manifest_complete: bool
     fingerprint_closed: bool
+    schema: str = field(
+        default="step5d.autotune/typed-safe-closure-v2",
+        init=False,
+    )
 
     def __post_init__(self) -> None:
         require_sha256("return_reference_uid", self.return_reference_uid)
@@ -1470,7 +1474,7 @@ class TypedSafeClosureEvidence:
 
     def payload(self) -> dict[str, Any]:
         return {
-            "schema": "step5d.autotune/typed-safe-closure-v2",
+            "schema": self.schema,
             "return_reference_uid": self.return_reference_uid,
             "return_reference_kind": self.return_reference_kind,
             "batch_row_index": self.batch_row_index,
@@ -1586,12 +1590,19 @@ class CaptureManifest:
         if isinstance(closure, Mapping):
             try:
                 closure_payload = dict(closure)
-                if closure_payload.pop("schema", None) == (
-                    "step5d.autotune/typed-safe-closure-v1"
-                ):
+                closure_schema = closure_payload.pop("schema", None)
+                if closure_schema == "step5d.autotune/typed-safe-closure-v2":
                     closure = TypedSafeClosureEvidence(**closure_payload)
-                else:
+                elif closure_schema is None:
                     closure = SafeClosureEvidence(**closure_payload)
+                elif closure_schema == "step5d.autotune/typed-safe-closure-v1":
+                    raise ValueError(
+                        "typed-safe-closure-v1 lacks the required return telemetry"
+                    )
+                else:
+                    raise ValueError(
+                        f"unsupported safe closure schema: {closure_schema}"
+                    )
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"safe_closure_evidence is invalid: {exc}") from exc
         if not isinstance(closure, (SafeClosureEvidence, TypedSafeClosureEvidence)):

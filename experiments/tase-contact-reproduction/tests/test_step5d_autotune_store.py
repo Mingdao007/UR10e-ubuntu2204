@@ -25,6 +25,7 @@ from step5d_autotune_contract import (  # noqa: E402
     ExecutionProfile,
     ForceCandidate,
     SafeClosureEvidence,
+    TypedSafeClosureEvidence,
     TrialDisposition,
     TrialSpec,
     TrialTransition,
@@ -64,6 +65,50 @@ def safe_closure(**updates) -> SafeClosureEvidence:
     }
     payload.update(updates)
     return SafeClosureEvidence(**payload)
+
+
+def typed_safe_closure(**updates) -> TypedSafeClosureEvidence:
+    payload = {
+        "return_reference_uid": "d" * 64,
+        "return_reference_kind": "near_ready",
+        "batch_row_index": 1,
+        "tp_position_error_m": 0.001,
+        "tp_orientation_error_rad": 0.01,
+        "tp_qd_max_rad_s": 0.005,
+        "return_phase_echo": 40.3,
+        "return_segment_id": 3,
+        "return_current_angular_speed_rad_s": 0.0,
+        "return_current_angular_acceleration_rad_s2": 0.0,
+        "return_max_angular_speed_rad_s": 0.05,
+        "return_max_angular_acceleration_rad_s2": 0.1,
+        "return_max_sample_gap_s": 0.002,
+        "host_position_error_m": 0.001,
+        "host_orientation_error_rad": 0.01,
+        "host_tcp_linear_speed_m_s": 0.0005,
+        "host_tcp_angular_speed_rad_s": 0.005,
+        "host_qd_max_rad_s": 0.005,
+        "return_guard_mask": 0x7F,
+        "safety_guards": {
+            name: True
+            for name in (
+                "force",
+                "torque",
+                "joints",
+                "sensor_freshness",
+                "heartbeat",
+                "contact_loss",
+                "route_workspace",
+            )
+        },
+        "host_safety_mode": "NORMAL",
+        "host_dwell_s": 0.5,
+        "trial_token_match": True,
+        "capture_hashes_complete": True,
+        "terminal_manifest_complete": True,
+        "fingerprint_closed": True,
+    }
+    payload.update(updates)
+    return TypedSafeClosureEvidence(**payload)
 
 
 def _sha256(encoded: bytes) -> str:
@@ -264,6 +309,75 @@ class StoreIntegrityTest(unittest.TestCase):
         store = CampaignStore(root / "campaign-store")
         store.initialize({"schema_version": "test/v1", "campaign_id": "store-hardening"})
         return store
+
+    def test_typed_v2_bundle_survives_cold_history_read(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            spec = trial()
+            incident = json.loads(
+                (ROOT / "tests" / "fixtures" / "step5d_r005_typed_closure_v2_incident.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            closure_payload = dict(incident["safe_closure_evidence"])
+            self.assertEqual(
+                closure_payload.pop("schema"),
+                "step5d.autotune/typed-safe-closure-v2",
+            )
+            closure = TypedSafeClosureEvidence(**closure_payload)
+            terminal_bytes = (
+                json.dumps(
+                    {
+                        "schema_version": "terminal/v1",
+                        "trial_uid": spec.trial_uid,
+                        "backend_id": spec.backend_id,
+                        "candidate_token": spec.candidate_token,
+                        "terminal_reason": 1,
+                        "safe_closure_evidence": closure.payload(),
+                    },
+                    allow_nan=False,
+                    sort_keys=True,
+                )
+                + "\n"
+            ).encode()
+            paths, digests = write_artifacts(
+                root / "capture",
+                spec=spec,
+                terminal_bytes=terminal_bytes,
+            )
+            capture = replace(
+                manifest(spec, digests),
+                safe_closure_evidence=closure,
+            )
+            store = self.initialized_store(root)
+            bundle_path = store.write_trial_bundle(
+                spec,
+                capture,
+                evaluation(spec),
+                artifact_paths=paths,
+            )
+
+            cold_store = CampaignStore(store.root)
+            rows = cold_store.read_resume_history()
+
+            self.assertEqual(len(rows), 1)
+            bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+            decoded = CaptureManifest(**bundle["capture"])
+            self.assertEqual(decoded.safe_closure_evidence, closure)
+            self.assertEqual(list(cold_store.quarantine_dir.glob("*.json")), [])
+
+    def test_typed_v1_and_unknown_closure_schemas_fail_closed(self) -> None:
+        spec = trial()
+        digests = {"csv": SHA_A, "metadata": SHA_B, "terminal_manifest": SHA_C}
+        payload = typed_safe_closure().payload()
+        for schema in (
+            "step5d.autotune/typed-safe-closure-v1",
+            "step5d.autotune/typed-safe-closure-v999",
+        ):
+            with self.subTest(schema=schema):
+                bad = {**payload, "schema": schema}
+                with self.assertRaisesRegex(ValueError, "safe_closure_evidence is invalid"):
+                    replace(manifest(spec, digests), safe_closure_evidence=bad)
 
     def test_bundle_rehashes_all_artifacts_and_rejects_any_changed_role(self) -> None:
         for role in ("csv", "metadata", "terminal_manifest"):

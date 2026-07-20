@@ -117,6 +117,20 @@
       },
       "expected_guard": "V3 lane enforces moving sphere and disables legacy AABB",
       "parameter_impact": "retune_required"
+    },
+    {
+      "incident_id": "step5d-v3-r005-typed-closure-cold-read",
+      "evidence_class": "observed_failure",
+      "counts_for_recurrence": true,
+      "outcome_class": "code_contract_failure",
+      "component": "bundle_history_ack_lifecycle",
+      "invariant_ids": ["f2g.trial_bundle_cold_read_ack_next_arm"],
+      "failure": {
+        "blocker": "trial one completed safe closure but no ACK or trial two ARM was dispatched",
+        "root_cause": "typed-v2 terminal evidence lost its discriminator in the immutable bundle and failed cold-read validation"
+      },
+      "expected_guard": "generated r005 telemetry must pass bundle write, cold history read, exactly-once ACK, and next ARM",
+      "parameter_impact": "replay_required"
     }
   ]
 }

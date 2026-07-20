@@ -52,7 +52,7 @@ def test_real_parser_is_bound_to_sha_protected_bridge_source() -> None:
     protected = (ROOT / "tools/kunwei_rtde_bridge.py").resolve()
     assert Path(bridge.parse_args.__code__.co_filename).resolve() == protected
     assert hashlib.sha256(protected.read_bytes()).hexdigest() == (
-        "89d6da152678afb47744e782d2eeecf86c9c9a4b673e4ddcbdb4e9302dfd5153"
+        "f82d61f005d91719481299398d1bcd296d79db12fd5030b2e1fa801af3eac8f3"
     )
 
 
@@ -188,15 +188,15 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
         "6f9ef0912842ac003545eb1906b38d13c7552218"
     )
     assert report["deployment_tp_identity"] == {
-        "program": "step5d_strict_rnn_autotune_v3",
+        "program": "step5d_strict_rnn_autotune_v3_r005",
         "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
         "artifact_dir": "programs/step5/step5d",
         "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
         "readback_manifest_sha256": (
-            "816ac90e14194de167643aa0f008cda43f02367b612284c8bf9f03a0ec34169f"
+            "ae74111ca58216c9b4b72f0c5bdc576ac0c62ce38c49f139df09b1adf79d2ea3"
         ),
         "tp_fingerprint": (
-            "f0528a4deb6c00fd2f8122d141e862173edbf07c3788c817026c2541dcf6a091"
+            "61ed7c95c96cfab6d0522f596787dfb461bdd8a21f0ea53e561c4893b2e63d45"
         ),
     }
     assert report["execution_profile_id"] == "nf050-slew050-a050"

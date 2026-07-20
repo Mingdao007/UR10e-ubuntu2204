@@ -32,6 +32,77 @@ class StarsBiasLoggingContractTest(unittest.TestCase):
         self.assertIn("ur_actual_qdd_0", bridge.KINEMATIC_DERIVED_FIELDS)
         self.assertIn("ur_actual_TCP_accel_5", bridge.KINEMATIC_DERIVED_FIELDS)
         self.assertIn("ur_kinematics_dt_s", bridge.KINEMATIC_DERIVED_FIELDS)
+        self.assertIn("anchor_ready", bridge.BASELINE_DIAGNOSTIC_FIELDS)
+        self.assertIn("diagnostic_bias_fz_n", bridge.DIAGNOSTIC_BIAS_FIELDS)
+        self.assertIn("baseline_drift_mz_nm", bridge.BASELINE_DRIFT_FIELDS)
+
+    def test_campaign_anchor_quality_accepts_clean_static_window(self) -> None:
+        bootstrap = [1.0, 2.0, 3.0, 0.1, 0.2, 0.3]
+        samples = [
+            [1.01, 2.01, 3.01, 0.1001, 0.2001, 0.3001]
+            for _ in range(bridge.CAMPAIGN_ANCHOR_MIN_SAMPLES)
+        ]
+        result = bridge.evaluate_baseline_window(
+            samples,
+            bootstrap_baseline=bootstrap,
+            normal_axis="fz",
+            normal_sign=1.0,
+            tcp_linear_max_m_s=0.0,
+            tcp_angular_max_rad_s=0.0,
+            qd_max_rad_s=0.0,
+        )
+        self.assertTrue(result["qualified"])
+        self.assertEqual(result["flags"], ())
+
+    def test_contaminated_diagnostic_is_complete_but_not_qualified(self) -> None:
+        bootstrap = [0.0] * 6
+        samples = [
+            [0.0, 0.0, 3.0, 0.0, 0.0, 0.0]
+            for _ in range(bridge.CAMPAIGN_ANCHOR_MIN_SAMPLES)
+        ]
+        result = bridge.evaluate_baseline_window(
+            samples,
+            bootstrap_baseline=bootstrap,
+            normal_axis="fz",
+            normal_sign=1.0,
+            tcp_linear_max_m_s=0.0,
+            tcp_angular_max_rad_s=0.0,
+            qd_max_rad_s=0.0,
+        )
+        self.assertTrue(result["complete"])
+        self.assertFalse(result["qualified"])
+        self.assertIn("normal_contact_threshold", result["flags"])
+
+        update = bridge.resolve_dual_baseline_update(
+            epoch=1,
+            bootstrap_baseline=bootstrap,
+            campaign_anchor=bootstrap,
+            anchor_ready=False,
+            candidate_baseline=result["mean"],
+            complete=result["complete"],
+            qualified=result["qualified"],
+        )
+        self.assertFalse(update["ready"])
+        self.assertTrue(update["retry_required"])
+        self.assertEqual(update["applied"], bootstrap)
+
+    def test_later_diagnostic_never_overwrites_campaign_anchor(self) -> None:
+        anchor = [1.0, 2.0, 3.0, 0.1, 0.2, 0.3]
+        contaminated = [10.0, 20.0, 30.0, 1.0, 2.0, 3.0]
+        update = bridge.resolve_dual_baseline_update(
+            epoch=2,
+            bootstrap_baseline=[0.0] * 6,
+            campaign_anchor=anchor,
+            anchor_ready=True,
+            candidate_baseline=contaminated,
+            complete=True,
+            qualified=False,
+        )
+        self.assertTrue(update["ready"])
+        self.assertEqual(update["applied"], anchor)
+        self.assertEqual(update["anchor"], anchor)
+        self.assertEqual(update["diagnostic"], contaminated)
+        self.assertFalse(update["retry_required"])
 
     def test_bias_contact_mask_uses_control_window_as_separate_reason(self) -> None:
         mask, reason = bridge.bias_contact_mask(

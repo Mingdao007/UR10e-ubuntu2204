@@ -1,0 +1,55 @@
+{
+  "schema": "step5d.autotune/typed-closure-incident-fixture-v1",
+  "incident_id": "step5d-v3-r005-typed-closure-v2-cold-read",
+  "outcome": "attempted_incomplete",
+  "ack_dispatched": false,
+  "optimizer_observation": false,
+  "source_bindings": {
+    "trial_uid": "2455106235dc091898f838fe90aa4107a529ae4f03b0dc87df6239e7791eb9b0",
+    "history_identity": "1e0e381e008ecdd8d32e95c3fbd246b1d7f1344976fb5ff0c92caf527a54637d",
+    "immutable_bundle_sha256": "9c0f3438e9695d4914b7516dfec2c5d20b9c623e36f3697338120c7a1cf05a52",
+    "terminal_manifest_sha256": "dc948d98b7f51ea8e5a225e12e4221996cbb28babbbd4de358cb2a199b75577f",
+    "quarantine_sha256": "abe22b283758d24eb52bd77958955401efd8675301f4c57a22292ccd932d9cde"
+  },
+  "failure": {
+    "blocker": "r005_typed_closure_v2_cold_read_incompatible",
+    "reason": "immutable bundle serialization dropped the typed closure discriminator and cold-read fell through to the legacy SafeClosureEvidence decoder"
+  },
+  "safe_closure_evidence": {
+    "schema": "step5d.autotune/typed-safe-closure-v2",
+    "return_reference_uid": "7adb651987dce8f41ffcd7cc4c087348df17da4333333aec6abd27da69fbc96f",
+    "return_reference_kind": "near_ready",
+    "batch_row_index": 1,
+    "tp_position_error_m": 0.000012161668563149,
+    "tp_orientation_error_rad": 0.000030423296147686384,
+    "tp_qd_max_rad_s": 0.0001648846809985116,
+    "return_phase_echo": 40.3,
+    "return_segment_id": 3,
+    "return_current_angular_speed_rad_s": 0.00007830556384489397,
+    "return_current_angular_acceleration_rad_s2": 0.0031591594565935593,
+    "return_max_angular_speed_rad_s": 0.03168204466028632,
+    "return_max_angular_acceleration_rad_s2": 0.29106596021604586,
+    "return_max_sample_gap_s": 0.0020000000004074536,
+    "host_position_error_m": 0.00008947861604130559,
+    "host_orientation_error_rad": 0.00013439633617887505,
+    "host_tcp_linear_speed_m_s": 0.00003725113398423544,
+    "host_tcp_angular_speed_rad_s": 0.00009402045196800931,
+    "host_qd_max_rad_s": 0.00016292739019263536,
+    "return_guard_mask": 127,
+    "safety_guards": {
+      "contact_loss": true,
+      "force": true,
+      "heartbeat": true,
+      "joints": true,
+      "route_workspace": true,
+      "sensor_freshness": true,
+      "torque": true
+    },
+    "host_safety_mode": "NORMAL",
+    "host_dwell_s": 0.500037945996155,
+    "trial_token_match": true,
+    "capture_hashes_complete": true,
+    "terminal_manifest_complete": true,
+    "fingerprint_closed": true
+  }
+}
