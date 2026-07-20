@@ -15,11 +15,11 @@
     },
     {
       "path": "config/direct_torque_rtde_layout.json",
-      "sha256": "d4558a2ec20ecd4fc85ecc7ddb30bfe7fb3bcc75232dd66ce57affbe6109bc7d"
+      "sha256": "b5077a2f6856cd9b1b2f7c4fc599fb9f6f5cc239da93dd9f4666b5128c70866d"
     },
     {
       "path": "programs/direct_torque_vic_offline_template.script",
-      "sha256": "da74aea300ce3594bde5f8fb46a08349a05b125a6c75f89df39db225ded4b427"
+      "sha256": "297691225720dfb887ec1311c7fb8046c18e9f2aa191876e61422667de242d80"
     }
   ],
   "runtime_policy": {

@@ -5,8 +5,15 @@
 # controller readback plus successful URSim syntax/runtime validation.
 # direct_torque() adds gravity compensation internally; tau below excludes gravity.
 
+def vic_abs(value):
+  if value < 0.0:
+    return -value
+  end
+  return value
+end
+
 def vic_finite(value, limit):
-  return value == value and abs(value) <= limit
+  return value == value and vic_abs(value) <= limit
 end
 
 def vic_read_six(start_register):
@@ -33,7 +40,7 @@ end
 def vic_same_six(left, right):
   local axis = 0
   while axis < 6:
-    if abs(left[axis] - right[axis]) > 0.000000000001:
+    if vic_abs(left[axis] - right[axis]) > 0.000000000001:
       return False
     end
     axis = axis + 1
@@ -113,7 +120,7 @@ def vic_damping_matches_sqrt(stiffness, damping):
   local axis = 0
   while axis < 6:
     local expected = 2.0 * sqrt(stiffness[axis] * virtual_mass[axis])
-    if abs(damping[axis] - expected) > 0.05:
+    if vic_abs(damping[axis] - expected) > 0.05:
       return False
     end
     axis = axis + 1
@@ -140,9 +147,8 @@ def vic_input_valid(eq, stiffness, damping):
     end
     index = index + 1
   end
-  # First active version varies translation only.  Orientation impedance is
-  # locked to the reviewed fixed baseline on the controller, not just host-side.
-  if abs(stiffness[3] - 30.0) > 0.000001 or abs(stiffness[4] - 30.0) > 0.000001 or abs(stiffness[5] - 30.0) > 0.000001:
+  # The reviewed impedance is fixed on the controller, not just host-side.
+  if vic_abs(stiffness[3] - 30.0) > 0.000001 or vic_abs(stiffness[4] - 30.0) > 0.000001 or vic_abs(stiffness[5] - 30.0) > 0.000001:
     return False
   end
   return vic_damping_matches_sqrt(stiffness, damping)
@@ -152,7 +158,7 @@ def vic_initial_baseline(stiffness):
   local baseline = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
   local index = 0
   while index < 6:
-    if abs(stiffness[index] - baseline[index]) > 0.000001:
+    if vic_abs(stiffness[index] - baseline[index]) > 0.000001:
       return False
     end
     index = index + 1
@@ -173,19 +179,17 @@ def vic_stiffness_transition_valid(stiffness, last_stiffness, dt):
   return True
 end
 
-def vic_equilibrium_transition_valid(eq, last_eq, locked_orientation, dt):
+def vic_equilibrium_transition_valid(eq, last_eq, dt):
   local index = 0
   while index < 3:
-    if abs(eq[index] - last_eq[index]) > 0.05 * dt + 0.000001:
+    if vic_abs(eq[index] - last_eq[index]) > 0.05 * dt + 0.000001:
       return False
     end
     index = index + 1
   end
-  while index < 6:
-    if abs(eq[index] - locked_orientation[index - 3]) > 0.000001:
-      return False
-    end
-    index = index + 1
+  local orientation_step = sqrt((eq[3] - last_eq[3]) * (eq[3] - last_eq[3]) + (eq[4] - last_eq[4]) * (eq[4] - last_eq[4]) + (eq[5] - last_eq[5]) * (eq[5] - last_eq[5]))
+  if orientation_step > 0.05 * dt + 0.000001:
+    return False
   end
   return True
 end
@@ -205,7 +209,7 @@ def vic_runtime_guard_ok():
   end
   local pose = get_actual_tcp_pose()
   local xyz_min = [0.30, 0.00, -0.02]
-  local xyz_max = [0.55, 0.20, 0.12]
+  local xyz_max = [0.55, 0.24, 0.12]
   local axis = 0
   while axis < 3:
     if not vic_finite(pose[axis], 10.0) or pose[axis] < xyz_min[axis] or pose[axis] > xyz_max[axis]:
@@ -342,7 +346,6 @@ def ur10e_vic_direct_torque_offline_template():
   local last_sequence = 0
   local lease_id = 0
   local last_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  local locked_orientation = [0.0, 0.0, 0.0]
   local last_stiffness = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
   local stale_ticks = 0
   local last_model_sequence = 0
@@ -469,7 +472,7 @@ def ur10e_vic_direct_torque_offline_template():
     local heartbeat_ok = stale_ticks <= heartbeat_timeout_ticks
     local first_packet = last_sequence == 0
     local stiffness_ok = (first_packet and vic_initial_baseline(stiffness)) or ((not first_packet) and vic_stiffness_transition_valid(stiffness, last_stiffness, get_steptime()))
-    local eq_ok = first_packet or vic_equilibrium_transition_valid(eq, last_eq, locked_orientation, get_steptime())
+    local eq_ok = first_packet or vic_equilibrium_transition_valid(eq, last_eq, get_steptime())
     # Release/reset is checked exactly once, when a new run restores baseline.
     # It is deliberately not re-evaluated after contact begins.
     local release_ok = True
@@ -482,7 +485,6 @@ def ur10e_vic_direct_torque_offline_template():
     if armed:
       if first_packet:
         lease_id = packet_lease
-        locked_orientation = [eq[3], eq[4], eq[5]]
       end
       last_model_sequence = candidate_model_sequence
       last_model_period_us = candidate_model_period_us
@@ -502,7 +504,7 @@ def ur10e_vic_direct_torque_offline_template():
         # never jump from position mode directly to a nonzero Cartesian wrench.
         if not vic_safe_exit_tick(vic_zero_six()):
           stopj(10.0)
-          return
+          return False
         end
         torque_active = True
         last_applied_feedforward = vic_zero_six()
@@ -528,8 +530,8 @@ def ur10e_vic_direct_torque_offline_template():
           local max_abs_tau = 0.0
           local tau_index = 0
           while tau_index < 6:
-            if abs(tau[tau_index]) > max_abs_tau:
-              max_abs_tau = abs(tau[tau_index])
+            if vic_abs(tau[tau_index]) > max_abs_tau:
+              max_abs_tau = vic_abs(tau[tau_index])
             end
             tau_index = tau_index + 1
           end
@@ -591,12 +593,12 @@ def ur10e_vic_direct_torque_offline_template():
         vic_write_six(26, filtered_feedforward)
         if not vic_safe_exit_tick(last_applied_feedforward):
           stopj(10.0)
-          return
+          return False
         end
         safe_exit_count = safe_exit_count + 1
         if safe_exit_count >= safe_exit_ticks:
           stopj(10.0)
-          return
+          return False
         end
       else:
         write_output_integer_register(24, STATE_WAITING)

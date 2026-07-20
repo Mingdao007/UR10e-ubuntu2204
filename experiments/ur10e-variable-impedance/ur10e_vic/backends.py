@@ -41,12 +41,14 @@ DIRECT_TORQUE_MODEL_STALE_PERIODS = 2
 DIRECT_TORQUE_MODEL_MODES = (0, 1, 2)
 DIRECT_TORQUE_MODEL_ACTIVE_ALLOWED = False
 DIRECT_TORQUE_FRAME_TOKEN = 5_252_001
+DIRECT_TORQUE_ORIENTATION_SLEW_RAD_S = 0.05
 DIRECT_TORQUE_FILTER_ALPHA = 0.9
 DIRECT_TORQUE_FILTER_BETA = 0.3
 DIRECT_TORQUE_MANIFEST_LIMITS = {
     "damping_max": [200.0, 200.0, 200.0, 30.0, 30.0, 30.0],
     "damping_sqrt_tolerance": 0.05,
     "equilibrium_translation_slew_max_m_s": 0.05,
+    "equilibrium_orientation_slew_max_rad_s": DIRECT_TORQUE_ORIENTATION_SLEW_RAD_S,
     "feedforward_abs_max": list(DIRECT_TORQUE_FDF_ABS_MAX),
     "feedforward_force_norm_max_n": DIRECT_TORQUE_FDF_FORCE_NORM_MAX,
     "feedforward_torque_norm_max_nm": DIRECT_TORQUE_FDF_TORQUE_NORM_MAX,
@@ -69,7 +71,7 @@ DIRECT_TORQUE_MANIFEST_LIMITS = {
     "stiffness_max": list(DIRECT_TORQUE_K_MAX),
     "stiffness_min": list(DIRECT_TORQUE_K_MIN),
     "stiffness_slew_max_per_s": list(DIRECT_TORQUE_K_SLEW),
-    "tcp_cage_xyz_max_m": [0.55, 0.2, 0.12],
+    "tcp_cage_xyz_max_m": [0.55, 0.24, 0.12],
     "tcp_cage_xyz_min_m": [0.3, 0.0, -0.02],
     "torque_abs_max_nm": [20.0, 20.0, 20.0, 8.0, 8.0, 8.0],
     "torque_norm_abs_max_nm": 3.0,
@@ -135,7 +137,7 @@ class DirectTorqueGuardState:
     last_sequence: int = 0
     lease_id: int = 0
     last_equilibrium_pose: tuple[float, ...] | None = None
-    locked_orientation: tuple[float, ...] | None = None
+    initial_orientation: tuple[float, ...] | None = None
     last_stiffness: tuple[float, ...] | None = None
     last_model_sequence: int = 0
     last_model_period_us: int = 0
@@ -397,12 +399,12 @@ def validate_direct_torque_packet(
             for index in range(6)
         ):
             return reject("new_run_must_restore_baseline_stiffness")
-        locked_orientation = tuple(packet.equilibrium_pose[3:6])
+        initial_orientation = tuple(packet.equilibrium_pose[3:6])
     else:
         assert state.last_stiffness is not None
         assert state.last_equilibrium_pose is not None
-        assert state.locked_orientation is not None
-        locked_orientation = state.locked_orientation
+        assert state.initial_orientation is not None
+        initial_orientation = state.initial_orientation
         for index in range(6):
             decrease = state.last_stiffness[index] - packet.stiffness[index]
             if decrease < -1e-6 or decrease > DIRECT_TORQUE_K_SLEW[index] * dt_s + 1e-6:
@@ -413,18 +415,24 @@ def validate_direct_torque_packet(
             for index in range(3)
         ):
             return reject("equilibrium_translation_slew_violation")
-        if any(
-            abs(packet.equilibrium_pose[index + 3] - locked_orientation[index])
-            > 1e-6
-            for index in range(3)
-        ):
-            return reject("orientation_equilibrium_not_locked")
+        orientation_step = math.sqrt(
+            sum(
+                (
+                    packet.equilibrium_pose[index + 3]
+                    - state.last_equilibrium_pose[index + 3]
+                )
+                ** 2
+                for index in range(3)
+            )
+        )
+        if orientation_step > DIRECT_TORQUE_ORIENTATION_SLEW_RAD_S * dt_s + 1e-6:
+            return reject("equilibrium_orientation_slew_violation")
 
     next_state = DirectTorqueGuardState(
         last_sequence=sequence,
         lease_id=packet.lease_id,
         last_equilibrium_pose=tuple(packet.equilibrium_pose),
-        locked_orientation=locked_orientation,
+        initial_orientation=initial_orientation,
         last_stiffness=tuple(packet.stiffness),
         last_model_sequence=next_model_sequence,
         last_model_period_us=next_model_period_us,

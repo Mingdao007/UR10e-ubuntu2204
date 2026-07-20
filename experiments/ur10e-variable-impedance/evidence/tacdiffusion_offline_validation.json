@@ -38,7 +38,7 @@
     },
     {
       "path": "config/direct_torque_rtde_layout.json",
-      "sha256": "d4558a2ec20ecd4fc85ecc7ddb30bfe7fb3bcc75232dd66ce57affbe6109bc7d"
+      "sha256": "b5077a2f6856cd9b1b2f7c4fc599fb9f6f5cc239da93dd9f4666b5128c70866d"
     },
     {
       "path": "config/tacdiffusion_experiment_plan.json",
@@ -50,11 +50,11 @@
     },
     {
       "path": "config/ursim_5_25_2_protocol.json",
-      "sha256": "7ebe1a3ce7c80a880c915272b9e8552a9546004bdcb69ea381bb09dcdf680ac0"
+      "sha256": "5932e31500f1506cf32095247c629c40b3ddb6fdeca7a7364b33bcad34690ad1"
     },
     {
       "path": "config/ursim_5_26_protocol.json",
-      "sha256": "de6b9511e833e662d39cb80943db53e342b8d58fb0213b0baca9759ba7e24b24"
+      "sha256": "1e21bc0536291080aca8a2a47b125f5e942f3601f15c8ad70e775a32f1b52361"
     },
     {
       "path": "config/validation_ledger.json",
@@ -82,7 +82,7 @@
     },
     {
       "path": "programs/direct_torque_vic_offline_template.script",
-      "sha256": "da74aea300ce3594bde5f8fb46a08349a05b125a6c75f89df39db225ded4b427"
+      "sha256": "297691225720dfb887ec1311c7fb8046c18e9f2aa191876e61422667de242d80"
     },
     {
       "path": "ur10e_vic/controller_contract.py",

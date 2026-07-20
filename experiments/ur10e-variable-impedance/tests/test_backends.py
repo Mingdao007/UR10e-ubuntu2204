@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 import math
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -38,6 +39,7 @@ class BackendTests(unittest.TestCase):
         sequence: int,
         *,
         x: float = 0.4,
+        rotvec=(3.14, 0.0, 0.0),
         stiffness=(600.0, 600.0, 600.0, 30.0, 30.0, 30.0),
         sequence_before: int | None = None,
         heartbeat: int | None = None,
@@ -60,7 +62,7 @@ class BackendTests(unittest.TestCase):
             heartbeat=sequence if heartbeat is None else heartbeat,
             lease_id=lease,
             mode=1,
-            equilibrium_pose=(x, 0.1, 0.05, 3.14, 0.0, 0.0),
+            equilibrium_pose=(x, 0.1, 0.05, *rotvec),
             stiffness=stiffness,
             damping=damping,
             raw_feedforward_wrench=raw_feedforward,
@@ -190,6 +192,9 @@ class BackendTests(unittest.TestCase):
             self.assertIn(token, script)
         self.assertNotIn("socket_open", script)
         self.assertNotIn("run program", script.lower())
+        self.assertIsNone(re.search(r"^\s*return\s*$", script, flags=re.MULTILINE))
+        self.assertIsNone(re.search(r"(?<![A-Za-z0-9_])abs\(", script))
+        self.assertIn("def vic_abs(value):", script)
         invocation = "ur10e_vic_direct_torque_offline_template()"
         self.assertFalse(
             any(
@@ -376,6 +381,27 @@ class BackendTests(unittest.TestCase):
         )
         self.assertFalse(increase.accepted)
         self.assertEqual(increase.reason, "stiffness_increase_or_slew_violation")
+
+        bounded_orientation = validate_direct_torque_packet(
+            self._torque_packet(
+                4, x=0.4002, rotvec=(3.14005, 0.0, 0.0), stiffness=second_k
+            ),
+            third.next_state,
+            release_ready=False,
+            runtime_guard_ok=True,
+        )
+        self.assertTrue(bounded_orientation.accepted, bounded_orientation.reason)
+        excessive_orientation = validate_direct_torque_packet(
+            self._torque_packet(
+                4, x=0.4002, rotvec=(3.1402, 0.0, 0.0), stiffness=second_k
+            ),
+            third.next_state,
+            release_ready=False,
+            runtime_guard_ok=True,
+        )
+        self.assertEqual(
+            excessive_orientation.reason, "equilibrium_orientation_slew_violation"
+        )
 
     def test_model_sequence_stale_frame_bounds_and_monotonic_fault_decay(self) -> None:
         raw = (1.0, -0.5, 0.25, 0.1, -0.05, 0.025)
