@@ -10472,7 +10472,7 @@
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "56d5f5ac770085c1d708dce7e9591eaf5b4719ed738d9854cf7d05ddf6d253d9",
+        "report_sha256": "62e8c641e56e553d140c814e6aae7e15b5df2c872aaa8f78523061ba79dec64b",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
         "source_exact_sphere_seam_timing": "diagnostic_only_not_required_by_user",
         "status": "pass_offline_implementation_pre_live_blocked"

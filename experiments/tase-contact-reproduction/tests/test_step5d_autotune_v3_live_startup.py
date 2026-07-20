@@ -138,26 +138,29 @@ class _Clock:
         self.value += duration
 
 
-def test_dashboard_stop_proves_stopped() -> None:
+def test_cleanup_never_sends_dashboard_stop() -> None:
     replies: list[dict[str, Any]] = [
         {"programState": "PLAYING step5d_strict_rnn_autotune_v3.urp"},
-        {"stop": "Stopped", "programState": "STOPPED step5d_strict_rnn_autotune_v3.urp"},
+        {"programState": "STOPPED step5d_strict_rnn_autotune_v3.urp"},
     ]
+    commands: list[list[str]] = []
+
+    def exchange(_host, requested, **_kwargs):
+        commands.append(requested)
+        return replies.pop(0)
 
     result = live._stop_v3_program(
-        "robot", exchange=lambda *_args, **_kwargs: replies.pop(0)
+        "robot", exchange=exchange
     )
     assert result["ok"] is True
-    assert result["method"] == "dashboard_stop"
+    assert result["method"] == "observed_stopped_after_operator_stop"
+    assert commands == [["programState"], ["programState"]]
+    assert result["stop_request"] is None
 
 
-def test_local_stop_rejection_then_observed_tp_stop_is_success() -> None:
+def test_operator_tp_stop_is_observed_read_only() -> None:
     replies: list[dict[str, Any]] = [
         {"programState": "PLAYING step5d_strict_rnn_autotune_v3.urp"},
-        {
-            "stop": "Command is not allowed in Local Control",
-            "programState": "PLAYING step5d_strict_rnn_autotune_v3.urp",
-        },
         {"programState": "STOPPED step5d_strict_rnn_autotune_v3.urp"},
     ]
     clock = _Clock()
@@ -168,17 +171,15 @@ def test_local_stop_rejection_then_observed_tp_stop_is_success() -> None:
         sleep=clock.sleep,
     )
     assert result["ok"] is True
-    assert result["method"] == "observed_stopped_after_stop_rejection"
+    assert result["method"] == "observed_stopped_after_operator_stop"
 
 
 def test_persistent_playing_requires_one_explicit_tp_stop_action() -> None:
     clock = _Clock()
 
     def exchange(_host, commands, **_kwargs):
-        result = {"programState": "PLAYING step5d_strict_rnn_autotune_v3.urp"}
-        if commands[0] == "stop":
-            result["stop"] = "Command is not allowed in Local Control"
-        return result
+        assert commands == ["programState"]
+        return {"programState": "PLAYING step5d_strict_rnn_autotune_v3.urp"}
 
     result = live._stop_v3_program(
         "robot",
@@ -190,3 +191,4 @@ def test_persistent_playing_requires_one_explicit_tp_stop_action() -> None:
     )
     assert result["ok"] is False
     assert result["required_operator_action"] == "PRESS_TP_STOP"
+    assert result["stop_request"] is None

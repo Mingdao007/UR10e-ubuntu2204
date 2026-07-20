@@ -365,7 +365,11 @@ def _stop_v3_program(
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
-    """Prove STOPPED after bridge shutdown, including Local-Control rejection."""
+    """Read-only proof of STOPPED after bridge shutdown.
+
+    The operator exclusively owns TP Stop.  Cleanup may observe Dashboard
+    state, but it must never send the Dashboard ``stop`` command.
+    """
 
     if timeout_s <= 0.0 or poll_interval_s <= 0.0:
         raise ValueError("program-stop timeout and poll interval must be positive")
@@ -392,24 +396,6 @@ def _stop_v3_program(
             "observations": observations,
         }
 
-    stop_request: Mapping[str, Any] | None = None
-    stop_request_error: str | None = None
-    try:
-        stop_request = exchange(robot_host, ["stop", "programState"], timeout=2.0)
-    except Exception as exc:
-        stop_request_error = f"{type(exc).__name__}:{exc}"
-    if stop_request is not None:
-        observations.append(dict(stop_request))
-        if _program_stopped(stop_request):
-            return {
-                "ok": True,
-                "method": "dashboard_stop",
-                "stop_request": dict(stop_request),
-                "stop_request_error": None,
-                "initial_query_error": initial_error,
-                "observations": observations,
-            }
-
     deadline = monotonic() + timeout_s
     query_errors: list[str] = []
     while monotonic() < deadline:
@@ -422,9 +408,9 @@ def _stop_v3_program(
         if _program_stopped(observed):
             return {
                 "ok": True,
-                "method": "observed_stopped_after_stop_rejection",
-                "stop_request": None if stop_request is None else dict(stop_request),
-                "stop_request_error": stop_request_error,
+                "method": "observed_stopped_after_operator_stop",
+                "stop_request": None,
+                "stop_request_error": None,
                 "initial_query_error": initial_error,
                 "query_errors": query_errors,
                 "observations": observations,
@@ -432,8 +418,8 @@ def _stop_v3_program(
     return {
         "ok": False,
         "method": "tp_stop_required",
-        "stop_request": None if stop_request is None else dict(stop_request),
-        "stop_request_error": stop_request_error,
+        "stop_request": None,
+        "stop_request_error": None,
         "initial_query_error": initial_error,
         "query_errors": query_errors,
         "observations": observations,
