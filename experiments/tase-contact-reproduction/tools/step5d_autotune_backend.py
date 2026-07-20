@@ -94,11 +94,28 @@ class CampaignAuthorization:
     controller_readback_verified: bool
 
 
+@dataclass(frozen=True)
+class CampaignExecutionContext:
+    """Machine identity for one campaign; it does not grant operator motion."""
+
+    campaign_id: str
+    campaign_fingerprint: str
+    execution_ref_sha256: str
+    controller_readback_verified: bool
+    selected_release_current: bool
+
+
 class AutotuneBackend(Protocol):
     def freeze_fingerprint(self) -> FrozenFingerprint:
         ...
 
-    def preflight(self, *, offline: bool, authorization: CampaignAuthorization | None = None) -> BackendPreflight:
+    def preflight(
+        self,
+        *,
+        offline: bool,
+        execution_context: CampaignExecutionContext | None = None,
+        authorization: CampaignAuthorization | None = None,
+    ) -> BackendPreflight:
         ...
 
     def prepare_trial(self, trial: TrialSpec, frozen: FrozenFingerprint) -> PreparedTrial:
@@ -108,7 +125,8 @@ class AutotuneBackend(Protocol):
         self,
         prepared: PreparedTrial,
         *,
-        authorization: CampaignAuthorization,
+        execution_context: CampaignExecutionContext | None = None,
+        authorization: CampaignAuthorization | None = None,
         runner: Callable[[PreparedTrial], Path],
     ) -> Path:
         ...
@@ -447,6 +465,7 @@ class Step5dV35Backend:
         self,
         *,
         offline: bool,
+        execution_context: CampaignExecutionContext | None = None,
         authorization: CampaignAuthorization | None = None,
     ) -> BackendPreflight:
         blockers: list[str] = []
@@ -524,19 +543,32 @@ class Step5dV35Backend:
             evidence["torch_cuda_available"] = bool(torch.cuda.is_available())
         except ImportError:
             evidence["torch_cuda_available"] = False
-        live_authorized = bool(
+        execution_ready = bool(
+            execution_context
+            and execution_context.controller_readback_verified
+            and execution_context.selected_release_current
+            and readback_verified
+            and selected_release_current
+            and evidence.get("composite_fingerprint")
+            == execution_context.campaign_fingerprint
+        )
+        # Compatibility is retained only for historical/offline callers. The
+        # active V3 runner supplies CampaignExecutionContext and no auth file.
+        legacy_authorized = bool(
             authorization
             and authorization.live_authorized
             and authorization.controller_readback_verified
             and authorization.bounded_baseline_and_loop
             and readback_verified
             and selected_release_current
-            and evidence.get("composite_fingerprint") == authorization.campaign_fingerprint
+            and evidence.get("composite_fingerprint")
+            == authorization.campaign_fingerprint
         )
+        live_authorized = execution_ready or legacy_authorized
         if not offline and not cuda_available:
             blockers.append("cuda_required_for_live_no_cpu_fallback")
         if not offline and not live_authorized:
-            blockers.append("bounded_campaign_live_authorization_missing_or_mismatched")
+            blockers.append("campaign_execution_context_missing_or_mismatched")
         if not offline and not readback_verified:
             blockers.append("autotune_controller_delivery_and_fresh_readback_required")
         if not offline and not selected_release_current:
@@ -652,23 +684,31 @@ class Step5dV35Backend:
         self,
         prepared: PreparedTrial,
         *,
-        authorization: CampaignAuthorization,
+        execution_context: CampaignExecutionContext | None = None,
+        authorization: CampaignAuthorization | None = None,
         runner: Callable[[PreparedTrial], Path],
     ) -> Path:
-        preflight = self.preflight(offline=False, authorization=authorization)
+        preflight = self.preflight(
+            offline=False,
+            execution_context=execution_context,
+            authorization=authorization,
+        )
         if not preflight.ok:
             raise LiveAuthorizationRequired(";".join(preflight.blockers))
-        if authorization.campaign_id != prepared.trial.campaign.campaign_id:
-            raise LiveAuthorizationRequired("campaign authorization id mismatch")
+        identity = execution_context or authorization
+        if identity is None:
+            raise LiveAuthorizationRequired("campaign execution context is missing")
+        if identity.campaign_id != prepared.trial.campaign.campaign_id:
+            raise LiveAuthorizationRequired("campaign execution context id mismatch")
         if not prepared.trial.execution_profile.live_eligible:
             raise LiveAuthorizationRequired("offline_only execution profile cannot run live")
         if (
-            authorization.campaign_fingerprint
+            identity.campaign_fingerprint
             != prepared.trial.campaign.campaign_fingerprint
             or prepared.frozen.composite_fingerprint
             != prepared.trial.campaign.campaign_fingerprint
         ):
-            raise LiveAuthorizationRequired("campaign authorization fingerprint mismatch")
+            raise LiveAuthorizationRequired("campaign execution fingerprint mismatch")
         if self.freeze_fingerprint() != prepared.frozen:
             raise LiveAuthorizationRequired("backend fingerprint changed after trial preparation")
         return runner(prepared)

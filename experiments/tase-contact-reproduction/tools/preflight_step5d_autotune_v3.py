@@ -325,6 +325,9 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
         "control_profile_id": CONTROL_PROFILE_ID,
         "tp_program_id": TP_PROGRAM_ID,
         "identity": bridge_context.identity,
+        "bridge_start_context_sha256": hashlib.sha256(
+            args.bridge_start_context.read_bytes()
+        ).hexdigest(),
         "launch_profile_fingerprint": launch.fingerprint,
         "controller_identity": controller_identity,
         "controller_identity_sha256": controller_sha,

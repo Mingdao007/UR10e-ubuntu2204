@@ -23,27 +23,8 @@ if str(RUNTIME_SRC) not in sys.path:
     sys.path.insert(0, str(RUNTIME_SRC))
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
-from ur10e_experiment_runtime.return_route import (
-    RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2,
-    RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
-    RETURN_ANGULAR_SPEED_LIMIT_RAD_S,
-    RETURN_ANGULAR_SPEED_GUARD_RAD_S,
-    RETURN_ANGULAR_STOP_DECELERATION_RAD_S2,
-    RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
-    RETURN_CONTROLLER_PERIOD_S,
-    RETURN_ORIENTATION_ADMISSION_LIMIT_RAD,
-)
-from step5d_autotune_v3.certification import (
-    COMMAND_DIRECT_STOP as CERTIFICATION_COMMAND_DIRECT_STOP,
-    COMMAND_RETURN_ROUTE as CERTIFICATION_COMMAND_RETURN_ROUTE,
-    COMMAND_STALE_STOP as CERTIFICATION_COMMAND_STALE_STOP,
-    EXECUTION_PROFILE_ID as CERTIFICATION_EXECUTION_PROFILE_ID,
-    SAMPLES_PER_STOP_PROCEDURE as CERTIFICATION_SAMPLE_COUNT,
-    STOP_LINEAR_ACCELERATION_M_S2 as CERTIFICATION_LINEAR_ACCELERATION_M_S2,
-    STOP_LINEAR_SPEED_M_S as CERTIFICATION_LINEAR_SPEED_M_S,
-)
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r001"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
@@ -52,9 +33,6 @@ PRECONTACT_ROTVEC_RAD = STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
 PRECONTACT_CLEARANCE_M = 0.005
 MINIMUM_START_ABOVE_ENTRY_M = 0.01
 STAGE25_STALE_COMMAND_HOLD_S = 0.020
-CERTIFICATION_SAFE_Z_MIN_M = 0.033
-CERTIFICATION_EXCURSION_M = 0.004
-RETURN_ANGULAR_VELOCITY_FILTER_TAU_S = 0.020
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 
@@ -66,45 +44,20 @@ def _replace_once(source: str, old: str, new: str, *, role: str) -> str:
 
 
 def _batch_lifecycle_replacements() -> tuple[tuple[str, str, str], ...]:
-    globals_and_guard = rf'''global codex_autotune_batch_row_echo = 0
+    globals_and_guard = r'''global codex_autotune_batch_row_echo = 0
 global codex_autotune_return_kind_echo = 0
 global codex_autotune_return_guard_mask = 0
 global codex_autotune_return_guard_active = False
 global codex_autotune_return_guard_reason = 0.0
-global codex_autotune_return_segment_id = 0
-global codex_autotune_return_max_angular_speed_rad_s = 0.0
-global codex_autotune_return_max_angular_accel_rad_s2 = 0.0
-global codex_autotune_return_max_sample_gap_s = 0.0
-
-def codex_autotune_norm3(x, y, z):
-  return sqrt(x * x + y * y + z * z)
-end
-
-def codex_autotune_return_sample_gap_fault(have_sample, loop_dt):
-  return have_sample and (loop_dt <= 0.0 or loop_dt > {RETURN_CONTROLLER_MAX_SAMPLE_GAP_S:.3f})
-end
 
 thread codex_autotune_return_guard_thread():
   local last_heartbeat = read_input_float_register(26)
   local stale_s = 0.0
-  local have_controller_time_sample = False
-  local have_angular_sample = False
-  local last_wx = 0.0
-  local last_wy = 0.0
-  local last_wz = 0.0
-  local controller_clock = time()
-  local last_controller_time_s = controller_clock.sec + controller_clock.nanosec / 1000000000.0
   while codex_autotune_return_guard_active:
     local heartbeat = read_input_float_register(26)
-    controller_clock = time()
-    local controller_time_s = controller_clock.sec + controller_clock.nanosec / 1000000000.0
-    local loop_dt = controller_time_s - last_controller_time_s
-    last_controller_time_s = controller_time_s
-    local timing_sample_valid = have_controller_time_sample
+    local loop_dt = get_steptime()
     if heartbeat == last_heartbeat:
-      if timing_sample_valid:
-        stale_s = stale_s + loop_dt
-      end
+      stale_s = stale_s + loop_dt
     else:
       stale_s = 0.0
       last_heartbeat = heartbeat
@@ -121,39 +74,6 @@ thread codex_autotune_return_guard_thread():
     end
     local pose_now = get_actual_tcp_pose()
     local workspace_ok = pose_now[0] >= 0.350 and pose_now[0] <= 0.650 and pose_now[1] >= -0.050 and pose_now[1] <= 0.250 and pose_now[2] >= 0.000 and pose_now[2] <= 0.350
-    local tcp_speed = get_actual_tcp_speed()
-    local angular_speed_rad_s = codex_autotune_norm3(tcp_speed[3], tcp_speed[4], tcp_speed[5])
-    local angular_accel_rad_s2 = 0.0
-    if timing_sample_valid and have_angular_sample and loop_dt > 0.0:
-      local angular_filter_alpha = loop_dt / ({RETURN_ANGULAR_VELOCITY_FILTER_TAU_S:.3f} + loop_dt)
-      local filtered_wx = last_wx + angular_filter_alpha * (tcp_speed[3] - last_wx)
-      local filtered_wy = last_wy + angular_filter_alpha * (tcp_speed[4] - last_wy)
-      local filtered_wz = last_wz + angular_filter_alpha * (tcp_speed[5] - last_wz)
-      angular_accel_rad_s2 = codex_autotune_norm3(filtered_wx - last_wx, filtered_wy - last_wy, filtered_wz - last_wz) / loop_dt
-      last_wx = filtered_wx
-      last_wy = filtered_wy
-      last_wz = filtered_wz
-    else:
-      last_wx = tcp_speed[3]
-      last_wy = tcp_speed[4]
-      last_wz = tcp_speed[5]
-    end
-    have_angular_sample = True
-    if angular_speed_rad_s > codex_autotune_return_max_angular_speed_rad_s:
-      codex_autotune_return_max_angular_speed_rad_s = angular_speed_rad_s
-    end
-    if angular_accel_rad_s2 > codex_autotune_return_max_angular_accel_rad_s2:
-      codex_autotune_return_max_angular_accel_rad_s2 = angular_accel_rad_s2
-    end
-    if timing_sample_valid and loop_dt > codex_autotune_return_max_sample_gap_s:
-      codex_autotune_return_max_sample_gap_s = loop_dt
-    end
-    write_output_float_register(39, codex_autotune_return_segment_id)
-    write_output_float_register(40, angular_speed_rad_s)
-    write_output_float_register(41, angular_accel_rad_s2)
-    write_output_float_register(42, codex_autotune_return_max_angular_speed_rad_s)
-    write_output_float_register(43, codex_autotune_return_max_angular_accel_rad_s2)
-    write_output_float_register(44, codex_autotune_return_max_sample_gap_s)
     if stale_s > 0.100:
       codex_autotune_return_guard_reason = 2.0
     elif reason != 0.0:
@@ -162,86 +82,12 @@ thread codex_autotune_return_guard_thread():
       codex_autotune_return_guard_reason = 13.0
     elif not workspace_ok:
       codex_autotune_return_guard_reason = 17.0
-    elif codex_autotune_return_sample_gap_fault(timing_sample_valid, loop_dt):
-      codex_autotune_return_guard_reason = 18.0
-    elif angular_speed_rad_s > {RETURN_ANGULAR_SPEED_GUARD_RAD_S:.3f}:
-      codex_autotune_return_guard_reason = 19.0
-    elif have_angular_sample and angular_accel_rad_s2 > {RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2:.3f}:
-      codex_autotune_return_guard_reason = 20.0
     end
-    # This observer thread never owns robot motion. The bounded-return loop
-    # sees the latched reason at the next 2 ms horizon and performs stopl from
-    # the same main thread that owns speedl.
-    have_controller_time_sample = True
+    if codex_autotune_return_guard_reason != 0.0:
+      stopl(0.3)
+    end
     sync()
   end
-end
-
-def codex_autotune_bounded_return_segment(target_pose, linear_accel_m_s2, linear_speed_limit_m_s, segment_id):
-  local start_pose = get_actual_tcp_pose()
-  local start_error = pose_trans(target_pose, pose_inv(start_pose))
-  local start_angle_rad = codex_autotune_norm3(start_error[3], start_error[4], start_error[5])
-  if start_angle_rad > {RETURN_ORIENTATION_ADMISSION_LIMIT_RAD:.9f}:
-    codex_autotune_return_guard_reason = 21.0
-    return False
-  end
-  local elapsed_s = 0.0
-  codex_autotune_return_segment_id = segment_id
-  write_output_float_register(35, 40.0 + segment_id / 10.0)
-  while elapsed_s < 30.0 and codex_autotune_return_guard_reason == 0.0:
-    local current_pose = get_actual_tcp_pose()
-    local dx = target_pose[0] - current_pose[0]
-    local dy = target_pose[1] - current_pose[1]
-    local dz = target_pose[2] - current_pose[2]
-    local position_error_m = codex_autotune_norm3(dx, dy, dz)
-    local orientation_error = pose_trans(target_pose, pose_inv(current_pose))
-    local orientation_error_rad = codex_autotune_norm3(orientation_error[3], orientation_error[4], orientation_error[5])
-    if position_error_m <= 0.0005 and orientation_error_rad <= 0.005:
-      stopl(linear_accel_m_s2, {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f})
-      return True
-    end
-    local linear_speed_m_s = linear_speed_limit_m_s
-    if position_error_m > 0.0:
-      local linear_braking_speed_m_s = sqrt(2.0 * linear_accel_m_s2 * position_error_m)
-      if linear_braking_speed_m_s < linear_speed_m_s:
-        linear_speed_m_s = linear_braking_speed_m_s
-      end
-    else:
-      linear_speed_m_s = 0.0
-    end
-    local angular_speed_rad_s = {RETURN_ANGULAR_SPEED_LIMIT_RAD_S:.3f}
-    if orientation_error_rad > 0.0:
-      local angular_braking_speed_rad_s = sqrt(2.0 * {RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2:.3f} * orientation_error_rad)
-      if angular_braking_speed_rad_s < angular_speed_rad_s:
-        angular_speed_rad_s = angular_braking_speed_rad_s
-      end
-    else:
-      angular_speed_rad_s = 0.0
-    end
-    local vx = 0.0
-    local vy = 0.0
-    local vz = 0.0
-    if position_error_m > 0.0:
-      vx = linear_speed_m_s * dx / position_error_m
-      vy = linear_speed_m_s * dy / position_error_m
-      vz = linear_speed_m_s * dz / position_error_m
-    end
-    local wx = 0.0
-    local wy = 0.0
-    local wz = 0.0
-    if orientation_error_rad > 0.0:
-      wx = angular_speed_rad_s * orientation_error[3] / orientation_error_rad
-      wy = angular_speed_rad_s * orientation_error[4] / orientation_error_rad
-      wz = angular_speed_rad_s * orientation_error[5] / orientation_error_rad
-    end
-    speedl([vx, vy, vz, wx, wy, wz], linear_accel_m_s2, {RETURN_CONTROLLER_PERIOD_S:.3f}, aRot={RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2:.3f})
-    elapsed_s = elapsed_s + get_steptime()
-  end
-  stopl(0.3, {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f})
-  if codex_autotune_return_guard_reason == 0.0:
-    codex_autotune_return_guard_reason = 22.0
-  end
-  return False
 end
 
 def codex_autotune_typed_target_verified(target_pose, campaign_home_q, require_home_q):
@@ -285,23 +131,22 @@ def codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_
   local transfer_pose = p[target_pose[0], target_pose[1], safe_z, target_pose[3], target_pose[4], target_pose[5]]
   codex_autotune_return_guard_reason = 0.0
   codex_autotune_return_guard_mask = 0
-  codex_autotune_return_segment_id = 0
-  codex_autotune_return_max_angular_speed_rad_s = 0.0
-  codex_autotune_return_max_angular_accel_rad_s2 = 0.0
-  codex_autotune_return_max_sample_gap_s = 0.0
   codex_autotune_return_guard_active = True
   local guard_handle = run codex_autotune_return_guard_thread()
-  local rise_ok = codex_autotune_bounded_return_segment(rise_pose, 0.060, 0.040, 1.0)
+  movel(rise_pose, a=0.060, v=0.040, r=0.0)
+  stopl(0.1)
   if codex_autotune_return_guard_reason == 0.0:
-    local transfer_ok = codex_autotune_bounded_return_segment(transfer_pose, 0.135, 0.090, 2.0)
+    movel(transfer_pose, a=0.135, v=0.090, r=0.0)
+    stopl(0.1)
   end
   if codex_autotune_return_guard_reason == 0.0:
-    local target_ok = codex_autotune_bounded_return_segment(target_pose, 0.060, 0.040, 3.0)
+    movel(target_pose, a=0.060, v=0.040, r=0.0)
+    stopl(0.1)
   end
   codex_autotune_return_guard_active = False
   sync()
   kill guard_handle
-  if codex_autotune_return_guard_reason != 0.0 or not rise_ok:
+  if codex_autotune_return_guard_reason != 0.0:
     return False
   end
   sleep(0.20)
@@ -312,129 +157,6 @@ def codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_
   # Stage25 contact-loss/terminal transition before the guarded retract.
   codex_autotune_return_guard_mask = 127
   return True
-end
-
-def codex_autotune_controller_time_s():
-  local controller_clock = time()
-  return controller_clock.sec + controller_clock.nanosec / 1000000000.0
-end
-
-def codex_autotune_certification_identity_matches(campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index):
-  return read_input_integer_register(24) == campaign_epoch and read_input_integer_register(25) == trial_id and read_input_integer_register(27) == candidate_token and read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == sample_index
-end
-
-def codex_autotune_certification_stop(command, campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index, command_seq, campaign_home_pose, campaign_home_q):
-  local start_pose = get_actual_tcp_pose()
-  if start_pose[2] < {CERTIFICATION_SAFE_Z_MIN_M:.3f}:
-    return -17
-  end
-  local last_heartbeat = read_input_float_register(26)
-  local stale_s = 0.0
-  local trigger_controller_time_s = -1.0
-  local consumed_sequence = command_seq
-  codex_autotune_write_state(campaign_epoch, trial_id, 80, candidate_token, 0, execution_profile_id, consumed_sequence)
-  # Controller time remains the stale-watchdog clock. Do not turn the
-  # certification motion loop into a 4 ms TP scheduling acceptance test:
-  # speedl's 2 ms command horizon and the existing identity, heartbeat,
-  # force/torque, and excursion guards retain the bounded no-contact envelope.
-  local last_controller_time_s = codex_autotune_controller_time_s()
-  while trigger_controller_time_s < 0.0:
-    local controller_time_s = codex_autotune_controller_time_s()
-    local loop_dt = controller_time_s - last_controller_time_s
-    last_controller_time_s = controller_time_s
-    local heartbeat = read_input_float_register(26)
-    if heartbeat == last_heartbeat:
-      stale_s = stale_s + loop_dt
-    else:
-      stale_s = 0.0
-      last_heartbeat = heartbeat
-    end
-    local reason = codex_step4e_guard_stop_reason()
-    local current_pose = get_actual_tcp_pose()
-    if not codex_autotune_certification_identity_matches(campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index):
-      return -13
-    elif command == {CERTIFICATION_COMMAND_DIRECT_STOP} and read_input_float_register(28) > 0.5:
-      trigger_controller_time_s = controller_time_s
-    elif command == {CERTIFICATION_COMMAND_STALE_STOP} and stale_s > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:
-      trigger_controller_time_s = controller_time_s
-    elif reason != 0.0:
-      return -reason
-    elif codex_abs(current_pose[0] - start_pose[0]) > {CERTIFICATION_EXCURSION_M + 0.002:.3f}:
-      return -17
-    else:
-      speedl([{CERTIFICATION_LINEAR_SPEED_M_S:.3f}, 0.0, 0.0, 0.0, 0.0, 0.0], {CERTIFICATION_LINEAR_ACCELERATION_M_S2:.3f}, {RETURN_CONTROLLER_PERIOD_S:.3f}, aRot={RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2:.3f})
-    end
-  end
-  write_output_float_register(45, trigger_controller_time_s)
-  local stop_transport_controller_time_s = codex_autotune_controller_time_s()
-  write_output_float_register(46, stop_transport_controller_time_s)
-  codex_autotune_write_state(campaign_epoch, trial_id, 81, candidate_token, 0, execution_profile_id, consumed_sequence)
-  stopl({CERTIFICATION_LINEAR_ACCELERATION_M_S2:.3f}, {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f})
-  local stationary_s = 0.0
-  local stationary_deadline_s = codex_autotune_controller_time_s() + 2.0
-  while stationary_s < 0.050 and codex_autotune_controller_time_s() < stationary_deadline_s:
-    local tcp_speed = get_actual_tcp_speed()
-    local linear_speed_m_s = codex_autotune_norm3(tcp_speed[0], tcp_speed[1], tcp_speed[2])
-    if linear_speed_m_s <= 0.001:
-      stationary_s = stationary_s + get_steptime()
-    else:
-      stationary_s = 0.0
-    end
-    sync()
-  end
-  if stationary_s < 0.050:
-    return -17
-  end
-  write_output_float_register(47, codex_autotune_controller_time_s())
-  codex_autotune_write_state(campaign_epoch, trial_id, 82, candidate_token, 0, execution_profile_id, consumed_sequence)
-  if command == {CERTIFICATION_COMMAND_STALE_STOP}:
-    local resume_deadline_s = codex_autotune_controller_time_s() + 2.0
-    while read_input_float_register(26) == last_heartbeat and codex_autotune_controller_time_s() < resume_deadline_s:
-      sync()
-    end
-    if read_input_float_register(26) == last_heartbeat:
-      return -2
-    end
-  end
-  if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
-    if codex_autotune_return_guard_reason != 0.0:
-      return 0.0 - codex_autotune_return_guard_reason
-    end
-    return -17
-  end
-  codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, consumed_sequence)
-  return consumed_sequence
-end
-
-def codex_autotune_certification_return(campaign_epoch, trial_id, candidate_token, execution_profile_id, command_seq, campaign_home_pose, campaign_home_q):
-  local start_pose = get_actual_tcp_pose()
-  if start_pose[2] < {CERTIFICATION_SAFE_Z_MIN_M:.3f}:
-    return -17
-  end
-  codex_autotune_write_state(campaign_epoch, trial_id, 83, candidate_token, 0, execution_profile_id, command_seq)
-  local offset_pose = p[start_pose[0] + {CERTIFICATION_EXCURSION_M:.3f}, start_pose[1], start_pose[2], start_pose[3], start_pose[4], start_pose[5]]
-  codex_autotune_return_guard_reason = 0.0
-  codex_autotune_return_guard_active = True
-  local guard_handle = run codex_autotune_return_guard_thread()
-  local offset_ok = codex_autotune_bounded_return_segment(offset_pose, {CERTIFICATION_LINEAR_ACCELERATION_M_S2:.3f}, {CERTIFICATION_LINEAR_SPEED_M_S:.3f}, 0.0)
-  codex_autotune_return_guard_active = False
-  sync()
-  kill guard_handle
-  if not offset_ok or codex_autotune_return_guard_reason != 0.0:
-    if codex_autotune_return_guard_reason != 0.0:
-      return 0.0 - codex_autotune_return_guard_reason
-    end
-    return -17
-  end
-  codex_autotune_write_state(campaign_epoch, trial_id, 84, candidate_token, 0, execution_profile_id, command_seq)
-  if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
-    if codex_autotune_return_guard_reason != 0.0:
-      return 0.0 - codex_autotune_return_guard_reason
-    end
-    return -17
-  end
-  codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, command_seq)
-  return command_seq
 end
 
 '''
@@ -450,11 +172,7 @@ end
           codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         end'''
     new_return = '''        if not codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_home_q):
-          local return_fault_reason = codex_autotune_return_guard_reason
-          if return_fault_reason == 0.0:
-            return_fault_reason = 17.0
-          end
-          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, return_fault_reason, execution_profile_id, last_consumed_command_seq)
+          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, 17, execution_profile_id, last_consumed_command_seq)
         end
         codex_autotune_write_state(campaign_epoch, trial_id, 50, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         codex_autotune_write_state(campaign_epoch, trial_id, 60, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)'''
@@ -496,41 +214,6 @@ end
       stopl(0.1)
       sleep(0.20)
     end'''
-    old_command_dispatch = '''    if command == 3 and command_seq > last_consumed_command_seq:
-      last_consumed_command_seq = command_seq
-      codex_autotune_fault_forever(0, 0, 0, 4, 0, last_consumed_command_seq)
-    elif command == 1 and command_seq > last_consumed_command_seq:'''
-    new_command_dispatch = f'''    if command == 3 and command_seq > last_consumed_command_seq:
-      last_consumed_command_seq = command_seq
-      codex_autotune_fault_forever(0, 0, 0, 4, 0, last_consumed_command_seq)
-    elif (command == {CERTIFICATION_COMMAND_DIRECT_STOP} or command == {CERTIFICATION_COMMAND_STALE_STOP} or command == {CERTIFICATION_COMMAND_RETURN_ROUTE}) and command_seq > last_consumed_command_seq:
-      local certification_epoch = read_input_integer_register(24)
-      local certification_trial_id = read_input_integer_register(25)
-      local certification_token = read_input_integer_register(27)
-      local certification_profile_id = read_input_integer_register(28)
-      local certification_sample_index = read_input_integer_register(30)
-      last_consumed_command_seq = command_seq
-      if certification_epoch <= 0 or certification_trial_id <= 0 or certification_token <= 0 or certification_profile_id != {CERTIFICATION_EXECUTION_PROFILE_ID} or certification_sample_index < 1 or certification_sample_index > {CERTIFICATION_SAMPLE_COUNT} or command == {CERTIFICATION_COMMAND_RETURN_ROUTE} and certification_sample_index != 1:
-        codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 13, certification_profile_id, last_consumed_command_seq)
-      end
-      codex_autotune_batch_row_echo = certification_sample_index
-      codex_autotune_return_kind_echo = 3
-      codex_autotune_return_guard_mask = 0
-      if command == {CERTIFICATION_COMMAND_RETURN_ROUTE}:
-        local certification_result = codex_autotune_certification_return(certification_epoch, certification_trial_id, certification_token, certification_profile_id, last_consumed_command_seq, campaign_home_pose, campaign_home_q)
-        if certification_result < 0:
-          codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 0 - certification_result, certification_profile_id, last_consumed_command_seq)
-        end
-        last_consumed_command_seq = certification_result
-      else:
-        local certification_result = codex_autotune_certification_stop(command, certification_epoch, certification_trial_id, certification_token, certification_profile_id, certification_sample_index, last_consumed_command_seq, campaign_home_pose, campaign_home_q)
-        if certification_result < 0:
-          codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 0 - certification_result, certification_profile_id, last_consumed_command_seq)
-        end
-        last_consumed_command_seq = certification_result
-      end
-      codex_autotune_write_state(0, 0, 10, 0, 0, 0, last_consumed_command_seq)
-    elif command == 1 and command_seq > last_consumed_command_seq:'''
     return (
         (
             "# HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29",
@@ -551,11 +234,6 @@ end
             "  write_output_integer_register(30, consumed_command_seq)\nend",
             "  write_output_integer_register(30, consumed_command_seq)\n  write_output_integer_register(31, codex_autotune_batch_row_echo)\n  write_output_integer_register(32, codex_autotune_return_kind_echo)\n  write_output_integer_register(33, codex_autotune_return_guard_mask)\nend",
             "typed return echoes",
-        ),
-        (
-            old_command_dispatch,
-            new_command_dispatch,
-            "ticketed no-contact certification dispatch",
         ),
         (
             "def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2):",
@@ -726,47 +404,13 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "read_input_integer_register(30)",
         "write_output_integer_register(33, codex_autotune_return_guard_mask)",
         "codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_home_q)",
-        "def codex_autotune_bounded_return_segment(",
-        "speedl([vx, vy, vz, wx, wy, wz], linear_accel_m_s2, 0.002, aRot=0.100)",
-        "stopl(0.3, 0.100)",
-        "write_output_float_register(39, codex_autotune_return_segment_id)",
-        "write_output_float_register(44, codex_autotune_return_max_sample_gap_s)",
-        "local controller_clock = time()",
-        "local loop_dt = controller_time_s - last_controller_time_s",
-        "codex_autotune_return_guard_reason = 21.0",
-        "codex_autotune_return_guard_reason = 22.0",
         "codex_autotune_write_state(campaign_epoch, trial_id, 76",
         "codex_autotune_write_state(campaign_epoch, trial_id, 77",
-        "def codex_autotune_certification_stop(",
-        "def codex_autotune_certification_return(",
-        f"command == {CERTIFICATION_COMMAND_DIRECT_STOP}",
-        f"command == {CERTIFICATION_COMMAND_STALE_STOP}",
-        f"command == {CERTIFICATION_COMMAND_RETURN_ROUTE}",
-        f"certification_profile_id != {CERTIFICATION_EXECUTION_PROFILE_ID}",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 80",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 81",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 82",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 83",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 84",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 85",
-        "write_output_float_register(45, trigger_controller_time_s)",
-        "write_output_float_register(46, stop_transport_controller_time_s)",
-        "write_output_float_register(47, codex_autotune_controller_time_s())",
         "codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)",
     )
     missing = [marker for marker in required if marker not in script]
     if missing:
         raise ValueError(f"V3 TP script lacks required markers: {missing}")
-    certification_stop = script.split(
-        "def codex_autotune_certification_stop(", 1
-    )[1].split("def codex_autotune_certification_return(", 1)[0]
-    if (
-        "loop_dt <= 0.0 or loop_dt >" in certification_stop
-        or "return -18" in certification_stop
-    ):
-        raise ValueError(
-            "certification motion must not enforce a TP scheduling-gap acceptance test"
-        )
     prefix_lines = 5
     normalized = "".join(script.splitlines(keepends=True)[prefix_lines:])
     normalized = _replace_once(
@@ -874,9 +518,7 @@ Identity:
 
 Motion class:
   Contact motion package. Upload/read-back does not Load or Play it.
-  Play enters an inert READY_HOME loop. Motion begins only after either a
-  ticketed no-contact certification command or a separately armed campaign.
-  Certification commands cannot enter the campaign path.
+  One Play enters the live campaign; there is no HIL HOLD or second user authorization.
   Before guarded search, Stage22 first moves at the existing safe Z, then moves
   vertically to {PRECONTACT_XYZ_M} with a {PRECONTACT_CLEARANCE_M:.3f} m clearance
   above the completed contact-plus-0.1 s robust surface pose. FAR/NEAR speeds and
@@ -884,20 +526,8 @@ Motion class:
 
 Frozen control contract:
   qdot cap 0.500 rad/s; target 12 N; input integer registers 24..30;
-  output integer registers 24..33; Stage25 heartbeat watchdog fail-closed
-  after {STAGE25_STALE_COMMAND_HOLD_S:.3f} s of unchanged heartbeat.
+  output integer registers 24..33; heartbeat watchdog fail-closed.
   Batch row is explicit; rows 1..9 return NearReady and row 10 returns CampaignHome.
-  Certification commands {CERTIFICATION_COMMAND_DIRECT_STOP},
-  {CERTIFICATION_COMMAND_STALE_STOP}, and {CERTIFICATION_COMMAND_RETURN_ROUTE}
-  require profile tag {CERTIFICATION_EXECUTION_PROFILE_ID}, sample identity,
-  live sensor/heartbeat guards, safe-Z admission, and guarded safe closure.
-  The three return targets are unchanged. Return motion uses bounded speedl with
-  angular command cap {RETURN_ANGULAR_SPEED_LIMIT_RAD_S:.3f} rad/s, rotational
-  acceleration cap {RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2:.3f} rad/s^2,
-  observed speed/acceleration tripwires {RETURN_ANGULAR_SPEED_GUARD_RAD_S:.3f}
-  rad/s and {RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2:.3f} rad/s^2, explicit
-  stopl rotational deceleration {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f}
-  rad/s^2, and a {RETURN_ORIENTATION_ADMISSION_LIMIT_RAD:.9f} rad admission cap.
 """
 
 
@@ -907,10 +537,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
         "program": PROGRAM_NAME,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "delta_class": (
-            "identity_precontact_prior_exact_batch_lifecycle_return_"
-            "angular_envelope_stage25_watchdog_ticketed_certification_v3"
-        ),
+        "delta_class": "identity_precontact_prior_exact_batch_lifecycle_return_v2",
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
         "physical_prior_sha256": PRECONTACT_POSE_PRIOR_SHA256,
         "reaction_normal_b": list(STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b),
@@ -930,50 +557,6 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "output_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
         "safe_transfer_z_m": 0.033,
         "return_segment_count": 3,
-        "return_controller": "speedl_bounded_twist_v1",
-        "return_angular_speed_limit_rad_s": RETURN_ANGULAR_SPEED_LIMIT_RAD_S,
-        "return_angular_acceleration_limit_rad_s2": (
-            RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2
-        ),
-        "return_angular_speed_guard_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
-        "return_angular_acceleration_guard_rad_s2": (
-            RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2
-        ),
-        "return_angular_velocity_filter_tau_s": (
-            RETURN_ANGULAR_VELOCITY_FILTER_TAU_S
-        ),
-        "return_angular_stop_deceleration_rad_s2": (
-            RETURN_ANGULAR_STOP_DECELERATION_RAD_S2
-        ),
-        "return_orientation_admission_limit_rad": (
-            RETURN_ORIENTATION_ADMISSION_LIMIT_RAD
-        ),
-        "return_controller_period_s": RETURN_CONTROLLER_PERIOD_S,
-        "return_sample_gap_clock": "controller_monotonic_time_mode_0",
-        "return_controller_max_sample_gap_s": (
-            RETURN_CONTROLLER_MAX_SAMPLE_GAP_S
-        ),
-        "return_segment_phase_codes": [40.1, 40.2, 40.3],
-        "return_continuous_telemetry_output_float_registers": list(range(39, 45)),
-        "certification_commands": {
-            "direct_exact_stop": CERTIFICATION_COMMAND_DIRECT_STOP,
-            "stale_watchdog_exact_stop": CERTIFICATION_COMMAND_STALE_STOP,
-            "return_route": CERTIFICATION_COMMAND_RETURN_ROUTE,
-        },
-        "certification_execution_profile_id": CERTIFICATION_EXECUTION_PROFILE_ID,
-        "certification_samples_per_stop_procedure": CERTIFICATION_SAMPLE_COUNT,
-        "certification_safe_z_min_m": CERTIFICATION_SAFE_Z_MIN_M,
-        "certification_excursion_m": CERTIFICATION_EXCURSION_M,
-        "certification_linear_speed_m_s": CERTIFICATION_LINEAR_SPEED_M_S,
-        "certification_linear_acceleration_m_s2": (
-            CERTIFICATION_LINEAR_ACCELERATION_M_S2
-        ),
-        "certification_command_horizon_s": RETURN_CONTROLLER_PERIOD_S,
-        "certification_heartbeat_stale_s": STAGE25_STALE_COMMAND_HOLD_S,
-        "certification_loop_gap_policy": (
-            "retired_not_a_tp_scheduling_acceptance_gate"
-        ),
-        "certification_stop_telemetry_output_float_registers": [45, 46, 47],
         "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
     }
 
@@ -1020,9 +603,21 @@ def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
         ".txt": output_dir / f"{PROGRAM_NAME}.txt",
         ".urp": output_dir / f"{PROGRAM_NAME}.urp",
     }
-    paths[".script"].write_text(script, encoding="utf-8")
-    paths[".txt"].write_text(txt, encoding="utf-8")
-    paths[".urp"].write_bytes(urp)
+    manifest_path = output_dir / f"{PROGRAM_NAME}.deploy-manifest.json"
+    sanity_path = output_dir / f"{PROGRAM_NAME}.numeric-sanity.json"
+    revision_outputs = (*paths.values(), manifest_path, sanity_path)
+    collisions = [str(path) for path in revision_outputs if path.exists()]
+    if collisions:
+        raise FileExistsError(
+            "TP revision is immutable; increment rNNN instead of overwriting: "
+            + ", ".join(collisions)
+        )
+    with paths[".script"].open("x", encoding="utf-8") as handle:
+        handle.write(script)
+    with paths[".txt"].open("x", encoding="utf-8") as handle:
+        handle.write(txt)
+    with paths[".urp"].open("xb") as handle:
+        handle.write(urp)
     digests = {
         suffix: hashlib.sha256(path.read_bytes()).hexdigest()
         for suffix, path in paths.items()
@@ -1040,15 +635,11 @@ def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
             for suffix, path in paths.items()
         ],
     }
-    manifest_path = output_dir / f"{PROGRAM_NAME}.deploy-manifest.json"
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    with manifest_path.open("x", encoding="utf-8") as handle:
+        handle.write(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     sanity = numeric_sanity(script)
-    sanity_path = output_dir / f"{PROGRAM_NAME}.numeric-sanity.json"
-    sanity_path.write_text(
-        json.dumps(sanity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    with sanity_path.open("x", encoding="utf-8") as handle:
+        handle.write(json.dumps(sanity, indent=2, sort_keys=True) + "\n")
     return {
         "program": PROGRAM_NAME,
         "control_profile_id": CONTROL_PROFILE_ID,

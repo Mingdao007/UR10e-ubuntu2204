@@ -7,6 +7,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -15,161 +17,50 @@ import build_step5d_autotune_tp as v1  # noqa: E402
 import build_step5d_autotune_tp_v3 as v3  # noqa: E402
 
 
-def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
+def test_r001_direct_campaign_preserves_v1_kernel_and_retires_certification() -> None:
     rendered = v3.render_script()
     v3.validate_rendered_script(rendered)
+
+    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r001"
     assert "# CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1" in rendered
-    assert "def codex_step5d_autotune_trial_v1(" in rendered
-    assert "def codex_step5d_strict_rnn_autotune_v3():" in rendered
-    assert rendered.count("read_input_integer_register(26)") >= 2
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
-    assert "# PRECONTACT_POSE_PRIOR_ID: step5d_v3_physical_prior_contact_0p1_20260719" in rendered
-    assert "# PHYSICAL_PRIOR_SHA256: c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f" in rendered
-    assert "local entry_x = 0.487834547" in rendered
-    assert "local entry_y = 0.129337053" in rendered
-    assert "local precontact_z = 0.022863519" in rendered
-    assert "local target_rx = 3.120752062" in rendered
-    assert "local target_ry = 0.000000000" in rendered
-    assert "local target_rz = 0.068626833" in rendered
+    assert "def codex_step5d_autotune_trial_v1(" in rendered
     assert "local entry_xy_pose = p[entry_x, entry_y, p_current[2]" in rendered
-    assert "local entry_precontact_pose = p[entry_x, entry_y, precontact_z" in rendered
-    assert "if p_current[2] < precontact_z + minimum_start_above_entry_m:" in rendered
+    assert "movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)" in rendered
     assert "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)" in rendered
-    assert "if batch_row_index > 1:" in rendered
-    assert "elif p_current[2] < precontact_z + minimum_start_above_entry_m:" in rendered
+    assert "movel(rise_pose, a=0.060, v=0.040, r=0.0)" in rendered
+    assert "movel(transfer_pose, a=0.135, v=0.090, r=0.0)" in rendered
+    assert "movel(target_pose, a=0.060, v=0.040, r=0.0)" in rendered
     assert "read_input_integer_register(30) == batch_row_index" in rendered
-    assert "codex_autotune_bounded_return_segment(rise_pose, 0.060, 0.040, 1.0)" in rendered
-    assert "codex_autotune_bounded_return_segment(transfer_pose, 0.135, 0.090, 2.0)" in rendered
-    assert "codex_autotune_bounded_return_segment(target_pose, 0.060, 0.040, 3.0)" in rendered
-    assert "speedl([vx, vy, vz, wx, wy, wz], linear_accel_m_s2, 0.002, aRot=0.100)" in rendered
-    assert "start_angle_rad > 0.349065850" in rendered
-    assert "angular_speed_rad_s > 0.060" in rendered
-    assert "angular_accel_rad_s2 > 0.500" in rendered
-    assert "local angular_filter_alpha = loop_dt / (0.020 + loop_dt)" in rendered
-    assert "filtered_wx - last_wx" in rendered
-    assert "stopl(0.3, 0.100)" in rendered
-    assert "write_output_float_register(39, codex_autotune_return_segment_id)" in rendered
-    assert "write_output_float_register(44, codex_autotune_return_max_sample_gap_s)" in rendered
-    assert "def codex_autotune_return_sample_gap_fault(have_sample, loop_dt):" in rendered
-    assert "local have_controller_time_sample = False" in rendered
-    assert "local timing_sample_valid = have_controller_time_sample" in rendered
-    assert "codex_autotune_return_sample_gap_fault(timing_sample_valid, loop_dt)" in rendered
-    assert "if timing_sample_valid and loop_dt > codex_autotune_return_max_sample_gap_s:" in rendered
-    return_guard_thread = rendered.split(
-        "thread codex_autotune_return_guard_thread():", 1
-    )[1].split("def codex_autotune_bounded_return_segment(", 1)[0]
-    assert "stopl(" not in return_guard_thread
-    assert "stopj(" not in return_guard_thread
-    assert "speedl(" not in return_guard_thread
-    assert "speedj(" not in return_guard_thread
-    assert "movel(" not in return_guard_thread
-    assert "movej(" not in return_guard_thread
-    assert "the same main thread that owns speedl" in return_guard_thread
-    assert "movel(campaign_home_pose, a=0.030, v=0.050, r=0.0)" not in rendered
-    assert "codex_autotune_write_state(campaign_epoch, trial_id, 76" in rendered
-    assert "codex_autotune_write_state(campaign_epoch, trial_id, 77" in rendered
-    assert "write_output_integer_register(33, codex_autotune_return_guard_mask)" in rendered
-    assert "def codex_autotune_certification_stop(" in rendered
-    assert "def codex_autotune_certification_return(" in rendered
-    assert "command == 4" in rendered
-    assert "command == 5" in rendered
-    assert "command == 6" in rendered
-    assert "certification_profile_id != 9001" in rendered
-    assert "write_output_float_register(45, trigger_controller_time_s)" in rendered
-    assert "write_output_float_register(46, stop_transport_controller_time_s)" in rendered
-    assert "write_output_float_register(47, codex_autotune_controller_time_s())" in rendered
     assert "if stale_s2 > 0.020:" in rendered
-    assert "if stale_s2 > 1.000:" not in rendered
-    certification_stop = rendered.split(
-        "def codex_autotune_certification_stop(", 1
-    )[1].split("def codex_autotune_certification_return(", 1)[0]
-    assert certification_stop.index(
-        "codex_autotune_write_state(campaign_epoch, trial_id, 80"
-    ) < certification_stop.index(
-        "local last_controller_time_s = codex_autotune_controller_time_s()"
-    ) < certification_stop.index("while trigger_controller_time_s < 0.0:")
-    assert "loop_dt <= 0.0 or loop_dt >" not in certification_stop
-    assert "return -18" not in certification_stop
-    assert "return 0.0 - codex_autotune_return_guard_reason" in certification_stop
-    certification_return = rendered.split(
-        "def codex_autotune_certification_return(", 1
-    )[1].split("# HOST_TO_TP_INT:", 1)[0]
-    assert certification_return.count(
-        "return 0.0 - codex_autotune_return_guard_reason"
-    ) == 2
-    assert "return command_seq" in certification_return
-    assert "local certification_result = codex_autotune_certification_return(" in rendered
+    for forbidden in (
+        "def codex_autotune_certification_stop(",
+        "def codex_autotune_certification_return(",
+        "command == 4",
+        "command == 5",
+        "command == 6",
+        "codex_autotune_bounded_return_segment",
+    ):
+        assert forbidden not in rendered
 
 
-def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
+def test_r001_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
     stamp = v3.source_stamp(
-        datetime(2026, 7, 19, 0, 30, tzinfo=timezone(timedelta(hours=8)))
+        datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
     )
     result = v3.write_triplet(tmp_path, stamp)
-    assert result["program"] == "step5d_strict_rnn_autotune_v3"
+    basename = "step5d_strict_rnn_autotune_v3_r001"
+
+    assert result["program"] == basename
     assert result["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
-    xml = gzip.decompress(
-        (tmp_path / "step5d_strict_rnn_autotune_v3.urp").read_bytes()
-    ).decode()
-    assert 'name="step5d_strict_rnn_autotune_v3"' in xml
-    assert "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.script" in xml
-    assert stamp in xml
-    assert result["checks"]["cached script"] is True
-    sanity = json.loads(
-        (tmp_path / "step5d_strict_rnn_autotune_v3.numeric-sanity.json").read_text()
-    )
-    assert sanity["delta_class"] == (
-        "identity_precontact_prior_exact_batch_lifecycle_return_"
-        "angular_envelope_stage25_watchdog_ticketed_certification_v3"
-    )
-    assert sanity["precontact_pose_prior_id"] == "step5d_v3_physical_prior_contact_0p1_20260719"
-    assert sanity["precontact_xyz_m"] == [0.487834547, 0.129337053, 0.022863519]
-    assert sanity["precontact_rotvec_rad"] == [3.120752062, 0.0, 0.068626833]
-    assert sanity["reaction_normal_b"] == [-0.043955267, 0.020079909, 0.998831683]
-    assert sanity["approach_axis_b"] == [0.043955267, -0.020079909, -0.998831683]
-    assert sanity["physical_prior_sha256"] == (
-        "c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f"
-    )
-    assert sanity["precontact_clearance_m"] == 0.005
-    assert sanity["minimum_start_above_entry_m"] == 0.01
-    assert sanity["qdot_cap_rad_s"] == 0.5
+    xml = gzip.decompress((tmp_path / f"{basename}.urp").read_bytes()).decode()
+    assert f'name="{basename}"' in xml
+    assert f"/programs/andyl/kunwei/step5/{basename}.script" in xml
+    sanity = json.loads((tmp_path / f"{basename}.numeric-sanity.json").read_text())
+    assert sanity["delta_class"] == "identity_precontact_prior_exact_batch_lifecycle_return_v2"
     assert sanity["stage25_stale_command_hold_s"] == 0.020
-    assert sanity["precontact_entry_speed_m_s"] == 0.09
-    assert sanity["input_integer_registers"] == list(range(24, 31))
-    assert sanity["output_integer_registers"] == list(range(24, 34))
-    assert sanity["safe_transfer_z_m"] == 0.033
     assert sanity["return_segment_count"] == 3
-    assert sanity["return_controller"] == "speedl_bounded_twist_v1"
-    assert sanity["return_angular_speed_limit_rad_s"] == 0.05
-    assert sanity["return_angular_acceleration_limit_rad_s2"] == 0.1
-    assert sanity["return_angular_speed_guard_rad_s"] == 0.06
-    assert sanity["return_angular_acceleration_guard_rad_s2"] == 0.5
-    assert sanity["return_angular_velocity_filter_tau_s"] == 0.02
-    assert sanity["return_angular_stop_deceleration_rad_s2"] == 0.1
-    assert sanity["return_controller_period_s"] == 0.002
-    assert sanity["return_sample_gap_clock"] == "controller_monotonic_time_mode_0"
-    assert sanity["return_controller_max_sample_gap_s"] == 0.004
-    assert sanity["return_segment_phase_codes"] == [40.1, 40.2, 40.3]
-    assert sanity["return_continuous_telemetry_output_float_registers"] == list(
-        range(39, 45)
-    )
-    assert sanity["certification_commands"] == {
-        "direct_exact_stop": 4,
-        "stale_watchdog_exact_stop": 5,
-        "return_route": 6,
-    }
-    assert sanity["certification_execution_profile_id"] == 9001
-    assert sanity["certification_samples_per_stop_procedure"] == 3
-    assert sanity["certification_safe_z_min_m"] == 0.033
-    assert sanity["certification_excursion_m"] == 0.004
-    assert sanity["certification_linear_speed_m_s"] == 0.01
-    assert sanity["certification_linear_acceleration_m_s2"] == 0.06
-    assert sanity["certification_command_horizon_s"] == 0.002
-    assert sanity["certification_heartbeat_stale_s"] == 0.020
-    assert sanity["certification_loop_gap_policy"] == (
-        "retired_not_a_tp_scheduling_acceptance_gate"
-    )
-    assert sanity["certification_stop_telemetry_output_float_registers"] == [45, 46, 47]
-    assert sanity["batch_row_policy"] == (
-        "rows_1_to_9_near_ready_row_10_campaign_home"
-    )
+    assert sanity["batch_row_policy"] == "rows_1_to_9_near_ready_row_10_campaign_home"
+
+    with pytest.raises(FileExistsError, match="increment rNNN"):
+        v3.write_triplet(tmp_path, stamp)

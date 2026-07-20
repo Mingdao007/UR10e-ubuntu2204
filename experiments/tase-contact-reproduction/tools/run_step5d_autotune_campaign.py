@@ -61,14 +61,9 @@ def _bootstrap_stable_cuda_runtime() -> None:
 _bootstrap_stable_cuda_runtime()
 
 from step5d_autotune_backend import (
-    CampaignAuthorization,
+    CampaignExecutionContext,
     Step5dV35Backend,
 )
-from step5d_autotune_v3.arming import (
-    ArmingContext,
-    load_campaign_arming_context,
-)
-from step5d_autotune_v3.profile import active_identity_snapshot
 from step5d_autotune_batch_plan import (
     CandidateBatchPlan,
     assert_append_only,
@@ -480,40 +475,29 @@ class MachineCampaignBinding:
     binding_ref_sha256: str
 
 
-def _campaign_authorization(
-    path: Path,
+def _campaign_execution_context(
+    binding: MachineCampaignBinding,
     *,
     campaign: CampaignSpec,
     campaign_fingerprint: str,
-) -> tuple[CampaignAuthorization, ArmingContext]:
-    """Adapt one strict runtime arming context to the legacy backend seam."""
+) -> CampaignExecutionContext:
+    """Bind machine plan/epoch identity without inventing motion authority."""
 
-    try:
-        context = load_campaign_arming_context(
-            path,
-            expected_static_identity=active_identity_snapshot(),
-        )
-    except Exception as exc:
-        raise RuntimeError(f"campaign arming context is invalid: {exc}") from exc
     if (
-        context.campaign_id != campaign.campaign_id
-        or context.campaign_epoch != campaign.campaign_epoch
-        or context.campaign_fingerprint != campaign_fingerprint
+        binding.campaign_id != campaign.campaign_id
+        or binding.campaign_epoch != campaign.campaign_epoch
+        or binding.campaign_fingerprint != campaign_fingerprint
     ):
         raise RuntimeError(
-            "campaign arming context is not bound to this exact epoch/fingerprint"
+            "campaign execution context is not bound to this exact epoch/fingerprint"
         )
-    authorization = CampaignAuthorization(
+    return CampaignExecutionContext(
         campaign_id=campaign.campaign_id,
         campaign_fingerprint=campaign_fingerprint,
-        authorization_ref_sha256=(
-            context.campaign_authorization.authorization_ref_sha256
-        ),
-        bounded_baseline_and_loop=True,
-        live_authorized=True,
+        execution_ref_sha256=binding.binding_ref_sha256,
         controller_readback_verified=True,
+        selected_release_current=True,
     )
-    return authorization, context
 
 
 def _campaign_binding(
@@ -1126,26 +1110,18 @@ def run(args: argparse.Namespace) -> int:
             else None if not epoch_chain else epoch_chain[-1].campaign.campaign_id
         ),
     )
-    if args.campaign_binding is None or args.campaign_arming_context is None:
-        raise RuntimeError(
-            "both machine campaign binding and typed campaign arming context are required"
-        )
+    if args.campaign_binding is None:
+        raise RuntimeError("machine campaign binding is required")
     machine_binding = _campaign_binding(
         args.campaign_binding.resolve(),
         campaign=campaign,
         campaign_fingerprint=frozen.composite_fingerprint,
     )
-    authorization, arming_context = _campaign_authorization(
-        args.campaign_arming_context.resolve(),
+    execution_context = _campaign_execution_context(
+        machine_binding,
         campaign=campaign,
         campaign_fingerprint=frozen.composite_fingerprint,
     )
-    if (
-        machine_binding.campaign_epoch != arming_context.campaign_epoch
-        or machine_binding.campaign_fingerprint
-        != arming_context.campaign_fingerprint
-    ):
-        raise RuntimeError("machine binding and typed authorization context differ")
     if plan_path is None or args.v3_trial_overlays is None:
         raise RuntimeError("V3 campaign binding requires exact candidate/overlay plans")
     overlay_path = args.v3_trial_overlays.resolve()
@@ -1157,7 +1133,10 @@ def run(args: argparse.Namespace) -> int:
         != _sha256_path(overlay_path)
     ):
         raise RuntimeError("machine campaign binding plan identity differs")
-    preflight = backend.preflight(offline=False, authorization=authorization)
+    preflight = backend.preflight(
+        offline=False,
+        execution_context=execution_context,
+    )
     if not preflight.ok:
         raise RuntimeError("live backend preflight failed: " + ";".join(preflight.blockers))
     follower = BridgeCsvFollower(bridge_csv)
@@ -1440,9 +1419,9 @@ def run(args: argparse.Namespace) -> int:
                     controller_readback_fingerprint=(
                         frozen.controller_readback_manifest_sha256
                     ),
-                    authorization_ref_sha256=(
-                        authorization.authorization_ref_sha256
-                    ),
+                    # Legacy BatchIdentity field; the value is now the exact
+                    # machine execution-context digest, not an authorization.
+                    authorization_ref_sha256=execution_context.execution_ref_sha256,
                     stopping_bound_fingerprint=None,
                     plant_epoch=supervisor.plant_epoch,
                     campaign_root=epoch_root,
@@ -1802,7 +1781,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mailbox", type=Path, required=True)
     parser.add_argument("--runner-ready-file", type=Path)
     parser.add_argument("--campaign-binding", type=Path)
-    parser.add_argument("--campaign-arming-context", type=Path)
     parser.add_argument("--campaign-epoch", type=int, default=1)
     parser.add_argument(
         "--selection-policy",

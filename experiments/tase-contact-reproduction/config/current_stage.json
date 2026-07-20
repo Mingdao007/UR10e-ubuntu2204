@@ -41,7 +41,7 @@
       "stage25_95": "zero-invalid clear state 522"
     },
     "step4e_path_shape": "cycloid",
-    "step4e_version": "step5d_strict_rnn_autotune_v3",
+    "step4e_version": "step5d_strict_rnn_autotune_v3_r001",
     "step5d_qdot_limit_rad_s": 0.5,
     "target_force_n": 12.0
   },
@@ -139,17 +139,17 @@
   },
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
   "controller_readback_manifest_sha256": "be7928577490a84f33e8bd612f403b5a3cb1a6039b0b9d3067af4877e96a734b",
-  "controller_readback_verified_for_selected_triplet": true,
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.script",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
+  "controller_readback_verified_for_selected_triplet": false,
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r001.script",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r001.urp",
   "current_stage_id": "step5d_strict_rnn_autotune_v3",
   "current_step": "Step5d",
   "delivery_manifest": "config/step5d_autotune_controller_readback_v3.json",
   "evidence": {
     "sha256": {
-      ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
-      ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
-      ".urp": "a0f26a974945f8de6b9ec21d96810b602746000a9aebc751cbdf380737a1ba0b"
+      ".script": "3a095ba8a80017058ef3ef592da9bcd6b3a906729c950035cf39e35e86b46660",
+      ".txt": "270af8c360fa770719098a33606e101732e0dfc26f8850b46185c73d565a3c31",
+      ".urp": "cbebfdbafe6065fea40881f18f176d43ac3378e178b9a66a20c08d9e99a8298c"
     },
     "step5d_projector_root_cause_fix": {
       "fixed_files": [
@@ -1171,7 +1171,7 @@
     "readiness_sha256": "912387a8a0c7e3692f5d7f39b867d23cc967d5ec6160cb268b111da52d81ccfe",
     "state": "awaiting_live_authorization"
   },
-  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3",
+  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r001",
   "notes": [
     "step5d_strict_rnn_ablation_v29 is controller read-back verified and remains the current pointer only as a frozen fallback.",
     "v29 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
@@ -1371,12 +1371,12 @@
     },
     "state": "user_accepted_engineering_convergence"
   },
-  "program": "step5d_strict_rnn_autotune_v3",
+  "program": "step5d_strict_rnn_autotune_v3_r001",
   "readiness": {
     "bridge_process_ready": false,
     "bridge_start_ready": false,
     "campaign_ready": false,
-    "deployment_ready": true,
+    "deployment_ready": false,
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },

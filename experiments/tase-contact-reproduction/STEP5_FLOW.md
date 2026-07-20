@@ -1,6 +1,6 @@
 # Step5 Flow
 
-`config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3` as the
+`config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3_r001` as the
 unique current route. V1 remains frozen control-profile provenance and cannot
 be launched or selected as a fallback. V3 is selected but pre-live blocked:
 its local TP triplet changed after the retained V3

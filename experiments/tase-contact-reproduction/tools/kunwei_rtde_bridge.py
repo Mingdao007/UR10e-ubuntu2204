@@ -3773,12 +3773,13 @@ def reset_step5d_autotune_diagnostics_for_trial(
     state.step5d_stage25_entry_relatch_angle_rad = None
     state.step5d_normal_rate_limiter_saturated_s = 0.0
     state.step5d_normal_rate_limiter_active_s = 0.0
-    progress_adapter = getattr(args, "step5d_controller_progress_adapter", None)
-    sphere_kernel = getattr(args, "step5d_moving_sphere_kernel", None)
-    if progress_adapter is None or sphere_kernel is None:
-        raise RuntimeError("autotune moving-sphere state is not preallocated")
-    progress_adapter.reset()
-    sphere_kernel.reset()
+    if bool(getattr(args, "step5d_moving_sphere_enabled", False)):
+        progress_adapter = getattr(args, "step5d_controller_progress_adapter", None)
+        sphere_kernel = getattr(args, "step5d_moving_sphere_kernel", None)
+        if progress_adapter is None or sphere_kernel is None:
+            raise RuntimeError("autotune moving-sphere state is not preallocated")
+        progress_adapter.reset()
+        sphere_kernel.reset()
     return True
 
 
@@ -7051,7 +7052,10 @@ def compute_bridge_values(
         and not step5d_search_pose_contract_ok
     ):
         apply_step5d_search_pose_fail_stop(values)
-    if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
+    if (
+        args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+        and bool(getattr(args, "step5d_moving_sphere_enabled", False))
+    ):
         apply_step5d_moving_sphere_guard(
             values=values,
             args=args,
@@ -11178,9 +11182,12 @@ def main(argv: list[str] | None = None) -> int:
                                 )
                         if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
                             bridge_values.update(args.step5d_autotune_handshake)
-                            args.step5d_moving_sphere_progress_age_ns = int(
-                                max(0.0, feedback_age_s) * 1_000_000_000
-                            ) if math.isfinite(feedback_age_s) else 2_000_001
+                            if bool(
+                                getattr(args, "step5d_moving_sphere_enabled", False)
+                            ):
+                                args.step5d_moving_sphere_progress_age_ns = int(
+                                    max(0.0, feedback_age_s) * 1_000_000_000
+                                ) if math.isfinite(feedback_age_s) else 2_000_001
                             reset_step5d_autotune_diagnostics_for_trial(
                                 step4e_state, args
                             )

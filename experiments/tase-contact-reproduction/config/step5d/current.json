@@ -1,9 +1,9 @@
 {
   "schema_version": "step5d_current_stage_v3",
-  "program": "step5d_strict_rnn_autotune_v3",
+  "program": "step5d_strict_rnn_autotune_v3_r001",
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
-  "tp_program_id": "step5d_strict_rnn_autotune_v3",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r001",
   "selection_state": "current",
   "state": "pre_live_blocked",
   "deployment": {

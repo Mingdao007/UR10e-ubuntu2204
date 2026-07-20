@@ -46,13 +46,12 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
   arguments=("$@")
   output_root=""
   bridge_start_context=""
-  campaign_arming_context=""
   launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
   index=0
   while (( index < ${#arguments[@]} )); do
     option="${arguments[index]}"
     case "${option}" in
-      --output-root|--launch-profile|--bridge-start-context|--campaign-arming-context)
+      --output-root|--launch-profile|--bridge-start-context)
         if (( index + 1 >= ${#arguments[@]} )); then
           echo "${option} requires a value" >&2
           exit 64
@@ -62,8 +61,6 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
           output_root="${value}"
         elif [[ "${option}" == "--bridge-start-context" ]]; then
           bridge_start_context="${value}"
-        elif [[ "${option}" == "--campaign-arming-context" ]]; then
-          campaign_arming_context="${value}"
         else
           launch_profile="${value}"
         fi
@@ -82,13 +79,8 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
     echo "${mode} requires --bridge-start-context" >&2
     exit 64
   fi
-  if [[ -z "${campaign_arming_context}" ]]; then
-    echo "${mode} requires --campaign-arming-context" >&2
-    exit 64
-  fi
   output_root="$(readlink -m -- "${output_root}")"
   bridge_start_context="$(readlink -m -- "${bridge_start_context}")"
-  campaign_arming_context="$(readlink -m -- "${campaign_arming_context}")"
   preflight="${output_root}/preflight.json"
   python3 "${EXPERIMENT_ROOT}/tools/preflight_step5d_autotune_v3.py" \
     --mailbox "${output_root}/runtime/command.json" \
@@ -101,7 +93,7 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
   while (( index < ${#arguments[@]} )); do
     option="${arguments[index]}"
     case "${option}" in
-      --output-root|--launch-profile|--bridge-start-context|--campaign-arming-context)
+      --output-root|--launch-profile|--bridge-start-context)
         ((index += 2))
         ;;
       *)
@@ -113,7 +105,6 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
   exec python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     "${runner_args[@]}" --output-root "${output_root}" \
     --launch-profile "${launch_profile}" --preflight "${preflight}" \
-    --bridge-start-context "${bridge_start_context}" \
-    --campaign-arming-context "${campaign_arming_context}"
+    --bridge-start-context "${bridge_start_context}"
 fi
 exec python3 -m step5d_autotune_v3.cli --experiment-root "${EXPERIMENT_ROOT}" "$@"

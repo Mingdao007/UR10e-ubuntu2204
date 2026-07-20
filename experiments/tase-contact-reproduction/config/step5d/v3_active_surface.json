@@ -1,8 +1,22 @@
 {
-  "schema": "step5d.autotune-v3/active-surface-v1",
+  "schema": "step5d.autotune-v3/active-surface-v2",
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
-  "tp_program_id": "step5d_strict_rnn_autotune_v3",
+  "control_oracle": {
+    "tag": "archive/step5d-autotune-v1-20260715",
+    "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
+  },
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r001",
+  "tp_commands": {
+    "campaign": 1,
+    "ack": 2,
+    "operator_stop_request": 3,
+    "retired": [
+      4,
+      5,
+      6
+    ]
+  },
   "entrypoints": {
     "operator": "scripts/step5d-autotune-v3.sh",
     "live": "tools/run_step5d_autotune_v3_live.py",
@@ -15,34 +29,33 @@
     "config/tase_protocol_table.json",
     "config/step5d/current.json"
   ],
-  "tick_semantics_paths": [
-    "tools/contact_semantics.py",
-    "tools/kunwei_rtde_bridge.py",
-    "tools/step5c_calibrated_kinematics_audit.py",
-    "tools/step5c_strict_rnn.py",
-    "tools/step5d_control_contract.py",
-    "tools/step5d_paper_outer_loop.py",
-    "tools/step5d_runtime_interface.py",
-    "../../src/ur10e_bringup/config/ur10e_calibration.yaml",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/physical_prior.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py"
-  ],
-  "timing_harness_paths": [
-    "tools/run_step5d_v30_remote_timing.py",
-    "tools/build_step5d_v30_remote_timing_bundle.py",
-    "tools/step5d_v30_timing.py"
-  ],
   "deployment_paths": [
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.script",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.txt",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3.urp",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r001.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r001.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r001.urp",
     "config/step5d_autotune_controller_readback_v3.json"
   ],
-  "orchestration_paths": [
+  "active_tick_semantics": {
+    "controller": "frozen_v1_stage25_control",
+    "v3_deltas": [
+      "physical_prior_load_gated_initialization",
+      "two_movel_precontact",
+      "ten_row_batch_lifecycle",
+      "typed_three_movel_return"
+    ],
+    "safety": [
+      "frozen_v1_guards",
+      "stage25_heartbeat_stale_20ms"
+    ],
+    "forbidden": [
+      "moving_sphere",
+      "certification_commands",
+      "custom_speedl_return",
+      "return_timing_observer"
+    ]
+  },
+  "active_orchestration_paths": [
     "tools/run_step5d_autotune_campaign.py",
-    "tools/prepare_step5d_autotune_launch.py",
     "tools/step5d_autotune_backend.py",
     "tools/step5d_autotune_contract.py",
     "tools/step5d_autotune_coordinator.py",
@@ -58,7 +71,6 @@
     "tools/build_step5d_autotune_v3_bridge_start_context.py",
     "tools/preflight_step5d_autotune_v3.py",
     "tools/step5d_autotune_v3/arming.py",
-    "tools/step5d_autotune_v3/certification.py",
     "tools/step5d_autotune_v3/readiness.py",
     "tools/step5d_autotune_v3/cli.py",
     "tools/step5d_autotune_v3/launcher.py",
@@ -68,47 +80,14 @@
     "tools/step5d_autotune_v3/service.py",
     "tools/step5d_autotune_v3/state.py",
     "tools/step5d_workflow_state.py",
-    "scripts/step5d-autotune-v3.sh",
-    "config/systemd/step5d-autotune-v3.service",
-    "config/step5/step5d_autotune_v3_launch_profile.json",
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/authorization.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/batch.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/contracts.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/evidence.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/failure_to_guard.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/registry.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/return_route.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/rollout.py",
-    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/runtime.py"
+    "scripts/step5d-autotune-v3.sh"
   ],
-  "evidence_verifier_paths": [
-    "tools/step5d_autotune_v3/identity_layers.py",
-    "tools/step5d_timing_acceptance.py",
-    "tools/verify_step5d_autotune_v3_execution_readiness.py",
-    "tools/rebuild_step5d_autotune_v3_pre_live_evidence.py",
-    "tools/build_step5d_autotune_v3_stopping_bound_evidence.py",
-    "tools/promote_step5d_autotune_v3_stopping_bound_evidence.py",
-    "tools/extract_step5d_autotune_v3_certification.py",
+  "historical_only": [
+    "tools/step5d_autotune_v3/certification.py",
     "tools/issue_step5d_autotune_v3_certification_authorization.py",
     "tools/finalize_step5d_autotune_v3_certification.py",
-    "tools/build_step5d_autotune_v3_return_route_evidence.py",
-    "tools/promote_step5d_autotune_v3_return_route_evidence.py",
-    "tools/run_step5d_autotune_v3_ursim_return_gate.py"
-  ],
-  "runtime_input_paths": [
-    "config/step5d_liveprep_solver_gate.json",
-    "config/step5_safe_frame.json",
-    "config/step5d_v30_profile_selection.json",
-    "config/step5/step5d_autotune_v3_launch_profile.json",
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json"
-  ],
-  "retired_runtime_entrypoints": [
-    "scripts/step5d-autotune-live.sh",
-    "tools/prepare_step5d_autotune_launch.py --authorization-file",
-    "V1 resolver special-case",
-    "V3 legacy campaign adoption"
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py",
+    "../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/authorization.py"
   ],
   "excluded_identity_inputs": [
     "absolute_paths",
@@ -118,8 +97,7 @@
     "output_roots",
     "current_or_latest_pointers",
     "selector_documentation",
-    "promotion_status",
-    "evidence_artifact_self_hash",
-    "verifier_or_builder_source"
+    "artifact_self_hash",
+    "verifier_source"
   ]
 }

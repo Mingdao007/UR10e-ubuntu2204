@@ -197,7 +197,7 @@ def test_initial_control_batch_is_ten_unique_quarter_octave_steps_including_k() 
     )
 
 
-def test_v3_arm_boundary_applies_real_orientation_k() -> None:
+def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> None:
     profile = load_launch_profile()
     overlay = initial_control_overlays(profile)[0]
     binding = SimpleNamespace(
@@ -207,27 +207,13 @@ def test_v3_arm_boundary_applies_real_orientation_k() -> None:
     )
     args = SimpleNamespace()
     bridge = SimpleNamespace(STEP5D_V33_ORIENTATION_KO=0.4)
-    arming_context = SimpleNamespace(
-        campaign_epoch=1,
-        campaign_fingerprint="a" * 64,
-        stopping_bound=object(),
+    _apply_v3_arm_runtime(
+        bridge,
+        args,
+        binding,
+        None,
+        lambda *_args: None,
     )
-
-    with (
-        patch.object(bridge_wrapper, "ArmingContext", SimpleNamespace),
-        patch.object(
-            bridge_wrapper,
-            "MovingSphereKernel",
-            side_effect=lambda **kwargs: SimpleNamespace(**kwargs),
-        ),
-    ):
-        _apply_v3_arm_runtime(
-            bridge,
-            args,
-            binding,
-            arming_context,
-            lambda *_args: None,
-        )
 
     assert bridge.STEP5D_V33_ORIENTATION_KO == overlay["orientation_ko"]
     assert args.step5d_autotune_orientation_ko == overlay["orientation_ko"]
@@ -237,6 +223,7 @@ def test_v3_arm_boundary_applies_real_orientation_k() -> None:
         "c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f"
     )
     assert args.step5d_physical_prior_binding_valid is True
+    assert args.step5d_moving_sphere_enabled is False
     assert args.step5d_physical_prior_identity_payload["approach_axis_b"] == [
         0.043955267,
         -0.020079909,

@@ -165,7 +165,7 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     }:
         raise ContractViolation("deployment_tp_identity schema differs")
     if (
-        deployment["program"] != "step5d_strict_rnn_autotune_v3"
+        deployment["program"] != "step5d_strict_rnn_autotune_v3_r001"
         or deployment["mode"]
         != "explicit_v3_identity_precontact_pose_frozen_v1_control"
     ):

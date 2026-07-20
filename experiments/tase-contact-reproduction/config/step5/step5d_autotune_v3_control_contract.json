@@ -8,9 +8,9 @@
     ]
   },
   "candidate_tp_artifact_sha256": {
-    ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
-    ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
-    ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
+    ".script": "3a095ba8a80017058ef3ef592da9bcd6b3a906729c950035cf39e35e86b46660",
+    ".txt": "270af8c360fa770719098a33606e101732e0dfc26f8850b46185c73d565a3c31",
+    ".urp": "cbebfdbafe6065fea40881f18f176d43ac3378e178b9a66a20c08d9e99a8298c"
   },
   "cli_arguments": [
     [
@@ -315,10 +315,10 @@
   "deployment_tp_identity": {
     "artifact_dir": "programs/step5/step5d",
     "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
-    "program": "step5d_strict_rnn_autotune_v3",
+    "program": "step5d_strict_rnn_autotune_v3_r001",
     "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
     "readback_manifest_sha256": "be7928577490a84f33e8bd612f403b5a3cb1a6039b0b9d3067af4877e96a734b",
-    "tp_fingerprint": "c59598ccfb657834e95e6bd8bb4e73c810fc4dc04e14d0f0cb39a97e5fdce42d"
+    "tp_fingerprint": "bbabf086edff05713fcc51aa0f74f53f756d8cb387f5e7d60d5f5869b5aa778d"
   },
   "effective_fields": {
     "campaign_tunable": {
