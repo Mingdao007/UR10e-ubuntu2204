@@ -153,6 +153,39 @@ def test_return_preparation_is_ticket_bound_before_motion() -> None:
     assert session.awaiting_ready is True
 
 
+def test_prestart_stale_fault_waits_for_fresh_ready_home() -> None:
+    session = CertificationSession(_authorization())
+    stale_fault = _row(90, session=session)
+    stale_fault["output_int_register_24"] = 1
+    stale_fault["output_int_register_25"] = 1_700_182_342
+    stale_fault["output_int_register_27"] = 1_021_235_430
+    stale_fault["output_int_register_28"] = 18
+    stale_fault["output_int_register_30"] = 1
+
+    assert session.poll(stale_fault) is False
+    assert session.started is False
+    assert session.handshake["command_seq"] == 0
+    assert session.poll(_row(10, session=session, ready_identity=True)) is True
+    assert session.started is True
+    assert session.handshake["command_seq"] == 1
+
+
+def test_started_fault_requires_current_identity_and_reports_reason() -> None:
+    session = CertificationSession(_authorization())
+    _start(session)
+    current_fault = _row(90, session=session)
+    current_fault["output_int_register_28"] = 18
+    with pytest.raises(CertificationProtocolError, match="fault reason=18"):
+        session.poll(current_fault)
+
+    session = CertificationSession(_authorization())
+    _start(session)
+    mismatched_fault = _row(90, session=session)
+    mismatched_fault["output_int_register_27"] = 0
+    with pytest.raises(CertificationProtocolError, match="fault identity differs"):
+        session.poll(mismatched_fault)
+
+
 def test_identity_or_safety_drift_fails_closed() -> None:
     session = CertificationSession(_authorization())
     _start(session)

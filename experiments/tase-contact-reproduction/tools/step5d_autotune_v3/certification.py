@@ -226,12 +226,18 @@ class CertificationSession:
         if safety_mode not in {1, "NORMAL"}:
             raise CertificationProtocolError("certification left NORMAL safety mode")
         state = _integer(output, 26)
+        step = self.current
+        assert step is not None
         if state == FAULT_STATE:
+            if not self.started:
+                return False
+            if not self._identity_matches(output):
+                raise CertificationProtocolError(
+                    "TP certification fault identity differs"
+                )
             raise CertificationProtocolError(
                 f"TP certification fault reason={_integer(output, 28)}"
             )
-        step = self.current
-        assert step is not None
 
         if not self.started:
             if state != READY_HOME_STATE or any(
