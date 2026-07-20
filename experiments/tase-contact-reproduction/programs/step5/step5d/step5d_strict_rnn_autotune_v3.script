@@ -1,4 +1,4 @@
-# VERSION: 2026-07-20T1205HKT
+# VERSION: 2026-07-20T1222HKT
 # RELEASE_STAGE_ID: step5d_strict_rnn_autotune_v3
 # CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1
 # TP_PROGRAM_ID: step5d_strict_rnn_autotune_v3
@@ -665,9 +665,14 @@ def codex_autotune_norm3(x, y, z):
   return sqrt(x * x + y * y + z * z)
 end
 
+def codex_autotune_return_sample_gap_fault(have_sample, loop_dt):
+  return have_sample and (loop_dt <= 0.0 or loop_dt > 0.004)
+end
+
 thread codex_autotune_return_guard_thread():
   local last_heartbeat = read_input_float_register(26)
   local stale_s = 0.0
+  local have_controller_time_sample = False
   local have_angular_sample = False
   local last_wx = 0.0
   local last_wy = 0.0
@@ -680,8 +685,11 @@ thread codex_autotune_return_guard_thread():
     local controller_time_s = controller_clock.sec + controller_clock.nanosec / 1000000000.0
     local loop_dt = controller_time_s - last_controller_time_s
     last_controller_time_s = controller_time_s
+    local timing_sample_valid = have_controller_time_sample
     if heartbeat == last_heartbeat:
-      stale_s = stale_s + loop_dt
+      if timing_sample_valid:
+        stale_s = stale_s + loop_dt
+      end
     else:
       stale_s = 0.0
       last_heartbeat = heartbeat
@@ -701,7 +709,7 @@ thread codex_autotune_return_guard_thread():
     local tcp_speed = get_actual_tcp_speed()
     local angular_speed_rad_s = codex_autotune_norm3(tcp_speed[3], tcp_speed[4], tcp_speed[5])
     local angular_accel_rad_s2 = 0.0
-    if have_angular_sample and loop_dt > 0.0:
+    if timing_sample_valid and have_angular_sample and loop_dt > 0.0:
       angular_accel_rad_s2 = codex_autotune_norm3(tcp_speed[3] - last_wx, tcp_speed[4] - last_wy, tcp_speed[5] - last_wz) / loop_dt
     end
     last_wx = tcp_speed[3]
@@ -714,7 +722,7 @@ thread codex_autotune_return_guard_thread():
     if angular_accel_rad_s2 > codex_autotune_return_max_angular_accel_rad_s2:
       codex_autotune_return_max_angular_accel_rad_s2 = angular_accel_rad_s2
     end
-    if loop_dt > codex_autotune_return_max_sample_gap_s:
+    if timing_sample_valid and loop_dt > codex_autotune_return_max_sample_gap_s:
       codex_autotune_return_max_sample_gap_s = loop_dt
     end
     write_output_float_register(39, codex_autotune_return_segment_id)
@@ -731,7 +739,7 @@ thread codex_autotune_return_guard_thread():
       codex_autotune_return_guard_reason = 13.0
     elif not workspace_ok:
       codex_autotune_return_guard_reason = 17.0
-    elif loop_dt <= 0.0 or loop_dt > 0.004:
+    elif codex_autotune_return_sample_gap_fault(timing_sample_valid, loop_dt):
       codex_autotune_return_guard_reason = 18.0
     elif angular_speed_rad_s > 0.060:
       codex_autotune_return_guard_reason = 19.0
@@ -741,6 +749,7 @@ thread codex_autotune_return_guard_thread():
     if codex_autotune_return_guard_reason != 0.0:
       stopl(0.3, 0.100)
     end
+    have_controller_time_sample = True
     sync()
   end
 end
@@ -965,6 +974,9 @@ def codex_autotune_certification_stop(command, campaign_epoch, trial_id, candida
     end
   end
   if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
+    if codex_autotune_return_guard_reason != 0.0:
+      return 0.0 - codex_autotune_return_guard_reason
+    end
     return -17
   end
   codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, consumed_sequence)
@@ -974,7 +986,7 @@ end
 def codex_autotune_certification_return(campaign_epoch, trial_id, candidate_token, execution_profile_id, command_seq, campaign_home_pose, campaign_home_q):
   local start_pose = get_actual_tcp_pose()
   if start_pose[2] < 0.033:
-    return False
+    return -17
   end
   codex_autotune_write_state(campaign_epoch, trial_id, 83, candidate_token, 0, execution_profile_id, command_seq)
   local offset_pose = p[start_pose[0] + 0.004, start_pose[1], start_pose[2], start_pose[3], start_pose[4], start_pose[5]]
@@ -986,14 +998,20 @@ def codex_autotune_certification_return(campaign_epoch, trial_id, candidate_toke
   sync()
   kill guard_handle
   if not offset_ok or codex_autotune_return_guard_reason != 0.0:
-    return False
+    if codex_autotune_return_guard_reason != 0.0:
+      return 0.0 - codex_autotune_return_guard_reason
+    end
+    return -17
   end
   codex_autotune_write_state(campaign_epoch, trial_id, 84, candidate_token, 0, execution_profile_id, command_seq)
   if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
-    return False
+    if codex_autotune_return_guard_reason != 0.0:
+      return 0.0 - codex_autotune_return_guard_reason
+    end
+    return -17
   end
   codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, command_seq)
-  return True
+  return command_seq
 end
 
 def codex_autotune_write_state(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
@@ -1099,9 +1117,11 @@ def codex_step5d_strict_rnn_autotune_v3():
       codex_autotune_return_kind_echo = 3
       codex_autotune_return_guard_mask = 0
       if command == 6:
-        if not codex_autotune_certification_return(certification_epoch, certification_trial_id, certification_token, certification_profile_id, last_consumed_command_seq, campaign_home_pose, campaign_home_q):
-          codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 17, certification_profile_id, last_consumed_command_seq)
+        local certification_result = codex_autotune_certification_return(certification_epoch, certification_trial_id, certification_token, certification_profile_id, last_consumed_command_seq, campaign_home_pose, campaign_home_q)
+        if certification_result < 0:
+          codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 0 - certification_result, certification_profile_id, last_consumed_command_seq)
         end
+        last_consumed_command_seq = certification_result
       else:
         local certification_result = codex_autotune_certification_stop(command, certification_epoch, certification_trial_id, certification_token, certification_profile_id, certification_sample_index, last_consumed_command_seq, campaign_home_pose, campaign_home_q)
         if certification_result < 0:
@@ -1141,7 +1161,11 @@ def codex_step5d_strict_rnn_autotune_v3():
       elif codex_should_auto_home(stop_reason):
         codex_autotune_write_state(campaign_epoch, trial_id, 40, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         if not codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_home_q):
-          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, 17, execution_profile_id, last_consumed_command_seq)
+          local return_fault_reason = codex_autotune_return_guard_reason
+          if return_fault_reason == 0.0:
+            return_fault_reason = 17.0
+          end
+          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, return_fault_reason, execution_profile_id, last_consumed_command_seq)
         end
         codex_autotune_write_state(campaign_epoch, trial_id, 50, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         codex_autotune_write_state(campaign_epoch, trial_id, 60, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)

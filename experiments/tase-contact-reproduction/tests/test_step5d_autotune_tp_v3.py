@@ -48,6 +48,11 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     assert "stopl(0.3, 0.100)" in rendered
     assert "write_output_float_register(39, codex_autotune_return_segment_id)" in rendered
     assert "write_output_float_register(44, codex_autotune_return_max_sample_gap_s)" in rendered
+    assert "def codex_autotune_return_sample_gap_fault(have_sample, loop_dt):" in rendered
+    assert "local have_controller_time_sample = False" in rendered
+    assert "local timing_sample_valid = have_controller_time_sample" in rendered
+    assert "codex_autotune_return_sample_gap_fault(timing_sample_valid, loop_dt)" in rendered
+    assert "if timing_sample_valid and loop_dt > codex_autotune_return_max_sample_gap_s:" in rendered
     assert "movel(campaign_home_pose, a=0.030, v=0.050, r=0.0)" not in rendered
     assert "codex_autotune_write_state(campaign_epoch, trial_id, 76" in rendered
     assert "codex_autotune_write_state(campaign_epoch, trial_id, 77" in rendered
@@ -73,6 +78,15 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     ) < certification_stop.index("while trigger_controller_time_s < 0.0:")
     assert "loop_dt <= 0.0 or loop_dt >" not in certification_stop
     assert "return -18" not in certification_stop
+    assert "return 0.0 - codex_autotune_return_guard_reason" in certification_stop
+    certification_return = rendered.split(
+        "def codex_autotune_certification_return(", 1
+    )[1].split("# HOST_TO_TP_INT:", 1)[0]
+    assert certification_return.count(
+        "return 0.0 - codex_autotune_return_guard_reason"
+    ) == 2
+    assert "return command_seq" in certification_return
+    assert "local certification_result = codex_autotune_certification_return(" in rendered
 
 
 def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:

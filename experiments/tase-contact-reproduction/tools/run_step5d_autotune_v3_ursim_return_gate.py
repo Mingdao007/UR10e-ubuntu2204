@@ -137,26 +137,30 @@ def build_ursim_return_program(source: str) -> tuple[str, str]:
   local rise_pose = p[start_pose[0], start_pose[1], start_pose[2] + 0.005, start_pose[3], start_pose[4], start_pose[5]]
   local transfer_pose = pose_trans(rise_pose, p[0.005, 0.0, 0.0, 0.0, 0.0, 0.010])
   local final_pose = p[transfer_pose[0], transfer_pose[1], start_pose[2], transfer_pose[3], transfer_pose[4], transfer_pose[5]]
-  write_output_float_register(39, 1.0)
-  local rise_ok = codex_autotune_bounded_return_segment(rise_pose, 0.060, 0.040, 1.0)
-  if rise_ok:
-    write_output_integer_register(24, 101)
-    write_output_float_register(39, 2.0)
-    local transfer_ok = codex_autotune_bounded_return_segment(transfer_pose, 0.135, 0.090, 2.0)
-    if transfer_ok:
-      write_output_integer_register(24, 102)
-      write_output_float_register(39, 3.0)
-      local final_ok = codex_autotune_bounded_return_segment(final_pose, 0.060, 0.040, 3.0)
-      if final_ok:
-        write_output_integer_register(24, 104)
+  if codex_autotune_return_sample_gap_fault(False, 0.0) or codex_autotune_return_sample_gap_fault(True, 0.002) or not codex_autotune_return_sample_gap_fault(True, 0.005):
+    write_output_integer_register(24, -118)
+  else:
+    write_output_float_register(39, 1.0)
+    local rise_ok = codex_autotune_bounded_return_segment(rise_pose, 0.060, 0.040, 1.0)
+    if rise_ok:
+      write_output_integer_register(24, 101)
+      write_output_float_register(39, 2.0)
+      local transfer_ok = codex_autotune_bounded_return_segment(transfer_pose, 0.135, 0.090, 2.0)
+      if transfer_ok:
+        write_output_integer_register(24, 102)
+        write_output_float_register(39, 3.0)
+        local final_ok = codex_autotune_bounded_return_segment(final_pose, 0.060, 0.040, 3.0)
+        if final_ok:
+          write_output_integer_register(24, 104)
+        else:
+          write_output_integer_register(24, -103)
+        end
       else:
-        write_output_integer_register(24, -103)
+        write_output_integer_register(24, -102)
       end
     else:
-      write_output_integer_register(24, -102)
+      write_output_integer_register(24, -101)
     end
-  else:
-    write_output_integer_register(24, -101)
   end
   sleep(0.25)
 end
