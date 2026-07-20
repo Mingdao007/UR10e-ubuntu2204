@@ -1,4 +1,4 @@
-# VERSION: 2026-07-20T1222HKT
+# VERSION: 2026-07-20T1238HKT
 # RELEASE_STAGE_ID: step5d_strict_rnn_autotune_v3
 # CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1
 # TP_PROGRAM_ID: step5d_strict_rnn_autotune_v3
@@ -746,9 +746,9 @@ thread codex_autotune_return_guard_thread():
     elif have_angular_sample and angular_accel_rad_s2 > 0.500:
       codex_autotune_return_guard_reason = 20.0
     end
-    if codex_autotune_return_guard_reason != 0.0:
-      stopl(0.3, 0.100)
-    end
+    # This observer thread never owns robot motion. The bounded-return loop
+    # sees the latched reason at the next 2 ms horizon and performs stopl from
+    # the same main thread that owns speedl.
     have_controller_time_sample = True
     sync()
   end

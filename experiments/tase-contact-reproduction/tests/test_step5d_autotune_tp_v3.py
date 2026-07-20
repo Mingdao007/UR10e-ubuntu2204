@@ -53,6 +53,16 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     assert "local timing_sample_valid = have_controller_time_sample" in rendered
     assert "codex_autotune_return_sample_gap_fault(timing_sample_valid, loop_dt)" in rendered
     assert "if timing_sample_valid and loop_dt > codex_autotune_return_max_sample_gap_s:" in rendered
+    return_guard_thread = rendered.split(
+        "thread codex_autotune_return_guard_thread():", 1
+    )[1].split("def codex_autotune_bounded_return_segment(", 1)[0]
+    assert "stopl(" not in return_guard_thread
+    assert "stopj(" not in return_guard_thread
+    assert "speedl(" not in return_guard_thread
+    assert "speedj(" not in return_guard_thread
+    assert "movel(" not in return_guard_thread
+    assert "movej(" not in return_guard_thread
+    assert "the same main thread that owns speedl" in return_guard_thread
     assert "movel(campaign_home_pose, a=0.030, v=0.050, r=0.0)" not in rendered
     assert "codex_autotune_write_state(campaign_epoch, trial_id, 76" in rendered
     assert "codex_autotune_write_state(campaign_epoch, trial_id, 77" in rendered

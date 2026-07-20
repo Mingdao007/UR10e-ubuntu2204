@@ -160,9 +160,9 @@ thread codex_autotune_return_guard_thread():
     elif have_angular_sample and angular_accel_rad_s2 > {RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2:.3f}:
       codex_autotune_return_guard_reason = 20.0
     end
-    if codex_autotune_return_guard_reason != 0.0:
-      stopl(0.3, {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f})
-    end
+    # This observer thread never owns robot motion. The bounded-return loop
+    # sees the latched reason at the next 2 ms horizon and performs stopl from
+    # the same main thread that owns speedl.
     have_controller_time_sample = True
     sync()
   end
