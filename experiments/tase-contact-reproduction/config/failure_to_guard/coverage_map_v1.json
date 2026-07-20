@@ -84,8 +84,8 @@
       "invariant_id": "f2g.exact_batch_completion",
       "lanes": {
         "small": {"required": true, "status": "implemented_m3", "evidence": ["../../src/ur10e_experiment_runtime/tests/test_ur_experiment_batch_lifecycle.py"]},
-        "medium": {"required": true, "status": "implemented_m3", "evidence": ["tests/test_step5d_autotune_v3_acceptance.py", "tests/test_step5d_autotune_recovery.py"]},
-        "replay": {"required": true, "status": "implemented_m5_offline_lifecycle_simulation", "evidence": ["tests/step5d_v3_fake_bridge_harness.py", "tests/test_step5d_autotune_v3_acceptance.py"]},
+        "medium": {"required": true, "status": "implemented_r006_formal_runner_growing_csv", "evidence": ["tests/test_step5d_r006_production_chain.py", "tests/test_step5d_autotune_v3_acceptance.py", "tests/test_step5d_autotune_recovery.py"]},
+        "replay": {"required": true, "status": "implemented_r006_ten_row_direct_mailbox_no_arm11", "evidence": ["tests/test_step5d_autotune_v3_trial_overlay_mailbox.py", "tests/test_step5d_autotune_v3_acceptance.py"]},
         "hil": {"required": true, "status": "not_run_pre_live", "evidence": []}
       }
     },
@@ -93,10 +93,28 @@
       "invariant_id": "f2g.trial_bundle_cold_read_ack_next_arm",
       "lanes": {
         "small": {"required": true, "status": "implemented_r005_transition_policy_roundtrip", "evidence": ["tests/fixtures/step5d_r005_batch_bootstrap_cold_read_incident.json", "tests/test_step5d_autotune_store.py"]},
-        "medium": {"required": true, "status": "implemented_r005_exact_plan_production_components", "evidence": ["tests/test_step5d_autotune_production_second_lap.py"]},
-        "replay": {"required": true, "status": "implemented_r005_exact_plan_ack1_ready_near_arm2", "evidence": ["tests/fixtures/step5d_r005_exact_candidate_plan.json", "tests/test_step5d_autotune_production_second_lap.py"]},
-        "hil": {"required": true, "status": "historical_incident_not_a_pass", "evidence": ["tests/fixtures/step5d_r005_batch_bootstrap_cold_read_incident.json"]},
-        "live": {"required": true, "status": "not_run_requires_authorization", "evidence": []}
+        "medium": {"required": false, "status": "legacy_unit_synthetic_not_production_pass", "evidence": ["tests/test_step5d_autotune_production_second_lap.py"]},
+        "replay": {"required": true, "status": "legacy_r001_r005_replay_only", "evidence": ["tests/fixtures/step5d_r005_exact_candidate_plan.json", "tests/test_step5d_autotune_production_second_lap.py"]},
+        "hil": {"required": false, "status": "retired_active_protocol_historical_incident", "evidence": ["tests/fixtures/step5d_r005_batch_bootstrap_cold_read_incident.json"]},
+        "live": {"required": false, "status": "retired_active_protocol", "evidence": []}
+      }
+    },
+    {
+      "invariant_id": "f2g.runtime_csv_schema_timeout_classification",
+      "lanes": {
+        "small": {"required": true, "status": "implemented_structured_timeout_and_incident_replay", "evidence": ["tests/fixtures/step5d_r005_post_ack_csv_schema_incident.json", "tests/test_step5d_production_csv.py"]},
+        "medium": {"required": true, "status": "implemented_production_writer_rotator_follower", "evidence": ["tests/test_step5d_r006_production_chain.py"]},
+        "replay": {"required": true, "status": "implemented_r005_fresh_rows_missing_columns", "evidence": ["tests/test_step5d_production_csv.py"]}
+      }
+    },
+    {
+      "invariant_id": "f2g.direct_trial_commit_next_arm",
+      "lanes": {
+        "small": {"required": true, "status": "implemented_pending_advance_and_crash_cuts", "evidence": ["tests/test_step5d_autotune_production_second_lap.py", "tests/test_step5d_autotune_recovery.py"]},
+        "medium": {"required": true, "status": "implemented_formal_runner_cross_process_growing_csv", "evidence": ["tests/test_step5d_r006_production_chain.py", "tests/step5d_r006_production_csv_transport.py"]},
+        "replay": {"required": true, "status": "implemented_exact_plan_arm1_arm2_no_ack", "evidence": ["tests/fixtures/step5d_r005_exact_candidate_plan.json", "tests/test_step5d_r006_production_chain.py"]},
+        "hil": {"required": true, "status": "debt_lane_not_run_offline", "evidence": []},
+        "live": {"required": true, "status": "not_run_requires_r006_controller_readback_and_operator", "evidence": []}
       }
     },
     {

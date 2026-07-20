@@ -59,7 +59,7 @@
         "blocker": "launcher reported bridge exited before completion with rc=0",
         "root_cause": "open-plan waiting semantics were confused with exact ten-row batch completion"
       },
-      "expected_guard": "durable BatchResult after row ten ACK and final-home closure returns exit zero",
+      "expected_guard": "durable BatchResult after row-ten direct commit and final-home closure returns exit zero without ACK or ARM11",
       "parameter_impact": "replay_required"
     },
     {
@@ -144,6 +144,34 @@
         "root_cause": "CampaignStore cold-read required a transition source although TrialTransition permits source-free batch_bootstrap"
       },
       "expected_guard": "the production runner must write the bundle, pass independent-process cold-read, dispatch ACK1 exactly once, observe READY_NEAR, and dispatch ARM2",
+      "parameter_impact": "replay_required"
+    },
+    {
+      "incident_id": "step5d-v3-r005-post-ack-csv-schema-timeout",
+      "evidence_class": "observed_failure",
+      "counts_for_recurrence": true,
+      "outcome_class": "code_contract_failure",
+      "component": "post_ack_csv_observer",
+      "invariant_ids": ["f2g.runtime_csv_schema_timeout_classification"],
+      "failure": {
+        "blocker": "fresh state-76 rows were misreported as no fresh bridge row and ARM2 was not sent",
+        "root_cause": "PostAckClosureCollector read unprefixed output_double_register fields while production CSV published ur_ prefixed fields; generic timeout masked predicate resets"
+      },
+      "expected_guard": "r005 replay reports fresh_rows_never_qualified with exact missing columns and r006 removes PostAckClosureCollector from the active lifecycle",
+      "parameter_impact": "replay_required"
+    },
+    {
+      "incident_id": "step5d-v3-production-test-topology-escape",
+      "evidence_class": "observed_failure",
+      "counts_for_recurrence": true,
+      "outcome_class": "code_contract_failure",
+      "component": "production_release_test_topology",
+      "invariant_ids": ["f2g.direct_trial_commit_next_arm"],
+      "failure": {
+        "blocker": "release tests passed without exercising the live first-candidate production path to ARM2",
+        "root_cause": "the claimed production-chain test used a test-owned runner or manual snapshots and did not combine the formal runner with a growing production CSV and independent cold-read"
+      },
+      "expected_guard": "only the formal production runner with production writer/rotator/follower, exact plan, cold-read, TrialBrief and observed ARM2 can satisfy the medium release gate",
       "parameter_impact": "replay_required"
     }
   ]
