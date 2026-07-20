@@ -343,10 +343,11 @@ def _validate_preflight(
 
 
 def run(args: argparse.Namespace) -> Mapping[str, Any]:
-    readiness, _bridge_start = require_bridge_start(
+    _readiness, bridge_start = require_bridge_start(
         ROOT,
         args.bridge_start_context,
     )
+    release_identity = bridge_start.identity
     legacy_preflight = None
     runtime_root = args.output_root.expanduser().absolute() / "runtime"
     runtime_root.mkdir(parents=True, exist_ok=False, mode=0o700)
@@ -370,7 +371,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     ]
     preflight = _validate_preflight(
         args.preflight,
-        readiness["identity"],
+        release_identity,
         args.bridge_start_context,
     )
 
@@ -401,7 +402,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         "argv_sha256": _sha256_json(command[2:]),
         "launch_id": launch_id,
         "scope": "bridge_no_arm",
-        "identity": readiness["identity"],
+        "identity": release_identity,
         "launch_profile_fingerprint": launch_profile.fingerprint,
         "trial_overlay_fingerprint": overlay_fingerprint(launch_profile, DEFAULT_OVERLAY),
         "release_stage_id": RELEASE_STAGE_ID,

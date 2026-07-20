@@ -105,7 +105,7 @@ def test_live_runner_uses_the_current_bridge_readiness_owner(
 
     def require(root: Path, context: Path):
         observed.append((root, context))
-        return ({"identity": {}}, object())
+        return ({"identity": {}}, SimpleNamespace(identity={}))
 
     monkeypatch.setattr(live_runner, "require_bridge_start", require)
     (tmp_path / "runtime").mkdir()
@@ -222,5 +222,8 @@ def test_active_sources_retire_wrong_path_without_weakening_v1_guards() -> None:
     assert 'exchange(robot_host, ["programState"]' in live
     assert '["stop", "programState"]' not in live
     assert "require_bridge_start(" in live
+    assert "release_identity = bridge_start.identity" in live
+    assert '"identity": release_identity' in live
+    assert 'readiness["identity"]' not in live
     assert "execution_readiness.verify" not in live
     assert "require_live=" not in live
