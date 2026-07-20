@@ -231,13 +231,18 @@ def resolve_release_readiness(
     tp_program_disposition = compatibility.get("tp_program_disposition")
     tp_program_start_allowed = tp_program_disposition != "known_incompatible_do_not_retry"
     if not tp_program_start_allowed:
-        blockers.append("r004_return_telemetry_contract_mismatch")
+        blockers.append("r005_known_incompatible_do_not_retry")
     host_runtime_disposition = compatibility.get("host_runtime_disposition")
     host_runtime_start_allowed = (
-        host_runtime_disposition == "verified_typed_closure_v2_cold_read"
+        host_runtime_disposition == "verified_r006_second_lap_certificate"
     )
     if not host_runtime_start_allowed:
-        blockers.append("r005_typed_closure_v2_cold_read_incompatible")
+        blockers.extend(
+            [
+                "r005_batch_bootstrap_cold_read_incompatible",
+                "requires_r006_second_lap_certificate",
+            ]
+        )
 
     bridge_context: BridgeStartContext | None = None
     bridge_context_sha256: str | None = None

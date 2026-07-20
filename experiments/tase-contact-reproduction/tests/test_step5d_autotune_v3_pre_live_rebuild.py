@@ -64,7 +64,7 @@ def test_rebuild_binds_the_versioned_active_tp_manifest() -> None:
     ).hexdigest()
 
 
-def test_current_readback_promotes_only_direct_bridge_start_readiness() -> None:
+def test_current_readback_does_not_override_r005_host_quarantine() -> None:
     table = json.loads((ROOT / rebuild.STAGE_TABLE_RELATIVE).read_text(encoding="utf-8"))
     row = next(row for row in table["stages"] if row["id"] == rebuild.V3_STAGE_ID)
     execution = row["execution_readiness"]
@@ -75,25 +75,34 @@ def test_current_readback_promotes_only_direct_bridge_start_readiness() -> None:
         (ROOT / rebuild.CURRENT_STAGE_RELATIVE).read_text(encoding="utf-8")
     )
 
-    assert execution["state"] == "bridge_start_ready"
-    assert execution["ready_to_start_bridge"] is True
+    assert execution["state"] == "pre_live_blocked"
+    assert execution["ready_to_start_bridge"] is False
     assert execution["ready_to_arm"] is False
     assert execution["ready_for_contact_or_motion"] is False
-    assert execution["blockers"] == []
-    assert execution["next_owner"] == "ur10e-bridge-ops"
+    assert execution["blockers"] == [
+        "r005_batch_bootstrap_cold_read_incompatible",
+        "requires_r006_second_lap_certificate",
+    ]
+    assert execution["next_owner"] == "ur10e-tp-package-delivery"
     assert execution["operator_trigger"]["play_effect"] == (
         "user_owned_command_1_after_bridge_ready"
     )
     assert promotion["certification_motion_authorization_required"] is False
     assert promotion["campaign_authorization_required"] is False
-    assert promotion["blocker"] is None
+    assert promotion["blocker"] == (
+        "r005_batch_bootstrap_cold_read_incompatible_"
+        "requires_r006_second_lap_certificate"
+    )
     assert current["readiness"] == {
-        "blockers": [],
+        "blockers": [
+            "r005_batch_bootstrap_cold_read_incompatible",
+            "requires_r006_second_lap_certificate",
+        ],
         "bridge_process_ready": False,
-        "bridge_start_ready": True,
+        "bridge_start_ready": False,
         "campaign_ready": False,
             "deployment_ready": True,
-            "host_runtime_disposition": "verified_typed_closure_v2_cold_read",
-            "motion_arm_ready": False,
+        "host_runtime_disposition": "known_incompatible_do_not_retry",
+        "motion_arm_ready": False,
         "selected_release": rebuild.V3_STAGE_ID,
     }

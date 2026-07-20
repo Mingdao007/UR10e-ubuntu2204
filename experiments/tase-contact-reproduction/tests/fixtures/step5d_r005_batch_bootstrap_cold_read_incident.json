@@ -1,0 +1,44 @@
+{
+  "schema": "step5d.autotune-v3/incident-fixture-v1",
+  "incident_id": "step5d-v3-r005-batch-bootstrap-cold-read",
+  "evidence_class": "observed_failure",
+  "counts_for_recurrence": true,
+  "outcome_class": "code_contract_failure",
+  "component": "bundle_history_ack_lifecycle",
+  "invariant_ids": [
+    "f2g.trial_bundle_cold_read_ack_next_arm"
+  ],
+  "failure": {
+    "blocker": "trial one committed typed-v2 closure but no ACK1 or ARM2 was dispatched",
+    "root_cause": "CampaignStore cold-read required a transition source although TrialTransition permits source-free batch_bootstrap"
+  },
+  "expected_guard": "the production runner must write the bundle, pass independent-process cold-read, dispatch ACK1 exactly once, observe READY_NEAR, and dispatch ARM2",
+  "parameter_impact": "replay_required",
+  "program": "step5d_strict_rnn_autotune_v3_r005",
+  "trial": {
+    "trial_id": 1,
+    "trial_uid": "b60a71824f8e462f5b5beb3f5c5ade6e9f2f84d4e6ab28b42d3a7af874c02248",
+    "history_identity": "8031a1fdebcf5203fd9cb336509906b514524c132c31c8f2b3e3b63f646519be",
+    "transition": {
+      "kind": "batch_bootstrap",
+      "source": null,
+      "retry_kind": null
+    },
+    "typed_safe_closure_v2": true,
+    "bundle_committed": true,
+    "ack1_dispatched": false,
+    "arm2_dispatched": false,
+    "optimizer_observation_created": false
+  },
+  "immutable_evidence": {
+    "bundle_sha256": "b68297623dbda32ec488b118870b5cecf30dd86645c2733ae38c949239a28d5d",
+    "csv_sha256": "9a802911c759fde5f2c9f2668400ce3d2d76f99c066207d728d10e1985fac495",
+    "metadata_sha256": "e2174caf02a9ec4b29df7757a9fea99ca7b502097f6d7fa29933078c245f0efd",
+    "terminal_manifest_sha256": "65fce8fd81d367362b407283ce42875c0ee58c15b904d5b83dfcf566dcaa8fc7"
+  },
+  "evaluation": {
+    "disposition": "fail_closed",
+    "eligible": false,
+    "objective": null
+  }
+}

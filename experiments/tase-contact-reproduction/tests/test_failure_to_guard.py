@@ -305,6 +305,7 @@ def test_registry_coverage_ledger_and_incident_provenance_are_closed() -> None:
         "step5d-v3-trajectory-reference-mismatch",
         "step5d-v3-aabb-sphere-dual-enforcement",
         "step5d-v3-r005-typed-closure-cold-read",
+        "step5d-v3-r005-batch-bootstrap-cold-read",
     }
     assert {row["incident_id"] for row in fixture_rows} == expected_ids
     ledger_by_signature = {entry["canonical_signature"]: entry for entry in entries}
@@ -314,7 +315,7 @@ def test_registry_coverage_ledger_and_incident_provenance_are_closed() -> None:
         ledger_row = ledger_by_signature[signature]
         assert ledger_row["counts_for_recurrence"] is row["counts_for_recurrence"]
         assert ledger_row["outcome_class"] == row["outcome_class"]
-    assert len(entries) == 10
+    assert len(entries) == 11
 
     registry_ids = {item["id"] for item in registry["invariants"]}
     coverage_ids = {item["invariant_id"] for item in coverage["invariants"]}

@@ -110,8 +110,8 @@
     {
       "id": "f2g.trial_bundle_cold_read_ack_next_arm",
       "description": "A physically complete trial must survive typed bundle persistence and cold history read before exactly one ACK and the next ARM.",
-      "touched_path_patterns": ["experiments/tase-contact-reproduction/tools/step5d_autotune_*.py", "experiments/tase-contact-reproduction/tests/step5d_v3_fake_bridge_harness.py"],
-      "expected_failure_modes": ["typed_closure_schema_loss", "bundle_cold_read_failure", "missing_ack", "missing_next_arm"],
+      "touched_path_patterns": ["experiments/tase-contact-reproduction/tools/step5d_autotune_*.py", "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py", "experiments/tase-contact-reproduction/tests/test_step5d_autotune_production_second_lap.py"],
+      "expected_failure_modes": ["typed_closure_schema_loss", "batch_bootstrap_source_mismatch", "bundle_cold_read_failure", "missing_ack", "missing_next_arm"],
       "required_lanes": ["small", "medium", "replay", "hil", "live"],
       "parameter_impact": "replay_required"
     },

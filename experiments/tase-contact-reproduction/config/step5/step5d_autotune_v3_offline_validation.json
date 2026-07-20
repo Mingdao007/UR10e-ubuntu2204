@@ -4,7 +4,7 @@
     "campaign_authorization_required": false,
     "certification_motion_authorization_required": false,
     "current_selector": "step5d_strict_rnn_autotune_v3",
-    "execution_readiness": "bridge_start_ready",
+    "execution_readiness": "pre_live_blocked",
     "hardware_promotion": "deployment_ready",
     "live_motion_authorized": false,
     "offline_implementation": "pass",
@@ -217,14 +217,14 @@
     "legacy_provenance": {
       "contract_sha256": "b72b2e8096ed2f71f23bf261681b4b7984f0994a6efcb391283fb2abe328f1b8",
       "control_fingerprint": "a6077c44ba216a93c693fdf54bb3c2ca951a4e5bf33bdaa4acb2c565df42193a",
-      "orchestration_fingerprint": "1fcfcc22197ab208062b1374e9ff1c88c46f9fa232c4df55ad9b80bd0749f026"
+      "orchestration_fingerprint": "c04ee3ae7f3dafe5a613081a221159140bff0f79805f3c6682008c691bd47b8d"
     },
     "local_triplet_sha256": {
       ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
       ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
       ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
     },
-    "orchestration_fingerprint": "3e42f764a89f3102afb3192e2ab71a437504e88b132a43c6a69ac50b41fa94d4",
+    "orchestration_fingerprint": "17f85ac2fb93cad49c306ac83ba634faa09a400b4edfa44bd16abcd44d9375e7",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
@@ -232,7 +232,7 @@
     "tick_semantics_fingerprint": "907c583ecae75741aa0a9c1dde65d0d1e3ed10c969526a265a93f18e29532633",
     "timing_harness_fingerprint": "016e7af37c89391d4b7652da5ae91ae95ec50c547aaa86cb8d1cfc1185196ae2",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "72e9ff20fdfed01b7e7beb08e636a0872a3d06a0563204429e61574c2be207c7"
+      "evidence_verifier_fingerprint": "12f33468921d7d489634b18f6c15321a07b3350e5d3a445d606455cfadda2066"
     }
   },
   "observed_at": "2026-07-20T20:52:00+08:00",

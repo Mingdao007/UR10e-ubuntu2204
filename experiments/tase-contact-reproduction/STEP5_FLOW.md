@@ -2,15 +2,18 @@
 
 `config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3` as the
 unique current release route. Its immutable r005 TP package has exact local,
-controller, and fresh read-back SHA closure. r004 remains immutable
+controller, and fresh read-back SHA closure, but r005 is quarantined as
+`known_incompatible_do_not_retry`. r004 remains immutable
 `known_incompatible_do_not_retry` incident evidence and is never an optimizer
 observation. V1 remains frozen control-profile provenance and cannot be
 launched or selected as a fallback. The first r005 live attempt is retained as
-`attempted_incomplete`: typed-v2 closure and its bundle were written, but the
-bundle dropped the schema discriminator and cold-read stopped before ACK. The
-host serializer/decoder regression is now covered by generated r005 telemetry,
-cold store read, exactly-once ACK, trial-2 ARM, and a typed ten-trial fake bridge.
-r005 bridge-context generation is enabled only for this verified host runtime;
+`attempted_incomplete`: typed-v2 closure and its immutable bundle were written,
+but the legal `batch_bootstrap` transition with `source=null` failed the store's
+cold-read assertion before ACK1 and ARM2. Existing fake ten-trial evidence never
+executed this production-runner branch and is not release evidence. r005
+bridge-context generation is disabled until an exact production runner, fresh
+filesystem store, independent-process cold-read, exactly-once ACK1, READY_NEAR,
+and ARM2 path is bound into the r006 second-lap certificate;
 the bridge and campaign still require fresh runtime identity binding. Formal
 10k/30k timing pressure testing and the temporary CPU/GPU timing service are
 not prerequisites. The bridge starts in `NO_ARM`; Codex never presses Play or
