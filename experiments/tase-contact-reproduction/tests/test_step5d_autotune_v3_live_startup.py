@@ -85,24 +85,25 @@ def test_operator_play_signal_precedes_runner_recovery_from_fresh_tp_state() -> 
     runner_ready = source.index(
         '_wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")'
     )
-    bridge_ready = source.index("_await_v3_no_arm_ready(")
-    arming_context = source.index("_wait_for_campaign_arming_context(", bridge_ready)
-    campaign_ready = source.index('print("V3_CAMPAIGN_READY_FOR_TP_PLAY"', arming_context)
+    bridge_ready = source.index(
+        '_wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")'
+    )
+    no_arm_ready = source.index('print("V3_BRIDGE_READY_NO_ARM"', bridge_ready)
+    campaign_ready = source.index('print("V3_CAMPAIGN_READY_FOR_TP_PLAY"', no_arm_ready)
     play_signal = source.index('print("READY_FOR_ONE_PLAY_TO_MOVE"')
     play_observed = source.index("if _runtime_playing_normal", play_signal)
+    runner_start = source.index("runner = subprocess.Popen(", play_observed)
 
-    assert bridge_ready < arming_context < campaign_ready < play_signal < play_observed < runner_ready
-    assert 'print("V3_BRIDGE_READY_NO_ARM"' in inspect.getsource(
-        live._await_v3_no_arm_ready
-    )
+    assert bridge_ready < no_arm_ready < campaign_ready < play_signal
+    assert play_signal < play_observed < runner_start < runner_ready
     assert source.count("READY_FOR_ONE_PLAY_TO_MOVE") == 1
     assert 'READY_FOR_TP_PLAY_V3"' not in source
     assert "campaign_authorization.json" not in source
     assert '"--authorization-file"' not in source
     assert '"--campaign-binding"' in source
-    assert '"--campaign-arming-context"' in source
+    assert '"--campaign-arming-context"' not in source
     assert "legacy_campaign_root" not in source
-    assert "V3_BATCH_10_COMPLETE_STOPPING_TP_NOW" in source
+    assert "V3_BATCH_10_COMPLETE_FINAL_HOME_CONFIRMED" in source
 
 
 def test_canonical_shell_bridge_route_cannot_fall_back_to_v1() -> None:
@@ -110,7 +111,7 @@ def test_canonical_shell_bridge_route_cannot_fall_back_to_v1() -> None:
 
     assert '"${1:-}" == "bridge"' in source
     assert "--bridge-start-context" in source
-    assert "--campaign-arming-context" in source
+    assert "--campaign-arming-context" not in source
     assert "run_step5d_autotune_v3_live.py" in source
     assert "step5d-autotune-live.sh" not in source
     assert "bridge-line-operator.sh" not in source
