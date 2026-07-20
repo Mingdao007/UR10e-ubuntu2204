@@ -6,12 +6,12 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "controller_readback": {
     "path": "config/step5d_autotune_controller_readback_v3.json",
-    "sha256": "3cad6c30cec259081ff0f00a7d6f11d2448ee32d0b0fc6726f33143eb19e97f7"
+    "sha256": "816ac90e14194de167643aa0f008cda43f02367b612284c8bf9f03a0ec34169f"
   },
   "current_selector": "step5d_strict_rnn_autotune_v3",
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
-    "sha256": "99ebbb64aad17dfee4b9b7d1d24526718527fa7adece29a7d2c6de3c72e49ca4"
+    "sha256": "f378b4bb8257ab565474989ef2fab33af72085fca0835ca870076cd392d57fae"
   },
   "identity": {
     "controller_readback_triplet_sha256": {
@@ -21,16 +21,16 @@
     },
     "deployment_fingerprint": "58d8b2a1172b5b65c97b122eb1ff4407a372de60a52113916f6393c36a7e7784",
     "legacy_provenance": {
-      "contract_sha256": "abcdeb60ea8104754f4cbff7fba3325736fa7487904e159dfbfde2d04d404ec0",
-      "control_fingerprint": "5b0229d63aa36a7dc14503e2b4a423cfb080e49e58e79d2e33356f836b5679ff",
-      "orchestration_fingerprint": "44c1deecd2531894ec579e8d66842d6c32751261038f52c9a987b1cb246d0518"
+      "contract_sha256": "e63fb5b159afd2426a2e8d610c72d6f6d19997e59410a870f8ce9876a1a1489d",
+      "control_fingerprint": "bc6ab9069e30e6a1937cd7a924d83fbc1b0a49d5b855fa07368b8e3fedf89246",
+      "orchestration_fingerprint": "c4c5bf5973894a43279b3d1885e37cf1e884ab6607f9fa40590c45fce11f9192"
     },
     "local_triplet_sha256": {
       ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
       ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
       ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
     },
-    "orchestration_fingerprint": "feda6af881f6b9c766152589f7f0af231aa21e87a5f1d0c2c0e67d68c22038c9",
+    "orchestration_fingerprint": "570c4fb334c52ceac7947125104d51e074fb250e7ebcb4d63447c2049c0efa65",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
@@ -38,7 +38,7 @@
     "tick_semantics_fingerprint": "55857cd1f517c8f73e4eb76e1b783bfbb54bf33c18d207b5207770ff067db348",
     "timing_harness_fingerprint": "7c00ea65d4e6d09b55fd486c6c6714344287d595e55ded8ead07845cec679daa",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "22248121e12ae71ad94f086f22eb6d163d2a37e3fc3bdd26039b47e92f0c22d0"
+      "evidence_verifier_fingerprint": "25c67c92411b78f0448dd0146c039f93e6931ad05d627306bf80accaefe3bdff"
     }
   },
   "live_runtime_promoted": false,

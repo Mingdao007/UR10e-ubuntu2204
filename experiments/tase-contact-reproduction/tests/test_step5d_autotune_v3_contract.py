@@ -193,7 +193,7 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
         "artifact_dir": "programs/step5/step5d",
         "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
         "readback_manifest_sha256": (
-            "3cad6c30cec259081ff0f00a7d6f11d2448ee32d0b0fc6726f33143eb19e97f7"
+            "816ac90e14194de167643aa0f008cda43f02367b612284c8bf9f03a0ec34169f"
         ),
         "tp_fingerprint": (
             "f0528a4deb6c00fd2f8122d141e862173edbf07c3788c817026c2541dcf6a091"

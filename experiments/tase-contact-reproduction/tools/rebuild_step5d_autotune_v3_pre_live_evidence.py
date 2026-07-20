@@ -429,6 +429,9 @@ def build_outputs(
     current_stage["controller_readback_verified_for_selected_triplet"] = (
         readback_current
     )
+    current_stage["controller_readback_manifest_sha256"] = _sha256(
+        root / "config/step5d_autotune_controller_readback_v3.json"
+    )
     current_stage["readiness"]["deployment_ready"] = readback_current
     current_stage["updated_at"] = observed_at
     control_contract = copy.deepcopy(_read(root / CONTROL_CONTRACT_RELATIVE))

@@ -10443,7 +10443,7 @@
         "controller_uploaded_by_v3": true,
         "controller_readback_verified": true,
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "controller_readback_manifest_sha256": "3cad6c30cec259081ff0f00a7d6f11d2448ee32d0b0fc6726f33143eb19e97f7",
+        "controller_readback_manifest_sha256": "816ac90e14194de167643aa0f008cda43f02367b612284c8bf9f03a0ec34169f",
         "fresh_controller_sha_at": "2026-07-20T10:47:25+08:00",
         "tp_fingerprint": "f0528a4deb6c00fd2f8122d141e862173edbf07c3788c817026c2541dcf6a091",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
@@ -10472,7 +10472,7 @@
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "99ebbb64aad17dfee4b9b7d1d24526718527fa7adece29a7d2c6de3c72e49ca4",
+        "report_sha256": "f378b4bb8257ab565474989ef2fab33af72085fca0835ca870076cd392d57fae",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
         "source_exact_sphere_seam_timing": "diagnostic_only_not_required_by_user",
         "status": "pass_offline_implementation_pre_live_blocked"
