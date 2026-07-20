@@ -38,7 +38,7 @@ MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
 ATTENDED_BLOCKERS = [
     "requires_attended_tp_upload_readback",
 ]
-HOST_RUNTIME_DISPOSITION = "verified_r006_second_lap_certificate"
+HOST_RUNTIME_DISPOSITION = "verified_r005_exact_plan_production_ack1_arm2"
 PRE_LIVE_DECISION = {
     "acceptance_scope": "offline_pre_live_only",
     "offline_implementation": "pass",
@@ -342,12 +342,7 @@ def build_outputs(
         )
     ]
     if not host_runtime_current:
-        blockers.extend(
-            [
-                "r005_batch_bootstrap_cold_read_incompatible",
-                "requires_r006_second_lap_certificate",
-            ]
-        )
+        blockers.append("r005_batch_bootstrap_production_second_lap_unverified")
     public_signal = (
         blockers[0]
         if blockers

@@ -27,7 +27,7 @@ from step5d_autotune_contract import (
     SearchAttestation,
     TrialSource,
     TrialTransition,
-    TrialTransitionKind,
+    TrialTransitionSourceScope,
     TrialDisposition,
     TrialSpec,
     canonical_json_bytes,
@@ -1245,19 +1245,21 @@ class CampaignStore:
                 transition = TrialTransition.from_payload(
                     trial_payload["transition"]
                 )
-                if transition.kind is TrialTransitionKind.BASELINE:
+                transition_policy = transition.policy
+                if transition_policy.campaign_start_only:
                     if seen_trial_sources:
                         raise EvidenceIntegrityError(
-                            "baseline transition may occur only at campaign history start"
+                            f"{transition.kind.value} transition may occur only at "
+                            "campaign history start"
                         )
                 elif (
-                    transition.kind is not TrialTransitionKind.CODE_EPOCH_SEARCH
-                    and (
-                        transition.kind is not TrialTransitionKind.RETRY
-                        or transition.retry_kind != "code_fix"
-                    )
+                    transition_policy.source_scope
+                    is TrialTransitionSourceScope.CURRENT_HISTORY
                 ):
-                    assert transition.source is not None
+                    if transition.source is None:
+                        raise EvidenceIntegrityError(
+                            "current-history transition lacks its required source"
+                        )
                     if (
                         seen_trial_sources.get(transition.source.trial_uid)
                         != transition.source

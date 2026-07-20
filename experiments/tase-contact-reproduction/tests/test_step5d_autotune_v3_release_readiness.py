@@ -95,7 +95,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "program": V3,
             "tp_program_id": R005,
             "tp_program_disposition": "controller_readback_verified",
-            "host_runtime_disposition": "verified_typed_closure_v2_cold_read",
+            "host_runtime_disposition": "verified_r005_exact_plan_production_ack1_arm2",
             "selection_state": "current",
         },
     )
@@ -144,7 +144,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return root, identity, bridge, bridge_path
 
 
-def test_selected_release_remains_blocked_by_r005_quarantine(
+def test_selected_release_and_bridge_start_are_independent_from_campaign(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root, _identity, bridge, bridge_path = _fixture(tmp_path, monkeypatch)
@@ -156,13 +156,11 @@ def test_selected_release_remains_blocked_by_r005_quarantine(
 
     assert report["selected_release"] == V3
     assert report["deployment_ready"] is True
-    assert report["bridge_start_ready"] is False
+    assert report["bridge_start_ready"] is True
     assert report["bridge_process_ready"] is False
     assert report["motion_arm_ready"] is False
     assert report["campaign_ready"] is False
     assert report["release_identity"] == bridge.identity
-    assert "r005_batch_bootstrap_cold_read_incompatible" in report["blockers"]
-    assert "requires_r006_second_lap_certificate" in report["blockers"]
 
 
 def test_selected_release_rejects_a_different_tp_revision(
@@ -198,7 +196,7 @@ def test_known_incompatible_tp_program_cannot_reuse_a_bridge_context(
     assert report["deployment_ready"] is True
     assert report["bridge_start_ready"] is False
     assert report["tp_program_start_allowed"] is False
-    assert "r005_known_incompatible_do_not_retry" in report["blockers"]
+    assert "selected_tp_program_known_incompatible_do_not_retry" in report["blockers"]
 
 
 def test_known_incompatible_host_runtime_cannot_reuse_a_bridge_context(
@@ -218,8 +216,7 @@ def test_known_incompatible_host_runtime_cannot_reuse_a_bridge_context(
     assert report["deployment_ready"] is True
     assert report["bridge_start_ready"] is False
     assert report["host_runtime_start_allowed"] is False
-    assert "r005_batch_bootstrap_cold_read_incompatible" in report["blockers"]
-    assert "requires_r006_second_lap_certificate" in report["blockers"]
+    assert "r005_batch_bootstrap_production_second_lap_unverified" in report["blockers"]
 
 
 def test_runtime_no_arm_claim_requires_live_pid_and_cannot_claim_campaign(

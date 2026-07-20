@@ -762,6 +762,60 @@ class TrialTransitionKind(str, Enum):
     I_SCALE_PROBE = "i_scale_probe"
 
 
+class TrialTransitionSourceScope(str, Enum):
+    """Where a transition source must already exist when history is read."""
+
+    NONE = "none"
+    CURRENT_HISTORY = "current_history"
+    ARCHIVED_HISTORY = "archived_history"
+
+
+@dataclass(frozen=True)
+class TrialTransitionPolicy:
+    requires_source: bool
+    campaign_start_only: bool
+    source_scope: TrialTransitionSourceScope
+
+
+_SOURCE_FREE_TRANSITIONS = frozenset(
+    {
+        TrialTransitionKind.BASELINE,
+        TrialTransitionKind.BATCH_BOOTSTRAP,
+    }
+)
+_ARCHIVED_SOURCE_TRANSITIONS = frozenset({TrialTransitionKind.CODE_EPOCH_SEARCH})
+
+
+def trial_transition_policy(
+    kind: TrialTransitionKind,
+    *,
+    retry_kind: str | None = None,
+) -> TrialTransitionPolicy:
+    """Return the single authoritative source/history policy for every kind."""
+
+    if not isinstance(kind, TrialTransitionKind):
+        raise ValueError("trial transition kind must be TrialTransitionKind")
+    if kind in _SOURCE_FREE_TRANSITIONS:
+        return TrialTransitionPolicy(
+            requires_source=False,
+            campaign_start_only=True,
+            source_scope=TrialTransitionSourceScope.NONE,
+        )
+    if kind in _ARCHIVED_SOURCE_TRANSITIONS or (
+        kind is TrialTransitionKind.RETRY and retry_kind == "code_fix"
+    ):
+        return TrialTransitionPolicy(
+            requires_source=True,
+            campaign_start_only=False,
+            source_scope=TrialTransitionSourceScope.ARCHIVED_HISTORY,
+        )
+    return TrialTransitionPolicy(
+        requires_source=True,
+        campaign_start_only=False,
+        source_scope=TrialTransitionSourceScope.CURRENT_HISTORY,
+    )
+
+
 @dataclass(frozen=True)
 class TrialSource:
     """Immutable identity of the executed trial that authorizes a transition."""
@@ -862,10 +916,8 @@ class TrialTransition:
     def __post_init__(self) -> None:
         if not isinstance(self.kind, TrialTransitionKind):
             raise ValueError("trial transition kind must be TrialTransitionKind")
-        if self.kind in {
-            TrialTransitionKind.BASELINE,
-            TrialTransitionKind.BATCH_BOOTSTRAP,
-        }:
+        policy = trial_transition_policy(self.kind, retry_kind=self.retry_kind)
+        if not policy.requires_source:
             if self.source is not None or self.retry_kind is not None:
                 raise ValueError(
                     "source-free transition cannot name a source or retry"
@@ -878,6 +930,10 @@ class TrialTransition:
                 raise ValueError("retry transition kind is invalid")
         elif self.retry_kind is not None:
             raise ValueError("retry_kind is valid only for retry transitions")
+
+    @property
+    def policy(self) -> TrialTransitionPolicy:
+        return trial_transition_policy(self.kind, retry_kind=self.retry_kind)
 
     def payload(self) -> dict[str, Any]:
         return {

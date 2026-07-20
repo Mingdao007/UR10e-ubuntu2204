@@ -92,9 +92,9 @@
     {
       "invariant_id": "f2g.trial_bundle_cold_read_ack_next_arm",
       "lanes": {
-        "small": {"required": true, "status": "incident_registered_fix_pending", "evidence": ["tests/fixtures/step5d_r005_typed_closure_v2_incident.json", "tests/fixtures/step5d_r005_batch_bootstrap_cold_read_incident.json"]},
-        "medium": {"required": true, "status": "fix_pending_exact_production_runner", "evidence": []},
-        "replay": {"required": true, "status": "prior_fake_runner_evidence_invalidated", "evidence": ["tests/fixtures/step5d_r005_batch_bootstrap_cold_read_incident.json"]},
+        "small": {"required": true, "status": "implemented_r005_transition_policy_roundtrip", "evidence": ["tests/fixtures/step5d_r005_batch_bootstrap_cold_read_incident.json", "tests/test_step5d_autotune_store.py"]},
+        "medium": {"required": true, "status": "implemented_r005_exact_plan_production_components", "evidence": ["tests/test_step5d_autotune_production_second_lap.py"]},
+        "replay": {"required": true, "status": "implemented_r005_exact_plan_ack1_ready_near_arm2", "evidence": ["tests/fixtures/step5d_r005_exact_candidate_plan.json", "tests/test_step5d_autotune_production_second_lap.py"]},
         "hil": {"required": true, "status": "historical_incident_not_a_pass", "evidence": ["tests/fixtures/step5d_r005_batch_bootstrap_cold_read_incident.json"]},
         "live": {"required": true, "status": "not_run_requires_authorization", "evidence": []}
       }

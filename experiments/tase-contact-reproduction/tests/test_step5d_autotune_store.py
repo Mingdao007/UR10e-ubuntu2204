@@ -30,6 +30,8 @@ from step5d_autotune_contract import (  # noqa: E402
     TrialSpec,
     TrialTransition,
     TrialTransitionKind,
+    TrialTransitionSourceScope,
+    trial_transition_policy,
     trial_source_from_trial,
 )
 from step5d_autotune_store import (  # noqa: E402
@@ -243,6 +245,32 @@ def manifest(spec: TrialSpec, digests: dict[str, str]) -> CaptureManifest:
 
 
 class ContractInvariantTest(unittest.TestCase):
+    def test_every_transition_kind_has_one_complete_source_policy(self) -> None:
+        policies = {
+            kind: trial_transition_policy(
+                kind,
+                retry_kind="infrastructure"
+                if kind is TrialTransitionKind.RETRY
+                else None,
+            )
+            for kind in TrialTransitionKind
+        }
+        self.assertEqual(set(policies), set(TrialTransitionKind))
+        for kind in (TrialTransitionKind.BASELINE, TrialTransitionKind.BATCH_BOOTSTRAP):
+            self.assertFalse(policies[kind].requires_source)
+            self.assertTrue(policies[kind].campaign_start_only)
+            self.assertIs(
+                policies[kind].source_scope,
+                TrialTransitionSourceScope.NONE,
+            )
+        self.assertIs(
+            trial_transition_policy(
+                TrialTransitionKind.RETRY,
+                retry_kind="code_fix",
+            ).source_scope,
+            TrialTransitionSourceScope.ARCHIVED_HISTORY,
+        )
+
     def test_sha256_fields_require_full_lowercase_hex(self) -> None:
         with self.assertRaisesRegex(ValueError, "lowercase hexadecimal"):
             CampaignSpec(
@@ -365,6 +393,33 @@ class StoreIntegrityTest(unittest.TestCase):
             decoded = CaptureManifest(**bundle["capture"])
             self.assertEqual(decoded.safe_closure_evidence, closure)
             self.assertEqual(list(cold_store.quarantine_dir.glob("*.json")), [])
+
+    def test_batch_bootstrap_source_null_survives_cold_history_read(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            spec = replace(
+                trial(),
+                transition=TrialTransition(TrialTransitionKind.BATCH_BOOTSTRAP),
+            )
+            paths, digests = write_artifacts(root / "capture", spec=spec)
+            store = self.initialized_store(root)
+
+            bundle_path = store.write_trial_bundle(
+                spec,
+                manifest(spec, digests),
+                evaluation(spec),
+                artifact_paths=paths,
+            )
+            rows = CampaignStore(store.root).read_resume_history()
+
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["trial"]["transition"], {
+                "kind": "batch_bootstrap",
+                "source": None,
+                "retry_kind": None,
+            })
+            self.assertEqual(rows[0]["trial_uid"], spec.trial_uid)
+            self.assertTrue(bundle_path.is_file())
 
     def test_typed_v1_and_unknown_closure_schemas_fail_closed(self) -> None:
         spec = trial()
