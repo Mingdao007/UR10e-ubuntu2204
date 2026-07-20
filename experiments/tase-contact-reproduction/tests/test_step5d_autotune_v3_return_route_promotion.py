@@ -18,6 +18,7 @@ import promote_step5d_autotune_v3_return_route_evidence as promotion  # noqa: E4
 from step5d_autotune_v3.arming import BridgeStartContext  # noqa: E402
 from step5d_autotune_v3.identity_layers import (  # noqa: E402
     release_basis_fingerprint,
+    runtime_environment_fingerprint,
 )
 from step5d_autotune_v3.profile import (  # noqa: E402
     active_identity_snapshot,
@@ -54,7 +55,13 @@ def _fixture(tmp_path: Path) -> dict[str, object]:
         (ROOT / "config/step5d_autotune_controller_readback_v3.json").read_bytes()
     )
     readback_sha = promotion._sha256(readback)
-    runtime_environment = "d" * 64
+    runtime_manifest = {
+        "schema": "step5d.autotune-v3/runtime-environment-identity-v1",
+        "environment": {"fixture": "return-promotion"},
+    }
+    runtime_environment = runtime_environment_fingerprint(
+        runtime_manifest["environment"]
+    )
     release_basis = release_basis_fingerprint(
         tick_semantics_fingerprint=identity["tick_semantics_fingerprint"],
         timing_harness_fingerprint=identity["timing_harness_fingerprint"],
@@ -73,7 +80,7 @@ def _fixture(tmp_path: Path) -> dict[str, object]:
         local_triplet_sha256=identity["local_triplet_sha256"],
         plant_epoch=9,
         deployment_readback_sha256=readback_sha,
-        timing_acceptance_sha256="e" * 64,
+        runtime_environment_manifest=runtime_manifest,
     )
     bridge_context_path = _write(
         tmp_path / "bridge-start-context.json",

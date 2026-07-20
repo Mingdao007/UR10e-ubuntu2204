@@ -16,7 +16,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT.parents[1] / "src/ur10e_experiment_runtime"))
 
 from step5d_autotune_v3.arming import BridgeStartContext  # noqa: E402
-from step5d_autotune_v3.identity_layers import release_basis_fingerprint  # noqa: E402
+from step5d_autotune_v3.identity_layers import (  # noqa: E402
+    release_basis_fingerprint,
+    runtime_environment_fingerprint,
+)
 from step5d_autotune_v3 import readiness  # noqa: E402
 
 
@@ -106,10 +109,16 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "active_identity_snapshot",
         lambda *_args, **_kwargs: dict(identity),
     )
+    runtime_manifest = {
+        "schema": "step5d.autotune-v3/runtime-environment-identity-v1",
+        "environment": {"fixture": "release-readiness"},
+    }
     bridge_identity = {
         "tick_semantics_fingerprint": identity["tick_semantics_fingerprint"],
         "timing_harness_fingerprint": identity["timing_harness_fingerprint"],
-        "runtime_environment_fingerprint": "5" * 64,
+        "runtime_environment_fingerprint": runtime_environment_fingerprint(
+            runtime_manifest["environment"]
+        ),
         "deployment_fingerprint": identity["deployment_fingerprint"],
         "orchestration_fingerprint": identity["orchestration_fingerprint"],
     }
@@ -122,7 +131,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         local_triplet_sha256=triplet,
         plant_epoch=7,
         deployment_readback_sha256=_sha256(readback),
-        timing_acceptance_sha256="6" * 64,
+        runtime_environment_manifest=runtime_manifest,
     )
     bridge_path = _write(root / "runtime/bridge-start.json", bridge.document())
     return root, identity, bridge, bridge_path

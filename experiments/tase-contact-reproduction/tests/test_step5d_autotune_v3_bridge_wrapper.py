@@ -17,14 +17,23 @@ sys.path.insert(0, str(ROOT / "tools"))
 import run_step5d_autotune_v3_bridge as wrapper  # noqa: E402
 from run_step5d_autotune_campaign import closure_sample_from_bridge_row  # noqa: E402
 from step5d_autotune_v3.arming import BridgeStartContext  # noqa: E402
-from step5d_autotune_v3.identity_layers import release_basis_fingerprint  # noqa: E402
+from step5d_autotune_v3.identity_layers import (  # noqa: E402
+    release_basis_fingerprint,
+    runtime_environment_fingerprint,
+)
 
 
 def _ticket(path: Path, argv: list[str]) -> Path:
+    runtime_manifest = {
+        "schema": "step5d.autotune-v3/runtime-environment-identity-v1",
+        "environment": {"fixture": "bridge-wrapper"},
+    }
     identity = {
         "tick_semantics_fingerprint": "0" * 64,
         "timing_harness_fingerprint": "1" * 64,
-        "runtime_environment_fingerprint": "2" * 64,
+        "runtime_environment_fingerprint": runtime_environment_fingerprint(
+            runtime_manifest["environment"]
+        ),
         "deployment_fingerprint": "3" * 64,
         "orchestration_fingerprint": "4" * 64,
     }
@@ -41,7 +50,7 @@ def _ticket(path: Path, argv: list[str]) -> Path:
         },
         plant_epoch=2,
         deployment_readback_sha256="8" * 64,
-        timing_acceptance_sha256="9" * 64,
+        runtime_environment_manifest=runtime_manifest,
     )
     bridge_context_path = path.with_name("bridge-start-context.json").resolve()
     bridge_context_path.write_text(

@@ -77,6 +77,7 @@ ORCHESTRATION_PATHS = tuple(
         "tools/step5d_autotune_batch_plan.py",
         "tools/run_step5d_autotune_v3_live.py",
         "tools/run_step5d_autotune_v3_bridge.py",
+        "tools/build_step5d_autotune_v3_bridge_start_context.py",
         "tools/preflight_step5d_autotune_v3.py",
         "tools/step5d_autotune_v3/arming.py",
         "tools/step5d_autotune_v3/cli.py",

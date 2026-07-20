@@ -9,6 +9,7 @@ certified evidence, and an external typed campaign authorization agree.
 
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from datetime import datetime
 import hashlib
@@ -38,10 +39,11 @@ from .identity_layers import (
     TP_PROGRAM_ID,
     release_basis_fingerprint,
     release_fingerprint,
+    runtime_environment_fingerprint,
 )
 
 
-BRIDGE_START_CONTEXT_SCHEMA = "step5d.autotune-v3/bridge-start-context-v1"
+BRIDGE_START_CONTEXT_SCHEMA = "step5d.autotune-v3/bridge-start-context-v2"
 CAMPAIGN_ARMING_CONTEXT_SCHEMA = "step5d.autotune-v3/campaign-arming-context-v1"
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = EXPERIMENT_ROOT.parents[1]
@@ -159,7 +161,7 @@ class BridgeStartContext:
     local_triplet_sha256: Mapping[str, str]
     plant_epoch: int
     deployment_readback_sha256: str
-    timing_acceptance_sha256: str
+    runtime_environment_manifest: Mapping[str, Any]
 
     def __post_init__(self) -> None:
         for name in (
@@ -170,11 +172,28 @@ class BridgeStartContext:
             "orchestration_fingerprint",
             "release_basis_fingerprint",
             "deployment_readback_sha256",
-            "timing_acceptance_sha256",
         ):
             _sha256_value(name, getattr(self, name))
         _triplet(self.local_triplet_sha256, "local_triplet_sha256")
         _positive_int("plant_epoch", self.plant_epoch)
+        runtime_manifest = _exact(
+            self.runtime_environment_manifest,
+            {"schema", "environment"},
+            "runtime environment manifest",
+        )
+        if (
+            runtime_manifest["schema"]
+            != "step5d.autotune-v3/runtime-environment-identity-v1"
+            or not isinstance(runtime_manifest["environment"], Mapping)
+            or runtime_environment_fingerprint(runtime_manifest["environment"])
+            != self.runtime_environment_fingerprint
+        ):
+            raise ArmingError("bridge-start runtime environment identity differs")
+        object.__setattr__(
+            self,
+            "runtime_environment_manifest",
+            copy.deepcopy(dict(runtime_manifest)),
+        )
         expected = release_basis_fingerprint(
             tick_semantics_fingerprint=self.tick_semantics_fingerprint,
             timing_harness_fingerprint=self.timing_harness_fingerprint,
@@ -205,7 +224,9 @@ class BridgeStartContext:
             "local_triplet_sha256": dict(self.local_triplet_sha256),
             "plant_epoch": self.plant_epoch,
             "deployment_readback_sha256": self.deployment_readback_sha256,
-            "timing_acceptance_sha256": self.timing_acceptance_sha256,
+            "runtime_environment_manifest": copy.deepcopy(
+                dict(self.runtime_environment_manifest)
+            ),
             "selected_release": RELEASE_STAGE_ID,
             "control_profile_provenance": CONTROL_PROFILE_ID,
             "tp_program_id": TP_PROGRAM_ID,
@@ -229,7 +250,7 @@ class BridgeStartContext:
                 "local_triplet_sha256",
                 "plant_epoch",
                 "deployment_readback_sha256",
-                "timing_acceptance_sha256",
+                "runtime_environment_manifest",
                 "selected_release",
                 "control_profile_provenance",
                 "tp_program_id",
@@ -269,7 +290,7 @@ class BridgeStartContext:
             ),
             plant_epoch=document["plant_epoch"],
             deployment_readback_sha256=document["deployment_readback_sha256"],
-            timing_acceptance_sha256=document["timing_acceptance_sha256"],
+            runtime_environment_manifest=document["runtime_environment_manifest"],
         )
 
 

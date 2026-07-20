@@ -11,7 +11,7 @@
   "current_selector": "step5d_strict_rnn_autotune_v3",
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
-    "sha256": "1aa50e45c9f496e6b1c4c1132121faa99badd26cc75f013aea749505feab6613"
+    "sha256": "498c57f4a860cac7e7d17d4911134bd1c9629b2a88c4b65955633c3bbc95fd10"
   },
   "identity": {
     "controller_readback_triplet_sha256": {
@@ -30,7 +30,7 @@
       ".txt": "3c6dc8fd7cb0e982591b311463e9a996dcf7db85086efada125121ff730dcd14",
       ".urp": "7f0b8ee7de9f57bd611d398d8afa0db238ebb10ce02f07f7f577e2cb9fedc3b5"
     },
-    "orchestration_fingerprint": "67ea0116a0565ab9ee46490dc0a5fb12e9102369c41d33c2240aea3699606f0d",
+    "orchestration_fingerprint": "0a52452ab0202c635af1b9646e2200267cff3873bb951bbc5cc95d421209c850",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
@@ -38,7 +38,7 @@
     "tick_semantics_fingerprint": "7c41f7bceb42c92a0e4b4f0ac717975647009b2cf8c75733dfc768004e1b4b5d",
     "timing_harness_fingerprint": "7c00ea65d4e6d09b55fd486c6c6714344287d595e55ded8ead07845cec679daa",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "251bccaff863033ac16ef09649993d71cd7ffdb9ab59cc345685070513bb1bc1"
+      "evidence_verifier_fingerprint": "62ecea7923544553f1441dc06e0baa867269176603d057f486d0b000f19b96cd"
     }
   },
   "live_runtime_promoted": false,
