@@ -5,6 +5,7 @@
     -0.998831683
   ],
   "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
+  "certification_command_horizon_s": 0.002,
   "certification_commands": {
     "direct_exact_stop": 4,
     "return_route": 6,
@@ -12,8 +13,10 @@
   },
   "certification_excursion_m": 0.004,
   "certification_execution_profile_id": 9001,
+  "certification_heartbeat_stale_s": 0.02,
   "certification_linear_acceleration_m_s2": 0.06,
   "certification_linear_speed_m_s": 0.01,
+  "certification_loop_gap_policy": "retired_not_a_tp_scheduling_acceptance_gate",
   "certification_safe_z_min_m": 0.033,
   "certification_samples_per_stop_procedure": 3,
   "certification_stop_telemetry_output_float_registers": [

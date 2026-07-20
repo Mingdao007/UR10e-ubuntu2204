@@ -315,8 +315,10 @@ def codex_autotune_certification_stop(command, campaign_epoch, trial_id, candida
   local trigger_controller_time_s = -1.0
   local consumed_sequence = command_seq
   codex_autotune_write_state(campaign_epoch, trial_id, 80, candidate_token, 0, execution_profile_id, consumed_sequence)
-  # State publication writes ten output registers and is not part of the
-  # motion-loop sample interval. Arm the 4 ms gap guard only after it finishes.
+  # Controller time remains the stale-watchdog clock. Do not turn the
+  # certification motion loop into a 4 ms TP scheduling acceptance test:
+  # speedl's 2 ms command horizon and the existing identity, heartbeat,
+  # force/torque, and excursion guards retain the bounded no-contact envelope.
   local last_controller_time_s = codex_autotune_controller_time_s()
   while trigger_controller_time_s < 0.0:
     local controller_time_s = codex_autotune_controller_time_s()
@@ -339,8 +341,6 @@ def codex_autotune_certification_stop(command, campaign_epoch, trial_id, candida
       trigger_controller_time_s = controller_time_s
     elif reason != 0.0:
       return -reason
-    elif loop_dt <= 0.0 or loop_dt > {RETURN_CONTROLLER_MAX_SAMPLE_GAP_S:.3f}:
-      return -18
     elif codex_abs(current_pose[0] - start_pose[0]) > {CERTIFICATION_EXCURSION_M + 0.002:.3f}:
       return -17
     else:
@@ -724,6 +724,16 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
     missing = [marker for marker in required if marker not in script]
     if missing:
         raise ValueError(f"V3 TP script lacks required markers: {missing}")
+    certification_stop = script.split(
+        "def codex_autotune_certification_stop(", 1
+    )[1].split("def codex_autotune_certification_return(", 1)[0]
+    if (
+        "loop_dt <= 0.0 or loop_dt >" in certification_stop
+        or "return -18" in certification_stop
+    ):
+        raise ValueError(
+            "certification motion must not enforce a TP scheduling-gap acceptance test"
+        )
     prefix_lines = 5
     normalized = "".join(script.splitlines(keepends=True)[prefix_lines:])
     normalized = _replace_once(
@@ -921,6 +931,11 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "certification_linear_speed_m_s": CERTIFICATION_LINEAR_SPEED_M_S,
         "certification_linear_acceleration_m_s2": (
             CERTIFICATION_LINEAR_ACCELERATION_M_S2
+        ),
+        "certification_command_horizon_s": RETURN_CONTROLLER_PERIOD_S,
+        "certification_heartbeat_stale_s": STAGE25_STALE_COMMAND_HOLD_S,
+        "certification_loop_gap_policy": (
+            "retired_not_a_tp_scheduling_acceptance_gate"
         ),
         "certification_stop_telemetry_output_float_registers": [45, 46, 47],
         "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",

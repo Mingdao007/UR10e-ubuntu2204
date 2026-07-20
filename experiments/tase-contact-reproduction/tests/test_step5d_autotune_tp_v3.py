@@ -71,6 +71,8 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     ) < certification_stop.index(
         "local last_controller_time_s = codex_autotune_controller_time_s()"
     ) < certification_stop.index("while trigger_controller_time_s < 0.0:")
+    assert "loop_dt <= 0.0 or loop_dt >" not in certification_stop
+    assert "return -18" not in certification_stop
 
 
 def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
@@ -135,6 +137,11 @@ def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
     assert sanity["certification_excursion_m"] == 0.004
     assert sanity["certification_linear_speed_m_s"] == 0.01
     assert sanity["certification_linear_acceleration_m_s2"] == 0.06
+    assert sanity["certification_command_horizon_s"] == 0.002
+    assert sanity["certification_heartbeat_stale_s"] == 0.020
+    assert sanity["certification_loop_gap_policy"] == (
+        "retired_not_a_tp_scheduling_acceptance_gate"
+    )
     assert sanity["certification_stop_telemetry_output_float_registers"] == [45, 46, 47]
     assert sanity["batch_row_policy"] == (
         "rows_1_to_9_near_ready_row_10_campaign_home"
