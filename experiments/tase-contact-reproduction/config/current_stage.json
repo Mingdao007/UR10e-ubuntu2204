@@ -138,8 +138,8 @@
     "zero_ftsensor_authorized": false
   },
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-  "controller_readback_manifest_sha256": "be7928577490a84f33e8bd612f403b5a3cb1a6039b0b9d3067af4877e96a734b",
-  "controller_readback_verified_for_selected_triplet": false,
+  "controller_readback_manifest_sha256": "e17368bb48eae89cd86aacd5b895e008f2b758cf179027b1b6640c543932e4d8",
+  "controller_readback_verified_for_selected_triplet": true,
   "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r001.script",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r001.urp",
   "current_stage_id": "step5d_strict_rnn_autotune_v3",
@@ -1376,7 +1376,7 @@
     "bridge_process_ready": false,
     "bridge_start_ready": false,
     "campaign_ready": false,
-    "deployment_ready": false,
+    "deployment_ready": true,
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },
@@ -1405,19 +1405,19 @@
   ],
   "selection_state": "current",
   "sha256": {
-    ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
-    ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
-    ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
+    ".script": "3a095ba8a80017058ef3ef592da9bcd6b3a906729c950035cf39e35e86b46660",
+    ".txt": "270af8c360fa770719098a33606e101732e0dfc26f8850b46185c73d565a3c31",
+    ".urp": "cbebfdbafe6065fea40881f18f176d43ac3378e178b9a66a20c08d9e99a8298c"
   },
   "stage_table_path": "config/step5_stage_table.json",
-  "status": "step5d_autotune_v3_selected_pre_live_blocked",
+  "status": "step5d_autotune_v3_controller_readback_verified_pre_live",
   "strict_rnn_status": {
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
     "reason": "V3 is the unique selected route. V35 and autotune V1 are retained provenance only; V3 deployment, timing, certification, audit, and campaign authorization remain separate readiness gates.",
     "stage_id": "step5d_strict_rnn_reproduction_v1"
   },
-  "updated_at": "2026-07-20T10:00:00+08:00",
+  "updated_at": "2026-07-20T13:52:55+08:00",
   "v29_contact_candidate": {
     "controller_readback_verified": true,
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",

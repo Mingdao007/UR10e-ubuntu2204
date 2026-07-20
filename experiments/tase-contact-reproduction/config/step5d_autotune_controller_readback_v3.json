@@ -2,37 +2,37 @@
   "schema": "step5d.autotune.controller-readback/v3",
   "status": "controller read-back verified",
   "verified": true,
-  "program": "step5d_strict_rnn_autotune_v3",
+  "program": "step5d_strict_rnn_autotune_v3_r001",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "controller": "root@192.168.1.18",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-  "fresh_controller_checked_at": "2026-07-20T12:52:43+08:00",
-  "source_stamp": "2026-07-20T1255HKT",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r001.urp",
+  "fresh_controller_checked_at": "2026-07-20T13:52:55+08:00",
+  "source_stamp": "2026-07-20T1325HKT",
   "triplet_sha256": {
-    ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
-    ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
-    ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
+    ".script": "3a095ba8a80017058ef3ef592da9bcd6b3a906729c950035cf39e35e86b46660",
+    ".txt": "270af8c360fa770719098a33606e101732e0dfc26f8850b46185c73d565a3c31",
+    ".urp": "cbebfdbafe6065fea40881f18f176d43ac3378e178b9a66a20c08d9e99a8298c"
   },
   "sha256": {
     "local": {
-      ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
-      ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
-      ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
+      ".script": "3a095ba8a80017058ef3ef592da9bcd6b3a906729c950035cf39e35e86b46660",
+      ".txt": "270af8c360fa770719098a33606e101732e0dfc26f8850b46185c73d565a3c31",
+      ".urp": "cbebfdbafe6065fea40881f18f176d43ac3378e178b9a66a20c08d9e99a8298c"
     },
     "controller": {
-      ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
-      ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
-      ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
+      ".script": "3a095ba8a80017058ef3ef592da9bcd6b3a906729c950035cf39e35e86b46660",
+      ".txt": "270af8c360fa770719098a33606e101732e0dfc26f8850b46185c73d565a3c31",
+      ".urp": "cbebfdbafe6065fea40881f18f176d43ac3378e178b9a66a20c08d9e99a8298c"
     },
     "readback": {
-      ".script": "19ae87c182d8245448339e225c3c94a533ed9b67c0c2e5f175b1eb288099169a",
-      ".txt": "ab6d8859ebb1f99c0171ef2c88f00b092430673bbee00b58c9b092b4feb6a5d8",
-      ".urp": "be99a8b7651a677bf1c1e01a7952a19e63928d1406326f922d96e8998e0079a6"
+      ".script": "3a095ba8a80017058ef3ef592da9bcd6b3a906729c950035cf39e35e86b46660",
+      ".txt": "270af8c360fa770719098a33606e101732e0dfc26f8850b46185c73d565a3c31",
+      ".urp": "cbebfdbafe6065fea40881f18f176d43ac3378e178b9a66a20c08d9e99a8298c"
     }
   },
-  "tp_fingerprint": "c59598ccfb657834e95e6bd8bb4e73c810fc4dc04e14d0f0cb39a97e5fdce42d",
-  "fresh_readback_manifest_sha256": "96c1ef7b532e1f8ac1dcecf7f1e7dba5eb0755c3d260b229bb73d5c6c450028b",
-  "fresh_readback_source": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/controller_readback_20260720T125243HKT.json",
+  "tp_fingerprint": "bbabf086edff05713fcc51aa0f74f53f756d8cb387f5e7d60d5f5869b5aa778d",
+  "fresh_readback_manifest_sha256": "fa308e9d609e7f368911f2aa5992b5c43b4e31f9694dbf0bc7cc221af7ea15af",
+  "fresh_readback_source": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/controller_readback_20260720T135255HKT.json",
   "safety_boundary": [
     "controller package upload and fresh read-back only",
     "V3 remains the unique selected/current release",
