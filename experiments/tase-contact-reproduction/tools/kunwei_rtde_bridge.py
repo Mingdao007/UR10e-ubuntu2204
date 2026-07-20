@@ -186,6 +186,7 @@ from step5d_autotune_live_driver import (  # noqa: E402
     MailboxError as Step5dAutotuneMailboxError,
     decode_execution_profile_id,
 )
+from step5d_production_csv import ProductionCsvWriter  # noqa: E402
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
     STEP6_SAFE_FRAME_PATH,
@@ -11053,12 +11054,11 @@ def main(argv: list[str] | None = None) -> int:
             raw_path.open("wb") as raw_handle,
         ):
             sensor_writer = csv.DictWriter(sensor_handle, fieldnames=sensor_fields)
-            bridge_writer = csv.DictWriter(
+            bridge_writer = ProductionCsvWriter(
                 bridge_handle,
-                fieldnames=bridge_fields + step4e_diag_fields + bridge_output_fields,
+                bridge_fields + step4e_diag_fields + bridge_output_fields,
             )
             sensor_writer.writeheader()
-            bridge_writer.writeheader()
             last_csv_write_s = 0.0
             next_write = time.monotonic()
             ready_path = args.output_dir / "bridge_ready.json"

@@ -58,6 +58,7 @@ from step5d_autotune_journal import (
     JournalReference,
     JournalState,
     PendingAck,
+    PendingAdvance as JournalPendingAdvance,
     PendingRetry,
     ReconcileAction,
     ReconcileDecision,
@@ -74,7 +75,9 @@ from step5d_autotune_supervisor import (
     CampaignPhase,
     CampaignSupervisor,
     CloseDecision,
+    CompletionProtocol,
     GovernorProbeState,
+    PendingAdvance,
     SupervisorRecoverySnapshot,
     TrialIntent,
     execution_profile_integer_id,
@@ -112,6 +115,16 @@ class ContinuousTpCommandSink(Protocol):
 class TrialBriefAdmissionLike(Protocol):
     trial_uid: str
     ack_command_seq: int
+    publication_uid: str
+    document_sha256: str
+    path: Path
+    file_sha256: str
+    optimizer_eligible: bool
+
+
+class DirectTrialBriefAdmissionLike(Protocol):
+    trial_uid: str
+    arm_command_seq: int
     publication_uid: str
     document_sha256: str
     path: Path
@@ -174,6 +187,57 @@ def _trial_brief_reference(
     ):
         raise RecoveryError(
             "post-ACK TrialBrief bytes differ from the admission receipt"
+        )
+    return JournalReference(
+        reference_id=receipt.publication_uid,
+        path=str(receipt.path),
+        sha256=file_sha256,
+    )
+
+
+def _direct_trial_brief_reference(
+    receipt: DirectTrialBriefAdmissionLike,
+    *,
+    trial_uid: str,
+    arm_command_seq: int,
+    optimizer_eligible: bool,
+) -> JournalReference:
+    if any(
+        (
+            receipt.trial_uid != trial_uid,
+            receipt.arm_command_seq != arm_command_seq,
+            receipt.optimizer_eligible is not optimizer_eligible,
+            not isinstance(receipt.path, Path),
+            not receipt.path.is_absolute(),
+            receipt.path.is_symlink(),
+            not receipt.path.is_file(),
+        )
+    ):
+        raise RecoveryError(
+            "direct-ready TrialBrief admission differs from pending outcome"
+        )
+    encoded = receipt.path.read_bytes()
+    file_sha256 = hashlib.sha256(encoded).hexdigest()
+    try:
+        document = runtime_strict_json_loads(encoded)
+    except ValueError as exc:
+        raise RecoveryError("direct-ready TrialBrief is malformed") from exc
+    canonical = runtime_canonical_json_bytes(document)
+    if any(
+        (
+            encoded != canonical + b"\n",
+            receipt.file_sha256 != file_sha256,
+            receipt.document_sha256 != hashlib.sha256(canonical).hexdigest(),
+            document.get("schema") != "ur-exp/trial-brief-v2",
+            document.get("protocol") != "v3_direct_arm_v1",
+            document.get("publication_uid") != receipt.publication_uid,
+            document.get("trial_uid") != trial_uid,
+            document.get("optimizer_eligible") is not optimizer_eligible,
+            document.get("publication_unique") is not True,
+        )
+    ):
+        raise RecoveryError(
+            "direct-ready TrialBrief bytes differ from admission receipt"
         )
     return JournalReference(
         reference_id=receipt.publication_uid,
@@ -432,24 +496,33 @@ def _verify_infra_abort_evidence(fate: TerminalFate) -> None:
 
 
 def _verify_trial_brief_evidence(fate: TerminalFate, *, required: bool) -> None:
-    if fate.kind != "ack_consumed":
+    if fate.kind not in {"ack_consumed", "direct_ready_completed"}:
         return
     reference = fate.evidence
     if reference is None:
         if required:
-            raise RecoveryError("codex batch ACK fate lacks durable TrialBrief")
+            raise RecoveryError("codex batch terminal fate lacks durable TrialBrief")
         return
-    encoded, document = _read_reference(reference, role="post-ACK TrialBrief")
+    role = (
+        "direct-ready TrialBrief"
+        if fate.kind == "direct_ready_completed"
+        else "post-ACK TrialBrief"
+    )
+    encoded, document = _read_reference(reference, role=role)
     if not isinstance(document, Mapping) or any(
         (
-            encoded != canonical_json_bytes(document) + b"\n",
+            encoded != runtime_canonical_json_bytes(document) + b"\n",
             document.get("publication_uid") != reference.reference_id,
             document.get("trial_uid") != fate.trial.trial_uid,
             document.get("publication_unique") is not True,
             not isinstance(document.get("optimizer_eligible"), bool),
+            (
+                fate.kind == "direct_ready_completed"
+                and document.get("protocol") != "v3_direct_arm_v1"
+            ),
         )
     ):
-        raise RecoveryError("post-ACK TrialBrief evidence is not exact and closed")
+        raise RecoveryError("TrialBrief evidence is not exact and closed")
 
 
 def _candidate_from_payload(payload: Any) -> ForceCandidate:
@@ -801,12 +874,42 @@ class CampaignCoordinator:
                 terminal_reason=terminal[0],
                 host_cause=terminal[1],
             )
+        pending_advance: JournalPendingAdvance | None = None
+        if snapshot.pending_advance is not None:
+            pending = snapshot.pending_advance
+            intent = pending.intent
+            bundle = self._bundle_references.get(intent.trial.trial_uid)
+            if bundle is None:
+                raise CoordinatorError(
+                    "wait_direct_commit cannot be persisted without immutable bundle hash"
+                )
+            terminal = self._pending_terminal_by_trial.get(intent.trial.trial_uid)
+            if terminal is None and self.latest is not None:
+                prior = self.latest.state.pending_advance
+                if (
+                    prior is not None
+                    and prior.trial.trial_uid == intent.trial.trial_uid
+                ):
+                    terminal = (prior.terminal_reason, prior.host_cause)
+            if terminal is None:
+                raise CoordinatorError(
+                    "wait_direct_commit lacks terminal reason/host cause"
+                )
+            pending_advance = JournalPendingAdvance(
+                trial=self._intent_cursor(intent),
+                immutable_bundle=bundle,
+                post_commit_phase=pending.post_commit_phase.value,
+                terminal_reason=terminal[0],
+                host_cause=terminal[1],
+            )
         pending_retry: PendingRetry | None = None
         if snapshot.pending_retry is not None:
             candidate, token, kind, retry_source = snapshot.pending_retry
             origin: TrialIntent | None = None
             if snapshot.pending_ack is not None:
                 origin = snapshot.pending_ack[0]
+            elif snapshot.pending_advance is not None:
+                origin = snapshot.pending_advance.intent
             elif snapshot.active is not None:
                 origin = snapshot.active
             else:
@@ -840,6 +943,7 @@ class CampaignCoordinator:
             consumed = (
                 origin.trial.command_seq
                 if snapshot.pending_ack is not None
+                or snapshot.pending_advance is not None
                 else snapshot.command_seq
             )
             retry_terminal: tuple[int, str | None] | None = None
@@ -850,6 +954,14 @@ class CampaignCoordinator:
                 retry_terminal = (
                     pending_ack.terminal_reason,
                     pending_ack.host_cause,
+                )
+            elif (
+                pending_advance is not None
+                and pending_advance.trial.trial_uid == origin.trial.trial_uid
+            ):
+                retry_terminal = (
+                    pending_advance.terminal_reason,
+                    pending_advance.host_cause,
                 )
             elif self.latest is not None:
                 prior_ack = self.latest.state.pending_ack
@@ -919,6 +1031,7 @@ class CampaignCoordinator:
             ),
             active_trial=active,
             pending_ack=pending_ack,
+            pending_advance=pending_advance,
             pending_retry=pending_retry,
             cooldown_remaining=snapshot.cooldown_remaining,
             governor_probe=governor_probe,
@@ -1187,6 +1300,193 @@ class CampaignCoordinator:
             self._dispatch_receipt = None
             self._append_snapshot(self.supervisor.recovery_snapshot())
             return packet
+        except Exception:
+            self._poisoned = True
+            raise
+
+    def persist_direct_advance(
+        self,
+        immutable_bundle_path: Path,
+        *,
+        verified_resume_history: Sequence[Mapping[str, Any]],
+    ) -> JournalEntry:
+        """Fsync r006 PendingAdvance without reserving an ACK sequence."""
+
+        self._require_healthy()
+        snapshot = self.supervisor.recovery_snapshot()
+        if snapshot.pending_advance is None:
+            raise CoordinatorError("no closed trial is waiting for direct advance")
+        if snapshot.pending_ack is not None or snapshot.prepared_ack is not None:
+            raise CoordinatorError("direct advance cannot reuse legacy ACK state")
+        intent = snapshot.pending_advance.intent
+        try:
+            reference, bundle_payload = _bundle_reference(
+                immutable_bundle_path, intent.trial
+            )
+            matching_rows = [
+                row
+                for row in verified_resume_history
+                if isinstance(row, Mapping)
+                and row.get("trial_uid") == intent.trial.trial_uid
+            ]
+            if len(matching_rows) != 1:
+                raise CoordinatorError(
+                    "direct advance requires one exact cold-read history row"
+                )
+            history_row = matching_rows[0]
+            if any(
+                (
+                    history_row.get("history_identity")
+                    != reference.reference_id,
+                    canonical_json_bytes(history_row.get("trial"))
+                    != canonical_json_bytes(bundle_payload.get("trial")),
+                    canonical_json_bytes(history_row.get("evaluation"))
+                    != canonical_json_bytes(bundle_payload.get("evaluation")),
+                )
+            ):
+                raise CoordinatorError(
+                    "direct advance bundle differs from cold-read history"
+                )
+            capture_payload = bundle_payload.get("capture")
+            if not isinstance(capture_payload, Mapping):
+                raise CoordinatorError("direct advance bundle capture is missing")
+            terminal_reason = capture_payload.get("terminal_reason")
+            host_cause = capture_payload.get("host_cause")
+            if terminal_reason != 1 or (
+                host_cause is not None and not isinstance(host_cause, str)
+            ):
+                raise CoordinatorError(
+                    "direct advance requires terminal-ready reason 1"
+                )
+            self._bundle_references[intent.trial.trial_uid] = reference
+            self._pending_terminal_by_trial[intent.trial.trial_uid] = (
+                terminal_reason,
+                host_cause,
+            )
+            return self._append_snapshot(snapshot)
+        except Exception:
+            self._poisoned = True
+            raise
+
+    def complete_direct_ready(
+        self,
+        immutable_bundle_path: Path,
+        *,
+        verified_resume_history: Sequence[Mapping[str, Any]],
+        tp_snapshot: TpSnapshot,
+        trial_brief_admission: DirectTrialBriefAdmissionLike,
+    ) -> ReconcileResult:
+        """Persist r006 terminal completion without preparing an ACK command."""
+
+        self._require_healthy()
+        if self.latest is None or self.latest.state.pending_advance is None:
+            raise CoordinatorError("direct-ready completion lacks PendingAdvance")
+        persisted = self.latest.state.pending_advance.trial
+        snapshot = self.supervisor.recovery_snapshot()
+        if snapshot.pending_advance is None:
+            raise CoordinatorError("direct-ready completion lacks closed policy outcome")
+        if snapshot.pending_ack is not None or snapshot.prepared_ack is not None:
+            raise CoordinatorError("direct-ready completion reused legacy ACK state")
+        pending = snapshot.pending_advance
+        intent = pending.intent
+        post_phase = pending.post_commit_phase
+        trial = intent.trial
+        if any(
+            (
+                persisted.trial_uid != trial.trial_uid,
+                tp_snapshot.campaign_epoch_echo != trial.campaign.campaign_epoch,
+                tp_snapshot.trial_id_echo != trial.trial_id,
+                tp_snapshot.candidate_token_echo != trial.candidate_token,
+                tp_snapshot.execution_profile_integer_id_echo
+                != intent.execution_profile_integer_id,
+                tp_snapshot.consumed_command_seq != trial.command_seq,
+                tp_snapshot.terminal_reason != 1,
+                tp_snapshot.state
+                not in {"READY_NEAR", "READY_HOME_CLOSED"},
+            )
+        ):
+            raise CoordinatorError("direct-ready TP snapshot differs from active ARM")
+        try:
+            reference, bundle_payload = _bundle_reference(
+                immutable_bundle_path, trial
+            )
+            matching_rows = [
+                row
+                for row in verified_resume_history
+                if isinstance(row, Mapping)
+                and row.get("trial_uid") == trial.trial_uid
+            ]
+            if len(matching_rows) != 1:
+                raise CoordinatorError(
+                    "direct-ready completion requires one cold-read history row"
+                )
+            history_row = matching_rows[0]
+            if any(
+                (
+                    history_row.get("history_identity") != reference.reference_id,
+                    canonical_json_bytes(history_row.get("trial"))
+                    != canonical_json_bytes(bundle_payload.get("trial")),
+                    canonical_json_bytes(history_row.get("evaluation"))
+                    != canonical_json_bytes(bundle_payload.get("evaluation")),
+                )
+            ):
+                raise CoordinatorError(
+                    "immutable bundle differs from direct-ready cold-read history"
+                )
+            matching_outcomes = [
+                outcome
+                for outcome in snapshot.outcome_timeline
+                if outcome.evaluation.trial_uid == trial.trial_uid
+            ]
+            if len(matching_outcomes) != 1:
+                raise CoordinatorError("direct-ready policy lacks one exact outcome")
+            brief_reference = _direct_trial_brief_reference(
+                trial_brief_admission,
+                trial_uid=trial.trial_uid,
+                arm_command_seq=trial.command_seq,
+                optimizer_eligible=matching_outcomes[0].eligible,
+            )
+            self._bundle_references[trial.trial_uid] = reference
+            capture_payload = bundle_payload.get("capture")
+            if not isinstance(capture_payload, Mapping):
+                raise CoordinatorError("immutable bundle capture payload is missing")
+            terminal_reason = capture_payload.get("terminal_reason")
+            host_cause = capture_payload.get("host_cause")
+            if terminal_reason != 1 or (
+                host_cause is not None and not isinstance(host_cause, str)
+            ):
+                raise CoordinatorError("direct-ready bundle terminal reason differs")
+            self._pending_terminal_by_trial[trial.trial_uid] = (
+                terminal_reason,
+                host_cause,
+            )
+            self._terminal_fates = self._terminal_fates + (
+                TerminalFate(
+                    kind="direct_ready_completed",
+                    trial=persisted,
+                    command="arm",
+                    command_seq=persisted.arm_command_seq,
+                    tp_snapshot=tp_snapshot,
+                    dispatch_receipt=self._dispatch_receipt,
+                    evidence=brief_reference,
+                ),
+            )
+            predicted = replace(
+                snapshot,
+                phase=post_phase,
+                pending_advance=None,
+            )
+            self._dispatch_receipt = None
+            self._append_snapshot(predicted)
+            self.supervisor.confirm_direct_ready(trial.trial_uid)
+            return ReconcileResult(
+                ReconcileDecision(
+                    ReconcileAction.PERSIST_DIRECT_READY,
+                    "direct_ready_bundle_and_trial_brief_persisted",
+                    trial.command_seq,
+                ),
+                None,
+            )
         except Exception:
             self._poisoned = True
             raise
@@ -1836,6 +2136,10 @@ class CampaignCoordinator:
                 state.pending_ack is not None
                 and state.pending_ack.post_ack_phase
                 == CampaignPhase.SUCCEEDED.value
+            ) or (
+                state.pending_advance is not None
+                and state.pending_advance.post_commit_phase
+                == CampaignPhase.SUCCEEDED.value
             )
             if success_declared != confirmed:
                 raise RecoveryError(
@@ -1923,6 +2227,65 @@ class CampaignCoordinator:
                 candidate_token=trial.candidate_token,
                 execution_profile_id=intent.execution_profile_integer_id,
                 command_seq=state.pending_ack.ack_command_seq,
+            )
+        pending_advance_value: PendingAdvance | None = None
+        if state.pending_advance is not None:
+            trial = trials[state.pending_advance.trial.trial_uid]
+            intent = intent_for(trial)
+            evaluation = evaluations.get(trial.trial_uid)
+            if evaluation is None:
+                raise RecoveryError("pending advance lacks a verified outcome row")
+            capture_payload = bundle_payloads.get(trial.trial_uid, {}).get(
+                "capture"
+            )
+            if not isinstance(capture_payload, Mapping) or any(
+                (
+                    capture_payload.get("terminal_reason")
+                    != state.pending_advance.terminal_reason,
+                    capture_payload.get("host_cause")
+                    != state.pending_advance.host_cause,
+                )
+            ):
+                raise RecoveryError(
+                    "pending advance terminal reason/host cause differs from bundle bytes"
+                )
+            if evaluation.disposition is TrialDisposition.OBJECTIVE:
+                confirmed = success_confirmed(
+                    outcomes,
+                    profile_id=trial.execution_profile.profile_id,
+                    plant_epoch=trial.plant_epoch,
+                )
+                b_probe_pending = bool(
+                    state.governor_probe is not None
+                    and state.governor_probe.stage in {"a", "b"}
+                    and trial.execution_profile.profile_id
+                    == state.governor_probe.profile_after_id
+                )
+                expected_post_phase = (
+                    CampaignPhase.SUCCEEDED
+                    if confirmed and not b_probe_pending
+                    else CampaignPhase.HOME
+                )
+            else:
+                expected_post_phase = {
+                    TrialDisposition.WAIT_INFRA_READY: CampaignPhase.WAIT_INFRA_READY,
+                    TrialDisposition.CODE_CONTRACT_BUG: CampaignPhase.PAUSED_CODE_BUG,
+                    TrialDisposition.FAIL_CLOSED: CampaignPhase.HOME,
+                    TrialDisposition.SAFETY_STOP: CampaignPhase.STOPPED_SAFETY,
+                    TrialDisposition.MANUAL_RECOVERY: CampaignPhase.MANUAL_RECOVERY,
+                    TrialDisposition.PARAMETER_EVENT: CampaignPhase.STOPPED_PARAMETER,
+                    TrialDisposition.OPERATOR_STOP: CampaignPhase.STOPPED_OPERATOR,
+                }.get(evaluation.disposition, CampaignPhase.STOPPED_FAIL_CLOSED)
+            if (
+                state.pending_advance.post_commit_phase
+                != expected_post_phase.value
+            ):
+                raise RecoveryError(
+                    "pending advance post phase differs from verified outcome"
+                )
+            pending_advance_value = PendingAdvance(
+                intent=intent,
+                post_commit_phase=expected_post_phase,
             )
         pending_retry_value = None
         if state.pending_retry is not None:
@@ -2059,6 +2422,7 @@ class CampaignCoordinator:
             pending_retry=pending_retry_value,
             pending_ack=pending_ack_value,
             prepared_ack=prepared_ack,
+            pending_advance=pending_advance_value,
             cooldown_remaining=state.cooldown_remaining,
             governor_probe=governor_value,
         )
@@ -2106,8 +2470,16 @@ class CampaignCoordinator:
             )
 
         if transitional_uid is not None:
+            direct_protocol = (
+                supervisor.completion_protocol is CompletionProtocol.DIRECT_ARM_V1
+            )
+            expected_states = (
+                {"READY_NEAR", "READY_HOME_CLOSED"}
+                if direct_protocol
+                else {"WAIT_ACK"}
+            )
             if (
-                tp_snapshot.state != "WAIT_ACK"
+                tp_snapshot.state not in expected_states
                 or active_cursor is None
                 or tp_snapshot.campaign_epoch_echo != supervisor.campaign.campaign_epoch
                 or tp_snapshot.trial_id_echo != active_cursor.trial_id
@@ -2116,7 +2488,9 @@ class CampaignCoordinator:
                 != active_cursor.execution_profile_integer_id
                 or tp_snapshot.consumed_command_seq != active_cursor.arm_command_seq
             ):
-                raise RecoveryError("bundle-before-ACK recovery lacks exact TP WAIT_ACK echo")
+                raise RecoveryError(
+                    "bundle-before-completion recovery lacks exact TP terminal echo"
+                )
             trial = trials[transitional_uid]
             bundle_path = Path(active_cursor.trial_spec.path).parent / "immutable_trial_bundle.json"
             reference, payload = _bundle_reference(bundle_path, trial)
@@ -2127,7 +2501,7 @@ class CampaignCoordinator:
             manifest = CaptureManifest(**payload["capture"])
             if manifest.terminal_reason != tp_snapshot.terminal_reason:
                 raise RecoveryError(
-                    "transitional bundle terminal reason differs from exact TP WAIT_ACK"
+                    "transitional bundle terminal reason differs from exact TP terminal"
                 )
             evaluation = evaluations[transitional_uid]
             coordinator.close_trial(
@@ -2136,6 +2510,17 @@ class CampaignCoordinator:
                 safe_closure=manifest.safe_closure_evidence,
                 bundle_path=bundle_path,
             )
+            if direct_protocol:
+                coordinator.persist_direct_advance(
+                    bundle_path,
+                    verified_resume_history=resume_history,
+                )
+                decision = ReconcileDecision(
+                    ReconcileAction.PERSIST_DIRECT_READY,
+                    "verified_bundle_was_persisted_before_direct_advance_intent",
+                    active_cursor.arm_command_seq,
+                )
+                return RestoreResult(coordinator, decision, None)
             packet = coordinator.issue_ack(
                 bundle_path,
                 verified_resume_history=resume_history,

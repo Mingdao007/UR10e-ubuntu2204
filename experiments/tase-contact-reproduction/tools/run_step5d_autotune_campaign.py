@@ -2,9 +2,9 @@
 """Run one durable Step5d-native campaign against an existing bridge.
 
 The TP and bridge are long-lived.  This process is the single campaign writer:
-it persists ARM/ACK intent before publishing the mailbox command, follows the
-bridge CSV for TP state and safe-home evidence, seals the immutable trial
-bundle, and advances automatically until success or a typed stop phase.
+it persists ARM intent before publishing the mailbox command, follows the
+growing bridge CSV to terminal-ready, verifies a sealed immutable capture and
+independent CampaignStore cold-read, then issues the next ARM directly.
 """
 
 from __future__ import annotations
@@ -92,22 +92,22 @@ from step5d_autotune_journal import (
 from step5d_autotune_live_driver import (
     AtomicCommandMailbox,
     CampaignHomeReference,
-    HostClosureCollector,
     TrialArtifactProducer,
-    finalize_produced_bundle_and_dispatch_ack,
+    finalize_produced_bundle_direct,
 )
 from step5d_autotune_state_machine import TpLoopState
 from step5d_autotune_store import CampaignStore
+from step5d_production_csv import BridgeCsvFollower
 from step5d_autotune_supervisor import (
     TERMINAL_PHASES,
     CampaignPhase,
     CampaignSupervisor,
+    CompletionProtocol,
     execution_profile_integer_id,
 )
 from step5d_autotune_runtime_lifecycle import (
     BatchAttemptContext,
-    PostAckClosureCollector,
-    PreAckTypedClosureCollector,
+    direct_ready_closure_from_sealed_capture,
     next_runtime_batch_candidate,
     prepare_batch_attempt_context,
     recover_runtime_batch_trial_briefs,
@@ -139,15 +139,22 @@ def _integer(row: Mapping[str, str], name: str) -> int:
     return int(value)
 
 
-def _wait_for_async_capture(path: Path, *, timeout_s: float = 3.0) -> None:
-    """Wait only after WAIT_ACK, while TP/bridge continue their zero-output hold."""
+def _wait_for_async_capture(
+    path: Path,
+    *,
+    timeout_s: float = 3.0,
+    follower: BridgeCsvFollower | None = None,
+) -> None:
+    """Wait after terminal-ready while TP remains in its zero-output hold."""
 
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if path.is_file() and not path.is_symlink():
             return
         time.sleep(0.005)
-    raise RuntimeError("V3 asynchronous capture was not durably published at WAIT_ACK")
+    if follower is not None:
+        raise follower.terminal_capture_timeout()
+    raise RuntimeError("V3 asynchronous capture was not durably terminal-sealed")
 
 
 def _wait_for_campaign_home_reference(
@@ -202,37 +209,6 @@ def closure_sample_from_bridge_row(row: Mapping[str, str]) -> dict[str, Any]:
             row, f"ur_output_double_register_{index}"
         )
     return sample
-
-
-class BridgeCsvFollower:
-    def __init__(self, path: Path) -> None:
-        self.path = path.resolve()
-        if not self.path.is_file() or self.path.is_symlink():
-            raise RuntimeError("bridge CSV must be an existing regular file")
-        self.handle = self.path.open("r", newline="", encoding="utf-8")
-        header = self.handle.readline()
-        self.fieldnames = next(csv.reader([header]))
-        if not self.fieldnames or len(self.fieldnames) != len(set(self.fieldnames)):
-            raise RuntimeError("bridge CSV header is missing or duplicated")
-        self.handle.seek(0, os.SEEK_END)
-
-    def rows(self, *, timeout_s: float) -> Iterator[dict[str, str]]:
-        deadline = time.monotonic() + timeout_s
-        while time.monotonic() < deadline:
-            position = self.handle.tell()
-            line = self.handle.readline()
-            if not line or not line.endswith("\n"):
-                self.handle.seek(position)
-                time.sleep(0.01)
-                continue
-            values = next(csv.reader([line]))
-            if len(values) != len(self.fieldnames):
-                raise RuntimeError("bridge CSV row width changed")
-            yield dict(zip(self.fieldnames, values))
-        raise TimeoutError("timed out waiting for a fresh bridge row")
-
-    def close(self) -> None:
-        self.handle.close()
 
 
 def _latest_complete_row(path: Path) -> dict[str, str]:
@@ -1058,6 +1034,16 @@ def run(args: argparse.Namespace) -> int:
         )
     ):
         raise RuntimeError("bridge readiness is not live-complete")
+    if args.offline_release_gate and any(
+        (
+            ready.get("transport") != "fake_no_network_no_motion",
+            ready.get("motion_capable") is not False,
+            ready.get("controller_connected") is not False,
+        )
+    ):
+        raise RuntimeError(
+            "offline release gate requires explicit no-network/no-motion transport"
+        )
     ensure_mailbox_parent(
         mailbox_path,
         bridge_run,
@@ -1155,8 +1141,8 @@ def run(args: argparse.Namespace) -> int:
     ):
         raise RuntimeError("machine campaign binding plan identity differs")
     preflight = backend.preflight(
-        offline=False,
-        execution_context=execution_context,
+        offline=args.offline_release_gate,
+        execution_context=(None if args.offline_release_gate else execution_context),
     )
     if not preflight.ok:
         raise RuntimeError("live backend preflight failed: " + ";".join(preflight.blockers))
@@ -1277,6 +1263,7 @@ def run(args: argparse.Namespace) -> int:
             config_fingerprint=frozen.config_fingerprint,
         )
         supervisor = coordinator.supervisor
+        supervisor.completion_protocol = CompletionProtocol.DIRECT_ARM_V1
         resumed = True
     else:
         supervisor = CampaignSupervisor(
@@ -1286,6 +1273,7 @@ def run(args: argparse.Namespace) -> int:
             config_fingerprint=frozen.config_fingerprint,
             execution_profile=_profile(root),
             selection_policy=args.selection_policy,
+            completion_protocol=CompletionProtocol.DIRECT_ARM_V1,
         )
         try:
             latest = journal.load_latest()
@@ -1352,6 +1340,7 @@ def run(args: argparse.Namespace) -> int:
     plan_closed = False
     batch_completed = False
     stopped_after_current = False
+    offline_gate_arm2_observed = False
     current_plan: CandidateBatchPlan | None = None
     try:
         while supervisor.phase is CampaignPhase.HOME:
@@ -1572,134 +1561,136 @@ def run(args: argparse.Namespace) -> int:
                 plan_revision=plan_revision,
             )
 
-            collector: HostClosureCollector | PreAckTypedClosureCollector | None = None
+            if batch_context is None:
+                raise RuntimeError(
+                    "v3_direct_arm_v1 requires the exact durable candidate plan"
+                )
+            terminal_snapshot: TpSnapshot | None = None
             for row in follower.rows(timeout_s=args.trial_timeout_s):
                 snapshot = tp_snapshot_from_bridge_row(row)
-                if snapshot.state != "WAIT_ACK":
-                    continue
-                if collector is None:
-                    collector = (
-                        HostClosureCollector(
-                            expected_arm=arm,
-                            home_reference=home,
-                        )
-                        if batch_context is None
-                        else PreAckTypedClosureCollector(
-                            context=batch_context,
-                            trial=trial,
-                            expected_arm=arm,
-                            campaign_home_reference=home,
-                        )
-                    )
-                sample = (
-                    closure_sample_from_bridge_row(row)
-                    if isinstance(collector, HostClosureCollector)
-                    else row
-                )
-                collector.observe(
-                    sample,
-                    monotonic_s=_finite(row, "t_monotonic_s"),
-                )
                 if (
-                    isinstance(collector, PreAckTypedClosureCollector)
-                    and collector.failure_reason is not None
+                    args.offline_release_gate
+                    and trial.trial_id == 2
+                    and snapshot.state == "RUN"
+                    and snapshot.campaign_epoch_echo
+                    == trial.campaign.campaign_epoch
+                    and snapshot.trial_id_echo == trial.trial_id
+                    and snapshot.candidate_token_echo == trial.candidate_token
+                    and snapshot.execution_profile_integer_id_echo
+                    == arm.execution_profile_id
+                    and snapshot.consumed_command_seq == arm.command_seq
                 ):
-                    raise RuntimeError(collector.failure_reason)
-                if collector.ready:
+                    offline_gate_arm2_observed = True
+                    _event(
+                        event_path,
+                        "offline_release_gate_arm2_entered_run",
+                        trial_uid=trial.trial_uid,
+                        command_seq=arm.command_seq,
+                    )
                     break
-            if collector is None or not collector.ready:
-                raise RuntimeError("WAIT_ACK did not produce a complete safe closure")
+                expected_state = (
+                    "READY_HOME_CLOSED"
+                    if batch_context.row_index == 10
+                    else "READY_NEAR"
+                )
+                if snapshot.state != expected_state:
+                    follower.note_predicate_reject()
+                    continue
+                if any(
+                    (
+                        snapshot.campaign_epoch_echo
+                        != trial.campaign.campaign_epoch,
+                        snapshot.trial_id_echo != trial.trial_id,
+                        snapshot.candidate_token_echo != trial.candidate_token,
+                        snapshot.execution_profile_integer_id_echo
+                        != arm.execution_profile_id,
+                        snapshot.consumed_command_seq != arm.command_seq,
+                        snapshot.terminal_reason != 1,
+                    )
+                ):
+                    follower.note_identity_reject()
+                    raise RuntimeError(
+                        "terminal-ready row differs from the exact consumed ARM"
+                    )
+                terminal_snapshot = snapshot
+                follower.mark_terminal_seen(
+                    (bridge_run / "autotune_trials" / trial.trial_uid / "capture.csv")
+                )
+                break
+            if offline_gate_arm2_observed:
+                break
+            if terminal_snapshot is None:
+                raise RuntimeError(
+                    "ARM did not reach an exact direct terminal-ready state"
+                )
 
             trial_capture_root = (bridge_run / "autotune_trials").resolve()
-            if trial_overlay is not None:
-                _wait_for_async_capture(
-                    trial_capture_root / trial.trial_uid / "capture.csv"
-                )
+            _wait_for_async_capture(
+                trial_capture_root / trial.trial_uid / "capture.csv",
+                follower=follower,
+            )
             producer = TrialArtifactProducer(trial_capture_root, trial)
-            result = finalize_produced_bundle_and_dispatch_ack(
-                collector=collector,
+            closure, terminal_readback, terminal_reason = (
+                direct_ready_closure_from_sealed_capture(
+                    context=batch_context,
+                    trial=trial,
+                    expected_arm=arm,
+                    campaign_home_reference=home,
+                    producer=producer,
+                )
+            )
+            result = finalize_produced_bundle_direct(
+                closure=closure,
+                terminal_reason=terminal_reason,
                 producer=producer,
+                expected_arm=arm,
+                home_reference=home,
                 backend=backend,
                 store=store,
                 coordinator=coordinator,
-                prepared_trial=prepared,
-                command_sink=mailbox,
                 bundle_committed=(
-                    None
-                    if batch_context is None
-                    else batch_context.record_bundle
+                    batch_context.record_bundle
                 ),
             )
             _event(
                 event_path,
-                "bundle_closed_ack_dispatched",
+                "direct_bundle_cold_read_verified",
                 trial_uid=trial.trial_uid,
                 disposition=result.evaluation.disposition.value,
                 eligible=result.evaluation.eligible,
                 objective_mae_n=result.evaluation.objective_mae_n,
             )
-            if result.ack_packet is None:
-                break
-
-            if batch_context is None:
-                for row in follower.rows(timeout_s=args.ack_timeout_s):
-                    snapshot = tp_snapshot_from_bridge_row(row)
-                    if snapshot.consumed_command_seq != result.ack_packet.command_seq:
-                        continue
-                    if snapshot.state not in {
-                        "READY_HOME",
-                        "WAIT_INFRA_READY",
-                        "FAULT",
-                    }:
-                        continue
-                    coordinator.reconcile(snapshot)
-                    break
-            else:
-                post_ack_collector = PostAckClosureCollector(
-                    context=batch_context,
-                    trial=trial,
-                    ack_packet=result.ack_packet,
+            admission = batch_context.complete_terminal_ready(
+                trial=trial,
+                arm_packet=arm,
+                store_receipt=result.store_receipt,
+                manifest=result.manifest,
+                evaluation=result.evaluation,
+                readback=terminal_readback,
+            )
+            coordinator.complete_direct_ready(
+                result.immutable_bundle_path,
+                verified_resume_history=result.verified_resume_history,
+                tp_snapshot=terminal_snapshot,
+                trial_brief_admission=admission,
+            )
+            if batch_context.journal.state().complete:
+                batch_result = batch_context.journal.finalize()
+                if batch_context.journal.verified_exit_code() != 0:
+                    raise RuntimeError("durable BatchResult exit code differs")
+                batch_completed = True
+                _event(
+                    event_path,
+                    "exact_ten_trial_direct_arm_batch_completed",
+                    batch_uid=batch_context.identity.batch_uid,
+                    batch_result_uid=batch_result["batch_result_uid"],
                 )
-                post_ack_snapshot: TpSnapshot | None = None
-                for row in follower.rows(timeout_s=args.ack_timeout_s):
-                    snapshot = tp_snapshot_from_bridge_row(row)
-                    if snapshot.consumed_command_seq != result.ack_packet.command_seq:
-                        continue
-                    if post_ack_collector.observe(
-                        row,
-                        monotonic_s=_finite(row, "t_monotonic_s"),
-                    ):
-                        post_ack_snapshot = snapshot
-                        break
-                if post_ack_snapshot is None:
-                    raise RuntimeError(
-                        "exact ACK lacked a complete typed post-ACK safe closure"
-                    )
-                admission = batch_context.complete_post_ack(
-                    trial=trial,
-                    arm_packet=arm,
-                    ack_packet=result.ack_packet,
-                    store_receipt=result.store_receipt,
-                    manifest=result.manifest,
-                    evaluation=result.evaluation,
-                    readback=post_ack_collector.finalize(),
-                )
-                coordinator.reconcile(
-                    post_ack_snapshot,
-                    trial_brief_admission=admission,
-                )
-                if batch_context.journal.state().complete:
-                    batch_result = batch_context.journal.finalize()
-                    if batch_context.journal.verified_exit_code() != 0:
-                        raise RuntimeError("durable BatchResult exit code differs")
-                    batch_completed = True
-                    _event(
-                        event_path,
-                        "exact_ten_trial_batch_completed",
-                        batch_uid=batch_context.identity.batch_uid,
-                        batch_result_uid=batch_result["batch_result_uid"],
-                    )
-            _event(event_path, "post_ack", phase=supervisor.phase.value)
+            _event(
+                event_path,
+                "direct_ready_committed",
+                phase=supervisor.phase.value,
+                next_command_seq=supervisor.recovery_snapshot().command_seq + 1,
+            )
             completed_trials += 1
             if derived_postprocess is not None:
                 job_id = derived_postprocess.submit(
@@ -1814,6 +1805,8 @@ def run(args: argparse.Namespace) -> int:
         campaign_succeeded=campaign_succeeded,
         plan_closed=plan_closed,
         batch_completed=batch_completed,
+        offline_gate_arm2_observed=offline_gate_arm2_observed,
+        bridge_csv_follower=asdict(follower.stats),
     )
     print(
         json.dumps(
@@ -1824,6 +1817,7 @@ def run(args: argparse.Namespace) -> int:
                     or plan_closed
                     or batch_completed
                     or stopped_after_current
+                    or offline_gate_arm2_observed
                 ),
                 "trial_completed": completed_trials > 0,
                 "campaign_succeeded": campaign_succeeded,
@@ -1831,6 +1825,8 @@ def run(args: argparse.Namespace) -> int:
                 "plan_closed": plan_closed,
                 "batch_completed": batch_completed,
                 "stopped_after_current": stopped_after_current,
+                "offline_gate_arm2_observed": offline_gate_arm2_observed,
+                "bridge_csv_follower": asdict(follower.stats),
                 "selection_policy": args.selection_policy,
                 "phase": supervisor.phase.value,
                 "campaign_root": str(campaign_root),
@@ -1844,6 +1840,7 @@ def run(args: argparse.Namespace) -> int:
         or plan_closed
         or batch_completed
         or stopped_after_current
+        or offline_gate_arm2_observed
     ) else 2
 
 
@@ -1884,6 +1881,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--v3-trial-overlays", type=Path)
     parser.add_argument("--v3-launch-profile", type=Path)
     parser.add_argument("--v3-runtime-root", type=Path)
+    parser.add_argument(
+        "--offline-release-gate",
+        action="store_true",
+        help="no-network fake-transport gate; exits only after formal ARM2 enters RUN",
+    )
     return parser.parse_args()
 
 

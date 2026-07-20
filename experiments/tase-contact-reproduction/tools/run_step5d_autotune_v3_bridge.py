@@ -183,6 +183,8 @@ def _v3_capture_worker(
                     handle = partial.open("x", newline="", encoding="utf-8")
                     writer = csv.DictWriter(handle, fieldnames=fieldnames)
                     writer.writeheader()
+                    handle.flush()
+                    os.fsync(handle.fileno())
                     active_uid = trial_uid
                 assert writer is not None
                 writer.writerow(payload)
@@ -285,7 +287,13 @@ class V3AsyncBridgeTrialCsvRotator:
             }
         )
         self._enqueue(("row", binding.trial_uid, payload))
-        if snapshot.state is TpLoopState.WAIT_ACK:
+        if snapshot.state in {
+            TpLoopState.WAIT_ACK,
+            TpLoopState.READY_NEAR,
+            TpLoopState.READY_HOME_CLOSED,
+            TpLoopState.WAIT_INFRA_READY,
+            TpLoopState.FAULT,
+        }:
             self._enqueue(("seal", binding.trial_uid))
             self._sealed.add(binding.trial_uid)
         return True
@@ -546,6 +554,7 @@ def install_v3_seams(ticket: Mapping[str, Any] | None = None) -> Any:
             super().__init__(original_mailbox(path, network_mode=network_mode))
 
     live.AtomicCommandMailbox = V3AtomicCommandMailbox
+    live.BridgeMailboxRuntime.DEFAULT_COMPLETION_PROTOCOL = "v3_direct_arm_v1"
     live.BridgeTrialCsvRotator = V3AsyncBridgeTrialCsvRotator
 
     import kunwei_rtde_bridge as bridge

@@ -5,6 +5,7 @@ from .batch import (
     BatchIdentity,
     BatchJournal,
     BatchRow,
+    DirectReadyReceipt,
     ExactAckReceipt,
     ReturnReferenceKind,
     SafeClosureReceipt,
@@ -64,7 +65,12 @@ from .return_route import (
     return_reference,
     return_route,
 )
-from .evidence import EvidenceSink, TrialBrief, build_trial_brief
+from .evidence import (
+    EvidenceSink,
+    TrialBrief,
+    build_direct_trial_brief,
+    build_trial_brief,
+)
 from .runtime import (
     HostResourceLock,
     append_run_state_event,
@@ -99,6 +105,7 @@ __all__ = [
     "ExperimentRuntimeError",
     "ExperimentSpec",
     "ExactAckReceipt",
+    "DirectReadyReceipt",
     "EvidenceSink",
     "ObjectiveContract",
     "OutputPathError",
@@ -130,6 +137,7 @@ __all__ = [
     "UnsupportedExecutionError",
     "build_default_registry",
     "build_trial_brief",
+    "build_direct_trial_brief",
     "append_run_state_event",
     "canonical_json_bytes",
     "canonical_sha256",

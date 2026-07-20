@@ -24,8 +24,10 @@ from types import MappingProxyType
 from typing import Any, Iterator, Mapping, Sequence
 
 
-JOURNAL_SCHEMA = "step5d_autotune_supervisor_journal_v1"
-HEAD_SCHEMA = "step5d_autotune_supervisor_journal_head_v1"
+LEGACY_JOURNAL_SCHEMA = "step5d_autotune_supervisor_journal_v1"
+LEGACY_HEAD_SCHEMA = "step5d_autotune_supervisor_journal_head_v1"
+JOURNAL_SCHEMA = "step5d_autotune_supervisor_journal_v2"
+HEAD_SCHEMA = "step5d_autotune_supervisor_journal_head_v2"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _RECORD_NAME = re.compile(r"^(?P<revision>[0-9]{20})\.json$")
 _MAX_JSON_BYTES = 16 * 1024 * 1024
@@ -35,6 +37,7 @@ PHASES = frozenset(
         "home",
         "trial_active",
         "wait_ack",
+        "wait_direct_commit",
         "wait_infra_ready",
         "paused_code_bug",
         "manual_recovery",
@@ -45,7 +48,7 @@ PHASES = frozenset(
         "succeeded",
     }
 )
-POST_ACK_PHASES = PHASES - {"trial_active", "wait_ack"}
+POST_ACK_PHASES = PHASES - {"trial_active", "wait_ack", "wait_direct_commit"}
 TRANSIENT_TP_STATES = frozenset(
     {"ARMED", "RUN", "TERMINAL", "RETRACT", "RETURN", "HOME_VERIFY"}
 )
@@ -59,7 +62,12 @@ TP_STATES = TRANSIENT_TP_STATES | {
 }
 DISPATCH_COMMANDS = frozenset({"arm", "ack_bundle"})
 TERMINAL_FATE_KINDS = frozenset(
-    {"cancelled_unconsumed", "infra_aborted_consumed", "ack_consumed"}
+    {
+        "cancelled_unconsumed",
+        "infra_aborted_consumed",
+        "ack_consumed",
+        "direct_ready_completed",
+    }
 )
 
 
@@ -455,6 +463,62 @@ class PendingAck:
 
 
 @dataclass(frozen=True)
+class PendingAdvance:
+    """r006 durable terminal outcome; it reserves no ACK command sequence."""
+
+    trial: TrialCursor
+    immutable_bundle: JournalReference
+    post_commit_phase: str
+    terminal_reason: int = 1
+    host_cause: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.trial, TrialCursor):
+            raise ValueError("pending advance trial must be a TrialCursor")
+        if not isinstance(self.immutable_bundle, JournalReference):
+            raise ValueError("pending advance requires an immutable bundle reference")
+        if self.post_commit_phase not in POST_ACK_PHASES:
+            raise ValueError("post_commit_phase is not a valid stable phase")
+        _strict_int(
+            "pending advance terminal_reason", self.terminal_reason, minimum=1
+        )
+        if self.host_cause is not None:
+            _strict_string("pending advance host_cause", self.host_cause)
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "host_cause": self.host_cause,
+            "immutable_bundle": self.immutable_bundle.payload(),
+            "post_commit_phase": self.post_commit_phase,
+            "terminal_reason": self.terminal_reason,
+            "trial": self.trial.payload(),
+        }
+
+    @classmethod
+    def from_payload(cls, payload: Any) -> "PendingAdvance":
+        row = _exact_object(
+            "pending_advance",
+            payload,
+            {
+                "trial",
+                "immutable_bundle",
+                "post_commit_phase",
+                "terminal_reason",
+                "host_cause",
+            },
+        )
+        return cls(
+            trial=TrialCursor.from_payload(row["trial"]),
+            immutable_bundle=JournalReference.from_payload(
+                row["immutable_bundle"]
+            ),
+            post_commit_phase=row["post_commit_phase"],
+            terminal_reason=row["terminal_reason"],
+            host_cause=row["host_cause"],
+        )
+
+
+@dataclass(frozen=True)
 class PendingRetry:
     origin_trial: TrialCursor
     kind: str
@@ -614,6 +678,18 @@ class TerminalFate:
                 raise ValueError("infra-abort fate must bind the exact ARM")
             if self.dispatch_receipt is None or self.evidence is None:
                 raise ValueError("infra-abort fate requires dispatch and stop evidence")
+        elif self.kind == "direct_ready_completed":
+            if self.command != "arm" or self.command_seq != self.trial.arm_command_seq:
+                raise ValueError("direct-ready fate must bind the exact ARM")
+            if self.evidence is None:
+                raise ValueError("direct-ready fate requires durable TrialBrief evidence")
+            if (
+                self.tp_snapshot.state
+                not in {"READY_NEAR", "READY_HOME_CLOSED"}
+                or self.tp_snapshot.consumed_command_seq
+                != self.trial.arm_command_seq
+            ):
+                raise ValueError("direct-ready fate lacks exact TP terminal state")
         elif self.command != "ack_bundle" or self.command_seq <= self.trial.arm_command_seq:
             raise ValueError("ACK fate must bind a sequence newer than ARM")
 
@@ -830,6 +906,35 @@ def _validate_terminal_fate(
                 "infra-abort fate requires exact consumed ARM, Home, and stop evidence"
             )
         return
+    if fate.kind == "direct_ready_completed":
+        receipt = fate.dispatch_receipt
+        if any(
+            (
+                snapshot.state not in {"READY_NEAR", "READY_HOME_CLOSED"},
+                snapshot.campaign_epoch_echo != campaign.campaign_epoch,
+                snapshot.trial_id_echo != fate.trial.trial_id,
+                snapshot.candidate_token_echo != fate.trial.candidate_token,
+                snapshot.execution_profile_integer_id_echo
+                != fate.trial.execution_profile_integer_id,
+                snapshot.terminal_reason != 1,
+                snapshot.consumed_command_seq != fate.trial.arm_command_seq,
+                fate.command != "arm",
+                fate.command_seq != fate.trial.arm_command_seq,
+                receipt is not None
+                and not _receipt_matches_cursor(
+                    campaign,
+                    receipt,
+                    fate.trial,
+                    command="arm",
+                    command_seq=fate.trial.arm_command_seq,
+                ),
+                fate.evidence is None,
+            )
+        ):
+            raise ValueError(
+                "direct-ready fate requires exact consumed ARM terminal proof"
+            )
+        return
     if snapshot.consumed_command_seq != fate.command_seq:
         raise ValueError("ACK fate must bind exact TP command consumption")
     if fate.dispatch_receipt is not None and not _receipt_matches_cursor(
@@ -881,6 +986,7 @@ class JournalState:
     execution_profile_integer_id: int
     active_trial: TrialCursor | None = None
     pending_ack: PendingAck | None = None
+    pending_advance: PendingAdvance | None = None
     pending_retry: PendingRetry | None = None
     cooldown_remaining: int = 0
     governor_probe: GovernorProbe | None = None
@@ -902,6 +1008,10 @@ class JournalState:
             raise ValueError("active_trial must be a TrialCursor or None")
         if self.pending_ack is not None and not isinstance(self.pending_ack, PendingAck):
             raise ValueError("pending_ack must be a PendingAck or None")
+        if self.pending_advance is not None and not isinstance(
+            self.pending_advance, PendingAdvance
+        ):
+            raise ValueError("pending_advance must be a PendingAdvance or None")
         if self.pending_retry is not None and not isinstance(
             self.pending_retry, PendingRetry
         ):
@@ -968,8 +1078,21 @@ class JournalState:
             raise ValueError("trial_active phase must have exactly one active trial")
         if (self.phase == "wait_ack") != (self.pending_ack is not None):
             raise ValueError("wait_ack phase must have exactly one pending ACK")
-        if self.active_trial is not None and self.pending_ack is not None:
-            raise ValueError("active trial and pending ACK cannot coexist")
+        if (self.phase == "wait_direct_commit") != (
+            self.pending_advance is not None
+        ):
+            raise ValueError(
+                "wait_direct_commit phase must have exactly one pending advance"
+            )
+        if sum(
+            cursor is not None
+            for cursor in (
+                self.active_trial,
+                self.pending_ack,
+                self.pending_advance,
+            )
+        ) > 1:
+            raise ValueError("active trial, pending ACK, and pending advance cannot coexist")
         current_cursor: TrialCursor | None = None
         current_command: str | None = None
         current_command_seq: int | None = None
@@ -981,6 +1104,10 @@ class JournalState:
             current_cursor = self.pending_ack.trial
             current_command = "ack_bundle"
             current_command_seq = self.pending_ack.ack_command_seq
+        elif self.pending_advance is not None:
+            current_cursor = self.pending_advance.trial
+            current_command = "arm"
+            current_command_seq = self.pending_advance.trial.arm_command_seq
         if self.dispatch_receipt is not None and (
             current_cursor is None
             or current_command is None
@@ -1025,6 +1152,8 @@ class JournalState:
                 if self.active_trial is not None
                 else self.pending_ack.trial
                 if self.pending_ack is not None
+                else self.pending_advance.trial
+                if self.pending_advance is not None
                 else None
             )
             if transitional is not None:
@@ -1072,6 +1201,8 @@ class JournalState:
             rows.append(self.active_trial)
         if self.pending_ack is not None:
             rows.append(self.pending_ack.trial)
+        if self.pending_advance is not None:
+            rows.append(self.pending_advance.trial)
         if self.pending_retry is not None:
             rows.append(self.pending_retry.origin_trial)
         rows.extend(fate.trial for fate in self.terminal_fates)
@@ -1091,6 +1222,11 @@ class JournalState:
             "history_references": [row.payload() for row in self.history_references],
             "observation_references": [row.payload() for row in self.observation_references],
             "pending_ack": None if self.pending_ack is None else self.pending_ack.payload(),
+            "pending_advance": (
+                None
+                if self.pending_advance is None
+                else self.pending_advance.payload()
+            ),
             "pending_retry": None if self.pending_retry is None else self.pending_retry.payload(),
             "phase": self.phase,
             "plant_epoch": self.plant_epoch,
@@ -1123,8 +1259,9 @@ class JournalState:
         if not isinstance(payload, dict):
             raise ValueError("journal state must be an object")
         actual_keys = set(payload)
-        current_keys = legacy_keys | {"dispatch_receipt", "terminal_fates"}
-        if actual_keys != legacy_keys and actual_keys != current_keys:
+        v1_keys = legacy_keys | {"dispatch_receipt", "terminal_fates"}
+        current_keys = v1_keys | {"pending_advance"}
+        if actual_keys not in {frozenset(legacy_keys), frozenset(v1_keys), frozenset(current_keys)}:
             missing = sorted(current_keys - actual_keys)
             extra = sorted(actual_keys - current_keys)
             raise ValueError(
@@ -1161,6 +1298,11 @@ class JournalState:
                 None
                 if row["pending_ack"] is None
                 else PendingAck.from_payload(row["pending_ack"])
+            ),
+            pending_advance=(
+                None
+                if row.get("pending_advance") is None
+                else PendingAdvance.from_payload(row["pending_advance"])
             ),
             pending_retry=(
                 None
@@ -1227,6 +1369,7 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
                     current.phase != "home",
                     current.active_trial is not None,
                     current.pending_ack is not None,
+                    current.pending_advance is not None,
                     current.dispatch_receipt is not None,
                     current.high_water != previous.high_water,
                     dict(current.candidate_tokens)
@@ -1239,6 +1382,37 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
                     )
                 raise JournalConflictError(
                     "cancel fate must terminalize one persisted, undispatched ARM"
+                )
+        elif appended_fate.kind == "direct_ready_completed":
+            pending_advance = previous.pending_advance
+            if any(
+                (
+                    previous.phase != "wait_direct_commit",
+                    pending_advance is None,
+                    pending_advance is not None
+                    and pending_advance.trial != appended_fate.trial,
+                    appended_fate.command != "arm",
+                    appended_fate.command_seq
+                    != appended_fate.trial.arm_command_seq,
+                    current.phase
+                    != (
+                        None
+                        if pending_advance is None
+                        else pending_advance.post_commit_phase
+                    ),
+                    current.active_trial is not None,
+                    current.pending_ack is not None,
+                    current.pending_advance is not None,
+                    current.dispatch_receipt is not None,
+                    appended_fate.dispatch_receipt
+                    != previous.dispatch_receipt,
+                    current.high_water != previous.high_water,
+                    dict(current.candidate_tokens)
+                    != dict(previous.candidate_tokens),
+                )
+            ):
+                raise JournalConflictError(
+                    "direct fate must terminalize the exact pending advance"
                 )
         else:
             pending = previous.pending_ack
@@ -1253,6 +1427,7 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
                     != (None if pending is None else pending.post_ack_phase),
                     current.active_trial is not None,
                     current.pending_ack is not None,
+                    current.pending_advance is not None,
                     current.dispatch_receipt is not None,
                     appended_fate.dispatch_receipt
                     != previous.dispatch_receipt,
@@ -1269,13 +1444,17 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
             current.pending_ack is not None
             and current.pending_ack.trial == previous.active_trial
         )
+        carried_into_direct = bool(
+            current.pending_advance is not None
+            and current.pending_advance.trial == previous.active_trial
+        )
         terminalized = bool(
             appended_fate is not None
             and appended_fate.kind
             in {"cancelled_unconsumed", "infra_aborted_consumed"}
             and appended_fate.trial == previous.active_trial
         )
-        if not carried_into_ack and not terminalized:
+        if not carried_into_ack and not carried_into_direct and not terminalized:
             raise JournalConflictError(
                 "materialized ARM disappeared without ACK handoff or cancel fate"
             )
@@ -1289,6 +1468,21 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
         if not ack_terminalized:
             raise JournalConflictError(
                 "materialized ACK disappeared without terminal fate"
+            )
+    if (
+        previous.pending_advance is not None
+        and current.pending_advance != previous.pending_advance
+    ):
+        direct_terminalized = bool(
+            appended_fate is not None
+            and appended_fate.kind == "direct_ready_completed"
+            and appended_fate.trial == previous.pending_advance.trial
+            and appended_fate.command_seq
+            == previous.pending_advance.trial.arm_command_seq
+        )
+        if not direct_terminalized:
+            raise JournalConflictError(
+                "materialized pending advance disappeared without terminal fate"
             )
 
     def command_identity(
@@ -1305,6 +1499,12 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
                 state.pending_ack.trial.trial_uid,
                 "ack_bundle",
                 state.pending_ack.ack_command_seq,
+            )
+        if state.pending_advance is not None:
+            return (
+                state.pending_advance.trial.trial_uid,
+                "arm",
+                state.pending_advance.trial.arm_command_seq,
             )
         return None
 
@@ -1342,6 +1542,14 @@ def _validate_transition(previous: JournalState, current: JournalState) -> None:
         and current.phase == "wait_ack"
         and current.pending_ack is not None
         and current.pending_ack.post_ack_phase == "succeeded"
+    )
+    success_confirmation_abort = success_confirmation_abort or bool(
+        old_probe is not None
+        and old_probe.stage == "a_prime"
+        and new_probe is None
+        and current.phase == "wait_direct_commit"
+        and current.pending_advance is not None
+        and current.pending_advance.post_commit_phase == "succeeded"
     )
     if (
         old_probe is not None
@@ -1632,7 +1840,7 @@ class SupervisorJournal:
                 head_payload,
                 {"schema_version", "campaign", "revision", "record_sha256"},
             )
-            if head["schema_version"] != HEAD_SCHEMA:
+            if head["schema_version"] not in {HEAD_SCHEMA, LEGACY_HEAD_SCHEMA}:
                 raise JournalIntegrityError("journal head schema differs")
             try:
                 head_revision = _strict_int(
@@ -1675,7 +1883,10 @@ class SupervisorJournal:
                     "record_sha256",
                 },
             )
-            if row["schema_version"] != JOURNAL_SCHEMA:
+            if row["schema_version"] not in {
+                JOURNAL_SCHEMA,
+                LEGACY_JOURNAL_SCHEMA,
+            }:
                 raise JournalIntegrityError(f"{role} schema differs")
             envelope = {key: value for key, value in row.items() if key != "record_sha256"}
             expected_digest = _sha(_canonical(envelope))
@@ -1786,6 +1997,7 @@ class ReconcileAction(str, Enum):
     MONITOR_ACTIVE = "monitor_active"
     SEND_PERSISTED_ACK = "send_persisted_ack"
     PERSIST_POST_ACK = "persist_post_ack"
+    PERSIST_DIRECT_READY = "persist_direct_ready"
     HOLD_WAIT_INFRA = "hold_wait_infra"
     HOLD_TERMINAL = "hold_terminal"
     FAIL_CLOSED = "fail_closed"
@@ -1910,6 +2122,48 @@ def reconcile_tp_snapshot(
         return _fail("tp_fault_requires_manual_recovery")
 
     if snapshot.state in {"READY_NEAR", "READY_HOME_CLOSED"}:
+        cursor = state.active_trial
+        if state.phase == "trial_active" and cursor is not None:
+            if (
+                _snapshot_matches_cursor(state.campaign, snapshot, cursor)
+                and snapshot.terminal_reason == 1
+                and snapshot.consumed_command_seq == cursor.arm_command_seq
+            ):
+                return ReconcileDecision(
+                    ReconcileAction.RESUME_CLOSURE,
+                    "direct_ready_arm_consumed_and_bundle_pending",
+                    cursor.arm_command_seq,
+                )
+            prior_direct = [
+                fate
+                for fate in state.terminal_fates
+                if fate.kind == "direct_ready_completed"
+                and fate.tp_snapshot == snapshot
+                and fate.command_seq < cursor.arm_command_seq
+            ]
+            if len(prior_direct) == 1:
+                return ReconcileDecision(
+                    ReconcileAction.SEND_PERSISTED_ARM,
+                    "direct_ready_previous_trial_waits_for_persisted_next_arm",
+                    cursor.arm_command_seq,
+                )
+        pending_advance = state.pending_advance
+        if (
+            state.phase == "wait_direct_commit"
+            and pending_advance is not None
+            and pending_advance.terminal_reason == 1
+            and _snapshot_matches_cursor(
+                state.campaign, snapshot, pending_advance.trial
+            )
+            and snapshot.terminal_reason == 1
+            and snapshot.consumed_command_seq
+            == pending_advance.trial.arm_command_seq
+        ):
+            return ReconcileDecision(
+                ReconcileAction.PERSIST_DIRECT_READY,
+                "direct_bundle_durable_terminal_publication_pending",
+                pending_advance.trial.arm_command_seq,
+            )
         pending = state.pending_ack
         if (
             state.phase == "wait_ack"
@@ -1928,7 +2182,7 @@ def reconcile_tp_snapshot(
         matching_fates = [
             fate
             for fate in state.terminal_fates
-            if fate.kind == "ack_consumed"
+            if fate.kind in {"ack_consumed", "direct_ready_completed"}
             and fate.tp_snapshot == snapshot
         ]
         if (
