@@ -86,6 +86,7 @@ def test_r001_ticket_binds_bridge_and_exact_campaign_without_auth_files(
             "candidate_plan_revision": 1,
             "candidate_plan_sha256": "c" * 64,
             "trial_overlay_plan_sha256": "d" * 64,
+            "machine_binding_sha256": "e" * 64,
         },
     }
     ticket_path.write_text(json.dumps(ticket), encoding="utf-8")
@@ -139,6 +140,49 @@ def test_live_runner_uses_the_current_bridge_readiness_owner(
         )
 
     assert observed == [(live_runner.ROOT, context_path)]
+
+
+def test_r001_exact_plans_materialize_machine_binding_before_runner(
+    tmp_path: Path,
+) -> None:
+    campaign_root = (tmp_path / "campaign").resolve()
+    binding_path = (tmp_path / "runtime/campaign_binding.json").resolve()
+    binding_path.parent.mkdir()
+    prepared = live_runner.prepare(
+        SimpleNamespace(
+            experiment_root=ROOT,
+            campaign_root=campaign_root,
+            binding_file=binding_path,
+            binding_source="canonical_v3_live_entrypoint",
+            candidate_batch_size=10,
+        )
+    )
+    live_runner._ensure_initial_batch(
+        campaign_root=campaign_root,
+        campaign_id=str(prepared["campaign_id"]),
+        launch_profile_path=(
+            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+        ),
+    )
+    paths = live_runner.CampaignPaths(campaign_root)
+    binding = live_runner.write_machine_campaign_binding(
+        binding_path,
+        campaign_id=str(prepared["campaign_id"]),
+        campaign_epoch=int(prepared["campaign_epoch"]),
+        campaign_fingerprint=str(prepared["campaign_fingerprint"]),
+        candidate_plan_path=paths.candidate_plan,
+        trial_overlay_plan_path=paths.trial_overlays,
+        binding_source="canonical_v3_live_entrypoint",
+    )
+
+    assert binding_path.is_file()
+    assert binding["candidate_plan_revision"] == 1
+    assert binding["candidate_plan_sha256"] == hashlib.sha256(
+        paths.candidate_plan.read_bytes()
+    ).hexdigest()
+    assert binding["trial_overlay_plan_sha256"] == hashlib.sha256(
+        paths.trial_overlays.read_bytes()
+    ).hexdigest()
 
 
 def test_canonical_shell_fake_transport_reaches_r001_no_arm(tmp_path: Path) -> None:
@@ -245,5 +289,9 @@ def test_active_sources_retire_wrong_path_without_weakening_v1_guards() -> None:
     assert "release_identity = bridge_start.identity" in live
     assert '"identity": release_identity' in live
     assert 'readiness["identity"]' not in live
+    binding_finalize = live.index("write_machine_campaign_binding(")
+    runner_start = live.index("runner = subprocess.Popen(")
+    assert binding_finalize < runner_start
+    assert '"machine_binding_sha256": _sha256_path(campaign_binding)' in live
     assert "execution_readiness.verify" not in live
     assert "require_live=" not in live

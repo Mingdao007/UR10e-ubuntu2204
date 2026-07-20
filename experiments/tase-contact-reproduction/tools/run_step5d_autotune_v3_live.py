@@ -17,7 +17,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
-from prepare_step5d_autotune_launch import prepare
+from prepare_step5d_autotune_launch import prepare, write_machine_campaign_binding
 from preflight_readonly import dashboard_exchange
 from run_step5d_autotune_campaign import validate_legacy_campaign_adoption
 from step5d_autotune_batch_plan import load_plan
@@ -388,13 +388,27 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
             candidate_batch_size=10,
         )
     )
-    atomic_json(launch_plan_path, prepared)
     plan, overlay_plan = _ensure_initial_batch(
         campaign_root=args.campaign_root,
         campaign_id=str(prepared["campaign_id"]),
         launch_profile_path=args.launch_profile,
     )
     paths = CampaignPaths(args.campaign_root)
+    machine_binding = write_machine_campaign_binding(
+        campaign_binding,
+        campaign_id=str(prepared["campaign_id"]),
+        campaign_epoch=int(prepared["campaign_epoch"]),
+        campaign_fingerprint=str(prepared["campaign_fingerprint"]),
+        candidate_plan_path=paths.candidate_plan,
+        trial_overlay_plan_path=paths.trial_overlays,
+        binding_source="canonical_v3_live_entrypoint",
+    )
+    prepared = {
+        **prepared,
+        "machine_binding_status": "finalized_exact_candidate_and_overlay_plans",
+        "machine_binding_sha256": _sha256_path(campaign_binding),
+    }
+    atomic_json(launch_plan_path, prepared)
     launch_id = uuid.uuid4().hex
     ticket = {
         "schema": "step5d.autotune-v3/runtime-ticket-v4",
@@ -418,6 +432,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
             "candidate_plan_revision": plan.revision,
             "candidate_plan_sha256": _sha256_path(paths.candidate_plan),
             "trial_overlay_plan_sha256": _sha256_path(paths.trial_overlays),
+            "machine_binding_sha256": _sha256_path(campaign_binding),
         },
     }
     ticket_path = runtime_root / "runtime_ticket.json"

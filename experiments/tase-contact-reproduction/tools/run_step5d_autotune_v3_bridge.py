@@ -466,6 +466,7 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
             "candidate_plan_revision",
             "candidate_plan_sha256",
             "trial_overlay_plan_sha256",
+            "machine_binding_sha256",
         }
         or not isinstance(binding["campaign_id"], str)
         or not binding["campaign_id"]
@@ -477,7 +478,11 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         or binding["candidate_plan_revision"] < 1
     ):
         raise BridgeTicketError("live runtime ticket campaign binding differs")
-    for key in ("candidate_plan_sha256", "trial_overlay_plan_sha256"):
+    for key in (
+        "candidate_plan_sha256",
+        "trial_overlay_plan_sha256",
+        "machine_binding_sha256",
+    ):
         value = binding[key]
         if (
             not isinstance(value, str)
