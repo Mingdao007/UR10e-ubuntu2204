@@ -95,8 +95,50 @@ def package_hashes() -> dict[str, str]:
     return result
 
 
+def wrench_transform_from_geometry(
+    rotation_tcp_from_sensor: Sequence[Sequence[float]],
+    sensor_origin_to_tcp_sensor_m: Sequence[float],
+) -> tuple[tuple[float, ...], ...]:
+    try:
+        rotation = tuple(tuple(float(value) for value in row) for row in rotation_tcp_from_sensor)
+        lever = tuple(float(value) for value in sensor_origin_to_tcp_sensor_m)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("sensor_frame_geometry_shape") from exc
+    if len(rotation) != 3 or any(len(row) != 3 for row in rotation) or len(lever) != 3:
+        raise RuntimeError("sensor_frame_geometry_shape")
+    if not all(math.isfinite(value) for row in rotation for value in row) or not all(
+        math.isfinite(value) for value in lever
+    ):
+        raise RuntimeError("sensor_frame_geometry_nonfinite")
+    for row in range(3):
+        for column in range(3):
+            dot = sum(rotation[row][index] * rotation[column][index] for index in range(3))
+            if abs(dot - (1.0 if row == column else 0.0)) > 1.0e-9:
+                raise RuntimeError("sensor_frame_rotation_not_orthonormal")
+    determinant = (
+        rotation[0][0] * (rotation[1][1] * rotation[2][2] - rotation[1][2] * rotation[2][1])
+        - rotation[0][1] * (rotation[1][0] * rotation[2][2] - rotation[1][2] * rotation[2][0])
+        + rotation[0][2] * (rotation[1][0] * rotation[2][1] - rotation[1][1] * rotation[2][0])
+    )
+    if abs(determinant - 1.0) > 1.0e-9:
+        raise RuntimeError("sensor_frame_rotation_not_proper")
+    x, y, z = lever
+    skew = ((0.0, -z, y), (z, 0.0, -x), (-y, x, 0.0))
+    matrix = [[0.0] * 6 for _ in range(6)]
+    for row in range(3):
+        for column in range(3):
+            matrix[row][column] = rotation[row][column]
+            matrix[row + 3][column + 3] = rotation[row][column]
+            matrix[row + 3][column] = -sum(
+                rotation[row][index] * skew[index][column] for index in range(3)
+            )
+    return tuple(tuple(row) for row in matrix)
+
+
 def validate_calibration(path: Path) -> tuple[dict[str, Any], str]:
     payload = load_json(path, "sensor_frame_calibration")
+    if payload.get("schema") != "step5d_tacdiffusion_sensor_frame_v1":
+        raise RuntimeError("sensor_frame_calibration_schema_mismatch")
     if payload.get("status") != "verified":
         raise RuntimeError("sensor_frame_calibration_not_verified")
     if payload.get("frame_token") != 5_252_001:
@@ -109,11 +151,57 @@ def validate_calibration(path: Path) -> tuple[dict[str, Any], str]:
             raise RuntimeError("sensor_frame_transform_shape")
         if not all(math.isfinite(float(value)) for value in row):
             raise RuntimeError("sensor_frame_transform_nonfinite")
+    expected_matrix = wrench_transform_from_geometry(
+        payload.get("rotation_tcp_from_sensor_3x3", ()),
+        payload.get("sensor_origin_to_tcp_sensor_m", ()),
+    )
+    if any(
+        abs(float(matrix[row][column]) - expected_matrix[row][column]) > 1.0e-12
+        for row in range(6)
+        for column in range(6)
+    ):
+        raise RuntimeError("sensor_frame_transform_geometry_mismatch")
     evidence = payload.get("evidence")
-    if not isinstance(evidence, dict) or not isinstance(evidence.get("sha256"), str):
+    if (
+        not isinstance(evidence, dict)
+        or not isinstance(evidence.get("path"), str)
+        or not isinstance(evidence.get("sha256"), str)
+    ):
         raise RuntimeError("sensor_frame_evidence_hash_missing")
-    if len(evidence["sha256"]) != 64:
+    if len(evidence["sha256"]) != 64 or any(
+        character not in "0123456789abcdef" for character in evidence["sha256"]
+    ):
         raise RuntimeError("sensor_frame_evidence_hash_invalid")
+    evidence_path = (path.parent / evidence["path"]).resolve()
+    calibration_root = path.parent.parent.resolve()
+    try:
+        evidence_path.relative_to(calibration_root)
+    except ValueError as exc:
+        raise RuntimeError("sensor_frame_evidence_path_escape") from exc
+    if not evidence_path.is_file():
+        raise RuntimeError("sensor_frame_evidence_missing")
+    if sha256(evidence_path) != evidence["sha256"]:
+        raise RuntimeError("sensor_frame_evidence_hash_mismatch")
+    evidence_payload = load_json(evidence_path, "sensor_frame_evidence")
+    if evidence_payload.get("schema") != "step5d_tacdiffusion_sensor_frame_evidence_v1":
+        raise RuntimeError("sensor_frame_evidence_schema_mismatch")
+    derived_geometry = evidence_payload.get("derived_geometry")
+    evidence_transform = evidence_payload.get("wrench_transform")
+    normal_binding = evidence_payload.get("normal_load_binding")
+    if (
+        not isinstance(derived_geometry, dict)
+        or derived_geometry.get("rotation_tcp_from_sensor_3x3")
+        != payload.get("rotation_tcp_from_sensor_3x3")
+        or derived_geometry.get("sensor_origin_to_tcp_sensor_m")
+        != payload.get("sensor_origin_to_tcp_sensor_m")
+        or not isinstance(evidence_transform, dict)
+        or evidence_transform.get("matrix_6x6") != matrix
+        or not isinstance(normal_binding, dict)
+        or normal_binding.get("axis") != payload.get("normal_force_axis")
+        or float(normal_binding.get("sign", 0.0))
+        != float(payload.get("normal_force_sign", 0.0))
+    ):
+        raise RuntimeError("sensor_frame_evidence_content_mismatch")
     if payload.get("normal_force_axis") != "fz":
         raise RuntimeError("normal_force_axis_must_be_tcp_fz")
     if float(payload.get("normal_force_sign", 0.0)) not in {-1.0, 1.0}:

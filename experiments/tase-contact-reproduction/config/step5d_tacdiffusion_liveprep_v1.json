@@ -41,6 +41,9 @@
   "acceptance": {
     "fixture_shadow_ready": true,
     "checkpoint_shadow_ready": false,
+    "sensor_frame_calibration_verified": true,
+    "sensor_frame_calibration": "config/step5d_tacdiffusion_sensor_frame_v1.json",
+    "sensor_frame_calibration_sha256": "783dc71a3caba1da24402dec40b54a2e73095fc751ad5605ea2f231c18121a28",
     "controller_verified": false,
     "package_readback_verified": true,
     "no_contact_live_accepted": false,
@@ -55,7 +58,6 @@
     "tp_play_owner": "user"
   },
   "blockers": [
-    "requires_verified_kunwei_sensor_to_tcp_wrench_transform",
     "requires_official_polyscope_5_26_controller_identity_and_direct_torque_proof",
     "requires_frozen_fingerprint_formal_1_plus_1_review_before_no_contact_torque",
     "requires_fresh_no_contact_motion_authorization",

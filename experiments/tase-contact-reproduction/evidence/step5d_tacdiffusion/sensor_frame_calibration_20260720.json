@@ -1,0 +1,85 @@
+{
+  "schema": "step5d_tacdiffusion_sensor_frame_evidence_v1",
+  "recorded_at": "2026-07-20T13:59:18+08:00",
+  "sensor": {
+    "manufacturer": "KunWei",
+    "model": "KWR75B",
+    "mounting": "centered direct stack on the UR10e tool flange"
+  },
+  "physical_continuity": {
+    "reference_calibration_date": "2026-06-11",
+    "user_confirmation": "未拆过，可以用",
+    "interpretation": "The Kunwei sensor has not been removed, remounted, or clocked since the retained gravity-axis calibration."
+  },
+  "sources": {
+    "active_tcp_readback": {
+      "method": "read-only RTDE tcp_offset output",
+      "host": "192.168.1.18",
+      "observation_window": [
+        "2026-07-20T13:59:18+08:00",
+        "2026-07-20T13:59:18+08:00"
+      ],
+      "tcp_offset_tool0": [
+        0.0,
+        0.0,
+        0.1221,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reader": "/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts/read_payload_tcp_state.py",
+      "reader_sha256": "110439f8815d46a8ff2e837b9473d863efae0e37ca10312179b69bec2f4e796d"
+    },
+    "vendor_drawing": {
+      "document": "/home/andy/Downloads/From_Macbook/ur5e_non_tase_full_for_ubuntu_20260507_142641/UR5e/ft_sensor/kunwei/manuals/【TCP用户手册】六轴力传感器KWR75系列V23.6.75.11.3ENT-460800_28Bytes_422 -to  TCP.pdf",
+      "sha256": "0e5f93c4d51317c000ad0e347167e091bf2f35715750373054dcb81095a990c5",
+      "page": "PDF page 11, printed section 4.2 / page 6",
+      "facts": {
+        "sensor_origin": "center of the tool-side mounting face",
+        "sensor_height_m": 0.0315,
+        "coordinate_system": "right-handed"
+      }
+    },
+    "gravity_axis_calibration": {
+      "path": "experiments/sensor-integration/kunwei-kwr75b/measurements/gravity_axis_calibration/20260611_001523_p0_wrist3_zero/gravity_axis_mapping_analysis.json",
+      "sha256": "52e4e65b5e02709c99d8887ecbafacc8966487eb4be7a40ae11c1b68357dee46",
+      "conclusion": "The four-quadrant wrist-3 sweep supports +Fx_sensor to +X_tcp and +Fy_sensor to +Y_tcp with no XY axis swap. Together with the unchanged right-handed mount, this binds the geometric rotation to identity."
+    }
+  },
+  "derived_geometry": {
+    "rotation_tcp_from_sensor_3x3": [
+      [1.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0],
+      [0.0, 0.0, 1.0]
+    ],
+    "tool0_to_active_tcp_m": [0.0, 0.0, 0.1221],
+    "tool0_to_sensor_origin_m": [0.0, 0.0, 0.0315],
+    "sensor_origin_to_tcp_sensor_m": [0.0, 0.0, 0.0906],
+    "derivation": "0.1221 m - 0.0315 m = 0.0906 m along the shared +Z centerline"
+  },
+  "wrench_transform": {
+    "input_order": ["Fx_sensor", "Fy_sensor", "Fz_sensor", "Mx_sensor", "My_sensor", "Mz_sensor"],
+    "output_order": ["Fx_tcp", "Fy_tcp", "Fz_tcp", "Mx_tcp", "My_tcp", "Mz_tcp"],
+    "formula": "f_tcp = R f_sensor; tau_tcp = R (tau_sensor - r_sensor_to_tcp cross f_sensor)",
+    "matrix_6x6": [
+      [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+      [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+      [0.0, 0.0906, 0.0, 1.0, 0.0, 0.0],
+      [-0.0906, 0.0, 0.0, 0.0, 1.0, 0.0],
+      [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    ]
+  },
+  "normal_load_binding": {
+    "axis": "fz",
+    "sign": -1,
+    "rationale": "The bench contract defines environment-on-tool reaction as negative TCP Fz when TCP +Z points into the table; multiplying the normal channel by -1 yields positive normal load."
+  },
+  "acceptance_boundary": {
+    "calibration_only": true,
+    "bridge_started": false,
+    "tp_played": false,
+    "motion_performed": false,
+    "live_motion_authorized": false
+  }
+}

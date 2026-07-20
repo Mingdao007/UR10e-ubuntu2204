@@ -1,11 +1,26 @@
 {
   "schema": "step5d_tacdiffusion_sensor_frame_v1",
-  "status": "missing_verified_transform",
+  "status": "verified",
   "frame_token": 5252001,
-  "normal_force_axis": null,
-  "normal_force_sign": null,
-  "wrench_transform_sensor_to_tcp_6x6": null,
-  "evidence": null,
-  "claim_boundary": "Placeholder only. Live bridge start is blocked until a measured, reviewed Kunwei sensor-to-TCP wrench transform and evidence SHA-256 replace this file. Identity must not be assumed."
+  "normal_force_axis": "fz",
+  "normal_force_sign": -1,
+  "rotation_tcp_from_sensor_3x3": [
+    [1.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0],
+    [0.0, 0.0, 1.0]
+  ],
+  "sensor_origin_to_tcp_sensor_m": [0.0, 0.0, 0.0906],
+  "wrench_transform_sensor_to_tcp_6x6": [
+    [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0906, 0.0, 1.0, 0.0, 0.0],
+    [-0.0906, 0.0, 0.0, 0.0, 1.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+  ],
+  "evidence": {
+    "path": "../evidence/step5d_tacdiffusion/sensor_frame_calibration_20260720.json",
+    "sha256": "370c57b73754b0f14db9e5108cf026249c77c739bd543de480c1e58c7819ebb4"
+  },
+  "claim_boundary": "Sensor-to-active-TCP geometry and positive normal-load binding are verified for the unchanged centered KWR75B stack. This is a calibration gate only; it does not authorize bridge start, TP Play, or robot motion."
 }
-

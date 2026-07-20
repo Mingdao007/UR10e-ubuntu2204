@@ -10,13 +10,16 @@ shadow only; it has no command or fallback authority and `model_active=false`.
 - Local `.script/.txt/.urp` package generated and exact cachedContents checked.
 - The exact triplet is uploaded to the controller and a fresh controller
   readback matches the local hashes.
+- The unchanged KWR75B mounting, fresh read-only controller TCP offset, vendor
+  drawing, and retained gravity-axis sweep now bind the sensor-to-active-TCP
+  rotation and `90.6 mm` lever arm in a SHA-verified calibration artifact.
 - An isolated official 5.25.2 URSim compatibility check parsed the PolyScope
   Script-node contents, entered Stage20 waiting for the bridge, and observed no
   joint or TCP motion. This is compatibility evidence, not 5.26 live acceptance.
 - `step5d-tacdiffusion-shadow.sh status` is safe and read-only.
-- Bridge `start` is fail-closed until package readback, controller 5.26 proof,
-  a verified Kunwei sensor-to-TCP wrench transform, the applicable formal
-  review gate, and a fresh tranche-specific authorization are all hash-bound.
+- Bridge `start` remains fail-closed until controller 5.26 proof, the applicable
+  formal review gate, and a fresh tranche-specific authorization are all
+  hash-bound. Package readback and sensor-frame calibration are verified.
 - No bridge, load, Play, sensor stream command, URScript send to the physical
   controller, or robot motion has been performed by this implementation tranche.
   The only controller mutation was the scoped TP triplet upload plus fresh

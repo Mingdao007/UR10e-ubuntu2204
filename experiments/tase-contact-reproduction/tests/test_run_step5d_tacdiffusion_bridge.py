@@ -9,18 +9,38 @@ import run_step5d_tacdiffusion_bridge as bridge
 
 
 def calibration(tmp_path):
+    matrix = [[1 if row == column else 0 for column in range(6)] for row in range(6)]
+    evidence = tmp_path / "evidence.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "schema": "step5d_tacdiffusion_sensor_frame_evidence_v1",
+                "derived_geometry": {
+                    "rotation_tcp_from_sensor_3x3": [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                    "sensor_origin_to_tcp_sensor_m": [0, 0, 0],
+                },
+                "wrench_transform": {"matrix_6x6": matrix},
+                "normal_load_binding": {"axis": "fz", "sign": 1},
+            }
+        )
+    )
     path = tmp_path / "calibration.json"
     path.write_text(
         json.dumps(
             {
+                "schema": "step5d_tacdiffusion_sensor_frame_v1",
                 "status": "verified",
                 "frame_token": 5_252_001,
                 "normal_force_axis": "fz",
                 "normal_force_sign": 1,
-                "wrench_transform_sensor_to_tcp_6x6": [
-                    [1 if row == column else 0 for column in range(6)] for row in range(6)
+                "rotation_tcp_from_sensor_3x3": [
+                    [1, 0, 0],
+                    [0, 1, 0],
+                    [0, 0, 1],
                 ],
-                "evidence": {"sha256": "a" * 64},
+                "sensor_origin_to_tcp_sensor_m": [0, 0, 0],
+                "wrench_transform_sensor_to_tcp_6x6": matrix,
+                "evidence": {"path": "evidence.json", "sha256": bridge.sha256(evidence)},
             }
         )
     )
@@ -32,6 +52,29 @@ def test_status_fails_closed_without_calibration() -> None:
     assert result["live_ready"] is False
     assert result["motion_performed"] is False
     assert "calibration_error" in result
+
+
+def test_default_calibration_shifts_wrench_to_tcp_with_verified_lever_arm() -> None:
+    payload, _ = bridge.validate_calibration(bridge.CALIBRATION_DEFAULT)
+    assert payload["rotation_tcp_from_sensor_3x3"] == [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+    assert payload["sensor_origin_to_tcp_sensor_m"] == [0.0, 0.0, 0.0906]
+    assert payload["normal_force_sign"] == -1
+    transformed = bridge.apply_wrench_transform(
+        (10.0, 20.0, 30.0, 1.0, 2.0, 3.0),
+        payload["wrench_transform_sensor_to_tcp_6x6"],
+    )
+    assert transformed == pytest.approx((10.0, 20.0, 30.0, 2.812, 1.094, 3.0))
+
+
+def test_calibration_rejects_tampered_evidence(tmp_path) -> None:
+    calibration_path = calibration(tmp_path)
+    (tmp_path / "evidence.json").write_text("tampered")
+    with pytest.raises(RuntimeError, match="sensor_frame_evidence_hash_mismatch"):
+        bridge.validate_calibration(calibration_path)
 
 
 def test_package_readiness_is_bound_to_fresh_controller_readback() -> None:
