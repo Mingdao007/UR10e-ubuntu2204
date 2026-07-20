@@ -1,0 +1,1747 @@
+# VERSION: 2026-07-20T1500HKT_STEP5D_TACDIFFUSION_DIRECT_TORQUE_FIXTURE_SHADOW_V1
+# VERSION: 2026-07-20T1222HKT
+# RELEASE_STAGE_ID: step5d_strict_rnn_autotune_v3
+# CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1
+# TP_PROGRAM_ID: step5d_strict_rnn_autotune_v3
+# PHYSICAL_PRIOR_SHA256: c8019aee2c293746e1edb23097aeab1d7dfb1b8dee09df10ce568fb634f47c9f
+# PARENT_AUTOTUNE_V1_RENDERED_SHA256: eca2c7acaa878b1944c24b46c823ed64ffc0fb9e8658021dfd863a9f624f6676
+# Step5d strict RNN ablation v35.
+# VERSION: 2026-07-15T0204HKT_STEP5D_STRICT_RNN_ABLATION_V35_QUOTA_SAFE_SCHED_OTHER_ACCEL_0P1
+# GENERATED_AT_LOCAL: 2026-07-15T02:04:25+08:00
+# ENTRY_XY_M: [0.487795411, 0.129326793]
+# SAFE_FRAME_SOURCE: config/step5_safe_frame.json from confirmed drag-teach start/mid/end.
+# NO_SCALE_POLICY: Step5 table frame uses rotation+translation only.
+# X_GUARD: guard_line=0.488878434 m, path_max_x=0.487795411 m.
+# TARGET_ROTVEC_RAD: [-3.044172198, -0.130573165, -0.202188631]
+# PURPOSE: v35 contact search with Stage22/24 gravity-down pre-contact posture, first-contact normal latch, no lift/25.2 attitude cycle and no second contact search, 25.3 bridge deadband acquire into the 5.0-22.0N filtered preload window with 3.0-25.0N raw sanity and bridge-time preload parameter channel, 25.95 register clear barrier, then v35 Step5d ablation Stage25.0 layout-524-only speedj strict RNN live candidate for 60 s.
+# FLOW_TABLE: STEP5_FLOW.md
+# STEP5_STAGE_ID: step5d_tacdiffusion_direct_torque_fixture_shadow_v1
+# PARENT_V3_SHA256: 4601cce71b3270cf4bceb84a16378060acf23019ca58202cec44729db991d339
+# DIRECT_TEMPLATE_SHA256: 297691225720dfb887ec1311c7fb8046c18e9f2aa191876e61422667de242d80
+# MODEL_AUTHORITY: fixture_shadow diagnostic_only command_invariant model_active=false
+# PARENT_V35_SHA256: 50894de5cdf74dd17309c829b904251a3da26613a4d73e93653f7c165f5fbbd0
+# STEP5_TABLE_SOURCE: config/step5_stage_table.json
+# TP_ROLE: layout524_speedj_executor_and_structural_guard_only; Step5d v35 accepts only bridge-computed strict RNN qdot; marker 524 is internal to the Stage25 joint packet.
+# REGISTER_CONTRACT: Stage 25.3 is a no-motion structural handoff. Stage 25.95 requires bridge-cleared registers 37..47 before Stage 25.0. Stage 25.0 accepts only register 47=524.0; registers 37..42 are strict RNN qd0..qd5, 43 cmd_valid, 44 path_time_s. Layout 523.0 and Cartesian/DLS runtime commands are forbidden.
+# PRECONTACT_POSE_CONTRACT: config/step_pose_contract_table.json pre_contact_search_gravity_down_v1; Stage22/24 TCP +Z targets base -Z using [pi,0,0].
+# STAGE25_CONTACT_SAFETY: v35 bridge keeps 60N normal/100N force guards and 3.0Nm torque guard; speedj_rnn_live is the only future live command source; speedl_cartesian_oracle and speedj_dls_oracle are offline shadow/diagnostic only and must never be sent as runtime fallback.
+# FORCE_FRAME_CONTRACT: UR_FORCE_FRAME_CONTRACT.md; reaction normal for load, approach normal for posture.
+# STAGE25_V35_SCAFFOLD: v31_permissive_contact_frame_contract_layout524_60s
+# STEP5_PATH_FORMULA: Step5 table stage step5_contact_cycloid_baseline_v1: local-basis x=0.015 * (0.1t - sin(0.1t)), y=0.015 * (1 - cos(0.1t)), duration=60s
+# FIRST_CONTACT_Z_EVIDENCE: bridge_step4e_line_outerloop_v13_autowatch_20260609_141027 force jump at z=0.008044839 m; v16 cross-check z=0.007996174 m.
+# AUTOTUNE_CONTROL: fixed tau=.35s, fixed dt=.002s, profile rate .010/.015/.020; normal_filter_alpha is not an active candidate dimension.
+# SAFETY: raw normal guard 60 N, force norm guard 100 N, torque guard 3.0 Nm.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_clamp(x, lo, hi):
+  if x < lo:
+    return lo
+  elif x > hi:
+    return hi
+  end
+  return x
+end
+
+def codex_wait_for_fresh_heartbeat(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_wait_for_rezero_complete(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  local saw_sensor_not_ready = False
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) < 0.5:
+      saw_sensor_not_ready = True
+    elif saw_sensor_not_ready and read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_step4e_guard_stop_reason():
+  local normal_force = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local sensor_ok = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if sensor_ok < 0.5:
+    return 3.0
+  elif stop_request > 0.5:
+    return 4.0
+  elif codex_abs(normal_force) > 50.0:
+    return 5.0
+  elif force_norm > 50.0:
+    return 6.0
+  elif torque_norm > 3.0:
+    return 7.0
+  end
+  return 0.0
+end
+
+def codex_should_auto_home(stop_reason):
+  if stop_reason == 1.0:
+    return True
+  elif stop_reason == 2.0:
+    # Transport/heartbeat loss may follow a protective stop; never auto-home.
+    return False
+  elif stop_reason == 4.0:
+    return True
+  elif stop_reason == 5.0:
+    return True
+  elif stop_reason == 6.0:
+    return True
+  elif stop_reason == 7.0:
+    return True
+  elif stop_reason == 8.0:
+    return True
+  elif stop_reason == 9.0:
+    return True
+  elif stop_reason == 10.0:
+    return True
+  elif stop_reason == 12.0:
+    return True
+  elif stop_reason == 13.0:
+    return True
+  elif stop_reason == 14.0:
+    return True
+  elif stop_reason == 17.0:
+    # Reserved unsafe-entry/safety interruption reason; never auto-home.
+    return False
+  end
+  return False
+end
+
+def codex_echo_basic(stop_reason):
+  write_output_float_register(24, read_input_float_register(24))
+  write_output_float_register(25, read_input_float_register(25))
+  write_output_float_register(26, read_input_float_register(26))
+  write_output_float_register(27, read_input_float_register(27))
+  write_output_float_register(28, read_input_float_register(28))
+  write_output_float_register(29, read_input_float_register(29))
+  write_output_float_register(30, stop_reason)
+end
+
+def codex_echo_step4e(stop_reason):
+  codex_echo_basic(stop_reason)
+  write_output_float_register(31, read_input_float_register(44))
+  write_output_float_register(32, read_input_float_register(45))
+  write_output_float_register(33, read_input_float_register(39))
+  write_output_float_register(36, read_input_float_register(37))
+  write_output_float_register(37, read_input_float_register(38))
+  write_output_float_register(38, read_input_float_register(39))
+  write_output_float_register(39, read_input_float_register(40))
+  write_output_float_register(40, read_input_float_register(41))
+  write_output_float_register(41, read_input_float_register(42))
+  write_output_float_register(42, read_input_float_register(43))
+  write_output_float_register(43, read_input_float_register(44))
+  write_output_float_register(44, read_input_float_register(45))
+  write_output_float_register(45, read_input_float_register(46))
+  write_output_float_register(46, read_input_float_register(47))
+end
+
+
+def codex_wait_for_cmd_valid(stage_code, timeout_s):
+  local t = 0.0
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  while t < timeout_s:
+    write_output_float_register(35, stage_code)
+    local heartbeat = read_input_float_register(26)
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    codex_echo_step4e(0.0)
+    if stale_s > 0.100:
+      return 2.0
+    end
+    local guard_reason = codex_step4e_guard_stop_reason()
+    if guard_reason != 0.0:
+      return guard_reason
+    end
+    if read_input_float_register(43) >= 0.5:
+      return 0.0
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return 12.0
+end
+
+
+def codex_wait_for_stage_linear_zero(stage_code, timeout_s):
+  local t = 0.0
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  while t < timeout_s:
+    write_output_float_register(35, stage_code)
+    local heartbeat = read_input_float_register(26)
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    codex_echo_step4e(0.0)
+    if stale_s > 0.100:
+      return 2.0
+    end
+    local guard_reason = codex_step4e_guard_stop_reason()
+    if guard_reason != 0.0:
+      return guard_reason
+    end
+    if read_input_float_register(43) >= 0.5 and codex_abs(read_input_float_register(37)) <= 0.000001 and codex_abs(read_input_float_register(38)) <= 0.000001 and codex_abs(read_input_float_register(39)) <= 0.000001:
+      return 0.0
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return 12.0
+end
+
+def codex_step5d_down_search(search_stage, near_stage, max_search_down_m, search_near_start_depth_m, search_runtime_limit_s, search_far_speed_m_s, search_near_speed_m_s):
+  local stop_reason = 0.0
+  local search_accel_m_s2 = 0.300
+  local search_hold_s = 0.002
+  local stale_limit_s = 0.100
+  local search_start = get_actual_tcp_pose()
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local t = 0.0
+  while stop_reason == 0.0:
+    local heartbeat = read_input_float_register(26)
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local pose_now = get_actual_tcp_pose()
+    local search_depth_m = search_start[2] - pose_now[2]
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + get_steptime()
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    if normal_force <= -1.0 or force_norm > 1.5:
+      stop_reason = 11.0
+      if search_depth_m < search_near_start_depth_m:
+        write_output_float_register(35, search_stage)
+      else:
+        write_output_float_register(35, near_stage)
+      end
+      codex_echo_step4e(stop_reason)
+    elif stale_s > stale_limit_s:
+      stop_reason = 2.0
+    else:
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+    if stop_reason == 0.0:
+      if search_depth_m >= max_search_down_m:
+        stop_reason = 8.0
+      elif t >= search_runtime_limit_s:
+        stop_reason = 10.0
+      else:
+        if search_depth_m < search_near_start_depth_m:
+          write_output_float_register(35, search_stage)
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_far_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        else:
+          write_output_float_register(35, near_stage)
+          codex_echo_step4e(stop_reason)
+          speedl([0.0, 0.0, search_near_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+        end
+        t = t + get_steptime()
+      end
+    end
+  end
+  stopl(0.1)
+  return stop_reason
+end
+
+# HASH-BOUND DIRECT TORQUE HELPERS: live use still requires fresh owner gates.
+# Bound manifest: ../config/direct_torque_rtde_layout.json
+# Design target is PolyScope 5.25.2, Direct Torque V2, and 500 Hz.
+# Direct Torque V2 predates 5.25.2; this exact target still requires fresh
+# controller readback plus successful URSim syntax/runtime validation.
+# direct_torque() adds gravity compensation internally; tau below excludes gravity.
+
+def vic_abs(value):
+  if value < 0.0:
+    return -value
+  end
+  return value
+end
+
+def vic_finite(value, limit):
+  return value == value and vic_abs(value) <= limit
+end
+
+def vic_read_six(start_register):
+  return [read_input_float_register(start_register),
+          read_input_float_register(start_register + 1),
+          read_input_float_register(start_register + 2),
+          read_input_float_register(start_register + 3),
+          read_input_float_register(start_register + 4),
+          read_input_float_register(start_register + 5)]
+end
+
+def vic_zero_six():
+  return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+end
+
+def vic_write_six(start_register, values):
+  local axis = 0
+  while axis < 6:
+    write_output_float_register(start_register + axis, values[axis])
+    axis = axis + 1
+  end
+end
+
+def vic_same_six(left, right):
+  local axis = 0
+  while axis < 6:
+    if vic_abs(left[axis] - right[axis]) > 0.000000000001:
+      return False
+    end
+    axis = axis + 1
+  end
+  return True
+end
+
+def vic_feedforward_zero(values):
+  local axis = 0
+  while axis < 6:
+    if not vic_finite(values[axis], 0.000000000001):
+      return False
+    end
+    axis = axis + 1
+  end
+  return True
+end
+
+def vic_feedforward_valid(values):
+  local component_max = [20.0, 20.0, 20.0, 2.0, 2.0, 2.0]
+  local axis = 0
+  while axis < 6:
+    if not vic_finite(values[axis], component_max[axis]):
+      return False
+    end
+    axis = axis + 1
+  end
+  return vic_norm3(values, 0) <= 20.0 and vic_norm3(values, 3) <= 2.0
+end
+
+def vic_model_period_valid(period_us):
+  # Microseconds represent all planned 50/100/200/500 Hz model rates exactly;
+  # 200 Hz cannot be represented by an integer number of 500 Hz ticks.
+  return period_us == 2000 or period_us == 5000 or period_us == 10000 or period_us == 20000
+end
+
+def vic_force_filter_step(raw_feedforward, filtered_feedforward, filtered_velocity, dt):
+  # Paper Eq. 11, discretized at the 500 Hz controller tick with
+  # semi-implicit Euler: Fff_ddot=alpha*(beta*(Fdf-Fff)-Fff_dot).
+  local alpha = 0.9
+  local beta = 0.3
+  local next_filtered = vic_zero_six()
+  local next_velocity = vic_zero_six()
+  local axis = 0
+  while axis < 6:
+    local acceleration = alpha * (beta * (raw_feedforward[axis] - filtered_feedforward[axis]) - filtered_velocity[axis])
+    next_velocity[axis] = filtered_velocity[axis] + acceleration * dt
+    next_filtered[axis] = filtered_feedforward[axis] + next_velocity[axis] * dt
+    if not vic_finite(next_velocity[axis], 1000.0) or not vic_finite(next_filtered[axis], 1000.0):
+      return [0.0]
+    end
+    axis = axis + 1
+  end
+  return [1.0,
+          next_filtered[0], next_filtered[1], next_filtered[2], next_filtered[3], next_filtered[4], next_filtered[5],
+          next_velocity[0], next_velocity[1], next_velocity[2], next_velocity[3], next_velocity[4], next_velocity[5]]
+end
+
+def vic_monotonic_feedforward_decay(filtered_feedforward):
+  local decayed = vic_zero_six()
+  local axis = 0
+  while axis < 6:
+    decayed[axis] = 0.5 * filtered_feedforward[axis]
+    axis = axis + 1
+  end
+  return decayed
+end
+
+def vic_norm3(values, start_index):
+  return sqrt(values[start_index] * values[start_index] +
+              values[start_index + 1] * values[start_index + 1] +
+              values[start_index + 2] * values[start_index + 2])
+end
+
+def vic_damping_matches_sqrt(stiffness, damping):
+  local virtual_mass = [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
+  local axis = 0
+  while axis < 6:
+    local expected = 2.0 * sqrt(stiffness[axis] * virtual_mass[axis])
+    if vic_abs(damping[axis] - expected) > 0.05:
+      return False
+    end
+    axis = axis + 1
+  end
+  return True
+end
+
+def vic_input_valid(eq, stiffness, damping):
+  local stiffness_min = [25.0, 25.0, 25.0, 0.5, 0.5, 0.5]
+  local stiffness_max = [1000.0, 1000.0, 1000.0, 60.0, 60.0, 60.0]
+  local damping_max = [200.0, 200.0, 200.0, 30.0, 30.0, 30.0]
+  local index = 0
+  while index < 6:
+    if not vic_finite(eq[index], 10.0):
+      return False
+    elif not vic_finite(stiffness[index], stiffness_max[index]):
+      return False
+    elif stiffness[index] < stiffness_min[index]:
+      return False
+    elif not vic_finite(damping[index], damping_max[index]):
+      return False
+    elif damping[index] < 0.0:
+      return False
+    end
+    index = index + 1
+  end
+  # The reviewed impedance is fixed on the controller, not just host-side.
+  if vic_abs(stiffness[3] - 30.0) > 0.000001 or vic_abs(stiffness[4] - 30.0) > 0.000001 or vic_abs(stiffness[5] - 30.0) > 0.000001:
+    return False
+  end
+  return vic_damping_matches_sqrt(stiffness, damping)
+end
+
+def vic_initial_baseline(stiffness):
+  local baseline = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
+  local index = 0
+  while index < 6:
+    if vic_abs(stiffness[index] - baseline[index]) > 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def vic_stiffness_transition_valid(stiffness, last_stiffness, dt):
+  local max_slew_per_s = [400.0, 400.0, 400.0, 20.0, 20.0, 20.0]
+  local index = 0
+  while index < 6:
+    local decrease = last_stiffness[index] - stiffness[index]
+    if decrease < -0.000001 or decrease > max_slew_per_s[index] * dt + 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def vic_equilibrium_transition_valid(eq, last_eq, dt):
+  local index = 0
+  while index < 3:
+    if vic_abs(eq[index] - last_eq[index]) > 0.05 * dt + 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  local orientation_step = sqrt((eq[3] - last_eq[3]) * (eq[3] - last_eq[3]) + (eq[4] - last_eq[4]) * (eq[4] - last_eq[4]) + (eq[5] - last_eq[5]) * (eq[5] - last_eq[5]))
+  if orientation_step > 0.05 * dt + 0.000001:
+    return False
+  end
+  return True
+end
+
+def vic_release_ready(eq):
+  local actual_pose = get_actual_tcp_pose()
+  local target_pose = p[eq[0], eq[1], eq[2], eq[3], eq[4], eq[5]]
+  local error = pose_sub(target_pose, actual_pose)
+  local wrench = get_tcp_force()
+  return vic_norm3(error, 0) <= 0.002 and vic_norm3(wrench, 0) <= 2.0 and vic_norm3(wrench, 3) <= 0.2
+end
+
+def vic_runtime_guard_ok():
+  local wrench = get_tcp_force()
+  if vic_norm3(wrench, 0) > 50.0 or vic_norm3(wrench, 3) > 3.0:
+    return False
+  end
+  local pose = get_actual_tcp_pose()
+  local xyz_min = [0.30, 0.00, -0.02]
+  local xyz_max = [0.55, 0.24, 0.12]
+  local axis = 0
+  while axis < 3:
+    if not vic_finite(pose[axis], 10.0) or pose[axis] < xyz_min[axis] or pose[axis] > xyz_max[axis]:
+      return False
+    end
+    axis = axis + 1
+  end
+  local q = get_actual_joint_positions()
+  local qd = get_actual_joint_speeds()
+  local q_min = [0.40, -2.00, -3.00, -0.80, 1.30, -1.50]
+  local q_max = [0.90, -1.20, -2.20, -0.20, 1.80, -0.70]
+  local joint = 0
+  while joint < 6:
+    if not vic_finite(q[joint], 7.0) or q[joint] < q_min[joint] or q[joint] > q_max[joint] or not vic_finite(qd[joint], 1.0):
+      return False
+    end
+    joint = joint + 1
+  end
+  return True
+end
+
+def vic_tcp_wrench_to_base(wrench_tcp):
+  # get_jacobian() maps qdot to a base-frame TCP twist. Transform the model's
+  # TCP-frame wrench into that common frame without shifting its point of
+  # application away from the TCP (rotation-only pose, zero translation).
+  local tcp_pose_base = get_actual_tcp_pose()
+  local tcp_rotation_base = p[0.0, 0.0, 0.0, tcp_pose_base[3], tcp_pose_base[4], tcp_pose_base[5]]
+  return wrench_trans(tcp_rotation_base, wrench_tcp)
+end
+
+def vic_compute_tau(eq, stiffness, damping, filtered_feedforward):
+  local actual_pose = get_actual_tcp_pose()
+  local actual_twist = get_actual_tcp_speed()
+  local target_pose = p[eq[0], eq[1], eq[2], eq[3], eq[4], eq[5]]
+  local error = pose_sub(target_pose, actual_pose)
+  local error_max = [0.05, 0.05, 0.05, 0.35, 0.35, 0.35]
+  local wrench_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local feedforward_base = vic_tcp_wrench_to_base(filtered_feedforward)
+  local axis = 0
+  while axis < 6:
+    if not vic_finite(error[axis], error_max[axis]):
+      return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    end
+    wrench_command[axis] = feedforward_base[axis] + stiffness[axis] * error[axis] - damping[axis] * actual_twist[axis]
+    axis = axis + 1
+  end
+
+  local q = get_actual_joint_positions()
+  local qd = get_actual_joint_speeds()
+  local jacobian = get_jacobian(q)
+  local coriolis = get_coriolis_and_centrifugal_torques(q, qd)
+  local joint_damping = [1.5, 1.5, 1.2, 0.3, 0.3, 0.2]
+  local tau_limit = [20.0, 20.0, 20.0, 8.0, 8.0, 8.0]
+  local tau = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local joint = 0
+  while joint < 6:
+    local value = coriolis[joint] - joint_damping[joint] * qd[joint]
+    axis = 0
+    while axis < 6:
+      value = value + jacobian[axis, joint] * wrench_command[axis]
+      axis = axis + 1
+    end
+    if not vic_finite(value, tau_limit[joint]):
+      return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    end
+    tau[joint] = value
+    joint = joint + 1
+  end
+  return [1.0, tau[0], tau[1], tau[2], tau[3], tau[4], tau[5]]
+end
+
+def vic_safe_exit_tick(decaying_feedforward):
+  local q = get_actual_joint_positions()
+  local qd = get_actual_joint_speeds()
+  local coriolis = get_coriolis_and_centrifugal_torques(q, qd)
+  local jacobian = get_jacobian(q)
+  local decaying_feedforward_base = vic_tcp_wrench_to_base(decaying_feedforward)
+  local joint_damping = [1.5, 1.5, 1.2, 0.3, 0.3, 0.2]
+  local tau = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local joint = 0
+  while joint < 6:
+    if not vic_finite(q[joint], 7.0) or not vic_finite(qd[joint], 1.0) or not vic_finite(coriolis[joint], 20.0):
+      return False
+    end
+    tau[joint] = coriolis[joint] - joint_damping[joint] * qd[joint]
+    local axis = 0
+    while axis < 6:
+      tau[joint] = tau[joint] + jacobian[axis, joint] * decaying_feedforward_base[axis]
+      axis = axis + 1
+    end
+    if not vic_finite(tau[joint], 20.0):
+      return False
+    end
+    joint = joint + 1
+  end
+  direct_torque(tau)
+  return True
+end
+
+
+def vic_fixed_impedance_exact(stiffness, damping):
+  local fixed_k = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
+  local fixed_d = [69.2820323, 69.2820323, 69.2820323, 4.898979486, 4.898979486, 4.898979486]
+  local axis = 0
+  while axis < 6:
+    if vic_abs(stiffness[axis] - fixed_k[axis]) > 0.000001 or vic_abs(damping[axis] - fixed_d[axis]) > 0.000001:
+      return False
+    end
+    axis = axis + 1
+  end
+  return True
+end
+
+def vic_contact_release_ready(eq):
+  local actual_pose = get_actual_tcp_pose()
+  local target_pose = p[eq[0], eq[1], eq[2], eq[3], eq[4], eq[5]]
+  local error = pose_sub(target_pose, actual_pose)
+  local qd = get_actual_joint_speeds()
+  local qd_max = 0.0
+  local joint = 0
+  while joint < 6:
+    if vic_abs(qd[joint]) > qd_max:
+      qd_max = vic_abs(qd[joint])
+    end
+    joint = joint + 1
+  end
+  return vic_norm3(error, 0) <= 0.002 and vic_norm3(error, 3) <= 0.010 and qd_max <= 0.010
+end
+
+def codex_step5d_direct_torque_stage25():
+  local MODE_ARMED = 1
+  local MODE_COMPLETE = 2
+  local MODEL_DISABLED = 0
+  local MODEL_SHADOW = 1
+  local MODEL_ACTIVE = 2
+  # Hash-bound compile-time capability. A future separately reviewed package
+  # must flip this; input registers alone cannot authorize model-active torque.
+  local model_active_allowed = False
+  local STATE_WAITING = 0
+  local STATE_ZERO_STARTUP = 1
+  local STATE_TORQUE = 2
+  local STATE_SAFE_EXIT = 3
+  local FAULT_NONE = 0
+  local FAULT_STALE = 1
+  local FAULT_INPUT = 2
+  local FAULT_SEQUENCE = 3
+  local FAULT_PACKET = 4
+  local FAULT_RUNTIME_GUARD = 5
+  local FAULT_SLEW = 6
+  local FAULT_RELEASE = 7
+  local FAULT_LEASE = 8
+  local FAULT_MODEL = 9
+  local MODEL_FAULT_NONE = 0
+  local MODEL_FAULT_PACKET = 1
+  local MODEL_FAULT_SEQUENCE = 2
+  local MODEL_FAULT_STALE = 3
+  local MODEL_FAULT_INPUT = 4
+  local MODEL_FAULT_FRAME = 5
+  local MODEL_FAULT_MODE = 6
+  local MODEL_FAULT_PERIOD = 7
+  local expected_wrench_frame_token = 5252001
+  local heartbeat_timeout_ticks = 10
+  local zero_startup_ticks = 5
+  local safe_exit_ticks = 10
+  local last_sequence = 0
+  local lease_id = 0
+  local last_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local last_stiffness = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
+  local stale_ticks = 0
+  local last_model_sequence = 0
+  local last_model_period_us = 0
+  local last_model_mode = MODEL_DISABLED
+  local model_age_ticks = 0
+  local last_raw_feedforward = vic_zero_six()
+  local filtered_feedforward = vic_zero_six()
+  local filtered_velocity = vic_zero_six()
+  local last_applied_feedforward = vic_zero_six()
+  local torque_active = False
+  local zero_startup_count = 0
+  local safe_exit_count = 0
+
+  write_output_integer_register(24, STATE_WAITING)
+  write_output_integer_register(25, last_sequence)
+  write_output_integer_register(26, FAULT_NONE)
+  write_output_integer_register(27, 0)
+  write_output_integer_register(28, last_model_sequence)
+  write_output_integer_register(29, MODEL_FAULT_NONE)
+  write_output_integer_register(30, 0)
+  vic_write_six(26, filtered_feedforward)
+
+  while True:
+    # Host writes payload/heartbeat/lease first and sequence last.  A stable
+    # sequence before and after all reads is the controller-side packet commit.
+    local sequence_before = read_input_integer_register(25)
+    local mode = read_input_integer_register(24)
+    local heartbeat = read_input_integer_register(26)
+    local packet_lease = read_input_integer_register(27)
+    local model_sequence_before = read_input_integer_register(28)
+    local model_period_us = read_input_integer_register(29)
+    local model_mode = read_input_integer_register(30)
+    local wrench_frame_token = read_input_integer_register(31)
+
+    local eq = vic_read_six(24)
+    local stiffness = vic_read_six(30)
+    local damping = vic_read_six(36)
+    local raw_feedforward = vic_read_six(42)
+    local model_sequence_after = read_input_integer_register(28)
+    local sequence_after = read_input_integer_register(25)
+    local sequence = sequence_after
+    local coherent_packet = sequence_before == sequence_after and heartbeat == sequence
+    local sequence_ok = sequence == last_sequence + 1 and sequence > 0
+    local lease_ok = packet_lease > 0 and (lease_id == 0 or packet_lease == lease_id)
+    if coherent_packet and sequence_ok:
+      stale_ticks = 0
+    else:
+      stale_ticks = stale_ticks + 1
+    end
+
+    if mode == MODE_COMPLETE and torque_active and coherent_packet and sequence_ok and lease_ok:
+      local normal_exit_count = 0
+      while normal_exit_count < safe_exit_ticks:
+        if not vic_safe_exit_tick(vic_zero_six()):
+          stopj(10.0)
+          return 13.0
+        end
+        normal_exit_count = normal_exit_count + 1
+      end
+      stopj(10.0)
+      return 1.0
+    end
+
+    local model_fault = MODEL_FAULT_NONE
+    local model_packet_ok = True
+    local candidate_model_age_ticks = 0
+    local candidate_model_sequence = 0
+    local candidate_model_period_us = 0
+    local candidate_model_mode = MODEL_DISABLED
+    local candidate_raw_feedforward = vic_zero_six()
+    local candidate_filtered_feedforward = vic_monotonic_feedforward_decay(filtered_feedforward)
+    local candidate_filtered_velocity = vic_zero_six()
+    if model_mode == MODEL_DISABLED:
+      if model_sequence_before != 0 or model_sequence_after != 0 or model_period_us != 0 or not vic_feedforward_zero(raw_feedforward):
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_INPUT
+      end
+    elif model_mode == MODEL_ACTIVE and not model_active_allowed:
+      model_packet_ok = False
+      model_fault = MODEL_FAULT_MODE
+    elif model_mode == MODEL_SHADOW or model_mode == MODEL_ACTIVE:
+      if model_sequence_before != model_sequence_after:
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_PACKET
+      elif wrench_frame_token != expected_wrench_frame_token:
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_FRAME
+      elif not vic_model_period_valid(model_period_us):
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_PERIOD
+      elif not vic_feedforward_zero(raw_feedforward):
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_INPUT
+      else:
+        local model_sequence = model_sequence_after
+        local first_model_packet = last_model_sequence == 0
+        local new_model_packet = first_model_packet or model_sequence == last_model_sequence + 1
+        local held_model_packet = model_sequence == last_model_sequence
+        if model_sequence <= 0 or not (new_model_packet or held_model_packet):
+          model_packet_ok = False
+          model_fault = MODEL_FAULT_SEQUENCE
+        elif held_model_packet and (model_period_us != last_model_period_us or model_mode != last_model_mode or not vic_same_six(raw_feedforward, last_raw_feedforward)):
+          model_packet_ok = False
+          model_fault = MODEL_FAULT_PACKET
+        else:
+          if held_model_packet:
+            candidate_model_age_ticks = model_age_ticks + 1
+          else:
+            candidate_model_age_ticks = 0
+          end
+          if candidate_model_age_ticks * 2000 > 2 * model_period_us:
+            model_packet_ok = False
+            model_fault = MODEL_FAULT_STALE
+          else:
+            local filter_step = vic_force_filter_step(raw_feedforward, filtered_feedforward, filtered_velocity, get_steptime())
+            if filter_step[0] < 0.5:
+              model_packet_ok = False
+              model_fault = MODEL_FAULT_INPUT
+            else:
+              candidate_model_sequence = model_sequence
+              candidate_model_period_us = model_period_us
+              candidate_model_mode = model_mode
+              candidate_raw_feedforward = raw_feedforward
+              candidate_filtered_feedforward = [filter_step[1], filter_step[2], filter_step[3], filter_step[4], filter_step[5], filter_step[6]]
+              candidate_filtered_velocity = [filter_step[7], filter_step[8], filter_step[9], filter_step[10], filter_step[11], filter_step[12]]
+            end
+          end
+        end
+      end
+    else:
+      model_packet_ok = False
+      model_fault = MODEL_FAULT_MODE
+    end
+
+    local input_ok = vic_input_valid(eq, stiffness, damping) and vic_fixed_impedance_exact(stiffness, damping)
+    local heartbeat_ok = stale_ticks <= heartbeat_timeout_ticks
+    local first_packet = last_sequence == 0
+    local stiffness_ok = (first_packet and vic_initial_baseline(stiffness)) or ((not first_packet) and vic_stiffness_transition_valid(stiffness, last_stiffness, get_steptime()))
+    local eq_ok = first_packet or vic_equilibrium_transition_valid(eq, last_eq, get_steptime())
+    # Release/reset is checked exactly once, when a new run restores baseline.
+    # It is deliberately not re-evaluated after contact begins.
+    local release_ok = True
+    if first_packet:
+      release_ok = vic_contact_release_ready(eq)
+    end
+    local runtime_ok = vic_runtime_guard_ok()
+    local armed = mode == MODE_ARMED and coherent_packet and input_ok and stiffness_ok and eq_ok and sequence_ok and heartbeat_ok and release_ok and runtime_ok and lease_ok and model_packet_ok
+
+    if armed:
+      if first_packet:
+        lease_id = packet_lease
+      end
+      last_model_sequence = candidate_model_sequence
+      last_model_period_us = candidate_model_period_us
+      last_model_mode = candidate_model_mode
+      model_age_ticks = candidate_model_age_ticks
+      last_raw_feedforward = candidate_raw_feedforward
+      filtered_feedforward = candidate_filtered_feedforward
+      filtered_velocity = candidate_filtered_velocity
+      # MODEL_SHADOW is evidence-only: filtering runs and is reported, while
+      # the torque path receives exact zeros. Only MODEL_ACTIVE injects F_ff.
+      local applied_feedforward = vic_zero_six()
+      if model_mode == MODEL_ACTIVE and model_active_allowed:
+        applied_feedforward = filtered_feedforward
+      end
+      if zero_startup_count < zero_startup_ticks:
+        # Enter direct-torque mode through zero-wrench/joint-damping ticks;
+        # never jump from position mode directly to a nonzero Cartesian wrench.
+        if not vic_safe_exit_tick(vic_zero_six()):
+          stopj(10.0)
+          return 13.0
+        end
+        torque_active = True
+        last_applied_feedforward = vic_zero_six()
+        zero_startup_count = zero_startup_count + 1
+        safe_exit_count = 0
+        last_sequence = sequence
+        last_eq = eq
+        last_stiffness = stiffness
+        write_output_integer_register(24, STATE_ZERO_STARTUP)
+        write_output_integer_register(25, sequence)
+        write_output_integer_register(26, FAULT_NONE)
+        write_output_integer_register(27, lease_id)
+        write_output_integer_register(28, last_model_sequence)
+        write_output_integer_register(29, MODEL_FAULT_NONE)
+        write_output_integer_register(30, wrench_frame_token)
+        write_output_float_register(24, 0.0)
+        write_output_float_register(25, get_steptime())
+        vic_write_six(26, filtered_feedforward)
+      else:
+        local result = vic_compute_tau(eq, stiffness, damping, applied_feedforward)
+        if result[0] > 0.5:
+          local tau = [result[1], result[2], result[3], result[4], result[5], result[6]]
+          local max_abs_tau = 0.0
+          local tau_index = 0
+          while tau_index < 6:
+            if vic_abs(tau[tau_index]) > max_abs_tau:
+              max_abs_tau = vic_abs(tau[tau_index])
+            end
+            tau_index = tau_index + 1
+          end
+          direct_torque(tau)
+          torque_active = True
+          last_applied_feedforward = applied_feedforward
+          safe_exit_count = 0
+          last_sequence = sequence
+          last_eq = eq
+          last_stiffness = stiffness
+          write_output_integer_register(24, STATE_TORQUE)
+          write_output_integer_register(25, sequence)
+          write_output_integer_register(26, FAULT_NONE)
+          write_output_integer_register(27, lease_id)
+          write_output_integer_register(28, last_model_sequence)
+          write_output_integer_register(29, MODEL_FAULT_NONE)
+          write_output_integer_register(30, wrench_frame_token)
+          write_output_float_register(24, max_abs_tau)
+          write_output_float_register(25, get_steptime())
+          vic_write_six(26, filtered_feedforward)
+        else:
+          input_ok = False
+        end
+      end
+    end
+
+    if not armed or not input_ok:
+      local terminal_reason = 13.0
+      if not heartbeat_ok:
+        terminal_reason = 2.0
+      elif not coherent_packet:
+        terminal_reason = 4.0
+      elif not sequence_ok:
+        terminal_reason = 13.0
+      elif not lease_ok:
+        terminal_reason = 13.0
+      elif not model_packet_ok:
+        terminal_reason = 13.0
+      elif not release_ok:
+        terminal_reason = 17.0
+      elif not runtime_ok:
+        terminal_reason = 17.0
+      elif not stiffness_ok or not eq_ok:
+        terminal_reason = 13.0
+      end
+      if torque_active:
+        # Every fail-closed path uses a component-wise monotonic F_ff fade,
+        # then joint damping and a controlled stop. No stale model is held.
+        filtered_feedforward = vic_monotonic_feedforward_decay(filtered_feedforward)
+        filtered_velocity = vic_zero_six()
+        # Decay only feed-forward that was actually applied. Shadow diagnostic
+        # F_ff can never enter torque for the first time on a fault path.
+        last_applied_feedforward = vic_monotonic_feedforward_decay(last_applied_feedforward)
+        write_output_integer_register(24, STATE_SAFE_EXIT)
+        if not heartbeat_ok:
+          write_output_integer_register(26, FAULT_STALE)
+        elif not coherent_packet:
+          write_output_integer_register(26, FAULT_PACKET)
+        elif not sequence_ok:
+          write_output_integer_register(26, FAULT_SEQUENCE)
+        elif not lease_ok:
+          write_output_integer_register(26, FAULT_LEASE)
+        elif not model_packet_ok:
+          write_output_integer_register(26, FAULT_MODEL)
+        elif not release_ok:
+          write_output_integer_register(26, FAULT_RELEASE)
+        elif not runtime_ok:
+          write_output_integer_register(26, FAULT_RUNTIME_GUARD)
+        elif not stiffness_ok or not eq_ok:
+          write_output_integer_register(26, FAULT_SLEW)
+        else:
+          write_output_integer_register(26, FAULT_INPUT)
+        end
+        write_output_integer_register(28, last_model_sequence)
+        write_output_integer_register(29, model_fault)
+        write_output_integer_register(30, wrench_frame_token)
+        vic_write_six(26, filtered_feedforward)
+        if not vic_safe_exit_tick(last_applied_feedforward):
+          stopj(10.0)
+          return terminal_reason
+        end
+        safe_exit_count = safe_exit_count + 1
+        if safe_exit_count >= safe_exit_ticks:
+          stopj(10.0)
+          return terminal_reason
+        end
+      else:
+        write_output_integer_register(24, STATE_WAITING)
+        if mode == MODE_ARMED:
+          if not coherent_packet:
+            write_output_integer_register(26, FAULT_PACKET)
+          elif not lease_ok:
+            write_output_integer_register(26, FAULT_LEASE)
+          elif not model_packet_ok:
+            write_output_integer_register(26, FAULT_MODEL)
+          elif not release_ok:
+            write_output_integer_register(26, FAULT_RELEASE)
+          elif not runtime_ok:
+            write_output_integer_register(26, FAULT_RUNTIME_GUARD)
+          elif not stiffness_ok or not eq_ok:
+            write_output_integer_register(26, FAULT_SLEW)
+          elif not sequence_ok:
+            write_output_integer_register(26, FAULT_SEQUENCE)
+          else:
+            write_output_integer_register(26, FAULT_INPUT)
+          end
+        end
+        write_output_integer_register(28, last_model_sequence)
+        write_output_integer_register(29, model_fault)
+        write_output_integer_register(30, wrench_frame_token)
+        vic_write_six(26, filtered_feedforward)
+        if mode == MODE_ARMED:
+          return terminal_reason
+        end
+        sync()
+      end
+    end
+  end
+end
+
+def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2, batch_row_index):
+  local stop_reason = 0.0
+  local home_pose = campaign_home_pose
+  local entry_x = 0.487834547
+  local entry_y = 0.129337053
+  local precontact_z = 0.022863519
+  local minimum_start_above_entry_m = 0.010000000
+  # PRECONTACT_POSE_PRIOR_ID: step5d_v3_physical_prior_contact_0p1_20260719; completed contact-plus-0.1s robust pose plus clearance before guarded search.
+  local target_rx = 3.120752062
+  local target_ry = 0.000000000
+  local target_rz = 0.068626833
+  local line_accel_m_s2 = 0.300
+  local line_hold_s = 0.002
+  local line_runtime_limit_s = 75.000
+  local line_success_progress_m = 60.000000000
+  local end_hold_required_s = 0.100
+  local end_hold_s = 0.0
+  local max_cmd_angular_xy_rad_s = 0.120
+  local cmd_valid_grace_s = 0.250
+  local cmd_valid_loss_limit_s = 0.100
+  local cmd_invalid_s = 0.0
+  local saw_cmd_valid = 0
+  local short_retract_z_m = 0.010
+  local short_retract_speed_m_s = 0.040
+  local home_return_speed_m_s = 0.050
+  local final_progress_m = 0.0
+
+  textmsg("codex step4e version 2026-07-15T0204HKT_STEP5D_STRICT_RNN_ABLATION_V35_QUOTA_SAFE_SCHED_OTHER_ACCEL_0P1 start step5d_strict_rnn_ablation_v35")
+  write_output_float_register(34, 0.0)
+  write_output_float_register(35, 20.0)
+  codex_echo_step4e(0.0)
+  if not codex_wait_for_fresh_heartbeat(60.0):
+    stop_reason = 3.0
+  end
+
+  if stop_reason == 0.0:
+    local p_current = get_actual_tcp_pose()
+    if batch_row_index > 1:
+      local expected_near = p[entry_x, entry_y, precontact_z, target_rx, target_ry, target_rz]
+      local near_delta = pose_trans(pose_inv(expected_near), p_current)
+      local near_position_error_m = sqrt(near_delta[0] * near_delta[0] + near_delta[1] * near_delta[1] + near_delta[2] * near_delta[2])
+      local near_orientation_error_rad = sqrt(near_delta[3] * near_delta[3] + near_delta[4] * near_delta[4] + near_delta[5] * near_delta[5])
+      if near_position_error_m > 0.003 or near_orientation_error_rad > 0.050:
+        return 17.0
+      end
+      write_output_float_register(35, 22.0)
+      codex_echo_step4e(stop_reason)
+    elif p_current[2] < precontact_z + minimum_start_above_entry_m:
+      return 17.0
+    else:
+      write_output_float_register(35, 22.0)
+      local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]
+      local entry_precontact_pose = p[entry_x, entry_y, precontact_z, target_rx, target_ry, target_rz]
+      codex_echo_step4e(stop_reason)
+      movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)
+      stopl(0.1)
+      movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)
+      stopl(0.1)
+      sleep(0.20)
+    end
+    write_output_float_register(35, 23.0)
+    codex_echo_step4e(stop_reason)
+    write_output_float_register(34, 1.0)
+    if not codex_wait_for_rezero_complete(5.0):
+      stop_reason = 14.0
+    end
+    if stop_reason == 0.0:
+      sleep(0.20)
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+  end
+
+  if stop_reason == 0.0:
+    local first_contact_z_m = 0.008044839
+    local first_near_start_z_m = first_contact_z_m + 0.020
+    local first_max_end_z_m = first_contact_z_m - 0.004
+    local first_search_start_pose = get_actual_tcp_pose()
+    local first_search_near_start_depth_m = first_search_start_pose[2] - first_near_start_z_m
+    local first_search_max_down_m = first_search_start_pose[2] - first_max_end_z_m
+    if first_search_near_start_depth_m < 0.0:
+      first_search_near_start_depth_m = 0.0
+    end
+    if first_search_max_down_m < 0.020:
+      first_search_max_down_m = 0.020
+    end
+    if first_search_max_down_m < first_search_near_start_depth_m + 0.010:
+      first_search_max_down_m = first_search_near_start_depth_m + 0.010
+    end
+    stop_reason = codex_step5d_down_search(24.0, 24.2, first_search_max_down_m, first_search_near_start_depth_m, 40.000, -0.03375, -0.0025)
+    if stop_reason == 11.0:
+      stop_reason = 0.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.05)
+    stop_reason = codex_wait_for_cmd_valid(25.05, 1.000)
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.15)
+    codex_echo_step4e(stop_reason)
+    sync()
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.3)
+    local last_heartbeat_entry = read_input_float_register(26)
+    local stale_s_entry = 0.0
+    local t_entry = 0.0
+    local line_entry_s = 0.0
+    local line_entry_default_required_s = 0.000
+    local line_entry_default_timeout_s = 60.000
+    local line_entry_default_normal_load_min_n = 5.000
+    local line_entry_default_normal_load_max_n = 22.000
+    local line_entry_default_force_norm_max_n = 100.000
+    local line_entry_recovery_normal_load_min_n = 0.000
+    local line_entry_recovery_normal_load_max_n = 100.000
+    local line_entry_force_norm_stop_n = 100.000
+    local line_entry_cmd_limit_m_s = 0.003
+    local line_entry_param_valid_code = 521.000
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0:
+      local heartbeat_entry = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local target_force = read_input_float_register(29)
+      local force_error = read_input_float_register(45)
+      local normal_load = target_force - force_error
+      local force_norm = read_input_float_register(25)
+      local loop_dt = get_steptime()
+      local line_entry_required_s = line_entry_default_required_s
+      local line_entry_timeout_s = line_entry_default_timeout_s
+      local line_entry_normal_load_min_n = line_entry_default_normal_load_min_n
+      local line_entry_normal_load_max_n = line_entry_default_normal_load_max_n
+      local line_entry_force_norm_max_n = line_entry_default_force_norm_max_n
+      local line_entry_param_valid = read_input_float_register(47)
+      if codex_abs(line_entry_param_valid - line_entry_param_valid_code) < 0.001:
+        local candidate_min_n = read_input_float_register(40)
+        local candidate_max_n = read_input_float_register(41)
+        local candidate_force_norm_max_n = read_input_float_register(42)
+        local candidate_required_s = read_input_float_register(44)
+        local candidate_timeout_s = read_input_float_register(46)
+        if candidate_min_n >= 0.0 and candidate_max_n >= candidate_min_n and candidate_force_norm_max_n > 0.0 and candidate_force_norm_max_n <= line_entry_force_norm_stop_n and candidate_required_s >= 0.0 and candidate_timeout_s > candidate_required_s:
+          line_entry_normal_load_min_n = candidate_min_n
+          line_entry_normal_load_max_n = candidate_max_n
+          line_entry_force_norm_max_n = candidate_force_norm_max_n
+          line_entry_required_s = candidate_required_s
+          line_entry_timeout_s = candidate_timeout_s
+        end
+      end
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat_entry == last_heartbeat_entry:
+        stale_s_entry = stale_s_entry + loop_dt
+      else:
+        stale_s_entry = 0.0
+        last_heartbeat_entry = heartbeat_entry
+      end
+      t_entry = t_entry + loop_dt
+      if cmd_valid >= 0.5:
+        line_entry_s = line_entry_s + loop_dt
+      else:
+        line_entry_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s_entry > 1.000:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if line_entry_s >= line_entry_required_s:
+          stop_reason = 16.0
+        elif cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t_entry < cmd_valid_grace_s:
+            sync()
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            sync()
+          else:
+            stop_reason = 12.0
+          end
+        elif t_entry >= line_entry_timeout_s:
+          stop_reason = 12.0
+        else:
+          sync()
+        end
+      end
+    end
+    stopl(0.1)
+    if stop_reason == 16.0:
+      stop_reason = 0.0
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      end_hold_s = 0.0
+      write_output_float_register(35, 25.95)
+      local register_clear_required_s = 0.006
+      local register_clear_timeout_s = 1.000
+      local register_clear_s = 0.0
+      local register_clear_t = 0.0
+      local register_clear_zero_tol = 0.000500
+      local last_heartbeat_clear = read_input_float_register(26)
+      local stale_s_clear = 0.0
+      while stop_reason == 0.0 and register_clear_s < register_clear_required_s and register_clear_t < register_clear_timeout_s:
+        local heartbeat_clear = read_input_float_register(26)
+        local clear_cmd_valid = read_input_float_register(43)
+        local clear_reg0 = read_input_float_register(37)
+        local clear_reg1 = read_input_float_register(38)
+        local clear_reg2 = read_input_float_register(39)
+        local clear_reg3 = read_input_float_register(40)
+        local clear_reg4 = read_input_float_register(41)
+        local clear_reg5 = read_input_float_register(42)
+        local clear_layout_tag = read_input_float_register(47)
+        local loop_dt = get_steptime()
+        if heartbeat_clear == last_heartbeat_clear:
+          stale_s_clear = stale_s_clear + loop_dt
+        else:
+          stale_s_clear = 0.0
+          last_heartbeat_clear = heartbeat_clear
+        end
+        register_clear_t = register_clear_t + loop_dt
+        codex_echo_step4e(stop_reason)
+        if stale_s_clear > 1.000:
+          stop_reason = 2.0
+        else:
+          stop_reason = codex_step4e_guard_stop_reason()
+        end
+        if stop_reason == 0.0:
+          if clear_cmd_valid < 0.5 and codex_abs(clear_layout_tag - line_entry_param_valid_code) >= 0.001 and codex_abs(clear_layout_tag - 523.000) >= 0.001 and codex_abs(clear_layout_tag - 524.000) >= 0.001 and codex_abs(clear_reg0) <= register_clear_zero_tol and codex_abs(clear_reg1) <= register_clear_zero_tol and codex_abs(clear_reg2) <= register_clear_zero_tol and codex_abs(clear_reg3) <= register_clear_zero_tol and codex_abs(clear_reg4) <= register_clear_zero_tol and codex_abs(clear_reg5) <= register_clear_zero_tol:
+            register_clear_s = register_clear_s + loop_dt
+          else:
+            register_clear_s = 0.0
+          end
+          sync()
+        end
+      end
+      if stop_reason == 0.0 and register_clear_s < register_clear_required_s:
+        stop_reason = 12.0
+      end
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.0)
+    stop_reason = codex_step5d_direct_torque_stage25()
+  end
+
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(31, final_progress_m)
+  write_output_float_register(35, 29.0)
+  textmsg("codex step4e version 2026-07-15T0204HKT_STEP5D_STRICT_RNN_ABLATION_V35_QUOTA_SAFE_SCHED_OTHER_ACCEL_0P1 stop reason:", stop_reason)
+  return stop_reason
+end
+
+# STEP5D_AUTOTUNE_CONTINUOUS_TP: one campaign home, fresh integer handshake,
+# immutable-bundle ACK barrier, and no automatic retry limit for infra reasons.
+# HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29 batch_row=30
+# TP_TO_HOST_INT: epoch=24 trial=25 state=26 token=27 reason=28 profile=29 consumed_sequence=30 batch_row=31 return_kind=32 guard_mask=33
+# PROFILE_ID: hundreds=normal-rate level; tens=host-slew level; ones=TP accel level
+# NETWORK_PROFILE_LEVELS: normal=1..3 (.010/.015/.020); host/TP=1..3 (.1/.2/.5)
+# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050 rad/s;
+# level 4 (.030 rad/s) is offline_only and must never reach this TP
+# TP_ACCEL_LEVEL: 1=.1 rad/s^2, 2=.2 rad/s^2, 3=.5 rad/s^2
+# STOP_CONTRACT: integer STOP is polled only at READY_HOME/WAIT_ACK; during RUN
+# the frozen trial consumes the legacy float stop_request safety carrier.
+
+global codex_autotune_batch_row_echo = 0
+global codex_autotune_return_kind_echo = 0
+global codex_autotune_return_guard_mask = 0
+global codex_autotune_return_guard_active = False
+global codex_autotune_return_guard_reason = 0.0
+global codex_autotune_return_segment_id = 0
+global codex_autotune_return_max_angular_speed_rad_s = 0.0
+global codex_autotune_return_max_angular_accel_rad_s2 = 0.0
+global codex_autotune_return_max_sample_gap_s = 0.0
+
+def codex_autotune_norm3(x, y, z):
+  return sqrt(x * x + y * y + z * z)
+end
+
+def codex_autotune_return_sample_gap_fault(have_sample, loop_dt):
+  return have_sample and (loop_dt <= 0.0 or loop_dt > 0.004)
+end
+
+thread codex_autotune_return_guard_thread():
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local have_controller_time_sample = False
+  local have_angular_sample = False
+  local last_wx = 0.0
+  local last_wy = 0.0
+  local last_wz = 0.0
+  local controller_clock = time()
+  local last_controller_time_s = controller_clock.sec + controller_clock.nanosec / 1000000000.0
+  while codex_autotune_return_guard_active:
+    local heartbeat = read_input_float_register(26)
+    controller_clock = time()
+    local controller_time_s = controller_clock.sec + controller_clock.nanosec / 1000000000.0
+    local loop_dt = controller_time_s - last_controller_time_s
+    last_controller_time_s = controller_time_s
+    local timing_sample_valid = have_controller_time_sample
+    if heartbeat == last_heartbeat:
+      if timing_sample_valid:
+        stale_s = stale_s + loop_dt
+      end
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    local reason = codex_step4e_guard_stop_reason()
+    local q = get_actual_joint_positions()
+    local q_ok = True
+    local q_index = 0
+    while q_index < 6:
+      if codex_abs(q[q_index]) > 6.283185307:
+        q_ok = False
+      end
+      q_index = q_index + 1
+    end
+    local pose_now = get_actual_tcp_pose()
+    local workspace_ok = pose_now[0] >= 0.350 and pose_now[0] <= 0.650 and pose_now[1] >= -0.050 and pose_now[1] <= 0.250 and pose_now[2] >= 0.000 and pose_now[2] <= 0.350
+    local tcp_speed = get_actual_tcp_speed()
+    local angular_speed_rad_s = codex_autotune_norm3(tcp_speed[3], tcp_speed[4], tcp_speed[5])
+    local angular_accel_rad_s2 = 0.0
+    if timing_sample_valid and have_angular_sample and loop_dt > 0.0:
+      angular_accel_rad_s2 = codex_autotune_norm3(tcp_speed[3] - last_wx, tcp_speed[4] - last_wy, tcp_speed[5] - last_wz) / loop_dt
+    end
+    last_wx = tcp_speed[3]
+    last_wy = tcp_speed[4]
+    last_wz = tcp_speed[5]
+    have_angular_sample = True
+    if angular_speed_rad_s > codex_autotune_return_max_angular_speed_rad_s:
+      codex_autotune_return_max_angular_speed_rad_s = angular_speed_rad_s
+    end
+    if angular_accel_rad_s2 > codex_autotune_return_max_angular_accel_rad_s2:
+      codex_autotune_return_max_angular_accel_rad_s2 = angular_accel_rad_s2
+    end
+    if timing_sample_valid and loop_dt > codex_autotune_return_max_sample_gap_s:
+      codex_autotune_return_max_sample_gap_s = loop_dt
+    end
+    write_output_float_register(39, codex_autotune_return_segment_id)
+    write_output_float_register(40, angular_speed_rad_s)
+    write_output_float_register(41, angular_accel_rad_s2)
+    write_output_float_register(42, codex_autotune_return_max_angular_speed_rad_s)
+    write_output_float_register(43, codex_autotune_return_max_angular_accel_rad_s2)
+    write_output_float_register(44, codex_autotune_return_max_sample_gap_s)
+    if stale_s > 0.100:
+      codex_autotune_return_guard_reason = 2.0
+    elif reason != 0.0:
+      codex_autotune_return_guard_reason = reason
+    elif not q_ok:
+      codex_autotune_return_guard_reason = 13.0
+    elif not workspace_ok:
+      codex_autotune_return_guard_reason = 17.0
+    elif codex_autotune_return_sample_gap_fault(timing_sample_valid, loop_dt):
+      codex_autotune_return_guard_reason = 18.0
+    elif angular_speed_rad_s > 0.060:
+      codex_autotune_return_guard_reason = 19.0
+    elif have_angular_sample and angular_accel_rad_s2 > 0.500:
+      codex_autotune_return_guard_reason = 20.0
+    end
+    if codex_autotune_return_guard_reason != 0.0:
+      stopl(0.3, 0.100)
+    end
+    have_controller_time_sample = True
+    sync()
+  end
+end
+
+def codex_autotune_bounded_return_segment(target_pose, linear_accel_m_s2, linear_speed_limit_m_s, segment_id):
+  local start_pose = get_actual_tcp_pose()
+  local start_error = pose_trans(target_pose, pose_inv(start_pose))
+  local start_angle_rad = codex_autotune_norm3(start_error[3], start_error[4], start_error[5])
+  if start_angle_rad > 0.349065850:
+    codex_autotune_return_guard_reason = 21.0
+    return False
+  end
+  local elapsed_s = 0.0
+  codex_autotune_return_segment_id = segment_id
+  write_output_float_register(35, 40.0 + segment_id / 10.0)
+  while elapsed_s < 30.0 and codex_autotune_return_guard_reason == 0.0:
+    local current_pose = get_actual_tcp_pose()
+    local dx = target_pose[0] - current_pose[0]
+    local dy = target_pose[1] - current_pose[1]
+    local dz = target_pose[2] - current_pose[2]
+    local position_error_m = codex_autotune_norm3(dx, dy, dz)
+    local orientation_error = pose_trans(target_pose, pose_inv(current_pose))
+    local orientation_error_rad = codex_autotune_norm3(orientation_error[3], orientation_error[4], orientation_error[5])
+    if position_error_m <= 0.0005 and orientation_error_rad <= 0.005:
+      stopl(linear_accel_m_s2, 0.100)
+      return True
+    end
+    local linear_speed_m_s = linear_speed_limit_m_s
+    if position_error_m > 0.0:
+      local linear_braking_speed_m_s = sqrt(2.0 * linear_accel_m_s2 * position_error_m)
+      if linear_braking_speed_m_s < linear_speed_m_s:
+        linear_speed_m_s = linear_braking_speed_m_s
+      end
+    else:
+      linear_speed_m_s = 0.0
+    end
+    local angular_speed_rad_s = 0.050
+    if orientation_error_rad > 0.0:
+      local angular_braking_speed_rad_s = sqrt(2.0 * 0.100 * orientation_error_rad)
+      if angular_braking_speed_rad_s < angular_speed_rad_s:
+        angular_speed_rad_s = angular_braking_speed_rad_s
+      end
+    else:
+      angular_speed_rad_s = 0.0
+    end
+    local vx = 0.0
+    local vy = 0.0
+    local vz = 0.0
+    if position_error_m > 0.0:
+      vx = linear_speed_m_s * dx / position_error_m
+      vy = linear_speed_m_s * dy / position_error_m
+      vz = linear_speed_m_s * dz / position_error_m
+    end
+    local wx = 0.0
+    local wy = 0.0
+    local wz = 0.0
+    if orientation_error_rad > 0.0:
+      wx = angular_speed_rad_s * orientation_error[3] / orientation_error_rad
+      wy = angular_speed_rad_s * orientation_error[4] / orientation_error_rad
+      wz = angular_speed_rad_s * orientation_error[5] / orientation_error_rad
+    end
+    speedl([vx, vy, vz, wx, wy, wz], linear_accel_m_s2, 0.002, aRot=0.100)
+    elapsed_s = elapsed_s + get_steptime()
+  end
+  stopl(0.3, 0.100)
+  if codex_autotune_return_guard_reason == 0.0:
+    codex_autotune_return_guard_reason = 22.0
+  end
+  return False
+end
+
+def codex_autotune_typed_target_verified(target_pose, campaign_home_q, require_home_q):
+  local actual_pose = get_actual_tcp_pose()
+  local delta_pose = pose_trans(pose_inv(target_pose), actual_pose)
+  local position_error_m = sqrt(delta_pose[0] * delta_pose[0] + delta_pose[1] * delta_pose[1] + delta_pose[2] * delta_pose[2])
+  local orientation_error_rad = sqrt(delta_pose[3] * delta_pose[3] + delta_pose[4] * delta_pose[4] + delta_pose[5] * delta_pose[5])
+  local tcp_speed = get_actual_tcp_speed()
+  local linear_speed_m_s = sqrt(tcp_speed[0] * tcp_speed[0] + tcp_speed[1] * tcp_speed[1] + tcp_speed[2] * tcp_speed[2])
+  local angular_speed_rad_s = sqrt(tcp_speed[3] * tcp_speed[3] + tcp_speed[4] * tcp_speed[4] + tcp_speed[5] * tcp_speed[5])
+  local actual_qd = get_actual_joint_speeds()
+  local qd_max_rad_s = 0.0
+  local qd_index = 0
+  while qd_index < 6:
+    if codex_abs(actual_qd[qd_index]) > qd_max_rad_s:
+      qd_max_rad_s = codex_abs(actual_qd[qd_index])
+    end
+    qd_index = qd_index + 1
+  end
+  local home_q_ok = True
+  if require_home_q:
+    home_q_ok = codex_autotune_max_joint_error(campaign_home_q, get_actual_joint_positions()) <= 0.010
+  end
+  write_output_float_register(36, position_error_m)
+  write_output_float_register(37, orientation_error_rad)
+  write_output_float_register(38, qd_max_rad_s)
+  return position_error_m <= 0.003 and orientation_error_rad <= 0.050 and linear_speed_m_s <= 0.001 and angular_speed_rad_s <= 0.010 and qd_max_rad_s <= 0.010 and home_q_ok
+end
+
+def codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_home_q):
+  local current_pose = get_actual_tcp_pose()
+  local safe_z = 0.033
+  local near_pose = p[0.487834547, 0.129337053, 0.022863519, 3.120752062, 0.000000000, 0.068626833]
+  local target_pose = near_pose
+  local require_home_q = False
+  if batch_row_index == 10:
+    target_pose = campaign_home_pose
+    require_home_q = True
+  end
+  local rise_pose = p[current_pose[0], current_pose[1], safe_z, current_pose[3], current_pose[4], current_pose[5]]
+  local transfer_pose = p[target_pose[0], target_pose[1], safe_z, target_pose[3], target_pose[4], target_pose[5]]
+  codex_autotune_return_guard_reason = 0.0
+  codex_autotune_return_guard_mask = 0
+  codex_autotune_return_segment_id = 0
+  codex_autotune_return_max_angular_speed_rad_s = 0.0
+  codex_autotune_return_max_angular_accel_rad_s2 = 0.0
+  codex_autotune_return_max_sample_gap_s = 0.0
+  codex_autotune_return_guard_active = True
+  local guard_handle = run codex_autotune_return_guard_thread()
+  local rise_ok = codex_autotune_bounded_return_segment(rise_pose, 0.060, 0.040, 1.0)
+  if codex_autotune_return_guard_reason == 0.0:
+    local transfer_ok = codex_autotune_bounded_return_segment(transfer_pose, 0.135, 0.090, 2.0)
+  end
+  if codex_autotune_return_guard_reason == 0.0:
+    local target_ok = codex_autotune_bounded_return_segment(target_pose, 0.060, 0.040, 3.0)
+  end
+  codex_autotune_return_guard_active = False
+  sync()
+  kill guard_handle
+  if codex_autotune_return_guard_reason != 0.0 or not rise_ok:
+    return False
+  end
+  sleep(0.20)
+  if not codex_autotune_typed_target_verified(target_pose, campaign_home_q, require_home_q):
+    return False
+  end
+  # All seven route guards were continuously clean; bit 5 binds the completed
+  # Stage25 contact-loss/terminal transition before the guarded retract.
+  codex_autotune_return_guard_mask = 127
+  return True
+end
+
+def codex_autotune_controller_time_s():
+  local controller_clock = time()
+  return controller_clock.sec + controller_clock.nanosec / 1000000000.0
+end
+
+def codex_autotune_certification_identity_matches(campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index):
+  return read_input_integer_register(24) == campaign_epoch and read_input_integer_register(25) == trial_id and read_input_integer_register(27) == candidate_token and read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == sample_index
+end
+
+def codex_autotune_certification_stop(command, campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index, command_seq, campaign_home_pose, campaign_home_q):
+  local start_pose = get_actual_tcp_pose()
+  if start_pose[2] < 0.033:
+    return -17
+  end
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local trigger_controller_time_s = -1.0
+  local consumed_sequence = command_seq
+  codex_autotune_write_state(campaign_epoch, trial_id, 80, candidate_token, 0, execution_profile_id, consumed_sequence)
+  # Controller time remains the stale-watchdog clock. Do not turn the
+  # certification motion loop into a 4 ms TP scheduling acceptance test:
+  # speedl's 2 ms command horizon and the existing identity, heartbeat,
+  # force/torque, and excursion guards retain the bounded no-contact envelope.
+  local last_controller_time_s = codex_autotune_controller_time_s()
+  while trigger_controller_time_s < 0.0:
+    local controller_time_s = codex_autotune_controller_time_s()
+    local loop_dt = controller_time_s - last_controller_time_s
+    last_controller_time_s = controller_time_s
+    local heartbeat = read_input_float_register(26)
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + loop_dt
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    local reason = codex_step4e_guard_stop_reason()
+    local current_pose = get_actual_tcp_pose()
+    if not codex_autotune_certification_identity_matches(campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index):
+      return -13
+    elif command == 4 and read_input_float_register(28) > 0.5:
+      trigger_controller_time_s = controller_time_s
+    elif command == 5 and stale_s > 0.020:
+      trigger_controller_time_s = controller_time_s
+    elif reason != 0.0:
+      return -reason
+    elif codex_abs(current_pose[0] - start_pose[0]) > 0.006:
+      return -17
+    else:
+      speedl([0.010, 0.0, 0.0, 0.0, 0.0, 0.0], 0.060, 0.002, aRot=0.100)
+    end
+  end
+  write_output_float_register(45, trigger_controller_time_s)
+  local stop_transport_controller_time_s = codex_autotune_controller_time_s()
+  write_output_float_register(46, stop_transport_controller_time_s)
+  codex_autotune_write_state(campaign_epoch, trial_id, 81, candidate_token, 0, execution_profile_id, consumed_sequence)
+  stopl(0.060, 0.100)
+  local stationary_s = 0.0
+  local stationary_deadline_s = codex_autotune_controller_time_s() + 2.0
+  while stationary_s < 0.050 and codex_autotune_controller_time_s() < stationary_deadline_s:
+    local tcp_speed = get_actual_tcp_speed()
+    local linear_speed_m_s = codex_autotune_norm3(tcp_speed[0], tcp_speed[1], tcp_speed[2])
+    if linear_speed_m_s <= 0.001:
+      stationary_s = stationary_s + get_steptime()
+    else:
+      stationary_s = 0.0
+    end
+    sync()
+  end
+  if stationary_s < 0.050:
+    return -17
+  end
+  write_output_float_register(47, codex_autotune_controller_time_s())
+  codex_autotune_write_state(campaign_epoch, trial_id, 82, candidate_token, 0, execution_profile_id, consumed_sequence)
+  if command == 5:
+    local resume_deadline_s = codex_autotune_controller_time_s() + 2.0
+    while read_input_float_register(26) == last_heartbeat and codex_autotune_controller_time_s() < resume_deadline_s:
+      sync()
+    end
+    if read_input_float_register(26) == last_heartbeat:
+      return -2
+    end
+  end
+  if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
+    if codex_autotune_return_guard_reason != 0.0:
+      return 0.0 - codex_autotune_return_guard_reason
+    end
+    return -17
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, consumed_sequence)
+  return consumed_sequence
+end
+
+def codex_autotune_certification_return(campaign_epoch, trial_id, candidate_token, execution_profile_id, command_seq, campaign_home_pose, campaign_home_q):
+  local start_pose = get_actual_tcp_pose()
+  if start_pose[2] < 0.033:
+    return -17
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 83, candidate_token, 0, execution_profile_id, command_seq)
+  local offset_pose = p[start_pose[0] + 0.004, start_pose[1], start_pose[2], start_pose[3], start_pose[4], start_pose[5]]
+  codex_autotune_return_guard_reason = 0.0
+  codex_autotune_return_guard_active = True
+  local guard_handle = run codex_autotune_return_guard_thread()
+  local offset_ok = codex_autotune_bounded_return_segment(offset_pose, 0.060, 0.010, 0.0)
+  codex_autotune_return_guard_active = False
+  sync()
+  kill guard_handle
+  if not offset_ok or codex_autotune_return_guard_reason != 0.0:
+    if codex_autotune_return_guard_reason != 0.0:
+      return 0.0 - codex_autotune_return_guard_reason
+    end
+    return -17
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 84, candidate_token, 0, execution_profile_id, command_seq)
+  if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
+    if codex_autotune_return_guard_reason != 0.0:
+      return 0.0 - codex_autotune_return_guard_reason
+    end
+    return -17
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, command_seq)
+  return command_seq
+end
+
+def codex_autotune_write_state(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  write_output_integer_register(24, campaign_epoch)
+  write_output_integer_register(25, trial_id)
+  write_output_integer_register(26, state)
+  write_output_integer_register(27, candidate_token)
+  write_output_integer_register(28, terminal_reason)
+  write_output_integer_register(29, execution_profile_id)
+  write_output_integer_register(30, consumed_command_seq)
+  write_output_integer_register(31, codex_autotune_batch_row_echo)
+  write_output_integer_register(32, codex_autotune_return_kind_echo)
+  write_output_integer_register(33, codex_autotune_return_guard_mask)
+end
+
+def codex_autotune_speedj_accel(execution_profile_id):
+  local accel_level = execution_profile_id - 10 * floor(execution_profile_id / 10.0)
+  if accel_level == 1:
+    return 0.100
+  elif accel_level == 2:
+    return 0.200
+  elif accel_level == 3:
+    return 0.500
+  end
+  return -1.000
+end
+
+def codex_autotune_network_profile_valid(execution_profile_id):
+  local normal_level = floor(execution_profile_id / 100.0)
+  local remainder = execution_profile_id - 100 * normal_level
+  local host_slew_level = floor(remainder / 10.0)
+  local tp_accel_level = remainder - 10 * host_slew_level
+  return (normal_level >= 1 and normal_level <= 3 or normal_level == 5) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3
+end
+
+def codex_autotune_post_ack_state(stop_reason):
+  # Host journals reason-4 host_cause separately.  TP reason 4 always returns
+  # READY_HOME; host policy may remain WAIT_INFRA_READY for infra_stop.
+  if stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
+    return 75
+  elif stop_reason == 1 or stop_reason == 4:
+    return 10
+  end
+  return 90
+end
+
+def codex_autotune_max_joint_error(home_q, actual_q):
+  local maximum = 0.0
+  local index = 0
+  while index < 6:
+    local error = codex_abs(home_q[index] - actual_q[index])
+    if error > maximum:
+      maximum = error
+    end
+    index = index + 1
+  end
+  return maximum
+end
+
+def codex_autotune_home_verified(campaign_home_pose, campaign_home_q):
+  local actual_pose = get_actual_tcp_pose()
+  local delta_pose = pose_trans(pose_inv(campaign_home_pose), actual_pose)
+  local position_error_m = sqrt(delta_pose[0] * delta_pose[0] + delta_pose[1] * delta_pose[1] + delta_pose[2] * delta_pose[2])
+  local orientation_error_rad = sqrt(delta_pose[3] * delta_pose[3] + delta_pose[4] * delta_pose[4] + delta_pose[5] * delta_pose[5])
+  local joint_error_rad = codex_autotune_max_joint_error(campaign_home_q, get_actual_joint_positions())
+  write_output_float_register(36, position_error_m)
+  write_output_float_register(37, orientation_error_rad)
+  write_output_float_register(38, joint_error_rad)
+  return position_error_m <= 0.003 and orientation_error_rad <= 0.050 and joint_error_rad <= 0.010
+end
+
+def codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  while True:
+    codex_autotune_write_state(campaign_epoch, trial_id, 90, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+    sync()
+  end
+end
+
+def codex_tacdiffusion_stationary_for_return():
+  local stable_s = 0.0
+  while stable_s < 0.500:
+    local qd = get_actual_joint_speeds()
+    local tcp_speed = get_actual_tcp_speed()
+    local qd_max = 0.0
+    local joint = 0
+    while joint < 6:
+      if codex_abs(qd[joint]) > qd_max:
+        qd_max = codex_abs(qd[joint])
+      end
+      joint = joint + 1
+    end
+    local linear_speed = sqrt(tcp_speed[0] * tcp_speed[0] + tcp_speed[1] * tcp_speed[1] + tcp_speed[2] * tcp_speed[2])
+    local angular_speed = sqrt(tcp_speed[3] * tcp_speed[3] + tcp_speed[4] * tcp_speed[4] + tcp_speed[5] * tcp_speed[5])
+    if qd_max <= 0.010 and linear_speed <= 0.001 and angular_speed <= 0.010:
+      stable_s = stable_s + get_steptime()
+    else:
+      stable_s = 0.0
+    end
+    sync()
+  end
+  return True
+end
+
+def codex_step5d_tacdiffusion_fixture_shadow_v1():
+  local campaign_home_pose = get_actual_tcp_pose()
+  local campaign_home_q = get_actual_joint_positions()
+  # The frozen V3 trial keeps the exact approach/search/preload path. Stage25
+  # is Direct Torque and waits for coherent bridge packets after Play.
+  local stop_reason = codex_step5d_autotune_trial_v1(campaign_home_pose, 0.100, 10)
+  if stop_reason == 1.0:
+    if not codex_tacdiffusion_stationary_for_return():
+      codex_autotune_fault_forever(1, 1, 1, 17, 1, 1)
+    end
+    if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
+      local return_reason = codex_autotune_return_guard_reason
+      if return_reason == 0.0:
+        return_reason = 17.0
+      end
+      codex_autotune_fault_forever(1, 1, 1, return_reason, 1, 1)
+    end
+    write_output_float_register(35, 60.0)
+    textmsg("Step5d TacDiffusion fixture-shadow completed and returned home")
+  else:
+    # Runtime, packet, sensor, and safety faults stop and latch in place.
+    # They never enter the automatic retract/home path.
+    codex_autotune_fault_forever(1, 1, 1, stop_reason, 1, 1)
+  end
+end
+
+codex_step5d_tacdiffusion_fixture_shadow_v1()
