@@ -1600,6 +1600,11 @@ def run(args: argparse.Namespace) -> int:
                     sample,
                     monotonic_s=_finite(row, "t_monotonic_s"),
                 )
+                if (
+                    isinstance(collector, PreAckTypedClosureCollector)
+                    and collector.failure_reason is not None
+                ):
+                    raise RuntimeError(collector.failure_reason)
                 if collector.ready:
                     break
             if collector is None or not collector.ready:

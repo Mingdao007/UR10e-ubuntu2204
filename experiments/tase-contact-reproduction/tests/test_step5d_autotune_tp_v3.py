@@ -17,11 +17,11 @@ import build_step5d_autotune_tp as v1  # noqa: E402
 import build_step5d_autotune_tp_v3 as v3  # noqa: E402
 
 
-def test_r004_direct_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
+def test_r005_direct_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
     rendered = v3.render_script()
     v3.validate_rendered_script(rendered)
 
-    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r004"
+    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r005"
     assert "# CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1" in rendered
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
     assert "def codex_step5d_autotune_trial_v1(" in rendered
@@ -49,8 +49,24 @@ def test_r004_direct_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> 
     assert "if stale_s2 > 0.020:" not in rendered
     assert v3.STAGE25_STALE_COMMAND_HOLD_S == 1.000
     assert 0.060 < v3.STAGE25_STALE_COMMAND_HOLD_S
-    assert "codex_autotune_return_guard_thread" not in rendered
-    assert "run codex_autotune_return_guard_thread" not in rendered
+    assert rendered.count("thread codex_autotune_return_telemetry_observer():") == 1
+    observer = rendered.split(
+        "thread codex_autotune_return_telemetry_observer():", 1
+    )[1].split("\nend\n", 1)[0]
+    assert "time()" in observer
+    assert "get_actual_tcp_speed()" in observer
+    assert "sync()" in observer
+    for forbidden_motion in (
+        "movel(",
+        "movej(",
+        "speedl(",
+        "speedj(",
+        "stopl(",
+        "stopj(",
+    ):
+        assert forbidden_motion not in observer
+    for output_register in range(35, 45):
+        assert f"write_output_float_register({output_register}," not in observer
     assert "stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17" in rendered
     for forbidden in (
         "def codex_autotune_certification_stop(",
@@ -63,12 +79,12 @@ def test_r004_direct_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> 
         assert forbidden not in rendered
 
 
-def test_r004_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
+def test_r005_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
     stamp = v3.source_stamp(
         datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
     )
     result = v3.write_triplet(tmp_path, stamp)
-    basename = "step5d_strict_rnn_autotune_v3_r004"
+    basename = "step5d_strict_rnn_autotune_v3_r005"
 
     assert result["program"] == basename
     assert result["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
@@ -76,7 +92,7 @@ def test_r004_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None
     assert f'name="{basename}"' in xml
     assert f"/programs/andyl/kunwei/step5/{basename}.script" in xml
     sanity = json.loads((tmp_path / f"{basename}.numeric-sanity.json").read_text())
-    assert sanity["delta_class"] == "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_heartbeat_parity_v4"
+    assert sanity["delta_class"] == "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_read_only_telemetry_v5"
     assert sanity["stage25_stale_command_hold_s"] == 1.000
     assert sanity["return_segment_count"] == 3
     assert sanity["batch_row_policy"] == "rows_1_to_9_near_ready_row_10_campaign_home"

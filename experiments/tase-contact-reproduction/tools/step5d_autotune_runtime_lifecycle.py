@@ -94,6 +94,7 @@ _RETURN_GUARD_BITS = {
     "contact_loss": 1 << 5,
     "route_workspace": 1 << 6,
 }
+RETURN_PHASE_MISMATCH = "return_phase_mismatch"
 
 
 def _sha256(name: str, value: Any) -> str:
@@ -399,6 +400,13 @@ class PreAckTypedClosureCollector:
         self.reset()
 
     def reset(self) -> None:
+        self._reset_closure()
+        self._mismatch_start_s: float | None = None
+        self._mismatch_last_s: float | None = None
+        self._mismatch_terminal_reason: int | None = None
+        self._failure_reason: str | None = None
+
+    def _reset_closure(self) -> None:
         self._start_s: float | None = None
         self._last_s: float | None = None
         self._last_heartbeat: float | None = None
@@ -421,6 +429,31 @@ class PreAckTypedClosureCollector:
             "return_max_sample_gap_s": 0.0,
         }
 
+    def _reset_return_phase_mismatch(self) -> None:
+        self._mismatch_start_s = None
+        self._mismatch_last_s = None
+        self._mismatch_terminal_reason = None
+
+    def _observe_return_phase_mismatch(
+        self, *, timestamp: float, terminal_reason: int
+    ) -> None:
+        discontinuous = self._mismatch_last_s is not None and (
+            timestamp <= self._mismatch_last_s
+            or timestamp - self._mismatch_last_s > self.max_sample_gap_s
+        )
+        reason_changed = (
+            self._mismatch_terminal_reason is not None
+            and terminal_reason != self._mismatch_terminal_reason
+        )
+        if discontinuous or reason_changed:
+            self._reset_return_phase_mismatch()
+        if self._mismatch_start_s is None:
+            self._mismatch_start_s = timestamp
+            self._mismatch_terminal_reason = terminal_reason
+        self._mismatch_last_s = timestamp
+        if timestamp - self._mismatch_start_s >= self.required_dwell_s:
+            self._failure_reason = RETURN_PHASE_MISMATCH
+
     @property
     def dwell_s(self) -> float:
         if self._start_s is None or self._last_s is None:
@@ -434,6 +467,10 @@ class PreAckTypedClosureCollector:
     @property
     def terminal_reason(self) -> int | None:
         return self._terminal_reason
+
+    @property
+    def failure_reason(self) -> str | None:
+        return self._failure_reason
 
     def require_production_home(self, trial: TrialSpec) -> CampaignHomeReference:
         self.home_reference.verify_trial(trial)
@@ -505,9 +542,10 @@ class PreAckTypedClosureCollector:
             return_phase_echo = PostAckClosureCollector._number(
                 row, "ur_output_double_register_35"
             )
-            return_segment_id = PostAckClosureCollector._integer(
+            return_segment_value = PostAckClosureCollector._number(
                 row, "ur_output_double_register_39"
             )
+            return_segment_id = int(round(return_segment_value))
             return_current_angular_speed = PostAckClosureCollector._number(
                 row, "ur_output_double_register_40"
             )
@@ -545,7 +583,22 @@ class PreAckTypedClosureCollector:
                 and -0.050 <= pose[1] <= 0.250
                 and 0.000 <= pose[2] <= 0.350,
             }
-            limits_ok = all(
+            return_telemetry_ok = all(
+                (
+                    math.isclose(return_phase_echo, 40.3, abs_tol=1e-9),
+                    math.isclose(return_segment_value, 3.0, abs_tol=1e-9),
+                    return_current_angular_speed
+                    <= RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+                    return_current_angular_acceleration
+                    <= RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+                    return_max_angular_speed <= RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+                    return_max_angular_acceleration
+                    <= RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+                    0.0 < return_max_sample_gap
+                    <= RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
+                )
+            )
+            other_limits_ok = all(
                 (
                     tp_position_error <= self.context.reference.position_tolerance_m,
                     tp_orientation_error
@@ -560,17 +613,6 @@ class PreAckTypedClosureCollector:
                     host_angular_speed
                     <= self.context.reference.angular_speed_tolerance_rad_s,
                     host_qd_max <= self.context.reference.qd_tolerance_rad_s,
-                    math.isclose(return_phase_echo, 40.3, abs_tol=1e-9),
-                    return_segment_id == 3,
-                    return_current_angular_speed
-                    <= RETURN_ANGULAR_SPEED_GUARD_RAD_S,
-                    return_current_angular_acceleration
-                    <= RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
-                    return_max_angular_speed <= RETURN_ANGULAR_SPEED_GUARD_RAD_S,
-                    return_max_angular_acceleration
-                    <= RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
-                    0.0 < return_max_sample_gap
-                    <= RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
                     PostAckClosureCollector._integer(row, "ur_safety_mode") == 1,
                     all(guards.values()),
                 )
@@ -586,9 +628,18 @@ class PreAckTypedClosureCollector:
             self._terminal_reason is not None
             and terminal_reason != self._terminal_reason
         )
-        if not identity_ok or not limits_ok or discontinuous or reason_changed:
-            self.reset()
+        if identity_ok and not return_telemetry_ok:
+            self._reset_closure()
+            self._observe_return_phase_mismatch(
+                timestamp=timestamp,
+                terminal_reason=terminal_reason,
+            )
             return False
+        self._reset_return_phase_mismatch()
+        if not identity_ok or not other_limits_ok or discontinuous or reason_changed:
+            self._reset_closure()
+            return False
+        self._failure_reason = None
         if self._start_s is None:
             self._start_s = timestamp
             self._terminal_reason = terminal_reason

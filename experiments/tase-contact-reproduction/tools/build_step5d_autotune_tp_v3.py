@@ -8,12 +8,13 @@ import gzip
 import hashlib
 import html
 import json
+import math
 import re
 import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import build_step5d_autotune_tp as v1
 
@@ -25,7 +26,7 @@ if str(RUNTIME_SRC) not in sys.path:
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r004"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r005"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
@@ -52,6 +53,74 @@ def _batch_lifecycle_replacements() -> tuple[tuple[str, str, str], ...]:
     globals_and_guard = r'''global codex_autotune_batch_row_echo = 0
 global codex_autotune_return_kind_echo = 0
 global codex_autotune_return_guard_mask = 0
+global codex_autotune_return_observer_active = False
+global codex_autotune_return_segment_id = 0
+global codex_autotune_return_current_angular_speed_rad_s = 0.0
+global codex_autotune_return_current_angular_accel_rad_s2 = 0.0
+global codex_autotune_return_max_angular_speed_rad_s = 0.0
+global codex_autotune_return_max_angular_accel_rad_s2 = 0.0
+global codex_autotune_return_max_sample_gap_s = 0.0
+
+def codex_autotune_norm3(x, y, z):
+  return sqrt(x * x + y * y + z * z)
+end
+
+thread codex_autotune_return_telemetry_observer():
+  local have_controller_time_sample = False
+  local have_angular_sample = False
+  local last_wx = 0.0
+  local last_wy = 0.0
+  local last_wz = 0.0
+  local controller_clock = time()
+  local last_controller_time_s = controller_clock.sec + controller_clock.nanosec / 1000000000.0
+  while codex_autotune_return_observer_active:
+    controller_clock = time()
+    local controller_time_s = controller_clock.sec + controller_clock.nanosec / 1000000000.0
+    local loop_dt = controller_time_s - last_controller_time_s
+    last_controller_time_s = controller_time_s
+    local tcp_speed = get_actual_tcp_speed()
+    local angular_speed_rad_s = codex_autotune_norm3(tcp_speed[3], tcp_speed[4], tcp_speed[5])
+    local angular_accel_rad_s2 = 0.0
+    if have_controller_time_sample and have_angular_sample and loop_dt > 0.0:
+      local angular_filter_alpha = loop_dt / (0.020 + loop_dt)
+      local filtered_wx = last_wx + angular_filter_alpha * (tcp_speed[3] - last_wx)
+      local filtered_wy = last_wy + angular_filter_alpha * (tcp_speed[4] - last_wy)
+      local filtered_wz = last_wz + angular_filter_alpha * (tcp_speed[5] - last_wz)
+      angular_accel_rad_s2 = codex_autotune_norm3(filtered_wx - last_wx, filtered_wy - last_wy, filtered_wz - last_wz) / loop_dt
+      last_wx = filtered_wx
+      last_wy = filtered_wy
+      last_wz = filtered_wz
+    else:
+      last_wx = tcp_speed[3]
+      last_wy = tcp_speed[4]
+      last_wz = tcp_speed[5]
+    end
+    have_angular_sample = True
+    codex_autotune_return_current_angular_speed_rad_s = angular_speed_rad_s
+    codex_autotune_return_current_angular_accel_rad_s2 = angular_accel_rad_s2
+    if angular_speed_rad_s > codex_autotune_return_max_angular_speed_rad_s:
+      codex_autotune_return_max_angular_speed_rad_s = angular_speed_rad_s
+    end
+    if angular_accel_rad_s2 > codex_autotune_return_max_angular_accel_rad_s2:
+      codex_autotune_return_max_angular_accel_rad_s2 = angular_accel_rad_s2
+    end
+    if have_controller_time_sample and loop_dt > codex_autotune_return_max_sample_gap_s:
+      codex_autotune_return_max_sample_gap_s = loop_dt
+    end
+    have_controller_time_sample = True
+    sync()
+  end
+end
+
+def codex_autotune_latch_return_telemetry():
+  write_output_float_register(35, 40.3)
+  write_output_float_register(39, 3.0)
+  write_output_float_register(40, codex_autotune_return_current_angular_speed_rad_s)
+  write_output_float_register(41, codex_autotune_return_current_angular_accel_rad_s2)
+  write_output_float_register(42, codex_autotune_return_max_angular_speed_rad_s)
+  write_output_float_register(43, codex_autotune_return_max_angular_accel_rad_s2)
+  write_output_float_register(44, codex_autotune_return_max_sample_gap_s)
+end
 
 def codex_autotune_typed_target_verified(target_pose, campaign_home_q, require_home_q):
   local actual_pose = get_actual_tcp_pose()
@@ -93,19 +162,34 @@ def codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, camp
   local rise_pose = p[current_pose[0], current_pose[1], safe_z, current_pose[3], current_pose[4], current_pose[5]]
   local transfer_pose = p[target_pose[0], target_pose[1], safe_z, target_pose[3], target_pose[4], target_pose[5]]
   codex_autotune_return_guard_mask = 0
+  codex_autotune_return_segment_id = 0
+  codex_autotune_return_current_angular_speed_rad_s = 0.0
+  codex_autotune_return_current_angular_accel_rad_s2 = 0.0
+  codex_autotune_return_max_angular_speed_rad_s = 0.0
+  codex_autotune_return_max_angular_accel_rad_s2 = 0.0
+  codex_autotune_return_max_sample_gap_s = 0.0
+  codex_autotune_return_observer_active = True
+  local return_observer_handle = run codex_autotune_return_telemetry_observer()
+  codex_autotune_return_segment_id = 1
   movel(rise_pose, a=0.060, v=0.040, r=0.0)
   stopl(0.1)
+  codex_autotune_return_segment_id = 2
   movel(transfer_pose, a=0.135, v=0.090, r=0.0)
   stopl(0.1)
+  codex_autotune_return_segment_id = 3
   movel(target_pose, a=0.060, v=0.040, r=0.0)
   stopl(0.1)
   sleep(0.20)
+  codex_autotune_return_observer_active = False
+  sync()
+  kill return_observer_handle
   if not codex_autotune_typed_target_verified(target_pose, campaign_home_q, require_home_q):
     return False
   end
   # The main TP thread is the only motion owner.  Host/controller closure
   # validates the seven typed safety signals after the sequential movel route.
   codex_autotune_return_guard_mask = 127
+  codex_autotune_latch_return_telemetry()
   return True
 end
 
@@ -359,6 +443,12 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "read_input_integer_register(26)",
         "read_input_integer_register(30)",
         "write_output_integer_register(33, codex_autotune_return_guard_mask)",
+        "thread codex_autotune_return_telemetry_observer():",
+        "local controller_clock = time()",
+        "local tcp_speed = get_actual_tcp_speed()",
+        "write_output_float_register(35, 40.3)",
+        "write_output_float_register(39, 3.0)",
+        "codex_autotune_latch_return_telemetry()",
         "codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, campaign_home_q)",
         "if stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17:",
         "codex_autotune_write_state(campaign_epoch, trial_id, 76",
@@ -469,7 +559,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
 
 def source_stamp(now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3")
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R005")
 
 
 def build_package_script(stamp: str) -> str:
@@ -507,13 +597,57 @@ Frozen control contract:
 """
 
 
+def simulate_return_telemetry(
+    samples: Sequence[tuple[float, float, float, float]],
+) -> dict[str, float]:
+    """Mirror the generated read-only observer for production-chain tests."""
+
+    if len(samples) < 2:
+        raise ValueError("return telemetry simulation requires at least two samples")
+    last_time_s, last_wx, last_wy, last_wz = map(float, samples[0])
+    current_speed = (last_wx**2 + last_wy**2 + last_wz**2) ** 0.5
+    current_accel = 0.0
+    max_speed = current_speed
+    max_accel = 0.0
+    max_gap = 0.0
+    for raw_sample in samples[1:]:
+        controller_time_s, wx, wy, wz = map(float, raw_sample)
+        loop_dt = controller_time_s - last_time_s
+        if not math.isfinite(loop_dt) or loop_dt <= 0.0:
+            raise ValueError("return telemetry controller time must increase")
+        alpha = loop_dt / (0.020 + loop_dt)
+        filtered_wx = last_wx + alpha * (wx - last_wx)
+        filtered_wy = last_wy + alpha * (wy - last_wy)
+        filtered_wz = last_wz + alpha * (wz - last_wz)
+        current_speed = (wx**2 + wy**2 + wz**2) ** 0.5
+        current_accel = (
+            (filtered_wx - last_wx) ** 2
+            + (filtered_wy - last_wy) ** 2
+            + (filtered_wz - last_wz) ** 2
+        ) ** 0.5 / loop_dt
+        max_speed = max(max_speed, current_speed)
+        max_accel = max(max_accel, current_accel)
+        max_gap = max(max_gap, loop_dt)
+        last_time_s = controller_time_s
+        last_wx, last_wy, last_wz = filtered_wx, filtered_wy, filtered_wz
+    return {
+        "ur_output_double_register_35": 40.3,
+        "ur_output_double_register_39": 3.0,
+        "ur_output_double_register_40": current_speed,
+        "ur_output_double_register_41": current_accel,
+        "ur_output_double_register_42": max_speed,
+        "ur_output_double_register_43": max_accel,
+        "ur_output_double_register_44": max_gap,
+    }
+
+
 def numeric_sanity(script: str) -> dict[str, Any]:
     validate_rendered_script(script.split("\n", 1)[1] if script.startswith("# VERSION:") else script)
     return {
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
         "program": PROGRAM_NAME,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "delta_class": "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_heartbeat_parity_v4",
+        "delta_class": "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_read_only_telemetry_v5",
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
         "physical_prior_sha256": PRECONTACT_POSE_PRIOR_SHA256,
         "reaction_normal_b": list(STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b),

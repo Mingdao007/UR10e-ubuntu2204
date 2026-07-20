@@ -8,7 +8,7 @@ artifacts, and V1 launchers are not runtime truth.
 
 ## Terminal condition
 
-The task remains active until the attended V3 r004 campaign has:
+The task remains active until the attended V3 r005 campaign has:
 
 1. loaded and read back the exact versioned TP triplet;
 2. started the canonical bridge and emitted `V3_BRIDGE_READY_NO_ARM`;
@@ -23,8 +23,11 @@ leaves the task incomplete.
 ## Locked decisions
 
 - Release/stage: `step5d_strict_rnn_autotune_v3`.
-- TP revision: `step5d_strict_rnn_autotune_v3_r004`. Every later update must
-  use a new basename `r005`, `r006`, and so on. A revision is immutable.
+- TP revision candidate: `step5d_strict_rnn_autotune_v3_r005`. It may become
+  active only after exact controller upload/readback. r004 is immutable,
+  `known_incompatible_do_not_retry`, and cannot produce an optimizer
+  observation. Every later update must use a new basename `r006`, `r007`, and
+  so on.
 - Frozen Stage25 control provenance:
   `step5d_strict_rnn_autotune_v1` at tag
   `archive/step5d-autotune-v1-20260715` (commit
@@ -40,8 +43,17 @@ leaves the task incomplete.
   stop request) only. Commands 4/5/6 are retired from the active package.
 - Rows 1..9 return to NearReady; row 10 returns to CampaignHome. Return motion
   is three standard `movel` segments: rise to safe Z, transfer at safe Z, then
-  vertical descent. No custom `speedl` return controller or timing observer is
-  active.
+  vertical descent. One read-only return telemetry observer may sample TCP
+  angular speed and controller/sample time, but it may not call `movel`,
+  `movej`, `speedl`, `speedj`, `servoj`, `stopl`, `stopj`, or otherwise own
+  motion. No custom `speedl` return controller is active.
+- After the return completes, r005 latches phase `40.3`, segment `3`, and the
+  current/max angular-speed, angular-acceleration, and maximum-sample-gap
+  envelope through `WAIT_ACK`. The prior Stage25 carrier and echo helper may
+  not overwrite those registers during that state.
+- The immutable r004 CSV/summary and final-row fixture are incident evidence
+  only. They must reproduce `return_phase_mismatch` and can never be admitted
+  as an optimizer observation.
 - Active V3 campaign safety is the frozen V1 guard set, including its 1.000 s
   Stage25 heartbeat watchdog and 2 ms last-command hold. Moving-sphere
   enforcement and no-contact certification are retired from the active campaign.
@@ -65,14 +77,14 @@ leaves the task incomplete.
 The blocker set is closed and may only move open -> complete:
 
 1. direct-autotune contract and active surface;
-2. r004 TP generation and V1 control parity;
+2. r005 TP generation and V1 control parity;
 3. active bridge/campaign wiring without certification, moving sphere, or
    authorization-file gates;
 4. canonical selector/readiness/status and truthful failure evidence;
 5. targeted, impacted, installed-runtime, and no-network production rehearsal;
-6. r004 controller upload/readback and predecessor archives;
+6. r005 controller upload/readback and r004 archive;
 7. published OID and formal-runtime fast-forward deployment;
-8. actual r004 bridge ready;
+8. actual r005 bridge ready;
 9. user Play observed and real Stage25 reached;
 10. exact 10/10 ACK plus final-home closure.
 

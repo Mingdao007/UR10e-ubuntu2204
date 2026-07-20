@@ -30,6 +30,7 @@ from step5d_autotune_live_driver import (  # noqa: E402
     MailboxError,
 )
 import step5d_autotune_runtime_lifecycle as runtime_lifecycle  # noqa: E402
+import build_step5d_autotune_tp_v3 as tp_v3  # noqa: E402
 from step5d_autotune_runtime_lifecycle import (  # noqa: E402
     PostAckControllerReadback,
     PostAckClosureCollector,
@@ -703,3 +704,152 @@ def test_pre_ack_collector_uses_typed_reference_and_qd_not_fake_joint_error(
     assert evidence.tp_qd_max_rad_s == 0.003
     assert "tp_joint_error_max_rad" not in evidence.payload()
     assert evidence.returned_safe is True
+
+
+def test_r004_incident_replay_reports_return_phase_mismatch(tmp_path: Path) -> None:
+    incident = json.loads(
+        (ROOT / "tests/fixtures/v3_r004_return_telemetry_incident.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert incident["source"]["bridge_csv_sha256"] == (
+        "8c68a70f666663871828fdfd4d6170b63a6a1bcbe46952e5cf88939e73eaedd9"
+    )
+    assert incident["source"]["summary_sha256"] == (
+        "9a7fced00022aa6965f1088c45e598c26107b2407ac7fd9fc4088f26a4a037a8"
+    )
+
+    context = _fixture(tmp_path)
+    campaign = SimpleNamespace(campaign_epoch=1, campaign_fingerprint="c" * 64)
+    trial = SimpleNamespace(
+        backend_id="backend",
+        campaign=campaign,
+        source_fingerprint="d" * 64,
+        config_fingerprint="e" * 64,
+        trial_id=1,
+        candidate_token=1,
+        trial_uid="1" * 64,
+    )
+    home_path = (tmp_path / "campaign_home_reference.json").resolve()
+    home_path.write_bytes(b"{}\n")
+    home = CampaignHomeReference(
+        path=home_path,
+        sha256=hashlib.sha256(home_path.read_bytes()).hexdigest(),
+        backend_id=trial.backend_id,
+        campaign_epoch=1,
+        campaign_fingerprint=campaign.campaign_fingerprint,
+        source_fingerprint=trial.source_fingerprint,
+        config_fingerprint=trial.config_fingerprint,
+        home_pose=(0.4, 0.1, 0.2, 3.14, 0.0, 0.0),
+        home_q=(0.0,) * 6,
+        ready_consumed_command_seq=0,
+        controller_timestamp_s=1.0,
+        connection_epoch=1,
+    )
+    collector = PreAckTypedClosureCollector(
+        context=context,
+        trial=trial,
+        expected_arm=HostPacket(1, 1, HostCommand.ARM, 1, 533, 1),
+        campaign_home_reference=home,
+        max_sample_gap_s=0.02,
+    )
+    fixture_row = incident["final_state70_row"]
+    for index in range(51):
+        row = dict(fixture_row)
+        row["heartbeat"] = str(98943 + index)
+        collector.observe(row, monotonic_s=index * 0.01)
+
+    assert collector.ready is False
+    assert collector.failure_reason == runtime_lifecycle.RETURN_PHASE_MISMATCH
+
+
+def test_r005_generated_telemetry_drives_trial1_ack_ready_near_trial2_arm(
+    tmp_path: Path,
+) -> None:
+    rendered = tp_v3.render_script()
+    assert "codex_autotune_latch_return_telemetry()" in rendered
+    telemetry = tp_v3.simulate_return_telemetry(
+        tuple((index * 0.002, 0.0, 0.0, 0.0) for index in range(301))
+    )
+
+    context = _fixture(tmp_path)
+    campaign = SimpleNamespace(campaign_epoch=1, campaign_fingerprint="c" * 64)
+    trial1 = SimpleNamespace(
+        backend_id="backend",
+        campaign=campaign,
+        source_fingerprint="d" * 64,
+        config_fingerprint="e" * 64,
+        trial_id=1,
+        candidate_token=1,
+        trial_uid="1" * 64,
+    )
+    home_path = (tmp_path / "campaign_home_reference.json").resolve()
+    home_path.write_bytes(b"{}\n")
+    home = CampaignHomeReference(
+        path=home_path,
+        sha256=hashlib.sha256(home_path.read_bytes()).hexdigest(),
+        backend_id=trial1.backend_id,
+        campaign_epoch=1,
+        campaign_fingerprint=campaign.campaign_fingerprint,
+        source_fingerprint=trial1.source_fingerprint,
+        config_fingerprint=trial1.config_fingerprint,
+        home_pose=(0.4, 0.1, 0.2, 3.14, 0.0, 0.0),
+        home_q=(0.0,) * 6,
+        ready_consumed_command_seq=0,
+        controller_timestamp_s=1.0,
+        connection_epoch=1,
+    )
+    arm1 = HostPacket(1, 1, HostCommand.ARM, 1, 533, 1)
+    collector = PreAckTypedClosureCollector(
+        context=context,
+        trial=trial1,
+        expected_arm=arm1,
+        campaign_home_reference=home,
+        max_sample_gap_s=0.02,
+    )
+    commands = [arm1]
+    pose = (*context.reference.pose_xyz_m, *context.reference.pose_rotvec_rad)
+    for index in range(51):
+        row = {
+            "heartbeat": float(index),
+            "normal_force_n": 0.0,
+            "force_norm_n": 0.0,
+            "torque_norm_nm": 0.0,
+            "sensor_age_s": 0.001,
+            "rtde_feedback_age_s": 0.001,
+            "ur_safety_mode": 1,
+            "ur_output_int_register_24": 1,
+            "ur_output_int_register_25": 1,
+            "ur_output_int_register_26": 70,
+            "ur_output_int_register_27": 1,
+            "ur_output_int_register_28": 1,
+            "ur_output_int_register_29": 533,
+            "ur_output_int_register_30": 1,
+            "ur_output_int_register_31": 1,
+            "ur_output_int_register_32": 1,
+            "ur_output_int_register_33": 0x7F,
+            "ur_output_double_register_36": 0.001,
+            "ur_output_double_register_37": 0.002,
+            "ur_output_double_register_38": 0.003,
+            **telemetry,
+        }
+        row.update({f"ur_actual_TCP_pose_{axis}": pose[axis] for axis in range(6)})
+        for prefix in ("ur_actual_TCP_speed", "ur_actual_q", "ur_actual_qd"):
+            row.update({f"{prefix}_{axis}": 0.0 for axis in range(6)})
+        if collector.observe(row, monotonic_s=index * 0.01):
+            commands.append(HostPacket(1, 1, HostCommand.ACK_BUNDLE, 1, 533, 2))
+            break
+
+    assert collector.ready is True
+    assert collector.dwell_s == pytest.approx(0.5)
+    assert [packet.command for packet in commands].count(HostCommand.ACK_BUNDLE) == 1
+    ready_near = {"state": "READY_NEAR", "consumed_command_seq": 2}
+    assert ready_near == {"state": "READY_NEAR", "consumed_command_seq": commands[-1].command_seq}
+    arm2 = HostPacket(1, 2, HostCommand.ARM, 2, 533, 3)
+    commands.append(arm2)
+    assert [packet.command for packet in commands] == [
+        HostCommand.ARM,
+        HostCommand.ACK_BUNDLE,
+        HostCommand.ARM,
+    ]
+    assert [packet.command_seq for packet in commands] == [1, 2, 3]
