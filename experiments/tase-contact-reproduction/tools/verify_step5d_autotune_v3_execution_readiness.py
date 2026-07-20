@@ -809,6 +809,17 @@ def _verify_validation(
         "advisory only; deterministic UR owner gates remain authoritative",
         "Fable claim boundary",
     )
+    sol_audit = gates.get("sol_xhigh_audit") or {}
+    _require(
+        sol_audit,
+        {
+            "status": "parallel_advisory_nonblocking",
+            "release_gate_applicable": False,
+            "experiment_start_blocking": False,
+            "safety_action_requires_deterministic_reproduction": True,
+        },
+        "Sol/xhigh audit policy",
+    )
 
     return path, validation, timing_passed
 
@@ -957,7 +968,6 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "requires_certification_motion_authorization",
         "requires_certified_stopping_bound",
         "requires_certified_return_route_angular_envelope",
-        "requires_attended_sol_xhigh_pre_live_audit",
         "requires_fresh_campaign_authorization",
     ]
     public_success_signal = expected_blockers[0]
@@ -1017,8 +1027,9 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "next_legal_action": (
             "capture current controller identity; obtain a bounded "
             "certification-motion authorization for no-contact "
-            "stopping/return measurement, close both evidence artifacts, perform one "
-            "attended Sol/XHigh audit, and obtain a separate fresh campaign authorization"
+            "stopping/return measurement, close both evidence artifacts, and obtain a "
+            "separate fresh campaign authorization; any Sol/xhigh audit runs in parallel "
+            "as nonblocking advisory"
         ),
         "timing_diagnostic": (
             "pass_current_source_formal_500hz_timing"
@@ -1030,9 +1041,9 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             "certification_motion_authorization",
             "certified_stopping_bound",
             "certified_return_route_angular_envelope",
-            "attended_sol_xhigh_pre_live_audit",
             "fresh_campaign_authorization",
         ],
+        "audit_policy": "parallel_advisory_nonblocking",
         "certification_motion_authorization_required": True,
         "campaign_authorization_required": True,
         "hil_hold_required": False,

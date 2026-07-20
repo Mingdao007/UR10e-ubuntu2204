@@ -182,6 +182,12 @@
       "status": "pass_motion_capable_ursim_core_source_equivalence",
       "ursim": "pass_motion_capable_ursim_core_source_equivalence"
     },
+    "sol_xhigh_audit": {
+      "experiment_start_blocking": false,
+      "release_gate_applicable": false,
+      "safety_action_requires_deterministic_reproduction": true,
+      "status": "parallel_advisory_nonblocking"
+    },
     "source_exact_sphere_seam_timing": {
       "attempt_count": 0,
       "claim_class": "diagnostic_only",
@@ -211,14 +217,14 @@
     "legacy_provenance": {
       "contract_sha256": "321d6418c574422f635f455340fd1ce01a17be3abd50ff8db9b91545d3f45a00",
       "control_fingerprint": "6a4edfe6e5e706127adcaa4f6133e01814aa6deaeea5379dbc41fd43bbbf5940",
-      "orchestration_fingerprint": "257b3914cb7cead61e4e83bb9778dcb9249c86198a27f988feb9aaadac417950"
+      "orchestration_fingerprint": "3a14188db1974003f127655bcf9d9aff9d7f1ddc73f646935454c4e3bcc391a7"
     },
     "local_triplet_sha256": {
       ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
       ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
       ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
     },
-    "orchestration_fingerprint": "c8abc628fcfacd5ddff6f1a550a8900d00af8a4f5d1bf9cb556ebe95a941eb44",
+    "orchestration_fingerprint": "cee521c52324605c3ea97a4c5c6b3e83b403ea21d9c0af56567725cac6cae3b2",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
@@ -226,7 +232,7 @@
     "tick_semantics_fingerprint": "55857cd1f517c8f73e4eb76e1b783bfbb54bf33c18d207b5207770ff067db348",
     "timing_harness_fingerprint": "7c00ea65d4e6d09b55fd486c6c6714344287d595e55ded8ead07845cec679daa",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "25c67c92411b78f0448dd0146c039f93e6931ad05d627306bf80accaefe3bdff"
+      "evidence_verifier_fingerprint": "12d90b49154df521c7e3402bde21b960a4e53873adf18cdd3ebfc61b6bf737ea"
     }
   },
   "observed_at": "2026-07-20T10:00:00+08:00",

@@ -40,7 +40,6 @@ ATTENDED_BLOCKERS = [
     "requires_certification_motion_authorization",
     "requires_certified_stopping_bound",
     "requires_certified_return_route_angular_envelope",
-    "requires_attended_sol_xhigh_pre_live_audit",
     "requires_fresh_campaign_authorization",
 ]
 PRE_LIVE_DECISION = {
@@ -310,6 +309,12 @@ def build_outputs(
     advisory["claim_boundary"] = (
         "advisory only; deterministic UR owner gates remain authoritative"
     )
+    gates["sol_xhigh_audit"] = {
+        "status": "parallel_advisory_nonblocking",
+        "release_gate_applicable": False,
+        "experiment_start_blocking": False,
+        "safety_action_requires_deterministic_reproduction": True,
+    }
 
     validation_bytes = (
         json.dumps(validation, allow_nan=False, indent=2, sort_keys=True) + "\n"

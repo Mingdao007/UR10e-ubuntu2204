@@ -102,9 +102,9 @@ def test_repository_signal_names_the_next_legal_action() -> None:
         "certification_motion_authorization",
         "certified_stopping_bound",
         "certified_return_route_angular_envelope",
-        "attended_sol_xhigh_pre_live_audit",
         "fresh_campaign_authorization",
     ]
+    assert report["audit_policy"] == "parallel_advisory_nonblocking"
     assert report["certification_motion_authorization_required"] is True
     assert report["campaign_authorization_required"] is True
     assert report["hil_hold_required"] is False

@@ -10385,7 +10385,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is the unique selected/current release and remains pre-live blocked on requires_current_poweroff_controller_identity, requires_certification_motion_authorization, requires_certified_stopping_bound, requires_certified_return_route_angular_envelope, requires_attended_sol_xhigh_pre_live_audit, requires_fresh_campaign_authorization; V1 is retained control-profile provenance only",
+      "block_reason": "V3 is the unique selected/current release and remains pre-live blocked on requires_current_poweroff_controller_identity, requires_certification_motion_authorization, requires_certified_stopping_bound, requires_certified_return_route_angular_envelope, requires_fresh_campaign_authorization; V1 is retained control-profile provenance only",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10472,7 +10472,7 @@
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "9aef24b96f2ab3bc8022b94b63d955b769cec3a48ac33728af906a4bac4fe2fb",
+        "report_sha256": "9b4e42470375a84958724ebcfb0b4deccd76c2e1ad194a9a6e8deaae91e081a3",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
         "source_exact_sphere_seam_timing": "diagnostic_only_not_required_by_user",
         "status": "pass_offline_implementation_pre_live_blocked"
@@ -10504,7 +10504,6 @@
           "requires_certification_motion_authorization",
           "requires_certified_stopping_bound",
           "requires_certified_return_route_angular_envelope",
-          "requires_attended_sol_xhigh_pre_live_audit",
           "requires_fresh_campaign_authorization"
         ],
         "next_owner": "ur10e-contact-control-prep",
