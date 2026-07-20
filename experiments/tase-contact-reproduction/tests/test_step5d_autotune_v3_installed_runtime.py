@@ -92,3 +92,13 @@ def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
     assert status["release_readiness"]["selected_release"] == (
         "step5d_strict_rnn_autotune_v3"
     )
+
+
+def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath() -> None:
+    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+
+    assert 'PYTHON_ABI="$(python3 -c' in source
+    assert '"/opt/ros/humble/lib/python${PYTHON_ABI}/site-packages"' in source
+    assert '"/opt/ros/humble/local/lib/python${PYTHON_ABI}/dist-packages"' in source
+    assert 'export PYTHONPATH="${RUNTIME_PYTHONPATH}"' in source
+    assert 'PYTHONPATH:+:${PYTHONPATH}' not in source

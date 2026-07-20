@@ -11,7 +11,7 @@
   "current_selector": "step5d_strict_rnn_autotune_v3",
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
-    "sha256": "280303c4e4601d3d6e96e85f5140f528cfee2081f08ba73a282ccaf7508e5537"
+    "sha256": "d389050fe2e55902f2f7ae5de130cd09fa8bacbc59052129e7e9b14b6bcb5007"
   },
   "identity": {
     "controller_readback_triplet_sha256": {
@@ -23,14 +23,14 @@
     "legacy_provenance": {
       "contract_sha256": "e63fb5b159afd2426a2e8d610c72d6f6d19997e59410a870f8ce9876a1a1489d",
       "control_fingerprint": "bc6ab9069e30e6a1937cd7a924d83fbc1b0a49d5b855fa07368b8e3fedf89246",
-      "orchestration_fingerprint": "00f9de0786aaa3ca6644ae6405f8ffa011174988cbb54c93bab9b5161e00d946"
+      "orchestration_fingerprint": "3a407c24a1c5b034a16d9b87130eea85b41838ab56c533041ff0858fd40ff7d7"
     },
     "local_triplet_sha256": {
       ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
       ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
       ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
     },
-    "orchestration_fingerprint": "508eb7ad19a88ea95b7fe59d10c5926e7e2ce3a4b94c634fa455eeb09ba19f22",
+    "orchestration_fingerprint": "be4cdb08d2fa6f9bdd8261911863cec99bba43c7c67890b77686d7b41b155161",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,

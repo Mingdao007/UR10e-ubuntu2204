@@ -9,7 +9,25 @@ if [[ ! -d "${RUNTIME_SOURCE}/ur10e_experiment_runtime" ]]; then
   echo "missing ur10e_experiment_runtime source: ${RUNTIME_SOURCE}" >&2
   exit 66
 fi
-export PYTHONPATH="${EXPERIMENT_ROOT}/tools:${RUNTIME_SOURCE}${PYTHONPATH:+:${PYTHONPATH}}"
+PYTHON_ABI="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+ROS_PYTHON_PATHS=()
+for candidate in \
+  "/opt/ros/humble/lib/python${PYTHON_ABI}/site-packages" \
+  "/opt/ros/humble/local/lib/python${PYTHON_ABI}/dist-packages"
+do
+  if [[ -d "${candidate}" ]]; then
+    ROS_PYTHON_PATHS+=("${candidate}")
+  fi
+done
+if (( ${#ROS_PYTHON_PATHS[@]} == 0 )); then
+  echo "missing ROS Humble Python runtime for Python ${PYTHON_ABI}" >&2
+  exit 66
+fi
+RUNTIME_PYTHONPATH="${EXPERIMENT_ROOT}/tools:${RUNTIME_SOURCE}"
+for candidate in "${ROS_PYTHON_PATHS[@]}"; do
+  RUNTIME_PYTHONPATH="${RUNTIME_PYTHONPATH}:${candidate}"
+done
+export PYTHONPATH="${RUNTIME_PYTHONPATH}"
 if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
   mode="$1"
   shift
