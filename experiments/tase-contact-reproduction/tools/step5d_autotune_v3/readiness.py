@@ -235,10 +235,18 @@ def resolve_release_readiness(
     host_runtime_disposition = compatibility.get("host_runtime_disposition")
     host_runtime_start_allowed = (
         host_runtime_disposition
-        == "verified_r005_exact_plan_production_ack1_arm2"
+        == "verified_r006_cross_process_direct_arm1_arm2_offline"
     )
     if not host_runtime_start_allowed:
-        blockers.append("r005_batch_bootstrap_production_second_lap_unverified")
+        if host_runtime_disposition == (
+            "blocked_r005_post_ack_csv_schema_timeout_incident"
+        ):
+            blockers.append("r005_post_ack_csv_schema_timeout_incident")
+        blockers.append("requires_r006_offline_release")
+    if compatibility.get("local_candidate_tp_program_id") == (
+        "step5d_strict_rnn_autotune_v3_r006"
+    ):
+        blockers.append("requires_r006_controller_readback")
 
     bridge_context: BridgeStartContext | None = None
     bridge_context_sha256: str | None = None

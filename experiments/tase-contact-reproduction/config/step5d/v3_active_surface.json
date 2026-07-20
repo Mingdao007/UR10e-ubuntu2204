@@ -7,6 +7,12 @@
     "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
   },
   "tp_program_id": "step5d_strict_rnn_autotune_v3_r005",
+  "tp_program_disposition": "known_incompatible_do_not_retry",
+  "bridge_start_ready": false,
+  "blockers": [
+    "r005_post_ack_csv_schema_timeout_incident",
+    "requires_r006_offline_release"
+  ],
   "tp_commands": {
     "campaign": 1,
     "ack": 2,
@@ -42,7 +48,7 @@
       "two_movel_precontact",
       "ten_row_batch_lifecycle",
       "typed_single_owner_three_movel_return",
-      "read_only_return_telemetry_observer_and_wait_ack_latch"
+      "read_only_return_telemetry_observer_and_legacy_wait_ack_latch"
     ],
     "safety": [
       "frozen_v1_guards",

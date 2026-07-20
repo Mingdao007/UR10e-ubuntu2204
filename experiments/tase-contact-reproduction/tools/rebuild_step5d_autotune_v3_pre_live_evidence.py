@@ -38,7 +38,7 @@ MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
 ATTENDED_BLOCKERS = [
     "requires_attended_tp_upload_readback",
 ]
-HOST_RUNTIME_DISPOSITION = "verified_r005_exact_plan_production_ack1_arm2"
+HOST_RUNTIME_DISPOSITION = "verified_r006_cross_process_direct_arm1_arm2_offline"
 PRE_LIVE_DECISION = {
     "acceptance_scope": "offline_pre_live_only",
     "offline_implementation": "pass",
@@ -237,11 +237,18 @@ def build_outputs(
         identity.get("controller_readback_triplet_sha256")
         == local_triplet_sha256
     )
+    current_release = _read(root / CURRENT_RELEASE_RELATIVE)
     host_runtime_current = (
-        _read(root / CURRENT_RELEASE_RELATIVE).get("host_runtime_disposition")
+        current_release.get("host_runtime_disposition")
         == HOST_RUNTIME_DISPOSITION
     )
-    bridge_start_ready = readback_current and host_runtime_current
+    tp_program_start_allowed = (
+        current_release.get("tp_program_disposition")
+        != "known_incompatible_do_not_retry"
+    )
+    bridge_start_ready = (
+        readback_current and host_runtime_current and tp_program_start_allowed
+    )
     validation["decision"] = {
         **PRE_LIVE_DECISION,
         "hardware_promotion": (
@@ -341,8 +348,22 @@ def build_outputs(
             and blocker == "requires_attended_tp_upload_readback"
         )
     ]
+    if not tp_program_start_allowed:
+        blockers.extend(
+            [
+                "selected_tp_program_known_incompatible_do_not_retry",
+                "r005_post_ack_csv_schema_timeout_incident",
+            ]
+        )
     if not host_runtime_current:
-        blockers.append("r005_batch_bootstrap_production_second_lap_unverified")
+        blockers.append("requires_r006_offline_release")
+    if (
+        current_release.get("local_candidate_tp_program_id")
+        == "step5d_strict_rnn_autotune_v3_r006"
+        and not readback_current
+    ):
+        blockers.append("requires_r006_controller_readback")
+    blockers = list(dict.fromkeys(blockers))
     public_signal = (
         blockers[0]
         if blockers

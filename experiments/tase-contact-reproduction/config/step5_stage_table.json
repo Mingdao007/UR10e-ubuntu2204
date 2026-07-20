@@ -10424,7 +10424,7 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r005.urp",
-        "live_readiness_state": "controller_readback_verified_ready_for_bridge_context",
+        "live_readiness_state": "pre_live_blocked_r005_known_incompatible",
         "force_baseline_policy": {
           "mode": "fixed_campaign_anchor_plus_per_trial_diagnostic",
           "anchor_source": "first_qualified_stage23_window",
@@ -10449,7 +10449,7 @@
         "pending_or_automatic_retry_imported": false
       },
       "package_delivery": {
-        "status": "controller_readback_verified",
+        "status": "historical_controller_readback_verified_known_incompatible_do_not_retry",
         "program_basename": "step5d_strict_rnn_autotune_v3_r005",
         "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r005.urp",
@@ -10481,7 +10481,7 @@
       "offline_validation": {
         "acceptance_scope": "offline_pre_live_only",
         "diagnostic_bundle_replay": "pass",
-        "exact_ten_row_lifecycle": "recovery_scope_exact_plan_trial1_ack1_ready_near_arm2_pass",
+        "exact_ten_row_lifecycle": "r005_live_ack_consumed_but_arm2_not_sent_due_post_ack_csv_schema_timeout_incident",
         "formal_500hz_timing": "not_required_by_user",
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
@@ -10501,20 +10501,24 @@
       },
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v3",
-        "state": "bridge_start_ready",
-        "public_success_signal": "controller_readback_verified_ready_for_bridge_context",
+        "state": "pre_live_blocked",
+        "public_success_signal": "selected_tp_program_known_incompatible_do_not_retry",
         "deterministic_validation_complete": true,
         "package_delivery_complete": true,
         "candidate_current": true,
         "live_runtime_promoted": false,
         "same_process_startup_gate_complete": false,
-        "ready_to_execute": true,
+        "ready_to_execute": false,
         "ready_to_load_play": false,
-        "ready_to_start_bridge": true,
+        "ready_to_start_bridge": false,
         "ready_to_arm": false,
         "ready_for_contact_or_motion": false,
-        "blockers": [],
-        "next_owner": "ur10e-bridge-ops",
+        "blockers": [
+          "selected_tp_program_known_incompatible_do_not_retry",
+          "r005_post_ack_csv_schema_timeout_incident",
+          "requires_r006_offline_release"
+        ],
+        "next_owner": "ur10e-tp-package-delivery",
         "operator_trigger": {
           "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
           "user_confirmation_required": true,

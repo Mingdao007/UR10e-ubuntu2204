@@ -112,7 +112,11 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
         self.assertFalse(row["current_binding"]["live_authorized"])
         self.assertTrue(current["readiness"]["deployment_ready"])
-        self.assertTrue(current["readiness"]["bridge_start_ready"])
+        self.assertFalse(current["readiness"]["bridge_start_ready"])
+        self.assertIn(
+            "selected_tp_program_known_incompatible_do_not_retry",
+            current["readiness"]["blockers"],
+        )
         self.assertFalse(current["readiness"]["bridge_process_ready"])
         self.assertFalse(current["readiness"]["motion_arm_ready"])
         self.assertFalse(current["readiness"]["campaign_ready"])

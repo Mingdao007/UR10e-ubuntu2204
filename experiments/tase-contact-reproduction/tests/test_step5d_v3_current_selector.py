@@ -43,13 +43,17 @@ def test_v3_is_the_only_current_selector_surface() -> None:
     assert rows[V1]["current_binding"]["live_authorized"] is False
 
 
-def test_selected_v3_promotes_r005_after_exact_plan_second_lap_regression() -> None:
+def test_selected_v3_fail_closes_incompatible_r005_after_live_incident() -> None:
     current = _load("config/current_stage.json")
 
     assert current["controller_readback_verified_for_selected_triplet"] is True
     assert current["readiness"]["deployment_ready"] is True
-    assert current["readiness"]["bridge_start_ready"] is True
-    assert current["readiness"]["blockers"] == []
+    assert current["readiness"]["bridge_start_ready"] is False
+    assert current["readiness"]["blockers"] == [
+        "selected_tp_program_known_incompatible_do_not_retry",
+        "r005_post_ack_csv_schema_timeout_incident",
+        "requires_r006_offline_release",
+    ]
     assert current["bridge_trigger"]["live_motion_authorized"] is False
     for field in (
         "bridge_process_ready",

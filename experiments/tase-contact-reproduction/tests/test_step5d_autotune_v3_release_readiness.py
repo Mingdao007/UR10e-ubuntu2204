@@ -95,7 +95,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             "program": V3,
             "tp_program_id": R005,
             "tp_program_disposition": "controller_readback_verified",
-            "host_runtime_disposition": "verified_r005_exact_plan_production_ack1_arm2",
+            "host_runtime_disposition": "verified_r006_cross_process_direct_arm1_arm2_offline",
             "selection_state": "current",
         },
     )
@@ -216,7 +216,7 @@ def test_known_incompatible_host_runtime_cannot_reuse_a_bridge_context(
     assert report["deployment_ready"] is True
     assert report["bridge_start_ready"] is False
     assert report["host_runtime_start_allowed"] is False
-    assert "r005_batch_bootstrap_production_second_lap_unverified" in report["blockers"]
+    assert "requires_r006_offline_release" in report["blockers"]
 
 
 def test_runtime_no_arm_claim_requires_live_pid_and_cannot_claim_campaign(

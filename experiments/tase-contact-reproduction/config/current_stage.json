@@ -1379,12 +1379,16 @@
   },
   "program": "step5d_strict_rnn_autotune_v3",
   "readiness": {
-    "blockers": [],
+    "blockers": [
+      "selected_tp_program_known_incompatible_do_not_retry",
+      "r005_post_ack_csv_schema_timeout_incident",
+      "requires_r006_offline_release"
+    ],
     "bridge_process_ready": false,
-    "bridge_start_ready": true,
+    "bridge_start_ready": false,
     "campaign_ready": false,
     "deployment_ready": true,
-    "host_runtime_disposition": "verified_r005_exact_plan_production_ack1_arm2",
+    "host_runtime_disposition": "blocked_r005_post_ack_csv_schema_timeout_incident",
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },
@@ -1418,7 +1422,7 @@
     ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
   },
   "stage_table_path": "config/step5_stage_table.json",
-  "status": "step5d_autotune_v3_r005_second_lap_regression_verified",
+  "status": "step5d_autotune_v3_r005_known_incompatible_do_not_retry",
   "strict_rnn_status": {
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
