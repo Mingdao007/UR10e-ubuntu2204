@@ -47,6 +47,7 @@ from step5d_autotune_v3.arming import (
 from step5d_autotune_v3.certification import (
     CertificationProtocolError,
     CertificationSession,
+    EXECUTION_PROFILE_ID as CERTIFICATION_EXECUTION_PROFILE_ID,
 )
 from ur10e_experiment_runtime.authorization import (
     load_certification_motion_authorization,
@@ -787,6 +788,58 @@ def install_v3_seams(
     live.BridgeMailboxRuntime = V3BridgeMailboxRuntime
 
     import kunwei_rtde_bridge as bridge
+
+    original_trial_boundary_reset = (
+        bridge.reset_step5d_autotune_diagnostics_for_trial
+    )
+
+    def v3_trial_boundary_reset(state: Any, args: Any) -> bool:
+        session = certification_provider()
+        if session is None or session.complete:
+            return original_trial_boundary_reset(state, args)
+        try:
+            trial_id = int(args.step5d_autotune_handshake["trial_id"])
+            execution_profile_id = int(
+                args.step5d_autotune_handshake["execution_profile_id"]
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise BridgeTicketError(
+                "certification handshake lacks exact trial/profile identity"
+            ) from exc
+        if execution_profile_id != CERTIFICATION_EXECUTION_PROFILE_ID:
+            raise BridgeTicketError(
+                "certification execution profile identity differs"
+            )
+        if trial_id <= 0 or trial_id == state.step5d_v30_diagnostics_trial_id:
+            return False
+        diagnostics = state.step5d_v30_deferred_diagnostics
+        if diagnostics is None:
+            raise BridgeTicketError(
+                "certification started before diagnostics preallocation"
+            )
+        diagnostics.reset_for_trial()
+        state.step5d_v30_diagnostics_trial_id = trial_id
+        state.integral_error_n_s = 0.0
+        state.normal_velocity_m_s = 0.0
+        bridge.reset_step5d_solver_state_for_boundary(state, "inactive")
+        return True
+
+    bridge.reset_step5d_autotune_diagnostics_for_trial = v3_trial_boundary_reset
+
+    original_compute_bridge_values = bridge.compute_bridge_values
+
+    def v3_compute_bridge_values(*args: Any, **kwargs: Any) -> Any:
+        session = certification_provider()
+        if session is None or session.complete:
+            return original_compute_bridge_values(*args, **kwargs)
+        values = bridge.bridge_zero_values()
+        values["_step5d_autotune_pre_arm_hold"] = 1.0
+        values["_step5d_contact_safety_reason"] = (
+            "bounded_no_contact_certification_host_hold"
+        )
+        return values
+
+    bridge.compute_bridge_values = v3_compute_bridge_values
 
     original_bridge_authorization = bridge.require_v29_live_bridge_authorization
 

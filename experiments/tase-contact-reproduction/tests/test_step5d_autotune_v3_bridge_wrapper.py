@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -175,6 +176,45 @@ def test_bridge_source_exposes_only_existing_certification_stop_seams() -> None:
     assert '"certification_trigger_controller_timestamp_s"' in source
     assert 'bridge_values["heartbeat"] = (' in source
     assert 'bridge_values["stop_request"] = 1.0' in source
+
+
+def test_certification_seam_uses_host_zero_hold_without_campaign_prior() -> None:
+    code = """
+from types import SimpleNamespace
+import kunwei_rtde_bridge as bridge
+import run_step5d_autotune_v3_bridge as wrapper
+
+session = SimpleNamespace(complete=False)
+wrapper.install_v3_seams(certification_session_provider=lambda: session)
+args = SimpleNamespace(step5d_autotune_handshake={
+    'trial_id': 41,
+    'execution_profile_id': wrapper.CERTIFICATION_EXECUTION_PROFILE_ID,
+})
+state = bridge.BridgeState()
+reset_calls = []
+state.step5d_v30_deferred_diagnostics = SimpleNamespace(
+    reset_for_trial=lambda: reset_calls.append(True)
+)
+assert bridge.reset_step5d_autotune_diagnostics_for_trial(state, args) is True
+assert reset_calls == [True]
+assert state.step5d_v30_diagnostics_trial_id == 41
+assert not hasattr(args, 'step5d_physical_prior_reaction_normal_b')
+assert not hasattr(args, 'step5d_moving_sphere_kernel')
+values = bridge.compute_bridge_values(None, None, None, None, None, None)
+assert values['_step5d_autotune_pre_arm_hold'] == 1.0
+assert values['_step5d_contact_safety_reason'] == 'bounded_no_contact_certification_host_hold'
+assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES)
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=ROOT,
+        env=dict(os.environ),
+        capture_output=True,
+        text=True,
+        timeout=20.0,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_certification_capture_seals_once_after_final_safe_closure() -> None:

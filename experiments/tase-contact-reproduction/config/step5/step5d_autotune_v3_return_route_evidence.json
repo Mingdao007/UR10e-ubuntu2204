@@ -16,7 +16,7 @@
     "source_exact_return_telemetry_sha256": null
   },
   "motion_capable_ursim_trace_binding": {
-    "active_evidence_source_binding_sha256": "f2425289d2f76fabbec6bfbbbe49549e59436f82380fc6a912d02b2eff67e990",
+    "active_evidence_source_binding_sha256": "345d2deb3228a0aac7e1764ff2b632c68ff4595413b856027f4617095a0cd1f5",
     "claim_role": "motion_capable_ursim_semantic_subject_equivalence",
     "exact_triplet_match": true,
     "legacy_identity_provenance_only": {
@@ -69,10 +69,10 @@
     "safe_transfer_z_m": 0.033
   },
   "schema": "step5d.autotune-v3/return-route-evidence-v2",
-  "source_binding_sha256": "f2425289d2f76fabbec6bfbbbe49549e59436f82380fc6a912d02b2eff67e990",
+  "source_binding_sha256": "345d2deb3228a0aac7e1764ff2b632c68ff4595413b856027f4617095a0cd1f5",
   "source_exact_return_telemetry_sha256": null,
   "source_sha256": {
-    "bridge_capture": "5281c8a4d2316568f14a908efba675b5a2aee65bbee227d0b68d5ea7ac87c288",
+    "bridge_capture": "25554cb083949bd6524f6e5f3e693e987fd47d8f8c529f2d5e8f685ea06bf5b8",
     "campaign_adapter": "af96b74cf4a3fb87ed6d0d699852a504d3387794e9382bf4690d1fb65092d567",
     "closure_collector": "a0d69c0d4d22ccf954a4edbe4dc23eeac77b1b2d6ce22d3023c5ed8cef7c86bc",
     "return_route": "d34b9d84851577df8eb611fcd185958b3e207f3d510d381223c934947c860fd4",
