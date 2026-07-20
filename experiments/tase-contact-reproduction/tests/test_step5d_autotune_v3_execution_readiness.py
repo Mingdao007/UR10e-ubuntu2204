@@ -89,18 +89,15 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
     assert report["state"] == "pre_live_blocked"
-    assert report["public_success_signal"] == (
-        "requires_current_source_formal_500hz_timing"
-    )
+    assert report["public_success_signal"] == "requires_attended_tp_upload_readback"
     assert report["package_delivery"] == "requires_attended_tp_upload_readback"
     assert report["ready_to_execute"] is False
     assert report["current_stage_id"] == readiness.V3_STAGE_ID
     assert report["next_owner"] == "ur10e-contact-control-prep"
     assert report["timing_diagnostic"] == (
-        "partial_lane_reuse_attested_full_tick_pending"
+        "diagnostic_only_partial_lane_reuse_not_required_by_user"
     )
     assert report["canonical_gate"] == [
-        "current_source_formal_500hz_timing",
         "attended_tp_upload_readback",
         "current_poweroff_controller_identity",
         "certification_motion_authorization",

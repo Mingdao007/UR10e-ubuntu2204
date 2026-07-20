@@ -10385,7 +10385,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is the unique selected/current release and remains pre-live blocked on requires_current_source_formal_500hz_timing, requires_attended_tp_upload_readback, requires_current_poweroff_controller_identity, requires_certification_motion_authorization, requires_certified_stopping_bound, requires_certified_return_route_angular_envelope, requires_attended_sol_xhigh_pre_live_audit, requires_fresh_campaign_authorization; V1 is retained control-profile provenance only",
+      "block_reason": "V3 is the unique selected/current release and remains pre-live blocked on requires_attended_tp_upload_readback, requires_current_poweroff_controller_identity, requires_certification_motion_authorization, requires_certified_stopping_bound, requires_certified_return_route_angular_envelope, requires_attended_sol_xhigh_pre_live_audit, requires_fresh_campaign_authorization; V1 is retained control-profile provenance only",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10424,7 +10424,7 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-        "live_readiness_state": "requires_current_source_formal_500hz_timing"
+        "live_readiness_state": "requires_attended_tp_upload_readback"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10472,7 +10472,7 @@
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "a63b816cbb38f61b2aeda0cdb0330cda7ef75dc92965dd9467be3632a927cd36",
+        "report_sha256": "1aa50e45c9f496e6b1c4c1132121faa99badd26cc75f013aea749505feab6613",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
         "source_exact_sphere_seam_timing": "pass_reused_safe_hold_active_surface_equivalence",
         "status": "pass_offline_implementation_pre_live_blocked"
@@ -10488,7 +10488,7 @@
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v3",
         "state": "pre_live_blocked",
-        "public_success_signal": "requires_current_source_formal_500hz_timing",
+        "public_success_signal": "requires_attended_tp_upload_readback",
         "deterministic_validation_complete": true,
         "package_delivery_complete": false,
         "candidate_current": true,
@@ -10500,7 +10500,6 @@
         "ready_to_arm": false,
         "ready_for_contact_or_motion": false,
         "blockers": [
-          "requires_current_source_formal_500hz_timing",
           "requires_attended_tp_upload_readback",
           "requires_current_poweroff_controller_identity",
           "requires_certification_motion_authorization",

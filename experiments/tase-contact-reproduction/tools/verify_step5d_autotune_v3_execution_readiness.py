@@ -914,9 +914,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     _require(_sha256(validation_path), offline.get("report_sha256"), "validation report digest")
 
     readiness = v3.get("execution_readiness") or {}
-    expected_blockers = ([] if timing_passed else [
-        "requires_current_source_formal_500hz_timing"
-    ]) + [
+    expected_blockers = [
         "requires_attended_tp_upload_readback",
         "requires_current_poweroff_controller_identity",
         "requires_certification_motion_authorization",
@@ -984,19 +982,13 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             "obtain a bounded certification-motion authorization for no-contact "
             "stopping/return measurement, close both evidence artifacts, perform one "
             "attended Sol/XHigh audit, and obtain a separate fresh campaign authorization"
-            if timing_passed
-            else (
-                "run the single final source-exact 30k full-tick capture; "
-                "solver and safe-hold are already reuse-attested"
-            )
         ),
         "timing_diagnostic": (
             "pass_current_source_formal_500hz_timing"
             if timing_passed
-            else "partial_lane_reuse_attested_full_tick_pending"
+            else "diagnostic_only_partial_lane_reuse_not_required_by_user"
         ),
         "canonical_gate": [
-            "current_source_formal_500hz_timing",
             "attended_tp_upload_readback",
             "current_poweroff_controller_identity",
             "certification_motion_authorization",

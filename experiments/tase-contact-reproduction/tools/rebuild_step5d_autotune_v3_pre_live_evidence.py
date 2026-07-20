@@ -35,7 +35,6 @@ TIMING_EQUIVALENCE_RELATIVE = (
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
-PENDING_TIMING_BLOCKER = "requires_current_source_formal_500hz_timing"
 ATTENDED_BLOCKERS = [
     "requires_attended_tp_upload_readback",
     "requires_current_poweroff_controller_identity",
@@ -451,7 +450,10 @@ def build_outputs(
         json.dumps(validation, allow_nan=False, indent=2, sort_keys=True) + "\n"
     ).encode("utf-8")
     validation_sha = hashlib.sha256(validation_bytes).hexdigest()
-    blockers = ([] if timing_passed else [PENDING_TIMING_BLOCKER]) + ATTENDED_BLOCKERS
+    # The user explicitly removed formal 10k/30k pressure testing from this
+    # convergence lane. Preserve timing artifacts as diagnostics, but never
+    # promote their state into an execution-readiness blocker.
+    blockers = list(ATTENDED_BLOCKERS)
     public_signal = blockers[0]
     blocker_text = "_".join(blockers)
 

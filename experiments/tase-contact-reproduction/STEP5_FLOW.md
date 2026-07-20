@@ -6,12 +6,14 @@ be launched or selected as a fallback. V3 is selected but pre-live blocked:
 its local TP triplet changed after the retained V3
 controller read-back, so the old read-back is historical diagnostic evidence,
 not current package acceptance. The public blocker is
-`requires_current_source_formal_500hz_timing`. Before any V3 bridge start, the
-current-source formal timing gate, certified stopping bound, certified
-return-route angular envelope, attended exact TP upload/read-back, current
-Power-OFF controller identity, attended Sol/XHigh audit, and fresh live
-authorization must all close. Load/Play, contact, and motion remain separately
-forbidden by the offline tranche.
+`requires_attended_tp_upload_readback`. Formal 10k/30k timing pressure testing
+is not required for this convergence lane and the temporary CPU/GPU timing
+service is not an experiment prerequisite. Before V3 can ARM, certified
+stopping-bound and return-route evidence, attended exact TP upload/read-back,
+current Power-OFF controller identity, one attended Sol/XHigh audit, and fresh
+live authorization must all close. The V3 bridge may start separately in
+`NO_ARM`; Load/Play, contact, and motion remain forbidden until their explicit
+gates close.
 
 The V3 physical prior binds reaction normal
 `[-0.043955267, 0.020079909, 0.998831683]`, approach axis
