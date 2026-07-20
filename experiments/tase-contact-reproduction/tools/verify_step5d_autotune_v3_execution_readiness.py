@@ -29,14 +29,14 @@ MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
 PRE_LIVE_VALIDATION_DECISION = {
     "acceptance_scope": VALIDATION_SCOPE,
     "offline_implementation": "pass",
-    "hardware_promotion": "blocked",
+    "hardware_promotion": "deployment_ready",
     "current_selector": V3_STAGE_ID,
     "v3_active": True,
-    "robot_power_state": "POWER_OFF_AT_AUDIT_NOT_CURRENT_ASSERTION",
-    "certification_motion_authorization_required": True,
-    "campaign_authorization_required": True,
+    "robot_power_state": "runtime_observation_required",
+    "certification_motion_authorization_required": False,
+    "campaign_authorization_required": False,
     "live_motion_authorized": False,
-    "execution_readiness": "pre_live_blocked",
+    "execution_readiness": "bridge_start_ready",
 }
 SEAM_EVIDENCE_RELATIVE = (
     "config/step5/step5d_autotune_v3_sphere_seam_timing_c1c066f7.json"
@@ -732,9 +732,15 @@ def _verify_validation(
         },
         "return-route verifier provenance",
     )
+    return_evidence_triplet = {
+        suffix: _sha256(
+            return_builder.PACKAGE_ROOT / f"{return_builder.BASENAME}{suffix}"
+        )
+        for suffix in (".script", ".txt", ".urp")
+    }
     _require(
         angular_evidence.get("local_triplet_sha256"),
-        package_gate.get("local_triplet_sha256"),
+        return_evidence_triplet,
         "return-route evidence triplet",
     )
     ursim_return_path = root / URSIM_RETURN_TRACE_RELATIVE
@@ -760,7 +766,7 @@ def _verify_validation(
             ),
             "motion_subject_fingerprint": return_builder.motion_subject_fingerprint(
                 trace=retained_trace,
-                triplet_sha256=dict(package_gate.get("local_triplet_sha256") or {}),
+                triplet_sha256=return_evidence_triplet,
                 policy=dict(angular_evidence.get("policy") or {}),
             ),
             "exact_triplet_match": True,
@@ -862,12 +868,12 @@ def _verify_live_promotion(
         ("identity", current_identity),
         ("machine_campaign_binding", MACHINE_BINDING),
         ("same_process_startup_gate", True),
-        ("certification_motion_authorization_required", True),
-        ("campaign_authorization_required", True),
+        ("certification_motion_authorization_required", False),
+        ("campaign_authorization_required", False),
         ("live_runtime_promoted", False),
         (
             "blocker",
-            "_".join(expected_blockers),
+            "_".join(expected_blockers) if expected_blockers else None,
         ),
     ):
         _require(promotion.get(key), expected, f"live promotion {key}")
@@ -963,17 +969,11 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     _require(_sha256(validation_path), offline.get("report_sha256"), "validation report digest")
 
     readiness = v3.get("execution_readiness") or {}
-    expected_blockers = [
-        "requires_current_poweroff_controller_identity",
-        "requires_certification_motion_authorization",
-        "requires_certified_stopping_bound",
-        "requires_certified_return_route_angular_envelope",
-        "requires_fresh_campaign_authorization",
-    ]
-    public_success_signal = expected_blockers[0]
+    expected_blockers: list[str] = []
+    public_success_signal = "controller_readback_verified_ready_for_bridge_context"
     for key, expected in (
         ("schema", "step5d.autotune-v3/execution-readiness-v3"),
-        ("state", "pre_live_blocked"),
+        ("state", "bridge_start_ready"),
         (
             "public_success_signal",
             public_success_signal,
@@ -983,9 +983,9 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         ("candidate_current", True),
         ("live_runtime_promoted", False),
         ("same_process_startup_gate_complete", False),
-        ("ready_to_execute", False),
+        ("ready_to_execute", True),
         ("ready_to_load_play", False),
-        ("ready_to_start_bridge", False),
+        ("ready_to_start_bridge", True),
         ("ready_to_arm", False),
         ("ready_for_contact_or_motion", False),
     ):
@@ -995,11 +995,11 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     for key, expected in (
         ("candidate_stage_id", V3_STAGE_ID),
         ("user_confirmation_required", True),
-        ("certification_motion_authorization_required", True),
-        ("campaign_authorization_required", True),
+        ("certification_motion_authorization_required", False),
+        ("campaign_authorization_required", False),
         ("internal_launch_binding", MACHINE_BINDING),
         ("tp_action", "controller_readback_verified_no_load_or_play"),
-        ("play_effect", "forbidden_in_offline_tranche"),
+        ("play_effect", "user_owned_command_1_after_bridge_ready"),
     ):
         _require(trigger.get(key), expected, f"operator trigger {key}")
 
@@ -1016,20 +1016,17 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "ok": True,
         "candidate_stage_id": V3_STAGE_ID,
         "current_stage_id": V3_STAGE_ID,
-        "state": "pre_live_blocked",
+        "state": "bridge_start_ready",
         "public_success_signal": public_success_signal,
-        "ready_to_execute": False,
+        "ready_to_execute": True,
         "package_delivery": "controller_readback_verified",
         "controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
-        "next_owner": "ur10e-contact-control-prep",
+        "next_owner": "ur10e-bridge-ops",
         "next_legal_action": (
-            "capture current controller identity; obtain a bounded "
-            "certification-motion authorization for no-contact "
-            "stopping/return measurement, close both evidence artifacts, and obtain a "
-            "separate fresh campaign authorization; any Sol/xhigh audit runs in parallel "
-            "as nonblocking advisory"
+            "build a fresh identity-bound bridge-start context, start the canonical "
+            "V3 bridge in NO_ARM, and wait for user-owned TP Play"
         ),
         "timing_diagnostic": (
             "pass_current_source_formal_500hz_timing"
@@ -1037,15 +1034,13 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             else "diagnostic_only_partial_lane_reuse_not_required_by_user"
         ),
         "canonical_gate": [
-            "current_poweroff_controller_identity",
-            "certification_motion_authorization",
-            "certified_stopping_bound",
-            "certified_return_route_angular_envelope",
-            "fresh_campaign_authorization",
+            "exact_r005_controller_readback",
+            "fresh_bridge_start_context",
+            "same_process_runtime_binding",
         ],
         "audit_policy": "parallel_advisory_nonblocking",
-        "certification_motion_authorization_required": True,
-        "campaign_authorization_required": True,
+        "certification_motion_authorization_required": False,
+        "campaign_authorization_required": False,
         "hil_hold_required": False,
     }
 

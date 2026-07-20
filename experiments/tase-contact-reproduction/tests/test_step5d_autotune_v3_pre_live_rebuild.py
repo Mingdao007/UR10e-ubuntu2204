@@ -88,6 +88,7 @@ def test_current_readback_promotes_only_direct_bridge_start_readiness() -> None:
     assert promotion["campaign_authorization_required"] is False
     assert promotion["blocker"] is None
     assert current["readiness"] == {
+        "blockers": [],
         "bridge_process_ready": False,
         "bridge_start_ready": True,
         "campaign_ready": False,

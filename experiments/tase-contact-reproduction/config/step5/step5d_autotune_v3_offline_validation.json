@@ -81,14 +81,14 @@
     "package_and_readback": {
       "blocker": null,
       "controller_readback": "config/step5d_autotune_controller_readback_v3.json",
-      "controller_readback_sha256": "c711d3dc93201d54965979ff831219318dc3a6824889661aab2aeba81e37c2d0",
+      "controller_readback_sha256": "ae74111ca58216c9b4b72f0c5bdc576ac0c62ce38c49f139df09b1adf79d2ea3",
       "historical_controller_readback": null,
       "historical_controller_readback_sha256": null,
       "historical_readback_matches_local_triplet": true,
       "local_triplet_sha256": {
-        ".script": "b1fc34f8b7b58e701d00ddeca63cadf90176ca45ae3a27165e3f77a7e8ecd8f4",
-        ".txt": "1291e7ea6d213a5561d28bb5ddfa52bfbb7f1600b0e8d492563f4de5541fb3ec",
-        ".urp": "a28258fa5f2b60acb88d3f167321f0442486f366745f2eebc666bb55242dbf9b"
+        ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
+        ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
+        ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
       },
       "status": "pass_current_triplet_controller_readback"
     },
@@ -158,7 +158,7 @@
       "certified": false,
       "evidence": {
         "path": "config/step5/step5d_autotune_v3_return_route_evidence.json",
-        "sha256": "e3810ed657cc6f8af7f33ebdd57967ebf636d268f1e6f7fbe15906556ba3c418"
+        "sha256": "112d941cb32226b866d8af34819dd98a0fc38225b3aa9947d5b747ba2f98355b"
       },
       "fail_closed": true,
       "offline_enforcement_complete": true,
@@ -209,32 +209,32 @@
   },
   "identity": {
     "controller_readback_triplet_sha256": {
-      ".script": "b1fc34f8b7b58e701d00ddeca63cadf90176ca45ae3a27165e3f77a7e8ecd8f4",
-      ".txt": "1291e7ea6d213a5561d28bb5ddfa52bfbb7f1600b0e8d492563f4de5541fb3ec",
-      ".urp": "a28258fa5f2b60acb88d3f167321f0442486f366745f2eebc666bb55242dbf9b"
+      ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
+      ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
+      ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
     },
-    "deployment_fingerprint": "a243c6aa94bd0e9219dd22ba3899c82ec4edbe0f9b26c5fcd63cb09d41199d1a",
+    "deployment_fingerprint": "a7aa7f38da19b322e55b229cbc70c460b2d5d9bf728bd6982997429f4223fbc3",
     "legacy_provenance": {
-      "contract_sha256": "4f5e1ab9ccb3aec3a38265e73d44778efc34fff73c35d0f0919b2d4dadc39119",
-      "control_fingerprint": "fd86ea986d913a795239fba99e0aab2805e395b42d02483c9ce210742ec9b15d",
-      "orchestration_fingerprint": "d1ca163b9ef0e8177e63e1ec86b126489b23ca87de2d0f62264946b767b7a1f0"
+      "contract_sha256": "28f405fca98866543cc9617ead5c4f885e6adb5d415734f5a196f60cbcfc83eb",
+      "control_fingerprint": "cd99fef7856ad9cc27441c5581dab362b1af22a699274e07dd999c7731b1c568",
+      "orchestration_fingerprint": "fc0a4494e0a89293e914357ff4ebf1776ef9f305d4f70b887fe4d8a1fce09d1f"
     },
     "local_triplet_sha256": {
-      ".script": "b1fc34f8b7b58e701d00ddeca63cadf90176ca45ae3a27165e3f77a7e8ecd8f4",
-      ".txt": "1291e7ea6d213a5561d28bb5ddfa52bfbb7f1600b0e8d492563f4de5541fb3ec",
-      ".urp": "a28258fa5f2b60acb88d3f167321f0442486f366745f2eebc666bb55242dbf9b"
+      ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
+      ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
+      ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
     },
-    "orchestration_fingerprint": "56b62938c3fe3a1dea787b0496e9f699d01463a686e9bd4aa5d600a60fcd55d7",
+    "orchestration_fingerprint": "87c370ff53bb697c2ba0749709959d08a90146f26ba9e7b30318c5a8995f1041",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
     "schema": "step5d.autotune-v3/layered-identity-snapshot-v1",
-    "tick_semantics_fingerprint": "305c9567685e297e7d9f830f82263c2c10aceb59425118c53cab77d286a41ee2",
+    "tick_semantics_fingerprint": "35b3d58cf95065a25c1c4203fe228c39a101e3c173dbaeb4cda08f298a8fdf80",
     "timing_harness_fingerprint": "016e7af37c89391d4b7652da5ae91ae95ec50c547aaa86cb8d1cfc1185196ae2",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "c1df7c0a5712a626ef5e759cccdc251907f209362ecd5619b3049ddd3168eb89"
+      "evidence_verifier_fingerprint": "6fbc2fc5a4457af26768a4ee64792fc8bf4e3f6390b9d97c971a9ceb8d038d80"
     }
   },
-  "observed_at": "2026-07-20T19:21:27+08:00",
+  "observed_at": "2026-07-20T20:52:00+08:00",
   "schema": "step5d.autotune-v3/offline-acceptance-v5"
 }

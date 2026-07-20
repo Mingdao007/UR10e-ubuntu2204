@@ -25,7 +25,7 @@ from step5d_autotune_v3.identity_layers import (  # noqa: E402
 def _bridge_context(path: Path) -> BridgeStartContext:
     environment = {
         "schema": "step5d.autotune-v3/runtime-environment-identity-v1",
-        "environment": {"capture_mode": "r004_fake_transport_rehearsal"},
+        "environment": {"capture_mode": "r005_fake_transport_rehearsal"},
     }
     identity = {
         "tick_semantics_fingerprint": "0" * 64,
@@ -55,7 +55,7 @@ def _bridge_context(path: Path) -> BridgeStartContext:
     return context
 
 
-def test_r004_ticket_binds_bridge_and_exact_campaign_without_auth_files(
+def test_r005_ticket_binds_bridge_and_exact_campaign_without_auth_files(
     tmp_path: Path,
 ) -> None:
     context_path = (tmp_path / "bridge-start-context.json").resolve()
@@ -75,13 +75,13 @@ def test_r004_ticket_binds_bridge_and_exact_campaign_without_auth_files(
         "trial_overlay_fingerprint": "b" * 64,
         "release_stage_id": "step5d_strict_rnn_autotune_v3",
         "control_profile_id": "step5d_strict_rnn_autotune_v1",
-        "tp_program_id": "step5d_strict_rnn_autotune_v3_r004",
+        "tp_program_id": "step5d_strict_rnn_autotune_v3_r005",
         "bridge_start_context": {
             "path": str(context_path),
             "sha256": hashlib.sha256(context_path.read_bytes()).hexdigest(),
         },
         "campaign_binding": {
-            "campaign_id": "r004-round-a",
+            "campaign_id": "r005-round-a",
             "campaign_epoch": 1,
             "candidate_plan_revision": 1,
             "candidate_plan_sha256": "c" * 64,
@@ -93,7 +93,7 @@ def test_r004_ticket_binds_bridge_and_exact_campaign_without_auth_files(
 
     observed = bridge._strict_ticket(ticket_path, argv)
     assert observed["scope"] == "bridge_no_arm"
-    assert observed["tp_program_id"].endswith("_r004")
+    assert observed["tp_program_id"].endswith("_r005")
     assert "campaign_arming_context_path" not in observed
     assert "certification_authorization_path" not in observed
 
@@ -114,7 +114,7 @@ def test_r004_ticket_binds_bridge_and_exact_campaign_without_auth_files(
     )
     assert gate["selected_release"] == "step5d_strict_rnn_autotune_v3"
     assert gate["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
-    assert gate["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r004"
+    assert gate["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r005"
     assert gate["live_motion_authorized"] is False
 
 
@@ -142,7 +142,7 @@ def test_live_runner_uses_the_current_bridge_readiness_owner(
     assert observed == [(live_runner.ROOT, context_path)]
 
 
-def test_r004_exact_plans_materialize_machine_binding_before_runner(
+def test_r005_exact_plans_materialize_machine_binding_before_runner(
     tmp_path: Path,
 ) -> None:
     campaign_root = (tmp_path / "campaign").resolve()
@@ -185,7 +185,7 @@ def test_r004_exact_plans_materialize_machine_binding_before_runner(
     ).hexdigest()
 
 
-def test_canonical_shell_fake_transport_reaches_r004_no_arm(tmp_path: Path) -> None:
+def test_canonical_shell_fake_transport_reaches_r005_no_arm(tmp_path: Path) -> None:
     context_path = (tmp_path / "bridge-start-context.json").resolve()
     context = _bridge_context(context_path)
     shim_dir = tmp_path / "bin"

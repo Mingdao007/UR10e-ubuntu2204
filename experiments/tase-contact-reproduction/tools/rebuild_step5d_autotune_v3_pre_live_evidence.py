@@ -400,7 +400,7 @@ def build_outputs(
         "fresh bridge context, user Play, Stage25, and exact 10/10 closure. "
         "V1 is retained control-profile provenance only."
         if readback_current
-        else "V3 is the unique selected/current release and requires exact r004 "
+        else "V3 is the unique selected/current release and requires exact r005 "
         "controller upload/readback; V1 is retained control-profile provenance only."
     )
     row["offline_validation"].update(

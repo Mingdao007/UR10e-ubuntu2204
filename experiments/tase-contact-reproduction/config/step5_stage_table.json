@@ -10385,7 +10385,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 remains the unique selected/current release and r004 readback remains verified, but r004 is known_incompatible_do_not_retry because its WAIT_ACK return telemetry violates the collector contract. Bridge start is blocked until an exact r005 controller readback is promoted.",
+      "block_reason": "V3 is the unique selected/current release; exact controller readback is verified and the direct command-1 lane awaits formal-runtime deploy, fresh bridge context, user Play, Stage25, and exact 10/10 closure. V1 is retained control-profile provenance only.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10423,8 +10423,8 @@
         "service_restart": "no",
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
-        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r004.urp",
-        "live_readiness_state": "r004_known_incompatible_waiting_for_r005_readback"
+        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r005.urp",
+        "live_readiness_state": "controller_readback_verified_ready_for_bridge_context"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10437,21 +10437,21 @@
       },
       "package_delivery": {
         "status": "controller_readback_verified",
-        "program_basename": "step5d_strict_rnn_autotune_v3_r004",
-        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r004",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r004.urp",
+        "program_basename": "step5d_strict_rnn_autotune_v3_r005",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r005.urp",
         "controller_uploaded_by_v3": true,
         "controller_readback_verified": true,
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "controller_readback_manifest_sha256": "c711d3dc93201d54965979ff831219318dc3a6824889661aab2aeba81e37c2d0",
-        "fresh_controller_sha_at": "2026-07-20T19:21:27+08:00",
-        "tp_fingerprint": "3500a15bf3242da4b6bce2c0ad123a33ac8ee690946715408af2376b4a88c84d",
+        "controller_readback_manifest_sha256": "ae74111ca58216c9b4b72f0c5bdc576ac0c62ce38c49f139df09b1adf79d2ea3",
+        "fresh_controller_sha_at": "2026-07-20T20:52:00+08:00",
+        "tp_fingerprint": "61ed7c95c96cfab6d0522f596787dfb461bdd8a21f0ea53e561c4893b2e63d45",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": false,
         "sha256": {
-          ".script": "b1fc34f8b7b58e701d00ddeca63cadf90176ca45ae3a27165e3f77a7e8ecd8f4",
-          ".txt": "1291e7ea6d213a5561d28bb5ddfa52bfbb7f1600b0e8d492563f4de5541fb3ec",
-          ".urp": "a28258fa5f2b60acb88d3f167321f0442486f366745f2eebc666bb55242dbf9b"
+          ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
+          ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
+          ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
         }
       },
       "acceptance": {
@@ -10472,7 +10472,7 @@
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "042d34458f47c6222264daed5916e65bff01884886b605a0220d060794197221",
+        "report_sha256": "abd980fa0047bde50d6e44c37698124d5333f2a1ba8bdc66e4091ae180716fb9",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
         "source_exact_sphere_seam_timing": "diagnostic_only_not_required_by_user",
         "status": "pass_offline_implementation_pre_live_blocked"
@@ -10481,27 +10481,25 @@
         "is_current": true,
         "stage_id": "step5d_strict_rnn_autotune_v3",
         "program": "step5d_strict_rnn_autotune_v3",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r004.urp",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r005.urp",
         "current_stage_pointer": "config/current_stage.json",
         "live_authorized": false
       },
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v3",
-        "state": "pre_live_blocked",
-        "public_success_signal": "r004_known_incompatible_do_not_retry",
+        "state": "bridge_start_ready",
+        "public_success_signal": "controller_readback_verified_ready_for_bridge_context",
         "deterministic_validation_complete": true,
         "package_delivery_complete": true,
         "candidate_current": true,
         "live_runtime_promoted": false,
         "same_process_startup_gate_complete": false,
-        "ready_to_execute": false,
+        "ready_to_execute": true,
         "ready_to_load_play": false,
-        "ready_to_start_bridge": false,
+        "ready_to_start_bridge": true,
         "ready_to_arm": false,
         "ready_for_contact_or_motion": false,
-        "blockers": [
-          "r004_return_telemetry_contract_mismatch"
-        ],
+        "blockers": [],
         "next_owner": "ur10e-bridge-ops",
         "operator_trigger": {
           "candidate_stage_id": "step5d_strict_rnn_autotune_v3",

@@ -1,11 +1,11 @@
 {
-  "control_contract_sha256": "4f5e1ab9ccb3aec3a38265e73d44778efc34fff73c35d0f0919b2d4dadc39119",
+  "control_contract_sha256": "28f405fca98866543cc9617ead5c4f885e6adb5d415734f5a196f60cbcfc83eb",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "launch_overrides": {},
   "moving_sphere_reference_sha256": "dd5f065a5cecc04098865dda08891e11bfa8c6c11f40bbd964d1b1dcb2b60b86",
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "schema": "step5d.autotune-v3/launch-profile-v1",
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r004",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r005",
   "trial_overlay_policy": {
     "control_candidate_uid": {
       "derived": "sha256"

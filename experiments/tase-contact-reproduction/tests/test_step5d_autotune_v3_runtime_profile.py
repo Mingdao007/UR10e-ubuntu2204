@@ -41,7 +41,7 @@ def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() 
     assert tuple(overlay) == OVERLAY_FIELDS
     assert len(overlay) == 13
     assert profile.document["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
-    assert profile.document["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r004"
+    assert profile.document["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r005"
 
 
 def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:

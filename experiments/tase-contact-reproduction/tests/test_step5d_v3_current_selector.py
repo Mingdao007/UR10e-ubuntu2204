@@ -43,15 +43,13 @@ def test_v3_is_the_only_current_selector_surface() -> None:
     assert rows[V1]["current_binding"]["live_authorized"] is False
 
 
-def test_selected_v3_keeps_deployment_but_quarantines_r004_bridge_start() -> None:
+def test_selected_v3_promotes_r005_bridge_start_after_exact_readback() -> None:
     current = _load("config/current_stage.json")
 
     assert current["controller_readback_verified_for_selected_triplet"] is True
     assert current["readiness"]["deployment_ready"] is True
-    assert current["readiness"]["bridge_start_ready"] is False
-    assert current["readiness"]["blockers"] == [
-        "r004_return_telemetry_contract_mismatch"
-    ]
+    assert current["readiness"]["bridge_start_ready"] is True
+    assert current["readiness"]["blockers"] == []
     assert current["bridge_trigger"]["live_motion_authorized"] is False
     for field in (
         "bridge_process_ready",
