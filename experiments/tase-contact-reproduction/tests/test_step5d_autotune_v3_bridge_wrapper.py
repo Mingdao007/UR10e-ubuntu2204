@@ -71,7 +71,7 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                 "trial_overlay_fingerprint": "c" * 64,
                 "release_stage_id": "step5d_strict_rnn_autotune_v3",
                 "control_profile_id": "step5d_strict_rnn_autotune_v1",
-                "tp_program_id": "step5d_strict_rnn_autotune_v3_r002",
+                "tp_program_id": "step5d_strict_rnn_autotune_v3_r003",
                 "bridge_start_context": {
                     "path": str(bridge_context_path),
                     "sha256": hashlib.sha256(

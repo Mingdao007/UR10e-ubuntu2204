@@ -167,8 +167,8 @@ def evaluate_step5d_v3_timing_raw(root: Path, raw_path: Path) -> dict[str, Any]:
         "transport_publish_action": "hold_last",
         "publish_guard_approved_late_command": False,
         "tp_watchdog_script_sha256": tp_script_sha256,
-        "tp_watchdog_threshold_s": 0.020,
-        "continuous_stale_stop_s": 0.020,
+        "tp_watchdog_threshold_s": 1.000,
+        "continuous_stale_stop_s": 1.000,
     }
     for field, expected in expected_transport.items():
         if transport.get(field) != expected:

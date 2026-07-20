@@ -1012,8 +1012,8 @@ def main() -> int:
         tp_watchdog_threshold_s = float(
             watchdog_markers[0].removeprefix("if stale_s2 > ").removesuffix(":")
         )
-        if tp_watchdog_threshold_s != 0.020:
-            raise RuntimeError("V3 formal timing requires the exact 20 ms TP watchdog")
+        if tp_watchdog_threshold_s != 1.000:
+            raise RuntimeError("V3 formal timing requires the frozen V1 1 s TP watchdog")
         if production_late_command_policy:
             raise RuntimeError("V3 formal timing refuses guard-approved late candidates")
     controller_stale_hold_fault_evidence = (

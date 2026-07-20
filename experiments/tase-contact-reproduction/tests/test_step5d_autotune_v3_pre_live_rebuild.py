@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -43,3 +44,21 @@ def test_stage_table_rebuild_preserves_unrelated_bytes(tmp_path: Path) -> None:
 
 def test_rebuild_is_byte_exact_for_repository_pre_live_state() -> None:
     assert rebuild.main(["--check"]) == 0
+
+
+def test_rebuild_binds_the_versioned_active_tp_manifest() -> None:
+    contract = json.loads(
+        (ROOT / rebuild.CONTROL_CONTRACT_RELATIVE).read_text(encoding="utf-8")
+    )
+    program = contract["deployment_tp_identity"]["program"]
+    manifest = (
+        ROOT
+        / "programs/step5/step5d"
+        / f"{program}.deploy-manifest.json"
+    )
+    table = json.loads((ROOT / rebuild.STAGE_TABLE_RELATIVE).read_text(encoding="utf-8"))
+    row = next(row for row in table["stages"] if row["id"] == rebuild.V3_STAGE_ID)
+
+    assert row["package_delivery"]["tp_fingerprint"] == hashlib.sha256(
+        manifest.read_bytes()
+    ).hexdigest()

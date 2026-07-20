@@ -8,7 +8,7 @@ artifacts, and V1 launchers are not runtime truth.
 
 ## Terminal condition
 
-The task remains active until the attended V3 r002 campaign has:
+The task remains active until the attended V3 r003 campaign has:
 
 1. loaded and read back the exact versioned TP triplet;
 2. started the canonical bridge and emitted `V3_BRIDGE_READY_NO_ARM`;
@@ -23,7 +23,7 @@ leaves the task incomplete.
 ## Locked decisions
 
 - Release/stage: `step5d_strict_rnn_autotune_v3`.
-- TP revision: `step5d_strict_rnn_autotune_v3_r002`. Every later update must
+- TP revision: `step5d_strict_rnn_autotune_v3_r003`. Every later update must
   use a new basename `r003`, `r004`, and so on. A revision is immutable.
 - Frozen Stage25 control provenance:
   `step5d_strict_rnn_autotune_v1` at tag
@@ -39,9 +39,9 @@ leaves the task incomplete.
   is three standard `movel` segments: rise to safe Z, transfer at safe Z, then
   vertical descent. No custom `speedl` return controller or timing observer is
   active.
-- Active V3 campaign safety is the frozen V1 guard set plus the existing
-  20 ms Stage25 heartbeat stale-command shell. Moving-sphere enforcement and
-  no-contact certification are retired from the active campaign.
+- Active V3 campaign safety is the frozen V1 guard set, including its 1.000 s
+  Stage25 heartbeat watchdog and 2 ms last-command hold. Moving-sphere
+  enforcement and no-contact certification are retired from the active campaign.
 - User TP Play is the sole motion authorization. There is no certification or
   campaign authorization file. Codex may start the bridge but must never press
   TP Play or TP Stop.
@@ -62,14 +62,14 @@ leaves the task incomplete.
 The blocker set is closed and may only move open -> complete:
 
 1. direct-autotune contract and active surface;
-2. r002 TP generation and V1 control parity;
+2. r003 TP generation and V1 control parity;
 3. active bridge/campaign wiring without certification, moving sphere, or
    authorization-file gates;
 4. canonical selector/readiness/status and truthful failure evidence;
 5. targeted, impacted, installed-runtime, and no-network production rehearsal;
-6. r002 controller upload/readback and predecessor archives;
+6. r003 controller upload/readback and predecessor archives;
 7. published OID and formal-runtime fast-forward deployment;
-8. actual r002 bridge ready;
+8. actual r003 bridge ready;
 9. user Play observed and real Stage25 reached;
 10. exact 10/10 ACK plus final-home closure.
 

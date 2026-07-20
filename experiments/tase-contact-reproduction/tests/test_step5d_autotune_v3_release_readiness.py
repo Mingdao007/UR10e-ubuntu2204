@@ -25,7 +25,7 @@ from step5d_autotune_v3 import readiness  # noqa: E402
 
 V1 = "step5d_strict_rnn_autotune_v1"
 V3 = "step5d_strict_rnn_autotune_v3"
-R002 = "step5d_strict_rnn_autotune_v3_r002"
+R002 = "step5d_strict_rnn_autotune_v3_r003"
 
 
 def _write(path: Path, payload: object) -> Path:

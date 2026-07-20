@@ -52,8 +52,8 @@ def _raw() -> dict[str, object]:
             "transport_publish_action": "hold_last",
             "publish_guard_approved_late_command": False,
             "tp_watchdog_script_sha256": tp_script_sha256,
-            "tp_watchdog_threshold_s": 0.020,
-            "continuous_stale_stop_s": 0.020,
+            "tp_watchdog_threshold_s": 1.000,
+            "continuous_stale_stop_s": 1.000,
         },
         "runtime_path": (
             "Step5dObservation->step5d_v30_contract_pipeline->"

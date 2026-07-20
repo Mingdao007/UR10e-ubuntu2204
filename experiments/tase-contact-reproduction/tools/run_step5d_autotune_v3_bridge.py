@@ -392,7 +392,7 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
     expected = {
         "release_stage_id": "step5d_strict_rnn_autotune_v3",
         "control_profile_id": "step5d_strict_rnn_autotune_v1",
-        "tp_program_id": "step5d_strict_rnn_autotune_v3_r002",
+        "tp_program_id": "step5d_strict_rnn_autotune_v3_r003",
     }
     for key, value in expected.items():
         if payload[key] != value:
@@ -600,7 +600,7 @@ def install_v3_seams(ticket: Mapping[str, Any] | None = None) -> Any:
 
     def v3_tp_identity_match(value: Any, control_profile: str) -> bool:
         expected = (
-            "step5d_strict_rnn_autotune_v3_r002"
+            "step5d_strict_rnn_autotune_v3_r003"
             if control_profile == "step5d_strict_rnn_autotune_v1"
             else control_profile
         )

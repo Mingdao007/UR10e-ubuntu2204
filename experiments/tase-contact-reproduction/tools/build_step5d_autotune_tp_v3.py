@@ -25,7 +25,7 @@ if str(RUNTIME_SRC) not in sys.path:
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r002"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r003"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
@@ -33,7 +33,11 @@ PRECONTACT_XYZ_M = STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m
 PRECONTACT_ROTVEC_RAD = STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
 PRECONTACT_CLEARANCE_M = 0.005
 MINIMUM_START_ABOVE_ENTRY_M = 0.01
-STAGE25_STALE_COMMAND_HOLD_S = 0.020
+# Preserve the frozen V1 Stage25 transport watchdog.  The V3 host already
+# freezes the last accepted command and heartbeat on a late publication; a
+# shorter TP timeout would turn ordinary host scheduling jitter into a false
+# transport-loss stop and would no longer be V1 control-kernel parity.
+STAGE25_STALE_COMMAND_HOLD_S = 1.000
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 
@@ -509,7 +513,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
         "program": PROGRAM_NAME,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "delta_class": "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_v3",
+        "delta_class": "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_heartbeat_parity_v4",
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
         "physical_prior_sha256": PRECONTACT_POSE_PRIOR_SHA256,
         "reaction_normal_b": list(STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b),

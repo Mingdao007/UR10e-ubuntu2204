@@ -365,10 +365,13 @@ def build_outputs(
     row = rows[0]
     package = row["package_delivery"]
     package["sha256"] = local_triplet_sha256
+    deployment_program = str(
+        _read(root / CONTROL_CONTRACT_RELATIVE)["deployment_tp_identity"]["program"]
+    )
     package["tp_fingerprint"] = _sha256(
         root
-        / "programs/step5/step5d/"
-        "step5d_strict_rnn_autotune_v3.deploy-manifest.json"
+        / "programs/step5/step5d"
+        / f"{deployment_program}.deploy-manifest.json"
     )
     package["status"] = (
         "controller_readback_verified"

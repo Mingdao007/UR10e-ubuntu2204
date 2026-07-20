@@ -76,7 +76,7 @@
           "tests/test_step5d_autotune_tp_v3.py",
           "tests/test_step5d_autotune_batch_plan.py",
           "tests/test_step5d_v3_current_selector.py",
-          "tests/test_step5d_v3_r002_release_candidate.py",
+          "tests/test_step5d_v3_r003_release_candidate.py",
           "tests/test_step5d_autotune_v3_test_matrix_runner.py"
         ]
       ],

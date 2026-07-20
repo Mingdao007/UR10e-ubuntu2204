@@ -22,7 +22,7 @@ LAUNCH_SCHEMA = "step5d.autotune-v3/launch-profile-v1"
 OVERLAY_SCHEMA = "step5d.autotune-v3/trial-overlay-v2"
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r002"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r003"
 DEFAULT_LAUNCH_PROFILE = (
     Path(__file__).resolve().parents[2]
     / "config/step5/step5d_autotune_v3_launch_profile.json"

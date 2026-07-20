@@ -23,7 +23,7 @@ from ur10e_experiment_runtime.identity import canonical_sha256
 
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r002"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r003"
 
 EXPERIMENT_REPO_PREFIX = "experiments/tase-contact-reproduction"
 
@@ -171,7 +171,7 @@ BOUNDED_HOLD_TIMING_CONTRACT: Mapping[str, Any] = {
     },
     "late_candidate_policy": "discard_and_hold_last_guard_approved_command",
     "exact_stop_priority": "always_dominates_hold",
-    "tp_stale_watchdog_s": 0.020,
+    "tp_stale_watchdog_s": 1.000,
 }
 
 DEFAULT_TICK_SEMANTICS: Mapping[str, Any] = {
