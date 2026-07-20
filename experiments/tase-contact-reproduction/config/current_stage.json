@@ -138,7 +138,7 @@
     "zero_ftsensor_authorized": false
   },
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-  "controller_readback_manifest_sha256": "0144b003473ec7a0c4e926ed461a3e13edd5190b968cf8746479b6be11702ce5",
+  "controller_readback_manifest_sha256": "b99d1536fd772114c6704d57340dd3aa84c33f5f48b6d1dc0c54580a5cc1f978",
   "controller_readback_verified_for_selected_triplet": true,
   "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.script",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
@@ -1405,9 +1405,9 @@
   ],
   "selection_state": "current",
   "sha256": {
-    ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
-    ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
-    ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
+    ".script": "897890f4ca23af95753fb9e601cae21eb81d7f74735a1861db4cbc7ec1223ca9",
+    ".txt": "be42df598902ba793b2444f5dd6a342a122821a4dc212b7e10565f8a86a9fd7d",
+    ".urp": "ce80784168bf31e9452a6262f6fb05301bae60b645ae925b513f99975c275d89"
   },
   "stage_table_path": "config/step5_stage_table.json",
   "status": "step5d_autotune_v3_selected_pre_live_blocked",
