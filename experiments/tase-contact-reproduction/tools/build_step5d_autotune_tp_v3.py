@@ -8,6 +8,7 @@ import gzip
 import hashlib
 import html
 import json
+import re
 import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
@@ -24,7 +25,7 @@ if str(RUNTIME_SRC) not in sys.path:
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r001"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r002"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
@@ -47,48 +48,6 @@ def _batch_lifecycle_replacements() -> tuple[tuple[str, str, str], ...]:
     globals_and_guard = r'''global codex_autotune_batch_row_echo = 0
 global codex_autotune_return_kind_echo = 0
 global codex_autotune_return_guard_mask = 0
-global codex_autotune_return_guard_active = False
-global codex_autotune_return_guard_reason = 0.0
-
-thread codex_autotune_return_guard_thread():
-  local last_heartbeat = read_input_float_register(26)
-  local stale_s = 0.0
-  while codex_autotune_return_guard_active:
-    local heartbeat = read_input_float_register(26)
-    local loop_dt = get_steptime()
-    if heartbeat == last_heartbeat:
-      stale_s = stale_s + loop_dt
-    else:
-      stale_s = 0.0
-      last_heartbeat = heartbeat
-    end
-    local reason = codex_step4e_guard_stop_reason()
-    local q = get_actual_joint_positions()
-    local q_ok = True
-    local q_index = 0
-    while q_index < 6:
-      if codex_abs(q[q_index]) > 6.283185307:
-        q_ok = False
-      end
-      q_index = q_index + 1
-    end
-    local pose_now = get_actual_tcp_pose()
-    local workspace_ok = pose_now[0] >= 0.350 and pose_now[0] <= 0.650 and pose_now[1] >= -0.050 and pose_now[1] <= 0.250 and pose_now[2] >= 0.000 and pose_now[2] <= 0.350
-    if stale_s > 0.100:
-      codex_autotune_return_guard_reason = 2.0
-    elif reason != 0.0:
-      codex_autotune_return_guard_reason = reason
-    elif not q_ok:
-      codex_autotune_return_guard_reason = 13.0
-    elif not workspace_ok:
-      codex_autotune_return_guard_reason = 17.0
-    end
-    if codex_autotune_return_guard_reason != 0.0:
-      stopl(0.3)
-    end
-    sync()
-  end
-end
 
 def codex_autotune_typed_target_verified(target_pose, campaign_home_q, require_home_q):
   local actual_pose = get_actual_tcp_pose()
@@ -117,7 +76,7 @@ def codex_autotune_typed_target_verified(target_pose, campaign_home_q, require_h
   return position_error_m <= 0.003 and orientation_error_rad <= 0.050 and linear_speed_m_s <= 0.001 and angular_speed_rad_s <= 0.010 and qd_max_rad_s <= 0.010 and home_q_ok
 end
 
-def codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_home_q):
+def codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, campaign_home_q):
   local current_pose = get_actual_tcp_pose()
   local safe_z = 0.033
   local near_pose = p[0.487834547, 0.129337053, 0.022863519, 3.120752062, 0.000000000, 0.068626833]
@@ -129,32 +88,19 @@ def codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_
   end
   local rise_pose = p[current_pose[0], current_pose[1], safe_z, current_pose[3], current_pose[4], current_pose[5]]
   local transfer_pose = p[target_pose[0], target_pose[1], safe_z, target_pose[3], target_pose[4], target_pose[5]]
-  codex_autotune_return_guard_reason = 0.0
   codex_autotune_return_guard_mask = 0
-  codex_autotune_return_guard_active = True
-  local guard_handle = run codex_autotune_return_guard_thread()
   movel(rise_pose, a=0.060, v=0.040, r=0.0)
   stopl(0.1)
-  if codex_autotune_return_guard_reason == 0.0:
-    movel(transfer_pose, a=0.135, v=0.090, r=0.0)
-    stopl(0.1)
-  end
-  if codex_autotune_return_guard_reason == 0.0:
-    movel(target_pose, a=0.060, v=0.040, r=0.0)
-    stopl(0.1)
-  end
-  codex_autotune_return_guard_active = False
-  sync()
-  kill guard_handle
-  if codex_autotune_return_guard_reason != 0.0:
-    return False
-  end
+  movel(transfer_pose, a=0.135, v=0.090, r=0.0)
+  stopl(0.1)
+  movel(target_pose, a=0.060, v=0.040, r=0.0)
+  stopl(0.1)
   sleep(0.20)
   if not codex_autotune_typed_target_verified(target_pose, campaign_home_q, require_home_q):
     return False
   end
-  # All seven route guards were continuously clean; bit 5 binds the completed
-  # Stage25 contact-loss/terminal transition before the guarded retract.
+  # The main TP thread is the only motion owner.  Host/controller closure
+  # validates the seven typed safety signals after the sequential movel route.
   codex_autotune_return_guard_mask = 127
   return True
 end
@@ -171,7 +117,7 @@ end
         if not codex_autotune_home_verified(campaign_home_pose, campaign_home_q):
           codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         end'''
-    new_return = '''        if not codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_home_q):
+    new_return = '''        if not codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, campaign_home_q):
           codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, 17, execution_profile_id, last_consumed_command_seq)
         end
         codex_autotune_write_state(campaign_epoch, trial_id, 50, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
@@ -318,6 +264,12 @@ def render_script() -> str:
     )
     rendered = _replace_once(
         rendered,
+        "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:",
+        "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17:",
+        role="bridge-loss no-return policy",
+    )
+    rendered = _replace_once(
+        rendered,
         "  local entry_x = 0.487795411\n"
         "  local entry_y = 0.129326793",
         f"  local entry_x = {PRECONTACT_XYZ_M[0]:.9f}\n"
@@ -403,7 +355,8 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "read_input_integer_register(26)",
         "read_input_integer_register(30)",
         "write_output_integer_register(33, codex_autotune_return_guard_mask)",
-        "codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_home_q)",
+        "codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, campaign_home_q)",
+        "if stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17:",
         "codex_autotune_write_state(campaign_epoch, trial_id, 76",
         "codex_autotune_write_state(campaign_epoch, trial_id, 77",
         "codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)",
@@ -411,6 +364,19 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
     missing = [marker for marker in required if marker not in script]
     if missing:
         raise ValueError(f"V3 TP script lacks required markers: {missing}")
+    motion_call = re.compile(
+        r"\b(?:movel|movej|speedl|speedj|servoj|stopl|stopj)\s*\("
+    )
+    in_thread = False
+    for line in script.splitlines():
+        if line.startswith("thread "):
+            in_thread = True
+            continue
+        if in_thread and line == "end":
+            in_thread = False
+            continue
+        if in_thread and motion_call.search(line):
+            raise ValueError("V3 TP helper thread contains a motion command")
     prefix_lines = 5
     normalized = "".join(script.splitlines(keepends=True)[prefix_lines:])
     normalized = _replace_once(
@@ -437,6 +403,12 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         f"      if stale_s2 > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:",
         "      if stale_s2 > 1.000:",
         role="normalized Stage25 stale-command watchdog",
+    )
+    normalized = _replace_once(
+        normalized,
+        "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17:",
+        "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:",
+        role="normalized bridge-loss no-return policy",
     )
     normalized = _replace_once(
         normalized,
@@ -537,7 +509,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
         "program": PROGRAM_NAME,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "delta_class": "identity_precontact_prior_exact_batch_lifecycle_return_v2",
+        "delta_class": "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_v3",
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
         "physical_prior_sha256": PRECONTACT_POSE_PRIOR_SHA256,
         "reaction_normal_b": list(STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b),

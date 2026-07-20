@@ -27,6 +27,7 @@ from step5d_autotune_contract import (  # noqa: E402
 from step5d_autotune_live_driver import (  # noqa: E402
     CampaignHomeReference,
     ImmutableBundleStoreReceipt,
+    MailboxError,
 )
 import step5d_autotune_runtime_lifecycle as runtime_lifecycle  # noqa: E402
 from step5d_autotune_runtime_lifecycle import (  # noqa: E402
@@ -51,6 +52,35 @@ from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
     control_candidate_uid,
 )
 from step5d_autotune_state_machine import HostCommand, HostPacket  # noqa: E402
+
+
+def test_campaign_home_equivalence_accepts_rtde_jitter_and_rejects_changed_home(
+    tmp_path: Path,
+) -> None:
+    reference = CampaignHomeReference(
+        path=(tmp_path / "campaign-home-reference.json").resolve(),
+        sha256="a" * 64,
+        backend_id="backend",
+        campaign_epoch=1,
+        campaign_fingerprint="a" * 64,
+        source_fingerprint="b" * 64,
+        config_fingerprint="c" * 64,
+        home_pose=(0.45, 0.10, 0.055, 3.128, 0.0, 0.042),
+        home_q=(0.62, -1.65, -2.55, -0.49, 1.55, -0.95),
+        ready_consumed_command_seq=0,
+        controller_timestamp_s=1.0,
+        connection_epoch=1,
+    )
+
+    reference.verify_ready_home_equivalent(
+        pose=(0.450020, 0.10, 0.055, 3.128, 0.000080, 0.042),
+        joints=(0.6201, -1.65, -2.55, -0.49, 1.55, -0.95),
+    )
+    with pytest.raises(MailboxError, match="no longer matches durable campaign home"):
+        reference.verify_ready_home_equivalent(
+            pose=(0.454, 0.10, 0.055, 3.128, 0.0, 0.042),
+            joints=reference.home_q,
+        )
 
 
 def _fixture(tmp_path: Path, row: int = 1):

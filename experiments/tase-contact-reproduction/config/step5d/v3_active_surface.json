@@ -6,7 +6,7 @@
     "tag": "archive/step5d-autotune-v1-20260715",
     "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
   },
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r001",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r002",
   "tp_commands": {
     "campaign": 1,
     "ack": 2,
@@ -30,9 +30,9 @@
     "config/step5d/current.json"
   ],
   "deployment_paths": [
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r001.script",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r001.txt",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r001.urp",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r002.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r002.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r002.urp",
     "config/step5d_autotune_controller_readback_v3.json"
   ],
   "active_tick_semantics": {
@@ -41,7 +41,7 @@
       "physical_prior_load_gated_initialization",
       "two_movel_precontact",
       "ten_row_batch_lifecycle",
-      "typed_three_movel_return"
+      "typed_single_owner_three_movel_return"
     ],
     "safety": [
       "frozen_v1_guards",

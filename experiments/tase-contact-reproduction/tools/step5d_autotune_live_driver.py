@@ -1328,6 +1328,33 @@ class CampaignHomeReference:
         ):
             raise MailboxError("campaign-home reference does not bind this TrialSpec")
 
+    def verify_ready_home_equivalent(
+        self,
+        *,
+        pose: Sequence[float],
+        joints: Sequence[float],
+    ) -> None:
+        """Accept normal RTDE sample jitter, while rejecting a changed home."""
+
+        observed_pose = _vector("current READY_HOME pose", pose, 6)
+        observed_joints = _vector("current READY_HOME q", joints, 6)
+        if (
+            _norm(
+                tuple(
+                    observed_pose[index] - self.home_pose[index]
+                    for index in range(3)
+                )
+            )
+            > 0.003
+            or _orientation_error(self.home_pose[3:6], observed_pose[3:6]) > 0.05
+            or max(
+                abs(observed_joints[index] - self.home_q[index])
+                for index in range(6)
+            )
+            > 0.01
+        ):
+            raise MailboxError("READY_HOME no longer matches durable campaign home")
+
     @classmethod
     def capture_or_verify(
         cls,
@@ -1345,23 +1372,10 @@ class CampaignHomeReference:
         if path.exists():
             reference = cls.load(path)
             reference.verify_binding(binding)
-            pose = _vector(
-                "current READY_HOME pose", ready_payload["home"]["tcp_pose"], 6
+            reference.verify_ready_home_equivalent(
+                pose=ready_payload["home"]["tcp_pose"],
+                joints=ready_payload["home"]["joint_positions"],
             )
-            joints = _vector(
-                "current READY_HOME q", ready_payload["home"]["joint_positions"], 6
-            )
-            if (
-                _norm(tuple(pose[index] - reference.home_pose[index] for index in range(3)))
-                > 0.003
-                or _orientation_error(reference.home_pose[3:6], pose[3:6]) > 0.05
-                or max(
-                    abs(joints[index] - reference.home_q[index])
-                    for index in range(6)
-                )
-                > 0.01
-            ):
-                raise MailboxError("READY_HOME no longer matches durable campaign home")
             return reference
         payload = {
             "schema": CAMPAIGN_HOME_REFERENCE_SCHEMA,

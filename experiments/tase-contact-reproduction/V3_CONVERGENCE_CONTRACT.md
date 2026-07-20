@@ -8,7 +8,7 @@ artifacts, and V1 launchers are not runtime truth.
 
 ## Terminal condition
 
-The task remains active until the attended V3 r001 campaign has:
+The task remains active until the attended V3 r002 campaign has:
 
 1. loaded and read back the exact versioned TP triplet;
 2. started the canonical bridge and emitted `V3_BRIDGE_READY_NO_ARM`;
@@ -23,8 +23,8 @@ leaves the task incomplete.
 ## Locked decisions
 
 - Release/stage: `step5d_strict_rnn_autotune_v3`.
-- TP revision: `step5d_strict_rnn_autotune_v3_r001`. Every later update must
-  use a new basename `r002`, `r003`, and so on. A revision is immutable.
+- TP revision: `step5d_strict_rnn_autotune_v3_r002`. Every later update must
+  use a new basename `r003`, `r004`, and so on. A revision is immutable.
 - Frozen Stage25 control provenance:
   `step5d_strict_rnn_autotune_v1` at tag
   `archive/step5d-autotune-v1-20260715` (commit
@@ -62,14 +62,14 @@ leaves the task incomplete.
 The blocker set is closed and may only move open -> complete:
 
 1. direct-autotune contract and active surface;
-2. r001 TP generation and V1 control parity;
+2. r002 TP generation and V1 control parity;
 3. active bridge/campaign wiring without certification, moving sphere, or
    authorization-file gates;
 4. canonical selector/readiness/status and truthful failure evidence;
 5. targeted, impacted, installed-runtime, and no-network production rehearsal;
-6. r001 controller upload/readback and predecessor archives;
+6. r002 controller upload/readback and predecessor archives;
 7. published OID and formal-runtime fast-forward deployment;
-8. actual r001 bridge ready;
+8. actual r002 bridge ready;
 9. user Play observed and real Stage25 reached;
 10. exact 10/10 ACK plus final-home closure.
 

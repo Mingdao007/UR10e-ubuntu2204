@@ -2,7 +2,7 @@
 
 `config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3` as the
 unique current release route; its immutable TP package is
-`step5d_strict_rnn_autotune_v3_r001`. V1 remains frozen control-profile provenance and cannot
+`step5d_strict_rnn_autotune_v3_r002`. V1 remains frozen control-profile provenance and cannot
 be launched or selected as a fallback. V3 is selected but pre-live blocked:
 its local TP triplet changed after the retained V3
 controller read-back, so the old read-back is historical diagnostic evidence,

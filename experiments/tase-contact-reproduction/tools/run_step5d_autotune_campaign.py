@@ -23,6 +23,12 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping
 
 
+_EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
+_RUNTIME_SRC = _EXPERIMENT_ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
+if str(_RUNTIME_SRC) not in sys.path:
+    sys.path.insert(0, str(_RUNTIME_SRC))
+
+
 def _bootstrap_stable_cuda_runtime() -> None:
     """Re-exec the CLI with the persistent Step5d CuPy/CUDA runtime."""
 
@@ -1413,8 +1419,13 @@ def run(args: argparse.Namespace) -> int:
                     _finite(initial_row, f"ur_actual_TCP_pose_{index}")
                     for index in range(6)
                 )
+                campaign_home_q = tuple(
+                    _finite(initial_row, f"ur_actual_q_{index}")
+                    for index in range(6)
+                )
             else:
                 campaign_home_pose = home.home_pose
+                campaign_home_q = home.home_q
             if args.selection_policy == "codex_batches":
                 if any(
                     value is None
@@ -1545,10 +1556,12 @@ def run(args: argparse.Namespace) -> int:
             coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)
             if home is None:
                 home = _wait_for_campaign_home_reference(home_path)
-                if home.home_pose != campaign_home_pose:
-                    raise RuntimeError(
-                        "bridge campaign home differs from the pre-ARM READY_HOME pose"
-                    )
+                home.verify_ready_home_equivalent(
+                    pose=campaign_home_pose,
+                    joints=campaign_home_q,
+                )
+                campaign_home_pose = home.home_pose
+                campaign_home_q = home.home_q
             _event(
                 event_path,
                 "arm_dispatched",

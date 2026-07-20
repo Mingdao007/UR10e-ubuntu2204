@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import inspect
+import os
 import sys
 from types import SimpleNamespace
 from pathlib import Path
@@ -11,7 +12,17 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+TESTS = ROOT / "tests"
+sys.path.insert(0, str(TESTS))
 sys.path.insert(0, str(ROOT / "tools"))
+
+if (
+    os.environ.get("STEP5D_V3_HERMETIC_PARSER_CI") == "1"
+    and "kunwei_rtde_bridge" not in sys.modules
+):
+    from step5d_v3_parser_ci_stubs import install as install_parser_ci_stubs
+
+    install_parser_ci_stubs()
 
 import run_step5d_autotune_v3_live as live  # noqa: E402
 import preflight_step5d_autotune_v3 as preflight  # noqa: E402
@@ -214,6 +225,11 @@ def test_production_chain_generates_home_without_test_fixture(
     assert "FileNotFoundError" not in (output_root / "campaign_runner.log").read_text(
         encoding="utf-8"
     )
+    runner_log = (output_root / "campaign_runner.log").read_text(encoding="utf-8")
+    assert "differs from the pre-ARM READY_HOME pose" not in runner_log
+    rows = (bridge_run / "bridge_rtde_500hz.csv").read_text(encoding="utf-8")
+    assert ",24.0\n" in rows
+    assert ",24.2\n" in rows
 
 
 def test_fault_after_play_has_one_immediate_operator_action(monkeypatch, capsys) -> None:

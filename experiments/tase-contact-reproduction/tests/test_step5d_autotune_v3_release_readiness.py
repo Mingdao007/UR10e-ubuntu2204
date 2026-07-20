@@ -25,7 +25,7 @@ from step5d_autotune_v3 import readiness  # noqa: E402
 
 V1 = "step5d_strict_rnn_autotune_v1"
 V3 = "step5d_strict_rnn_autotune_v3"
-R001 = "step5d_strict_rnn_autotune_v3_r001"
+R002 = "step5d_strict_rnn_autotune_v3_r002"
 
 
 def _write(path: Path, payload: object) -> Path:
@@ -93,7 +93,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         root / "config/step5d/current.json",
         {
             "program": V3,
-            "tp_program_id": R001,
+            "tp_program_id": R002,
             "selection_state": "current",
         },
     )
@@ -103,7 +103,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         {
             "schema": "step5d.autotune.controller-readback/v3",
             "verified": True,
-            "program": R001,
+            "program": R002,
             "control_profile_id": V1,
             "triplet_sha256": triplet,
         },
@@ -167,7 +167,7 @@ def test_selected_release_rejects_a_different_tp_revision(
     root, _identity, _bridge, bridge_path = _fixture(tmp_path, monkeypatch)
     current_path = root / "config/step5d/current.json"
     current = json.loads(current_path.read_text(encoding="utf-8"))
-    current["tp_program_id"] = "step5d_strict_rnn_autotune_v3_r002"
+    current["tp_program_id"] = "step5d_strict_rnn_autotune_v3_r001"
     _write(current_path, current)
 
     with pytest.raises(readiness.ReleaseReadinessError, match="selector surfaces"):

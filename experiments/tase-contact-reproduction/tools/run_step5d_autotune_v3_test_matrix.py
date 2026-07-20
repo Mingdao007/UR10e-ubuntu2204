@@ -132,6 +132,10 @@ def _run_lane(name: str, command: Sequence[str], output: Path) -> dict[str, Any]
         "MKL_NUM_THREADS": "1",
         "NUMEXPR_NUM_THREADS": "1",
     }
+    runtime_source = ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
+    environment["PYTHONPATH"] = os.pathsep.join(
+        (str(runtime_source), environment.get("PYTHONPATH", ""))
+    ).rstrip(os.pathsep)
     with log.open("wb") as handle:
         completed = subprocess.run(
             list(command),
