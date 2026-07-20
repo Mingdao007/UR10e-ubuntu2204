@@ -10443,15 +10443,15 @@
         "controller_uploaded_by_v3": true,
         "controller_readback_verified": true,
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "controller_readback_manifest_sha256": "b99d1536fd772114c6704d57340dd3aa84c33f5f48b6d1dc0c54580a5cc1f978",
-        "fresh_controller_sha_at": "2026-07-20T12:03:43+08:00",
-        "tp_fingerprint": "87280f6164d705b2d8d6285debef6ded601a679667be40c89e3d860bb3df8df2",
+        "controller_readback_manifest_sha256": "255b24ede9219a041d8e7ab13e244a70fe119acb3026d09d0c5465d2a4907c00",
+        "fresh_controller_sha_at": "2026-07-20T12:25:10+08:00",
+        "tp_fingerprint": "dba9bf4901686ec9ad2eef6cd2b900f36d6c1c8d7d4fbae280764a3880fcaba2",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": false,
         "sha256": {
-          ".script": "897890f4ca23af95753fb9e601cae21eb81d7f74735a1861db4cbc7ec1223ca9",
-          ".txt": "be42df598902ba793b2444f5dd6a342a122821a4dc212b7e10565f8a86a9fd7d",
-          ".urp": "ce80784168bf31e9452a6262f6fb05301bae60b645ae925b513f99975c275d89"
+          ".script": "4601cce71b3270cf4bceb84a16378060acf23019ca58202cec44729db991d339",
+          ".txt": "934689510f4afb787b86c24d38bcd9dc285b8cd4caad52d8d241e10f98b583c7",
+          ".urp": "d40604d842a6b3731507144054cf879abe2c7c77de3246d1e2a0a07230c28be7"
         }
       },
       "acceptance": {
@@ -10472,7 +10472,7 @@
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "62e8c641e56e553d140c814e6aae7e15b5df2c872aaa8f78523061ba79dec64b",
+        "report_sha256": "13e783ec742686099aa4db42d414cf658a817001e350c9af9c3a463d8430c56a",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
         "source_exact_sphere_seam_timing": "diagnostic_only_not_required_by_user",
         "status": "pass_offline_implementation_pre_live_blocked"

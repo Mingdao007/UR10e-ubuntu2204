@@ -81,14 +81,14 @@
     "package_and_readback": {
       "blocker": null,
       "controller_readback": "config/step5d_autotune_controller_readback_v3.json",
-      "controller_readback_sha256": "b99d1536fd772114c6704d57340dd3aa84c33f5f48b6d1dc0c54580a5cc1f978",
+      "controller_readback_sha256": "255b24ede9219a041d8e7ab13e244a70fe119acb3026d09d0c5465d2a4907c00",
       "historical_controller_readback": null,
       "historical_controller_readback_sha256": null,
       "historical_readback_matches_local_triplet": true,
       "local_triplet_sha256": {
-        ".script": "897890f4ca23af95753fb9e601cae21eb81d7f74735a1861db4cbc7ec1223ca9",
-        ".txt": "be42df598902ba793b2444f5dd6a342a122821a4dc212b7e10565f8a86a9fd7d",
-        ".urp": "ce80784168bf31e9452a6262f6fb05301bae60b645ae925b513f99975c275d89"
+        ".script": "4601cce71b3270cf4bceb84a16378060acf23019ca58202cec44729db991d339",
+        ".txt": "934689510f4afb787b86c24d38bcd9dc285b8cd4caad52d8d241e10f98b583c7",
+        ".urp": "d40604d842a6b3731507144054cf879abe2c7c77de3246d1e2a0a07230c28be7"
       },
       "status": "pass_current_triplet_controller_readback"
     },
@@ -158,7 +158,7 @@
       "certified": false,
       "evidence": {
         "path": "config/step5/step5d_autotune_v3_return_route_evidence.json",
-        "sha256": "6cfd25d6fdb5766d792b3c7821014981f9afe0f51eb7caecc697d135df864a5d"
+        "sha256": "48e2301151f14d05fd5e52b04dad9b951accf536d8e3f227412f9f15fc7a294b"
       },
       "fail_closed": true,
       "offline_enforcement_complete": true,
@@ -177,7 +177,7 @@
       },
       "return_route_motion_trace": {
         "path": "config/step5/step5d_autotune_v3_ursim_return_trace.json",
-        "sha256": "941cd8a281f518cc89e8e4dc321687545b609cd171e1575b7efaee125337c107"
+        "sha256": "1aae396cb0ae51869460ad447df72aa989e6a01066973278247c52090d925bcd"
       },
       "status": "pass_motion_capable_ursim_core_source_equivalence",
       "ursim": "pass_motion_capable_ursim_core_source_equivalence"
@@ -209,22 +209,22 @@
   },
   "identity": {
     "controller_readback_triplet_sha256": {
-      ".script": "897890f4ca23af95753fb9e601cae21eb81d7f74735a1861db4cbc7ec1223ca9",
-      ".txt": "be42df598902ba793b2444f5dd6a342a122821a4dc212b7e10565f8a86a9fd7d",
-      ".urp": "ce80784168bf31e9452a6262f6fb05301bae60b645ae925b513f99975c275d89"
+      ".script": "4601cce71b3270cf4bceb84a16378060acf23019ca58202cec44729db991d339",
+      ".txt": "934689510f4afb787b86c24d38bcd9dc285b8cd4caad52d8d241e10f98b583c7",
+      ".urp": "d40604d842a6b3731507144054cf879abe2c7c77de3246d1e2a0a07230c28be7"
     },
-    "deployment_fingerprint": "8aa91c247f9cff89a4faa142929c55388d367d81c1ba2f2723a3cd713beac8d9",
+    "deployment_fingerprint": "4f312988957ee5497558f86efafa256afac8e490d3218f98f9469be008f062cc",
     "legacy_provenance": {
-      "contract_sha256": "5b713fd1a04a4ef331527d0a513ab13f26745588e8a1e16d932a5d111bc29473",
-      "control_fingerprint": "9532625ce4dceb6fb4524c7f04994cc4be17d5926e5b8cb56a0dbf33aa522c71",
-      "orchestration_fingerprint": "d9dd62d70af2ebe52fe10df680636d2358b518f95201c341bf83207543c6242f"
+      "contract_sha256": "047fc5c6ca9e1b145b546778e0e002ec6bba4011f9e6264a060fda92e3d91419",
+      "control_fingerprint": "28880b83fe420b7ab4c7ccd53735afebf8cd669400a0a5e1089cf7d34a8342be",
+      "orchestration_fingerprint": "49f63c82b87621ef5d2f6477c1c029312d6fb1e49a414a42d774754bf84125f6"
     },
     "local_triplet_sha256": {
-      ".script": "897890f4ca23af95753fb9e601cae21eb81d7f74735a1861db4cbc7ec1223ca9",
-      ".txt": "be42df598902ba793b2444f5dd6a342a122821a4dc212b7e10565f8a86a9fd7d",
-      ".urp": "ce80784168bf31e9452a6262f6fb05301bae60b645ae925b513f99975c275d89"
+      ".script": "4601cce71b3270cf4bceb84a16378060acf23019ca58202cec44729db991d339",
+      ".txt": "934689510f4afb787b86c24d38bcd9dc285b8cd4caad52d8d241e10f98b583c7",
+      ".urp": "d40604d842a6b3731507144054cf879abe2c7c77de3246d1e2a0a07230c28be7"
     },
-    "orchestration_fingerprint": "2e31caca7a515379ee159b73d362009bf79ca94f687851cfb1bccc3bbf286821",
+    "orchestration_fingerprint": "34edee1a401bf55b223070bb00624664caf2f00ba9274df286c868efd7a5d4ac",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
@@ -232,7 +232,7 @@
     "tick_semantics_fingerprint": "55857cd1f517c8f73e4eb76e1b783bfbb54bf33c18d207b5207770ff067db348",
     "timing_harness_fingerprint": "7c00ea65d4e6d09b55fd486c6c6714344287d595e55ded8ead07845cec679daa",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "12d90b49154df521c7e3402bde21b960a4e53873adf18cdd3ebfc61b6bf737ea"
+      "evidence_verifier_fingerprint": "f2bc6afc3abecc40db24986794ba9b5b9bc60e297d0ad77e8b0325ab793b3948"
     }
   },
   "observed_at": "2026-07-20T10:00:00+08:00",

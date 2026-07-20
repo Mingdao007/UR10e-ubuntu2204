@@ -6,28 +6,28 @@
   "deployment_readback_sha256": null,
   "live_effect": "return_route_angular_envelope_gate_blocked",
   "local_triplet_sha256": {
-    ".script": "897890f4ca23af95753fb9e601cae21eb81d7f74735a1861db4cbc7ec1223ca9",
-    ".txt": "be42df598902ba793b2444f5dd6a342a122821a4dc212b7e10565f8a86a9fd7d",
-    ".urp": "ce80784168bf31e9452a6262f6fb05301bae60b645ae925b513f99975c275d89"
+    ".script": "4601cce71b3270cf4bceb84a16378060acf23019ca58202cec44729db991d339",
+    ".txt": "934689510f4afb787b86c24d38bcd9dc285b8cd4caad52d8d241e10f98b583c7",
+    ".urp": "d40604d842a6b3731507144054cf879abe2c7c77de3246d1e2a0a07230c28be7"
   },
   "missing_certification": {
     "attended_controller_readback_sha256": null,
-    "motion_capable_ursim_trace_sha256": "941cd8a281f518cc89e8e4dc321687545b609cd171e1575b7efaee125337c107",
+    "motion_capable_ursim_trace_sha256": "1aae396cb0ae51869460ad447df72aa989e6a01066973278247c52090d925bcd",
     "source_exact_return_telemetry_sha256": null
   },
   "motion_capable_ursim_trace_binding": {
-    "active_evidence_source_binding_sha256": "1306c86fb4f58ec1f37e8f77a22b1031d6f3db069be68f203aa18a026e834d11",
+    "active_evidence_source_binding_sha256": "8591cee6968119382910011ab9ac9b033a19230d69beeb98785cbbe85581ecff",
     "claim_role": "motion_capable_ursim_semantic_subject_equivalence",
     "exact_triplet_match": true,
     "legacy_identity_provenance_only": {
-      "control_fingerprint": "6a4edfe6e5e706127adcaa4f6133e01814aa6deaeea5379dbc41fd43bbbf5940",
-      "orchestration_fingerprint": "3a14188db1974003f127655bcf9d9aff9d7f1ddc73f646935454c4e3bcc391a7"
+      "control_fingerprint": "9532625ce4dceb6fb4524c7f04994cc4be17d5926e5b8cb56a0dbf33aa522c71",
+      "orchestration_fingerprint": "980647a3ca7053f739920f9e8f95995cb32bf007dc5b33f3c959bd033fede7f4"
     },
-    "legacy_source_binding_sha256": "1306c86fb4f58ec1f37e8f77a22b1031d6f3db069be68f203aa18a026e834d11",
-    "motion_subject_fingerprint": "7d723a945541ebeff1975402d1d289c315a39b5956912ed0d5420c1516f629be",
+    "legacy_source_binding_sha256": "8591cee6968119382910011ab9ac9b033a19230d69beeb98785cbbe85581ecff",
+    "motion_subject_fingerprint": "c94d25ccc1aa9e569c0e6c8efd84b20c7d616ace7f8f5f22d55e90f81cc74d88",
     "policy_markers_revalidated": true
   },
-  "motion_capable_ursim_trace_sha256": "941cd8a281f518cc89e8e4dc321687545b609cd171e1575b7efaee125337c107",
+  "motion_capable_ursim_trace_sha256": "1aae396cb0ae51869460ad447df72aa989e6a01066973278247c52090d925bcd",
   "offline_guards": {
     "bounded_speedl_twist": true,
     "continuous_actual_angular_speed_guard": true,
@@ -69,22 +69,22 @@
     "safe_transfer_z_m": 0.033
   },
   "schema": "step5d.autotune-v3/return-route-evidence-v2",
-  "source_binding_sha256": "1306c86fb4f58ec1f37e8f77a22b1031d6f3db069be68f203aa18a026e834d11",
+  "source_binding_sha256": "8591cee6968119382910011ab9ac9b033a19230d69beeb98785cbbe85581ecff",
   "source_exact_return_telemetry_sha256": null,
   "source_sha256": {
     "bridge_capture": "25554cb083949bd6524f6e5f3e693e987fd47d8f8c529f2d5e8f685ea06bf5b8",
     "campaign_adapter": "af96b74cf4a3fb87ed6d0d699852a504d3387794e9382bf4690d1fb65092d567",
     "closure_collector": "a0d69c0d4d22ccf954a4edbe4dc23eeac77b1b2d6ce22d3023c5ed8cef7c86bc",
     "return_route": "d34b9d84851577df8eb611fcd185958b3e207f3d510d381223c934947c860fd4",
-    "tp_generator": "75474ef400ddcb1e2d9f498dfd3e51a05df42ef00fa99bd88263cb80ec6e3b40"
+    "tp_generator": "9eb4f0f6762992d5bd2b81299fce1619c2a92c2e0730cdb6732d1d184f9878ba"
   },
   "status": "offline_enforcement_complete_attended_certification_required",
   "telemetry_summary": null,
   "verifier_provenance": {
-    "fingerprint": "0df7648634d2a1a0ef26d84849c338432767c0b3a5cbf7a6cbcad0097d97c0ef",
+    "fingerprint": "015336e2c1cb80ae3518f63bb2453a057146a6faa2df1dcaf1bacc26b47bc091",
     "source_sha256": {
       "return_evidence_promoter": "bdbcddfe1d353bbfedbf695965bf64abf10225847bb0252306451567104be3fb",
-      "ursim_return_gate": "6a897d3bf4461d19220bc624e0391c1cc295680b0a8454adb91d64259a2d49bf"
+      "ursim_return_gate": "da0f4d9fa40e23f502432282c4695ca07d7d259b4748670ca8cfca34a134844f"
     }
   }
 }
