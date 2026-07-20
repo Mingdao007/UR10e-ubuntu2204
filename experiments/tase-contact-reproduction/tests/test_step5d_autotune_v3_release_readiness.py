@@ -25,7 +25,7 @@ from step5d_autotune_v3 import readiness  # noqa: E402
 
 V1 = "step5d_strict_rnn_autotune_v1"
 V3 = "step5d_strict_rnn_autotune_v3"
-R002 = "step5d_strict_rnn_autotune_v3_r003"
+R004 = "step5d_strict_rnn_autotune_v3_r004"
 
 
 def _write(path: Path, payload: object) -> Path:
@@ -93,7 +93,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         root / "config/step5d/current.json",
         {
             "program": V3,
-            "tp_program_id": R002,
+            "tp_program_id": R004,
             "selection_state": "current",
         },
     )
@@ -103,7 +103,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         {
             "schema": "step5d.autotune.controller-readback/v3",
             "verified": True,
-            "program": R002,
+            "program": R004,
             "control_profile_id": V1,
             "triplet_sha256": triplet,
         },

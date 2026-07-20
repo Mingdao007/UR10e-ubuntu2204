@@ -55,7 +55,7 @@
     "authorization_scope": null,
     "authorization_source": null,
     "authorized_at": null,
-    "blocked_reason": "V3 motion ARM requires exact deployment readback, certified stopping/return evidence, and a fresh typed authorization; bridge process start remains a separate no-arm gate.",
+    "blocked_reason": "V3 bridge start requires a fresh identity-bound bridge context and the exact r004 TP program; only user-owned TP Play enters command 1.",
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "no_contact_p0_capture": {
@@ -138,10 +138,10 @@
     "zero_ftsensor_authorized": false
   },
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-  "controller_readback_manifest_sha256": "16c69a373cede163422541a4099b2be88e87287ecc1cf7d2d0e7451bed10b0e3",
+  "controller_readback_manifest_sha256": "c711d3dc93201d54965979ff831219318dc3a6824889661aab2aeba81e37c2d0",
   "controller_readback_verified_for_selected_triplet": true,
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r003.script",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r003.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r004.script",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r004.urp",
   "current_stage_id": "step5d_strict_rnn_autotune_v3",
   "current_step": "Step5d",
   "delivery_manifest": "config/step5d_autotune_controller_readback_v3.json",
@@ -1171,7 +1171,7 @@
     "readiness_sha256": "912387a8a0c7e3692f5d7f39b867d23cc967d5ec6160cb268b111da52d81ccfe",
     "state": "awaiting_live_authorization"
   },
-  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r003",
+  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r004",
   "notes": [
     "step5d_strict_rnn_ablation_v29 is controller read-back verified and remains the current pointer only as a frozen fallback.",
     "v29 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
@@ -1374,7 +1374,7 @@
   "program": "step5d_strict_rnn_autotune_v3",
   "readiness": {
     "bridge_process_ready": false,
-    "bridge_start_ready": false,
+    "bridge_start_ready": true,
     "campaign_ready": false,
     "deployment_ready": true,
     "motion_arm_ready": false,
@@ -1405,19 +1405,19 @@
   ],
   "selection_state": "current",
   "sha256": {
-    ".script": "e195d30dd13c9b26b574509589bfd9e586312f9b01763706f94075bcac836f08",
-    ".txt": "c880dbaaadde0c8f637ca80b49c45e5fa7cca1caf66d53357a26749e02138550",
-    ".urp": "6e2019f486c212ed11c78ec6853968418b6b68feb1eab0511b0d31633c3a2e3e"
+    ".script": "b1fc34f8b7b58e701d00ddeca63cadf90176ca45ae3a27165e3f77a7e8ecd8f4",
+    ".txt": "1291e7ea6d213a5561d28bb5ddfa52bfbb7f1600b0e8d492563f4de5541fb3ec",
+    ".urp": "a28258fa5f2b60acb88d3f167321f0442486f366745f2eebc666bb55242dbf9b"
   },
   "stage_table_path": "config/step5_stage_table.json",
-  "status": "step5d_autotune_v3_r003_controller_readback_verified_pre_live",
+  "status": "step5d_autotune_v3_r004_controller_readback_verified_pre_live",
   "strict_rnn_status": {
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
     "reason": "V3 is the unique selected route. V35 and autotune V1 are retained provenance only; V3 deployment, timing, certification, audit, and campaign authorization remain separate readiness gates.",
     "stage_id": "step5d_strict_rnn_reproduction_v1"
   },
-  "updated_at": "2026-07-20T18:54:09+08:00",
+  "updated_at": "2026-07-20T19:21:27+08:00",
   "v29_contact_candidate": {
     "controller_readback_verified": true,
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",

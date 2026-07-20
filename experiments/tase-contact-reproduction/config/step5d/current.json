@@ -3,7 +3,7 @@
   "program": "step5d_strict_rnn_autotune_v3",
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r003",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r004",
   "selection_state": "current",
   "state": "pre_live_blocked",
   "deployment": {

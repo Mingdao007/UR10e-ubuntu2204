@@ -17,11 +17,11 @@ import build_step5d_autotune_tp as v1  # noqa: E402
 import build_step5d_autotune_tp_v3 as v3  # noqa: E402
 
 
-def test_r003_direct_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
+def test_r004_direct_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
     rendered = v3.render_script()
     v3.validate_rendered_script(rendered)
 
-    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r003"
+    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r004"
     assert "# CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1" in rendered
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
     assert "def codex_step5d_autotune_trial_v1(" in rendered
@@ -51,12 +51,12 @@ def test_r003_direct_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> 
         assert forbidden not in rendered
 
 
-def test_r003_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
+def test_r004_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
     stamp = v3.source_stamp(
         datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
     )
     result = v3.write_triplet(tmp_path, stamp)
-    basename = "step5d_strict_rnn_autotune_v3_r003"
+    basename = "step5d_strict_rnn_autotune_v3_r004"
 
     assert result["program"] == basename
     assert result["control_profile_id"] == "step5d_strict_rnn_autotune_v1"

@@ -1,44 +1,44 @@
 {
-  "blocker": "requires_current_poweroff_controller_identity_requires_certification_motion_authorization_requires_certified_stopping_bound_requires_certified_return_route_angular_envelope_requires_fresh_campaign_authorization",
-  "campaign_authorization_required": true,
+  "blocker": null,
+  "campaign_authorization_required": false,
   "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
-  "certification_motion_authorization_required": true,
+  "certification_motion_authorization_required": false,
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "controller_readback": {
     "path": "config/step5d_autotune_controller_readback_v3.json",
-    "sha256": "16c69a373cede163422541a4099b2be88e87287ecc1cf7d2d0e7451bed10b0e3"
+    "sha256": "c711d3dc93201d54965979ff831219318dc3a6824889661aab2aeba81e37c2d0"
   },
   "current_selector": "step5d_strict_rnn_autotune_v3",
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
-    "sha256": "0cb96965c3f037f07cd1b067ce73253c8875dde92a210f28fe2606c2305b1c2a"
+    "sha256": "042d34458f47c6222264daed5916e65bff01884886b605a0220d060794197221"
   },
   "identity": {
     "controller_readback_triplet_sha256": {
-      ".script": "e195d30dd13c9b26b574509589bfd9e586312f9b01763706f94075bcac836f08",
-      ".txt": "c880dbaaadde0c8f637ca80b49c45e5fa7cca1caf66d53357a26749e02138550",
-      ".urp": "6e2019f486c212ed11c78ec6853968418b6b68feb1eab0511b0d31633c3a2e3e"
+      ".script": "b1fc34f8b7b58e701d00ddeca63cadf90176ca45ae3a27165e3f77a7e8ecd8f4",
+      ".txt": "1291e7ea6d213a5561d28bb5ddfa52bfbb7f1600b0e8d492563f4de5541fb3ec",
+      ".urp": "a28258fa5f2b60acb88d3f167321f0442486f366745f2eebc666bb55242dbf9b"
     },
-    "deployment_fingerprint": "5ced8688e4556883b328f11318fed30378f19ddf0fdf798f756c51c149bfb836",
+    "deployment_fingerprint": "a243c6aa94bd0e9219dd22ba3899c82ec4edbe0f9b26c5fcd63cb09d41199d1a",
     "legacy_provenance": {
-      "contract_sha256": "7bb9e7b2dfcaa4c263504c0522bfa8a731becb27e063fc19f1f481ce5c250a1c",
-      "control_fingerprint": "9a815a10a95dc6a871da1d97803b4aaeaef3b5e7b89e0271c176e7bdab46d7e4",
-      "orchestration_fingerprint": "b2f3249e07f72093a8d66c0e85a553b1ae2e6f98a07c45f20d5e09c236c39a7c"
+      "contract_sha256": "4f5e1ab9ccb3aec3a38265e73d44778efc34fff73c35d0f0919b2d4dadc39119",
+      "control_fingerprint": "fd86ea986d913a795239fba99e0aab2805e395b42d02483c9ce210742ec9b15d",
+      "orchestration_fingerprint": "d1ca163b9ef0e8177e63e1ec86b126489b23ca87de2d0f62264946b767b7a1f0"
     },
     "local_triplet_sha256": {
-      ".script": "e195d30dd13c9b26b574509589bfd9e586312f9b01763706f94075bcac836f08",
-      ".txt": "c880dbaaadde0c8f637ca80b49c45e5fa7cca1caf66d53357a26749e02138550",
-      ".urp": "6e2019f486c212ed11c78ec6853968418b6b68feb1eab0511b0d31633c3a2e3e"
+      ".script": "b1fc34f8b7b58e701d00ddeca63cadf90176ca45ae3a27165e3f77a7e8ecd8f4",
+      ".txt": "1291e7ea6d213a5561d28bb5ddfa52bfbb7f1600b0e8d492563f4de5541fb3ec",
+      ".urp": "a28258fa5f2b60acb88d3f167321f0442486f366745f2eebc666bb55242dbf9b"
     },
-    "orchestration_fingerprint": "09da2d9db1a95c638841f9b170c72018b240ed3c69c5bd58611c06c3920422df",
+    "orchestration_fingerprint": "56b62938c3fe3a1dea787b0496e9f699d01463a686e9bd4aa5d600a60fcd55d7",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
     "schema": "step5d.autotune-v3/layered-identity-snapshot-v1",
-    "tick_semantics_fingerprint": "a4ddb219e757b143e90e67181584cc18a15074a9c81163e90b80b66fbfd878c9",
+    "tick_semantics_fingerprint": "305c9567685e297e7d9f830f82263c2c10aceb59425118c53cab77d286a41ee2",
     "timing_harness_fingerprint": "016e7af37c89391d4b7652da5ae91ae95ec50c547aaa86cb8d1cfc1185196ae2",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "b32b70af411ca99becec12290ba4557c74b775c1da2232334048a56465ead8fa"
+      "evidence_verifier_fingerprint": "c1df7c0a5712a626ef5e759cccdc251907f209362ecd5619b3049ddd3168eb89"
     }
   },
   "live_runtime_promoted": false,

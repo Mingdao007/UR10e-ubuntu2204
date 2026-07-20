@@ -8,7 +8,7 @@ artifacts, and V1 launchers are not runtime truth.
 
 ## Terminal condition
 
-The task remains active until the attended V3 r003 campaign has:
+The task remains active until the attended V3 r004 campaign has:
 
 1. loaded and read back the exact versioned TP triplet;
 2. started the canonical bridge and emitted `V3_BRIDGE_READY_NO_ARM`;
@@ -23,8 +23,8 @@ leaves the task incomplete.
 ## Locked decisions
 
 - Release/stage: `step5d_strict_rnn_autotune_v3`.
-- TP revision: `step5d_strict_rnn_autotune_v3_r003`. Every later update must
-  use a new basename `r003`, `r004`, and so on. A revision is immutable.
+- TP revision: `step5d_strict_rnn_autotune_v3_r004`. Every later update must
+  use a new basename `r005`, `r006`, and so on. A revision is immutable.
 - Frozen Stage25 control provenance:
   `step5d_strict_rnn_autotune_v1` at tag
   `archive/step5d-autotune-v1-20260715` (commit
@@ -33,6 +33,9 @@ leaves the task incomplete.
   two-`movel` precontact entry, explicit ten-row lifecycle, and typed return
   destination. The RNN, trajectory, force/orientation outer loop, P/I/damping,
   qdot cap, and Stage25 control equations remain V1-equivalent.
+- Stage22 is `PREALIGN_IN_PROGRESS`. Stage23 is `PREALIGN_VERIFIED` only when
+  XYZ error is at most `3 mm` and approach-axis error is at most `2 deg`;
+  Stage24/24.2 retain the orientation guard without reapplying precontact XYZ.
 - TP accepts command 1 (campaign), command 2 (ACK), and command 3 (operator
   stop request) only. Commands 4/5/6 are retired from the active package.
 - Rows 1..9 return to NearReady; row 10 returns to CampaignHome. Return motion
@@ -62,14 +65,14 @@ leaves the task incomplete.
 The blocker set is closed and may only move open -> complete:
 
 1. direct-autotune contract and active surface;
-2. r003 TP generation and V1 control parity;
+2. r004 TP generation and V1 control parity;
 3. active bridge/campaign wiring without certification, moving sphere, or
    authorization-file gates;
 4. canonical selector/readiness/status and truthful failure evidence;
 5. targeted, impacted, installed-runtime, and no-network production rehearsal;
-6. r003 controller upload/readback and predecessor archives;
+6. r004 controller upload/readback and predecessor archives;
 7. published OID and formal-runtime fast-forward deployment;
-8. actual r003 bridge ready;
+8. actual r004 bridge ready;
 9. user Play observed and real Stage25 reached;
 10. exact 10/10 ACK plus final-home closure.
 

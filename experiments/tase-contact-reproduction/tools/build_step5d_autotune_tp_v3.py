@@ -25,7 +25,7 @@ if str(RUNTIME_SRC) not in sys.path:
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r003"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r004"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint

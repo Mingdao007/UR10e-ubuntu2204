@@ -71,12 +71,13 @@
           "tests/test_step5d_autotune_v3_runtime_profile.py",
           "tests/test_step5d_autotune_v3_runtime_calibration.py",
           "tests/test_step5d_autotune_v3_bridge_wrapper.py",
+          "tests/test_step5d_autotune_v3_pre_live_rebuild.py",
           "tests/test_step5d_autotune_v3_preflight.py",
           "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
           "tests/test_step5d_autotune_tp_v3.py",
           "tests/test_step5d_autotune_batch_plan.py",
           "tests/test_step5d_v3_current_selector.py",
-          "tests/test_step5d_v3_r003_release_candidate.py",
+          "tests/test_step5d_v3_r004_release_candidate.py",
           "tests/test_step5d_autotune_v3_test_matrix_runner.py"
         ]
       ],

@@ -48,9 +48,9 @@ def test_selected_v3_claims_exact_deployment_but_not_bridge_motion_or_campaign()
 
     assert current["controller_readback_verified_for_selected_triplet"] is True
     assert current["readiness"]["deployment_ready"] is True
+    assert current["readiness"]["bridge_start_ready"] is True
     assert current["bridge_trigger"]["live_motion_authorized"] is False
     for field in (
-        "bridge_start_ready",
         "bridge_process_ready",
         "motion_arm_ready",
         "campaign_ready",

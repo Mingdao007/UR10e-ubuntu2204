@@ -71,7 +71,7 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                 "trial_overlay_fingerprint": "c" * 64,
                 "release_stage_id": "step5d_strict_rnn_autotune_v3",
                 "control_profile_id": "step5d_strict_rnn_autotune_v1",
-                "tp_program_id": "step5d_strict_rnn_autotune_v3_r003",
+                "tp_program_id": "step5d_strict_rnn_autotune_v3_r004",
                 "bridge_start_context": {
                     "path": str(bridge_context_path),
                     "sha256": hashlib.sha256(
@@ -184,6 +184,8 @@ def test_autotune_relatch_is_excluded_and_load_gate_is_explicit() -> None:
     assert "step5d_moving_sphere_kernel" in source
     assert "_step5d_moving_sphere_reason" in source
     assert "state.step5d_physical_prior_approach_axis_b" in source
+    assert "state.step5d_physical_prior_precontact_xyz_m" in source
+    assert "_step5d_prealign_verified" in source
     assert "physical_prior_search_pose_mismatch" in source
     search_guard = source.split(
         "def apply_step5d_search_pose_fail_stop", 1
@@ -200,6 +202,90 @@ def test_autotune_relatch_is_excluded_and_load_gate_is_explicit() -> None:
     assert "state.step5d_stage25_normal_relatched = False" in reset_hunk
     assert "progress_adapter.reset()" in reset_hunk
     assert "sphere_kernel.reset()" in reset_hunk
+
+
+def test_r003_stage22_incident_waits_for_post_movel_stage23_admission() -> None:
+    import kunwei_rtde_bridge as bridge
+
+    incident = json.loads(
+        (ROOT / "tests/fixtures/v3_r003_stage22_prealign_incident.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    rotation = bridge.rotvec_to_matrix(*incident["actual_tcp_rotvec_rad"])
+    tcp_z_axis_b = tuple(rotation[index][2] for index in range(3))
+    axis_error_rad = bridge.angle_between_unit(
+        tcp_z_axis_b,
+        tuple(incident["approach_axis_base"]),
+    )
+    position_error_m = math.sqrt(
+        sum(
+            (actual - expected) ** 2
+            for actual, expected in zip(
+                incident["actual_tcp_xyz_m"],
+                incident["expected_precontact_xyz_m"],
+                strict=True,
+            )
+        )
+    )
+
+    assert math.isclose(
+        axis_error_rad,
+        incident["observed_axis_error_rad"],
+        rel_tol=0.0,
+        abs_tol=1e-8,
+    )
+    assert axis_error_rad > bridge.STEP5D_SEARCH_POSE_RUNTIME_TOLERANCE_RAD
+    assert position_error_m > bridge.STEP5D_PREALIGN_POSITION_TOLERANCE_M
+    assert not bridge.step5d_search_pose_contract_active_for_stage(
+        step5d_liveprep_profile=True,
+        robot_stage=incident["observed_stage"],
+    )
+    assert not bridge.step5d_prealign_position_contract_active_for_stage(
+        step5d_liveprep_profile=True,
+        robot_stage=incident["observed_stage"],
+    )
+    assert bridge.step5d_search_pose_contract_active_for_stage(
+        step5d_liveprep_profile=True,
+        robot_stage=incident["post_prealign_admission_stage"],
+    )
+    assert bridge.step5d_prealign_position_contract_active_for_stage(
+        step5d_liveprep_profile=True,
+        robot_stage=incident["post_prealign_admission_stage"],
+    )
+    assert bridge.step5d_search_pose_contract_ok_for_errors(
+        position_required=True,
+        position_error_m=0.0,
+        axis_error_rad=0.0,
+    )
+    assert not bridge.step5d_search_pose_contract_ok_for_errors(
+        position_required=True,
+        position_error_m=bridge.STEP5D_PREALIGN_POSITION_TOLERANCE_M + 1e-6,
+        axis_error_rad=0.0,
+    )
+    assert not bridge.step5d_search_pose_contract_ok_for_errors(
+        position_required=True,
+        position_error_m=0.0,
+        axis_error_rad=bridge.STEP5D_SEARCH_POSE_RUNTIME_TOLERANCE_RAD + 1e-6,
+    )
+    for stage in (24.0, 24.2):
+        assert bridge.step5d_search_pose_contract_active_for_stage(
+            step5d_liveprep_profile=True,
+            robot_stage=stage,
+        )
+        assert not bridge.step5d_prealign_position_contract_active_for_stage(
+            step5d_liveprep_profile=True,
+            robot_stage=stage,
+        )
+        assert bridge.step5d_search_pose_contract_ok_for_errors(
+            position_required=False,
+            position_error_m=math.inf,
+            axis_error_rad=0.0,
+        )
+    assert not bridge.step5d_search_pose_contract_active_for_stage(
+        step5d_liveprep_profile=False,
+        robot_stage=23.0,
+    )
 
 
 def test_pre_arm_hold_tick_keeps_bridge_alive_with_zero_command() -> None:

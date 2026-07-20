@@ -36,11 +36,6 @@ V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
 ATTENDED_BLOCKERS = [
     "requires_attended_tp_upload_readback",
-    "requires_current_poweroff_controller_identity",
-    "requires_certification_motion_authorization",
-    "requires_certified_stopping_bound",
-    "requires_certified_return_route_angular_envelope",
-    "requires_fresh_campaign_authorization",
 ]
 PRE_LIVE_DECISION = {
     "acceptance_scope": "offline_pre_live_only",
@@ -48,9 +43,9 @@ PRE_LIVE_DECISION = {
     "hardware_promotion": "blocked",
     "current_selector": V3_STAGE_ID,
     "v3_active": True,
-    "robot_power_state": "POWER_OFF_AT_AUDIT_NOT_CURRENT_ASSERTION",
-    "certification_motion_authorization_required": True,
-    "campaign_authorization_required": True,
+    "robot_power_state": "runtime_observation_required",
+    "certification_motion_authorization_required": False,
+    "campaign_authorization_required": False,
     "live_motion_authorized": False,
     "execution_readiness": "pre_live_blocked",
 }
@@ -234,13 +229,21 @@ def build_outputs(
     validation["schema"] = "step5d.autotune-v3/offline-acceptance-v5"
     validation["observed_at"] = observed_at
     validation["identity"] = identity
-    validation["decision"] = PRE_LIVE_DECISION
     gates = validation["gates"]
     local_triplet_sha256 = dict(identity["local_triplet_sha256"])
     readback_current = (
         identity.get("controller_readback_triplet_sha256")
         == local_triplet_sha256
     )
+    validation["decision"] = {
+        **PRE_LIVE_DECISION,
+        "hardware_promotion": (
+            "deployment_ready" if readback_current else "blocked"
+        ),
+        "execution_readiness": (
+            "bridge_start_ready" if readback_current else "pre_live_blocked"
+        ),
+    }
     gates["package_and_readback"]["local_triplet_sha256"] = (
         local_triplet_sha256
     )
@@ -331,8 +334,12 @@ def build_outputs(
             and blocker == "requires_attended_tp_upload_readback"
         )
     ]
-    public_signal = blockers[0]
-    blocker_text = "_".join(blockers)
+    public_signal = (
+        blockers[0]
+        if blockers
+        else "controller_readback_verified_ready_for_bridge_context"
+    )
+    blocker_text = "_".join(blockers) if blockers else None
 
     promotion = {
         "schema": "step5d.autotune-v3/live-promotion-v3",
@@ -352,8 +359,8 @@ def build_outputs(
         },
         "machine_campaign_binding": MACHINE_BINDING,
         "same_process_startup_gate": True,
-        "certification_motion_authorization_required": True,
-        "campaign_authorization_required": True,
+        "certification_motion_authorization_required": False,
+        "campaign_authorization_required": False,
         "live_runtime_promoted": False,
         "blocker": blocker_text,
     }
@@ -388,9 +395,13 @@ def build_outputs(
             root / "config/step5d_autotune_controller_readback_v3.json"
         )["fresh_controller_checked_at"]
     row["block_reason"] = (
-        "V3 is the unique selected/current release and remains pre-live blocked on "
-        + ", ".join(blockers)
-        + "; V1 is retained control-profile provenance only"
+        "V3 is the unique selected/current release; exact controller readback "
+        "is verified and the direct command-1 lane awaits formal-runtime deploy, "
+        "fresh bridge context, user Play, Stage25, and exact 10/10 closure. "
+        "V1 is retained control-profile provenance only."
+        if readback_current
+        else "V3 is the unique selected/current release and requires exact r004 "
+        "controller upload/readback; V1 is retained control-profile provenance only."
     )
     row["offline_validation"].update(
         {
@@ -403,32 +414,36 @@ def build_outputs(
     )
     row["execution_readiness"] = {
         "schema": "step5d.autotune-v3/execution-readiness-v3",
-        "state": "pre_live_blocked",
+        "state": "bridge_start_ready" if readback_current else "pre_live_blocked",
         "public_success_signal": public_signal,
         "deterministic_validation_complete": True,
         "package_delivery_complete": readback_current,
         "candidate_current": True,
         "live_runtime_promoted": False,
         "same_process_startup_gate_complete": False,
-        "ready_to_execute": False,
+        "ready_to_execute": readback_current,
         "ready_to_load_play": False,
-        "ready_to_start_bridge": False,
+        "ready_to_start_bridge": readback_current,
         "ready_to_arm": False,
         "ready_for_contact_or_motion": False,
         "blockers": blockers,
-        "next_owner": "ur10e-contact-control-prep",
+        "next_owner": (
+            "ur10e-bridge-ops"
+            if readback_current
+            else "ur10e-tp-package-delivery"
+        ),
         "operator_trigger": {
             "candidate_stage_id": V3_STAGE_ID,
             "user_confirmation_required": True,
-            "certification_motion_authorization_required": True,
-            "campaign_authorization_required": True,
+            "certification_motion_authorization_required": False,
+            "campaign_authorization_required": False,
             "internal_launch_binding": MACHINE_BINDING,
             "tp_action": (
                 "controller_readback_verified_no_load_or_play"
                 if readback_current
                 else "attended_upload_readback_required"
             ),
-            "play_effect": "forbidden_in_offline_tranche",
+            "play_effect": "user_owned_command_1_after_bridge_ready",
         },
     }
     row["operator_lifecycle"]["live_readiness_state"] = public_signal
@@ -441,6 +456,10 @@ def build_outputs(
         root / "config/step5d_autotune_controller_readback_v3.json"
     )
     current_stage["readiness"]["deployment_ready"] = readback_current
+    current_stage["readiness"]["bridge_start_ready"] = readback_current
+    current_stage["readiness"]["bridge_process_ready"] = False
+    current_stage["readiness"]["motion_arm_ready"] = False
+    current_stage["readiness"]["campaign_ready"] = False
     current_stage["updated_at"] = observed_at
     control_contract = copy.deepcopy(_read(root / CONTROL_CONTRACT_RELATIVE))
     control_contract["candidate_tp_artifact_sha256"] = local_triplet_sha256

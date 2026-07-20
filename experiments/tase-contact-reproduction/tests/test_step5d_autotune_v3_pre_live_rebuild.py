@@ -62,3 +62,36 @@ def test_rebuild_binds_the_versioned_active_tp_manifest() -> None:
     assert row["package_delivery"]["tp_fingerprint"] == hashlib.sha256(
         manifest.read_bytes()
     ).hexdigest()
+
+
+def test_current_readback_promotes_only_direct_bridge_start_readiness() -> None:
+    table = json.loads((ROOT / rebuild.STAGE_TABLE_RELATIVE).read_text(encoding="utf-8"))
+    row = next(row for row in table["stages"] if row["id"] == rebuild.V3_STAGE_ID)
+    execution = row["execution_readiness"]
+    promotion = json.loads(
+        (ROOT / rebuild.PROMOTION_RELATIVE).read_text(encoding="utf-8")
+    )
+    current = json.loads(
+        (ROOT / rebuild.CURRENT_STAGE_RELATIVE).read_text(encoding="utf-8")
+    )
+
+    assert execution["state"] == "bridge_start_ready"
+    assert execution["ready_to_start_bridge"] is True
+    assert execution["ready_to_arm"] is False
+    assert execution["ready_for_contact_or_motion"] is False
+    assert execution["blockers"] == []
+    assert execution["next_owner"] == "ur10e-bridge-ops"
+    assert execution["operator_trigger"]["play_effect"] == (
+        "user_owned_command_1_after_bridge_ready"
+    )
+    assert promotion["certification_motion_authorization_required"] is False
+    assert promotion["campaign_authorization_required"] is False
+    assert promotion["blocker"] is None
+    assert current["readiness"] == {
+        "bridge_process_ready": False,
+        "bridge_start_ready": True,
+        "campaign_ready": False,
+        "deployment_ready": True,
+        "motion_arm_ready": False,
+        "selected_release": rebuild.V3_STAGE_ID,
+    }

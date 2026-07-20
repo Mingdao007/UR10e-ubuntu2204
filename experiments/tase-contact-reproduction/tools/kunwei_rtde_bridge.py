@@ -406,8 +406,13 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_contact_safety_reason",
     "_step5d_search_pose_contract_active",
     "_step5d_search_pose_contract_ok",
+    "_step5d_search_pose_contract_position_required",
+    "_step5d_search_pose_contract_position_ok",
+    "_step5d_search_pose_contract_position_error_m",
+    "_step5d_search_pose_contract_orientation_ok",
     "_step5d_search_pose_contract_axis_error_rad",
     "_step5d_search_pose_contract_tcp_z_dot_down",
+    "_step5d_prealign_verified",
     "_step5d_control_normal_vs_world_z_angle_rad",
     "_step5d_control_normal_vs_tcp_z_angle_rad",
     "_step5d_approach_normal_vs_tcp_z_angle_rad",
@@ -796,6 +801,7 @@ STEP5D_SEMANTIC_ORIENTATION_TOLERANCE_RAD = math.radians(5.0)
 STEP5D_SEARCH_POSE_CONTRACT_ID = PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID
 STEP5D_SEARCH_POSE_TARGET_AXIS_B = contract_target_axis_base(STEP5D_SEARCH_POSE_CONTRACT_ID)
 STEP5D_SEARCH_POSE_RUNTIME_TOLERANCE_RAD = math.radians(2.0)
+STEP5D_PREALIGN_POSITION_TOLERANCE_M = 0.003
 STEP5D_LIVEPREP_TRUTH_PATH = EXPERIMENT_ROOT / "config" / "step5d_liveprep_solver_gate.json"
 STEP5D_V3_FORCE_SETTLE_TOLERANCE_N = 3.0
 STEP5D_V3_FORCE_SETTLE_MAX_N = 12.0
@@ -1664,6 +1670,56 @@ def angle_between_unit(
     src = normalize3(source)
     dst = normalize3(target)
     return math.acos(clamp(dot3(src, dst), -1.0, 1.0))
+
+
+def step5d_search_pose_contract_active_for_stage(
+    *, step5d_liveprep_profile: bool, robot_stage: float
+) -> bool:
+    """Admit the prior pose only after the blocking Stage22 pre-align movels."""
+
+    return bool(
+        step5d_liveprep_profile
+        and math.isfinite(robot_stage)
+        and (
+            abs(robot_stage - 23.0) < 0.05
+            or abs(robot_stage - 24.0) < 0.05
+            or abs(robot_stage - 24.2) < 0.05
+        )
+    )
+
+
+def step5d_prealign_position_contract_active_for_stage(
+    *, step5d_liveprep_profile: bool, robot_stage: float
+) -> bool:
+    """Require XYZ closure only at the post-movel Stage23 admission point."""
+
+    return bool(
+        step5d_liveprep_profile
+        and math.isfinite(robot_stage)
+        and abs(robot_stage - 23.0) < 0.05
+    )
+
+
+def step5d_search_pose_contract_ok_for_errors(
+    *,
+    position_required: bool,
+    position_error_m: float,
+    axis_error_rad: float,
+) -> bool:
+    """Apply the Stage23 6D closure and the Stage24 orientation-only guard."""
+
+    orientation_ok = (
+        math.isfinite(axis_error_rad)
+        and axis_error_rad <= STEP5D_SEARCH_POSE_RUNTIME_TOLERANCE_RAD
+    )
+    position_ok = (
+        not position_required
+        or (
+            math.isfinite(position_error_m)
+            and position_error_m <= STEP5D_PREALIGN_POSITION_TOLERANCE_M
+        )
+    )
+    return orientation_ok and position_ok
 
 
 def slerp_unit(
@@ -3731,6 +3787,11 @@ def reset_step5d_autotune_diagnostics_for_trial(
     approach = tuple(args.step5d_physical_prior_approach_axis_b)
     rotvec = tuple(args.step5d_physical_prior_precontact_rotvec_rad)
     identity_payload = args.step5d_physical_prior_identity_payload
+    precontact_xyz = (
+        tuple(identity_payload.get("precontact_xyz_m", ()))
+        if isinstance(identity_payload, Mapping)
+        else ()
+    )
     if (
         not bool(args.step5d_physical_prior_binding_valid)
         or not isinstance(identity_payload, Mapping)
@@ -3746,6 +3807,8 @@ def reset_step5d_autotune_diagnostics_for_trial(
         raise RuntimeError("autotune physical prior approach axis is invalid")
     if len(rotvec) != 3 or not all(math.isfinite(value) for value in rotvec):
         raise RuntimeError("autotune physical prior rotvec is invalid")
+    if len(precontact_xyz) != 3 or not all(math.isfinite(value) for value in precontact_xyz):
+        raise RuntimeError("autotune physical prior precontact XYZ is invalid")
     if max(abs(prior[index] + approach[index]) for index in range(3)) > 1e-8:
         raise RuntimeError("autotune physical prior direction roles differ")
     prior_rotation = rotvec_to_matrix(*rotvec)
@@ -3758,6 +3821,7 @@ def reset_step5d_autotune_diagnostics_for_trial(
         raise RuntimeError("autotune physical prior orientation differs")
     state.step5d_physical_prior_reaction_normal_b = prior
     state.step5d_physical_prior_approach_axis_b = approach
+    state.step5d_physical_prior_precontact_xyz_m = precontact_xyz
     state.step5d_physical_prior_sha256 = str(args.step5d_physical_prior_sha256)
     state.integral_error_n_s = 0.0
     state.normal_velocity_m_s = 0.0
@@ -4164,6 +4228,7 @@ class BridgeState:
         self.step5d_stage25_entry_relatch_angle_rad: float | None = None
         self.step5d_physical_prior_reaction_normal_b: tuple[float, float, float] | None = None
         self.step5d_physical_prior_approach_axis_b: tuple[float, float, float] | None = None
+        self.step5d_physical_prior_precontact_xyz_m: tuple[float, float, float] | None = None
         self.step5d_physical_prior_sha256 = ""
         self.step5d_live_normal_load_gate_s = 0.0
         self.step5d_live_normal_blend_enabled = False
@@ -4791,12 +4856,9 @@ def compute_bridge_values(
         )
     tcp_z_axis_b = (rotation[0][2], rotation[1][2], rotation[2][2])
     step5d_search_pose_contract_active = (
-        step5d_liveprep_profile
-        and math.isfinite(robot_stage)
-        and (
-            abs(robot_stage - 22.0) < 0.05
-            or abs(robot_stage - 24.0) < 0.05
-            or abs(robot_stage - 24.2) < 0.05
+        step5d_search_pose_contract_active_for_stage(
+            step5d_liveprep_profile=step5d_liveprep_profile,
+            robot_stage=robot_stage,
         )
     )
     step5d_search_pose_target_axis_b = (
@@ -4810,9 +4872,48 @@ def compute_bridge_values(
         and step5d_search_pose_target_axis_b is not None
         else math.inf if step5d_search_pose_contract_active else math.nan
     )
+    step5d_search_pose_contract_position_required = (
+        step5d_prealign_position_contract_active_for_stage(
+            step5d_liveprep_profile=step5d_liveprep_profile,
+            robot_stage=robot_stage,
+        )
+    )
+    step5d_search_pose_target_xyz_m = state.step5d_physical_prior_precontact_xyz_m
+    step5d_search_pose_contract_position_error_m = (
+        math.sqrt(
+            (float(pose[0]) - step5d_search_pose_target_xyz_m[0]) ** 2
+            + (float(pose[1]) - step5d_search_pose_target_xyz_m[1]) ** 2
+            + (float(pose[2]) - step5d_search_pose_target_xyz_m[2]) ** 2
+        )
+        if step5d_search_pose_contract_position_required
+        and step5d_search_pose_target_xyz_m is not None
+        and len(pose) >= 3
+        else math.inf if step5d_search_pose_contract_position_required else math.nan
+    )
+    step5d_search_pose_contract_position_ok = (
+        not step5d_search_pose_contract_position_required
+        or (
+            math.isfinite(step5d_search_pose_contract_position_error_m)
+            and step5d_search_pose_contract_position_error_m
+            <= STEP5D_PREALIGN_POSITION_TOLERANCE_M
+        )
+    )
+    step5d_search_pose_contract_orientation_ok = (
+        math.isfinite(step5d_search_pose_contract_axis_error_rad)
+        and step5d_search_pose_contract_axis_error_rad
+        <= STEP5D_SEARCH_POSE_RUNTIME_TOLERANCE_RAD
+    )
     step5d_search_pose_contract_ok = (
         step5d_search_pose_contract_active
-        and step5d_search_pose_contract_axis_error_rad <= STEP5D_SEARCH_POSE_RUNTIME_TOLERANCE_RAD
+        and step5d_search_pose_contract_ok_for_errors(
+            position_required=step5d_search_pose_contract_position_required,
+            position_error_m=step5d_search_pose_contract_position_error_m,
+            axis_error_rad=step5d_search_pose_contract_axis_error_rad,
+        )
+    )
+    step5d_prealign_verified = (
+        step5d_search_pose_contract_position_required
+        and step5d_search_pose_contract_ok
     )
     step5d_line_tcp_speed_m_s = (
         norm3([float(speed[0]), float(speed[1]), float(speed[2])])
@@ -6932,12 +7033,17 @@ def compute_bridge_values(
     if step5d_liveprep_profile:
         values["_step5d_search_pose_contract_active"] = 1.0 if step5d_search_pose_contract_active else 0.0
         values["_step5d_search_pose_contract_ok"] = 1.0 if step5d_search_pose_contract_ok else 0.0
+        values["_step5d_search_pose_contract_position_required"] = 1.0 if step5d_search_pose_contract_position_required else 0.0
+        values["_step5d_search_pose_contract_position_ok"] = 1.0 if step5d_search_pose_contract_position_ok else 0.0
+        values["_step5d_search_pose_contract_position_error_m"] = step5d_search_pose_contract_position_error_m
+        values["_step5d_search_pose_contract_orientation_ok"] = 1.0 if step5d_search_pose_contract_orientation_ok else 0.0
         values["_step5d_search_pose_contract_axis_error_rad"] = step5d_search_pose_contract_axis_error_rad
         values["_step5d_search_pose_contract_tcp_z_dot_down"] = (
             dot3(tcp_z_axis_b, step5d_search_pose_target_axis_b)
             if step5d_search_pose_target_axis_b is not None
             else math.nan
         )
+        values["_step5d_prealign_verified"] = 1.0 if step5d_prealign_verified else 0.0
         values["_step5d_force_settle_filtered_normal_load_n"] = (
             state.step5d_settle_filtered_normal_load_n
             if state.step5d_settle_filtered_normal_load_n is not None

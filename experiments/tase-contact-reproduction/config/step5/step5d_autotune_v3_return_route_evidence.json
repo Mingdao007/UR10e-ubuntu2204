@@ -16,7 +16,7 @@
     "source_exact_return_telemetry_sha256": null
   },
   "motion_capable_ursim_trace_binding": {
-    "active_evidence_source_binding_sha256": "6157d6e40d39d3a7354efbb88af928c389d99b618eae0f50ff1d11e67b3c205d",
+    "active_evidence_source_binding_sha256": "1fec308a96006df27bcebe4f85b138448fa161ff85fa4142b0ef246a49ed0c56",
     "claim_role": "motion_capable_ursim_semantic_subject_equivalence",
     "exact_triplet_match": true,
     "legacy_identity_provenance_only": {
@@ -69,14 +69,14 @@
     "safe_transfer_z_m": 0.033
   },
   "schema": "step5d.autotune-v3/return-route-evidence-v2",
-  "source_binding_sha256": "6157d6e40d39d3a7354efbb88af928c389d99b618eae0f50ff1d11e67b3c205d",
+  "source_binding_sha256": "1fec308a96006df27bcebe4f85b138448fa161ff85fa4142b0ef246a49ed0c56",
   "source_exact_return_telemetry_sha256": null,
   "source_sha256": {
-    "bridge_capture": "3b7c34949ad7c5f4e3caacf172c031b4d329ca9517dc6fc179217f99f601b295",
+    "bridge_capture": "941e111c09a043fa493b4eebbe385064e571f30a71f3a634c42f4c2bfdd5bfb7",
     "campaign_adapter": "2f740d97610ab12fb12492efa929fef61b544ce7f1617f4e459ecc79f93cbe09",
     "closure_collector": "8f8e3c7a311fc62a05daddfdef4024ac5091f6a21aa20c150999691e2ee84973",
     "return_route": "d34b9d84851577df8eb611fcd185958b3e207f3d510d381223c934947c860fd4",
-    "tp_generator": "30860459e4ba8b88f086134c488a438423c45e790881013241b0f49d93ec2a40"
+    "tp_generator": "e73d829ab69696caf5da4826c7edf6d66cf384505331a2638d8acdf96352d37e"
   },
   "status": "offline_enforcement_complete_attended_certification_required",
   "telemetry_summary": null,

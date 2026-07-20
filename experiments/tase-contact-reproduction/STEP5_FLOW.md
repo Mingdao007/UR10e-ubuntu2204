@@ -2,19 +2,21 @@
 
 `config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3` as the
 unique current release route; its immutable TP package is
-`step5d_strict_rnn_autotune_v3_r003`. V1 remains frozen control-profile provenance and cannot
-be launched or selected as a fallback. V3 is selected but pre-live blocked:
-its local TP triplet changed after the retained V3
-controller read-back, so the old read-back is historical diagnostic evidence,
-not current package acceptance. The public blocker is
-`requires_attended_tp_upload_readback`. Formal 10k/30k timing pressure testing
-is not required for this convergence lane and the temporary CPU/GPU timing
-service is not an experiment prerequisite. Before V3 can ARM, certified
-stopping-bound and return-route evidence, attended exact TP upload/read-back,
-current Power-OFF controller identity, one attended Sol/XHigh audit, and fresh
-live authorization must all close. The V3 bridge may start separately in
-`NO_ARM`; Load/Play, contact, and motion remain forbidden until their explicit
-gates close.
+`step5d_strict_rnn_autotune_v3_r004`. V1 remains frozen control-profile provenance and cannot
+be launched or selected as a fallback. The exact r004 triplet has fresh
+controller upload/read-back evidence and is deployment-ready. The remaining
+pre-live steps are formal-runtime deployment, opening the exact r004 program
+on the TP, and creating a fresh identity-bound campaign/bridge context. Formal
+10k/30k timing pressure testing and the temporary CPU/GPU timing service are
+not prerequisites. The bridge starts in `NO_ARM`; Codex never presses Play or
+Stop, and only the user's TP Play enters the command-1 campaign path.
+
+Stage22 means `PREALIGN_IN_PROGRESS`, so the bridge does not apply the final
+pose-admission guard before the two blocking `movel` calls. Stage23 is the
+explicit `PREALIGN_VERIFIED` admission point: XYZ error must be at most `3 mm`
+and approach-axis error at most `2 deg`. Stage24/24.2 retain the orientation
+guard while Z changes during contact search, so they do not reapply the
+precontact XYZ condition.
 
 The V3 physical prior binds reaction normal
 `[-0.043955267, 0.020079909, 0.998831683]`, approach axis
