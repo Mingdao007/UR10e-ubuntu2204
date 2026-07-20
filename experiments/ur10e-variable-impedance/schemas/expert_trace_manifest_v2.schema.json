@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ur10e_tacdiffusion_expert_trace_manifest/v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "trace_id", "source_kind", "dataset_split",
+    "controller_profile", "canonical_frame_id", "sample_count",
+    "artifact_bindings", "software_sha256", "package_sha256", "trace_sha256",
+    "claim_boundary", "control_rate_hz", "permitted_program_claim",
+    "label_semantics", "vision_included"
+  ],
+  "properties": {
+    "schema_version": {"const": 2},
+    "trace_id": {"type": "string", "minLength": 1},
+    "source_kind": {"const": "ur10e_expert_demonstration"},
+    "dataset_split": {"enum": ["train", "validation", "test"]},
+    "controller_profile": {"const": "polyscope-5.26-direct-torque-v2-500hz"},
+    "canonical_frame_id": {"type": "string", "minLength": 1},
+    "sample_count": {"type": "integer", "minimum": 1},
+    "artifact_bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["controller_contract", "sensor_calibration", "sensor_to_tcp_transform", "wrench_bias", "task_zft", "expert_force_definition"],
+      "properties": {
+        "controller_contract": {"$ref": "#/$defs/binding"},
+        "sensor_calibration": {"$ref": "#/$defs/binding"},
+        "sensor_to_tcp_transform": {"$ref": "#/$defs/binding"},
+        "wrench_bias": {"$ref": "#/$defs/binding"},
+        "task_zft": {"$ref": "#/$defs/binding"},
+        "expert_force_definition": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "software_sha256": {"$ref": "#/$defs/sha256"},
+    "package_sha256": {"$ref": "#/$defs/sha256"},
+    "trace_sha256": {"$ref": "#/$defs/sha256"},
+    "claim_boundary": {"const": "ur10e_expert_force_labels"},
+    "control_rate_hz": {"const": 500},
+    "permitted_program_claim": {"const": "UR10e 500 Hz force-domain diffusion adaptation"},
+    "label_semantics": {"const": "pre_filter_tcp_f_ff_si"},
+    "vision_included": {"const": false}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^[^/]+$"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

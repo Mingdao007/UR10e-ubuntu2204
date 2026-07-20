@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ur10e_ursim_capture/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "request_fingerprint_sha256", "transport_kind", "runtime_kind",
+    "polyscope_version", "host", "runtime_image_digest",
+    "runtime_fingerprint_sha256", "protocol_execution_performed",
+    "physical_controller_connected", "robot_motion_observed", "step_outcomes",
+    "timing"
+  ],
+  "properties": {
+    "schema": {"const": "ur10e_ursim_capture/v1"},
+    "request_fingerprint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "transport_kind": {"type": "string"},
+    "runtime_kind": {"type": "string"},
+    "polyscope_version": {"type": "string"},
+    "host": {"type": "string"},
+    "runtime_image_digest": {"type": "string"},
+    "runtime_fingerprint_sha256": {"type": "string"},
+    "protocol_execution_performed": {"type": "boolean"},
+    "physical_controller_connected": {"type": "boolean"},
+    "robot_motion_observed": {"type": "boolean"},
+    "step_outcomes": {"type": "object"},
+    "timing": {"type": "object"}
+  }
+}

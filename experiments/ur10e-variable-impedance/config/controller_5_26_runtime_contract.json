@@ -1,0 +1,45 @@
+{
+  "schema": "ur10e_controller_runtime_contract/v1",
+  "polyscope_version": "5.26.0.140462",
+  "probe_mode": "read_only",
+  "controller_verified": false,
+  "identity": {
+    "controller_serial": "20225200364",
+    "robot_serial": "",
+    "evidence_sha256": "ec20cb9a95af5c488166198b6ed10bcb29f99102439b2a3ef2472d9f882fc0f0"
+  },
+  "urcaps": [],
+  "configuration_artifacts": [],
+  "calibration_artifacts": [],
+  "runtime_readback": {
+    "safety_status": "NORMAL",
+    "program_state": "STOPPED",
+    "dashboard": true,
+    "rtde": true,
+    "network": true,
+    "evidence_sha256": "ec20cb9a95af5c488166198b6ed10bcb29f99102439b2a3ef2472d9f882fc0f0"
+  },
+  "direct_torque_api_readback": {
+    "available_apis": [],
+    "evidence_sha256": ""
+  },
+  "actions_observed": {
+    "program_played": false,
+    "bridge_started": false,
+    "torque_sent": false,
+    "force_torque_zeroed": false,
+    "robot_motion_commanded": false,
+    "controller_setting_written": false
+  },
+  "authorization": {
+    "live_motion": false,
+    "contact": false,
+    "model_active": false,
+    "upload": false
+  },
+  "claim_boundary": "5.26 version-only readback; URCap, configuration, calibration, Direct Torque API, simulation, live, contact, and model-active readiness remain unverified",
+  "official_sources": {
+    "release_notes": "https://www.universal-robots.com/articles/ur/release-notes/release-note-software-version-526x/",
+    "software_download": "https://www.universal-robots.com/download/software-ur-series/update/latest-polyscope-software-update-sw-5260-lts-ur-series-e-series/"
+  }
+}

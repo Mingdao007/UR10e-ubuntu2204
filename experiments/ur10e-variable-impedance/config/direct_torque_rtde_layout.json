@@ -1,18 +1,28 @@
 {
-  "backend": "urscript_direct_torque_offline_template",
-  "claim_boundary": "syntax and URSim preparation only; not uploaded, executed, or live accepted",
+  "backend": "urscript_direct_torque_v2_offline_template",
+  "claim_boundary": "offline design and URSim preparation only; controller version/readback is unverified; not uploaded, executed, live accepted, or a Panda 1 kHz reproduction",
+  "controller_verified": false,
+  "control_loop_hz": 500,
   "default_mode": "disabled",
+  "direct_torque_api": "V2",
   "heartbeat_timeout_ticks": 10,
-  "host_packet_commit_order": "write doubles/mode/heartbeat/lease first; write sequence last",
+  "host_packet_commit_order": "write doubles/model mode/model period/frame/heartbeat/lease first; write model sequence; write controller sequence last",
   "limits": {
     "damping_max": [200.0, 200.0, 200.0, 30.0, 30.0, 30.0],
     "damping_sqrt_tolerance": 0.05,
     "equilibrium_translation_slew_max_m_s": 0.05,
+    "feedforward_abs_max": [20.0, 20.0, 20.0, 2.0, 2.0, 2.0],
+    "feedforward_force_norm_max_n": 20.0,
+    "feedforward_torque_norm_max_nm": 2.0,
+    "filter_alpha": 0.9,
+    "filter_beta": 0.3,
     "force_norm_abs_max_n": 50.0,
     "joint_damping": [1.5, 1.5, 1.2, 0.3, 0.3, 0.2],
     "joint_position_rad_min": [0.4, -2.0, -3.0, -0.8, 1.3, -1.5],
     "joint_position_rad_max": [0.9, -1.2, -2.2, -0.2, 1.8, -0.7],
     "joint_speed_abs_max_rad_s": 1.0,
+    "model_period_us_allowed": [2000, 5000, 10000, 20000],
+    "model_stale_periods": 2,
     "new_run_release_force_norm_max_n": 2.0,
     "new_run_release_pose_error_max_m": 0.002,
     "new_run_release_torque_norm_max_nm": 0.2,
@@ -29,42 +39,64 @@
     "torque_norm_abs_max_nm": 3.0,
     "virtual_mass": [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
   },
-  "minimum_polyscope": "5.23.0",
+  "minimum_polyscope": "5.25.2",
+  "model_active_authorized": false,
+  "model_modes": {
+    "active": 2,
+    "disabled": 0,
+    "shadow": 1
+  },
+  "model_sequence_policy": "stable before/after raw F_df read; same sequence may be held for at most two declared model periods; exact +1 commits a new model sample",
   "official_api_evidence": {
-    "direct_torque": "https://www.universal-robots.com/manuals/EN/HTML/SW5_23/Content/prod-scriptmanual/all_scripts/direct_torque.htm",
-    "get_coriolis_and_centrifugal_torques": "https://www.universal-robots.com/manuals/EN/HTML/SW5_23/Content/prod-scriptmanual/all_scripts/get_coriolis_and_centrifugal_torques.htm",
-    "get_jacobian": "https://www.universal-robots.com/manuals/EN/HTML/SW5_23/Content/prod-scriptmanual/all_scripts/get_jacobian.htm",
-    "release_notes": "https://www.universal-robots.com/articles/ur/release-notes/release-note-software-version-523x/"
+    "direct_torque": "https://www.universal-robots.com/manuals/EN/HTML/SW5_25/Content/prod-scriptmanual/all_scripts/direct_torque.htm",
+    "get_coriolis_and_centrifugal_torques": "https://www.universal-robots.com/manuals/EN/HTML/SW5_25/Content/prod-scriptmanual/all_scripts/get_coriolis_and_centrifugal_torques.htm",
+    "get_jacobian": "https://www.universal-robots.com/manuals/EN/HTML/SW5_25/Content/prod-scriptmanual/all_scripts/get_jacobian.htm",
+    "release_notes": "https://www.universal-robots.com/articles/ur/release-notes/release-note-software-version-525x/",
+    "wrench_trans": "https://www.universal-robots.com/manuals/EN/HTML/SW5_25/Content/prod-scriptmanual/all_scripts/4ModuleUrmath.htm"
   },
   "registers": {
     "input_double": {
       "damping": [36, 37, 38, 39, 40, 41],
       "equilibrium_pose_base_rotvec": [24, 25, 26, 27, 28, 29],
+      "raw_feedforward_wrench_tcp_si": [42, 43, 44, 45, 46, 47],
       "stiffness": [30, 31, 32, 33, 34, 35]
     },
     "input_integer": {
-      "heartbeat": 26,
       "exclusive_lease": 27,
+      "heartbeat": 26,
       "mode": 24,
-      "sequence": 25
+      "model_mode": 30,
+      "model_period_us": 29,
+      "model_sequence": 28,
+      "sequence": 25,
+      "wrench_frame_token": 31
     },
     "output_double": {
+      "filtered_feedforward_wrench": [26, 27, 28, 29, 30, 31],
       "max_abs_tau_nm": 24,
       "steptime_s": 25
     },
     "output_integer": {
-      "echo_sequence": 25,
       "echo_exclusive_lease": 27,
+      "echo_model_sequence": 28,
+      "echo_sequence": 25,
+      "echo_wrench_frame_token": 30,
       "fault_code": 26,
+      "model_fault_code": 29,
       "state": 24
     }
   },
-  "safe_exit_damping_ticks": 5,
-  "schema_version": 2,
+  "safe_exit_damping_ticks": 10,
+  "schema_version": 3,
   "sequence_policy": "coherent before/after read, heartbeat equals sequence, exact +1 advancement; frozen/gap/mixed packet fails closed",
-  "template_sha256": "1f8c4f8e96890988ce698e2c473428368932050bda40355880d19de5201fa3ff",
+  "template_sha256": "da74aea300ce3594bde5f8fb46a08349a05b125a6c75f89df39db225ded4b427",
   "torque_backend_exclusive": true,
   "translational_vic_only": true,
-  "zero_torque_startup_ticks": 5,
-  "upload_authorized": false
+  "upload_authorized": false,
+  "wrench_frame_contract": {
+    "controller_verified": false,
+    "id": "kunwei_sensor_to_tcp_si_v1",
+    "token": 5252001
+  },
+  "zero_torque_startup_ticks": 5
 }

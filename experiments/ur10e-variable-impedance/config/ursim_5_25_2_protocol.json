@@ -1,0 +1,58 @@
+{
+  "schema": "ur10e_ursim_5_25_2_protocol_v1",
+  "target": {
+    "polyscope_version": "5.25.2",
+    "robot_model": "ur10e",
+    "control_rate_hz": 500,
+    "direct_torque_generation": "V2",
+    "image": "universalrobots/ursim_e-series:5.25.2"
+  },
+  "source_bindings": [
+    {
+      "path": "config/direct_torque_rtde_layout.json",
+      "sha256": "d4558a2ec20ecd4fc85ecc7ddb30bfe7fb3bcc75232dd66ce57affbe6109bc7d"
+    },
+    {
+      "path": "programs/direct_torque_vic_offline_template.script",
+      "sha256": "da74aea300ce3594bde5f8fb46a08349a05b125a6c75f89df39db225ded4b427"
+    }
+  ],
+  "runtime_policy": {
+    "default_mode": "dry_run",
+    "host_policy": "loopback_only",
+    "container_start_allowed": false,
+    "image_pull_allowed": false,
+    "controller_transport_present": false,
+    "external_loopback_adapter_required": true,
+    "runtime_acceptance_enabled": false,
+    "runtime_adapter_sha256": null
+  },
+  "protocol_steps": [
+    "urscript_parser_load",
+    "rtde_register_roundtrip",
+    "zero_input_equilibrium_hold",
+    "force_filter_500hz",
+    "torque_loop_500hz",
+    "heartbeat_loss_controlled_stop",
+    "sequence_gap_controlled_stop",
+    "missed_tick_controlled_stop",
+    "continuous_60s_timing"
+  ],
+  "timing_acceptance": {
+    "duration_s": 60,
+    "minimum_ticks": 30000,
+    "deadline_s": 0.002,
+    "p99_max_s": 0.0018,
+    "max_strictly_less_than_s": 0.002,
+    "deadline_misses": 0,
+    "nonfinite_outputs": 0
+  },
+  "current_status": {
+    "runtime_available": false,
+    "protocol_execution_performed": false,
+    "simulation_run": false,
+    "controller_verified": false,
+    "model_active_enabled": false,
+    "live_motion_authorized": false
+  }
+}

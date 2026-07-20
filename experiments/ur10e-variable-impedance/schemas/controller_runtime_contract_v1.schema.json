@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ur10e_controller_runtime_contract/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "polyscope_version", "probe_mode", "controller_verified",
+    "identity", "urcaps", "configuration_artifacts", "calibration_artifacts",
+    "runtime_readback", "direct_torque_api_readback", "actions_observed",
+    "authorization", "claim_boundary"
+  ],
+  "properties": {
+    "schema": {"const": "ur10e_controller_runtime_contract/v1"},
+    "polyscope_version": {"type": "string"},
+    "probe_mode": {"const": "read_only"},
+    "controller_verified": {"type": "boolean"},
+    "identity": {"type": "object"},
+    "urcaps": {"type": "array"},
+    "configuration_artifacts": {"type": "array"},
+    "calibration_artifacts": {"type": "array"},
+    "runtime_readback": {"type": "object"},
+    "direct_torque_api_readback": {"type": "object"},
+    "actions_observed": {"type": "object"},
+    "authorization": {"type": "object"},
+    "claim_boundary": {"type": "string", "minLength": 1},
+    "official_sources": {"type": "object"}
+  }
+}

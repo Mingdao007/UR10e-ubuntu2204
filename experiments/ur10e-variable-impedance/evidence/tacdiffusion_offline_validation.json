@@ -1,0 +1,177 @@
+{
+  "base_commit": "7d15f6e025fe655a0ee63e60ae51184f27cc24eb",
+  "branch": "feature/tacdiffusion-5-26-reproduction-prep-20260720",
+  "claim": "UR10e 500 Hz force-domain diffusion adaptation preparation",
+  "contact_authorized": false,
+  "controller_verified": false,
+  "formal_checkpoint_trained": false,
+  "formal_dataset_collected": false,
+  "generated_at": "2026-07-20T03:58:32+00:00",
+  "hardware_run": false,
+  "highest_stage": "deterministic_tested",
+  "live_motion_authorized": false,
+  "model_active_enabled": false,
+  "remaining_blockers": [
+    "5.26 version-only observation lacks complete identity, URCap, configuration, calibration, and Direct Torque API bindings",
+    "no accepted 5.26 URSim capture or runtime image fingerprint exists",
+    "no hardware-verified expert F_ff dataset exists",
+    "no retained formal UR10e TacDiffusion checkpoint or real evaluation artifact exists",
+    "no independent real 50/100/200/500 Hz timing selection exists",
+    "no live or contact authorization exists",
+    "model-active remains disabled"
+  ],
+  "review_policy": {
+    "next_required_review": "1+1 before first no-contact torque canary",
+    "reason": "ordinary offline coding under UR10e Review v2",
+    "stack": "0+0 plus one non-blocking read-only Fable shadow"
+  },
+  "schema": "ur10e_tacdiffusion_offline_validation_v2",
+  "simulation_run": false,
+  "source_bindings": [
+    {
+      "path": "config/controller_5_25_2_upgrade_preflight.json",
+      "sha256": "7f7183022bc3e6b0209a644ddfde83c326d61a4b87215c3d56af703382dc3263"
+    },
+    {
+      "path": "config/controller_5_26_runtime_contract.json",
+      "sha256": "f0675136330cd09e3e6b2ee892f2a43974e4fb18c7abcf0159711c18543a80c2"
+    },
+    {
+      "path": "config/direct_torque_rtde_layout.json",
+      "sha256": "d4558a2ec20ecd4fc85ecc7ddb30bfe7fb3bcc75232dd66ce57affbe6109bc7d"
+    },
+    {
+      "path": "config/tacdiffusion_experiment_plan.json",
+      "sha256": "a5b7c3c3d301c63a730abde671b03fde099f2269357a5c7aeca5f2a6c0c88fb5"
+    },
+    {
+      "path": "config/tacdiffusion_upstream_lock.json",
+      "sha256": "29a1dee5252a2e6ea0dab5e7ef51daba64575eb1b4912417a22545bed932e2ca"
+    },
+    {
+      "path": "config/ursim_5_25_2_protocol.json",
+      "sha256": "7ebe1a3ce7c80a880c915272b9e8552a9546004bdcb69ea381bb09dcdf680ac0"
+    },
+    {
+      "path": "config/ursim_5_26_protocol.json",
+      "sha256": "de6b9511e833e662d39cb80943db53e342b8d58fb0213b0baca9759ba7e24b24"
+    },
+    {
+      "path": "config/validation_ledger.json",
+      "sha256": "da228c9d9cfa0c32d6f4602e6a7b066aeb8af5c5d9123d8fdaf9bd3974d82ce0"
+    },
+    {
+      "path": "schemas/controller_runtime_contract_v1.schema.json",
+      "sha256": "8967adab24b27c93cc4c02c77a45e94c94f166643da2acfc3a32200ff35a5a34"
+    },
+    {
+      "path": "schemas/expert_trace_manifest_v2.schema.json",
+      "sha256": "033a95307e4fb2c3999439a733370e11e7a0878d9643eb2cc559116d8b9fe8d2"
+    },
+    {
+      "path": "schemas/tacdiffusion_checkpoint_v2.schema.json",
+      "sha256": "f509bf8fe88311f4e6d10ba8efb2adf283dcd637262538fccf43d396f0a23314"
+    },
+    {
+      "path": "schemas/tacdiffusion_evaluation_v1.schema.json",
+      "sha256": "ef0e0eb49d9cf749cae359dbd07697a0d763aaf441ae827961ea0333a228d63e"
+    },
+    {
+      "path": "schemas/ursim_capture_v1.schema.json",
+      "sha256": "8a10448f0d0ce6d61eb444eac826d361166fab82a5b088f7e48f5775ac980912"
+    },
+    {
+      "path": "programs/direct_torque_vic_offline_template.script",
+      "sha256": "da74aea300ce3594bde5f8fb46a08349a05b125a6c75f89df39db225ded4b427"
+    },
+    {
+      "path": "ur10e_vic/controller_contract.py",
+      "sha256": "812df43610dcf3591fee105ffebb0b3b090187d9dafc780998f44ed58baec5c9"
+    },
+    {
+      "path": "ur10e_vic/controller_upgrade.py",
+      "sha256": "98790598b2997f35f9a9ba6255b506507599b58b66401b9997b47d9fd82e3eb4"
+    },
+    {
+      "path": "ur10e_vic/ursim_protocol.py",
+      "sha256": "f747112aac4816114856f69f26097ecfc2d74d5042738970845312442ee7c086"
+    },
+    {
+      "path": "ur10e_vic/ursim_transport.py",
+      "sha256": "97cef605a7b7d6bdca0ba4ce23f033fe7ce0b16ba200fce3c9de0b64dd1a39f7"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/cli.py",
+      "sha256": "996d3b43b7b9568a2293d5e7acf17858e20d10991b3f98817f15b6cb7fab4861"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/contracts.py",
+      "sha256": "ee871892ff31139208b6f5875e858a9d4b287f02ef529059395d4796e2c8a050"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/dataset.py",
+      "sha256": "998be6b6b29b83e4125ac13c764fef17e806d8052ef7d7d67f6d17d77900fa75"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/expert_data.py",
+      "sha256": "5a10624b55cb8011d9e04ea580f5592d2671a4088b4b87e792e3154318222415"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/model.py",
+      "sha256": "8acf7db8077cade568036f226b1b15e5f334ac94bc53fc2e70121f7c22e249a5"
+    },
+    {
+      "path": "tests/test_controller_contract.py",
+      "sha256": "c56ede394ed6ce389c16e07595755471012dea6424a5217519ec2b29ca92b8fe"
+    },
+    {
+      "path": "tests/test_tacdiffusion_expert_data.py",
+      "sha256": "e11c63aa81f5a507968bdc8349896d58d5efa1fcee68db7243e5163bf53fc0c9"
+    },
+    {
+      "path": "tests/test_tacdiffusion_model.py",
+      "sha256": "e02c476c51bf3674fd055257bcabae6168ddb7af74e028d447d13c934a6f1e88"
+    },
+    {
+      "path": "tests/test_ursim_transport.py",
+      "sha256": "a1bec0e9ee2196f9c4e59e14c4e6c5c40c95a6b0eb22fd82b91563015b1e0ac0"
+    },
+    {
+      "path": "tools/build_tacdiffusion_offline_evidence.py",
+      "sha256": "ad5302c09c54647fd9efb140f44a89b73027912aedb18c9d578aa6714c441a23"
+    },
+    {
+      "path": "docs/TACDIFFUSION_UR10E_MAINLINE.md",
+      "sha256": "d04b4bffe538b5ff3667d73c1ea29a15b48192c321c75eb7e09b00128ceda542"
+    },
+    {
+      "path": "OFFLINE_READINESS.json",
+      "sha256": "74b32204a4f319c8a77848c9f0459301ac0565781f8816a498bef46eb9f4b214"
+    },
+    {
+      "path": "README.md",
+      "sha256": "026cfd14bbdadddeab7d87d25a089ba7b1e53eba7fd10b74029c5423dd72057c"
+    }
+  ],
+  "ursim_run": false,
+  "validation": {
+    "controller_5_26_fail_closed_contract_passed": true,
+    "dbil_regression_passed": true,
+    "dependency_light_python_passed": true,
+    "expert_manifest_v2_artifact_graph_passed": true,
+    "external_dbil_artifacts_rehashed_this_round": false,
+    "git_diff_check_passed": true,
+    "gpu_used": false,
+    "json_validation_passed": true,
+    "legacy_5_25_2_hashes_unchanged": true,
+    "python_compileall_passed": true,
+    "secret_scan_passed": true,
+    "tacdiffusion_checkpoint_v2_resume_passed": true,
+    "torch_2_11_cpu_fixture_smoke_passed": true,
+    "torch_fixture_train_resume_evaluate_passed": true,
+    "ursim_5_26_fake_transport_nonpromotion_passed": true,
+    "ursim_protocol_execution_performed": false,
+    "variable_impedance_check_passed": true,
+    "variable_impedance_test_count": 104
+  }
+}

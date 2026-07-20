@@ -1,0 +1,35 @@
+{
+  "schema": "ur10e_mainline_reconciliation_v1",
+  "generated_at": "2026-07-13T01:33:56+08:00",
+  "source_worktree": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711",
+  "source_head": "a14423b4ef1040847189b9cf5d275d83d97dcef0",
+  "frozen_baseline": "efedcf141ea17f61194c1b2f0f7d20c5c816fe0b",
+  "merge_base": "a14423b4ef1040847189b9cf5d275d83d97dcef0",
+  "source_behind_commits": 9,
+  "source_ahead_commits": 0,
+  "tracked_changed_paths": 8,
+  "untracked_paths": 276,
+  "classification_counts": {
+    "already_in_latest": 8,
+    "divergent_from_latest": 3,
+    "generated_or_backup_untracked": 272,
+    "new_untracked_not_in_latest": 1
+  },
+  "decisions": {
+    "already_in_latest": "do_not_migrate_byte_identical",
+    "p0_runtime_evidence": "preserve_external_historical_only_do_not_replace_frozen_v4",
+    "weaker_gazebo_test": "superseded_by_stricter_frozen_baseline",
+    "generated_or_backup_untracked": "preserve_in_external_tar_do_not_commit",
+    "install_symlink": "generated_artifact_do_not_commit"
+  },
+  "external_evidence": {
+    "ubuntu_path": "/home/andy/codex_handoffs/ur10e-mainline-reconciliation-20260713-013356",
+    "mac_snapshot_path": "/Users/andyl/codex_handoffs/ur10e-mainline-reconciliation-20260713-013356",
+    "bundle_sha256_manifest_sha256": "8b92419277da282523ad1c4d0664f7991eb58ce58ee8e1aeb2cad0bb5f8167b7",
+    "contains_binary_patch": true,
+    "contains_untracked_tar": true,
+    "contains_per_path_sha256": true
+  },
+  "source_worktree_mutated": false,
+  "safe_start_commit": "efedcf141ea17f61194c1b2f0f7d20c5c816fe0b"
+}

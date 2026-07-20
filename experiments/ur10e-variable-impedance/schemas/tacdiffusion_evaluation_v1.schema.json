@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ur10e_tacdiffusion_evaluation/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "model_variant", "checkpoint_sha256", "dataset_sha256",
+    "split", "sample_count", "sample_indices_sha256", "metrics",
+    "evidence_scope", "simulation_run", "hardware_run", "active_enabled",
+    "payload_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "ur10e_tacdiffusion_evaluation/v1"},
+    "model_variant": {"const": "clean_room_tacdiffusion_force_ddpm_v2"},
+    "checkpoint_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "dataset_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "split": {"enum": ["validation", "test"]},
+    "sample_count": {"type": "integer", "minimum": 1},
+    "sample_indices_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "metrics": {"type": "object"},
+    "evidence_scope": {"enum": ["offline_training", "fixture_only"]},
+    "simulation_run": {"const": false},
+    "hardware_run": {"const": false},
+    "active_enabled": {"const": false},
+    "payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

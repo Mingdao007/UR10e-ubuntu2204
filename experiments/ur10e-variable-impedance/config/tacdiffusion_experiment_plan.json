@@ -1,0 +1,180 @@
+{
+  "schema_version": 2,
+  "experiment": "ur10e_step5_tacdiffusion",
+  "status": "offline_preparation",
+  "controller_verified": false,
+  "claim": "UR10e 500 Hz force-domain diffusion adaptation",
+  "forbidden_claims": [
+    "Panda 1 kHz exact reproduction",
+    "Panda-to-UR10e zero-shot transfer",
+    "hardware readiness from version-only 5.26.0 readback",
+    "paper reproduction from pipeline-only replay"
+  ],
+  "task": {
+    "name": "Step5 curved-surface contact",
+    "vision_enabled": false,
+    "new_hardware_required": false,
+    "expert_data_requirement": "new UR10e demonstrations with explicit deterministic expert F_ff labels"
+  },
+  "controller_contract": {
+    "offline_target": "PolyScope 5.26.0 LTS",
+    "observed_physical_controller": "PolyScope 5.26.0.140462 version-only readback; identity, URCap, configuration, calibration, and Direct Torque V2 API bindings remain incomplete",
+    "runtime_contract": "config/controller_5_26_runtime_contract.json",
+    "historical_5_25_2_contract_immutable": true,
+    "control_api": "direct_torque_v2",
+    "control_rate_hz": 500,
+    "controller_local_dynamic_filter": true,
+    "controller_local_torque_equation": "tau = J^T * (F_ff + K*e - D*xdot) + C(q,qd) - D_q*qd; gravity is supplied by direct_torque",
+    "mutually_exclusive_with_velocity_bridge": true
+  },
+  "observation_contract": {
+    "name": "ForceDiffusionObservation",
+    "dimension": 36,
+    "time_slices": 2,
+    "per_time_slice": {
+      "external_wrench": 6,
+      "internal_wrench": 6,
+      "end_effector_twist": 6
+    },
+    "required_lineage": [
+      "timestamp",
+      "sequence",
+      "sensor_frame",
+      "tcp_frame",
+      "calibration_hash"
+    ],
+    "external_wrench_source": "Kunwei 1 kHz raw stream after SI conversion, explicit zero/bias evidence, sensor-to-TCP transform, and causal synchronization to 500 Hz",
+    "raw_external_wrench_safety_stream_hz": 1000,
+    "internal_wrench_source": "reconstruction from the previous tick's applied no-gravity joint torque, Jacobian, and dynamics terms",
+    "internal_wrench_must_not_copy_external_wrench": true,
+    "actual_current_as_torque_use": "shadow_cross_check_only"
+  },
+  "proposal_contract": {
+    "name": "ForceDiffusionProposal",
+    "raw_action": "F_df",
+    "action_dimension": 6,
+    "required_metadata": [
+      "model_hash",
+      "sequence",
+      "model_rate_hz",
+      "age_s",
+      "confidence",
+      "valid",
+      "shadow"
+    ],
+    "controller_applied_signal": "filtered_F_ff"
+  },
+  "expert_trace_manifest": {
+    "name": "ExpertTraceManifestV2",
+    "schema_version": 2,
+    "manifest_alone_training_eligible": false,
+    "required_bindings": [
+      "recomputed_controller_runtime_contract",
+      "polyscope_5_26_direct_torque_profile",
+      "dataset_split",
+      "sensor_calibration_artifact",
+      "sensor_to_tcp_transform_artifact",
+      "wrench_bias_artifact",
+      "time_indexed_task_zft_artifact",
+      "deterministic_expert_F_ff_definition_artifact",
+      "software_hashes",
+      "package_hashes"
+    ],
+    "label_semantics": "pre_filter_tcp_f_ff_si",
+    "existing_v27_v29_trace_policy": "pipeline and command-invariant shadow replay only; never formal labels"
+  },
+  "dataset_stages": [
+    {
+      "name": "pilot",
+      "episodes": 50,
+      "required": true,
+      "hash_bound_split_required": true
+    },
+    {
+      "name": "formal",
+      "episodes": 200,
+      "required": true,
+      "hash_bound_split_required": true
+    },
+    {
+      "name": "paper_scale_extension",
+      "episodes": 1500,
+      "required": false,
+      "activation_condition": "validation learning curve remains materially improving after the 200-episode formal dataset",
+      "hash_bound_split_required": true
+    }
+  ],
+  "split_policy": {
+    "group_by_episode": true,
+    "frame_level_leakage_allowed": false,
+    "split_frozen_before_training": true,
+    "ratios_declared_in_each_batch_manifest": true
+  },
+  "model_configuration": {
+    "diffusion": "DDPM",
+    "variant": "clean_room_tacdiffusion_force_ddpm_v2",
+    "pinned_upstream_commit": "6a5567c829c54b7d03164cf40779d2451de4099e",
+    "denoising_steps": 50,
+    "mlp_hidden_width": 512,
+    "embedding_width": 128,
+    "condition": "separate_current_and_previous_observation_embeddings",
+    "time_embedding": "TimeSiren",
+    "blocks": "BatchNorm1d_GELU_residual",
+    "default_epochs": 1500,
+    "default_batch_size": 4096,
+    "default_learning_rate": 0.001,
+    "scheduler": "CosineAnnealingLR",
+    "normalization_scope": "train_split_only",
+    "resume_state": ["optimizer", "scheduler", "torch_rng", "permutation_rng"],
+    "dynamic_filter_alpha": 0.9,
+    "dynamic_filter_beta": 0.3,
+    "candidate_model_rates_hz": [50, 100, 200, 500],
+    "rate_selection_rule": "choose the highest rate with a 60-second run, zero deadline misses, zero nonfinite output, and p99 latency no greater than 80 percent of the model period",
+    "all_rates_failure_policy": "shadow_only"
+  },
+  "fail_closed_conditions": [
+    "proposal older than two model periods",
+    "model sequence gap",
+    "nonfinite observation or proposal",
+    "force or torque bound violation",
+    "frame or calibration lineage mismatch",
+    "host heartbeat loss"
+  ],
+  "fail_closed_response": "monotonically ramp F_ff to zero, enter damping, then controlled stop",
+  "offline_replay": {
+    "allowed_sources": ["v27", "v29"],
+    "allowed_purpose": "observation pipeline and command-invariant shadow validation",
+    "formal_label_source": false,
+    "shadow_must_preserve_active_command_bit_for_bit": true
+  },
+  "hardware_progression": [
+    "fixed impedance no-contact shadow",
+    "direct_torque fixed baseline no-contact canary for 2, 10, and 60 seconds",
+    "low-risk contact runs using the deterministic expert",
+    "collect the 50-episode and 200-episode expert F_ff datasets",
+    "TacDiffusion shadow",
+    "separately authorized model-active contact"
+  ],
+  "review_policy_v2": {
+    "ordinary_offline_coding": "0+0 deterministic validation",
+    "before_first_no_contact_torque_canary": "1+1",
+    "before_first_contact_torque_or_tacdiffusion_active_run": "2+1",
+    "finding_recheck": "targeted closer only unless the risk fingerprint changes"
+  },
+  "acceptance_isolation": {
+    "domains": ["v29", "v30", "P0", "VIC", "DBIL", "Gazebo", "URSim", "TacDiffusion"],
+    "evidence_borrowing_allowed": false
+  },
+  "current_round_prohibitions": [
+    "controller upgrade",
+    "controller upload",
+    "bridge start",
+    "TP Play",
+    "force-torque zero",
+    "network mutation",
+    "robot motion"
+  ],
+  "active_model_enabled": false,
+  "live_motion_authorized": false,
+  "contact_authorized": false
+}

@@ -1,0 +1,76 @@
+{
+  "schema": "ur10e_controller_readonly_observation_v1",
+  "captured_at": "2026-07-19T00:38:01+08:00",
+  "probe_mode": "read_only",
+  "controller": {
+    "dashboard_version_response": "URSoftware 5.26.0.140462 (Jul 08 2026)",
+    "polyscope_version": "5.26.0.140462",
+    "dashboard_serial_response": "20225200364",
+    "serial_identity_source": "Dashboard get serial number",
+    "robot_mode": "RUNNING",
+    "safety_mode": "NORMAL",
+    "program_state": "STOPPED step5d_strict_rnn_autotune_v3.urp",
+    "program_running": false,
+    "remote_control": false
+  },
+  "rtde_readback": {
+    "actual_tcp_speed_linear_norm_m_s": 0.0,
+    "payload_kg": 0.401,
+    "payload_cog_m": [0.0, 0.0, 0.025],
+    "tcp_offset_m_rad": [0.0, 0.0, 0.1221, 0.0, 0.0, 0.0],
+    "safety_mode": 1,
+    "runtime_state": 1
+  },
+  "network_readback": {
+    "robot_host": "192.168.1.18",
+    "route_interface": "enp3s0",
+    "route_source": "192.168.1.10",
+    "dashboard_29999_open": true,
+    "secondary_30002_open": true,
+    "rtde_30004_open": true
+  },
+  "checkpoint_decision": {
+    "historical_target_polyscope_version": "5.25.2",
+    "status": "closed_no_install",
+    "reason": "target_would_be_a_downgrade",
+    "install_authorized": false,
+    "new_backup_required_for_this_no_install_decision": false,
+    "controller_verified": false
+  },
+  "existing_pre_upgrade_backup": {
+    "root": "/home/andy/Documents/UR10e_ws/controller_backups/pre_polyscope_5.25.2_20260714_003103",
+    "serial_binding": "20225200364",
+    "artifacts": [
+      {
+        "path": "controller_snapshot.tar.gz",
+        "sha256": "b71f290c1940ed74ec2c212b0d6bfa6bb4e99decaed10355e24f4f1350737861",
+        "readability": "tar_gzip_listing_passed"
+      },
+      {
+        "path": "20225200364_20260713T161718Z.urb",
+        "sha256": "9787067a4fd479c5b79985ac490e5426d34433f8a0fe0840df338cf44ec0b381",
+        "readability": "squashfs_4_0_superblock_valid"
+      }
+    ],
+    "sha256_manifest_verified": true
+  },
+  "source_artifacts": [
+    {
+      "path": "/home/andy/.codex/runs/ur10e-autonomous-quickwins-20260719/controller-preflight/preflight_readonly.json",
+      "sha256": "ec20cb9a95af5c488166198b6ed10bcb29f99102439b2a3ef2472d9f882fc0f0"
+    }
+  ],
+  "official_sources": {
+    "current_5_26_0_lts": "https://www.universal-robots.com/download/software-ur-series/update/latest-polyscope-software-update-sw-5260-lts-ur-series-e-series/",
+    "release_notes_5_25": "https://www.universal-robots.com/articles/ur/release-notes/release-note-software-version-525x/"
+  },
+  "actions_performed_by_capture": {
+    "program_played": false,
+    "bridge_started": false,
+    "torque_sent": false,
+    "force_torque_zeroed": false,
+    "controller_setting_written": false,
+    "robot_motion_commanded": false
+  },
+  "claim_boundary": "Version, identity, stopped-program, RTDE-output, backup-integrity, and no-downgrade evidence only. This does not verify URCaps, PROFIsafe, Direct Torque V2 APIs, calibration preservation, live/contact readiness, or motion authorization."
+}

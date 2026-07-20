@@ -1,0 +1,64 @@
+{
+  "schema": "ur10e_ursim_protocol/v2",
+  "target": {
+    "polyscope_version": "5.26.0",
+    "robot_model": "ur10e",
+    "control_rate_hz": 500,
+    "direct_torque_generation": "V2",
+    "image_reference": "universalrobots/ursim_e-series:5.26.0",
+    "image_digest": null
+  },
+  "source_bindings": [
+    {
+      "path": "config/controller_5_26_runtime_contract.json",
+      "sha256": "f0675136330cd09e3e6b2ee892f2a43974e4fb18c7abcf0159711c18543a80c2"
+    },
+    {
+      "path": "config/direct_torque_rtde_layout.json",
+      "sha256": "d4558a2ec20ecd4fc85ecc7ddb30bfe7fb3bcc75232dd66ce57affbe6109bc7d"
+    },
+    {
+      "path": "programs/direct_torque_vic_offline_template.script",
+      "sha256": "da74aea300ce3594bde5f8fb46a08349a05b125a6c75f89df39db225ded4b427"
+    }
+  ],
+  "runtime_policy": {
+    "host_policy": "loopback_only",
+    "container_start_allowed": false,
+    "image_pull_allowed": false,
+    "physical_controller_allowed": false,
+    "production_transport_in_repository": false,
+    "fake_transport_can_promote_simulation": false,
+    "runtime_adapter_sha256": "97cef605a7b7d6bdca0ba4ce23f033fe7ce0b16ba200fce3c9de0b64dd1a39f7"
+  },
+  "protocol_steps": [
+    "urscript_parser_load",
+    "rtde_register_roundtrip",
+    "zero_input_equilibrium_hold",
+    "force_filter_500hz",
+    "torque_loop_500hz",
+    "heartbeat_loss_controlled_stop",
+    "sequence_gap_controlled_stop",
+    "missed_tick_controlled_stop",
+    "continuous_60s_timing"
+  ],
+  "timing_acceptance": {
+    "duration_s": 60,
+    "minimum_ticks": 30000,
+    "deadline_s": 0.002,
+    "p99_max_s": 0.0018,
+    "max_strictly_less_than_s": 0.002,
+    "deadline_misses": 0,
+    "nonfinite_outputs": 0
+  },
+  "current_status": {
+    "protocol_execution_performed": false,
+    "simulation_run": false,
+    "runtime_image_digest_bound": false,
+    "runtime_fingerprint_bound": false,
+    "controller_verified": false,
+    "model_active_enabled": false,
+    "live_motion_authorized": false
+  },
+  "claim_boundary": "Versioned 5.26 offline request/capture contract and fake transport tests only; no URSim runtime was started or accepted"
+}
