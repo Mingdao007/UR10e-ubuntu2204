@@ -96,6 +96,26 @@ def test_r001_ticket_binds_bridge_and_exact_campaign_without_auth_files(
     assert "campaign_arming_context_path" not in observed
     assert "certification_authorization_path" not in observed
 
+    gate = bridge._require_v3_no_arm_bridge(
+        SimpleNamespace(
+            bridge_profile="step5d_strict_rnn_autotune_v1",
+            step5d_autotune_command_mailbox=tmp_path / "command.json",
+            step5d_stage25_control_mode="speedj_rnn_live",
+        ),
+        observed,
+        readiness_owner=lambda _root, _path: (
+            {
+                "selected_release": "step5d_strict_rnn_autotune_v3",
+                "bridge_start_ready": True,
+            },
+            context,
+        ),
+    )
+    assert gate["selected_release"] == "step5d_strict_rnn_autotune_v3"
+    assert gate["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
+    assert gate["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r001"
+    assert gate["live_motion_authorized"] is False
+
 
 def test_live_runner_uses_the_current_bridge_readiness_owner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

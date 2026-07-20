@@ -19,7 +19,7 @@ import queue
 import sys
 import time
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 
@@ -32,6 +32,12 @@ if str(RUNTIME_SRC) not in sys.path:
 from ur10e_experiment_runtime.identity import canonical_sha256
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 from step5d_autotune_v3.arming import load_bridge_start_context
+from step5d_autotune_v3.readiness import require_bridge_start
+from step5d_autotune_v3.runtime_profile import (
+    CONTROL_PROFILE_ID,
+    RELEASE_STAGE_ID,
+    TP_PROGRAM_ID,
+)
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v4"
@@ -482,7 +488,47 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
     return payload
 
 
-def install_v3_seams() -> Any:
+def _require_v3_no_arm_bridge(
+    args: Any,
+    ticket: Mapping[str, Any],
+    *,
+    root: Path = ROOT,
+    readiness_owner: Callable[..., tuple[Mapping[str, Any], Any]] = require_bridge_start,
+) -> dict[str, Any]:
+    """Replace the legacy V1-selection gate with the ticket-bound V3 gate."""
+
+    if (
+        ticket.get("scope") != TICKET_SCOPE
+        or ticket.get("release_stage_id") != RELEASE_STAGE_ID
+        or ticket.get("control_profile_id") != CONTROL_PROFILE_ID
+        or ticket.get("tp_program_id") != TP_PROGRAM_ID
+        or args.bridge_profile != CONTROL_PROFILE_ID
+    ):
+        raise BridgeTicketError("V3 NO_ARM bridge identity differs")
+    if args.step5d_autotune_command_mailbox is None:
+        raise BridgeTicketError("V3 NO_ARM bridge requires the continuous command mailbox")
+    if args.step5d_stage25_control_mode != "speedj_rnn_live":
+        raise BridgeTicketError("V3 NO_ARM bridge requires the frozen V1 Stage25 kernel")
+    reference = ticket.get("bridge_start_context") or {}
+    context_path = Path(str(reference.get("path") or ""))
+    report, context = readiness_owner(root, context_path)
+    if (
+        report.get("selected_release") != RELEASE_STAGE_ID
+        or report.get("bridge_start_ready") is not True
+        or context.identity != ticket.get("identity")
+    ):
+        raise BridgeTicketError("V3 NO_ARM bridge readiness differs from runtime ticket")
+    return {
+        "ok": True,
+        "selected_release": RELEASE_STAGE_ID,
+        "control_profile_id": CONTROL_PROFILE_ID,
+        "tp_program_id": TP_PROGRAM_ID,
+        "scope": TICKET_SCOPE,
+        "live_motion_authorized": False,
+    }
+
+
+def install_v3_seams(ticket: Mapping[str, Any] | None = None) -> Any:
     import step5d_autotune_live_driver as live
     from step5d_autotune_v3.runtime_calibration import validate_installed_calibration
     from step5d_autotune_v3.runtime_profile import IdentityCachedMailbox
@@ -498,6 +544,24 @@ def install_v3_seams() -> Any:
     live.BridgeTrialCsvRotator = V3AsyncBridgeTrialCsvRotator
 
     import kunwei_rtde_bridge as bridge
+
+    original_authorization_gate = bridge.require_v29_live_bridge_authorization
+
+    def v3_authorization_gate(
+        args: Any,
+        *,
+        root: Path = ROOT,
+    ) -> dict[str, Any] | None:
+        if args.bridge_profile != CONTROL_PROFILE_ID:
+            return original_authorization_gate(args, root=root)
+        if ticket is None:
+            raise BridgeTicketError("V3 runtime ticket is unavailable at bridge gate")
+        try:
+            return _require_v3_no_arm_bridge(args, ticket, root=root)
+        except BridgeTicketError as exc:
+            raise SystemExit(f"V3 NO_ARM bridge gate failed: {exc}") from exc
+
+    bridge.require_v29_live_bridge_authorization = v3_authorization_gate
 
     original_dict_writer = bridge.csv.DictWriter
 
@@ -588,8 +652,8 @@ def main(argv: list[str] | None = None) -> int:
         print("refusing: STEP5D_V3_RUNTIME_TICKET is required", file=sys.stderr)
         return 24
     try:
-        _strict_ticket(Path(ticket_text), bridge_argv)
-        bridge = install_v3_seams()
+        ticket = _strict_ticket(Path(ticket_text), bridge_argv)
+        bridge = install_v3_seams(ticket)
     except BridgeTicketError as exc:
         print(f"refusing: {exc}", file=sys.stderr)
         return 24
