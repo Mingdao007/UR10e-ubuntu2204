@@ -6,11 +6,15 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_autotune_v3_bridge as bridge  # noqa: E402
+import run_step5d_autotune_v3_live as live_runner  # noqa: E402
 from step5d_autotune_v3.arming import BridgeStartContext  # noqa: E402
 from step5d_autotune_v3.identity_layers import (  # noqa: E402
     release_basis_fingerprint,
@@ -91,6 +95,30 @@ def test_r001_ticket_binds_bridge_and_exact_campaign_without_auth_files(
     assert observed["tp_program_id"].endswith("_r001")
     assert "campaign_arming_context_path" not in observed
     assert "certification_authorization_path" not in observed
+
+
+def test_live_runner_uses_the_current_bridge_readiness_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context_path = tmp_path / "bridge-start-context.json"
+    observed: list[tuple[Path, Path]] = []
+
+    def require(root: Path, context: Path):
+        observed.append((root, context))
+        return ({"identity": {}}, object())
+
+    monkeypatch.setattr(live_runner, "require_bridge_start", require)
+    (tmp_path / "runtime").mkdir()
+
+    with pytest.raises(FileExistsError):
+        live_runner.run(
+            SimpleNamespace(
+                output_root=tmp_path,
+                bridge_start_context=context_path,
+            )
+        )
+
+    assert observed == [(live_runner.ROOT, context_path)]
 
 
 def test_canonical_shell_fake_transport_reaches_r001_no_arm(tmp_path: Path) -> None:
@@ -193,3 +221,6 @@ def test_active_sources_retire_wrong_path_without_weakening_v1_guards() -> None:
     assert "READY_FOR_ONE_PLAY_TO_MOVE" in live
     assert 'exchange(robot_host, ["programState"]' in live
     assert '["stop", "programState"]' not in live
+    assert "require_bridge_start(" in live
+    assert "execution_readiness.verify" not in live
+    assert "require_live=" not in live

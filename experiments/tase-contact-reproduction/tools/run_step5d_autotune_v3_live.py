@@ -17,7 +17,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
-import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 from prepare_step5d_autotune_launch import prepare
 from preflight_readonly import dashboard_exchange
 from run_step5d_autotune_campaign import validate_legacy_campaign_adoption
@@ -25,6 +24,7 @@ from step5d_autotune_batch_plan import load_plan
 from step5d_autotune_contract import ForceCandidate
 from step5d_autotune_v3 import cli as v3_cli
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
+from step5d_autotune_v3.readiness import require_bridge_start
 from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 from step5d_autotune_v3.runtime_profile import (
     CONTROL_PROFILE_ID,
@@ -343,7 +343,10 @@ def _validate_preflight(
 
 
 def run(args: argparse.Namespace) -> Mapping[str, Any]:
-    readiness = execution_readiness.verify(ROOT, require_live=False)
+    readiness, _bridge_start = require_bridge_start(
+        ROOT,
+        args.bridge_start_context,
+    )
     legacy_preflight = None
     runtime_root = args.output_root.expanduser().absolute() / "runtime"
     runtime_root.mkdir(parents=True, exist_ok=False, mode=0o700)
