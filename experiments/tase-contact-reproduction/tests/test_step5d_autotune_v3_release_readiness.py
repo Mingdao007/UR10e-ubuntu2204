@@ -25,6 +25,7 @@ from step5d_autotune_v3 import readiness  # noqa: E402
 
 V1 = "step5d_strict_rnn_autotune_v1"
 V3 = "step5d_strict_rnn_autotune_v3"
+R001 = "step5d_strict_rnn_autotune_v3_r001"
 
 
 def _write(path: Path, payload: object) -> Path:
@@ -90,7 +91,11 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     )
     _write(
         root / "config/step5d/current.json",
-        {"program": V3, "selection_state": "current"},
+        {
+            "program": V3,
+            "tp_program_id": R001,
+            "selection_state": "current",
+        },
     )
     _write(root / "config/step5/step5d_autotune_v3_control_contract.json", {})
     readback = _write(
@@ -98,7 +103,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         {
             "schema": "step5d.autotune.controller-readback/v3",
             "verified": True,
-            "program": V3,
+            "program": R001,
             "control_profile_id": V1,
             "triplet_sha256": triplet,
         },
@@ -154,6 +159,22 @@ def test_selected_release_and_bridge_start_are_independent_from_campaign(
     assert report["motion_arm_ready"] is False
     assert report["campaign_ready"] is False
     assert report["release_identity"] == bridge.identity
+
+
+def test_selected_release_rejects_a_different_tp_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _identity, _bridge, bridge_path = _fixture(tmp_path, monkeypatch)
+    current_path = root / "config/step5d/current.json"
+    current = json.loads(current_path.read_text(encoding="utf-8"))
+    current["tp_program_id"] = "step5d_strict_rnn_autotune_v3_r002"
+    _write(current_path, current)
+
+    with pytest.raises(readiness.ReleaseReadinessError, match="selector surfaces"):
+        readiness.resolve_release_readiness(
+            root,
+            bridge_start_context_path=bridge_path,
+        )
 
 
 def test_runtime_no_arm_claim_requires_live_pid_and_cannot_claim_campaign(

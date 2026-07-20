@@ -64,7 +64,7 @@ def _selected_v3(root: Path) -> None:
     current = _load(root / "config/current_stage.json", "current selector")
     if (
         current.get("current_stage_id") != RELEASE_STAGE_ID
-        or current.get("program") != TP_PROGRAM_ID
+        or current.get("program") != RELEASE_STAGE_ID
         or current.get("selection_state") != "current"
     ):
         raise ReleaseReadinessError("V3 is not the unique current selector")
@@ -89,8 +89,9 @@ def _selected_v3(root: Path) -> None:
     profile = (protocol.get("experiment_profiles") or {}).get("Step5.step5d_rnn") or {}
     compatibility = _load(root / "config/step5d/current.json", "Step5d current pointer")
     if (
-        profile.get("current_program") != TP_PROGRAM_ID
-        or compatibility.get("program") != TP_PROGRAM_ID
+        profile.get("current_program") != RELEASE_STAGE_ID
+        or compatibility.get("program") != RELEASE_STAGE_ID
+        or compatibility.get("tp_program_id") != TP_PROGRAM_ID
         or compatibility.get("selection_state") != "current"
     ):
         raise ReleaseReadinessError("V3 selector surfaces differ")
