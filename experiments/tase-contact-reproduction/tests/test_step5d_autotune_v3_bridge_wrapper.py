@@ -71,21 +71,21 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                 "trial_overlay_fingerprint": "c" * 64,
                 "release_stage_id": "step5d_strict_rnn_autotune_v3",
                 "control_profile_id": "step5d_strict_rnn_autotune_v1",
-                "tp_program_id": "step5d_strict_rnn_autotune_v3",
+                "tp_program_id": "step5d_strict_rnn_autotune_v3_r001",
                 "bridge_start_context": {
                     "path": str(bridge_context_path),
                     "sha256": hashlib.sha256(
                         bridge_context_path.read_bytes()
                     ).hexdigest(),
                 },
-                "certification_authorization_path": str(
-                    path.with_name(
-                        "certification-motion-authorization.json"
-                    ).resolve()
-                ),
-                "campaign_arming_context_path": str(
-                    path.with_name("campaign-arming-context.json").resolve()
-                ),
+                "campaign_binding": {
+                    "campaign_id": "step5d-native-1",
+                    "campaign_epoch": 1,
+                    "candidate_plan_revision": 1,
+                    "candidate_plan_sha256": "9" * 64,
+                    "trial_overlay_plan_sha256": "a" * 64,
+                    "machine_binding_sha256": "d" * 64,
+                },
             }
         ),
         encoding="utf-8",
@@ -161,100 +161,6 @@ def test_production_compact_schema_satisfies_wait_ack_closure_consumer() -> None
     assert sample["output_double_register_38"] == 0.0
     assert sample["output_double_register_39"] == 0.0
     assert sample["output_double_register_44"] == 0.0
-    assert {
-        "ur_output_double_register_45",
-        "ur_output_double_register_46",
-        "ur_output_double_register_47",
-    }.issubset(compact)
-    assert "_step5d_certification_trigger_controller_timestamp_s" in compact
-
-
-def test_bridge_source_exposes_only_existing_certification_stop_seams() -> None:
-    source = (ROOT / "tools/kunwei_rtde_bridge.py").read_text(encoding="utf-8")
-    assert '"certification_hold_heartbeat"' in source
-    assert '"certification_stop_request"' in source
-    assert '"certification_trigger_controller_timestamp_s"' in source
-    assert 'bridge_values["heartbeat"] = (' in source
-    assert 'bridge_values["stop_request"] = 1.0' in source
-
-
-def test_certification_seam_uses_host_zero_hold_without_campaign_prior() -> None:
-    code = """
-from types import SimpleNamespace
-import kunwei_rtde_bridge as bridge
-import run_step5d_autotune_v3_bridge as wrapper
-
-session = SimpleNamespace(complete=False)
-wrapper.install_v3_seams(certification_session_provider=lambda: session)
-args = SimpleNamespace(step5d_autotune_handshake={
-    'trial_id': 41,
-    'execution_profile_id': wrapper.CERTIFICATION_EXECUTION_PROFILE_ID,
-})
-state = bridge.BridgeState()
-reset_calls = []
-state.step5d_v30_deferred_diagnostics = SimpleNamespace(
-    reset_for_trial=lambda: reset_calls.append(True)
-)
-assert bridge.reset_step5d_autotune_diagnostics_for_trial(state, args) is True
-assert reset_calls == [True]
-assert state.step5d_v30_diagnostics_trial_id == 41
-assert not hasattr(args, 'step5d_physical_prior_reaction_normal_b')
-assert not hasattr(args, 'step5d_moving_sphere_kernel')
-values = bridge.compute_bridge_values(None, None, None, None, None, None)
-assert values['_step5d_autotune_pre_arm_hold'] == 1.0
-assert values['_step5d_contact_safety_reason'] == 'bounded_no_contact_certification_host_hold'
-assert all(values[name] == 0.0 for name in bridge.BRIDGE_INPUT_NAMES)
-"""
-    completed = subprocess.run(
-        [sys.executable, "-c", code],
-        cwd=ROOT,
-        env=dict(os.environ),
-        capture_output=True,
-        text=True,
-        timeout=20.0,
-        check=False,
-    )
-    assert completed.returncode == 0, completed.stderr
-
-
-def test_certification_capture_seals_once_after_final_safe_closure() -> None:
-    rotator = object.__new__(wrapper.V3AsyncBridgeTrialCsvRotator)
-    rotator.fieldnames = (
-        "ur_output_int_register_26",
-        "autotune_trial_uid",
-        "autotune_backend_id",
-        "autotune_control_candidate_uid",
-        "autotune_force_p_gain",
-        "autotune_force_i_gain",
-        "autotune_force_damping",
-        "autotune_orientation_ko",
-    )
-    rotator._sealed = set()
-    messages = []
-    rotator._enqueue = messages.append
-    session = SimpleNamespace(
-        complete=False,
-        current=SimpleNamespace(command=4),
-        authorization=SimpleNamespace(authorization_ref_sha256="a" * 64),
-    )
-    assert rotator.observe_certification(
-        {"ur_output_int_register_26": 80},
-        session=session,
-        rtde_output={"output_int_register_26": 80},
-    ) is True
-    assert [message[0] for message in messages] == ["row"]
-    session.current = SimpleNamespace(command=6)
-    assert rotator.observe_certification(
-        {"ur_output_int_register_26": 85},
-        session=session,
-        rtde_output={"output_int_register_26": 85},
-    ) is True
-    assert [message[0] for message in messages] == ["row", "row", "seal"]
-    assert rotator.observe_certification(
-        {"ur_output_int_register_26": 85},
-        session=session,
-        rtde_output={"output_int_register_26": 85},
-    ) is False
 
 
 def test_observed_wait_ack_schema_incident_is_exactly_closed() -> None:

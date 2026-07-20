@@ -1388,6 +1388,7 @@ def run(args: argparse.Namespace) -> int:
                     break
             plan_revision = None if current_plan is None else current_plan.revision
             batch_context: BatchAttemptContext | None = None
+            transport_candidate = forced_candidate
             home_path = bridge_run / "campaign_home_reference.json"
             home = (
                 CampaignHomeReference.load(home_path)
@@ -1466,12 +1467,20 @@ def run(args: argparse.Namespace) -> int:
                     campaign_root=epoch_root,
                     campaign_home_pose=campaign_home_pose,
                 )
+            runtime_candidate = forced_candidate
+            if batch_context is not None:
+                control = batch_context.expected_row.control_candidate
+                runtime_candidate = ForceCandidate(
+                    force_p_gain=float(control["force_p_gain"]),
+                    force_i_gain=float(control["force_i_gain"]),
+                    force_damping=float(control["force_damping"]),
+                )
             arm = coordinator.issue_arm(
                 store,
                 provenance_run_dir=bridge_run,
                 require_cuda_botorch=args.selection_policy == "adaptive",
                 cuda_fit_mode="serial",
-                forced_candidate=forced_candidate,
+                forced_candidate=runtime_candidate,
                 allow_archived_code_fix_replay=(
                     current_plan is not None
                     and forced_candidate is not None
@@ -1481,6 +1490,10 @@ def run(args: argparse.Namespace) -> int:
                 allow_exact_incomplete_batch_retry=(
                     batch_context is not None
                     and batch_context.retrying_incomplete
+                ),
+                allow_fresh_exact_batch_bootstrap=(
+                    batch_context is not None
+                    and batch_context.row_index == 1
                 ),
                 attempt_started=(
                     None
@@ -1498,18 +1511,22 @@ def run(args: argparse.Namespace) -> int:
                     plan_revision=plan_revision,
                     candidate=supervisor.active_trial.candidate.payload(),
                 )
-            forced_candidate = None
             trial = supervisor.active_trial
             if trial is None:
                 raise RuntimeError("coordinator issued ARM without an active trial")
             prepared = backend.prepare_trial(trial, frozen)
             trial_overlay = _v3_overlay_for_candidate(
                 args.v3_trial_overlays,
-                candidate=trial.candidate,
+                candidate=(
+                    trial.candidate
+                    if transport_candidate is None
+                    else transport_candidate
+                ),
                 profile=trial.execution_profile,
                 plan_revision=plan_revision,
                 launch_profile_path=args.v3_launch_profile,
             )
+            forced_candidate = None
             if trial_overlay is not None:
                 prepared = replace(prepared, trial_overlay=trial_overlay)
             if batch_context is not None and (

@@ -993,7 +993,7 @@ class StoreAndBackendTest(unittest.TestCase):
         )
         self.assertTrue(live.evidence["selected_release_current"])
         self.assertNotIn("selected_release_must_be_current_and_active", live.blockers)
-        self.assertIn("bounded_campaign_live_authorization_missing_or_mismatched", live.blockers)
+        self.assertIn("campaign_execution_context_missing_or_mismatched", live.blockers)
 
     def test_autotune_readback_flags_cannot_spoof_sha_authoritative_closure(self) -> None:
         closed, evidence = Step5dV35Backend(ROOT)._campaign_readback_closure(

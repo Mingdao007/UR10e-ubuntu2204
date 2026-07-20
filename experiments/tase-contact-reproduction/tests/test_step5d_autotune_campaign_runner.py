@@ -19,7 +19,6 @@ sys.path.insert(0, str(ROOT / "tools"))
 from run_step5d_autotune_campaign import (  # noqa: E402
     CampaignEpochLayout,
     StopAfterCurrentRequested,
-    _campaign_authorization,
     _campaign_binding,
     _campaign_spec,
     _publish_runner_ready,
@@ -48,30 +47,6 @@ def test_campaign_spec_accepts_single_trial_success_policy() -> None:
 
     assert campaign.campaign_epoch == 9
     assert campaign.success_mae_n == 0.3
-
-
-def test_legacy_authorization_document_cannot_arm_v3_campaign() -> None:
-    campaign = _campaign_spec(ROOT, "a" * 64, 9)
-    payload = {
-        "schema_version": "step5d_autotune_campaign_authorization_v1",
-        "campaign_id": campaign.campaign_id,
-        "campaign_epoch": campaign.campaign_epoch,
-        "campaign_fingerprint": campaign.campaign_fingerprint,
-        "bounded_baseline_and_loop": True,
-        "live_authorized": True,
-        "controller_readback_verified": True,
-        "authorization_source": "test owner gate",
-        "authorized_at": "2026-07-15T00:00:00Z",
-    }
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "authorization.json"
-        path.write_text(json.dumps(payload), encoding="utf-8")
-        with pytest.raises(RuntimeError, match="campaign arming context is invalid"):
-            _campaign_authorization(
-                path,
-                campaign=campaign,
-                campaign_fingerprint=campaign.campaign_fingerprint,
-            )
 
 
 def test_machine_campaign_binding_is_plan_identity_not_authorization(

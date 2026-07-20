@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import inspect
 import sys
+from types import SimpleNamespace
 from pathlib import Path
 from typing import Any
 
@@ -128,6 +129,91 @@ def test_first_campaign_home_is_loaded_only_after_arm_dispatch() -> None:
     wait_home = source.index("_wait_for_campaign_home_reference(home_path)", dispatch)
 
     assert dispatch < wait_home
+
+
+def test_production_chain_generates_home_without_test_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    identity = {
+        "tick_semantics_fingerprint": "a" * 64,
+        "timing_harness_fingerprint": "b" * 64,
+        "runtime_environment_fingerprint": "c" * 64,
+        "deployment_fingerprint": "d" * 64,
+        "orchestration_fingerprint": "e" * 64,
+        "release_basis_fingerprint": "f" * 64,
+    }
+    context_path = tmp_path / "bridge-start-context.json"
+    context_path.write_text("{}\n", encoding="utf-8")
+    preflight_path = tmp_path / "preflight.json"
+    preflight_path.write_text("{}\n", encoding="utf-8")
+    output_root = tmp_path / "output"
+    campaign_root = tmp_path / "campaign"
+    fake_bridge = ROOT / "tests/step5d_v3_production_chain_fake_bridge.py"
+
+    monkeypatch.setattr(
+        live,
+        "require_bridge_start",
+        lambda *_args, **_kwargs: (
+            {"bridge_start_ready": True},
+            SimpleNamespace(identity=identity),
+        ),
+    )
+    monkeypatch.setattr(
+        live,
+        "check_effective_config",
+        lambda **_kwargs: {"effective_config": {"robot_host": "fake-robot"}},
+    )
+    monkeypatch.setattr(
+        live,
+        "_validate_preflight",
+        lambda *_args, **_kwargs: {"controller_identity_sha256": "1" * 64},
+    )
+    monkeypatch.setattr(
+        live,
+        "dashboard_exchange",
+        lambda *_args, **_kwargs: {"programState": "STOPPED fake.urp"},
+    )
+    monkeypatch.setattr(live, "WRAPPER", fake_bridge)
+    monkeypatch.setattr(
+        live,
+        "build_bridge_argv",
+        lambda runtime_root, **_kwargs: [
+            sys.executable,
+            str(fake_bridge),
+            "--output-dir",
+            str(runtime_root / "bridge"),
+            "--mailbox",
+            str(runtime_root / "command.json"),
+        ],
+    )
+    args = SimpleNamespace(
+        output_root=output_root,
+        preflight=preflight_path,
+        campaign_root=campaign_root,
+        bridge_start_context=context_path,
+        launch_profile=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        ready_timeout_s=5.0,
+        play_timeout_s=5.0,
+    )
+
+    with pytest.raises(live.LiveLaunchError, match="bridge exited"):
+        live.run(args)
+
+    bridge_run = output_root / "runtime/bridge"
+    home_path = bridge_run / "campaign_home_reference.json"
+    runner_ready = bridge_run / "runtime/campaign_runner_ready.json"
+    assert home_path.is_file()
+    assert runner_ready.is_file()
+    assert not (tmp_path / "fixture-campaign-home-reference.json").exists()
+    home = json.loads(home_path.read_text(encoding="utf-8"))
+    assert home["schema"] == "step5d.autotune.campaign-home-reference/v1"
+    assert home["ready_handshake"]["state"] == 10
+    assert home["ready_handshake"]["campaign_epoch_echo"] == 0
+    assert home["ready_handshake"]["trial_id_echo"] == 0
+    assert "FileNotFoundError" not in (output_root / "campaign_runner.log").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_fault_after_play_has_one_immediate_operator_action(monkeypatch, capsys) -> None:

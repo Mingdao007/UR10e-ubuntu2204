@@ -417,6 +417,26 @@ class Step5dAutotuneSupervisorTest(unittest.TestCase):
         self.assertEqual(trial.transition.kind, TrialTransitionKind.FORCE_SEARCH)
         self.assertEqual(trial.transition.source.trial_uid, identity.trial_uid)
 
+    def test_fresh_exact_batch_bootstrap_is_explicit_and_source_free(self) -> None:
+        requested = ForceCandidate.from_log2(p=0.25, damping=0.0, i=0.0)
+        with self.assertRaisesRegex(ValueError, "one lattice step"):
+            supervisor(selection_policy="codex_batches").next_trial(
+                require_cuda_botorch=False,
+                forced_candidate=requested,
+            )
+
+        trial = supervisor(selection_policy="codex_batches").next_trial(
+            require_cuda_botorch=False,
+            forced_candidate=requested,
+            allow_fresh_exact_batch_bootstrap=True,
+        ).trial
+        self.assertEqual(trial.candidate, requested)
+        self.assertEqual(
+            trial.transition.kind,
+            TrialTransitionKind.BATCH_BOOTSTRAP,
+        )
+        self.assertIsNone(trial.transition.source)
+
     def test_only_explicit_incomplete_batch_retry_can_reuse_exact_candidate(self) -> None:
         identity = SimpleNamespace(trial_uid="9" * 64, backend_id="step5d_v35_native")
         seed = ForceCandidate()

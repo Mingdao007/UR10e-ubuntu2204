@@ -66,12 +66,8 @@
           "-m",
           "pytest",
           "-q",
-          "tests/test_step5d_autotune_v3_contract.py",
           "tests/test_step5d_autotune_v3_attempt_ledger.py",
-          "tests/test_step5d_autotune_v3_artifacts.py",
-          "tests/test_step5d_autotune_v3_execution_readiness.py",
           "tests/test_step5d_autotune_v3_g10.py",
-          "tests/test_step5d_autotune_v3_refactor_gate.py",
           "tests/test_step5d_autotune_v3_runtime_profile.py",
           "tests/test_step5d_autotune_v3_runtime_calibration.py",
           "tests/test_step5d_autotune_v3_bridge_wrapper.py",
@@ -79,6 +75,8 @@
           "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
           "tests/test_step5d_autotune_tp_v3.py",
           "tests/test_step5d_autotune_batch_plan.py",
+          "tests/test_step5d_v3_current_selector.py",
+          "tests/test_step5d_v3_r001_release_candidate.py",
           "tests/test_step5d_autotune_v3_test_matrix_runner.py"
         ]
       ],
@@ -116,6 +114,9 @@
           "tests/test_step5d_autotune_v3_acceptance.py",
           "tests/test_step5d_autotune_recovery.py",
           "tests/test_step5d_autotune_journal.py",
+          "tests/test_step5d_autotune.py",
+          "tests/test_step5d_autotune_supervisor.py",
+          "tests/test_step5d_autotune_runtime_lifecycle.py",
           "tests/test_step5d_autotune_campaign_runner.py",
           "tests/test_step5d_autotune_v3_live_startup.py",
           "tests/test_step5d_autotune_live_driver.py"

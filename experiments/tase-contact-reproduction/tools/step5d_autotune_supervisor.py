@@ -408,6 +408,7 @@ class CampaignSupervisor:
         forbidden_candidate_uids: Collection[str] = (),
         allow_archived_code_fix_replay: bool = False,
         allow_exact_incomplete_batch_retry: bool = False,
+        allow_fresh_exact_batch_bootstrap: bool = False,
     ) -> TrialIntent:
         if self.phase is not CampaignPhase.HOME:
             raise RuntimeError(f"campaign cannot arm from phase {self.phase.value}")
@@ -507,10 +508,14 @@ class CampaignSupervisor:
                 )
             ]
             baseline_start = not context and forced_candidate == ForceCandidate()
+            fresh_exact_batch_start = (
+                allow_fresh_exact_batch_bootstrap and not context
+            )
             if (
                 not anchors
                 and not baseline_start
                 and not code_fix_replay
+                and not fresh_exact_batch_start
                 and not (
                     allow_exact_incomplete_batch_retry
                     and incomplete_retry_sources
@@ -521,7 +526,7 @@ class CampaignSupervisor:
                 )
             source_outcome = (
                 None
-                if baseline_start
+                if baseline_start or fresh_exact_batch_start
                 else incomplete_retry_sources[-1]
                 if allow_exact_incomplete_batch_retry and incomplete_retry_sources
                 else replay_sources[-1]
@@ -535,7 +540,9 @@ class CampaignSupervisor:
             transition = TrialTransition(
                 kind=(
                     TrialTransitionKind.BASELINE
-                    if source_outcome is None
+                    if baseline_start
+                    else TrialTransitionKind.BATCH_BOOTSTRAP
+                    if fresh_exact_batch_start
                     else TrialTransitionKind.RETRY
                     if allow_exact_incomplete_batch_retry
                     else TrialTransitionKind.RETRY

@@ -1061,6 +1061,7 @@ class CampaignCoordinator:
         forced_candidate: ForceCandidate | None = None,
         allow_archived_code_fix_replay: bool = False,
         allow_exact_incomplete_batch_retry: bool = False,
+        allow_fresh_exact_batch_bootstrap: bool = False,
         attempt_started: Callable[[TrialSpec], None] | None = None,
     ) -> HostPacket:
         """Register TrialSpec, fsync ARM intent, then return its HostPacket."""
@@ -1076,6 +1077,9 @@ class CampaignCoordinator:
                 allow_archived_code_fix_replay=allow_archived_code_fix_replay,
                 allow_exact_incomplete_batch_retry=(
                     allow_exact_incomplete_batch_retry
+                ),
+                allow_fresh_exact_batch_bootstrap=(
+                    allow_fresh_exact_batch_bootstrap
                 ),
                 forbidden_candidate_uids={
                     fate.trial.candidate_uid

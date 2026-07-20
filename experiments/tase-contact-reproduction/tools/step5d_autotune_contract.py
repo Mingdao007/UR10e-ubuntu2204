@@ -752,6 +752,7 @@ class SearchAttestation:
 
 class TrialTransitionKind(str, Enum):
     BASELINE = "baseline"
+    BATCH_BOOTSTRAP = "batch_bootstrap"
     FORCE_SEARCH = "force_search"
     REPLICATION = "replication"
     RETRY = "retry"
@@ -861,9 +862,14 @@ class TrialTransition:
     def __post_init__(self) -> None:
         if not isinstance(self.kind, TrialTransitionKind):
             raise ValueError("trial transition kind must be TrialTransitionKind")
-        if self.kind is TrialTransitionKind.BASELINE:
+        if self.kind in {
+            TrialTransitionKind.BASELINE,
+            TrialTransitionKind.BATCH_BOOTSTRAP,
+        }:
             if self.source is not None or self.retry_kind is not None:
-                raise ValueError("baseline transition cannot name a source or retry")
+                raise ValueError(
+                    "source-free transition cannot name a source or retry"
+                )
             return
         if not isinstance(self.source, TrialSource):
             raise ValueError("non-baseline transition requires an exact TrialSource")
@@ -1010,6 +1016,9 @@ class TrialSpec:
         if transition.kind is TrialTransitionKind.BASELINE:
             if self.candidate != ForceCandidate():
                 raise ValueError("baseline transition is fixed to the exact v35 seed")
+        elif transition.kind is TrialTransitionKind.BATCH_BOOTSTRAP:
+            if source is not None:
+                raise ValueError("batch bootstrap cannot name a source trial")
         else:
             assert source is not None
             if (

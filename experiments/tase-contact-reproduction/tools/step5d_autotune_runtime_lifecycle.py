@@ -1327,10 +1327,13 @@ def prepare_batch_attempt_context(
     for index, candidate in enumerate(candidates, start=1):
         overlay = dict(overlay_resolver(candidate))
         control_candidate = {
-            "force_p_gain": candidate.force_p_gain,
-            "force_i_gain": candidate.force_i_gain,
-            "force_damping": candidate.force_damping,
-            "orientation_ko": overlay["orientation_ko"],
+            name: overlay[name]
+            for name in (
+                "force_p_gain",
+                "force_i_gain",
+                "force_damping",
+                "orientation_ko",
+            )
         }
         rows.append(BatchRow(index, control_candidate, overlay))
     near_pose = (
