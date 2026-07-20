@@ -1,5 +1,5 @@
 {
-  "blocker": "requires_current_poweroff_controller_identity_requires_certification_motion_authorization_requires_certified_stopping_bound_requires_certified_return_route_angular_envelope_requires_attended_sol_xhigh_pre_live_audit_requires_fresh_campaign_authorization",
+  "blocker": "requires_attended_tp_upload_readback_requires_current_poweroff_controller_identity_requires_certification_motion_authorization_requires_certified_stopping_bound_requires_certified_return_route_angular_envelope_requires_attended_sol_xhigh_pre_live_audit_requires_fresh_campaign_authorization",
   "campaign_authorization_required": true,
   "candidate_stage_id": "step5d_strict_rnn_autotune_v3",
   "certification_motion_authorization_required": true,
@@ -11,7 +11,7 @@
   "current_selector": "step5d_strict_rnn_autotune_v3",
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
-    "sha256": "16dadc6d307fbf5659750973722595d71285726acd677860b651d44200b067e5"
+    "sha256": "a65047aa98f2d089abd1b30dbbc432afbf11c31a79d9a7cc7ff5f2119ef935f9"
   },
   "identity": {
     "controller_readback_triplet_sha256": {
@@ -19,18 +19,18 @@
       ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
       ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
     },
-    "deployment_fingerprint": "58d8b2a1172b5b65c97b122eb1ff4407a372de60a52113916f6393c36a7e7784",
+    "deployment_fingerprint": "f45d2ba82ce921b7e21d3db4354b5b3829c6642a8591860c3ec561092e875ddb",
     "legacy_provenance": {
-      "contract_sha256": "e63fb5b159afd2426a2e8d610c72d6f6d19997e59410a870f8ce9876a1a1489d",
-      "control_fingerprint": "bc6ab9069e30e6a1937cd7a924d83fbc1b0a49d5b855fa07368b8e3fedf89246",
-      "orchestration_fingerprint": "455e7e9e85c1b8518ada4ffb8b75be6e66c2ef2e9ca7e9a6d3fcb3b9e3589a1d"
+      "contract_sha256": "9119f4f93ac6bd0ed5747275513920fb5632820265ec4624ba5faf546a3e9816",
+      "control_fingerprint": "aa9620ccfe5f96df4b109d80b14d5af2545886c1768eff0903071eef476bec6d",
+      "orchestration_fingerprint": "fe76afa9e021f1c2174a841d9b1568f1ba27a1ede7a8c10c3f9c7f0051a9b47c"
     },
     "local_triplet_sha256": {
-      ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
-      ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
-      ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
+      ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
+      ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
+      ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
     },
-    "orchestration_fingerprint": "c41615246573b3076e2786d6799fda5ece2010e490e8ce57e8780d0f09a64060",
+    "orchestration_fingerprint": "c783edb3f7a15fce0095aec52b2ca7e95d5f7c3653f8da229235f4e25569f0d9",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,

@@ -312,10 +312,12 @@ def codex_autotune_certification_stop(command, campaign_epoch, trial_id, candida
   end
   local last_heartbeat = read_input_float_register(26)
   local stale_s = 0.0
-  local last_controller_time_s = codex_autotune_controller_time_s()
   local trigger_controller_time_s = -1.0
   local consumed_sequence = command_seq
   codex_autotune_write_state(campaign_epoch, trial_id, 80, candidate_token, 0, execution_profile_id, consumed_sequence)
+  # State publication writes ten output registers and is not part of the
+  # motion-loop sample interval. Arm the 4 ms gap guard only after it finishes.
+  local last_controller_time_s = codex_autotune_controller_time_s()
   while trigger_controller_time_s < 0.0:
     local controller_time_s = codex_autotune_controller_time_s()
     local loop_dt = controller_time_s - last_controller_time_s

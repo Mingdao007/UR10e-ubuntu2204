@@ -139,7 +139,7 @@
   },
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
   "controller_readback_manifest_sha256": "816ac90e14194de167643aa0f008cda43f02367b612284c8bf9f03a0ec34169f",
-  "controller_readback_verified_for_selected_triplet": true,
+  "controller_readback_verified_for_selected_triplet": false,
   "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.script",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
   "current_stage_id": "step5d_strict_rnn_autotune_v3",
@@ -1376,7 +1376,7 @@
     "bridge_process_ready": false,
     "bridge_start_ready": false,
     "campaign_ready": false,
-    "deployment_ready": true,
+    "deployment_ready": false,
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },
@@ -1405,9 +1405,9 @@
   ],
   "selection_state": "current",
   "sha256": {
-    ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
-    ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
-    ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
+    ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
+    ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
+    ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
   },
   "stage_table_path": "config/step5_stage_table.json",
   "status": "step5d_autotune_v3_selected_pre_live_blocked",

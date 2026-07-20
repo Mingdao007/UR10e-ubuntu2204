@@ -63,6 +63,14 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     assert "write_output_float_register(47, codex_autotune_controller_time_s())" in rendered
     assert "if stale_s2 > 0.020:" in rendered
     assert "if stale_s2 > 1.000:" not in rendered
+    certification_stop = rendered.split(
+        "def codex_autotune_certification_stop(", 1
+    )[1].split("def codex_autotune_certification_return(", 1)[0]
+    assert certification_stop.index(
+        "codex_autotune_write_state(campaign_epoch, trial_id, 80"
+    ) < certification_stop.index(
+        "local last_controller_time_s = codex_autotune_controller_time_s()"
+    ) < certification_stop.index("while trigger_controller_time_s < 0.0:")
 
 
 def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:

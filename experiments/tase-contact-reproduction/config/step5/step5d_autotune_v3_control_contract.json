@@ -8,9 +8,9 @@
     ]
   },
   "candidate_tp_artifact_sha256": {
-    ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
-    ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
-    ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
+    ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
+    ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
+    ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
   },
   "cli_arguments": [
     [
