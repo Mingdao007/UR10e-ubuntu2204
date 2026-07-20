@@ -270,18 +270,34 @@ def _verify_validation(
         formal_timing.get("status")
         == "pass_current_source_formal_500hz_timing"
     )
-    for field, expected in (
-        ("scheduler_policy_required", "SCHED_OTHER"),
-        ("scheduler_priority_required", 0),
-        ("nice_required", 0),
-    ):
+    timing_not_required = formal_timing.get("status") == "not_required_by_user"
+    if not timing_passed and not timing_not_required:
+        raise ReadinessError("formal timing status differs")
+    scheduler_contract = (
+        (
+            ("scheduler_policy_required", None),
+            ("scheduler_priority_required", None),
+            ("nice_required", None),
+        )
+        if timing_not_required
+        else (
+            ("scheduler_policy_required", "SCHED_OTHER"),
+            ("scheduler_priority_required", 0),
+            ("nice_required", 0),
+        )
+    )
+    for field, expected in scheduler_contract:
         _require(seam_timing.get(field), expected, f"sphere seam timing {field}")
     lanes = formal_timing.get("required_lanes") or {}
-    lane_counts = {
-        "solver": 10_000,
-        "full_tick_with_sphere": 30_000,
-        "safe_hold": 30_000,
-    }
+    lane_counts = (
+        {}
+        if timing_not_required
+        else {
+            "solver": 10_000,
+            "full_tick_with_sphere": 30_000,
+            "safe_hold": 30_000,
+        }
+    )
     _require(set(lanes), set(lane_counts), "formal timing lanes")
     expected_lane_statuses = (
         {lane: "pass" for lane in lane_counts}
@@ -303,6 +319,25 @@ def _verify_validation(
             expected_lane_statuses[lane],
             f"formal timing {lane} status",
         )
+    if timing_not_required:
+        for field, expected in (
+            ("status", "diagnostic_only_not_required_by_user"),
+            ("claim_class", "diagnostic_only"),
+            ("attempt_count", 0),
+            ("release_gate_applicable", False),
+            ("system_setup_required", False),
+            ("pressure_test_required", False),
+        ):
+            _require(seam_timing.get(field), expected, f"sphere seam timing {field}")
+        for field, expected in (
+            ("release_gate_applicable", False),
+            ("release_gate_satisfied", False),
+            ("attempt_count", 0),
+            ("acceptance_classification", "not_required_by_user"),
+            ("system_setup_required", False),
+            ("pressure_test_required", False),
+        ):
+            _require(formal_timing.get(field), expected, f"formal timing {field}")
     if timing_passed:
         _require(
             seam_timing.get("status"),
@@ -369,7 +404,7 @@ def _verify_validation(
             ("nice", 0),
         ):
             _require(runtime.get(field), expected, f"timing runtime {field}")
-    else:
+    elif not timing_not_required:
         _require(
             seam_timing.get("status"),
             "pass_reused_safe_hold_active_surface_equivalence",

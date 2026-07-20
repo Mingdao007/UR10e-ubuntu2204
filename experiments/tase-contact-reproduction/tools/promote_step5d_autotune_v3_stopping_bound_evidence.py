@@ -66,6 +66,29 @@ def _strict_fields(value: object, fields: set[str], role: str) -> Mapping[str, A
     return value
 
 
+def _interpolated_speed(
+    samples: Sequence[tuple[float, float]], timestamp: float
+) -> float:
+    for left, right in zip(samples, samples[1:]):
+        if left[0] <= timestamp <= right[0]:
+            if timestamp == left[0]:
+                return left[1]
+            if timestamp == right[0]:
+                return right[1]
+            fraction = (timestamp - left[0]) / (right[0] - left[0])
+            return left[1] + fraction * (right[1] - left[1])
+    raise ValueError("stopping speed samples do not cover the declared interval")
+
+
+def _clip_samples(
+    samples: Sequence[tuple[float, float]], start: float, end: float
+) -> list[tuple[float, float]]:
+    clipped = [(start, _interpolated_speed(samples, start))]
+    clipped.extend(item for item in samples if start < item[0] < end)
+    clipped.append((end, _interpolated_speed(samples, end)))
+    return clipped
+
+
 def _analyze_trial(row: object, *, procedure: str, sample_index: int) -> tuple[float, float, float]:
     trial = _strict_fields(
         row,
@@ -107,13 +130,18 @@ def _analyze_trial(row: object, *, procedure: str, sample_index: int) -> tuple[f
                 _number("sample speed", item["tcp_speed_m_s"]),
             )
         )
-    if samples[0][0] != trigger or samples[-1][0] != stationary:
+    if samples[0][0] > trigger or samples[-1][0] < stationary:
         raise ValueError("stopping speed samples do not cover the declared interval")
     if any(right[0] <= left[0] for left, right in zip(samples, samples[1:])):
         raise ValueError("stopping speed sample timestamps are not strictly increasing")
+    samples = _clip_samples(samples, trigger, stationary)
     stop_indexes = [index for index, item in enumerate(samples) if item[0] == stop]
+    if not stop_indexes:
+        samples.append((stop, _interpolated_speed(samples, stop)))
+        samples.sort()
+        stop_indexes = [index for index, item in enumerate(samples) if item[0] == stop]
     if len(stop_indexes) != 1:
-        raise ValueError("stop transport timestamp must occur exactly once in samples")
+        raise ValueError("stop transport timestamp is ambiguous in samples")
     stop_index = stop_indexes[0]
     if stop_index < 1 or stop_index >= len(samples) - 1:
         raise ValueError("stop transport sample lacks pre/post observations")

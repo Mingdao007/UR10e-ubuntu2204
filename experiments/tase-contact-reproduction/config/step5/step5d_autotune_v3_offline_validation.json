@@ -69,49 +69,14 @@
       "trial_briefs": 10
     },
     "formal_500hz_timing": {
-      "acceptance_classification": "partial_lane_reuse_attested",
+      "acceptance_classification": "not_required_by_user",
       "attempt_count": 0,
-      "blocker": "requires_final_source_exact_full_tick_30k",
-      "bound_identity": {
-        "runtime_environment_fingerprint": "ac447e8b08495e03fd538d4148424f6800f3881afe378c7b461fdad8385fb287",
-        "tick_semantics_fingerprint": "7c41f7bceb42c92a0e4b4f0ac717975647009b2cf8c75733dfc768004e1b4b5d",
-        "timing_harness_fingerprint": "7c00ea65d4e6d09b55fd486c6c6714344287d595e55ded8ead07845cec679daa"
-      },
-      "equivalence_attestation": {
-        "path": "config/step5/step5d_autotune_v3_formal_timing_raw_ede7bdb5.equivalence.json",
-        "sha256": "dc658594b3536b0ed6214cf6a3e1b8b98e6327099bb2b6a2a5bf0feaa0763af2"
-      },
+      "pressure_test_required": false,
+      "release_gate_applicable": false,
       "release_gate_satisfied": false,
-      "required_lanes": {
-        "full_tick_with_sphere": {
-          "required_samples": 30000,
-          "status": "pending_final_source_exact_capture"
-        },
-        "safe_hold": {
-          "required_samples": 30000,
-          "status": "pass_reused_active_surface_equivalence"
-        },
-        "solver": {
-          "required_samples": 10000,
-          "status": "pass_reused_active_surface_equivalence"
-        }
-      },
-      "retained_prior_failed_attempt": {
-        "blockers": [
-          "base_formal_timing_not_accepted",
-          "v3_requires_production_sched_other_timing_contract"
-        ],
-        "classification": "diagnostic_only_not_v3_acceptance",
-        "evaluation_artifact": {
-          "path": "config/step5/step5d_autotune_v3_formal_timing_evaluation_c1c066f7.json",
-          "sha256": "a8cc3f84cc8e9eed778ee780bdc6efad939cdbf530c6e4f3d4f64b1086f5a9ed"
-        },
-        "raw_artifact": {
-          "path": "config/step5/step5d_autotune_v3_formal_timing_raw_c1c066f7.json",
-          "sha256": "68b641069c0c90eb12c2e835c6c26a6ad98a13f1c894582551af38d5492e49bb"
-        }
-      },
-      "status": "blocked_final_full_tick_pending"
+      "required_lanes": {},
+      "status": "not_required_by_user",
+      "system_setup_required": false
     },
     "package_and_readback": {
       "blocker": "requires_attended_tp_upload_readback",
@@ -119,9 +84,9 @@
       "historical_controller_readback_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
       "historical_readback_matches_local_triplet": false,
       "local_triplet_sha256": {
-        ".script": "3dd672b4f68eba931fb8fc1e2c577e06205ff7a4e6d15a035e3619557d8e430d",
-        ".txt": "3c6dc8fd7cb0e982591b311463e9a996dcf7db85086efada125121ff730dcd14",
-        ".urp": "7f0b8ee7de9f57bd611d398d8afa0db238ebb10ce02f07f7f577e2cb9fedc3b5"
+        ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
+        ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
+        ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
       },
       "status": "blocked"
     },
@@ -191,7 +156,7 @@
       "certified": false,
       "evidence": {
         "path": "config/step5/step5d_autotune_v3_return_route_evidence.json",
-        "sha256": "a0e04802892b4304e47dc1b7f32873539ce018467ff6f914576b62bb663062f2"
+        "sha256": "b3103ae083b3a6430f6d4b6ddbdd539467889546576e3a38563ca12790cc5902"
       },
       "fail_closed": true,
       "offline_enforcement_complete": true,
@@ -210,34 +175,25 @@
       },
       "return_route_motion_trace": {
         "path": "config/step5/step5d_autotune_v3_ursim_return_trace.json",
-        "sha256": "19f73447e69ea01819a713e2b81230ea997513fc51ec4fb9b8d62c4e53e53ea6"
+        "sha256": "bdc27a89b574b82566a2e193f2814e13cf00fe2911790912d379d2ea7781df48"
       },
       "status": "pass_motion_capable_ursim_core_source_equivalence",
       "ursim": "pass_motion_capable_ursim_core_source_equivalence"
     },
     "source_exact_sphere_seam_timing": {
       "attempt_count": 0,
-      "blocker": "requires_final_source_exact_full_tick_30k",
-      "claim_class": "formal_lane_reuse_not_full_acceptance",
-      "equivalence_attestation": {
-        "path": "config/step5/step5d_autotune_v3_formal_timing_raw_ede7bdb5.equivalence.json",
-        "sha256": "dc658594b3536b0ed6214cf6a3e1b8b98e6327099bb2b6a2a5bf0feaa0763af2"
-      },
-      "nice_required": 0,
-      "retained_prior_attempt": {
-        "path": "config/step5/step5d_autotune_v3_sphere_seam_timing_c1c066f7.json",
-        "sha256": "c416c8ba0c66e4955309bca16723c8c06aa4325b0adfe020982ef34f6b6d2b66"
-      },
-      "scheduler_policy_required": "SCHED_OTHER",
-      "scheduler_priority_required": 0,
-      "status": "pass_reused_safe_hold_active_surface_equivalence"
+      "claim_class": "diagnostic_only",
+      "pressure_test_required": false,
+      "release_gate_applicable": false,
+      "status": "diagnostic_only_not_required_by_user",
+      "system_setup_required": false
     },
     "stopping_bound": {
       "blocker": "requires_certified_reaction_latency_deceleration_and_numeric_margin_bound",
       "certified": false,
       "evidence": {
         "path": "config/step5/step5d_autotune_v3_stopping_bound_evidence.json",
-        "sha256": "7d661c6e726077840d6d3850e66b8abf3bd17b81964cf046ae04ca2f716db0de"
+        "sha256": "35f3203c9a87bd7e13e84d7ff1b1c86a616593f038e569688e8e3de18d3ebe1b"
       },
       "fail_closed": true,
       "status": "blocked"
@@ -249,28 +205,28 @@
       ".txt": "b9129f38a11aec1a3d546fa4ed35b8cb3453697c649cae8bc907b39f06a9b7e8",
       ".urp": "2cba1b92e9e6cdf0a0a843e2c6c3718b104ebf9aaffef965c63a660bc31b97f0"
     },
-    "deployment_fingerprint": "90893b30b58622a5219be435dfb39b8f75b2dc45fa21655124a55000e194112b",
+    "deployment_fingerprint": "bde4a1e5e6f99ba76ea0d99b3fe1cdaa43f7dfec5010125c0fc762434e5690a7",
     "legacy_provenance": {
-      "contract_sha256": "5b23d8862a335b1c92b5b3b7829d6a212fbb021438ed64cc5c06aa793371da18",
-      "control_fingerprint": "6cc7320ebf1450233cd2fb447432e613e67c8103294edbfa8f40449f518f3ac0",
-      "orchestration_fingerprint": "8586c60f3b5839d502488e22b03c9c07107de651df4ed35df518d26b14ea70cf"
+      "contract_sha256": "a3da7f66b818e8e409b59afa56192688e4de0f659a087c57331ef256b66052c0",
+      "control_fingerprint": "79d58ab1eae1dfc66ac58980931f2ed34e3eabc11acce3f7abc17796ae1fe158",
+      "orchestration_fingerprint": "faa39264c173d9a01c228238c7602b2d92b7a6c10c2fd88fce3432d474c92ea7"
     },
     "local_triplet_sha256": {
-      ".script": "3dd672b4f68eba931fb8fc1e2c577e06205ff7a4e6d15a035e3619557d8e430d",
-      ".txt": "3c6dc8fd7cb0e982591b311463e9a996dcf7db85086efada125121ff730dcd14",
-      ".urp": "7f0b8ee7de9f57bd611d398d8afa0db238ebb10ce02f07f7f577e2cb9fedc3b5"
+      ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
+      ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
+      ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
     },
-    "orchestration_fingerprint": "0a52452ab0202c635af1b9646e2200267cff3873bb951bbc5cc95d421209c850",
+    "orchestration_fingerprint": "8580237d8b4bb07c7c374def6e19bf7833f4f7365d31e9503cfefaa979f25690",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
     "schema": "step5d.autotune-v3/layered-identity-snapshot-v1",
-    "tick_semantics_fingerprint": "7c41f7bceb42c92a0e4b4f0ac717975647009b2cf8c75733dfc768004e1b4b5d",
+    "tick_semantics_fingerprint": "55857cd1f517c8f73e4eb76e1b783bfbb54bf33c18d207b5207770ff067db348",
     "timing_harness_fingerprint": "7c00ea65d4e6d09b55fd486c6c6714344287d595e55ded8ead07845cec679daa",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "62ecea7923544553f1441dc06e0baa867269176603d057f486d0b000f19b96cd"
+      "evidence_verifier_fingerprint": "ae27c7fb7c2f8b53bc56805ea7f08859ad03488fd25ccd3ed74f22a1e1a3920f"
     }
   },
-  "observed_at": "2026-07-20T12:45:00+08:00",
+  "observed_at": "2026-07-20T10:00:00+08:00",
   "schema": "step5d.autotune-v3/offline-acceptance-v5"
 }

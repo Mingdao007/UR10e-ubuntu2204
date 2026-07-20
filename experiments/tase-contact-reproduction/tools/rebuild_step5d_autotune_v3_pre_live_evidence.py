@@ -17,21 +17,20 @@ import build_step5d_autotune_v3_return_route_evidence as return_builder
 import build_step5d_autotune_v3_stopping_bound_evidence as stopping_builder
 from step5d_autotune_v3.profile import (
     active_identity_snapshot,
+    contract_sha256,
 )
-from step5d_timing_acceptance import evaluate_step5d_v3_timing_raw
 
 
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATION_RELATIVE = "config/step5/step5d_autotune_v3_offline_validation.json"
 PROMOTION_RELATIVE = "config/step5/step5d_autotune_v3_live_promotion.json"
 STAGE_TABLE_RELATIVE = "config/step5_stage_table.json"
+CURRENT_STAGE_RELATIVE = "config/current_stage.json"
+CONTROL_CONTRACT_RELATIVE = "config/step5/step5d_autotune_v3_control_contract.json"
+LAUNCH_PROFILE_RELATIVE = "config/step5/step5d_autotune_v3_launch_profile.json"
 STOPPING_RELATIVE = "config/step5/step5d_autotune_v3_stopping_bound_evidence.json"
 RETURN_RELATIVE = "config/step5/step5d_autotune_v3_return_route_evidence.json"
 URSIM_RETURN_RELATIVE = "config/step5/step5d_autotune_v3_ursim_return_trace.json"
-TIMING_EQUIVALENCE_RELATIVE = (
-    "config/step5/"
-    "step5d_autotune_v3_formal_timing_raw_ede7bdb5.equivalence.json"
-)
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
@@ -184,187 +183,29 @@ def _timing_state(
     if (raw_path is None) != (evaluation_path is None):
         raise ValueError("timing raw and evaluation must be supplied together")
     if raw_path is None:
-        equivalence_path = root / TIMING_EQUIVALENCE_RELATIVE
-        equivalence = _read(equivalence_path)
-        if (
-            equivalence.get("schema")
-            != "step5d.autotune-v3/timing-active-surface-equivalence-v1"
-        ):
-            raise ValueError("timing equivalence schema differs")
-        layered_identity = active_identity_snapshot(experiment_root=root)
-        subjects = equivalence.get("subject_identity") or {}
-        tick = subjects.get("tick_semantics") or {}
-        harness = subjects.get("timing_harness") or {}
-        runtime = subjects.get("runtime_environment") or {}
-        if (
-            tick.get("target_layered_fingerprint")
-            != layered_identity["tick_semantics_fingerprint"]
-            or harness.get("target_layered_fingerprint")
-            != layered_identity["timing_harness_fingerprint"]
-            or not isinstance(runtime.get("fingerprint"), str)
-            or len(runtime["fingerprint"]) != 64
-        ):
-            raise ValueError("timing equivalence target identity differs")
-        reuse = {
-            lane: (row or {}).get("reusable")
-            for lane, row in (equivalence.get("lane_reuse") or {}).items()
-        }
-        if reuse != {"solver": True, "safe_hold": True, "full_tick": False}:
-            raise ValueError("timing equivalence lane reuse differs")
-        equivalence_ref = _reference(root, equivalence_path)
         seam = {
-            "status": "pass_reused_safe_hold_active_surface_equivalence",
-            "claim_class": "formal_lane_reuse_not_full_acceptance",
+            "status": "diagnostic_only_not_required_by_user",
+            "claim_class": "diagnostic_only",
             "attempt_count": 0,
-            "scheduler_policy_required": "SCHED_OTHER",
-            "scheduler_priority_required": 0,
-            "nice_required": 0,
-            "blocker": "requires_final_source_exact_full_tick_30k",
-            "equivalence_attestation": equivalence_ref,
-            "retained_prior_attempt": {
-                "path": (
-                    "config/step5/"
-                    "step5d_autotune_v3_sphere_seam_timing_c1c066f7.json"
-                ),
-                "sha256": _sha256(
-                    root
-                    / "config/step5/"
-                    "step5d_autotune_v3_sphere_seam_timing_c1c066f7.json"
-                ),
-            },
+            "release_gate_applicable": False,
+            "system_setup_required": False,
+            "pressure_test_required": False,
         }
         formal = {
-            "status": "blocked_final_full_tick_pending",
+            "status": "not_required_by_user",
+            "release_gate_applicable": False,
             "release_gate_satisfied": False,
             "attempt_count": 0,
-            "acceptance_classification": "partial_lane_reuse_attested",
-            "equivalence_attestation": equivalence_ref,
-            "bound_identity": {
-                "tick_semantics_fingerprint": layered_identity[
-                    "tick_semantics_fingerprint"
-                ],
-                "timing_harness_fingerprint": layered_identity[
-                    "timing_harness_fingerprint"
-                ],
-                "runtime_environment_fingerprint": runtime["fingerprint"],
-            },
-            "required_lanes": {
-                "solver": {
-                    "required_samples": 10_000,
-                    "status": "pass_reused_active_surface_equivalence",
-                },
-                "full_tick_with_sphere": {
-                    "required_samples": 30_000,
-                    "status": "pending_final_source_exact_capture",
-                },
-                "safe_hold": {
-                    "required_samples": 30_000,
-                    "status": "pass_reused_active_surface_equivalence",
-                },
-            },
-            "blocker": "requires_final_source_exact_full_tick_30k",
-            "retained_prior_failed_attempt": {
-                "classification": "diagnostic_only_not_v3_acceptance",
-                "blockers": [
-                    "base_formal_timing_not_accepted",
-                    "v3_requires_production_sched_other_timing_contract",
-                ],
-                "raw_artifact": {
-                    "path": (
-                        "config/step5/"
-                        "step5d_autotune_v3_formal_timing_raw_c1c066f7.json"
-                    ),
-                    "sha256": _sha256(
-                        root
-                        / "config/step5/"
-                        "step5d_autotune_v3_formal_timing_raw_c1c066f7.json"
-                    ),
-                },
-                "evaluation_artifact": {
-                    "path": (
-                        "config/step5/"
-                        "step5d_autotune_v3_formal_timing_evaluation_c1c066f7.json"
-                    ),
-                    "sha256": _sha256(
-                        root
-                        / "config/step5/"
-                        "step5d_autotune_v3_formal_timing_evaluation_c1c066f7.json"
-                    ),
-                },
-            },
+            "acceptance_classification": "not_required_by_user",
+            "required_lanes": {},
+            "system_setup_required": False,
+            "pressure_test_required": False,
         }
         return seam, formal, False
 
-    raw = raw_path.resolve(strict=True)
-    evaluation = evaluation_path.resolve(strict=True)
-    persisted = _read(evaluation)
-    recomputed = evaluate_step5d_v3_timing_raw(root, raw)
-    if persisted != recomputed or persisted.get("accepted") is not True:
-        raise ValueError("formal timing evaluation is stale or not accepted")
-    raw_payload = _read(raw)
-    runtime = raw_payload.get("runtime_environment") or {}
-    if (
-        runtime.get("scheduler_policy_name") != "SCHED_OTHER"
-        or runtime.get("scheduler_priority") != 0
-        or runtime.get("nice") != 0
-    ):
-        raise ValueError("formal timing host contract is not SCHED_OTHER/0 NI=0")
-    raw_ref = _reference(root, raw)
-    evaluation_ref = _reference(root, evaluation)
-    metadata_path = raw.with_suffix(".metadata.json")
-    metadata = _read(metadata_path)
-    if (
-        metadata.get("formal") is not True
-        or metadata.get("step5d_v3_moving_sphere") is not True
-        or metadata.get("source_fingerprint_stable") is not True
-        or metadata.get("harness_exit_code") != 0
-    ):
-        raise ValueError("formal timing execution metadata is not acceptance-grade")
-    metadata_ref = _reference(root, metadata_path)
-    lanes = {
-        "solver": (raw_payload.get("solver") or {}).get("samples"),
-        "full_tick_with_sphere": (raw_payload.get("full_tick") or {}).get(
-            "samples"
-        ),
-        "safe_hold": (raw_payload.get("safe_hold") or {}).get("samples"),
-    }
-    if lanes != {
-        "solver": 10_000,
-        "full_tick_with_sphere": 30_000,
-        "safe_hold": 30_000,
-    }:
-        raise ValueError("formal timing lane counts differ")
-    current_attempt = {
-        "raw_artifact": raw_ref,
-        "evaluation_artifact": evaluation_ref,
-        "execution_metadata": metadata_ref,
-        "classification": persisted["classification"],
-        "scheduler_policy": "SCHED_OTHER",
-        "scheduler_priority": 0,
-        "nice": 0,
-        "cpu_affinity": runtime.get("cpu_affinity"),
-    }
-    seam = {
-        "status": "pass_via_combined_formal_full_tick_with_sphere",
-        "claim_class": "current_source_formal_timing_component",
-        "attempt_count": 1,
-        "scheduler_policy_required": "SCHED_OTHER",
-        "scheduler_priority_required": 0,
-        "nice_required": 0,
-        "current_attempt": current_attempt,
-    }
-    formal = {
-        "status": "pass_current_source_formal_500hz_timing",
-        "release_gate_satisfied": True,
-        "attempt_count": 1,
-        "acceptance_classification": persisted["classification"],
-        "required_lanes": {
-            name: {"required_samples": count, "status": "pass"}
-            for name, count in lanes.items()
-        },
-        "current_attempt": current_attempt,
-    }
-    return seam, formal, True
+    raise ValueError(
+        "formal timing pressure artifacts are outside the frozen V3 convergence lane"
+    )
 
 
 def build_outputs(
@@ -396,6 +237,10 @@ def build_outputs(
     validation["identity"] = identity
     validation["decision"] = PRE_LIVE_DECISION
     gates = validation["gates"]
+    local_triplet_sha256 = dict(identity["local_triplet_sha256"])
+    gates["package_and_readback"]["local_triplet_sha256"] = (
+        local_triplet_sha256
+    )
     gates["authorization_separation"] = {
         "status": "pass_offline_contract",
         "certification_schema": (
@@ -486,6 +331,13 @@ def build_outputs(
     if len(rows) != 1:
         raise ValueError("V3 stage table row must exist exactly once")
     row = rows[0]
+    package = row["package_delivery"]
+    package["sha256"] = local_triplet_sha256
+    package["tp_fingerprint"] = _sha256(
+        root
+        / "programs/step5/step5d/"
+        "step5d_strict_rnn_autotune_v3.deploy-manifest.json"
+    )
     row["block_reason"] = (
         "V3 is the unique selected/current release and remains pre-live blocked on "
         + ", ".join(blockers)
@@ -527,12 +379,23 @@ def build_outputs(
         },
     }
     row["operator_lifecycle"]["live_readiness_state"] = public_signal
+    current_stage = copy.deepcopy(_read(root / CURRENT_STAGE_RELATIVE))
+    current_stage["sha256"] = local_triplet_sha256
+    current_stage["controller_readback_verified_for_selected_triplet"] = False
+    current_stage["updated_at"] = observed_at
+    control_contract = copy.deepcopy(_read(root / CONTROL_CONTRACT_RELATIVE))
+    control_contract["candidate_tp_artifact_sha256"] = local_triplet_sha256
+    launch_profile = copy.deepcopy(_read(root / LAUNCH_PROFILE_RELATIVE))
+    launch_profile["control_contract_sha256"] = contract_sha256(control_contract)
     return {
         root / STOPPING_RELATIVE: stopping,
         root / RETURN_RELATIVE: returned,
         validation_path: validation,
         root / PROMOTION_RELATIVE: promotion,
         root / STAGE_TABLE_RELATIVE: table,
+        root / CURRENT_STAGE_RELATIVE: current_stage,
+        root / CONTROL_CONTRACT_RELATIVE: control_contract,
+        root / LAUNCH_PROFILE_RELATIVE: launch_profile,
     }
 
 

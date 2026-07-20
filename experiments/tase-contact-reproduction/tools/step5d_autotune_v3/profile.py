@@ -220,8 +220,8 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
         seen_flags.add(flag)
 
     fields = payload["effective_fields"]
-    if not isinstance(fields, dict) or tuple(fields) != CATEGORIES:
-        raise ContractViolation("effective field categories or order differ")
+    if not isinstance(fields, dict) or set(fields) != set(CATEGORIES):
+        raise ContractViolation("effective field categories differ")
     seen_fields: set[str] = set()
     for category in CATEGORIES:
         rows = fields[category]

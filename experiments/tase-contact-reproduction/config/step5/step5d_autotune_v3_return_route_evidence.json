@@ -6,28 +6,28 @@
   "deployment_readback_sha256": null,
   "live_effect": "return_route_angular_envelope_gate_blocked",
   "local_triplet_sha256": {
-    ".script": "3dd672b4f68eba931fb8fc1e2c577e06205ff7a4e6d15a035e3619557d8e430d",
-    ".txt": "3c6dc8fd7cb0e982591b311463e9a996dcf7db85086efada125121ff730dcd14",
-    ".urp": "7f0b8ee7de9f57bd611d398d8afa0db238ebb10ce02f07f7f577e2cb9fedc3b5"
+    ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
+    ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
+    ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
   },
   "missing_certification": {
     "attended_controller_readback_sha256": null,
-    "motion_capable_ursim_trace_sha256": "19f73447e69ea01819a713e2b81230ea997513fc51ec4fb9b8d62c4e53e53ea6",
+    "motion_capable_ursim_trace_sha256": "bdc27a89b574b82566a2e193f2814e13cf00fe2911790912d379d2ea7781df48",
     "source_exact_return_telemetry_sha256": null
   },
   "motion_capable_ursim_trace_binding": {
-    "active_evidence_source_binding_sha256": "76b1dc10ad04b6db6bf61efc05ccf2c23f8acdd78003f49099050266cd37abdf",
+    "active_evidence_source_binding_sha256": "f2425289d2f76fabbec6bfbbbe49549e59436f82380fc6a912d02b2eff67e990",
     "claim_role": "motion_capable_ursim_semantic_subject_equivalence",
     "exact_triplet_match": true,
     "legacy_identity_provenance_only": {
       "control_fingerprint": "6cc7320ebf1450233cd2fb447432e613e67c8103294edbfa8f40449f518f3ac0",
-      "orchestration_fingerprint": "ede7bdb5e5aaef98c7214a4b8f1e531a84d63e11620d1dbe901f6d056e97eb23"
+      "orchestration_fingerprint": "8524fe208d55b72cfb3763ade084bb2e1a9483f18746000dd8bdfadba01a1d3b"
     },
-    "legacy_source_binding_sha256": "7be1ca3d50fd13ba3727f6037f9b1902f724da325291d52a2b7c7c19988dfc54",
-    "motion_subject_fingerprint": "62dd6136c9fd415baf5ff1a4c725c1e686e3ddd6f01b4d0305b7eabe32a7e648",
+    "legacy_source_binding_sha256": "f2425289d2f76fabbec6bfbbbe49549e59436f82380fc6a912d02b2eff67e990",
+    "motion_subject_fingerprint": "106c07b43addfb8a46e551a8605bef77e3bf6c8ce83b856db5c7d87f770f438e",
     "policy_markers_revalidated": true
   },
-  "motion_capable_ursim_trace_sha256": "19f73447e69ea01819a713e2b81230ea997513fc51ec4fb9b8d62c4e53e53ea6",
+  "motion_capable_ursim_trace_sha256": "bdc27a89b574b82566a2e193f2814e13cf00fe2911790912d379d2ea7781df48",
   "offline_guards": {
     "bounded_speedl_twist": true,
     "continuous_actual_angular_speed_guard": true,
@@ -69,14 +69,14 @@
     "safe_transfer_z_m": 0.033
   },
   "schema": "step5d.autotune-v3/return-route-evidence-v2",
-  "source_binding_sha256": "76b1dc10ad04b6db6bf61efc05ccf2c23f8acdd78003f49099050266cd37abdf",
+  "source_binding_sha256": "f2425289d2f76fabbec6bfbbbe49549e59436f82380fc6a912d02b2eff67e990",
   "source_exact_return_telemetry_sha256": null,
   "source_sha256": {
-    "bridge_capture": "5ea1d7b74193849b543f44bb74305e1c68e8c7bca46494aa90a8dd1453991595",
+    "bridge_capture": "5281c8a4d2316568f14a908efba675b5a2aee65bbee227d0b68d5ea7ac87c288",
     "campaign_adapter": "af96b74cf4a3fb87ed6d0d699852a504d3387794e9382bf4690d1fb65092d567",
     "closure_collector": "a0d69c0d4d22ccf954a4edbe4dc23eeac77b1b2d6ce22d3023c5ed8cef7c86bc",
     "return_route": "d34b9d84851577df8eb611fcd185958b3e207f3d510d381223c934947c860fd4",
-    "tp_generator": "320a21b15d9cc79957bf9cf49a34efe7f3c2a53ea318c96d898fdd9001ebe185"
+    "tp_generator": "ce48b11b473684ca2b39bc2f297394c3d695b61f37b86e09afadc6e8359c62e9"
   },
   "status": "offline_enforcement_complete_attended_certification_required",
   "telemetry_summary": null,

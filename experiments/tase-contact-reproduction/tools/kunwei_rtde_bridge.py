@@ -311,6 +311,7 @@ STEP5D_DIAG_FIELDS = [
     "_step5d_published_packet_kind",
     "_step5d_expected_stage",
     "_step5d_transport_rewrite_reason",
+    "_step5d_certification_trigger_controller_timestamp_s",
     "_step5d_stage25_control_mode",
     "_step5d_stage25_echo_layout_tag",
     "_step5d_stage25_echo_cmd_valid",
@@ -11167,6 +11168,14 @@ def main(argv: list[str] | None = None) -> int:
                                 latest_output,
                                 connection_epoch=len(rtde_reconnect_events),
                             )
+                            if getattr(
+                                step5d_autotune_mailbox_runtime,
+                                "certification_hold_heartbeat",
+                                False,
+                            ):
+                                bridge_values["heartbeat"] = (
+                                    last_published_heartbeat
+                                )
                         if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
                             bridge_values.update(args.step5d_autotune_handshake)
                             args.step5d_moving_sphere_progress_age_ns = int(
@@ -11221,6 +11230,23 @@ def main(argv: list[str] | None = None) -> int:
                     step4e_values["_bridge_loop_csv_write_s"] = last_csv_write_s
                     for name in BRIDGE_INPUT_NAMES:
                         bridge_values[name] = float(step4e_values.get(name, 0.0))
+                    if bool(
+                        getattr(
+                            step5d_autotune_mailbox_runtime,
+                            "certification_stop_request",
+                            False,
+                        )
+                    ):
+                        bridge_values["stop_request"] = 1.0
+                    certification_trigger_timestamp = getattr(
+                        step5d_autotune_mailbox_runtime,
+                        "certification_trigger_controller_timestamp_s",
+                        None,
+                    )
+                    if certification_trigger_timestamp is not None:
+                        step4e_values[
+                            "_step5d_certification_trigger_controller_timestamp_s"
+                        ] = float(certification_trigger_timestamp)
                     control_contact_window = control_contact_window_from_bridge_values(step4e_values)
                     bridge_contact_mask, bridge_bias_reason = bias_contact_mask(
                         baseline_ready=baseline_ready,

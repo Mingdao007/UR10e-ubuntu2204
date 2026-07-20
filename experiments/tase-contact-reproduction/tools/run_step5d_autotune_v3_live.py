@@ -548,6 +548,9 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
             "path": str(bridge_context_path),
             "sha256": _sha256_path(bridge_context_path),
         },
+        "certification_authorization_path": str(
+            runtime_root / "certification_motion_authorization.json"
+        ),
         "campaign_arming_context_path": str(campaign_arming_context_path),
     }
     ticket_path = runtime_root / "runtime_ticket.json"

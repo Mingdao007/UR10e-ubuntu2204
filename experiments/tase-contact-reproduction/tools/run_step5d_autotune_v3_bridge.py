@@ -39,9 +39,17 @@ from ur10e_experiment_runtime.stage_adapters import (
     frozen_step5d_path_reference,
 )
 from step5d_autotune_v3.arming import (
+    BridgeStartContext,
     ArmingContext,
     load_bridge_start_context,
     load_campaign_arming_context,
+)
+from step5d_autotune_v3.certification import (
+    CertificationProtocolError,
+    CertificationSession,
+)
+from ur10e_experiment_runtime.authorization import (
+    load_certification_motion_authorization,
 )
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
@@ -89,6 +97,7 @@ _V3_COMPACT_EXACT_FIELDS = frozenset(
         "_step5d_outer_orientation_error_rad",
         "_step5d_outer_xdot_limited_approach_normal_m_s",
         "_step5d_jqdot_cmd_approach_normal_m_s",
+        "_step5d_certification_trigger_controller_timestamp_s",
         "_bridge_loop_gap_s", "_bridge_loop_deadline_lateness_s",
         "_bridge_loop_compute_deadline_overrun", "_bridge_loop_missed_slots",
         "_bridge_loop_deadline_miss_total", "_bridge_loop_io_wait_s",
@@ -102,6 +111,8 @@ _V3_COMPACT_EXACT_FIELDS = frozenset(
         "ur_output_double_register_39", "ur_output_double_register_40",
         "ur_output_double_register_41", "ur_output_double_register_42",
         "ur_output_double_register_43", "ur_output_double_register_44",
+        "ur_output_double_register_45", "ur_output_double_register_46",
+        "ur_output_double_register_47",
     }
 )
 _V3_COMPACT_PREFIXES = (
@@ -299,6 +310,48 @@ class V3AsyncBridgeTrialCsvRotator:
             self._sealed.add(binding.trial_uid)
         return True
 
+    def observe_certification(
+        self,
+        row: Any,
+        *,
+        session: CertificationSession,
+        rtde_output: Any,
+    ) -> bool:
+        if rtde_output is None or session.complete or session.current is None:
+            return False
+        try:
+            state = int(rtde_output["output_int_register_26"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise BridgeTicketError(
+                "V3 certification capture lacks TP state"
+            ) from exc
+        if state not in {80, 81, 82, 83, 84, 85}:
+            return False
+        step = session.current
+        capture_uid = (
+            "certification-"
+            + session.authorization.authorization_ref_sha256
+        )
+        if capture_uid in self._sealed:
+            return False
+        payload = {name: row.get(name, "") for name in self.fieldnames}
+        payload.update(
+            {
+                "autotune_trial_uid": capture_uid,
+                "autotune_backend_id": "bounded_no_contact_certification",
+                "autotune_control_candidate_uid": "",
+                "autotune_force_p_gain": "",
+                "autotune_force_i_gain": "",
+                "autotune_force_damping": "",
+                "autotune_orientation_ko": "",
+            }
+        )
+        self._enqueue(("row", capture_uid, payload))
+        if step.command == 6 and state == 85:
+            self._enqueue(("seal", capture_uid))
+            self._sealed.add(capture_uid)
+        return True
+
     def close(self) -> None:
         if self._worker.exitcode is None:
             self._enqueue(("close",))
@@ -363,6 +416,71 @@ class CampaignArmingContextProvider:
                     )
                     return
                 self._context = context
+                return
+            self._stop.wait(self.poll_interval_s)
+
+
+class CertificationSessionProvider:
+    """Load external certification authority off-loop and publish one session."""
+
+    def __init__(
+        self,
+        path: Path,
+        *,
+        bridge_context: BridgeStartContext,
+        poll_interval_s: float = 0.1,
+    ) -> None:
+        if not path.is_absolute() or path.is_symlink():
+            raise BridgeTicketError(
+                "certification authorization path must be absolute and non-symlinked"
+            )
+        self.path = path
+        self.bridge_context = bridge_context
+        self.poll_interval_s = poll_interval_s
+        self._session: CertificationSession | None = None
+        self._error: str | None = None
+        self._stop = threading.Event()
+        self._thread = threading.Thread(
+            target=self._watch,
+            name="step5d-v3-certification-authorization-loader",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def close(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=2.0)
+
+    def __call__(self) -> CertificationSession | None:
+        if self._error is not None:
+            raise BridgeTicketError(self._error)
+        return self._session
+
+    def _watch(self) -> None:
+        while not self._stop.is_set():
+            if self.path.exists() or self.path.is_symlink():
+                try:
+                    authorization = load_certification_motion_authorization(
+                        self.path,
+                        expected_release_basis_fingerprint=(
+                            self.bridge_context.release_basis_fingerprint
+                        ),
+                        expected_deployment_fingerprint=(
+                            self.bridge_context.deployment_fingerprint
+                        ),
+                        expected_plant_epoch=self.bridge_context.plant_epoch,
+                        expected_deployment_readback_sha256=(
+                            self.bridge_context.deployment_readback_sha256
+                        ),
+                    )
+                    self._session = CertificationSession(authorization)
+                except Exception as exc:
+                    self._error = (
+                        "certification authorization failed closed: "
+                        f"{type(exc).__name__}:{exc}"
+                    )
                 return
             self._stop.wait(self.poll_interval_s)
 
@@ -481,6 +599,7 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         "control_profile_id",
         "tp_program_id",
         "bridge_start_context",
+        "certification_authorization_path",
         "campaign_arming_context_path",
     }
     if not isinstance(payload, dict) or set(payload) != required:
@@ -565,11 +684,21 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         raise BridgeTicketError(
             "V3 campaign arming context path must be absolute and non-symlinked"
         )
+    certification_path_text = payload["certification_authorization_path"]
+    if not isinstance(certification_path_text, str) or not certification_path_text:
+        raise BridgeTicketError("V3 certification authorization path differs")
+    certification_path = Path(certification_path_text)
+    if not certification_path.is_absolute() or certification_path.is_symlink():
+        raise BridgeTicketError(
+            "V3 certification authorization path must be absolute and non-symlinked"
+        )
     return payload
 
 
 def install_v3_seams(
     arming_context_provider: Callable[[], ArmingContext | None] | None = None,
+    certification_session_provider: Callable[[], CertificationSession | None]
+    | None = None,
 ) -> Any:
     import step5d_autotune_live_driver as live
     from step5d_autotune_v3.runtime_calibration import validate_installed_calibration
@@ -582,10 +711,21 @@ def install_v3_seams(
         def __init__(self, path: Path, *, network_mode: bool = True) -> None:
             super().__init__(original_mailbox(path, network_mode=network_mode))
 
-    live.AtomicCommandMailbox = V3AtomicCommandMailbox
-    live.BridgeTrialCsvRotator = V3AsyncBridgeTrialCsvRotator
-    original_runtime = live.BridgeMailboxRuntime
     provider = arming_context_provider or (lambda: None)
+    certification_provider = certification_session_provider or (lambda: None)
+
+    class V3BoundAsyncBridgeTrialCsvRotator(V3AsyncBridgeTrialCsvRotator):
+        def observe(self, row: Any, *, active: Any, rtde_output: Any) -> bool:
+            session = certification_provider()
+            if active is None and session is not None and not session.complete:
+                return self.observe_certification(
+                    row, session=session, rtde_output=rtde_output
+                )
+            return super().observe(row, active=active, rtde_output=rtde_output)
+
+    live.AtomicCommandMailbox = V3AtomicCommandMailbox
+    live.BridgeTrialCsvRotator = V3BoundAsyncBridgeTrialCsvRotator
+    original_runtime = live.BridgeMailboxRuntime
 
     class V3BridgeMailboxRuntime(original_runtime):
         def __init__(
@@ -599,6 +739,50 @@ def install_v3_seams(
                 campaign_home_reference_path=campaign_home_reference_path,
                 arming_context_provider=provider,
             )
+            self.certification_session: CertificationSession | None = None
+
+        def poll(
+            self,
+            args: Any,
+            output: Any,
+            *,
+            connection_epoch: int = 0,
+        ) -> bool:
+            session = certification_provider()
+            if session is not None and not session.complete:
+                if self.active is not None:
+                    raise BridgeTicketError(
+                        "certification cannot replace an active campaign binding"
+                    )
+                self.certification_session = session
+                changed = session.poll(output)
+                args.step5d_autotune_handshake = session.handshake
+                return changed
+            return super().poll(
+                args,
+                output,
+                connection_epoch=connection_epoch,
+            )
+
+        @property
+        def certification_hold_heartbeat(self) -> bool:
+            return bool(
+                self.certification_session is not None
+                and self.certification_session.hold_heartbeat
+            )
+
+        @property
+        def certification_stop_request(self) -> bool:
+            return bool(
+                self.certification_session is not None
+                and self.certification_session.stop_request
+            )
+
+        @property
+        def certification_trigger_controller_timestamp_s(self) -> float | None:
+            if self.certification_session is None:
+                return None
+            return self.certification_session.trigger_controller_timestamp_s
 
     live.BridgeMailboxRuntime = V3BridgeMailboxRuntime
 
@@ -728,23 +912,37 @@ def main(argv: list[str] | None = None) -> int:
         print("refusing: STEP5D_V3_RUNTIME_TICKET is required", file=sys.stderr)
         return 24
     provider: CampaignArmingContextProvider | None = None
+    certification_provider: CertificationSessionProvider | None = None
     try:
         ticket = _strict_ticket(Path(ticket_text), bridge_argv)
+        bridge_reference = ticket["bridge_start_context"]
+        bridge_context = load_bridge_start_context(
+            Path(bridge_reference["path"]),
+            expected_static_identity=dict(ticket["identity"]),
+        )
         provider = CampaignArmingContextProvider(
             Path(ticket["campaign_arming_context_path"]),
             expected_static_identity=dict(ticket["identity"]),
         )
+        certification_provider = CertificationSessionProvider(
+            Path(ticket["certification_authorization_path"]),
+            bridge_context=bridge_context,
+        )
         provider.start()
-        bridge = install_v3_seams(provider)
-    except BridgeTicketError as exc:
+        certification_provider.start()
+        bridge = install_v3_seams(provider, certification_provider)
+    except (BridgeTicketError, CertificationProtocolError) as exc:
         if provider is not None:
             provider.close()
+        if certification_provider is not None:
+            certification_provider.close()
         print(f"refusing: {exc}", file=sys.stderr)
         return 24
     try:
         return int(bridge.main(bridge_argv))
     finally:
         provider.close()
+        certification_provider.close()
 
 
 if __name__ == "__main__":

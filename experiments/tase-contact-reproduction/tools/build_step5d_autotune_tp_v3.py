@@ -33,6 +33,15 @@ from ur10e_experiment_runtime.return_route import (
     RETURN_CONTROLLER_PERIOD_S,
     RETURN_ORIENTATION_ADMISSION_LIMIT_RAD,
 )
+from step5d_autotune_v3.certification import (
+    COMMAND_DIRECT_STOP as CERTIFICATION_COMMAND_DIRECT_STOP,
+    COMMAND_RETURN_ROUTE as CERTIFICATION_COMMAND_RETURN_ROUTE,
+    COMMAND_STALE_STOP as CERTIFICATION_COMMAND_STALE_STOP,
+    EXECUTION_PROFILE_ID as CERTIFICATION_EXECUTION_PROFILE_ID,
+    SAMPLES_PER_STOP_PROCEDURE as CERTIFICATION_SAMPLE_COUNT,
+    STOP_LINEAR_ACCELERATION_M_S2 as CERTIFICATION_LINEAR_ACCELERATION_M_S2,
+    STOP_LINEAR_SPEED_M_S as CERTIFICATION_LINEAR_SPEED_M_S,
+)
 
 PROGRAM_NAME = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
@@ -43,6 +52,8 @@ PRECONTACT_ROTVEC_RAD = STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
 PRECONTACT_CLEARANCE_M = 0.005
 MINIMUM_START_ABOVE_ENTRY_M = 0.01
 STAGE25_STALE_COMMAND_HOLD_S = 0.020
+CERTIFICATION_SAFE_Z_MIN_M = 0.033
+CERTIFICATION_EXCURSION_M = 0.004
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 
@@ -285,6 +296,118 @@ def codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_
   return True
 end
 
+def codex_autotune_controller_time_s():
+  local controller_clock = time()
+  return controller_clock.sec + controller_clock.nanosec / 1000000000.0
+end
+
+def codex_autotune_certification_identity_matches(campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index):
+  return read_input_integer_register(24) == campaign_epoch and read_input_integer_register(25) == trial_id and read_input_integer_register(27) == candidate_token and read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == sample_index
+end
+
+def codex_autotune_certification_stop(command, campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index, command_seq, campaign_home_pose, campaign_home_q):
+  local start_pose = get_actual_tcp_pose()
+  if start_pose[2] < {CERTIFICATION_SAFE_Z_MIN_M:.3f}:
+    return -17
+  end
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local last_controller_time_s = codex_autotune_controller_time_s()
+  local trigger_controller_time_s = -1.0
+  local consumed_sequence = command_seq
+  codex_autotune_write_state(campaign_epoch, trial_id, 80, candidate_token, 0, execution_profile_id, consumed_sequence)
+  while trigger_controller_time_s < 0.0:
+    local controller_time_s = codex_autotune_controller_time_s()
+    local loop_dt = controller_time_s - last_controller_time_s
+    last_controller_time_s = controller_time_s
+    local heartbeat = read_input_float_register(26)
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + loop_dt
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    local reason = codex_step4e_guard_stop_reason()
+    local current_pose = get_actual_tcp_pose()
+    if not codex_autotune_certification_identity_matches(campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index):
+      return -13
+    elif command == {CERTIFICATION_COMMAND_DIRECT_STOP} and read_input_float_register(28) > 0.5:
+      trigger_controller_time_s = controller_time_s
+    elif command == {CERTIFICATION_COMMAND_STALE_STOP} and stale_s > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:
+      trigger_controller_time_s = controller_time_s
+    elif reason != 0.0:
+      return -reason
+    elif loop_dt <= 0.0 or loop_dt > {RETURN_CONTROLLER_MAX_SAMPLE_GAP_S:.3f}:
+      return -18
+    elif codex_abs(current_pose[0] - start_pose[0]) > {CERTIFICATION_EXCURSION_M + 0.002:.3f}:
+      return -17
+    else:
+      speedl([{CERTIFICATION_LINEAR_SPEED_M_S:.3f}, 0.0, 0.0, 0.0, 0.0, 0.0], {CERTIFICATION_LINEAR_ACCELERATION_M_S2:.3f}, {RETURN_CONTROLLER_PERIOD_S:.3f}, aRot={RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2:.3f})
+    end
+  end
+  write_output_float_register(45, trigger_controller_time_s)
+  local stop_transport_controller_time_s = codex_autotune_controller_time_s()
+  write_output_float_register(46, stop_transport_controller_time_s)
+  codex_autotune_write_state(campaign_epoch, trial_id, 81, candidate_token, 0, execution_profile_id, consumed_sequence)
+  stopl({CERTIFICATION_LINEAR_ACCELERATION_M_S2:.3f}, {RETURN_ANGULAR_STOP_DECELERATION_RAD_S2:.3f})
+  local stationary_s = 0.0
+  local stationary_deadline_s = codex_autotune_controller_time_s() + 2.0
+  while stationary_s < 0.050 and codex_autotune_controller_time_s() < stationary_deadline_s:
+    local tcp_speed = get_actual_tcp_speed()
+    local linear_speed_m_s = codex_autotune_norm3(tcp_speed[0], tcp_speed[1], tcp_speed[2])
+    if linear_speed_m_s <= 0.001:
+      stationary_s = stationary_s + get_steptime()
+    else:
+      stationary_s = 0.0
+    end
+    sync()
+  end
+  if stationary_s < 0.050:
+    return -17
+  end
+  write_output_float_register(47, codex_autotune_controller_time_s())
+  codex_autotune_write_state(campaign_epoch, trial_id, 82, candidate_token, 0, execution_profile_id, consumed_sequence)
+  if command == {CERTIFICATION_COMMAND_STALE_STOP}:
+    local resume_deadline_s = codex_autotune_controller_time_s() + 2.0
+    while read_input_float_register(26) == last_heartbeat and codex_autotune_controller_time_s() < resume_deadline_s:
+      sync()
+    end
+    if read_input_float_register(26) == last_heartbeat:
+      return -2
+    end
+  end
+  if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
+    return -17
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, consumed_sequence)
+  return consumed_sequence
+end
+
+def codex_autotune_certification_return(campaign_epoch, trial_id, candidate_token, execution_profile_id, command_seq, campaign_home_pose, campaign_home_q):
+  local start_pose = get_actual_tcp_pose()
+  if start_pose[2] < {CERTIFICATION_SAFE_Z_MIN_M:.3f}:
+    return False
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 83, candidate_token, 0, execution_profile_id, command_seq)
+  local offset_pose = p[start_pose[0] + {CERTIFICATION_EXCURSION_M:.3f}, start_pose[1], start_pose[2], start_pose[3], start_pose[4], start_pose[5]]
+  codex_autotune_return_guard_reason = 0.0
+  codex_autotune_return_guard_active = True
+  local guard_handle = run codex_autotune_return_guard_thread()
+  local offset_ok = codex_autotune_bounded_return_segment(offset_pose, {CERTIFICATION_LINEAR_ACCELERATION_M_S2:.3f}, {CERTIFICATION_LINEAR_SPEED_M_S:.3f}, 0.0)
+  codex_autotune_return_guard_active = False
+  sync()
+  kill guard_handle
+  if not offset_ok or codex_autotune_return_guard_reason != 0.0:
+    return False
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 84, candidate_token, 0, execution_profile_id, command_seq)
+  if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
+    return False
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, command_seq)
+  return True
+end
+
 '''
     old_return = '''        local retract_start = get_actual_tcp_pose()
         local retract_pose = p[retract_start[0], retract_start[1], retract_start[2] + 0.010, retract_start[3], retract_start[4], retract_start[5]]
@@ -340,6 +463,39 @@ end
       stopl(0.1)
       sleep(0.20)
     end'''
+    old_command_dispatch = '''    if command == 3 and command_seq > last_consumed_command_seq:
+      last_consumed_command_seq = command_seq
+      codex_autotune_fault_forever(0, 0, 0, 4, 0, last_consumed_command_seq)
+    elif command == 1 and command_seq > last_consumed_command_seq:'''
+    new_command_dispatch = f'''    if command == 3 and command_seq > last_consumed_command_seq:
+      last_consumed_command_seq = command_seq
+      codex_autotune_fault_forever(0, 0, 0, 4, 0, last_consumed_command_seq)
+    elif (command == {CERTIFICATION_COMMAND_DIRECT_STOP} or command == {CERTIFICATION_COMMAND_STALE_STOP} or command == {CERTIFICATION_COMMAND_RETURN_ROUTE}) and command_seq > last_consumed_command_seq:
+      local certification_epoch = read_input_integer_register(24)
+      local certification_trial_id = read_input_integer_register(25)
+      local certification_token = read_input_integer_register(27)
+      local certification_profile_id = read_input_integer_register(28)
+      local certification_sample_index = read_input_integer_register(30)
+      last_consumed_command_seq = command_seq
+      if certification_epoch <= 0 or certification_trial_id <= 0 or certification_token <= 0 or certification_profile_id != {CERTIFICATION_EXECUTION_PROFILE_ID} or certification_sample_index < 1 or certification_sample_index > {CERTIFICATION_SAMPLE_COUNT} or command == {CERTIFICATION_COMMAND_RETURN_ROUTE} and certification_sample_index != 1:
+        codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 13, certification_profile_id, last_consumed_command_seq)
+      end
+      codex_autotune_batch_row_echo = certification_sample_index
+      codex_autotune_return_kind_echo = 3
+      codex_autotune_return_guard_mask = 0
+      if command == {CERTIFICATION_COMMAND_RETURN_ROUTE}:
+        if not codex_autotune_certification_return(certification_epoch, certification_trial_id, certification_token, certification_profile_id, last_consumed_command_seq, campaign_home_pose, campaign_home_q):
+          codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 17, certification_profile_id, last_consumed_command_seq)
+        end
+      else:
+        local certification_result = codex_autotune_certification_stop(command, certification_epoch, certification_trial_id, certification_token, certification_profile_id, certification_sample_index, last_consumed_command_seq, campaign_home_pose, campaign_home_q)
+        if certification_result < 0:
+          codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 0 - certification_result, certification_profile_id, last_consumed_command_seq)
+        end
+        last_consumed_command_seq = certification_result
+      end
+      codex_autotune_write_state(0, 0, 10, 0, 0, 0, last_consumed_command_seq)
+    elif command == 1 and command_seq > last_consumed_command_seq:'''
     return (
         (
             "# HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29",
@@ -360,6 +516,11 @@ end
             "  write_output_integer_register(30, consumed_command_seq)\nend",
             "  write_output_integer_register(30, consumed_command_seq)\n  write_output_integer_register(31, codex_autotune_batch_row_echo)\n  write_output_integer_register(32, codex_autotune_return_kind_echo)\n  write_output_integer_register(33, codex_autotune_return_guard_mask)\nend",
             "typed return echoes",
+        ),
+        (
+            old_command_dispatch,
+            new_command_dispatch,
+            "ticketed no-contact certification dispatch",
         ),
         (
             "def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2):",
@@ -541,6 +702,21 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "codex_autotune_return_guard_reason = 22.0",
         "codex_autotune_write_state(campaign_epoch, trial_id, 76",
         "codex_autotune_write_state(campaign_epoch, trial_id, 77",
+        "def codex_autotune_certification_stop(",
+        "def codex_autotune_certification_return(",
+        f"command == {CERTIFICATION_COMMAND_DIRECT_STOP}",
+        f"command == {CERTIFICATION_COMMAND_STALE_STOP}",
+        f"command == {CERTIFICATION_COMMAND_RETURN_ROUTE}",
+        f"certification_profile_id != {CERTIFICATION_EXECUTION_PROFILE_ID}",
+        "codex_autotune_write_state(campaign_epoch, trial_id, 80",
+        "codex_autotune_write_state(campaign_epoch, trial_id, 81",
+        "codex_autotune_write_state(campaign_epoch, trial_id, 82",
+        "codex_autotune_write_state(campaign_epoch, trial_id, 83",
+        "codex_autotune_write_state(campaign_epoch, trial_id, 84",
+        "codex_autotune_write_state(campaign_epoch, trial_id, 85",
+        "write_output_float_register(45, trigger_controller_time_s)",
+        "write_output_float_register(46, stop_transport_controller_time_s)",
+        "write_output_float_register(47, codex_autotune_controller_time_s())",
         "codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)",
     )
     missing = [marker for marker in required if marker not in script]
@@ -653,7 +829,9 @@ Identity:
 
 Motion class:
   Contact motion package. Upload/read-back does not Load or Play it.
-  One Play enters the live campaign; there is no HIL HOLD or second user authorization.
+  Play enters an inert READY_HOME loop. Motion begins only after either a
+  ticketed no-contact certification command or a separately armed campaign.
+  Certification commands cannot enter the campaign path.
   Before guarded search, Stage22 first moves at the existing safe Z, then moves
   vertically to {PRECONTACT_XYZ_M} with a {PRECONTACT_CLEARANCE_M:.3f} m clearance
   above the completed contact-plus-0.1 s robust surface pose. FAR/NEAR speeds and
@@ -664,6 +842,10 @@ Frozen control contract:
   output integer registers 24..33; Stage25 heartbeat watchdog fail-closed
   after {STAGE25_STALE_COMMAND_HOLD_S:.3f} s of unchanged heartbeat.
   Batch row is explicit; rows 1..9 return NearReady and row 10 returns CampaignHome.
+  Certification commands {CERTIFICATION_COMMAND_DIRECT_STOP},
+  {CERTIFICATION_COMMAND_STALE_STOP}, and {CERTIFICATION_COMMAND_RETURN_ROUTE}
+  require profile tag {CERTIFICATION_EXECUTION_PROFILE_ID}, sample identity,
+  live sensor/heartbeat guards, safe-Z admission, and guarded safe closure.
   The three return targets are unchanged. Return motion uses bounded speedl with
   angular command cap {RETURN_ANGULAR_SPEED_LIMIT_RAD_S:.3f} rad/s, rotational
   acceleration cap {RETURN_ANGULAR_ACCELERATION_LIMIT_RAD_S2:.3f} rad/s^2,
@@ -682,7 +864,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "control_profile_id": CONTROL_PROFILE_ID,
         "delta_class": (
             "identity_precontact_prior_exact_batch_lifecycle_return_"
-            "angular_envelope_stage25_watchdog_v3"
+            "angular_envelope_stage25_watchdog_ticketed_certification_v3"
         ),
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
         "physical_prior_sha256": PRECONTACT_POSE_PRIOR_SHA256,
@@ -725,6 +907,20 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         ),
         "return_segment_phase_codes": [40.1, 40.2, 40.3],
         "return_continuous_telemetry_output_float_registers": list(range(39, 45)),
+        "certification_commands": {
+            "direct_exact_stop": CERTIFICATION_COMMAND_DIRECT_STOP,
+            "stale_watchdog_exact_stop": CERTIFICATION_COMMAND_STALE_STOP,
+            "return_route": CERTIFICATION_COMMAND_RETURN_ROUTE,
+        },
+        "certification_execution_profile_id": CERTIFICATION_EXECUTION_PROFILE_ID,
+        "certification_samples_per_stop_procedure": CERTIFICATION_SAMPLE_COUNT,
+        "certification_safe_z_min_m": CERTIFICATION_SAFE_Z_MIN_M,
+        "certification_excursion_m": CERTIFICATION_EXCURSION_M,
+        "certification_linear_speed_m_s": CERTIFICATION_LINEAR_SPEED_M_S,
+        "certification_linear_acceleration_m_s2": (
+            CERTIFICATION_LINEAR_ACCELERATION_M_S2
+        ),
+        "certification_stop_telemetry_output_float_registers": [45, 46, 47],
         "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
     }
 

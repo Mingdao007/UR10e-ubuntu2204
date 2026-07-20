@@ -77,6 +77,11 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                         bridge_context_path.read_bytes()
                     ).hexdigest(),
                 },
+                "certification_authorization_path": str(
+                    path.with_name(
+                        "certification-motion-authorization.json"
+                    ).resolve()
+                ),
                 "campaign_arming_context_path": str(
                     path.with_name("campaign-arming-context.json").resolve()
                 ),
@@ -155,6 +160,61 @@ def test_production_compact_schema_satisfies_wait_ack_closure_consumer() -> None
     assert sample["output_double_register_38"] == 0.0
     assert sample["output_double_register_39"] == 0.0
     assert sample["output_double_register_44"] == 0.0
+    assert {
+        "ur_output_double_register_45",
+        "ur_output_double_register_46",
+        "ur_output_double_register_47",
+    }.issubset(compact)
+    assert "_step5d_certification_trigger_controller_timestamp_s" in compact
+
+
+def test_bridge_source_exposes_only_existing_certification_stop_seams() -> None:
+    source = (ROOT / "tools/kunwei_rtde_bridge.py").read_text(encoding="utf-8")
+    assert '"certification_hold_heartbeat"' in source
+    assert '"certification_stop_request"' in source
+    assert '"certification_trigger_controller_timestamp_s"' in source
+    assert 'bridge_values["heartbeat"] = (' in source
+    assert 'bridge_values["stop_request"] = 1.0' in source
+
+
+def test_certification_capture_seals_once_after_final_safe_closure() -> None:
+    rotator = object.__new__(wrapper.V3AsyncBridgeTrialCsvRotator)
+    rotator.fieldnames = (
+        "ur_output_int_register_26",
+        "autotune_trial_uid",
+        "autotune_backend_id",
+        "autotune_control_candidate_uid",
+        "autotune_force_p_gain",
+        "autotune_force_i_gain",
+        "autotune_force_damping",
+        "autotune_orientation_ko",
+    )
+    rotator._sealed = set()
+    messages = []
+    rotator._enqueue = messages.append
+    session = SimpleNamespace(
+        complete=False,
+        current=SimpleNamespace(command=4),
+        authorization=SimpleNamespace(authorization_ref_sha256="a" * 64),
+    )
+    assert rotator.observe_certification(
+        {"ur_output_int_register_26": 80},
+        session=session,
+        rtde_output={"output_int_register_26": 80},
+    ) is True
+    assert [message[0] for message in messages] == ["row"]
+    session.current = SimpleNamespace(command=6)
+    assert rotator.observe_certification(
+        {"ur_output_int_register_26": 85},
+        session=session,
+        rtde_output={"output_int_register_26": 85},
+    ) is True
+    assert [message[0] for message in messages] == ["row", "row", "seal"]
+    assert rotator.observe_certification(
+        {"ur_output_int_register_26": 85},
+        session=session,
+        rtde_output={"output_int_register_26": 85},
+    ) is False
 
 
 def test_observed_wait_ack_schema_incident_is_exactly_closed() -> None:

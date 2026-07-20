@@ -10445,13 +10445,13 @@
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
         "controller_readback_manifest_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
         "fresh_controller_sha_at": "2026-07-19T06:12:30+08:00",
-        "tp_fingerprint": "ab9899be69640155b40c0c5acd52c6164baec15fc8c1f95f6d7571a7719c1438",
+        "tp_fingerprint": "f0528a4deb6c00fd2f8122d141e862173edbf07c3788c817026c2541dcf6a091",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": false,
         "sha256": {
-          ".script": "3dd672b4f68eba931fb8fc1e2c577e06205ff7a4e6d15a035e3619557d8e430d",
-          ".txt": "3c6dc8fd7cb0e982591b311463e9a996dcf7db85086efada125121ff730dcd14",
-          ".urp": "7f0b8ee7de9f57bd611d398d8afa0db238ebb10ce02f07f7f577e2cb9fedc3b5"
+          ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
+          ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
+          ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
         }
       },
       "acceptance": {
@@ -10468,13 +10468,13 @@
         "acceptance_scope": "offline_pre_live_only",
         "diagnostic_bundle_replay": "pass",
         "exact_ten_row_lifecycle": "pass",
-        "formal_500hz_timing": "blocked_final_full_tick_pending",
+        "formal_500hz_timing": "not_required_by_user",
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "498c57f4a860cac7e7d17d4911134bd1c9629b2a88c4b65955633c3bbc95fd10",
+        "report_sha256": "250cef95181c5163c2d4f6661f643cd1e4a84a6042ce5052e97445e4fc0e8d09",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
-        "source_exact_sphere_seam_timing": "pass_reused_safe_hold_active_surface_equivalence",
+        "source_exact_sphere_seam_timing": "diagnostic_only_not_required_by_user",
         "status": "pass_offline_implementation_pre_live_blocked"
       },
       "current_binding": {

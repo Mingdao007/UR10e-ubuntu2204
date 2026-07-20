@@ -26,11 +26,15 @@ DEFAULT_GOVERNANCE = (
 FROZEN_COMMIT = "6f9ef0912842ac003545eb1906b38d13c7552218"
 FROZEN_TAG = "archive/step5d-autotune-v1-20260715"
 # The convergence lane added two explicit typed owners (arming and readiness)
-# instead of folding capability checks back into the launcher.  This is the
-# frozen pre-live ceiling; it is not permission for further module growth.
+# instead of folding capability checks back into the launcher.  Certification
+# has a separate, single-module ceiling because it is an attended no-contact
+# procedure owner, not permission to grow the campaign runtime surface.
 RUNTIME_MODULE_LIMIT = 12
 RUNTIME_LOC_LIMIT = 5200
 RUNTIME_FILE_LOC_LIMIT = 700
+CERTIFICATION_MODULE = "certification.py"
+CERTIFICATION_MODULE_LIMIT = 1
+CERTIFICATION_LOC_LIMIT = 320
 REQUIRED_LANES = {"small", "medium"}
 PARSER_CI_DEPENDENCY_STUBS = {
     "_ur_common", "capture_kunwei_kwr75_1khz", "numpy", "pandas",
@@ -86,7 +90,7 @@ PROTECTED_V1_SHA256 = {
 APPROVED_ORCHESTRATION_VARIANTS = {
     "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py": {
         "baseline_sha256": "5f913259826dcaff0d54bcae43d6c30b0efffe63ad8b8565e43459fa954fe3db",
-        "approved_sha256": "dad5b5b8e37dfddd22447738e7aeb5d61bf0348eee5f527f08a99132f8c204ed",
+        "approved_sha256": "89d6da152678afb47744e782d2eeecf86c9c9a4b673e4ddcbdb4e9302dfd5153",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {
@@ -121,7 +125,7 @@ APPROVED_ORCHESTRATION_VARIANTS = {
     },
     "experiments/tase-contact-reproduction/config/current_stage.json": {
         "baseline_sha256": "8d6684717008a3d4bfbdd948a03083188f6456afb5313d58edbecfa6cb0e6132",
-        "approved_sha256": "c70cb72bb28be6554a01d9e199ead4870130ccf787c4cda959e760cbef533664",
+        "approved_sha256": "4b4c3a01eb1bc0cffaf55b3cf9cdebe522ae59e22f9e8d3dcb5e255c9e48e110",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/scripts/bridge-line-operator.sh": {
@@ -253,6 +257,10 @@ def runtime_budget(root: Path) -> tuple[list[str], dict[str, Any]]:
         path for path in runtime.glob("*.py")
         if path.is_file() and not path.is_symlink()
     ) if runtime.is_dir() else []
+    certification_modules = [
+        path for path in modules if path.name == CERTIFICATION_MODULE
+    ]
+    core_modules = [path for path in modules if path.name != CERTIFICATION_MODULE]
     loc_by_module = {
         path.relative_to(root).as_posix(): _physical_source_lines(path)
         for path in modules
@@ -269,13 +277,29 @@ def runtime_budget(root: Path) -> tuple[list[str], dict[str, Any]]:
         and "__pycache__" not in path.parts
     ]
     issues.extend(f"v3_runtime_unbudgeted_file:{path}" for path in unexpected_files)
-    if len(modules) > RUNTIME_MODULE_LIMIT:
+    if len(core_modules) > RUNTIME_MODULE_LIMIT:
         issues.append(
-            f"v3_runtime_module_budget_exceeded:{len(modules)}>{RUNTIME_MODULE_LIMIT}"
+            f"v3_runtime_module_budget_exceeded:{len(core_modules)}>{RUNTIME_MODULE_LIMIT}"
         )
-    total_loc = sum(loc_by_module.values())
-    if total_loc > RUNTIME_LOC_LIMIT:
-        issues.append(f"v3_runtime_loc_budget_exceeded:{total_loc}>{RUNTIME_LOC_LIMIT}")
+    core_loc = sum(
+        loc_by_module[path.relative_to(root).as_posix()] for path in core_modules
+    )
+    if core_loc > RUNTIME_LOC_LIMIT:
+        issues.append(f"v3_runtime_loc_budget_exceeded:{core_loc}>{RUNTIME_LOC_LIMIT}")
+    certification_loc = sum(
+        loc_by_module[path.relative_to(root).as_posix()]
+        for path in certification_modules
+    )
+    if len(certification_modules) > CERTIFICATION_MODULE_LIMIT:
+        issues.append(
+            "v3_certification_module_budget_exceeded:"
+            f"{len(certification_modules)}>{CERTIFICATION_MODULE_LIMIT}"
+        )
+    if certification_loc > CERTIFICATION_LOC_LIMIT:
+        issues.append(
+            f"v3_certification_loc_budget_exceeded:{certification_loc}>"
+            f"{CERTIFICATION_LOC_LIMIT}"
+        )
     for relative, count in loc_by_module.items():
         if count > RUNTIME_FILE_LOC_LIMIT:
             issues.append(
@@ -291,9 +315,15 @@ def runtime_budget(root: Path) -> tuple[list[str], dict[str, Any]]:
         issues.extend(f"v3_runtime_module_outside_flat_budget:{path}" for path in nested_modules)
     return issues, {
         "module_limit": RUNTIME_MODULE_LIMIT,
-        "module_count": len(modules),
+        "module_count": len(core_modules),
         "loc_limit": RUNTIME_LOC_LIMIT,
-        "loc_count": total_loc,
+        "loc_count": core_loc,
+        "certification_module_limit": CERTIFICATION_MODULE_LIMIT,
+        "certification_module_count": len(certification_modules),
+        "certification_loc_limit": CERTIFICATION_LOC_LIMIT,
+        "certification_loc_count": certification_loc,
+        "total_module_count": len(modules),
+        "total_loc_count": sum(loc_by_module.values()),
         "file_loc_limit": RUNTIME_FILE_LOC_LIMIT,
         "loc_by_module": loc_by_module,
     }

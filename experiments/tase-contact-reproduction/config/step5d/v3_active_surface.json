@@ -58,6 +58,7 @@
     "tools/build_step5d_autotune_v3_bridge_start_context.py",
     "tools/preflight_step5d_autotune_v3.py",
     "tools/step5d_autotune_v3/arming.py",
+    "tools/step5d_autotune_v3/certification.py",
     "tools/step5d_autotune_v3/readiness.py",
     "tools/step5d_autotune_v3/cli.py",
     "tools/step5d_autotune_v3/launcher.py",
@@ -89,6 +90,9 @@
     "tools/rebuild_step5d_autotune_v3_pre_live_evidence.py",
     "tools/build_step5d_autotune_v3_stopping_bound_evidence.py",
     "tools/promote_step5d_autotune_v3_stopping_bound_evidence.py",
+    "tools/extract_step5d_autotune_v3_certification.py",
+    "tools/issue_step5d_autotune_v3_certification_authorization.py",
+    "tools/finalize_step5d_autotune_v3_certification.py",
     "tools/build_step5d_autotune_v3_return_route_evidence.py",
     "tools/promote_step5d_autotune_v3_return_route_evidence.py",
     "tools/run_step5d_autotune_v3_ursim_return_gate.py"

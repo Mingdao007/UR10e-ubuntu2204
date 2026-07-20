@@ -79,6 +79,28 @@ safety contradiction may create a contract amendment, but it must be recorded
 explicitly and reported to the user; a reviewer opinion alone cannot amend the
 contract.
 
+## Blocker 7 certification seam
+
+Blocker 7 is complete only when one production lane consumes an unexpired
+`CertificationProcedureTicket` before each bounded procedure and the existing
+production bridge remains the sole owner of Kunwei input, RTDE input/output,
+exact-stop transport, and retained source-exact telemetry. The TP package may
+execute only the ticketed no-contact primitive and guarded return; it must not
+own authorization, evidence identity, optimizer state, or campaign readiness.
+
+The lane must cover three retained samples for both `direct_exact_stop` and
+`stale_watchdog_exact_stop`, followed by one source-exact three-segment
+`return_route` capture. Every capture binds the exact bridge-start context,
+deployment read-back, plant epoch, and certification-authorization digest.
+Contact, a non-NORMAL safety mode, missing/nonfinite input, stale identity,
+expired authorization, procedure mismatch, or incomplete safe closure fails
+closed and cannot be promoted.
+
+Analyzer-only code, hand-authored measurement JSON, historical campaign CSV,
+safe-Z inference without live force/RTDE observation, a campaign ARM, or a
+machine-generated authorization cannot satisfy blocker 7. Certification never
+creates an optimizer observation and cannot start or authorize a campaign.
+
 ## Identity contract
 
 - `tick_semantics_fingerprint`: hot-path control and safety implementation plus
@@ -119,6 +141,12 @@ Each blocker permits at most two patch-to-targeted-test cycles. A third cycle
 requires a root-cause checkpoint before any further patch. Write a durable
 checkpoint after twenty non-trivial tool calls or approximately twenty-five
 minutes. Run the combined impacted suite only at the integration boundary.
+
+The campaign runtime retains its frozen ceiling of 12 modules and 5200
+non-comment source lines. The attended no-contact certification owner is
+accounted separately as exactly one named module with a 320-line ceiling; this
+exception cannot be reused by campaign, optimizer, or general orchestration
+code and does not raise the core runtime ceiling.
 
 ## Excluded work
 

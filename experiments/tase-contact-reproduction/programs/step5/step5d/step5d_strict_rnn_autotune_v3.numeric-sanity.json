@@ -5,8 +5,24 @@
     -0.998831683
   ],
   "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
+  "certification_commands": {
+    "direct_exact_stop": 4,
+    "return_route": 6,
+    "stale_watchdog_exact_stop": 5
+  },
+  "certification_excursion_m": 0.004,
+  "certification_execution_profile_id": 9001,
+  "certification_linear_acceleration_m_s2": 0.06,
+  "certification_linear_speed_m_s": 0.01,
+  "certification_safe_z_min_m": 0.033,
+  "certification_samples_per_stop_procedure": 3,
+  "certification_stop_telemetry_output_float_registers": [
+    45,
+    46,
+    47
+  ],
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
-  "delta_class": "identity_precontact_prior_exact_batch_lifecycle_return_angular_envelope_stage25_watchdog_v3",
+  "delta_class": "identity_precontact_prior_exact_batch_lifecycle_return_angular_envelope_stage25_watchdog_ticketed_certification_v3",
   "far_search_speed_m_s": 0.03375,
   "input_integer_registers": [
     24,

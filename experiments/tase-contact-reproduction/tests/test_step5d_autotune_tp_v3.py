@@ -52,6 +52,15 @@ def test_v3_script_has_one_evidence_bound_precontact_pose_delta() -> None:
     assert "codex_autotune_write_state(campaign_epoch, trial_id, 76" in rendered
     assert "codex_autotune_write_state(campaign_epoch, trial_id, 77" in rendered
     assert "write_output_integer_register(33, codex_autotune_return_guard_mask)" in rendered
+    assert "def codex_autotune_certification_stop(" in rendered
+    assert "def codex_autotune_certification_return(" in rendered
+    assert "command == 4" in rendered
+    assert "command == 5" in rendered
+    assert "command == 6" in rendered
+    assert "certification_profile_id != 9001" in rendered
+    assert "write_output_float_register(45, trigger_controller_time_s)" in rendered
+    assert "write_output_float_register(46, stop_transport_controller_time_s)" in rendered
+    assert "write_output_float_register(47, codex_autotune_controller_time_s())" in rendered
     assert "if stale_s2 > 0.020:" in rendered
     assert "if stale_s2 > 1.000:" not in rendered
 
@@ -75,7 +84,7 @@ def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
     )
     assert sanity["delta_class"] == (
         "identity_precontact_prior_exact_batch_lifecycle_return_"
-        "angular_envelope_stage25_watchdog_v3"
+        "angular_envelope_stage25_watchdog_ticketed_certification_v3"
     )
     assert sanity["precontact_pose_prior_id"] == "step5d_v3_physical_prior_contact_0p1_20260719"
     assert sanity["precontact_xyz_m"] == [0.487834547, 0.129337053, 0.022863519]
@@ -107,6 +116,18 @@ def test_v3_triplet_has_exact_program_cache_and_stamp(tmp_path: Path) -> None:
     assert sanity["return_continuous_telemetry_output_float_registers"] == list(
         range(39, 45)
     )
+    assert sanity["certification_commands"] == {
+        "direct_exact_stop": 4,
+        "stale_watchdog_exact_stop": 5,
+        "return_route": 6,
+    }
+    assert sanity["certification_execution_profile_id"] == 9001
+    assert sanity["certification_samples_per_stop_procedure"] == 3
+    assert sanity["certification_safe_z_min_m"] == 0.033
+    assert sanity["certification_excursion_m"] == 0.004
+    assert sanity["certification_linear_speed_m_s"] == 0.01
+    assert sanity["certification_linear_acceleration_m_s2"] == 0.06
+    assert sanity["certification_stop_telemetry_output_float_registers"] == [45, 46, 47]
     assert sanity["batch_row_policy"] == (
         "rows_1_to_9_near_ready_row_10_campaign_home"
     )

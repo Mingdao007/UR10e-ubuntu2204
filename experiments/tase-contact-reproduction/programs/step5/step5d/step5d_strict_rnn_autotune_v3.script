@@ -1,4 +1,4 @@
-# VERSION: 2026-07-19T1650HKT
+# VERSION: 2026-07-20T1000HKT
 # RELEASE_STAGE_ID: step5d_strict_rnn_autotune_v3
 # CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1
 # TP_PROGRAM_ID: step5d_strict_rnn_autotune_v3
@@ -882,6 +882,118 @@ def codex_autotune_guarded_return(batch_row_index, campaign_home_pose, campaign_
   return True
 end
 
+def codex_autotune_controller_time_s():
+  local controller_clock = time()
+  return controller_clock.sec + controller_clock.nanosec / 1000000000.0
+end
+
+def codex_autotune_certification_identity_matches(campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index):
+  return read_input_integer_register(24) == campaign_epoch and read_input_integer_register(25) == trial_id and read_input_integer_register(27) == candidate_token and read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == sample_index
+end
+
+def codex_autotune_certification_stop(command, campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index, command_seq, campaign_home_pose, campaign_home_q):
+  local start_pose = get_actual_tcp_pose()
+  if start_pose[2] < 0.033:
+    return -17
+  end
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local last_controller_time_s = codex_autotune_controller_time_s()
+  local trigger_controller_time_s = -1.0
+  local consumed_sequence = command_seq
+  codex_autotune_write_state(campaign_epoch, trial_id, 80, candidate_token, 0, execution_profile_id, consumed_sequence)
+  while trigger_controller_time_s < 0.0:
+    local controller_time_s = codex_autotune_controller_time_s()
+    local loop_dt = controller_time_s - last_controller_time_s
+    last_controller_time_s = controller_time_s
+    local heartbeat = read_input_float_register(26)
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + loop_dt
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+    local reason = codex_step4e_guard_stop_reason()
+    local current_pose = get_actual_tcp_pose()
+    if not codex_autotune_certification_identity_matches(campaign_epoch, trial_id, candidate_token, execution_profile_id, sample_index):
+      return -13
+    elif command == 4 and read_input_float_register(28) > 0.5:
+      trigger_controller_time_s = controller_time_s
+    elif command == 5 and stale_s > 0.020:
+      trigger_controller_time_s = controller_time_s
+    elif reason != 0.0:
+      return -reason
+    elif loop_dt <= 0.0 or loop_dt > 0.004:
+      return -18
+    elif codex_abs(current_pose[0] - start_pose[0]) > 0.006:
+      return -17
+    else:
+      speedl([0.010, 0.0, 0.0, 0.0, 0.0, 0.0], 0.060, 0.002, aRot=0.100)
+    end
+  end
+  write_output_float_register(45, trigger_controller_time_s)
+  local stop_transport_controller_time_s = codex_autotune_controller_time_s()
+  write_output_float_register(46, stop_transport_controller_time_s)
+  codex_autotune_write_state(campaign_epoch, trial_id, 81, candidate_token, 0, execution_profile_id, consumed_sequence)
+  stopl(0.060, 0.100)
+  local stationary_s = 0.0
+  local stationary_deadline_s = codex_autotune_controller_time_s() + 2.0
+  while stationary_s < 0.050 and codex_autotune_controller_time_s() < stationary_deadline_s:
+    local tcp_speed = get_actual_tcp_speed()
+    local linear_speed_m_s = codex_autotune_norm3(tcp_speed[0], tcp_speed[1], tcp_speed[2])
+    if linear_speed_m_s <= 0.001:
+      stationary_s = stationary_s + get_steptime()
+    else:
+      stationary_s = 0.0
+    end
+    sync()
+  end
+  if stationary_s < 0.050:
+    return -17
+  end
+  write_output_float_register(47, codex_autotune_controller_time_s())
+  codex_autotune_write_state(campaign_epoch, trial_id, 82, candidate_token, 0, execution_profile_id, consumed_sequence)
+  if command == 5:
+    local resume_deadline_s = codex_autotune_controller_time_s() + 2.0
+    while read_input_float_register(26) == last_heartbeat and codex_autotune_controller_time_s() < resume_deadline_s:
+      sync()
+    end
+    if read_input_float_register(26) == last_heartbeat:
+      return -2
+    end
+  end
+  if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
+    return -17
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, consumed_sequence)
+  return consumed_sequence
+end
+
+def codex_autotune_certification_return(campaign_epoch, trial_id, candidate_token, execution_profile_id, command_seq, campaign_home_pose, campaign_home_q):
+  local start_pose = get_actual_tcp_pose()
+  if start_pose[2] < 0.033:
+    return False
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 83, candidate_token, 0, execution_profile_id, command_seq)
+  local offset_pose = p[start_pose[0] + 0.004, start_pose[1], start_pose[2], start_pose[3], start_pose[4], start_pose[5]]
+  codex_autotune_return_guard_reason = 0.0
+  codex_autotune_return_guard_active = True
+  local guard_handle = run codex_autotune_return_guard_thread()
+  local offset_ok = codex_autotune_bounded_return_segment(offset_pose, 0.060, 0.010, 0.0)
+  codex_autotune_return_guard_active = False
+  sync()
+  kill guard_handle
+  if not offset_ok or codex_autotune_return_guard_reason != 0.0:
+    return False
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 84, candidate_token, 0, execution_profile_id, command_seq)
+  if not codex_autotune_guarded_return(10, campaign_home_pose, campaign_home_q):
+    return False
+  end
+  codex_autotune_write_state(campaign_epoch, trial_id, 85, candidate_token, 0, execution_profile_id, command_seq)
+  return True
+end
+
 def codex_autotune_write_state(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
   write_output_integer_register(24, campaign_epoch)
   write_output_integer_register(25, trial_id)
@@ -971,6 +1083,31 @@ def codex_step5d_strict_rnn_autotune_v3():
     if command == 3 and command_seq > last_consumed_command_seq:
       last_consumed_command_seq = command_seq
       codex_autotune_fault_forever(0, 0, 0, 4, 0, last_consumed_command_seq)
+    elif (command == 4 or command == 5 or command == 6) and command_seq > last_consumed_command_seq:
+      local certification_epoch = read_input_integer_register(24)
+      local certification_trial_id = read_input_integer_register(25)
+      local certification_token = read_input_integer_register(27)
+      local certification_profile_id = read_input_integer_register(28)
+      local certification_sample_index = read_input_integer_register(30)
+      last_consumed_command_seq = command_seq
+      if certification_epoch <= 0 or certification_trial_id <= 0 or certification_token <= 0 or certification_profile_id != 9001 or certification_sample_index < 1 or certification_sample_index > 3 or command == 6 and certification_sample_index != 1:
+        codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 13, certification_profile_id, last_consumed_command_seq)
+      end
+      codex_autotune_batch_row_echo = certification_sample_index
+      codex_autotune_return_kind_echo = 3
+      codex_autotune_return_guard_mask = 0
+      if command == 6:
+        if not codex_autotune_certification_return(certification_epoch, certification_trial_id, certification_token, certification_profile_id, last_consumed_command_seq, campaign_home_pose, campaign_home_q):
+          codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 17, certification_profile_id, last_consumed_command_seq)
+        end
+      else:
+        local certification_result = codex_autotune_certification_stop(command, certification_epoch, certification_trial_id, certification_token, certification_profile_id, certification_sample_index, last_consumed_command_seq, campaign_home_pose, campaign_home_q)
+        if certification_result < 0:
+          codex_autotune_fault_forever(certification_epoch, certification_trial_id, certification_token, 0 - certification_result, certification_profile_id, last_consumed_command_seq)
+        end
+        last_consumed_command_seq = certification_result
+      end
+      codex_autotune_write_state(0, 0, 10, 0, 0, 0, last_consumed_command_seq)
     elif command == 1 and command_seq > last_consumed_command_seq:
       local campaign_epoch = read_input_integer_register(24)
       local trial_id = read_input_integer_register(25)

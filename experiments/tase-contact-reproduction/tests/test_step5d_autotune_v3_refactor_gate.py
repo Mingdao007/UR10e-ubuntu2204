@@ -131,6 +131,25 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             self.assertTrue(any(item.startswith("v3_runtime_symlink_forbidden:") for item in issues))
             self.assertTrue(any(item.startswith("v3_runtime_unbudgeted_file:") for item in issues))
 
+    def test_certification_owner_has_an_independent_bounded_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = root / "tools" / "step5d_autotune_v3"
+            runtime.mkdir(parents=True)
+            certification = runtime / gate.CERTIFICATION_MODULE
+            certification.write_text(
+                "\n".join("VALUE = 1" for _ in range(gate.CERTIFICATION_LOC_LIMIT + 1)),
+                encoding="utf-8",
+            )
+            issues, report = gate.runtime_budget(root)
+            self.assertEqual(report["module_count"], 0)
+            self.assertEqual(report["certification_module_count"], 1)
+            self.assertIn(
+                f"v3_certification_loc_budget_exceeded:"
+                f"{gate.CERTIFICATION_LOC_LIMIT + 1}>{gate.CERTIFICATION_LOC_LIMIT}",
+                issues,
+            )
+
     def test_matrix_has_only_hermetic_ci_lanes(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
         self.assertEqual(gate.matrix_issues(payload), [])

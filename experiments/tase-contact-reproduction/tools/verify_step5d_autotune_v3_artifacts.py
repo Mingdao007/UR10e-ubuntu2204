@@ -176,7 +176,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         ("program", V3_STAGE_ID),
         (
             "delta_class",
-            "identity_precontact_prior_exact_batch_lifecycle_return_angular_envelope_stage25_watchdog_v3",
+            "identity_precontact_prior_exact_batch_lifecycle_return_angular_envelope_stage25_watchdog_ticketed_certification_v3",
         ),
         ("stage25_stale_command_hold_s", 0.02),
         ("precontact_pose_prior_id", POSE_PRIOR_ID),
@@ -204,6 +204,21 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             "return_continuous_telemetry_output_float_registers",
             list(range(39, 45)),
         ),
+        (
+            "certification_commands",
+            {
+                "direct_exact_stop": 4,
+                "stale_watchdog_exact_stop": 5,
+                "return_route": 6,
+            },
+        ),
+        ("certification_execution_profile_id", 9001),
+        ("certification_samples_per_stop_procedure", 3),
+        ("certification_safe_z_min_m", 0.033),
+        ("certification_excursion_m", 0.004),
+        ("certification_linear_speed_m_s", 0.01),
+        ("certification_linear_acceleration_m_s2", 0.06),
+        ("certification_stop_telemetry_output_float_registers", [45, 46, 47]),
         (
             "batch_row_policy",
             "rows_1_to_9_near_ready_row_10_campaign_home",
