@@ -43,13 +43,13 @@ def test_v3_is_the_only_current_selector_surface() -> None:
     assert rows[V1]["current_binding"]["live_authorized"] is False
 
 
-def test_selected_v3_does_not_claim_deployment_motion_or_campaign_readiness() -> None:
+def test_selected_v3_claims_exact_deployment_but_not_bridge_motion_or_campaign() -> None:
     current = _load("config/current_stage.json")
 
-    assert current["controller_readback_verified_for_selected_triplet"] is False
+    assert current["controller_readback_verified_for_selected_triplet"] is True
+    assert current["readiness"]["deployment_ready"] is True
     assert current["bridge_trigger"]["live_motion_authorized"] is False
     for field in (
-        "deployment_ready",
         "bridge_start_ready",
         "bridge_process_ready",
         "motion_arm_ready",

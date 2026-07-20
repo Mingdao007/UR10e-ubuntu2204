@@ -611,10 +611,14 @@ def _verify_validation(
     _require(power_off.get("writes_performed"), False, "Power-OFF write exclusion")
 
     package_gate = gates.get("package_and_readback") or {}
-    _require(package_gate.get("status"), "blocked", "package/readback status")
-    _require(package_gate.get("blocker"), "requires_attended_tp_upload_readback", "package blocker")
-    _require(package_gate.get("historical_controller_readback"), readback_relative, "historical readback path")
-    _require(package_gate.get("historical_controller_readback_sha256"), readback_sha256, "historical readback digest")
+    _require(
+        package_gate.get("status"),
+        "pass_current_triplet_controller_readback",
+        "package/readback status",
+    )
+    _require(package_gate.get("blocker"), None, "package blocker")
+    _require(package_gate.get("controller_readback"), readback_relative, "controller readback path")
+    _require(package_gate.get("controller_readback_sha256"), readback_sha256, "controller readback digest")
     stopping = gates.get("stopping_bound") or {}
     _require(stopping.get("status"), "blocked", "stopping-bound status")
     _require(stopping.get("certified"), False, "stopping-bound certification")
@@ -896,9 +900,9 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         _require(v3.get(field), expected, f"v3 {field}")
 
     package = v3.get("package_delivery") or {}
-    _require(package.get("status"), "requires_attended_tp_upload_readback", "package status")
-    _require(package.get("controller_uploaded_by_v3"), False, "V3 upload claim")
-    _require(package.get("controller_readback_verified"), False, "V3 readback claim")
+    _require(package.get("status"), "controller_readback_verified", "package status")
+    _require(package.get("controller_uploaded_by_v3"), True, "V3 upload claim")
+    _require(package.get("controller_readback_verified"), True, "V3 readback claim")
     program = package.get("program_basename")
     local_triplet = package.get("local_triplet")
     if not isinstance(program, str) or not isinstance(local_triplet, str):
@@ -931,8 +935,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "controller TP fingerprint",
     )
     _require(readback.get("triplet_sha256"), contract["tp_artifact_sha256"], "controller triplet digests")
-    if readback.get("triplet_sha256") == triplet:
-        raise ReadinessError("historical controller readback unexpectedly matches new local triplet")
+    _require(readback.get("triplet_sha256"), triplet, "current controller triplet")
     readback_at = _zoned_timestamp(
         readback.get("fresh_controller_checked_at"), role="readback timestamp"
     )
@@ -950,7 +953,6 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
 
     readiness = v3.get("execution_readiness") or {}
     expected_blockers = [
-        "requires_attended_tp_upload_readback",
         "requires_current_poweroff_controller_identity",
         "requires_certification_motion_authorization",
         "requires_certified_stopping_bound",
@@ -967,7 +969,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             public_success_signal,
         ),
         ("deterministic_validation_complete", True),
-        ("package_delivery_complete", False),
+        ("package_delivery_complete", True),
         ("candidate_current", True),
         ("live_runtime_promoted", False),
         ("same_process_startup_gate_complete", False),
@@ -986,7 +988,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         ("certification_motion_authorization_required", True),
         ("campaign_authorization_required", True),
         ("internal_launch_binding", MACHINE_BINDING),
-        ("tp_action", "attended_upload_readback_required"),
+        ("tp_action", "controller_readback_verified_no_load_or_play"),
         ("play_effect", "forbidden_in_offline_tranche"),
     ):
         _require(trigger.get(key), expected, f"operator trigger {key}")
@@ -1007,14 +1009,14 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "state": "pre_live_blocked",
         "public_success_signal": public_success_signal,
         "ready_to_execute": False,
-        "package_delivery": "requires_attended_tp_upload_readback",
-        "historical_controller_readback_at": readback_at,
+        "package_delivery": "controller_readback_verified",
+        "controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
         "next_owner": "ur10e-contact-control-prep",
         "next_legal_action": (
-            "perform attended TP upload/readback and current Power-OFF identity; "
-            "obtain a bounded certification-motion authorization for no-contact "
+            "capture current controller identity; obtain a bounded "
+            "certification-motion authorization for no-contact "
             "stopping/return measurement, close both evidence artifacts, perform one "
             "attended Sol/XHigh audit, and obtain a separate fresh campaign authorization"
         ),
@@ -1024,7 +1026,6 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             else "diagnostic_only_partial_lane_reuse_not_required_by_user"
         ),
         "canonical_gate": [
-            "attended_tp_upload_readback",
             "current_poweroff_controller_identity",
             "certification_motion_authorization",
             "certified_stopping_bound",

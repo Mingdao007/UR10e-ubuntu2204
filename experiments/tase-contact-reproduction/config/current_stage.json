@@ -139,7 +139,7 @@
   },
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
   "controller_readback_manifest_sha256": "149917930a93ddb2f6bf8ddb438e24aa4bc3db59d3f0d7f22daab5c13d4a2ca0",
-  "controller_readback_verified_for_selected_triplet": false,
+  "controller_readback_verified_for_selected_triplet": true,
   "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.script",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
   "current_stage_id": "step5d_strict_rnn_autotune_v3",
@@ -1376,7 +1376,7 @@
     "bridge_process_ready": false,
     "bridge_start_ready": false,
     "campaign_ready": false,
-    "deployment_ready": false,
+    "deployment_ready": true,
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },

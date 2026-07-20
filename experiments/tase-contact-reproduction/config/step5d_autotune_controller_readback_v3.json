@@ -5,19 +5,19 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "controller": "root@192.168.1.18",
   "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-  "fresh_controller_checked_at": "2026-07-19T06:12:30+08:00",
-  "source_stamp": "2026-07-19T0610HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3",
+  "fresh_controller_checked_at": "2026-07-20T10:47:25+08:00",
+  "source_stamp": "2026-07-20T1000HKT",
   "triplet_sha256": {
-    ".script": "b96077952db3dbbdd1f2a4af668f0f3ef96985d3d071b3e745a87665ab821855",
-    ".txt": "b9129f38a11aec1a3d546fa4ed35b8cb3453697c649cae8bc907b39f06a9b7e8",
-    ".urp": "2cba1b92e9e6cdf0a0a843e2c6c3718b104ebf9aaffef965c63a660bc31b97f0"
+    ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
+    ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
+    ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
   },
-  "tp_fingerprint": "1c42b3f73e5c8ac27f7739117bff2f1af1e127ceb5e94d38aecc63fcbf5893a0",
-  "fresh_readback_manifest_sha256": "3b3f9efca80e20f4b598f2b358737d09ff2df36ea29cc11d69233bff7ea0e575",
-  "fresh_readback_source": "runs/controller_readback_step5d_strict_rnn_autotune_v3_20260719T0612HKT/manifest.json",
+  "tp_fingerprint": "f0528a4deb6c00fd2f8122d141e862173edbf07c3788c817026c2541dcf6a091",
+  "fresh_readback_manifest_sha256": "14dcccb469b1abea279b98212dcf7fbedbf5d5168f559352f2cac092447e8fe9",
+  "fresh_readback_source": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/controller_readback_20260720T104725HKT.json",
   "safety_boundary": [
     "controller package upload and fresh read-back only",
-    "v1 remains current",
+    "V3 remains the unique selected/current release",
     "no Load, Play, bridge, ARM, contact, or motion"
   ]
 }

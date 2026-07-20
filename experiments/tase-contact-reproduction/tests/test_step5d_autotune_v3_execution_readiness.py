@@ -89,8 +89,8 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
     assert report["state"] == "pre_live_blocked"
-    assert report["public_success_signal"] == "requires_attended_tp_upload_readback"
-    assert report["package_delivery"] == "requires_attended_tp_upload_readback"
+    assert report["public_success_signal"] == "requires_current_poweroff_controller_identity"
+    assert report["package_delivery"] == "controller_readback_verified"
     assert report["ready_to_execute"] is False
     assert report["current_stage_id"] == readiness.V3_STAGE_ID
     assert report["next_owner"] == "ur10e-contact-control-prep"
@@ -98,7 +98,6 @@ def test_repository_signal_names_the_next_legal_action() -> None:
         "diagnostic_only_partial_lane_reuse_not_required_by_user"
     )
     assert report["canonical_gate"] == [
-        "attended_tp_upload_readback",
         "current_poweroff_controller_identity",
         "certification_motion_authorization",
         "certified_stopping_bound",

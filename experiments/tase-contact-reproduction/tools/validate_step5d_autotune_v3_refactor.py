@@ -125,7 +125,7 @@ APPROVED_ORCHESTRATION_VARIANTS = {
     },
     "experiments/tase-contact-reproduction/config/current_stage.json": {
         "baseline_sha256": "8d6684717008a3d4bfbdd948a03083188f6456afb5313d58edbecfa6cb0e6132",
-        "approved_sha256": "4b4c3a01eb1bc0cffaf55b3cf9cdebe522ae59e22f9e8d3dcb5e255c9e48e110",
+        "approved_sha256": "027818fcc9d825a1b2c39a4947f52368d370c10ae68064169d585601a8b9e2e6",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/scripts/bridge-line-operator.sh": {

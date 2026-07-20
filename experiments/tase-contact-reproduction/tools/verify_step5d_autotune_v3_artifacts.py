@@ -160,10 +160,11 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         root / "config/step5/step5d_autotune_v3_control_contract.json"
     )
     _require(readback.get("triplet_sha256"), contract["tp_artifact_sha256"], "controller readback triplet")
-    if readback.get("triplet_sha256") == triplet:
-        raise ArtifactVerificationError(
-            "historical controller readback unexpectedly matches new local triplet"
-        )
+    _require(
+        readback.get("triplet_sha256"),
+        triplet,
+        "current controller readback triplet",
+    )
     _require(
         readback.get("tp_fingerprint"),
         contract["deployment_tp_identity"]["tp_fingerprint"],

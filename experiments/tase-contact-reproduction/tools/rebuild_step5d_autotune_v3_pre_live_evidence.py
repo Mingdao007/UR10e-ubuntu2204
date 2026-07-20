@@ -238,9 +238,29 @@ def build_outputs(
     validation["decision"] = PRE_LIVE_DECISION
     gates = validation["gates"]
     local_triplet_sha256 = dict(identity["local_triplet_sha256"])
+    readback_current = (
+        identity.get("controller_readback_triplet_sha256")
+        == local_triplet_sha256
+    )
     gates["package_and_readback"]["local_triplet_sha256"] = (
         local_triplet_sha256
     )
+    if readback_current:
+        gates["package_and_readback"].update(
+            {
+                "status": "pass_current_triplet_controller_readback",
+                "blocker": None,
+                "historical_controller_readback": None,
+                "historical_controller_readback_sha256": None,
+                "controller_readback": (
+                    "config/step5d_autotune_controller_readback_v3.json"
+                ),
+                "controller_readback_sha256": _sha256(
+                    root / "config/step5d_autotune_controller_readback_v3.json"
+                ),
+                "historical_readback_matches_local_triplet": True,
+            }
+        )
     gates["authorization_separation"] = {
         "status": "pass_offline_contract",
         "certification_schema": (
@@ -298,7 +318,14 @@ def build_outputs(
     # The user explicitly removed formal 10k/30k pressure testing from this
     # convergence lane. Preserve timing artifacts as diagnostics, but never
     # promote their state into an execution-readiness blocker.
-    blockers = list(ATTENDED_BLOCKERS)
+    blockers = [
+        blocker
+        for blocker in ATTENDED_BLOCKERS
+        if not (
+            readback_current
+            and blocker == "requires_attended_tp_upload_readback"
+        )
+    ]
     public_signal = blockers[0]
     blocker_text = "_".join(blockers)
 
@@ -338,6 +365,20 @@ def build_outputs(
         / "programs/step5/step5d/"
         "step5d_strict_rnn_autotune_v3.deploy-manifest.json"
     )
+    package["status"] = (
+        "controller_readback_verified"
+        if readback_current
+        else "requires_attended_tp_upload_readback"
+    )
+    package["controller_uploaded_by_v3"] = readback_current
+    package["controller_readback_verified"] = readback_current
+    package["controller_readback_manifest_sha256"] = _sha256(
+        root / "config/step5d_autotune_controller_readback_v3.json"
+    )
+    if readback_current:
+        package["fresh_controller_sha_at"] = _read(
+            root / "config/step5d_autotune_controller_readback_v3.json"
+        )["fresh_controller_checked_at"]
     row["block_reason"] = (
         "V3 is the unique selected/current release and remains pre-live blocked on "
         + ", ".join(blockers)
@@ -357,7 +398,7 @@ def build_outputs(
         "state": "pre_live_blocked",
         "public_success_signal": public_signal,
         "deterministic_validation_complete": True,
-        "package_delivery_complete": False,
+        "package_delivery_complete": readback_current,
         "candidate_current": True,
         "live_runtime_promoted": False,
         "same_process_startup_gate_complete": False,
@@ -374,17 +415,32 @@ def build_outputs(
             "certification_motion_authorization_required": True,
             "campaign_authorization_required": True,
             "internal_launch_binding": MACHINE_BINDING,
-            "tp_action": "attended_upload_readback_required",
+            "tp_action": (
+                "controller_readback_verified_no_load_or_play"
+                if readback_current
+                else "attended_upload_readback_required"
+            ),
             "play_effect": "forbidden_in_offline_tranche",
         },
     }
     row["operator_lifecycle"]["live_readiness_state"] = public_signal
     current_stage = copy.deepcopy(_read(root / CURRENT_STAGE_RELATIVE))
     current_stage["sha256"] = local_triplet_sha256
-    current_stage["controller_readback_verified_for_selected_triplet"] = False
+    current_stage["controller_readback_verified_for_selected_triplet"] = (
+        readback_current
+    )
+    current_stage["readiness"]["deployment_ready"] = readback_current
     current_stage["updated_at"] = observed_at
     control_contract = copy.deepcopy(_read(root / CONTROL_CONTRACT_RELATIVE))
     control_contract["candidate_tp_artifact_sha256"] = local_triplet_sha256
+    if readback_current:
+        control_contract["tp_artifact_sha256"] = local_triplet_sha256
+        control_contract["deployment_tp_identity"]["readback_manifest_sha256"] = (
+            _sha256(root / "config/step5d_autotune_controller_readback_v3.json")
+        )
+        control_contract["deployment_tp_identity"]["tp_fingerprint"] = package[
+            "tp_fingerprint"
+        ]
     launch_profile = copy.deepcopy(_read(root / LAUNCH_PROFILE_RELATIVE))
     launch_profile["control_contract_sha256"] = contract_sha256(control_contract)
     return {
