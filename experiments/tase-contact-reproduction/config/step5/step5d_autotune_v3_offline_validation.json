@@ -81,7 +81,7 @@
     "package_and_readback": {
       "blocker": null,
       "controller_readback": "config/step5d_autotune_controller_readback_v3.json",
-      "controller_readback_sha256": "816ac90e14194de167643aa0f008cda43f02367b612284c8bf9f03a0ec34169f",
+      "controller_readback_sha256": "0144b003473ec7a0c4e926ed461a3e13edd5190b968cf8746479b6be11702ce5",
       "historical_controller_readback": null,
       "historical_controller_readback_sha256": null,
       "historical_readback_matches_local_triplet": true,
@@ -203,22 +203,22 @@
   },
   "identity": {
     "controller_readback_triplet_sha256": {
-      ".script": "8acd428c3f2ccf5a554e9993441e887e11d9538b055a6ca61734afd7767f90b9",
-      ".txt": "d3a2b20b8fea0be857058d7e4c5228221f476cd6e574ef03b1222d8bece01449",
-      ".urp": "50b159b733e2b8e375d4a3bc3c19d8fee96aef5770ae74c1eada3f378170a594"
+      ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
+      ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
+      ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
     },
-    "deployment_fingerprint": "f45d2ba82ce921b7e21d3db4354b5b3829c6642a8591860c3ec561092e875ddb",
+    "deployment_fingerprint": "b62c0394a15b30952535f3ef4dbed280512b1600ff609341b100300f2e5b810c",
     "legacy_provenance": {
-      "contract_sha256": "9119f4f93ac6bd0ed5747275513920fb5632820265ec4624ba5faf546a3e9816",
-      "control_fingerprint": "aa9620ccfe5f96df4b109d80b14d5af2545886c1768eff0903071eef476bec6d",
-      "orchestration_fingerprint": "fe76afa9e021f1c2174a841d9b1568f1ba27a1ede7a8c10c3f9c7f0051a9b47c"
+      "contract_sha256": "321d6418c574422f635f455340fd1ce01a17be3abd50ff8db9b91545d3f45a00",
+      "control_fingerprint": "6a4edfe6e5e706127adcaa4f6133e01814aa6deaeea5379dbc41fd43bbbf5940",
+      "orchestration_fingerprint": "5662d99f4813ab463d96be40bbd404980fae9cee00561afde910207c741207c2"
     },
     "local_triplet_sha256": {
       ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
       ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
       ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
     },
-    "orchestration_fingerprint": "c783edb3f7a15fce0095aec52b2ca7e95d5f7c3653f8da229235f4e25569f0d9",
+    "orchestration_fingerprint": "ae558d7fe4025901ea0d80b430b698e30226490036cc902f9e8d980c2a3e58ff",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,

@@ -1,0 +1,52 @@
+{
+  "status": "controller read-back verified",
+  "controller": "root@192.168.1.18",
+  "target_dir": "/programs/andyl/kunwei/step5",
+  "target_source": "table",
+  "local_dir": "programs/step5/step5d",
+  "validation": {
+    "stamp": "2026-07-20T1125HKT",
+    "program": "step5d_strict_rnn_autotune_v3",
+    "target_dir": "/programs/andyl/kunwei/step5",
+    "installation_relative_path": "../../../default",
+    "script_node_path": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.script",
+    "urp_sha256": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd",
+    "script_sha256": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
+    "txt_sha256": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca"
+  },
+  "sha256": {
+    "local": {
+      ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
+      ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
+      ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
+    },
+    "controller": {
+      ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
+      ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
+      ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
+    },
+    "readback": {
+      ".script": "cba50cb26e7a779e4e272f45bdaa4eec758514ace29feb78ba1db62377d002e4",
+      ".txt": "3fdd5fe27527e27e9e0f1cfa5cb5f1dcc4d8eee08ec6803ec942973251e04cca",
+      ".urp": "87e192871df92d4a840378253dac8638c09458a0a2b197a9c0a71b41a0122ddd"
+    }
+  },
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ],
+  "delivery_mode": "full_upload_readback",
+  "target_resolution": {
+    "row_id": "step5d_strict_rnn_autotune_v3",
+    "source": "config/current_stage.json",
+    "controller_dir": "/programs/andyl/kunwei/step5",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp"
+  },
+  "fresh_controller_sha_verified": true,
+  "fresh_controller_checked_at": "2026-07-20T11:28:45+08:00",
+  "readback_source": "fresh_controller_get"
+}

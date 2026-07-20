@@ -10385,7 +10385,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is the unique selected/current release and remains pre-live blocked on requires_attended_tp_upload_readback, requires_current_poweroff_controller_identity, requires_certification_motion_authorization, requires_certified_stopping_bound, requires_certified_return_route_angular_envelope, requires_attended_sol_xhigh_pre_live_audit, requires_fresh_campaign_authorization; V1 is retained control-profile provenance only",
+      "block_reason": "V3 is the unique selected/current release and remains pre-live blocked on requires_current_poweroff_controller_identity, requires_certification_motion_authorization, requires_certified_stopping_bound, requires_certified_return_route_angular_envelope, requires_attended_sol_xhigh_pre_live_audit, requires_fresh_campaign_authorization; V1 is retained control-profile provenance only",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10424,7 +10424,7 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-        "live_readiness_state": "requires_attended_tp_upload_readback"
+        "live_readiness_state": "requires_current_poweroff_controller_identity"
       },
       "migration": {
         "mode": "immutable_read_only_attempt_ledger",
@@ -10436,15 +10436,15 @@
         "pending_or_automatic_retry_imported": false
       },
       "package_delivery": {
-        "status": "requires_attended_tp_upload_readback",
+        "status": "controller_readback_verified",
         "program_basename": "step5d_strict_rnn_autotune_v3",
         "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3.urp",
-        "controller_uploaded_by_v3": false,
-        "controller_readback_verified": false,
+        "controller_uploaded_by_v3": true,
+        "controller_readback_verified": true,
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "controller_readback_manifest_sha256": "816ac90e14194de167643aa0f008cda43f02367b612284c8bf9f03a0ec34169f",
-        "fresh_controller_sha_at": "2026-07-20T10:47:25+08:00",
+        "controller_readback_manifest_sha256": "0144b003473ec7a0c4e926ed461a3e13edd5190b968cf8746479b6be11702ce5",
+        "fresh_controller_sha_at": "2026-07-20T11:28:45+08:00",
         "tp_fingerprint": "fa1527bd31e751e75882b855d864a7006622d1e1cc1a4cd5b0778d71184b7dac",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": false,
@@ -10472,7 +10472,7 @@
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "a65047aa98f2d089abd1b30dbbc432afbf11c31a79d9a7cc7ff5f2119ef935f9",
+        "report_sha256": "44e62dbcff08afcd62d736dc1dff7901a6beb564c65d278a1be655f7c7e434a5",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
         "source_exact_sphere_seam_timing": "diagnostic_only_not_required_by_user",
         "status": "pass_offline_implementation_pre_live_blocked"
@@ -10488,9 +10488,9 @@
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v3",
         "state": "pre_live_blocked",
-        "public_success_signal": "requires_attended_tp_upload_readback",
+        "public_success_signal": "requires_current_poweroff_controller_identity",
         "deterministic_validation_complete": true,
-        "package_delivery_complete": false,
+        "package_delivery_complete": true,
         "candidate_current": true,
         "live_runtime_promoted": false,
         "same_process_startup_gate_complete": false,
@@ -10500,7 +10500,6 @@
         "ready_to_arm": false,
         "ready_for_contact_or_motion": false,
         "blockers": [
-          "requires_attended_tp_upload_readback",
           "requires_current_poweroff_controller_identity",
           "requires_certification_motion_authorization",
           "requires_certified_stopping_bound",
@@ -10515,7 +10514,7 @@
           "certification_motion_authorization_required": true,
           "campaign_authorization_required": true,
           "internal_launch_binding": "machine_generated_epoch_and_process_fingerprint",
-          "tp_action": "attended_upload_readback_required",
+          "tp_action": "controller_readback_verified_no_load_or_play",
           "play_effect": "forbidden_in_offline_tranche"
         }
       }
