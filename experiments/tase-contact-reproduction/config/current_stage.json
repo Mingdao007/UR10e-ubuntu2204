@@ -61,7 +61,7 @@
     "authorization_scope": null,
     "authorization_source": null,
     "authorized_at": null,
-    "blocked_reason": "V3 bridge start requires a fresh identity-bound bridge context and the exact r005 TP program; only user-owned TP Play enters command 1.",
+    "blocked_reason": "Deployed r005 is known incompatible and r006 is local-only; no bridge context is legal before exact attended r006 upload/readback.",
     "bridge_has_started": false,
     "live_motion_authorized": false,
     "no_contact_p0_capture": {
@@ -1177,6 +1177,18 @@
     "readiness_sha256": "912387a8a0c7e3692f5d7f39b867d23cc967d5ec6160cb268b111da52d81ccfe",
     "state": "awaiting_live_authorization"
   },
+  "local_candidate": {
+    "controller_readback_verified": false,
+    "controller_uploaded": false,
+    "disposition": "local_only_requires_controller_readback",
+    "manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r006/local_candidate.json",
+    "program": "step5d_strict_rnn_autotune_v3_r006",
+    "triplet_sha256": {
+      ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
+      ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
+      ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
+    }
+  },
   "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005",
   "notes": [
     "step5d_strict_rnn_ablation_v29 is controller read-back verified and remains the current pointer only as a frozen fallback.",
@@ -1382,13 +1394,13 @@
     "blockers": [
       "selected_tp_program_known_incompatible_do_not_retry",
       "r005_post_ack_csv_schema_timeout_incident",
-      "requires_r006_offline_release"
+      "requires_r006_controller_readback"
     ],
     "bridge_process_ready": false,
     "bridge_start_ready": false,
     "campaign_ready": false,
     "deployment_ready": true,
-    "host_runtime_disposition": "blocked_r005_post_ack_csv_schema_timeout_incident",
+    "host_runtime_disposition": "verified_r006_cross_process_direct_arm1_arm2_offline",
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },
@@ -1422,14 +1434,14 @@
     ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
   },
   "stage_table_path": "config/step5_stage_table.json",
-  "status": "step5d_autotune_v3_r005_known_incompatible_do_not_retry",
+  "status": "step5d_autotune_v3_r005_quarantined_r006_local_only",
   "strict_rnn_status": {
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
     "reason": "V3 is the unique selected route. V35 and autotune V1 are retained provenance only; V3 deployment, timing, certification, audit, and campaign authorization remain separate readiness gates.",
     "stage_id": "step5d_strict_rnn_reproduction_v1"
   },
-  "updated_at": "2026-07-20T20:52:00+08:00",
+  "updated_at": "2026-07-21T02:30:00+08:00",
   "v29_contact_candidate": {
     "controller_readback_verified": true,
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",

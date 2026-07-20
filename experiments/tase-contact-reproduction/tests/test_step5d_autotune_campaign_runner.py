@@ -374,11 +374,11 @@ def test_waiting_at_ready_home_observes_v3_latch_before_selecting_candidate(
         )
 
 
-def test_v3_derived_queue_hook_is_after_exact_ack_reconcile() -> None:
+def test_v3_derived_queue_hook_is_after_direct_commit() -> None:
     source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
         encoding="utf-8"
     )
-    reconcile = source.index("coordinator.reconcile(snapshot)")
-    post_ack = source.index('_event(event_path, "post_ack"', reconcile)
-    queued = source.index("derived_postprocess.submit(", post_ack)
-    assert reconcile < post_ack < queued
+    finalized = source.index("result = finalize_produced_bundle_direct(")
+    committed = source.index('"direct_ready_committed"', finalized)
+    queued = source.index("derived_postprocess.submit(", committed)
+    assert finalized < committed < queued

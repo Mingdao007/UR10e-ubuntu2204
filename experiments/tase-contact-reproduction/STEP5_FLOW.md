@@ -1,27 +1,42 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3` as the
-unique current release route. Its immutable r005 TP package has exact local,
-controller, and fresh read-back SHA closure. r005's first live attempt remains
-immutable `attempted_incomplete` evidence, while the host reader repair is
-promoted only after the exact live candidate-plan fixture drives real
-Supervisor/Coordinator/Store/Journal components through source-free
-`batch_bootstrap`, fresh-store cold-read, exactly-once ACK1, READY_NEAR, and
-ARM2. r004 remains immutable
-`known_incompatible_do_not_retry` incident evidence and is never an optimizer
-observation. V1 remains frozen control-profile provenance and cannot be
-launched or selected as a fallback. The first r005 live attempt is retained as
-`attempted_incomplete`: typed-v2 closure and its immutable bundle were written,
-but the legal `batch_bootstrap` transition with `source=null` failed the store's
-cold-read assertion before ACK1 and ARM2. Existing fake ten-trial evidence never
-executed this production-runner branch and is not release evidence. r005
-bridge-context generation is restored for the attended r005 recovery. r006,
-the TP WAIT_ACK watchdog, URSim/HIL protocol gates, and the full second-lap
-certificate remain a separate debt lane and are not part of this recovery;
-the bridge and campaign still require fresh runtime identity binding. Formal
-10k/30k timing pressure testing and the temporary CPU/GPU timing service are
-not prerequisites. The bridge starts in `NO_ARM`; Codex never presses Play or
-Stop, and only the user's TP Play enters the command-1 campaign path.
+unique route, but no TP revision is currently startable. The controller still
+contains immutable r005 with a verified historical readback; r005 is
+`known_incompatible_do_not_retry` and cannot produce a bridge-start context.
+Its incident preserves 5,013 fresh state-76 rows, consumed command sequence 2,
+and no ARM2. The deterministic fault was the post-ACK collector reading
+unprefixed register fields from a production CSV that publishes `ur_`-prefixed
+fields; the generic timeout then mislabeled predicate resets as no fresh row.
+CSV buffering is retained as a separately tested risk, not asserted as that
+incident's sole root cause.
+
+Immutable r006 is a local-only candidate using canonical protocol
+`v3_direct_arm_v1`. It has no active `ACK_BUNDLE`, TP `WAIT_ACK`, host
+`pending_ack`, or post-ACK closure collector. The production lifecycle is
+ARM -> terminal-ready -> sealed capture -> immutable bundle -> independent
+CampaignStore cold-read -> exactly one TrialBrief -> next ARM. Invalid
+optimizer evidence remains `objective=null` and `optimizer_eligible=false` but
+does not block the next ARM when identity, safety, terminal proof, durability,
+and cold-read all pass. Failure of any of those hard conditions blocks the next
+ARM.
+
+The mandatory offline gate runs the formal production campaign runner and the
+production CSV writer/rotator in separate processes against the exact current
+candidate plan. The follower starts at EOF, rolls back partial lines, observes
+state 76 sealing, cold-reads a fresh store process, and proves ARM1 sequence 1
+to ARM2 sequence 2 with trial 2 in RUN. A separate ten-row mailbox gate proves
+rows 1--9 return state 76, row 10 publishes state 77, and neither ACK nor ARM11
+exists. These are offline software gates only; they do not claim controller or
+robot acceptance.
+
+r006 has not been uploaded or read back. Resolver state therefore remains
+`bridge_start_ready=false` with `requires_r006_controller_readback`. This
+offline closeout never connects the controller, starts a bridge, sends ARM,
+presses Play/Stop, or causes motion. URSim/HIL, a complete live second-lap
+certificate, old-worktree governance, and the cross-session retrospective are
+registered debt lanes. V1 remains frozen control-profile provenance and cannot
+be launched as a fallback.
 
 Kunwei software zero now uses two evidence roles. The first qualified Stage23
 window latches one campaign anchor used by control, guards, and optimizer force
@@ -47,12 +62,13 @@ tick cannot relatch; live-normal blending starts only after load is at least
 
 Each V3 trial binds four real control coordinates: force P, I, damping, and
 `orientation_ko`. A `BatchIdentity` binds exactly ten candidate/overlay rows.
-Rows remain `unattempted` or `attempted_incomplete` until exact ACK consumption
-and typed safe closure make them `ack_completed`; resume executes only the
-remaining rows. TrialBrief publication happens once, after immutable bundle,
-exact ACK, and safe closure. Trials 13--22 remain diagnostic-only evidence;
-trial 21's force metric is `unavailable`, never zero, and none of those ten
-trials is optimizer eligible.
+For r006, rows remain `unattempted` or `attempted_incomplete` until a durable
+direct completion makes them `direct_completed`; resume executes only the
+remaining rows. TrialBrief publication happens exactly once after immutable
+bundle and independent cold-read, before the next ARM. Legacy r001--r005 ACK
+states remain replay-decode only. Trials 13--22 remain diagnostic-only
+evidence; trial 21's force metric is `unavailable`, never zero, and none of
+those ten trials is optimizer eligible.
 
 Return is typed by exact batch identity: rows 1--9 close at
 `NearReadyReference`, and row 10 closes at `CampaignHomeReference`. Both use
@@ -60,7 +76,9 @@ the fixed three-segment route: vertical transfer to `z=0.033 m` at
 `a=0.060 m/s^2`, `v=0.040 m/s`; constant-Z translation to precontact XY/prior
 orientation at `a=0.135 m/s^2`, `v=0.090 m/s`; then vertical descent to
 `z=0.022863519 m`. Pose, stillness, and transfer guards must pass before
-`WAIT_ACK`.
+state 76 (`READY_NEAR`) for rows 1--9 or state 77
+(`READY_HOME_CLOSED`) for row 10. A read-only observer may sample TCP angular
+speed and controller/sample time but cannot issue any motion call.
 
 During active Stage25, the shared moving-sphere kernel checks actual and
 conservative predicted-stop distance against a `15 mm` radius using the

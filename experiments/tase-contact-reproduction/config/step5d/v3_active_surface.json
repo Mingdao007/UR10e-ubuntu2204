@@ -8,15 +8,22 @@
   },
   "tp_program_id": "step5d_strict_rnn_autotune_v3_r005",
   "tp_program_disposition": "known_incompatible_do_not_retry",
+  "local_candidate_tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
+  "local_candidate_tp_disposition": "local_only_requires_controller_readback",
+  "host_protocol": "v3_direct_arm_v1",
   "bridge_start_ready": false,
   "blockers": [
     "r005_post_ack_csv_schema_timeout_incident",
-    "requires_r006_offline_release"
+    "requires_r006_controller_readback"
   ],
   "tp_commands": {
-    "campaign": 1,
-    "ack": 2,
+    "arm": 1,
     "operator_stop_request": 3,
+    "legacy_replay_only_ack": 2,
+    "active_allowed": [
+      1,
+      3
+    ],
     "retired": [
       4,
       5,
@@ -41,6 +48,13 @@
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.urp",
     "config/step5d_autotune_controller_readback_v3.json"
   ],
+  "local_candidate_paths": [
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.urp",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.deploy-manifest.json",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.numeric-sanity.json"
+  ],
   "active_tick_semantics": {
     "controller": "frozen_v1_stage25_control",
     "v3_deltas": [
@@ -48,7 +62,8 @@
       "two_movel_precontact",
       "ten_row_batch_lifecycle",
       "typed_single_owner_three_movel_return",
-      "read_only_return_telemetry_observer_and_legacy_wait_ack_latch"
+      "read_only_return_telemetry_observer",
+      "direct_terminal_commit_then_next_arm_without_ack"
     ],
     "safety": [
       "frozen_v1_guards",

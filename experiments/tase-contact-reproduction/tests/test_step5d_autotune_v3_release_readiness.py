@@ -197,6 +197,7 @@ def test_known_incompatible_tp_program_cannot_reuse_a_bridge_context(
     assert report["bridge_start_ready"] is False
     assert report["tp_program_start_allowed"] is False
     assert "selected_tp_program_known_incompatible_do_not_retry" in report["blockers"]
+    assert "r005_post_ack_csv_schema_timeout_incident" in report["blockers"]
 
 
 def test_known_incompatible_host_runtime_cannot_reuse_a_bridge_context(

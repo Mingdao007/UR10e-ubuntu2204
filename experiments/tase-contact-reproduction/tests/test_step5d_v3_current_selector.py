@@ -52,7 +52,7 @@ def test_selected_v3_fail_closes_incompatible_r005_after_live_incident() -> None
     assert current["readiness"]["blockers"] == [
         "selected_tp_program_known_incompatible_do_not_retry",
         "r005_post_ack_csv_schema_timeout_incident",
-        "requires_r006_offline_release",
+        "requires_r006_controller_readback",
     ]
     assert current["bridge_trigger"]["live_motion_authorized"] is False
     for field in (

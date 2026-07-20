@@ -10385,7 +10385,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": "V3 is the unique selected/current release; exact controller readback is verified and the direct command-1 lane awaits formal-runtime deploy, fresh bridge context, user Play, Stage25, and exact 10/10 closure. V1 is retained control-profile provenance only.",
+      "block_reason": "V3 remains the unique selected route. Deployed r005 is historical controller-readback-verified but known incompatible and must not start; immutable r006 is local-only and requires exact attended controller upload/readback before any bridge context can exist.",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10424,7 +10424,7 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r005.urp",
-        "live_readiness_state": "pre_live_blocked_r005_known_incompatible",
+        "live_readiness_state": "selected_tp_program_known_incompatible_do_not_retry",
         "force_baseline_policy": {
           "mode": "fixed_campaign_anchor_plus_per_trial_diagnostic",
           "anchor_source": "first_qualified_stage23_window",
@@ -10465,6 +10465,20 @@
           ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
           ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
           ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
+        },
+        "local_candidate": {
+          "program_basename": "step5d_strict_rnn_autotune_v3_r006",
+          "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006",
+          "status": "local_only_requires_controller_readback",
+          "controller_uploaded": false,
+          "controller_readback_verified": false,
+          "deploy_manifest_sha256": "922aaf4af9d6d3eafa742dfb41cca1467e609eb6e84cd04d222ba705360d1385",
+          "numeric_sanity_sha256": "78d8207996ceabdd817a498a0edc0617783a7022eb8a24cf6b0c5c5dcebb7ae1",
+          "sha256": {
+            ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
+            ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
+            ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
+          }
         }
       },
       "acceptance": {
@@ -10474,22 +10488,27 @@
         "crash_cut_matrix_required": true,
         "rollback_drill_required": true,
         "canonical_internal_launch_binding_required": true,
-        "typed_closure_v2_cold_read_ack_next_arm_verified": true,
+        "typed_closure_v2_cold_read_ack_next_arm_verified": "legacy_replay_only_not_production_pass",
         "contact_live_accepted": false,
-        "reproduction_complete": false
+        "reproduction_complete": false,
+        "direct_arm1_bundle_cold_read_trialbrief_arm2_verified": true,
+        "growing_production_csv_follower_verified": true,
+        "r006_controller_readback_verified": false
       },
       "offline_validation": {
         "acceptance_scope": "offline_pre_live_only",
         "diagnostic_bundle_replay": "pass",
-        "exact_ten_row_lifecycle": "r005_live_ack_consumed_but_arm2_not_sent_due_post_ack_csv_schema_timeout_incident",
+        "exact_ten_row_lifecycle": "r006_offline_direct_mailbox_rows_1_to_10_row10_state77_no_ack_no_arm11",
         "formal_500hz_timing": "not_required_by_user",
         "hardware_promotion": "blocked",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
-        "report_sha256": "a2222ebef9502d365d3ace95e967ce20cbf57d6ad9e25845b571949968acc78d",
+        "report_sha256": "8cf36d2ae2e24e8bcbd1a15a81522292b001882518182b833ff08768037ef447",
         "simulation": "pass_motion_capable_ursim_core_source_equivalence",
         "source_exact_sphere_seam_timing": "diagnostic_only_not_required_by_user",
-        "status": "pass_offline_implementation_pre_live_blocked"
+        "status": "pass_offline_implementation_pre_live_blocked",
+        "production_second_lap": "pass_formal_runner_growing_csv_seal_cold_read_trialbrief_arm2_run",
+        "retained_live_incident": "r005_ack_consumed_arm2_not_sent_post_ack_csv_schema_timeout"
       },
       "current_binding": {
         "is_current": true,
@@ -10504,8 +10523,8 @@
         "state": "pre_live_blocked",
         "public_success_signal": "selected_tp_program_known_incompatible_do_not_retry",
         "deterministic_validation_complete": true,
-        "package_delivery_complete": true,
-        "candidate_current": true,
+        "package_delivery_complete": false,
+        "candidate_current": false,
         "live_runtime_promoted": false,
         "same_process_startup_gate_complete": false,
         "ready_to_execute": false,
@@ -10516,7 +10535,7 @@
         "blockers": [
           "selected_tp_program_known_incompatible_do_not_retry",
           "r005_post_ack_csv_schema_timeout_incident",
-          "requires_r006_offline_release"
+          "requires_r006_controller_readback"
         ],
         "next_owner": "ur10e-tp-package-delivery",
         "operator_trigger": {
@@ -10525,7 +10544,7 @@
           "certification_motion_authorization_required": false,
           "campaign_authorization_required": false,
           "internal_launch_binding": "machine_generated_epoch_and_process_fingerprint",
-          "tp_action": "controller_readback_verified_no_load_or_play",
+          "tp_action": "attended_r006_upload_readback_required",
           "play_effect": "user_owned_command_1_after_bridge_ready"
         }
       }

@@ -232,6 +232,8 @@ def resolve_release_readiness(
     tp_program_start_allowed = tp_program_disposition != "known_incompatible_do_not_retry"
     if not tp_program_start_allowed:
         blockers.append("selected_tp_program_known_incompatible_do_not_retry")
+        if compatibility.get("tp_program_id") == "step5d_strict_rnn_autotune_v3_r005":
+            blockers.append("r005_post_ack_csv_schema_timeout_incident")
     host_runtime_disposition = compatibility.get("host_runtime_disposition")
     host_runtime_start_allowed = (
         host_runtime_disposition

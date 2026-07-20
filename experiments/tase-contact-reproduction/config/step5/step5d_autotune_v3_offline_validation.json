@@ -4,8 +4,8 @@
     "campaign_authorization_required": false,
     "certification_motion_authorization_required": false,
     "current_selector": "step5d_strict_rnn_autotune_v3",
-    "execution_readiness": "bridge_start_ready",
-    "hardware_promotion": "deployment_ready",
+    "execution_readiness": "pre_live_blocked",
+    "hardware_promotion": "blocked_requires_r006_controller_readback",
     "live_motion_authorized": false,
     "offline_implementation": "pass",
     "robot_power_state": "runtime_observation_required",
@@ -60,13 +60,16 @@
       "trial21_force_metric_role": "unavailable"
     },
     "exact_batch_lifecycle": {
-      "ack_completed_rows": 10,
-      "batch_result_exit_code": 0,
+      "ack_commands": 0,
+      "arm_11_dispatched": false,
       "batch_size": 10,
-      "row_10_return": "campaign_home",
-      "rows_1_to_9_return": "near_ready",
-      "status": "pass",
-      "trial_briefs": 10
+      "fake_transport_rows": 10,
+      "formal_production_runner_arm2_entered_run": true,
+      "production_trial_briefs_exactly_once": 1,
+      "protocol": "v3_direct_arm_v1",
+      "row_10_return": "campaign_home_state_77_bounded_halt",
+      "rows_1_to_9_return": "ready_near_state_76",
+      "status": "pass"
     },
     "formal_500hz_timing": {
       "acceptance_classification": "not_required_by_user",
@@ -79,18 +82,28 @@
       "system_setup_required": false
     },
     "package_and_readback": {
-      "blocker": null,
+      "blocker": "requires_r006_controller_readback",
       "controller_readback": "config/step5d_autotune_controller_readback_v3.json",
       "controller_readback_sha256": "ae74111ca58216c9b4b72f0c5bdc576ac0c62ce38c49f139df09b1adf79d2ea3",
       "historical_controller_readback": null,
       "historical_controller_readback_sha256": null,
       "historical_readback_matches_local_triplet": true,
+      "local_candidate": {
+        "controller_readback_verified": false,
+        "program": "step5d_strict_rnn_autotune_v3_r006",
+        "promotion_status": "requires_attended_tp_upload_readback",
+        "triplet_sha256": {
+          ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
+          ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
+          ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
+        }
+      },
       "local_triplet_sha256": {
         ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
         ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
         ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
       },
-      "status": "pass_current_triplet_controller_readback"
+      "status": "blocked_r006_local_only_requires_controller_readback"
     },
     "power_off_controller_audit": {
       "content_identity_verified": false,
@@ -158,7 +171,7 @@
       "certified": false,
       "evidence": {
         "path": "config/step5/step5d_autotune_v3_return_route_evidence.json",
-        "sha256": "112d941cb32226b866d8af34819dd98a0fc38225b3aa9947d5b747ba2f98355b"
+        "sha256": "2eb00224b20fad3bf89eca35bc31ad45727755f3d2e8212a8ad44c18132f3a11"
       },
       "fail_closed": true,
       "offline_enforcement_complete": true,
@@ -201,7 +214,7 @@
       "certified": false,
       "evidence": {
         "path": "config/step5/step5d_autotune_v3_stopping_bound_evidence.json",
-        "sha256": "1a1ea6adca9b78a4db76cb6ee1a2102d062902cbc0a26422e355e1ae15fce2ee"
+        "sha256": "e06acfc54867386aa66486cb62ed6dc1c6f5d5d595dd3e66cef5ce8b709a3840"
       },
       "fail_closed": true,
       "status": "blocked"
@@ -215,26 +228,26 @@
     },
     "deployment_fingerprint": "a7aa7f38da19b322e55b229cbc70c460b2d5d9bf728bd6982997429f4223fbc3",
     "legacy_provenance": {
-      "contract_sha256": "b72b2e8096ed2f71f23bf261681b4b7984f0994a6efcb391283fb2abe328f1b8",
-      "control_fingerprint": "a6077c44ba216a93c693fdf54bb3c2ca951a4e5bf33bdaa4acb2c565df42193a",
-      "orchestration_fingerprint": "904e0981c8094fe96dc55837845f91c5df54e690c8f6efa7d9fb128d8b1611d8"
+      "contract_sha256": "9c434760226802f7884d37e9e2873efccf211ad04dd2ff15f25fdbad06530007",
+      "control_fingerprint": "34d7035f833e0a3346ced9991e5f7cb7e592b3f2e8ed4a30c25bcb4d6851796a",
+      "orchestration_fingerprint": "0f1786dacf258198baf765724de1944130e01033c1a50eb1e53ad06e9fd1a659"
     },
     "local_triplet_sha256": {
       ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
       ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
       ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
     },
-    "orchestration_fingerprint": "3b6ecbb971a723774e8521d3c0a5d57e2b6e92e8dca35951bc514e6a8e81a0bf",
+    "orchestration_fingerprint": "f7fcb56c59cf71387b352cdb2b5bb1a8d5666ecfb21aa6923add5793a8dc0e04",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
     "schema": "step5d.autotune-v3/layered-identity-snapshot-v1",
-    "tick_semantics_fingerprint": "907c583ecae75741aa0a9c1dde65d0d1e3ed10c969526a265a93f18e29532633",
+    "tick_semantics_fingerprint": "abd60f5f5447456f66218fa8fea3237b8a25c2c6b4c123fb36ba64df8797a504",
     "timing_harness_fingerprint": "016e7af37c89391d4b7652da5ae91ae95ec50c547aaa86cb8d1cfc1185196ae2",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "29a77e02d229f76daa3a1a19077abf41260548bd18eb54bfc0610fefd7e80b46"
+      "evidence_verifier_fingerprint": "6235914d5e5aad82589a5745956e46fc564ff3f3edfd1e86975dee5b24aac4c8"
     }
   },
-  "observed_at": "2026-07-20T20:52:00+08:00",
+  "observed_at": "2026-07-21T02:30:00+08:00",
   "schema": "step5d.autotune-v3/offline-acceptance-v5"
 }

@@ -610,11 +610,19 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(output.getvalue(), "")
 
-    def test_current_pointer_has_a_readback_verified_binding(self) -> None:
+    def test_current_pointer_preserves_r005_readback_but_refuses_live_binding(self) -> None:
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
-        result = gate.verify_binding(ROOT)
-        self.assertEqual(result["program"], current["program"])
-        self.assertTrue(result["runtime_interface"]["hard_contract"]["controller_readback_verified"])
+        self.assertTrue(current["controller_readback_verified_for_selected_triplet"])
+        self.assertEqual(
+            current["status"],
+            "step5d_autotune_v3_r005_quarantined_r006_local_only",
+        )
+        self.assertIn(
+            "requires_r006_controller_readback",
+            current["readiness"]["blockers"],
+        )
+        with self.assertRaisesRegex(RuntimeError, "current status is not read-back verified"):
+            gate.verify_binding(ROOT)
 
     def test_v30_evidence_freeze_accepts_without_live_authorization(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

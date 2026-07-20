@@ -110,117 +110,21 @@ def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath()
     assert 'PYTHONPATH:+:${PYTHONPATH}' not in source
 
 
-def test_canonical_shell_rehearses_v3_no_arm_ready_without_network(
-    tmp_path: Path,
-) -> None:
-    context_path = tmp_path / "bridge-start-context.json"
-    context = context_builder.build_context(
-        ROOT,
-        plant_epoch=1,
-        runtime_environment={
-            "capture_mode": "canonical_no_network_rehearsal",
-            "scheduler": {"policy_name": "SCHED_OTHER", "priority": 0, "nice": 0},
-        },
-    )
-    context_builder.write_once(context_path, context.document())
-
-    shim_dir = tmp_path / "bin"
-    shim_dir.mkdir()
-    shim = shim_dir / "python3"
-    shim.write_text(
-        f"""#!{sys.executable}
-import json
-import os
-from pathlib import Path
-import sys
-
-real_python = os.environ["STEP5D_REHEARSAL_REAL_PYTHON"]
-if len(sys.argv) > 1 and sys.argv[1] == "-c":
-    os.execv(real_python, [real_python, *sys.argv[1:]])
-
-target = Path(sys.argv[1]).name if len(sys.argv) > 1 else ""
-arguments = sys.argv[2:]
-
-def value(name):
-    index = arguments.index(name)
-    return arguments[index + 1]
-
-if target == "preflight_step5d_autotune_v3.py":
-    import preflight_step5d_autotune_v3 as production
-    from step5d_autotune_v3.readiness import require_bridge_start
-
-    _, bridge = require_bridge_start(production.ROOT, Path(value("--bridge-start-context")))
-    payload = {{
-        "schema": production.SCHEMA,
-        "ok": True,
-        "fresh": True,
-        "candidate_stage_id": production.RELEASE_STAGE_ID,
-        "control_profile_id": production.CONTROL_PROFILE_ID,
-        "tp_program_id": production.TP_PROGRAM_ID,
-        "identity": bridge.identity,
-        "controller_identity_sha256": "0" * 64,
-        "predicates": {{name: {{"ok": True}} for name in production.PREDICATE_NAMES}},
-    }}
-    output = Path(value("--output"))
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload), encoding="utf-8")
-    print(json.dumps(payload, sort_keys=True))
-    raise SystemExit(0)
-
-if target == "run_step5d_autotune_v3_live.py":
-    import run_step5d_autotune_v3_live as production
-    import run_step5d_autotune_v3_bridge as bridge_wrapper
-    from step5d_autotune_v3.readiness import require_bridge_start
-
-    _, bridge = require_bridge_start(
-        production.ROOT, Path(value("--bridge-start-context"))
-    )
-    production._validate_preflight(Path(value("--preflight")), bridge.identity)
-    prewarm = bridge_wrapper.check_v3_runtime_prewarm([
-        "--bridge-mode", "line",
-        "--bridge-profile", "step5d_strict_rnn_autotune_v1",
-        "--step5d-rnn-backend", "numpy",
-        "--step5d-rnn-inner-iterations", "4",
-    ])
-    if prewarm.get("ok") is not True:
-        raise SystemExit("production bridge prewarm failed")
-    if Path(value("--campaign-arming-context")).exists():
-        raise SystemExit("rehearsal must not consume an arming context")
-    print("V3_BRIDGE_READY_NO_ARM", flush=True)
-    raise SystemExit(0)
-
-os.execv(real_python, [real_python, *sys.argv[1:]])
-""",
-        encoding="utf-8",
-    )
-    shim.chmod(0o755)
-
-    environment = {
-        "HOME": os.environ["HOME"],
-        "LANG": os.environ.get("LANG", "C.UTF-8"),
-        "PATH": os.pathsep.join((str(shim_dir), "/usr/bin", "/bin")),
-        "STEP5D_REHEARSAL_REAL_PYTHON": sys.executable,
-    }
-    output_root = tmp_path / "rehearsal-output"
-    completed = subprocess.run(
-        [
-            str(ROOT / "scripts/step5d-autotune-v3.sh"),
-            "bridge",
-            "--output-root",
-            str(output_root),
-            "--bridge-start-context",
-            str(context_path),
-            "--campaign-arming-context",
-            str(tmp_path / "not-created-campaign-arming-context.json"),
-        ],
-        cwd=ROOT,
-        env=environment,
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        timeout=30.0,
-        check=False,
-    )
-    assert completed.returncode == 0, completed.stderr
-    assert completed.stdout.rstrip().endswith("V3_BRIDGE_READY_NO_ARM")
-    assert not (tmp_path / "not-created-campaign-arming-context.json").exists()
+def test_installed_runtime_refuses_bridge_context_for_quarantined_r005() -> None:
+    try:
+        context_builder.build_context(
+            ROOT,
+            plant_epoch=1,
+            runtime_environment={
+                "capture_mode": "offline_fail_closed_check",
+                "scheduler": {
+                    "policy_name": "SCHED_OTHER",
+                    "priority": 0,
+                    "nice": 0,
+                },
+            },
+        )
+    except context_builder.BridgeContextBuildError as exc:
+        assert "known_incompatible_do_not_retry" in str(exc)
+    else:
+        raise AssertionError("quarantined r005 unexpectedly produced a bridge context")

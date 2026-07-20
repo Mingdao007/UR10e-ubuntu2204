@@ -73,8 +73,8 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
     assert report["ok"] is True
     assert report["current_stage_id"] == artifacts.V3_STAGE_ID
     assert report["v3_active"] is True
-    assert report["execution_readiness"] == "bridge_start_ready"
-    assert report["ready_to_execute"] is True
+    assert report["execution_readiness"] == "pre_live_blocked"
+    assert report["ready_to_execute"] is False
     assert report["acceptance_scope"] == "offline_pre_live_only"
     assert report["certification_motion_authorization_required"] is False
     assert report["campaign_authorization_required"] is False

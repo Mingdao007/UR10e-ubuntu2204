@@ -3,9 +3,13 @@
   "program": "step5d_strict_rnn_autotune_v3",
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "protocol": "v3_direct_arm_v1",
   "tp_program_id": "step5d_strict_rnn_autotune_v3_r005",
   "tp_program_disposition": "known_incompatible_do_not_retry",
-  "host_runtime_disposition": "blocked_r005_post_ack_csv_schema_timeout_incident",
+  "host_runtime_disposition": "verified_r006_cross_process_direct_arm1_arm2_offline",
+  "local_candidate_tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
+  "local_candidate_tp_disposition": "local_only_requires_controller_readback",
+  "local_candidate_manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r006/local_candidate.json",
   "selection_state": "current",
   "state": "pre_live_blocked",
   "deployment": {
@@ -21,7 +25,7 @@
     "blockers": [
       "selected_tp_program_known_incompatible_do_not_retry",
       "r005_post_ack_csv_schema_timeout_incident",
-      "requires_r006_offline_release"
+      "requires_r006_controller_readback"
     ]
   },
   "compatibility_mirror": {
@@ -31,6 +35,8 @@
   },
   "claims": {
     "new_version_complete": false,
+    "r006_offline_release_complete": true,
+    "r006_controller_readback_verified": false,
     "controller_verified": true,
     "live_ready": false,
     "live_accepted": false

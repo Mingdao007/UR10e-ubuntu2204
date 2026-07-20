@@ -506,9 +506,11 @@ class JournalStrictInputTest(unittest.TestCase):
         payload = home_state().payload()
         payload.pop("dispatch_receipt")
         payload.pop("terminal_fates")
+        payload.pop("pending_advance")
         restored = JournalState.from_payload(campaign(), payload)
         self.assertIsNone(restored.dispatch_receipt)
         self.assertEqual(restored.terminal_fates, ())
+        self.assertIsNone(restored.pending_advance)
 
 
 class TpRecoveryReconcileTest(unittest.TestCase):

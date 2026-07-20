@@ -16,7 +16,7 @@
     "source_exact_return_telemetry_sha256": null
   },
   "motion_capable_ursim_trace_binding": {
-    "active_evidence_source_binding_sha256": "394ebfb12ffca5314e2d4ff16e95cbb729350fe5f7b19e2685ee4a95749dc8f3",
+    "active_evidence_source_binding_sha256": "1100fd4fe9a4b2c7e2c68c3c7b46371bb37cd0f5ab6baec2226ed77264a7d495",
     "claim_role": "motion_capable_ursim_semantic_subject_equivalence",
     "exact_triplet_match": true,
     "legacy_identity_provenance_only": {
@@ -69,14 +69,14 @@
     "safe_transfer_z_m": 0.033
   },
   "schema": "step5d.autotune-v3/return-route-evidence-v2",
-  "source_binding_sha256": "394ebfb12ffca5314e2d4ff16e95cbb729350fe5f7b19e2685ee4a95749dc8f3",
+  "source_binding_sha256": "1100fd4fe9a4b2c7e2c68c3c7b46371bb37cd0f5ab6baec2226ed77264a7d495",
   "source_exact_return_telemetry_sha256": null,
   "source_sha256": {
-    "bridge_capture": "bd4f1b9606b32f533aff01dcd700bfd21b33be052e42b853ee9fa18791773d37",
-    "campaign_adapter": "43468bc6a277b924185f29e58d7209ea568c59aa4634c1692037ccde3f910cb1",
-    "closure_collector": "2188f7b8177d65116735621a91d1b8b5c409034fbf6ebfecc9df1b6892509bc0",
+    "bridge_capture": "52de461095faa53f881b64f157879988b9a8df21762cae901b2205ced7200bee",
+    "campaign_adapter": "a07209b1b8d674e954420f2f8f6904802008e4e2461b2ce85838f3cf929bcf00",
+    "closure_collector": "790a9e36d8dba906f18927184fff0a401d05da33da30dc94b26a5f6c313f9ca0",
     "return_route": "d34b9d84851577df8eb611fcd185958b3e207f3d510d381223c934947c860fd4",
-    "tp_generator": "9546668970ee251e357ee4af8d5ecdc9a6025ecbb304fd8f3a22893a40a74cf1"
+    "tp_generator": "48ed0aa3cb92452000d8e225ec0f69d039d04c352455a07cac2ba92224930a76"
   },
   "status": "offline_enforcement_complete_attended_certification_required",
   "telemetry_summary": null,

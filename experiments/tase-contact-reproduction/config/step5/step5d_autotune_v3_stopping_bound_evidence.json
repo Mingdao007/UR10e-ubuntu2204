@@ -77,19 +77,19 @@
   ],
   "deployment_readback_sha256": null,
   "live_effect": "stopping_bound_none_fail_closed",
-  "manifest_fingerprint": "eee0e0ec1452c14ec4bb698fe886004d1bf58d3ad692d64561765dad311d4a8d",
+  "manifest_fingerprint": "4805605c07b86246570cddd8e51dd90c45fc2f7d44d840285d85796fb495f91a",
   "measurement_sha256": null,
   "optimizer_eligible": false,
   "plant_epoch": null,
   "schema": "step5d.autotune-v3/stopping-bound-evidence-v2",
-  "source_binding_sha256": "dd7dcbc3d920f69af7457f7a0d1469b2dfb3201838c30470ebe426040bad57d6",
+  "source_binding_sha256": "c75fae699b772be5ed3e80b1e56cb9d8ac6c5629ced13d8bd8e9fb11a8c7930d",
   "source_sha256": {
-    "bridge": "f82d61f005d91719481299398d1bcd296d79db12fd5030b2e1fa801af3eac8f3",
+    "bridge": "59f1407cee382fd5487fadef32754dd4ac73304da59605d1409407a2270eedda",
     "moving_sphere": "552d02a0f6eff7aa25c4029098c8c7ac6564279bfa3e9f65444c5ef17b1aad3b",
     "stage_adapter": "bb8e7d7512438eb728fbc02afa9a4ab5fe47a7cbef53140c5c656254923c0dd3"
   },
   "status": "incomplete_attended_measurement_required",
-  "stop_transport_sha256": "f82d61f005d91719481299398d1bcd296d79db12fd5030b2e1fa801af3eac8f3",
+  "stop_transport_sha256": "59f1407cee382fd5487fadef32754dd4ac73304da59605d1409407a2270eedda",
   "stopping_bound_fingerprint": null,
   "validity_domain": "ur10e_step5d_autotune_v3_live_500hz_exact_controller_tp_transport_v1"
 }

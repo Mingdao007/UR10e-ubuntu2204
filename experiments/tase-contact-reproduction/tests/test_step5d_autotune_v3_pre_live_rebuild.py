@@ -64,7 +64,7 @@ def test_rebuild_binds_the_versioned_active_tp_manifest() -> None:
     ).hexdigest()
 
 
-def test_current_readback_promotes_after_r005_second_lap_regression() -> None:
+def test_r005_readback_stays_quarantined_while_r006_is_local_only() -> None:
     table = json.loads((ROOT / rebuild.STAGE_TABLE_RELATIVE).read_text(encoding="utf-8"))
     row = next(row for row in table["stages"] if row["id"] == rebuild.V3_STAGE_ID)
     execution = row["execution_readiness"]
@@ -75,25 +75,31 @@ def test_current_readback_promotes_after_r005_second_lap_regression() -> None:
         (ROOT / rebuild.CURRENT_STAGE_RELATIVE).read_text(encoding="utf-8")
     )
 
-    assert execution["state"] == "bridge_start_ready"
-    assert execution["ready_to_start_bridge"] is True
+    assert execution["state"] == "pre_live_blocked"
+    assert execution["ready_to_start_bridge"] is False
     assert execution["ready_to_arm"] is False
     assert execution["ready_for_contact_or_motion"] is False
-    assert execution["blockers"] == []
-    assert execution["next_owner"] == "ur10e-bridge-ops"
+    assert execution["blockers"] == [
+        "selected_tp_program_known_incompatible_do_not_retry",
+        "r005_post_ack_csv_schema_timeout_incident",
+        "requires_r006_controller_readback",
+    ]
+    assert execution["next_owner"] == "ur10e-tp-package-delivery"
     assert execution["operator_trigger"]["play_effect"] == (
         "user_owned_command_1_after_bridge_ready"
     )
     assert promotion["certification_motion_authorization_required"] is False
     assert promotion["campaign_authorization_required"] is False
-    assert promotion["blocker"] is None
+    assert "requires_r006_controller_readback" in promotion["blocker"]
     assert current["readiness"] == {
-        "blockers": [],
+        "blockers": execution["blockers"],
         "bridge_process_ready": False,
-        "bridge_start_ready": True,
+        "bridge_start_ready": False,
         "campaign_ready": False,
-            "deployment_ready": True,
-        "host_runtime_disposition": "verified_r005_exact_plan_production_ack1_arm2",
+        "deployment_ready": True,
+        "host_runtime_disposition": "verified_r006_cross_process_direct_arm1_arm2_offline",
         "motion_arm_ready": False,
         "selected_release": rebuild.V3_STAGE_ID,
     }
+    assert current["local_candidate"]["program"].endswith("_r006")
+    assert current["local_candidate"]["controller_readback_verified"] is False

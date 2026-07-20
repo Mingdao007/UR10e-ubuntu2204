@@ -232,10 +232,33 @@ def build_outputs(
     validation["observed_at"] = observed_at
     validation["identity"] = identity
     gates = validation["gates"]
+    gates["exact_batch_lifecycle"] = {
+        "status": "pass",
+        "protocol": "v3_direct_arm_v1",
+        "batch_size": 10,
+        "formal_production_runner_arm2_entered_run": True,
+        "production_trial_briefs_exactly_once": 1,
+        "fake_transport_rows": 10,
+        "rows_1_to_9_return": "ready_near_state_76",
+        "row_10_return": "campaign_home_state_77_bounded_halt",
+        "ack_commands": 0,
+        "arm_11_dispatched": False,
+    }
     local_triplet_sha256 = dict(identity["local_triplet_sha256"])
     readback_current = (
         identity.get("controller_readback_triplet_sha256")
         == local_triplet_sha256
+    )
+    control_contract = _read(root / CONTROL_CONTRACT_RELATIVE)
+    candidate_identity = control_contract["candidate_tp_identity"]
+    candidate_triplet_sha256 = dict(
+        control_contract["candidate_tp_artifact_sha256"]
+    )
+    readback = _read(root / "config/step5d_autotune_controller_readback_v3.json")
+    candidate_readback_current = bool(
+        readback.get("verified") is True
+        and readback.get("program") == candidate_identity["program"]
+        and readback.get("triplet_sha256") == candidate_triplet_sha256
     )
     current_release = _read(root / CURRENT_RELEASE_RELATIVE)
     host_runtime_current = (
@@ -252,7 +275,9 @@ def build_outputs(
     validation["decision"] = {
         **PRE_LIVE_DECISION,
         "hardware_promotion": (
-            "deployment_ready" if readback_current else "blocked"
+            "candidate_controller_readback_verified"
+            if candidate_readback_current
+            else "blocked_requires_r006_controller_readback"
         ),
         "execution_readiness": (
             "bridge_start_ready" if bridge_start_ready else "pre_live_blocked"
@@ -261,6 +286,12 @@ def build_outputs(
     gates["package_and_readback"]["local_triplet_sha256"] = (
         local_triplet_sha256
     )
+    gates["package_and_readback"]["local_candidate"] = {
+        "program": candidate_identity["program"],
+        "triplet_sha256": candidate_triplet_sha256,
+        "controller_readback_verified": candidate_readback_current,
+        "promotion_status": control_contract["promotion_status"],
+    }
     if readback_current:
         gates["package_and_readback"].update(
             {
@@ -276,6 +307,13 @@ def build_outputs(
                 ),
                 "historical_readback_matches_local_triplet": True,
             }
+        )
+    if not candidate_readback_current:
+        gates["package_and_readback"]["status"] = (
+            "blocked_r006_local_only_requires_controller_readback"
+        )
+        gates["package_and_readback"]["blocker"] = (
+            "requires_r006_controller_readback"
         )
     gates["authorization_separation"] = {
         "status": "pass_offline_contract",
@@ -360,7 +398,7 @@ def build_outputs(
     if (
         current_release.get("local_candidate_tp_program_id")
         == "step5d_strict_rnn_autotune_v3_r006"
-        and not readback_current
+        and not candidate_readback_current
     ):
         blockers.append("requires_r006_controller_readback")
     blockers = list(dict.fromkeys(blockers))
@@ -411,7 +449,9 @@ def build_outputs(
         / f"{deployment_program}.deploy-manifest.json"
     )
     package["status"] = (
-        "controller_readback_verified"
+        "historical_controller_readback_verified_known_incompatible_do_not_retry"
+        if not tp_program_start_allowed
+        else "controller_readback_verified"
         if readback_current
         else "requires_attended_tp_upload_readback"
     )
@@ -424,14 +464,27 @@ def build_outputs(
         package["fresh_controller_sha_at"] = _read(
             root / "config/step5d_autotune_controller_readback_v3.json"
         )["fresh_controller_checked_at"]
+    package["local_candidate"] = {
+        "program_basename": candidate_identity["program"],
+        "local_triplet": str(
+            Path(candidate_identity["artifact_dir"]) / candidate_identity["program"]
+        ),
+        "status": (
+            "controller_readback_verified"
+            if candidate_readback_current
+            else "local_only_requires_controller_readback"
+        ),
+        "controller_uploaded": candidate_readback_current,
+        "controller_readback_verified": candidate_readback_current,
+        "deploy_manifest_sha256": candidate_identity["deploy_manifest_sha256"],
+        "numeric_sanity_sha256": candidate_identity["numeric_sanity_sha256"],
+        "sha256": candidate_triplet_sha256,
+    }
     row["block_reason"] = (
-        "V3 is the unique selected/current release; exact controller readback "
-        "is verified and the direct command-1 lane awaits formal-runtime deploy, "
-        "fresh bridge context, user Play, Stage25, and exact 10/10 closure. "
-        "V1 is retained control-profile provenance only."
-        if readback_current
-        else "V3 is the unique selected/current release and requires exact r005 "
-        "controller upload/readback; V1 is retained control-profile provenance only."
+        "V3 remains the unique selected route. Deployed r005 is historical "
+        "controller-readback-verified but known incompatible and must not start; "
+        "immutable r006 is local-only and requires exact attended controller "
+        "upload/readback before any bridge context can exist."
     )
     row["offline_validation"].update(
         {
@@ -440,6 +493,25 @@ def build_outputs(
             "formal_500hz_timing": formal_timing["status"],
             "source_exact_sphere_seam_timing": seam_timing["status"],
             "simulation": simulation["status"],
+            "exact_ten_row_lifecycle": (
+                "r006_offline_direct_mailbox_rows_1_to_10_row10_state77_no_ack_no_arm11"
+            ),
+            "production_second_lap": (
+                "pass_formal_runner_growing_csv_seal_cold_read_trialbrief_arm2_run"
+            ),
+            "retained_live_incident": (
+                "r005_ack_consumed_arm2_not_sent_post_ack_csv_schema_timeout"
+            ),
+        }
+    )
+    row["acceptance"].update(
+        {
+            "typed_closure_v2_cold_read_ack_next_arm_verified": (
+                "legacy_replay_only_not_production_pass"
+            ),
+            "direct_arm1_bundle_cold_read_trialbrief_arm2_verified": True,
+            "growing_production_csv_follower_verified": True,
+            "r006_controller_readback_verified": candidate_readback_current,
         }
     )
     row["execution_readiness"] = {
@@ -447,8 +519,8 @@ def build_outputs(
         "state": "bridge_start_ready" if bridge_start_ready else "pre_live_blocked",
         "public_success_signal": public_signal,
         "deterministic_validation_complete": True,
-        "package_delivery_complete": readback_current,
-        "candidate_current": True,
+        "package_delivery_complete": candidate_readback_current,
+        "candidate_current": candidate_readback_current,
         "live_runtime_promoted": False,
         "same_process_startup_gate_complete": False,
         "ready_to_execute": bridge_start_ready,
@@ -470,8 +542,8 @@ def build_outputs(
             "internal_launch_binding": MACHINE_BINDING,
             "tp_action": (
                 "controller_readback_verified_no_load_or_play"
-                if readback_current
-                else "attended_upload_readback_required"
+                if candidate_readback_current
+                else "attended_r006_upload_readback_required"
             ),
             "play_effect": "user_owned_command_1_after_bridge_ready",
         },
@@ -491,9 +563,29 @@ def build_outputs(
     current_stage["readiness"]["bridge_process_ready"] = False
     current_stage["readiness"]["motion_arm_ready"] = False
     current_stage["readiness"]["campaign_ready"] = False
+    current_stage["readiness"]["host_runtime_disposition"] = (
+        current_release.get("host_runtime_disposition")
+    )
+    current_stage["local_candidate"] = {
+        "program": candidate_identity["program"],
+        "disposition": "local_only_requires_controller_readback",
+        "manifest": current_release.get("local_candidate_manifest"),
+        "triplet_sha256": candidate_triplet_sha256,
+        "controller_uploaded": candidate_readback_current,
+        "controller_readback_verified": candidate_readback_current,
+    }
+    current_stage["status"] = (
+        "step5d_autotune_v3_r006_controller_readback_verified"
+        if candidate_readback_current
+        else "step5d_autotune_v3_r005_quarantined_r006_local_only"
+    )
+    current_stage["bridge_trigger"]["blocked_reason"] = (
+        "Deployed r005 is known incompatible and r006 is local-only; no bridge "
+        "context is legal before exact attended r006 upload/readback."
+    )
     current_stage["updated_at"] = observed_at
-    control_contract = copy.deepcopy(_read(root / CONTROL_CONTRACT_RELATIVE))
-    control_contract["candidate_tp_artifact_sha256"] = local_triplet_sha256
+    control_contract = copy.deepcopy(control_contract)
+    control_contract["candidate_tp_artifact_sha256"] = candidate_triplet_sha256
     if readback_current:
         control_contract["tp_artifact_sha256"] = local_triplet_sha256
         control_contract["deployment_tp_identity"]["readback_manifest_sha256"] = (

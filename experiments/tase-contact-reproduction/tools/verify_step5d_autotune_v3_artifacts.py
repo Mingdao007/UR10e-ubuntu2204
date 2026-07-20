@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
 TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r005"
+LOCAL_CANDIDATE_TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r006"
 POSE_PRIOR_ID = "step5d_v3_physical_prior_contact_0p1_20260719"
 EXPECTED_ROTVEC = [3.120752062, 0.0, 0.068626833]
 HISTORICAL_POSE_PRIOR_ID = "step5d_v3_start_pose_prior_contact_0p1_20260719"
@@ -45,6 +46,11 @@ BOUND_PATHS = {
     f"programs/step5/step5d/{TP_PROGRAM_ID}.script",
     f"programs/step5/step5d/{TP_PROGRAM_ID}.txt",
     f"programs/step5/step5d/{TP_PROGRAM_ID}.urp",
+    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.deploy-manifest.json",
+    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.numeric-sanity.json",
+    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.script",
+    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.txt",
+    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.urp",
 } | execution_readiness.READINESS_EVIDENCE_RELATIVE_PATHS
 
 
