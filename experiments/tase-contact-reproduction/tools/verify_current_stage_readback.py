@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -61,6 +62,25 @@ def current_sha(current: dict[str, Any]) -> dict[str, str]:
     return {ext: sha.get(ext, "") for ext in (".script", ".txt", ".urp")}
 
 
+def selected_tp_program(root: Path, current: dict[str, Any], release: str) -> str:
+    """Resolve the immutable TP package separately from the selected release."""
+
+    compatibility_path = root / "config" / "step5d" / "current.json"
+    if not compatibility_path.is_file():
+        return release
+    compatibility = load_json(compatibility_path)
+    if (
+        compatibility.get("selection_state") != "current"
+        or compatibility.get("program") != release
+        or compatibility.get("release_stage_id", release) != release
+    ):
+        fail("Step5d compatibility pointer does not bind the selected release")
+    tp_program = compatibility.get("tp_program_id", release)
+    if not isinstance(tp_program, str) or not tp_program:
+        fail("Step5d compatibility pointer has no valid tp_program_id")
+    return tp_program
+
+
 def retained_manifest_path(root: Path, program: str) -> Path:
     """Resolve an ignored historical readback through the canonical locator."""
     try:
@@ -87,20 +107,21 @@ def verify(
 ) -> dict[str, Any]:
     current_path = root / "config" / "current_stage.json"
     current = load_json(current_path)
-    selected_program = program or current.get("program") or current.get("current_stage_id")
-    if not selected_program:
+    selected_release = program or current.get("program") or current.get("current_stage_id")
+    if not selected_release:
         fail("current_stage.json has no program/current_stage_id")
-    if current.get("current_stage_id") != selected_program or current.get("program") != selected_program:
+    if current.get("current_stage_id") != selected_release or current.get("program") != selected_release:
         fail(
             "current_stage.json points to "
-            f"{current.get('current_stage_id')}/{current.get('program')}, not {selected_program}"
+            f"{current.get('current_stage_id')}/{current.get('program')}, not {selected_release}"
         )
+    tp_program = selected_tp_program(root, current, selected_release)
 
     expected_target_dir = target_dir or str(PurePosixPath(str(current.get("controller_target", ""))).parent)
     if not expected_target_dir or expected_target_dir == ".":
         fail("current_stage.json has no controller_target and no --target-dir was provided")
-    expected_urp = f"{expected_target_dir}/{selected_program}.urp"
-    expected_script = f"{expected_target_dir}/{selected_program}.script"
+    expected_urp = f"{expected_target_dir}/{tp_program}.urp"
+    expected_script = f"{expected_target_dir}/{tp_program}.script"
     if current.get("controller_target") and current.get("controller_target") != expected_urp:
         fail(f"controller_target is {current.get('controller_target')}, expected {expected_urp}")
     if current.get("controller_script") and current.get("controller_script") != expected_script:
@@ -109,16 +130,16 @@ def verify(
         fail(f"current status is not read-back verified: {current.get('status')}")
 
     evidence = current.get("evidence", {})
-    suffix = selected_program.rsplit("_", 1)[-1]
+    suffix = selected_release.rsplit("_", 1)[-1]
     verified_key = f"{suffix}_controller_readback_verified"
     if verified_key in evidence and evidence.get(verified_key) is not True:
         fail(f"{verified_key} is not true")
 
-    current_manifest_path = manifest_path_from_current(root, current, selected_program)
+    current_manifest_path = manifest_path_from_current(root, current, selected_release)
     if manifest_path is None:
         manifest_path = current_manifest_path
         if not manifest_path.exists():
-            manifest_path = retained_manifest_path(root, selected_program)
+            manifest_path = retained_manifest_path(root, selected_release)
     else:
         manifest_path = manifest_path.resolve()
         expected_current = current_manifest_path.resolve()
@@ -131,22 +152,49 @@ def verify(
     if manifest.get("status") != "controller read-back verified":
         fail(f"manifest status is {manifest.get('status')}")
 
-    delivery_mode = manifest.get("delivery_mode")
+    delivery_manifest = manifest
+    if manifest.get("schema") == "step5d.autotune.controller-readback/v3":
+        if (
+            manifest.get("verified") is not True
+            or manifest.get("program") != tp_program
+            or manifest.get("controller_target") != expected_urp
+            or manifest.get("triplet_sha256") != current_sha(current)
+        ):
+            fail("canonical controller read-back identity differs")
+        raw_relative = manifest.get("fresh_readback_source")
+        raw_expected_sha = manifest.get("fresh_readback_manifest_sha256")
+        if not isinstance(raw_relative, str) or not raw_relative:
+            fail("canonical controller read-back lacks fresh source")
+        raw_path = root / raw_relative
+        if raw_path.is_symlink() or not raw_path.is_file():
+            fail("canonical controller read-back fresh source is missing")
+        try:
+            raw_path.resolve().relative_to(root.resolve())
+        except ValueError:
+            fail("canonical controller read-back fresh source escapes root")
+        raw_actual_sha = hashlib.sha256(raw_path.read_bytes()).hexdigest()
+        if raw_actual_sha != raw_expected_sha:
+            fail("canonical controller read-back fresh source digest differs")
+        delivery_manifest = load_json(raw_path)
+        if delivery_manifest.get("status") != "controller read-back verified":
+            fail("fresh controller read-back status differs")
+
+    delivery_mode = delivery_manifest.get("delivery_mode")
     if delivery_mode not in ALLOWED_DELIVERY_MODES:
         fail(f"manifest delivery_mode is not recognized: {delivery_mode}")
     if delivery_mode == "content_addressed_reuse":
-        if manifest.get("fresh_controller_sha_verified") is not True:
+        if delivery_manifest.get("fresh_controller_sha_verified") is not True:
             fail("content_addressed_reuse manifest lacks fresh_controller_sha_verified=true")
-        if not manifest.get("fresh_controller_checked_at"):
+        if not delivery_manifest.get("fresh_controller_checked_at"):
             fail("content_addressed_reuse manifest lacks fresh_controller_checked_at")
-        if not manifest.get("skip_basis_manifest"):
+        if not delivery_manifest.get("skip_basis_manifest"):
             fail("content_addressed_reuse manifest lacks skip_basis_manifest")
-        if manifest.get("readback_source") != "prior_full_readback":
+        if delivery_manifest.get("readback_source") != "prior_full_readback":
             fail("content_addressed_reuse manifest must use readback_source=prior_full_readback")
 
-    validation = manifest.get("validation", {})
-    if validation.get("program") != selected_program:
-        fail(f"manifest program is {validation.get('program')}, expected {selected_program}")
+    validation = delivery_manifest.get("validation", {})
+    if validation.get("program") != tp_program:
+        fail(f"manifest program is {validation.get('program')}, expected {tp_program}")
     if validation.get("target_dir") != expected_target_dir:
         fail(f"manifest target_dir is {validation.get('target_dir')}, expected {expected_target_dir}")
     if validation.get("script_node_path") != expected_script:
@@ -159,7 +207,7 @@ def verify(
         )
 
     expected_sha = current_sha(current)
-    manifest_sha = manifest.get("sha256", {})
+    manifest_sha = delivery_manifest.get("sha256", {})
     validation_keys = {
         ".script": "script_sha256",
         ".txt": "txt_sha256",
@@ -177,7 +225,8 @@ def verify(
 
     return {
         "ok": True,
-        "program": selected_program,
+        "program": selected_release,
+        "tp_program": tp_program,
         "target_dir": expected_target_dir,
         "manifest": (
             str(manifest_path.relative_to(root))

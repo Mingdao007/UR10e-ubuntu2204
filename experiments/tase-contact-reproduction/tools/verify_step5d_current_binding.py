@@ -121,6 +121,7 @@ def verify_binding(root: Path, program: str | None = None, target_dir: str | Non
     readback = verify(root, program, target_dir)
     current = load_json(root / "config" / "current_stage.json")
     selected = readback["program"]
+    selected_tp = readback.get("tp_program", selected)
     if not selected.startswith(STEP5D_PACKAGE_PREFIXES):
         fail(f"{selected} is not a Step5d TP package")
 
@@ -152,6 +153,7 @@ def verify_binding(root: Path, program: str | None = None, target_dir: str | Non
     return {
         "ok": True,
         "program": selected,
+        "tp_program": selected_tp,
         "target_dir": readback["target_dir"],
         "manifest": readback["manifest"],
         "delivery_mode": readback["delivery_mode"],
