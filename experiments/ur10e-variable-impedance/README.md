@@ -104,21 +104,30 @@ joint torque, Jacobian, Coriolis term, and joint damping. It has no external
 wrench argument, so the Kunwei signal cannot be copied into the internal channel.
 `actual_current_as_torque` is accepted only as a separate shadow comparison.
 
-Formal datasets use episode-grouped, non-pickled NPZ files with 36D condition,
-6D expert `F_ff`, episode identity, frozen split, frame/calibration lineage, and
-artifact hashes. Every episode manifest must bind the exact
-`polyscope-5.25.2-direct-torque-v2-500hz` profile and its controller readback
-hash, and its declared sample count must match the dataset. v27/v29 traces stay
-pipeline-only and cannot be promoted into expert labels. Data collection is
-staged at 50 episodes, 200 episodes, and an optional 1500 episodes only when the
-frozen validation curve still improves.
+Formal datasets use episode-grouped, non-pickled schema-v2 NPZ files with 36D
+condition, 6D expert `F_ff`, episode identity, frozen split, and artifact hashes.
+An `ExpertTraceManifestV2` cannot make itself training-eligible. The loader
+rehashes and revalidates sibling artifacts for the 5.26 controller contract,
+sensor calibration, right-handed sensor-to-TCP transform, bias/zero window,
+time-indexed task-ZFT, and deterministic expert-force definition. The expert
+label is the pre-filter TCP-frame SI value
+`clamp(task_ZFT - K*pose_error + D*twist)`. v27/v29 traces stay pipeline-only
+and cannot be promoted into expert labels. Data collection is staged at 50
+episodes, 200 episodes, and an optional 1500 episodes only when the frozen
+validation curve still improves.
 
-The first portable model is a clean-room DDPM MLP design pinned to 50 denoising
-steps, hidden width 512, current-plus-previous conditioning, and seed 42. The
-runtime stays inactive and shadow-only until real expert data, checkpoint, and
-independent timing evidence exist. Rates 50/100/200/500 Hz must each be tested
-for 60 seconds; the selector accepts only the highest rate with zero deadline
-misses, zero nonfinite output, and p99 no greater than 80% of its period.
+The TacDiffusion-only model is checkpoint schema v2 and is clean-room bound to
+upstream commit `6a5567c829c54b7d03164cf40779d2451de4099e`: separate current and
+previous 18D embeddings, a noisy-action embedding, 128D TimeSiren embedding,
+512-wide BatchNorm/GELU residual blocks, and 50 DDPM steps. Training defaults to
+1500 epochs, batch size 4096, Adam at `1e-3`, and cosine decay. Normalization is
+computed from the train split only; checkpoints retain optimizer, scheduler,
+Torch RNG, and permutation RNG state for safe resume. Legacy schema-v1
+checkpoints are explicitly nonfaithful. The runtime stays inactive and
+shadow-only until real expert data, a retained checkpoint, and independent
+timing evidence exist. Rates 50/100/200/500 Hz must each be tested for 60
+seconds; the selector accepts only the highest rate with zero deadline misses,
+zero nonfinite output, and p99 no greater than 80% of its period.
 
 The only allowed eventual claim is **UR10e 500 Hz force-domain diffusion
 adaptation**. It is not a Panda 1 kHz exact reproduction or Panda-to-UR10e
@@ -137,6 +146,14 @@ python3 -m ur10e_vic.tacdiffusion.cli train \
   --trace-manifest /external/episode-001.json \
   --checkpoint /external/tacdiffusion.pt \
   --checkpoint-manifest /external/tacdiffusion-checkpoint.json
+python3 -m ur10e_vic.tacdiffusion.cli evaluate \
+  --checkpoint /external/tacdiffusion.pt \
+  --checkpoint-manifest /external/tacdiffusion-checkpoint.json \
+  --dataset /external/ur10e-expert.npz \
+  --dataset-manifest /external/ur10e-expert-manifest.json \
+  --trace-manifest /external/episode-001.json \
+  --split validation \
+  --output /external/tacdiffusion-evaluation.json
 python3 -m ur10e_vic.tacdiffusion.cli benchmark \
   --checkpoint /external/tacdiffusion.pt \
   --checkpoint-manifest /external/tacdiffusion-checkpoint.json \
@@ -165,6 +182,23 @@ must prove parser load, RTDE roundtrip, zero-input hold, filter/torque cadence,
 heartbeat/sequence/missed-tick controlled stops, and 30,000 ticks with p99 at
 most 1.8 ms and max strictly below 2 ms. Missing runtime evidence remains a
 blocker rather than being converted into a synthetic pass.
+
+## PolyScope 5.26 runtime and URSim contracts
+
+`config/controller_5_26_runtime_contract.json` is separate from the immutable
+5.25.2 upgrade/template evidence. Its evaluator requires hash-bound controller
+and robot identity, External Control URCap compatibility, installation/safety/
+TCP-payload configuration, robot/sensor/frame calibration, stopped-program
+Dashboard/RTDE/network readback, and Direct Torque V2/Jacobian/dynamics API
+readback. The checked-in version-only observation intentionally fails this gate;
+it does not authorize upload, live motion, contact, or model-active control.
+
+`config/ursim_5_26_protocol.json` binds a transport-neutral request fingerprint,
+capture schema, adapter source, legacy torque template, and 500 Hz acceptance
+steps. `URSimTransport` is only an injected Protocol. This repository contains
+no production socket, RTDE, Docker, ROS, or controller transport. The fake
+transport exercises capture evaluation but is structurally unable to set
+`simulation_run=true`. No 5.26 URSim image was pulled or run in this round.
 
 ## Conditional controller upgrade
 

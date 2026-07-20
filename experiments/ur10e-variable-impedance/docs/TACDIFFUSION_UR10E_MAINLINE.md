@@ -6,19 +6,19 @@ The target claim is exactly **UR10e 500 Hz force-domain diffusion adaptation**.
 
 It is not a Panda 1 kHz exact reproduction and must not be described as one.
 
-## Controller assumption and upgrade boundary
+## Controller/runtime boundary
 
-Offline implementation targets PolyScope 5.25.2, Direct Torque Control V2, and a 500 Hz controller-local torque loop.
+Offline reproduction preparation targets PolyScope 5.26.0 LTS, Direct Torque Control V2, and a 500 Hz controller-local torque loop.
 
-Direct Torque Control V2 was introduced in 5.25.1 and is inherited by the 5.25.2 target release.
+The historical 5.25.2 upgrade, RTDE layout, URScript template, and exact-version URSim protocol remain immutable compatibility evidence.
 
-The physical controller remains `controller_verified=false` until a fresh, hash-bound post-upgrade readback passes.
+The physical controller remains `controller_verified=false`. The existing 5.26.0.140462 version string is version-only evidence, not a runtime acceptance.
 
-The 2026-07-14 upgrade is conditional on a read-only identity, Safety, TCP/payload, calibration, URCap, PROFIsafe, network, program, Dashboard, and RTDE preflight.
+The 5.26 runtime evaluator requires independently hash-bound controller and robot identity, External Control URCap compatibility, installation/safety/TCP-payload configuration, robot and sensor calibration, sensor-to-TCP transform, stopped-program Dashboard/RTDE/network readback, and Direct Torque V2/Jacobian/dynamics API readback.
 
 A complete system backup, Support File, separate `/programs`/installation/safety/calibration/URCap exports, and SHA-256 manifest must exist before installation.
 
-The official update route permits a direct latest-version update when the probed source version is at least 5.5, requires backup first, and does not permit downgrade: [software update procedure](https://www.universal-robots.com/manuals/EN/HTML/SW5_25/Content/prod-serv-man/E-series/serv-man-update.htm) ✅ confirmed.
+PolyScope 5.26.0 is an LTS release with a 64-bit controller platform and a four-byte Primary/Secondary configuration-package change: [5.26 release notes](https://www.universal-robots.com/articles/ur/release-notes/release-note-software-version-526x/) ✅ confirmed.
 
 PolyScope 5.25.0 changed PROFIsafe outgoing signals to active-low, so detected or unresolved PROFIsafe use is a hard preflight stop: [5.25 release notes](https://www.universal-robots.com/articles/ur/release-notes/release-note-software-version-525x/) ✅ confirmed.
 
@@ -44,7 +44,7 @@ An optional 1500-episode batch is allowed only if the frozen validation learning
 
 Splits are grouped by episode, frozen before training, and recorded in each batch manifest to prevent frame-level leakage.
 
-Each episode manifest binds the exact 5.25.2 Direct Torque V2 500 Hz profile, controller readback hash, frame/calibration lineage, expert-policy hash, and sample count before it is training-eligible.
+Each schema-v2 episode manifest binds the exact 5.26 Direct Torque V2 500 Hz profile and sibling controller, sensor-calibration, sensor-to-TCP, bias, time-indexed task-ZFT, deterministic expert-definition, software, package, trace, split, and sample-count artifacts. The manifest alone is never training-eligible; the loader must rehash and re-evaluate the full graph.
 
 ## Force-domain contract
 
@@ -62,7 +62,7 @@ It must never be a copy of the Kunwei wrench.
 
 `actual_current_as_torque` is a shadow cross-check only.
 
-The model proposes a raw 6D \(F_{df}\).
+The deterministic expert label is the pre-filter TCP-frame SI wrench `clamp(task_ZFT - K*pose_error + D*twist)`. The model proposes a raw 6D \(F_{df}\).
 
 URScript runs the dynamic filter locally and applies the filtered \(F_{ff}\) in
 
@@ -90,7 +90,7 @@ It must not reuse the Franka MIOS, Docker, or UDP controller as the UR runtime.
 
 The upstream pickle/random-split data path is replaced with an independent, episode-grouped, SHA-256-bound UR10e manifest.
 
-The first model keeps DDPM `T=50`, MLP width `N=512`, current-plus-previous conditioning, and filter parameters `alpha=0.9`, `beta=0.3`.
+The TacDiffusion-only checkpoint-v2 model keeps DDPM `T=50`, width `N=512`, separate current/previous 18D embeddings, a noisy-action embedding, 128D TimeSiren embedding, BatchNorm/GELU residual blocks, and filter parameters `alpha=0.9`, `beta=0.3`. Training defaults are 1500 epochs, batch size 4096, Adam `1e-3`, and cosine decay. Normalization is train-split-only, and resume restores optimizer, scheduler, Torch RNG, and permutation RNG state. Schema-v1 checkpoints are nonfaithful.
 
 Inference is measured at 50, 100, 200, and 500 Hz.
 
@@ -121,3 +121,5 @@ Hardware progression is fixed: no-contact fixed-impedance shadow, 2/10/60-second
 This round is offline preparation only.
 
 It does not upgrade or upload to the controller, start a bridge, press TP Play, zero the force-torque sensor, change networking, or produce robot motion.
+
+The versioned 5.26 `URSimTransport` seam has no production I/O implementation. Fake captures cannot promote `simulation_run`; no URSim runtime, image pull, container, GPU training, formal dataset, or hardware timing run occurred.

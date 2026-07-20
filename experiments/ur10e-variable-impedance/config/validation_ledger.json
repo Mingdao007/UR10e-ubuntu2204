@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "stage_order": [
     "implemented",
     "deterministic_tested",
@@ -33,6 +33,20 @@
       ],
       "controller_verified": false
     },
+    "controller_5_26_runtime_contract": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "controller_verified": false,
+      "evidence": [
+        "config/controller_5_26_runtime_contract.json",
+        "schemas/controller_runtime_contract_v1.schema.json",
+        "ur10e_vic/controller_contract.py",
+        "tests/test_controller_contract.py",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
+    },
     "tacdiffusion_experiment_plan": {
       "implemented": true,
       "deterministic_tested": true,
@@ -51,6 +65,34 @@
       "evidence": [
         "ur10e_vic/tacdiffusion",
         "tests/test_tacdiffusion_core.py",
+        "tests/test_tacdiffusion_model.py",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
+    },
+    "tacdiffusion_expert_data_v2": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "formal_dataset_collected": false,
+      "evidence": [
+        "schemas/expert_trace_manifest_v2.schema.json",
+        "ur10e_vic/tacdiffusion/expert_data.py",
+        "ur10e_vic/tacdiffusion/dataset.py",
+        "tests/test_tacdiffusion_expert_data.py",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
+    },
+    "tacdiffusion_faithful_training_v2": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "formal_checkpoint_trained": false,
+      "evidence": [
+        "schemas/tacdiffusion_checkpoint_v2.schema.json",
+        "schemas/tacdiffusion_evaluation_v1.schema.json",
+        "ur10e_vic/tacdiffusion/model.py",
         "tests/test_tacdiffusion_model.py",
         "evidence/tacdiffusion_offline_validation.json"
       ]
@@ -77,6 +119,21 @@
         "ur10e_vic/ursim_protocol.py",
         "tools/run_ursim_5_25_2_protocol.py",
         "tests/test_ursim_protocol.py",
+        "evidence/tacdiffusion_offline_validation.json"
+      ]
+    },
+    "ursim_5_26_protocol": {
+      "implemented": true,
+      "deterministic_tested": true,
+      "simulation_run": false,
+      "hardware_run": false,
+      "fake_transport_can_promote_simulation": false,
+      "production_transport_present": false,
+      "evidence": [
+        "config/ursim_5_26_protocol.json",
+        "schemas/ursim_capture_v1.schema.json",
+        "ur10e_vic/ursim_transport.py",
+        "tests/test_ursim_transport.py",
         "evidence/tacdiffusion_offline_validation.json"
       ]
     }

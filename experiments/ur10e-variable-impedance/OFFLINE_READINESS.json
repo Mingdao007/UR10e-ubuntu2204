@@ -1,5 +1,16 @@
 {
   "backend_status": {
+    "controller_5_26_runtime_contract": {
+      "controller_verified": false,
+      "status": "version_observed_contract_incomplete_fail_closed",
+      "missing": [
+        "robot identity binding",
+        "URCap compatibility binding",
+        "configuration and calibration artifacts",
+        "Direct Torque V2 API evidence"
+      ],
+      "live_motion_authorized": false
+    },
     "direct_torque_5_25_2_v2": {
       "controller_verified": false,
       "manifest_sha256": "d4558a2ec20ecd4fc85ecc7ddb30bfe7fb3bcc75232dd66ce57affbe6109bc7d",
@@ -21,9 +32,9 @@
     "phase-1 directional VIC is bounded/non-increasing only; passivity is not established without a future energy tank or passivity observer/controller",
     "v27/v29 retained traces lack a hash-bound sensor-calibration lineage artifact and explicit time-indexed task-ZFT artifact, so their four-policy results are diagnostic and claim-invalid",
     "Step5b ROS2 live-runner acceptance remains false; the 5.11 surrogate cannot become command-capable",
-    "PolyScope 5.25.2 URSim syntax/runtime/timing validation has not passed",
+    "the immutable PolyScope 5.25.2 and new versioned 5.26 URSim contracts have no accepted runtime capture",
     "read-only Dashboard/RTDE observation on 2026-07-19 reports physical controller 5.26.0.140462, but controller_verified remains false until current-version URCap, configuration, calibration, and Direct Torque API evidence is hash-bound",
-    "TacDiffusion has no hardware-verified expert F_ff dataset, trained UR10e checkpoint, or independently validated 50/100/200/500 Hz timing selection",
+    "TacDiffusion expert-data v2 and faithful checkpoint-v2 contracts are deterministic-tested, but no hardware-verified expert F_ff dataset, retained formal checkpoint, or independently validated 50/100/200/500 Hz timing selection exists",
     "fresh live/contact authorization is required for every active experiment"
   ],
   "claim_state": {
@@ -163,9 +174,13 @@
   "tacdiffusion": {
     "active_enabled": false,
     "claim": "UR10e 500 Hz force-domain diffusion adaptation",
-    "controller_target": "PolyScope >=5.25.2 Direct Torque V2; physical version-only observation is 5.26.0.140462",
+    "controller_target": "PolyScope 5.26.0 LTS Direct Torque V2; physical version-only observation is 5.26.0.140462",
     "current_stage": "deterministic_tested",
-    "deterministic_validation": "passed_python3_9_and_torch_2_11_mps_smoke",
+    "deterministic_validation": "dependency-light suite plus torch_2_11_cpu fixture-only train_resume_evaluate smoke",
+    "dataset_schema_version": 2,
+    "checkpoint_schema_version": 2,
+    "model_variant": "clean_room_tacdiffusion_force_ddpm_v2",
+    "formal_checkpoint_trained": false,
     "hardware_run": false,
     "model_rate_selected_hz": null,
     "simulation_run": false,
@@ -217,8 +232,11 @@
     "ubuntu_docker_daemon": "inactive_disabled",
     "ubuntu_docker_socket_access": "denied_for_andy",
     "ubuntu_ursim_image": "unverified_no_socket_permission",
-    "runtime_validation": "blocked_no_accessible_5_25_2_runtime",
+    "runtime_validation": "blocked_no_accepted_5_25_2_or_5_26_runtime_capture",
     "exact_5_25_2_protocol_spec": "implemented_and_deterministic_tested",
+    "versioned_5_26_transport_seam": "implemented_and_fake_transport_tested",
+    "production_transport_present": false,
+    "fake_transport_can_promote_simulation": false,
     "protocol_execution_performed": false,
     "simulation_run": false
   }

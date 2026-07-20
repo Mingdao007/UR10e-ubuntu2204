@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "experiment": "ur10e_step5_tacdiffusion",
   "status": "offline_preparation",
   "controller_verified": false,
@@ -17,8 +17,10 @@
     "expert_data_requirement": "new UR10e demonstrations with explicit deterministic expert F_ff labels"
   },
   "controller_contract": {
-    "offline_target": "PolyScope 5.25.2",
-    "observed_physical_controller": "PolyScope 5.26.0.140462 read-only; Direct Torque V2 APIs and configuration preservation remain unverified",
+    "offline_target": "PolyScope 5.26.0 LTS",
+    "observed_physical_controller": "PolyScope 5.26.0.140462 version-only readback; identity, URCap, configuration, calibration, and Direct Torque V2 API bindings remain incomplete",
+    "runtime_contract": "config/controller_5_26_runtime_contract.json",
+    "historical_5_25_2_contract_immutable": true,
     "control_api": "direct_torque_v2",
     "control_rate_hz": 500,
     "controller_local_dynamic_filter": true,
@@ -63,18 +65,22 @@
     "controller_applied_signal": "filtered_F_ff"
   },
   "expert_trace_manifest": {
-    "name": "ExpertTraceManifest",
+    "name": "ExpertTraceManifestV2",
+    "schema_version": 2,
+    "manifest_alone_training_eligible": false,
     "required_bindings": [
-      "controller_version",
-      "control_profile",
-      "controller_readback_hash",
+      "recomputed_controller_runtime_contract",
+      "polyscope_5_26_direct_torque_profile",
       "dataset_split",
-      "frame_lineage",
-      "calibration_hash",
-      "expert_F_ff_definition",
+      "sensor_calibration_artifact",
+      "sensor_to_tcp_transform_artifact",
+      "wrench_bias_artifact",
+      "time_indexed_task_zft_artifact",
+      "deterministic_expert_F_ff_definition_artifact",
       "software_hashes",
       "package_hashes"
     ],
+    "label_semantics": "pre_filter_tcp_f_ff_si",
     "existing_v27_v29_trace_policy": "pipeline and command-invariant shadow replay only; never formal labels"
   },
   "dataset_stages": [
@@ -106,9 +112,20 @@
   },
   "model_configuration": {
     "diffusion": "DDPM",
+    "variant": "clean_room_tacdiffusion_force_ddpm_v2",
+    "pinned_upstream_commit": "6a5567c829c54b7d03164cf40779d2451de4099e",
     "denoising_steps": 50,
     "mlp_hidden_width": 512,
-    "condition": "current_and_previous_observation",
+    "embedding_width": 128,
+    "condition": "separate_current_and_previous_observation_embeddings",
+    "time_embedding": "TimeSiren",
+    "blocks": "BatchNorm1d_GELU_residual",
+    "default_epochs": 1500,
+    "default_batch_size": 4096,
+    "default_learning_rate": 0.001,
+    "scheduler": "CosineAnnealingLR",
+    "normalization_scope": "train_split_only",
+    "resume_state": ["optimizer", "scheduler", "torch_rng", "permutation_rng"],
     "dynamic_filter_alpha": 0.9,
     "dynamic_filter_beta": 0.3,
     "candidate_model_rates_hz": [50, 100, 200, 500],

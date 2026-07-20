@@ -29,7 +29,7 @@
     "physical_controller_allowed": false,
     "production_transport_in_repository": false,
     "fake_transport_can_promote_simulation": false,
-    "runtime_adapter_sha256": "1b9ba1968dc6224352834d253ef7ff9c33c925d76b233b7e9966eb62c42b2446"
+    "runtime_adapter_sha256": "97cef605a7b7d6bdca0ba4ce23f033fe7ce0b16ba200fce3c9de0b64dd1a39f7"
   },
   "protocol_steps": [
     "urscript_parser_load",
