@@ -23,11 +23,23 @@ if (( ${#ROS_PYTHON_PATHS[@]} == 0 )); then
   echo "missing ROS Humble Python runtime for Python ${PYTHON_ABI}" >&2
   exit 66
 fi
+AMENT_PREFIX_CANDIDATES=("${REPOSITORY_ROOT}/install" "/opt/ros/humble")
+AMENT_PREFIXES=()
+for candidate in "${AMENT_PREFIX_CANDIDATES[@]}"; do
+  if [[ -d "${candidate}/share/ament_index/resource_index" ]]; then
+    AMENT_PREFIXES+=("${candidate}")
+  fi
+done
+if (( ${#AMENT_PREFIXES[@]} == 0 )); then
+  echo "missing ROS ament prefix" >&2
+  exit 66
+fi
 RUNTIME_PYTHONPATH="${EXPERIMENT_ROOT}/tools:${RUNTIME_SOURCE}"
 for candidate in "${ROS_PYTHON_PATHS[@]}"; do
   RUNTIME_PYTHONPATH="${RUNTIME_PYTHONPATH}:${candidate}"
 done
 export PYTHONPATH="${RUNTIME_PYTHONPATH}"
+export AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"
 if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
   mode="$1"
   shift
