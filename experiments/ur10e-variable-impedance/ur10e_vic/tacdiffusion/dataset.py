@@ -22,11 +22,11 @@ from .contracts import (
     CONDITION_DIMENSION,
     CONTROL_RATE_HZ,
     PERMITTED_PROGRAM_CLAIM,
-    ExpertTraceManifest,
 )
+from .expert_data import ExpertTraceManifestV2, validate_episode_manifest_artifacts
 
 
-DATASET_SCHEMA_VERSION = 1
+DATASET_SCHEMA_VERSION = 2
 ACTION_DIMENSION = 6
 FORMAL_SOURCE_KIND = "ur10e_expert_demonstration"
 LEGACY_PIPELINE_SOURCE_KINDS = frozenset(
@@ -213,8 +213,6 @@ def write_expert_dataset_npz(
     trace_hash_by_sample: list[str] = []
     for episode, sample_split in zip(episodes, splits):
         trace_manifest, trace_sha256, _ = trace_artifacts[episode]
-        if not trace_manifest.training_eligible:
-            raise ValueError("expert trace manifest is not hardware-verified for training")
         if trace_manifest.dataset_split != sample_split:
             raise ValueError("expert trace manifest split does not match dataset split")
         if trace_manifest.canonical_frame_id != canonical_frame_id:
@@ -353,7 +351,7 @@ def dataset_statistics(dataset: ForceDataset) -> dict[str, object]:
 
 def _load_trace_manifest_artifact(
     path: str | Path,
-) -> tuple[ExpertTraceManifest, str, Path]:
+) -> tuple[ExpertTraceManifestV2, str, Path]:
     artifact_path = Path(path)
     payload = json.loads(artifact_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -363,19 +361,20 @@ def _load_trace_manifest_artifact(
         if set(payload) != {"manifest"} or not isinstance(payload["manifest"], dict):
             raise ValueError("expert trace manifest wrapper is invalid")
         payload = dict(payload["manifest"])
-    manifest = ExpertTraceManifest(**payload)
+    manifest = ExpertTraceManifestV2(**payload)
     if declared_fingerprint is not None and declared_fingerprint != manifest.fingerprint_sha256:
         raise ValueError("expert trace manifest fingerprint mismatch")
+    validate_episode_manifest_artifacts(manifest, artifact_path)
     return manifest, sha256_file(artifact_path), artifact_path
 
 
 def _load_trace_manifest_artifacts(
     paths: str | Path | Sequence[str | Path],
-) -> dict[str, tuple[ExpertTraceManifest, str, Path]]:
+) -> dict[str, tuple[ExpertTraceManifestV2, str, Path]]:
     normalized = (paths,) if isinstance(paths, (str, Path)) else tuple(paths)
     if not normalized:
         raise ValueError("at least one expert trace manifest artifact is required")
-    result: dict[str, tuple[ExpertTraceManifest, str, Path]] = {}
+    result: dict[str, tuple[ExpertTraceManifestV2, str, Path]] = {}
     for path in normalized:
         manifest, artifact_hash, artifact_path = _load_trace_manifest_artifact(path)
         if manifest.trace_id in result:
@@ -413,8 +412,6 @@ def _validate_bound_trace_artifacts(
         }
         if episode_splits != {manifest.dataset_split}:
             raise ValueError("expert trace manifest split binding mismatch")
-        if not manifest.training_eligible:
-            raise ValueError("expert trace manifest is not training eligible")
         if manifest.canonical_frame_id != dataset.canonical_frame_id:
             raise ValueError("expert trace manifest frame binding mismatch")
         if manifest.frame_calibration_sha256 != dataset.frame_calibration_sha256:

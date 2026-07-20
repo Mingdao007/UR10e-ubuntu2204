@@ -12,7 +12,6 @@ from ur10e_vic.tacdiffusion.benchmark import (
     validate_paced_benchmark_candidate,
 )
 from ur10e_vic.tacdiffusion.cli import build_parser, run
-from ur10e_vic.tacdiffusion.contracts import ExpertTraceManifest
 from ur10e_vic.tacdiffusion.dataset import (
     assign_episode_grouped_splits,
     load_expert_dataset_npz,
@@ -28,6 +27,7 @@ from ur10e_vic.tacdiffusion.model import (
     train_ddpm,
     validate_checkpoint_manifest,
 )
+from tacdiffusion_expert_fixtures import write_expert_trace_manifest
 
 
 def _write_trace_manifest(
@@ -38,28 +38,20 @@ def _write_trace_manifest(
     controller_verified: bool = True,
     sample_count: int = 2,
 ) -> Path:
-    manifest = ExpertTraceManifest(
-        trace_id=episode,
-        source_kind="ur10e_expert_demonstration",
-        dataset_split=split,
-        controller_profile="polyscope-5.25.2-direct-torque-v2-500hz",
-        canonical_frame_id="tool0_tcp",
-        controller_verified=controller_verified,
-        controller_readback_sha256="0" * 64,
+    return write_expert_trace_manifest(
+        root,
+        episode,
+        split,
         sample_count=sample_count,
-        has_expert_ff_labels=True,
-        frame_calibration_sha256="1" * 64,
-        expert_policy_sha256="2" * 64,
-        software_sha256="3" * 64,
-        package_sha256="4" * 64,
-        trace_sha256="5" * 64,
-        claim_boundary="ur10e_expert_force_labels",
+        controller_contract_valid=controller_verified,
     )
-    payload = manifest.canonical_payload()
-    payload["fingerprint_sha256"] = manifest.fingerprint_sha256
-    path = root / f"{episode}.trace-manifest.json"
-    path.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
-    return path
+
+
+def _calibration_hash(path: Path) -> str:
+    return str(
+        json.loads(path.read_text(encoding="utf-8"))["artifact_bindings"]
+        ["sensor_calibration"]["sha256"]
+    )
 
 
 def _dataset_bundle(root: Path):
@@ -81,7 +73,7 @@ def _dataset_bundle(root: Path):
         episode_id=episode_ids,
         split=splits,
         canonical_frame_id="tool0_tcp",
-        frame_calibration_sha256="1" * 64,
+        frame_calibration_sha256=_calibration_hash(paths[0]),
         expert_trace_manifest_paths=paths,
     )
     manifest_path = root / "dataset-manifest.json"
@@ -136,7 +128,7 @@ class DatasetPipelineTests(unittest.TestCase):
                     episode_id=("same-episode", "same-episode"),
                     split=("train", "validation"),
                     canonical_frame_id="tool0_tcp",
-                    frame_calibration_sha256="1" * 64,
+                    frame_calibration_sha256=_calibration_hash(trace),
                     expert_trace_manifest_paths=(trace,),
                 )
 
@@ -160,7 +152,7 @@ class DatasetPipelineTests(unittest.TestCase):
             unverified = _write_trace_manifest(
                 root, "episode", "train", controller_verified=False
             )
-            with self.assertRaisesRegex(ValueError, "hardware-verified"):
+            with self.assertRaisesRegex(ValueError, "do not verify the controller"):
                 write_expert_dataset_npz(
                     root / "unverified.npz",
                     condition=condition,
@@ -168,7 +160,7 @@ class DatasetPipelineTests(unittest.TestCase):
                     episode_id=("episode", "episode"),
                     split=("train", "train"),
                     canonical_frame_id="tool0_tcp",
-                    frame_calibration_sha256="1" * 64,
+                    frame_calibration_sha256=_calibration_hash(unverified),
                     expert_trace_manifest_paths=(unverified,),
                 )
 
@@ -197,7 +189,7 @@ class DatasetPipelineTests(unittest.TestCase):
                     episode_id=("episode", "episode"),
                     split=("train", "train"),
                     canonical_frame_id="tool0_tcp",
-                    frame_calibration_sha256="1" * 64,
+                    frame_calibration_sha256=_calibration_hash(trace),
                     expert_trace_manifest_paths=(trace,),
                 )
 
