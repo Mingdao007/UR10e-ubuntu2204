@@ -1,0 +1,11 @@
+{
+  "schema": "step5d_tacdiffusion_sensor_frame_v1",
+  "status": "missing_verified_transform",
+  "frame_token": 5252001,
+  "normal_force_axis": null,
+  "normal_force_sign": null,
+  "wrench_transform_sensor_to_tcp_6x6": null,
+  "evidence": null,
+  "claim_boundary": "Placeholder only. Live bridge start is blocked until a measured, reviewed Kunwei sensor-to-TCP wrench transform and evidence SHA-256 replace this file. Identity must not be assumed."
+}
+
