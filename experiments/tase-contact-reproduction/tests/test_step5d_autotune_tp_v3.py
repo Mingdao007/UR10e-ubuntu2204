@@ -28,6 +28,18 @@ def test_r004_direct_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> 
     assert "local entry_xy_pose = p[entry_x, entry_y, p_current[2]" in rendered
     assert "movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)" in rendered
     assert "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)" in rendered
+    stage22 = rendered.index("write_output_float_register(35, 22.0)")
+    entry_xy_movel = rendered.index(
+        "movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)", stage22
+    )
+    entry_precontact_movel = rendered.index(
+        "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)",
+        entry_xy_movel,
+    )
+    stage23 = rendered.index(
+        "write_output_float_register(35, 23.0)", entry_precontact_movel
+    )
+    assert stage22 < entry_xy_movel < entry_precontact_movel < stage23
     assert "movel(rise_pose, a=0.060, v=0.040, r=0.0)" in rendered
     assert "movel(transfer_pose, a=0.135, v=0.090, r=0.0)" in rendered
     assert "movel(target_pose, a=0.060, v=0.040, r=0.0)" in rendered

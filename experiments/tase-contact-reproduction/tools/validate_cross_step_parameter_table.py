@@ -359,6 +359,12 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         failures.append("Review v3 lane effort contract must be Sol xhigh + Fable high")
     current_stage_id = current.get("current_stage_id")
     current_program = current.get("program")
+    current_local_triplet = current.get("local_triplet")
+    current_package_basename = (
+        Path(current_local_triplet).name
+        if isinstance(current_local_triplet, str) and current_local_triplet
+        else None
+    )
     current_target = current.get("controller_target")
     canonical_step5d = protocol.get("experiment_profiles", {}).get("Step5.step5d_rnn", {})
     if canonical_step5d.get("current_program") != current_program:
@@ -421,7 +427,9 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             failures.append(f"current row binding program mismatch: {binding.get('program')} != {current_program}")
         if binding.get("controller_target") != current_target:
             failures.append("current row binding controller_target does not match current_stage.json")
-        if delivery.get("program_basename") != current_program:
+        if current_package_basename is None:
+            failures.append("current_stage.json lacks a versioned local_triplet basename")
+        elif delivery.get("program_basename") != current_package_basename:
             failures.append("current row package_delivery.program_basename does not match current_stage.json")
         if delivery.get("controller_target") != current_target:
             failures.append("current row package_delivery.controller_target does not match current_stage.json")

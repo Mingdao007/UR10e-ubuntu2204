@@ -95,15 +95,27 @@ class CrossStepParameterTableTest(unittest.TestCase):
         self.assertTrue(row["active"])
         self.assertTrue(row["blocked"])
         self.assertTrue(row["current_binding"]["is_current"])
-        self.assertFalse(row["package_delivery"]["controller_readback_verified"])
+        self.assertTrue(row["package_delivery"]["controller_readback_verified"])
         self.assertEqual(
             current["controller_readback_manifest"],
             row["package_delivery"]["controller_readback_manifest"],
         )
-        self.assertFalse(current["controller_readback_verified_for_selected_triplet"])
+        self.assertEqual(
+            row["package_delivery"]["program_basename"],
+            Path(current["local_triplet"]).name,
+        )
+        self.assertNotEqual(
+            row["package_delivery"]["program_basename"],
+            current["program"],
+        )
+        self.assertTrue(current["controller_readback_verified_for_selected_triplet"])
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
         self.assertFalse(row["current_binding"]["live_authorized"])
-        self.assertTrue(all(value is False for key, value in current["readiness"].items() if key != "selected_release"))
+        self.assertTrue(current["readiness"]["deployment_ready"])
+        self.assertTrue(current["readiness"]["bridge_start_ready"])
+        self.assertFalse(current["readiness"]["bridge_process_ready"])
+        self.assertFalse(current["readiness"]["motion_arm_ready"])
+        self.assertFalse(current["readiness"]["campaign_ready"])
         self.assertFalse(v1["active"])
         self.assertFalse(v1["bridge"])
         self.assertFalse(v1["current_binding"]["is_current"])

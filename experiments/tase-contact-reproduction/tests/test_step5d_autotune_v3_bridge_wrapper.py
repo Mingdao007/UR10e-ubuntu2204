@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 
@@ -22,6 +23,79 @@ from step5d_autotune_v3.identity_layers import (  # noqa: E402
     release_basis_fingerprint,
     runtime_environment_fingerprint,
 )
+
+
+def _armed_v3_pose_bridge() -> tuple[Any, Any, Any]:
+    import kunwei_rtde_bridge as bridge
+    from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+
+    args = bridge.parse_args(
+        [
+            "--bridge-profile",
+            "step5d_strict_rnn_autotune_v1",
+            "--bridge-mode",
+            "line",
+        ]
+    )
+    args.step5d_autotune_handshake = {"command": 1}
+    args.step5d_physical_prior_reaction_normal_b = (
+        STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b
+    )
+    args.step5d_physical_prior_approach_axis_b = (
+        STEP5D_V3_PHYSICAL_PRIOR.approach_axis_b
+    )
+    args.step5d_physical_prior_precontact_rotvec_rad = (
+        STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
+    )
+    args.step5d_physical_prior_identity_payload = (
+        STEP5D_V3_PHYSICAL_PRIOR.identity_payload()
+    )
+    args.step5d_physical_prior_sha256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+    args.step5d_physical_prior_binding_valid = True
+    args.step5d_live_normal_load_gate_n = STEP5D_V3_PHYSICAL_PRIOR.load_gate_n
+    args.step5d_live_normal_load_gate_dwell_s = (
+        STEP5D_V3_PHYSICAL_PRIOR.load_gate_dwell_s
+    )
+    args.step5d_moving_sphere_enabled = False
+
+    state = bridge.BridgeState()
+    prior = STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b
+    state.step5d_physical_prior_reaction_normal_b = prior
+    state.step5d_physical_prior_approach_axis_b = (
+        STEP5D_V3_PHYSICAL_PRIOR.approach_axis_b
+    )
+    state.step5d_physical_prior_precontact_xyz_m = (
+        STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m
+    )
+    state.step5d_physical_prior_sha256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
+    state.latched_normal_b = prior
+    state.filtered_normal_b = prior
+    state.normal_acquired = True
+    return bridge, args, state
+
+
+def _production_pose_tick(
+    bridge: Any,
+    args: Any,
+    state: Any,
+    *,
+    stage: float,
+    pose: list[float],
+) -> dict[str, Any]:
+    return bridge.compute_bridge_values(
+        args,
+        [0.0] * 6,
+        {
+            "actual_TCP_pose": pose,
+            "actual_TCP_speed": [0.0] * 6,
+            "actual_q": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "output_double_register_35": stage,
+        },
+        1.0,
+        state,
+        0.002,
+    )
 
 
 def _ticket(path: Path, argv: list[str]) -> Path:
@@ -286,6 +360,121 @@ def test_r003_stage22_incident_waits_for_post_movel_stage23_admission() -> None:
         step5d_liveprep_profile=False,
         robot_stage=23.0,
     )
+
+
+def test_r003_tick_timeline_runs_the_production_pose_guard_after_movel() -> None:
+    from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+
+    incident = json.loads(
+        (ROOT / "tests/fixtures/v3_r003_stage22_prealign_incident.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    bridge, args, state = _armed_v3_pose_bridge()
+    initial_pose = [
+        *incident["actual_tcp_xyz_m"],
+        *incident["actual_tcp_rotvec_rad"],
+    ]
+    target_pose = [
+        *STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m,
+        *STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad,
+    ]
+    mid_movel_pose = [
+        *(
+            (start + target) / 2.0
+            for start, target in zip(initial_pose[:3], target_pose[:3], strict=True)
+        ),
+        *target_pose[3:],
+    ]
+    search_far_pose = [target_pose[0], target_pose[1], 0.017, *target_pose[3:]]
+    search_near_pose = [target_pose[0], target_pose[1], 0.010, *target_pose[3:]]
+    timeline = [
+        ("pre_campaign", 20.0, initial_pose, False, False),
+        ("stage22_before_movel", 22.0, initial_pose, False, False),
+        ("stage22_movel_in_progress", 22.0, mid_movel_pose, False, False),
+        ("stage22_movel_complete", 22.0, target_pose, False, False),
+        ("stage23_post_movel_admission", 23.0, target_pose, True, True),
+        ("stage24_search_far", 24.0, search_far_pose, True, False),
+        ("stage24_2_search_near", 24.2, search_near_pose, True, False),
+        ("trial_terminal", 29.0, search_near_pose, False, False),
+    ]
+
+    observed: dict[str, dict[str, Any]] = {}
+    for name, stage, pose, active, position_required in timeline:
+        values = _production_pose_tick(
+            bridge,
+            args,
+            state,
+            stage=stage,
+            pose=pose,
+        )
+        observed[name] = values
+        assert values["_step5d_search_pose_contract_active"] == float(active)
+        assert values["_step5d_search_pose_contract_position_required"] == float(
+            position_required
+        )
+        assert values.get("stop_request", 0.0) == 0.0
+        assert values.get("_step5d_contact_safety_reason") != (
+            "physical_prior_search_pose_mismatch"
+        )
+
+    admitted = observed["stage23_post_movel_admission"]
+    assert admitted["_step5d_search_pose_contract_position_ok"] == 1.0
+    assert admitted["_step5d_search_pose_contract_orientation_ok"] == 1.0
+    assert admitted["_step5d_prealign_verified"] == 1.0
+    for name in ("stage24_search_far", "stage24_2_search_near"):
+        assert observed[name]["_step5d_search_pose_contract_position_ok"] == 1.0
+        assert observed[name]["_step5d_search_pose_contract_orientation_ok"] == 1.0
+
+
+def test_production_pose_timeline_fails_closed_on_stage_pose_mismatch() -> None:
+    from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+
+    incident = json.loads(
+        (ROOT / "tests/fixtures/v3_r003_stage22_prealign_incident.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    initial_pose = [
+        *incident["actual_tcp_xyz_m"],
+        *incident["actual_tcp_rotvec_rad"],
+    ]
+    target_pose = [
+        *STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m,
+        *STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad,
+    ]
+    bad_position = [
+        target_pose[0] + 0.004,
+        target_pose[1],
+        target_pose[2],
+        *target_pose[3:],
+    ]
+    bad_orientation = [*target_pose[:3], *initial_pose[3:]]
+    bad_search_orientation = [target_pose[0], target_pose[1], 0.012, *initial_pose[3:]]
+    cases = [
+        ("stage23_published_before_movel_completion", 23.0, initial_pose),
+        ("stage23_position_outside_tolerance", 23.0, bad_position),
+        ("stage23_orientation_outside_tolerance", 23.0, bad_orientation),
+        ("stage24_orientation_drift", 24.0, bad_search_orientation),
+    ]
+
+    for name, stage, pose in cases:
+        bridge, args, state = _armed_v3_pose_bridge()
+        values = _production_pose_tick(
+            bridge,
+            args,
+            state,
+            stage=stage,
+            pose=pose,
+        )
+        assert values["_step5d_search_pose_contract_active"] == 1.0, name
+        assert values["_step5d_search_pose_contract_ok"] == 0.0, name
+        assert values["stop_request"] == 1.0, name
+        assert values["step4e_cmd_valid"] == 0.0, name
+        assert values["_step5d_contact_safety_reason"] == (
+            "physical_prior_search_pose_mismatch"
+        ), name
+        assert all(values[field] == 0.0 for field in bridge.BRIDGE_INPUT_NAMES[:6]), name
 
 
 def test_pre_arm_hold_tick_keeps_bridge_alive_with_zero_command() -> None:
