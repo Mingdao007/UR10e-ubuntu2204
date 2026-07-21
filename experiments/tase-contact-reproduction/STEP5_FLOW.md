@@ -497,7 +497,44 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v33c20` | current 20 s canary; first live attempt failed cadence acceptance | true | false | latest-sample strict TASE RNN speedj; Step5b-equivalent outer | latched contact normal | Freshness/XY/qd/RNN/Safety/gross criteria passed in `20260715_002234`; 28 row gaps >20 ms, max 53.3 ms, sent/echo gap 6. Retry requires analysis and new explicit authorization. |
 | `step5d_strict_rnn_ablation_v33` | staged 60 s full candidate | true | false | latest-sample strict TASE RNN speedj; Step5b-equivalent outer | latched contact normal | Separate full-run identity; may become current only after v33c20 passes and the user separately authorizes the full run. |
 | `step5d_ros2_remote_shadow_v1` | ROS2 offline | true | false | ROS2 shadow replay | `v31_filtered_live` input logs | Diagnostic-only Step5d policy replay: replays v15a/v14/v11 and Step5b/Step6b CSVs, removes long zero-qdot hold recovery, but is not live-ready and must follow Step5b plumbing validation. |
+| `step5d_strict_rnn_autotune_v3_remote_prep_v1` | ROS2 Remote offline prep | true | false | strict TASE RNN only | V3 force/frame contract | Lightweight transport preparation bound to the V3 contract and launch profile. It provides a six-joint latching watchdog controller, source-hashed release, explicit occurrence-bound trial envelope, and offline replay. It is inactive, not current, not live-certified, and offline receipts cannot enter BO. |
 | `step5d_strict_rnn_reproduction_v1` | bridge+TP | true | true | strict TASE RNN | paper-truth required | Complete-RNN reproduction target. Blocked until paper truth, strict solver, calibrated kinematics, qdot path, numeric sanity, non-quarantine package, controller read-back, and separate live plan all pass. |
+
+### Lightweight ROS2 Remote preparation
+
+`config/step5d_remote/remote_prep_v1.json` is the byte-bound preparation
+release. It contains no independent control tuning: update rate, joint velocity
+cap, slew/acceleration cap, RNN epsilon, exponent, inner-iteration count, and
+backend are read from the exact V3 control contract. The transport-only stale
+window is five V3 ticks. Changing any governed source or inherited input makes
+release validation fail closed.
+
+`ur10e_step5d_remote_watchdog/WatchdogController` is the only prepared command
+sink. Before its first valid six-joint command it writes exact zero. Bad shape,
+non-finite input, velocity-cap violation, slew violation, or stale input latches
+exact zero until a lifecycle reset; it does not clamp and continue. One active
+controller is assumed and controller switching is forbidden by the release.
+
+The Remote Python path accepts commands only from
+`StrictRnnControlPolicy` through the Remote-owned `remote_rnn_control_step`.
+The frozen V3 `step5d_control_contract.py` remains byte-identical, so preparing
+this route cannot invalidate the current TP/V3 source identity. Its
+diagnostics contain only RNN, safety-decision, and command fields. Solver state
+starts/reset as RNN state and no alternate IK seed or runtime fallback is used.
+Offline replay bootstraps the existing V3 stable CuPy/CUDA environment through
+the V3 runtime-calibration owner; a missing CuPy runtime is a blocker and never
+causes a NumPy fallback.
+Trial preparation requires the exact campaign fingerprint, trial UID,
+occurrence UID, batch row, plant epoch, normalized V3 overlay, and transport
+identity; none is inferred from a trial number.
+
+This release deliberately stops at offline preparation. `run-single-trial`
+fails before importing or contacting a ROS driver, and `import-result` validates
+a transport-neutral safe-closure receipt but refuses journal mutation with
+`campaign_transport_adapter_not_synced`. Live work still requires a calibrated
+observation producer, controller-manager/driver lifecycle proof, hardware
+zero/inactive closure, final campaign adapter sync, owner gates, and fresh user
+authorization.
 
 ## Step5c Calibrated Kinematics Gate
 
@@ -1215,12 +1252,8 @@ gate, the qdot register path is repaired, strict RNN paper-truth extraction is
 closed where applicable, numeric sanity passes, and a separate live plan is
 explicitly accepted.
 
-Step5d v35 is the current full-run candidate. It preserves the v34
-Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP acceleration
-`0.1 rad/s^2`, fresh-feedback drain, permissive ordinary guards, and gross
-60 N / 100 N / 3 Nm protection. Its scheduler-only delta keeps the control
-thread and every helper thread at `SCHED_OTHER/0`; it never writes Linux RT
-quota settings. Package upload/read-back, offline timing, freeze, and review
-remain distinct from live authorization. `scripts/step5d-strict-rnn-contact-v35.sh
-contact-bridge` must stay blocked until v35 is the canonical current binding
-and the user issues a fresh bridge authorization.
+`step5d_strict_rnn_autotune_v3` remains the unique current Step5d route. The
+new Remote preparation row is an inactive transport candidate and does not
+change `config/current_stage.json`, the controller target, or the TP/local
+campaign. Package read-back, offline validation, transport preparation, and
+live authorization remain separate states.
