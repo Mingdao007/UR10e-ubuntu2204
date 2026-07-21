@@ -12,6 +12,14 @@ from typing import Any, Mapping, Sequence
 import sys
 
 import run_step5d_autotune_v3_bridge as r009_bridge
+import step5d_autotune_live_driver as live_driver
+from step5d_autotune_contract import ForceCandidate
+from step5d_autotune_v3.profile import canonical_sha256
+from step5d_autotune_v3.runtime_profile import (
+    DEFAULT_LAUNCH_PROFILE,
+    load_launch_profile,
+    normalize_trial_overlay,
+)
 from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 from step5d_manual_bridge import (
     CONTROL_PROFILE, DEFAULT_PREFLIGHT_MAX_AGE_S, PROGRAM, PROTOCOL,
@@ -88,6 +96,74 @@ def strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
     return payload
 
 
+def apply_manual_arm_runtime(
+    bridge: Any,
+    args: Any,
+    binding: Any,
+    _arming_context: Any | None = None,
+) -> None:
+    """Apply one validated manual overlay without the frozen r009 UID typo."""
+
+    overlay = binding.trial_overlay
+    if overlay is None:
+        raise ManualBridgeError("manual ARM requires a bound trial overlay")
+    normalized = normalize_trial_overlay(
+        overlay,
+        profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+    )
+    candidate = ForceCandidate(
+        force_p_gain=normalized["force_p_gain"],
+        force_i_gain=normalized["force_i_gain"],
+        force_damping=normalized["force_damping"],
+    )
+    profile = binding.profile
+    args.step5d_autotune_force_p = candidate.force_p_gain
+    args.step5d_autotune_force_i = candidate.force_i_gain
+    args.step5d_autotune_force_damping = candidate.force_damping
+    args.step5d_autotune_force_terms = {
+        "P": candidate.force_p_gain,
+        "I": candidate.force_i_gain,
+        "damping": candidate.force_damping,
+        **candidate.native_mapping,
+    }
+    args.step5d_autotune_normal_rate_rad_s = profile.normal_max_rate_rad_s
+    args.step5d_autotune_host_slew_rad_s2 = profile.host_qdot_slew_rad_s2
+    args.step5d_autotune_speedj_acceleration_rad_s2 = profile.tp_speedj_accel_rad_s2
+    args.bridge_normal_max_rate_rad_s = profile.normal_max_rate_rad_s
+    args.step4e_normal_max_rate_rad_s = profile.normal_max_rate_rad_s
+    args.step5d_autotune_profile_eligibility = "live_eligible"
+    args.step5d_autotune_batch_row_index = binding.batch_row_index or 0
+    args.step5d_autotune_logical_batch_sequence = binding.logical_batch_sequence or 0
+    for field in (
+        "step5d_preload_filtered_min_n",
+        "step5d_preload_filtered_max_n",
+        "step5d_preload_raw_min_n",
+        "step5d_preload_raw_max_n",
+        "step5d_preload_force_norm_max_n",
+        "step5d_preload_hold_s",
+        "step5d_preload_timeout_s",
+    ):
+        setattr(args, field, float(normalized[field]))
+    args.step5d_autotune_control_candidate_uid = normalized["control_candidate_uid"]
+    args.step5d_autotune_orientation_ko = normalized["orientation_ko"]
+    bridge.STEP5D_V33_ORIENTATION_KO = normalized["orientation_ko"]
+    prior = r009_bridge.STEP5D_V3_PHYSICAL_PRIOR
+    args.step5d_physical_prior_reaction_normal_b = prior.reaction_normal_b
+    args.step5d_physical_prior_approach_axis_b = prior.approach_axis_b
+    args.step5d_physical_prior_precontact_rotvec_rad = prior.precontact_rotvec_rad
+    args.step5d_physical_prior_identity_payload = prior.identity_payload()
+    args.step5d_physical_prior_sha256 = prior.fingerprint
+    args.step5d_physical_prior_binding_valid = (
+        canonical_sha256(args.step5d_physical_prior_identity_payload)
+        == args.step5d_physical_prior_sha256
+    )
+    args.step5d_live_normal_load_gate_n = prior.load_gate_n
+    args.step5d_live_normal_load_gate_dwell_s = prior.load_gate_dwell_s
+    args.bridge_normal_max_rate_rad_s = prior.normal_rate_limit_rad_s
+    args.step4e_normal_max_rate_rad_s = prior.normal_rate_limit_rad_s
+    args.step5d_moving_sphere_enabled = False
+
+
 def install_manual_seams(ticket: Mapping[str, Any]) -> Any:
     wire_release = SimpleNamespace(
         release_stage_id=RELEASE_STAGE,
@@ -126,6 +202,11 @@ def install_manual_seams(ticket: Mapping[str, Any]) -> Any:
         }
 
     bridge.require_v29_live_bridge_authorization = manual_authorization_gate
+    live_driver.BridgeMailboxRuntime._apply_arm_runtime = staticmethod(
+        lambda args, binding, arming_context=None: apply_manual_arm_runtime(
+            bridge, args, binding, arming_context
+        )
+    )
     return bridge
 
 

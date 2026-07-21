@@ -39,6 +39,7 @@ SOURCE_INPUTS = (
     Path("tools/preflight_step5d_manual_bridge.py"),
     Path("tools/run_step5d_manual_bridge.py"),
     Path("tools/run_step5d_manual_bridge_live.py"),
+    Path("tools/run_step5d_manual_live_campaign.py"),
     Path("tools/step5d_manual_atomic_release.py"),
     Path("tools/promote_step5d_manual_release.py"),
     Path("tools/run_step5d_manual_tp_transaction.py"),

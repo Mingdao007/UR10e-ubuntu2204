@@ -25,6 +25,7 @@ from step5d_manual_runtime import (  # noqa: E402
     issue_prepared_intent,
     load_state,
     prepare_next_intent,
+    seed_home_state,
 )
 
 
@@ -166,3 +167,26 @@ def test_manual_runtime_restart_does_not_duplicate_inflight_request(tmp_path: Pa
             campaign_id="manual-campaign-1",
             release_manifest_sha256=RELEASE_SHA,
         )
+
+
+def test_seed_home_state_advances_first_live_identity(tmp_path: Path) -> None:
+    queue = tmp_path / "manual_queue.json"
+    _enqueue(queue, nonce="1" * 32)
+    state = tmp_path / "manual_runtime_state.json"
+    seed_home_state(
+        state,
+        campaign_id="manual-campaign-1",
+        release_sha=RELEASE_SHA,
+        campaign_epoch=1,
+        last_trial_id=1,
+        last_command_seq=1,
+    )
+    intent = prepare_next_intent(
+        queue_path=queue,
+        state_path=state,
+        campaign_id="manual-campaign-1",
+        release_manifest_sha256=RELEASE_SHA,
+    )
+    assert intent is not None
+    assert intent.trial_id == 2
+    assert intent.command_seq == 2

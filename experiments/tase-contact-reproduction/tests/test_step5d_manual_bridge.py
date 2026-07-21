@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import preflight_step5d_manual_bridge as preflight  # noqa: E402
 import run_step5d_manual_bridge as wrapper  # noqa: E402
 import run_step5d_manual_bridge_live as live  # noqa: E402
+import run_step5d_manual_live_campaign as campaign  # noqa: E402
 import step5d_manual_bridge as bridge  # noqa: E402
 from step5d_manual_atomic_release import canonical_bytes  # noqa: E402
 
@@ -177,3 +178,131 @@ def test_manual_authorization_seam_is_bridge_only_no_arm(monkeypatch: pytest.Mon
     assert result["protocol_id"] == bridge.PROTOCOL
     assert result["wire_protocol_id"] == bridge.WIRE_PROTOCOL
     assert result["live_motion_authorized"] is False
+
+
+def test_manual_arm_runtime_applies_exact_i1e4_and_uid(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_bridge = SimpleNamespace(STEP5D_V33_ORIENTATION_KO=None)
+    prior = SimpleNamespace(
+        reaction_normal_b=(0.0, 0.0, 1.0),
+        approach_axis_b=(0.0, 0.0, -1.0),
+        precontact_rotvec_rad=(0.0, 0.0, 0.0),
+        fingerprint="a" * 64,
+        load_gate_n=1.0,
+        load_gate_dwell_s=0.1,
+        normal_rate_limit_rad_s=0.1,
+        identity_payload=lambda: {"identity": "test"},
+    )
+    monkeypatch.setattr(wrapper.r009_bridge, "STEP5D_V3_PHYSICAL_PRIOR", prior)
+    monkeypatch.setattr(wrapper, "canonical_sha256", lambda _payload: "a" * 64)
+    overlay = dict(campaign.normalize_trial_overlay(
+        {
+            "force_p_gain": 0.001,
+            "force_i_gain": 0.0001,
+            "force_damping": 7.0,
+            "orientation_ko": 0.4,
+            "execution_profile_id": "nf100-slew050-a050",
+            "step5d_preload_filtered_min_n": 7.5,
+            "step5d_preload_filtered_max_n": 14.0,
+            "step5d_preload_raw_min_n": 7.0,
+            "step5d_preload_raw_max_n": 15.0,
+            "step5d_preload_force_norm_max_n": 25.0,
+            "step5d_preload_hold_s": 0.1,
+            "step5d_preload_timeout_s": 10.0,
+        },
+        profile=campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE),
+    ))
+    profile = next(row for row in campaign.NORMAL_FILTER_PROFILES if row.profile_id == "nf100-slew050-a050")
+    args = SimpleNamespace()
+    wrapper.apply_manual_arm_runtime(fake_bridge, args, SimpleNamespace(
+        trial_overlay=overlay,
+        profile=profile,
+        batch_row_index=1,
+        logical_batch_sequence=1,
+    ))
+    assert args.step5d_autotune_force_i == 0.0001
+    assert args.step5d_autotune_control_candidate_uid == overlay["control_candidate_uid"]
+    assert args.step5d_autotune_batch_row_index == 1
+
+
+def test_live_campaign_rejects_stale_intent_before_mailbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_path = tmp_path / "control/state.json"
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text("{}")
+    monkeypatch.setattr(campaign, "validate_bridge", lambda *_args: (
+        tmp_path / "runtime/command.json",
+        {
+            "state": 90,
+            "campaign_epoch": 1,
+            "trial_id": 1,
+            "consumed_command_seq": 1,
+            "command": 0,
+            "controller_state": 0,
+            "safety_mode": 1,
+        },
+    ))
+    monkeypatch.setattr(campaign, "load_state", lambda *_args, **_kwargs: {
+        "inflight": {
+            "packet": {"campaign_epoch": 1, "trial_id": 1, "command_seq": 1},
+            "overlay": {"force_i_gain": 0.0001},
+        }
+    })
+    args = SimpleNamespace(
+        bridge_output_root=tmp_path,
+        queue=tmp_path / "control/queue.json",
+        state=state_path,
+        campaign_id="manual-test",
+        release_manifest_sha256="a" * 64,
+    )
+    with pytest.raises(campaign.ManualLiveError, match="stale"):
+        campaign.run(args)
+
+
+def test_manual_prepared_mailbox_round_trip_i1e4(tmp_path: Path) -> None:
+    overlay = campaign.normalize_trial_overlay(
+        {
+            "force_p_gain": 0.001,
+            "force_i_gain": 0.0001,
+            "force_damping": 7.0,
+            "orientation_ko": 0.4,
+            "execution_profile_id": "nf100-slew050-a050",
+            "step5d_preload_filtered_min_n": 7.5,
+            "step5d_preload_filtered_max_n": 14.0,
+            "step5d_preload_raw_min_n": 7.0,
+            "step5d_preload_raw_max_n": 15.0,
+            "step5d_preload_force_norm_max_n": 25.0,
+            "step5d_preload_hold_s": 0.1,
+            "step5d_preload_timeout_s": 10.0,
+        },
+        profile=campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE),
+    )
+    intent = {
+        "campaign_id": "manual-test",
+        "release_manifest_sha256": "a" * 64,
+        "packet": {
+            "campaign_epoch": 1,
+            "trial_id": 2,
+            "command": 1,
+            "candidate_token": 123,
+            "execution_profile_id": 633,
+            "command_seq": 2,
+            "logical_batch_sequence": 1,
+            "batch_row_index": 1,
+        },
+        "request_identity": {
+            "occurrence_uid": "b" * 64,
+            "transport_candidate_uid": "c" * 64,
+            "normalized_overlay_sha256": campaign.normalized_overlay_sha256(
+                campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE), overlay
+            ),
+        },
+        "overlay": overlay,
+    }
+    packet, prepared = campaign._prepared(intent)
+    mailbox_path = (tmp_path / "command.json").resolve()
+    mailbox = campaign.AtomicCommandMailbox(mailbox_path, network_mode=True)
+    mailbox.send_command(packet, prepared_trial=prepared)
+    decoded = mailbox.read_latest()
+    assert decoded is not None
+    assert decoded.packet.command_seq == 2
+    assert decoded.binding.candidate.force_i_gain == 0.0001
+    assert decoded.binding.trial_overlay["control_candidate_uid"] == overlay["control_candidate_uid"]

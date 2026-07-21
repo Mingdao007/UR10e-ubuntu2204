@@ -68,3 +68,7 @@ and one process-lifetime NO_ARM bridge owner:
   not authorize ARM or motion and cannot silently select the r009 TP program.
 
 Bridge start, TP Play, ARM, and live/contact remain separate explicit gates.
+After an explicit motion authorization, `run_step5d_manual_live_campaign.py`
+binds the already-fsynced one-row intent to the exact running bridge, requires
+a newer command/trial identity than the observed READY_HOME snapshot, and
+atomically stages the ARM mailbox before the operator presses Play.

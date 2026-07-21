@@ -151,6 +151,34 @@ def load_state(path: Path, *, campaign_id: str, release_sha: str) -> dict[str, A
     return payload
 
 
+def seed_home_state(
+    path: Path,
+    *,
+    campaign_id: str,
+    release_sha: str,
+    campaign_epoch: int,
+    last_trial_id: int,
+    last_command_seq: int,
+) -> dict[str, Any]:
+    """Seed a new manual ledger from one exact observed READY_HOME identity."""
+
+    if path.exists() or path.is_symlink():
+        raise ManualRuntimeError("manual runtime state already exists")
+    for name, value in (
+        ("campaign_epoch", campaign_epoch),
+        ("last_trial_id", last_trial_id),
+        ("last_command_seq", last_command_seq),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ManualRuntimeError(f"{name} must be a positive observed integer")
+    state = _initial_state(campaign_id, release_sha)
+    state["campaign_epoch"] = campaign_epoch
+    state["last_trial_id"] = last_trial_id
+    state["last_command_seq"] = last_command_seq
+    _atomic_json(path, state)
+    return state
+
+
 def wait_for_request(
     queue_path: Path,
     *,
@@ -261,5 +289,6 @@ def confirm_home_complete(
 
 __all__ = [
     "ManualArmIntent", "ManualRuntimeError", "confirm_home_complete",
-    "issue_prepared_intent", "load_state", "prepare_next_intent", "wait_for_request",
+    "issue_prepared_intent", "load_state", "prepare_next_intent",
+    "seed_home_state", "wait_for_request",
 ]
