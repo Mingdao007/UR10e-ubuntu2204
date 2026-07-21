@@ -29,14 +29,14 @@ MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
 PRE_LIVE_VALIDATION_DECISION = {
     "acceptance_scope": VALIDATION_SCOPE,
     "offline_implementation": "pass",
-    "hardware_promotion": "blocked_requires_r006_controller_readback",
+    "hardware_promotion": "candidate_controller_readback_verified",
     "current_selector": V3_STAGE_ID,
     "v3_active": True,
     "robot_power_state": "runtime_observation_required",
     "certification_motion_authorization_required": False,
     "campaign_authorization_required": False,
     "live_motion_authorized": False,
-    "execution_readiness": "pre_live_blocked",
+    "execution_readiness": "bridge_start_ready",
 }
 SEAM_EVIDENCE_RELATIVE = (
     "config/step5/step5d_autotune_v3_sphere_seam_timing_c1c066f7.json"
@@ -620,12 +620,12 @@ def _verify_validation(
     package_gate = gates.get("package_and_readback") or {}
     _require(
         package_gate.get("status"),
-        "blocked_r006_local_only_requires_controller_readback",
+        "pass_current_triplet_controller_readback",
         "package/readback status",
     )
     _require(
         package_gate.get("blocker"),
-        "requires_r006_controller_readback",
+        None,
         "package blocker",
     )
     _require(package_gate.get("controller_readback"), readback_relative, "controller readback path")
@@ -638,12 +638,12 @@ def _verify_validation(
     )
     _require(
         local_candidate.get("controller_readback_verified"),
-        False,
+        True,
         "validation local candidate readback",
     )
     _require(
         local_candidate.get("promotion_status"),
-        "requires_attended_tp_upload_readback",
+        "controller_readback_verified",
         "validation local candidate promotion",
     )
     stopping = gates.get("stopping_bound") or {}
@@ -946,7 +946,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     package = v3.get("package_delivery") or {}
     _require(
         package.get("status"),
-        "historical_controller_readback_verified_known_incompatible_do_not_retry",
+        "controller_readback_verified",
         "package status",
     )
     _require(package.get("controller_uploaded_by_v3"), True, "V3 upload claim")
@@ -996,13 +996,13 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     _require(candidate.get("program_basename"), candidate_program, "candidate program")
     _require(
         candidate.get("status"),
-        "local_only_requires_controller_readback",
+        "controller_readback_verified",
         "candidate status",
     )
-    _require(candidate.get("controller_uploaded"), False, "candidate upload claim")
+    _require(candidate.get("controller_uploaded"), True, "candidate upload claim")
     _require(
         candidate.get("controller_readback_verified"),
-        False,
+        True,
         "candidate readback claim",
     )
     if not isinstance(candidate_prefix, str):
@@ -1040,27 +1040,23 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     _require(_sha256(validation_path), offline.get("report_sha256"), "validation report digest")
 
     readiness = v3.get("execution_readiness") or {}
-    expected_blockers = [
-        "selected_tp_program_known_incompatible_do_not_retry",
-        "r005_post_ack_csv_schema_timeout_incident",
-        "requires_r006_controller_readback",
-    ]
-    public_success_signal = expected_blockers[0]
+    expected_blockers: list[str] = []
+    public_success_signal = "controller_readback_verified_ready_for_bridge_context"
     for key, expected in (
         ("schema", "step5d.autotune-v3/execution-readiness-v3"),
-        ("state", "pre_live_blocked"),
+        ("state", "bridge_start_ready"),
         (
             "public_success_signal",
             public_success_signal,
         ),
         ("deterministic_validation_complete", True),
-        ("package_delivery_complete", False),
-        ("candidate_current", False),
+        ("package_delivery_complete", True),
+        ("candidate_current", True),
         ("live_runtime_promoted", False),
         ("same_process_startup_gate_complete", False),
-        ("ready_to_execute", False),
+        ("ready_to_execute", True),
         ("ready_to_load_play", False),
-        ("ready_to_start_bridge", False),
+        ("ready_to_start_bridge", True),
         ("ready_to_arm", False),
         ("ready_for_contact_or_motion", False),
     ):
@@ -1073,7 +1069,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         ("certification_motion_authorization_required", False),
         ("campaign_authorization_required", False),
         ("internal_launch_binding", MACHINE_BINDING),
-        ("tp_action", "attended_r006_upload_readback_required"),
+        ("tp_action", "controller_readback_verified_no_load_or_play"),
         ("play_effect", "user_owned_command_1_after_bridge_ready"),
     ):
         _require(trigger.get(key), expected, f"operator trigger {key}")
@@ -1091,17 +1087,16 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "ok": True,
         "candidate_stage_id": V3_STAGE_ID,
         "current_stage_id": V3_STAGE_ID,
-        "state": "pre_live_blocked",
+        "state": "bridge_start_ready",
         "public_success_signal": public_success_signal,
-        "ready_to_execute": False,
-        "package_delivery": "r005_historical_r006_local_only",
+        "ready_to_execute": True,
+        "package_delivery": "r006_controller_readback_verified",
         "controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
-        "next_owner": "ur10e-tp-package-delivery",
+        "next_owner": "ur10e-bridge-ops",
         "next_legal_action": (
-            "perform attended r006 upload and exact controller readback; do not "
-            "build a bridge context before the candidate readback matches"
+            "build a fresh bridge-start context without ARM, Load, Play, or motion"
         ),
         "timing_diagnostic": (
             "pass_current_source_formal_500hz_timing"

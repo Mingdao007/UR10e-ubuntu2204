@@ -1,6 +1,7 @@
 # Step5d V3 direct-autotune convergence contract
 
-Status: r006 offline release closed on 2026-07-21; live acceptance remains open.
+Status: r006 offline release and exact controller readback closed on 2026-07-21;
+bridge/runtime and live acceptance remain open.
 
 This file and `config/step5d/v3_active_surface.json` are the only durable
 resume surfaces for the convergence task. Historical rollouts, certification
@@ -24,14 +25,20 @@ leaves the task incomplete.
 ## Locked decisions
 
 - Release/stage: `step5d_strict_rnn_autotune_v3`.
-- Deployed historical TP: `step5d_strict_rnn_autotune_v3_r005`, whose exact
+- Historical TP: `step5d_strict_rnn_autotune_v3_r005`, whose exact
   readback remains factual but whose disposition is
   `known_incompatible_do_not_retry`. It cannot produce a bridge context or an
   optimizer observation.
-- Local candidate TP: `step5d_strict_rnn_autotune_v3_r006`, immutable and
-  local-only until exact attended controller upload/readback. r004 and r005
-  remain immutable incident evidence. Every later update requires a new
-  basename `r007`, `r008`, and so on.
+- Deployed/current TP: `step5d_strict_rnn_autotune_v3_r006`, immutable and
+  exact controller-readback verified at 2026-07-21T11:00:33+08:00. It is
+  bridge-context eligible but not loaded, playing, armed, motion-authorized,
+  or live-accepted. r004 and r005 remain immutable incident evidence. Every
+  later content update requires a new basename `r007`, `r008`, and so on.
+- Future delivery must use `scripts/step5d-autotune-v3.sh deliver-r006`, whose
+  single transaction performs the local gate, exact triplet upload, fresh GET,
+  SHA/identity comparison, and manifest-driven promotion/rebuild. Direct use of
+  the lower-level uploader is not a completed V3 promotion. An unchanged,
+  already-promoted triplet is not re-uploaded merely to start a bridge.
 - Frozen Stage25 control provenance:
   `step5d_strict_rnn_autotune_v1` at tag
   `archive/step5d-autotune-v1-20260715` (commit
@@ -79,7 +86,7 @@ leaves the task incomplete.
 - Formal timing/stress testing and the temporary CPU/GPU timing service are not
   part of this task.
 - Audits never block experiment startup. Only after the real campaign reaches
-  Stage25, launch one non-blocking Fable advisory and one Sol/XHigh read-only
+  Stage25, launch one non-blocking Fable advisory and one Sol / xhigh read-only
   audit in parallel with the experiment.
 - The old unversioned V3 package and `step5d_strict_rnn_no_contact_p0_v9`
   must be archived only after a fresh controller readback proves the exact

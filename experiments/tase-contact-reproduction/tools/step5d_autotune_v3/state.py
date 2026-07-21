@@ -349,6 +349,8 @@ ORCHESTRATION_RELATIVE_PATHS = (
     "tools/step5d_autotune_v3/runtime_calibration.py",
     "tools/step5d_autotune_v3/runtime_profile.py",
     "tools/run_step5d_autotune_v3_bridge.py",
+    "tools/run_step5d_autotune_v3_tp_transaction.py",
+    "tools/promote_step5d_autotune_v3_delivery.py",
     "tools/run_step5d_autotune_v3_live.py",
     "tools/preflight_step5d_autotune_v3.py",
     "tools/verify_step5d_autotune_v3_execution_readiness.py",

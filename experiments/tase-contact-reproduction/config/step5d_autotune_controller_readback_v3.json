@@ -2,40 +2,40 @@
   "schema": "step5d.autotune.controller-readback/v3",
   "status": "controller read-back verified",
   "verified": true,
-  "program": "step5d_strict_rnn_autotune_v3_r005",
+  "program": "step5d_strict_rnn_autotune_v3_r006",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "controller": "root@192.168.1.18",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r005.urp",
-  "fresh_controller_checked_at": "2026-07-20T20:52:00+08:00",
-  "source_stamp": "2026-07-20T2235HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R005",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r006.urp",
+  "fresh_controller_checked_at": "2026-07-21T11:00:33+08:00",
+  "source_stamp": "2026-07-21T0200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R006_LOCAL_ONLY",
   "triplet_sha256": {
-    ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
-    ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
-    ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
+    ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
+    ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
+    ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
   },
   "sha256": {
     "local": {
-      ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
-      ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
-      ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
+      ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
+      ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
+      ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
     },
     "controller": {
-      ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
-      ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
-      ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
+      ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
+      ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
+      ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
     },
     "readback": {
-      ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
-      ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
-      ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
+      ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
+      ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
+      ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
     }
   },
-  "tp_fingerprint": "61ed7c95c96cfab6d0522f596787dfb461bdd8a21f0ea53e561c4893b2e63d45",
-  "fresh_readback_manifest_sha256": "b66773266e7ac5929977b7e0cf9d5069f45da02bce78d6034dfe1088383428ec",
-  "fresh_readback_source": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/controller_readback_20260720T205200HKT.json",
+  "tp_fingerprint": "922aaf4af9d6d3eafa742dfb41cca1467e609eb6e84cd04d222ba705360d1385",
+  "fresh_readback_manifest_sha256": "f77bab6b9d8b610c559d50e4570018b593708fdf5c4af02ccfdf158577fbd2c2",
+  "fresh_readback_source": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/controller_readback_20260721T110033HKT.json",
   "safety_boundary": [
     "controller package upload and fresh read-back only",
-    "V3 remains the unique selected/current release",
+    "r006 is eligible for current promotion only after this exact read-back",
     "no Load, Play, bridge, ARM, contact, or motion"
   ]
 }

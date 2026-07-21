@@ -25,7 +25,7 @@ from step5d_autotune_v3 import readiness  # noqa: E402
 
 V1 = "step5d_strict_rnn_autotune_v1"
 V3 = "step5d_strict_rnn_autotune_v3"
-R005 = "step5d_strict_rnn_autotune_v3_r005"
+R006 = "step5d_strict_rnn_autotune_v3_r006"
 
 
 def _write(path: Path, payload: object) -> Path:
@@ -93,7 +93,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         root / "config/step5d/current.json",
         {
             "program": V3,
-            "tp_program_id": R005,
+            "tp_program_id": R006,
             "tp_program_disposition": "controller_readback_verified",
             "host_runtime_disposition": "verified_r006_cross_process_direct_arm1_arm2_offline",
             "selection_state": "current",
@@ -105,7 +105,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         {
             "schema": "step5d.autotune.controller-readback/v3",
             "verified": True,
-            "program": R005,
+            "program": R006,
             "control_profile_id": V1,
             "triplet_sha256": triplet,
         },
@@ -197,7 +197,7 @@ def test_known_incompatible_tp_program_cannot_reuse_a_bridge_context(
     assert report["bridge_start_ready"] is False
     assert report["tp_program_start_allowed"] is False
     assert "selected_tp_program_known_incompatible_do_not_retry" in report["blockers"]
-    assert "r005_post_ack_csv_schema_timeout_incident" in report["blockers"]
+    assert "r005_post_ack_csv_schema_timeout_incident" not in report["blockers"]
 
 
 def test_known_incompatible_host_runtime_cannot_reuse_a_bridge_context(

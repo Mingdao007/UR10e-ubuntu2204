@@ -40,6 +40,11 @@ for candidate in "${ROS_PYTHON_PATHS[@]}"; do
 done
 export PYTHONPATH="${RUNTIME_PYTHONPATH}"
 export AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"
+if [[ "${1:-}" == "deliver-r006" ]]; then
+  shift
+  exec python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
+    --root "${EXPERIMENT_ROOT}" "$@"
+fi
 if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
   mode="$1"
   shift

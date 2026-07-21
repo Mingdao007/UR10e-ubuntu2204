@@ -165,7 +165,10 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     if (
         candidate_identity["program"] != "step5d_strict_rnn_autotune_v3_r006"
         or candidate_identity["mode"]
-        != "local_only_requires_attended_controller_readback"
+        not in {
+            "local_only_requires_attended_controller_readback",
+            "controller_readback_verified_promoted_current",
+        }
     ):
         raise ContractViolation("candidate TP must be the immutable local r006 package")
     candidate_dir = candidate_identity["artifact_dir"]
@@ -186,7 +189,10 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
         candidate_identity["numeric_sanity_sha256"],
         name="candidate_tp_identity.numeric_sanity_sha256",
     )
-    if payload["promotion_status"] != "requires_attended_tp_upload_readback":
+    if payload["promotion_status"] not in {
+        "requires_attended_tp_upload_readback",
+        "controller_readback_verified",
+    }:
         raise ContractViolation("candidate TP promotion status differs")
     deployment = payload["deployment_tp_identity"]
     if not isinstance(deployment, dict) or set(deployment) != {
@@ -199,7 +205,11 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     }:
         raise ContractViolation("deployment_tp_identity schema differs")
     if (
-        deployment["program"] != "step5d_strict_rnn_autotune_v3_r005"
+        deployment["program"]
+        not in {
+            "step5d_strict_rnn_autotune_v3_r005",
+            "step5d_strict_rnn_autotune_v3_r006",
+        }
         or deployment["mode"]
         != "explicit_v3_identity_precontact_pose_frozen_v1_control"
     ):
@@ -728,6 +738,7 @@ def active_identity_snapshot(
         "deployment_fingerprint": deployment_fingerprint(
             triplet_sha256=local_triplet,
             controller_readback_identity=readback,
+            tp_program_id=program,
         ),
         "orchestration_fingerprint": active_orchestration_fingerprint(
             experiment_root

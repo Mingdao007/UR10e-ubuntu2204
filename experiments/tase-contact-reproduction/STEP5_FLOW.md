@@ -1,9 +1,11 @@
 # Step5 Flow
 
 `config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3` as the
-unique route, but no TP revision is currently startable. The controller still
-contains immutable r005 with a verified historical readback; r005 is
-`known_incompatible_do_not_retry` and cannot produce a bridge-start context.
+unique route. Immutable r006 is now the exact controller-readback-verified TP
+revision and is eligible for a fresh bridge-start context; it is not loaded,
+playing, armed, or motion-authorized. Immutable r005 remains historical
+readback/incident evidence with disposition `known_incompatible_do_not_retry`
+and cannot produce a bridge-start context.
 Its incident preserves 5,013 fresh state-76 rows, consumed command sequence 2,
 and no ARM2. The deterministic fault was the post-ACK collector reading
 unprefixed register fields from a production CSV that publishes `ur_`-prefixed
@@ -11,7 +13,7 @@ fields; the generic timeout then mislabeled predicate resets as no fresh row.
 CSV buffering is retained as a separately tested risk, not asserted as that
 incident's sole root cause.
 
-Immutable r006 is a local-only candidate using canonical protocol
+Immutable r006 uses canonical protocol
 `v3_direct_arm_v1`. It has no active `ACK_BUNDLE`, TP `WAIT_ACK`, host
 `pending_ack`, or post-ACK closure collector. The production lifecycle is
 ARM -> terminal-ready -> sealed capture -> immutable bundle -> independent
@@ -30,13 +32,15 @@ rows 1--9 return state 76, row 10 publishes state 77, and neither ACK nor ARM11
 exists. These are offline software gates only; they do not claim controller or
 robot acceptance.
 
-r006 has not been uploaded or read back. Resolver state therefore remains
-`bridge_start_ready=false` with `requires_r006_controller_readback`. This
-offline closeout never connects the controller, starts a bridge, sends ARM,
-presses Play/Stop, or causes motion. URSim/HIL, a complete live second-lap
-certificate, old-worktree governance, and the cross-session retrospective are
-registered debt lanes. V1 remains frozen control-profile provenance and cannot
-be launched as a fallback.
+r006 was uploaded to `/programs/andyl/kunwei/step5` and fetched back on
+2026-07-21 at 11:00:33 HKT. Local/controller/readback SHA values match for the
+exact `.script/.txt/.urp` triplet. Static readiness is therefore
+`bridge_start_ready_no_arm`; resolving without a fresh bridge-start context
+still reports `requires_bridge_start_context`. Delivery performed no Load,
+Play, bridge, ARM, or motion. URSim/HIL, a complete live second-lap certificate,
+old-worktree governance, and the cross-session retrospective remain registered
+debt lanes. V1 remains frozen control-profile provenance and cannot be launched
+as a fallback.
 
 Kunwei software zero now uses two evidence roles. The first qualified Stage23
 window latches one campaign anchor used by control, guards, and optimizer force

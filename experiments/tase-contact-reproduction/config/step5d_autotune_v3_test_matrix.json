@@ -8,7 +8,7 @@
       "tools/verify_step5d_autotune_v3_execution_readiness.py",
       "--json"
     ],
-    "public_success_signal": "selected_tp_program_known_incompatible_do_not_retry_requires_r006_controller_readback",
+    "public_success_signal": "controller_readback_verified_ready_for_bridge_context",
     "user_confirmation_required": false,
     "user_authorization_required": false,
     "transition_order": [

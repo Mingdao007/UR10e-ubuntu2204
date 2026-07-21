@@ -3,10 +3,10 @@
   "program": "step5d_strict_rnn_autotune_v3_r006",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "protocol": "v3_direct_arm_v1",
-  "disposition": "local_only_requires_controller_readback",
-  "controller_uploaded": false,
-  "controller_readback_verified": false,
-  "bridge_context_allowed": false,
+  "disposition": "controller_readback_verified_promoted_current",
+  "controller_uploaded": true,
+  "controller_readback_verified": true,
+  "bridge_context_allowed": true,
   "motion_authorized": false,
   "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006",
   "triplet_sha256": {
@@ -36,5 +36,10 @@
     "test_sha256": "07cace40f01e67e5bb2c4df8b5daa2bde81c463f38044f0d85b3f26fadc0459a",
     "result": "pass_arm1_seq1_arm2_seq2_trial2_run_no_ack"
   },
-  "next_legal_action": "attended_r006_upload_and_exact_controller_readback_only"
+  "controller_readback": {
+    "path": "config/step5d_autotune_controller_readback_v3.json",
+    "fresh_manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/controller_readback_20260721T110033HKT.json",
+    "fresh_checked_at": "2026-07-21T11:00:33+08:00"
+  },
+  "next_legal_action": "build_fresh_bridge_start_context_no_arm"
 }

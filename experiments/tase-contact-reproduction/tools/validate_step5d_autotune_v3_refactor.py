@@ -130,7 +130,7 @@ APPROVED_ORCHESTRATION_VARIANTS = {
     },
     "experiments/tase-contact-reproduction/config/current_stage.json": {
         "baseline_sha256": "8d6684717008a3d4bfbdd948a03083188f6456afb5313d58edbecfa6cb0e6132",
-        "approved_sha256": "2fef77410d75b0bf9ceb780d37d66a2f1e2730be1189e65b8623eab33e9b04d1",
+        "approved_sha256": "1e2efc067e43e111d0b2acf0c6db0e11911511b044ce51395908172ec18f9391",
         "change_class": "behavior_changing",
     },
     "experiments/tase-contact-reproduction/scripts/bridge-line-operator.sh": {
@@ -366,8 +366,7 @@ def matrix_issues(payload: Any) -> list[str]:
         ]:
             issues.append("test_matrix_operator_readiness_command_mismatch")
         if readiness.get("public_success_signal") != (
-            "selected_tp_program_known_incompatible_do_not_retry_"
-            "requires_r006_controller_readback"
+            "controller_readback_verified_ready_for_bridge_context"
         ):
             issues.append("test_matrix_operator_success_signal_policy_mismatch")
         if readiness.get("user_confirmation_required") is not False:

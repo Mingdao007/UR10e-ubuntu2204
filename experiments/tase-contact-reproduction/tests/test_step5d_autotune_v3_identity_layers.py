@@ -280,11 +280,11 @@ def test_deployment_ignores_readback_publication_metadata() -> None:
     semantic_readback = {
         "schema": "step5d.autotune.controller-readback/v3",
         "verified": True,
-        "program": "step5d_strict_rnn_autotune_v3_r005",
+        "program": "step5d_strict_rnn_autotune_v3_r006",
         "control_profile_id": "step5d_strict_rnn_autotune_v1",
         "controller_target": (
             "/programs/andyl/kunwei/step5/"
-            "step5d_strict_rnn_autotune_v3_r005.urp"
+            "step5d_strict_rnn_autotune_v3_r006.urp"
         ),
         "triplet_sha256": readback_triplet,
         "tp_fingerprint": "4" * 64,

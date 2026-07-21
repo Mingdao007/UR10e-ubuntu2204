@@ -245,8 +245,11 @@ def resolve_release_readiness(
         ):
             blockers.append("r005_post_ack_csv_schema_timeout_incident")
         blockers.append("requires_r006_offline_release")
-    if compatibility.get("local_candidate_tp_program_id") == (
-        "step5d_strict_rnn_autotune_v3_r006"
+    if (
+        compatibility.get("local_candidate_tp_program_id")
+        == "step5d_strict_rnn_autotune_v3_r006"
+        and compatibility.get("local_candidate_tp_disposition")
+        != "controller_readback_verified_promoted_current"
     ):
         blockers.append("requires_r006_controller_readback")
 

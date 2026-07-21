@@ -73,8 +73,8 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
     assert report["ok"] is True
     assert report["current_stage_id"] == artifacts.V3_STAGE_ID
     assert report["v3_active"] is True
-    assert report["execution_readiness"] == "pre_live_blocked"
-    assert report["ready_to_execute"] is False
+    assert report["execution_readiness"] == "bridge_start_ready"
+    assert report["ready_to_execute"] is True
     assert report["acceptance_scope"] == "offline_pre_live_only"
     assert report["certification_motion_authorization_required"] is False
     assert report["campaign_authorization_required"] is False
@@ -88,7 +88,7 @@ def test_repository_immutable_artifact_bundle_passes() -> None:
 
 def test_triplet_byte_mutation_fails_closed(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
-    target = fixture / "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.script"
+    target = fixture / "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.script"
     target.write_bytes(target.read_bytes() + b"\n# drift\n")
     with pytest.raises(artifacts.ArtifactVerificationError, match="package digest"):
         artifacts.verify(fixture)

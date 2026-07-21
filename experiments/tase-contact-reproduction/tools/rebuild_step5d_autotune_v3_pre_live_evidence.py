@@ -443,6 +443,15 @@ def build_outputs(
     deployment_program = str(
         _read(root / CONTROL_CONTRACT_RELATIVE)["deployment_tp_identity"]["program"]
     )
+    deployment_prefix = str(
+        Path(candidate_identity["artifact_dir"]) / deployment_program
+    )
+    controller_target = (
+        f"/programs/andyl/kunwei/step5/{deployment_program}.urp"
+    )
+    package["program_basename"] = deployment_program
+    package["local_triplet"] = deployment_prefix
+    package["controller_target"] = controller_target
     package["tp_fingerprint"] = _sha256(
         root
         / "programs/step5/step5d"
@@ -481,13 +490,22 @@ def build_outputs(
         "sha256": candidate_triplet_sha256,
     }
     row["block_reason"] = (
-        "V3 remains the unique selected route. Deployed r005 is historical "
-        "controller-readback-verified but known incompatible and must not start; "
-        "immutable r006 is local-only and requires exact attended controller "
-        "upload/readback before any bridge context can exist."
+        None
+        if bridge_start_ready
+        else (
+            "V3 remains the unique selected route. Deployed r005 is historical "
+            "controller-readback-verified but known incompatible and must not start; "
+            "immutable r006 requires exact attended controller upload/readback "
+            "before any bridge context can exist."
+        )
     )
     row["offline_validation"].update(
         {
+            "hardware_promotion": (
+                "controller_readback_verified"
+                if candidate_readback_current
+                else "blocked"
+            ),
             "report": VALIDATION_RELATIVE,
             "report_sha256": validation_sha,
             "formal_500hz_timing": formal_timing["status"],
@@ -501,6 +519,11 @@ def build_outputs(
             ),
             "retained_live_incident": (
                 "r005_ack_consumed_arm2_not_sent_post_ack_csv_schema_timeout"
+            ),
+            "status": (
+                "pass_offline_implementation_controller_readback_verified"
+                if candidate_readback_current
+                else "pass_offline_implementation_pre_live_blocked"
             ),
         }
     )
@@ -549,6 +572,8 @@ def build_outputs(
         },
     }
     row["operator_lifecycle"]["live_readiness_state"] = public_signal
+    row["operator_lifecycle"]["expected_program"] = controller_target
+    row["current_binding"]["controller_target"] = controller_target
     current_stage = copy.deepcopy(_read(root / CURRENT_STAGE_RELATIVE))
     current_stage["sha256"] = local_triplet_sha256
     current_stage["controller_readback_verified_for_selected_triplet"] = (
@@ -566,9 +591,23 @@ def build_outputs(
     current_stage["readiness"]["host_runtime_disposition"] = (
         current_release.get("host_runtime_disposition")
     )
+    current_stage["execution_state"] = (
+        "bridge_start_ready_no_arm" if bridge_start_ready else "pre_live_blocked"
+    )
+    current_stage["local_triplet"] = deployment_prefix
+    current_stage["controller_script"] = (
+        f"/programs/andyl/kunwei/step5/{deployment_program}.script"
+    )
+    current_stage["controller_target"] = (
+        controller_target
+    )
     current_stage["local_candidate"] = {
         "program": candidate_identity["program"],
-        "disposition": "local_only_requires_controller_readback",
+        "disposition": (
+            "controller_readback_verified_promoted_current"
+            if candidate_readback_current
+            else "local_only_requires_controller_readback"
+        ),
         "manifest": current_release.get("local_candidate_manifest"),
         "triplet_sha256": candidate_triplet_sha256,
         "controller_uploaded": candidate_readback_current,
@@ -580,8 +619,12 @@ def build_outputs(
         else "step5d_autotune_v3_r005_quarantined_r006_local_only"
     )
     current_stage["bridge_trigger"]["blocked_reason"] = (
-        "Deployed r005 is known incompatible and r006 is local-only; no bridge "
-        "context is legal before exact attended r006 upload/readback."
+        None
+        if bridge_start_ready
+        else (
+            "Deployed r005 is known incompatible and r006 lacks exact readback; "
+            "no bridge context is legal."
+        )
     )
     current_stage["updated_at"] = observed_at
     control_contract = copy.deepcopy(control_contract)
@@ -596,6 +639,7 @@ def build_outputs(
         ]
     launch_profile = copy.deepcopy(_read(root / LAUNCH_PROFILE_RELATIVE))
     launch_profile["control_contract_sha256"] = contract_sha256(control_contract)
+    launch_profile["tp_program_id"] = deployment_program
     return {
         root / STOPPING_RELATIVE: stopping,
         root / RETURN_RELATIVE: returned,

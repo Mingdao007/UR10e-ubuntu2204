@@ -4,29 +4,25 @@
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "protocol": "v3_direct_arm_v1",
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r005",
-  "tp_program_disposition": "known_incompatible_do_not_retry",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
+  "tp_program_disposition": "controller_readback_verified",
   "host_runtime_disposition": "verified_r006_cross_process_direct_arm1_arm2_offline",
   "local_candidate_tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
-  "local_candidate_tp_disposition": "local_only_requires_controller_readback",
+  "local_candidate_tp_disposition": "controller_readback_verified_promoted_current",
   "local_candidate_manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r006/local_candidate.json",
   "selection_state": "current",
-  "state": "pre_live_blocked",
+  "state": "bridge_start_ready_no_arm",
   "deployment": {
     "status": "controller_readback_verified",
     "controller_verification": "config/step5d_autotune_controller_readback_v3.json",
     "verified_for_selected_triplet": true
   },
   "execution": {
-    "bridge_start_ready": false,
+    "bridge_start_ready": true,
     "bridge_process_ready": false,
     "motion_arm_ready": false,
     "campaign_ready": false,
-    "blockers": [
-      "selected_tp_program_known_incompatible_do_not_retry",
-      "r005_post_ack_csv_schema_timeout_incident",
-      "requires_r006_controller_readback"
-    ]
+    "blockers": []
   },
   "compatibility_mirror": {
     "current_stage": "config/current_stage.json",
@@ -36,7 +32,7 @@
   "claims": {
     "new_version_complete": false,
     "r006_offline_release_complete": true,
-    "r006_controller_readback_verified": false,
+    "r006_controller_readback_verified": true,
     "controller_verified": true,
     "live_ready": false,
     "live_accepted": false

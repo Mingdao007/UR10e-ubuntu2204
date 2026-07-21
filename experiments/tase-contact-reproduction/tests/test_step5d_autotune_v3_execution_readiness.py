@@ -93,14 +93,14 @@ def _mutate_v3(fixture: Path, mutate) -> None:
 def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
-    assert report["state"] == "pre_live_blocked"
+    assert report["state"] == "bridge_start_ready"
     assert report["public_success_signal"] == (
-        "selected_tp_program_known_incompatible_do_not_retry"
+        "controller_readback_verified_ready_for_bridge_context"
     )
-    assert report["package_delivery"] == "r005_historical_r006_local_only"
-    assert report["ready_to_execute"] is False
+    assert report["package_delivery"] == "r006_controller_readback_verified"
+    assert report["ready_to_execute"] is True
     assert report["current_stage_id"] == readiness.V3_STAGE_ID
-    assert report["next_owner"] == "ur10e-tp-package-delivery"
+    assert report["next_owner"] == "ur10e-bridge-ops"
     assert report["timing_diagnostic"] == (
         "diagnostic_only_partial_lane_reuse_not_required_by_user"
     )
@@ -202,10 +202,10 @@ def test_readiness_verification_is_independent_of_checkout_mtime(
         path.touch()
 
     report = readiness.verify(fixture)
-    assert report["state"] == "pre_live_blocked"
+    assert report["state"] == "bridge_start_ready"
 
 
-def test_user_confirmation_is_required_while_pre_live_blocked(tmp_path: Path) -> None:
+def test_user_confirmation_is_required_before_bridge_start(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     _mutate_v3(
         fixture,
@@ -232,7 +232,7 @@ def test_stage_table_cannot_claim_a_different_readiness_state(tmp_path: Path) ->
 @pytest.mark.parametrize(
     ("field", "value"),
     (
-        ("candidate_current", True),
+        ("candidate_current", False),
         ("ready_to_load_play", True),
         ("ready_to_arm", True),
     ),
@@ -312,7 +312,7 @@ def test_local_triplet_drift_invalidates_package_readiness(tmp_path: Path) -> No
     fixture = _fixture_root(tmp_path)
     script = (
         fixture
-        / "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.script"
+        / "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.script"
     )
     script.write_bytes(script.read_bytes() + b"\n# drift\n")
     with pytest.raises(readiness.ReadinessError, match="local package digest"):

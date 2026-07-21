@@ -23,7 +23,7 @@ from ur10e_experiment_runtime.identity import canonical_sha256
 
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r005"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r006"
 
 EXPERIMENT_REPO_PREFIX = "experiments/tase-contact-reproduction"
 
@@ -77,6 +77,8 @@ ORCHESTRATION_PATHS = tuple(
         "tools/step5d_autotune_batch_plan.py",
         "tools/run_step5d_autotune_v3_live.py",
         "tools/run_step5d_autotune_v3_bridge.py",
+        "tools/run_step5d_autotune_v3_tp_transaction.py",
+        "tools/promote_step5d_autotune_v3_delivery.py",
         "tools/build_step5d_autotune_v3_bridge_start_context.py",
         "tools/preflight_step5d_autotune_v3.py",
         "tools/step5d_autotune_v3/arming.py",

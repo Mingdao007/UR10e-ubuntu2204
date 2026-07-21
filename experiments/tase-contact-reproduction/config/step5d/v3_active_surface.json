@@ -6,16 +6,13 @@
     "tag": "archive/step5d-autotune-v1-20260715",
     "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
   },
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r005",
-  "tp_program_disposition": "known_incompatible_do_not_retry",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
+  "tp_program_disposition": "controller_readback_verified",
   "local_candidate_tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
-  "local_candidate_tp_disposition": "local_only_requires_controller_readback",
+  "local_candidate_tp_disposition": "controller_readback_verified_promoted_current",
   "host_protocol": "v3_direct_arm_v1",
-  "bridge_start_ready": false,
-  "blockers": [
-    "r005_post_ack_csv_schema_timeout_incident",
-    "requires_r006_controller_readback"
-  ],
+  "bridge_start_ready": true,
+  "blockers": [],
   "tp_commands": {
     "arm": 1,
     "operator_stop_request": 3,
@@ -43,9 +40,9 @@
     "config/step5d/current.json"
   ],
   "deployment_paths": [
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.script",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.txt",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.urp",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.urp",
     "config/step5d_autotune_controller_readback_v3.json"
   ],
   "local_candidate_paths": [
@@ -92,6 +89,8 @@
     "tools/step5d_autotune_batch_plan.py",
     "tools/run_step5d_autotune_v3_live.py",
     "tools/run_step5d_autotune_v3_bridge.py",
+    "tools/run_step5d_autotune_v3_tp_transaction.py",
+    "tools/promote_step5d_autotune_v3_delivery.py",
     "tools/build_step5d_autotune_v3_bridge_start_context.py",
     "tools/preflight_step5d_autotune_v3.py",
     "tools/step5d_autotune_v3/arming.py",
@@ -107,6 +106,9 @@
     "scripts/step5d-autotune-v3.sh"
   ],
   "historical_only": [
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.urp",
     "tools/step5d_autotune_v3/certification.py",
     "tools/issue_step5d_autotune_v3_certification_authorization.py",
     "tools/finalize_step5d_autotune_v3_certification.py",

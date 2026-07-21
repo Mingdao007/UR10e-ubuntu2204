@@ -15,7 +15,7 @@
   "candidate_tp_identity": {
     "artifact_dir": "programs/step5/step5d",
     "deploy_manifest_sha256": "922aaf4af9d6d3eafa742dfb41cca1467e609eb6e84cd04d222ba705360d1385",
-    "mode": "local_only_requires_attended_controller_readback",
+    "mode": "controller_readback_verified_promoted_current",
     "numeric_sanity_sha256": "78d8207996ceabdd817a498a0edc0617783a7022eb8a24cf6b0c5c5dcebb7ae1",
     "program": "step5d_strict_rnn_autotune_v3_r006"
   },
@@ -322,10 +322,10 @@
   "deployment_tp_identity": {
     "artifact_dir": "programs/step5/step5d",
     "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
-    "program": "step5d_strict_rnn_autotune_v3_r005",
+    "program": "step5d_strict_rnn_autotune_v3_r006",
     "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-    "readback_manifest_sha256": "ae74111ca58216c9b4b72f0c5bdc576ac0c62ce38c49f139df09b1adf79d2ea3",
-    "tp_fingerprint": "61ed7c95c96cfab6d0522f596787dfb461bdd8a21f0ea53e561c4893b2e63d45"
+    "readback_manifest_sha256": "0d39fdc98607579ecf639849c940ff5c05bb43c34550bd1d896861417f0bbc72",
+    "tp_fingerprint": "922aaf4af9d6d3eafa742dfb41cca1467e609eb6e84cd04d222ba705360d1385"
   },
   "effective_fields": {
     "campaign_tunable": {
@@ -552,7 +552,7 @@
     "stage_id": "step5d_strict_rnn_autotune_v1",
     "tag": "archive/step5d-autotune-v1-20260715"
   },
-  "promotion_status": "requires_attended_tp_upload_readback",
+  "promotion_status": "controller_readback_verified",
   "schema": "step5d.autotune.v3.control-contract/v1",
   "source_sha256": {
     "config/step5_safe_frame.json": "e0e4cda8c07d68161ff448223626b46d0eef903973d74e1af0483bf110aecfa4",
@@ -576,8 +576,8 @@
     "tools/step5d_runtime_interface.py": "a36306325de4720fc53a6354878edc45c0598518e060df0926f98dc5c699bcd1"
   },
   "tp_artifact_sha256": {
-    ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
-    ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
-    ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
+    ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
+    ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
+    ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
   }
 }

@@ -110,21 +110,19 @@ def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath()
     assert 'PYTHONPATH:+:${PYTHONPATH}' not in source
 
 
-def test_installed_runtime_refuses_bridge_context_for_quarantined_r005() -> None:
-    try:
-        context_builder.build_context(
-            ROOT,
-            plant_epoch=1,
-            runtime_environment={
-                "capture_mode": "offline_fail_closed_check",
-                "scheduler": {
-                    "policy_name": "SCHED_OTHER",
-                    "priority": 0,
-                    "nice": 0,
-                },
+def test_installed_runtime_builds_r006_no_arm_bridge_context() -> None:
+    context = context_builder.build_context(
+        ROOT,
+        plant_epoch=1,
+        runtime_environment={
+            "capture_mode": "offline_r006_no_arm_check",
+            "scheduler": {
+                "policy_name": "SCHED_OTHER",
+                "priority": 0,
+                "nice": 0,
             },
-        )
-    except context_builder.BridgeContextBuildError as exc:
-        assert "known_incompatible_do_not_retry" in str(exc)
-    else:
-        raise AssertionError("quarantined r005 unexpectedly produced a bridge context")
+        },
+    )
+    assert context.document()["tp_program_id"] == (
+        "step5d_strict_rnn_autotune_v3_r006"
+    )

@@ -16,7 +16,7 @@ import verify_step5d_autotune_v3_execution_readiness as execution_readiness
 ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r005"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r006"
 LOCAL_CANDIDATE_TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r006"
 POSE_PRIOR_ID = "step5d_v3_physical_prior_contact_0p1_20260719"
 EXPECTED_ROTVEC = [3.120752062, 0.0, 0.068626833]
