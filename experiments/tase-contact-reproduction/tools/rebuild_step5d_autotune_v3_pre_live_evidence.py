@@ -38,7 +38,7 @@ MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
 ATTENDED_BLOCKERS = [
     "requires_attended_tp_upload_readback",
 ]
-HOST_RUNTIME_DISPOSITION = "verified_r006_cross_process_direct_arm1_arm2_offline"
+HOST_RUNTIME_DISPOSITION = "verified_r008_full_home_rolling_production_chain_offline"
 PRE_LIVE_DECISION = {
     "acceptance_scope": "offline_pre_live_only",
     "offline_implementation": "pass",
@@ -394,13 +394,13 @@ def build_outputs(
             ]
         )
     if not host_runtime_current:
-        blockers.append("requires_r006_offline_release")
+        blockers.append("requires_r008_offline_release")
     if (
         current_release.get("local_candidate_tp_program_id")
-        == "step5d_strict_rnn_autotune_v3_r006"
+        == "step5d_strict_rnn_autotune_v3_r008"
         and not candidate_readback_current
     ):
-        blockers.append("requires_r006_controller_readback")
+        blockers.append("requires_r008_controller_readback")
     blockers = list(dict.fromkeys(blockers))
     public_signal = (
         blockers[0]
@@ -493,9 +493,9 @@ def build_outputs(
         None
         if bridge_start_ready
         else (
-            "V3 remains the unique selected route. Deployed r005 is historical "
+            "V3 remains the unique selected route. Deployed r006 is historical "
             "controller-readback-verified but known incompatible and must not start; "
-            "immutable r006 requires exact attended controller upload/readback "
+            "immutable r008 requires exact controller upload/readback "
             "before any bridge context can exist."
         )
     )
@@ -512,7 +512,7 @@ def build_outputs(
             "source_exact_sphere_seam_timing": seam_timing["status"],
             "simulation": simulation["status"],
             "exact_ten_row_lifecycle": (
-                "r006_offline_direct_mailbox_rows_1_to_10_row10_state77_no_ack_no_arm11"
+                "r008_rolling_rows_1_to_5_every_row_home_state78_arm11_q4_q5"
             ),
             "production_second_lap": (
                 "pass_formal_runner_growing_csv_seal_cold_read_trialbrief_arm2_run"
@@ -534,7 +534,7 @@ def build_outputs(
             ),
             "direct_arm1_bundle_cold_read_trialbrief_arm2_verified": True,
             "growing_production_csv_follower_verified": True,
-            "r006_controller_readback_verified": candidate_readback_current,
+            "r008_controller_readback_verified": candidate_readback_current,
         }
     )
     row["execution_readiness"] = {
@@ -614,15 +614,15 @@ def build_outputs(
         "controller_readback_verified": candidate_readback_current,
     }
     current_stage["status"] = (
-        "step5d_autotune_v3_r006_controller_readback_verified"
+        "step5d_autotune_v3_r008_controller_readback_verified"
         if candidate_readback_current
-        else "step5d_autotune_v3_r005_quarantined_r006_local_only"
+        else "step5d_autotune_v3_r006_quarantined_r008_local_only"
     )
     current_stage["bridge_trigger"]["blocked_reason"] = (
         None
         if bridge_start_ready
         else (
-            "Deployed r005 is known incompatible and r006 lacks exact readback; "
+            "Deployed r006 is known incompatible and r008 lacks exact readback; "
             "no bridge context is legal."
         )
     )

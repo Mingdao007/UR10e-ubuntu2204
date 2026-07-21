@@ -86,6 +86,13 @@ class CompletionProtocol(str, Enum):
 
     LEGACY_ACK_BUNDLE_V1 = "legacy_ack_bundle_v1"
     DIRECT_ARM_V1 = "v3_direct_arm_v1"
+    FULL_HOME_ROLLING_ARM_V1 = "v3_full_home_rolling_arm_v1"
+
+
+DIRECT_COMPLETION_PROTOCOLS = {
+    CompletionProtocol.DIRECT_ARM_V1,
+    CompletionProtocol.FULL_HOME_ROLLING_ARM_V1,
+}
 
 
 def candidate_transition_allowed_for_policy(
@@ -111,6 +118,7 @@ class TrialIntent:
     execution_profile_integer_id: int
     selection: Mapping[str, Any]
     retry_kind: str | None
+    logical_batch_sequence: int = 0
 
 
 @dataclass(frozen=True)
@@ -240,7 +248,14 @@ class SupervisorRecoverySnapshot:
 def execution_profile_integer_id(profile: ExecutionProfile) -> int:
     """Encode normal/slew/TP-accel levels for the TP ones-digit contract."""
 
-    normal_levels = {0.010: 1, 0.015: 2, 0.020: 3, 0.030: 4, 0.050: 5}
+    normal_levels = {
+        0.010: 1,
+        0.015: 2,
+        0.020: 3,
+        0.030: 4,
+        0.050: 5,
+        0.100: 6,
+    }
     actuator_levels = {0.1: 1, 0.2: 2, 0.5: 3}
     try:
         normal = normal_levels[profile.normal_max_rate_rad_s]
@@ -444,7 +459,15 @@ class CampaignSupervisor:
         allow_archived_code_fix_replay: bool = False,
         allow_exact_incomplete_batch_retry: bool = False,
         allow_fresh_exact_batch_bootstrap: bool = False,
+        allow_intentional_occurrence_repeat: bool = False,
+        logical_batch_sequence: int = 0,
     ) -> TrialIntent:
+        if (
+            isinstance(logical_batch_sequence, bool)
+            or not isinstance(logical_batch_sequence, int)
+            or logical_batch_sequence < 0
+        ):
+            raise ValueError("logical_batch_sequence must be non-negative")
         if self.phase is not CampaignPhase.HOME:
             raise RuntimeError(f"campaign cannot arm from phase {self.phase.value}")
         if any(
@@ -504,7 +527,10 @@ class CampaignSupervisor:
         elif forced_candidate is not None:
             if (
                 forced_candidate.candidate_uid in external_forbidden
-                and not allow_exact_incomplete_batch_retry
+                and not (
+                    allow_exact_incomplete_batch_retry
+                    or allow_intentional_occurrence_repeat
+                )
             ):
                 raise ValueError("forced live candidate was already physically attempted")
             context = [
@@ -558,6 +584,10 @@ class CampaignSupervisor:
                 and not code_fix_replay
                 and not fresh_exact_batch_start
                 and not (
+                    allow_intentional_occurrence_repeat
+                    and incomplete_retry_sources
+                )
+                and not (
                     allow_exact_incomplete_batch_retry
                     and incomplete_retry_sources
                 )
@@ -568,6 +598,8 @@ class CampaignSupervisor:
             source_outcome = (
                 None
                 if baseline_start or fresh_exact_batch_start
+                else incomplete_retry_sources[-1]
+                if allow_intentional_occurrence_repeat and incomplete_retry_sources
                 else incomplete_retry_sources[-1]
                 if allow_exact_incomplete_batch_retry and incomplete_retry_sources
                 else replay_sources[-1]
@@ -584,6 +616,8 @@ class CampaignSupervisor:
                     if baseline_start
                     else TrialTransitionKind.BATCH_BOOTSTRAP
                     if fresh_exact_batch_start
+                    else TrialTransitionKind.REPLICATION
+                    if allow_intentional_occurrence_repeat
                     else TrialTransitionKind.RETRY
                     if allow_exact_incomplete_batch_retry
                     else TrialTransitionKind.RETRY
@@ -634,7 +668,9 @@ class CampaignSupervisor:
                     None if source_outcome is None else source_outcome.evaluation.trial_uid
                 ),
                 "exact_parameter_set_reuse_allowed": (
-                    code_fix_replay or allow_exact_incomplete_batch_retry
+                    code_fix_replay
+                    or allow_exact_incomplete_batch_retry
+                    or allow_intentional_occurrence_repeat
                 ),
                 "exact_incomplete_batch_retry": allow_exact_incomplete_batch_retry,
             }
@@ -703,6 +739,7 @@ class CampaignSupervisor:
         if (
             not code_fix_replay
             and not allow_exact_incomplete_batch_retry
+            and not allow_intentional_occurrence_repeat
             and candidate.candidate_uid
             in self._forbidden_candidate_uids(trial_profile.profile_id)
         ):
@@ -729,6 +766,7 @@ class CampaignSupervisor:
             ),
             selection=dict(selection),
             retry_kind=retry_kind,
+            logical_batch_sequence=logical_batch_sequence,
         )
         self._active = intent
         self.phase = CampaignPhase.TRIAL_ACTIVE
@@ -919,7 +957,7 @@ class CampaignSupervisor:
                     # uncompletable governor state behind the terminal ACK.
                     self._governor_probe = None
 
-        if ack_permitted and self.completion_protocol is CompletionProtocol.DIRECT_ARM_V1:
+        if ack_permitted and self.completion_protocol in DIRECT_COMPLETION_PROTOCOLS:
             self._pending_advance = PendingAdvance(
                 intent=self._active,
                 post_commit_phase=post_ack_phase,
@@ -1013,7 +1051,7 @@ class CampaignSupervisor:
     def confirm_direct_ready(self, trial_uid: str) -> None:
         """Advance r006 policy after durable bundle + terminal-ready proof."""
 
-        if self.completion_protocol is not CompletionProtocol.DIRECT_ARM_V1:
+        if self.completion_protocol not in DIRECT_COMPLETION_PROTOCOLS:
             raise RuntimeError("direct-ready completion requires direct-ARM protocol")
         if (
             self.phase is not CampaignPhase.WAIT_DIRECT_COMMIT

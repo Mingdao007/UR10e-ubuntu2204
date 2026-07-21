@@ -188,18 +188,18 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
         "6f9ef0912842ac003545eb1906b38d13c7552218"
     )
     assert report["deployment_tp_identity"] == {
-        "program": "step5d_strict_rnn_autotune_v3_r005",
+        "program": "step5d_strict_rnn_autotune_v3_r008",
         "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
         "artifact_dir": "programs/step5/step5d",
         "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
         "readback_manifest_sha256": (
-            "ae74111ca58216c9b4b72f0c5bdc576ac0c62ce38c49f139df09b1adf79d2ea3"
+            "93306bca30d20d683c68be5eb9ecbcf060f09b1129cf25cdf0179fc810aedf17"
         ),
         "tp_fingerprint": (
-            "61ed7c95c96cfab6d0522f596787dfb461bdd8a21f0ea53e561c4893b2e63d45"
+            "55efa784229185a79a081246fadce781be8a707d1ad347e2e5568ad9a2cf8a3c"
         ),
     }
-    assert report["execution_profile_id"] == "nf050-slew050-a050"
+    assert report["execution_profile_id"] == "nf100-slew050-a050"
     categories = report["field_categories"]
     classified = [name for category in CATEGORIES for name in categories[category]]
     assert len(classified) == len(set(classified)) == 126

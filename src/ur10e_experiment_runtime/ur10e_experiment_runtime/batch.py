@@ -1063,8 +1063,8 @@ class BatchJournal:
         )
 
     def record_bundle(self, row_index: int, trial_uid: str, bundle_sha256: str) -> None:
-        return_reference_for_batch(identity, row_index)
         identity = self.identity()
+        return_reference_for_batch(identity, row_index)
 
         def validate(current: BatchState) -> None:
             row = current.rows[row_index - 1]

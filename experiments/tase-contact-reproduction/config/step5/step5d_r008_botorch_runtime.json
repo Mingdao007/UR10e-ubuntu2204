@@ -1,0 +1,14 @@
+{
+  "botorch_version": "0.16.1",
+  "cuda_available_required": true,
+  "cuda_runtime": "12.8",
+  "environment_lock_sha256": "e781dc5f9fdaee04576ef47fa544ba9f95a89e94afa3a9de610f39e684b9e434",
+  "gpytorch_version": "1.15.2",
+  "inherited_torch_environment": "/home/andy/miniconda3/envs/data8010",
+  "isolated_venv": "/home/andy/.venvs/step5d-r008",
+  "joint_batch_q": [4, 5],
+  "no_cpu_fallback": true,
+  "python_version": "3.10.20",
+  "schema": "step5d.r008/botorch-runtime-v1",
+  "torch_version": "2.11.0+cu128"
+}

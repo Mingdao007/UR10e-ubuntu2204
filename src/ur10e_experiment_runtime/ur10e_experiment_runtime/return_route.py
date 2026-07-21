@@ -549,6 +549,7 @@ class _TypedReturnReference:
     row_uid: str
     pose_xyz_m: tuple[float, float, float]
     pose_rotvec_rad: tuple[float, float, float]
+    protocol: str = "legacy_ack_bundle_v1"
     position_tolerance_m: float = 0.003
     orientation_tolerance_rad: float = 0.05
     linear_speed_tolerance_m_s: float = 0.001
@@ -566,7 +567,18 @@ class _TypedReturnReference:
                 or any(character not in "0123456789abcdef" for character in value)
             ):
                 raise ValueError(f"{name} must be a lowercase SHA256")
-        if return_reference_for_row(self.row_index) is not self.KIND:
+        if self.protocol not in {
+            "legacy_ack_bundle_v1",
+            "v3_direct_arm_v1",
+            "v3_full_home_rolling_arm_v1",
+        }:
+            raise ValueError("typed return reference protocol is unsupported")
+        expected_kind = (
+            ReturnReferenceKind.CAMPAIGN_HOME
+            if self.protocol == "v3_full_home_rolling_arm_v1"
+            else return_reference_for_row(self.row_index)
+        )
+        if expected_kind is not self.KIND:
             raise ValueError("typed return reference differs from exact batch row")
         _finite_vector("pose_xyz_m", self.pose_xyz_m, 3)
         _finite_vector("pose_rotvec_rad", self.pose_rotvec_rad, 3)
@@ -586,8 +598,12 @@ class _TypedReturnReference:
         return self.KIND
 
     def identity_document(self) -> dict[str, object]:
-        return {
-            "schema": "ur-exp/return-reference-v2",
+        document = {
+            "schema": (
+                "ur-exp/return-reference-v3"
+                if self.protocol == "v3_full_home_rolling_arm_v1"
+                else "ur-exp/return-reference-v2"
+            ),
             "kind": self.kind.value,
             "batch_uid": self.batch_uid,
             "row_index": self.row_index,
@@ -600,6 +616,9 @@ class _TypedReturnReference:
             "angular_speed_tolerance_rad_s": self.angular_speed_tolerance_rad_s,
             "qd_tolerance_rad_s": self.qd_tolerance_rad_s,
         }
+        if self.protocol == "v3_full_home_rolling_arm_v1":
+            document["protocol"] = self.protocol
+        return document
 
     @property
     def reference_uid(self) -> str:
@@ -711,6 +730,7 @@ def return_reference(
         ),
         "pose_xyz_m": pose[:3],
         "pose_rotvec_rad": pose[3:],
+        "protocol": batch.protocol,
     }
     if kind is ReturnReferenceKind.NEAR_READY:
         return NearReadyReference(**values)

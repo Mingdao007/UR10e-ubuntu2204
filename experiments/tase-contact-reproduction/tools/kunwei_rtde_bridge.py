@@ -9035,7 +9035,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--step4e-normal-max-rate-rad-s",
         type=float,
-        default=env_float_alias("BRIDGE_NORMAL_MAX_RATE_RAD_S", "STEP4E_NORMAL_MAX_RATE_RAD_S", 0.010),
+        default=env_float_alias("BRIDGE_NORMAL_MAX_RATE_RAD_S", "STEP4E_NORMAL_MAX_RATE_RAD_S", 0.100),
     )
     parser.add_argument(
         "--step4e-normal-min-force-n",
@@ -9117,7 +9117,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--step5d-autotune-normal-rate-rad-s",
         type=float,
-        default=env_float("STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S", 0.010),
+        default=env_float("STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S", 0.100),
     )
     parser.add_argument(
         "--step5d-autotune-host-slew-rad-s2",

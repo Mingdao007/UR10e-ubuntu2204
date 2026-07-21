@@ -22,7 +22,7 @@ LAUNCH_SCHEMA = "step5d.autotune-v3/launch-profile-v1"
 OVERLAY_SCHEMA = "step5d.autotune-v3/trial-overlay-v2"
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r006"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r008"
 DEFAULT_LAUNCH_PROFILE = (
     Path(__file__).resolve().parents[2]
     / "config/step5/step5d_autotune_v3_launch_profile.json"
@@ -77,7 +77,7 @@ _DEFAULT_OVERLAY_INPUT: dict[str, Any] = {
     "force_i_gain": 0.00001,
     "force_damping": 7.0,
     "orientation_ko": 0.4,
-    "execution_profile_id": "nf050-slew050-a050",
+    "execution_profile_id": "nf100-slew050-a050",
     "step5d_preload_filtered_min_n": 7.5,
     "step5d_preload_filtered_max_n": 14.0,
     "step5d_preload_raw_min_n": 7.0,

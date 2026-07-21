@@ -56,6 +56,7 @@ TP_STATES = TRANSIENT_TP_STATES | {
     "READY_HOME",
     "READY_NEAR",
     "READY_HOME_CLOSED",
+    "READY_HOME_NEXT",
     "WAIT_ACK",
     "WAIT_INFRA_READY",
     "FAULT",
@@ -335,6 +336,7 @@ class TrialCursor:
     execution_profile_integer_id: int
     trial_spec: JournalReference
     retry_release: RetryRelease | None = None
+    logical_batch_sequence: int = 0
 
     def __post_init__(self) -> None:
         _strict_sha("trial_uid", self.trial_uid)
@@ -346,6 +348,9 @@ class TrialCursor:
             "execution_profile_integer_id",
             self.execution_profile_integer_id,
             minimum=1,
+        )
+        _strict_int(
+            "logical_batch_sequence", self.logical_batch_sequence, minimum=0
         )
         if not isinstance(self.trial_spec, JournalReference):
             raise ValueError("trial cursor requires a durable trial-spec reference")
@@ -360,7 +365,7 @@ class TrialCursor:
                 raise ValueError("new ARM sequence must follow the released TP sequence")
 
     def payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "arm_command_seq": self.arm_command_seq,
             "candidate_token": self.candidate_token,
             "candidate_uid": self.candidate_uid,
@@ -372,9 +377,16 @@ class TrialCursor:
             "trial_id": self.trial_id,
             "trial_uid": self.trial_uid,
         }
+        # Preserve byte-for-byte compatibility with pre-rolling journal rows.
+        if self.logical_batch_sequence > 0:
+            payload["logical_batch_sequence"] = self.logical_batch_sequence
+        return payload
 
     @classmethod
     def from_payload(cls, payload: Any) -> "TrialCursor":
+        if not isinstance(payload, dict):
+            raise ValueError("trial cursor must be an object")
+        rolling = "logical_batch_sequence" in payload
         row = _exact_object(
             "trial cursor",
             payload,
@@ -387,7 +399,7 @@ class TrialCursor:
                 "execution_profile_integer_id",
                 "retry_release",
                 "trial_spec",
-            },
+            } | ({"logical_batch_sequence"} if rolling else set()),
         )
         return cls(
             trial_uid=row["trial_uid"],
@@ -402,6 +414,7 @@ class TrialCursor:
                 else RetryRelease.from_payload(row["retry_release"])
             ),
             trial_spec=JournalReference.from_payload(row["trial_spec"]),
+            logical_batch_sequence=row.get("logical_batch_sequence", 0),
         )
 
 
@@ -685,7 +698,7 @@ class TerminalFate:
                 raise ValueError("direct-ready fate requires durable TrialBrief evidence")
             if (
                 self.tp_snapshot.state
-                not in {"READY_NEAR", "READY_HOME_CLOSED"}
+                not in {"READY_NEAR", "READY_HOME_CLOSED", "READY_HOME_NEXT"}
                 or self.tp_snapshot.consumed_command_seq
                 != self.trial.arm_command_seq
             ):
@@ -910,7 +923,7 @@ def _validate_terminal_fate(
         receipt = fate.dispatch_receipt
         if any(
             (
-                snapshot.state not in {"READY_NEAR", "READY_HOME_CLOSED"},
+                snapshot.state not in {"READY_NEAR", "READY_HOME_CLOSED", "READY_HOME_NEXT"},
                 snapshot.campaign_epoch_echo != campaign.campaign_epoch,
                 snapshot.trial_id_echo != fate.trial.trial_id,
                 snapshot.candidate_token_echo != fate.trial.candidate_token,
@@ -958,6 +971,7 @@ def _validate_terminal_fate(
     elif snapshot.state in {
         "READY_NEAR",
         "READY_HOME_CLOSED",
+        "READY_HOME_NEXT",
         "WAIT_INFRA_READY",
         "FAULT",
     }:
@@ -1945,6 +1959,7 @@ class TpSnapshot:
     terminal_reason: int
     execution_profile_integer_id_echo: int
     consumed_command_seq: int
+    logical_batch_sequence_echo: int = 0
 
     def __post_init__(self) -> None:
         _strict_int("TP campaign epoch echo", self.campaign_epoch_echo)
@@ -1956,11 +1971,16 @@ class TpSnapshot:
             self.execution_profile_integer_id_echo,
         )
         _strict_int("TP consumed command sequence", self.consumed_command_seq)
+        _strict_int(
+            "TP logical batch sequence echo",
+            self.logical_batch_sequence_echo,
+            minimum=0,
+        )
         if self.state not in TP_STATES:
             raise ValueError("TP snapshot state is not recognized")
 
     def payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "campaign_epoch_echo": self.campaign_epoch_echo,
             "candidate_token_echo": self.candidate_token_echo,
             "consumed_command_seq": self.consumed_command_seq,
@@ -1971,9 +1991,15 @@ class TpSnapshot:
             "terminal_reason": self.terminal_reason,
             "trial_id_echo": self.trial_id_echo,
         }
+        if self.logical_batch_sequence_echo > 0:
+            payload["logical_batch_sequence_echo"] = self.logical_batch_sequence_echo
+        return payload
 
     @classmethod
     def from_payload(cls, payload: Any) -> "TpSnapshot":
+        if not isinstance(payload, dict):
+            raise ValueError("TP snapshot must be an object")
+        rolling = "logical_batch_sequence_echo" in payload
         row = _exact_object(
             "TP snapshot",
             payload,
@@ -1985,9 +2011,9 @@ class TpSnapshot:
                 "terminal_reason",
                 "execution_profile_integer_id_echo",
                 "consumed_command_seq",
-            },
+            } | ({"logical_batch_sequence_echo"} if rolling else set()),
         )
-        return cls(**row)
+        return cls(**{**row, "logical_batch_sequence_echo": row.get("logical_batch_sequence_echo", 0)})
 
 
 class ReconcileAction(str, Enum):
@@ -2034,6 +2060,10 @@ def _snapshot_matches_cursor(
         and snapshot.candidate_token_echo == cursor.candidate_token
         and snapshot.execution_profile_integer_id_echo
         == cursor.execution_profile_integer_id
+        and (
+            cursor.logical_batch_sequence == 0
+            or snapshot.logical_batch_sequence_echo == cursor.logical_batch_sequence
+        )
     )
 
 
@@ -2121,7 +2151,7 @@ def reconcile_tp_snapshot(
             )
         return _fail("tp_fault_requires_manual_recovery")
 
-    if snapshot.state in {"READY_NEAR", "READY_HOME_CLOSED"}:
+    if snapshot.state in {"READY_NEAR", "READY_HOME_CLOSED", "READY_HOME_NEXT"}:
         cursor = state.active_trial
         if state.phase == "trial_active" and cursor is not None:
             if (

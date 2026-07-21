@@ -267,7 +267,7 @@ class V3AsyncBridgeTrialCsvRotator:
             and snapshot.execution_profile_id_echo == binding.execution_profile_id
             and snapshot.consumed_command_seq >= binding.arm_command_seq
             and (
-                binding.logical_batch_sequence is None
+                getattr(binding, "logical_batch_sequence", None) is None
                 or snapshot.logical_batch_sequence_echo
                 == binding.logical_batch_sequence
             )

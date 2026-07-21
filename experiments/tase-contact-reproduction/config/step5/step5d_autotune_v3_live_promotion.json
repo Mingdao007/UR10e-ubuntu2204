@@ -6,39 +6,39 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "controller_readback": {
     "path": "config/step5d_autotune_controller_readback_v3.json",
-    "sha256": "0d39fdc98607579ecf639849c940ff5c05bb43c34550bd1d896861417f0bbc72"
+    "sha256": "93306bca30d20d683c68be5eb9ecbcf060f09b1129cf25cdf0179fc810aedf17"
   },
   "current_selector": "step5d_strict_rnn_autotune_v3",
   "deterministic_validation": {
     "path": "config/step5/step5d_autotune_v3_offline_validation.json",
-    "sha256": "df2bf5550786f94fc1082f4c5f669bab7f1de811eca10a9074e0a7e1510b78a6"
+    "sha256": "caf3f90bca353e86159c5d6b89fb2e82024ae157fd0bebcd4eae9b68339d4481"
   },
   "identity": {
     "controller_readback_triplet_sha256": {
-      ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
-      ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
-      ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
+      ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+      ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+      ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
     },
-    "deployment_fingerprint": "d914e4357131d5e29641515dd2e2a5154cd2ccb05eadf49cebeda41a8f8ed362",
+    "deployment_fingerprint": "1bc137f3f268cdd9e32fdc4a830d60695066d7ab7514b6086079499bfb6e04b9",
     "legacy_provenance": {
-      "contract_sha256": "f1685cd86163a226021f338b7d445502caba171adfa35cfd96f606d8f8f35c53",
-      "control_fingerprint": "1840af913eee066c893fc970e955a106fe685ed25d5467d6e67241c0eaf3ed37",
-      "orchestration_fingerprint": "db2711c48115440d74fac84181bc785a17745fabfd39275df6bda6935f56e5e8"
+      "contract_sha256": "224a5958d96f86379841076c09c614341dd2356575885ec126477b90238717fc",
+      "control_fingerprint": "3b5788cda6392e68c95a05037e073fb376883e6a1c66a7878bb8e2533ad47a0f",
+      "orchestration_fingerprint": "3a8fdf2d59b782cf0c731eb925f78179a82c2077d5308663f562a5cb1f0d0ddc"
     },
     "local_triplet_sha256": {
-      ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
-      ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
-      ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
+      ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+      ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+      ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
     },
-    "orchestration_fingerprint": "f8a0022f308f369956ef9844f4e319550f960346af3036ca370873846e83d77b",
+    "orchestration_fingerprint": "7988c905b5bb5186766ddd95353394b9da8a37127fda01f8ed383662353a2920",
     "release_basis_fingerprint": null,
     "release_fingerprint": null,
     "runtime_environment_fingerprint": null,
     "schema": "step5d.autotune-v3/layered-identity-snapshot-v1",
-    "tick_semantics_fingerprint": "95ad350e94f2f894235f7657f172f6b55512fb9ee04195a3620e17172ebc3f5c",
+    "tick_semantics_fingerprint": "c340fdb6ed5c3ab32ed67f65ffce36f86f89db997f482bc8cd003afa3bd5199b",
     "timing_harness_fingerprint": "016e7af37c89391d4b7652da5ae91ae95ec50c547aaa86cb8d1cfc1185196ae2",
     "verifier_provenance": {
-      "evidence_verifier_fingerprint": "a059533a3a25b7853c7bed06d6a63e7daeccc3c85309c5ea61dc1f13fddfa014"
+      "evidence_verifier_fingerprint": "1b08175414c84c37f3987c2662427836151cc20746f8ed3f4b6923852ccb9ee6"
     }
   },
   "live_runtime_promoted": false,

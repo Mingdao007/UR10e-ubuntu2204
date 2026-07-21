@@ -82,6 +82,7 @@ from step5d_autotune_contract import (
     sha256_json,
 )
 from step5d_autotune_coordinator import CampaignCoordinator, MailboxObservation
+from step5d_r008_completion import CompletionJournal
 from step5d_autotune_journal import (
     JournalIntegrityError,
     JournalReference,
@@ -95,7 +96,7 @@ from step5d_autotune_live_driver import (
     TrialArtifactProducer,
     finalize_produced_bundle_direct,
 )
-from step5d_autotune_state_machine import TpLoopState
+from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
 from step5d_autotune_store import CampaignStore
 from step5d_production_csv import BridgeCsvFollower
 from step5d_autotune_supervisor import (
@@ -188,7 +189,60 @@ def tp_snapshot_from_bridge_row(row: Mapping[str, str]) -> TpSnapshot:
             row, "ur_output_int_register_29"
         ),
         consumed_command_seq=_integer(row, "ur_output_int_register_30"),
+        logical_batch_sequence_echo=(
+            _integer(row, "ur_output_int_register_34")
+            if "ur_output_int_register_34" in row
+            else 0
+        ),
     )
+
+
+def _complete_rolling_at_home(
+    *,
+    campaign_root: Path,
+    arm: HostPacket,
+    prepared_trial: Any,
+    mailbox: AtomicCommandMailbox,
+    follower: BridgeCsvFollower,
+    timeout_s: float,
+    event_path: Path,
+    reason: str,
+) -> bool:
+    """Durably send the one legal terminal command from READY_HOME_NEXT."""
+
+    completion = CompletionJournal(
+        campaign_root / "control/pending_completion.json"
+    )
+    complete_packet = completion.prepare(
+        HostPacket(
+            campaign_epoch=arm.campaign_epoch,
+            trial_id=arm.trial_id,
+            command=HostCommand.COMPLETE_AT_HOME,
+            candidate_token=arm.candidate_token,
+            execution_profile_id=arm.execution_profile_id,
+            command_seq=arm.command_seq + 1,
+            logical_batch_sequence=arm.logical_batch_sequence,
+        )
+    )
+    loaded = completion.load()
+    if loaded is not None and loaded[1] == "consumed":
+        return True
+    mailbox.send_command(complete_packet, prepared_trial=prepared_trial)
+    for completion_row in follower.rows(timeout_s=timeout_s):
+        completion_snapshot = tp_snapshot_from_bridge_row(completion_row)
+        if completion_snapshot.state != "READY_HOME_CLOSED":
+            follower.note_predicate_reject()
+            continue
+        completion.mark_consumed(completion_snapshot)
+        _event(
+            event_path,
+            "rolling_complete_consumed",
+            command_seq=complete_packet.command_seq,
+            tp_state=completion_snapshot.state,
+            reason=reason,
+        )
+        return True
+    raise RuntimeError("rolling COMPLETE was not consumed at state77")
 
 
 def closure_sample_from_bridge_row(row: Mapping[str, str]) -> dict[str, Any]:
@@ -995,9 +1049,15 @@ def _v3_overlay_for_candidate(
         )
         == candidate.candidate_uid
     ]
-    if len(matches) != 1:
-        raise RuntimeError("V3 candidate must have exactly one trial overlay")
-    overlay = normalize_trial_overlay(matches[0].get("overlay"), profile=launch_profile)
+    if not matches:
+        raise RuntimeError("V3 candidate has no trial overlay")
+    normalized_matches = tuple(
+        normalize_trial_overlay(row.get("overlay"), profile=launch_profile)
+        for row in matches
+    )
+    if any(row != normalized_matches[0] for row in normalized_matches[1:]):
+        raise RuntimeError("repeated V3 control candidate has divergent overlays")
+    overlay = normalized_matches[0]
     expected = {"execution_profile_id": profile.profile_id}
     if any(overlay[name] != value for name, value in expected.items()):
         raise RuntimeError("V3 overlay identity differs from the selected trial")
@@ -1072,6 +1132,7 @@ def run(args: argparse.Namespace) -> int:
             allowed_capture_root=campaign_root,
         )
     plan_path: Path | None = None
+    rolling_release = False
     if args.selection_policy == "codex_batches":
         if args.candidate_plan is None:
             raise RuntimeError("codex_batches requires --candidate-plan")
@@ -1079,6 +1140,7 @@ def run(args: argparse.Namespace) -> int:
         expected_plan = campaign_root / "control" / "candidate_plan.json"
         if plan_path != expected_plan or plan_path.is_symlink():
             raise RuntimeError("candidate plan must use campaign_root/control/candidate_plan.json")
+        rolling_release = any(load_plan(plan_path).occurrences)
     initial_row = _latest_complete_row(bridge_csv)
     initial = tp_snapshot_from_bridge_row(initial_row)
     if _integer(initial_row, "ur_safety_mode") != 1:
@@ -1148,6 +1210,8 @@ def run(args: argparse.Namespace) -> int:
         raise RuntimeError("live backend preflight failed: " + ";".join(preflight.blockers))
     follower = BridgeCsvFollower(bridge_csv)
     ready_states = {"READY_HOME", "READY_NEAR", "READY_HOME_CLOSED"}
+    if rolling_release:
+        ready_states.add("READY_HOME_NEXT")
     if initial.state not in ready_states:
         if not args.wait_for_home:
             follower.close()
@@ -1263,7 +1327,11 @@ def run(args: argparse.Namespace) -> int:
             config_fingerprint=frozen.config_fingerprint,
         )
         supervisor = coordinator.supervisor
-        supervisor.completion_protocol = CompletionProtocol.DIRECT_ARM_V1
+        supervisor.completion_protocol = (
+            CompletionProtocol.FULL_HOME_ROLLING_ARM_V1
+            if rolling_release
+            else CompletionProtocol.DIRECT_ARM_V1
+        )
         resumed = True
     else:
         supervisor = CampaignSupervisor(
@@ -1273,7 +1341,11 @@ def run(args: argparse.Namespace) -> int:
             config_fingerprint=frozen.config_fingerprint,
             execution_profile=_profile(root),
             selection_policy=args.selection_policy,
-            completion_protocol=CompletionProtocol.DIRECT_ARM_V1,
+            completion_protocol=(
+                CompletionProtocol.FULL_HOME_ROLLING_ARM_V1
+                if rolling_release
+                else CompletionProtocol.DIRECT_ARM_V1
+            ),
         )
         try:
             latest = journal.load_latest()
@@ -1339,14 +1411,28 @@ def run(args: argparse.Namespace) -> int:
     completed_trials = 0
     plan_closed = False
     batch_completed = False
+    completion_consumed = False
     stopped_after_current = False
     offline_gate_arm2_observed = False
     current_plan: CandidateBatchPlan | None = None
+    last_completed_arm: HostPacket | None = None
+    last_prepared_trial: Any | None = None
     try:
         while supervisor.phase is CampaignPhase.HOME:
             if stop_requested():
                 stopped_after_current = True
                 _event(event_path, "stop_after_current_observed", phase="home")
+                if rolling_release and last_completed_arm is not None:
+                    completion_consumed = _complete_rolling_at_home(
+                        campaign_root=campaign_root,
+                        arm=last_completed_arm,
+                        prepared_trial=last_prepared_trial,
+                        mailbox=mailbox,
+                        follower=follower,
+                        timeout_s=args.ack_timeout_s,
+                        event_path=event_path,
+                        reason="user_stop",
+                    )
                 break
             if args.selection_policy == "codex_batches":
                 assert plan_path is not None
@@ -1365,6 +1451,17 @@ def run(args: argparse.Namespace) -> int:
                 except StopAfterCurrentRequested:
                     stopped_after_current = True
                     _event(event_path, "stop_after_current_observed", phase="ready_home")
+                    if rolling_release and last_completed_arm is not None:
+                        completion_consumed = _complete_rolling_at_home(
+                            campaign_root=campaign_root,
+                            arm=last_completed_arm,
+                            prepared_trial=last_prepared_trial,
+                            mailbox=mailbox,
+                            follower=follower,
+                            timeout_s=args.ack_timeout_s,
+                            event_path=event_path,
+                            reason="user_stop",
+                        )
                     break
                 if forced_candidate is None:
                     batch_completed = runtime_batch_verified_complete(
@@ -1495,6 +1592,12 @@ def run(args: argparse.Namespace) -> int:
                     batch_context is not None
                     and batch_context.row_index == 1
                 ),
+                allow_intentional_occurrence_repeat=(
+                    batch_context is not None
+                    and batch_context.expected_row.occurrence_uid is not None
+                    and runtime_candidate.candidate_uid
+                    in supervisor.current_epoch_attempted_candidate_uids
+                ),
                 attempt_started=(
                     None
                     if batch_context is None
@@ -1502,6 +1605,11 @@ def run(args: argparse.Namespace) -> int:
                         selected_trial,
                         batch_context.expected_row.trial_overlay,
                     )
+                ),
+                logical_batch_sequence=(
+                    0
+                    if batch_context is None
+                    else batch_context.identity.logical_batch_sequence
                 ),
             )
             if args.selection_policy == "codex_batches":
@@ -1570,6 +1678,7 @@ def run(args: argparse.Namespace) -> int:
                 snapshot = tp_snapshot_from_bridge_row(row)
                 if (
                     args.offline_release_gate
+                    and not rolling_release
                     and trial.trial_id == 2
                     and snapshot.state == "RUN"
                     and snapshot.campaign_epoch_echo
@@ -1589,7 +1698,9 @@ def run(args: argparse.Namespace) -> int:
                     )
                     break
                 expected_state = (
-                    "READY_HOME_CLOSED"
+                    "READY_HOME_NEXT"
+                    if rolling_release
+                    else "READY_HOME_CLOSED"
                     if batch_context.row_index == 10
                     else "READY_NEAR"
                 )
@@ -1605,6 +1716,9 @@ def run(args: argparse.Namespace) -> int:
                         snapshot.execution_profile_integer_id_echo
                         != arm.execution_profile_id,
                         snapshot.consumed_command_seq != arm.command_seq,
+                        rolling_release
+                        and snapshot.logical_batch_sequence_echo
+                        != batch_context.identity.logical_batch_sequence,
                         snapshot.terminal_reason != 1,
                     )
                 ):
@@ -1678,12 +1792,27 @@ def run(args: argparse.Namespace) -> int:
                 batch_result = batch_context.journal.finalize()
                 if batch_context.journal.verified_exit_code() != 0:
                     raise RuntimeError("durable BatchResult exit code differs")
-                batch_completed = True
+                batch_completed = bool(
+                    not rolling_release
+                    or current_plan is not None
+                    and next_runtime_batch_candidate(
+                        plan=current_plan,
+                        campaign_root=epoch_root,
+                    )
+                    is None
+                )
                 _event(
                     event_path,
-                    "exact_ten_trial_direct_arm_batch_completed",
+                    (
+                        "rolling_logical_batch_completed"
+                        if rolling_release
+                        else "exact_ten_trial_direct_arm_batch_completed"
+                    ),
                     batch_uid=batch_context.identity.batch_uid,
                     batch_result_uid=batch_result["batch_result_uid"],
+                    logical_batch_sequence=(
+                        batch_context.identity.logical_batch_sequence
+                    ),
                 )
             _event(
                 event_path,
@@ -1692,6 +1821,8 @@ def run(args: argparse.Namespace) -> int:
                 next_command_seq=supervisor.recovery_snapshot().command_seq + 1,
             )
             completed_trials += 1
+            last_completed_arm = arm
+            last_prepared_trial = prepared
             if derived_postprocess is not None:
                 job_id = derived_postprocess.submit(
                     capture=result.immutable_bundle_path,
@@ -1735,6 +1866,17 @@ def run(args: argparse.Namespace) -> int:
             if args.one_trial:
                 break
             if batch_completed:
+                if rolling_release:
+                    completion_consumed = _complete_rolling_at_home(
+                        campaign_root=campaign_root,
+                        arm=arm,
+                        prepared_trial=prepared,
+                        mailbox=mailbox,
+                        follower=follower,
+                        timeout_s=args.ack_timeout_s,
+                        event_path=event_path,
+                        reason="batch_complete",
+                    )
                 break
             if supervisor.phase is CampaignPhase.WAIT_INFRA_READY:
                 break
@@ -1824,6 +1966,7 @@ def run(args: argparse.Namespace) -> int:
                 "campaign_terminal": campaign_terminal,
                 "plan_closed": plan_closed,
                 "batch_completed": batch_completed,
+                "completion_consumed": completion_consumed,
                 "stopped_after_current": stopped_after_current,
                 "offline_gate_arm2_observed": offline_gate_arm2_observed,
                 "bridge_csv_follower": asdict(follower.stats),

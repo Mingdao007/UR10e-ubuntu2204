@@ -45,7 +45,14 @@ from step5d_autotune_state_machine import (
 
 MAILBOX_SCHEMA = "step5d_autotune_command_mailbox_v1"
 INT32_MAX = 2_147_483_647
-NORMAL_LEVELS = {1: 0.010, 2: 0.015, 3: 0.020, 4: 0.030, 5: 0.050}
+NORMAL_LEVELS = {
+    1: 0.010,
+    2: 0.015,
+    3: 0.020,
+    4: 0.030,
+    5: 0.050,
+    6: 0.100,
+}
 ACTUATOR_LEVELS = {1: 0.1, 2: 0.2, 3: 0.5}
 HOST_TO_TP_NAMES = (
     "campaign_epoch",

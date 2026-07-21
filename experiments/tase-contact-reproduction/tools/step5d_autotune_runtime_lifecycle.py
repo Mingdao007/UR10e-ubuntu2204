@@ -1411,6 +1411,10 @@ def direct_ready_closure_from_sealed_capture(
         capture_hashes_complete=True,
         terminal_manifest_complete=True,
         fingerprint_closed=True,
+        protocol=(
+            "v3_full_home_rolling_arm_v1" if rolling else "v3_direct_arm_v1"
+        ),
+        logical_batch_sequence=expected_arm.logical_batch_sequence,
     )
     if not closure.returned_safe:
         raise ClosureNotReady(
@@ -1604,6 +1608,12 @@ class BatchAttemptContext:
             consumed_command_seq=readback.consumed_command_seq,
             tp_state=readback.tp_state,
             controller_readback_path=readback_relative_path,
+            protocol=(
+                self.identity.protocol
+                if self.identity.protocol == "v3_full_home_rolling_arm_v1"
+                else "v3_direct_arm_v1"
+            ),
+            logical_batch_sequence=self.identity.logical_batch_sequence,
         )
         verified_readback = _load_terminal_ready_readback(
             campaign_root=campaign_root,
@@ -2043,18 +2053,50 @@ def prepare_batch_attempt_context(
     _sha256("authorization_ref_sha256", authorization_ref_sha256)
     if stopping_bound_fingerprint is not None:
         _sha256("stopping_bound_fingerprint", stopping_bound_fingerprint)
-    matches = [
-        (batch_index, row_index)
-        for batch_index, batch in enumerate(plan.batches, start=1)
-        for row_index, candidate in enumerate(batch, start=1)
-        if candidate.candidate_uid == selected_candidate.candidate_uid
-    ]
-    if len(matches) != 1:
-        raise ValueError("selected candidate must occur once in the exact batch plan")
-    batch_index, row_index = matches[0]
+    rolling = any(plan.occurrences)
+    if rolling:
+        batch_index = 0
+        row_index = 0
+        batches_root = campaign_root.resolve() / "runtime_batches"
+        existing: dict[int, BatchJournal] = {}
+        if batches_root.exists():
+            if batches_root.is_symlink() or not batches_root.is_dir():
+                raise ValueError("runtime batch root is not a safe directory")
+            for root in batches_root.iterdir():
+                if root.is_symlink() or not root.is_dir():
+                    raise ValueError("runtime batch root contains an unsafe entry")
+                journal = BatchJournal.open(root)
+                identity = journal.identity()
+                if identity.protocol != "v3_full_home_rolling_arm_v1":
+                    raise ValueError("rolling campaign contains a non-rolling BatchIdentity")
+                if identity.logical_batch_sequence in existing:
+                    raise ValueError("rolling campaign repeats a logical batch sequence")
+                existing[identity.logical_batch_sequence] = journal
+        for sequence, batch in enumerate(plan.batches, start=1):
+            journal = existing.get(sequence)
+            next_row = 1 if journal is None else journal.state().next_row_index
+            if next_row is None:
+                continue
+            if batch[next_row - 1].candidate_uid != selected_candidate.candidate_uid:
+                raise ValueError("selected candidate is not the next rolling occurrence")
+            batch_index, row_index = sequence, next_row
+            break
+        if batch_index == 0:
+            raise ValueError("rolling candidate plan has no incomplete occurrence")
+    else:
+        matches = [
+            (batch_index, row_index)
+            for batch_index, batch in enumerate(plan.batches, start=1)
+            for row_index, candidate in enumerate(batch, start=1)
+            if candidate.candidate_uid == selected_candidate.candidate_uid
+        ]
+        if len(matches) != 1:
+            raise ValueError("selected candidate must occur once in the exact batch plan")
+        batch_index, row_index = matches[0]
     candidates = plan.batches[batch_index - 1]
-    if len(candidates) != 10:
-        raise ValueError("runtime BatchIdentity requires an exact 10-row batch")
+    expected_size = 5 if rolling else 10
+    if len(candidates) != expected_size:
+        raise ValueError(f"runtime BatchIdentity requires an exact {expected_size}-row batch")
     rows = []
     for index, candidate in enumerate(candidates, start=1):
         overlay = dict(overlay_resolver(candidate))
@@ -2067,7 +2109,22 @@ def prepare_batch_attempt_context(
                 "orientation_ko",
             )
         }
-        rows.append(BatchRow(index, control_candidate, overlay))
+        occurrence = plan.occurrences[batch_index - 1][index - 1] if rolling else None
+        rows.append(
+            BatchRow(
+                index,
+                control_candidate,
+                overlay,
+                occurrence_uid=(None if occurrence is None else occurrence.occurrence_uid),
+                transport_candidate_uid=(
+                    None if occurrence is None else occurrence.transport_candidate_uid
+                ),
+                role=(None if occurrence is None else occurrence.role),
+                replicate_ordinal=(
+                    None if occurrence is None else occurrence.replicate_ordinal
+                ),
+            )
+        )
     near_pose = (
         *STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m,
         *STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad,
@@ -2091,6 +2148,11 @@ def prepare_batch_attempt_context(
         authorization_ref_sha256=authorization_ref_sha256,
         plant_epoch=plant_epoch,
         rows=tuple(rows),
+        protocol=(
+            "v3_full_home_rolling_arm_v1" if rolling else "legacy_ack_bundle_v1"
+        ),
+        logical_batch_sequence=batch_index if rolling else 0,
+        plan_revision=batch_index if rolling else 0,
     )
     batch_root = (
         campaign_root.resolve() / "runtime_batches" / identity.batch_uid
@@ -2142,12 +2204,16 @@ def next_runtime_batch_candidate(
 ) -> ForceCandidate | None:
     """Select only the exact next non-ACK-completed row on resume."""
 
-    if len(plan.batches) != 1 or len(plan.batches[0]) != 10:
-        raise ValueError("production runtime requires one exact ten-row batch plan")
-    candidates = plan.batches[0]
+    rolling = any(plan.occurrences)
+    if not plan.batches or any(
+        len(batch) != (5 if rolling else 10) for batch in plan.batches
+    ):
+        raise ValueError("production runtime batch dimensions differ")
+    if not rolling and len(plan.batches) != 1:
+        raise ValueError("legacy production runtime requires one exact ten-row batch")
     batches_root = campaign_root.resolve() / "runtime_batches"
     if not batches_root.exists():
-        return candidates[0]
+        return plan.batches[0][0]
     if batches_root.is_symlink() or not batches_root.is_dir():
         raise ValueError("runtime batch root is not a safe directory")
     roots = tuple(
@@ -2155,39 +2221,53 @@ def next_runtime_batch_candidate(
         for path in batches_root.iterdir()
         if path.is_dir() and not path.is_symlink()
     )
-    if len(roots) != 1:
-        raise ValueError("campaign must contain exactly one runtime BatchIdentity")
-    journal = BatchJournal.open(roots[0])
-    identity = journal.identity()
-    planned_values = tuple(
-        (
-            candidate.force_p_gain,
-            candidate.force_i_gain,
-            candidate.force_damping,
+    journals: dict[int, BatchJournal] = {}
+    for root in roots:
+        journal = BatchJournal.open(root)
+        identity = journal.identity()
+        sequence = identity.logical_batch_sequence if rolling else 1
+        if sequence in journals:
+            raise ValueError("campaign repeats a runtime BatchIdentity sequence")
+        journals[sequence] = journal
+    if set(journals) - set(range(1, len(plan.batches) + 1)):
+        raise ValueError("campaign contains an unplanned runtime batch sequence")
+    for sequence, candidates in enumerate(plan.batches, start=1):
+        journal = journals.get(sequence)
+        if journal is None:
+            if any(prior not in journals for prior in range(1, sequence)):
+                raise ValueError("runtime batch sequences are not contiguous")
+            return candidates[0]
+        identity = journal.identity()
+        if rolling and (
+            identity.protocol != "v3_full_home_rolling_arm_v1"
+            or identity.plan_revision != sequence
+        ):
+            raise ValueError("runtime rolling BatchIdentity generation differs")
+        planned_values = tuple(
+            (item.force_p_gain, item.force_i_gain, item.force_damping)
+            for item in candidates
         )
-        for candidate in candidates
-    )
-    identity_values = tuple(
-        (
-            row.control_candidate["force_p_gain"],
-            row.control_candidate["force_i_gain"],
-            row.control_candidate["force_damping"],
+        identity_values = tuple(
+            (
+                row.control_candidate["force_p_gain"],
+                row.control_candidate["force_i_gain"],
+                row.control_candidate["force_damping"],
+            )
+            for row in identity.rows
         )
-        for row in identity.rows
-    )
-    if planned_values != identity_values:
-        raise ValueError("runtime BatchIdentity candidates differ from the durable plan")
-    state = journal.state()
-    if state.unpublished_trial_brief_row_indices:
-        raise ValueError(
-            "ACK-completed batch row requires TrialBrief recovery before selection"
-        )
-    if state.next_row_index is None:
+        if planned_values != identity_values:
+            raise ValueError("runtime BatchIdentity candidates differ from durable plan")
+        state = journal.state()
+        if state.unpublished_trial_brief_row_indices:
+            raise ValueError(
+                "completed batch occurrence requires TrialBrief recovery before selection"
+            )
+        if state.next_row_index is not None:
+            return candidates[state.next_row_index - 1]
         journal.finalize()
         if journal.verified_exit_code() != 0:
             raise ValueError("durable runtime BatchResult exit code differs")
-        return None
-    return candidates[state.next_row_index - 1]
+    return None
 
 
 def runtime_batch_verified_complete(*, campaign_root: Path) -> bool:
@@ -2199,11 +2279,15 @@ def runtime_batch_verified_complete(*, campaign_root: Path) -> bool:
         for path in batches_root.iterdir()
         if path.is_dir() and not path.is_symlink()
     )
-    if len(roots) != 1:
+    if not roots:
         return False
-    journal = BatchJournal.open(roots[0])
-    return bool(
+    journals = tuple(BatchJournal.open(root) for root in roots)
+    sequences = tuple(journal.identity().logical_batch_sequence for journal in journals)
+    if any(sequences) and set(sequences) != set(range(1, len(sequences) + 1)):
+        return False
+    return all(
         journal.state().complete
         and journal.state().result_published
         and journal.verified_exit_code() == 0
+        for journal in journals
     )

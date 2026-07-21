@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 import numpy as np
 
@@ -20,6 +21,7 @@ from step5d_autotune_contract import (
 
 
 CUDA_FIT_MODES = {"serial", "verified_parallel"}
+R008_NOISE_VARIANCE_FLOOR_N2 = 1e-4
 
 
 @dataclass(frozen=True)
@@ -478,10 +480,14 @@ def _cuda_botorch_candidate(
     torch.set_num_threads(1)
     train_x = torch.tensor([candidate_vector(item.candidate) for item in trainable], device=device)
     train_y = torch.tensor([[-item.objective] for item in trainable], device=device)
+    train_yvar = torch.tensor(
+        [[value] for value in replicate_noise_variances(trainable)],
+        device=device,
+    )
     model = SingleTaskGP(
         train_x,
         train_y,
-        train_Yvar=torch.full_like(train_y, 1e-5),
+        train_Yvar=train_yvar,
         input_transform=Normalize(d=4),
         outcome_transform=Standardize(m=1),
     )
@@ -503,6 +509,148 @@ def _cuda_botorch_candidate(
         "cuda_fit_mode": "serial",
         "training_observation_count": len(trainable),
         "selected_acquisition": float(values[index]),
+    }
+
+
+def replicate_noise_variances(
+    observations: Sequence[Observation],
+    *,
+    anchor: ForceCandidate | None = None,
+    variance_floor_n2: float = R008_NOISE_VARIANCE_FLOOR_N2,
+) -> tuple[float, ...]:
+    """Return occurrence-level fixed noise without collapsing repeated controls."""
+
+    if not math.isfinite(variance_floor_n2) or variance_floor_n2 <= 0.0:
+        raise ValueError("variance_floor_n2 must be positive and finite")
+    trainable = [item for item in observations if item.eligible]
+    if not trainable:
+        return ()
+    anchor = anchor or ForceCandidate()
+    grouped: dict[str, list[float]] = defaultdict(list)
+    for item in trainable:
+        grouped[item.candidate.candidate_uid].append(item.objective)
+
+    def sample_variance(values: Sequence[float]) -> float | None:
+        if len(values) < 2:
+            return None
+        mean = sum(values) / len(values)
+        return sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+
+    anchor_variance = sample_variance(grouped.get(anchor.candidate_uid, ()))
+    if anchor_variance is None:
+        repeated = [
+            value
+            for values in grouped.values()
+            if (value := sample_variance(values)) is not None
+        ]
+        anchor_variance = (
+            sum(repeated) / len(repeated) if repeated else variance_floor_n2
+        )
+    anchor_variance = max(float(anchor_variance), variance_floor_n2)
+    group_variance = {
+        uid: max(
+            variance_floor_n2,
+            anchor_variance if (value := sample_variance(values)) is None else value,
+        )
+        for uid, values in grouped.items()
+    }
+    return tuple(group_variance[item.candidate.candidate_uid] for item in trainable)
+
+
+def cuda_botorch_joint_candidates(
+    observations: Sequence[Observation],
+    candidates: Sequence[ForceCandidate],
+    *,
+    q: int,
+    seed: int = 8008,
+    anchor: ForceCandidate | None = None,
+) -> tuple[tuple[ForceCandidate, ...], dict[str, Any]]:
+    """Fit once and optimize one unique discrete qLogNEI joint batch on CUDA."""
+
+    if q not in {4, 5}:
+        raise ValueError("r008 joint batch q must be 4 or 5")
+    if isinstance(seed, bool) or not isinstance(seed, int) or seed < 0:
+        raise ValueError("seed must be a non-negative integer")
+    anchor = anchor or ForceCandidate()
+    trainable = [item for item in observations if item.eligible]
+    if len(trainable) < 6:
+        raise ValueError("r008 BoTorch gate requires at least 6 eligible observations")
+    if sum(item.candidate == anchor for item in trainable) < 3:
+        raise ValueError("r008 BoTorch gate requires at least 3 eligible anchor repeats")
+    choices = tuple(
+        item
+        for item in candidates
+        if item != anchor
+        and item.candidate_uid
+        not in {observation.candidate.candidate_uid for observation in trainable}
+    )
+    if len({item.candidate_uid for item in choices}) != len(choices):
+        raise ValueError("r008 discrete choices must be unique")
+    if len(choices) < q:
+        raise ValueError("r008 discrete catalog has fewer choices than q")
+    try:
+        import torch
+        from botorch.acquisition.logei import qLogNoisyExpectedImprovement
+        from botorch.fit import fit_gpytorch_mll
+        from botorch.models import SingleTaskGP
+        from botorch.models.transforms import Normalize, Standardize
+        from botorch.optim import optimize_acqf_discrete
+        from botorch.sampling.normal import SobolQMCNormalSampler
+        from gpytorch.mlls import ExactMarginalLogLikelihood
+    except ImportError as exc:
+        raise RuntimeError("PyTorch, BoTorch, and GPyTorch are required") from exc
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is required for r008 Bayesian optimization; no CPU fallback")
+    device = torch.device("cuda:0")
+    torch.cuda.set_device(device)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.set_default_dtype(torch.double)
+    torch.set_num_threads(1)
+    train_x = torch.tensor(
+        [candidate_vector(item.candidate) for item in trainable], device=device
+    )
+    train_y = torch.tensor([[-item.objective] for item in trainable], device=device)
+    train_yvar = torch.tensor(
+        [[value] for value in replicate_noise_variances(trainable, anchor=anchor)],
+        device=device,
+    )
+    model = SingleTaskGP(
+        train_x,
+        train_y,
+        train_Yvar=train_yvar,
+        input_transform=Normalize(d=4),
+        outcome_transform=Standardize(m=1),
+    )
+    fit_gpytorch_mll(ExactMarginalLogLikelihood(model.likelihood, model))
+    acquisition = qLogNoisyExpectedImprovement(
+        model=model,
+        X_baseline=train_x,
+        sampler=SobolQMCNormalSampler(sample_shape=torch.Size([256]), seed=seed),
+        prune_baseline=True,
+    )
+    choice_x = torch.tensor([candidate_vector(item) for item in choices], device=device)
+    selected_x, value = optimize_acqf_discrete(
+        acq_function=acquisition,
+        q=q,
+        choices=choice_x,
+        unique=True,
+    )
+    vectors = [tuple(float(value) for value in row) for row in selected_x.cpu()]
+    by_vector = {candidate_vector(item): item for item in choices}
+    selected = tuple(by_vector[vector] for vector in vectors)
+    if len({item.candidate_uid for item in selected}) != q or anchor in selected:
+        raise RuntimeError("r008 joint optimizer violated uniqueness or anchor exclusion")
+    return selected, {
+        "selection": f"botorch_qLogNoisyExpectedImprovement_q{q}_cuda_discrete_joint",
+        "device": str(device),
+        "gpu_name": torch.cuda.get_device_name(device),
+        "seed": seed,
+        "training_observation_count": len(trainable),
+        "anchor_repeat_count": sum(item.candidate == anchor for item in trainable),
+        "noise_variance_floor_n2": R008_NOISE_VARIANCE_FLOOR_N2,
+        "selected_acquisition": float(value.detach().cpu().reshape(-1)[0]),
+        "selected_candidate_uids": [item.candidate_uid for item in selected],
     }
 
 

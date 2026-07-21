@@ -26,7 +26,7 @@ if str(RUNTIME_SRC) not in sys.path:
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r007"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r008"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
@@ -408,7 +408,7 @@ end'''
         else:
           codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         end'''
-    direct_ready = '''        # r007 full-home rolling protocol: every sealed return waits at campaign home.
+    direct_ready = '''        # r008 full-home rolling protocol: every sealed return waits at campaign home.
         if stop_reason == 1:
           codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         elif stop_reason == 4 or stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
@@ -696,7 +696,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
 
 def source_stamp(now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R007")
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R008")
 
 
 def build_package_script(stamp: str) -> str:
@@ -809,8 +809,8 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "output_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
         "safe_transfer_z_m": 0.033,
         "return_segment_count": 3,
-        "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
-        "host_protocol": "v3_direct_arm_v1",
+        "batch_row_policy": "five_row_logical_batches_every_row_campaign_home",
+        "host_protocol": "v3_full_home_rolling_arm_v1",
     }
 
 

@@ -756,6 +756,7 @@ def _cursor(
         execution_profile_integer_id=intent.execution_profile_integer_id,
         trial_spec=reference,
         retry_release=retry_release,
+        logical_batch_sequence=intent.logical_batch_sequence,
     )
 
 
@@ -1175,11 +1176,27 @@ class CampaignCoordinator:
         allow_archived_code_fix_replay: bool = False,
         allow_exact_incomplete_batch_retry: bool = False,
         allow_fresh_exact_batch_bootstrap: bool = False,
+        allow_intentional_occurrence_repeat: bool = False,
         attempt_started: Callable[[TrialSpec], None] | None = None,
+        logical_batch_sequence: int = 0,
     ) -> HostPacket:
         """Register TrialSpec, fsync ARM intent, then return its HostPacket."""
 
         self._require_healthy()
+        if (
+            isinstance(logical_batch_sequence, bool)
+            or not isinstance(logical_batch_sequence, int)
+            or logical_batch_sequence < 0
+        ):
+            raise CoordinatorError("logical_batch_sequence must be non-negative")
+        rolling = (
+            self.supervisor.completion_protocol
+            is CompletionProtocol.FULL_HOME_ROLLING_ARM_V1
+        )
+        if rolling != (logical_batch_sequence > 0):
+            raise CoordinatorError(
+                "rolling completion protocol and logical batch sequence differ"
+            )
         try:
             intent = self.supervisor.next_trial(
                 require_cuda_botorch=require_cuda_botorch,
@@ -1194,6 +1211,10 @@ class CampaignCoordinator:
                 allow_fresh_exact_batch_bootstrap=(
                     allow_fresh_exact_batch_bootstrap
                 ),
+                allow_intentional_occurrence_repeat=(
+                    allow_intentional_occurrence_repeat
+                ),
+                logical_batch_sequence=logical_batch_sequence,
                 forbidden_candidate_uids={
                     fate.trial.candidate_uid
                     for fate in self._terminal_fates
@@ -1226,6 +1247,7 @@ class CampaignCoordinator:
                 intent.trial,
                 command=HostCommand.ARM,
                 execution_profile_id=intent.execution_profile_integer_id,
+                logical_batch_sequence=logical_batch_sequence,
             )
         except Exception:
             self._poisoned = True
@@ -1402,7 +1424,9 @@ class CampaignCoordinator:
                 tp_snapshot.consumed_command_seq != trial.command_seq,
                 tp_snapshot.terminal_reason != 1,
                 tp_snapshot.state
-                not in {"READY_NEAR", "READY_HOME_CLOSED"},
+                not in {"READY_NEAR", "READY_HOME_CLOSED", "READY_HOME_NEXT"},
+                persisted.logical_batch_sequence
+                != tp_snapshot.logical_batch_sequence_echo,
             )
         ):
             raise CoordinatorError("direct-ready TP snapshot differs from active ARM")
@@ -1607,6 +1631,7 @@ class CampaignCoordinator:
                 intent.trial,
                 command=HostCommand.ARM,
                 execution_profile_id=intent.execution_profile_integer_id,
+                logical_batch_sequence=intent.logical_batch_sequence,
             )
         elif packet.command is HostCommand.ACK_BUNDLE:
             if snapshot.pending_ack is None or snapshot.prepared_ack is None:
@@ -1654,6 +1679,7 @@ class CampaignCoordinator:
                     candidate_token=cursor.candidate_token,
                     execution_profile_id=cursor.execution_profile_integer_id,
                     command_seq=cursor.arm_command_seq,
+                    logical_batch_sequence=cursor.logical_batch_sequence,
                 ),
                 cursor.trial_uid,
             )
@@ -1783,6 +1809,7 @@ class CampaignCoordinator:
                 snapshot.active.trial,
                 command=HostCommand.ARM,
                 execution_profile_id=snapshot.active.execution_profile_integer_id,
+                logical_batch_sequence=snapshot.active.logical_batch_sequence,
             )
         elif decision.action is ReconcileAction.SEND_PERSISTED_ACK:
             packet = snapshot.prepared_ack
@@ -2157,6 +2184,12 @@ class CampaignCoordinator:
                 ),
                 selection={"selection": "restored_from_verified_journal"},
                 retry_kind=retry_kind,
+                logical_batch_sequence=(
+                    active_cursor.logical_batch_sequence
+                    if active_cursor is not None
+                    and active_cursor.trial_uid == trial.trial_uid
+                    else 0
+                ),
             )
 
         active = None
@@ -2470,11 +2503,17 @@ class CampaignCoordinator:
             )
 
         if transitional_uid is not None:
-            direct_protocol = (
-                supervisor.completion_protocol is CompletionProtocol.DIRECT_ARM_V1
-            )
+            direct_protocol = supervisor.completion_protocol in {
+                CompletionProtocol.DIRECT_ARM_V1,
+                CompletionProtocol.FULL_HOME_ROLLING_ARM_V1,
+            }
             expected_states = (
-                {"READY_NEAR", "READY_HOME_CLOSED"}
+                (
+                    {"READY_HOME_NEXT"}
+                    if supervisor.completion_protocol
+                    is CompletionProtocol.FULL_HOME_ROLLING_ARM_V1
+                    else {"READY_NEAR", "READY_HOME_CLOSED"}
+                )
                 if direct_protocol
                 else {"WAIT_ACK"}
             )

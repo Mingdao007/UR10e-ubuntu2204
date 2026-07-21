@@ -41,7 +41,7 @@ def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() 
     assert tuple(overlay) == OVERLAY_FIELDS
     assert len(overlay) == 13
     assert profile.document["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
-    assert profile.document["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r006"
+    assert profile.document["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r008"
 
 
 def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
@@ -49,7 +49,7 @@ def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
     overlay = dict(DEFAULT_OVERLAY)
     overlay["force_i_gain"] = 0.00002
     overlay.pop("control_candidate_uid")
-    overlay["execution_profile_id"] = "nf020-slew010-a010"
+    overlay["execution_profile_id"] = "nf100-slew050-a050"
     overlay["step5d_preload_hold_s"] = 0.2
     argv = apply_profile_to_argv(
         build_bridge_argv(Path("/tmp/step5d-v3-overlay")),
@@ -58,8 +58,8 @@ def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
     )
     values = {argv[index]: argv[index + 1] for index in range(2, len(argv) - 1) if argv[index].startswith("--")}
     assert values["--step5d-autotune-force-i"] == "2e-05"
-    assert values["--step5d-autotune-normal-rate-rad-s"] == "0.02"
-    assert values["--step5d-autotune-host-slew-rad-s2"] == "0.1"
+    assert values["--step5d-autotune-normal-rate-rad-s"] == "0.1"
+    assert values["--step5d-autotune-host-slew-rad-s2"] == "0.5"
     assert values["--step5d-preload-hold-s"] == "0.2"
     assert overlay_fingerprint(profile, overlay) != overlay_fingerprint(profile, DEFAULT_OVERLAY)
     assert comparison_profile_fingerprint(profile, overlay) != comparison_profile_fingerprint(profile, DEFAULT_OVERLAY)
@@ -71,6 +71,7 @@ def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
         {"unknown": 1},
         {"step5d_preload_filtered_min_n": 20.0},
         {"step5d_preload_force_norm_max_n": 10.0},
+        {"execution_profile_id": "nf020-slew010-a010"},
         {"execution_profile_id": "nf030-offline"},
     ],
 )

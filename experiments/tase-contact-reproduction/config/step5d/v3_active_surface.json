@@ -6,27 +6,23 @@
     "tag": "archive/step5d-autotune-v1-20260715",
     "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
   },
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
-  "tp_program_disposition": "known_incompatible_do_not_retry",
-  "local_candidate_tp_program_id": "step5d_strict_rnn_autotune_v3_r007",
-  "local_candidate_tp_disposition": "implementation_in_progress_requires_controller_readback",
-  "host_protocol": "v3_direct_arm_v1",
-  "bridge_start_ready": false,
-  "blockers": [
-    "r006_runtime_batch_identity_namespace_mismatch",
-    "requires_r007_offline_release",
-    "requires_r007_controller_readback"
-  ],
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r008",
+  "tp_program_disposition": "controller_readback_verified",
+  "local_candidate_tp_program_id": "step5d_strict_rnn_autotune_v3_r008",
+  "local_candidate_tp_disposition": "controller_readback_verified_promoted_current",
+  "host_protocol": "v3_full_home_rolling_arm_v1",
+  "bridge_start_ready": true,
+  "blockers": [],
   "tp_commands": {
     "arm": 1,
     "operator_stop_request": 3,
     "legacy_replay_only_ack": 2,
     "active_allowed": [
       1,
-      3
+      3,
+      4
     ],
     "retired": [
-      4,
       5,
       6
     ]
@@ -44,9 +40,9 @@
     "config/step5d/current.json"
   ],
   "deployment_paths": [
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.script",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.txt",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.urp",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r008.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r008.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r008.urp",
     "config/step5d_autotune_controller_readback_v3.json"
   ],
   "local_candidate_paths": [

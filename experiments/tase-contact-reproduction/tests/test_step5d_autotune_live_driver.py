@@ -417,9 +417,17 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
             (0.020, 0.5, 0.5),
         )
 
+    def test_canonical_live_100_profile_has_unique_network_code(self) -> None:
+        profile = ExecutionProfile("nf100-slew050-a050", 0.100, 0.5, 0.5)
+        self.assertEqual(execution_profile_id_for(profile, network_mode=True), 633)
+        self.assertEqual(
+            decode_execution_profile_id(633, network_mode=True),
+            (0.100, 0.5, 0.5),
+        )
+
     def test_live_profile_integer_codec_is_injective_across_full_lattice(self) -> None:
         encoded: dict[int, tuple[float, float, float]] = {}
-        for normal in (0.010, 0.015, 0.020, 0.050):
+        for normal in (0.010, 0.015, 0.020, 0.050, 0.100):
             for host_slew in (0.1, 0.2, 0.5):
                 for tp_accel in (0.1, 0.2, 0.5):
                     profile = ExecutionProfile(
@@ -439,7 +447,7 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                         decode_execution_profile_id(code, network_mode=True),
                         (normal, host_slew, tp_accel),
                     )
-        self.assertEqual(len(encoded), 36)
+        self.assertEqual(len(encoded), 45)
 
     def test_offline_030_mailbox_round_trip_preserves_offline_mode(self) -> None:
         offline = make_trial(

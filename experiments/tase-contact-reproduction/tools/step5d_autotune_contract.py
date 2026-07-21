@@ -361,9 +361,9 @@ class ExecutionProfile:
         qdot_cap = _finite("qdot_cap_rad_s", self.qdot_cap_rad_s)
         filter_tau = _finite("normal_filter_tau_s", self.normal_filter_tau_s)
         _strict_bool("live_eligible", self.live_eligible)
-        if normal_rate not in {0.010, 0.015, 0.020, 0.030, 0.050}:
+        if normal_rate not in {0.010, 0.015, 0.020, 0.030, 0.050, 0.100}:
             raise ValueError(
-                "normal max-rate must be one of .010/.015/.020/.030/.050 rad/s"
+                "normal max-rate must be one of .010/.015/.020/.030/.050/.100 rad/s"
             )
         if host_slew not in {0.1, 0.2, 0.5}:
             raise ValueError("host qdot slew must be one of .1/.2/.5 rad/s^2")
@@ -412,6 +412,7 @@ NORMAL_FILTER_PROFILES: tuple[ExecutionProfile, ...] = (
     ExecutionProfile("nf020-slew010-a010", 0.020),
     ExecutionProfile("nf030-offline", 0.030, live_eligible=False),
     ExecutionProfile("nf050-slew050-a050", 0.050, 0.5, 0.5),
+    ExecutionProfile("nf100-slew050-a050", 0.100, 0.5, 0.5),
 )
 
 
@@ -1427,6 +1428,8 @@ class TypedSafeClosureEvidence:
     capture_hashes_complete: bool
     terminal_manifest_complete: bool
     fingerprint_closed: bool
+    protocol: str = "v3_direct_arm_v1"
+    logical_batch_sequence: int = 0
     schema: str = field(
         default="step5d.autotune/typed-safe-closure-v2",
         init=False,
@@ -1435,9 +1438,24 @@ class TypedSafeClosureEvidence:
     def __post_init__(self) -> None:
         require_sha256("return_reference_uid", self.return_reference_uid)
         _positive_int("batch_row_index", self.batch_row_index)
-        if self.batch_row_index > 10:
-            raise ValueError("batch_row_index exceeds the exact ten-row batch")
-        expected_kind = "campaign_home" if self.batch_row_index == 10 else "near_ready"
+        rolling = self.protocol == "v3_full_home_rolling_arm_v1"
+        if self.protocol not in {"v3_direct_arm_v1", "v3_full_home_rolling_arm_v1"}:
+            raise ValueError("typed closure protocol is not recognized")
+        max_rows = 5 if rolling else 10
+        if self.batch_row_index > max_rows:
+            raise ValueError("batch_row_index exceeds the protocol batch size")
+        if (
+            isinstance(self.logical_batch_sequence, bool)
+            or not isinstance(self.logical_batch_sequence, int)
+            or self.logical_batch_sequence < 0
+            or rolling != (self.logical_batch_sequence > 0)
+        ):
+            raise ValueError("typed closure logical batch sequence differs from protocol")
+        expected_kind = (
+            "campaign_home"
+            if rolling or self.batch_row_index == 10
+            else "near_ready"
+        )
         if self.return_reference_kind != expected_kind:
             raise ValueError("typed closure reference differs from exact batch row")
         for name in (
@@ -1529,7 +1547,7 @@ class TypedSafeClosureEvidence:
         return not self.failures()
 
     def payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "schema": self.schema,
             "return_reference_uid": self.return_reference_uid,
             "return_reference_kind": self.return_reference_kind,
@@ -1558,6 +1576,10 @@ class TypedSafeClosureEvidence:
             "terminal_manifest_complete": self.terminal_manifest_complete,
             "fingerprint_closed": self.fingerprint_closed,
         }
+        if self.protocol == "v3_full_home_rolling_arm_v1":
+            payload["protocol"] = self.protocol
+            payload["logical_batch_sequence"] = self.logical_batch_sequence
+        return payload
 
 
 @dataclass(frozen=True)

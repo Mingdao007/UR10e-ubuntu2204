@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Promote an exact fresh r006 delivery manifest into the V3 current binding.
+"""Promote an exact fresh r008 delivery manifest into the V3 current binding.
 
 This owner is filesystem-only. It never connects to a controller, loads or
 starts a program, opens a bridge, sends ARM, or causes robot motion.
@@ -21,7 +21,7 @@ import rebuild_step5d_autotune_v3_pre_live_evidence as rebuild
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PROGRAM = "step5d_strict_rnn_autotune_v3_r006"
+PROGRAM = "step5d_strict_rnn_autotune_v3_r008"
 RELEASE = "step5d_strict_rnn_autotune_v3"
 TARGET_DIR = "/programs/andyl/kunwei/step5"
 EXTENSIONS = (".script", ".txt", ".urp")
@@ -30,7 +30,7 @@ CONTRACT = Path("config/step5/step5d_autotune_v3_control_contract.json")
 CURRENT = Path("config/step5d/current.json")
 ACTIVE = Path("config/step5d/v3_active_surface.json")
 CANDIDATE = Path(
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r006/local_candidate.json"
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r008/local_candidate.json"
 )
 PACKAGE_DIR = Path("programs/step5/step5d")
 IMMUTABLE_DIR = Path(
@@ -156,7 +156,7 @@ def promote(root: Path, manifest_path: Path) -> dict[str, Any]:
         "fresh_readback_source": str(immutable_relative),
         "safety_boundary": [
             "controller package upload and fresh read-back only",
-            "r006 is eligible for current promotion only after this exact read-back",
+            "r008 is eligible for current promotion only after this exact read-back",
             "no Load, Play, bridge, ARM, contact, or motion",
         ],
     }
@@ -166,7 +166,12 @@ def promote(root: Path, manifest_path: Path) -> dict[str, Any]:
     contract = _load(root / CONTRACT)
     contract["candidate_tp_artifact_sha256"] = local_sha
     contract["candidate_tp_identity"].update(
-        {"program": PROGRAM, "mode": "controller_readback_verified_promoted_current"}
+        {
+            "program": PROGRAM,
+            "mode": "controller_readback_verified_promoted_current",
+            "deploy_manifest_sha256": _sha256(deploy_manifest),
+            "numeric_sanity_sha256": _sha256(numeric_sanity),
+        }
     )
     contract["promotion_status"] = "controller_readback_verified"
     contract["tp_artifact_sha256"] = local_sha
@@ -183,9 +188,12 @@ def promote(root: Path, manifest_path: Path) -> dict[str, Any]:
         {
             "tp_program_id": PROGRAM,
             "tp_program_disposition": "controller_readback_verified",
+            "host_runtime_disposition": "verified_r008_full_home_rolling_production_chain_offline",
             "local_candidate_tp_program_id": PROGRAM,
             "local_candidate_tp_disposition": "controller_readback_verified_promoted_current",
             "state": "bridge_start_ready_no_arm",
+            "protocol": "v3_full_home_rolling_arm_v1",
+            "local_candidate_manifest": str(CANDIDATE),
         }
     )
     current["deployment"].update(
@@ -195,7 +203,14 @@ def promote(root: Path, manifest_path: Path) -> dict[str, Any]:
         {"bridge_start_ready": True, "bridge_process_ready": False, "motion_arm_ready": False, "campaign_ready": False, "blockers": []}
     )
     current["claims"].update(
-        {"r006_controller_readback_verified": True, "controller_verified": True, "live_ready": False, "live_accepted": False}
+        {
+            "new_version_complete": True,
+            "r008_offline_release_complete": True,
+            "r008_controller_readback_verified": True,
+            "controller_verified": True,
+            "live_ready": False,
+            "live_accepted": False,
+        }
     )
     candidate = _load(root / CANDIDATE)
     candidate.update(

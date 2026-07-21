@@ -1,21 +1,18 @@
 {
-  "control_contract_sha256": "f1685cd86163a226021f338b7d445502caba171adfa35cfd96f606d8f8f35c53",
+  "control_contract_sha256": "224a5958d96f86379841076c09c614341dd2356575885ec126477b90238717fc",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "launch_overrides": {},
   "moving_sphere_reference_sha256": "dd5f065a5cecc04098865dda08891e11bfa8c6c11f40bbd964d1b1dcb2b60b86",
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "schema": "step5d.autotune-v3/launch-profile-v1",
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r008",
   "trial_overlay_policy": {
     "control_candidate_uid": {
       "derived": "sha256"
     },
     "execution_profile_id": {
       "allowed": [
-        "nf010-slew010-a010",
-        "nf015-slew010-a010",
-        "nf020-slew010-a010",
-        "nf050-slew050-a050"
+        "nf100-slew050-a050"
       ]
     },
     "force_damping": {

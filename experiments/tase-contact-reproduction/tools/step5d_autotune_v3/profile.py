@@ -120,7 +120,7 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     _git_sha1(baseline["commit"], name="frozen_baseline.commit")
     if baseline["stage_id"] != "step5d_strict_rnn_autotune_v1":
         raise ContractViolation("frozen v1 stage differs")
-    if payload["execution_profile_id"] != "nf050-slew050-a050":
+    if payload["execution_profile_id"] != "nf100-slew050-a050":
         raise ContractViolation("execution profile identity differs")
 
     candidate_schema = payload["candidate_schema"]
@@ -163,14 +163,14 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     }:
         raise ContractViolation("candidate_tp_identity schema differs")
     if (
-        candidate_identity["program"] != "step5d_strict_rnn_autotune_v3_r006"
+        candidate_identity["program"] != "step5d_strict_rnn_autotune_v3_r008"
         or candidate_identity["mode"]
         not in {
             "local_only_requires_attended_controller_readback",
             "controller_readback_verified_promoted_current",
         }
     ):
-        raise ContractViolation("candidate TP must be the immutable local r006 package")
+        raise ContractViolation("candidate TP must be the immutable local r008 package")
     candidate_dir = candidate_identity["artifact_dir"]
     candidate_dir_path = (
         Path(candidate_dir) if isinstance(candidate_dir, str) else Path("/")
@@ -209,6 +209,7 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
         not in {
             "step5d_strict_rnn_autotune_v3_r005",
             "step5d_strict_rnn_autotune_v3_r006",
+            "step5d_strict_rnn_autotune_v3_r008",
         }
         or deployment["mode"]
         != "explicit_v3_identity_precontact_pose_frozen_v1_control"

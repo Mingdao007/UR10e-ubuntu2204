@@ -144,10 +144,10 @@
     "zero_ftsensor_authorized": false
   },
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-  "controller_readback_manifest_sha256": "0d39fdc98607579ecf639849c940ff5c05bb43c34550bd1d896861417f0bbc72",
+  "controller_readback_manifest_sha256": "93306bca30d20d683c68be5eb9ecbcf060f09b1129cf25cdf0179fc810aedf17",
   "controller_readback_verified_for_selected_triplet": true,
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r006.script",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r006.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r008.script",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r008.urp",
   "current_stage_id": "step5d_strict_rnn_autotune_v3",
   "current_step": "Step5d",
   "delivery_manifest": "config/step5d_autotune_controller_readback_v3.json",
@@ -1163,7 +1163,7 @@
     "v33c20_controller_readback_manifest_sha256": "27642bedb00a7d35b0ccadda257a8e604d51ac828017003b15306d0e84ae0030",
     "v33c20_controller_readback_verified": true
   },
-  "execution_state": "blocked_r006_known_incompatible_r007_not_deployed",
+  "execution_state": "bridge_start_ready_no_arm",
   "flow_path": "STEP5_FLOW.md",
   "live_run_status": {
     "accepted_artifact": null,
@@ -1184,16 +1184,16 @@
   "local_candidate": {
     "controller_readback_verified": true,
     "controller_uploaded": true,
-    "disposition": "implementation_in_progress_requires_controller_readback",
-    "manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r007/local_candidate.json",
-    "program": "step5d_strict_rnn_autotune_v3_r007",
+    "disposition": "controller_readback_verified_promoted_current",
+    "manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r008/local_candidate.json",
+    "program": "step5d_strict_rnn_autotune_v3_r008",
     "triplet_sha256": {
-      ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
-      ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
-      ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
+      ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+      ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+      ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
     }
   },
-  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006",
+  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r008",
   "notes": [
     "step5d_strict_rnn_ablation_v29 is controller read-back verified and remains the current pointer only as a frozen fallback.",
     "v29 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
@@ -1395,16 +1395,12 @@
   },
   "program": "step5d_strict_rnn_autotune_v3",
   "readiness": {
-    "blockers": [
-      "r006_runtime_batch_identity_namespace_mismatch",
-      "requires_r007_offline_release",
-      "requires_r007_controller_readback"
-    ],
+    "blockers": [],
     "bridge_process_ready": false,
-    "bridge_start_ready": false,
+    "bridge_start_ready": true,
     "campaign_ready": false,
     "deployment_ready": true,
-    "host_runtime_disposition": "known_incompatible_r006_batch_identity_namespace_mismatch",
+    "host_runtime_disposition": "verified_r008_full_home_rolling_production_chain_offline",
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },
@@ -1433,19 +1429,19 @@
   ],
   "selection_state": "current",
   "sha256": {
-    ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
-    ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
-    ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
+    ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+    ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+    ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
   },
   "stage_table_path": "config/step5_stage_table.json",
-  "status": "step5d_autotune_v3_r006_quarantined_r007_implementation",
+  "status": "step5d_autotune_v3_r008_controller_readback_verified",
   "strict_rnn_status": {
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
     "reason": "V3 is the unique selected route. V35 and autotune V1 are retained provenance only; V3 deployment, timing, certification, audit, and campaign authorization remain separate readiness gates.",
     "stage_id": "step5d_strict_rnn_reproduction_v1"
   },
-  "updated_at": "2026-07-21T11:00:33+08:00",
+  "updated_at": "2026-07-21T13:19:06+08:00",
   "v29_contact_candidate": {
     "controller_readback_verified": true,
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",

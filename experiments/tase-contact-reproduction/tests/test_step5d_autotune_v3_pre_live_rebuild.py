@@ -64,7 +64,7 @@ def test_rebuild_binds_the_versioned_active_tp_manifest() -> None:
     ).hexdigest()
 
 
-def test_r006_exact_readback_promotes_bridge_start_without_arm() -> None:
+def test_r008_exact_readback_promotes_bridge_start_without_arm() -> None:
     table = json.loads((ROOT / rebuild.STAGE_TABLE_RELATIVE).read_text(encoding="utf-8"))
     row = next(row for row in table["stages"] if row["id"] == rebuild.V3_STAGE_ID)
     execution = row["execution_readiness"]
@@ -93,11 +93,11 @@ def test_r006_exact_readback_promotes_bridge_start_without_arm() -> None:
         "bridge_start_ready": True,
         "campaign_ready": False,
         "deployment_ready": True,
-        "host_runtime_disposition": "verified_r006_cross_process_direct_arm1_arm2_offline",
+        "host_runtime_disposition": "verified_r008_full_home_rolling_production_chain_offline",
         "motion_arm_ready": False,
         "selected_release": rebuild.V3_STAGE_ID,
     }
-    assert current["local_candidate"]["program"].endswith("_r006")
+    assert current["local_candidate"]["program"].endswith("_r008")
     assert current["local_candidate"]["controller_readback_verified"] is True
     assert current["local_candidate"]["disposition"] == (
         "controller_readback_verified_promoted_current"
