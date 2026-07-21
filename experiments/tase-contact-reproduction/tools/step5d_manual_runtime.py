@@ -164,13 +164,14 @@ def seed_home_state(
 
     if path.exists() or path.is_symlink():
         raise ManualRuntimeError("manual runtime state already exists")
+    if isinstance(campaign_epoch, bool) or not isinstance(campaign_epoch, int) or campaign_epoch < 1:
+        raise ManualRuntimeError("campaign_epoch must be a positive integer")
     for name, value in (
-        ("campaign_epoch", campaign_epoch),
         ("last_trial_id", last_trial_id),
         ("last_command_seq", last_command_seq),
     ):
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-            raise ManualRuntimeError(f"{name} must be a positive observed integer")
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ManualRuntimeError(f"{name} must be a non-negative observed integer")
     state = _initial_state(campaign_id, release_sha)
     state["campaign_epoch"] = campaign_epoch
     state["last_trial_id"] = last_trial_id

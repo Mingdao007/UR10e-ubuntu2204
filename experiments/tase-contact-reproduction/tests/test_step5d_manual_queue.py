@@ -190,3 +190,27 @@ def test_seed_home_state_advances_first_live_identity(tmp_path: Path) -> None:
     assert intent is not None
     assert intent.trial_id == 2
     assert intent.command_seq == 2
+
+
+def test_seed_initial_home_zero_identity_creates_first_arm(tmp_path: Path) -> None:
+    queue = tmp_path / "manual_queue.json"
+    _enqueue(queue, nonce="2" * 32)
+    state = tmp_path / "manual_runtime_state.json"
+    seed_home_state(
+        state,
+        campaign_id="manual-campaign-1",
+        release_sha=RELEASE_SHA,
+        campaign_epoch=1,
+        last_trial_id=0,
+        last_command_seq=0,
+    )
+    intent = prepare_next_intent(
+        queue_path=queue,
+        state_path=state,
+        campaign_id="manual-campaign-1",
+        release_manifest_sha256=RELEASE_SHA,
+    )
+    assert intent is not None
+    assert intent.campaign_epoch == 1
+    assert intent.trial_id == 1
+    assert intent.command_seq == 1

@@ -231,7 +231,7 @@ def test_live_campaign_rejects_stale_intent_before_mailbox(tmp_path: Path, monke
     monkeypatch.setattr(campaign, "validate_bridge", lambda *_args: (
         tmp_path / "runtime/command.json",
         {
-            "state": 90,
+            "state": 10,
             "campaign_epoch": 1,
             "trial_id": 1,
             "consumed_command_seq": 1,

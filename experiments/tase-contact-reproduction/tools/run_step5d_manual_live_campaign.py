@@ -33,7 +33,7 @@ from step5d_manual_runtime import (
 
 
 BACKEND_ID = "step5d_manual_hold_v1"
-READY_HOME = 90
+READY_HOME = 10
 
 
 class ManualLiveError(RuntimeError):
@@ -133,9 +133,9 @@ def validate_bridge(output_root: Path, release_sha: str) -> tuple[Path, dict[str
         observed["command"] != 0,
         observed["controller_state"] != 0,
         observed["safety_mode"] != 1,
-        observed["campaign_epoch"] < 1,
-        observed["trial_id"] < 1,
-        observed["consumed_command_seq"] < 1,
+        observed["campaign_epoch"] < 0,
+        observed["trial_id"] < 0,
+        observed["consumed_command_seq"] < 0,
     )):
         raise ManualLiveError("bridge/TP is not stationary READY_HOME command=0")
     return mailbox, observed
@@ -220,7 +220,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.state,
             campaign_id=args.campaign_id,
             release_sha=args.release_manifest_sha256,
-            campaign_epoch=observed["campaign_epoch"],
+            campaign_epoch=max(1, observed["campaign_epoch"]),
             last_trial_id=observed["trial_id"],
             last_command_seq=observed["consumed_command_seq"],
         )
