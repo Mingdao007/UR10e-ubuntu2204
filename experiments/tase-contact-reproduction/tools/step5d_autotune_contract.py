@@ -1560,7 +1560,26 @@ class TypedSafeClosureEvidence:
         }
 
 
-ClosureEvidence = SafeClosureEvidence | TypedSafeClosureEvidence
+@dataclass(frozen=True)
+class DirectReadyClosureEvidence(TypedSafeClosureEvidence):
+    """r006 exact terminal-ready closure without a post-return dwell gate."""
+
+    schema: str = field(
+        default="step5d.autotune/direct-ready-closure-v3",
+        init=False,
+    )
+
+    def failures(self) -> tuple[str, ...]:
+        return tuple(
+            failure
+            for failure in super().failures()
+            if failure != "host_safe_dwell_short"
+        )
+
+
+ClosureEvidence = (
+    SafeClosureEvidence | TypedSafeClosureEvidence | DirectReadyClosureEvidence
+)
 
 
 @dataclass(frozen=True)
@@ -1649,6 +1668,8 @@ class CaptureManifest:
                 closure_schema = closure_payload.pop("schema", None)
                 if closure_schema == "step5d.autotune/typed-safe-closure-v2":
                     closure = TypedSafeClosureEvidence(**closure_payload)
+                elif closure_schema == "step5d.autotune/direct-ready-closure-v3":
+                    closure = DirectReadyClosureEvidence(**closure_payload)
                 elif closure_schema is None:
                     closure = SafeClosureEvidence(**closure_payload)
                 elif closure_schema == "step5d.autotune/typed-safe-closure-v1":
@@ -1661,7 +1682,14 @@ class CaptureManifest:
                     )
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"safe_closure_evidence is invalid: {exc}") from exc
-        if not isinstance(closure, (SafeClosureEvidence, TypedSafeClosureEvidence)):
+        if not isinstance(
+            closure,
+            (
+                SafeClosureEvidence,
+                TypedSafeClosureEvidence,
+                DirectReadyClosureEvidence,
+            ),
+        ):
             raise ValueError("safe_closure_evidence has an unsupported closure schema")
         if self.returned_safe is not closure.returned_safe:
             raise ValueError("returned_safe must equal the detailed safe closure proof")

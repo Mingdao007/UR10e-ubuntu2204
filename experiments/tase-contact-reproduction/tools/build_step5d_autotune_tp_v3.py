@@ -26,7 +26,7 @@ if str(RUNTIME_SRC) not in sys.path:
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r005"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r006"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
@@ -39,6 +39,7 @@ MINIMUM_START_ABOVE_ENTRY_M = 0.01
 # shorter TP timeout would turn ordinary host scheduling jitter into a false
 # transport-loss stop and would no longer be V1 control-kernel parity.
 STAGE25_STALE_COMMAND_HOLD_S = 1.000
+READY_ARM_TIMEOUT_S = 30.000
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 
@@ -316,6 +317,146 @@ def _apply_batch_lifecycle(source: str) -> str:
     return result
 
 
+def _direct_arm_replacements() -> tuple[tuple[str, str, str], ...]:
+    legacy_header = '''# STEP5D_AUTOTUNE_CONTINUOUS_TP: one campaign home, fresh integer handshake,
+# immutable-bundle ACK barrier, and no automatic retry limit for infra reasons.'''
+    direct_header = '''# STEP5D_AUTOTUNE_CONTINUOUS_TP: one campaign home and direct ARM chaining.
+# Immutable bundle cold-read precedes each next ARM; no ACK command is active.'''
+    legacy_stop_contract = '''# STOP_CONTRACT: integer STOP is polled only at READY_HOME/WAIT_ACK; during RUN
+# the frozen trial consumes the legacy float stop_request safety carrier.'''
+    direct_stop_contract = '''# STOP_CONTRACT: integer STOP is polled only in stationary ready states; during RUN
+# the frozen trial consumes the legacy float stop_request safety carrier.'''
+    legacy_post_ack_state = '''def codex_autotune_post_ack_state(stop_reason):
+  # Host journals reason-4 host_cause separately.  TP reason 4 always returns
+  # READY_HOME; host policy may remain WAIT_INFRA_READY for infra_stop.
+  if stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
+    return 75
+  elif stop_reason == 1 or stop_reason == 4:
+    return 10
+  end
+  return 90
+end'''
+    direct_terminal_state = '''def codex_autotune_direct_terminal_state(stop_reason, batch_row_index):
+  if stop_reason == 1 and batch_row_index == 10:
+    return 77
+  elif stop_reason == 1:
+    return 76
+  elif stop_reason == 4 or stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
+    return 75
+  end
+  return 90
+end'''
+    legacy_fault = '''def codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  while True:
+    codex_autotune_write_state(campaign_epoch, trial_id, 90, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+    sync()
+  end
+end'''
+    bounded_fault = f'''def codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  local publish_s = 0.0
+  while publish_s < 0.100:
+    codex_autotune_write_state(campaign_epoch, trial_id, 90, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+    sync()
+    publish_s = publish_s + get_steptime()
+  end
+  halt
+end
+
+def codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+end
+
+def codex_autotune_wait_for_arm(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  local waiting_s = 0.0
+  while waiting_s < {READY_ARM_TIMEOUT_S:.3f}:
+    codex_autotune_write_state(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+    local next_command = read_input_integer_register(26)
+    local next_sequence = read_input_integer_register(29)
+    if next_command == 1 and next_sequence > consumed_command_seq:
+      return True
+    elif next_command == 3 and next_sequence > consumed_command_seq:
+      codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 4, execution_profile_id, next_sequence)
+    elif trial_id > 0 and next_command == 2 and next_sequence > consumed_command_seq:
+      codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 13, execution_profile_id, next_sequence)
+    end
+    sync()
+    waiting_s = waiting_s + get_steptime()
+  end
+  if state == 77:
+    halt
+  end
+  codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 19, execution_profile_id, consumed_command_seq)
+  return False
+end'''
+    legacy_ack = '''        # Host may ACK only after immutable bundle + host 0.5 s safe closure.
+        codex_autotune_write_state(campaign_epoch, trial_id, 70, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        local waiting_for_ack = True
+        while waiting_for_ack:
+          local ack_command = read_input_integer_register(26)
+          local ack_sequence = read_input_integer_register(29)
+          if ack_command == 2 and ack_sequence > last_consumed_command_seq and read_input_integer_register(24) == campaign_epoch and read_input_integer_register(25) == trial_id and read_input_integer_register(27) == candidate_token and read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == batch_row_index:
+            last_consumed_command_seq = ack_sequence
+            waiting_for_ack = False
+          elif ack_command == 3 and ack_sequence > last_consumed_command_seq:
+            last_consumed_command_seq = ack_sequence
+            codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, 4, execution_profile_id, last_consumed_command_seq)
+          else:
+            sync()
+          end
+        end
+
+        local post_ack_state = codex_autotune_post_ack_state(stop_reason)
+        if stop_reason == 1 and batch_row_index == 10:
+          codex_autotune_write_state(campaign_epoch, trial_id, 77, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        elif stop_reason == 1:
+          codex_autotune_write_state(campaign_epoch, trial_id, 76, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        elif post_ack_state == 75:
+          codex_autotune_write_state(campaign_epoch, trial_id, 75, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        elif post_ack_state == 10:
+          codex_autotune_write_state(0, 0, 10, 0, 0, 0, last_consumed_command_seq)
+        else:
+          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        end'''
+    direct_ready = '''        # r006 direct-ARM protocol: the sealed return is immediately ready.
+        if stop_reason == 1 and batch_row_index == 10:
+          codex_autotune_wait_for_arm(campaign_epoch, trial_id, 77, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        elif stop_reason == 1:
+          codex_autotune_wait_for_arm(campaign_epoch, trial_id, 76, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        elif stop_reason == 4 or stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
+          codex_autotune_wait_for_arm(campaign_epoch, trial_id, 75, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        else:
+          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        end'''
+    initial_ready = '''  codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)
+
+  while True:'''
+    initial_wait = '''  codex_autotune_wait_for_arm(0, 0, 10, 0, 0, 0, 0)
+
+  while True:'''
+    return (
+        (legacy_header, direct_header, "direct ARM protocol header"),
+        (legacy_stop_contract, direct_stop_contract, "stationary STOP contract"),
+        (legacy_post_ack_state, direct_terminal_state, "direct terminal state map"),
+        (legacy_fault, bounded_fault, "bounded terminal halt"),
+        (legacy_ack, direct_ready, "direct ARM ready lifecycle"),
+        (initial_ready, initial_wait, "bounded initial ARM wait"),
+    )
+
+
+def _apply_direct_arm_protocol(source: str) -> str:
+    result = source
+    for old, new, role in _direct_arm_replacements():
+        result = _replace_once(result, old, new, role=role)
+    return result
+
+
+def _remove_direct_arm_protocol(source: str) -> str:
+    result = source
+    for old, new, role in reversed(_direct_arm_replacements()):
+        result = _replace_once(result, new, old, role=f"normalized {role}")
+    return result
+
+
 def _remove_batch_lifecycle(source: str) -> str:
     result = source
     for old, new, role in reversed(_batch_lifecycle_replacements()):
@@ -406,6 +547,7 @@ def render_script() -> str:
         role="two-step safe prealign",
     )
     rendered = _apply_batch_lifecycle(rendered)
+    rendered = _apply_direct_arm_protocol(rendered)
     identity = (
         f"# RELEASE_STAGE_ID: {PROGRAM_NAME}\n"
         f"# CONTROL_PROFILE_ID: {CONTROL_PROFILE_ID}\n"
@@ -451,9 +593,11 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "codex_autotune_latch_return_telemetry()",
         "codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, campaign_home_q)",
         "if stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17:",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 76",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 77",
-        "codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)",
+        "codex_autotune_wait_for_arm(campaign_epoch, trial_id, 76",
+        "codex_autotune_wait_for_arm(campaign_epoch, trial_id, 77",
+        f"while waiting_s < {READY_ARM_TIMEOUT_S:.3f}",
+        "codex_autotune_wait_for_arm(0, 0, 10, 0, 0, 0, 0)",
+        "codex_autotune_publish_fault_and_halt",
     )
     missing = [marker for marker in required if marker not in script]
     if missing:
@@ -491,6 +635,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "codex_step5d_strict_rnn_autotune_v1()",
         role="normalized main call",
     )
+    normalized = _remove_direct_arm_protocol(normalized)
     normalized = _remove_batch_lifecycle(normalized)
     normalized = _replace_once(
         normalized,
@@ -559,7 +704,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
 
 def source_stamp(now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R005")
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R006")
 
 
 def build_package_script(stamp: str) -> str:
@@ -594,6 +739,9 @@ Frozen control contract:
   qdot cap 0.500 rad/s; target 12 N; input integer registers 24..30;
   output integer registers 24..33; heartbeat watchdog fail-closed.
   Batch row is explicit; rows 1..9 return NearReady and row 10 returns CampaignHome.
+  ACK_BUNDLE and WAIT_ACK are not active. A fresh next ARM is accepted only after
+  the host has durably committed and cold-read the previous trial bundle.
+  READY_HOME/READY_NEAR wait at most {READY_ARM_TIMEOUT_S:.0f} s without motion.
 """
 
 
@@ -659,6 +807,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "precontact_z_policy": "contact_plus_0p1s_robust_z_plus_0p005m_clearance",
         "qdot_cap_rad_s": 0.5,
         "stage25_stale_command_hold_s": STAGE25_STALE_COMMAND_HOLD_S,
+        "ready_arm_timeout_s": READY_ARM_TIMEOUT_S,
         "precontact_entry_accel_m_s2": 0.135,
         "precontact_entry_speed_m_s": 0.09,
         "far_search_speed_m_s": 0.03375,
@@ -668,6 +817,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "safe_transfer_z_m": 0.033,
         "return_segment_count": 3,
         "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
+        "host_protocol": "v3_direct_arm_v1",
     }
 
 

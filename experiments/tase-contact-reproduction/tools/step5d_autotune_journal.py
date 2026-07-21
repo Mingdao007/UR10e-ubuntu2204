@@ -59,7 +59,12 @@ TP_STATES = TRANSIENT_TP_STATES | {
 }
 DISPATCH_COMMANDS = frozenset({"arm", "ack_bundle"})
 TERMINAL_FATE_KINDS = frozenset(
-    {"cancelled_unconsumed", "infra_aborted_consumed", "ack_consumed"}
+    {
+        "cancelled_unconsumed",
+        "infra_aborted_consumed",
+        "ack_consumed",
+        "direct_ready_completed",
+    }
 )
 
 
@@ -614,6 +619,18 @@ class TerminalFate:
                 raise ValueError("infra-abort fate must bind the exact ARM")
             if self.dispatch_receipt is None or self.evidence is None:
                 raise ValueError("infra-abort fate requires dispatch and stop evidence")
+        elif self.kind == "direct_ready_completed":
+            if self.command != "arm" or self.command_seq != self.trial.arm_command_seq:
+                raise ValueError("direct-ready fate must bind the exact ARM")
+            if self.evidence is None:
+                raise ValueError("direct-ready fate requires durable TrialBrief evidence")
+            if (
+                self.tp_snapshot.state
+                not in {"READY_NEAR", "READY_HOME_CLOSED"}
+                or self.tp_snapshot.consumed_command_seq
+                != self.trial.arm_command_seq
+            ):
+                raise ValueError("direct-ready fate lacks exact TP terminal state")
         elif self.command != "ack_bundle" or self.command_seq <= self.trial.arm_command_seq:
             raise ValueError("ACK fate must bind a sequence newer than ARM")
 
@@ -1786,6 +1803,7 @@ class ReconcileAction(str, Enum):
     MONITOR_ACTIVE = "monitor_active"
     SEND_PERSISTED_ACK = "send_persisted_ack"
     PERSIST_POST_ACK = "persist_post_ack"
+    PERSIST_DIRECT_READY = "persist_direct_ready"
     HOLD_WAIT_INFRA = "hold_wait_infra"
     HOLD_TERMINAL = "hold_terminal"
     FAIL_CLOSED = "fail_closed"
@@ -1910,6 +1928,31 @@ def reconcile_tp_snapshot(
         return _fail("tp_fault_requires_manual_recovery")
 
     if snapshot.state in {"READY_NEAR", "READY_HOME_CLOSED"}:
+        cursor = state.active_trial
+        if state.phase == "trial_active" and cursor is not None:
+            if (
+                _snapshot_matches_cursor(state.campaign, snapshot, cursor)
+                and snapshot.terminal_reason == 1
+                and snapshot.consumed_command_seq == cursor.arm_command_seq
+            ):
+                return ReconcileDecision(
+                    ReconcileAction.RESUME_CLOSURE,
+                    "direct_ready_arm_consumed_and_bundle_pending",
+                    cursor.arm_command_seq,
+                )
+            prior_direct = [
+                fate
+                for fate in state.terminal_fates
+                if fate.kind == "direct_ready_completed"
+                and fate.tp_snapshot == snapshot
+                and fate.command_seq < cursor.arm_command_seq
+            ]
+            if len(prior_direct) == 1:
+                return ReconcileDecision(
+                    ReconcileAction.SEND_PERSISTED_ARM,
+                    "direct_ready_previous_trial_waits_for_persisted_next_arm",
+                    cursor.arm_command_seq,
+                )
         pending = state.pending_ack
         if (
             state.phase == "wait_ack"
@@ -1928,7 +1971,7 @@ def reconcile_tp_snapshot(
         matching_fates = [
             fate
             for fate in state.terminal_fates
-            if fate.kind == "ack_consumed"
+            if fate.kind in {"ack_consumed", "direct_ready_completed"}
             and fate.tp_snapshot == snapshot
         ]
         if (

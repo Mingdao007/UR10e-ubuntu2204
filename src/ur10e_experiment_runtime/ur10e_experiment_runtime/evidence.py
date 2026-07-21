@@ -11,6 +11,7 @@ from .batch import (
     BatchFate,
     BatchIdentity,
     BatchJournal,
+    DirectReadyReceipt,
     ExactAckReceipt,
     SafeClosureReceipt,
 )
@@ -140,10 +141,96 @@ def build_trial_brief(
     return TrialBrief(strict_json_loads(canonical_json_bytes(document)))
 
 
+def build_direct_trial_brief(
+    *,
+    batch: BatchIdentity,
+    row_index: int,
+    trial_uid: str,
+    immutable_bundle_sha256: str,
+    completion: DirectReadyReceipt,
+    outcome_class: TrialOutcomeClass,
+    metric_role: MetricRole,
+    objective: float | None,
+    oracle_status: OracleStatus,
+    observer_status: ObserverStatus,
+    artifact_digests: Mapping[str, str],
+    fingerprint_verified: bool,
+) -> TrialBrief:
+    """Build an r006 TrialBrief from durable terminal-ready completion."""
+
+    if not 1 <= row_index <= len(batch.rows):
+        raise ValueError("TrialBrief row index is invalid")
+    row = batch.rows[row_index - 1]
+    if any(
+        (
+            completion.batch_uid != batch.batch_uid,
+            completion.row_index != row_index,
+            completion.trial_uid != trial_uid,
+            completion.control_candidate_uid != row.control_candidate_uid,
+            completion.immutable_bundle_sha256 != immutable_bundle_sha256,
+        )
+    ):
+        raise ValueError("direct TrialBrief completion identity differs")
+    if metric_role is MetricRole.UNAVAILABLE and objective is not None:
+        raise ValueError("unavailable metric must be null")
+    if artifact_digests.get("bundle") != immutable_bundle_sha256:
+        raise ValueError("TrialBrief bundle artifact digest differs")
+    for name, digest in artifact_digests.items():
+        if not name or len(digest) != 64 or any(
+            character not in "0123456789abcdef" for character in digest
+        ):
+            raise ValueError("artifact digests must be named lowercase SHA256 values")
+    publication_material = {
+        "batch_uid": batch.batch_uid,
+        "row_uid": canonical_sha256(
+            {"batch_uid": batch.batch_uid, "row": row.to_dict()}
+        ),
+        "bundle_sha256": immutable_bundle_sha256,
+        "completion_uid": completion.completion_uid,
+    }
+    publication_uid = canonical_sha256(
+        {"schema": "ur-exp/trial-brief-publication/v2", **publication_material}
+    )
+    gate = gate_optimizer_observation(
+        outcome_class,
+        objective,
+        metric_role=metric_role,
+        oracle_status=oracle_status,
+        observer_status=observer_status,
+        fingerprint_verified=fingerprint_verified,
+        durable_completion_verified=True,
+        terminal_ready_verified=True,
+        publication_unique=False,
+    )
+    document = {
+        "schema": "ur-exp/trial-brief-v2",
+        "protocol": "v3_direct_arm_v1",
+        "publication_uid": publication_uid,
+        **publication_material,
+        "row_index": row_index,
+        "trial_uid": trial_uid,
+        "control_candidate_uid": row.control_candidate_uid,
+        "trial_overlay": dict(row.trial_overlay),
+        "outcome_class": outcome_class.value,
+        "metric_role": metric_role.value,
+        "metric_value": objective,
+        "objective": gate.objective,
+        "oracle_status": oracle_status.value,
+        "observer_status": observer_status.value,
+        "optimizer_eligible": gate.optimizer_eligible,
+        "optimizer_rejection_reasons": list(gate.rejection_reasons),
+        "artifact_digests": dict(sorted(artifact_digests.items())),
+        "fingerprint_verified": fingerprint_verified,
+        "publication_unique": False,
+    }
+    return TrialBrief(strict_json_loads(canonical_json_bytes(document)))
+
+
 def _published_document(brief: TrialBrief) -> Mapping[str, Any]:
     document = dict(brief.document)
     if document.get("publication_unique") is not False:
         raise ValueError("EvidenceSink accepts only an unpublished TrialBrief draft")
+    direct = document.get("schema") == "ur-exp/trial-brief-v2"
     gate = gate_optimizer_observation(
         document["outcome_class"],
         document.get("metric_value"),
@@ -151,8 +238,10 @@ def _published_document(brief: TrialBrief) -> Mapping[str, Any]:
         oracle_status=document["oracle_status"],
         observer_status=document["observer_status"],
         fingerprint_verified=document.get("fingerprint_verified") is True,
-        exact_ack_consumed=True,
-        post_ack_closure_verified=True,
+        exact_ack_consumed=not direct,
+        post_ack_closure_verified=not direct,
+        durable_completion_verified=True if direct else None,
+        terminal_ready_verified=True if direct else None,
         publication_unique=True,
     )
     document["objective"] = gate.objective
@@ -179,13 +268,28 @@ class EvidenceSink:
             raise ValueError("TrialBrief row index is invalid")
         state = self.batch_journal.state()
         row = state.rows[row_index - 1]
+        direct = brief.document.get("schema") == "ur-exp/trial-brief-v2"
         if (
             state.batch_uid != brief.document.get("batch_uid")
-            or row.fate is not BatchFate.ACK_COMPLETED
             or row.trial_uid != brief.document.get("trial_uid")
             or row.immutable_bundle_sha256 != brief.document.get("bundle_sha256")
-            or row.ack_uid != brief.document.get("ack_uid")
-            or row.closure_receipt_sha256 != brief.document.get("closure_uid")
+            or (
+                direct
+                and (
+                    row.fate is not BatchFate.DIRECT_COMPLETED
+                    or row.direct_ready_uid
+                    != brief.document.get("completion_uid")
+                )
+            )
+            or (
+                not direct
+                and (
+                    row.fate is not BatchFate.ACK_COMPLETED
+                    or row.ack_uid != brief.document.get("ack_uid")
+                    or row.closure_receipt_sha256
+                    != brief.document.get("closure_uid")
+                )
+            )
         ):
             raise ValueError(
                 "TrialBrief publication requires the exact durable ACK-completed row"

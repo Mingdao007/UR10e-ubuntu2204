@@ -955,6 +955,35 @@ class CampaignSupervisor:
         self._prepared_ack = None
         self.phase = post_ack_phase
 
+    def confirm_direct_ready(self, trial_uid: str) -> None:
+        """Advance r006 policy after durable bundle + terminal-ready proof."""
+
+        if self.phase is not CampaignPhase.WAIT_ACK or self._pending_ack is None:
+            raise RuntimeError("no direct-ready trial can be confirmed")
+        if self._prepared_ack is not None:
+            raise RuntimeError("direct-ready completion cannot follow ACK preparation")
+        intent, post_phase = self._pending_ack
+        if intent.trial.trial_uid != trial_uid:
+            raise ValueError("direct-ready confirmation differs from pending trial")
+        matches = [
+            outcome
+            for outcome in self.outcome_timeline
+            if outcome.evaluation.trial_uid == trial_uid
+        ]
+        if len(matches) != 1:
+            raise RuntimeError("direct-ready completion requires one closed outcome")
+        outcome = matches[0]
+        if outcome.eligible:
+            if any(
+                observed.evaluation.trial_uid == trial_uid
+                for observed in self.observations
+            ):
+                raise RuntimeError("direct-ready outcome was already admitted")
+            self.observations.append(outcome)
+        self._pending_ack = None
+        self._prepared_ack = None
+        self.phase = post_phase
+
     def ack_bundle(self) -> HostPacket:
         """Legacy pure-state helper; live issuance must use CampaignCoordinator."""
 

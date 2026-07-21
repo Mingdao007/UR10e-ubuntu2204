@@ -119,6 +119,16 @@ class TrialBriefAdmissionLike(Protocol):
     optimizer_eligible: bool
 
 
+class DirectTrialBriefAdmissionLike(Protocol):
+    trial_uid: str
+    arm_command_seq: int
+    publication_uid: str
+    document_sha256: str
+    path: Path
+    file_sha256: str
+    optimizer_eligible: bool
+
+
 class CoordinatorError(RuntimeError):
     """Base class for fail-closed coordinator failures."""
 
@@ -174,6 +184,57 @@ def _trial_brief_reference(
     ):
         raise RecoveryError(
             "post-ACK TrialBrief bytes differ from the admission receipt"
+        )
+    return JournalReference(
+        reference_id=receipt.publication_uid,
+        path=str(receipt.path),
+        sha256=file_sha256,
+    )
+
+
+def _direct_trial_brief_reference(
+    receipt: DirectTrialBriefAdmissionLike,
+    *,
+    trial_uid: str,
+    arm_command_seq: int,
+    optimizer_eligible: bool,
+) -> JournalReference:
+    if any(
+        (
+            receipt.trial_uid != trial_uid,
+            receipt.arm_command_seq != arm_command_seq,
+            receipt.optimizer_eligible is not optimizer_eligible,
+            not isinstance(receipt.path, Path),
+            not receipt.path.is_absolute(),
+            receipt.path.is_symlink(),
+            not receipt.path.is_file(),
+        )
+    ):
+        raise RecoveryError(
+            "direct-ready TrialBrief admission differs from pending outcome"
+        )
+    encoded = receipt.path.read_bytes()
+    file_sha256 = hashlib.sha256(encoded).hexdigest()
+    try:
+        document = runtime_strict_json_loads(encoded)
+    except ValueError as exc:
+        raise RecoveryError("direct-ready TrialBrief is malformed") from exc
+    canonical = runtime_canonical_json_bytes(document)
+    if any(
+        (
+            encoded != canonical + b"\n",
+            receipt.file_sha256 != file_sha256,
+            receipt.document_sha256 != hashlib.sha256(canonical).hexdigest(),
+            document.get("schema") != "ur-exp/trial-brief-v2",
+            document.get("protocol") != "v3_direct_arm_v1",
+            document.get("publication_uid") != receipt.publication_uid,
+            document.get("trial_uid") != trial_uid,
+            document.get("optimizer_eligible") is not optimizer_eligible,
+            document.get("publication_unique") is not True,
+        )
+    ):
+        raise RecoveryError(
+            "direct-ready TrialBrief bytes differ from admission receipt"
         )
     return JournalReference(
         reference_id=receipt.publication_uid,
@@ -432,14 +493,19 @@ def _verify_infra_abort_evidence(fate: TerminalFate) -> None:
 
 
 def _verify_trial_brief_evidence(fate: TerminalFate, *, required: bool) -> None:
-    if fate.kind != "ack_consumed":
+    if fate.kind not in {"ack_consumed", "direct_ready_completed"}:
         return
     reference = fate.evidence
     if reference is None:
         if required:
-            raise RecoveryError("codex batch ACK fate lacks durable TrialBrief")
+            raise RecoveryError("codex batch terminal fate lacks durable TrialBrief")
         return
-    encoded, document = _read_reference(reference, role="post-ACK TrialBrief")
+    role = (
+        "direct-ready TrialBrief"
+        if fate.kind == "direct_ready_completed"
+        else "post-ACK TrialBrief"
+    )
+    encoded, document = _read_reference(reference, role=role)
     if not isinstance(document, Mapping) or any(
         (
             encoded != canonical_json_bytes(document) + b"\n",
@@ -447,9 +513,13 @@ def _verify_trial_brief_evidence(fate: TerminalFate, *, required: bool) -> None:
             document.get("trial_uid") != fate.trial.trial_uid,
             document.get("publication_unique") is not True,
             not isinstance(document.get("optimizer_eligible"), bool),
+            (
+                fate.kind == "direct_ready_completed"
+                and document.get("protocol") != "v3_direct_arm_v1"
+            ),
         )
     ):
-        raise RecoveryError("post-ACK TrialBrief evidence is not exact and closed")
+        raise RecoveryError("TrialBrief evidence is not exact and closed")
 
 
 def _candidate_from_payload(payload: Any) -> ForceCandidate:
@@ -1187,6 +1257,126 @@ class CampaignCoordinator:
             self._dispatch_receipt = None
             self._append_snapshot(self.supervisor.recovery_snapshot())
             return packet
+        except Exception:
+            self._poisoned = True
+            raise
+
+    def complete_direct_ready(
+        self,
+        immutable_bundle_path: Path,
+        *,
+        verified_resume_history: Sequence[Mapping[str, Any]],
+        tp_snapshot: TpSnapshot,
+        trial_brief_admission: DirectTrialBriefAdmissionLike,
+    ) -> ReconcileResult:
+        """Persist r006 terminal completion without preparing an ACK command."""
+
+        self._require_healthy()
+        if self.latest is None or self.latest.state.active_trial is None:
+            raise CoordinatorError("direct-ready completion lacks persisted active ARM")
+        persisted = self.latest.state.active_trial
+        snapshot = self.supervisor.recovery_snapshot()
+        if snapshot.pending_ack is None or snapshot.prepared_ack is not None:
+            raise CoordinatorError("direct-ready completion lacks closed policy outcome")
+        intent, post_phase = snapshot.pending_ack
+        trial = intent.trial
+        if any(
+            (
+                persisted.trial_uid != trial.trial_uid,
+                tp_snapshot.campaign_epoch_echo != trial.campaign.campaign_epoch,
+                tp_snapshot.trial_id_echo != trial.trial_id,
+                tp_snapshot.candidate_token_echo != trial.candidate_token,
+                tp_snapshot.execution_profile_integer_id_echo
+                != intent.execution_profile_integer_id,
+                tp_snapshot.consumed_command_seq != trial.command_seq,
+                tp_snapshot.terminal_reason != 1,
+                tp_snapshot.state
+                not in {"READY_NEAR", "READY_HOME_CLOSED"},
+            )
+        ):
+            raise CoordinatorError("direct-ready TP snapshot differs from active ARM")
+        try:
+            reference, bundle_payload = _bundle_reference(
+                immutable_bundle_path, trial
+            )
+            matching_rows = [
+                row
+                for row in verified_resume_history
+                if isinstance(row, Mapping)
+                and row.get("trial_uid") == trial.trial_uid
+            ]
+            if len(matching_rows) != 1:
+                raise CoordinatorError(
+                    "direct-ready completion requires one cold-read history row"
+                )
+            history_row = matching_rows[0]
+            if any(
+                (
+                    history_row.get("history_identity") != reference.reference_id,
+                    canonical_json_bytes(history_row.get("trial"))
+                    != canonical_json_bytes(bundle_payload.get("trial")),
+                    canonical_json_bytes(history_row.get("evaluation"))
+                    != canonical_json_bytes(bundle_payload.get("evaluation")),
+                )
+            ):
+                raise CoordinatorError(
+                    "immutable bundle differs from direct-ready cold-read history"
+                )
+            matching_outcomes = [
+                outcome
+                for outcome in snapshot.outcome_timeline
+                if outcome.evaluation.trial_uid == trial.trial_uid
+            ]
+            if len(matching_outcomes) != 1:
+                raise CoordinatorError("direct-ready policy lacks one exact outcome")
+            brief_reference = _direct_trial_brief_reference(
+                trial_brief_admission,
+                trial_uid=trial.trial_uid,
+                arm_command_seq=trial.command_seq,
+                optimizer_eligible=matching_outcomes[0].eligible,
+            )
+            self._bundle_references[trial.trial_uid] = reference
+            capture_payload = bundle_payload.get("capture")
+            if not isinstance(capture_payload, Mapping):
+                raise CoordinatorError("immutable bundle capture payload is missing")
+            terminal_reason = capture_payload.get("terminal_reason")
+            host_cause = capture_payload.get("host_cause")
+            if terminal_reason != 1 or (
+                host_cause is not None and not isinstance(host_cause, str)
+            ):
+                raise CoordinatorError("direct-ready bundle terminal reason differs")
+            self._pending_terminal_by_trial[trial.trial_uid] = (
+                terminal_reason,
+                host_cause,
+            )
+            self._terminal_fates = self._terminal_fates + (
+                TerminalFate(
+                    kind="direct_ready_completed",
+                    trial=persisted,
+                    command="arm",
+                    command_seq=persisted.arm_command_seq,
+                    tp_snapshot=tp_snapshot,
+                    dispatch_receipt=self._dispatch_receipt,
+                    evidence=brief_reference,
+                ),
+            )
+            predicted = replace(
+                snapshot,
+                phase=post_phase,
+                pending_ack=None,
+                prepared_ack=None,
+            )
+            self._dispatch_receipt = None
+            self._append_snapshot(predicted)
+            self.supervisor.confirm_direct_ready(trial.trial_uid)
+            return ReconcileResult(
+                ReconcileDecision(
+                    ReconcileAction.PERSIST_DIRECT_READY,
+                    "direct_ready_bundle_and_trial_brief_persisted",
+                    trial.command_seq,
+                ),
+                None,
+            )
         except Exception:
             self._poisoned = True
             raise

@@ -1395,7 +1395,7 @@ class CampaignHomeReference:
 
 
 class BridgeTrialCsvRotator:
-    """Write one exact TP identity per CSV and publish it at WAIT_ACK."""
+    """Write one exact TP identity and seal it at a terminal protocol state."""
 
     IDENTITY_COLUMNS = ("autotune_trial_uid", "autotune_backend_id")
 
@@ -1497,7 +1497,13 @@ class BridgeTrialCsvRotator:
         if self._rows_since_flush >= 50 or snapshot.state.value >= TpLoopState.TERMINAL.value:
             self._handle.flush()
             self._rows_since_flush = 0
-        if snapshot.state is TpLoopState.WAIT_ACK:
+        if snapshot.state in {
+            TpLoopState.WAIT_ACK,
+            TpLoopState.READY_NEAR,
+            TpLoopState.READY_HOME_CLOSED,
+            TpLoopState.WAIT_INFRA_READY,
+            TpLoopState.FAULT,
+        }:
             self._close_partial(sync_bytes=True)
             assert self._partial_path is not None and self._final_path is not None
             if self._final_path.exists():
@@ -1673,7 +1679,7 @@ class TrialArtifactProducer:
         *,
         expected_terminal_reason: int,
     ) -> TrialCaptureAssessment:
-        """Derive every eligibility field from capture bytes and WAIT_ACK echoes."""
+        """Derive eligibility only from the fsync-sealed exact capture bytes."""
 
         if expected_arm.command is not HostCommand.ARM or any(
             (
@@ -1721,13 +1727,17 @@ class TrialArtifactProducer:
                 raise MailboxError("capture TP handshake differs from exact ARM identity")
             packets.append(packet)
         final = packets[-1]
-        if final.state is not TpLoopState.WAIT_ACK or final.terminal_reason <= 0:
-            raise MailboxError("capture is not sealed by an exact terminal WAIT_ACK row")
+        if final.state not in {
+            TpLoopState.WAIT_ACK,
+            TpLoopState.READY_NEAR,
+            TpLoopState.READY_HOME_CLOSED,
+        } or final.terminal_reason <= 0:
+            raise MailboxError("capture is not sealed by an exact terminal row")
         if final.terminal_reason != expected_terminal_reason:
-            raise MailboxError("capture WAIT_ACK reason differs from closure collector")
+            raise MailboxError("capture terminal reason differs from closure proof")
         terminal_reasons = {packet.terminal_reason for packet in packets if packet.terminal_reason}
         if terminal_reasons != {final.terminal_reason}:
-            raise MailboxError("capture terminal reason changed before WAIT_ACK")
+            raise MailboxError("capture terminal reason changed before seal")
 
         # Reuse the established Step5d analyzer/replay thresholds rather than
         # accepting any caller-authored booleans.
@@ -2379,6 +2389,103 @@ class ClosureAckResult:
     store_receipt: ImmutableBundleStoreReceipt
     close_decision: Any
     ack_packet: HostPacket | None
+
+
+@dataclass(frozen=True)
+class DirectBundleResult:
+    """r006 result through immutable bundle and fresh-store cold-read."""
+
+    closure: ClosureEvidence
+    manifest: CaptureManifest
+    evaluation: Evaluation
+    immutable_bundle_path: Path
+    store_receipt: ImmutableBundleStoreReceipt
+    close_decision: Any
+    verified_resume_history: tuple[Mapping[str, Any], ...]
+
+
+def finalize_produced_bundle_direct(
+    *,
+    closure: ClosureEvidence,
+    terminal_reason: int,
+    producer: TrialArtifactProducer,
+    expected_arm: HostPacket,
+    home_reference: CampaignHomeReference,
+    backend: Any,
+    store: Any,
+    coordinator: Any,
+    source_fingerprint_post: str | None = None,
+    config_fingerprint_post: str | None = None,
+    bundle_committed: Callable[[ImmutableBundleStoreReceipt], None] | None = None,
+) -> DirectBundleResult:
+    """Production r006 seam: sealed CSV -> bundle -> fresh cold-read, no ACK."""
+
+    trial = producer.trial
+    home_reference.verify_trial(trial)
+    if expected_arm.command is not HostCommand.ARM or any(
+        (
+            expected_arm.campaign_epoch != trial.campaign.campaign_epoch,
+            expected_arm.trial_id != trial.trial_id,
+            expected_arm.candidate_token != trial.candidate_token,
+            expected_arm.command_seq != trial.command_seq,
+        )
+    ):
+        raise MailboxError("direct bundle ARM identity differs from TrialSpec")
+    source_post = source_fingerprint_post or trial.source_fingerprint
+    config_post = config_fingerprint_post or trial.config_fingerprint
+    manifest = producer.build_manifest(
+        closure,
+        expected_arm=expected_arm,
+        expected_terminal_reason=terminal_reason,
+        home_reference=home_reference,
+        source_fingerprint_post=source_post,
+        config_fingerprint_post=config_post,
+    )
+    evaluation = backend.evaluate_trial(trial, manifest, producer.paths.csv_path)
+    if not isinstance(evaluation, Evaluation):
+        raise TypeError("backend.evaluate_trial must return Evaluation")
+    bundle_path = store.write_trial_bundle(
+        trial,
+        manifest,
+        evaluation,
+        artifact_paths=producer.paths,
+    )
+    if not isinstance(bundle_path, Path) or not bundle_path.is_absolute():
+        raise MailboxError("campaign store must return an absolute bundle path")
+    decision = coordinator.close_trial(
+        manifest=manifest,
+        evaluation=evaluation,
+        safe_closure=closure,
+        bundle_path=bundle_path,
+    )
+    fresh_store = type(store)(store.root)
+    verified_history = tuple(fresh_store.read_resume_history())
+    matching_rows = [
+        row
+        for row in verified_history
+        if isinstance(row, Mapping) and row.get("trial_uid") == trial.trial_uid
+    ]
+    if len(matching_rows) != 1 or not isinstance(
+        matching_rows[0].get("history_identity"), str
+    ):
+        raise MailboxError("direct bundle requires one fresh cold-read history row")
+    store_receipt = ImmutableBundleStoreReceipt(
+        trial_uid=trial.trial_uid,
+        bundle_path=bundle_path,
+        bundle_sha256=_sha256_regular(bundle_path),
+        history_identity=matching_rows[0]["history_identity"],
+    )
+    if bundle_committed is not None:
+        bundle_committed(store_receipt)
+    return DirectBundleResult(
+        closure=closure,
+        manifest=manifest,
+        evaluation=evaluation,
+        immutable_bundle_path=bundle_path,
+        store_receipt=store_receipt,
+        close_decision=decision,
+        verified_resume_history=verified_history,
+    )
 
 
 def _finalize_bundle_and_dispatch_ack(
