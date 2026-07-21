@@ -21,6 +21,18 @@ def test_manual_render_is_reversible_and_r009_is_unchanged() -> None:
     assert "while waiting_s < 30.000" in rendered
     assert "def codex_autotune_wait_for_manual_arm(" in rendered
     assert "batch_row_index != 1" in rendered
+    start = rendered.index("def codex_autotune_write_state(")
+    block = rendered[start : rendered.index("\nend", start) + 4]
+    assert block.rstrip().endswith(
+        "write_output_integer_register(30, consumed_command_seq)\nend"
+    )
+    state_index = block.index("write_output_integer_register(26, state)")
+    commit_index = block.index(
+        "write_output_integer_register(30, consumed_command_seq)"
+    )
+    assert state_index < commit_index
+    for register in (24, 25, 27, 28, 29, 31, 32, 33, 34):
+        assert block.index(f"write_output_integer_register({register},") < state_index
 
 
 def test_manual_wait_can_remain_stationary_beyond_30_seconds() -> None:

@@ -19,6 +19,8 @@ import run_step5d_manual_bridge as wrapper  # noqa: E402
 import run_step5d_manual_bridge_live as live  # noqa: E402
 import run_step5d_manual_live_campaign as campaign  # noqa: E402
 import step5d_manual_bridge as bridge  # noqa: E402
+import step5d_autotune_live_driver as mailbox_driver  # noqa: E402
+from step5d_autotune_state_machine import TpLoopState, TpPacket  # noqa: E402
 from step5d_manual_atomic_release import canonical_bytes  # noqa: E402
 
 
@@ -44,7 +46,7 @@ def test_context_is_write_once_digest_bound_and_no_arm(tmp_path: Path, monkeypat
     monkeypatch.setattr(bridge, "load_launch_profile", lambda _path: SimpleNamespace(fingerprint="5" * 64))
     now = datetime(2026, 7, 21, 7, 0, tzinfo=timezone.utc)
     payload = bridge.build_context(tmp_path, plant_epoch=1, launch_profile_path=launch, now=now)
-    assert payload["program"] == "step5d_strict_rnn_manual_tune_v1"
+    assert payload["program"] == "step5d_strict_rnn_manual_tune_v2"
     assert payload["protocol"] == "v3_full_home_manual_hold_v1"
     assert payload["wire_protocol"] == "v3_full_home_rolling_arm_v1"
     assert payload["bridge_authorized"] is True
@@ -65,7 +67,7 @@ def test_context_is_write_once_digest_bound_and_no_arm(tmp_path: Path, monkeypat
 
 def test_preflight_requires_exact_manual_program() -> None:
     stopped = preflight._program_safe(
-        {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_manual_tune_v1.urp"},
+        {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_manual_tune_v2.urp"},
         {},
     )
     wrong = preflight._program_safe(
@@ -158,6 +160,11 @@ def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, 
 def test_manual_authorization_seam_is_bridge_only_no_arm(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_bridge = SimpleNamespace(require_v29_live_bridge_authorization=lambda *_args, **_kwargs: None)
     monkeypatch.setattr(wrapper.r009_bridge, "install_v3_seams", lambda *_args, **_kwargs: fake_bridge)
+    monkeypatch.setattr(
+        wrapper.live_driver,
+        "BridgeMailboxRuntime",
+        wrapper._BASE_BRIDGE_MAILBOX_RUNTIME,
+    )
     monkeypatch.setattr(wrapper, "load_context", lambda _root, _path: {
         "arm_authorized": False,
         "motion_authorized": False,
@@ -178,6 +185,163 @@ def test_manual_authorization_seam_is_bridge_only_no_arm(monkeypatch: pytest.Mon
     assert result["protocol_id"] == bridge.PROTOCOL
     assert result["wire_protocol_id"] == bridge.WIRE_PROTOCOL
     assert result["live_motion_authorized"] is False
+
+
+def _pending_identity_runtime(
+    tmp_path: Path,
+) -> tuple[wrapper.ManualBridgeMailboxRuntime, object]:
+    overlay = campaign.normalize_trial_overlay(
+        {
+            "force_p_gain": 0.001,
+            "force_i_gain": 0.0001,
+            "force_damping": 7.0,
+            "orientation_ko": 0.4,
+            "execution_profile_id": "nf100-slew050-a050",
+            "step5d_preload_filtered_min_n": 7.5,
+            "step5d_preload_filtered_max_n": 14.0,
+            "step5d_preload_raw_min_n": 7.0,
+            "step5d_preload_raw_max_n": 15.0,
+            "step5d_preload_force_norm_max_n": 25.0,
+            "step5d_preload_hold_s": 0.1,
+            "step5d_preload_timeout_s": 10.0,
+        },
+        profile=campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE),
+    )
+    intent = {
+        "campaign_id": "manual-commit-test",
+        "release_manifest_sha256": "a" * 64,
+        "packet": {
+            "campaign_epoch": 1,
+            "trial_id": 1,
+            "command": 1,
+            "candidate_token": 123,
+            "execution_profile_id": 633,
+            "command_seq": 1,
+            "logical_batch_sequence": 1,
+            "batch_row_index": 1,
+        },
+        "request_identity": {
+            "occurrence_uid": "b" * 64,
+            "transport_candidate_uid": "c" * 64,
+            "normalized_overlay_sha256": campaign.normalized_overlay_sha256(
+                campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE),
+                overlay,
+            ),
+        },
+        "overlay": overlay,
+    }
+    packet, prepared = campaign._prepared(intent)
+    mailbox_path = (tmp_path / "command.json").resolve()
+    mailbox_path.parent.mkdir(parents=True, exist_ok=True)
+    sink = campaign.AtomicCommandMailbox(mailbox_path, network_mode=True)
+    sink.send_command(packet, prepared_trial=prepared)
+    command = sink.read_latest()
+    assert command is not None
+    runtime = wrapper.ManualBridgeMailboxRuntime(mailbox_path)
+    runtime.active = command
+    runtime._begin_arm_identity_commit(
+        command,
+        _identity_snapshot(command, TpLoopState.READY_HOME, 0),
+        connection_epoch=0,
+    )
+    return runtime, command
+
+
+def _identity_snapshot(
+    command: object,
+    state: TpLoopState,
+    consumed_seq: int,
+    *,
+    token_delta: int = 0,
+) -> TpPacket:
+    packet = command.packet
+    return TpPacket(
+        campaign_epoch_echo=packet.campaign_epoch,
+        trial_id_echo=packet.trial_id,
+        state=state,
+        candidate_token_echo=packet.candidate_token + token_delta,
+        terminal_reason=0,
+        execution_profile_id_echo=packet.execution_profile_id,
+        consumed_command_seq=consumed_seq,
+        logical_batch_sequence_echo=packet.logical_batch_sequence,
+    )
+
+
+def test_manual_identity_commit_accepts_torn_armed_then_exact_commit(
+    tmp_path: Path,
+) -> None:
+    runtime, command = _pending_identity_runtime(tmp_path)
+    runtime._reconcile_snapshot(
+        _identity_snapshot(command, TpLoopState.ARMED, 0, token_delta=1),
+        durable_command_seq=command.packet.command_seq,
+    )
+    assert runtime.identity_commit_pending is True
+    runtime._reconcile_snapshot(
+        _identity_snapshot(
+            command,
+            TpLoopState.ARMED,
+            command.packet.command_seq,
+        ),
+        durable_command_seq=command.packet.command_seq,
+    )
+    assert runtime.identity_commit_pending is False
+
+
+@pytest.mark.parametrize(
+    ("state", "consumed_seq", "token_delta", "message"),
+    (
+        (TpLoopState.RUN, 0, 0, "RUN before ARM identity commit"),
+        (TpLoopState.ARMED, 2, 0, "overshot pending ARM"),
+        (TpLoopState.ARMED, 1, 1, "different identity"),
+    ),
+)
+def test_manual_identity_commit_fails_closed(
+    tmp_path: Path,
+    state: TpLoopState,
+    consumed_seq: int,
+    token_delta: int,
+    message: str,
+) -> None:
+    runtime, command = _pending_identity_runtime(tmp_path)
+    with pytest.raises(mailbox_driver.MailboxError, match=message):
+        runtime._reconcile_snapshot(
+            _identity_snapshot(
+                command,
+                state,
+                consumed_seq,
+                token_delta=token_delta,
+            ),
+            durable_command_seq=command.packet.command_seq,
+        )
+
+
+def test_manual_identity_commit_fails_on_reconnect_timeout_and_regression(
+    tmp_path: Path,
+) -> None:
+    runtime, command = _pending_identity_runtime(tmp_path / "reconnect")
+    runtime._poll_connection_epoch = 1
+    with pytest.raises(mailbox_driver.MailboxError, match="reconnected during"):
+        runtime._reconcile_snapshot(
+            _identity_snapshot(command, TpLoopState.ARMED, 0),
+            durable_command_seq=command.packet.command_seq,
+        )
+
+    runtime, command = _pending_identity_runtime(tmp_path / "timeout")
+    assert runtime._pending_arm_started_s is not None
+    runtime._pending_arm_started_s -= runtime.IDENTITY_COMMIT_TIMEOUT_S + 0.001
+    with pytest.raises(mailbox_driver.MailboxError, match="commit timed out"):
+        runtime._reconcile_snapshot(
+            _identity_snapshot(command, TpLoopState.ARMED, 0),
+            durable_command_seq=command.packet.command_seq,
+        )
+
+    runtime, command = _pending_identity_runtime(tmp_path / "regression")
+    runtime._pending_arm_previous_seq = 1
+    with pytest.raises(mailbox_driver.MailboxError, match="regressed"):
+        runtime._reconcile_snapshot(
+            _identity_snapshot(command, TpLoopState.ARMED, 0),
+            durable_command_seq=command.packet.command_seq,
+        )
 
 
 def test_manual_arm_runtime_applies_exact_i1e4_and_uid(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 import sys
+import time
 
 import run_step5d_autotune_v3_bridge as r009_bridge
 import step5d_autotune_live_driver as live_driver
@@ -30,6 +31,147 @@ from step5d_manual_bridge import (
 
 TICKET_ENV = "STEP5D_MANUAL_BRIDGE_TICKET"
 TICKET_SCOPE = "manual_bridge_no_arm"
+_BASE_BRIDGE_MAILBOX_RUNTIME = live_driver.BridgeMailboxRuntime
+
+
+class ManualBridgeMailboxRuntime(_BASE_BRIDGE_MAILBOX_RUNTIME):
+    """Bounded tolerance for a TP multi-register ARM identity publication."""
+
+    IDENTITY_COMMIT_TIMEOUT_S = 0.250
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._pending_arm_seq: int | None = None
+        self._pending_arm_previous_seq: int | None = None
+        self._pending_arm_started_s: float | None = None
+        self._pending_arm_connection_epoch: int | None = None
+        self._poll_connection_epoch = 0
+
+    @property
+    def identity_commit_pending(self) -> bool:
+        return self._pending_arm_seq is not None
+
+    def _begin_arm_identity_commit(
+        self,
+        command: Any,
+        snapshot: Any,
+        *,
+        connection_epoch: int,
+    ) -> None:
+        sequence = command.binding.arm_command_seq
+        if snapshot.consumed_command_seq > sequence:
+            raise live_driver.MailboxError(
+                "TP consumed a command newer than the pending ARM"
+            )
+        if snapshot.consumed_command_seq == sequence:
+            if not live_driver._tp_identity_matches(command.packet, snapshot):
+                raise live_driver.MailboxError(
+                    "TP committed ARM sequence with a different identity"
+                )
+            return
+        self._pending_arm_seq = sequence
+        self._pending_arm_previous_seq = snapshot.consumed_command_seq
+        self._pending_arm_started_s = time.monotonic()
+        self._pending_arm_connection_epoch = connection_epoch
+
+    def _reconcile_snapshot(
+        self,
+        snapshot: Any,
+        *,
+        durable_command_seq: int,
+    ) -> None:
+        if self._pending_arm_seq is not None:
+            pending_seq = self._pending_arm_seq
+            previous_seq = self._pending_arm_previous_seq
+            started_s = self._pending_arm_started_s
+            if self._poll_connection_epoch != self._pending_arm_connection_epoch:
+                raise live_driver.MailboxError(
+                    "RTDE reconnected during TP ARM identity commit"
+                )
+            if previous_seq is None or started_s is None:
+                raise live_driver.MailboxError(
+                    "pending TP ARM identity commit is incomplete"
+                )
+            if snapshot.consumed_command_seq < previous_seq:
+                raise live_driver.MailboxError(
+                    "TP consumed-command sequence regressed during ARM commit"
+                )
+            if snapshot.consumed_command_seq > pending_seq:
+                raise live_driver.MailboxError(
+                    "TP consumed-command sequence overshot pending ARM"
+                )
+            if snapshot.consumed_command_seq < pending_seq:
+                if time.monotonic() - started_s > self.IDENTITY_COMMIT_TIMEOUT_S:
+                    raise live_driver.MailboxError(
+                        "TP ARM identity commit timed out"
+                    )
+                if snapshot.state not in {
+                    live_driver.TpLoopState.READY_HOME,
+                    live_driver.TpLoopState.READY_HOME_NEXT,
+                    live_driver.TpLoopState.ARMED,
+                }:
+                    raise live_driver.MailboxError(
+                        "TP entered RUN before ARM identity commit"
+                    )
+                return
+            identity_states = {
+                live_driver.TpLoopState.ARMED,
+                live_driver.TpLoopState.RUN,
+                live_driver.TpLoopState.TERMINAL,
+                live_driver.TpLoopState.RETRACT,
+                live_driver.TpLoopState.RETURN,
+                live_driver.TpLoopState.HOME_VERIFY,
+                live_driver.TpLoopState.WAIT_ACK,
+                live_driver.TpLoopState.WAIT_INFRA_READY,
+                live_driver.TpLoopState.READY_NEAR,
+                live_driver.TpLoopState.READY_HOME_CLOSED,
+                live_driver.TpLoopState.READY_HOME_NEXT,
+                live_driver.TpLoopState.FAULT,
+            }
+            if (
+                self.active is None
+                or snapshot.state not in identity_states
+                or not live_driver._tp_identity_matches(
+                    self.active.packet, snapshot
+                )
+            ):
+                raise live_driver.MailboxError(
+                    "TP committed ARM sequence with a different identity"
+                )
+            self._pending_arm_seq = None
+            self._pending_arm_previous_seq = None
+            self._pending_arm_started_s = None
+            self._pending_arm_connection_epoch = None
+        super()._reconcile_snapshot(
+            snapshot,
+            durable_command_seq=durable_command_seq,
+        )
+
+    def poll(
+        self,
+        args: Any,
+        output: Mapping[str, Any] | None,
+        *,
+        connection_epoch: int = 0,
+    ) -> bool:
+        self._poll_connection_epoch = connection_epoch
+        applied = super().poll(
+            args,
+            output,
+            connection_epoch=connection_epoch,
+        )
+        if (
+            applied
+            and output is not None
+            and self.last_command is not None
+            and self.last_command.packet.command is live_driver.HostCommand.ARM
+        ):
+            self._begin_arm_identity_commit(
+                self.last_command,
+                live_driver.tp_packet_from_rtde(output),
+                connection_epoch=connection_epoch,
+            )
+        return applied
 
 
 def _argv_sha256(argv: Sequence[str]) -> str:
@@ -171,6 +313,9 @@ def install_manual_seams(ticket: Mapping[str, Any]) -> Any:
         program_id=PROGRAM,
         protocol_id=WIRE_PROTOCOL,
     )
+    if live_driver.BridgeMailboxRuntime is not _BASE_BRIDGE_MAILBOX_RUNTIME:
+        raise ManualBridgeError("manual mailbox runtime seam was already installed")
+    live_driver.BridgeMailboxRuntime = ManualBridgeMailboxRuntime
     bridge = r009_bridge.install_v3_seams(None, release_identity=wire_release)
 
     def manual_authorization_gate(args: Any, *, root: Path = ROOT) -> dict[str, Any]:

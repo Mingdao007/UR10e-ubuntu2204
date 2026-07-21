@@ -13,7 +13,7 @@ from typing import Any, Mapping, Sequence
 import build_step5d_autotune_tp_v3 as r009
 
 
-PROGRAM_NAME = "step5d_strict_rnn_manual_tune_v1"
+PROGRAM_NAME = "step5d_strict_rnn_manual_tune_v2"
 PROTOCOL = "v3_full_home_manual_hold_v1"
 PARENT_R009_COMMIT = "bf6eb59d9530cf7f170f29c68c8812f00613b381"
 PARENT_PROGRAM = r009.PROGRAM_NAME
@@ -35,6 +35,38 @@ def _parent_wait_block() -> str:
     if len(matches) != 1:
         raise RuntimeError("r009 bounded wait replacement differs")
     return matches[0]
+
+
+def _parent_write_state_block() -> str:
+    return '''def codex_autotune_write_state(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  write_output_integer_register(24, campaign_epoch)
+  write_output_integer_register(25, trial_id)
+  write_output_integer_register(26, state)
+  write_output_integer_register(27, candidate_token)
+  write_output_integer_register(28, terminal_reason)
+  write_output_integer_register(29, execution_profile_id)
+  write_output_integer_register(30, consumed_command_seq)
+  write_output_integer_register(31, codex_autotune_batch_row_echo)
+  write_output_integer_register(32, codex_autotune_return_kind_echo)
+  write_output_integer_register(33, codex_autotune_return_guard_mask)
+  write_output_integer_register(34, codex_autotune_logical_batch_sequence_echo)
+end'''
+
+
+def _commit_last_write_state_block() -> str:
+    return '''def codex_autotune_write_state(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  write_output_integer_register(24, campaign_epoch)
+  write_output_integer_register(25, trial_id)
+  write_output_integer_register(27, candidate_token)
+  write_output_integer_register(28, terminal_reason)
+  write_output_integer_register(29, execution_profile_id)
+  write_output_integer_register(31, codex_autotune_batch_row_echo)
+  write_output_integer_register(32, codex_autotune_return_kind_echo)
+  write_output_integer_register(33, codex_autotune_return_guard_mask)
+  write_output_integer_register(34, codex_autotune_logical_batch_sequence_echo)
+  write_output_integer_register(26, state)
+  write_output_integer_register(30, consumed_command_seq)
+end'''
 
 
 def _manual_wait_function() -> str:
@@ -95,6 +127,12 @@ def render_script() -> str:
     )
     result = _replace_once(
         result,
+        _parent_write_state_block(),
+        _commit_last_write_state_block(),
+        role="consumed-sequence commit-last state publication",
+    )
+    result = _replace_once(
+        result,
         "codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)",
         "codex_autotune_wait_for_manual_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)",
         role="state-78 manual wait",
@@ -114,13 +152,13 @@ def render_script() -> str:
     result = _replace_once(
         result,
         "def codex_step5d_strict_rnn_autotune_v3():",
-        "def codex_step5d_strict_rnn_manual_tune_v1():",
+        "def codex_step5d_strict_rnn_manual_tune_v2():",
         role="manual main definition",
     )
     result = _replace_once(
         result,
         "codex_step5d_strict_rnn_autotune_v3()",
-        "codex_step5d_strict_rnn_manual_tune_v1()",
+        "codex_step5d_strict_rnn_manual_tune_v2()",
         role="manual main call",
     )
     for marker, replacement, role in (
@@ -152,8 +190,8 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         f"# PARENT_R009_COMMIT: {PARENT_R009_COMMIT}",
         f"# RELEASE_STAGE_ID: {PROGRAM_NAME}",
         f"# TP_PROGRAM_ID: {PROGRAM_NAME}",
-        "def codex_step5d_strict_rnn_manual_tune_v1():",
-        "codex_step5d_strict_rnn_manual_tune_v1()",
+        "def codex_step5d_strict_rnn_manual_tune_v2():",
+        "codex_step5d_strict_rnn_manual_tune_v2()",
         "def codex_autotune_wait_for_manual_arm(",
         f"heartbeat_stale_s > {HEARTBEAT_STALE_S:.3f}",
         f"candidate_token, {HEARTBEAT_LOSS_REASON}, execution_profile_id",
@@ -161,6 +199,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "next_sequence == consumed_command_seq + 1",
         "next_logical_batch == codex_autotune_logical_batch_sequence_echo + 1",
         "batch_row_index != 1",
+        _commit_last_write_state_block(),
         "codex_autotune_wait_for_manual_arm(campaign_epoch, trial_id, 78",
         "codex_autotune_wait_for_manual_arm(0, 0, 10",
     )
@@ -179,6 +218,12 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
     )
     normalized = _replace_once(
         normalized,
+        _commit_last_write_state_block(),
+        _parent_write_state_block(),
+        role="normalized commit-last state publication",
+    )
+    normalized = _replace_once(
+        normalized,
         "codex_autotune_wait_for_manual_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)",
         "codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)",
         role="normalized state-78 wait",
@@ -190,8 +235,8 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         role="normalized initial wait",
     )
     normalized = _replace_once(normalized, "batch_row_index != 1", "batch_row_index < 1 or batch_row_index > 5", role="normalized row policy")
-    normalized = _replace_once(normalized, "def codex_step5d_strict_rnn_manual_tune_v1():", "def codex_step5d_strict_rnn_autotune_v3():", role="normalized main definition")
-    normalized = _replace_once(normalized, "codex_step5d_strict_rnn_manual_tune_v1()", "codex_step5d_strict_rnn_autotune_v3()", role="normalized main call")
+    normalized = _replace_once(normalized, "def codex_step5d_strict_rnn_manual_tune_v2():", "def codex_step5d_strict_rnn_autotune_v3():", role="normalized main definition")
+    normalized = _replace_once(normalized, "codex_step5d_strict_rnn_manual_tune_v2()", "codex_step5d_strict_rnn_autotune_v3()", role="normalized main call")
     normalized = _replace_once(normalized, f"# RELEASE_STAGE_ID: {PROGRAM_NAME}", f"# RELEASE_STAGE_ID: {PARENT_PROGRAM}", role="normalized release")
     normalized = _replace_once(normalized, f"# TP_PROGRAM_ID: {PROGRAM_NAME}", f"# TP_PROGRAM_ID: {PARENT_PROGRAM}", role="normalized program")
     if normalized != original:
@@ -200,7 +245,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
 
 def source_stamp(now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_MANUAL_HOLD_V1")
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_MANUAL_HOLD_V2")
 
 
 def build_package_script(stamp: str) -> str:
@@ -228,6 +273,7 @@ Frozen execution envelope:
   Home wait has no elapsed-time limit while float-register 26 heartbeat is fresh.
   Heartbeat loss halts stationary with typed reason {HEARTBEAT_LOSS_REASON}; an
   inexact next ARM halts stationary with typed reason {MANUAL_IDENTITY_REASON}.
+  TP output integer register 30 is the commit word and is published last.
 
 Safety boundary:
   Upload/read-back does not Load or Play. It does not start a bridge or authorize motion.
@@ -238,7 +284,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
     validate_rendered_script(script.split("\n", 1)[1] if script.startswith("# VERSION:") else script)
     sanity = dict(r009.numeric_sanity(r009.render_script()))
     sanity.update(
-        schema="step5d.manual-hold/tp-numeric-sanity-v1",
+        schema="step5d.manual-hold/tp-numeric-sanity-v2",
         program=PROGRAM_NAME,
         parent_r009_commit=PARENT_R009_COMMIT,
         host_protocol=PROTOCOL,
@@ -251,6 +297,8 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         stage25_success_target_s=60.0,
         target_force_n=12.0,
         orientation_ko=0.4,
+        state_publication_commit_register=30,
+        state_publication_commit_policy="consumed_sequence_written_last",
     )
     return sanity
 
@@ -275,7 +323,7 @@ def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> dict[str,
             for node in root.iter()
             if node.tag == "URProgram"
         ),
-        "main entrypoint": script.rstrip().endswith("codex_step5d_strict_rnn_manual_tune_v1()"),
+        "main entrypoint": script.rstrip().endswith("codex_step5d_strict_rnn_manual_tune_v2()"),
         "txt protocol": PROTOCOL in txt,
     }
     failed = [name for name, passed in checks.items() if not passed]

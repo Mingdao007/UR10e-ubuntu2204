@@ -6,7 +6,7 @@ It does not modify the r009 source files, release manifest, package, or
 
 ## Frozen execution envelope
 
-- TP program: `step5d_strict_rnn_manual_tune_v1`
+- TP program: `step5d_strict_rnn_manual_tune_v2`
 - protocol: `v3_full_home_manual_hold_v1`
 - default request: P `0.001`, I `0.0001`, damping `7.0`
 - target force: `12 N`; orientation `ko=0.4`
@@ -17,6 +17,10 @@ It does not modify the r009 source files, release manifest, package, or
   remains fresh; heartbeat stale for more than `1.0 s` halts stationary with
   terminal reason `20`
 - an inexact ARM identity halts stationary with terminal reason `21`
+- TP output register `30` is written last as the identity commit word; the
+  manual bridge tolerates only READY/ARMED partial publication for at most
+  `250 ms`, and fails closed on RUN-before-commit, reconnect, timeout, sequence
+  regression/overshoot, or a wrong committed identity
 
 ## Lightweight parameter loop
 
