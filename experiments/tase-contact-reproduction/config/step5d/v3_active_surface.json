@@ -128,6 +128,7 @@
     "tools/step5d_autotune_v3/runtime_environment.py",
     "tools/step5d_autotune_v3/runtime_gate.py",
     "tools/step5d_autotune_v3/runtime_identity.py",
+    "tools/step5d_autotune_v3/runtime_installation.py",
     "tools/step5d_autotune_v3/runtime_observation.py",
     "tools/step5d_autotune_v3/runtime_profile.py",
     "tools/step5d_autotune_v3/service.py",

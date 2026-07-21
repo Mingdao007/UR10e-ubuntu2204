@@ -66,6 +66,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_runtime_observation.py",
     "tests/test_step5d_v3_active_surface_architecture.py",
     "tests/test_step5d_v3_immutable_payload_routing.py",
+    "tests/test_step5d_v3_runtime_installation.py",
 }
 AUTHORITATIVE_OBSOLETE_TESTS = {
     "tests/test_cross_step_parameter_table.py",

@@ -34,6 +34,7 @@
         "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
         "tests/test_step5d_runtime_environment.py",
         "tests/test_step5d_runtime_observation.py",
+        "tests/test_step5d_v3_runtime_installation.py",
         "tests/test_step5d_v3_immutable_payload_routing.py",
         "tests/test_step5d_autotune_v3_installed_runtime.py"
       ],
@@ -158,11 +159,12 @@
           "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",
           "tests/test_step5d_runtime_environment.py",
           "tests/test_step5d_v3_active_surface_architecture.py",
-            "tests/test_step5d_autotune_v3_batch_producer.py",
-            "tests/test_step5d_autotune_v3_campaign_prepare.py",
-            "tests/test_step5d_v3_immutable_payload_routing.py",
-            "tests/test_step5d_autotune_v3_refactor_gate.py",
-            "tests/test_step5d_autotune_v3_test_matrix_runner.py"
+          "tests/test_step5d_v3_runtime_installation.py",
+          "tests/test_step5d_autotune_v3_batch_producer.py",
+          "tests/test_step5d_autotune_v3_campaign_prepare.py",
+          "tests/test_step5d_v3_immutable_payload_routing.py",
+          "tests/test_step5d_autotune_v3_refactor_gate.py",
+          "tests/test_step5d_autotune_v3_test_matrix_runner.py"
         ]
       ],
       "ci": true,
