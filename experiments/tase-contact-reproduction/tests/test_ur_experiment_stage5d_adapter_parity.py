@@ -53,9 +53,11 @@ from step5d_autotune_state_machine import (  # noqa: E402
     TP_TO_HOST_INTEGER_REGISTERS as ACTIVE_TP_TO_HOST,
 )
 from step5d_autotune_r008_policy import PROTOCOL, initialization_batch  # noqa: E402
-from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY  # noqa: E402
-from step5d_autotune_v3.runtime_profile import load_launch_profile  # noqa: E402
-from run_step5d_autotune_v3_live import initial_control_overlays  # noqa: E402
+from step5d_autotune_v3.runtime_profile import (  # noqa: E402
+    DEFAULT_OVERLAY,
+    load_launch_profile,
+    normalize_trial_overlay as normalize_v3_trial_overlay,
+)
 
 
 SPEC = (
@@ -80,6 +82,20 @@ def _trial() -> TrialSpec:
         config_fingerprint="c" * 64,
         transition=TrialTransition(TrialTransitionKind.BASELINE),
     )
+
+
+def _initial_control_overlays(profile) -> tuple[dict, ...]:
+    rows = []
+    for occurrence in initialization_batch(1):
+        raw = {
+            **DEFAULT_OVERLAY,
+            "force_p_gain": occurrence.candidate.force_p_gain,
+            "force_i_gain": occurrence.candidate.force_i_gain,
+            "force_damping": occurrence.candidate.force_damping,
+        }
+        raw.pop("control_candidate_uid", None)
+        rows.append(normalize_v3_trial_overlay(raw, profile=profile))
+    return tuple(rows)
 
 
 def test_step5d_spec_and_plan_freeze_current_behavior_without_external_actions() -> None:
@@ -193,7 +209,7 @@ def test_exact_ack_requires_current_identity_bundle_and_safe_closure() -> None:
 def test_batch_identity_binds_the_exact_current_five_rolling_rows() -> None:
     spec = load_experiment_spec(SPEC)
     profile = load_launch_profile()
-    overlays = initial_control_overlays(profile)
+    overlays = _initial_control_overlays(profile)
     occurrences = tuple(
         occurrence.bind_control_candidate_uid(overlay["control_candidate_uid"])
         for occurrence, overlay in zip(

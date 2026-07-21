@@ -46,10 +46,13 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         report = gate.validate_repository(ROOT)
         self.assertTrue(report["ok"], report["issues"])
         self.assertEqual(report["protected_source_count"], 12)
-        self.assertEqual(report["approved_orchestration_variant_count"], 11)
-        self.assertLessEqual(
-            report["runtime_budget"]["module_count"],
-            report["runtime_budget"]["module_limit"],
+        self.assertIn(
+            "tools/step5d_autotune_v3/governance.py",
+            report["runtime_surface"]["python_modules"],
+        )
+        self.assertEqual(
+            report["active_surface_schema"],
+            "step5d.autotune-v3/active-surface-v3",
         )
 
     def test_complete_pr_declaration_is_accepted(self) -> None:
@@ -113,42 +116,66 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             self.assertTrue(any(item.startswith("protected_source_hash_mismatch:") for item in issues))
             self.assertIn("protected_source_not_zero_diff:protected.txt", issues)
 
-    def test_runtime_budget_counts_every_flat_python_module(self) -> None:
+    def test_runtime_surface_rejects_symlinks_non_python_files_and_nesting(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             runtime = root / "tools" / "step5d_autotune_v3"
             runtime.mkdir(parents=True)
-            for index in range(gate.RUNTIME_MODULE_LIMIT + 1):
-                (runtime / f"module_{index}.py").write_text("VALUE = 1\n", encoding="utf-8")
-            (runtime / "escaped.py").symlink_to(runtime / "module_0.py")
-            (runtime / "payload.bin").write_bytes(b"not budgeted")
-            issues, report = gate.runtime_budget(root)
-            self.assertEqual(report["module_count"], gate.RUNTIME_MODULE_LIMIT + 1)
-            self.assertIn(
-                f"v3_runtime_module_budget_exceeded:{gate.RUNTIME_MODULE_LIMIT + 1}>{gate.RUNTIME_MODULE_LIMIT}",
-                issues,
+            (runtime / "valid.py").write_text("VALUE = 1\n", encoding="utf-8")
+            (runtime / "escaped.py").symlink_to(runtime / "valid.py")
+            (runtime / "payload.bin").write_bytes(b"not source")
+            nested = runtime / "nested"
+            nested.mkdir()
+            (nested / "module.py").write_text("VALUE = 2\n", encoding="utf-8")
+
+            issues, report = gate.runtime_surface_issues(root)
+
+            self.assertEqual(
+                report["python_modules"],
+                ["tools/step5d_autotune_v3/valid.py"],
             )
             self.assertTrue(any(item.startswith("v3_runtime_symlink_forbidden:") for item in issues))
-            self.assertTrue(any(item.startswith("v3_runtime_unbudgeted_file:") for item in issues))
+            self.assertTrue(
+                any(item.startswith("v3_runtime_non_python_file_forbidden:") for item in issues)
+            )
+            self.assertTrue(
+                any(item.startswith("v3_runtime_nested_module_forbidden:") for item in issues)
+            )
 
-    def test_certification_owner_has_an_independent_bounded_budget(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            runtime = root / "tools" / "step5d_autotune_v3"
-            runtime.mkdir(parents=True)
-            certification = runtime / gate.CERTIFICATION_MODULE
-            certification.write_text(
-                "\n".join("VALUE = 1" for _ in range(gate.CERTIFICATION_LOC_LIMIT + 1)),
-                encoding="utf-8",
-            )
-            issues, report = gate.runtime_budget(root)
-            self.assertEqual(report["module_count"], 0)
-            self.assertEqual(report["certification_module_count"], 1)
-            self.assertIn(
-                f"v3_certification_loc_budget_exceeded:"
-                f"{gate.CERTIFICATION_LOC_LIMIT + 1}>{gate.CERTIFICATION_LOC_LIMIT}",
-                issues,
-            )
+    def test_active_surface_requires_v3_manifest_and_classifies_runtime_modules(self) -> None:
+        payload = json.loads(gate.DEFAULT_ACTIVE_SURFACE.read_text(encoding="utf-8"))
+        runtime_modules = set(gate.runtime_surface_issues(ROOT)[1]["python_modules"])
+        self.assertEqual(
+            gate.active_surface_issues(
+                ROOT,
+                payload,
+                runtime_modules=runtime_modules,
+            ),
+            [],
+        )
+
+        payload["release_truth"]["manifest_schema"] = (
+            "step5d.autotune-v3/release-manifest-v2"
+        )
+        payload["active_orchestration_paths"].remove(
+            "tools/step5d_autotune_v3/runtime_environment.py"
+        )
+        issues = gate.active_surface_issues(
+            ROOT,
+            payload,
+            runtime_modules=runtime_modules,
+        )
+        self.assertIn("active_surface_release_manifest_schema_mismatch", issues)
+        self.assertIn(
+            "active_surface_runtime_module_unclassified:"
+            "tools/step5d_autotune_v3/runtime_environment.py",
+            issues,
+        )
+        self.assertIn(
+            "active_surface_required_runtime_not_active:"
+            "tools/step5d_autotune_v3/runtime_environment.py",
+            issues,
+        )
 
     def test_matrix_has_only_hermetic_ci_lanes(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
@@ -169,25 +196,96 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             gate.content_governance_issues(ROOT, payload),
         )
 
-    def test_matrix_readiness_cannot_restore_authorization_or_skip_validation(self) -> None:
+    def test_authoritative_bridge_gate_is_fail_closed_and_fully_classified(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
-        readiness = payload["operator_readiness_gate"]
-        readiness["user_confirmation_required"] = True
-        readiness["user_authorization_required"] = True
-        readiness["transition_order"].remove("deterministic_tests")
-        readiness["ready_to_execute_requires"].remove("deterministic_tests_pass")
-        issues = gate.matrix_issues(payload)
-        self.assertIn("test_matrix_user_confirmation_not_disabled", issues)
-        self.assertIn("test_matrix_user_authorization_not_disabled", issues)
-        self.assertIn("test_matrix_readiness_transition_order_mismatch", issues)
-        self.assertIn("test_matrix_ready_to_execute_requirements_mismatch", issues)
+        bridge = payload["authoritative_bridge_gate"]
+        classified = bridge["classified_test_files"]
+        bridge["canonical_launcher"] = "scripts/legacy.sh"
+        bridge["unclassified_failure_policy"] = "ignore"
+        bridge["acceptance_path"].remove("next_arm_acknowledged")
+        classified["active"].remove("tests/test_step5d_autotune_v3_batch_producer.py")
+        classified["active"].append("tests/test_step5d_uncommanded.py")
+        classified["obsolete"].append("tests/test_step5d_runtime_gate.py")
+        payload["lanes"]["small"]["commands"][0].append(
+            "tests/test_failure_to_guard.py"
+        )
+        classified["unrelated"].remove("tests/test_failure_to_guard.py")
 
-    def test_obsolete_hil_launch_permit_cannot_be_reintroduced(self) -> None:
+        issues = gate.matrix_issues(payload)
+        self.assertIn(
+            "test_matrix_authoritative_bridge_field_mismatch:canonical_launcher",
+            issues,
+        )
+        self.assertIn(
+            "test_matrix_authoritative_bridge_field_mismatch:unclassified_failure_policy",
+            issues,
+        )
+        self.assertIn("test_matrix_authoritative_acceptance_path_mismatch", issues)
+        self.assertIn("test_matrix_authoritative_active_set_mismatch", issues)
+        self.assertIn("test_matrix_authoritative_obsolete_set_mismatch", issues)
+        self.assertIn(
+            "test_matrix_classification_overlap:active:obsolete:"
+            "tests/test_step5d_runtime_gate.py",
+            issues,
+        )
+        self.assertIn(
+            "test_matrix_active_test_not_commanded:tests/test_step5d_uncommanded.py",
+            issues,
+        )
+        self.assertIn(
+            "test_matrix_commanded_test_unclassified:tests/test_failure_to_guard.py",
+            issues,
+        )
+        self.assertIn(
+            "test_matrix_obsolete_test_commanded:tests/test_step5d_runtime_gate.py",
+            issues,
+        )
+
+    def test_authoritative_commands_exclude_classified_unrelated_tests(self) -> None:
         payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
+        payload["lanes"]["small"]["commands"][0].append(
+            "tests/test_failure_to_guard.py"
+        )
+
+        self.assertIn(
+            "test_matrix_unrelated_test_commanded:tests/test_failure_to_guard.py",
+            gate.matrix_issues(payload),
+        )
+
+    def test_repository_v3_test_discovery_blocks_unclassified_files(self) -> None:
+        payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tests = root / "tests"
+            tests.mkdir()
+            relevant = tests / "test_new_bridge_regression.py"
+            relevant.write_text("STEP5D_V3 = True\n", encoding="utf-8")
+            (tests / "test_unrelated.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+            issues = gate.matrix_issues(payload, root=root)
+
+        self.assertIn(
+            "test_matrix_repository_v3_test_unclassified:"
+            "tests/test_new_bridge_regression.py",
+            issues,
+        )
+        self.assertFalse(
+            any("tests/test_unrelated.py" in issue for issue in issues),
+            issues,
+        )
+
+    def test_obsolete_operator_and_hil_gates_cannot_be_reintroduced(self) -> None:
+        payload = json.loads(gate.DEFAULT_MATRIX.read_text(encoding="utf-8"))
+        payload["operator_readiness_gate"] = {}
         payload["hil_launch_permit_gate"] = {"scope": "hil_full_bridge_hold"}
+        issues = gate.matrix_issues(payload)
+        self.assertIn(
+            "test_matrix_obsolete_operator_readiness_gate_present",
+            issues,
+        )
         self.assertIn(
             "test_matrix_obsolete_hil_launch_permit_present",
-            gate.matrix_issues(payload),
+            issues,
         )
 
     def test_local_installed_runtime_gate_is_serial_and_never_hosted(self) -> None:
