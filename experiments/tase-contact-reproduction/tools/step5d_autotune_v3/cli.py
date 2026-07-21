@@ -266,17 +266,44 @@ def _append_overlay_batch(
         if plan.revision != 1:
             raise CliError("cannot attach V3 overlays to a pre-existing candidate plan")
         batches = []
+    occurrences = (
+        plan.occurrences[plan.revision - 1]
+        if getattr(plan, "occurrences", ())
+        else ()
+    )
+    if occurrences and len(occurrences) != len(candidates):
+        raise CliError("rolling occurrence and overlay counts differ")
+    from .runtime_profile import load_launch_profile, normalized_overlay_sha256
+
+    overlay_profile = load_launch_profile()
+    if overlay_profile.fingerprint != launch_profile_fingerprint:
+        raise CliError("overlay writer launch-profile identity differs")
+
     batches.append(
         {
             "batch_id": plan.revision,
             "source": source,
             "trials": [
                 {
-                    "transport_candidate_uid": candidate.candidate_uid,
+                    "occurrence_uid": (
+                        occurrences[index].occurrence_uid
+                        if occurrences
+                        else candidate.candidate_uid
+                    ),
+                    "transport_candidate_uid": (
+                        occurrences[index].transport_candidate_uid
+                        if occurrences
+                        else candidate.candidate_uid
+                    ),
                     "control_candidate_uid": overlay["control_candidate_uid"],
+                    "normalized_overlay_sha256": normalized_overlay_sha256(
+                        overlay_profile, overlay
+                    ),
                     "overlay": dict(overlay),
                 }
-                for candidate, overlay in zip(candidates, overlays, strict=True)
+                for index, (candidate, overlay) in enumerate(
+                    zip(candidates, overlays, strict=True)
+                )
             ],
         }
     )

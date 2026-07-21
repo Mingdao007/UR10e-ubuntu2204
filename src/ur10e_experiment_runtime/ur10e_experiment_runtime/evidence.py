@@ -161,6 +161,7 @@ def build_direct_trial_brief(
     if not 1 <= row_index <= len(batch.rows):
         raise ValueError("TrialBrief row index is invalid")
     row = batch.rows[row_index - 1]
+    rolling = batch.protocol == "v3_full_home_rolling_arm_v1"
     if any(
         (
             completion.batch_uid != batch.batch_uid,
@@ -168,6 +169,10 @@ def build_direct_trial_brief(
             completion.trial_uid != trial_uid,
             completion.control_candidate_uid != row.control_candidate_uid,
             completion.immutable_bundle_sha256 != immutable_bundle_sha256,
+            rolling and completion.occurrence_uid != row.occurrence_uid,
+            rolling
+            and completion.transport_candidate_uid
+            != row.transport_candidate_uid,
         )
     ):
         raise ValueError("direct TrialBrief completion identity differs")
@@ -188,8 +193,24 @@ def build_direct_trial_brief(
         "bundle_sha256": immutable_bundle_sha256,
         "completion_uid": completion.completion_uid,
     }
+    if rolling:
+        publication_material.update(
+            protocol=batch.protocol,
+            logical_batch_sequence=batch.logical_batch_sequence,
+            plan_revision=batch.plan_revision,
+            occurrence_uid=row.occurrence_uid,
+            transport_candidate_uid=row.transport_candidate_uid,
+            control_candidate_uid=row.control_candidate_uid,
+        )
     publication_uid = canonical_sha256(
-        {"schema": "ur-exp/trial-brief-publication/v2", **publication_material}
+        {
+            "schema": (
+                "ur-exp/trial-brief-publication/v3"
+                if rolling
+                else "ur-exp/trial-brief-publication/v2"
+            ),
+            **publication_material,
+        }
     )
     gate = gate_optimizer_observation(
         outcome_class,
@@ -203,8 +224,8 @@ def build_direct_trial_brief(
         publication_unique=False,
     )
     document = {
-        "schema": "ur-exp/trial-brief-v2",
-        "protocol": "v3_direct_arm_v1",
+        "schema": "ur-exp/trial-brief-v3" if rolling else "ur-exp/trial-brief-v2",
+        "protocol": batch.protocol if rolling else "v3_direct_arm_v1",
         "publication_uid": publication_uid,
         **publication_material,
         "row_index": row_index,
@@ -230,7 +251,10 @@ def _published_document(brief: TrialBrief) -> Mapping[str, Any]:
     document = dict(brief.document)
     if document.get("publication_unique") is not False:
         raise ValueError("EvidenceSink accepts only an unpublished TrialBrief draft")
-    direct = document.get("schema") == "ur-exp/trial-brief-v2"
+    direct = document.get("schema") in {
+        "ur-exp/trial-brief-v2",
+        "ur-exp/trial-brief-v3",
+    }
     gate = gate_optimizer_observation(
         document["outcome_class"],
         document.get("metric_value"),
@@ -268,7 +292,10 @@ class EvidenceSink:
             raise ValueError("TrialBrief row index is invalid")
         state = self.batch_journal.state()
         row = state.rows[row_index - 1]
-        direct = brief.document.get("schema") == "ur-exp/trial-brief-v2"
+        direct = brief.document.get("schema") in {
+            "ur-exp/trial-brief-v2",
+            "ur-exp/trial-brief-v3",
+        }
         if (
             state.batch_uid != brief.document.get("batch_uid")
             or row.trial_uid != brief.document.get("trial_uid")

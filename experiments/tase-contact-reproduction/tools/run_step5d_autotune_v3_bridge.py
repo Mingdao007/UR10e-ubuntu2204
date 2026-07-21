@@ -33,10 +33,10 @@ from ur10e_experiment_runtime.identity import canonical_sha256
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 from step5d_autotune_v3.arming import load_bridge_start_context
 from step5d_autotune_v3.readiness import require_bridge_start
-from step5d_autotune_v3.runtime_profile import (
-    CONTROL_PROFILE_ID,
-    RELEASE_STAGE_ID,
-    TP_PROGRAM_ID,
+from step5d_autotune_v3.release_identity import (
+    ReleaseIdentity,
+    ReleaseIdentityError,
+    load_current_release,
 )
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
@@ -372,7 +372,17 @@ def _apply_v3_arm_runtime(
     args.step5d_moving_sphere_enabled = False
 
 
-def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
+def _strict_ticket(
+    path: Path,
+    argv: Sequence[str],
+    *,
+    release_identity: ReleaseIdentity | None = None,
+    root: Path = ROOT,
+) -> dict[str, Any]:
+    try:
+        release = release_identity or load_current_release(root)
+    except ReleaseIdentityError as exc:
+        raise BridgeTicketError(f"active release manifest is invalid: {exc}") from exc
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
         raise BridgeTicketError("V3 runtime ticket must be an absolute regular file")
     try:
@@ -404,9 +414,9 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
     if payload["argv_sha256"] != hashlib.sha256(encoded_argv).hexdigest():
         raise BridgeTicketError("V3 runtime ticket argv binding differs")
     expected = {
-        "release_stage_id": RELEASE_STAGE_ID,
-        "control_profile_id": CONTROL_PROFILE_ID,
-        "tp_program_id": TP_PROGRAM_ID,
+        "release_stage_id": release.release_stage_id,
+        "control_profile_id": release.control_profile_id,
+        "tp_program_id": release.program_id,
     }
     for key, value in expected.items():
         if payload[key] != value:
@@ -513,15 +523,17 @@ def _require_v3_no_arm_bridge(
     *,
     root: Path = ROOT,
     readiness_owner: Callable[..., tuple[Mapping[str, Any], Any]] = require_bridge_start,
+    release_identity: ReleaseIdentity | None = None,
 ) -> dict[str, Any]:
     """Replace the legacy V1-selection gate with the ticket-bound V3 gate."""
 
+    release = release_identity or load_current_release(root)
     if (
         ticket.get("scope") != TICKET_SCOPE
-        or ticket.get("release_stage_id") != RELEASE_STAGE_ID
-        or ticket.get("control_profile_id") != CONTROL_PROFILE_ID
-        or ticket.get("tp_program_id") != TP_PROGRAM_ID
-        or args.bridge_profile != CONTROL_PROFILE_ID
+        or ticket.get("release_stage_id") != release.release_stage_id
+        or ticket.get("control_profile_id") != release.control_profile_id
+        or ticket.get("tp_program_id") != release.program_id
+        or args.bridge_profile != release.control_profile_id
     ):
         raise BridgeTicketError("V3 NO_ARM bridge identity differs")
     if args.step5d_autotune_command_mailbox is None:
@@ -532,35 +544,67 @@ def _require_v3_no_arm_bridge(
     context_path = Path(str(reference.get("path") or ""))
     report, context = readiness_owner(root, context_path)
     if (
-        report.get("selected_release") != RELEASE_STAGE_ID
+        report.get("selected_release") != release.release_stage_id
         or report.get("bridge_start_ready") is not True
         or context.identity != ticket.get("identity")
     ):
         raise BridgeTicketError("V3 NO_ARM bridge readiness differs from runtime ticket")
     return {
         "ok": True,
-        "selected_release": RELEASE_STAGE_ID,
-        "control_profile_id": CONTROL_PROFILE_ID,
-        "tp_program_id": TP_PROGRAM_ID,
+        "selected_release": release.release_stage_id,
+        "control_profile_id": release.control_profile_id,
+        "tp_program_id": release.program_id,
+        "protocol_id": release.protocol_id,
         "scope": TICKET_SCOPE,
         "live_motion_authorized": False,
     }
 
 
-def install_v3_seams(ticket: Mapping[str, Any] | None = None) -> Any:
+def install_v3_seams(
+    ticket: Mapping[str, Any] | None = None,
+    *,
+    release_identity: ReleaseIdentity | None = None,
+) -> Any:
     import step5d_autotune_live_driver as live
     from step5d_autotune_v3.runtime_calibration import validate_installed_calibration
     from step5d_autotune_v3.runtime_profile import IdentityCachedMailbox
 
+    release = release_identity
+    if ticket is not None and release is None:
+        release = load_current_release(ROOT)
     calibration = validate_installed_calibration()
     original_mailbox = live.AtomicCommandMailbox
+    original_runtime = live.BridgeMailboxRuntime
 
     class V3AtomicCommandMailbox(IdentityCachedMailbox):
         def __init__(self, path: Path, *, network_mode: bool = True) -> None:
             super().__init__(original_mailbox(path, network_mode=network_mode))
 
     live.AtomicCommandMailbox = V3AtomicCommandMailbox
-    live.BridgeMailboxRuntime.DEFAULT_COMPLETION_PROTOCOL = "v3_direct_arm_v1"
+
+    class V3BridgeMailboxRuntime(original_runtime):
+        def __init__(
+            self,
+            path: Path,
+            *,
+            campaign_home_reference_path: Path | None = None,
+            arming_context_provider: Callable[[], Any | None] | None = None,
+            completion_protocol: str | None = None,
+        ) -> None:
+            if release is None:
+                raise live.MailboxError(
+                    "V3 bridge runtime requires an explicit SHA-pinned release protocol"
+                )
+            if completion_protocol is not None and completion_protocol != release.protocol_id:
+                raise live.MailboxError("V3 bridge completion protocol differs from release")
+            super().__init__(
+                path,
+                campaign_home_reference_path=campaign_home_reference_path,
+                arming_context_provider=arming_context_provider,
+                completion_protocol=release.protocol_id,
+            )
+
+    live.BridgeMailboxRuntime = V3BridgeMailboxRuntime
     live.BridgeTrialCsvRotator = V3AsyncBridgeTrialCsvRotator
 
     import kunwei_rtde_bridge as bridge
@@ -572,12 +616,17 @@ def install_v3_seams(ticket: Mapping[str, Any] | None = None) -> Any:
         *,
         root: Path = ROOT,
     ) -> dict[str, Any] | None:
-        if args.bridge_profile != CONTROL_PROFILE_ID:
+        if release is None or args.bridge_profile != release.control_profile_id:
             return original_authorization_gate(args, root=root)
         if ticket is None:
             raise BridgeTicketError("V3 runtime ticket is unavailable at bridge gate")
         try:
-            return _require_v3_no_arm_bridge(args, ticket, root=root)
+            return _require_v3_no_arm_bridge(
+                args,
+                ticket,
+                root=root,
+                release_identity=release,
+            )
         except BridgeTicketError as exc:
             raise SystemExit(f"V3 NO_ARM bridge gate failed: {exc}") from exc
 
@@ -615,8 +664,8 @@ def install_v3_seams(ticket: Mapping[str, Any] | None = None) -> Any:
 
     def v3_tp_identity_match(value: Any, control_profile: str) -> bool:
         expected = (
-            TP_PROGRAM_ID
-            if control_profile == CONTROL_PROFILE_ID
+            release.program_id
+            if release is not None and control_profile == release.control_profile_id
             else control_profile
         )
         return original_matcher(value, expected)
@@ -672,9 +721,17 @@ def main(argv: list[str] | None = None) -> int:
         print("refusing: STEP5D_V3_RUNTIME_TICKET is required", file=sys.stderr)
         return 24
     try:
-        ticket = _strict_ticket(Path(ticket_text), bridge_argv)
-        bridge = install_v3_seams(ticket)
-    except BridgeTicketError as exc:
+        release = load_current_release(ROOT)
+        ticket = _strict_ticket(
+            Path(ticket_text),
+            bridge_argv,
+            release_identity=release,
+        )
+        bridge = install_v3_seams(
+            ticket,
+            release_identity=release,
+        )
+    except (BridgeTicketError, ReleaseIdentityError) as exc:
         print(f"refusing: {exc}", file=sys.stderr)
         return 24
     return int(bridge.main(bridge_argv))

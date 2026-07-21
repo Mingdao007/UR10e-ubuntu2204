@@ -30,6 +30,31 @@ def _uid(payload: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+class _TypedUid(str):
+    namespace = "uid"
+
+    def __new__(cls, value: str) -> "_TypedUid":
+        if (
+            not isinstance(value, str)
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+        ):
+            raise ValueError(f"{cls.namespace} must be a lowercase SHA-256")
+        return str.__new__(cls, value)
+
+
+class OccurrenceUid(_TypedUid):
+    namespace = "occurrence UID"
+
+
+class TransportCandidateUid(_TypedUid):
+    namespace = "transport candidate UID"
+
+
+class ControlCandidateUid(_TypedUid):
+    namespace = "control candidate UID"
+
+
 @dataclass(frozen=True)
 class PlannedOccurrence:
     logical_batch_sequence: int
@@ -50,8 +75,8 @@ class PlannedOccurrence:
             raise ValueError("selection_role must be non-empty")
 
     @property
-    def occurrence_uid(self) -> str:
-        return _uid(
+    def occurrence_uid(self) -> OccurrenceUid:
+        return OccurrenceUid(_uid(
             {
                 "schema": "step5d.r008/occurrence-v1",
                 "protocol": PROTOCOL,
@@ -62,17 +87,21 @@ class PlannedOccurrence:
                 "selection_role": self.selection_role,
                 "replicate_ordinal": self.replicate_ordinal,
             }
-        )
+        ))
 
     @property
-    def transport_candidate_uid(self) -> str:
-        return _uid(
+    def transport_candidate_uid(self) -> TransportCandidateUid:
+        return TransportCandidateUid(_uid(
             {
                 "schema": "step5d.r008/transport-candidate-v1",
                 "occurrence_uid": self.occurrence_uid,
                 "candidate": self.candidate.payload(),
             }
-        )
+        ))
+
+    @property
+    def control_candidate_uid(self) -> ControlCandidateUid:
+        return ControlCandidateUid(self.candidate.candidate_uid)
 
 
 def _batch(
@@ -160,6 +189,7 @@ def supercycle_batches(
     first_sequence: int,
     seed: int = 8008,
 ) -> tuple[tuple[PlannedOccurrence, ...], tuple[PlannedOccurrence, ...], dict[str, Any]]:
+    """Historical r008 adapter; active rolling-v1 must use the two-phase API."""
     if not bo_gate(observations):
         raise ValueError("r008 BO gate is not satisfied")
     batch_a, evidence_a = cuda_botorch_joint_candidates(
@@ -184,6 +214,69 @@ def supercycle_batches(
         ("qlognei_b",) * BATCH_SIZE,
     )
     return a, b, {"batch_a": evidence_a, "batch_b": evidence_b}
+
+
+def supercycle_batch_a(
+    observations: Sequence[Observation],
+    catalog: Sequence[ForceCandidate],
+    *,
+    sequence: int,
+    seed: int = 9009,
+) -> tuple[tuple[PlannedOccurrence, ...], dict[str, Any]]:
+    if not bo_gate(observations):
+        raise ValueError("rolling-v1 BO gate is not satisfied")
+    selected, evidence = cuda_botorch_joint_candidates(
+        observations,
+        catalog,
+        q=4,
+        seed=seed,
+        anchor=BASELINE,
+    )
+    rows = _batch(
+        sequence,
+        sequence,
+        (BASELINE, *selected),
+        ("supercycle_anchor", "qlognei_a", "qlognei_a", "qlognei_a", "qlognei_a"),
+    )
+    return rows, {"phase": "batch_a_proposed", "optimizer": evidence, "seed": seed}
+
+
+def supercycle_batch_b_after_gp_update(
+    observations: Sequence[Observation],
+    catalog: Sequence[ForceCandidate],
+    *,
+    sequence: int,
+    batch_a_closure: Mapping[str, Any],
+    seed: int = 9010,
+) -> tuple[tuple[PlannedOccurrence, ...], dict[str, Any]]:
+    required = {
+        "batch_result_sha256",
+        "sealed_bundle_set_sha256",
+        "cold_read_verified",
+        "gp_update_sha256",
+    }
+    if not isinstance(batch_a_closure, Mapping) or set(batch_a_closure) != required:
+        raise ValueError("Batch B requires exact Batch A closure and GP-update evidence")
+    for name in required - {"cold_read_verified"}:
+        _TypedUid(str(batch_a_closure[name]))
+    if batch_a_closure["cold_read_verified"] is not True:
+        raise ValueError("Batch B requires cold-read verification of sealed Batch A")
+    if not bo_gate(observations):
+        raise ValueError("updated rolling-v1 BO gate is not satisfied")
+    selected, evidence = cuda_botorch_joint_candidates(
+        observations,
+        catalog,
+        q=5,
+        seed=seed,
+        anchor=BASELINE,
+    )
+    rows = _batch(sequence, sequence, selected, ("qlognei_b",) * BATCH_SIZE)
+    return rows, {
+        "phase": "batch_b_post_gp_update",
+        "batch_a_closure": dict(batch_a_closure),
+        "optimizer": evidence,
+        "seed": seed,
+    }
 
 
 def confirmation_batch(

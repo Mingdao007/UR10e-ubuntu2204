@@ -20,11 +20,13 @@ from typing import Any, Callable, Mapping
 from prepare_step5d_autotune_launch import prepare, write_machine_campaign_binding
 from preflight_readonly import dashboard_exchange
 from run_step5d_autotune_campaign import validate_legacy_campaign_adoption
-from step5d_autotune_batch_plan import load_plan
+from step5d_autotune_batch_plan import append_r008_batch, load_plan
 from step5d_autotune_contract import ForceCandidate
+from step5d_autotune_r008_policy import initialization_batch
 from step5d_autotune_v3 import cli as v3_cli
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
 from step5d_autotune_v3.readiness import require_bridge_start
+from step5d_autotune_v3.release_identity import ReleaseIdentity, load_current_release
 from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 from step5d_autotune_v3.runtime_profile import (
     CONTROL_PROFILE_ID,
@@ -38,7 +40,6 @@ from step5d_autotune_v3.runtime_profile import (
 from step5d_autotune_v3.state import (
     CampaignPaths,
     atomic_json,
-    fresh_attempt_ledger,
     read_strict_json,
 )
 
@@ -48,35 +49,7 @@ WRAPPER = ROOT / "tools/run_step5d_autotune_v3_bridge.py"
 RUNNER = ROOT / "tools/run_step5d_autotune_campaign.py"
 RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
 LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
-INITIAL_BATCH_SOURCE = "v3-pareto-round-a-10-trial-batch-20260719"
-DEFAULT_LEGACY_CAMPAIGN_ROOT = ROOT / "runs/step5d_native_autotune_recovered_runtime_v2"
-DEFAULT_LEGACY_CAMPAIGN_EPOCH = 16
-INITIAL_LOG2 = (
-    (0.5, 0.75, 0.25),
-    (0.25, 0.75, 0.25),
-    (0.0, 0.75, 0.25),
-    (-0.25, 0.75, 0.25),
-    (-0.5, 0.75, 0.25),
-    (-0.75, 0.75, 0.25),
-    (-1.0, 0.75, 0.25),
-    (-1.0, 0.5, 0.25),
-    (-1.0, 0.25, 0.25),
-    (-1.0, 0.0, 0.25),
-)
-INITIAL_CONTROL_LOG2_K = (
-    (0.75, 0.75, 0.25, 0.47568284600108846),
-    (1.0, 0.75, 0.25, 0.47568284600108846),
-    (1.0, 0.75, 0.25, 0.5656854249492381),
-    (1.0, 0.75, 0.5, 0.5656854249492381),
-    (1.0, 0.75, 0.5, 0.6727171322029717),
-    (1.0, 0.5, 0.5, 0.6727171322029717),
-    (1.0, 0.5, 0.5, 0.8),
-    (0.75, 0.5, 0.5, 0.8),
-    (0.75, 0.5, 0.25, 0.8),
-    (0.75, 0.5, 0.25, 0.6727171322029717),
-)
-
-
+INITIAL_BATCH_SOURCE = "rolling-v1-formal-initialization-batch-a"
 class LiveLaunchError(RuntimeError):
     pass
 
@@ -96,22 +69,18 @@ def _sha256_path(path: Path) -> str:
 
 
 def initial_candidates() -> tuple[ForceCandidate, ...]:
-    return tuple(
-        ForceCandidate.from_log2(p=p, i=i, damping=damping)
-        for p, i, damping in INITIAL_LOG2
-    )
+    return tuple(row.candidate for row in initialization_batch(1))
 
 
 def initial_control_overlays(profile: Any) -> tuple[dict[str, Any], ...]:
     overlays: list[dict[str, Any]] = []
-    for p, i, damping, orientation_ko in INITIAL_CONTROL_LOG2_K:
-        candidate = ForceCandidate.from_log2(p=p, i=i, damping=damping)
+    for candidate in initial_candidates():
         overlay = {
             **DEFAULT_OVERLAY,
             "force_p_gain": candidate.force_p_gain,
             "force_i_gain": candidate.force_i_gain,
             "force_damping": candidate.force_damping,
-            "orientation_ko": orientation_ko,
+            "orientation_ko": DEFAULT_OVERLAY["orientation_ko"],
         }
         overlay.pop("control_candidate_uid", None)
         overlays.append(normalize_trial_overlay(overlay, profile=profile))
@@ -130,31 +99,19 @@ def _ensure_initial_batch(
     if plan.revision == 0:
         profile = load_launch_profile(launch_profile_path)
         overlays = initial_control_overlays(profile)
-        validated, validated_overlays, _control, _profile, _launch = (
-            v3_cli._validate_candidates(
-                overlays,
-                attempt_ledger=fresh_attempt_ledger(),
-                launch_profile_path=launch_profile_path,
-            )
-        )
-        expected_control = tuple(
-            ForceCandidate.from_log2(p=p, i=i, damping=damping)
-            for p, i, damping, _orientation_ko in INITIAL_CONTROL_LOG2_K
-        )
-        if tuple(validated) != expected_control:
-            raise LiveLaunchError("validated V3 control batch identity differs")
-        plan = v3_cli._append_batch(
-            paths,
-            campaign_id=campaign_id,
+        if len(overlays) != 5:
+            raise LiveLaunchError("rolling initialization must contain exactly five rows")
+        plan = append_r008_batch(
+            paths.candidate_plan,
+            occurrences=initialization_batch(1),
             source=INITIAL_BATCH_SOURCE,
-            candidates=expected,
         )
         overlay_plan = v3_cli._append_overlay_batch(
             paths,
             plan=plan,
             source=INITIAL_BATCH_SOURCE,
             candidates=expected,
-            overlays=validated_overlays,
+            overlays=overlays,
             launch_profile_fingerprint=profile.fingerprint,
         )
     else:
@@ -300,6 +257,7 @@ def _validate_preflight(
     path: Path,
     identity: Mapping[str, Any],
     bridge_start_context: Path | None = None,
+    release_identity: ReleaseIdentity | None = None,
 ) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise LiveLaunchError("fresh V3 live preflight snapshot is required")
@@ -311,10 +269,23 @@ def _validate_preflight(
         raise LiveLaunchError("V3 live preflight schema differs")
     if payload.get("ok") is not True or payload.get("fresh") is not True:
         raise LiveLaunchError("V3 live preflight did not pass freshly")
+    release_stage_id = (
+        RELEASE_STAGE_ID
+        if release_identity is None
+        else release_identity.release_stage_id
+    )
+    control_profile_id = (
+        CONTROL_PROFILE_ID
+        if release_identity is None
+        else release_identity.control_profile_id
+    )
+    tp_program_id = (
+        TP_PROGRAM_ID if release_identity is None else release_identity.program_id
+    )
     expected: dict[str, Any] = {
-        "candidate_stage_id": RELEASE_STAGE_ID,
-        "control_profile_id": CONTROL_PROFILE_ID,
-        "tp_program_id": TP_PROGRAM_ID,
+        "candidate_stage_id": release_stage_id,
+        "control_profile_id": control_profile_id,
+        "tp_program_id": tp_program_id,
         "identity": identity,
     }
     if bridge_start_context is not None:
@@ -348,6 +319,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         args.bridge_start_context,
     )
     release_identity = bridge_start.identity
+    release = load_current_release(ROOT)
     legacy_preflight = None
     runtime_root = args.output_root.expanduser().absolute() / "runtime"
     runtime_root.mkdir(parents=True, exist_ok=False, mode=0o700)
@@ -373,6 +345,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         args.preflight,
         release_identity,
         args.bridge_start_context,
+        release,
     )
 
     campaign_binding = bridge_runtime / "campaign_binding.json"
@@ -385,7 +358,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
             binding_source="canonical_v3_live_entrypoint",
             authorization_file=None,
             authorization_source=None,
-            candidate_batch_size=10,
+            candidate_batch_size=5,
+            rolling_plan=True,
         )
     )
     plan, overlay_plan = _ensure_initial_batch(
@@ -419,9 +393,9 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         "identity": release_identity,
         "launch_profile_fingerprint": launch_profile.fingerprint,
         "trial_overlay_fingerprint": overlay_fingerprint(launch_profile, DEFAULT_OVERLAY),
-        "release_stage_id": RELEASE_STAGE_ID,
-        "control_profile_id": CONTROL_PROFILE_ID,
-        "tp_program_id": TP_PROGRAM_ID,
+        "release_stage_id": release.release_stage_id,
+        "control_profile_id": release.control_profile_id,
+        "tp_program_id": release.program_id,
         "bridge_start_context": {
             "path": str(args.bridge_start_context),
             "sha256": _sha256_path(args.bridge_start_context),

@@ -22,7 +22,7 @@ LAUNCH_SCHEMA = "step5d.autotune-v3/launch-profile-v1"
 OVERLAY_SCHEMA = "step5d.autotune-v3/trial-overlay-v2"
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r008"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r009"
 DEFAULT_LAUNCH_PROFILE = (
     Path(__file__).resolve().parents[2]
     / "config/step5/step5d_autotune_v3_launch_profile.json"
@@ -427,6 +427,17 @@ def overlay_fingerprint(profile: LaunchProfile, overlay: Mapping[str, Any]) -> s
         "overlay": normalized,
     }
     return hashlib.sha256(canonical_json_bytes(material)).hexdigest()
+
+
+def normalized_overlay_sha256(
+    profile: LaunchProfile,
+    overlay: Mapping[str, Any],
+) -> str:
+    """Digest only the normalized overlay bytes for transport-row binding."""
+
+    return hashlib.sha256(
+        canonical_json_bytes(normalize_trial_overlay(overlay, profile=profile))
+    ).hexdigest()
 
 
 def comparison_profile_fingerprint(

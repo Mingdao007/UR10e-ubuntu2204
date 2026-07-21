@@ -13,9 +13,14 @@ sys.path.insert(0, str(RUNTIME_SRC))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from step5d_autotune_batch_plan import (  # noqa: E402
+    CandidateOccurrence,
+    RuntimePlanRow,
     append_r008_batch,
+    close_rolling_plan,
     initialize_r008_plan,
+    initialize_rolling_plan,
     load_plan,
+    mark_rolling_plan_open_empty,
 )
 from step5d_autotune_contract import Evaluation, ForceCandidate, TrialDisposition  # noqa: E402
 from step5d_autotune_optimizer import Observation, replicate_noise_variances  # noqa: E402
@@ -165,6 +170,39 @@ def test_r008_plan_accepts_control_repeats_but_rejects_occurrence_replay(tmp_pat
         load_plan(path)
 
 
+def test_rolling_plan_persists_open_empty_and_typed_closure(tmp_path: Path) -> None:
+    path = tmp_path / "candidate_plan.json"
+    empty = initialize_rolling_plan(path, campaign_id="campaign")
+    assert empty.lifecycle.value == "OPEN_EMPTY"
+    first = append_r008_batch(
+        path,
+        occurrences=initialization_batch(1),
+        source="formal-batch-a",
+    )
+    assert first.lifecycle.value == "OPEN_READY"
+    with pytest.raises(ValueError, match="OPEN_EMPTY transition"):
+        append_r008_batch(
+            path,
+            occurrences=initialization_batch(2),
+            source="premature-batch-b",
+        )
+    waiting = mark_rolling_plan_open_empty(path)
+    assert waiting.lifecycle.value == "OPEN_EMPTY"
+    second = append_r008_batch(
+        path,
+        occurrences=initialization_batch(2),
+        source="gp-update-batch-b",
+    )
+    assert second.batch_revisions == (1, 2)
+    closed = close_rolling_plan(
+        path,
+        reason="plateau",
+        evidence_sha256="e" * 64,
+    )
+    assert closed.lifecycle.value == "CLOSED_COMPLETE"
+    assert closed.closure == {"reason": "plateau", "evidence_sha256": "e" * 64}
+
+
 def test_batch_identity_separates_occurrence_transport_and_control_namespaces() -> None:
     planned = initialization_batch(1)
     rows = []
@@ -219,6 +257,28 @@ def test_batch_identity_separates_occurrence_transport_and_control_namespaces() 
     assert len({row.occurrence_uid for row in identity.rows}) == 5
     assert identity.rows[0].control_candidate_uid == identity.rows[1].control_candidate_uid
     assert identity.rows[0].transport_candidate_uid != identity.rows[1].transport_candidate_uid
+
+
+def test_runtime_uid_namespaces_reject_substitution_and_equal_hashes() -> None:
+    planned = initialization_batch(1)[0]
+    with pytest.raises(TypeError, match="wrong UID namespace"):
+        RuntimePlanRow(
+            logical_batch_sequence=1,
+            row_index=1,
+            plan_revision=1,
+            occurrence_uid=planned.transport_candidate_uid,
+            transport_candidate_uid=planned.transport_candidate_uid,
+            control_candidate_uid=planned.control_candidate_uid,
+            candidate=planned.candidate,
+        )
+    with pytest.raises(ValueError, match="must be distinct"):
+        CandidateOccurrence(
+            candidate=planned.candidate,
+            occurrence_uid="a" * 64,
+            transport_candidate_uid="a" * 64,
+            role="baseline",
+            replicate_ordinal=1,
+        )
 
 
 def test_bo_gate_noise_and_terminal_policies_are_strict() -> None:

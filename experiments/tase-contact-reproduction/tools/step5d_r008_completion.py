@@ -1,4 +1,4 @@
-"""Durable exactly-once COMPLETE_AT_HOME intent for the r008 rolling protocol."""
+"""Durable exactly-once COMPLETE_AT_HOME intent for rolling-v1 releases."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ class CompletionJournal:
         if not self.path.exists():
             return None
         payload = json.loads(self.path.read_text())
-        if payload.get("schema") != "step5d.r008/pending-completion-v1":
+        if payload.get("schema") != "step5d.rolling-v1/pending-completion-v1":
             raise CompletionError("pending completion schema differs")
         packet = self._packet(payload["packet"])
         status = str(payload.get("status"))
@@ -73,7 +73,7 @@ class CompletionJournal:
             return existing[0]
         self._write(
             {
-                "schema": "step5d.r008/pending-completion-v1",
+                "schema": "step5d.rolling-v1/pending-completion-v1",
                 "status": "pending",
                 "packet": {**asdict(packet), "command": int(packet.command)},
             }
@@ -101,7 +101,7 @@ class CompletionJournal:
             raise CompletionError("COMPLETE consumption differs from durable packet")
         self._write(
             {
-                "schema": "step5d.r008/pending-completion-v1",
+                "schema": "step5d.rolling-v1/pending-completion-v1",
                 "status": "consumed",
                 "packet": {**asdict(packet), "command": int(packet.command)},
                 "tp_snapshot": snapshot.payload(),

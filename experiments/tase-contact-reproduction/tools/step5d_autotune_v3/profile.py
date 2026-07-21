@@ -163,14 +163,18 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     }:
         raise ContractViolation("candidate_tp_identity schema differs")
     if (
-        candidate_identity["program"] != "step5d_strict_rnn_autotune_v3_r008"
+        candidate_identity["program"]
+        not in {
+            "step5d_strict_rnn_autotune_v3_r008",
+            "step5d_strict_rnn_autotune_v3_r009",
+        }
         or candidate_identity["mode"]
         not in {
             "local_only_requires_attended_controller_readback",
             "controller_readback_verified_promoted_current",
         }
     ):
-        raise ContractViolation("candidate TP must be the immutable local r008 package")
+        raise ContractViolation("candidate TP must be an immutable V3 revision")
     candidate_dir = candidate_identity["artifact_dir"]
     candidate_dir_path = (
         Path(candidate_dir) if isinstance(candidate_dir, str) else Path("/")
@@ -210,6 +214,7 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
             "step5d_strict_rnn_autotune_v3_r005",
             "step5d_strict_rnn_autotune_v3_r006",
             "step5d_strict_rnn_autotune_v3_r008",
+            "step5d_strict_rnn_autotune_v3_r009",
         }
         or deployment["mode"]
         != "explicit_v3_identity_precontact_pose_frozen_v1_control"

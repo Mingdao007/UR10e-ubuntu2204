@@ -57,7 +57,15 @@ from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
     stage_autotune_adapter_fingerprint,
 )
 
-from step5d_autotune_batch_plan import CandidateBatchPlan  # noqa: E402
+from step5d_autotune_batch_plan import (  # noqa: E402
+    CandidateBatchPlan,
+    RuntimePlanRow,
+)
+from step5d_autotune_r008_policy import (  # noqa: E402
+    ControlCandidateUid,
+    OccurrenceUid,
+    TransportCandidateUid,
+)
 from step5d_autotune_contract import (  # noqa: E402
     CaptureManifest,
     DirectReadyClosureEvidence,
@@ -1614,6 +1622,8 @@ class BatchAttemptContext:
                 else "v3_direct_arm_v1"
             ),
             logical_batch_sequence=self.identity.logical_batch_sequence,
+            occurrence_uid=self.expected_row.occurrence_uid,
+            transport_candidate_uid=self.expected_row.transport_candidate_uid,
         )
         verified_readback = _load_terminal_ready_readback(
             campaign_root=campaign_root,
@@ -1745,8 +1755,15 @@ def _direct_ready_from_document(
     if not isinstance(document, Mapping):
         raise ValueError("runtime batch lacks a direct-ready receipt")
     payload = dict(document)
-    if payload.pop("schema", None) != "ur10e.direct_ready_receipt/v1":
+    schema = payload.pop("schema", None)
+    if schema not in {
+        "ur10e.direct_ready_receipt/v1",
+        "ur10e.direct_ready_receipt/v2",
+    }:
         raise ValueError("runtime batch direct-ready receipt schema differs")
+    if schema == "ur10e.direct_ready_receipt/v1":
+        payload.setdefault("protocol", "v3_direct_arm_v1")
+        payload.setdefault("logical_batch_sequence", 0)
     return DirectReadyReceipt(**payload)
 
 
@@ -2035,6 +2052,7 @@ def prepare_batch_attempt_context(
     *,
     plan: CandidateBatchPlan,
     selected_candidate: ForceCandidate,
+    selected_plan_row: RuntimePlanRow | None = None,
     profile: ExecutionProfile,
     overlay_resolver: Callable[[ForceCandidate], Mapping[str, Any]],
     campaign_uid: str,
@@ -2077,8 +2095,24 @@ def prepare_batch_attempt_context(
             next_row = 1 if journal is None else journal.state().next_row_index
             if next_row is None:
                 continue
-            if batch[next_row - 1].candidate_uid != selected_candidate.candidate_uid:
-                raise ValueError("selected candidate is not the next rolling occurrence")
+            occurrence = plan.occurrences[sequence - 1][next_row - 1]
+            expected_row = RuntimePlanRow(
+                logical_batch_sequence=sequence,
+                row_index=next_row,
+                plan_revision=plan.batch_revisions[sequence - 1],
+                occurrence_uid=OccurrenceUid(occurrence.occurrence_uid),
+                transport_candidate_uid=TransportCandidateUid(
+                    occurrence.transport_candidate_uid
+                ),
+                control_candidate_uid=ControlCandidateUid(
+                    occurrence.control_candidate_uid
+                ),
+                candidate=occurrence.candidate,
+            )
+            if selected_plan_row is None or selected_plan_row != expected_row:
+                raise ValueError("selected runtime plan row is not the next occurrence")
+            if expected_row.candidate != selected_candidate:
+                raise ValueError("selected transport row differs from its control candidate")
             batch_index, row_index = sequence, next_row
             break
         if batch_index == 0:
@@ -2099,7 +2133,25 @@ def prepare_batch_attempt_context(
         raise ValueError(f"runtime BatchIdentity requires an exact {expected_size}-row batch")
     rows = []
     for index, candidate in enumerate(candidates, start=1):
-        overlay = dict(overlay_resolver(candidate))
+        occurrence = plan.occurrences[batch_index - 1][index - 1] if rolling else None
+        plan_row = (
+            RuntimePlanRow(
+                logical_batch_sequence=batch_index,
+                row_index=index,
+                plan_revision=plan.batch_revisions[batch_index - 1],
+                occurrence_uid=OccurrenceUid(occurrence.occurrence_uid),
+                transport_candidate_uid=TransportCandidateUid(
+                    occurrence.transport_candidate_uid
+                ),
+                control_candidate_uid=ControlCandidateUid(
+                    occurrence.control_candidate_uid
+                ),
+                candidate=occurrence.candidate,
+            )
+            if occurrence is not None
+            else None
+        )
+        overlay = dict(overlay_resolver(plan_row if plan_row is not None else candidate))
         control_candidate = {
             name: overlay[name]
             for name in (
@@ -2109,7 +2161,6 @@ def prepare_batch_attempt_context(
                 "orientation_ko",
             )
         }
-        occurrence = plan.occurrences[batch_index - 1][index - 1] if rolling else None
         rows.append(
             BatchRow(
                 index,
@@ -2268,6 +2319,59 @@ def next_runtime_batch_candidate(
         if journal.verified_exit_code() != 0:
             raise ValueError("durable runtime BatchResult exit code differs")
     return None
+
+
+def next_runtime_plan_row(
+    *,
+    plan: CandidateBatchPlan,
+    campaign_root: Path,
+) -> RuntimePlanRow | None:
+    """Return the exact next rolling occurrence with all three UID namespaces."""
+
+    if not plan.occurrences:
+        raise ValueError("RuntimePlanRow selection requires a rolling candidate plan")
+    candidate = next_runtime_batch_candidate(plan=plan, campaign_root=campaign_root)
+    if candidate is None:
+        return None
+    batches_root = campaign_root.resolve() / "runtime_batches"
+    completed: dict[int, int] = {}
+    if batches_root.exists():
+        if batches_root.is_symlink() or not batches_root.is_dir():
+            raise ValueError("runtime batch root is not a safe directory")
+        for root in batches_root.iterdir():
+            if root.is_symlink() or not root.is_dir():
+                raise ValueError("runtime batch root contains an unsafe entry")
+            journal = BatchJournal.open(root)
+            identity = journal.identity()
+            sequence = identity.logical_batch_sequence
+            if sequence in completed:
+                raise ValueError("campaign repeats a rolling batch sequence")
+            next_row = journal.state().next_row_index
+            completed[sequence] = len(identity.rows) + 1 if next_row is None else next_row
+    sequence = 0
+    row_index = 0
+    for candidate_sequence, occurrences in enumerate(plan.occurrences, start=1):
+        candidate_row = completed.get(candidate_sequence, 1)
+        if candidate_row <= len(occurrences):
+            sequence = candidate_sequence
+            row_index = candidate_row
+            break
+    if sequence == 0:
+        raise ValueError("rolling selector candidate exists without an occurrence")
+    occurrence = plan.occurrences[sequence - 1][row_index - 1]
+    if occurrence.candidate != candidate:
+        raise ValueError("rolling selector control candidate differs from occurrence")
+    return RuntimePlanRow(
+        logical_batch_sequence=sequence,
+        row_index=row_index,
+        plan_revision=plan.batch_revisions[sequence - 1],
+        occurrence_uid=OccurrenceUid(occurrence.occurrence_uid),
+        transport_candidate_uid=TransportCandidateUid(
+            occurrence.transport_candidate_uid
+        ),
+        control_candidate_uid=ControlCandidateUid(occurrence.control_candidate_uid),
+        candidate=occurrence.candidate,
+    )
 
 
 def runtime_batch_verified_complete(*, campaign_root: Path) -> bool:

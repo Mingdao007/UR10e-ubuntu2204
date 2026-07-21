@@ -122,6 +122,8 @@ class DirectReadyReceipt:
     controller_readback_path: str
     protocol: str = "v3_direct_arm_v1"
     logical_batch_sequence: int = 0
+    occurrence_uid: str | None = None
+    transport_candidate_uid: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -138,6 +140,11 @@ class DirectReadyReceipt:
             raise SpecValidationError("direct-ready protocol is unsupported")
         if rolling and self.logical_batch_sequence < 1:
             raise SpecValidationError("rolling direct-ready receipt lacks batch identity")
+        if rolling:
+            _sha256("occurrence_uid", self.occurrence_uid)
+            _sha256("transport_candidate_uid", self.transport_candidate_uid)
+        elif self.occurrence_uid is not None or self.transport_candidate_uid is not None:
+            raise SpecValidationError("direct-arm receipt cannot claim rolling UID namespaces")
         expected_reference = (
             ReturnReferenceKind.CAMPAIGN_HOME
             if rolling
@@ -187,6 +194,8 @@ class DirectReadyReceipt:
         if self.protocol == "v3_full_home_rolling_arm_v1":
             document["protocol"] = self.protocol
             document["logical_batch_sequence"] = self.logical_batch_sequence
+            document["occurrence_uid"] = self.occurrence_uid
+            document["transport_candidate_uid"] = self.transport_candidate_uid
         return document
 
     @property

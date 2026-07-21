@@ -17,11 +17,11 @@ import build_step5d_autotune_tp as v1  # noqa: E402
 import build_step5d_autotune_tp_v3 as v3  # noqa: E402
 
 
-def test_r008_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
+def test_r009_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
     rendered = v3.render_script()
     v3.validate_rendered_script(rendered)
 
-    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r008"
+    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r009"
     assert "# CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1" in rendered
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
     assert "def codex_step5d_autotune_trial_v1(" in rendered
@@ -88,12 +88,12 @@ def test_r008_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
         assert forbidden not in rendered
 
 
-def test_r008_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
+def test_r009_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
     stamp = v3.source_stamp(
         datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
     )
     result = v3.write_triplet(tmp_path, stamp)
-    basename = "step5d_strict_rnn_autotune_v3_r008"
+    basename = "step5d_strict_rnn_autotune_v3_r009"
 
     assert result["program"] == basename
     assert result["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
@@ -107,6 +107,10 @@ def test_r008_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None
     assert sanity["batch_row_policy"] == "five_row_logical_batches_every_row_campaign_home"
     assert sanity["host_protocol"] == "v3_full_home_rolling_arm_v1"
     assert sanity["ready_arm_timeout_s"] == 30.0
+    assert sanity["input_integer_registers"] == list(range(24, 32))
+    assert sanity["output_integer_registers"] == list(range(24, 35))
+    assert sanity["execution_profile_id"] == "nf100-slew050-a050"
+    assert sanity["execution_profile_integer_id"] == 633
 
     with pytest.raises(FileExistsError, match="increment rNNN"):
         v3.write_triplet(tmp_path, stamp)

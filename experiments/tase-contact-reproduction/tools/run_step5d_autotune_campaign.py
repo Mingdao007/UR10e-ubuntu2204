@@ -72,8 +72,12 @@ from step5d_autotune_backend import (
 )
 from step5d_autotune_batch_plan import (
     CandidateBatchPlan,
+    PlanLifecycle,
+    RuntimePlanRow,
     assert_append_only,
+    close_rolling_plan,
     load_plan,
+    mark_rolling_plan_open_empty,
 )
 from step5d_autotune_contract import (
     CampaignSpec,
@@ -110,6 +114,7 @@ from step5d_autotune_runtime_lifecycle import (
     BatchAttemptContext,
     direct_ready_closure_from_sealed_capture,
     next_runtime_batch_candidate,
+    next_runtime_plan_row,
     prepare_batch_attempt_context,
     recover_runtime_batch_trial_briefs,
     runtime_batch_verified_complete,
@@ -934,7 +939,7 @@ def _wait_for_codex_candidate(
     previous_plan: CandidateBatchPlan | None,
     timeout_s: float,
     stop_requested: Callable[[], bool] | None = None,
-) -> tuple[ForceCandidate | None, CandidateBatchPlan]:
+) -> tuple[RuntimePlanRow | ForceCandidate | None, CandidateBatchPlan]:
     deadline = time.monotonic() + timeout_s
     announced_revision: int | None = None
     while time.monotonic() < deadline:
@@ -944,18 +949,34 @@ def _wait_for_codex_candidate(
             plan = load_plan(plan_path, campaign_id=campaign_id)
             if previous_plan is not None:
                 assert_append_only(previous_plan, plan)
-            candidate = next_runtime_batch_candidate(
-                plan=plan,
-                campaign_root=campaign_root,
+            selection = (
+                next_runtime_plan_row(plan=plan, campaign_root=campaign_root)
+                if plan.occurrences
+                else next_runtime_batch_candidate(
+                    plan=plan,
+                    campaign_root=campaign_root,
+                )
             )
-            if candidate is not None:
+            if selection is not None:
+                candidate = (
+                    selection.candidate
+                    if isinstance(selection, RuntimePlanRow)
+                    else selection
+                )
                 if not supervisor.planned_candidate_within_policy_envelope(candidate):
                     raise RuntimeError(
                         "next Codex batch candidate exceeds the current selection-policy "
                         f"envelope (evidence tier {supervisor.current_search_tier.value})"
                     )
-                return candidate, plan
-            return None, plan
+                return selection, plan
+            if (
+                plan.payload["schema_version"]
+                == "step5d_autotune_rolling_batch_plan_v1"
+                and plan.lifecycle is PlanLifecycle.OPEN_READY
+            ):
+                plan = mark_rolling_plan_open_empty(plan_path)
+            if plan.lifecycle is PlanLifecycle.CLOSED_COMPLETE:
+                return None, plan
             if announced_revision != plan.revision:
                 announced_revision = plan.revision
                 print(
@@ -1009,6 +1030,7 @@ def _v3_overlay_for_candidate(
     profile: ExecutionProfile,
     plan_revision: int | None,
     launch_profile_path: Path | None,
+    runtime_plan_row: RuntimePlanRow | None = None,
 ) -> Mapping[str, Any] | None:
     """Resolve one append-only V3 overlay immediately before READY_HOME ARM."""
 
@@ -1018,6 +1040,7 @@ def _v3_overlay_for_candidate(
         raise RuntimeError("V3 overlays require a candidate-plan revision and launch profile")
     from step5d_autotune_v3.runtime_profile import (
         load_launch_profile,
+        normalized_overlay_sha256,
         normalize_trial_overlay,
     )
     from step5d_autotune_v3.state import read_strict_json
@@ -1037,6 +1060,11 @@ def _v3_overlay_for_candidate(
         or not isinstance(payload.get("batches"), list)
     ):
         raise RuntimeError("V3 trial-overlay plan is not bound to the selected plan/profile")
+    transport_uid = (
+        runtime_plan_row.transport_candidate_uid
+        if runtime_plan_row is not None
+        else candidate.candidate_uid
+    )
     matches = [
         row
         for batch in payload["batches"]
@@ -1047,17 +1075,31 @@ def _v3_overlay_for_candidate(
             "transport_candidate_uid",
             row.get("candidate_uid"),
         )
-        == candidate.candidate_uid
+        == transport_uid
     ]
-    if not matches:
-        raise RuntimeError("V3 candidate has no trial overlay")
-    normalized_matches = tuple(
-        normalize_trial_overlay(row.get("overlay"), profile=launch_profile)
-        for row in matches
-    )
-    if any(row != normalized_matches[0] for row in normalized_matches[1:]):
-        raise RuntimeError("repeated V3 control candidate has divergent overlays")
-    overlay = normalized_matches[0]
+    if len(matches) != 1:
+        if not matches:
+            raise RuntimeError("V3 transport candidate has no trial overlay")
+        raise RuntimeError("V3 transport candidate selects multiple occurrences")
+    selected = matches[0]
+    if runtime_plan_row is not None and any(
+        (
+            selected.get("occurrence_uid") != runtime_plan_row.occurrence_uid,
+            selected.get("control_candidate_uid")
+            != runtime_plan_row.control_candidate_uid,
+            runtime_plan_row.candidate != candidate,
+        )
+    ):
+        raise RuntimeError("V3 overlay cross-namespace identity substitution")
+    normalized = normalize_trial_overlay(selected.get("overlay"), profile=launch_profile)
+    if (
+        selected.get("normalized_overlay_sha256")
+        != normalized_overlay_sha256(launch_profile, normalized)
+    ):
+        raise RuntimeError("V3 normalized overlay SHA-256 differs")
+    if normalized["control_candidate_uid"] != candidate.candidate_uid:
+        raise RuntimeError("V3 overlay control UID differs from candidate")
+    overlay = normalized
     expected = {"execution_profile_id": profile.profile_id}
     if any(overlay[name] != value for name, value in expected.items()):
         raise RuntimeError("V3 overlay identity differs from the selected trial")
@@ -1141,6 +1183,11 @@ def run(args: argparse.Namespace) -> int:
         if plan_path != expected_plan or plan_path.is_symlink():
             raise RuntimeError("candidate plan must use campaign_root/control/candidate_plan.json")
         rolling_release = any(load_plan(plan_path).occurrences)
+        if rolling_release and not (0.0 < args.plan_wait_timeout_s <= 25.0):
+            raise RuntimeError(
+                "rolling plan wait budget must be in (0,25] s, preserving at least "
+                "5 s before the TP state-78 30 s watchdog"
+            )
     initial_row = _latest_complete_row(bridge_csv)
     initial = tp_snapshot_from_bridge_row(initial_row)
     if _integer(initial_row, "ur_safety_mode") != 1:
@@ -1413,8 +1460,10 @@ def run(args: argparse.Namespace) -> int:
     batch_completed = False
     completion_consumed = False
     stopped_after_current = False
+    fail_closed_plan_timeout = False
     offline_gate_arm2_observed = False
     current_plan: CandidateBatchPlan | None = None
+    current_plan_row: RuntimePlanRow | None = None
     last_completed_arm: HostPacket | None = None
     last_prepared_trial: Any | None = None
     try:
@@ -1437,7 +1486,7 @@ def run(args: argparse.Namespace) -> int:
             if args.selection_policy == "codex_batches":
                 assert plan_path is not None
                 try:
-                    forced_candidate, current_plan = _wait_for_codex_candidate(
+                    selection, current_plan = _wait_for_codex_candidate(
                         plan_path=plan_path,
                         campaign_id=campaign.campaign_id,
                         supervisor=supervisor,
@@ -1447,6 +1496,14 @@ def run(args: argparse.Namespace) -> int:
                         previous_plan=current_plan,
                         timeout_s=args.plan_wait_timeout_s,
                         stop_requested=stop_requested,
+                    )
+                    current_plan_row = (
+                        selection if isinstance(selection, RuntimePlanRow) else None
+                    )
+                    forced_candidate = (
+                        selection.candidate
+                        if isinstance(selection, RuntimePlanRow)
+                        else selection
                     )
                 except StopAfterCurrentRequested:
                     stopped_after_current = True
@@ -1463,11 +1520,73 @@ def run(args: argparse.Namespace) -> int:
                             reason="user_stop",
                         )
                     break
+                except TimeoutError:
+                    if not rolling_release or current_plan is None:
+                        raise
+                    closure_document = {
+                        "schema": "step5d.autotune-v3/plan-closure-evidence-v1",
+                        "reason": "plan_wait_timeout",
+                        "plan_revision": current_plan.revision,
+                        "tp_state": "READY_HOME_NEXT",
+                        "watchdog_s": 30.0,
+                        "wait_budget_s": args.plan_wait_timeout_s,
+                        "safety_margin_s": 30.0 - args.plan_wait_timeout_s,
+                    }
+                    closure_path = (
+                        campaign_root
+                        / "control"
+                        / f"plan_closure_timeout_r{current_plan.revision:06d}.json"
+                    )
+                    _atomic_json(closure_path, closure_document)
+                    current_plan = close_rolling_plan(
+                        plan_path,
+                        reason="plan_wait_timeout_fail_closed",
+                        evidence_sha256=_sha256_path(closure_path),
+                    )
+                    fail_closed_plan_timeout = True
+                    plan_closed = True
+                    _event(
+                        event_path,
+                        "rolling_plan_fail_closed",
+                        plan_revision=current_plan.revision,
+                        closure_evidence=str(closure_path),
+                    )
+                    if last_completed_arm is None:
+                        raise RuntimeError(
+                            "rolling plan timed out before any durable home occurrence"
+                        )
+                    completion_consumed = _complete_rolling_at_home(
+                        campaign_root=campaign_root,
+                        arm=last_completed_arm,
+                        prepared_trial=last_prepared_trial,
+                        mailbox=mailbox,
+                        follower=follower,
+                        timeout_s=args.ack_timeout_s,
+                        event_path=event_path,
+                        reason="plan_wait_timeout_fail_closed",
+                    )
+                    break
                 if forced_candidate is None:
                     batch_completed = runtime_batch_verified_complete(
                         campaign_root=epoch_root
                     )
-                    plan_closed = not batch_completed and current_plan.closed
+                    plan_closed = current_plan.lifecycle is PlanLifecycle.CLOSED_COMPLETE
+                    if not plan_closed:
+                        raise RuntimeError("OPEN_EMPTY candidate plan escaped the wait loop")
+                    if not batch_completed or last_completed_arm is None:
+                        raise RuntimeError(
+                            "CLOSED_COMPLETE lacks a durable completed home occurrence"
+                        )
+                    completion_consumed = _complete_rolling_at_home(
+                        campaign_root=campaign_root,
+                        arm=last_completed_arm,
+                        prepared_trial=last_prepared_trial,
+                        mailbox=mailbox,
+                        follower=follower,
+                        timeout_s=args.ack_timeout_s,
+                        event_path=event_path,
+                        reason=str(current_plan.closure["reason"]),
+                    )
                     _event(
                         event_path,
                         (
@@ -1533,13 +1652,16 @@ def run(args: argparse.Namespace) -> int:
                     args.v3_launch_profile.expanduser().absolute()
                 )
 
-                def overlay_for(candidate: ForceCandidate) -> Mapping[str, Any]:
+                def overlay_for(selection: Any) -> Mapping[str, Any]:
+                    row = selection if isinstance(selection, RuntimePlanRow) else None
+                    candidate = row.candidate if row is not None else selection
                     overlay = _v3_overlay_for_candidate(
                         args.v3_trial_overlays,
                         candidate=candidate,
                         profile=supervisor.execution_profile,
                         plan_revision=plan_revision,
                         launch_profile_path=args.v3_launch_profile,
+                        runtime_plan_row=row,
                     )
                     if overlay is None:
                         raise RuntimeError("exact batch row lacks a V3 trial overlay")
@@ -1548,6 +1670,7 @@ def run(args: argparse.Namespace) -> int:
                 batch_context = prepare_batch_attempt_context(
                     plan=current_plan,
                     selected_candidate=forced_candidate,
+                    selected_plan_row=current_plan_row,
                     profile=supervisor.execution_profile,
                     overlay_resolver=overlay_for,
                     campaign_uid=campaign.campaign_id,
@@ -1633,8 +1756,10 @@ def run(args: argparse.Namespace) -> int:
                 profile=trial.execution_profile,
                 plan_revision=plan_revision,
                 launch_profile_path=args.v3_launch_profile,
+                runtime_plan_row=current_plan_row,
             )
             forced_candidate = None
+            current_plan_row = None
             if trial_overlay is not None:
                 prepared = replace(prepared, trial_overlay=trial_overlay)
             if batch_context is not None and (
@@ -1646,8 +1771,19 @@ def run(args: argparse.Namespace) -> int:
                     "prepared trial overlay differs from durable BatchIdentity"
                 )
             if batch_context is not None:
+                from step5d_autotune_v3.runtime_profile import (
+                    load_launch_profile,
+                    normalized_overlay_sha256,
+                )
+
+                if trial_overlay is None or args.v3_launch_profile is None:
+                    raise RuntimeError("rolling BatchIdentity lacks its normalized overlay")
                 prepared = replace(
                     prepared,
+                    trial_overlay_sha256=normalized_overlay_sha256(
+                        load_launch_profile(args.v3_launch_profile),
+                        trial_overlay,
+                    ),
                     batch_row_index=batch_context.row_index,
                 )
             coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)
@@ -1792,15 +1928,7 @@ def run(args: argparse.Namespace) -> int:
                 batch_result = batch_context.journal.finalize()
                 if batch_context.journal.verified_exit_code() != 0:
                     raise RuntimeError("durable BatchResult exit code differs")
-                batch_completed = bool(
-                    not rolling_release
-                    or current_plan is not None
-                    and next_runtime_batch_candidate(
-                        plan=current_plan,
-                        campaign_root=epoch_root,
-                    )
-                    is None
-                )
+                batch_completed = True
                 _event(
                     event_path,
                     (
@@ -1867,16 +1995,23 @@ def run(args: argparse.Namespace) -> int:
                 break
             if batch_completed:
                 if rolling_release:
-                    completion_consumed = _complete_rolling_at_home(
-                        campaign_root=campaign_root,
-                        arm=arm,
-                        prepared_trial=prepared,
-                        mailbox=mailbox,
-                        follower=follower,
-                        timeout_s=args.ack_timeout_s,
-                        event_path=event_path,
-                        reason="batch_complete",
-                    )
+                    assert current_plan is not None
+                    current_plan = mark_rolling_plan_open_empty(plan_path)
+                    if current_plan.lifecycle is PlanLifecycle.CLOSED_COMPLETE:
+                        plan_closed = True
+                        completion_consumed = _complete_rolling_at_home(
+                            campaign_root=campaign_root,
+                            arm=arm,
+                            prepared_trial=prepared,
+                            mailbox=mailbox,
+                            follower=follower,
+                            timeout_s=args.ack_timeout_s,
+                            event_path=event_path,
+                            reason=str(current_plan.closure["reason"]),
+                        )
+                        break
+                    batch_completed = False
+                    continue
                 break
             if supervisor.phase is CampaignPhase.WAIT_INFRA_READY:
                 break
@@ -1948,6 +2083,7 @@ def run(args: argparse.Namespace) -> int:
         plan_closed=plan_closed,
         batch_completed=batch_completed,
         offline_gate_arm2_observed=offline_gate_arm2_observed,
+        fail_closed_plan_timeout=fail_closed_plan_timeout,
         bridge_csv_follower=asdict(follower.stats),
     )
     print(
@@ -1956,7 +2092,7 @@ def run(args: argparse.Namespace) -> int:
                 "run_ok": (
                     campaign_succeeded
                     or one_trial_complete
-                    or plan_closed
+                    or plan_closed and not fail_closed_plan_timeout
                     or batch_completed
                     or stopped_after_current
                     or offline_gate_arm2_observed
@@ -1967,6 +2103,7 @@ def run(args: argparse.Namespace) -> int:
                 "plan_closed": plan_closed,
                 "batch_completed": batch_completed,
                 "completion_consumed": completion_consumed,
+                "fail_closed_plan_timeout": fail_closed_plan_timeout,
                 "stopped_after_current": stopped_after_current,
                 "offline_gate_arm2_observed": offline_gate_arm2_observed,
                 "bridge_csv_follower": asdict(follower.stats),
@@ -1980,7 +2117,7 @@ def run(args: argparse.Namespace) -> int:
     return 0 if (
         campaign_succeeded
         or one_trial_complete
-        or plan_closed
+        or plan_closed and not fail_closed_plan_timeout
         or batch_completed
         or stopped_after_current
         or offline_gate_arm2_observed
@@ -2008,7 +2145,7 @@ def parse_args() -> argparse.Namespace:
         default="adaptive",
     )
     parser.add_argument("--candidate-plan", type=Path)
-    parser.add_argument("--plan-wait-timeout-s", type=float, default=86400.0)
+    parser.add_argument("--plan-wait-timeout-s", type=float, default=20.0)
     parser.add_argument("--wait-for-home", action="store_true")
     parser.add_argument("--home-timeout-s", type=float, default=90.0)
     parser.add_argument("--recover-infra-aborted-active", action="store_true")

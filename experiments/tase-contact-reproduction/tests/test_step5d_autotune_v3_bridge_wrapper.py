@@ -23,6 +23,39 @@ from step5d_autotune_v3.identity_layers import (  # noqa: E402
     release_basis_fingerprint,
     runtime_environment_fingerprint,
 )
+from step5d_autotune_v3.release_identity import ReleaseIdentity  # noqa: E402
+
+
+def _release(protocol: str = "v3_full_home_rolling_arm_v1") -> ReleaseIdentity:
+    return ReleaseIdentity(
+        program_id="step5d_strict_rnn_autotune_v3_r009",
+        release_stage_id="step5d_strict_rnn_autotune_v3",
+        control_profile_id="step5d_strict_rnn_autotune_v1",
+        protocol_id=protocol,
+        normal_max_rate_rad_s=0.1,
+        execution_profile_id="nf100-slew050-a050",
+        execution_profile_integer_id=633,
+        manifest_path=f"config/step5d/releases/{'f' * 64}/manifest.json",
+        manifest_sha256="f" * 64,
+        artifacts={
+            extension: {"path": f"fixture/program{extension}", "sha256": digest * 64}
+            for extension, digest in ((".script", "1"), (".txt", "2"), (".urp", "3"))
+        },
+        controller_readback={
+            "path": "fixture/readback.json",
+            "sha256": "4" * 64,
+            "triplet_sha256": {
+                ".script": "1" * 64,
+                ".txt": "2" * 64,
+                ".urp": "3" * 64,
+            },
+            "fresh_get": True,
+        },
+        source_fingerprints={"fixture/source.py": "5" * 64},
+        generated_files={"fixture/generated.json": "6" * 64},
+        compatibility_mirrors={"fixture/mirror.json": "7" * 64},
+        verification={"canonical_verifier": "independent_script_urp_v1"},
+    )
 
 
 def _armed_v3_pose_bridge() -> tuple[Any, Any, Any]:
@@ -98,7 +131,7 @@ def _production_pose_tick(
     )
 
 
-def _ticket(path: Path, argv: list[str]) -> Path:
+def _ticket(path: Path, argv: list[str], release: ReleaseIdentity) -> Path:
     runtime_manifest = {
         "schema": "step5d.autotune-v3/runtime-environment-identity-v1",
         "environment": {"fixture": "bridge-wrapper"},
@@ -145,7 +178,7 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                 "trial_overlay_fingerprint": "c" * 64,
                 "release_stage_id": "step5d_strict_rnn_autotune_v3",
                 "control_profile_id": "step5d_strict_rnn_autotune_v1",
-                "tp_program_id": wrapper.TP_PROGRAM_ID,
+                "tp_program_id": release.program_id,
                 "bridge_start_context": {
                     "path": str(bridge_context_path),
                     "sha256": hashlib.sha256(
@@ -169,19 +202,27 @@ def _ticket(path: Path, argv: list[str]) -> Path:
 
 def test_wrapper_requires_parent_and_exact_argv_ticket(tmp_path: Path) -> None:
     argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
-    ticket = _ticket(tmp_path / "ticket.json", argv)
-    assert wrapper._strict_ticket(ticket, argv)["scope"] == "bridge_no_arm"
+    release = _release()
+    ticket = _ticket(tmp_path / "ticket.json", argv, release)
+    assert wrapper._strict_ticket(
+        ticket, argv, release_identity=release
+    )["scope"] == "bridge_no_arm"
     try:
-        wrapper._strict_ticket(ticket, [*argv, "--duration-s", "1"])
+        wrapper._strict_ticket(
+            ticket,
+            [*argv, "--duration-s", "1"],
+            release_identity=release,
+        )
     except wrapper.BridgeTicketError as exc:
         assert "argv binding" in str(exc)
     else:
         raise AssertionError("mutated argv was accepted")
 
 
-def test_wrapper_uses_the_canonical_tp_program_without_stale_release_literals() -> None:
+def test_wrapper_uses_manifest_identity_without_stale_release_literals() -> None:
     source = Path(wrapper.__file__).read_text(encoding="utf-8")
-    assert wrapper.TP_PROGRAM_ID == "step5d_strict_rnn_autotune_v3_r008"
+    assert "TP_PROGRAM_ID =" not in source
+    assert "step5d_strict_rnn_autotune_v3_r008" not in source
     assert "step5d_strict_rnn_autotune_v3_r006" not in source
 
 
@@ -193,12 +234,13 @@ def test_wrapper_refuses_direct_start_without_runtime_ticket(capsys) -> None:
 
 def test_bridge_ticket_requires_exact_bridge_start_binding(tmp_path: Path) -> None:
     argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
-    ticket = _ticket(tmp_path / "ticket.json", argv)
+    release = _release()
+    ticket = _ticket(tmp_path / "ticket.json", argv, release)
     payload = json.loads(ticket.read_text(encoding="utf-8"))
     payload["bridge_start_context"].pop("sha256")
     ticket.write_text(json.dumps(payload), encoding="utf-8")
     try:
-        wrapper._strict_ticket(ticket, argv)
+        wrapper._strict_ticket(ticket, argv, release_identity=release)
     except wrapper.BridgeTicketError as exc:
         assert "bridge-start reference" in str(exc)
     else:

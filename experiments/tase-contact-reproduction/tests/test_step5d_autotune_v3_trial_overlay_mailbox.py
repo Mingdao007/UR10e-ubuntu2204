@@ -32,10 +32,9 @@ from step5d_autotune_state_machine import (  # noqa: E402
 )
 from step5d_autotune_v3.runtime_profile import (  # noqa: E402
     DEFAULT_OVERLAY,
-    is_control_candidate_step,
     load_launch_profile,
 )
-from step5d_autotune_batch_plan import initialize_plan  # noqa: E402
+from step5d_autotune_batch_plan import initialize_rolling_plan  # noqa: E402
 import run_step5d_autotune_v3_bridge as bridge_wrapper  # noqa: E402
 from run_step5d_autotune_v3_bridge import (  # noqa: E402
     V3AsyncBridgeTrialCsvRotator,
@@ -44,16 +43,16 @@ from run_step5d_autotune_v3_bridge import (  # noqa: E402
 )
 import run_step5d_autotune_v3_live as live  # noqa: E402
 from run_step5d_autotune_v3_live import (  # noqa: E402
-    INITIAL_CONTROL_LOG2_K,
-    INITIAL_LOG2,
     initial_candidates,
     initial_control_overlays,
 )
 
 
 def _prepared(overlay: dict) -> SimpleNamespace:
+    overlay = dict(overlay)
+    overlay["execution_profile_id"] = "nf100-slew050-a050"
     candidate = ForceCandidate()
-    profile = ExecutionProfile("nf050-slew050-a050", 0.05, 0.5, 0.5)
+    profile = ExecutionProfile("nf100-slew050-a050", 0.1, 0.5, 0.5)
     trial = TrialSpec(
         campaign=CampaignSpec("v3-overlay-test", 1, "a" * 64),
         trial_id=1,
@@ -78,7 +77,7 @@ def _prepared(overlay: dict) -> SimpleNamespace:
             "STEP5D_AUTOTUNE_FORCE_P": str(candidate.force_p_gain),
             "STEP5D_AUTOTUNE_FORCE_I": str(candidate.force_i_gain),
             "STEP5D_AUTOTUNE_FORCE_DAMPING": str(candidate.force_damping),
-            "STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S": "0.05",
+            "STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S": "0.1",
             "STEP5D_AUTOTUNE_HOST_SLEW_RAD_S2": "0.5",
             "STEP5D_AUTOTUNE_SPEEDJ_ACCELERATION_RAD_S2": "0.5",
         },
@@ -177,7 +176,7 @@ def test_v3_mailbox_binds_and_applies_all_seven_preload_fields(tmp_path: Path) -
         trial_id=1,
         command=HostCommand.ARM,
         candidate_token=2,
-        execution_profile_id=533,
+        execution_profile_id=633,
         command_seq=3,
     )
     path = (tmp_path / "command.json").absolute()
@@ -203,7 +202,7 @@ def test_v3_mailbox_binds_and_applies_all_seven_preload_fields(tmp_path: Path) -
 def test_v1_mailbox_schema_remains_without_trial_overlay(tmp_path: Path) -> None:
     prepared = _prepared(dict(DEFAULT_OVERLAY))
     del prepared.trial_overlay
-    packet = HostPacket(1, 1, HostCommand.ARM, 2, 533, 3)
+    packet = HostPacket(1, 1, HostCommand.ARM, 2, 633, 3)
     path = (tmp_path / "command.json").absolute()
     AtomicCommandMailbox(path).send_command(packet, prepared_trial=prepared)
     command = AtomicCommandMailbox(path).read_latest()
@@ -221,7 +220,7 @@ def _direct_runtime(
     BridgeMailboxRuntime,
 ]:
     prepared = _prepared(dict(DEFAULT_OVERLAY))
-    arm1 = HostPacket(1, 1, HostCommand.ARM, 2, 533, 3)
+    arm1 = HostPacket(1, 1, HostCommand.ARM, 2, 633, 3)
     mailbox = AtomicCommandMailbox((tmp_path / "command.json").absolute())
     mailbox.send_command(arm1, prepared_trial=prepared)
     runtime = BridgeMailboxRuntime(
@@ -241,7 +240,7 @@ def test_direct_mailbox_rejects_fresh_legacy_ack_without_advancing_sequence(
     tmp_path: Path,
 ) -> None:
     prepared, args, arm1, mailbox, runtime = _direct_runtime(tmp_path)
-    ack = HostPacket(1, 1, HostCommand.ACK_BUNDLE, 2, 533, 4)
+    ack = HostPacket(1, 1, HostCommand.ACK_BUNDLE, 2, 633, 4)
     mailbox.send_command(ack, prepared_trial=prepared)
     with pytest.raises(MailboxError, match="legacy ACK is forbidden"):
         runtime.poll(
@@ -273,7 +272,7 @@ def test_direct_mailbox_forbids_next_arm_after_terminal_halt_states(
 ) -> None:
     prepared, args, arm1, mailbox, runtime = _direct_runtime(tmp_path)
     prepared2 = _prepared_next(prepared)
-    arm2 = HostPacket(1, 2, HostCommand.ARM, 3, 533, 4)
+    arm2 = HostPacket(1, 2, HostCommand.ARM, 3, 633, 4)
     mailbox.send_command(arm2, prepared_trial=prepared2)
     with pytest.raises(MailboxError, match="fresh ARM is invalid"):
         runtime.poll(
@@ -286,7 +285,7 @@ def test_direct_mailbox_forbids_next_arm_after_terminal_halt_states(
 def test_direct_mailbox_accepts_next_arm_only_from_ready_near(tmp_path: Path) -> None:
     prepared, args, arm1, mailbox, runtime = _direct_runtime(tmp_path)
     prepared2 = _prepared_next(prepared)
-    arm2 = HostPacket(1, 2, HostCommand.ARM, 3, 533, 4)
+    arm2 = HostPacket(1, 2, HostCommand.ARM, 3, 633, 4)
     mailbox.send_command(arm2, prepared_trial=prepared2)
     assert runtime.poll(
         args,
@@ -329,7 +328,7 @@ def test_direct_fake_transport_runs_ten_rows_then_refuses_arm11(
             row_index,
             HostCommand.ARM,
             100 + row_index,
-            533,
+            633,
             row_index,
         )
         mailbox.send_command(packet, prepared_trial=prepared)
@@ -363,7 +362,7 @@ def test_direct_fake_transport_runs_ten_rows_then_refuses_arm11(
         candidate_token=111,
         command_seq=11,
     )
-    arm11 = HostPacket(1, 11, HostCommand.ARM, 111, 533, 11)
+    arm11 = HostPacket(1, 11, HostCommand.ARM, 111, 633, 11)
     mailbox.send_command(arm11, prepared_trial=prepared11)
     with pytest.raises(MailboxError, match="fresh ARM is invalid"):
         runtime.poll(
@@ -382,16 +381,14 @@ def test_initial_live_batch_uses_fresh_campaign_local_history(
     tmp_path: Path,
 ) -> None:
     candidates = initial_candidates()
-    assert len(candidates) == len({item.candidate_uid for item in candidates}) == 10
-    for candidate, expected in zip(candidates, INITIAL_LOG2, strict=True):
-        observed = (candidate.log2_p, candidate.log2_i, candidate.log2_damping)
-        assert observed == pytest.approx(expected, abs=1e-12)
+    assert len(candidates) == 5
+    assert len({item.candidate_uid for item in candidates}) == 3
+    assert candidates[:3] == (candidates[0],) * 3
     campaign_root = tmp_path / "fresh-v3"
     candidate_plan = campaign_root / "control/candidate_plan.json"
-    initialize_plan(
+    initialize_rolling_plan(
         candidate_plan,
         campaign_id="fresh-v3-plant-epoch",
-        batch_size=10,
     )
     with patch.object(
         live.v3_cli,
@@ -406,38 +403,21 @@ def test_initial_live_batch_uses_fresh_campaign_local_history(
             ),
         )
     assert plan.revision == 1
-    assert len(plan.batches[0]) == 10
-    assert overlays["candidate_count"] == 10
-    ledger = validate.call_args.kwargs["attempt_ledger"]
-    assert ledger.tuples == {}
-    assert ledger.summary["attempt_records"] == 0
-    assert "ledger_path" not in validate.call_args.kwargs
+    assert len(plan.batches[0]) == 5
+    assert overlays["candidate_count"] == 5
+    assert validate.call_count == 0
     source = Path(live.__file__).read_text(encoding="utf-8")
     assert "AdoptedCandidateHistory" not in source
     assert "legacy_campaign_root" not in source
 
 
-def test_initial_control_batch_is_ten_unique_quarter_octave_steps_including_k() -> None:
+def test_initial_control_batch_is_five_rows_with_three_baseline_occurrences() -> None:
     profile = load_launch_profile()
     overlays = initial_control_overlays(profile)
-    assert len(overlays) == 10
-    assert len({row["control_candidate_uid"] for row in overlays}) == 10
-    baseline = dict(DEFAULT_OVERLAY)
-    prior = ForceCandidate.from_log2(p=0.75, i=0.75, damping=0.25)
-    baseline.update(
-        {
-            "force_p_gain": prior.force_p_gain,
-            "force_i_gain": prior.force_i_gain,
-            "force_damping": prior.force_damping,
-            "orientation_ko": 0.4,
-        }
-    )
-    baseline.pop("control_candidate_uid", None)
-    for previous, current in zip((baseline, *overlays[:-1]), overlays, strict=True):
-        assert is_control_candidate_step(previous, current)
-    assert [row["orientation_ko"] for row in overlays] == pytest.approx(
-        [row[3] for row in INITIAL_CONTROL_LOG2_K], abs=1e-12
-    )
+    assert len(overlays) == 5
+    assert len({row["control_candidate_uid"] for row in overlays}) == 3
+    assert len({row["control_candidate_uid"] for row in overlays[:3]}) == 1
+    assert all(row["execution_profile_id"] == "nf100-slew050-a050" for row in overlays)
 
 
 def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> None:
@@ -490,7 +470,7 @@ def test_v3_capture_writer_is_async_compact_and_binds_real_candidate(tmp_path: P
         campaign_epoch=1,
         trial_id=2,
         candidate_token=3,
-        execution_profile_id=533,
+        execution_profile_id=633,
         arm_command_seq=4,
         trial_overlay=overlay,
     )
@@ -503,7 +483,7 @@ def test_v3_capture_writer_is_async_compact_and_binds_real_candidate(tmp_path: P
             "output_int_register_26": state,
             "output_int_register_27": 3,
             "output_int_register_28": reason,
-            "output_int_register_29": 533,
+            "output_int_register_29": 633,
             "output_int_register_30": 4,
         }
 

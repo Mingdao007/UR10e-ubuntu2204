@@ -80,6 +80,8 @@ class PreparedTrial:
     # V3 may bind the complete validated per-trial overlay at READY_HOME.
     # V1 callers leave this unset and retain the frozen legacy mailbox schema.
     trial_overlay: Mapping[str, Any] | None = None
+    # Hash of the exact normalized overlay selected from the rolling plan.
+    trial_overlay_sha256: str | None = None
     # Exact V3 BatchIdentity row; transport-only and never inferred from trial_id.
     batch_row_index: int | None = None
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One manifest-driven r006 local-gate/upload/readback/promotion transaction."""
+"""One serialized r009 local-gate/upload/fresh-GET/atomic-promotion transaction."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 import tempfile
 import uuid
 
-import promote_step5d_autotune_v3_delivery as promote
+import promote_step5d_r009_atomic_release as promote
 import upload_ur_tp_package as upload
 from ur10e_mutation_lock import acquire_controller_mutation_locks, release_controller_mutation_locks
 
@@ -31,14 +31,14 @@ def main(argv: list[str] | None = None) -> int:
         "--readback-root", str(root / "runs"),
         "--target-dir", promote.TARGET_DIR,
         "--override-table",
-        "--override-reason", "manifest-driven r006 delivery and automatic promotion",
+        "--override-reason", "manifest-driven r009 upload, fresh GET, and atomic promotion",
     ]
     if args.dry_run:
         return upload._main([*upload_args, "--dry-run"])
     handles = acquire_controller_mutation_locks()
     try:
         transaction_id = uuid.uuid4().hex
-        with tempfile.TemporaryDirectory(prefix="step5d-v3-r006-upload-result-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="step5d-v3-r009-upload-result-") as temporary:
             result_path = Path(temporary) / "result.json"
             rc = upload._main(
                 [
@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
                 != result.get("manifest_sha256")
                 or not manifest.is_relative_to((root / "runs").resolve())
             ):
-                raise RuntimeError("r006 upload-result manifest handoff differs")
+                raise RuntimeError("r009 upload-result manifest handoff differs")
             promote.promote(root, manifest)
             return 0
     finally:

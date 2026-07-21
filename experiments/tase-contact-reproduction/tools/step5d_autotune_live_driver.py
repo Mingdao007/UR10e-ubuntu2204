@@ -455,13 +455,15 @@ def _binding_from_prepared(
         from step5d_autotune_v3.runtime_profile import (
             DEFAULT_LAUNCH_PROFILE,
             load_launch_profile,
+            normalized_overlay_sha256,
             normalize_trial_overlay,
         )
 
         try:
+            launch_profile = load_launch_profile(DEFAULT_LAUNCH_PROFILE)
             normalized = normalize_trial_overlay(
                 binding.trial_overlay,
-                profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+                profile=launch_profile,
             )
         except (OSError, ValueError) as exc:
             raise MailboxError(f"V3 trial overlay is invalid: {exc}") from exc
@@ -471,6 +473,20 @@ def _binding_from_prepared(
         for name, expected in expected_overlay_identity.items():
             if normalized[name] != expected:
                 raise MailboxError(f"V3 trial overlay differs from TrialSpec at {name}")
+        expected_overlay_sha256 = getattr(
+            prepared_trial,
+            "trial_overlay_sha256",
+            None,
+        )
+        if binding.batch_row_index is not None and (
+            expected_overlay_sha256 is None
+            or normalized_overlay_sha256(
+                launch_profile,
+                normalized,
+            )
+            != expected_overlay_sha256
+        ):
+            raise MailboxError("V3 rolling overlay SHA differs from selected plan row")
         object.__setattr__(binding, "trial_overlay", normalized)
     return binding
 

@@ -24,7 +24,14 @@ from .arming import (
     load_campaign_arming_context,
 )
 from .profile import ContractViolation, active_identity_snapshot, load_contract
-from .runtime_profile import CONTROL_PROFILE_ID, RELEASE_STAGE_ID, TP_PROGRAM_ID
+from .release_identity import (
+    CONTROL_PROFILE_ID,
+    RELEASE_STAGE_ID,
+    ReleaseIdentity,
+    ReleaseIdentityError,
+    load_current_release,
+)
+from .release_verifier import ReleaseVerificationError, verify_release_manifest
 
 
 READINESS_SCHEMA = "step5d.autotune-v3/release-readiness-v1"
@@ -60,7 +67,7 @@ def _load(path: Path, role: str) -> Mapping[str, Any]:
     return payload
 
 
-def _selected_v3(root: Path) -> Mapping[str, Any]:
+def _selected_v3(root: Path, release: ReleaseIdentity) -> ReleaseIdentity:
     current = _load(root / "config/current_stage.json", "current selector")
     if (
         current.get("current_stage_id") != RELEASE_STAGE_ID
@@ -87,40 +94,26 @@ def _selected_v3(root: Path) -> Mapping[str, Any]:
         raise ReleaseReadinessError("stage table permits a non-V3 launch route")
     protocol = _load(root / "config/tase_protocol_table.json", "protocol table")
     profile = (protocol.get("experiment_profiles") or {}).get("Step5.step5d_rnn") or {}
-    compatibility = _load(root / "config/step5d/current.json", "Step5d current pointer")
     if (
         profile.get("current_program") != RELEASE_STAGE_ID
-        or compatibility.get("program") != RELEASE_STAGE_ID
-        or compatibility.get("tp_program_id") != TP_PROGRAM_ID
-        or compatibility.get("selection_state") != "current"
     ):
         raise ReleaseReadinessError("V3 selector surfaces differ")
-    return compatibility
+    return release
 
 
 def _deployment_state(
     root: Path,
     identity: Mapping[str, Any],
+    release: ReleaseIdentity,
 ) -> tuple[bool, Path, str]:
-    table = _load(root / "config/step5_stage_table.json", "stage table")
-    rows = [
-        row
-        for row in table.get("stages", [])
-        if isinstance(row, Mapping) and row.get("id") == RELEASE_STAGE_ID
-    ]
-    if len(rows) != 1:
-        raise ReleaseReadinessError("V3 package owner is ambiguous")
-    package = rows[0].get("package_delivery") or {}
-    relative = package.get("controller_readback_manifest")
-    if not isinstance(relative, str) or not relative:
-        raise ReleaseReadinessError("V3 controller readback path is missing")
+    relative = release.controller_readback["path"]
     readback_path = root / relative
     readback_sha256 = _sha256(readback_path, "V3 controller readback")
     readback = _load(readback_path, "V3 controller readback")
     deployment_ready = bool(
         readback.get("schema") == "step5d.autotune.controller-readback/v3"
         and readback.get("verified") is True
-        and readback.get("program") == TP_PROGRAM_ID
+        and readback.get("program") == release.program_id
         and readback.get("control_profile_id") == CONTROL_PROFILE_ID
         and readback.get("triplet_sha256") == identity.get("local_triplet_sha256")
         and identity.get("controller_readback_triplet_sha256")
@@ -214,51 +207,65 @@ def resolve_release_readiness(
     """Resolve readiness without turning absent future artifacts into errors."""
 
     root = root.expanduser().resolve(strict=True)
-    compatibility = _selected_v3(root)
+    def blocked(reason: str, release: ReleaseIdentity | None = None) -> dict[str, Any]:
+        return {
+            "schema": READINESS_SCHEMA,
+            "ok": False,
+            "selected_release": RELEASE_STAGE_ID,
+            "tp_program_id": None if release is None else release.program_id,
+            "protocol_id": None if release is None else release.protocol_id,
+            "release_manifest_path": None if release is None else release.manifest_path,
+            "release_manifest_sha256": (
+                None if release is None else release.manifest_sha256
+            ),
+            "deployment_ready": False,
+            "bridge_start_ready": False,
+            "bridge_process_ready": False,
+            "motion_arm_ready": False,
+            "campaign_ready": False,
+            "identity": None,
+            "release_identity": None,
+            "release_fingerprint": None,
+            "controller_readback_path": None,
+            "controller_readback_sha256": None,
+            "tp_program_disposition": "bridge_start_blocked",
+            "tp_program_start_allowed": False,
+            "host_runtime_disposition": "canonical_release_verification_failed",
+            "host_runtime_start_allowed": False,
+            "blockers": [reason],
+        }
+
+    release: ReleaseIdentity | None = None
+    try:
+        release = load_current_release(root)
+        _selected_v3(root, release)
+        verify_release_manifest(
+            root,
+            root / release.manifest_path,
+            expected_manifest_sha256=release.manifest_sha256,
+        )
+    except (ReleaseIdentityError, ReleaseVerificationError) as exc:
+        return blocked(f"canonical_active_release_verification_failed:{exc}", release)
     try:
         contract = load_contract(
             root / "config/step5/step5d_autotune_v3_control_contract.json"
         )
         identity = active_identity_snapshot(contract, experiment_root=root)
     except (ContractViolation, ValueError) as exc:
-        raise ReleaseReadinessError(f"active release identity is invalid: {exc}") from exc
-    deployment_ready, readback_path, readback_sha256 = _deployment_state(
-        root, identity
-    )
+        return blocked(f"active_release_identity_invalid:{exc}", release)
+    try:
+        deployment_ready, readback_path, readback_sha256 = _deployment_state(
+            root, identity, release
+        )
+    except ReleaseReadinessError as exc:
+        return blocked(f"controller_readback_invalid:{exc}", release)
     blockers: list[str] = []
     if not deployment_ready:
         blockers.append("requires_matching_v3_tp_readback")
-    tp_program_disposition = compatibility.get("tp_program_disposition")
-    tp_program_start_allowed = tp_program_disposition != "known_incompatible_do_not_retry"
-    if not tp_program_start_allowed:
-        blockers.append("selected_tp_program_known_incompatible_do_not_retry")
-        if compatibility.get("tp_program_id") == "step5d_strict_rnn_autotune_v3_r005":
-            blockers.append("r005_post_ack_csv_schema_timeout_incident")
-        if compatibility.get("tp_program_id") == "step5d_strict_rnn_autotune_v3_r006":
-            blockers.append("r006_runtime_batch_identity_namespace_mismatch")
-    host_runtime_disposition = compatibility.get("host_runtime_disposition")
-    host_runtime_start_allowed = host_runtime_disposition in {
-        "verified_r006_cross_process_direct_arm1_arm2_offline",
-        "verified_r007_full_home_rolling_production_chain_offline",
-        "verified_r008_full_home_rolling_production_chain_offline",
-    }
-    if not host_runtime_start_allowed:
-        if host_runtime_disposition == (
-            "blocked_r005_post_ack_csv_schema_timeout_incident"
-        ):
-            blockers.append("r005_post_ack_csv_schema_timeout_incident")
-        if host_runtime_disposition == (
-            "known_incompatible_r006_batch_identity_namespace_mismatch"
-        ):
-            blockers.append("r006_runtime_batch_identity_namespace_mismatch")
-        blockers.append("requires_r008_offline_release")
-    if (
-        compatibility.get("local_candidate_tp_program_id")
-        == "step5d_strict_rnn_autotune_v3_r008"
-        and compatibility.get("local_candidate_tp_disposition")
-        != "controller_readback_verified_promoted_current"
-    ):
-        blockers.append("requires_r008_controller_readback")
+    tp_program_disposition = "controller_readback_verified"
+    tp_program_start_allowed = deployment_ready
+    host_runtime_disposition = "canonical_r009_rolling_release_verified"
+    host_runtime_start_allowed = True
 
     bridge_context: BridgeStartContext | None = None
     bridge_context_sha256: str | None = None
@@ -343,7 +350,12 @@ def resolve_release_readiness(
 
     return {
         "schema": READINESS_SCHEMA,
+        "ok": bridge_start_ready,
         "selected_release": RELEASE_STAGE_ID,
+        "tp_program_id": release.program_id,
+        "protocol_id": release.protocol_id,
+        "release_manifest_path": release.manifest_path,
+        "release_manifest_sha256": release.manifest_sha256,
         "deployment_ready": deployment_ready,
         "bridge_start_ready": bridge_start_ready,
         "bridge_process_ready": bridge_process_ready,

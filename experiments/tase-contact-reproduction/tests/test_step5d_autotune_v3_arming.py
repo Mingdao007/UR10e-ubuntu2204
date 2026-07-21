@@ -305,6 +305,7 @@ def test_return_subject_digest_excludes_verifier_provenance(tmp_path: Path) -> N
         }
     )
     document.pop("missing_certification", None)
+    document["local_triplet_sha256"] = dict(bridge.local_triplet_sha256)
     binding = canonical_sha256(
         {
             "schema": "ur-exp/step5d-return-route-certification-binding-v1",

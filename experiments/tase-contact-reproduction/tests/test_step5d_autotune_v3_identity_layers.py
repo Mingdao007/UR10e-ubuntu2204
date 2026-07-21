@@ -291,6 +291,7 @@ def test_deployment_ignores_readback_publication_metadata() -> None:
     }
     first = deployment_fingerprint(
         triplet_sha256=triplet,
+        tp_program_id=semantic_readback["program"],
         controller_readback_identity={
             **semantic_readback,
             "fresh_controller_checked_at": "2026-07-20T01:00:00Z",
@@ -302,6 +303,7 @@ def test_deployment_ignores_readback_publication_metadata() -> None:
     )
     republished = deployment_fingerprint(
         triplet_sha256=triplet,
+        tp_program_id=semantic_readback["program"],
         controller_readback_identity={
             **semantic_readback,
             "fresh_controller_checked_at": "2026-07-21T01:00:00Z",
@@ -315,6 +317,7 @@ def test_deployment_ignores_readback_publication_metadata() -> None:
     with pytest.raises(IdentityLayerError, match="readback program"):
         deployment_fingerprint(
             triplet_sha256=triplet,
+            tp_program_id=semantic_readback["program"],
             controller_readback_identity={
                 **semantic_readback,
                 "program": "different_program",

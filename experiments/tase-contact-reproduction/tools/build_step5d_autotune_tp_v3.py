@@ -26,7 +26,7 @@ if str(RUNTIME_SRC) not in sys.path:
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r008"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r009"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
@@ -408,7 +408,7 @@ end'''
         else:
           codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         end'''
-    direct_ready = '''        # r008 full-home rolling protocol: every sealed return waits at campaign home.
+    direct_ready = '''        # rolling-v1 full-home protocol: every sealed return waits at campaign home.
         if stop_reason == 1:
           codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         elif stop_reason == 4 or stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
@@ -696,7 +696,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
 
 def source_stamp(now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R008")
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R009")
 
 
 def build_package_script(stamp: str) -> str:
@@ -805,8 +805,10 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "precontact_entry_speed_m_s": 0.09,
         "far_search_speed_m_s": 0.03375,
         "speedj_acceleration_profiles_rad_s2": [0.1, 0.2, 0.5],
-        "input_integer_registers": [24, 25, 26, 27, 28, 29, 30],
-        "output_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
+        "input_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31],
+        "output_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34],
+        "execution_profile_id": "nf100-slew050-a050",
+        "execution_profile_integer_id": 633,
         "safe_transfer_z_m": 0.033,
         "return_segment_count": 3,
         "batch_row_policy": "five_row_logical_batches_every_row_campaign_home",
