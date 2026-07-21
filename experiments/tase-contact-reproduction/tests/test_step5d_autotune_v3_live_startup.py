@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,6 +128,30 @@ def test_canonical_shell_bridge_route_cannot_fall_back_to_v1() -> None:
     assert "run_step5d_autotune_v3_live.py" in source
     assert "step5d-autotune-live.sh" not in source
     assert "bridge-line-operator.sh" not in source
+
+
+def test_internal_live_worker_refuses_direct_execution(tmp_path: Path) -> None:
+    environment = dict(os.environ)
+    environment.pop(live.CANONICAL_LAUNCH_ENV, None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools/run_step5d_autotune_v3_live.py"),
+            "--output-root",
+            str(tmp_path / "output"),
+            "--preflight",
+            str(tmp_path / "preflight.json"),
+            "--bridge-start-context",
+            str(tmp_path / "bridge-start.json"),
+        ],
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "not a public entrypoint" in result.stdout
+    assert "step5d-autotune-v3.sh" in result.stdout
 
 
 def test_first_campaign_home_is_loaded_only_after_arm_dispatch() -> None:

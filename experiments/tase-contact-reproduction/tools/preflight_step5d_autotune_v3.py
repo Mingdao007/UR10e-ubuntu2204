@@ -19,6 +19,7 @@ import preflight_readonly as base
 import build_step5d_autotune_tp_v3 as tp_v3
 import run_step5d_autotune_v3_bridge as bridge_wrapper
 from step5d_autotune_v3.launcher import build_bridge_argv
+from step5d_autotune_v3.dashboard import dashboard_exchange
 from step5d_autotune_v3.readiness import require_bridge_start
 from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY
 from step5d_autotune_v3.runtime_profile import (
@@ -37,6 +38,9 @@ from step5d_autotune_v3.state import atomic_json
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
 TP_PROGRAM_PATTERN = re.compile(r"([^<>\s]+\.urp)(?=$|[>\s])", re.IGNORECASE)
+EXPECTED_CONTROLLER_PROGRAM = (
+    f"/programs/andyl/kunwei/step5/{TP_PROGRAM_ID}.urp"
+)
 PREDICATE_NAMES = frozenset(
     {
         "safety_normal",
@@ -83,18 +87,28 @@ def _value(observation: Mapping[str, Any]) -> Mapping[str, Any]:
 def _program_safe_for_bridge(
     dashboard: Mapping[str, Any], rtde: Mapping[str, Any]
 ) -> dict[str, Any]:
-    raw = str(dashboard.get("programState", dashboard.get("program_state", "")))
-    state = raw.split(maxsplit=1)[0].upper() if raw else ""
-    basenames = {Path(match).name.lower() for match in TP_PROGRAM_PATTERN.findall(raw)}
-    expected = f"{TP_PROGRAM_ID}.urp".lower()
-    exact_program = basenames == {expected}
+    raw_state = str(
+        dashboard.get("programState", dashboard.get("program_state", ""))
+    )
+    raw_loaded = str(
+        dashboard.get("get loaded program", dashboard.get("loaded_program", ""))
+    )
+    state = raw_state.split(maxsplit=1)[0].upper() if raw_state else ""
+    loaded_paths = {
+        match.rstrip(".,").lower()
+        for match in TP_PROGRAM_PATTERN.findall(raw_loaded)
+    }
+    expected_path = EXPECTED_CONTROLLER_PROGRAM.lower()
+    exact_program = loaded_paths == {expected_path}
     if state == "STOPPED":
         checks = {"exact_program": exact_program, "stopped": True}
         return {
             "ok": all(checks.values()),
             "mode": "loaded_stopped",
             "checks": checks,
-            "raw": raw,
+            "program_state": raw_state,
+            "loaded_program": raw_loaded,
+            "expected_loaded_program": EXPECTED_CONTROLLER_PROGRAM,
         }
     identity_fields = [24, 25, 27, 28, 29, 30]
     ready_home = rtde.get("output_int_register_26") == 10
@@ -111,7 +125,9 @@ def _program_safe_for_bridge(
         "ok": all(checks.values()),
         "mode": "playing_ready_home_zero_identity",
         "checks": checks,
-        "raw": raw,
+        "program_state": raw_state,
+        "loaded_program": raw_loaded,
+        "expected_loaded_program": EXPECTED_CONTROLLER_PROGRAM,
     }
 
 
@@ -189,6 +205,7 @@ def _controller_identity(
                 "robotmode",
                 "safetymode",
                 "programState",
+                "get loaded program",
                 "is in remote control",
                 "remote_control",
             )
@@ -250,7 +267,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
     else:
         remote = _parallel(
             {
-                "dashboard": lambda: base.dashboard_exchange(
+                "dashboard": lambda: dashboard_exchange(
                     args.robot_host,
                     [
                         "PolyscopeVersion",
@@ -258,6 +275,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
                         "safetymode",
                         "robotmode",
                         "programState",
+                        "get loaded program",
                     ],
                     timeout=args.timeout_s,
                 ),
@@ -266,7 +284,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
                     [
                         *base.RTDE_FIELDS,
                         "actual_qd",
-                        *[f"output_int_register_{index}" for index in range(24, 31)],
+                        *[f"output_int_register_{index}" for index in range(24, 35)],
                     ],
                     frequency_hz=10.0,
                     timeout=args.timeout_s,

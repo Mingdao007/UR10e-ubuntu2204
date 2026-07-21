@@ -10231,7 +10231,7 @@ def require_v29_dashboard_program_binding(
     safety_state = dashboard_state_value(dashboard.get("safetymode"))
     robot_state = dashboard_state_value(dashboard.get("robotmode"))
     if not step5d_dashboard_program_identity_matches(
-        dashboard.get("programState"), args.bridge_profile
+        dashboard.get("get loaded program"), args.bridge_profile
     ):
         raise SystemExit("Step5d Dashboard program identity does not match the current package")
     if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID and remote_state != "TRUE":
@@ -10365,7 +10365,14 @@ def main(argv: list[str] | None = None) -> int:
     if not args.skip_dashboard_preflight:
         dashboard = dashboard_exchange(
             args.robot_host,
-            ["is in remote control", "safetymode", "robotmode", "running", "programState"],
+            [
+                "is in remote control",
+                "safetymode",
+                "robotmode",
+                "running",
+                "programState",
+                "get loaded program",
+            ],
         )
         if "NORMAL" not in dashboard.get("safetymode", ""):
             raise SystemExit(f"Dashboard safety not NORMAL: {dashboard}")
@@ -11098,7 +11105,12 @@ def main(argv: list[str] | None = None) -> int:
                     try:
                         dash = dashboard_exchange(
                             args.robot_host,
-                            ["running", "programState", "safetymode"],
+                            [
+                                "running",
+                                "programState",
+                                "safetymode",
+                                "get loaded program",
+                            ],
                             timeout=(
                                 STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S
                                 if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
@@ -11117,13 +11129,26 @@ def main(argv: list[str] | None = None) -> int:
                     if dash is not None and dashboard_state_value(dash.get("safetymode")) != "NORMAL":
                         stop_reason = "dashboard_safety_not_normal"
                         break
-                    if (
+                    loaded_identity_drift = bool(
                         dash is not None
-                        and args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
-                        and not v29_dashboard_program_identity_matches(dash.get("programState"))
-                    ):
-                        v29_safety_fail_stop["latched_reason"] = "dashboard_program_identity_drift"
-                        fail_stop_latched = True
+                        and args.bridge_profile
+                        in {
+                            STEP5D_ABLATION_V29_STAGE_ID,
+                            STEP5D_AUTOTUNE_STAGE_ID,
+                        }
+                        and not step5d_dashboard_program_identity_matches(
+                            dash.get("get loaded program"), args.bridge_profile
+                        )
+                    )
+                    if loaded_identity_drift:
+                        if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID:
+                            v29_safety_fail_stop["latched_reason"] = (
+                                "dashboard_program_identity_drift"
+                            )
+                            fail_stop_latched = True
+                        else:
+                            stop_reason = "dashboard_program_identity_drift"
+                            break
                     if dash is not None and not fail_stop_latched:
                         running = dashboard_state_value(dash.get("running")) == "TRUE"
                         stopped = dashboard_state_value(dash.get("programState")).startswith("STOPPED")

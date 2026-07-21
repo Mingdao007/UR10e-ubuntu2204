@@ -18,12 +18,12 @@ from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
 from prepare_step5d_autotune_launch import prepare, write_machine_campaign_binding
-from preflight_readonly import dashboard_exchange
 from run_step5d_autotune_campaign import validate_legacy_campaign_adoption
 from step5d_autotune_batch_plan import append_r008_batch, load_plan
 from step5d_autotune_contract import ForceCandidate
 from step5d_autotune_r008_policy import initialization_batch
 from step5d_autotune_v3 import cli as v3_cli
+from step5d_autotune_v3.dashboard import dashboard_exchange
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
 from step5d_autotune_v3.readiness import (
     require_bridge_start,
@@ -53,8 +53,21 @@ RUNNER = ROOT / "tools/run_step5d_autotune_campaign.py"
 RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
 LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
 INITIAL_BATCH_SOURCE = "rolling-v1-formal-initialization-batch-a"
+CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
 class LiveLaunchError(RuntimeError):
     pass
+
+
+def _require_canonical_launcher(environment: Mapping[str, str] | None = None) -> Path:
+    values = os.environ if environment is None else environment
+    expected = (ROOT / "scripts/step5d-autotune-v3.sh").resolve()
+    observed = values.get(CANONICAL_LAUNCH_ENV, "")
+    if not observed or Path(observed).expanduser().resolve() != expected:
+        raise LiveLaunchError(
+            "internal live worker is not a public entrypoint; use "
+            f"{expected} bridge"
+        )
+    return expected
 
 
 def _sha256_json(value: Any) -> str:
@@ -600,6 +613,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        _require_canonical_launcher()
         result = run(args)
     except Exception as exc:
         result = {"schema": RESULT_SCHEMA, "ok": False, "blocker": str(exc)}

@@ -48,6 +48,7 @@ fi
 if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
   mode="$1"
   shift
+  export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   arguments=("$@")
   output_root=""
   bridge_start_context=""

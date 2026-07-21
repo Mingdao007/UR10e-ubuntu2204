@@ -638,6 +638,9 @@ def install_v3_seams(
     live.BridgeTrialCsvRotator = V3AsyncBridgeTrialCsvRotator
 
     import kunwei_rtde_bridge as bridge
+    from step5d_autotune_v3.dashboard import dashboard_exchange
+
+    bridge.dashboard_exchange = dashboard_exchange
 
     original_authorization_gate = bridge.require_v29_live_bridge_authorization
 
