@@ -1,0 +1,24 @@
+{
+  "artifacts": [
+    {
+      "filename": "step5d_strict_rnn_manual_tune_v3.script",
+      "sha256": "44e958160cf57e5f9687b5e15546449da0d178370f1e94827cd432e244862b10",
+      "source": "step5d_strict_rnn_manual_tune_v3.script"
+    },
+    {
+      "filename": "step5d_strict_rnn_manual_tune_v3.txt",
+      "sha256": "c915cb0387d792e5a5b323b6ae23bedc3339c42ce13e67e24c9e12984f8575db",
+      "source": "step5d_strict_rnn_manual_tune_v3.txt"
+    },
+    {
+      "filename": "step5d_strict_rnn_manual_tune_v3.urp",
+      "sha256": "58225bde4f39dadde69bbd6399d3a7d2f9754cad1f798195ddb3a2cf0bd57783",
+      "source": "step5d_strict_rnn_manual_tune_v3.urp"
+    }
+  ],
+  "basename": "step5d_strict_rnn_manual_tune_v3",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "parent_r009_commit": "bf6eb59d9530cf7f170f29c68c8812f00613b381",
+  "protocol": "v3_full_home_manual_hold_v1",
+  "schema_version": 1
+}
