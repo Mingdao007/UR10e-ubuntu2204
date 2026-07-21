@@ -11,6 +11,11 @@ from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Mapping
 
+from .candidate_identity import (
+    ControlCandidateUid,
+    OccurrenceUid,
+    TransportCandidateUid,
+)
 from .contracts import OutputPathError, SpecValidationError
 from .identity import canonical_json_bytes, canonical_sha256, strict_json_loads
 from .stage_adapters import CONTROL_CANDIDATE_FIELDS, normalize_trial_overlay
@@ -48,7 +53,9 @@ class ExactAckReceipt:
     def __post_init__(self) -> None:
         _sha256("batch_uid", self.batch_uid)
         _sha256("trial_uid", self.trial_uid)
-        _sha256("control_candidate_uid", self.control_candidate_uid)
+        _typed_uid(
+            "control_candidate_uid", self.control_candidate_uid, ControlCandidateUid
+        )
         _sha256("immutable_bundle_sha256", self.immutable_bundle_sha256)
         _sha256("return_reference_uid", self.return_reference_uid)
         _sha256("controller_readback_sha256", self.controller_readback_sha256)
@@ -134,15 +141,22 @@ class DirectReadyReceipt:
             "return_reference_uid",
             "controller_readback_sha256",
         ):
-            _sha256(name, getattr(self, name))
+            if name == "control_candidate_uid":
+                _typed_uid(name, getattr(self, name), ControlCandidateUid)
+            else:
+                _sha256(name, getattr(self, name))
         rolling = self.protocol == "v3_full_home_rolling_arm_v1"
         if self.protocol not in {"v3_direct_arm_v1", "v3_full_home_rolling_arm_v1"}:
             raise SpecValidationError("direct-ready protocol is unsupported")
         if rolling and self.logical_batch_sequence < 1:
             raise SpecValidationError("rolling direct-ready receipt lacks batch identity")
         if rolling:
-            _sha256("occurrence_uid", self.occurrence_uid)
-            _sha256("transport_candidate_uid", self.transport_candidate_uid)
+            _typed_uid("occurrence_uid", self.occurrence_uid, OccurrenceUid)
+            _typed_uid(
+                "transport_candidate_uid",
+                self.transport_candidate_uid,
+                TransportCandidateUid,
+            )
         elif self.occurrence_uid is not None or self.transport_candidate_uid is not None:
             raise SpecValidationError("direct-arm receipt cannot claim rolling UID namespaces")
         expected_reference = (
@@ -253,6 +267,21 @@ def _sha256(name: str, value: Any) -> str:
     return value
 
 
+def _typed_uid(
+    name: str,
+    value: Any,
+    uid_type: type[ControlCandidateUid]
+    | type[OccurrenceUid]
+    | type[TransportCandidateUid],
+) -> str:
+    """Validate active domain IDs while retaining explicit historical decoding."""
+
+    try:
+        return str(uid_type.parse(value, allow_legacy=True))
+    except (TypeError, ValueError) as exc:
+        raise SpecValidationError(f"{name} is not a valid {uid_type.__name__}") from exc
+
+
 @dataclass(frozen=True)
 class BatchRow:
     row_index: int
@@ -289,8 +318,12 @@ class BatchRow:
         if any(value is not None for value in optional):
             if not all(value is not None for value in optional):
                 raise SpecValidationError("rolling row occurrence identity is incomplete")
-            _sha256("occurrence_uid", self.occurrence_uid)
-            _sha256("transport_candidate_uid", self.transport_candidate_uid)
+            _typed_uid("occurrence_uid", self.occurrence_uid, OccurrenceUid)
+            _typed_uid(
+                "transport_candidate_uid",
+                self.transport_candidate_uid,
+                TransportCandidateUid,
+            )
             if not isinstance(self.role, str) or not self.role:
                 raise SpecValidationError("rolling row role is missing")
             if (

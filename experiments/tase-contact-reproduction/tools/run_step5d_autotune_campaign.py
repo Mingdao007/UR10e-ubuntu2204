@@ -73,6 +73,7 @@ from step5d_autotune_backend import (
 from step5d_autotune_batch_plan import (
     CandidateBatchPlan,
     PlanLifecycle,
+    ROLLING_LIFECYCLE_SCHEMAS,
     RuntimePlanRow,
     assert_append_only,
     close_rolling_plan,
@@ -96,6 +97,7 @@ from step5d_autotune_journal import (
 )
 from step5d_autotune_live_driver import (
     AtomicCommandMailbox,
+    BridgeMailboxRuntime,
     CampaignHomeReference,
     TrialArtifactProducer,
     finalize_produced_bundle_direct,
@@ -939,6 +941,7 @@ def _wait_for_codex_candidate(
     previous_plan: CandidateBatchPlan | None,
     timeout_s: float,
     stop_requested: Callable[[], bool] | None = None,
+    close_after_plan_revision: int | None = None,
 ) -> tuple[RuntimePlanRow | ForceCandidate | None, CandidateBatchPlan]:
     deadline = time.monotonic() + timeout_s
     announced_revision: int | None = None
@@ -951,7 +954,7 @@ def _wait_for_codex_candidate(
                 assert_append_only(previous_plan, plan)
             selection = (
                 next_runtime_plan_row(plan=plan, campaign_root=campaign_root)
-                if plan.occurrences
+                if any(plan.occurrences)
                 else next_runtime_batch_candidate(
                     plan=plan,
                     campaign_root=campaign_root,
@@ -970,8 +973,36 @@ def _wait_for_codex_candidate(
                     )
                 return selection, plan
             if (
-                plan.payload["schema_version"]
-                == "step5d_autotune_rolling_batch_plan_v1"
+                close_after_plan_revision is not None
+                and plan.revision == close_after_plan_revision
+                and plan.lifecycle
+                in {PlanLifecycle.OPEN_READY, PlanLifecycle.OPEN_EMPTY}
+            ):
+                if plan.lifecycle is PlanLifecycle.OPEN_READY:
+                    plan = mark_rolling_plan_open_empty(plan_path)
+                if not runtime_batch_verified_complete(campaign_root=campaign_root):
+                    raise RuntimeError(
+                        "configured rolling closure lacks a verified completed batch"
+                    )
+                closure_document = {
+                    "schema": "step5d.autotune-v3/plan-closure-evidence-v1",
+                    "reason": "configured_batch_a_complete",
+                    "plan_revision": plan.revision,
+                    "runtime_batch_verified_complete": True,
+                }
+                closure_path = (
+                    plan_path.parent
+                    / f"plan_closure_batch_a_r{plan.revision:06d}.json"
+                )
+                _atomic_json(closure_path, closure_document)
+                plan = close_rolling_plan(
+                    plan_path,
+                    reason="configured_batch_a_complete",
+                    evidence_sha256=_sha256_path(closure_path),
+                )
+                return None, plan
+            if (
+                plan.payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS
                 and plan.lifecycle is PlanLifecycle.OPEN_READY
             ):
                 plan = mark_rolling_plan_open_empty(plan_path)
@@ -1002,10 +1033,25 @@ def _wait_for_codex_candidate(
             "READY_HOME",
             "READY_NEAR",
             "READY_HOME_CLOSED",
+            "READY_HOME_NEXT",
         }:
             raise RuntimeError("TP left a typed ready state while waiting for a Codex batch")
         time.sleep(0.25)
     raise TimeoutError("timed out waiting for the next Codex five-candidate batch")
+
+
+def _observe_pending_identity_commit(
+    deadline_s: float | None,
+    *,
+    observed_at_s: float,
+) -> float:
+    """Start the TP split-commit budget at the first terminal pending row."""
+
+    if deadline_s is None:
+        return observed_at_s + BridgeMailboxRuntime.IDENTITY_COMMIT_TIMEOUT_S
+    if observed_at_s > deadline_s:
+        raise RuntimeError("terminal-ready identity commit exceeded the host budget")
+    return deadline_s
 
 
 def _v3_stop_requested(
@@ -1092,15 +1138,21 @@ def _v3_overlay_for_candidate(
     ):
         raise RuntimeError("V3 overlay cross-namespace identity substitution")
     normalized = normalize_trial_overlay(selected.get("overlay"), profile=launch_profile)
+    normalized_sha256 = normalized_overlay_sha256(launch_profile, normalized)
+    selected_normalized_sha256 = selected.get("normalized_overlay_sha256")
     if (
-        selected.get("normalized_overlay_sha256")
-        != normalized_overlay_sha256(launch_profile, normalized)
+        runtime_plan_row is not None
+        and selected_normalized_sha256 != normalized_sha256
+    ) or (
+        runtime_plan_row is None
+        and selected_normalized_sha256 is not None
+        and selected_normalized_sha256 != normalized_sha256
     ):
         raise RuntimeError("V3 normalized overlay SHA-256 differs")
     expected_control_uid = (
         runtime_plan_row.control_candidate_uid
         if runtime_plan_row is not None
-        else candidate.candidate_uid
+        else selected.get("control_candidate_uid")
     )
     if normalized["control_candidate_uid"] != expected_control_uid:
         raise RuntimeError("V3 overlay control UID differs from candidate")
@@ -1192,6 +1244,12 @@ def run(args: argparse.Namespace) -> int:
             raise RuntimeError(
                 "rolling plan wait budget must be in (0,25] s, preserving at least "
                 "5 s before the TP state-78 30 s watchdog"
+            )
+        if args.close_after_plan_revision is not None and (
+            not rolling_release or args.close_after_plan_revision < 1
+        ):
+            raise RuntimeError(
+                "configured plan closure requires a positive rolling revision"
             )
     initial_row = _latest_complete_row(bridge_csv)
     initial = tp_snapshot_from_bridge_row(initial_row)
@@ -1501,6 +1559,7 @@ def run(args: argparse.Namespace) -> int:
                         previous_plan=current_plan,
                         timeout_s=args.plan_wait_timeout_s,
                         stop_requested=stop_requested,
+                        close_after_plan_revision=args.close_after_plan_revision,
                     )
                     current_plan_row = (
                         selection if isinstance(selection, RuntimePlanRow) else None
@@ -1776,6 +1835,11 @@ def run(args: argparse.Namespace) -> int:
                     "prepared trial overlay differs from durable BatchIdentity"
                 )
             if batch_context is not None:
+                prepared = replace(
+                    prepared,
+                    batch_row_index=batch_context.row_index,
+                )
+            if batch_context is not None and rolling_release:
                 from step5d_autotune_v3.runtime_profile import (
                     load_launch_profile,
                     normalized_overlay_sha256,
@@ -1789,7 +1853,13 @@ def run(args: argparse.Namespace) -> int:
                         load_launch_profile(args.v3_launch_profile),
                         trial_overlay,
                     ),
-                    batch_row_index=batch_context.row_index,
+                    occurrence_uid=str(batch_context.expected_row.occurrence_uid),
+                    transport_candidate_uid=str(
+                        batch_context.expected_row.transport_candidate_uid
+                    ),
+                    control_candidate_uid=str(
+                        batch_context.expected_row.control_candidate_uid
+                    ),
                 )
             coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)
             if home is None:
@@ -1815,6 +1885,7 @@ def run(args: argparse.Namespace) -> int:
                     "v3_direct_arm_v1 requires the exact durable candidate plan"
                 )
             terminal_snapshot: TpSnapshot | None = None
+            identity_commit_deadline_s: float | None = None
             for row in follower.rows(timeout_s=args.trial_timeout_s):
                 snapshot = tp_snapshot_from_bridge_row(row)
                 if (
@@ -1846,6 +1917,16 @@ def run(args: argparse.Namespace) -> int:
                     else "READY_NEAR"
                 )
                 if snapshot.state != expected_state:
+                    follower.note_predicate_reject()
+                    continue
+                if (
+                    rolling_release
+                    and snapshot.consumed_command_seq == arm.command_seq - 1
+                ):
+                    identity_commit_deadline_s = _observe_pending_identity_commit(
+                        identity_commit_deadline_s,
+                        observed_at_s=time.monotonic(),
+                    )
                     follower.note_predicate_reject()
                     continue
                 if any(
@@ -1905,6 +1986,11 @@ def run(args: argparse.Namespace) -> int:
                 coordinator=coordinator,
                 bundle_committed=(
                     batch_context.record_bundle
+                ),
+                control_candidate_uid=(
+                    None
+                    if batch_context is None
+                    else str(batch_context.expected_row.control_candidate_uid)
                 ),
             )
             _event(
@@ -2151,6 +2237,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--candidate-plan", type=Path)
     parser.add_argument("--plan-wait-timeout-s", type=float, default=20.0)
+    parser.add_argument("--close-after-plan-revision", type=int)
     parser.add_argument("--wait-for-home", action="store_true")
     parser.add_argument("--home-timeout-s", type=float, default=90.0)
     parser.add_argument("--recover-infra-aborted-active", action="store_true")

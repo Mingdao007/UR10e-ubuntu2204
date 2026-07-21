@@ -12,7 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-import promote_step5d_autotune_v3_delivery as promotion  # noqa: E402
+import promote_step5d_r009_atomic_release as promotion  # noqa: E402
 import run_step5d_autotune_v3_tp_transaction as transaction  # noqa: E402
 
 
@@ -56,19 +56,21 @@ def _fixture_manifest(tmp_path: Path) -> tuple[Path, Path]:
 
 def test_delivery_manifest_drives_only_exact_fresh_triplet(tmp_path: Path) -> None:
     root, manifest = _fixture_manifest(tmp_path)
-    payload, hashes = promotion.validate_delivery(root, manifest)
+    artifact_dir = root / promotion.PACKAGE_DIR
+    payload, hashes = promotion.validate_delivery(root, manifest, artifact_dir)
     assert payload["upload_transaction_id"] == "a" * 32
     assert hashes == payload["sha256"]["readback"]
 
     payload["sha256"]["controller"][".script"] = "0" * 64
     manifest.write_text(json.dumps(payload) + "\n", encoding="utf-8")
-    with pytest.raises(promotion.PromotionError, match="SHA closure"):
-        promotion.validate_delivery(root, manifest)
+    with pytest.raises(promotion.R009PromotionError, match="SHA closure"):
+        promotion.validate_delivery(root, manifest, artifact_dir)
 
 
 def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path) -> None:
     root = tmp_path / "experiment"
     root.mkdir()
+    (root / promotion.PACKAGE_DIR).mkdir(parents=True)
     events: list[str] = []
     exact: list[Path] = []
 
@@ -96,10 +98,26 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     with (
         mock.patch.object(transaction, "acquire_controller_mutation_locks", side_effect=lambda: events.append("lock") or [object()]),
         mock.patch.object(transaction.upload, "_main", side_effect=fake_upload),
-        mock.patch.object(transaction.promote, "promote", side_effect=lambda _root, manifest: events.append("promote") or exact.append(manifest)),
+        mock.patch.object(
+            transaction.promote,
+            "promote",
+            side_effect=lambda _root, manifest, artifact_dir: (
+                events.append("promote"),
+                exact.append(manifest),
+                exact.append(artifact_dir),
+            ),
+        ),
         mock.patch.object(transaction, "release_controller_mutation_locks", side_effect=lambda _handles: events.append("release")),
     ):
-        assert transaction.main(["--root", str(root)]) == 0
+        assert transaction.main(
+            [
+                "--root",
+                str(root),
+                "--artifact-dir",
+                str(root / promotion.PACKAGE_DIR),
+            ]
+        ) == 0
 
     assert events == ["lock", "upload", "promote", "release"]
     assert exact[0] == exact[1]
+    assert exact[2] == (root / promotion.PACKAGE_DIR).resolve()

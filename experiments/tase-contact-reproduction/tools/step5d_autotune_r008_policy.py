@@ -9,6 +9,13 @@ from dataclasses import dataclass
 from statistics import median
 from typing import Any, Mapping, Sequence
 
+from ur10e_experiment_runtime.candidate_identity import (
+    ControlCandidateUid,
+    OccurrenceUid,
+    ParameterUid,
+    TransportCandidateUid,
+)
+
 from step5d_autotune_contract import ForceCandidate
 from step5d_autotune_optimizer import Observation, cuda_botorch_joint_candidates
 
@@ -23,36 +30,21 @@ BASELINE = ForceCandidate(
 )
 
 
-def _uid(payload: Mapping[str, Any]) -> str:
+def _legacy_uid(payload: Mapping[str, Any]) -> str:
     encoded = json.dumps(
         payload, sort_keys=True, separators=(",", ":"), allow_nan=False
     ).encode("ascii")
     return hashlib.sha256(encoded).hexdigest()
 
 
-class _TypedUid(str):
-    namespace = "uid"
-
-    def __new__(cls, value: str) -> "_TypedUid":
-        if (
-            not isinstance(value, str)
-            or len(value) != 64
-            or any(character not in "0123456789abcdef" for character in value)
-        ):
-            raise ValueError(f"{cls.namespace} must be a lowercase SHA-256")
-        return str.__new__(cls, value)
-
-
-class OccurrenceUid(_TypedUid):
-    namespace = "occurrence UID"
-
-
-class TransportCandidateUid(_TypedUid):
-    namespace = "transport candidate UID"
-
-
-class ControlCandidateUid(_TypedUid):
-    namespace = "control candidate UID"
+def _sha256(value: Any, *, name: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(f"{name} must be a lowercase SHA-256")
+    return value
 
 
 @dataclass(frozen=True)
@@ -76,39 +68,64 @@ class PlannedOccurrence:
             raise ValueError("selection_role must be non-empty")
         if (
             self.bound_control_candidate_uid is not None
-            and type(self.bound_control_candidate_uid) is not ControlCandidateUid
+            and (
+                type(self.bound_control_candidate_uid) is not ControlCandidateUid
+                or self.bound_control_candidate_uid.is_legacy
+            )
         ):
             raise TypeError("bound_control_candidate_uid uses the wrong UID namespace")
 
     @property
     def occurrence_uid(self) -> OccurrenceUid:
-        return OccurrenceUid(_uid(
-            {
-                "schema": "step5d.r008/occurrence-v1",
-                "protocol": PROTOCOL,
-                "logical_batch_sequence": self.logical_batch_sequence,
-                "row_index": self.row_index,
-                "control_candidate_uid": self.candidate.candidate_uid,
-                "plan_revision": self.plan_revision,
-                "selection_role": self.selection_role,
-                "replicate_ordinal": self.replicate_ordinal,
-            }
-        ))
+        if self.bound_control_candidate_uid is not None:
+            return OccurrenceUid.from_control(
+                self.bound_control_candidate_uid,
+                protocol=PROTOCOL,
+                logical_batch_sequence=self.logical_batch_sequence,
+                row_index=self.row_index,
+                plan_revision=self.plan_revision,
+                selection_role=self.selection_role,
+                replicate_ordinal=self.replicate_ordinal,
+            )
+        return OccurrenceUid.from_legacy(
+            _legacy_uid(
+                {
+                    "schema": "step5d.r008/occurrence-v1",
+                    "protocol": PROTOCOL,
+                    "logical_batch_sequence": self.logical_batch_sequence,
+                    "row_index": self.row_index,
+                    "control_candidate_uid": self.candidate.candidate_uid,
+                    "plan_revision": self.plan_revision,
+                    "selection_role": self.selection_role,
+                    "replicate_ordinal": self.replicate_ordinal,
+                }
+            )
+        )
 
     @property
     def transport_candidate_uid(self) -> TransportCandidateUid:
-        return TransportCandidateUid(_uid(
-            {
-                "schema": "step5d.r008/transport-candidate-v1",
-                "occurrence_uid": self.occurrence_uid,
-                "candidate": self.candidate.payload(),
-            }
-        ))
+        if self.bound_control_candidate_uid is not None:
+            return TransportCandidateUid.from_occurrence(
+                self.occurrence_uid,
+                parameter_uid=ParameterUid.from_candidate_digest(
+                    self.candidate.candidate_uid
+                ),
+                protocol=PROTOCOL,
+            )
+        return TransportCandidateUid.from_legacy(
+            _legacy_uid(
+                {
+                    "schema": "step5d.r008/transport-candidate-v1",
+                    "occurrence_uid": self.occurrence_uid,
+                    "candidate": self.candidate.payload(),
+                }
+            )
+        )
 
     @property
     def control_candidate_uid(self) -> ControlCandidateUid:
         return (
-            ControlCandidateUid(self.candidate.candidate_uid)
+            ControlCandidateUid.from_legacy(self.candidate.candidate_uid)
             if self.bound_control_candidate_uid is None
             else self.bound_control_candidate_uid
         )
@@ -121,7 +138,7 @@ class PlannedOccurrence:
             plan_revision=self.plan_revision,
             selection_role=self.selection_role,
             replicate_ordinal=self.replicate_ordinal,
-            bound_control_candidate_uid=ControlCandidateUid(value),
+            bound_control_candidate_uid=ControlCandidateUid.parse(value),
         )
 
 
@@ -279,7 +296,7 @@ def supercycle_batch_b_after_gp_update(
     if not isinstance(batch_a_closure, Mapping) or set(batch_a_closure) != required:
         raise ValueError("Batch B requires exact Batch A closure and GP-update evidence")
     for name in required - {"cold_read_verified"}:
-        _TypedUid(str(batch_a_closure[name]))
+        _sha256(batch_a_closure[name], name=name)
     if batch_a_closure["cold_read_verified"] is not True:
         raise ValueError("Batch B requires cold-read verification of sealed Batch A")
     if not bo_gate(observations):

@@ -654,19 +654,31 @@ def campaign_status(paths: CampaignPaths) -> dict[str, Any]:
     if paths.candidate_plan.is_symlink():
         raise StateError("candidate plan must not be a symlink")
     if paths.candidate_plan.is_file():
-        plan = load_plan(paths.candidate_plan)
-        plan_payload = {
-            "campaign_id": plan.campaign_id,
-            "revision": plan.revision,
-            "candidate_count": len(plan.candidates),
-            "closed": plan.closed,
-        }
+        try:
+            plan = load_plan(paths.candidate_plan)
+        except (OSError, ValueError) as exc:
+            plan_payload = {
+                "campaign_id": None,
+                "revision": 0,
+                "candidate_count": 0,
+                "closed": False,
+                "integrity_error": f"{type(exc).__name__}:{exc}",
+            }
+        else:
+            plan_payload = {
+                "campaign_id": plan.campaign_id,
+                "revision": plan.revision,
+                "candidate_count": len(plan.candidates),
+                "closed": plan.closed,
+                "integrity_error": None,
+            }
     else:
         plan_payload = {
             "campaign_id": None,
             "revision": 0,
             "candidate_count": 0,
             "closed": False,
+            "integrity_error": None,
         }
     return {
         "schema": "step5d.autotune-v3.status/v1",

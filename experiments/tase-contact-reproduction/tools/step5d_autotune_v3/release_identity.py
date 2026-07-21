@@ -23,6 +23,12 @@ ROLLING_PROTOCOL = "v3_full_home_rolling_arm_v1"
 ROLLING_NORMAL_MAX_RATE_RAD_S = 0.1
 ROLLING_EXECUTION_PROFILE_ID = "nf100-slew050-a050"
 ROLLING_EXECUTION_PROFILE_INTEGER_ID = 633
+REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS = {
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/__init__.py",
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/candidate_identity.py",
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/batch.py",
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py",
+}
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 
@@ -161,6 +167,19 @@ class ReleaseIdentity:
             "canonical_verifier"
         ) != "independent_script_urp_v1":
             raise ReleaseIdentityError("canonical verifier binding differs")
+        repository_sources = self.verification.get("repository_source_fingerprints")
+        repository_depth = self.verification.get("repository_source_root_depth")
+        if (
+            not isinstance(repository_sources, Mapping)
+            or set(repository_sources) != REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS
+            or isinstance(repository_depth, bool)
+            or not isinstance(repository_depth, int)
+            or not 0 <= repository_depth <= 4
+        ):
+            raise ReleaseIdentityError("repository source fingerprint coverage differs")
+        for path, digest in repository_sources.items():
+            _relative_path(path, "repository source fingerprint")
+            _sha256_text(digest, "repository source fingerprint SHA-256")
 
     @property
     def artifact_sha256(self) -> dict[str, str]:
@@ -259,6 +278,24 @@ def load_current_release(experiment_root: Path) -> ReleaseIdentity:
                 raise ReleaseIdentityError(f"{role} file is missing or unsafe: {reference['path']}")
             if _sha256_bytes(path.read_bytes()) != reference["sha256"]:
                 raise ReleaseIdentityError(f"{role} file fingerprint drifted: {reference['path']}")
+    repository_root = root
+    for _ in range(release.verification["repository_source_root_depth"]):
+        repository_root = repository_root.parent
+    repository_root = repository_root.resolve(strict=True)
+    for relative, expected in release.verification[
+        "repository_source_fingerprints"
+    ].items():
+        path = repository_root / _relative_path(
+            relative, "repository source fingerprint"
+        )
+        if path.is_symlink() or not path.is_file():
+            raise ReleaseIdentityError(
+                f"repository source file is missing or unsafe: {relative}"
+            )
+        if _sha256_bytes(path.read_bytes()) != expected:
+            raise ReleaseIdentityError(
+                f"repository source file fingerprint drifted: {relative}"
+            )
     return release
 
 
@@ -267,6 +304,7 @@ __all__ = [
     "CURRENT_POINTER_SCHEMA",
     "RELEASE_MANIFEST_SCHEMA",
     "RELEASE_STAGE_ID",
+    "REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS",
     "ROLLING_EXECUTION_PROFILE_ID",
     "ROLLING_EXECUTION_PROFILE_INTEGER_ID",
     "ROLLING_NORMAL_MAX_RATE_RAD_S",

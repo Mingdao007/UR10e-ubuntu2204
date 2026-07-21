@@ -482,13 +482,15 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                 fake_rtde(TpLoopState.READY_HOME, None, consumed_seq=0),
                 connection_epoch=0,
             )
+            self.assertTrue(runtime.identity_commit_pending)
             self.assertFalse(
                 runtime.poll(
                     args,
                     fake_rtde(TpLoopState.RUN, arm, consumed_seq=10),
-                    connection_epoch=1,
+                    connection_epoch=0,
                 )
             )
+            self.assertFalse(runtime.identity_commit_pending)
             with self.assertRaisesRegex(MailboxError, "identity changed"):
                 runtime.poll(
                     args,
@@ -498,7 +500,7 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                         consumed_seq=10,
                         token_delta=1,
                     ),
-                    connection_epoch=2,
+                    connection_epoch=1,
                 )
 
             wait_ack = fake_rtde(
@@ -510,6 +512,91 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
             path.write_text(path.read_text(encoding="ascii") + "\n", encoding="ascii")
             with self.assertRaisesRegex(MailboxError, "did not increase"):
                 runtime.poll(args, wait_ack, connection_epoch=1)
+
+    def test_arm_identity_commit_tolerates_only_bounded_partial_publication(self) -> None:
+        trial = make_trial()
+        prepared = make_prepared(trial)
+        arm = packet_for(trial, HostCommand.ARM)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "command.json"
+            sink = AtomicCommandMailbox(path)
+            sink.send_command(arm, prepared_trial=prepared)
+            args = fake_bridge_args()
+            runtime = BridgeMailboxRuntime(path)
+            self.assertTrue(
+                runtime.poll(
+                    args,
+                    fake_rtde(TpLoopState.READY_HOME, None, consumed_seq=0),
+                    connection_epoch=0,
+                )
+            )
+            self.assertTrue(runtime.identity_commit_pending)
+            self.assertFalse(
+                runtime.poll(
+                    args,
+                    fake_rtde(
+                        TpLoopState.ARMED,
+                        arm,
+                        consumed_seq=0,
+                        token_delta=1,
+                    ),
+                    connection_epoch=0,
+                )
+            )
+            self.assertTrue(runtime.identity_commit_pending)
+            self.assertFalse(
+                runtime.poll(
+                    args,
+                    fake_rtde(TpLoopState.ARMED, arm, consumed_seq=arm.command_seq),
+                    connection_epoch=0,
+                )
+            )
+            self.assertFalse(runtime.identity_commit_pending)
+
+    def test_arm_identity_commit_fails_closed_on_run_reconnect_or_timeout(self) -> None:
+        trial = make_trial()
+        prepared = make_prepared(trial)
+        arm = packet_for(trial, HostCommand.ARM)
+
+        def pending_runtime(directory: str) -> tuple[BridgeMailboxRuntime, object]:
+            path = Path(directory) / "command.json"
+            sink = AtomicCommandMailbox(path)
+            sink.send_command(arm, prepared_trial=prepared)
+            args = fake_bridge_args()
+            runtime = BridgeMailboxRuntime(path)
+            runtime.poll(
+                args,
+                fake_rtde(TpLoopState.READY_HOME, None, consumed_seq=0),
+                connection_epoch=0,
+            )
+            return runtime, args
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, args = pending_runtime(directory)
+            with self.assertRaisesRegex(MailboxError, "RUN before ARM identity commit"):
+                runtime.poll(
+                    args,
+                    fake_rtde(TpLoopState.RUN, arm, consumed_seq=0),
+                    connection_epoch=0,
+                )
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, args = pending_runtime(directory)
+            with self.assertRaisesRegex(MailboxError, "reconnected during"):
+                runtime.poll(
+                    args,
+                    fake_rtde(TpLoopState.ARMED, arm, consumed_seq=0),
+                    connection_epoch=1,
+                )
+        with tempfile.TemporaryDirectory() as directory:
+            runtime, args = pending_runtime(directory)
+            assert runtime._pending_arm_started_s is not None
+            runtime._pending_arm_started_s -= runtime.IDENTITY_COMMIT_TIMEOUT_S + 0.001
+            with self.assertRaisesRegex(MailboxError, "commit timed out"):
+                runtime.poll(
+                    args,
+                    fake_rtde(TpLoopState.ARMED, arm, consumed_seq=0),
+                    connection_epoch=0,
+                )
 
     def test_fresh_bridge_reattaches_run_and_wait_ack_from_mailbox_binding(self) -> None:
         trial = make_trial()

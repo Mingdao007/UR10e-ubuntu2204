@@ -256,9 +256,9 @@ end
             "typed return helpers",
         ),
         (
-            "  write_output_integer_register(30, consumed_command_seq)\nend",
-            "  write_output_integer_register(30, consumed_command_seq)\n  write_output_integer_register(31, codex_autotune_batch_row_echo)\n  write_output_integer_register(32, codex_autotune_return_kind_echo)\n  write_output_integer_register(33, codex_autotune_return_guard_mask)\n  write_output_integer_register(34, codex_autotune_logical_batch_sequence_echo)\nend",
-            "typed return echoes",
+            "  write_output_integer_register(24, campaign_epoch)\n  write_output_integer_register(25, trial_id)\n  write_output_integer_register(26, state)\n  write_output_integer_register(27, candidate_token)\n  write_output_integer_register(28, terminal_reason)\n  write_output_integer_register(29, execution_profile_id)\n  write_output_integer_register(30, consumed_command_seq)\nend",
+            "  write_output_integer_register(24, campaign_epoch)\n  write_output_integer_register(25, trial_id)\n  write_output_integer_register(27, candidate_token)\n  write_output_integer_register(28, terminal_reason)\n  write_output_integer_register(29, execution_profile_id)\n  write_output_integer_register(31, codex_autotune_batch_row_echo)\n  write_output_integer_register(32, codex_autotune_return_kind_echo)\n  write_output_integer_register(33, codex_autotune_return_guard_mask)\n  write_output_integer_register(34, codex_autotune_logical_batch_sequence_echo)\n  write_output_integer_register(26, state)\n  write_output_integer_register(30, consumed_command_seq)\nend",
+            "typed return echoes with consumed-sequence commit last",
         ),
         (
             "def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2):",
@@ -908,14 +908,79 @@ def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
     }
 
 
+def check_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
+    """Re-render canonical bytes and fail if an immutable output differs."""
+
+    script = build_package_script(stamp)
+    txt = build_txt(stamp)
+    urp = v1.build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
+    checks = validate_triplet(script, txt, urp, stamp)
+    triplet = {
+        ".script": script.encode("utf-8"),
+        ".txt": txt.encode("utf-8"),
+        ".urp": urp,
+    }
+    digests = {
+        suffix: hashlib.sha256(encoded).hexdigest()
+        for suffix, encoded in triplet.items()
+    }
+    manifest = {
+        "schema_version": 1,
+        "basename": PROGRAM_NAME,
+        "controller_directory": CONTROLLER_DIR,
+        "artifacts": [
+            {
+                "filename": f"{PROGRAM_NAME}{suffix}",
+                "source": f"{PROGRAM_NAME}{suffix}",
+                "sha256": digests[suffix],
+            }
+            for suffix in triplet
+        ],
+    }
+    expected = {
+        **{
+            f"{PROGRAM_NAME}{suffix}": encoded
+            for suffix, encoded in triplet.items()
+        },
+        f"{PROGRAM_NAME}.deploy-manifest.json": (
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8"),
+        f"{PROGRAM_NAME}.numeric-sanity.json": (
+            json.dumps(numeric_sanity(script), indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8"),
+    }
+    failures: list[str] = []
+    for filename, encoded in expected.items():
+        path = output_dir / filename
+        if path.is_symlink() or not path.is_file():
+            failures.append(f"{filename}:missing_or_unsafe")
+        elif path.read_bytes() != encoded:
+            failures.append(f"{filename}:byte_drift")
+    if failures:
+        raise ValueError("V3 TP generator --check failed: " + ", ".join(failures))
+    return {
+        "ok": True,
+        "program": PROGRAM_NAME,
+        "stamp": stamp,
+        "output_dir": str(output_dir),
+        "sha256": digests,
+        "checked_files": sorted(expected),
+        "checks": checks,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=LOCAL_PROGRAM_DIR)
     parser.add_argument("--stamp", default=None)
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
+    if args.check and args.stamp is None:
+        parser.error("--check requires the immutable --stamp input")
+    operation = check_triplet if args.check else write_triplet
     print(
         json.dumps(
-            write_triplet(args.output_dir, args.stamp or source_stamp()),
+            operation(args.output_dir, args.stamp or source_stamp()),
             indent=2,
             sort_keys=True,
         )

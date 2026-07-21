@@ -23,7 +23,10 @@ from step5d_autotune_v3.identity_layers import (  # noqa: E402
     release_basis_fingerprint,
     runtime_environment_fingerprint,
 )
-from step5d_autotune_v3.release_identity import ReleaseIdentity  # noqa: E402
+from step5d_autotune_v3.release_identity import (  # noqa: E402
+    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
+    ReleaseIdentity,
+)
 
 
 def _release(protocol: str = "v3_full_home_rolling_arm_v1") -> ReleaseIdentity:
@@ -54,7 +57,13 @@ def _release(protocol: str = "v3_full_home_rolling_arm_v1") -> ReleaseIdentity:
         source_fingerprints={"fixture/source.py": "5" * 64},
         generated_files={"fixture/generated.json": "6" * 64},
         compatibility_mirrors={"fixture/mirror.json": "7" * 64},
-        verification={"canonical_verifier": "independent_script_urp_v1"},
+        verification={
+            "canonical_verifier": "independent_script_urp_v1",
+            "repository_source_fingerprints": {
+                path: "8" * 64 for path in REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS
+            },
+            "repository_source_root_depth": 2,
+        },
     )
 
 

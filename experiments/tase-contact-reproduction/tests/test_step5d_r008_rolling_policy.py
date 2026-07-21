@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -41,7 +42,31 @@ from step5d_autotune_r008_policy import (  # noqa: E402
     recovery_batch,
 )
 from ur10e_experiment_runtime import BatchIdentity, BatchRow  # noqa: E402
-from ur10e_experiment_runtime.stage_adapters import control_candidate_uid  # noqa: E402
+from ur10e_experiment_runtime.candidate_identity import (  # noqa: E402
+    ControlCandidateUid,
+    OccurrenceUid,
+    TransportCandidateUid,
+)
+
+
+def control_candidate_uid(control):
+    return str(ControlCandidateUid.from_overlay(control))
+
+
+def _bind_control(rows):
+    return tuple(
+        row.bind_control_candidate_uid(
+            control_candidate_uid(
+                {
+                    "force_p_gain": row.candidate.force_p_gain,
+                    "force_i_gain": row.candidate.force_i_gain,
+                    "force_damping": row.candidate.force_damping,
+                    "orientation_ko": 0.4,
+                }
+            )
+        )
+        for row in rows
+    )
 
 
 def _evaluation(index: int, objective: float, *, eligible: bool = True) -> Evaluation:
@@ -176,21 +201,21 @@ def test_rolling_plan_persists_open_empty_and_typed_closure(tmp_path: Path) -> N
     assert empty.lifecycle.value == "OPEN_EMPTY"
     first = append_r008_batch(
         path,
-        occurrences=initialization_batch(1),
+        occurrences=_bind_control(initialization_batch(1)),
         source="formal-batch-a",
     )
     assert first.lifecycle.value == "OPEN_READY"
     with pytest.raises(ValueError, match="OPEN_EMPTY transition"):
         append_r008_batch(
             path,
-            occurrences=initialization_batch(2),
+            occurrences=_bind_control(initialization_batch(2)),
             source="premature-batch-b",
         )
     waiting = mark_rolling_plan_open_empty(path)
     assert waiting.lifecycle.value == "OPEN_EMPTY"
     second = append_r008_batch(
         path,
-        occurrences=initialization_batch(2),
+        occurrences=_bind_control(initialization_batch(2)),
         source="gp-update-batch-b",
     )
     assert second.batch_revisions == (1, 2)
@@ -201,6 +226,85 @@ def test_rolling_plan_persists_open_empty_and_typed_closure(tmp_path: Path) -> N
     )
     assert closed.lifecycle.value == "CLOSED_COMPLETE"
     assert closed.closure == {"reason": "plateau", "evidence_sha256": "e" * 64}
+
+
+def test_rolling_append_rejects_invalid_identity_without_replacing_plan(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "candidate_plan.json"
+    initialize_rolling_plan(path, campaign_id="campaign")
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match="domain-prefixed"):
+        append_r008_batch(
+            path,
+            occurrences=initialization_batch(1),
+            source="unbound-invalid",
+        )
+    assert path.read_bytes() == original
+    assert load_plan(path).lifecycle is campaign_runner.PlanLifecycle.OPEN_EMPTY
+
+    first = append_r008_batch(
+        path,
+        occurrences=_bind_control(initialization_batch(1)),
+        source="formal-batch-a",
+    )
+    mark_rolling_plan_open_empty(path)
+    before_duplicate = path.read_bytes()
+    next_rows = list(_bind_control(initialization_batch(2)))
+    duplicate = next_rows[0]
+    prior_transport = first.occurrences[0][0].transport_candidate_uid
+    next_rows[0] = SimpleNamespace(
+        logical_batch_sequence=duplicate.logical_batch_sequence,
+        row_index=duplicate.row_index,
+        plan_revision=duplicate.plan_revision,
+        candidate=duplicate.candidate,
+        occurrence_uid=duplicate.occurrence_uid,
+        transport_candidate_uid=prior_transport,
+        control_candidate_uid=duplicate.control_candidate_uid,
+        selection_role=duplicate.selection_role,
+        replicate_ordinal=duplicate.replicate_ordinal,
+    )
+    with pytest.raises(ValueError, match="transport UID"):
+        append_r008_batch(path, occurrences=next_rows, source="duplicate-transport")
+    assert path.read_bytes() == before_duplicate
+    assert load_plan(path).lifecycle is campaign_runner.PlanLifecycle.OPEN_EMPTY
+
+
+def test_configured_closure_durably_transitions_through_open_empty(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "candidate_plan.json"
+    initialize_rolling_plan(path, campaign_id="campaign")
+    ready = append_r008_batch(
+        path,
+        occurrences=_bind_control(initialization_batch(1)),
+        source="formal-batch-a",
+    )
+    monkeypatch.setattr(campaign_runner, "next_runtime_plan_row", lambda **_: None)
+    monkeypatch.setattr(
+        campaign_runner, "runtime_batch_verified_complete", lambda **_: True
+    )
+    real_close = campaign_runner.close_rolling_plan
+
+    def close_after_empty(*args, **kwargs):
+        assert load_plan(path).lifecycle is campaign_runner.PlanLifecycle.OPEN_EMPTY
+        return real_close(*args, **kwargs)
+
+    monkeypatch.setattr(campaign_runner, "close_rolling_plan", close_after_empty)
+    selected, closed = campaign_runner._wait_for_codex_candidate(
+        plan_path=path,
+        campaign_id="campaign",
+        supervisor=None,
+        coordinator=None,
+        bridge_csv=tmp_path / "not-read.csv",
+        campaign_root=tmp_path / "campaign",
+        previous_plan=ready,
+        timeout_s=1.0,
+        close_after_plan_revision=1,
+    )
+    assert selected is None
+    assert closed.lifecycle is campaign_runner.PlanLifecycle.CLOSED_COMPLETE
 
 
 def test_batch_identity_separates_occurrence_transport_and_control_namespaces() -> None:
@@ -280,6 +384,25 @@ def test_runtime_uid_namespaces_reject_substitution_and_equal_hashes() -> None:
             replicate_ordinal=1,
             control_candidate_uid=planned.control_candidate_uid,
         )
+
+
+def test_active_uid_factories_reject_raw_casts_and_cross_namespace_parsing() -> None:
+    with pytest.raises(TypeError, match="cannot wrap a raw digest"):
+        ControlCandidateUid("a" * 64)
+    control = ControlCandidateUid.parse(
+        control_candidate_uid(
+            {
+                "force_p_gain": 0.001,
+                "force_i_gain": 1e-5,
+                "force_damping": 7.0,
+                "orientation_ko": 0.4,
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="occurrence:v2"):
+        OccurrenceUid.parse(control)
+    with pytest.raises(ValueError, match="transport:v2"):
+        TransportCandidateUid.parse(control)
 
 
 def test_bo_gate_noise_and_terminal_policies_are_strict() -> None:

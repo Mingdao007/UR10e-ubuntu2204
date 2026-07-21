@@ -10,6 +10,7 @@ from enum import IntEnum
 from typing import TYPE_CHECKING, Any, Mapping
 
 from .identity import canonical_sha256
+from .candidate_identity import ControlCandidateUid
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -455,7 +456,11 @@ def normalize_trial_overlay(overlay: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("force P and damping must be positive")
     if normalized["force_i_gain"] < 0.0:
         raise ValueError("force I must be non-negative")
-    if normalized["control_candidate_uid"] != control_candidate_uid(normalized):
+    supplied_control_uid = ControlCandidateUid.parse(
+        normalized["control_candidate_uid"], allow_legacy=True
+    )
+    expected_digest = control_candidate_uid(normalized)
+    if supplied_control_uid.digest != expected_digest:
         raise ValueError("control_candidate_uid differs from the actual overlay")
     return normalized
 
@@ -599,7 +604,7 @@ class StageAutotuneAdapter:
             {
                 "source_id": "step5d_autotune_v1_campaign",
                 "artifact_path": "config/step5d_autotune_campaign_v1.json",
-                "sha256": "90f1c92ba3497bfdcb08f9154ba007c98c25b8d31cf0df24716c4d69e7d44c43",
+                "sha256": "70e6d4ef41a1427acbfcbff38b898b00d9ebf277547331d701f253b49d7a72ce",
                 "claim_class": "authoritative",
             },
             {

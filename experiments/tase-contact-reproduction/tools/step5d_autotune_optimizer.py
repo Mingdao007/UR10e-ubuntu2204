@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
 
 import numpy as np
+from ur10e_experiment_runtime.candidate_identity import ControlCandidateUid
 
 from step5d_autotune_contract import (
     LOG2_LATTICE_OCTAVE,
@@ -33,6 +34,7 @@ class OutcomeRecord:
     profile_id: str
     plant_epoch: int
     latest_trace_sha256: str | None = None
+    control_candidate_uid: ControlCandidateUid | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.candidate, ForceCandidate):
@@ -45,6 +47,21 @@ class OutcomeRecord:
             raise ValueError("plant_epoch must be a positive integer")
         if self.latest_trace_sha256 is not None:
             require_sha256("latest_trace_sha256", self.latest_trace_sha256)
+        if self.control_candidate_uid is not None:
+            try:
+                object.__setattr__(
+                    self,
+                    "control_candidate_uid",
+                    ControlCandidateUid.parse(self.control_candidate_uid),
+                )
+            except (TypeError, ValueError) as exc:
+                raise ValueError("observation control UID is invalid") from exc
+
+    @property
+    def optimizer_group_uid(self) -> str:
+        if self.control_candidate_uid is not None:
+            return str(self.control_candidate_uid)
+        return f"historical-parameter:v1:{self.candidate.candidate_uid}"
 
     @property
     def eligible(self) -> bool:
@@ -528,7 +545,7 @@ def replicate_noise_variances(
     anchor = anchor or ForceCandidate()
     grouped: dict[str, list[float]] = defaultdict(list)
     for item in trainable:
-        grouped[item.candidate.candidate_uid].append(item.objective)
+        grouped[item.optimizer_group_uid].append(item.objective)
 
     def sample_variance(values: Sequence[float]) -> float | None:
         if len(values) < 2:
@@ -536,7 +553,15 @@ def replicate_noise_variances(
         mean = sum(values) / len(values)
         return sum((value - mean) ** 2 for value in values) / (len(values) - 1)
 
-    anchor_variance = sample_variance(grouped.get(anchor.candidate_uid, ()))
+    anchor_groups = {
+        item.optimizer_group_uid
+        for item in trainable
+        if item.candidate == anchor
+    }
+    anchor_values = [
+        value for uid in anchor_groups for value in grouped.get(uid, ())
+    ]
+    anchor_variance = sample_variance(anchor_values)
     if anchor_variance is None:
         repeated = [
             value
@@ -554,7 +579,7 @@ def replicate_noise_variances(
         )
         for uid, values in grouped.items()
     }
-    return tuple(group_variance[item.candidate.candidate_uid] for item in trainable)
+    return tuple(group_variance[item.optimizer_group_uid] for item in trainable)
 
 
 def cuda_botorch_joint_candidates(

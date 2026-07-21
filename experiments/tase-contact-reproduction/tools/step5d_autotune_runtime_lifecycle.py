@@ -60,6 +60,7 @@ from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
 from step5d_autotune_batch_plan import (  # noqa: E402
     CandidateBatchPlan,
     RuntimePlanRow,
+    SCHEMA_VERSION_ROLLING_V2,
 )
 from step5d_autotune_r008_policy import (  # noqa: E402
     ControlCandidateUid,
@@ -2072,6 +2073,9 @@ def prepare_batch_attempt_context(
     if stopping_bound_fingerprint is not None:
         _sha256("stopping_bound_fingerprint", stopping_bound_fingerprint)
     rolling = any(plan.occurrences)
+    allow_legacy_identity = (
+        plan.payload.get("schema_version") != SCHEMA_VERSION_ROLLING_V2
+    )
     if rolling:
         batch_index = 0
         row_index = 0
@@ -2100,12 +2104,16 @@ def prepare_batch_attempt_context(
                 logical_batch_sequence=sequence,
                 row_index=next_row,
                 plan_revision=plan.batch_revisions[sequence - 1],
-                occurrence_uid=OccurrenceUid(occurrence.occurrence_uid),
-                transport_candidate_uid=TransportCandidateUid(
-                    occurrence.transport_candidate_uid
+                occurrence_uid=OccurrenceUid.parse(
+                    occurrence.occurrence_uid, allow_legacy=allow_legacy_identity
                 ),
-                control_candidate_uid=ControlCandidateUid(
-                    occurrence.control_candidate_uid
+                transport_candidate_uid=TransportCandidateUid.parse(
+                    occurrence.transport_candidate_uid,
+                    allow_legacy=allow_legacy_identity,
+                ),
+                control_candidate_uid=ControlCandidateUid.parse(
+                    occurrence.control_candidate_uid,
+                    allow_legacy=allow_legacy_identity,
                 ),
                 candidate=occurrence.candidate,
             )
@@ -2139,12 +2147,16 @@ def prepare_batch_attempt_context(
                 logical_batch_sequence=batch_index,
                 row_index=index,
                 plan_revision=plan.batch_revisions[batch_index - 1],
-                occurrence_uid=OccurrenceUid(occurrence.occurrence_uid),
-                transport_candidate_uid=TransportCandidateUid(
-                    occurrence.transport_candidate_uid
+                occurrence_uid=OccurrenceUid.parse(
+                    occurrence.occurrence_uid, allow_legacy=allow_legacy_identity
                 ),
-                control_candidate_uid=ControlCandidateUid(
-                    occurrence.control_candidate_uid
+                transport_candidate_uid=TransportCandidateUid.parse(
+                    occurrence.transport_candidate_uid,
+                    allow_legacy=allow_legacy_identity,
+                ),
+                control_candidate_uid=ControlCandidateUid.parse(
+                    occurrence.control_candidate_uid,
+                    allow_legacy=allow_legacy_identity,
                 ),
                 candidate=occurrence.candidate,
             )
@@ -2328,7 +2340,7 @@ def next_runtime_plan_row(
 ) -> RuntimePlanRow | None:
     """Return the exact next rolling occurrence with all three UID namespaces."""
 
-    if not plan.occurrences:
+    if not any(plan.occurrences):
         raise ValueError("RuntimePlanRow selection requires a rolling candidate plan")
     candidate = next_runtime_batch_candidate(plan=plan, campaign_root=campaign_root)
     if candidate is None:
@@ -2361,15 +2373,22 @@ def next_runtime_plan_row(
     occurrence = plan.occurrences[sequence - 1][row_index - 1]
     if occurrence.candidate != candidate:
         raise ValueError("rolling selector control candidate differs from occurrence")
+    allow_legacy_identity = plan.payload.get("schema_version") != SCHEMA_VERSION_ROLLING_V2
     return RuntimePlanRow(
         logical_batch_sequence=sequence,
         row_index=row_index,
         plan_revision=plan.batch_revisions[sequence - 1],
-        occurrence_uid=OccurrenceUid(occurrence.occurrence_uid),
-        transport_candidate_uid=TransportCandidateUid(
-            occurrence.transport_candidate_uid
+        occurrence_uid=OccurrenceUid.parse(
+            occurrence.occurrence_uid, allow_legacy=allow_legacy_identity
         ),
-        control_candidate_uid=ControlCandidateUid(occurrence.control_candidate_uid),
+        transport_candidate_uid=TransportCandidateUid.parse(
+            occurrence.transport_candidate_uid,
+            allow_legacy=allow_legacy_identity,
+        ),
+        control_candidate_uid=ControlCandidateUid.parse(
+            occurrence.control_candidate_uid,
+            allow_legacy=allow_legacy_identity,
+        ),
         candidate=occurrence.candidate,
     )
 

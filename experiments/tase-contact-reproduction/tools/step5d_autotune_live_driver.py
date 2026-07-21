@@ -19,9 +19,16 @@ import os
 import re
 import secrets
 import stat
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
+
+from ur10e_experiment_runtime.candidate_identity import (
+    ControlCandidateUid,
+    OccurrenceUid,
+    TransportCandidateUid,
+)
 
 from step5d_autotune_contract import (
     CaptureArtifactPaths,
@@ -236,6 +243,10 @@ class RuntimeTrialBinding:
     trial_overlay: Mapping[str, Any] | None = None
     batch_row_index: int | None = None
     logical_batch_sequence: int | None = None
+    occurrence_uid: OccurrenceUid | None = None
+    transport_candidate_uid: TransportCandidateUid | None = None
+    control_candidate_uid: ControlCandidateUid | None = None
+    trial_overlay_sha256: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.trial_uid, str) or not _SHA256_RE.fullmatch(self.trial_uid):
@@ -270,6 +281,41 @@ class RuntimeTrialBinding:
                 self.logical_batch_sequence,
                 positive=True,
             )
+        identity_values = (
+            self.occurrence_uid,
+            self.transport_candidate_uid,
+            self.control_candidate_uid,
+            self.trial_overlay_sha256,
+        )
+        if self.logical_batch_sequence is not None and not all(
+            value is not None for value in identity_values
+        ):
+            raise MailboxError("rolling runtime binding requires complete UID closure")
+        if any(value is not None for value in identity_values):
+            if not all(value is not None for value in identity_values):
+                raise MailboxError("rolling runtime UID closure is incomplete")
+            try:
+                object.__setattr__(
+                    self,
+                    "occurrence_uid",
+                    OccurrenceUid.parse(self.occurrence_uid),
+                )
+                object.__setattr__(
+                    self,
+                    "transport_candidate_uid",
+                    TransportCandidateUid.parse(self.transport_candidate_uid),
+                )
+                object.__setattr__(
+                    self,
+                    "control_candidate_uid",
+                    ControlCandidateUid.parse(self.control_candidate_uid),
+                )
+            except (TypeError, ValueError) as exc:
+                raise MailboxError(f"rolling runtime UID closure is invalid: {exc}") from exc
+            if not isinstance(self.trial_overlay_sha256, str) or not _SHA256_RE.fullmatch(
+                self.trial_overlay_sha256
+            ):
+                raise MailboxError("rolling normalized overlay SHA is invalid")
 
     def payload(self) -> dict[str, Any]:
         payload = {
@@ -297,6 +343,13 @@ class RuntimeTrialBinding:
             payload["batch_row_index"] = self.batch_row_index
         if self.logical_batch_sequence is not None:
             payload["logical_batch_sequence"] = self.logical_batch_sequence
+        if self.occurrence_uid is not None:
+            payload.update(
+                occurrence_uid=self.occurrence_uid,
+                transport_candidate_uid=self.transport_candidate_uid,
+                control_candidate_uid=self.control_candidate_uid,
+                trial_overlay_sha256=self.trial_overlay_sha256,
+            )
         return payload
 
 
@@ -422,6 +475,12 @@ def _binding_from_prepared(
         logical_batch_sequence=(
             packet.logical_batch_sequence or None
         ),
+        occurrence_uid=getattr(prepared_trial, "occurrence_uid", None),
+        transport_candidate_uid=getattr(
+            prepared_trial, "transport_candidate_uid", None
+        ),
+        control_candidate_uid=getattr(prepared_trial, "control_candidate_uid", None),
+        trial_overlay_sha256=getattr(prepared_trial, "trial_overlay_sha256", None),
     )
     if any(
         (
@@ -478,7 +537,7 @@ def _binding_from_prepared(
             "trial_overlay_sha256",
             None,
         )
-        if binding.batch_row_index is not None and (
+        if binding.logical_batch_sequence is not None and (
             expected_overlay_sha256 is None
             or normalized_overlay_sha256(
                 launch_profile,
@@ -487,6 +546,11 @@ def _binding_from_prepared(
             != expected_overlay_sha256
         ):
             raise MailboxError("V3 rolling overlay SHA differs from selected plan row")
+        if binding.control_candidate_uid is not None and (
+            normalized["control_candidate_uid"] != binding.control_candidate_uid
+            or expected_overlay_sha256 != binding.trial_overlay_sha256
+        ):
+            raise MailboxError("V3 rolling overlay differs from UID closure")
         object.__setattr__(binding, "trial_overlay", normalized)
     return binding
 
@@ -672,6 +736,10 @@ def _mailbox_command_from_payload(
         "trial_overlay",
         "batch_row_index",
         "logical_batch_sequence",
+        "occurrence_uid",
+        "transport_candidate_uid",
+        "control_candidate_uid",
+        "trial_overlay_sha256",
     }
     if not expected_runtime.issubset(runtime_fields) or not runtime_fields.issubset(
         expected_runtime | optional_runtime
@@ -734,6 +802,10 @@ def _mailbox_command_from_payload(
                 positive=True,
             )
         ),
+        occurrence_uid=raw_runtime.get("occurrence_uid"),
+        transport_candidate_uid=raw_runtime.get("transport_candidate_uid"),
+        control_candidate_uid=raw_runtime.get("control_candidate_uid"),
+        trial_overlay_sha256=raw_runtime.get("trial_overlay_sha256"),
     )
     if binding.trial_overlay is not None:
         from step5d_autotune_v3.runtime_profile import (
@@ -751,6 +823,19 @@ def _mailbox_command_from_payload(
             raise MailboxError(f"V3 trial overlay is invalid: {exc}") from exc
         if normalized_overlay["execution_profile_id"] != binding.profile.profile_id:
             raise MailboxError("V3 trial overlay identity differs from runtime binding")
+        if binding.control_candidate_uid is not None:
+            from step5d_autotune_v3.runtime_profile import normalized_overlay_sha256
+
+            if (
+                normalized_overlay["control_candidate_uid"]
+                != binding.control_candidate_uid
+                or normalized_overlay_sha256(
+                    load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+                    normalized_overlay,
+                )
+                != binding.trial_overlay_sha256
+            ):
+                raise MailboxError("V3 trial overlay differs from runtime UID closure")
         object.__setattr__(binding, "trial_overlay", normalized_overlay)
     validate_execution_profile_binding(
         binding.profile,
@@ -821,6 +906,7 @@ class BridgeMailboxRuntime:
     """Apply fresh mailbox commands to one persistent bridge process."""
 
     DEFAULT_COMPLETION_PROTOCOL = "legacy_ack_bundle_v1"
+    IDENTITY_COMMIT_TIMEOUT_S = 0.250
 
     def __init__(
         self,
@@ -855,6 +941,33 @@ class BridgeMailboxRuntime:
         self.last_command: MailboxCommand | None = None
         self.last_command_seq = 0
         self.connection_epoch: int | None = None
+        self._pending_arm_seq: int | None = None
+        self._pending_arm_previous_seq: int | None = None
+        self._pending_arm_started_s: float | None = None
+        self._pending_arm_connection_epoch: int | None = None
+
+    @property
+    def identity_commit_pending(self) -> bool:
+        return self._pending_arm_seq is not None
+
+    def _begin_arm_identity_commit(
+        self,
+        command: MailboxCommand,
+        snapshot: TpPacket,
+        *,
+        connection_epoch: int,
+    ) -> None:
+        sequence = command.binding.arm_command_seq
+        if snapshot.consumed_command_seq > sequence:
+            raise MailboxError("TP consumed a command newer than the pending ARM")
+        if snapshot.consumed_command_seq == sequence:
+            if not _tp_identity_matches(command.packet, snapshot):
+                raise MailboxError("TP committed ARM sequence with a different identity")
+            return
+        self._pending_arm_seq = sequence
+        self._pending_arm_previous_seq = snapshot.consumed_command_seq
+        self._pending_arm_started_s = time.monotonic()
+        self._pending_arm_connection_epoch = connection_epoch
 
     @staticmethod
     def _arm_from_binding(command: MailboxCommand) -> MailboxCommand:
@@ -951,6 +1064,7 @@ class BridgeMailboxRuntime:
         snapshot: TpPacket,
         *,
         durable_command_seq: int,
+        connection_epoch: int,
     ) -> None:
         if self.active is None:
             pending_retry_arm = (
@@ -984,6 +1098,39 @@ class BridgeMailboxRuntime:
             TpLoopState.READY_HOME_NEXT,
             TpLoopState.FAULT,
         }
+        if self._pending_arm_seq is not None:
+            pending_seq = self._pending_arm_seq
+            previous_seq = self._pending_arm_previous_seq
+            started_s = self._pending_arm_started_s
+            if connection_epoch != self._pending_arm_connection_epoch:
+                raise MailboxError("RTDE reconnected during TP ARM identity commit")
+            if previous_seq is None or started_s is None:
+                raise MailboxError("pending TP ARM identity commit is incomplete")
+            if snapshot.consumed_command_seq < previous_seq:
+                raise MailboxError("TP consumed-command sequence regressed during ARM commit")
+            if snapshot.consumed_command_seq > pending_seq:
+                raise MailboxError("TP consumed-command sequence overshot pending ARM")
+            if snapshot.consumed_command_seq < pending_seq:
+                if time.monotonic() - started_s > self.IDENTITY_COMMIT_TIMEOUT_S:
+                    raise MailboxError("TP ARM identity commit timed out")
+                allowed_partial_states = {
+                    TpLoopState.READY_HOME,
+                    TpLoopState.READY_HOME_NEXT,
+                    TpLoopState.ARMED,
+                }
+                if self.completion_protocol == "v3_direct_arm_v1":
+                    allowed_partial_states.add(TpLoopState.READY_NEAR)
+                if snapshot.state not in allowed_partial_states:
+                    raise MailboxError("TP entered RUN before ARM identity commit")
+                return
+            if snapshot.state not in identity_states or not _tp_identity_matches(
+                self.active.packet, snapshot
+            ):
+                raise MailboxError("TP committed ARM sequence with a different identity")
+            self._pending_arm_seq = None
+            self._pending_arm_previous_seq = None
+            self._pending_arm_started_s = None
+            self._pending_arm_connection_epoch = None
         if snapshot.state in identity_states and not _tp_identity_matches(
             self.active.packet, snapshot
         ):
@@ -1137,6 +1284,7 @@ class BridgeMailboxRuntime:
         if (
             snapshot.state is TpLoopState.READY_HOME
             and command.packet.command is HostCommand.ARM
+            and self._pending_arm_seq is None
         ):
             self.campaign_home_reference = (
                 CampaignHomeReference.capture_or_verify(
@@ -1155,6 +1303,7 @@ class BridgeMailboxRuntime:
         self._reconcile_snapshot(
             snapshot,
             durable_command_seq=max(self.last_command_seq, command.packet.command_seq),
+            connection_epoch=connection_epoch,
         )
         self.connection_epoch = connection_epoch
         if consumed_latest:
@@ -1167,6 +1316,11 @@ class BridgeMailboxRuntime:
         if command.packet.command is HostCommand.ARM:
             self._apply_arm_runtime(args, command.binding, arming_context)
             self.active = command
+            self._begin_arm_identity_commit(
+                command,
+                snapshot,
+                connection_epoch=connection_epoch,
+            )
         args.step5d_autotune_handshake = command.handshake
         self.last_command = command
         self.last_command_seq = command.packet.command_seq
@@ -2603,6 +2757,7 @@ def finalize_produced_bundle_direct(
     source_fingerprint_post: str | None = None,
     config_fingerprint_post: str | None = None,
     bundle_committed: Callable[[ImmutableBundleStoreReceipt], None] | None = None,
+    control_candidate_uid: str | None = None,
 ) -> DirectBundleResult:
     """Production r006 seam: sealed CSV -> bundle -> fresh cold-read, no ACK."""
 
@@ -2643,6 +2798,7 @@ def finalize_produced_bundle_direct(
         evaluation=evaluation,
         safe_closure=closure,
         bundle_path=bundle_path,
+        control_candidate_uid=control_candidate_uid,
     )
     from step5d_autotune_store import cold_read_resume_history_subprocess
 

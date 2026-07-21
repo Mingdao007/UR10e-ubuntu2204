@@ -789,6 +789,7 @@ class CampaignSupervisor:
         safe_closure: ClosureEvidence,
         bundle_path: Path | None,
         failure_cause: str = "evidence",
+        control_candidate_uid: str | None = None,
     ) -> CloseDecision:
         if self.phase is not CampaignPhase.TRIAL_ACTIVE or self._active is None:
             raise RuntimeError("no active trial can be closed")
@@ -844,6 +845,7 @@ class CampaignSupervisor:
             profile_id=trial.execution_profile.profile_id,
             plant_epoch=trial.plant_epoch,
             latest_trace_sha256=manifest.csv_sha256,
+            control_candidate_uid=control_candidate_uid,
         )
         self.outcome_timeline.append(outcome)
         profile_diagnostic = self._is_profile_diagnostic(outcome)

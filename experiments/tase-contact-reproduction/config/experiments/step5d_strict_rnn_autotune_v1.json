@@ -76,7 +76,7 @@
     {
       "source_id": "step5d_autotune_v1_campaign",
       "artifact_path": "config/step5d_autotune_campaign_v1.json",
-      "sha256": "90f1c92ba3497bfdcb08f9154ba007c98c25b8d31cf0df24716c4d69e7d44c43",
+      "sha256": "70e6d4ef41a1427acbfcbff38b898b00d9ebf277547331d701f253b49d7a72ce",
       "claim_class": "authoritative"
     },
     {
