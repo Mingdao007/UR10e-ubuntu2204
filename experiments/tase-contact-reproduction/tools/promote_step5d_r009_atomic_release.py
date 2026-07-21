@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Promote one fresh r009 GET into an immutable rolling-v1 release.
+"""Promote one fresh r010 GET into an immutable rolling-v1 release.
 
 This owner is filesystem-only.  The caller performs upload/readback first; this
 module never loads or starts a TP program, opens a bridge, sends ARM, or moves
@@ -21,6 +21,7 @@ from step5d_autotune_v3.atomic_release import (
     canonical_bytes,
 )
 from step5d_autotune_v3.release_identity import (
+    ACTIVE_TP_PROGRAM_ID,
     CONTROL_PROFILE_ID,
     RELEASE_MANIFEST_SCHEMA,
     RELEASE_STAGE_ID,
@@ -28,24 +29,26 @@ from step5d_autotune_v3.release_identity import (
     ROLLING_EXECUTION_PROFILE_INTEGER_ID,
     ROLLING_NORMAL_MAX_RATE_RAD_S,
     ROLLING_PROTOCOL,
+    SAFETY_ENVELOPE_PATH,
     load_current_release,
 )
 from step5d_autotune_v3.release_verifier import verify_release_manifest
 from step5d_autotune_v3.profile import contract_sha256
+from step5d_autotune_v3.runtime_identity import RuntimeIdentityError, bind_final_script
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PROGRAM = "step5d_strict_rnn_autotune_v3_r009"
+PROGRAM = ACTIVE_TP_PROGRAM_ID
 TARGET_DIR = "/programs/andyl/kunwei/step5"
 PACKAGE_DIR = Path("programs/step5/step5d")
 EXTENSIONS = (".script", ".txt", ".urp")
 READBACK = Path("config/step5d_autotune_controller_readback_v3.json")
 RAW_READBACK = Path(
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r009/"
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r010/"
     "controller_readback.json"
 )
 LOCAL_CANDIDATE = Path(
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r009/"
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r010/"
     "local_candidate.json"
 )
 STATIC_PROJECTIONS = (
@@ -87,6 +90,7 @@ SOURCE_INPUTS = (
     Path("tools/step5d_autotune_v3/profile.py"),
     Path("tools/step5d_autotune_v3/release_identity.py"),
     Path("tools/step5d_autotune_v3/release_verifier.py"),
+    Path("tools/step5d_autotune_v3/runtime_identity.py"),
     Path("tools/step5d_autotune_v3/readiness.py"),
     Path("tools/step5d_autotune_v3/runtime_profile.py"),
     Path("tools/step5d_autotune_v3/state.py"),
@@ -102,10 +106,8 @@ REPOSITORY_SOURCE_INPUTS = (
     ),
 )
 STATIC_PROJECTION_SHA256 = {
-    "config/current_stage.json": "80932661dcffedafc19b4beb41468a4303be40173501260e62c7994409a32ff8",
-    "config/step5_stage_table.json": "2df8e9dc6143a8f98539a26319d66a9267cb502df2a443aa25b1a3c5ee3490b2",
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "3464762b1db1e63f60e22c890dd25b7cac54a15abe0ff6c810a79755e9151166",
+    "config/step5d/v3_active_surface.json": "539579b7afdf6f9055d937b7bd4b386acf6ddb07c40e4194ecc27c65d24ec334",
 }
 CONTRACT_STATIC_SHA256 = "a4b5477a9e23bdc1dea6d016d4d45713c0f852006db4c68465dcc5b1f21facec"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
@@ -158,6 +160,166 @@ def _static_projection(root: Path, relative: Path) -> dict[str, Any]:
             f"canonical static projection input drifted: {relative.as_posix()}"
         )
     return _load(root / relative)
+
+
+def _object(value: Any, role: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise R009PromotionError(f"canonical {role} object is missing")
+    return value
+
+
+def _require_keys(value: Mapping[str, Any], required: set[str], role: str) -> None:
+    missing = sorted(required - set(value))
+    if missing:
+        raise R009PromotionError(f"canonical {role} fields are missing: {missing}")
+
+
+def _render_current_stage(
+    source: Mapping[str, Any],
+    *,
+    triplet_sha256: Mapping[str, str],
+    deploy_manifest_sha256: str,
+    numeric_sanity_sha256: str,
+    readback_sha256: str,
+) -> dict[str, Any]:
+    """Rewrite only selected-release truth; retained historical evidence stays frozen."""
+
+    base = json.loads(json.dumps(source, allow_nan=False))
+    _require_keys(
+        base,
+        {
+            "controller_readback_manifest",
+            "controller_readback_manifest_sha256",
+            "controller_script",
+            "controller_target",
+            "delivery_manifest",
+            "evidence",
+            "local_candidate",
+            "local_triplet",
+            "program",
+            "readiness",
+            "sha256",
+            "status",
+        },
+        "current-stage selected release",
+    )
+    local_triplet = (PACKAGE_DIR / PROGRAM).as_posix()
+    controller_target = str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.urp")
+    controller_script = str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.script")
+    base.update(
+        {
+            "controller_readback_manifest": READBACK.as_posix(),
+            "controller_readback_manifest_sha256": readback_sha256,
+            "controller_readback_verified_for_selected_triplet": True,
+            "controller_script": controller_script,
+            "controller_target": controller_target,
+            "delivery_manifest": READBACK.as_posix(),
+            "local_triplet": local_triplet,
+            "sha256": dict(triplet_sha256),
+            "status": "step5d_autotune_v3_r010_controller_readback_verified",
+        }
+    )
+    evidence = _object(base.get("evidence"), "current-stage evidence")
+    evidence["sha256"] = dict(triplet_sha256)
+    local_candidate = _object(
+        base.get("local_candidate"), "current-stage local candidate"
+    )
+    local_candidate.update(
+        {
+            "controller_readback_verified": True,
+            "controller_uploaded": True,
+            "disposition": "controller_readback_verified_promoted_current",
+            "deploy_manifest_sha256": deploy_manifest_sha256,
+            "manifest": LOCAL_CANDIDATE.as_posix(),
+            "numeric_sanity_sha256": numeric_sanity_sha256,
+            "program": PROGRAM,
+            "triplet_sha256": dict(triplet_sha256),
+        }
+    )
+    readiness = _object(base.get("readiness"), "current-stage readiness")
+    readiness["host_runtime_disposition"] = (
+        "verified_r010_full_home_rolling_production_chain_offline"
+    )
+    return base
+
+
+def _render_stage_table(
+    source: Mapping[str, Any],
+    *,
+    triplet_sha256: Mapping[str, str],
+    deploy_manifest_sha256: str,
+    numeric_sanity_sha256: str,
+    readback_sha256: str,
+    fresh_controller_checked_at: str,
+) -> dict[str, Any]:
+    base = json.loads(json.dumps(source, allow_nan=False))
+    stages = base.get("stages")
+    if not isinstance(stages, list):
+        raise R009PromotionError("canonical stage-table rows are missing")
+    rows = [
+        row
+        for row in stages
+        if isinstance(row, dict) and row.get("id") == RELEASE_STAGE_ID
+    ]
+    if len(rows) != 1:
+        raise R009PromotionError("canonical selected stage-table row is not unique")
+    row = rows[0]
+    _require_keys(
+        row,
+        {"current_binding", "operator_lifecycle", "package_delivery"},
+        "selected stage-table row",
+    )
+    local_triplet = (PACKAGE_DIR / PROGRAM).as_posix()
+    controller_target = str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.urp")
+    current_binding = _object(row.get("current_binding"), "stage current binding")
+    current_binding["controller_target"] = controller_target
+    operator = _object(row.get("operator_lifecycle"), "stage operator lifecycle")
+    operator["expected_program"] = controller_target
+    package = _object(row.get("package_delivery"), "stage package delivery")
+    _require_keys(
+        package,
+        {
+            "controller_readback_manifest",
+            "controller_readback_manifest_sha256",
+            "controller_target",
+            "local_candidate",
+            "local_triplet",
+            "program_basename",
+            "sha256",
+            "tp_fingerprint",
+        },
+        "stage package delivery",
+    )
+    package.update(
+        {
+            "controller_readback_manifest": READBACK.as_posix(),
+            "controller_readback_manifest_sha256": readback_sha256,
+            "controller_readback_verified": True,
+            "controller_target": controller_target,
+            "fresh_controller_sha_at": fresh_controller_checked_at,
+            "local_triplet": local_triplet,
+            "program_basename": PROGRAM,
+            "sha256": dict(triplet_sha256),
+            "status": "controller_readback_verified",
+            "tp_fingerprint": deploy_manifest_sha256,
+        }
+    )
+    local_candidate = _object(
+        package.get("local_candidate"), "stage package local candidate"
+    )
+    local_candidate.update(
+        {
+            "controller_readback_verified": True,
+            "controller_uploaded": True,
+            "deploy_manifest_sha256": deploy_manifest_sha256,
+            "local_triplet": local_triplet,
+            "numeric_sanity_sha256": numeric_sanity_sha256,
+            "program_basename": PROGRAM,
+            "sha256": dict(triplet_sha256),
+            "status": "controller_readback_verified",
+        }
+    )
+    return base
 
 
 def _render_contract(
@@ -375,6 +537,32 @@ def compose_release(
     numeric_source = artifact_dir / f"{PROGRAM}.numeric-sanity.json"
     deploy_sha = _sha256(deploy_source)
     numeric_sha = _sha256(numeric_source)
+    try:
+        _, tp_runtime_identity = bind_final_script(
+            (artifact_dir / f"{PROGRAM}.script").read_text(encoding="utf-8"),
+            program_id=PROGRAM,
+            protocol_id=ROLLING_PROTOCOL,
+        )
+    except (OSError, UnicodeError, RuntimeIdentityError) as exc:
+        raise R009PromotionError(f"TP runtime identity verification failed: {exc}") from exc
+    deploy_document = _load(deploy_source)
+    expected_deploy_artifacts = [
+        {
+            "filename": f"{PROGRAM}{extension}",
+            "source": f"{PROGRAM}{extension}",
+            "sha256": triplet_sha[extension],
+        }
+        for extension in EXTENSIONS
+    ]
+    if (
+        deploy_document.get("schema_version") != 2
+        or deploy_document.get("basename") != PROGRAM
+        or deploy_document.get("controller_directory") != TARGET_DIR
+        or deploy_document.get("artifacts") != expected_deploy_artifacts
+        or deploy_document.get("tp_runtime_identity") != tp_runtime_identity
+        or tp_runtime_identity["script_artifact_sha256"] != triplet_sha[".script"]
+    ):
+        raise R009PromotionError("deploy manifest TP runtime identity binding differs")
     canonical_readback = _pretty(
         _canonical_readback(
             upload,
@@ -412,6 +600,7 @@ def compose_release(
         readback_sha256=readback_sha,
     )
     contract = _pretty(contract_document)
+    contract_digest = _sha256_bytes(contract)
     bundle_files[contract_relative.as_posix()] = contract
     bundle_files[launch_relative.as_posix()] = _pretty(
         _render_launch_profile(
@@ -421,9 +610,28 @@ def compose_release(
     )
     for relative in STATIC_PROJECTIONS:
         if relative not in {contract_relative, launch_relative}:
-            bundle_files[relative.as_posix()] = _pretty(
-                _static_projection(root, relative)
-            )
+            if relative == Path("config/current_stage.json"):
+                projection = _render_current_stage(
+                    _load(root / relative),
+                    triplet_sha256=triplet_sha,
+                    deploy_manifest_sha256=deploy_sha,
+                    numeric_sanity_sha256=numeric_sha,
+                    readback_sha256=readback_sha,
+                )
+            elif relative == Path("config/step5_stage_table.json"):
+                projection = _render_stage_table(
+                    _load(root / relative),
+                    triplet_sha256=triplet_sha,
+                    deploy_manifest_sha256=deploy_sha,
+                    numeric_sanity_sha256=numeric_sha,
+                    readback_sha256=readback_sha,
+                    fresh_controller_checked_at=upload[
+                        "fresh_controller_checked_at"
+                    ],
+                )
+            else:
+                projection = _static_projection(root, relative)
+            bundle_files[relative.as_posix()] = _pretty(projection)
 
     generated_files = {
         relative: _sha256_bytes(bundle_files[relative])
@@ -468,6 +676,11 @@ def compose_release(
             "triplet_sha256": dict(triplet_sha),
             "fresh_get": True,
         },
+        "tp_runtime_identity": tp_runtime_identity,
+        "safety_envelope": {
+            "path": SAFETY_ENVELOPE_PATH,
+            "sha256": contract_digest,
+        },
         "runtime_policy": {
             "candidate_plan_schema": "step5d_autotune_rolling_batch_plan_v2",
             "plan_lifecycle": ["OPEN_READY", "OPEN_EMPTY", "CLOSED_COMPLETE"],
@@ -476,6 +689,8 @@ def compose_release(
             "tp_identity_commit_register": 30,
             "tp_identity_commit_timeout_s": 0.25,
             "tp_state_write_order": [24, 25, 27, 28, 29, 31, 32, 33, 34, 26, 30],
+            "tp_runtime_identity_registers": [35, 36, 37],
+            "tp_runtime_identity_write_order": [35, 36, 37],
             "completion_state": 77,
             "complete_command": 4,
             "terminal_scope": "bridge_start_ready_no_arm",
@@ -501,7 +716,7 @@ def compose_release(
         "generated_files": generated_files,
         "compatibility_mirrors": compatibility_mirrors,
         "verification": {
-            "canonical_verifier": "independent_script_urp_v1",
+            "canonical_verifier": "independent_script_urp_v2",
             "staged_bytes_required": True,
             "numeric_sanity_is_expected_truth": False,
             "pointer_switched_last": True,
@@ -597,5 +812,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except (OSError, R009PromotionError, ValueError) as exc:
-        print(f"r009 atomic promotion blocked: {exc}", file=__import__("sys").stderr)
+        print(f"r010 atomic promotion blocked: {exc}", file=__import__("sys").stderr)
         raise SystemExit(2)

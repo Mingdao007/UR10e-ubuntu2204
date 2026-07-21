@@ -14,7 +14,7 @@ import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import build_step5d_autotune_tp as v1
 
@@ -25,8 +25,17 @@ if str(RUNTIME_SRC) not in sys.path:
     sys.path.insert(0, str(RUNTIME_SRC))
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+from step5d_autotune_v3.release_identity import ROLLING_PROTOCOL
+from step5d_autotune_v3.runtime_identity import (
+    RuntimeIdentityError,
+    TpRuntimeIdentity,
+    bind_final_script,
+    derive_runtime_identity,
+    runtime_identity_assignment_block,
+)
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r009"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r010"
+PROTOCOL_ID = ROLLING_PROTOCOL
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
@@ -257,7 +266,7 @@ end
         ),
         (
             "  write_output_integer_register(24, campaign_epoch)\n  write_output_integer_register(25, trial_id)\n  write_output_integer_register(26, state)\n  write_output_integer_register(27, candidate_token)\n  write_output_integer_register(28, terminal_reason)\n  write_output_integer_register(29, execution_profile_id)\n  write_output_integer_register(30, consumed_command_seq)\nend",
-            "  write_output_integer_register(24, campaign_epoch)\n  write_output_integer_register(25, trial_id)\n  write_output_integer_register(27, candidate_token)\n  write_output_integer_register(28, terminal_reason)\n  write_output_integer_register(29, execution_profile_id)\n  write_output_integer_register(31, codex_autotune_batch_row_echo)\n  write_output_integer_register(32, codex_autotune_return_kind_echo)\n  write_output_integer_register(33, codex_autotune_return_guard_mask)\n  write_output_integer_register(34, codex_autotune_logical_batch_sequence_echo)\n  write_output_integer_register(26, state)\n  write_output_integer_register(30, consumed_command_seq)\nend",
+            "  codex_step5d_publish_runtime_identity()\n  write_output_integer_register(24, campaign_epoch)\n  write_output_integer_register(25, trial_id)\n  write_output_integer_register(27, candidate_token)\n  write_output_integer_register(28, terminal_reason)\n  write_output_integer_register(29, execution_profile_id)\n  write_output_integer_register(31, codex_autotune_batch_row_echo)\n  write_output_integer_register(32, codex_autotune_return_kind_echo)\n  write_output_integer_register(33, codex_autotune_return_guard_mask)\n  write_output_integer_register(34, codex_autotune_logical_batch_sequence_echo)\n  write_output_integer_register(26, state)\n  write_output_integer_register(30, consumed_command_seq)\nend",
             "typed return echoes with consumed-sequence commit last",
         ),
         (
@@ -453,8 +462,22 @@ def _remove_batch_lifecycle(source: str) -> str:
     return result
 
 
-def render_script() -> str:
-    parent = v1.render_script()
+def _runtime_identity_header(identity: TpRuntimeIdentity | None) -> str:
+    return (
+        "# TP_RUNTIME_IDENTITY_INT: protocol_version=35 digest_hi=36 digest_lo=37\n"
+        f"{runtime_identity_assignment_block(identity)}\n\n"
+        "def codex_step5d_publish_runtime_identity():\n"
+        "  write_output_integer_register(35, codex_step5d_runtime_protocol_version)\n"
+        "  write_output_integer_register(36, codex_step5d_runtime_digest_hi)\n"
+        "  write_output_integer_register(37, codex_step5d_runtime_digest_lo)\n"
+        "end\n\n"
+    )
+
+
+def _render_script_body(
+    parent: str,
+    runtime_identity: TpRuntimeIdentity | None,
+) -> str:
     parent_sha = hashlib.sha256(parent.encode("utf-8")).hexdigest()
     rendered = _replace_once(
         parent,
@@ -543,14 +566,40 @@ def render_script() -> str:
         f"# TP_PROGRAM_ID: {PROGRAM_NAME}\n"
         f"# PHYSICAL_PRIOR_SHA256: {PRECONTACT_POSE_PRIOR_SHA256}\n"
         f"# PARENT_AUTOTUNE_V1_RENDERED_SHA256: {parent_sha}\n"
+        f"{_runtime_identity_header(runtime_identity)}"
     )
     rendered = identity + rendered
+    return rendered
+
+
+def render_script() -> str:
+    parent = v1.render_script()
+    identity_basis = _render_script_body(parent, None).encode("utf-8")
+    runtime_identity = derive_runtime_identity(
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+        script_identity_basis=identity_basis,
+    )
+    rendered = _render_script_body(parent, runtime_identity)
+    bind_final_script(
+        rendered,
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+    )
     validate_rendered_script(rendered, parent=parent)
     return rendered
 
 
 def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
     original = v1.render_script() if parent is None else parent
+    try:
+        runtime_identity, _ = bind_final_script(
+            script,
+            program_id=PROGRAM_NAME,
+            protocol_id=PROTOCOL_ID,
+        )
+    except RuntimeIdentityError as exc:
+        raise ValueError(f"V3 TP runtime identity differs: {exc}") from exc
     required = (
         f"# RELEASE_STAGE_ID: {PROGRAM_NAME}",
         f"# CONTROL_PROFILE_ID: {CONTROL_PROFILE_ID}",
@@ -587,6 +636,10 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 77",
         "read_input_integer_register(31)",
         "write_output_integer_register(34, codex_autotune_logical_batch_sequence_echo)",
+        "write_output_integer_register(35, codex_step5d_runtime_protocol_version)",
+        "write_output_integer_register(36, codex_step5d_runtime_digest_hi)",
+        "write_output_integer_register(37, codex_step5d_runtime_digest_lo)",
+        "codex_step5d_publish_runtime_identity()",
         f"while waiting_s < {READY_ARM_TIMEOUT_S:.3f}",
         "codex_autotune_wait_for_arm(0, 0, 10, 0, 0, 0, 0)",
         "codex_autotune_publish_fault_and_halt",
@@ -607,8 +660,15 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
             continue
         if in_thread and motion_call.search(line):
             raise ValueError("V3 TP helper thread contains a motion command")
+    body = script.split("\n", 1)[1] if script.startswith("# VERSION:") else script
     prefix_lines = 5
-    normalized = "".join(script.splitlines(keepends=True)[prefix_lines:])
+    normalized = "".join(body.splitlines(keepends=True)[prefix_lines:])
+    normalized = _replace_once(
+        normalized,
+        _runtime_identity_header(runtime_identity),
+        "",
+        role="normalized runtime identity header",
+    )
     normalized = _replace_once(
         normalized,
         "# STEP5_STAGE_ID: step5d_strict_rnn_autotune_v3",
@@ -696,13 +756,23 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
 
 def source_stamp(now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R009")
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010")
 
 
 def build_package_script(stamp: str) -> str:
     if not stamp or "\n" in stamp:
         raise ValueError("source stamp must be one non-empty line")
-    return f"# VERSION: {stamp}\n" + render_script()
+    version = f"# VERSION: {stamp}\n"
+    parent = v1.render_script()
+    identity_basis = (version + _render_script_body(parent, None)).encode("utf-8")
+    runtime_identity = derive_runtime_identity(
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+        script_identity_basis=identity_basis,
+    )
+    rendered = version + _render_script_body(parent, runtime_identity)
+    validate_rendered_script(rendered, parent=parent)
+    return rendered
 
 
 def build_txt(stamp: str) -> str:
@@ -729,7 +799,8 @@ Motion class:
 
 Frozen control contract:
   qdot cap 0.500 rad/s; target 12 N; input integer registers 24..31;
-  output integer registers 24..34; heartbeat watchdog fail-closed.
+  transactional output integer registers 24..34; immutable runtime identity
+  protocol/digest output integer registers 35..37; heartbeat watchdog fail-closed.
   Every trial returns to the campaign home captured once when Play begins.
   Five-trial logical batches roll without imposing a physical stop at row 5 or 10.
   ACK_BUNDLE and WAIT_ACK are not active. A fresh next ARM is accepted only after
@@ -783,7 +854,12 @@ def simulate_return_telemetry(
 
 
 def numeric_sanity(script: str) -> dict[str, Any]:
-    validate_rendered_script(script.split("\n", 1)[1] if script.startswith("# VERSION:") else script)
+    validate_rendered_script(script)
+    _, runtime_identity = bind_final_script(
+        script,
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+    )
     return {
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
         "program": PROGRAM_NAME,
@@ -806,7 +882,8 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "far_search_speed_m_s": 0.03375,
         "speedj_acceleration_profiles_rad_s2": [0.1, 0.2, 0.5],
         "input_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31],
-        "output_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34],
+        "output_integer_registers": list(range(24, 38)),
+        "tp_runtime_identity": runtime_identity,
         "execution_profile_id": "nf100-slew050-a050",
         "execution_profile_integer_id": 633,
         "safe_transfer_z_m": 0.033,
@@ -843,8 +920,32 @@ def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> dict[str,
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         raise ValueError(f"V3 TP triplet validation failed: {failed}")
-    validate_rendered_script(script.split("\n", 1)[1])
+    validate_rendered_script(script)
     return checks
+
+
+def _deploy_manifest(script: str, digests: Mapping[str, str]) -> dict[str, Any]:
+    _, runtime_identity = bind_final_script(
+        script,
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+    )
+    if runtime_identity["script_artifact_sha256"] != digests[".script"]:
+        raise ValueError("TP runtime identity final script SHA-256 differs")
+    return {
+        "schema_version": 2,
+        "basename": PROGRAM_NAME,
+        "controller_directory": CONTROLLER_DIR,
+        "tp_runtime_identity": runtime_identity,
+        "artifacts": [
+            {
+                "filename": f"{PROGRAM_NAME}{suffix}",
+                "source": f"{PROGRAM_NAME}{suffix}",
+                "sha256": digests[suffix],
+            }
+            for suffix in (".script", ".txt", ".urp")
+        ],
+    }
 
 
 def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
@@ -877,19 +978,7 @@ def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
         suffix: hashlib.sha256(path.read_bytes()).hexdigest()
         for suffix, path in paths.items()
     }
-    manifest = {
-        "schema_version": 1,
-        "basename": PROGRAM_NAME,
-        "controller_directory": CONTROLLER_DIR,
-        "artifacts": [
-            {
-                "filename": path.name,
-                "source": path.name,
-                "sha256": digests[suffix],
-            }
-            for suffix, path in paths.items()
-        ],
-    }
+    manifest = _deploy_manifest(script, digests)
     with manifest_path.open("x", encoding="utf-8") as handle:
         handle.write(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     sanity = numeric_sanity(script)
@@ -924,19 +1013,7 @@ def check_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
         suffix: hashlib.sha256(encoded).hexdigest()
         for suffix, encoded in triplet.items()
     }
-    manifest = {
-        "schema_version": 1,
-        "basename": PROGRAM_NAME,
-        "controller_directory": CONTROLLER_DIR,
-        "artifacts": [
-            {
-                "filename": f"{PROGRAM_NAME}{suffix}",
-                "source": f"{PROGRAM_NAME}{suffix}",
-                "sha256": digests[suffix],
-            }
-            for suffix in triplet
-        ],
-    }
+    manifest = _deploy_manifest(script, digests)
     expected = {
         **{
             f"{PROGRAM_NAME}{suffix}": encoded

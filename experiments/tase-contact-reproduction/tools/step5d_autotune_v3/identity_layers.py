@@ -23,7 +23,7 @@ from ur10e_experiment_runtime.identity import canonical_sha256
 
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r009"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r010"
 
 EXPERIMENT_REPO_PREFIX = "experiments/tase-contact-reproduction"
 

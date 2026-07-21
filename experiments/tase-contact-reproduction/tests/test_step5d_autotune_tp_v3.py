@@ -17,11 +17,11 @@ import build_step5d_autotune_tp as v1  # noqa: E402
 import build_step5d_autotune_tp_v3 as v3  # noqa: E402
 
 
-def test_r009_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
+def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
     rendered = v3.render_script()
     v3.validate_rendered_script(rendered)
 
-    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r009"
+    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r010"
     assert "# CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1" in rendered
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
     assert "def codex_step5d_autotune_trial_v1(" in rendered
@@ -59,6 +59,20 @@ def test_r009_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
     assert "next_command == 2" in rendered
     assert "candidate_token, 19, execution_profile_id" in rendered
     assert "halt" in rendered
+    state_body = rendered.split("def codex_autotune_write_state(", 1)[1].split(
+        "\nend", 1
+    )[0]
+    assert state_body.index("codex_step5d_publish_runtime_identity()") < state_body.index(
+        "write_output_integer_register(24, campaign_epoch)"
+    )
+    identity_body = rendered.split(
+        "def codex_step5d_publish_runtime_identity():", 1
+    )[1].split("\nend", 1)[0]
+    identity_positions = [
+        identity_body.index(f"write_output_integer_register({register},")
+        for register in (35, 36, 37)
+    ]
+    assert identity_positions == sorted(identity_positions)
     assert rendered.count("thread codex_autotune_return_telemetry_observer():") == 1
     observer = rendered.split(
         "thread codex_autotune_return_telemetry_observer():", 1
@@ -88,12 +102,12 @@ def test_r009_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
         assert forbidden not in rendered
 
 
-def test_r009_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
+def test_r010_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
     stamp = v3.source_stamp(
         datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
     )
     result = v3.write_triplet(tmp_path, stamp)
-    basename = "step5d_strict_rnn_autotune_v3_r009"
+    basename = "step5d_strict_rnn_autotune_v3_r010"
 
     assert result["program"] == basename
     assert result["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
@@ -108,7 +122,12 @@ def test_r009_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None
     assert sanity["host_protocol"] == "v3_full_home_rolling_arm_v1"
     assert sanity["ready_arm_timeout_s"] == 30.0
     assert sanity["input_integer_registers"] == list(range(24, 32))
-    assert sanity["output_integer_registers"] == list(range(24, 35))
+    assert sanity["output_integer_registers"] == list(range(24, 38))
+    assert sanity["tp_runtime_identity"]["registers"] == {
+        "protocol_version": 35,
+        "digest_hi": 36,
+        "digest_lo": 37,
+    }
     assert sanity["execution_profile_id"] == "nf100-slew050-a050"
     assert sanity["execution_profile_integer_id"] == 633
 
@@ -116,7 +135,7 @@ def test_r009_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None
         v3.write_triplet(tmp_path, stamp)
 
 
-def test_r009_generator_check_recomputes_every_output_byte(tmp_path: Path) -> None:
+def test_r010_generator_check_recomputes_every_output_byte(tmp_path: Path) -> None:
     stamp = v3.source_stamp(
         datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
     )

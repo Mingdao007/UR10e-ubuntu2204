@@ -521,7 +521,7 @@ STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES = [
     "logical_batch_sequence",
 ]
 STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_FIELDS = [
-    f"output_int_register_{index}" for index in range(24, 35)
+    f"output_int_register_{index}" for index in range(24, 38)
 ]
 STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES = [
     "campaign_epoch_echo",
@@ -535,6 +535,9 @@ STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES = [
     "return_kind_echo",
     "return_guard_mask",
     "logical_batch_sequence_echo",
+    "runtime_protocol_version",
+    "runtime_digest_hi",
+    "runtime_digest_lo",
 ]
 OUTPUT_FIELDS = [
     "timestamp",

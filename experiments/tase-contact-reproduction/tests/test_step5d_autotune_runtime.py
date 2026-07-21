@@ -340,7 +340,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
 
     def test_autotune_handshake_extends_only_the_autotune_rtde_recipes(self) -> None:
         expected_inputs = [f"input_int_register_{index}" for index in range(24, 32)]
-        expected_outputs = [f"output_int_register_{index}" for index in range(24, 35)]
+        expected_outputs = [f"output_int_register_{index}" for index in range(24, 38)]
 
         self.assertEqual(
             bridge.rtde_input_fields_for(AUTOTUNE),

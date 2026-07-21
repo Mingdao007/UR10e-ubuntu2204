@@ -12,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
+import build_step5d_autotune_tp_v3 as builder  # noqa: E402
 import promote_step5d_r009_atomic_release as promotion  # noqa: E402
 import run_step5d_autotune_v3_tp_transaction as transaction  # noqa: E402
 
@@ -22,11 +23,14 @@ def _fixture_manifest(tmp_path: Path) -> tuple[Path, Path]:
     readback = root / "runs" / f"controller_readback_{promotion.PROGRAM}_fixture"
     local.mkdir(parents=True)
     readback.mkdir(parents=True)
+    builder.write_triplet(
+        local,
+        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+    )
     hashes: dict[str, str] = {}
     for extension in promotion.EXTENSIONS:
-        source = ROOT / promotion.PACKAGE_DIR / f"{promotion.PROGRAM}{extension}"
+        source = local / f"{promotion.PROGRAM}{extension}"
         data = source.read_bytes()
-        (local / source.name).write_bytes(data)
         (readback / source.name).write_bytes(data)
         hashes[extension] = hashlib.sha256(data).hexdigest()
     manifest = {
@@ -70,12 +74,19 @@ def test_delivery_manifest_drives_only_exact_fresh_triplet(tmp_path: Path) -> No
 def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path) -> None:
     root = tmp_path / "experiment"
     root.mkdir()
-    (root / promotion.PACKAGE_DIR).mkdir(parents=True)
+    artifact_dir = root / promotion.PACKAGE_DIR
+    artifact_dir.mkdir(parents=True)
+    builder.write_triplet(
+        artifact_dir,
+        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+    )
     events: list[str] = []
     exact: list[Path] = []
+    upload_arguments: list[str] = []
 
     def fake_upload(arguments: list[str]) -> int:
         events.append("upload")
+        upload_arguments.extend(arguments)
         token = arguments[arguments.index("--upload-transaction-id") + 1]
         result_path = Path(arguments[arguments.index("--manifest-path-output") + 1])
         manifest = root / "runs" / f"controller_readback_{promotion.PROGRAM}_exact" / "manifest.json"
@@ -119,5 +130,68 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         ) == 0
 
     assert events == ["lock", "upload", "promote", "release"]
+    assert upload_arguments[0] == builder.PROGRAM_NAME
+    assert any(
+        value.startswith("manifest-driven step5d_strict_rnn_autotune_v3_r010")
+        for value in upload_arguments
+    )
     assert exact[0] == exact[1]
     assert exact[2] == (root / promotion.PACKAGE_DIR).resolve()
+
+
+def test_transaction_rejects_legacy_deploy_schema_before_lock_or_upload(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "experiment"
+    artifact_dir = root / promotion.PACKAGE_DIR
+    artifact_dir.mkdir(parents=True)
+    generated = builder.write_triplet(
+        artifact_dir,
+        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+    )
+    deploy = Path(generated["deploy_manifest"])
+    payload = json.loads(deploy.read_text(encoding="utf-8"))
+    payload["schema_version"] = 1
+    deploy.write_text(json.dumps(payload), encoding="utf-8")
+
+    with (
+        mock.patch.object(transaction, "acquire_controller_mutation_locks") as lock,
+        mock.patch.object(transaction.upload, "_main") as upload,
+        pytest.raises(RuntimeError, match="exactly one schema-v2"),
+    ):
+        transaction.main(
+            ["--root", str(root), "--artifact-dir", str(artifact_dir)]
+        )
+
+    lock.assert_not_called()
+    upload.assert_not_called()
+
+
+def test_transaction_rejects_runtime_identity_tamper_before_upload(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "experiment"
+    artifact_dir = root / promotion.PACKAGE_DIR
+    artifact_dir.mkdir(parents=True)
+    generated = builder.write_triplet(
+        artifact_dir,
+        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+    )
+    deploy = Path(generated["deploy_manifest"])
+    payload = json.loads(deploy.read_text(encoding="utf-8"))
+    payload["tp_runtime_identity"]["program_id"] = (
+        "step5d_strict_rnn_autotune_v3_r009"
+    )
+    deploy.write_text(json.dumps(payload), encoding="utf-8")
+
+    with (
+        mock.patch.object(transaction, "acquire_controller_mutation_locks") as lock,
+        mock.patch.object(transaction.upload, "_main") as upload,
+        pytest.raises(RuntimeError, match="basename and runtime identity program differ"),
+    ):
+        transaction.main(
+            ["--root", str(root), "--artifact-dir", str(artifact_dir)]
+        )
+
+    lock.assert_not_called()
+    upload.assert_not_called()

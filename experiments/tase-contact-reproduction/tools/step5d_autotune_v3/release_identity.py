@@ -16,9 +16,14 @@ import math
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 
+from .runtime_identity import (
+    RuntimeIdentityError,
+    identity_from_manifest as tp_identity_from_manifest,
+)
+
 
 CURRENT_POINTER_SCHEMA = "step5d.autotune-v3/current-release-pointer-v1"
-RELEASE_MANIFEST_SCHEMA = "step5d.autotune-v3/release-manifest-v1"
+RELEASE_MANIFEST_SCHEMA = "step5d.autotune-v3/release-manifest-v2"
 ROLLING_PROTOCOL = "v3_full_home_rolling_arm_v1"
 ROLLING_NORMAL_MAX_RATE_RAD_S = 0.1
 ROLLING_EXECUTION_PROFILE_ID = "nf100-slew050-a050"
@@ -31,6 +36,8 @@ REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS = {
 }
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
+ACTIVE_TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r010"
+SAFETY_ENVELOPE_PATH = "config/step5/step5d_autotune_v3_control_contract.json"
 
 
 class ReleaseIdentityError(RuntimeError):
@@ -101,14 +108,16 @@ class ReleaseIdentity:
     manifest_sha256: str
     artifacts: Mapping[str, Mapping[str, str]]
     controller_readback: Mapping[str, Any]
+    tp_runtime_identity: Mapping[str, Any]
+    safety_envelope: Mapping[str, str]
     source_fingerprints: Mapping[str, str]
     generated_files: Mapping[str, str]
     compatibility_mirrors: Mapping[str, str]
     verification: Mapping[str, Any]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.program_id, str) or not self.program_id:
-            raise ReleaseIdentityError("release program_id is missing")
+        if self.program_id != ACTIVE_TP_PROGRAM_ID:
+            raise ReleaseIdentityError("active release TP program identity differs")
         if self.release_stage_id != RELEASE_STAGE_ID:
             raise ReleaseIdentityError("release stage identity differs")
         if self.control_profile_id != CONTROL_PROFILE_ID:
@@ -163,9 +172,36 @@ class ReleaseIdentity:
             raise ReleaseIdentityError("controller readback is not a fresh GET")
         if self.controller_readback["triplet_sha256"] != self.artifact_sha256:
             raise ReleaseIdentityError("controller readback triplet differs from artifacts")
+        if not isinstance(self.tp_runtime_identity, Mapping):
+            raise ReleaseIdentityError("TP runtime identity is missing")
+        try:
+            tp_identity, script_artifact_sha256 = tp_identity_from_manifest(
+                self.tp_runtime_identity
+            )
+        except RuntimeIdentityError as exc:
+            raise ReleaseIdentityError(str(exc)) from exc
+        if (
+            tp_identity.program_id != self.program_id
+            or tp_identity.protocol_id != self.protocol_id
+        ):
+            raise ReleaseIdentityError("TP runtime identity release binding differs")
+        if script_artifact_sha256 != self.artifact_sha256[".script"]:
+            raise ReleaseIdentityError("TP runtime identity script artifact differs")
+        if not isinstance(self.safety_envelope, Mapping) or set(
+            self.safety_envelope
+        ) != {"path", "sha256"}:
+            raise ReleaseIdentityError("safety envelope reference differs")
+        if self.safety_envelope["path"] != SAFETY_ENVELOPE_PATH:
+            raise ReleaseIdentityError("safety envelope path differs")
+        _sha256_text(self.safety_envelope["sha256"], "safety envelope SHA-256")
+        if (
+            self.compatibility_mirrors.get(SAFETY_ENVELOPE_PATH)
+            != self.safety_envelope["sha256"]
+        ):
+            raise ReleaseIdentityError("safety envelope mirror binding differs")
         if not isinstance(self.verification, Mapping) or self.verification.get(
             "canonical_verifier"
-        ) != "independent_script_urp_v1":
+        ) != "independent_script_urp_v2":
             raise ReleaseIdentityError("canonical verifier binding differs")
         repository_sources = self.verification.get("repository_source_fingerprints")
         repository_depth = self.verification.get("repository_source_root_depth")
@@ -200,6 +236,8 @@ def identity_from_manifest(
         "identity",
         "artifacts",
         "controller_readback",
+        "tp_runtime_identity",
+        "safety_envelope",
         "runtime_policy",
         "optimizer_policy",
         "source_fingerprints",
@@ -226,6 +264,8 @@ def identity_from_manifest(
         manifest_sha256=manifest_sha256,
         artifacts=manifest["artifacts"],
         controller_readback=manifest["controller_readback"],
+        tp_runtime_identity=manifest["tp_runtime_identity"],
+        safety_envelope=manifest["safety_envelope"],
         source_fingerprints=manifest["source_fingerprints"],
         generated_files=manifest["generated_files"],
         compatibility_mirrors=manifest["compatibility_mirrors"],
@@ -271,6 +311,7 @@ def load_current_release(experiment_root: Path) -> ReleaseIdentity:
         ("source", {path: {"path": path, "sha256": digest} for path, digest in release.source_fingerprints.items()}),
         ("mirror", {path: {"path": path, "sha256": digest} for path, digest in release.compatibility_mirrors.items()}),
         ("readback", {"readback": release.controller_readback}),
+        ("safety envelope", {"safety_envelope": release.safety_envelope}),
     ):
         for reference in references.values():
             path = root / _relative_path(reference["path"], f"{role} path")
@@ -300,6 +341,7 @@ def load_current_release(experiment_root: Path) -> ReleaseIdentity:
 
 
 __all__ = [
+    "ACTIVE_TP_PROGRAM_ID",
     "CONTROL_PROFILE_ID",
     "CURRENT_POINTER_SCHEMA",
     "RELEASE_MANIFEST_SCHEMA",
@@ -309,6 +351,7 @@ __all__ = [
     "ROLLING_EXECUTION_PROFILE_INTEGER_ID",
     "ROLLING_NORMAL_MAX_RATE_RAD_S",
     "ROLLING_PROTOCOL",
+    "SAFETY_ENVELOPE_PATH",
     "ReleaseIdentity",
     "ReleaseIdentityError",
     "identity_from_manifest",
