@@ -508,7 +508,7 @@ STEP5D_DIAG_FIELDS = [
 INPUT_FIELDS = BASE_INPUT_FIELDS + BRIDGE_INPUT_FIELDS
 INPUT_NAMES = BASE_INPUT_NAMES + BRIDGE_INPUT_NAMES
 STEP5D_AUTOTUNE_HANDSHAKE_INPUT_FIELDS = [
-    f"input_int_register_{index}" for index in range(24, 31)
+    f"input_int_register_{index}" for index in range(24, 32)
 ]
 STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES = [
     "campaign_epoch",
@@ -518,9 +518,10 @@ STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES = [
     "execution_profile_id",
     "command_seq",
     "batch_row_index",
+    "logical_batch_sequence",
 ]
 STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_FIELDS = [
-    f"output_int_register_{index}" for index in range(24, 34)
+    f"output_int_register_{index}" for index in range(24, 35)
 ]
 STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES = [
     "campaign_epoch_echo",
@@ -533,6 +534,7 @@ STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES = [
     "batch_row_index_echo",
     "return_reference_kind_echo",
     "return_guard_mask",
+    "logical_batch_sequence_echo",
 ]
 OUTPUT_FIELDS = [
     "timestamp",
@@ -7991,6 +7993,9 @@ def step5d_autotune_handshake_input_values(args: argparse.Namespace) -> dict[str
         "batch_row_index": int(
             getattr(args, "step5d_autotune_batch_row_index", 0)
         ),
+        "logical_batch_sequence": int(
+            getattr(args, "step5d_autotune_logical_batch_sequence", 0)
+        ),
     }
     invalid = {
         name: value
@@ -8093,8 +8098,10 @@ def configure_step5d_autotune_args(
         raise SystemExit(str(exc)) from exc
     handshake = args.step5d_autotune_handshake
     command = handshake["command"]
-    if command not in {0, 1, 2, 3}:
-        raise SystemExit("Step5d autotune command must be HOLD/ARM/ACK_BUNDLE/STOP")
+    if command not in {0, 1, 2, 3, 4}:
+        raise SystemExit(
+            "Step5d autotune command must be HOLD/ARM/ACK_BUNDLE/STOP/COMPLETE_AT_HOME"
+        )
     if command == 0:
         held_identity = {
             name: handshake[name]

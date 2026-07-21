@@ -35,6 +35,7 @@ from step5d_autotune_contract import (
     TrialSpec,
 )
 from step5d_autotune_state_machine import (
+    FULL_HOME_ROLLING_PROTOCOL,
     HostCommand,
     HostPacket,
     TpLoopState,
@@ -54,6 +55,7 @@ HOST_TO_TP_NAMES = (
     "execution_profile_id",
     "command_seq",
 )
+OPTIONAL_HOST_TO_TP_NAMES = ("logical_batch_sequence",)
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -202,6 +204,7 @@ def integer_stop_transport(state: TpLoopState) -> str:
         TpLoopState.WAIT_ACK,
         TpLoopState.READY_NEAR,
         TpLoopState.READY_HOME_CLOSED,
+        TpLoopState.READY_HOME_NEXT,
         TpLoopState.WAIT_INFRA_READY,
         TpLoopState.FAULT,
     }:
@@ -225,6 +228,7 @@ class RuntimeTrialBinding:
     campaign_fingerprint: str
     trial_overlay: Mapping[str, Any] | None = None
     batch_row_index: int | None = None
+    logical_batch_sequence: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.trial_uid, str) or not _SHA256_RE.fullmatch(self.trial_uid):
@@ -253,6 +257,12 @@ class RuntimeTrialBinding:
             or not 1 <= self.batch_row_index <= 10
         ):
             raise MailboxError("batch_row_index must be in [1,10]")
+        if self.logical_batch_sequence is not None:
+            _strict_int(
+                "logical_batch_sequence",
+                self.logical_batch_sequence,
+                positive=True,
+            )
 
     def payload(self) -> dict[str, Any]:
         payload = {
@@ -278,6 +288,8 @@ class RuntimeTrialBinding:
             payload["trial_overlay"] = dict(self.trial_overlay)
         if self.batch_row_index is not None:
             payload["batch_row_index"] = self.batch_row_index
+        if self.logical_batch_sequence is not None:
+            payload["logical_batch_sequence"] = self.logical_batch_sequence
         return payload
 
 
@@ -298,6 +310,9 @@ class MailboxCommand:
             "command_seq": self.packet.command_seq,
         }
         payload["batch_row_index"] = self.binding.batch_row_index or 0
+        payload["logical_batch_sequence"] = (
+            self.binding.logical_batch_sequence or 0
+        )
         return payload
 
 
@@ -328,7 +343,7 @@ def _strict_json_bytes(payload: Mapping[str, Any]) -> bytes:
 
 
 def _packet_payload(packet: HostPacket) -> dict[str, int]:
-    return {
+    payload = {
         "campaign_epoch": packet.campaign_epoch,
         "trial_id": packet.trial_id,
         "command": int(packet.command),
@@ -336,6 +351,9 @@ def _packet_payload(packet: HostPacket) -> dict[str, int]:
         "execution_profile_id": packet.execution_profile_id,
         "command_seq": packet.command_seq,
     }
+    if packet.logical_batch_sequence:
+        payload["logical_batch_sequence"] = packet.logical_batch_sequence
+    return payload
 
 
 def _binding_from_prepared(
@@ -362,8 +380,15 @@ def _binding_from_prepared(
         raise MailboxError("ARM command_seq differs from prepared TrialSpec")
     if packet.command is HostCommand.ACK_BUNDLE and packet.command_seq <= trial.command_seq:
         raise MailboxError("ACK command_seq must be newer than the trial ARM")
-    if packet.command not in {HostCommand.ARM, HostCommand.ACK_BUNDLE, HostCommand.STOP}:
-        raise MailboxError("mailbox supports only ARM, ACK_BUNDLE, and outer STOP")
+    if packet.command not in {
+        HostCommand.ARM,
+        HostCommand.ACK_BUNDLE,
+        HostCommand.STOP,
+        HostCommand.COMPLETE_AT_HOME,
+    }:
+        raise MailboxError(
+            "mailbox supports only ARM, ACK_BUNDLE, STOP, and COMPLETE_AT_HOME"
+        )
     validate_execution_profile_binding(
         trial.execution_profile,
         packet.execution_profile_id,
@@ -387,6 +412,9 @@ def _binding_from_prepared(
         campaign_fingerprint=trial.campaign.campaign_fingerprint,
         trial_overlay=getattr(prepared_trial, "trial_overlay", None),
         batch_row_index=getattr(prepared_trial, "batch_row_index", None),
+        logical_batch_sequence=(
+            packet.logical_batch_sequence or None
+        ),
     )
     if any(
         (
@@ -560,7 +588,10 @@ def _mailbox_command_from_payload(
     if payload["schema"] != MAILBOX_SCHEMA:
         raise MailboxError("command mailbox schema mismatch")
     raw_packet = payload["packet"]
-    if not isinstance(raw_packet, Mapping) or set(raw_packet) != set(HOST_TO_TP_NAMES):
+    packet_fields = set(raw_packet) if isinstance(raw_packet, Mapping) else set()
+    if not set(HOST_TO_TP_NAMES).issubset(packet_fields) or not packet_fields.issubset(
+        set(HOST_TO_TP_NAMES) | set(OPTIONAL_HOST_TO_TP_NAMES)
+    ):
         raise MailboxError("command mailbox packet fields differ from the register contract")
     try:
         command = HostCommand(_strict_int("command", raw_packet["command"]))
@@ -581,9 +612,23 @@ def _mailbox_command_from_payload(
         command_seq=_strict_int(
             "command_seq", raw_packet["command_seq"], positive=True
         ),
+        logical_batch_sequence=(
+            0
+            if raw_packet.get("logical_batch_sequence") is None
+            else _strict_int(
+                "logical_batch_sequence",
+                raw_packet["logical_batch_sequence"],
+                positive=True,
+            )
+        ),
     )
-    if command not in {HostCommand.ARM, HostCommand.ACK_BUNDLE, HostCommand.STOP}:
-        raise MailboxError("mailbox command is outside ARM/ACK/STOP")
+    if command not in {
+        HostCommand.ARM,
+        HostCommand.ACK_BUNDLE,
+        HostCommand.STOP,
+        HostCommand.COMPLETE_AT_HOME,
+    }:
+        raise MailboxError("mailbox command is outside ARM/ACK/STOP/COMPLETE")
     raw_runtime = payload["runtime"]
     expected_runtime = {
         "trial_uid",
@@ -600,7 +645,11 @@ def _mailbox_command_from_payload(
         "campaign_fingerprint",
     }
     runtime_fields = set(raw_runtime) if isinstance(raw_runtime, Mapping) else set()
-    optional_runtime = {"trial_overlay", "batch_row_index"}
+    optional_runtime = {
+        "trial_overlay",
+        "batch_row_index",
+        "logical_batch_sequence",
+    }
     if not expected_runtime.issubset(runtime_fields) or not runtime_fields.issubset(
         expected_runtime | optional_runtime
     ):
@@ -653,6 +702,15 @@ def _mailbox_command_from_payload(
                 positive=True,
             )
         ),
+        logical_batch_sequence=(
+            None
+            if raw_runtime.get("logical_batch_sequence") is None
+            else _strict_int(
+                "runtime logical_batch_sequence",
+                raw_runtime["logical_batch_sequence"],
+                positive=True,
+            )
+        ),
     )
     if binding.trial_overlay is not None:
         from step5d_autotune_v3.runtime_profile import (
@@ -685,6 +743,9 @@ def _mailbox_command_from_payload(
             binding.arm_command_seq > packet.command_seq,
             packet.command is HostCommand.ARM
             and binding.arm_command_seq != packet.command_seq,
+            binding.logical_batch_sequence != (
+                packet.logical_batch_sequence or None
+            ),
         )
     ):
         raise MailboxError("command mailbox packet differs from durable runtime identity")
@@ -713,6 +774,9 @@ def tp_packet_from_rtde(output: Mapping[str, Any] | None) -> TpPacket:
         terminal_reason=register(28),
         execution_profile_id_echo=register(29),
         consumed_command_seq=register(30),
+        logical_batch_sequence_echo=(
+            register(34) if "output_int_register_34" in output else 0
+        ),
     )
 
 
@@ -722,6 +786,11 @@ def _tp_identity_matches(packet: HostPacket, snapshot: TpPacket) -> bool:
         and snapshot.trial_id_echo == packet.trial_id
         and snapshot.candidate_token_echo == packet.candidate_token
         and snapshot.execution_profile_id_echo == packet.execution_profile_id
+        and (
+            packet.logical_batch_sequence == 0
+            or snapshot.logical_batch_sequence_echo
+            == packet.logical_batch_sequence
+        )
     )
 
 
@@ -756,6 +825,7 @@ class BridgeMailboxRuntime:
         if self.completion_protocol not in {
             "legacy_ack_bundle_v1",
             "v3_direct_arm_v1",
+            FULL_HOME_ROLLING_PROTOCOL,
         }:
             raise MailboxError("completion protocol is unsupported")
         self.active: MailboxCommand | None = None
@@ -773,6 +843,7 @@ class BridgeMailboxRuntime:
             candidate_token=binding.candidate_token,
             execution_profile_id=binding.execution_profile_id,
             command_seq=binding.arm_command_seq,
+            logical_batch_sequence=binding.logical_batch_sequence or 0,
         )
         return MailboxCommand(packet=packet, binding=binding, sha256=command.sha256)
 
@@ -792,7 +863,8 @@ class BridgeMailboxRuntime:
         if self.active is not None:
             return False
         if (
-            self.completion_protocol == "v3_direct_arm_v1"
+            self.completion_protocol
+            in {"v3_direct_arm_v1", FULL_HOME_ROLLING_PROTOCOL}
             and command.packet.command is HostCommand.ACK_BUNDLE
         ):
             raise MailboxError(
@@ -802,6 +874,7 @@ class BridgeMailboxRuntime:
             TpLoopState.READY_HOME,
             TpLoopState.READY_NEAR,
             TpLoopState.READY_HOME_CLOSED,
+            TpLoopState.READY_HOME_NEXT,
         }:
             if (
                 command.packet.command is HostCommand.ACK_BUNDLE
@@ -865,6 +938,7 @@ class BridgeMailboxRuntime:
                 TpLoopState.READY_HOME,
                 TpLoopState.READY_NEAR,
                 TpLoopState.READY_HOME_CLOSED,
+                TpLoopState.READY_HOME_NEXT,
             } and not pending_retry_arm:
                 raise MailboxError(
                     "fresh bridge runtime requires READY_HOME; non-home TP state "
@@ -884,6 +958,7 @@ class BridgeMailboxRuntime:
             TpLoopState.WAIT_INFRA_READY,
             TpLoopState.READY_NEAR,
             TpLoopState.READY_HOME_CLOSED,
+            TpLoopState.READY_HOME_NEXT,
             TpLoopState.FAULT,
         }
         if snapshot.state in identity_states and not _tp_identity_matches(
@@ -901,10 +976,21 @@ class BridgeMailboxRuntime:
 
     def _validate_phase(self, command: MailboxCommand, snapshot: TpPacket) -> None:
         packet = command.packet
+        if self.completion_protocol == FULL_HOME_ROLLING_PROTOCOL:
+            if packet.logical_batch_sequence <= 0:
+                raise MailboxError(
+                    "full-home rolling command requires a positive logical batch sequence"
+                )
+            if command.binding.logical_batch_sequence != packet.logical_batch_sequence:
+                raise MailboxError(
+                    "full-home rolling packet differs from durable logical batch identity"
+                )
         if packet.command is HostCommand.ARM:
             allowed = (
                 {TpLoopState.READY_HOME, TpLoopState.READY_NEAR}
                 if self.completion_protocol == "v3_direct_arm_v1"
+                else {TpLoopState.READY_HOME, TpLoopState.READY_HOME_NEXT}
+                if self.completion_protocol == FULL_HOME_ROLLING_PROTOCOL
                 else {
                     TpLoopState.READY_HOME,
                     TpLoopState.READY_NEAR,
@@ -918,7 +1004,10 @@ class BridgeMailboxRuntime:
                 raise MailboxError("ARM command sequence is stale at the TP")
             return
         if packet.command is HostCommand.ACK_BUNDLE:
-            if self.completion_protocol == "v3_direct_arm_v1":
+            if self.completion_protocol in {
+                "v3_direct_arm_v1",
+                FULL_HOME_ROLLING_PROTOCOL,
+            }:
                 raise MailboxError(
                     "fresh legacy ACK is forbidden by v3_direct_arm_v1"
                 )
@@ -932,6 +1021,20 @@ class BridgeMailboxRuntime:
                 raise MailboxError("ACK_BUNDLE identity/profile differs from current TP echoes")
             if packet.command_seq <= snapshot.consumed_command_seq:
                 raise MailboxError("ACK_BUNDLE command sequence is stale")
+            return
+        if packet.command is HostCommand.COMPLETE_AT_HOME:
+            if self.completion_protocol != FULL_HOME_ROLLING_PROTOCOL:
+                raise MailboxError("COMPLETE_AT_HOME requires full-home rolling protocol")
+            if snapshot.state is not TpLoopState.READY_HOME_NEXT:
+                raise MailboxError("COMPLETE_AT_HOME is valid only at READY_HOME_NEXT")
+            if self.active is None or not self._same_runtime(
+                self.active.binding, command.binding
+            ):
+                raise MailboxError("COMPLETE_AT_HOME altered the active runtime binding")
+            if not _tp_identity_matches(packet, snapshot):
+                raise MailboxError("COMPLETE_AT_HOME identity differs from TP echoes")
+            if packet.command_seq <= snapshot.consumed_command_seq:
+                raise MailboxError("COMPLETE_AT_HOME command sequence is stale")
             return
         if packet.command is HostCommand.STOP:
             transport = integer_stop_transport(snapshot.state)
@@ -976,6 +1079,9 @@ class BridgeMailboxRuntime:
         args.step4e_normal_max_rate_rad_s = profile.normal_max_rate_rad_s
         args.step5d_autotune_profile_eligibility = "live_eligible"
         args.step5d_autotune_batch_row_index = binding.batch_row_index or 0
+        args.step5d_autotune_logical_batch_sequence = (
+            binding.logical_batch_sequence or 0
+        )
         overlay = binding.trial_overlay
         if overlay is not None:
             for field in (
@@ -1459,6 +1565,11 @@ class BridgeTrialCsvRotator:
             and snapshot.candidate_token_echo == binding.candidate_token
             and snapshot.execution_profile_id_echo == binding.execution_profile_id
             and snapshot.consumed_command_seq >= binding.arm_command_seq
+            and (
+                binding.logical_batch_sequence is None
+                or snapshot.logical_batch_sequence_echo
+                == binding.logical_batch_sequence
+            )
         )
 
     def _close_partial(self, *, sync_bytes: bool) -> None:
@@ -1537,6 +1648,7 @@ class BridgeTrialCsvRotator:
             TpLoopState.WAIT_ACK,
             TpLoopState.READY_NEAR,
             TpLoopState.READY_HOME_CLOSED,
+            TpLoopState.READY_HOME_NEXT,
             TpLoopState.WAIT_INFRA_READY,
             TpLoopState.FAULT,
         }:
@@ -1620,6 +1732,9 @@ class TrialArtifactProducer:
 
     HANDSHAKE_COLUMNS = tuple(
         f"ur_output_int_register_{index}" for index in range(24, 31)
+    )
+    ROLLING_HANDSHAKE_COLUMNS = tuple(
+        f"ur_output_int_register_{index}" for index in range(31, 35)
     )
 
     def __init__(self, root: Path, trial: TrialSpec) -> None:
@@ -1732,6 +1847,12 @@ class TrialArtifactProducer:
             network_mode=True,
         )
         rows, fields, capture_sha = self._capture_rows()
+        if expected_arm.logical_batch_sequence > 0 and not set(
+            self.ROLLING_HANDSHAKE_COLUMNS
+        ).issubset(fields):
+            raise MailboxError(
+                "rolling per-trial capture lacks batch/return identity columns"
+            )
         packets: list[TpPacket] = []
         for row in rows:
             try:
@@ -1756,6 +1877,11 @@ class TrialArtifactProducer:
                 consumed_command_seq=self._csv_int(
                     row, "ur_output_int_register_30"
                 ),
+                logical_batch_sequence_echo=(
+                    self._csv_int(row, "ur_output_int_register_34")
+                    if expected_arm.logical_batch_sequence > 0
+                    else 0
+                ),
             )
             if not _tp_identity_matches(expected_arm, packet) or (
                 packet.consumed_command_seq != expected_arm.command_seq
@@ -1767,6 +1893,7 @@ class TrialArtifactProducer:
             TpLoopState.WAIT_ACK,
             TpLoopState.READY_NEAR,
             TpLoopState.READY_HOME_CLOSED,
+            TpLoopState.READY_HOME_NEXT,
         } or final.terminal_reason <= 0:
             raise MailboxError("capture is not sealed by an exact terminal row")
         if final.terminal_reason != expected_terminal_reason:

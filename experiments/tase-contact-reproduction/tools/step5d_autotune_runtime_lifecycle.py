@@ -239,7 +239,7 @@ class PostAckControllerReadback:
 
 @dataclass(frozen=True)
 class TerminalReadyControllerReadback:
-    """Exact r006 terminal-ready proof from the sealed production capture."""
+    """Exact direct-ready proof from the sealed production capture."""
 
     batch_uid: str
     row_index: int
@@ -267,6 +267,9 @@ class TerminalReadyControllerReadback:
     safety_mode: str
     safety_guards: Mapping[str, bool]
     transcript_sha256: str
+    protocol: str = "v3_direct_arm_v1"
+    logical_batch_sequence: int = 0
+    host_joint_error_max_rad: float = 0.0
 
     def __post_init__(self) -> None:
         for name in (
@@ -276,12 +279,17 @@ class TerminalReadyControllerReadback:
             "transcript_sha256",
         ):
             _sha256(name, getattr(self, name))
+        rolling = self.protocol == "v3_full_home_rolling_arm_v1"
+        if self.protocol not in {"v3_direct_arm_v1", "v3_full_home_rolling_arm_v1"}:
+            raise ValueError("terminal-ready protocol is unsupported")
+        if rolling and self.logical_batch_sequence <= 0:
+            raise ValueError("rolling terminal-ready proof lacks logical batch identity")
         expected_reference = (
             ReturnReferenceKind.CAMPAIGN_HOME
-            if self.row_index == 10
+            if rolling or self.row_index == 10
             else ReturnReferenceKind.NEAR_READY
         )
-        expected_state = (
+        expected_state = "READY_HOME_NEXT" if rolling else (
             "READY_HOME_CLOSED"
             if expected_reference is ReturnReferenceKind.CAMPAIGN_HOME
             else "READY_NEAR"
@@ -302,6 +310,7 @@ class TerminalReadyControllerReadback:
             "tcp_linear_speed_m_s": 0.001,
             "tcp_angular_speed_rad_s": 0.01,
             "qd_max_rad_s": 0.01,
+            "host_joint_error_max_rad": 0.01,
             "return_current_angular_speed_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
             "return_current_angular_acceleration_rad_s2": RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
             "return_max_angular_speed_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
@@ -322,9 +331,13 @@ class TerminalReadyControllerReadback:
             raise ValueError("terminal-ready safety guards are incomplete or failed")
 
     def document(self) -> dict[str, Any]:
-        return {
-            "schema": "step5d.autotune-v3/terminal-ready-controller-readback-v1",
-            "protocol": "v3_direct_arm_v1",
+        document = {
+            "schema": (
+                "step5d.autotune-v3/terminal-ready-controller-readback-v2"
+                if self.protocol == "v3_full_home_rolling_arm_v1"
+                else "step5d.autotune-v3/terminal-ready-controller-readback-v1"
+            ),
+            "protocol": self.protocol,
             "batch_uid": self.batch_uid,
             "row_index": self.row_index,
             "trial_uid": self.trial_uid,
@@ -352,6 +365,10 @@ class TerminalReadyControllerReadback:
             "safety_guards": dict(sorted(self.safety_guards.items())),
             "transcript_sha256": self.transcript_sha256,
         }
+        if self.protocol == "v3_full_home_rolling_arm_v1":
+            document["logical_batch_sequence"] = self.logical_batch_sequence
+            document["host_joint_error_max_rad"] = self.host_joint_error_max_rad
+        return document
 
     @property
     def controller_readback_sha256(self) -> str:
@@ -544,11 +561,21 @@ def _load_terminal_ready_readback(
     if not isinstance(document, Mapping):
         raise ValueError("terminal-ready readback is not an object")
     payload = dict(document)
-    if payload.pop("schema", None) != (
-        "step5d.autotune-v3/terminal-ready-controller-readback-v1"
-    ) or payload.pop("protocol", None) != "v3_direct_arm_v1":
+    schema = payload.pop("schema", None)
+    protocol = payload.pop("protocol", None)
+    if (schema, protocol) not in {
+        (
+            "step5d.autotune-v3/terminal-ready-controller-readback-v1",
+            "v3_direct_arm_v1",
+        ),
+        (
+            "step5d.autotune-v3/terminal-ready-controller-readback-v2",
+            "v3_full_home_rolling_arm_v1",
+        ),
+    }:
         raise ValueError("terminal-ready readback schema differs")
     try:
+        payload["protocol"] = protocol
         payload["return_reference"] = ReturnReferenceKind(payload["return_reference"])
         readback = TerminalReadyControllerReadback(**payload)
     except (KeyError, TypeError, ValueError) as exc:
@@ -1224,7 +1251,7 @@ def direct_ready_closure_from_sealed_capture(
     campaign_home_reference: CampaignHomeReference,
     producer: Any,
 ) -> tuple[DirectReadyClosureEvidence, TerminalReadyControllerReadback, int]:
-    """Read the fsync-sealed production CSV and derive r006 lifecycle proof."""
+    """Read the fsync-sealed production CSV and derive direct-ARM lifecycle proof."""
 
     campaign_home_reference.verify_trial(trial)
     rows, _, _ = producer._capture_rows()
@@ -1236,8 +1263,9 @@ def direct_ready_closure_from_sealed_capture(
     speed = vector(row, "ur_actual_TCP_speed")
     joints = vector(row, "ur_actual_q")
     qd = vector(row, "ur_actual_qd")
-    expected_state = 77 if context.row_index == 10 else 76
-    expected_kind = 2 if context.row_index == 10 else 1
+    rolling = expected_arm.logical_batch_sequence > 0
+    expected_state = 78 if rolling else (77 if context.row_index == 10 else 76)
+    expected_kind = 2 if rolling or context.row_index == 10 else 1
     terminal_reason = integer(row, "ur_output_int_register_28")
     identity_ok = all(
         (
@@ -1253,11 +1281,14 @@ def direct_ready_closure_from_sealed_capture(
             integer(row, "ur_output_int_register_31") == context.row_index,
             integer(row, "ur_output_int_register_32") == expected_kind,
             integer(row, "ur_output_int_register_33") == 0x7F,
+            not rolling
+            or integer(row, "ur_output_int_register_34")
+            == expected_arm.logical_batch_sequence,
             integer(row, "ur_safety_mode") == 1,
         )
     )
     if not identity_ok:
-        raise ClosureNotReady("sealed capture lacks exact r006 terminal-ready identity")
+        raise ClosureNotReady("sealed capture lacks exact direct-ready identity")
     host_position_error = PostAckClosureCollector._norm(
         tuple(
             pose[index] - context.reference.pose_xyz_m[index]
@@ -1271,11 +1302,16 @@ def direct_ready_closure_from_sealed_capture(
     host_linear_speed = PostAckClosureCollector._norm(speed[:3])
     host_angular_speed = PostAckClosureCollector._norm(speed[3:])
     host_qd_max = max(abs(value) for value in qd)
+    host_joint_error_max = max(
+        abs(joints[index] - campaign_home_reference.home_q[index])
+        for index in range(6)
+    )
     guards = {
         "force": abs(number(row, "normal_force_n")) <= 60.0
         and number(row, "force_norm_n") <= 100.0,
         "torque": number(row, "torque_norm_nm") <= 3.0,
-        "joints": all(abs(value) <= 6.283185307 for value in joints),
+        "joints": all(abs(value) <= 6.283185307 for value in joints)
+        and (not rolling or host_joint_error_max <= 0.010),
         "sensor_freshness": number(row, "sensor_age_s") <= 0.1
         and number(row, "rtde_feedback_age_s") <= 0.05,
         "heartbeat": True,
@@ -1290,7 +1326,7 @@ def direct_ready_closure_from_sealed_capture(
             "ur_timestamp": number(row, "ur_timestamp"),
             "identity": [
                 integer(row, f"ur_output_int_register_{index}")
-                for index in range(24, 34)
+                for index in range(24, 35 if rolling else 34)
             ],
             "pose": list(pose),
             "speed": list(speed),
@@ -1305,7 +1341,11 @@ def direct_ready_closure_from_sealed_capture(
         return_reference=context.reference.kind,
         arm_command_seq=expected_arm.command_seq,
         consumed_command_seq=expected_arm.command_seq,
-        tp_state="READY_HOME_CLOSED" if context.row_index == 10 else "READY_NEAR",
+        tp_state=(
+            "READY_HOME_NEXT"
+            if rolling
+            else "READY_HOME_CLOSED" if context.row_index == 10 else "READY_NEAR"
+        ),
         batch_row_echo=context.row_index,
         return_kind_echo=context.reference.kind.value,
         return_guard_mask=0x7F,
@@ -1314,6 +1354,11 @@ def direct_ready_closure_from_sealed_capture(
         tcp_linear_speed_m_s=host_linear_speed,
         tcp_angular_speed_rad_s=host_angular_speed,
         qd_max_rad_s=host_qd_max,
+        protocol=(
+            "v3_full_home_rolling_arm_v1" if rolling else "v3_direct_arm_v1"
+        ),
+        logical_batch_sequence=expected_arm.logical_batch_sequence,
+        host_joint_error_max_rad=host_joint_error_max,
         return_phase_echo=number(row, "ur_output_double_register_35"),
         return_segment_id=int(round(number(row, "ur_output_double_register_39"))),
         return_current_angular_speed_rad_s=number(

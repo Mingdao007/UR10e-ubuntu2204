@@ -22,6 +22,8 @@ HOST_TO_TP_INTEGER_REGISTERS = {
     "candidate_token": 27,
     "execution_profile_id": 28,
     "command_seq": 29,
+    "batch_row_index": 30,
+    "logical_batch_sequence": 31,
 }
 
 TP_TO_HOST_INTEGER_REGISTERS = {
@@ -32,7 +34,13 @@ TP_TO_HOST_INTEGER_REGISTERS = {
     "terminal_reason": 28,
     "execution_profile_id_echo": 29,
     "consumed_command_seq": 30,
+    "batch_row_index_echo": 31,
+    "return_kind_echo": 32,
+    "return_guard_mask": 33,
+    "logical_batch_sequence_echo": 34,
 }
+
+FULL_HOME_ROLLING_PROTOCOL = "v3_full_home_rolling_arm_v1"
 
 
 class HostCommand(IntEnum):
@@ -40,6 +48,7 @@ class HostCommand(IntEnum):
     ARM = 1
     ACK_BUNDLE = 2
     STOP = 3
+    COMPLETE_AT_HOME = 4
 
 
 class TpLoopState(IntEnum):
@@ -54,6 +63,7 @@ class TpLoopState(IntEnum):
     WAIT_INFRA_READY = 75
     READY_NEAR = 76
     READY_HOME_CLOSED = 77
+    READY_HOME_NEXT = 78
     FAULT = 90
 
 
@@ -77,6 +87,7 @@ class HostPacket:
     candidate_token: int
     execution_profile_id: int
     command_seq: int
+    logical_batch_sequence: int = 0
 
 
 @dataclass(frozen=True)
@@ -88,6 +99,7 @@ class TpPacket:
     terminal_reason: int
     execution_profile_id_echo: int
     consumed_command_seq: int
+    logical_batch_sequence_echo: int = 0
 
 
 def classify_terminal_reason(
@@ -125,6 +137,7 @@ def host_packet_for_trial(
     *,
     command: HostCommand,
     execution_profile_id: int,
+    logical_batch_sequence: int = 0,
 ) -> HostPacket:
     return HostPacket(
         campaign_epoch=trial.campaign.campaign_epoch,
@@ -133,6 +146,7 @@ def host_packet_for_trial(
         candidate_token=trial.candidate_token,
         execution_profile_id=execution_profile_id,
         command_seq=trial.command_seq,
+        logical_batch_sequence=logical_batch_sequence,
     )
 
 
@@ -143,6 +157,10 @@ def packet_matches(host: HostPacket, tp: TpPacket) -> bool:
         and tp.candidate_token_echo == host.candidate_token
         and tp.execution_profile_id_echo == host.execution_profile_id
         and tp.consumed_command_seq == host.command_seq
+        and (
+            host.logical_batch_sequence == 0
+            or tp.logical_batch_sequence_echo == host.logical_batch_sequence
+        )
     )
 
 

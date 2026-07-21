@@ -120,6 +120,8 @@ class DirectReadyReceipt:
     consumed_command_seq: int
     tp_state: str
     controller_readback_path: str
+    protocol: str = "v3_direct_arm_v1"
+    logical_batch_sequence: int = 0
 
     def __post_init__(self) -> None:
         for name in (
@@ -131,8 +133,17 @@ class DirectReadyReceipt:
             "controller_readback_sha256",
         ):
             _sha256(name, getattr(self, name))
-        expected_reference = return_reference_for_row(self.row_index)
-        expected_state = (
+        rolling = self.protocol == "v3_full_home_rolling_arm_v1"
+        if self.protocol not in {"v3_direct_arm_v1", "v3_full_home_rolling_arm_v1"}:
+            raise SpecValidationError("direct-ready protocol is unsupported")
+        if rolling and self.logical_batch_sequence < 1:
+            raise SpecValidationError("rolling direct-ready receipt lacks batch identity")
+        expected_reference = (
+            ReturnReferenceKind.CAMPAIGN_HOME
+            if rolling
+            else return_reference_for_row(self.row_index)
+        )
+        expected_state = "READY_HOME_NEXT" if rolling else (
             "READY_HOME_CLOSED"
             if expected_reference is ReturnReferenceKind.CAMPAIGN_HOME
             else "READY_NEAR"
@@ -159,8 +170,8 @@ class DirectReadyReceipt:
             )
 
     def document(self) -> dict[str, Any]:
-        return {
-            "schema": "ur10e.direct_ready_receipt/v1",
+        document = {
+            "schema": "ur10e.direct_ready_receipt/v2" if self.protocol == "v3_full_home_rolling_arm_v1" else "ur10e.direct_ready_receipt/v1",
             "batch_uid": self.batch_uid,
             "row_index": self.row_index,
             "trial_uid": self.trial_uid,
@@ -173,6 +184,10 @@ class DirectReadyReceipt:
             "tp_state": self.tp_state,
             "controller_readback_path": self.controller_readback_path,
         }
+        if self.protocol == "v3_full_home_rolling_arm_v1":
+            document["protocol"] = self.protocol
+            document["logical_batch_sequence"] = self.logical_batch_sequence
+        return document
 
     @property
     def completion_uid(self) -> str:
@@ -234,6 +249,10 @@ class BatchRow:
     row_index: int
     control_candidate: Mapping[str, Any]
     trial_overlay: Mapping[str, Any]
+    occurrence_uid: str | None = None
+    transport_candidate_uid: str | None = None
+    role: str | None = None
+    replicate_ordinal: int | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.row_index, bool) or not isinstance(self.row_index, int):
@@ -257,18 +276,40 @@ class BatchRow:
             strict_json_loads(canonical_json_bytes(candidate)),
         )
         object.__setattr__(self, "trial_overlay", overlay)
+        optional = (self.occurrence_uid, self.transport_candidate_uid)
+        if any(value is not None for value in optional):
+            if not all(value is not None for value in optional):
+                raise SpecValidationError("rolling row occurrence identity is incomplete")
+            _sha256("occurrence_uid", self.occurrence_uid)
+            _sha256("transport_candidate_uid", self.transport_candidate_uid)
+            if not isinstance(self.role, str) or not self.role:
+                raise SpecValidationError("rolling row role is missing")
+            if (
+                isinstance(self.replicate_ordinal, bool)
+                or not isinstance(self.replicate_ordinal, int)
+                or self.replicate_ordinal < 1
+            ):
+                raise SpecValidationError("rolling replicate ordinal must be positive")
 
     @property
     def control_candidate_uid(self) -> str:
         return str(self.trial_overlay["control_candidate_uid"])
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        document = {
             "row_index": self.row_index,
             "control_candidate_uid": self.control_candidate_uid,
             "control_candidate": dict(self.control_candidate),
             "trial_overlay": dict(self.trial_overlay),
         }
+        if self.occurrence_uid is not None:
+            document.update(
+                occurrence_uid=self.occurrence_uid,
+                transport_candidate_uid=self.transport_candidate_uid,
+                role=self.role,
+                replicate_ordinal=self.replicate_ordinal,
+            )
+        return document
 
 
 @dataclass(frozen=True)
@@ -284,6 +325,9 @@ class BatchIdentity:
     authorization_ref_sha256: str
     plant_epoch: int
     rows: tuple[BatchRow, ...]
+    protocol: str = "legacy_ack_bundle_v1"
+    logical_batch_sequence: int = 0
+    plan_revision: int = 0
 
     def __post_init__(self) -> None:
         if not isinstance(self.campaign_uid, str) or not self.campaign_uid.strip():
@@ -306,13 +350,25 @@ class BatchIdentity:
         ):
             raise SpecValidationError("plant_epoch must be a positive integer")
         rows = tuple(self.rows)
-        if len(rows) != 10 or tuple(row.row_index for row in rows) != tuple(
-            range(1, 11)
+        rolling = self.protocol == "v3_full_home_rolling_arm_v1"
+        if self.protocol not in {"legacy_ack_bundle_v1", "v3_direct_arm_v1", "v3_full_home_rolling_arm_v1"}:
+            raise SpecValidationError("BatchIdentity protocol is unsupported")
+        expected_count = 5 if rolling else 10
+        if len(rows) != expected_count or tuple(row.row_index for row in rows) != tuple(
+            range(1, expected_count + 1)
         ):
-            raise SpecValidationError("BatchIdentity requires exact ordered rows 1..10")
+            raise SpecValidationError(
+                f"BatchIdentity requires exact ordered rows 1..{expected_count}"
+            )
         uids = tuple(row.control_candidate_uid for row in rows)
-        if len(set(uids)) != 10:
+        if not rolling and len(set(uids)) != expected_count:
             raise SpecValidationError("BatchIdentity control candidates must be unique")
+        if rolling:
+            if self.logical_batch_sequence < 1 or self.plan_revision < 1:
+                raise SpecValidationError("rolling BatchIdentity lacks plan generation")
+            occurrences = tuple(row.occurrence_uid for row in rows)
+            if None in occurrences or len(set(occurrences)) != expected_count:
+                raise SpecValidationError("rolling BatchIdentity occurrences must be unique")
         object.__setattr__(self, "rows", rows)
 
     @property
@@ -320,8 +376,8 @@ class BatchIdentity:
         return canonical_sha256(self.identity_document())
 
     def identity_document(self) -> dict[str, Any]:
-        return {
-            "schema": "ur10e.batch_identity/v2",
+        document = {
+            "schema": "ur10e.batch_identity/v3" if self.protocol == "v3_full_home_rolling_arm_v1" else "ur10e.batch_identity/v2",
             "campaign_uid": self.campaign_uid,
             "experiment_fingerprint": self.experiment_fingerprint,
             "launch_fingerprint": self.launch_fingerprint,
@@ -334,13 +390,23 @@ class BatchIdentity:
             "plant_epoch": self.plant_epoch,
             "rows": [row.to_dict() for row in self.rows],
         }
+        if self.protocol == "v3_full_home_rolling_arm_v1":
+            document.update(
+                protocol=self.protocol,
+                logical_batch_sequence=self.logical_batch_sequence,
+                plan_revision=self.plan_revision,
+            )
+        return document
 
     def document(self) -> dict[str, Any]:
         return {**self.identity_document(), "batch_uid": self.batch_uid}
 
     @classmethod
     def from_document(cls, document: Mapping[str, Any]) -> "BatchIdentity":
-        if not isinstance(document, Mapping) or set(document) != {
+        if not isinstance(document, Mapping):
+            raise SpecValidationError("BatchIdentity document fields differ")
+        schema = document.get("schema")
+        base_fields = {
             "schema",
             "campaign_uid",
             "experiment_fingerprint",
@@ -354,26 +420,42 @@ class BatchIdentity:
             "plant_epoch",
             "rows",
             "batch_uid",
-        }:
+        }
+        rolling_fields = {"protocol", "logical_batch_sequence", "plan_revision"}
+        expected_fields = base_fields | (rolling_fields if schema == "ur10e.batch_identity/v3" else set())
+        if set(document) != expected_fields:
             raise SpecValidationError("BatchIdentity document fields differ")
-        if document["schema"] != "ur10e.batch_identity/v2":
+        if schema not in {"ur10e.batch_identity/v2", "ur10e.batch_identity/v3"}:
             raise SpecValidationError("BatchIdentity schema differs")
         raw_rows = document["rows"]
         if not isinstance(raw_rows, list):
             raise SpecValidationError("BatchIdentity rows must be an array")
         rows = []
         for raw in raw_rows:
-            if not isinstance(raw, Mapping) or set(raw) != {
+            legacy_row_fields = {
                 "row_index",
                 "control_candidate_uid",
                 "control_candidate",
                 "trial_overlay",
-            }:
+            }
+            rolling_row_fields = legacy_row_fields | {
+                "occurrence_uid",
+                "transport_candidate_uid",
+                "role",
+                "replicate_ordinal",
+            }
+            if not isinstance(raw, Mapping) or set(raw) != (
+                rolling_row_fields if schema == "ur10e.batch_identity/v3" else legacy_row_fields
+            ):
                 raise SpecValidationError("BatchIdentity row fields differ")
             row = BatchRow(
                 row_index=raw["row_index"],
                 control_candidate=raw["control_candidate"],
                 trial_overlay=raw["trial_overlay"],
+                occurrence_uid=raw.get("occurrence_uid"),
+                transport_candidate_uid=raw.get("transport_candidate_uid"),
+                role=raw.get("role"),
+                replicate_ordinal=raw.get("replicate_ordinal"),
             )
             if raw["control_candidate_uid"] != row.control_candidate_uid:
                 raise SpecValidationError("BatchIdentity row UID differs")
@@ -392,6 +474,9 @@ class BatchIdentity:
             authorization_ref_sha256=document["authorization_ref_sha256"],
             plant_epoch=document["plant_epoch"],
             rows=tuple(rows),
+            protocol=document.get("protocol", "legacy_ack_bundle_v1"),
+            logical_batch_sequence=document.get("logical_batch_sequence", 0),
+            plan_revision=document.get("plan_revision", 0),
         )
         if document["batch_uid"] != identity.batch_uid:
             raise SpecValidationError("BatchIdentity digest differs")
@@ -507,6 +592,16 @@ def return_reference_for_row(row_index: int) -> ReturnReferenceKind:
         if row_index == 10
         else ReturnReferenceKind.NEAR_READY
     )
+
+
+def return_reference_for_batch(
+    batch: BatchIdentity, row_index: int
+) -> ReturnReferenceKind:
+    if row_index < 1 or row_index > len(batch.rows):
+        raise SpecValidationError("batch row index is outside this identity")
+    if batch.protocol == "v3_full_home_rolling_arm_v1":
+        return ReturnReferenceKind.CAMPAIGN_HOME
+    return return_reference_for_row(row_index)
 
 
 def _fsync_directory(path: Path) -> None:
@@ -715,7 +810,7 @@ class BatchJournal:
             if event.get("batch_uid") != identity.batch_uid:
                 raise OutputPathError("batch journal event identity differs")
             row_index = event.get("row_index")
-            if isinstance(row_index, bool) or not isinstance(row_index, int) or not 1 <= row_index <= 10:
+            if isinstance(row_index, bool) or not isinstance(row_index, int) or not 1 <= row_index <= len(identity.rows):
                 raise OutputPathError("batch journal row index differs")
             state = mutable[row_index - 1]
             kind = event.get("kind")
@@ -800,10 +895,15 @@ class BatchJournal:
                 if not isinstance(document, Mapping):
                     raise OutputPathError("batch direct-ready receipt is invalid")
                 candidate_document = dict(document)
-                if candidate_document.pop("schema", None) != (
-                    "ur10e.direct_ready_receipt/v1"
-                ):
+                schema = candidate_document.pop("schema", None)
+                if schema not in {
+                    "ur10e.direct_ready_receipt/v1",
+                    "ur10e.direct_ready_receipt/v2",
+                }:
                     raise OutputPathError("batch direct-ready receipt schema differs")
+                if schema == "ur10e.direct_ready_receipt/v1":
+                    candidate_document.setdefault("protocol", "v3_direct_arm_v1")
+                    candidate_document.setdefault("logical_batch_sequence", 0)
                 try:
                     receipt = DirectReadyReceipt(**candidate_document)
                 except (KeyError, TypeError, ValueError) as exc:
@@ -922,7 +1022,7 @@ class BatchJournal:
                         "trial_brief_document_sha256"
                     ],
                     optimizer_eligible=state["optimizer_eligible"],
-                    return_reference=return_reference_for_row(index),
+                    return_reference=return_reference_for_batch(identity, index),
                 )
             )
         return BatchState(
@@ -963,7 +1063,7 @@ class BatchJournal:
         )
 
     def record_bundle(self, row_index: int, trial_uid: str, bundle_sha256: str) -> None:
-        return_reference_for_row(row_index)
+        return_reference_for_batch(identity, row_index)
         identity = self.identity()
 
         def validate(current: BatchState) -> None:
@@ -1119,7 +1219,7 @@ class BatchJournal:
         optimizer_eligible: bool,
     ) -> None:
         identity = self.identity()
-        return_reference_for_row(row_index)
+        return_reference_for_batch(identity, row_index)
         _sha256("trial_brief_publication_uid", publication_uid)
         _sha256("trial_brief_document_sha256", document_sha256)
         if not isinstance(optimizer_eligible, bool):
@@ -1161,7 +1261,7 @@ class BatchJournal:
                 return result
             state = self.state()
             if not state.complete:
-                raise SpecValidationError("BatchResult requires 10 completed rows")
+                raise SpecValidationError("BatchResult requires all rows completed")
             if state.unpublished_trial_brief_row_indices:
                 raise SpecValidationError(
                     "BatchResult requires TrialBrief publication for every row"
@@ -1169,7 +1269,7 @@ class BatchJournal:
             result = {
                 "schema": "ur10e.batch_result/v1",
                 "batch_uid": state.batch_uid,
-                "row_count": 10,
+                "row_count": len(state.rows),
                 "rows": [row.to_dict() for row in state.rows],
                 "final_home_closure_receipt_sha256": state.rows[-1].closure_receipt_sha256,
                 "journal_record_count": state.journal_record_count,

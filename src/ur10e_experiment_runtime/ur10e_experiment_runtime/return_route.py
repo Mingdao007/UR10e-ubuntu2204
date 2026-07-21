@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import math
 from typing import ClassVar, Mapping, Sequence, TypeAlias
 
-from .batch import BatchIdentity, ReturnReferenceKind, return_reference_for_row
+from .batch import BatchIdentity, ReturnReferenceKind, return_reference_for_batch, return_reference_for_row
 from .identity import canonical_sha256
 from .physical_prior import PhysicalPriorArtifact
 
@@ -701,7 +701,7 @@ def return_reference(
     near = _finite_vector("near_ready_pose", near_ready_pose, 6)
     home = _finite_vector("campaign_home_pose", campaign_home_pose, 6)
     row = batch.rows[row_index - 1]
-    kind = return_reference_for_row(row_index)
+    kind = return_reference_for_batch(batch, row_index)
     pose = near if kind is ReturnReferenceKind.NEAR_READY else home
     values = {
         "batch_uid": batch.batch_uid,

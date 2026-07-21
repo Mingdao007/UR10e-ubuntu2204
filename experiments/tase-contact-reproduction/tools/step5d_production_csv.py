@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, Sequence, TextIO
 
 
-TERMINAL_TP_STATES = frozenset({75, 76, 77, 90})
+TERMINAL_TP_STATES = frozenset({75, 76, 77, 78, 90})
 TIMEOUT_CODES = frozenset(
     {
         "no_fresh_rows",

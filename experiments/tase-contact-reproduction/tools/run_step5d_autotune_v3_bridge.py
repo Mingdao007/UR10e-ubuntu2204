@@ -266,6 +266,11 @@ class V3AsyncBridgeTrialCsvRotator:
             and snapshot.candidate_token_echo == binding.candidate_token
             and snapshot.execution_profile_id_echo == binding.execution_profile_id
             and snapshot.consumed_command_seq >= binding.arm_command_seq
+            and (
+                binding.logical_batch_sequence is None
+                or snapshot.logical_batch_sequence_echo
+                == binding.logical_batch_sequence
+            )
         )
         if snapshot.state is TpLoopState.READY_HOME or not matches:
             return False
@@ -291,6 +296,7 @@ class V3AsyncBridgeTrialCsvRotator:
             TpLoopState.WAIT_ACK,
             TpLoopState.READY_NEAR,
             TpLoopState.READY_HOME_CLOSED,
+            TpLoopState.READY_HOME_NEXT,
             TpLoopState.WAIT_INFRA_READY,
             TpLoopState.FAULT,
         }:
