@@ -15,7 +15,6 @@
   "schema": "step5d.autotune.controller-readback/v3",
   "source_stamp": "2026-07-21T1446HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R009",
   "status": "controller read-back verified",
-  "tp_fingerprint": "b521b49c6132f59c691a80e8f6a0367a0d562e31a4fd935d6813b026dd4b8757",
   "triplet_sha256": {
     ".script": "5650d5b2f01e913e9cb0e4c8e2f6e6f53518cc6add664d7c0e5564730056deff",
     ".txt": "9b3f00af232845e84ffc0f2a4f2e29d234b201181bac72baaeb287a137eb1098",

@@ -11000,7 +11000,7 @@
         "r006_controller_readback_verified": true,
         "r006_known_incompatible_do_not_retry": true,
         "r006_live_incident_fixture": "tests/fixtures/step5d_r006_batch_identity_namespace_incident.json",
-        "r008_controller_readback_verified": true,
+        "r009_controller_readback_verified": true,
         "reproduction_complete": false,
         "rollback_drill_required": true,
         "typed_closure_v2_cold_read_ack_next_arm_verified": "legacy_replay_only_not_production_pass"
@@ -11064,7 +11064,7 @@
       "offline_validation": {
         "acceptance_scope": "offline_pre_live_only",
         "diagnostic_bundle_replay": "pass",
-        "exact_ten_row_lifecycle": "r008_rolling_rows_1_to_5_every_row_home_state78_arm11_q4_q5",
+        "exact_ten_row_lifecycle": "r009_rolling_rows_1_to_5_every_row_home_state78_arm11_q4_q5",
         "formal_500hz_timing": "not_required_by_user",
         "hardware_promotion": "controller_readback_verified",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",

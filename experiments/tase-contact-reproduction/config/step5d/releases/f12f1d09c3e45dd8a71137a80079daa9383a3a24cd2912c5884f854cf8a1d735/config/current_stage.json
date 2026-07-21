@@ -1400,7 +1400,7 @@
     "bridge_start_ready": true,
     "campaign_ready": false,
     "deployment_ready": true,
-    "host_runtime_disposition": "verified_r008_full_home_rolling_production_chain_offline",
+    "host_runtime_disposition": "verified_r009_full_home_rolling_production_chain_offline",
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },
@@ -1434,7 +1434,7 @@
     ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
   },
   "stage_table_path": "config/step5_stage_table.json",
-  "status": "step5d_autotune_v3_r008_controller_readback_verified",
+  "status": "step5d_autotune_v3_r009_controller_readback_verified",
   "strict_rnn_status": {
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",

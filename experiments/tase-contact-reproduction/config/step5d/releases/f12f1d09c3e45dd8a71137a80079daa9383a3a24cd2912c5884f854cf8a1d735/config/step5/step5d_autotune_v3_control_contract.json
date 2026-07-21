@@ -8,15 +8,15 @@
     ]
   },
   "candidate_tp_artifact_sha256": {
-    ".script": "5650d5b2f01e913e9cb0e4c8e2f6e6f53518cc6add664d7c0e5564730056deff",
-    ".txt": "9b3f00af232845e84ffc0f2a4f2e29d234b201181bac72baaeb287a137eb1098",
-    ".urp": "587caa89049698c0905d3420ccc798076da8086b4142fb072a941050534a4fe8"
+    ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+    ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+    ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
   },
   "candidate_tp_identity": {
     "artifact_dir": "programs/step5/step5d",
-    "deploy_manifest_sha256": "b521b49c6132f59c691a80e8f6a0367a0d562e31a4fd935d6813b026dd4b8757",
+    "deploy_manifest_sha256": "55efa784229185a79a081246fadce781be8a707d1ad347e2e5568ad9a2cf8a3c",
     "mode": "controller_readback_verified_promoted_current",
-    "numeric_sanity_sha256": "8c5c42249eccbe2d31f271950c3d5d1f7325795adf5a65f75a338052e486d49d",
+    "numeric_sanity_sha256": "3d5298466d890b350556eecd532e7421e1eb2be71186ff05a2c3e7fda636dd7f",
     "program": "step5d_strict_rnn_autotune_v3_r009"
   },
   "cli_arguments": [
@@ -324,8 +324,8 @@
     "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
     "program": "step5d_strict_rnn_autotune_v3_r009",
     "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-    "readback_manifest_sha256": "ccb083ce4bb8c208a747e81907000b8e56bc25bedca368057233dc9149347a4e",
-    "tp_fingerprint": "b521b49c6132f59c691a80e8f6a0367a0d562e31a4fd935d6813b026dd4b8757"
+    "readback_manifest_sha256": "93306bca30d20d683c68be5eb9ecbcf060f09b1129cf25cdf0179fc810aedf17",
+    "tp_fingerprint": "55efa784229185a79a081246fadce781be8a707d1ad347e2e5568ad9a2cf8a3c"
   },
   "effective_fields": {
     "campaign_tunable": {
@@ -556,35 +556,35 @@
   "promotion_status": "controller_readback_verified",
   "schema": "step5d.autotune.v3.control-contract/v1",
   "source_sha256": {
-    "config/step5/step5d_r008_botorch_runtime.json": "16ce50309bbc8262755cbbd1938740b842c8eb3e3d2b15d6248306c8898c6440",
-    "config/step5/step5d_r008_botorch_runtime.lock": "e781dc5f9fdaee04576ef47fa544ba9f95a89e94afa3a9de610f39e684b9e434",
+    "config/step5/step5d_r009_botorch_runtime.json": "16ce50309bbc8262755cbbd1938740b842c8eb3e3d2b15d6248306c8898c6440",
+    "config/step5/step5d_r009_botorch_runtime.lock": "e781dc5f9fdaee04576ef47fa544ba9f95a89e94afa3a9de610f39e684b9e434",
     "config/step5_safe_frame.json": "e0e4cda8c07d68161ff448223626b46d0eef903973d74e1af0483bf110aecfa4",
     "config/step5d_autotune_i_scale_sanity_v1.json": "19b2a07cc43722cf486863150b65b9984160ccec1b326e762022135d20f6a225",
     "scripts/bridge-line-operator.sh": "91d8fb6be1ddcd038e5497032fd2173c3b94181da523a43370653a24cdb27da9",
     "scripts/step5d-autotune-live.sh": "ca0cac4ca0579f0493fd1ab7c93e45bf84b3608a40740a36ec12bf0aad6d1ed6",
-    "tools/build_step5d_autotune_tp_v3.py": "8bc9a00713d8ebf361d4838654ea69f85bcf96fd760cb0753a60d463cb2f75a1",
+    "tools/build_step5d_autotune_tp_v3.py": "5155a8b06cdc2fe4ba5cf59558a1b0a084533d76aa2dac92e39e3375978027dc",
     "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
     "tools/kunwei_rtde_bridge.py": "945799d25473265fb7ec3858908745f81b01ae80f93a94d397a7d6889e8c34d9",
-    "tools/run_step5d_autotune_campaign.py": "1c37958551699a6e6690baa8a791afd871fcfdd2d806feeb0b71cd65b25ee2c2",
-    "tools/step5d_autotune_backend.py": "66787c51ca0cd2ba6be654e183ccb1cbe6c92b23853fa27d66eb3dac41d4e140",
-    "tools/step5d_autotune_batch_plan.py": "cda69dc6993de2b3378f70b8856ef8fb4c905d6034fac5b9ddc7c33bbe0e3fe5",
+    "tools/run_step5d_autotune_campaign.py": "150d3058d83ec71639e7cace2f4fe54ea14d3d6bf336ef7f550df6b0bd7852e8",
+    "tools/step5d_autotune_backend.py": "a53fbf566ecc474c5de819dc2a8066efcc7338a7e4f5d11131b7144854028b2c",
+    "tools/step5d_autotune_batch_plan.py": "6a799b0f3769fbe4eb6be9f57f22ab30be25bb78eb2f03f3f9c3c7f6c60dba32",
     "tools/step5d_autotune_contract.py": "85230800abbd121830a5aa64c910d9157fe0c73afb7304bb10e6d9f36284c870",
     "tools/step5d_autotune_coordinator.py": "25158a45837b3bba66e1e0b86c2d9de939500e5d9a632294dd409f8f27ab70d8",
     "tools/step5d_autotune_journal.py": "e21adf7010b08eab49fc12a10ff24f1dcbfff5e69a11888ecf0d9d0e68131a8e",
-    "tools/step5d_autotune_live_driver.py": "89d8864efdf6a109575b9a2d67bdd4c669ee8ba192817f9a69a06603667ef983",
+    "tools/step5d_autotune_live_driver.py": "ec55368877fb0667d6bf22e9765af8e12b58bca9d0e11795ec0706ce7d98c201",
     "tools/step5d_autotune_optimizer.py": "a135359583567b4613f3f7efd6f02bead59324615cdb04bd2ad73d32c54ac3b3",
-    "tools/step5d_autotune_r008_policy.py": "1c305b0681dce4111739fa633fa0a1d343cfaf0607844dad7715e2079ca3ff7c",
-    "tools/step5d_autotune_runtime_lifecycle.py": "2fbe58b565fcbccb96697d346160a50079a45d802d4a824863cf7b10914dcf96",
+    "tools/step5d_autotune_r009_policy.py": "317bee2951671aa1d092f9c3ff56b17f17e958e0f0bc54ef544e7891a85ed857",
+    "tools/step5d_autotune_runtime_lifecycle.py": "db890f5d22fac0afa325a92ccf806e1f5af4ae210d16c1f754a0470350c22dcb",
     "tools/step5d_autotune_state_machine.py": "9d17a07b3c475959653f65102b2692f816049fb2e380a231f7ad21aebdda5ec9",
     "tools/step5d_autotune_supervisor.py": "0bb34425710ea7d222715f8c1c68c0ae4c9d91e49c6d505169e5ab12fb89ce5e",
     "tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
     "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
-    "tools/step5d_r008_completion.py": "8abad28f2da85b34ec793f7c6c42f203f5d7136217711a8cc01f83f02ce09321",
+    "tools/step5d_r009_completion.py": "ba708b7e4cc49d08637fca408d07bae007d31c1bcf7e8799eea3a1d804a339fb",
     "tools/step5d_runtime_interface.py": "d08afc4c830791f4ba51bcb4e45fc53caf381fae093ce7ad9b6fa2fd2864cd2a"
   },
   "tp_artifact_sha256": {
-    ".script": "5650d5b2f01e913e9cb0e4c8e2f6e6f53518cc6add664d7c0e5564730056deff",
-    ".txt": "9b3f00af232845e84ffc0f2a4f2e29d234b201181bac72baaeb287a137eb1098",
-    ".urp": "587caa89049698c0905d3420ccc798076da8086b4142fb072a941050534a4fe8"
+    ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+    ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+    ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
   }
 }
