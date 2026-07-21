@@ -61,7 +61,6 @@ from contact_semantics import (  # noqa: E402
 from step_pose_contract import PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID, contract_target_axis_base  # noqa: E402
 import step5c_calibrated_kinematics_audit as step5d_kin  # noqa: E402
 from step5_table import step5_path_reference  # noqa: E402
-from step5c_dls_joint_solver import JointSolverConfig, STATUS_INVALID, Step5cDlsJointSolver  # noqa: E402
 from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver  # noqa: E402
 from verify_step5d_current_binding import (  # noqa: E402
     verify_binding as verify_step5d_binding,
@@ -1021,7 +1020,8 @@ STEP5D_V15A_REPEATED_HOLD_LIMIT = 120
 STEP5D_V15A_EARLY_ESCAPE_SPEED_HOLD_M_S = 0.0099
 STEP6_CONTACT_EIGHT_STAGE_ID = "step6_contact_eight_baseline_v1"
 STEP6_CONTACT_EIGHT_STAGE_ID_V2 = "step6_contact_eight_baseline_v2"
-_STEP5C_SOLVERS: dict[tuple[str, str, float, float], Step5cDlsJointSolver] = {}
+STEP5C_STATUS_INVALID = 90.0
+_STEP5C_SOLVERS: dict[tuple[str, str, float, float], Any] = {}
 
 
 def load_step4f_safe_frame() -> dict[str, Any]:
@@ -1971,7 +1971,11 @@ def step5_contact_path_reference(
     return step5_path_reference(stage_id, pose_xy, elapsed_s)
 
 
-def step5c_solver(args: argparse.Namespace) -> Step5cDlsJointSolver:
+def step5c_solver(args: argparse.Namespace) -> Any:
+    if args.step5c_joint_model is None:
+        raise ValueError("Step5c joint profile requires an explicit diagnostic model")
+    from step5c_dls_joint_solver import JointSolverConfig, Step5cDlsJointSolver
+
     key = (
         str(args.step5c_joint_model),
         args.step5c_joint_site,
@@ -3890,11 +3894,11 @@ def step5d_post_rnn_tracking_guard(
     }
 
 
-def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespace) -> None:
-    if state.step5d_model_bundle is None:
-        state.step5d_model_bundle = step5d_kin.build_calibrated_model()
-        audit_rows = step5d_kin.finite_run_rows(step5d_kin.DEFAULT_BRIDGE_CSV)
-        state.step5d_tcp_offset_tool0 = step5d_kin.infer_tcp_offset(state.step5d_model_bundle, audit_rows)["mean"]
+def ensure_step5d_liveprep_control_runtime(
+    state: "BridgeState", args: argparse.Namespace
+) -> None:
+    """Preallocate control owners after model and TCP calibration are bound."""
+
     if args.bridge_profile in STEP5D_TCP_CAGE_PROFILES and state.step5d_tcp_cage is None:
         state.step5d_tcp_cage = build_step5d_v15a_tcp_cage()
     if state.step5d_solver is None:
@@ -3924,6 +3928,16 @@ def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespac
         state.step5d_v30_safety_envelope = SafetyEnvelope(
             qdot_cap_rad_s=float(args.step5d_qdot_limit_rad_s)
         )
+
+
+def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespace) -> None:
+    if state.step5d_model_bundle is None:
+        state.step5d_model_bundle = step5d_kin.build_calibrated_model()
+        audit_rows = step5d_kin.finite_run_rows(step5d_kin.DEFAULT_BRIDGE_CSV)
+        state.step5d_tcp_offset_tool0 = step5d_kin.infer_tcp_offset(
+            state.step5d_model_bundle, audit_rows
+        )["mean"]
+    ensure_step5d_liveprep_control_runtime(state, args)
 
 
 def reset_step5d_autotune_diagnostics_for_trial(
@@ -6080,7 +6094,7 @@ def compute_bridge_values(
                         try:
                             bridge_solver_status = float(raw_candidate_v30.solver_status)
                         except (TypeError, ValueError):
-                            bridge_solver_status = STATUS_INVALID
+                            bridge_solver_status = STEP5C_STATUS_INVALID
                         step5d_result = SimpleNamespace(
                             qdot=raw_candidate_v30.qdot,
                             solver_status=bridge_solver_status,
@@ -6586,11 +6600,19 @@ def compute_bridge_values(
             if step5d_joint_line_profile and step5d_outer_output is not None:
                 register_force_error = float(step5d_outer_output.diagnostics.get("e_f", force_error))
                 register_pose_error = float(step5d_outer_output.diagnostics.get("outer_orientation_angle_rad", orientation_error))
-                register_status = step5d_result.solver_status if step5d_result is not None else STATUS_INVALID
+                register_status = (
+                    step5d_result.solver_status
+                    if step5d_result is not None
+                    else STEP5C_STATUS_INVALID
+                )
             else:
                 register_force_error = force_error
                 register_pose_error = orientation_error
-                register_status = joint_result.solver_status if joint_result is not None else STATUS_INVALID
+                register_status = (
+                    joint_result.solver_status
+                    if joint_result is not None
+                    else STEP5C_STATUS_INVALID
+                )
             if (
                 step5d_no_contact_p0_profile
                 and not step5d_no_contact_p0_v8_profile
@@ -9092,10 +9114,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--step5c-joint-model",
         type=Path,
-        default=(
-            EXPERIMENT_ROOT.parent
-            / "archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
-        ),
+        default=None,
     )
     parser.add_argument("--step5c-joint-site", default="tcp_site_unverified_85mm")
     parser.add_argument("--step5d-qdot-limit-rad-s", type=float, default=None)
@@ -9263,6 +9282,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if key.startswith("step4e_"):
             setattr(args, f"bridge_{key.removeprefix('step4e_')}", value)
     args.bridge_profile = args.step4e_version
+    if (
+        args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
+        and args.step5c_joint_model is None
+    ):
+        args.step5c_joint_model = (
+            EXPERIMENT_ROOT.parent
+            / "archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
+        )
     configure_step5d_autotune_args(args, argv_list)
     if not args.step5d_stage25_control_mode:
         args.step5d_stage25_control_mode = (

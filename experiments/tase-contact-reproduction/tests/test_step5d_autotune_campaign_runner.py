@@ -394,3 +394,63 @@ def test_v3_derived_queue_hook_is_after_direct_commit() -> None:
     committed = source.index('"direct_ready_committed"', finalized)
     queued = source.index("derived_postprocess.submit(", committed)
     assert finalized < committed < queued
+
+
+def test_campaign_runner_has_no_implicit_plot_or_network_publisher() -> None:
+    source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
+        encoding="utf-8"
+    )
+    active = json.loads(
+        (ROOT / "config/step5d/v3_active_surface.json").read_text(encoding="utf-8")
+    )
+
+    assert "publish_step5d_autotune_plot.py" not in source
+    assert "trial_plot_published" not in source
+    assert "trial_plot_publish_failed" not in source
+    assert "subprocess" not in source
+    assert "ssh" not in source
+    assert "scp" not in source
+    assert (ROOT / "tools/publish_step5d_autotune_plot.py").is_file()
+    assert (
+        "tools/publish_step5d_autotune_plot.py"
+        not in active["active_orchestration_paths"]
+    )
+
+
+def test_campaign_runner_import_does_not_load_matplotlib() -> None:
+    import_paths = [
+        str(ROOT / "tools"),
+        str(ROOT.parents[1] / "src/ur10e_experiment_runtime"),
+    ]
+    code = f"""
+import builtins
+import sys
+
+sys.path[:0] = {import_paths!r}
+original_import = builtins.__import__
+
+def reject_matplotlib(name, globals=None, locals=None, fromlist=(), level=0):
+    if name.split(".", 1)[0] == "matplotlib":
+        raise AssertionError(f"matplotlib imported by campaign runner: {{name}}")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = reject_matplotlib
+import run_step5d_autotune_campaign
+
+loaded = sorted(
+    name for name in sys.modules
+    if name == "matplotlib" or name.startswith("matplotlib.")
+)
+if loaded:
+    raise AssertionError(f"matplotlib loaded by campaign runner: {{loaded}}")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-I", "-c", code],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr

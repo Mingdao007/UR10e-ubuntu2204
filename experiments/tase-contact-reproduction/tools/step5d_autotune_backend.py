@@ -30,8 +30,12 @@ from step5d_autotune_replay import (
     verify_candidate_bound_search_attestation,
 )
 from step5d_autotune_supervisor import execution_profile_integer_id
-from step5d_workflow_state import WorkflowStateError, resolve_artifacts, verify_current
-from ur10e_artifact_store import artifact_store
+from step5d_workflow_state import (
+    CONTROLLER_READBACK_ROLES,
+    WorkflowStateError,
+    resolve_artifacts,
+    verify_current,
+)
 
 
 BACKEND_ID = "step5d_v35_native_backend_v1"
@@ -275,15 +279,9 @@ class Step5dV35Backend:
             artifacts = resolve_artifacts(
                 root=self.root,
                 locator_path=locator_path,
-                store=artifact_store(self.root),
+                required_roles=CONTROLLER_READBACK_ROLES,
             )
-            required_roles = {
-                "controller_readback_manifest",
-                "controller_readback_script",
-                "controller_readback_txt",
-                "controller_readback_urp",
-            }
-            if not required_roles.issubset(artifacts):
+            if not CONTROLLER_READBACK_ROLES.issubset(artifacts):
                 raise ValueError("campaign artifact locator lacks readback closure")
             manifest_path = artifacts["controller_readback_manifest"]
             manifest_sha = _sha256_file(manifest_path)
@@ -327,10 +325,7 @@ class Step5dV35Backend:
             if promoted.get("current_stage_id") != V3_RELEASE_STAGE_ID:
                 raise ValueError("selected V3 stage/program identity differs")
         else:
-            workflow = verify_current(
-                root=self.root,
-                store=artifact_store(self.root),
-            )
+            workflow = verify_current(root=self.root)
             if workflow.get("program") not in {
                 SOURCE_STAGE_ID,
                 CAMPAIGN_STAGE_ID,
@@ -411,15 +406,9 @@ class Step5dV35Backend:
                 / "artifact_locators"
                 / "step5d_v35_retained_inputs.json"
             ),
-            store=artifact_store(self.root),
+            required_roles=CONTROLLER_READBACK_ROLES,
         )
-        required_roles = {
-            "controller_readback_manifest",
-            "controller_readback_script",
-            "controller_readback_txt",
-            "controller_readback_urp",
-        }
-        if not required_roles.issubset(retained):
+        if not CONTROLLER_READBACK_ROLES.issubset(retained):
             raise ValueError("canonical v35 retained artifact closure is incomplete")
         readback_path = Path(retained["controller_readback_manifest"])
         readback_sha = _sha256_file(readback_path)

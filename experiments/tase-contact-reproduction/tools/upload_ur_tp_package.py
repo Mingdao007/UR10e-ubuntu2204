@@ -13,15 +13,19 @@ import gzip
 import hashlib
 import html
 import json
+import os
 import re
 import shutil
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path, PurePosixPath
+from typing import Iterator
 
 from resolve_step4e_route import load_routes as load_step4e_routes
 
@@ -30,9 +34,6 @@ EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 PROGRAM_DIR = EXPERIMENT_ROOT / "programs"
 RUN_ROOT = EXPERIMENT_ROOT / "runs"
 DEFAULT_CONTROLLER = "root@192.168.1.18"
-DEFAULT_HELPER = Path(
-    "/home/andy/codex-private-skills-shared-main/skills/ur10e-controller-access/scripts/ur10e_controller_ssh.py"
-)
 EXTENSIONS = (".script", ".txt", ".urp")
 LOCAL_CANDIDATE_MARKER = ".local_tp_candidate.json"
 INACTIVE_PRELIVE_DELIVERY_PROGRAMS = frozenset(
@@ -1540,9 +1541,122 @@ def run(cmd: list[str], *, dry_run: bool, capture: bool = False) -> str:
     return ""
 
 
-def helper_cmd(helper: Path, *args: str, require_exists: bool = True) -> list[str]:
-    if require_exists and not helper.is_file():
-        die(f"controller helper not found: {helper}")
+def _read_verified_controller_helper(helper: Path, expected_sha256: str) -> bytes:
+    if not helper.is_absolute():
+        die("controller helper path must be absolute")
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_sha256):
+        die("controller helper SHA-256 is invalid")
+    try:
+        descriptor = os.open(
+            helper,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        )
+    except OSError:
+        die(f"controller helper is missing or unsafe: {helper}")
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            die(f"controller helper is missing or unsafe: {helper}")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        content = b"".join(chunks)
+    finally:
+        os.close(descriptor)
+    if hashlib.sha256(content).hexdigest() != expected_sha256:
+        die("controller helper SHA-256 differs")
+    return content
+
+
+def validate_controller_helper(helper: Path, expected_sha256: str) -> None:
+    _read_verified_controller_helper(helper, expected_sha256)
+
+
+@contextmanager
+def controller_helper_snapshot(
+    helper: Path,
+    expected_sha256: str,
+) -> Iterator[Path]:
+    content = _read_verified_controller_helper(helper, expected_sha256)
+    with tempfile.TemporaryDirectory(prefix="ur10e-controller-helper-") as temporary:
+        private_root = Path(temporary)
+        os.chmod(private_root, 0o700)
+        snapshot = private_root / "controller-helper.py"
+        descriptor = os.open(
+            snapshot,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+            0o400,
+        )
+        try:
+            view = memoryview(content)
+            while view:
+                written = os.write(descriptor, view)
+                view = view[written:]
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        os.chmod(snapshot, 0o400)
+        if _read_verified_controller_helper(snapshot, expected_sha256) != content:
+            die("controller helper snapshot differs")
+        os.chmod(private_root, 0o500)
+        try:
+            yield snapshot
+        finally:
+            os.chmod(private_root, 0o700)
+
+
+def _verified_owner_dependency(name: str) -> dict[str, str]:
+    try:
+        from step5d_autotune_v3.runtime_installation import (
+            RuntimeInstallationError,
+            owner_dependency,
+        )
+    except ImportError as exc:
+        die(f"controller owner dependency gate is unavailable: {exc}")
+    try:
+        return owner_dependency(name)
+    except RuntimeInstallationError as exc:
+        die(
+            "controller owner dependency gate failed: "
+            f"{exc.reason_code}: {exc.detail}"
+        )
+
+
+def resolve_live_controller_helper(
+    requested_helper: Path | None,
+    requested_sha256: str | None,
+) -> tuple[Path, str]:
+    binding = _verified_owner_dependency("controller_helper")
+    path_value = binding.get("path")
+    sha_value = binding.get("sha256")
+    if (
+        not isinstance(path_value, str)
+        or not Path(path_value).is_absolute()
+        or not isinstance(sha_value, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", sha_value)
+    ):
+        die("verified runtime attestation returned an invalid controller helper binding")
+    attested_helper = Path(path_value)
+    if requested_helper is not None and (
+        str(requested_helper) != path_value or requested_sha256 != sha_value
+    ):
+        die("controller helper CLI binding differs from verified runtime attestation")
+    return attested_helper, sha_value
+
+
+def helper_cmd(
+    helper: Path,
+    *args: str,
+    expected_sha256: str | None,
+    require_exists: bool = True,
+) -> list[str]:
+    if require_exists:
+        if expected_sha256 is None:
+            die("controller helper SHA-256 is required")
+        validate_controller_helper(helper, expected_sha256)
     return [sys.executable, str(helper), *args]
 
 
@@ -1605,6 +1719,7 @@ def remote_sha256(
     helper: Path,
     remote_paths: list[str],
     *,
+    helper_sha256: str,
     expected_sha: dict[str, str],
     dry_run: bool,
 ) -> dict[str, str]:
@@ -1643,11 +1758,28 @@ def remote_sha256(
             str(manifest_path),
             "--output-dir",
             str(output_dir),
+            expected_sha256=helper_sha256,
+            require_exists=not dry_run,
         )
         if dry_run:
             run(command, dry_run=True)
             return {}
-        completed = subprocess.run(command, text=True, capture_output=True, check=False)
+        with controller_helper_snapshot(helper, helper_sha256) as snapshot:
+            command = helper_cmd(
+                snapshot,
+                "readback",
+                "--manifest",
+                str(manifest_path),
+                "--output-dir",
+                str(output_dir),
+                expected_sha256=helper_sha256,
+            )
+            completed = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
         if completed.returncode != 0:
             diagnostic = "\n".join((completed.stdout, completed.stderr))
             if "SHA256 mismatch" in diagnostic:
@@ -1684,6 +1816,7 @@ def readback_controller_sha256(
     program: str,
     target_dir: str,
     *,
+    helper_sha256: str,
     local_sha: dict[str, str],
 ) -> dict[str, str] | None:
     """Verify the remote triplet through the manifest-bound readback surface."""
@@ -1691,6 +1824,7 @@ def readback_controller_sha256(
     controller_sha = remote_sha256(
         helper,
         remote_paths,
+        helper_sha256=helper_sha256,
         expected_sha=local_sha,
         dry_run=False,
     )
@@ -1794,6 +1928,7 @@ def reuse_readback_if_remote_sha_matches(
     readback_dir: Path,
     *,
     helper: Path,
+    helper_sha256: str,
     local_sha: dict[str, str],
 ) -> tuple[dict[str, dict[str, str]], Path] | None:
     if controller != DEFAULT_CONTROLLER:
@@ -1814,6 +1949,7 @@ def reuse_readback_if_remote_sha_matches(
         files,
         program,
         target_dir,
+        helper_sha256=helper_sha256,
         local_sha=local_sha,
     )
     if controller_sha_by_ext is None:
@@ -1838,6 +1974,7 @@ def upload_and_readback(
     readback_dir: Path,
     *,
     helper: Path,
+    helper_sha256: str | None,
     dry_run: bool,
 ) -> dict[str, dict[str, str]]:
     if controller != DEFAULT_CONTROLLER:
@@ -1863,19 +2000,19 @@ def upload_and_readback(
             json.dumps(manifest, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-        deploy_output = run(
-            helper_cmd(
-                helper,
-                "deploy-triplet",
-                "--manifest",
-                str(manifest_path),
-                "--confirm-deploy",
-                require_exists=not dry_run,
-            ),
-            dry_run=dry_run,
-            capture=not dry_run,
-        )
         if dry_run:
+            run(
+                helper_cmd(
+                    helper,
+                    "deploy-triplet",
+                    "--manifest",
+                    str(manifest_path),
+                    "--confirm-deploy",
+                    expected_sha256=helper_sha256,
+                    require_exists=False,
+                ),
+                dry_run=True,
+            )
             run(
                 helper_cmd(
                     helper,
@@ -1884,30 +2021,47 @@ def upload_and_readback(
                     str(manifest_path),
                     "--output-dir",
                     str(readback_dir),
+                    expected_sha256=helper_sha256,
                     require_exists=False,
                 ),
                 dry_run=True,
             )
             return {}
-        deploy_result = json.loads(deploy_output.strip().splitlines()[-1])
-        if deploy_result.get("ok") is not True:
-            die("controller helper did not verify deployed triplet")
-        readback_dir.mkdir(parents=True, exist_ok=False)
-        readback_output = run(
-            helper_cmd(
-                helper,
-                "readback",
-                "--manifest",
-                str(manifest_path),
-                "--output-dir",
-                str(readback_dir),
-            ),
-            dry_run=False,
-            capture=True,
-        )
-        readback_result = json.loads(readback_output.strip().splitlines()[-1])
-        if readback_result.get("ok") is not True:
-            die("controller helper did not verify fetched-back triplet")
+        if helper_sha256 is None:
+            die("controller helper SHA-256 is required")
+        with controller_helper_snapshot(helper, helper_sha256) as snapshot:
+            deploy_output = run(
+                helper_cmd(
+                    snapshot,
+                    "deploy-triplet",
+                    "--manifest",
+                    str(manifest_path),
+                    "--confirm-deploy",
+                    expected_sha256=helper_sha256,
+                ),
+                dry_run=False,
+                capture=True,
+            )
+            deploy_result = json.loads(deploy_output.strip().splitlines()[-1])
+            if deploy_result.get("ok") is not True:
+                die("controller helper did not verify deployed triplet")
+            readback_dir.mkdir(parents=True, exist_ok=False)
+            readback_output = run(
+                helper_cmd(
+                    snapshot,
+                    "readback",
+                    "--manifest",
+                    str(manifest_path),
+                    "--output-dir",
+                    str(readback_dir),
+                    expected_sha256=helper_sha256,
+                ),
+                dry_run=False,
+                capture=True,
+            )
+            readback_result = json.loads(readback_output.strip().splitlines()[-1])
+            if readback_result.get("ok") is not True:
+                die("controller helper did not verify fetched-back triplet")
 
     readback_sha = {ext: sha256(readback_dir / path.name) for ext, path in files.items()}
     mismatches = [ext for ext in EXTENSIONS if local_sha[ext] != readback_sha[ext]]
@@ -2044,8 +2198,13 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--controller-helper",
         type=Path,
-        default=DEFAULT_HELPER,
-        help=f"password-capable controller helper, default: {DEFAULT_HELPER}",
+        default=None,
+        help="optional exact assertion of the helper bound by the runtime attestation",
+    )
+    parser.add_argument(
+        "--controller-helper-sha256",
+        default=None,
+        help="optional exact SHA assertion paired with --controller-helper",
     )
     parser.add_argument("--local-dir", type=Path, default=PROGRAM_DIR, help=f"default: {PROGRAM_DIR}")
     parser.add_argument("--readback-root", type=Path, default=RUN_ROOT, help=f"default: {RUN_ROOT}")
@@ -2077,6 +2236,18 @@ def _main(argv: list[str] | None = None) -> int:
         die("--upload-transaction-id and --manifest-path-output must be supplied together")
     if args.dry_run and args.manifest_path_output is not None:
         die("dry-run cannot publish a controller read-back manifest path")
+    if (args.controller_helper is None) != (args.controller_helper_sha256 is None):
+        die("--controller-helper and --controller-helper-sha256 must be supplied together")
+    if args.dry_run:
+        helper = args.controller_helper or Path("<controller-helper>")
+        helper_sha256 = args.controller_helper_sha256
+        if args.controller_helper is not None:
+            validate_controller_helper(helper, args.controller_helper_sha256)
+    else:
+        helper, helper_sha256 = resolve_live_controller_helper(
+            args.controller_helper,
+            args.controller_helper_sha256,
+        )
 
     program = normalize_program(args.program)
     inactive_delivery_policy = enforce_offline_candidate_delivery_block(program)
@@ -2150,7 +2321,8 @@ def _main(argv: list[str] | None = None) -> int:
             target_dir,
             args.readback_root,
             readback_dir,
-            helper=args.controller_helper,
+            helper=helper,
+            helper_sha256=helper_sha256,
             local_sha=local_sha,
         )
     if reuse_result is not None:
@@ -2165,7 +2337,8 @@ def _main(argv: list[str] | None = None) -> int:
             args.controller,
             target_dir,
             readback_dir,
-            helper=args.controller_helper,
+            helper=helper,
+            helper_sha256=helper_sha256,
             dry_run=args.dry_run,
         )
     if args.dry_run:

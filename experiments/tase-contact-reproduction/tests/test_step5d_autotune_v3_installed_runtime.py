@@ -43,8 +43,31 @@ def test_real_production_startup_prewarm_needs_no_ignored_legacy_csv(
     tmp_path: Path,
 ) -> None:
     code = """
+import builtins
 import json
+import sys
 import run_step5d_autotune_v3_bridge as wrapper
+from step5d_autotune_v3.runtime_calibration import validate_installed_calibration
+
+original_import = builtins.__import__
+
+def reject_pandas(name, globals=None, locals=None, fromlist=(), level=0):
+    if name.split('.', 1)[0] == 'pandas':
+        raise AssertionError(f'pandas imported during control startup: {name}')
+    return original_import(name, globals, locals, fromlist, level)
+
+def reject_legacy_rows(*args, **kwargs):
+    raise AssertionError('legacy calibration CSV reached during V3 control startup')
+
+builtins.__import__ = reject_pandas
+original_install = wrapper.install_v3_seams
+
+def guarded_install(*args, **kwargs):
+    bridge = original_install(*args, **kwargs)
+    bridge.step5d_kin.finite_run_rows = reject_legacy_rows
+    return bridge
+
+wrapper.install_v3_seams = guarded_install
 
 result = wrapper.check_v3_runtime_prewarm([
     '--bridge-mode', 'line',
@@ -52,6 +75,11 @@ result = wrapper.check_v3_runtime_prewarm([
     '--step5d-rnn-backend', 'numpy',
     '--step5d-rnn-inner-iterations', '4',
 ])
+expected = validate_installed_calibration()
+if result['tcp_offset_tool0_m'] != list(expected.tcp_offset_tool0_m):
+    raise AssertionError('prewarmed TCP offset differs from compact calibration')
+if 'pandas' in sys.modules:
+    raise AssertionError('pandas remained loaded after control startup')
 print(json.dumps(result, sort_keys=True))
 """
     environment = stable_cuda_environment(dict(os.environ))
@@ -77,6 +105,9 @@ print(json.dumps(result, sort_keys=True))
     assert result["ok"] is True
     assert result["missing"] == []
     assert result["rnn_backend"] == "numpy"
+    assert result["tcp_offset_tool0_m"] == list(
+        calibration.validate_installed_calibration().tcp_offset_tool0_m
+    )
 
 
 def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:

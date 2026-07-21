@@ -376,12 +376,6 @@ def runtime_values(
     return {
         "command_mailbox": str(resolved / "command.json"),
         "output_dir": str(resolved / "bridge"),
-        "step5c_joint_model": str(
-            (
-                experiment_root.parent
-                / "archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
-            ).resolve(strict=True)
-        ),
     }
 
 
@@ -399,7 +393,6 @@ def resolve_expected_value(
         "$candidate.force_terms": candidate_force_terms(candidate_values),
         "$runtime.command_mailbox": runtime["command_mailbox"],
         "$runtime.output_dir": runtime["output_dir"],
-        "$runtime.step5c_joint_model": runtime["step5c_joint_model"],
     }
     if isinstance(value, str) and value.startswith("$"):
         if value not in placeholders:
@@ -797,8 +790,6 @@ def control_fingerprint(
             governed[category] = names
             continue
         values = {name: effective_config[name] for name in names}
-        if "step5c_joint_model" in values:
-            values["step5c_joint_model"] = "$runtime.step5c_joint_model"
         governed[category] = values
     material = {
         "schema": "step5d.autotune.v3.control-fingerprint/v1",

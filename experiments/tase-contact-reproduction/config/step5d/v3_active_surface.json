@@ -118,6 +118,7 @@
     "tools/step5d_autotune_v3/identity_layers.py",
     "tools/step5d_autotune_v3/launcher.py",
     "tools/step5d_autotune_v3/postprocess.py",
+    "tools/step5d_autotune_v3/preflight_support.py",
     "tools/step5d_autotune_v3/profile.py",
     "tools/step5d_autotune_v3/qualification.py",
     "tools/step5d_autotune_v3/qualification_endpoints.py",

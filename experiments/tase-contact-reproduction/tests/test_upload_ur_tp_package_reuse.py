@@ -45,8 +45,6 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                     "--dry-run",
                     "--local-dir",
                     str(ROOT / "programs" / "step5" / "step5d"),
-                    "--controller-helper",
-                    str(ROOT / "tools" / "upload_ur_tp_package.py"),
                 ]
             )
 
@@ -375,6 +373,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                     readback_root,
                     readback_dir,
                     helper=Path("/unused/controller-helper.py"),
+                    helper_sha256="0" * 64,
                     local_sha=local_sha,
                 )
 
@@ -403,6 +402,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                     "/programs/andyl/kunwei/demo",
                     root / "readback",
                     helper=helper,
+                    helper_sha256=None,
                     dry_run=True,
                 )
             rendered = output.getvalue()
@@ -441,6 +441,7 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                     readback_root,
                     readback_root / f"controller_readback_{program}_20260702_120100",
                     helper=Path("/unused/controller-helper.py"),
+                    helper_sha256="0" * 64,
                     local_sha=local_sha,
                 )
 
@@ -460,6 +461,9 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
             }
             for ext, destination in files.items():
                 destination.write_bytes((source_dir / f"{program}{ext}").read_bytes())
+            helper = tmp_path / "controller-helper.py"
+            helper.write_text("print('fixture')\n", encoding="utf-8")
+            helper_digest = upload.sha256(helper)
             self._write_local_candidate_marker(
                 local_dir,
                 program=program,
@@ -475,10 +479,12 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 readback_dir,
                 *,
                 helper,
+                helper_sha256,
                 dry_run,
             ):
                 self.assertFalse(dry_run)
                 self.assertIsNotNone(helper)
+                self.assertEqual(helper_sha256, helper_digest)
                 readback_dir.mkdir(parents=True)
                 local_sha = upload.package_sha(package_files)
                 for ext, source in package_files.items():
@@ -496,6 +502,15 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                     "upload_and_readback",
                     side_effect=fake_upload_and_readback,
                 ) as deploy,
+                patch.object(
+                    upload,
+                    "_verified_owner_dependency",
+                    return_value={
+                        "owner_id": "ur10e-controller-access",
+                        "path": str(helper),
+                        "sha256": helper_digest,
+                    },
+                ),
                 redirect_stdout(out),
             ):
                 result = upload.main(
@@ -510,6 +525,10 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                         str(local_dir),
                         "--readback-root",
                         str(tmp_path / "readbacks"),
+                        "--controller-helper",
+                        str(helper),
+                        "--controller-helper-sha256",
+                        helper_digest,
                     ]
                 )
 
@@ -525,6 +544,117 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
             self.assertFalse(marker["not_delivered"])
             self.assertTrue(marker["controller_readback_verified"])
             self.assertEqual(marker["delivery_mode"], "full_upload_readback")
+
+    def test_helper_requires_exact_sha_and_rejects_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            helper = root / "controller-helper.py"
+            helper.write_text("print('fixture')\n", encoding="utf-8")
+            digest = upload.sha256(helper)
+
+            with self.assertRaisesRegex(RuntimeError, "SHA-256 is required"):
+                upload.helper_cmd(helper, "readback", expected_sha256=None)
+            with self.assertRaisesRegex(RuntimeError, "SHA-256 differs"):
+                upload.validate_controller_helper(helper, "0" * 64)
+            upload.validate_controller_helper(helper, digest)
+
+            alias = root / "helper-alias.py"
+            alias.symlink_to(helper)
+            with self.assertRaisesRegex(RuntimeError, "missing or unsafe"):
+                upload.validate_controller_helper(alias, digest)
+
+    def test_live_helper_rejects_self_reported_pair_not_in_attestation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            attested = root / "attested-helper.py"
+            attested.write_text("print('attested')\n", encoding="utf-8")
+            attested_digest = upload.sha256(attested)
+            self_reported = root / "self-reported-helper.py"
+            self_reported.write_text("print('self-reported')\n", encoding="utf-8")
+            self_reported_digest = upload.sha256(self_reported)
+            binding = {
+                "owner_id": "ur10e-controller-access",
+                "path": str(attested),
+                "sha256": attested_digest,
+            }
+
+            with patch.object(
+                upload,
+                "_verified_owner_dependency",
+                return_value=binding,
+            ):
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "CLI binding differs from verified runtime attestation",
+                ):
+                    upload.resolve_live_controller_helper(
+                        self_reported,
+                        self_reported_digest,
+                    )
+                self.assertEqual(
+                    upload.resolve_live_controller_helper(None, None),
+                    (attested, attested_digest),
+                )
+
+    def test_helper_replacement_after_validation_executes_only_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            files = self._write_triplet(root, "demo_program", "same")
+            helper = root / "controller-helper.py"
+            helper.write_text("print('first')\n", encoding="utf-8")
+            digest = upload.sha256(helper)
+            local_sha = upload.package_sha(files)
+            snapshots: list[Path] = []
+            executed_content: list[str] = []
+
+            def fake_helper_call(command, *, dry_run, capture=False):
+                self.assertFalse(dry_run)
+                snapshot = Path(command[1])
+                snapshots.append(snapshot)
+                if not executed_content:
+                    helper.write_text("print('replaced')\n", encoding="utf-8")
+                executed_content.append(snapshot.read_text(encoding="utf-8"))
+                operation = command[2]
+                if operation == "deploy-triplet":
+                    verified_readback = [
+                        {
+                            "filename": files[ext].name,
+                            "sha256": local_sha[ext],
+                        }
+                        for ext in upload.EXTENSIONS
+                    ]
+                    return json.dumps(
+                        {"ok": True, "verified_readback": verified_readback}
+                    ) + "\n"
+                self.assertEqual(operation, "readback")
+                output_dir = Path(command[command.index("--output-dir") + 1])
+                for source in files.values():
+                    (output_dir / source.name).write_bytes(source.read_bytes())
+                return '{"ok": true}\n'
+
+            with patch.object(upload, "run", side_effect=fake_helper_call):
+                result = upload.upload_and_readback(
+                    files,
+                    "demo_program",
+                    upload.DEFAULT_CONTROLLER,
+                    "/programs/andyl/kunwei/demo",
+                    root / "readback",
+                    helper=helper,
+                    helper_sha256=digest,
+                    dry_run=False,
+                )
+
+            self.assertEqual(result["controller"], local_sha)
+            self.assertEqual(
+                executed_content,
+                ["print('first')\n", "print('first')\n"],
+            )
+            self.assertTrue(all(snapshot != helper for snapshot in snapshots))
+            self.assertTrue(all(not snapshot.exists() for snapshot in snapshots))
+            self.assertEqual(
+                helper.read_text(encoding="utf-8"),
+                "print('replaced')\n",
+            )
 
     def test_upload_derives_step5d_p0_target_from_table_without_target_dir(self) -> None:
         out = io.StringIO()

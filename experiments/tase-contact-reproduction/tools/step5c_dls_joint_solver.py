@@ -11,7 +11,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import mujoco
 import numpy as np
 
 from step5_table import cycloid_reference_local, load_step5_table, step5_stage
@@ -68,7 +67,10 @@ class Step5cDlsJointSolver:
     """Bounded least-squares qdot solver used only for Step5c diagnostics."""
 
     def __init__(self, config: JointSolverConfig = JointSolverConfig()) -> None:
+        import mujoco
+
         self.config = config
+        self._mujoco = mujoco
         self.model = mujoco.MjModel.from_xml_path(str(config.model_path))
         self.data = mujoco.MjData(self.model)
         self.site_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_SITE, config.site_name)
@@ -88,10 +90,12 @@ class Step5cDlsJointSolver:
             raise ValueError("damping must be finite and non-negative")
 
         self.data.qpos[:6] = q
-        mujoco.mj_forward(self.model, self.data)
+        self._mujoco.mj_forward(self.model, self.data)
         jacp = np.zeros((3, self.model.nv), dtype=float)
         jacr = np.zeros((3, self.model.nv), dtype=float)
-        mujoco.mj_jacSite(self.model, self.data, jacp, jacr, self.site_id)
+        self._mujoco.mj_jacSite(
+            self.model, self.data, jacp, jacr, self.site_id
+        )
         jac = np.vstack([jacp[:, :6], jacr[:, :6]])
         weights = np.diag(
             [

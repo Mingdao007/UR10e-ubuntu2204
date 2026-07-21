@@ -475,6 +475,15 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
             "_validate_candidate_and_qualification",
             side_effect=lambda *_args: events.append("qualify") or release,
         ),
+        mock.patch.object(
+            transaction,
+            "owner_dependency",
+            return_value={
+                "owner_id": "ur10e-controller-access",
+                "path": "/verified/controller-helper.py",
+                "sha256": "a" * 64,
+            },
+        ),
         mock.patch.object(transaction, "acquire_controller_mutation_locks", side_effect=lambda: events.append("lock") or [object()]),
         mock.patch.object(transaction.upload, "_main", side_effect=fake_upload),
         mock.patch.object(transaction.promote, "promote", side_effect=fake_promote),
@@ -547,6 +556,12 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         value.startswith("manifest-driven step5d_strict_rnn_autotune_v3_r010")
         for value in upload_arguments
     )
+    assert upload_arguments[
+        upload_arguments.index("--controller-helper") + 1
+    ] == "/verified/controller-helper.py"
+    assert upload_arguments[
+        upload_arguments.index("--controller-helper-sha256") + 1
+    ] == "a" * 64
     assert exact[0] == exact[1]
     assert exact[2] == (root / promotion.PACKAGE_DIR).resolve()
     assert exact[3] == evidence_output.with_name("program-load-observation.json").resolve()

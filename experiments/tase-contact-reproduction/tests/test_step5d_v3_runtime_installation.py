@@ -440,3 +440,41 @@ def test_cross_bound_current_pointer_preserves_candidate_bundle(
 
     assert final.is_dir()
     assert not list(final.parent.glob(f".quarantine-{candidate_bundle}-*"))
+
+
+def test_owner_dependency_comes_from_verified_attestation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    helper = tmp_path / "controller-helper.py"
+    helper.write_text("print('owner fixture')\n", encoding="utf-8")
+    helper_sha256 = runtime._sha256_file(helper)
+    contract = json.loads(json.dumps(runtime.load_runtime_contract()))
+    contract["owner_dependencies"]["controller_helper"]["sha256"] = (
+        helper_sha256
+    )
+    attestation_path = tmp_path / "attestation.json"
+    binding = {
+        "owner_id": "ur10e-controller-access",
+        "path": str(helper),
+        "sha256": helper_sha256,
+    }
+    monkeypatch.setattr(runtime, "load_runtime_contract", lambda: contract)
+    monkeypatch.setattr(
+        runtime,
+        "load_runtime_pointer",
+        lambda **_kwargs: {"attestation_path": str(attestation_path)},
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_load_json",
+        lambda *_args, **_kwargs: {
+            "host": {"owner_dependencies": {"controller_helper": binding}}
+        },
+    )
+
+    assert runtime.owner_dependency("controller_helper") == binding
+    helper.write_text("print('tampered')\n", encoding="utf-8")
+    with pytest.raises(runtime.RuntimeInstallationError) as caught:
+        runtime.owner_dependency("controller_helper")
+    assert caught.value.reason_code == "OWNER_DEPENDENCY_MISMATCH"

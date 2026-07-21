@@ -2004,6 +2004,57 @@ def load_runtime_pointer(
     return payload
 
 
+def owner_dependency(
+    name: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    contract = load_runtime_contract()
+    declared = contract["owner_dependencies"]
+    if name not in declared:
+        raise RuntimeInstallationError(
+            "OWNER_DEPENDENCY_MISMATCH",
+            f"owner dependency is not declared: {name}",
+        )
+    pointer = load_runtime_pointer(environ=environ)
+    attestation = _load_json(
+        Path(pointer["attestation_path"]),
+        role="runtime attestation",
+        reason_code="RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+    )
+    try:
+        binding = attestation["host"]["owner_dependencies"][name]
+    except (KeyError, TypeError) as exc:
+        raise RuntimeInstallationError(
+            "OWNER_DEPENDENCY_MISMATCH",
+            f"owner dependency attestation is missing: {name}",
+        ) from exc
+    expected = declared[name]
+    if (
+        not isinstance(binding, dict)
+        or set(binding) != {"owner_id", "path", "sha256"}
+        or binding.get("owner_id") != expected["owner_id"]
+        or binding.get("sha256") != expected["sha256"]
+        or not isinstance(binding.get("path"), str)
+        or not Path(binding["path"]).is_absolute()
+    ):
+        raise RuntimeInstallationError(
+            "OWNER_DEPENDENCY_MISMATCH",
+            f"owner dependency binding differs: {name}",
+        )
+    path = Path(binding["path"])
+    if path.is_symlink() or not path.is_file() or _sha256_file(path) != binding["sha256"]:
+        raise RuntimeInstallationError(
+            "OWNER_DEPENDENCY_MISMATCH",
+            f"owner dependency file differs: {name}",
+        )
+    return {
+        "owner_id": binding["owner_id"],
+        "path": binding["path"],
+        "sha256": binding["sha256"],
+    }
+
+
 def profile_python(
     profile: str,
     *,
@@ -2073,6 +2124,7 @@ __all__ = [
     "lock_sha256",
     "observe_host",
     "observe_profile",
+    "owner_dependency",
     "profile_environment_id",
     "profile_python",
     "provision_runtime",

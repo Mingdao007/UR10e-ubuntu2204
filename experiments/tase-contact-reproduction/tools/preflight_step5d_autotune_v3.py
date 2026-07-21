@@ -14,9 +14,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-import preflight_readonly as base
 import build_step5d_autotune_tp_v3 as tp_v3
 import run_step5d_autotune_v3_bridge as bridge_wrapper
+from step5d_autotune_v3 import preflight_support as support
 from step5d_autotune_v3.launcher import build_bridge_argv
 from step5d_autotune_v3.profile import load_contract
 from step5d_autotune_v3.dashboard import dashboard_exchange
@@ -291,10 +291,14 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
     )
     local = _parallel(
         {
-            "route_robot": lambda: base.run_command(["ip", "route", "get", args.robot_host]),
-            "route_kunwei": lambda: base.run_command(["ip", "route", "get", args.sensor_ip]),
-            "writer": base.no_existing_writer,
-            "realtime": base.realtime_capability,
+            "route_robot": lambda: support.run_command(
+                ["ip", "route", "get", args.robot_host]
+            ),
+            "route_kunwei": lambda: support.run_command(
+                ["ip", "route", "get", args.sensor_ip]
+            ),
+            "writer": support.no_existing_writer,
+            "realtime": support.realtime_capability,
             "runtime_calibration": dependency_observation,
             "production_startup_prewarm": lambda: bridge_wrapper.check_v3_runtime_prewarm(
                 governed_argv[2:]
@@ -324,17 +328,17 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
                 "rtde": lambda: _read_rtde_with_recipe_proof(
                     args.robot_host,
                     [
-                        *base.RTDE_FIELDS,
+                        *support.RTDE_FIELDS,
                         "actual_qd",
                         *[f"output_int_register_{index}" for index in range(24, 38)],
                     ],
                     frequency_hz=10.0,
                     timeout=args.timeout_s,
                 ),
-                "secondary_port": lambda: base.probe_port(
+                "secondary_port": lambda: support.probe_port(
                     args.robot_host, 30002, timeout=args.timeout_s
                 ),
-                "kunwei": lambda: base.tcp_connect_only(
+                "kunwei": lambda: support.tcp_connect_only(
                     args.sensor_ip, args.sensor_port, args.timeout_s
                 ),
             }
@@ -379,7 +383,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
         and bool(dashboard)
         and _value(remote["dashboard"]).get("ok", True) is True
         and "rtde" in remote
-        and base.rtde_predicate(dict(rtde)).get("ok") is True
+        and support.rtde_predicate(dict(rtde)).get("ok") is True
         and _connect_observation_ok(remote.get("secondary_port", {}))
         and _connect_observation_ok(remote.get("kunwei", {}))
     )

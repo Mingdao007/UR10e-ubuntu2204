@@ -15,7 +15,6 @@ import hashlib
 import json
 import math
 import os
-import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass, replace
@@ -2199,35 +2198,6 @@ def run(args: argparse.Namespace) -> int:
                     trial_uid=trial.trial_uid,
                     job_id=job_id,
                 )
-            else:
-                plot_command = [
-                    sys.executable,
-                    str(root / "tools" / "publish_step5d_autotune_plot.py"),
-                    str(result.immutable_bundle_path),
-                    "--output-dir",
-                    str(campaign_root / "plots"),
-                ]
-                try:
-                    published = subprocess.run(
-                        plot_command,
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                        timeout=90.0,
-                    )
-                    _event(
-                        event_path,
-                        "trial_plot_published",
-                        trial_uid=trial.trial_uid,
-                        result=json.loads(published.stdout),
-                    )
-                except (subprocess.SubprocessError, ValueError, json.JSONDecodeError) as exc:
-                    _event(
-                        event_path,
-                        "trial_plot_publish_failed",
-                        trial_uid=trial.trial_uid,
-                        error=f"{type(exc).__name__}: {exc}",
-                    )
             if args.one_trial:
                 break
             if batch_completed:

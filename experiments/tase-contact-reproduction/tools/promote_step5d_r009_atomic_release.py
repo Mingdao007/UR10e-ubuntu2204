@@ -69,9 +69,9 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "c29eff568ca164e8f7061a79c5a1d0c5807dedb352b6389095657162fc78e2b9",
+    "config/step5d/v3_active_surface.json": "1005cc223b2f492c910a6b80396e07b1fbda188b0960d26d1c1d03f54a37d407",
 }
-CONTRACT_STATIC_SHA256 = "6657e98f36d515dcf08d1099f5c9e24ab937a8df3697d5dd0aee5473cd7a5a8f"
+CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
 PENDING = PendingRelease(
     program_id=PROGRAM,

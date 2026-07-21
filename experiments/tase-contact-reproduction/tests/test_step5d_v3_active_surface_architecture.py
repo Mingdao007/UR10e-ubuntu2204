@@ -104,6 +104,7 @@ def test_every_runtime_module_is_explicitly_active_or_historical() -> None:
     assert runtime_paths <= active_paths | historical_paths
     assert {
         "tools/step5d_autotune_v3/delivery_observation.py",
+        "tools/step5d_autotune_v3/preflight_support.py",
         "tools/step5d_autotune_v3/rtde_client.py",
         "tools/step5d_autotune_v3/runtime_environment.py",
         "tools/step5d_autotune_v3/source_closure.py",

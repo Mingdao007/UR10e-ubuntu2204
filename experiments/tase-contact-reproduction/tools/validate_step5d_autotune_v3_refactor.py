@@ -67,6 +67,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_v3_active_surface_architecture.py",
     "tests/test_step5d_v3_immutable_payload_routing.py",
     "tests/test_step5d_v3_runtime_installation.py",
+    "tests/test_step5d_v3_source_closure.py",
 }
 AUTHORITATIVE_OBSOLETE_TESTS = {
     "tests/test_cross_step_parameter_table.py",
@@ -108,6 +109,7 @@ AUTHORITATIVE_ACCEPTANCE_PATH = [
 ]
 REQUIRED_ACTIVE_RUNTIME_MODULES = {
     "tools/step5d_autotune_v3/delivery_observation.py",
+    "tools/step5d_autotune_v3/preflight_support.py",
     "tools/step5d_autotune_v3/rtde_client.py",
     "tools/step5d_autotune_v3/runtime_environment.py",
     "tools/step5d_autotune_v3/source_closure.py",

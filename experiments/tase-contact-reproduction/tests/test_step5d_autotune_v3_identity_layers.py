@@ -94,15 +94,28 @@ def test_release_sources_are_the_transitive_production_closure() -> None:
         "tools/build_step5d_autotune_tp.py",
         "tools/upload_ur_tp_package.py",
         "tools/ur10e_mutation_lock.py",
+        "tools/step5d_autotune_v3/preflight_support.py",
         "tools/step5d_autotune_v3/rtde_client.py",
+        "config/schemas/step5d_autotune_campaign_v1.schema.json",
+        "config/step5/step5d_v3_runtime_contract.json",
+        "config/step5d/manifests/step5d_strict_rnn_autotune_v3/"
+        "runtime_calibration.json",
+        "pyproject.toml",
+        "uv.lock",
     } <= experiment
     assert {
-        "experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/"
-        "assets/mjcf/ur10e_nominal.xml",
         "experiments/sensor-integration/kunwei-kwr75b/tools/"
         "capture_kunwei_kwr75_1khz.py",
+        "src/ur10e_bringup/config/ur10e_calibration.yaml",
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/schemas/"
+        "experiment_spec.schema.json",
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/schemas/"
+        "parallel_run_manifest.schema.json",
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/schemas/"
+        "run_manifest.schema.json",
         "src/ur10e_experiment_runtime/ur10e_experiment_runtime/physical_prior.py",
     } <= repository
+    assert not any("ur10e_nominal.xml" in path for path in repository)
 
 
 @pytest.mark.parametrize(

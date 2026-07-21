@@ -61,29 +61,8 @@ def _qualified_release_fixture(tmp_path: Path) -> Path:
         cwd=repository,
         check=True,
     )
-    source_common_dir = Path(
-        subprocess.run(
-            ["git", "rev-parse", "--git-common-dir"],
-            cwd=REPOSITORY_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip()
-    )
-    if not source_common_dir.is_absolute():
-        source_common_dir = REPOSITORY_ROOT / source_common_dir
-    locator = json.loads(
-        (
-            experiment
-            / "config/step5d/artifact_locators/step5d_v35_retained_inputs.json"
-        ).read_text(encoding="utf-8")
-    )
-    for row in locator["artifacts"]:
-        store_key = Path(row["store_key"])
-        _copy_file(
-            source_common_dir / "ur10e-artifacts" / store_key,
-            repository / ".git/ur10e-artifacts" / store_key,
-        )
+    assert not (repository / ".git/ur10e-artifacts").exists()
+    assert not (repository / "experiments/archive").exists()
     subprocess.run(["git", "add", "."], cwd=repository, check=True)
     subprocess.run(
         ["git", "commit", "-qm", "hermetic qualification fixture"],

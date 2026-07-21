@@ -33,6 +33,10 @@ from step5d_autotune_v3.runtime_identity import (
     RuntimeIdentityError,
     identity_from_manifest,
 )
+from step5d_autotune_v3.runtime_installation import (
+    RuntimeInstallationError,
+    owner_dependency,
+)
 from step5d_autotune_v3.qualification import (
     QualificationError,
     capture_content_binding,
@@ -320,6 +324,20 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (QualificationError, ReleaseIdentityError, StateError) as exc:
         raise RuntimeError(f"candidate qualification gate failed: {exc}") from exc
+    try:
+        controller_helper = owner_dependency("controller_helper")
+    except RuntimeInstallationError as exc:
+        raise RuntimeError(
+            f"controller owner dependency gate failed: {exc.reason_code}: {exc.detail}"
+        ) from exc
+    upload_args.extend(
+        [
+            "--controller-helper",
+            controller_helper["path"],
+            "--controller-helper-sha256",
+            controller_helper["sha256"],
+        ]
+    )
     handles = acquire_controller_mutation_locks()
     try:
         transaction_id = uuid.uuid4().hex

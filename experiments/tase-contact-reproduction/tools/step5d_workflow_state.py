@@ -6,8 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from pathlib import Path
-from typing import Any, Mapping
+from pathlib import Path, PurePosixPath
+from typing import Any, Collection, Mapping
 
 from ur10e_artifact_store import (
     ARTIFACT_STORE_ENV,
@@ -40,6 +40,29 @@ HIGH_RISK_CONTRACTS = frozenset(
         "authorization_contract",
     }
 )
+CONTROLLER_READBACK_ROLES = frozenset(
+    {
+        "controller_readback_manifest",
+        "controller_readback_script",
+        "controller_readback_txt",
+        "controller_readback_urp",
+    }
+)
+_LOCATOR_FIELDS = {
+    "schema_version",
+    "program",
+    "store_layout",
+    "destructive_migration_performed",
+    "artifacts",
+}
+_ARTIFACT_COMMON_FIELDS = {
+    "logical_role",
+    "original_path",
+    "sha256",
+    "size",
+}
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
+_ROLE_RE = re.compile(r"[a-z0-9]+(?:_[a-z0-9]+)*")
 
 
 class WorkflowStateError(ValueError):
@@ -62,29 +85,160 @@ def artifact_store(*, root: Path = ROOT, value: Path | None = None) -> Path:
     return resolve_artifact_store(root=root, override=value)
 
 
+def _relative_posix_path(value: Any, *, role: str) -> PurePosixPath:
+    if not isinstance(value, str) or not value:
+        raise WorkflowStateError(f"artifact locator {role} must be a relative path")
+    path = PurePosixPath(value)
+    if (
+        path.is_absolute()
+        or path.as_posix() != value
+        or "\\" in value
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
+        raise WorkflowStateError(
+            f"artifact locator {role} must be a normalized relative POSIX path"
+        )
+    return path
+
+
+def _repository_artifact(
+    *, root: Path, relative: PurePosixPath, digest: str, size: int, role: str
+) -> Path:
+    repository_root = root.resolve(strict=True)
+    path = repository_root
+    for part in relative.parts:
+        path /= part
+        if path.is_symlink():
+            raise WorkflowStateError(
+                f"repository artifact is symlink-backed for {role}: {relative}"
+            )
+    if not path.is_file():
+        raise WorkflowStateError(
+            f"repository artifact is missing or unsafe for {role}: {relative}"
+        )
+    resolved = path.resolve(strict=True)
+    try:
+        resolved.relative_to(repository_root)
+    except ValueError as exc:
+        raise WorkflowStateError(
+            f"repository artifact escapes root for {role}: {relative}"
+        ) from exc
+    if resolved.stat().st_size != size:
+        raise WorkflowStateError(f"repository artifact size mismatch for {role}")
+    if sha256(resolved) != digest:
+        raise WorkflowStateError(f"repository artifact sha256 mismatch for {role}")
+    return resolved
+
+
 def resolve_artifacts(
-    *, root: Path = ROOT, locator_path: Path | None = None, store: Path | None = None
+    *,
+    root: Path = ROOT,
+    locator_path: Path | None = None,
+    store: Path | None = None,
+    required_roles: Collection[str] | None = None,
 ) -> dict[str, Path]:
     locator_path = locator_path or root / ARTIFACT_LOCATOR
     locator = load_json(locator_path)
-    if locator.get("schema_version") != "ur10e_artifact_locator_v1":
+    if (
+        set(locator) != _LOCATOR_FIELDS
+        or locator.get("schema_version") != "ur10e_artifact_locator_v2"
+        or not isinstance(locator.get("program"), str)
+        or not locator["program"]
+        or locator.get("store_layout") != "sha256/<digest>"
+        or locator.get("destructive_migration_performed") is not False
+        or not isinstance(locator.get("artifacts"), list)
+        or not locator["artifacts"]
+    ):
         raise WorkflowStateError("unknown artifact locator schema")
-    resolved: dict[str, Path] = {}
-    store_root = artifact_store(root=root, value=store)
-    for row in locator.get("artifacts", []):
+
+    requested: frozenset[str] | None
+    if required_roles is None:
+        requested = None
+    else:
+        if isinstance(required_roles, (str, bytes)) or any(
+            not isinstance(role, str) or _ROLE_RE.fullmatch(role) is None
+            for role in required_roles
+        ):
+            raise WorkflowStateError("required artifact roles are invalid")
+        requested = frozenset(required_roles)
+
+    rows: dict[str, tuple[str, dict[str, Any]]] = {}
+    for row in locator["artifacts"]:
         if not isinstance(row, dict):
             raise WorkflowStateError("artifact locator row must be an object")
         role = row.get("logical_role")
-        if not isinstance(role, str):
+        digest = row.get("sha256")
+        size = row.get("size")
+        if (
+            not isinstance(role, str)
+            or _ROLE_RE.fullmatch(role) is None
+            or not isinstance(digest, str)
+            or _SHA256_RE.fullmatch(digest) is None
+            or not isinstance(size, int)
+            or isinstance(size, bool)
+            or size < 0
+        ):
             raise WorkflowStateError("artifact locator row is incomplete")
+        if role in rows:
+            raise WorkflowStateError("artifact locator logical roles must be unique")
+        _relative_posix_path(row.get("original_path"), role=f"{role} original_path")
+        repository_backed = "repository_path" in row
+        store_backed = "store_key" in row
+        if repository_backed == store_backed:
+            raise WorkflowStateError(
+                f"artifact locator {role} must have exactly one storage source"
+            )
+        if repository_backed:
+            if set(row) != _ARTIFACT_COMMON_FIELDS | {"repository_path"}:
+                raise WorkflowStateError(
+                    f"repository artifact locator fields differ for {role}"
+                )
+            _relative_posix_path(
+                row["repository_path"], role=f"{role} repository_path"
+            )
+            rows[role] = ("repository", row)
+        else:
+            if set(row) != _ARTIFACT_COMMON_FIELDS | {"store_key"}:
+                raise WorkflowStateError(
+                    f"stored artifact locator fields differ for {role}"
+                )
+            try:
+                ArtifactRef.from_mapping(row)
+            except ArtifactStoreError as exc:
+                raise WorkflowStateError(
+                    f"artifact locator ref is invalid for {role}: {exc}"
+                ) from exc
+            rows[role] = ("store", row)
+
+    selected = frozenset(rows) if requested is None else requested
+    missing = sorted(selected - rows.keys())
+    if missing:
+        raise WorkflowStateError(f"required artifact roles are missing: {missing}")
+
+    resolved: dict[str, Path] = {}
+    store_root: Path | None = None
+    for role in sorted(selected):
+        source, row = rows[role]
+        if source == "repository":
+            resolved[role] = _repository_artifact(
+                root=root,
+                relative=_relative_posix_path(
+                    row["repository_path"], role=f"{role} repository_path"
+                ),
+                digest=row["sha256"],
+                size=row["size"],
+                role=role,
+            )
+            continue
         try:
+            if store_root is None:
+                store_root = artifact_store(root=root, value=store)
             ref = ArtifactRef.from_mapping(row)
-            path = resolve_artifact(ref, store=store_root)
+            resolved[role] = resolve_artifact(ref, store=store_root)
         except ArtifactStoreError as exc:
-            raise WorkflowStateError(f"artifact resolution failed for {role}: {exc}") from exc
-        resolved[role] = path
-    if len(resolved) != len(locator.get("artifacts", [])):
-        raise WorkflowStateError("artifact locator logical roles must be unique")
+            raise WorkflowStateError(
+                f"artifact resolution failed for {role}: {exc}"
+            ) from exc
     return resolved
 
 
@@ -320,15 +474,19 @@ def verify_current(*, root: Path = ROOT, store: Path | None = None) -> dict[str,
         locator_payload = load_json(locator_path)
         if locator_payload.get("program") != program:
             raise WorkflowStateError("artifact locator program identity drift")
-        artifacts = resolve_artifacts(root=root, locator_path=locator_path, store=store)
+        selected_roles = (
+            CONTROLLER_READBACK_ROLES
+            if state in {"controller_verified", "live_ready", "live_accepted"}
+            else frozenset()
+        )
+        artifacts = resolve_artifacts(
+            root=root,
+            locator_path=locator_path,
+            store=store,
+            required_roles=selected_roles,
+        )
         if state in {"controller_verified", "live_ready", "live_accepted"}:
-            required_roles = {
-                "controller_readback_manifest",
-                "controller_readback_script",
-                "controller_readback_txt",
-                "controller_readback_urp",
-            }
-            missing_roles = sorted(required_roles - artifacts.keys())
+            missing_roles = sorted(CONTROLLER_READBACK_ROLES - artifacts.keys())
             if missing_roles:
                 raise WorkflowStateError(
                     f"controller-verified artifact closure is incomplete: {missing_roles}"

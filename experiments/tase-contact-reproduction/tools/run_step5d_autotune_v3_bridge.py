@@ -4,8 +4,8 @@
 The wrapper changes three V3 integration seams: immutable mailbox reads are
 identity-cached, the V1 control profile accepts the separately fingerprinted V3
 TP identity, and startup consumes the compact hash-bound calibration artifact
-instead of an ignored 19 MB historical CSV.  It never creates a campaign runner
-or an ARM command.
+without reading the 19 MB historical CSV.  It never creates a campaign runner or
+an ARM command.
 """
 
 from __future__ import annotations
@@ -804,8 +804,6 @@ def install_v3_seams(
 
     bridge.step5d_dashboard_program_identity_matches = v3_tp_identity_match
 
-    original_runtime_prewarm = bridge.ensure_step5d_liveprep_runtime
-
     def v3_runtime_prewarm(state: Any, args: Any) -> None:
         if state.step5d_model_bundle is None:
             state.step5d_model_bundle = bridge.step5d_kin.build_calibrated_model()
@@ -815,11 +813,17 @@ def install_v3_seams(
                 "V3 calibrated model identity differs: "
                 f"expected={calibration.calibration_hash}, observed={observed_hash}"
             )
+        expected_offset = bridge.np.asarray(
+            calibration.tcp_offset_tool0_m, dtype=float
+        )
         if state.step5d_tcp_offset_tool0 is None:
-            state.step5d_tcp_offset_tool0 = bridge.np.asarray(
-                calibration.tcp_offset_tool0_m, dtype=float
-            )
-        original_runtime_prewarm(state, args)
+            state.step5d_tcp_offset_tool0 = expected_offset
+        elif not bridge.np.array_equal(
+            bridge.np.asarray(state.step5d_tcp_offset_tool0, dtype=float),
+            expected_offset,
+        ):
+            raise RuntimeError("V3 compact TCP calibration value differs")
+        bridge.ensure_step5d_liveprep_control_runtime(state, args)
 
     bridge.ensure_step5d_liveprep_runtime = v3_runtime_prewarm
     return bridge
@@ -842,6 +846,9 @@ def check_v3_runtime_prewarm(bridge_argv: Sequence[str]) -> dict[str, Any]:
         "bridge_profile": args.bridge_profile,
         "rnn_backend": args.step5d_rnn_backend,
         "rnn_inner_iterations": args.step5d_rnn_inner_iterations,
+        "tcp_offset_tool0_m": [
+            float(value) for value in state.step5d_tcp_offset_tool0
+        ],
         "missing": [],
     }
 

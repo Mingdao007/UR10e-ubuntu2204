@@ -8,6 +8,7 @@ import copy
 import hashlib
 import json
 import os
+import subprocess
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -54,6 +55,56 @@ def test_real_parser_is_bound_to_sha_protected_bridge_source() -> None:
     assert hashlib.sha256(protected.read_bytes()).hexdigest() == CONTRACT[
         "source_sha256"
     ]["tools/kunwei_rtde_bridge.py"]
+
+
+def test_bridge_import_does_not_load_optional_analysis_modules() -> None:
+    import_paths = list(
+        dict.fromkeys(
+            (
+                str(ROOT / "tests"),
+                str(ROOT / "tools"),
+                str(RUNTIME_SRC),
+                *(path for path in sys.path if path),
+            )
+        )
+    )
+    code = f"""
+import builtins
+import sys
+
+sys.path[:0] = {import_paths!r}
+from step5d_v3_parser_ci_stubs import install
+
+install()
+sys.modules.pop("pandas", None)
+sys.modules.pop("step5c_dls_joint_solver", None)
+blocked = {{"pandas", "matplotlib", "mujoco"}}
+original_import = builtins.__import__
+
+def reject_optional(name, globals=None, locals=None, fromlist=(), level=0):
+    if name.split(".", 1)[0] in blocked:
+        raise AssertionError(f"optional analysis import during bridge import: {{name}}")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = reject_optional
+import kunwei_rtde_bridge
+
+loaded = sorted(blocked.intersection(sys.modules))
+if loaded:
+    raise AssertionError(f"optional analysis modules loaded during bridge import: {{loaded}}")
+if "step5c_dls_joint_solver" in sys.modules:
+    raise AssertionError("Step5c diagnostic solver loaded during V3 bridge import")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-I", "-c", code],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> None:
@@ -311,15 +362,10 @@ def test_new_parser_field_is_unclassified_and_fails_closed() -> None:
         validate_effective_config(expected, observed)
 
 
-def test_joint_model_is_resolved_from_the_active_repository() -> None:
+def test_step5c_diagnostic_model_is_inactive_for_v3() -> None:
     report = check_effective_config(environ={})
-    model = Path(report["effective_config"]["step5c_joint_model"])
-    assert model == (
-        ROOT.parent
-        / "archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
-    ).resolve()
-    assert model.is_file()
-    assert "/home/andy/ur10e_ros2_ws" not in str(model)
+    assert report["effective_config"]["step5c_joint_model"] is None
+    assert "--step5c-joint-model" not in report["argv"]
 
 
 def test_parser_default_drift_is_detected_even_when_raw_argv_is_unchanged() -> None:

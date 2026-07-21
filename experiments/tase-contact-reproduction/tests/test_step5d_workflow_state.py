@@ -19,6 +19,7 @@ from ur10e_artifact_store import (  # noqa: E402
     publish_artifact,
 )
 from step5d_workflow_state import (  # noqa: E402
+    CONTROLLER_READBACK_ROLES,
     WorkflowStateError,
     assert_transition,
     classify_risk,
@@ -86,22 +87,37 @@ def _fixture(
     role_hashes = {}
     for role, blob in role_blobs.items():
         digest = hashlib.sha256(blob).hexdigest()
-        object_path = store / "sha256" / digest
-        object_path.parent.mkdir(parents=True, exist_ok=True)
-        object_path.write_bytes(blob)
+        repository_path = root / "retained" / f"{role}.bin"
+        repository_path.parent.mkdir(parents=True, exist_ok=True)
+        repository_path.write_bytes(blob)
         rows.append({
             "logical_role": role,
+            "original_path": f"runs/controller-readback/{role}.bin",
+            "repository_path": str(repository_path.relative_to(root)),
             "sha256": digest,
             "size": len(blob),
-            "store_key": f"sha256/{digest}",
         })
         role_hashes[role] = digest
+    archive_blob = b"archived-replay"
+    archive_digest = hashlib.sha256(archive_blob).hexdigest()
+    archive_path = store / "sha256" / archive_digest
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    archive_path.write_bytes(archive_blob)
+    rows.append({
+        "logical_role": "archived_replay",
+        "original_path": "runs/archive/replay.csv",
+        "sha256": archive_digest,
+        "size": len(archive_blob),
+        "store_key": f"sha256/{archive_digest}",
+    })
     locator_path = root / "config/step5d/artifact_locators/step5d_v35_retained_inputs.json"
     _write_json(
         locator_path,
         {
-            "schema_version": "ur10e_artifact_locator_v1",
+            "schema_version": "ur10e_artifact_locator_v2",
             "program": "p",
+            "store_layout": "sha256/<digest>",
+            "destructive_migration_performed": False,
             "artifacts": rows,
         },
     )
@@ -182,10 +198,19 @@ class Step5dWorkflowStateTest(unittest.TestCase):
             store = _fixture(root)
             locator = root / "config/step5d/artifact_locators/step5d_v35_retained_inputs.json"
             payload = json.loads(locator.read_text())
-            payload["artifacts"][0]["store_key"] = f"sha256/{'0' * 64}"
+            archive = next(
+                row for row in payload["artifacts"]
+                if row["logical_role"] == "archived_replay"
+            )
+            archive["store_key"] = f"sha256/{'0' * 64}"
             _write_json(locator, payload)
             with self.assertRaisesRegex(WorkflowStateError, "derived from sha256"):
-                resolve_artifacts(root=root, locator_path=locator, store=store)
+                resolve_artifacts(
+                    root=root,
+                    locator_path=locator,
+                    store=store,
+                    required_roles=CONTROLLER_READBACK_ROLES,
+                )
 
     def test_concurrent_artifact_publish_is_atomic_and_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -204,13 +229,49 @@ class Step5dWorkflowStateTest(unittest.TestCase):
             with self.assertRaises(ArtifactStoreError):
                 publish_artifact(source, store=store)
 
-    def test_v35_tracked_locator_resolves_from_content_addressed_store(self) -> None:
+    def test_active_roles_resolve_without_git_or_artifact_store(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            _fixture(root)
+            resolved = resolve_artifacts(
+                root=root,
+                store=root / "missing-store",
+                required_roles=CONTROLLER_READBACK_ROLES,
+            )
+            self.assertEqual(set(resolved), set(CONTROLLER_READBACK_ROLES))
+            manifest = json.loads(resolved["controller_readback_manifest"].read_text())
+            self.assertEqual(manifest["status"], "controller read-back verified")
+
+    def test_archive_role_accesses_store_only_when_explicitly_requested(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             store = _fixture(root)
-            resolved = resolve_artifacts(root=root, store=store)
-            manifest = json.loads(resolved["controller_readback_manifest"].read_text())
-            self.assertEqual(manifest["status"], "controller read-back verified")
+            resolved = resolve_artifacts(
+                root=root,
+                store=store,
+                required_roles={"archived_replay"},
+            )
+            self.assertEqual(resolved["archived_replay"].read_bytes(), b"archived-replay")
+            with self.assertRaisesRegex(WorkflowStateError, "object missing"):
+                resolve_artifacts(
+                    root=root,
+                    store=root / "missing-store",
+                    required_roles={"archived_replay"},
+                )
+
+    def test_tracked_active_four_are_repository_owned_exact_bytes(self) -> None:
+        resolved = resolve_artifacts(
+            root=ROOT,
+            store=ROOT / "does-not-exist",
+            required_roles=CONTROLLER_READBACK_ROLES,
+        )
+        expected = {
+            "controller_readback_manifest": "18d3c6eb465201767ab04b9e761cdf194228241d7b465462c546dac758a10124",
+            "controller_readback_script": "50894de5cdf74dd17309c829b904251a3da26613a4d73e93653f7c165f5fbbd0",
+            "controller_readback_txt": "0589480dd068078a3e4dd666d5f4c081ef121a6ef016a4ac766c131659af0003",
+            "controller_readback_urp": "7ccf4c4c6608f0c082d6e400a9e9fc05e65a0ad085605c11240ba8dcf293439a",
+        }
+        self.assertEqual({role: _sha(path) for role, path in resolved.items()}, expected)
 
     def test_controller_verified_is_not_live_ready_or_live_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -281,7 +342,7 @@ class Step5dWorkflowStateTest(unittest.TestCase):
             current = json.loads(current_path.read_text())
             current["artifact_locator"]["sha256"] = _sha(locator_path)
             _write_json(current_path, current)
-            with self.assertRaisesRegex(WorkflowStateError, "artifact closure is incomplete"):
+            with self.assertRaisesRegex(WorkflowStateError, "required artifact roles are missing"):
                 verify_current(root=root, store=store)
 
     def test_artifact_locator_program_must_match_current_program(self) -> None:
@@ -305,7 +366,7 @@ class Step5dWorkflowStateTest(unittest.TestCase):
             store = _fixture(root)
             replacement = b"different-script-bytes"
             replacement_sha = hashlib.sha256(replacement).hexdigest()
-            replacement_path = store / "sha256" / replacement_sha
+            replacement_path = root / "retained" / "replacement.script"
             replacement_path.write_bytes(replacement)
 
             locator_path = root / "config/step5d/artifact_locators/step5d_v35_retained_inputs.json"
@@ -317,7 +378,7 @@ class Step5dWorkflowStateTest(unittest.TestCase):
             script_row.update({
                 "sha256": replacement_sha,
                 "size": len(replacement),
-                "store_key": f"sha256/{replacement_sha}",
+                "repository_path": str(replacement_path.relative_to(root)),
             })
             _write_json(locator_path, locator)
 
@@ -334,13 +395,57 @@ class Step5dWorkflowStateTest(unittest.TestCase):
             with self.assertRaisesRegex(WorkflowStateError, "differs from candidate package"):
                 verify_current(root=root, store=store)
 
-    def test_artifact_store_tamper_fails_closed(self) -> None:
+    def test_repository_artifact_tamper_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             store = _fixture(root)
-            next((store / "sha256").iterdir()).write_bytes(b"tampered")
-            with self.assertRaisesRegex(WorkflowStateError, "artifact size mismatch"):
+            locator = json.loads(
+                (root / "config/step5d/artifact_locators/step5d_v35_retained_inputs.json")
+                .read_text()
+            )
+            script = next(
+                row for row in locator["artifacts"]
+                if row["logical_role"] == "controller_readback_script"
+            )
+            (root / script["repository_path"]).write_bytes(b"tampered")
+            with self.assertRaisesRegex(WorkflowStateError, "repository artifact size mismatch"):
                 verify_current(root=root, store=store)
+
+    def test_repository_artifact_missing_symlink_and_escape_fail_closed(self) -> None:
+        mutations = ("missing", "symlink", "escape", "backslash")
+        for mutation in mutations:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                store = _fixture(root)
+                locator_path = (
+                    root / "config/step5d/artifact_locators/step5d_v35_retained_inputs.json"
+                )
+                locator = json.loads(locator_path.read_text())
+                row = next(
+                    item for item in locator["artifacts"]
+                    if item["logical_role"] == "controller_readback_script"
+                )
+                artifact = root / row["repository_path"]
+                if mutation == "missing":
+                    artifact.unlink()
+                elif mutation == "symlink":
+                    replacement = root / "replacement.script"
+                    replacement.write_bytes(artifact.read_bytes())
+                    artifact.unlink()
+                    artifact.symlink_to(replacement)
+                elif mutation == "escape":
+                    row["repository_path"] = "../outside.script"
+                    _write_json(locator_path, locator)
+                else:
+                    row["repository_path"] = "retained\\controller_readback_script.bin"
+                    _write_json(locator_path, locator)
+                with self.assertRaises(WorkflowStateError):
+                    resolve_artifacts(
+                        root=root,
+                        locator_path=locator_path,
+                        store=store,
+                        required_roles=CONTROLLER_READBACK_ROLES,
+                    )
 
     def test_durable_verifier_binds_new_upload_transaction_identity(self) -> None:
         with tempfile.TemporaryDirectory() as td:
