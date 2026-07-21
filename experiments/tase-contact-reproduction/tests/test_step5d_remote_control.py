@@ -356,13 +356,18 @@ class RemoteRnnOnlyRuntimeTest(unittest.TestCase):
     def test_live_entry_fails_before_driver_surface(self) -> None:
         release = load_remote_release()
         output = io.StringIO()
+        driver_modules_before = {
+            name: sys.modules.get(name)
+            for name in ("rclpy", "controller_manager", "ur_robot_driver")
+        }
         with contextlib.redirect_stderr(io.StringIO()):
             code = reject_live_run(release, output=output)
         payload = json.loads(output.getvalue())
         self.assertEqual(code, 3)
         self.assertFalse(payload["live_certified"])
         self.assertEqual(payload["blocker"], "remote_release_not_live_authorized")
-        self.assertNotIn("rclpy", sys.modules)
+        for name, module_before in driver_modules_before.items():
+            self.assertIs(sys.modules.get(name), module_before)
 
     def test_missing_v3_backend_never_falls_back(self) -> None:
         release = load_remote_release()
