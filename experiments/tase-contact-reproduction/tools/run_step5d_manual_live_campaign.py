@@ -242,7 +242,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ManualLiveError("manual durable inflight intent is missing")
     packet = intent["packet"]
     if any((
-        packet["campaign_epoch"] != observed["campaign_epoch"],
+        packet["campaign_epoch"] != max(1, observed["campaign_epoch"]),
         packet["trial_id"] <= observed["trial_id"],
         packet["command_seq"] <= observed["consumed_command_seq"],
         intent["overlay"]["force_i_gain"] != 0.0001,
