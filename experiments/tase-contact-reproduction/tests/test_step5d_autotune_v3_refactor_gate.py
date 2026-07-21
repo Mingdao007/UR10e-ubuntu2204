@@ -349,6 +349,20 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             workflow,
         )
         self.assertIn("python3 -m step5d_v3_parser_ci_stubs", workflow)
+        fixture = "tests/fixtures/hermetic_ur_description/ur.urdf.xacro"
+        self.assertIn(fixture, workflow)
+        fixture_path = ROOT / fixture
+        self.assertTrue(fixture_path.is_file())
+        self.assertFalse(fixture_path.is_symlink())
+        install_command = (
+            "sudo install -m 0644 experiments/tase-contact-reproduction/"
+            f"{fixture} /opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro"
+        )
+        self.assertIn(install_command, workflow)
+        self.assertLess(
+            workflow.index(install_command),
+            workflow.index("python3 -m step5d_v3_parser_ci_stubs"),
+        )
         self.assertNotIn("docker run", workflow)
         self.assertNotIn("large_ursim", workflow)
         self.assertNotIn("hil_no_motion", workflow)
