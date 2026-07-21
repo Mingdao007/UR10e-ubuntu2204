@@ -9,6 +9,7 @@ on:
       - "experiments/tase-contact-reproduction/STEP5_FLOW.md"
       - "experiments/tase-contact-reproduction/requirements-test.txt"
       - "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/**"
+      - "src/ur10e_experiment_runtime/**"
       - "experiments/tase-contact-reproduction/tools/validate_step5d_autotune_v3_refactor.py"
       - "experiments/tase-contact-reproduction/scripts/step5d-autotune-v3.sh"
       - "experiments/tase-contact-reproduction/config/step5d_autotune_v3*.json"
@@ -98,7 +99,7 @@ jobs:
       - name: Verify production parser through test-only bootstrap
         working-directory: experiments/tase-contact-reproduction
         run: >-
-          env PYTHONPATH=tests:tools
+          env PYTHONPATH=tests:tools:../../src/ur10e_experiment_runtime
           python3 -m step5d_v3_parser_ci_stubs
           --experiment-root . start --check --json
 

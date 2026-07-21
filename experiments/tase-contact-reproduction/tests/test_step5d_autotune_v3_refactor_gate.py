@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -342,10 +343,44 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         self.assertIn("tools/run_step5d_autotune_v3_test_matrix.py", workflow)
         self.assertIn("--lanes small medium --workers auto", workflow)
         self.assertIn("STEP5D_V3_HERMETIC_PARSER_CI", workflow)
+        self.assertIn('"src/ur10e_experiment_runtime/**"', workflow)
+        self.assertIn(
+            "PYTHONPATH=tests:tools:../../src/ur10e_experiment_runtime",
+            workflow,
+        )
         self.assertIn("python3 -m step5d_v3_parser_ci_stubs", workflow)
         self.assertNotIn("docker run", workflow)
         self.assertNotIn("large_ursim", workflow)
         self.assertNotIn("hil_no_motion", workflow)
+
+    def test_workflow_parser_bootstrap_imports_repository_runtime_source(self) -> None:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "step5d_v3_parser_ci_stubs",
+                "--experiment-root",
+                ".",
+                "start",
+                "--check",
+                "--json",
+            ],
+            cwd=ROOT,
+            env={
+                "PATH": os.environ.get("PATH", os.defpath),
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONPATH": "tests:tools:../../src/ur10e_experiment_runtime",
+                "STEP5D_V3_HERMETIC_PARSER_CI": "1",
+            },
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["no_motion"])
 
 
 if __name__ == "__main__":
