@@ -35,7 +35,9 @@ from step5d_autotune_v3.runtime_profile import (  # noqa: E402
     load_launch_profile,
 )
 from step5d_autotune_batch_plan import initialize_rolling_plan  # noqa: E402
+from step5d_autotune_runtime_lifecycle import next_runtime_plan_row  # noqa: E402
 import run_step5d_autotune_v3_bridge as bridge_wrapper  # noqa: E402
+import run_step5d_autotune_campaign as campaign_runner  # noqa: E402
 from run_step5d_autotune_v3_bridge import (  # noqa: E402
     V3AsyncBridgeTrialCsvRotator,
     _V3_RUNNER_CLOSURE_FIELDS,
@@ -405,6 +407,26 @@ def test_initial_live_batch_uses_fresh_campaign_local_history(
     assert plan.revision == 1
     assert len(plan.batches[0]) == 5
     assert overlays["candidate_count"] == 5
+    overlay_rows = overlays["batches"][0]["trials"]
+    assert [row.control_candidate_uid for row in plan.occurrences[0]] == [
+        overlay["control_candidate_uid"] for overlay in overlay_rows
+    ]
+    assert len({row.occurrence_uid for row in plan.occurrences[0]}) == 5
+    assert len({row.transport_candidate_uid for row in plan.occurrences[0]}) == 5
+    selected = next_runtime_plan_row(plan=plan, campaign_root=campaign_root)
+    assert selected is not None
+    resolved = campaign_runner._v3_overlay_for_candidate(
+        campaign_root / "control/v3_trial_overlays.json",
+        candidate=selected.candidate,
+        profile=ExecutionProfile("nf100-slew050-a050", 0.1, 0.5, 0.5),
+        plan_revision=plan.revision,
+        launch_profile_path=(
+            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+        ),
+        runtime_plan_row=selected,
+    )
+    assert resolved is not None
+    assert resolved["control_candidate_uid"] == selected.control_candidate_uid
     assert validate.call_count == 0
     source = Path(live.__file__).read_text(encoding="utf-8")
     assert "AdoptedCandidateHistory" not in source

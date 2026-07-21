@@ -278,6 +278,7 @@ def test_runtime_uid_namespaces_reject_substitution_and_equal_hashes() -> None:
             transport_candidate_uid="a" * 64,
             role="baseline",
             replicate_ordinal=1,
+            control_candidate_uid=planned.control_candidate_uid,
         )
 
 

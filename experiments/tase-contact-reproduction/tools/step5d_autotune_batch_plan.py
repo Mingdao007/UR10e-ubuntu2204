@@ -62,10 +62,10 @@ class RuntimePlanRow:
             }
         ) != 3:
             raise ValueError("runtime plan row UID namespaces must be distinct")
-        if self.control_candidate_uid != self.candidate.candidate_uid:
-            raise ValueError("runtime plan row control UID differs from candidate")
 
     def with_overlay(self, overlay: Mapping[str, Any]) -> "RuntimePlanRow":
+        if overlay.get("control_candidate_uid") != self.control_candidate_uid:
+            raise ValueError("runtime plan row control UID differs from overlay")
         return RuntimePlanRow(
             self.logical_batch_sequence,
             self.row_index,
@@ -85,15 +85,27 @@ class CandidateOccurrence:
     transport_candidate_uid: str
     role: str
     replicate_ordinal: int
+    control_candidate_uid: str
 
     def __post_init__(self) -> None:
         typed_expectations = {
             "occurrence_uid": OccurrenceUid,
             "transport_candidate_uid": TransportCandidateUid,
+            "control_candidate_uid": ControlCandidateUid,
         }
-        for name in ("occurrence_uid", "transport_candidate_uid"):
+        for name in (
+            "occurrence_uid",
+            "transport_candidate_uid",
+            "control_candidate_uid",
+        ):
             value = getattr(self, name)
-            if isinstance(value, (OccurrenceUid, TransportCandidateUid, ControlCandidateUid)) and type(value) is not typed_expectations[name]:
+            if (
+                isinstance(
+                    value,
+                    (OccurrenceUid, TransportCandidateUid, ControlCandidateUid),
+                )
+                and type(value) is not typed_expectations[name]
+            ):
                 raise TypeError(f"{name} uses the wrong UID namespace")
             if (
                 not isinstance(value, str)
@@ -115,6 +127,11 @@ class CandidateOccurrence:
             "transport_candidate_uid",
             TransportCandidateUid(self.transport_candidate_uid),
         )
+        object.__setattr__(
+            self,
+            "control_candidate_uid",
+            ControlCandidateUid(self.control_candidate_uid),
+        )
         if len(
             {
                 str(self.occurrence_uid),
@@ -123,10 +140,6 @@ class CandidateOccurrence:
             }
         ) != 3:
             raise ValueError("candidate occurrence UID namespaces must be distinct")
-
-    @property
-    def control_candidate_uid(self) -> ControlCandidateUid:
-        return ControlCandidateUid(self.candidate.candidate_uid)
 
 
 @dataclass(frozen=True)
@@ -302,20 +315,31 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         if rolling:
             occurrences = []
             for raw in raw_rows:
-                if not isinstance(raw, Mapping) or set(raw) != {
+                required_occurrence_fields = {
                     "candidate",
                     "occurrence_uid",
                     "transport_candidate_uid",
                     "role",
                     "replicate_ordinal",
-                }:
+                }
+                if payload["schema_version"] == SCHEMA_VERSION_ROLLING:
+                    required_occurrence_fields.add("control_candidate_uid")
+                if (
+                    not isinstance(raw, Mapping)
+                    or set(raw) != required_occurrence_fields
+                ):
                     raise ValueError("rolling occurrence schema differs")
+                candidate = candidate_from_log2_payload(raw["candidate"])
                 occurrence = CandidateOccurrence(
-                    candidate=candidate_from_log2_payload(raw["candidate"]),
+                    candidate=candidate,
                     occurrence_uid=raw["occurrence_uid"],
                     transport_candidate_uid=raw["transport_candidate_uid"],
                     role=raw["role"],
                     replicate_ordinal=raw["replicate_ordinal"],
+                    control_candidate_uid=raw.get(
+                        "control_candidate_uid",
+                        candidate.candidate_uid,
+                    ),
                 )
                 if occurrence.occurrence_uid in seen_occurrences:
                     raise ValueError("rolling plan repeats an occurrence UID")
@@ -516,6 +540,11 @@ def append_r008_batch(
                 "candidate": candidate_log2_payload(occurrence.candidate),
                 "occurrence_uid": occurrence.occurrence_uid,
                 "transport_candidate_uid": occurrence.transport_candidate_uid,
+                **(
+                    {"control_candidate_uid": occurrence.control_candidate_uid}
+                    if plan.payload["schema_version"] == SCHEMA_VERSION_ROLLING
+                    else {}
+                ),
                 "role": occurrence.selection_role,
                 "replicate_ordinal": occurrence.replicate_ordinal,
             }

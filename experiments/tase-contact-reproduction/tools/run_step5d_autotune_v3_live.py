@@ -101,9 +101,15 @@ def _ensure_initial_batch(
         overlays = initial_control_overlays(profile)
         if len(overlays) != 5:
             raise LiveLaunchError("rolling initialization must contain exactly five rows")
+        occurrences = tuple(
+            occurrence.bind_control_candidate_uid(overlay["control_candidate_uid"])
+            for occurrence, overlay in zip(
+                initialization_batch(1), overlays, strict=True
+            )
+        )
         plan = append_r008_batch(
             paths.candidate_plan,
-            occurrences=initialization_batch(1),
+            occurrences=occurrences,
             source=INITIAL_BATCH_SOURCE,
         )
         overlay_plan = v3_cli._append_overlay_batch(

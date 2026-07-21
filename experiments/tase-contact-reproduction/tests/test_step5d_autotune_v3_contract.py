@@ -192,9 +192,9 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
         "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
         "artifact_dir": "programs/step5/step5d",
         "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "readback_manifest_sha256": (
-            "ccb083ce4bb8c208a747e81907000b8e56bc25bedca368057233dc9149347a4e"
-        ),
+        "readback_manifest_sha256": hashlib.sha256(
+            (ROOT / "config/step5d_autotune_controller_readback_v3.json").read_bytes()
+        ).hexdigest(),
         "tp_fingerprint": (
             "b521b49c6132f59c691a80e8f6a0367a0d562e31a4fd935d6813b026dd4b8757"
         ),

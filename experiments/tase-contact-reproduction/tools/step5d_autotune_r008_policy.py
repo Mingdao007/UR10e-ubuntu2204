@@ -63,6 +63,7 @@ class PlannedOccurrence:
     plan_revision: int
     selection_role: str
     replicate_ordinal: int
+    bound_control_candidate_uid: ControlCandidateUid | None = None
 
     def __post_init__(self) -> None:
         for name in ("logical_batch_sequence", "row_index", "plan_revision", "replicate_ordinal"):
@@ -73,6 +74,11 @@ class PlannedOccurrence:
             raise ValueError("r008 row_index must be in [1,5]")
         if not isinstance(self.selection_role, str) or not self.selection_role:
             raise ValueError("selection_role must be non-empty")
+        if (
+            self.bound_control_candidate_uid is not None
+            and type(self.bound_control_candidate_uid) is not ControlCandidateUid
+        ):
+            raise TypeError("bound_control_candidate_uid uses the wrong UID namespace")
 
     @property
     def occurrence_uid(self) -> OccurrenceUid:
@@ -101,7 +107,22 @@ class PlannedOccurrence:
 
     @property
     def control_candidate_uid(self) -> ControlCandidateUid:
-        return ControlCandidateUid(self.candidate.candidate_uid)
+        return (
+            ControlCandidateUid(self.candidate.candidate_uid)
+            if self.bound_control_candidate_uid is None
+            else self.bound_control_candidate_uid
+        )
+
+    def bind_control_candidate_uid(self, value: str) -> "PlannedOccurrence":
+        return PlannedOccurrence(
+            logical_batch_sequence=self.logical_batch_sequence,
+            row_index=self.row_index,
+            candidate=self.candidate,
+            plan_revision=self.plan_revision,
+            selection_role=self.selection_role,
+            replicate_ordinal=self.replicate_ordinal,
+            bound_control_candidate_uid=ControlCandidateUid(value),
+        )
 
 
 def _batch(

@@ -1097,7 +1097,12 @@ def _v3_overlay_for_candidate(
         != normalized_overlay_sha256(launch_profile, normalized)
     ):
         raise RuntimeError("V3 normalized overlay SHA-256 differs")
-    if normalized["control_candidate_uid"] != candidate.candidate_uid:
+    expected_control_uid = (
+        runtime_plan_row.control_candidate_uid
+        if runtime_plan_row is not None
+        else candidate.candidate_uid
+    )
+    if normalized["control_candidate_uid"] != expected_control_uid:
         raise RuntimeError("V3 overlay control UID differs from candidate")
     overlay = normalized
     expected = {"execution_profile_id": profile.profile_id}
