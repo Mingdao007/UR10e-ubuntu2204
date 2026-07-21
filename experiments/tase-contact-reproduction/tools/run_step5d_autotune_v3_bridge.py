@@ -560,6 +560,37 @@ def _require_v3_no_arm_bridge(
     }
 
 
+def _release_runtime_protocol(
+    release: ReleaseIdentity | None,
+    *,
+    completion_protocol: str | None,
+    error_type: type[Exception] = BridgeTicketError,
+) -> str:
+    if release is None:
+        raise error_type(
+            "V3 bridge runtime requires an explicit SHA-pinned release protocol"
+        )
+    if completion_protocol is not None and completion_protocol != release.protocol_id:
+        raise error_type("V3 bridge completion protocol differs from release")
+    return release.protocol_id
+
+
+def build_release_mailbox_runtime(
+    runtime_type: type[Any],
+    path: Path,
+    *,
+    release: ReleaseIdentity,
+    completion_protocol: str | None = None,
+) -> Any:
+    """Construct the exact wrapper-owned runtime without installing global seams."""
+
+    protocol = _release_runtime_protocol(
+        release,
+        completion_protocol=completion_protocol,
+    )
+    return runtime_type(path, completion_protocol=protocol)
+
+
 def install_v3_seams(
     ticket: Mapping[str, Any] | None = None,
     *,
@@ -591,17 +622,16 @@ def install_v3_seams(
             arming_context_provider: Callable[[], Any | None] | None = None,
             completion_protocol: str | None = None,
         ) -> None:
-            if release is None:
-                raise live.MailboxError(
-                    "V3 bridge runtime requires an explicit SHA-pinned release protocol"
-                )
-            if completion_protocol is not None and completion_protocol != release.protocol_id:
-                raise live.MailboxError("V3 bridge completion protocol differs from release")
+            protocol = _release_runtime_protocol(
+                release,
+                completion_protocol=completion_protocol,
+                error_type=live.MailboxError,
+            )
             super().__init__(
                 path,
                 campaign_home_reference_path=campaign_home_reference_path,
                 arming_context_provider=arming_context_provider,
-                completion_protocol=release.protocol_id,
+                completion_protocol=protocol,
             )
 
     live.BridgeMailboxRuntime = V3BridgeMailboxRuntime

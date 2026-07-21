@@ -89,7 +89,7 @@ def test_legacy_r005_synthetic_snapshot_chain_reaches_arm2(tmp_path: Path) -> No
         campaign_fingerprint="a" * 64,
         f0_shadow_reaction_normal_base=(0.0, 0.0, 1.0),
     )
-    profile = ExecutionProfile("nf050-slew050-a050", 0.05, 0.5, 0.5)
+    profile = ExecutionProfile("nf100-slew050-a050", 0.1, 0.5, 0.5)
     campaign_root = tmp_path / "campaign"
     store = CampaignStore(campaign_root / "store")
     store.initialize(
@@ -274,7 +274,7 @@ def test_r006_direct_pending_advance_uses_no_ack_sequence(tmp_path: Path) -> Non
         campaign_fingerprint="a" * 64,
         f0_shadow_reaction_normal_base=(0.0, 0.0, 1.0),
     )
-    profile = ExecutionProfile("nf050-slew050-a050", 0.05, 0.5, 0.5)
+    profile = ExecutionProfile("nf100-slew050-a050", 0.1, 0.5, 0.5)
     campaign_root = tmp_path / "campaign"
     store = CampaignStore(campaign_root / "store")
     store.initialize(

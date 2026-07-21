@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from ur10e_experiment_runtime.candidate_identity import ControlCandidateUid
+
 from .profile import ContractViolation, canonical_json_bytes, contract_sha256, load_contract
 
 
@@ -44,20 +46,10 @@ ORIENTATION_KO_LATTICE = (
 
 
 def control_candidate_uid(candidate: Mapping[str, Any]) -> str:
-    values: dict[str, float] = {}
-    for field in CONTROL_CANDIDATE_FIELDS:
-        value = candidate[field]
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ContractViolation(f"{field} must be numeric")
-        numeric = float(value)
-        if not math.isfinite(numeric):
-            raise ContractViolation(f"{field} must be finite")
-        values[field] = numeric
-    material = {
-        "schema": "step5d.autotune-v3/control-candidate/v2",
-        **values,
-    }
-    return hashlib.sha256(canonical_json_bytes(material)).hexdigest()
+    try:
+        return str(ControlCandidateUid.from_overlay(candidate))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ContractViolation(str(exc)) from exc
 
 
 OVERLAY_FIELDS = (

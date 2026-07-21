@@ -10,6 +10,12 @@ from .batch import (
     ReturnReferenceKind,
     SafeClosureReceipt,
 )
+from .candidate_identity import (
+    ControlCandidateUid,
+    OccurrenceUid,
+    ParameterUid,
+    TransportCandidateUid,
+)
 
 from .contracts import (
     AutotuneCandidate,
@@ -98,6 +104,7 @@ __all__ = [
     "BatchRow",
     "ComponentKind",
     "ComponentRegistry",
+    "ControlCandidateUid",
     "CERTIFICATION_PROCEDURES",
     "CampaignAuthorization",
     "CertificationMotionAuthorization",
@@ -108,7 +115,9 @@ __all__ = [
     "DirectReadyReceipt",
     "EvidenceSink",
     "ObjectiveContract",
+    "OccurrenceUid",
     "OutputPathError",
+    "ParameterUid",
     "PhysicalPriorArtifact",
     "MovingSphereKernel",
     "ResourceLockError",
@@ -131,6 +140,7 @@ __all__ = [
     "StoppingBoundEvidenceComponent",
     "StoppingBoundEvidenceManifest",
     "TrialBrief",
+    "TransportCandidateUid",
     "STEP5D_V3_PHYSICAL_PRIOR",
     "STEP5D_V3_STAGE_IDENTITY",
     "Step5dV3StageIdentity",

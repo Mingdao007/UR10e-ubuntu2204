@@ -114,3 +114,15 @@ def test_r009_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None
 
     with pytest.raises(FileExistsError, match="increment rNNN"):
         v3.write_triplet(tmp_path, stamp)
+
+
+def test_r009_generator_check_recomputes_every_output_byte(tmp_path: Path) -> None:
+    stamp = v3.source_stamp(
+        datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
+    )
+    v3.write_triplet(tmp_path, stamp)
+    assert v3.check_triplet(tmp_path, stamp)["ok"] is True
+    sanity = tmp_path / f"{v3.PROGRAM_NAME}.numeric-sanity.json"
+    sanity.write_bytes(sanity.read_bytes().replace(b'"return_segment_count": 3', b'"return_segment_count": 4'))
+    with pytest.raises(ValueError, match="numeric-sanity.json:byte_drift"):
+        v3.check_triplet(tmp_path, stamp)

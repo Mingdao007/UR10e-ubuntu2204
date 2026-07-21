@@ -532,7 +532,7 @@ STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES = [
     "execution_profile_id_echo",
     "consumed_command_seq",
     "batch_row_index_echo",
-    "return_reference_kind_echo",
+    "return_kind_echo",
     "return_guard_mask",
     "logical_batch_sequence_echo",
 ]
@@ -11607,6 +11607,17 @@ def main(argv: list[str] | None = None) -> int:
                                 step4e_state,
                                 write_period,
                             )
+                            if bool(
+                                getattr(
+                                    step5d_autotune_mailbox_runtime,
+                                    "identity_commit_pending",
+                                    False,
+                                )
+                            ):
+                                apply_step5d_unpublished_startup_packet(step4e_values)
+                                step4e_values[
+                                    "_step5d_identity_commit_pending"
+                                ] = 1.0
                     except Exception as control_error:
                         if not uses_v30_control_contract(args.bridge_profile):
                             raise

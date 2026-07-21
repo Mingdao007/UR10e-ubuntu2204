@@ -25,7 +25,10 @@ from step5d_autotune_contract import ForceCandidate
 from step5d_autotune_r008_policy import initialization_batch
 from step5d_autotune_v3 import cli as v3_cli
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
-from step5d_autotune_v3.readiness import require_bridge_start
+from step5d_autotune_v3.readiness import (
+    require_bridge_start,
+    require_first_row_admission,
+)
 from step5d_autotune_v3.release_identity import ReleaseIdentity, load_current_release
 from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
 from step5d_autotune_v3.runtime_profile import (
@@ -389,6 +392,30 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         "machine_binding_sha256": _sha256_path(campaign_binding),
     }
     atomic_json(launch_plan_path, prepared)
+    ready_rtde = (preflight.get("controller_identity") or {}).get("rtde") or {}
+    try:
+        ready_state = int(ready_rtde["output_int_register_26"])
+        ready_consumed_command_seq = int(
+            ready_rtde["output_int_register_30"]
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise LiveLaunchError(
+            "V3 preflight lacks the exact READY_HOME command-sequence basis"
+        ) from exc
+    if ready_state != 10:
+        raise LiveLaunchError("first-row admission requires TP READY_HOME state 10")
+    admission, bridge_start = require_first_row_admission(
+        ROOT,
+        args.bridge_start_context,
+        campaign_root=args.campaign_root,
+        launch_profile_path=args.launch_profile,
+        campaign_epoch=int(prepared["campaign_epoch"]),
+        ready_consumed_command_seq=ready_consumed_command_seq,
+    )
+    atomic_json(
+        args.output_root / "first_row_admission.json",
+        admission["first_row_admission"],
+    )
     launch_id = uuid.uuid4().hex
     ticket = {
         "schema": "step5d.autotune-v3/runtime-ticket-v4",
@@ -464,6 +491,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 "codex_batches",
                 "--candidate-plan",
                 str(paths.candidate_plan),
+                "--close-after-plan-revision",
+                "1",
                 "--wait-for-home",
                 "--recover-infra-aborted-active",
                 "--v3-stop-latch",
@@ -512,7 +541,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                             f"bridge exited before campaign completion rc={bridge.returncode}"
                         )
                 if runner.poll() is not None and runner.returncode == 0:
-                    print("V3_BATCH_10_COMPLETE_FINAL_HOME_CONFIRMED", flush=True)
+                    print("V3_BATCH_A_5_COMPLETE_FINAL_HOME_CONFIRMED", flush=True)
     finally:
         runner_rc = _terminate(runner)
         bridge_rc = _terminate(bridge)

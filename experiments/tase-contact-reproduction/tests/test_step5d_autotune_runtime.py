@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline regression tests for the inactive Step5d-native runtime profile."""
+"""Offline regression tests for Step5d-native runtime compatibility surfaces."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-import build_step5d_autotune_tp as tp_builder  # noqa: E402
+import build_step5d_autotune_tp_v3 as tp_builder_v3  # noqa: E402
 import kunwei_rtde_bridge as bridge  # noqa: E402
 from step5d_autotune_backend import BACKEND_ID, FrozenFingerprint, Step5dV35Backend  # noqa: E402
 from step5d_autotune_contract import (  # noqa: E402
@@ -104,7 +104,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertEqual(autotune["normal_filter_dt_s"], 0.002)
         self.assertEqual(
             tuple(autotune["live_normal_rate_rad_s"]),
-            (0.01, 0.015, 0.02, 0.05),
+            (0.01, 0.015, 0.02, 0.05, 0.1),
         )
         self.assertEqual(tuple(autotune["offline_only_normal_rate_rad_s"]), (0.03,))
         self.assertEqual(
@@ -124,7 +124,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertEqual(args.step5d_qdot_limit_rad_s, 0.5)
         self.assertEqual(args.bridge_normal_filter_tau_s, 0.35)
         self.assertEqual(args.bridge_normal_filter_alpha, 0.0)
-        self.assertEqual(args.bridge_normal_max_rate_rad_s, 0.01)
+        self.assertEqual(args.bridge_normal_max_rate_rad_s, 0.1)
         self.assertEqual(args.step5d_autotune_force_terms["Md"], 1000.0)
         self.assertEqual(args.step5d_autotune_force_terms["kf"], 0.01)
         self.assertEqual(args.step5d_autotune_force_terms["Bd"], 7000.0)
@@ -339,8 +339,8 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         self.assertTrue(expected.issubset(set(bridge.STEP5D_DIAG_FIELDS)))
 
     def test_autotune_handshake_extends_only_the_autotune_rtde_recipes(self) -> None:
-        expected_inputs = [f"input_int_register_{index}" for index in range(24, 31)]
-        expected_outputs = [f"output_int_register_{index}" for index in range(24, 34)]
+        expected_inputs = [f"input_int_register_{index}" for index in range(24, 32)]
+        expected_outputs = [f"output_int_register_{index}" for index in range(24, 35)]
 
         self.assertEqual(
             bridge.rtde_input_fields_for(AUTOTUNE),
@@ -415,9 +415,15 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
                 "--step5d-autotune-candidate-token",
                 "404",
                 "--step5d-autotune-execution-profile-id",
-                "111",
+                "633",
                 "--step5d-autotune-command-sequence",
                 "606",
+                "--step5d-autotune-normal-rate-rad-s",
+                "0.1",
+                "--step5d-autotune-host-slew-rad-s2",
+                "0.5",
+                "--step5d-autotune-speedj-acceleration-rad-s2",
+                "0.5",
             )
             with self.assertRaisesRegex(SystemExit, "nonnegative INT32"):
                 parse_autotune("--step5d-autotune-trial-id", "-1")
@@ -449,23 +455,38 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
                 "trial_id": 202,
                 "command": 3,
                 "candidate_token": 404,
-                "execution_profile_id": 111,
+                "execution_profile_id": 633,
                 "command_seq": 606,
                 "batch_row_index": 0,
+                "logical_batch_sequence": 0,
             },
         )
 
     def test_runtime_handshake_matches_rendered_tp_wrapper(self) -> None:
-        wrapper = tp_builder.CONTINUOUS_WRAPPER
+        wrapper = tp_builder_v3.render_script()
         for name, register in state_machine.HOST_TO_TP_INTEGER_REGISTERS.items():
             self.assertIn(
                 f"{name} = read_input_integer_register({register})",
                 wrapper,
             )
+        output_expressions = {
+            "campaign_epoch_echo": "campaign_epoch",
+            "trial_id_echo": "trial_id",
+            "state": "state",
+            "candidate_token_echo": "candidate_token",
+            "terminal_reason": "terminal_reason",
+            "execution_profile_id_echo": "execution_profile_id",
+            "consumed_command_seq": "consumed_command_seq",
+            "batch_row_index_echo": "codex_autotune_batch_row_echo",
+            "return_kind_echo": "codex_autotune_return_kind_echo",
+            "return_guard_mask": "codex_autotune_return_guard_mask",
+            "logical_batch_sequence_echo": (
+                "codex_autotune_logical_batch_sequence_echo"
+            ),
+        }
         for name, register in state_machine.TP_TO_HOST_INTEGER_REGISTERS.items():
-            wrapper_name = name.removesuffix("_echo")
             self.assertIn(
-                f"write_output_integer_register({register}, {wrapper_name})",
+                f"write_output_integer_register({register}, {output_expressions[name]})",
                 wrapper,
             )
 

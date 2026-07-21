@@ -12,6 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import build_step5d_autotune_tp_v3 as builder  # noqa: E402
+import run_step5d_autotune_v3_live as live_launcher  # noqa: E402
+from step5d_autotune_batch_plan import initialize_rolling_plan  # noqa: E402
+from step5d_autotune_v3.admission import verify_first_row_admission  # noqa: E402
 from step5d_autotune_v3.atomic_release import (  # noqa: E402
     AtomicReleaseError,
     AtomicReleasePublisher,
@@ -20,10 +23,12 @@ from step5d_autotune_v3.atomic_release import (  # noqa: E402
 from step5d_autotune_v3.release_identity import (  # noqa: E402
     CURRENT_POINTER_SCHEMA,
     RELEASE_MANIFEST_SCHEMA,
+    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
     ReleaseIdentityError,
     load_current_release,
 )
 from step5d_autotune_v3.release_verifier import (  # noqa: E402
+    REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
     ReleaseVerificationError,
     verify_release_manifest,
 )
@@ -36,7 +41,12 @@ def _sha(encoded: bytes) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _release_fixture(root: Path, *, bad_registers: bool = False) -> Path:
+def _release_fixture(
+    root: Path,
+    *,
+    bad_registers: bool = False,
+    bad_write_order: bool = False,
+) -> Path:
     stamp = "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R009"
     script = builder.build_package_script(stamp)
     numeric = {
@@ -50,6 +60,13 @@ def _release_fixture(root: Path, *, bad_registers: bool = False) -> Path:
             "input_integer_registers": list(range(24, 31)),
             "output_integer_registers": list(range(24, 34)),
         }
+    if bad_write_order:
+        script = script.replace(
+            "  write_output_integer_register(26, state)\n"
+            "  write_output_integer_register(30, consumed_command_seq)",
+            "  write_output_integer_register(30, consumed_command_seq)\n"
+            "  write_output_integer_register(26, state)",
+        )
     txt = builder.build_txt(stamp).encode()
     script_bytes = script.encode()
     urp = builder.v1.build_urp(script, PROGRAM, builder.CONTROLLER_DIR)
@@ -65,9 +82,18 @@ def _release_fixture(root: Path, *, bad_registers: bool = False) -> Path:
     generated_path = root / "generated/numeric-sanity.json"
     generated_path.parent.mkdir(parents=True, exist_ok=True)
     generated_path.write_text(json.dumps(numeric), encoding="utf-8")
-    source_path = root / "source/generator.py"
-    source_path.parent.mkdir(parents=True, exist_ok=True)
-    source_path.write_text("# canonical source\n", encoding="utf-8")
+    source_fingerprints: dict[str, str] = {}
+    for relative in sorted(REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS):
+        source_path = root / relative
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(f"# canonical source: {relative}\n", encoding="utf-8")
+        source_fingerprints[relative] = _sha(source_path.read_bytes())
+    repository_source_fingerprints: dict[str, str] = {}
+    for relative in sorted(REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS):
+        source_path = root / relative
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(f"# repository source: {relative}\n", encoding="utf-8")
+        repository_source_fingerprints[relative] = _sha(source_path.read_bytes())
     mirror_path = root / "config/mirror.json"
     mirror_path.parent.mkdir(parents=True, exist_ok=True)
     mirror_path.write_text('{"program":"r009"}\n', encoding="utf-8")
@@ -101,10 +127,14 @@ def _release_fixture(root: Path, *, bad_registers: bool = False) -> Path:
         },
         "runtime_policy": {"state_78_watchdog_s": 30.0},
         "optimizer_policy": {"group_by": "ControlCandidateUid"},
-        "source_fingerprints": {"source/generator.py": _sha(source_path.read_bytes())},
+        "source_fingerprints": source_fingerprints,
         "generated_files": {"generated/numeric-sanity.json": _sha(generated_path.read_bytes())},
         "compatibility_mirrors": {"config/mirror.json": _sha(mirror_path.read_bytes())},
-        "verification": {"canonical_verifier": "independent_script_urp_v1"},
+        "verification": {
+            "canonical_verifier": "independent_script_urp_v1",
+            "repository_source_root_depth": 0,
+            "repository_source_fingerprints": repository_source_fingerprints,
+        },
     }
     encoded = canonical_bytes(manifest)
     digest = _sha(encoded)
@@ -130,6 +160,50 @@ def test_independent_verifier_rejects_joint_generator_and_numeric_register_drift
         verify_release_manifest(tmp_path, manifest)
 
 
+def test_independent_verifier_rejects_non_atomic_tp_state_write_order(
+    tmp_path: Path,
+) -> None:
+    manifest = _release_fixture(tmp_path, bad_write_order=True)
+    with pytest.raises(ReleaseVerificationError, match="consumed-sequence commit"):
+        verify_release_manifest(tmp_path, manifest)
+
+
+def test_exact_first_row_admission_closes_plan_overlay_wrapper_and_tp_commit(
+    tmp_path: Path,
+) -> None:
+    _release_fixture(tmp_path)
+    release = load_current_release(tmp_path)
+    campaign_root = tmp_path / "campaign"
+    initialize_rolling_plan(
+        campaign_root / "control/candidate_plan.json",
+        campaign_id="admission-campaign",
+    )
+    live_launcher._ensure_initial_batch(
+        campaign_root=campaign_root,
+        campaign_id="admission-campaign",
+        launch_profile_path=(
+            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+        ),
+    )
+    report = verify_first_row_admission(
+        tmp_path,
+        campaign_root=campaign_root,
+        launch_profile_path=(
+            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+        ),
+        campaign_epoch=7,
+        ready_consumed_command_seq=12,
+        release=release,
+    )
+    assert report["ok"] is True
+    assert report["protocol_id"] == "v3_full_home_rolling_arm_v1"
+    assert report["control_candidate_uid"].startswith("control:v2:")
+    assert report["occurrence_uid"].startswith("occurrence:v2:")
+    assert report["transport_candidate_uid"].startswith("transport:v2:")
+    assert report["would_be_arm_packet"]["command_seq"] == 13
+    assert report["state_write_order"][-2:] == [26, 30]
+
+
 def test_current_pointer_has_no_fallback_and_mirror_drift_fails_closed(
     tmp_path: Path,
 ) -> None:
@@ -144,6 +218,18 @@ def test_current_pointer_has_no_fallback_and_mirror_drift_fails_closed(
     payload["latest"] = True
     pointer.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ReleaseIdentityError, match="manifest path and SHA only"):
+        load_current_release(tmp_path)
+
+
+def test_active_release_source_fingerprint_drift_fails_closed(
+    tmp_path: Path,
+) -> None:
+    _release_fixture(tmp_path)
+    relative = "tools/step5d_autotune_coordinator.py"
+    source = tmp_path / relative
+    source.write_text("# drifted coordinator source\n", encoding="utf-8")
+
+    with pytest.raises(ReleaseIdentityError, match="source file fingerprint drifted"):
         load_current_release(tmp_path)
 
 

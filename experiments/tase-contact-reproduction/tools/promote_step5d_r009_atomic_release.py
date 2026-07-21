@@ -36,7 +36,6 @@ from step5d_autotune_v3.profile import contract_sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 PROGRAM = "step5d_strict_rnn_autotune_v3_r009"
-HISTORICAL_PROGRAM = "step5d_strict_rnn_autotune_v3_r008"
 TARGET_DIR = "/programs/andyl/kunwei/step5"
 PACKAGE_DIR = Path("programs/step5/step5d")
 EXTENSIONS = (".script", ".txt", ".urp")
@@ -63,15 +62,53 @@ SOURCE_INPUTS = (
     Path("tools/run_step5d_autotune_campaign.py"),
     Path("tools/run_step5d_autotune_v3_bridge.py"),
     Path("tools/run_step5d_autotune_v3_live.py"),
+    Path("tools/run_step5d_autotune_v3_tp_transaction.py"),
+    Path("tools/kunwei_rtde_bridge.py"),
+    Path("tools/prepare_step5d_autotune_launch.py"),
+    Path("tools/step5d_autotune_backend.py"),
+    Path("tools/step5d_autotune_live_driver.py"),
     Path("tools/step5d_autotune_batch_plan.py"),
+    Path("tools/step5d_autotune_contract.py"),
+    Path("tools/step5d_autotune_coordinator.py"),
+    Path("tools/step5d_autotune_journal.py"),
+    Path("tools/step5d_autotune_optimizer.py"),
+    Path("tools/step5d_autotune_store.py"),
+    Path("tools/step5d_autotune_state_machine.py"),
+    Path("tools/step5d_autotune_supervisor.py"),
+    Path("tools/step5d_production_csv.py"),
+    Path("tools/step5d_runtime_interface.py"),
+    Path("tools/step5d_r008_completion.py"),
     Path("tools/step5d_autotune_r008_policy.py"),
     Path("tools/step5d_autotune_runtime_lifecycle.py"),
+    Path("tools/step5d_autotune_v3/arming.py"),
     Path("tools/step5d_autotune_v3/atomic_release.py"),
+    Path("tools/step5d_autotune_v3/admission.py"),
+    Path("tools/step5d_autotune_v3/identity_layers.py"),
+    Path("tools/step5d_autotune_v3/profile.py"),
     Path("tools/step5d_autotune_v3/release_identity.py"),
     Path("tools/step5d_autotune_v3/release_verifier.py"),
     Path("tools/step5d_autotune_v3/readiness.py"),
     Path("tools/step5d_autotune_v3/runtime_profile.py"),
+    Path("tools/step5d_autotune_v3/state.py"),
 )
+REPOSITORY_SOURCE_INPUTS = (
+    Path("src/ur10e_experiment_runtime/ur10e_experiment_runtime/__init__.py"),
+    Path(
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/candidate_identity.py"
+    ),
+    Path("src/ur10e_experiment_runtime/ur10e_experiment_runtime/batch.py"),
+    Path(
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py"
+    ),
+)
+STATIC_PROJECTION_SHA256 = {
+    "config/current_stage.json": "80932661dcffedafc19b4beb41468a4303be40173501260e62c7994409a32ff8",
+    "config/step5_stage_table.json": "2df8e9dc6143a8f98539a26319d66a9267cb502df2a443aa25b1a3c5ee3490b2",
+    "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
+    "config/step5d/v3_active_surface.json": "3464762b1db1e63f60e22c890dd25b7cac54a15abe0ff6c810a79755e9151166",
+}
+CONTRACT_STATIC_SHA256 = "a4b5477a9e23bdc1dea6d016d4d45713c0f852006db4c68465dcc5b1f21facec"
+LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
 PENDING = PendingRelease(
     program_id=PROGRAM,
     protocol_id=ROLLING_PROTOCOL,
@@ -112,17 +149,15 @@ def _pretty(payload: Mapping[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
-def _project(value: Any) -> Any:
-    """Restore historical labels, then project only the active TP program."""
+def _static_projection(root: Path, relative: Path) -> dict[str, Any]:
+    """Load one SHA-pinned canonical static input; drift has no fallback path."""
 
-    if isinstance(value, str):
-        historical = value.replace("r009", "r008")
-        return historical.replace(HISTORICAL_PROGRAM, PROGRAM)
-    if isinstance(value, list):
-        return [_project(item) for item in value]
-    if isinstance(value, dict):
-        return {_project(key): _project(item) for key, item in value.items()}
-    return value
+    expected = STATIC_PROJECTION_SHA256.get(relative.as_posix())
+    if expected is None or _sha256(root / relative) != expected:
+        raise R009PromotionError(
+            f"canonical static projection input drifted: {relative.as_posix()}"
+        )
+    return _load(root / relative)
 
 
 def _render_contract(
@@ -134,13 +169,24 @@ def _render_contract(
     numeric_sanity_sha256: str,
     readback_sha256: str,
 ) -> dict[str, Any]:
-    base = _project(source)
+    base = json.loads(json.dumps(source, allow_nan=False))
+    dynamic_fields = {
+        "source_sha256",
+        "candidate_tp_artifact_sha256",
+        "tp_artifact_sha256",
+        "candidate_tp_identity",
+        "deployment_tp_identity",
+        "promotion_status",
+    }
+    static = {key: value for key, value in base.items() if key not in dynamic_fields}
+    if _sha256_bytes(canonical_bytes(static)) != CONTRACT_STATIC_SHA256:
+        raise R009PromotionError("canonical control-contract static input drifted")
     source_sha256 = {
         relative: _sha256(root / relative)
         for relative in base["source_sha256"]
     }
     return {
-        **base,
+        **static,
         "source_sha256": source_sha256,
         "candidate_tp_artifact_sha256": dict(triplet_sha256),
         "tp_artifact_sha256": dict(triplet_sha256),
@@ -168,9 +214,18 @@ def _render_launch_profile(
     *,
     contract_sha256: str,
 ) -> dict[str, Any]:
-    base = _project(source)
+    base = json.loads(json.dumps(source, allow_nan=False))
+    dynamic_fields = {
+        "release_stage_id",
+        "control_profile_id",
+        "tp_program_id",
+        "control_contract_sha256",
+    }
+    static = {key: value for key, value in base.items() if key not in dynamic_fields}
+    if _sha256_bytes(canonical_bytes(static)) != LAUNCH_STATIC_SHA256:
+        raise R009PromotionError("canonical launch-profile static input drifted")
     return {
-        **base,
+        **static,
         "release_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
         "tp_program_id": PROGRAM,
@@ -178,9 +233,9 @@ def _render_launch_profile(
     }
 
 
-def _artifact_paths(root: Path) -> dict[str, Path]:
+def _artifact_paths(artifact_dir: Path) -> dict[str, Path]:
     return {
-        extension: root / PACKAGE_DIR / f"{PROGRAM}{extension}"
+        extension: artifact_dir / f"{PROGRAM}{extension}"
         for extension in EXTENSIONS
     }
 
@@ -188,11 +243,19 @@ def _artifact_paths(root: Path) -> dict[str, Path]:
 def validate_delivery(
     root: Path,
     manifest_path: Path,
+    artifact_dir: Path,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     root = root.resolve(strict=True)
     manifest_path = manifest_path.resolve(strict=True)
     manifest = _load(manifest_path)
-    files = _artifact_paths(root)
+    artifact_dir = artifact_dir.resolve(strict=True)
+    try:
+        artifact_dir.relative_to(root)
+    except ValueError as exc:
+        raise R009PromotionError("pending artifact directory escapes experiment root") from exc
+    if artifact_dir.is_symlink() or not artifact_dir.is_dir():
+        raise R009PromotionError("pending artifact directory is unsafe")
+    files = _artifact_paths(artifact_dir)
     local_sha = {extension: _sha256(path) for extension, path in files.items()}
     validation = manifest.get("validation")
     hashes = manifest.get("sha256")
@@ -297,15 +360,21 @@ def _local_candidate(
 def compose_release(
     root: Path,
     upload_manifest_path: Path,
+    artifact_dir: Path,
 ) -> tuple[dict[str, Any], dict[str, bytes], dict[str, str]]:
     root = root.resolve(strict=True)
-    upload, triplet_sha = validate_delivery(root, upload_manifest_path)
+    artifact_dir = artifact_dir.resolve(strict=True)
+    upload, triplet_sha = validate_delivery(
+        root, upload_manifest_path, artifact_dir
+    )
     raw_upload = upload_manifest_path.read_bytes()
     raw_upload_sha = _sha256_bytes(raw_upload)
     deploy = PACKAGE_DIR / f"{PROGRAM}.deploy-manifest.json"
     numeric = PACKAGE_DIR / f"{PROGRAM}.numeric-sanity.json"
-    deploy_sha = _sha256(root / deploy)
-    numeric_sha = _sha256(root / numeric)
+    deploy_source = artifact_dir / f"{PROGRAM}.deploy-manifest.json"
+    numeric_source = artifact_dir / f"{PROGRAM}.numeric-sanity.json"
+    deploy_sha = _sha256(deploy_source)
+    numeric_sha = _sha256(numeric_source)
     canonical_readback = _pretty(
         _canonical_readback(
             upload,
@@ -325,10 +394,10 @@ def compose_release(
     )
 
     bundle_files: dict[str, bytes] = {}
-    for extension, path in _artifact_paths(root).items():
+    for extension, path in _artifact_paths(artifact_dir).items():
         bundle_files[(PACKAGE_DIR / f"{PROGRAM}{extension}").as_posix()] = path.read_bytes()
-    bundle_files[deploy.as_posix()] = (root / deploy).read_bytes()
-    bundle_files[numeric.as_posix()] = (root / numeric).read_bytes()
+    bundle_files[deploy.as_posix()] = deploy_source.read_bytes()
+    bundle_files[numeric.as_posix()] = numeric_source.read_bytes()
     bundle_files[RAW_READBACK.as_posix()] = raw_upload
     bundle_files[READBACK.as_posix()] = canonical_readback
     bundle_files[LOCAL_CANDIDATE.as_posix()] = local_candidate
@@ -353,7 +422,7 @@ def compose_release(
     for relative in STATIC_PROJECTIONS:
         if relative not in {contract_relative, launch_relative}:
             bundle_files[relative.as_posix()] = _pretty(
-                _project(_load(root / relative))
+                _static_projection(root, relative)
             )
 
     generated_files = {
@@ -400,10 +469,13 @@ def compose_release(
             "fresh_get": True,
         },
         "runtime_policy": {
-            "candidate_plan_schema": "step5d_autotune_rolling_batch_plan_v1",
+            "candidate_plan_schema": "step5d_autotune_rolling_batch_plan_v2",
             "plan_lifecycle": ["OPEN_READY", "OPEN_EMPTY", "CLOSED_COMPLETE"],
             "state_78_watchdog_s": 30.0,
             "host_plan_wait_budget_max_s": 25.0,
+            "tp_identity_commit_register": 30,
+            "tp_identity_commit_timeout_s": 0.25,
+            "tp_state_write_order": [24, 25, 27, 28, 29, 31, 32, 33, 34, 26, 30],
             "completion_state": 77,
             "complete_command": 4,
             "terminal_scope": "bridge_start_ready_no_arm",
@@ -412,6 +484,10 @@ def compose_release(
             "control_grouping_uid": "ControlCandidateUid",
             "durability_uid": "OccurrenceUid",
             "transport_uid": "TransportCandidateUid",
+            "parameter_uid_prefix": "parameter:v1:",
+            "control_uid_prefix": "control:v2:",
+            "occurrence_uid_prefix": "occurrence:v2:",
+            "transport_uid_prefix": "transport:v2:",
             "baseline_repeat_policy": "same_control_distinct_occurrence_and_transport",
             "initialization_batch_size": 5,
             "batch_b_requires": [
@@ -429,15 +505,26 @@ def compose_release(
             "staged_bytes_required": True,
             "numeric_sanity_is_expected_truth": False,
             "pointer_switched_last": True,
+            "repository_source_root_depth": 2,
+            "repository_source_fingerprints": {
+                relative.as_posix(): _sha256(root.parents[1] / relative)
+                for relative in REPOSITORY_SOURCE_INPUTS
+            },
         },
     }
     targets = {relative: relative for relative in bundle_files}
     return manifest, bundle_files, targets
 
 
-def promote(root: Path, upload_manifest_path: Path) -> dict[str, Any]:
+def promote(
+    root: Path,
+    upload_manifest_path: Path,
+    artifact_dir: Path,
+) -> dict[str, Any]:
     root = root.resolve(strict=True)
-    manifest, bundle_files, targets = compose_release(root, upload_manifest_path)
+    manifest, bundle_files, targets = compose_release(
+        root, upload_manifest_path, artifact_dir
+    )
 
     def verify_stage(stage: Path, manifest_path: Path, digest: str) -> None:
         overrides = {
@@ -477,10 +564,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--artifact-dir", type=Path, required=True)
     parser.add_argument("--compose-only", action="store_true")
     args = parser.parse_args(argv)
     if args.compose_only:
-        manifest, bundle, targets = compose_release(args.root, args.manifest)
+        manifest, bundle, targets = compose_release(
+            args.root, args.manifest, args.artifact_dir
+        )
         print(
             json.dumps(
                 {
@@ -493,7 +583,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
-    print(json.dumps(promote(args.root, args.manifest), indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            promote(args.root, args.manifest, args.artifact_dir),
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 

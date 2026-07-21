@@ -23,6 +23,7 @@ from prepare_step5d_autotune_launch import (  # noqa: E402
 from step5d_autotune_backend import Step5dV35Backend  # noqa: E402
 from step5d_autotune_batch_plan import load_plan  # noqa: E402
 from step5d_autotune_v3.runtime_profile import load_launch_profile  # noqa: E402
+from step5d_autotune_v3.runtime_profile import normalized_overlay_sha256  # noqa: E402
 from step5d_v3_fake_bridge_harness import exact_trial_overlay  # noqa: E402
 from run_step5d_autotune_campaign import _profile  # noqa: E402
 
@@ -44,23 +45,48 @@ def _overlay_plan(candidate_plan: Path, path: Path) -> dict[str, object]:
     plan = load_plan(candidate_plan, campaign_id="step5d-native-1")
     profile = _profile(ROOT)
     launch = load_launch_profile(LAUNCH_PROFILE)
-    trials = []
-    for candidate in plan.candidates:
-        overlay = exact_trial_overlay(candidate, profile)
-        trials.append(
+    batches = []
+    if any(plan.occurrences):
+        for batch_id, occurrences in enumerate(plan.occurrences, start=1):
+            trials = []
+            for occurrence in occurrences:
+                overlay = exact_trial_overlay(occurrence.candidate, profile)
+                trials.append(
+                    {
+                        "occurrence_uid": occurrence.occurrence_uid,
+                        "transport_candidate_uid": occurrence.transport_candidate_uid,
+                        "control_candidate_uid": occurrence.control_candidate_uid,
+                        "normalized_overlay_sha256": normalized_overlay_sha256(
+                            launch, overlay
+                        ),
+                        "overlay": overlay,
+                    }
+                )
+            batches.append(
+                {
+                    "batch_id": batch_id,
+                    "source": plan.payload["batches"][batch_id - 1]["source"],
+                    "trials": trials,
+                }
+            )
+    else:
+        trials = []
+        for candidate in plan.candidates:
+            overlay = exact_trial_overlay(candidate, profile)
+            trials.append(
+                {
+                    "transport_candidate_uid": candidate.candidate_uid,
+                    "control_candidate_uid": overlay["control_candidate_uid"],
+                    "overlay": overlay,
+                }
+            )
+        batches.append(
             {
-                "transport_candidate_uid": candidate.candidate_uid,
-                "control_candidate_uid": overlay["control_candidate_uid"],
-                "overlay": overlay,
+                "batch_id": 1,
+                "source": plan.payload["batches"][0]["source"],
+                "trials": trials,
             }
         )
-    batches = [
-        {
-            "batch_id": 1,
-            "source": plan.payload["batches"][0]["source"],
-            "trials": trials,
-        }
-    ]
     fingerprint = hashlib.sha256(
         json.dumps(
             {

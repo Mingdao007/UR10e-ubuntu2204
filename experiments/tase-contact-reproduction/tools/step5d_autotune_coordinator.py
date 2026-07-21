@@ -32,6 +32,9 @@ from ur10e_experiment_runtime.identity import (  # noqa: E402
     canonical_json_bytes as runtime_canonical_json_bytes,
     strict_json_loads as runtime_strict_json_loads,
 )
+from ur10e_experiment_runtime.candidate_identity import (  # noqa: E402
+    ControlCandidateUid,
+)
 
 from step5d_autotune_contract import (
     CampaignSpec,
@@ -201,6 +204,7 @@ def _direct_trial_brief_reference(
     trial_uid: str,
     arm_command_seq: int,
     optimizer_eligible: bool,
+    logical_batch_sequence: int,
 ) -> JournalReference:
     if any(
         (
@@ -223,13 +227,30 @@ def _direct_trial_brief_reference(
     except ValueError as exc:
         raise RecoveryError("direct-ready TrialBrief is malformed") from exc
     canonical = runtime_canonical_json_bytes(document)
+    rolling = logical_batch_sequence > 0
+    expected_schema = "ur-exp/trial-brief-v3" if rolling else "ur-exp/trial-brief-v2"
+    expected_protocol = (
+        "v3_full_home_rolling_arm_v1" if rolling else "v3_direct_arm_v1"
+    )
+    rolling_identity_valid = not rolling or all(
+        (
+            document.get("logical_batch_sequence") == logical_batch_sequence,
+            isinstance(document.get("occurrence_uid"), str)
+            and document["occurrence_uid"].startswith("occurrence:v2:"),
+            isinstance(document.get("transport_candidate_uid"), str)
+            and document["transport_candidate_uid"].startswith("transport:v2:"),
+            isinstance(document.get("control_candidate_uid"), str)
+            and document["control_candidate_uid"].startswith("control:v2:"),
+        )
+    )
     if any(
         (
             encoded != canonical + b"\n",
             receipt.file_sha256 != file_sha256,
             receipt.document_sha256 != hashlib.sha256(canonical).hexdigest(),
-            document.get("schema") != "ur-exp/trial-brief-v2",
-            document.get("protocol") != "v3_direct_arm_v1",
+            document.get("schema") != expected_schema,
+            document.get("protocol") != expected_protocol,
+            not rolling_identity_valid,
             document.get("publication_uid") != receipt.publication_uid,
             document.get("trial_uid") != trial_uid,
             document.get("optimizer_eligible") is not optimizer_eligible,
@@ -495,21 +516,41 @@ def _verify_infra_abort_evidence(fate: TerminalFate) -> None:
                 raise RecoveryError("infra-abort summary stop reason is not signal_sigint")
 
 
-def _verify_trial_brief_evidence(fate: TerminalFate, *, required: bool) -> None:
+def _verify_trial_brief_evidence(
+    fate: TerminalFate, *, required: bool
+) -> ControlCandidateUid | None:
     if fate.kind not in {"ack_consumed", "direct_ready_completed"}:
-        return
+        return None
     reference = fate.evidence
     if reference is None:
         if required:
             raise RecoveryError("codex batch terminal fate lacks durable TrialBrief")
-        return
+        return None
     role = (
         "direct-ready TrialBrief"
         if fate.kind == "direct_ready_completed"
         else "post-ACK TrialBrief"
     )
     encoded, document = _read_reference(reference, role=role)
-    if not isinstance(document, Mapping) or any(
+    if not isinstance(document, Mapping):
+        raise RecoveryError("TrialBrief evidence is not exact and closed")
+    rolling = fate.trial.logical_batch_sequence > 0
+    rolling_identity_valid = not rolling or all(
+        (
+            fate.kind == "direct_ready_completed",
+            document.get("schema") == "ur-exp/trial-brief-v3",
+            document.get("protocol") == "v3_full_home_rolling_arm_v1",
+            document.get("logical_batch_sequence")
+            == fate.trial.logical_batch_sequence,
+            isinstance(document.get("occurrence_uid"), str)
+            and document["occurrence_uid"].startswith("occurrence:v2:"),
+            isinstance(document.get("transport_candidate_uid"), str)
+            and document["transport_candidate_uid"].startswith("transport:v2:"),
+            isinstance(document.get("control_candidate_uid"), str)
+            and document["control_candidate_uid"].startswith("control:v2:"),
+        )
+    )
+    if any(
         (
             encoded != runtime_canonical_json_bytes(document) + b"\n",
             document.get("publication_uid") != reference.reference_id,
@@ -518,11 +559,19 @@ def _verify_trial_brief_evidence(fate: TerminalFate, *, required: bool) -> None:
             not isinstance(document.get("optimizer_eligible"), bool),
             (
                 fate.kind == "direct_ready_completed"
+                and not rolling
                 and document.get("protocol") != "v3_direct_arm_v1"
             ),
+            not rolling_identity_valid,
         )
     ):
         raise RecoveryError("TrialBrief evidence is not exact and closed")
+    if not rolling:
+        return None
+    try:
+        return ControlCandidateUid.parse(document["control_candidate_uid"])
+    except (TypeError, ValueError) as exc:
+        raise RecoveryError("rolling TrialBrief control UID is invalid") from exc
 
 
 def _candidate_from_payload(payload: Any) -> ForceCandidate:
@@ -1469,6 +1518,7 @@ class CampaignCoordinator:
                 trial_uid=trial.trial_uid,
                 arm_command_seq=trial.command_seq,
                 optimizer_eligible=matching_outcomes[0].eligible,
+                logical_batch_sequence=persisted.logical_batch_sequence,
             )
             self._bundle_references[trial.trial_uid] = reference
             capture_payload = bundle_payload.get("capture")
@@ -1953,6 +2003,18 @@ class CampaignCoordinator:
         prior_outcomes_by_epoch: dict[int, list[Observation]] = {}
         prior_trials: dict[str, TrialSpec] = {}
         prior_spec_refs: dict[str, JournalReference] = {}
+        state = latest.state
+        control_uids_by_trial: dict[str, ControlCandidateUid] = {}
+        for fate in state.terminal_fates:
+            _verify_infra_abort_evidence(fate)
+            control_uid = _verify_trial_brief_evidence(
+                fate,
+                required=supervisor.selection_policy == "codex_batches",
+            )
+            if control_uid is not None:
+                if fate.trial.trial_uid in control_uids_by_trial:
+                    raise RecoveryError("rolling TrialBrief control UID is duplicated")
+                control_uids_by_trial[fate.trial.trial_uid] = control_uid
         for row in prior_resume_history:
             trial = _trial_from_payload(row.get("trial"))
             evaluation = _evaluation_from_payload(row.get("evaluation"))
@@ -1985,6 +2047,7 @@ class CampaignCoordinator:
                 trial.execution_profile.profile_id,
                 trial.plant_epoch,
                 row.get("artifact_provenance", {}).get("csv", {}).get("sha256"),
+                control_uids_by_trial.get(trial.trial_uid),
             )
             prior_outcomes_by_epoch.setdefault(
                 trial.campaign.campaign_epoch, []
@@ -2033,6 +2096,7 @@ class CampaignCoordinator:
                     trial.execution_profile.profile_id,
                     trial.plant_epoch,
                     latest_trace,
+                    control_uids_by_trial.get(trial.trial_uid),
                 )
             )
             trials[trial.trial_uid] = trial
@@ -2041,13 +2105,6 @@ class CampaignCoordinator:
             prior_trial_id = trial.trial_id
             prior_command_seq = trial.command_seq
 
-        state = latest.state
-        for fate in state.terminal_fates:
-            _verify_infra_abort_evidence(fate)
-            _verify_trial_brief_evidence(
-                fate,
-                required=supervisor.selection_policy == "codex_batches",
-            )
         if any(
             (
                 state.execution_profile_id

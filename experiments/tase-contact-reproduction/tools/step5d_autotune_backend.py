@@ -84,6 +84,9 @@ class PreparedTrial:
     trial_overlay_sha256: str | None = None
     # Exact V3 BatchIdentity row; transport-only and never inferred from trial_id.
     batch_row_index: int | None = None
+    occurrence_uid: str | None = None
+    transport_candidate_uid: str | None = None
+    control_candidate_uid: str | None = None
 
 
 @dataclass(frozen=True)

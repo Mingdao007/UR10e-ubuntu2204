@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 from .release_identity import (
     ROLLING_EXECUTION_PROFILE_INTEGER_ID,
     ROLLING_NORMAL_MAX_RATE_RAD_S,
+    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
     ReleaseIdentity,
     ReleaseIdentityError,
     identity_from_manifest,
@@ -22,6 +23,43 @@ from .release_identity import _strict_object as _load_strict_object
 
 class ReleaseVerificationError(RuntimeError):
     """Staged or active bytes do not implement the declared release."""
+
+
+REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS = {
+    "tools/build_step5d_autotune_tp_v3.py",
+    "tools/kunwei_rtde_bridge.py",
+    "tools/prepare_step5d_autotune_launch.py",
+    "tools/promote_step5d_r009_atomic_release.py",
+    "tools/run_step5d_autotune_campaign.py",
+    "tools/run_step5d_autotune_v3_bridge.py",
+    "tools/run_step5d_autotune_v3_live.py",
+    "tools/run_step5d_autotune_v3_tp_transaction.py",
+    "tools/step5d_autotune_backend.py",
+    "tools/step5d_autotune_batch_plan.py",
+    "tools/step5d_autotune_contract.py",
+    "tools/step5d_autotune_coordinator.py",
+    "tools/step5d_autotune_journal.py",
+    "tools/step5d_autotune_live_driver.py",
+    "tools/step5d_autotune_optimizer.py",
+    "tools/step5d_autotune_r008_policy.py",
+    "tools/step5d_autotune_runtime_lifecycle.py",
+    "tools/step5d_autotune_state_machine.py",
+    "tools/step5d_autotune_store.py",
+    "tools/step5d_autotune_supervisor.py",
+    "tools/step5d_production_csv.py",
+    "tools/step5d_runtime_interface.py",
+    "tools/step5d_r008_completion.py",
+    "tools/step5d_autotune_v3/admission.py",
+    "tools/step5d_autotune_v3/arming.py",
+    "tools/step5d_autotune_v3/atomic_release.py",
+    "tools/step5d_autotune_v3/identity_layers.py",
+    "tools/step5d_autotune_v3/profile.py",
+    "tools/step5d_autotune_v3/readiness.py",
+    "tools/step5d_autotune_v3/release_identity.py",
+    "tools/step5d_autotune_v3/release_verifier.py",
+    "tools/step5d_autotune_v3/runtime_profile.py",
+    "tools/step5d_autotune_v3/state.py",
+}
 
 
 def _sha256(path: Path) -> str:
@@ -52,6 +90,23 @@ def _registers(pattern: str, script: str) -> set[int]:
     return {int(value) for value in re.findall(pattern, script)}
 
 
+def _state_write_order(script: str) -> tuple[int, ...]:
+    match = re.search(
+        r"^def codex_autotune_write_state\([^\n]*\):\n(?P<body>.*?)^end$",
+        script,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    if match is None:
+        raise ReleaseVerificationError("script lacks the TP state publication function")
+    return tuple(
+        int(value)
+        for value in re.findall(
+            r"write_output_integer_register\(\s*(\d+)\s*,",
+            match.group("body"),
+        )
+    )
+
+
 def verify_release_manifest(
     experiment_root: Path,
     manifest_path: Path,
@@ -80,6 +135,10 @@ def verify_release_manifest(
         raise ReleaseVerificationError(str(exc)) from exc
 
     checked: dict[str, str] = {}
+    if not REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS.issubset(
+        release.source_fingerprints
+    ):
+        raise ReleaseVerificationError("runtime source fingerprint coverage differs")
     for extension, reference in release.artifacts.items():
         path = _resolve(root, str(reference["path"]), overrides)
         digest = _sha256(path)
@@ -96,6 +155,27 @@ def verify_release_manifest(
             if digest != expected:
                 raise ReleaseVerificationError(f"{role} fingerprint differs: {relative}")
             checked[relative] = digest
+    repository_root = root
+    for _ in range(release.verification["repository_source_root_depth"]):
+        repository_root = repository_root.parent
+    repository_root = repository_root.resolve(strict=True)
+    repository_sources = release.verification["repository_source_fingerprints"]
+    if set(repository_sources) != REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS:
+        raise ReleaseVerificationError("repository source fingerprint coverage differs")
+    for relative, expected in repository_sources.items():
+        path = (repository_root / relative).resolve()
+        try:
+            path.relative_to(repository_root)
+        except ValueError as exc:
+            raise ReleaseVerificationError(
+                f"repository source path escapes root: {relative}"
+            ) from exc
+        digest = _sha256(path)
+        if digest != expected:
+            raise ReleaseVerificationError(
+                f"repository source fingerprint differs: {relative}"
+            )
+        checked[f"@repository/{relative}"] = digest
     readback_path = _resolve(root, str(release.controller_readback["path"]), overrides)
     if _sha256(readback_path) != release.controller_readback["sha256"]:
         raise ReleaseVerificationError("fresh controller readback manifest SHA-256 differs")
@@ -119,6 +199,12 @@ def verify_release_manifest(
         raise ReleaseVerificationError("script input-register contract lacks exact 24..31 routing")
     if 34 not in output_registers or not output_registers.issubset(set(range(24, 35))):
         raise ReleaseVerificationError("script output-register contract lacks exact 24..34 routing")
+    state_write_order = _state_write_order(script)
+    expected_state_write_order = (24, 25, 27, 28, 29, 31, 32, 33, 34, 26, 30)
+    if state_write_order != expected_state_write_order:
+        raise ReleaseVerificationError(
+            "TP state publication must write identity, then state, then consumed-sequence commit"
+        )
     required_markers = (
         "read_input_integer_register(31)",
         "write_output_integer_register(34,",
@@ -178,6 +264,7 @@ def verify_release_manifest(
         "protocol_id": release.protocol_id,
         "input_integer_registers": sorted(input_registers),
         "output_integer_registers": sorted(output_registers),
+        "state_write_order": list(state_write_order),
         "execution_profile_integer_id": encoded_profile,
         "checked_file_sha256": dict(sorted(checked.items())),
     }

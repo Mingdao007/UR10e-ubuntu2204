@@ -21,6 +21,7 @@ from run_step5d_autotune_campaign import (  # noqa: E402
     StopAfterCurrentRequested,
     _campaign_binding,
     _campaign_spec,
+    _observe_pending_identity_commit,
     _publish_runner_ready,
     _v3_stop_requested,
     _wait_for_codex_candidate,
@@ -372,6 +373,17 @@ def test_waiting_at_ready_home_observes_v3_latch_before_selecting_candidate(
             timeout_s=1.0,
             stop_requested=lambda: True,
         )
+
+
+def test_terminal_identity_commit_budget_starts_at_first_pending_row() -> None:
+    deadline = _observe_pending_identity_commit(None, observed_at_s=1_000.0)
+    assert deadline == pytest.approx(1_000.25)
+    assert (
+        _observe_pending_identity_commit(deadline, observed_at_s=1_000.20)
+        == deadline
+    )
+    with pytest.raises(RuntimeError, match="identity commit exceeded"):
+        _observe_pending_identity_commit(deadline, observed_at_s=1_000.251)
 
 
 def test_v3_derived_queue_hook_is_after_direct_commit() -> None:

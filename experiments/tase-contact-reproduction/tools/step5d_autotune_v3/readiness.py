@@ -37,6 +37,10 @@ from .release_verifier import ReleaseVerificationError, verify_release_manifest
 READINESS_SCHEMA = "step5d.autotune-v3/release-readiness-v1"
 RUNTIME_READINESS_SCHEMA = "step5d.autotune-v3/runtime-readiness-v1"
 DIMENSIONS = (
+    "release_ready",
+    "bridge_ready",
+    "campaign_artifacts_ready",
+    "first_row_admission_ready",
     "selected_release",
     "deployment_ready",
     "bridge_start_ready",
@@ -202,6 +206,10 @@ def resolve_release_readiness(
     bridge_start_context_path: Path | None = None,
     campaign_arming_context_path: Path | None = None,
     runtime_readiness_path: Path | None = None,
+    campaign_root: Path | None = None,
+    launch_profile_path: Path | None = None,
+    campaign_epoch: int | None = None,
+    ready_consumed_command_seq: int | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Resolve readiness without turning absent future artifacts into errors."""
@@ -219,10 +227,15 @@ def resolve_release_readiness(
                 None if release is None else release.manifest_sha256
             ),
             "deployment_ready": False,
+            "release_ready": False,
+            "bridge_ready": False,
+            "campaign_artifacts_ready": False,
+            "first_row_admission_ready": False,
             "bridge_start_ready": False,
             "bridge_process_ready": False,
             "motion_arm_ready": False,
             "campaign_ready": False,
+            "first_row_admission": None,
             "identity": None,
             "release_identity": None,
             "release_fingerprint": None,
@@ -244,7 +257,11 @@ def resolve_release_readiness(
             root / release.manifest_path,
             expected_manifest_sha256=release.manifest_sha256,
         )
-    except (ReleaseIdentityError, ReleaseVerificationError) as exc:
+    except (
+        ReleaseIdentityError,
+        ReleaseReadinessError,
+        ReleaseVerificationError,
+    ) as exc:
         return blocked(f"canonical_active_release_verification_failed:{exc}", release)
     try:
         contract = load_contract(
@@ -297,6 +314,47 @@ def resolve_release_readiness(
         and tp_program_start_allowed
         and host_runtime_start_allowed
     )
+    bridge_ready = bridge_start_ready
+
+    campaign_artifacts_ready = False
+    first_row_admission_ready = False
+    first_row_admission: Mapping[str, Any] | None = None
+    if campaign_root is not None:
+        from .admission import FirstRowAdmissionError, verify_first_row_admission
+        from .state import CampaignPaths
+
+        campaign_paths = CampaignPaths(campaign_root)
+        campaign_artifacts_ready = all(
+            path.is_file() and not path.is_symlink()
+            for path in (
+                campaign_paths.candidate_plan,
+                campaign_paths.trial_overlays,
+            )
+        )
+        if not campaign_artifacts_ready:
+            blockers.append("requires_exact_campaign_artifacts")
+        elif any(
+            value is None
+            for value in (
+                launch_profile_path,
+                campaign_epoch,
+                ready_consumed_command_seq,
+            )
+        ):
+            blockers.append("requires_first_row_admission_inputs")
+        else:
+            try:
+                first_row_admission = verify_first_row_admission(
+                    root,
+                    campaign_root=campaign_root,
+                    launch_profile_path=launch_profile_path,
+                    campaign_epoch=campaign_epoch,
+                    ready_consumed_command_seq=ready_consumed_command_seq,
+                    release=release,
+                )
+                first_row_admission_ready = first_row_admission.get("ok") is True
+            except (FirstRowAdmissionError, OSError, ValueError) as exc:
+                blockers.append(f"first_row_admission_failed:{exc}")
 
     arming_context: ArmingContext | None = None
     arming_context_sha256: str | None = None
@@ -348,6 +406,9 @@ def resolve_release_readiness(
         else:
             blockers.append("requires_running_v3_bridge")
 
+    motion_arm_ready = motion_arm_ready and first_row_admission_ready
+    campaign_ready = campaign_ready and motion_arm_ready
+
     return {
         "schema": READINESS_SCHEMA,
         "ok": bridge_start_ready,
@@ -357,10 +418,15 @@ def resolve_release_readiness(
         "release_manifest_path": release.manifest_path,
         "release_manifest_sha256": release.manifest_sha256,
         "deployment_ready": deployment_ready,
+        "release_ready": True,
+        "bridge_ready": bridge_ready,
+        "campaign_artifacts_ready": campaign_artifacts_ready,
+        "first_row_admission_ready": first_row_admission_ready,
         "bridge_start_ready": bridge_start_ready,
         "bridge_process_ready": bridge_process_ready,
         "motion_arm_ready": motion_arm_ready,
         "campaign_ready": campaign_ready,
+        "first_row_admission": first_row_admission,
         "identity": identity,
         "release_identity": (
             bridge_context.identity if bridge_context is not None else None
@@ -398,11 +464,43 @@ def require_bridge_start(
     return report, context
 
 
+def require_first_row_admission(
+    root: Path,
+    bridge_start_context_path: Path,
+    *,
+    campaign_root: Path,
+    launch_profile_path: Path,
+    campaign_epoch: int,
+    ready_consumed_command_seq: int,
+) -> tuple[dict[str, Any], BridgeStartContext]:
+    report = resolve_release_readiness(
+        root,
+        bridge_start_context_path=bridge_start_context_path,
+        campaign_root=campaign_root,
+        launch_profile_path=launch_profile_path,
+        campaign_epoch=campaign_epoch,
+        ready_consumed_command_seq=ready_consumed_command_seq,
+    )
+    if (
+        report["bridge_start_ready"] is not True
+        or report["campaign_artifacts_ready"] is not True
+        or report["first_row_admission_ready"] is not True
+    ):
+        raise ReleaseReadinessError(";".join(report["blockers"]))
+    context = load_bridge_start_context(
+        bridge_start_context_path.expanduser().absolute(),
+        expected_static_identity=report["identity"],
+        expected_deployment_readback_sha256=report["controller_readback_sha256"],
+    )
+    return report, context
+
+
 __all__ = [
     "DIMENSIONS",
     "READINESS_SCHEMA",
     "RUNTIME_READINESS_SCHEMA",
     "ReleaseReadinessError",
     "require_bridge_start",
+    "require_first_row_admission",
     "resolve_release_readiness",
 ]

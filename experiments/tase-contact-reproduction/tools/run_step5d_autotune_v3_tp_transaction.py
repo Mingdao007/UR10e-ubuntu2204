@@ -21,10 +21,17 @@ ROOT = Path(__file__).resolve().parents[1]
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--artifact-dir", type=Path, required=True)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     root = args.root.resolve(strict=True)
-    local_dir = root / promote.PACKAGE_DIR
+    local_dir = args.artifact_dir.expanduser().resolve(strict=True)
+    try:
+        local_dir.relative_to(root)
+    except ValueError as exc:
+        raise RuntimeError("r009 pending artifact directory escapes experiment root") from exc
+    if local_dir.is_symlink() or not local_dir.is_dir():
+        raise RuntimeError("r009 pending artifact directory is unsafe")
     upload_args = [
         promote.PROGRAM,
         "--local-dir", str(local_dir),
@@ -60,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
                 or not manifest.is_relative_to((root / "runs").resolve())
             ):
                 raise RuntimeError("r009 upload-result manifest handoff differs")
-            promote.promote(root, manifest)
+            promote.promote(root, manifest, local_dir)
             return 0
     finally:
         release_controller_mutation_locks(handles)

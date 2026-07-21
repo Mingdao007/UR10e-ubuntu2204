@@ -7,6 +7,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
@@ -16,15 +18,36 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(ROOT / "tests"))
 
 from step5d_autotune_backend import Step5dV35Backend  # noqa: E402
-from step5d_autotune_batch_plan import append_r008_batch, initialize_r008_plan  # noqa: E402
+from step5d_autotune_batch_plan import (  # noqa: E402
+    append_r008_batch,
+    initialize_rolling_plan,
+    mark_rolling_plan_open_empty,
+)
 from prepare_step5d_autotune_launch import write_machine_campaign_binding  # noqa: E402
 from step5d_autotune_r008_policy import initialization_batch, recovery_batch  # noqa: E402
+from ur10e_experiment_runtime.candidate_identity import ControlCandidateUid  # noqa: E402
 from test_step5d_r006_production_chain import (  # noqa: E402
     LAUNCH_PROFILE,
     _overlay_plan,
     _terminate,
     _wait_file,
 )
+
+
+def _bind_control(rows):
+    return tuple(
+        row.bind_control_candidate_uid(
+            str(ControlCandidateUid.from_overlay(
+                {
+                    "force_p_gain": row.candidate.force_p_gain,
+                    "force_i_gain": row.candidate.force_i_gain,
+                    "force_damping": row.candidate.force_damping,
+                    "orientation_ko": 0.4,
+                }
+            ))
+        )
+        for row in rows
+    )
 
 
 def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
@@ -34,10 +57,18 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
     campaign_root = (tmp_path / "campaign").resolve()
     mailbox = bridge_run / "runtime/command.json"
     plan_path = campaign_root / "control/candidate_plan.json"
-    initialize_r008_plan(plan_path, campaign_id="step5d-native-1")
-    append_r008_batch(plan_path, occurrences=initialization_batch(1), source="init-p")
-    append_r008_batch(plan_path, occurrences=initialization_batch(2), source="init-d")
-    append_r008_batch(plan_path, occurrences=recovery_batch(3), source="recovery")
+    initialize_rolling_plan(plan_path, campaign_id="step5d-native-1")
+    append_r008_batch(
+        plan_path, occurrences=_bind_control(initialization_batch(1)), source="init-p"
+    )
+    mark_rolling_plan_open_empty(plan_path)
+    append_r008_batch(
+        plan_path, occurrences=_bind_control(initialization_batch(2)), source="init-d"
+    )
+    mark_rolling_plan_open_empty(plan_path)
+    append_r008_batch(
+        plan_path, occurrences=_bind_control(recovery_batch(3)), source="recovery"
+    )
     overlays = campaign_root / "control/v3_trial_overlays.json"
     _overlay_plan(plan_path, overlays)
     frozen = Step5dV35Backend(ROOT).freeze_fingerprint()
@@ -103,6 +134,8 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
                 "20",
                 "--plan-wait-timeout-s",
                 "5",
+                "--close-after-plan-revision",
+                "3",
                 "--offline-release-gate",
             ],
             cwd=ROOT,
@@ -111,7 +144,14 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
             text=True,
             timeout=90.0,
         )
-        assert runner.returncode == 0, runner.stderr
+        if runner.returncode != 0:
+            _terminate(transport)
+            pytest.fail(
+                f"runner returncode={runner.returncode}\n"
+                f"runner stdout={runner.stdout}\n"
+                f"runner stderr={runner.stderr}\n"
+                f"transport returncode={transport.returncode}"
+            )
         result = json.loads(runner.stdout.strip().splitlines()[-1])
         assert result["batch_completed"] is True
         assert result["completion_consumed"] is True
@@ -126,6 +166,9 @@ def test_formal_runner_crosses_row5_batch2_and_arm11_with_real_csv_processes(
         assert stats["arm_sequences"] == list(range(1, 16))
         assert stats["logical_batch_sequences"][4:6] == [1, 2]
         assert stats["rows"][4:6] == [5, 1]
+        assert stats["commit_transcripts"] == [
+            [24, 25, 27, 28, 29, 31, 32, 33, 34, 26, 30]
+        ] * 15
         assert 11 in stats["arm_sequences"]
         assert stats["complete_command_seq"] == 16
         assert stats["final_state"] == 77

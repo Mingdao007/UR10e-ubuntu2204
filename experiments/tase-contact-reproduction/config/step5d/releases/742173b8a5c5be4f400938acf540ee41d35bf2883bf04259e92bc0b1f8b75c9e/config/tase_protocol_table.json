@@ -1,0 +1,270 @@
+{
+  "current": {
+    "confirmed_parameter_update_policy": "confirmed_flexible_parameters_default_to_this_table",
+    "default_profiles": {
+      "Step5": "Step5.step5d_rnn",
+      "Step6": "Step6.contact_eight"
+    },
+    "paper": "TASE contact reproduction"
+  },
+  "evidence": {
+    "step5b_v3_success": {
+      "metadata": "runs/bridge_step5b_contact_cycloid_baseline_v3_20260702_113430/metadata.json",
+      "normal_filter_alpha": 0.55,
+      "run_dir": "runs/bridge_step5b_contact_cycloid_baseline_v3_20260702_113430",
+      "source_profile": "step5b_v3_success",
+      "status": "retained_contact_evidence"
+    },
+    "step6b_v1_retained": {
+      "program": "step6b_contact_eight_baseline_v1",
+      "source_profile": "step6b_v1_retained",
+      "status": "retained"
+    },
+    "step6b_v2_retained": {
+      "run_dir": "runs/bridge_step6b_contact_eight_baseline_v2_20260616_164353",
+      "source_profile": "step6b_v2_retained",
+      "status": "verified_retained",
+      "summary": "runs/bridge_step6b_contact_eight_baseline_v2_20260616_164353/summary.json"
+    }
+  },
+  "experiment_profiles": {
+    "Step5.contact_cycloid": {
+      "evidence_profile": "step5b_v3_success",
+      "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step5_contact_shared_v1",
+      "runtime_family": "step5b_contact",
+      "safety_limits": "step5b_contact_safety_v1",
+      "step": "Step5",
+      "task": "contact_cycloid"
+    },
+    "Step5.step5d_rnn": {
+      "current_evidence": {
+        "classification": "v31_stage25_05_cmd_valid_timeout_fixed_by_v32_stage_aware_transport",
+        "evidence_classification": "v32_package_readback_verified_user_review_waived",
+        "latest_failed_retained": "runs/bridge_step5d_strict_rnn_ablation_v31_20260714_210521",
+        "live_retry_blocked_until": "explicit v32 live/contact authorization",
+        "result": "v32_delivered_not_live_accepted_not_reproduction_complete"
+      },
+      "current_program": "step5d_strict_rnn_autotune_v3",
+      "evidence_profile": "step5b_v3_success",
+      "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step5d_v32_contact_v1",
+      "runtime_family": "step5d_rnn",
+      "safety_limits": "step5d_v32_permissive_safety_v1",
+      "stage25_default_control_mode": "speedj_rnn_live",
+      "step": "Step5",
+      "task": "contact_cycloid"
+    },
+    "Step5.step5d_rnn_legacy_v27": {
+      "evidence_profile": "step5b_v3_success",
+      "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step5_contact_shared_v1",
+      "runtime_family": "step5d_rnn_legacy",
+      "safety_limits": "step5d_v27_safety_v1",
+      "scope": "historical runtime compatibility for v25-v30",
+      "step": "Step5",
+      "task": "contact_cycloid"
+    },
+    "Step6.contact_eight": {
+      "bridge_version": "step6b_v2",
+      "evidence_profile": "step6b_v2_retained",
+      "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step6_eight_shared_v1",
+      "runtime_family": "step6b_contact",
+      "safety_limits": "step6b_v2_safety_v1",
+      "step": "Step6",
+      "task": "contact_eight"
+    },
+    "Step6.contact_eight_v1": {
+      "bridge_version": "step6b_v1",
+      "evidence_profile": "step6b_v1_retained",
+      "flow_profile": "contact_search_then_control_v1",
+      "parameter_profile": "step6_eight_shared_v1",
+      "runtime_family": "step6b_contact",
+      "safety_limits": "step6b_v1_safety_v1",
+      "step": "Step6",
+      "task": "contact_eight"
+    },
+    "Step6.no_contact_eight": {
+      "flow_profile": "fixed_z_no_contact_v1",
+      "parameter_profile": "step6_eight_shared_v1",
+      "runtime_family": "step6a_no_contact",
+      "safety_limits": "step6a_no_contact_safety_v1",
+      "step": "Step6",
+      "task": "no_contact_eight"
+    }
+  },
+  "paper_shared": {
+    "flow_profiles": {
+      "contact_search_then_control_v1": {
+        "steps": [
+          "move_to_precontact_entry",
+          "fast_search_down",
+          "zero_after_far_search",
+          "near_search_down",
+          "first_contact_latch",
+          "lift_from_first_contact",
+          "posture_or_normal_alignment",
+          "line_entry_preload",
+          "run_contact_path",
+          "exit_or_stop"
+        ],
+        "zero_stage_boundary": "after Stage24.0 far search completes and before Stage24.2 near search",
+        "zero_timing": "after_far_search_before_near_search"
+      },
+      "fixed_z_no_contact_v1": {
+        "steps": [
+          "move_to_path_start",
+          "run_fixed_z_path",
+          "exit_or_stop"
+        ],
+        "zero_timing": "none"
+      }
+    }
+  },
+  "parameter_profiles": {
+    "step5_contact_shared_v1": {
+      "bridge_duration_s": 180.0,
+      "diagnostic_window_s": 10.0,
+      "first_search_far_speed_m_s": -0.0225,
+      "first_search_near_speed_m_s": -0.0025,
+      "force_damping": 7.0,
+      "force_i_gain": 1e-05,
+      "force_p_gain": 0.001,
+      "integral_limit_n_s": 1.0,
+      "line_runtime_limit_s": 15.0,
+      "normal_filter": "v31_filtered_live",
+      "normal_filter_alpha": 0.55,
+      "normal_filter_min_force_n": 2.0,
+      "target_force_n": 12.0,
+      "trajectory_duration_s": 60.0,
+      "zero_hold_s": 0.25,
+      "zero_timing": "after_far_search_before_near_search"
+    },
+    "step5d_v32_contact_v1": {
+      "bridge_duration_s": 180.0,
+      "diagnostic_window_s": 10.0,
+      "first_search_far_speed_m_s": -0.0225,
+      "first_search_near_speed_m_s": -0.0025,
+      "force_damping": 7.0,
+      "force_i_gain": 1e-05,
+      "force_p_gain": 0.001,
+      "integral_limit_n_s": 1.0,
+      "line_runtime_limit_s": 75.0,
+      "normal_filter": "v31_filtered_live",
+      "normal_filter_alpha": 0.55,
+      "normal_filter_min_force_n": 2.0,
+      "target_force_n": 12.0,
+      "trajectory_duration_s": 60.0,
+      "zero_hold_s": 1.0,
+      "zero_timing": "after_far_search_before_near_search"
+    },
+    "step6_eight_shared_v1": {
+      "along_amplitude_m": 0.04,
+      "bridge_duration_s": 180.0,
+      "lateral_amplitude_m": 0.01,
+      "line_runtime_limit_s": 35.0,
+      "normal_filter": "filtered_live_alpha",
+      "normal_filter_alpha": 0.35,
+      "normal_filter_min_force_n": 2.0,
+      "omega_rad_s": 0.2,
+      "target_force_n": 5.0,
+      "trajectory_duration_s": 30.0
+    }
+  },
+  "safety_limits": {
+    "step5b_contact_safety_v1": {
+      "angular_limit_rad_s": 0.15,
+      "force_norm_guard_n": 60.0,
+      "max_normal_force_n": 50.0,
+      "max_torque_norm_nm": 3.0,
+      "normal_velocity_limit_m_s": 0.01,
+      "reacquire_velocity_m_s": 0.0004,
+      "total_linear_limit_m_s": 0.004
+    },
+    "step5d_v27_safety_v1": {
+      "angular_limit_rad_s": 0.015,
+      "force_norm_guard_n": 60.0,
+      "max_normal_force_n": 50.0,
+      "max_torque_norm_nm": 3.0,
+      "normal_velocity_limit_m_s": 0.01,
+      "preload_filtered_max_n": 22.0,
+      "preload_filtered_min_n": 5.0,
+      "preload_force_norm_max_n": 35.0,
+      "preload_force_norm_stop_n": 35.0,
+      "preload_hold_s": 0.1,
+      "preload_raw_max_n": 25.0,
+      "preload_raw_min_n": 3.0,
+      "preload_recovery_normal_load_max_n": 35.0,
+      "preload_recovery_normal_load_min_n": 0.0,
+      "speedl_angular_cap_rad_s": 0.015,
+      "speedl_linear_cap_m_s": 0.004,
+      "stage25_cadence_max_gap_s": 0.02,
+      "total_linear_limit_m_s": 0.004
+    },
+    "step5d_v32_permissive_safety_v1": {
+      "angular_limit_rad_s": 1.0,
+      "force_norm_guard_n": 100.0,
+      "max_normal_force_n": 60.0,
+      "max_torque_norm_nm": 3.0,
+      "normal_velocity_limit_m_s": 1.0,
+      "preload_filtered_max_n": 22.0,
+      "preload_filtered_min_n": 5.0,
+      "preload_force_norm_max_n": 100.0,
+      "preload_force_norm_stop_n": 100.0,
+      "preload_hold_s": 0.0,
+      "preload_raw_max_n": 25.0,
+      "preload_raw_min_n": 3.0,
+      "preload_recovery_normal_load_max_n": 100.0,
+      "preload_recovery_normal_load_min_n": 0.0,
+      "speedl_angular_cap_rad_s": 1.0,
+      "speedl_linear_cap_m_s": 1.0,
+      "stage25_cadence_max_gap_s": 0.02,
+      "total_linear_limit_m_s": 1.0
+    },
+    "step6a_no_contact_safety_v1": {
+      "tcp_payload_write": false,
+      "velocity_cap_m_s": 0.009,
+      "zero_ftsensor": false
+    },
+    "step6b_v1_safety_v1": {
+      "angular_limit_rad_s": 0.015,
+      "force_norm_guard_n": 60.0,
+      "max_normal_force_n": 50.0,
+      "max_torque_norm_nm": 3.0,
+      "motion_limit_m_s": 0.004,
+      "normal_velocity_limit_m_s": 0.003,
+      "total_linear_limit_m_s": 0.006
+    },
+    "step6b_v2_safety_v1": {
+      "angular_limit_rad_s": 0.06,
+      "force_norm_guard_n": 60.0,
+      "max_normal_force_n": 50.0,
+      "max_torque_norm_nm": 3.0,
+      "motion_limit_m_s": 0.015,
+      "normal_velocity_limit_m_s": 0.003,
+      "total_linear_limit_m_s": 0.015
+    }
+  },
+  "step_profiles": {
+    "Step5": {
+      "description": "Cycloid contact reproduction family; Step5b/Step5d are historical variants under this step.",
+      "shared_flow_profile": "contact_search_then_control_v1",
+      "shared_parameter_profile": "step5_contact_shared_v1"
+    },
+    "Step6": {
+      "description": "Eight-shaped path reproduction family; no-contact and contact branches share the Step6 safe frame.",
+      "shared_flow_profile": "contact_search_then_control_v1",
+      "shared_parameter_profile": "step6_eight_shared_v1"
+    }
+  },
+  "table_schema": {
+    "legacy_ledgers": [
+      "config/step5_stage_table.json",
+      "config/step6_stage_table.json"
+    ],
+    "schema_version": "tase_protocol_table_v1",
+    "source_of_truth": "paper_level_shared_protocol_parameters"
+  },
+  "version": 1
+}

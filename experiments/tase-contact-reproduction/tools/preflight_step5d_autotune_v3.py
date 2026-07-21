@@ -207,6 +207,10 @@ def _controller_identity(
                 "output_int_register_28",
                 "output_int_register_29",
                 "output_int_register_30",
+                "output_int_register_31",
+                "output_int_register_32",
+                "output_int_register_33",
+                "output_int_register_34",
             )
         },
     }

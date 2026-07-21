@@ -23,6 +23,11 @@ SCHEMA_VERSION = "step5d_autotune_codex_batch_plan_v1"
 SCHEMA_VERSION_V2 = "step5d_autotune_codex_batch_plan_v2"
 SCHEMA_VERSION_R008 = "step5d_autotune_rolling_batch_plan_r008_v1"
 SCHEMA_VERSION_ROLLING = "step5d_autotune_rolling_batch_plan_v1"
+SCHEMA_VERSION_ROLLING_V2 = "step5d_autotune_rolling_batch_plan_v2"
+ROLLING_LIFECYCLE_SCHEMAS = {
+    SCHEMA_VERSION_ROLLING,
+    SCHEMA_VERSION_ROLLING_V2,
+}
 ENVELOPE_ID = "positive_i_multiplier_coarse_log2_fine_v1"
 BATCH_SIZE = 5
 V3_BATCH_SIZE = 10
@@ -93,11 +98,7 @@ class CandidateOccurrence:
             "transport_candidate_uid": TransportCandidateUid,
             "control_candidate_uid": ControlCandidateUid,
         }
-        for name in (
-            "occurrence_uid",
-            "transport_candidate_uid",
-            "control_candidate_uid",
-        ):
+        for name in typed_expectations:
             value = getattr(self, name)
             if (
                 isinstance(
@@ -107,12 +108,11 @@ class CandidateOccurrence:
                 and type(value) is not typed_expectations[name]
             ):
                 raise TypeError(f"{name} uses the wrong UID namespace")
-            if (
-                not isinstance(value, str)
-                or len(value) != 64
-                or any(char not in "0123456789abcdef" for char in value)
-            ):
-                raise ValueError(f"{name} must be a lowercase SHA256")
+            object.__setattr__(
+                self,
+                name,
+                typed_expectations[name].parse(value, allow_legacy=True),
+            )
         if not isinstance(self.role, str) or not self.role:
             raise ValueError("occurrence role must be non-empty")
         if (
@@ -121,17 +121,6 @@ class CandidateOccurrence:
             or self.replicate_ordinal < 1
         ):
             raise ValueError("replicate_ordinal must be positive")
-        object.__setattr__(self, "occurrence_uid", OccurrenceUid(self.occurrence_uid))
-        object.__setattr__(
-            self,
-            "transport_candidate_uid",
-            TransportCandidateUid(self.transport_candidate_uid),
-        )
-        object.__setattr__(
-            self,
-            "control_candidate_uid",
-            ControlCandidateUid(self.control_candidate_uid),
-        )
         if len(
             {
                 str(self.occurrence_uid),
@@ -246,6 +235,7 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         SCHEMA_VERSION_V2,
         SCHEMA_VERSION_R008,
         SCHEMA_VERSION_ROLLING,
+        SCHEMA_VERSION_ROLLING_V2,
     }:
         raise ValueError("candidate plan schema version differs")
     if payload["envelope_id"] != ENVELOPE_ID:
@@ -265,6 +255,7 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         SCHEMA_VERSION_V2: V3_BATCH_SIZE,
         SCHEMA_VERSION_R008: R008_BATCH_SIZE,
         SCHEMA_VERSION_ROLLING: R008_BATCH_SIZE,
+        SCHEMA_VERSION_ROLLING_V2: R008_BATCH_SIZE,
     }[payload["schema_version"]]
     if payload["batch_size"] != expected_batch_size or type(payload["closed"]) is not bool:
         raise ValueError("candidate plan batch policy differs")
@@ -275,20 +266,24 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
     occurrence_batches: list[tuple[CandidateOccurrence, ...]] = []
     seen: set[str] = set()
     seen_occurrences: set[str] = set()
+    seen_transports: set[str] = set()
     for expected_id, row in enumerate(payload["batches"], start=1):
-        rolling = payload["schema_version"] in {SCHEMA_VERSION_R008, SCHEMA_VERSION_ROLLING}
+        rolling = payload["schema_version"] in {
+            SCHEMA_VERSION_R008,
+            *ROLLING_LIFECYCLE_SCHEMAS,
+        }
         expected_row_fields = {
             "batch_id",
             "source",
             "occurrences" if rolling else "candidates",
         }
-        if payload["schema_version"] == SCHEMA_VERSION_ROLLING:
+        if payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS:
             expected_row_fields.add("plan_revision")
         if not isinstance(row, Mapping) or set(row) != expected_row_fields:
             raise ValueError("candidate batch schema differs")
         if row["batch_id"] != expected_id:
             raise ValueError("candidate batch ids must be contiguous")
-        if payload["schema_version"] == SCHEMA_VERSION_ROLLING and (
+        if payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS and (
             isinstance(row["plan_revision"], bool)
             or not isinstance(row["plan_revision"], int)
             or row["plan_revision"] != expected_id
@@ -322,7 +317,7 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
                     "role",
                     "replicate_ordinal",
                 }
-                if payload["schema_version"] == SCHEMA_VERSION_ROLLING:
+                if payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS:
                     required_occurrence_fields.add("control_candidate_uid")
                 if (
                     not isinstance(raw, Mapping)
@@ -341,9 +336,21 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
                         candidate.candidate_uid,
                     ),
                 )
+                if payload["schema_version"] == SCHEMA_VERSION_ROLLING_V2 and any(
+                    uid.is_legacy
+                    for uid in (
+                        occurrence.occurrence_uid,
+                        occurrence.transport_candidate_uid,
+                        occurrence.control_candidate_uid,
+                    )
+                ):
+                    raise ValueError("rolling-v2 requires domain-prefixed UID namespaces")
                 if occurrence.occurrence_uid in seen_occurrences:
                     raise ValueError("rolling plan repeats an occurrence UID")
+                if occurrence.transport_candidate_uid in seen_transports:
+                    raise ValueError("rolling plan repeats a transport UID")
                 seen_occurrences.add(occurrence.occurrence_uid)
+                seen_transports.add(occurrence.transport_candidate_uid)
                 occurrences.append(occurrence)
             occurrence_batch = tuple(occurrences)
             candidates = tuple(item.candidate for item in occurrence_batch)
@@ -372,7 +379,7 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
             raise ValueError("code-fix replay candidate must appear exactly once")
     lifecycle = (
         PlanLifecycle(payload["lifecycle"])
-        if payload["schema_version"] == SCHEMA_VERSION_ROLLING
+        if payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS
         else PlanLifecycle.CLOSED_COMPLETE
         if payload["closed"]
         else PlanLifecycle.OPEN_READY
@@ -380,7 +387,7 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
         else PlanLifecycle.OPEN_EMPTY
     )
     closure = payload.get("closure")
-    if payload["schema_version"] == SCHEMA_VERSION_ROLLING:
+    if payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS:
         if payload["closed"] is not (lifecycle is PlanLifecycle.CLOSED_COMPLETE):
             raise ValueError("rolling lifecycle and legacy closed projection differ")
         if lifecycle is PlanLifecycle.CLOSED_COMPLETE:
@@ -391,7 +398,7 @@ def load_plan(path: Path, *, campaign_id: str | None = None) -> CandidateBatchPl
                 raise ValueError("closed rolling plan lacks typed closure evidence")
             if not isinstance(closure["reason"], str) or not closure["reason"]:
                 raise ValueError("closed rolling plan reason is missing")
-            OccurrenceUid(closure["evidence_sha256"])
+            _sha256_digest(closure["evidence_sha256"], name="closure evidence")
         elif closure is not None:
             raise ValueError("open rolling plan cannot contain closure evidence")
         if not batches and lifecycle is not PlanLifecycle.OPEN_EMPTY:
@@ -441,6 +448,44 @@ def _atomic_write(path: Path, payload: Mapping[str, Any]) -> None:
         os.fsync(directory)
     finally:
         os.close(directory)
+
+
+def _replace_with_validated_plan(
+    path: Path,
+    payload: Mapping[str, Any],
+    *,
+    previous: CandidateBatchPlan,
+) -> CandidateBatchPlan:
+    """Validate replacement bytes before atomically publishing a plan revision."""
+
+    candidate = path.with_name(f".{path.name}.{os.getpid()}.validated")
+    if candidate.exists() or candidate.is_symlink():
+        raise ValueError("candidate plan validation path already exists")
+    try:
+        _atomic_write(candidate, payload)
+        updated = load_plan(candidate, campaign_id=previous.campaign_id)
+        assert_append_only(previous, updated)
+        if load_plan(path, campaign_id=previous.campaign_id).payload != previous.payload:
+            raise ValueError("candidate plan changed during revision validation")
+        os.replace(candidate, path)
+        directory = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+        return updated
+    finally:
+        candidate.unlink(missing_ok=True)
+
+
+def _sha256_digest(value: Any, *, name: str) -> str:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(f"{name} must be a lowercase SHA256")
+    return value
 
 
 def initialize_plan(
@@ -494,7 +539,7 @@ def initialize_rolling_plan(path: Path, *, campaign_id: str) -> CandidateBatchPl
     _atomic_write(
         path,
         {
-            "schema_version": SCHEMA_VERSION_ROLLING,
+            "schema_version": SCHEMA_VERSION_ROLLING_V2,
             "envelope_id": ENVELOPE_ID,
             "campaign_id": campaign_id,
             "revision": 0,
@@ -515,12 +560,15 @@ def append_r008_batch(
     source: str,
 ) -> CandidateBatchPlan:
     plan = load_plan(path)
-    if plan.payload["schema_version"] not in {SCHEMA_VERSION_R008, SCHEMA_VERSION_ROLLING}:
+    if plan.payload["schema_version"] not in {
+        SCHEMA_VERSION_R008,
+        *ROLLING_LIFECYCLE_SCHEMAS,
+    }:
         raise ValueError("append_r008_batch requires the rolling schema")
     if plan.closed:
         raise ValueError("candidate plan is closed")
     if (
-        plan.payload["schema_version"] == SCHEMA_VERSION_ROLLING
+        plan.payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS
         and plan.lifecycle is not PlanLifecycle.OPEN_EMPTY
     ):
         raise ValueError("rolling append requires the durable OPEN_EMPTY transition")
@@ -542,7 +590,7 @@ def append_r008_batch(
                 "transport_candidate_uid": occurrence.transport_candidate_uid,
                 **(
                     {"control_candidate_uid": occurrence.control_candidate_uid}
-                    if plan.payload["schema_version"] == SCHEMA_VERSION_ROLLING
+                    if plan.payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS
                     else {}
                 ),
                 "role": occurrence.selection_role,
@@ -556,7 +604,7 @@ def append_r008_batch(
             "batch_id": expected_sequence,
             **(
                 {"plan_revision": expected_sequence}
-                if payload["schema_version"] == SCHEMA_VERSION_ROLLING
+                if payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS
                 else {}
             ),
             "source": source,
@@ -565,19 +613,16 @@ def append_r008_batch(
     )
     payload["revision"] = expected_sequence
     payload["batches"] = batches
-    if payload["schema_version"] == SCHEMA_VERSION_ROLLING:
+    if payload["schema_version"] in ROLLING_LIFECYCLE_SCHEMAS:
         payload["lifecycle"] = PlanLifecycle.OPEN_READY.value
-    _atomic_write(path, payload)
-    updated = load_plan(path, campaign_id=plan.campaign_id)
-    assert_append_only(plan, updated)
-    return updated
+    return _replace_with_validated_plan(path, payload, previous=plan)
 
 
 def mark_rolling_plan_open_empty(path: Path) -> CandidateBatchPlan:
     """Persist that every occurrence in the current revision was consumed."""
 
     plan = load_plan(path)
-    if plan.payload["schema_version"] != SCHEMA_VERSION_ROLLING:
+    if plan.payload["schema_version"] not in ROLLING_LIFECYCLE_SCHEMAS:
         raise ValueError("OPEN_EMPTY transition requires the rolling-v1 schema")
     if plan.lifecycle is PlanLifecycle.CLOSED_COMPLETE:
         return plan
@@ -598,7 +643,7 @@ def close_rolling_plan(
     evidence_sha256: str,
 ) -> CandidateBatchPlan:
     plan = load_plan(path)
-    if plan.payload["schema_version"] != SCHEMA_VERSION_ROLLING:
+    if plan.payload["schema_version"] not in ROLLING_LIFECYCLE_SCHEMAS:
         raise ValueError("typed closure requires the rolling-v1 schema")
     if plan.closed:
         if plan.closure != {"reason": reason, "evidence_sha256": evidence_sha256}:
@@ -606,7 +651,7 @@ def close_rolling_plan(
         return plan
     if not isinstance(reason, str) or not reason:
         raise ValueError("rolling closure reason is required")
-    OccurrenceUid(evidence_sha256)
+    _sha256_digest(evidence_sha256, name="closure evidence")
     payload = dict(plan.payload)
     payload["closed"] = True
     payload["lifecycle"] = PlanLifecycle.CLOSED_COMPLETE.value

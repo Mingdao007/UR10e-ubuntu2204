@@ -21,6 +21,7 @@ from step5d_autotune_v3.identity_layers import (  # noqa: E402
     runtime_environment_fingerprint,
 )
 from step5d_autotune_v3 import readiness  # noqa: E402
+from step5d_autotune_v3 import admission  # noqa: E402
 
 
 V1 = "step5d_strict_rnn_autotune_v1"
@@ -324,6 +325,26 @@ def test_campaign_ready_requires_typed_context_bound_to_running_release(
         runtime_readiness_path=runtime_path,
     )
 
-    assert report["motion_arm_ready"] is True
-    assert report["campaign_ready"] is True
+    assert report["motion_arm_ready"] is False
+    assert report["campaign_ready"] is False
+    candidate_plan = _write(root / "campaign/control/candidate_plan.json", {})
+    _write(root / "campaign/control/v3_trial_overlays.json", {})
+    monkeypatch.setattr(
+        admission,
+        "verify_first_row_admission",
+        lambda *_args, **_kwargs: {"ok": True, "fixture": True},
+    )
+    admitted = readiness.resolve_release_readiness(
+        root,
+        bridge_start_context_path=bridge_path,
+        campaign_arming_context_path=campaign_path,
+        runtime_readiness_path=runtime_path,
+        campaign_root=candidate_plan.parents[1],
+        launch_profile_path=root / "launch.json",
+        campaign_epoch=7,
+        ready_consumed_command_seq=0,
+    )
+    assert admitted["first_row_admission_ready"] is True
+    assert admitted["motion_arm_ready"] is True
+    assert admitted["campaign_ready"] is True
     assert report["release_fingerprint"] == fake.release_fingerprint
