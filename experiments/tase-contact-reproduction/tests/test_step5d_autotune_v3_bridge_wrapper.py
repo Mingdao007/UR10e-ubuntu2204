@@ -145,7 +145,7 @@ def _ticket(path: Path, argv: list[str]) -> Path:
                 "trial_overlay_fingerprint": "c" * 64,
                 "release_stage_id": "step5d_strict_rnn_autotune_v3",
                 "control_profile_id": "step5d_strict_rnn_autotune_v1",
-                "tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
+                "tp_program_id": wrapper.TP_PROGRAM_ID,
                 "bridge_start_context": {
                     "path": str(bridge_context_path),
                     "sha256": hashlib.sha256(
@@ -177,6 +177,12 @@ def test_wrapper_requires_parent_and_exact_argv_ticket(tmp_path: Path) -> None:
         assert "argv binding" in str(exc)
     else:
         raise AssertionError("mutated argv was accepted")
+
+
+def test_wrapper_uses_the_canonical_tp_program_without_stale_release_literals() -> None:
+    source = Path(wrapper.__file__).read_text(encoding="utf-8")
+    assert wrapper.TP_PROGRAM_ID == "step5d_strict_rnn_autotune_v3_r008"
+    assert "step5d_strict_rnn_autotune_v3_r006" not in source
 
 
 def test_wrapper_refuses_direct_start_without_runtime_ticket(capsys) -> None:

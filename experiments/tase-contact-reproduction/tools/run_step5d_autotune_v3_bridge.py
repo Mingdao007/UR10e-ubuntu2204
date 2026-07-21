@@ -404,9 +404,9 @@ def _strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
     if payload["argv_sha256"] != hashlib.sha256(encoded_argv).hexdigest():
         raise BridgeTicketError("V3 runtime ticket argv binding differs")
     expected = {
-        "release_stage_id": "step5d_strict_rnn_autotune_v3",
-        "control_profile_id": "step5d_strict_rnn_autotune_v1",
-        "tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
+        "release_stage_id": RELEASE_STAGE_ID,
+        "control_profile_id": CONTROL_PROFILE_ID,
+        "tp_program_id": TP_PROGRAM_ID,
     }
     for key, value in expected.items():
         if payload[key] != value:
@@ -615,8 +615,8 @@ def install_v3_seams(ticket: Mapping[str, Any] | None = None) -> Any:
 
     def v3_tp_identity_match(value: Any, control_profile: str) -> bool:
         expected = (
-            "step5d_strict_rnn_autotune_v3_r006"
-            if control_profile == "step5d_strict_rnn_autotune_v1"
+            TP_PROGRAM_ID
+            if control_profile == CONTROL_PROFILE_ID
             else control_profile
         )
         return original_matcher(value, expected)
