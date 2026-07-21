@@ -18,6 +18,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from build_step4e_p0p1_programs import build_urp
+from step5d_profile_semantic_contract import (
+    assert_network_profile_semantics,
+    assert_triplet_network_profile_semantics,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,8 +65,8 @@ CONTINUOUS_WRAPPER = r'''
 # HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29
 # TP_TO_HOST_INT: epoch=24 trial=25 state=26 token=27 reason=28 profile=29 consumed_sequence=30
 # PROFILE_ID: hundreds=normal-rate level; tens=host-slew level; ones=TP accel level
-# NETWORK_PROFILE_LEVELS: normal=1..3 (.010/.015/.020); host/TP=1..3 (.1/.2/.5)
-# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050 rad/s;
+# NETWORK_PROFILE_LEVELS: normal=1..3,5,6; host/TP=1..3 (.1/.2/.5)
+# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100 rad/s;
 # level 4 (.030 rad/s) is offline_only and must never reach this TP
 # TP_ACCEL_LEVEL: 1=.1 rad/s^2, 2=.2 rad/s^2, 3=.5 rad/s^2
 # STOP_CONTRACT: integer STOP is polled only at READY_HOME/WAIT_ACK; during RUN
@@ -95,7 +99,7 @@ def codex_autotune_network_profile_valid(execution_profile_id):
   local remainder = execution_profile_id - 100 * normal_level
   local host_slew_level = floor(remainder / 10.0)
   local tp_accel_level = remainder - 10 * host_slew_level
-  return (normal_level >= 1 and normal_level <= 3 or normal_level == 5) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3
+  return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3
 end
 
 def codex_autotune_post_ack_state(stop_reason):
@@ -320,6 +324,7 @@ def validate_rendered_script(script: str) -> None:
         "return 0.500",
         "def codex_autotune_network_profile_valid(execution_profile_id):",
         "normal_level == 5",
+        "normal_level == 6",
         "# the frozen trial consumes the legacy float stop_request safety carrier.",
     )
     missing = [marker for marker in required if marker not in script]
@@ -341,6 +346,7 @@ def validate_rendered_script(script: str) -> None:
     indices = [script.index(marker) for marker in lifecycle]
     if indices != sorted(indices):
         raise ValueError("rendered autotune TP lifecycle is out of order")
+    assert_network_profile_semantics(script)
 
 
 def source_stamp(now: datetime | None = None) -> str:
@@ -402,6 +408,7 @@ def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> None:
     failed = [label for label, ok in checks.items() if not ok]
     if failed:
         raise ValueError(f"autotune TP package validation failed: {failed}")
+    assert_triplet_network_profile_semantics(script, urp)
 
 
 def write_triplet(output_dir: Path, stamp: str) -> dict[str, object]:

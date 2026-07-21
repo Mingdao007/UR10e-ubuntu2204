@@ -939,6 +939,7 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
         self.assertIn("codex_autotune_post_ack_state", script)
         self.assertIn("post_ack_state == 75", script)
         self.assertIn("normal_level == 5", script)
+        self.assertIn("normal_level == 6", script)
         self.assertIn("legacy float stop_request safety carrier", script)
 
     def test_bridge_mailbox_requires_absolute_path_and_cupy(self) -> None:
