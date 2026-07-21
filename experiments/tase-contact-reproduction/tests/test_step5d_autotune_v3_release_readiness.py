@@ -217,7 +217,7 @@ def test_known_incompatible_host_runtime_cannot_reuse_a_bridge_context(
     assert report["deployment_ready"] is True
     assert report["bridge_start_ready"] is False
     assert report["host_runtime_start_allowed"] is False
-    assert "requires_r006_offline_release" in report["blockers"]
+    assert "requires_r007_offline_release" in report["blockers"]
 
 
 def test_runtime_no_arm_claim_requires_live_pid_and_cannot_claim_campaign(

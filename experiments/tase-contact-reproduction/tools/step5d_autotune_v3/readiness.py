@@ -234,24 +234,30 @@ def resolve_release_readiness(
         blockers.append("selected_tp_program_known_incompatible_do_not_retry")
         if compatibility.get("tp_program_id") == "step5d_strict_rnn_autotune_v3_r005":
             blockers.append("r005_post_ack_csv_schema_timeout_incident")
+        if compatibility.get("tp_program_id") == "step5d_strict_rnn_autotune_v3_r006":
+            blockers.append("r006_runtime_batch_identity_namespace_mismatch")
     host_runtime_disposition = compatibility.get("host_runtime_disposition")
-    host_runtime_start_allowed = (
-        host_runtime_disposition
-        == "verified_r006_cross_process_direct_arm1_arm2_offline"
-    )
+    host_runtime_start_allowed = host_runtime_disposition in {
+        "verified_r006_cross_process_direct_arm1_arm2_offline",
+        "verified_r007_full_home_rolling_production_chain_offline",
+    }
     if not host_runtime_start_allowed:
         if host_runtime_disposition == (
             "blocked_r005_post_ack_csv_schema_timeout_incident"
         ):
             blockers.append("r005_post_ack_csv_schema_timeout_incident")
-        blockers.append("requires_r006_offline_release")
+        if host_runtime_disposition == (
+            "known_incompatible_r006_batch_identity_namespace_mismatch"
+        ):
+            blockers.append("r006_runtime_batch_identity_namespace_mismatch")
+        blockers.append("requires_r007_offline_release")
     if (
         compatibility.get("local_candidate_tp_program_id")
-        == "step5d_strict_rnn_autotune_v3_r006"
+        == "step5d_strict_rnn_autotune_v3_r007"
         and compatibility.get("local_candidate_tp_disposition")
         != "controller_readback_verified_promoted_current"
     ):
-        blockers.append("requires_r006_controller_readback")
+        blockers.append("requires_r007_controller_readback")
 
     bridge_context: BridgeStartContext | None = None
     bridge_context_sha256: str | None = None

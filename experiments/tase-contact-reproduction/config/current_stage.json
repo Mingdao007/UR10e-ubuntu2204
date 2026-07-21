@@ -1163,7 +1163,7 @@
     "v33c20_controller_readback_manifest_sha256": "27642bedb00a7d35b0ccadda257a8e604d51ac828017003b15306d0e84ae0030",
     "v33c20_controller_readback_verified": true
   },
-  "execution_state": "bridge_start_ready_no_arm",
+  "execution_state": "blocked_r006_known_incompatible_r007_not_deployed",
   "flow_path": "STEP5_FLOW.md",
   "live_run_status": {
     "accepted_artifact": null,
@@ -1172,17 +1172,21 @@
     "state": "not_started"
   },
   "liveprep_status": {
-    "blockers": [],
+    "blockers": [
+      "r006_runtime_batch_identity_namespace_mismatch",
+      "requires_r007_offline_release",
+      "requires_r007_controller_readback"
+    ],
     "readiness_artifact": "config/step5d_v35_liveprep_readiness.json",
     "readiness_sha256": "912387a8a0c7e3692f5d7f39b867d23cc967d5ec6160cb268b111da52d81ccfe",
-    "state": "awaiting_live_authorization"
+    "state": "blocked_r006_known_incompatible"
   },
   "local_candidate": {
     "controller_readback_verified": true,
     "controller_uploaded": true,
-    "disposition": "controller_readback_verified_promoted_current",
-    "manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r006/local_candidate.json",
-    "program": "step5d_strict_rnn_autotune_v3_r006",
+    "disposition": "implementation_in_progress_requires_controller_readback",
+    "manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r007/local_candidate.json",
+    "program": "step5d_strict_rnn_autotune_v3_r007",
     "triplet_sha256": {
       ".script": "6fdb5a492b0c17481b6391c80883940847c8aef67750f4c3c19451c33b6f3032",
       ".txt": "ad1bf0904413050c22c7ee5c376cb4bb6a760bd66f914a9417e925925e6dcae6",
@@ -1391,12 +1395,16 @@
   },
   "program": "step5d_strict_rnn_autotune_v3",
   "readiness": {
-    "blockers": [],
+    "blockers": [
+      "r006_runtime_batch_identity_namespace_mismatch",
+      "requires_r007_offline_release",
+      "requires_r007_controller_readback"
+    ],
     "bridge_process_ready": false,
-    "bridge_start_ready": true,
+    "bridge_start_ready": false,
     "campaign_ready": false,
     "deployment_ready": true,
-    "host_runtime_disposition": "verified_r006_cross_process_direct_arm1_arm2_offline",
+    "host_runtime_disposition": "known_incompatible_r006_batch_identity_namespace_mismatch",
     "motion_arm_ready": false,
     "selected_release": "step5d_strict_rnn_autotune_v3"
   },
@@ -1430,7 +1438,7 @@
     ".urp": "e0cb3684a314bf86cb9db78dcb6a6b0d72e30d43a5e6cf7ccfa102fa448a3f7c"
   },
   "stage_table_path": "config/step5_stage_table.json",
-  "status": "step5d_autotune_v3_r006_controller_readback_verified",
+  "status": "step5d_autotune_v3_r006_quarantined_r007_implementation",
   "strict_rnn_status": {
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",

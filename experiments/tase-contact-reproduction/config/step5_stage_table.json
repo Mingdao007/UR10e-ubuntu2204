@@ -10385,7 +10385,7 @@
       "blocked": true,
       "complete": false,
       "completion_target": true,
-      "block_reason": null,
+      "block_reason": "r006_runtime_batch_identity_namespace_mismatch; requires r007 offline release and exact controller readback",
       "shape": "cycloid",
       "frame": "config/step5_safe_frame.json",
       "contact": true,
@@ -10424,7 +10424,7 @@
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
         "stop_after_current": "durable-safe-home-latch",
         "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r006.urp",
-        "live_readiness_state": "controller_readback_verified_ready_for_bridge_context",
+        "live_readiness_state": "blocked_r006_known_incompatible_r007_not_deployed",
         "force_baseline_policy": {
           "mode": "fixed_campaign_anchor_plus_per_trial_diagnostic",
           "anchor_source": "first_qualified_stage23_window",
@@ -10491,9 +10491,11 @@
         "typed_closure_v2_cold_read_ack_next_arm_verified": "legacy_replay_only_not_production_pass",
         "contact_live_accepted": false,
         "reproduction_complete": false,
-        "direct_arm1_bundle_cold_read_trialbrief_arm2_verified": true,
+        "direct_arm1_bundle_cold_read_trialbrief_arm2_verified": false,
         "growing_production_csv_follower_verified": true,
-        "r006_controller_readback_verified": true
+        "r006_controller_readback_verified": true,
+        "r006_known_incompatible_do_not_retry": true,
+        "r006_live_incident_fixture": "tests/fixtures/step5d_r006_batch_identity_namespace_incident.json"
       },
       "offline_validation": {
         "acceptance_scope": "offline_pre_live_only",
@@ -10520,19 +10522,23 @@
       },
       "execution_readiness": {
         "schema": "step5d.autotune-v3/execution-readiness-v3",
-        "state": "bridge_start_ready",
-        "public_success_signal": "controller_readback_verified_ready_for_bridge_context",
-        "deterministic_validation_complete": true,
+        "state": "blocked_r006_known_incompatible_r007_not_deployed",
+        "public_success_signal": "blocked_r006_runtime_batch_identity_namespace_mismatch",
+        "deterministic_validation_complete": false,
         "package_delivery_complete": true,
         "candidate_current": true,
         "live_runtime_promoted": false,
         "same_process_startup_gate_complete": false,
-        "ready_to_execute": true,
+        "ready_to_execute": false,
         "ready_to_load_play": false,
-        "ready_to_start_bridge": true,
+        "ready_to_start_bridge": false,
         "ready_to_arm": false,
         "ready_for_contact_or_motion": false,
-        "blockers": [],
+        "blockers": [
+          "r006_runtime_batch_identity_namespace_mismatch",
+          "requires_r007_offline_release",
+          "requires_r007_controller_readback"
+        ],
         "next_owner": "ur10e-bridge-ops",
         "operator_trigger": {
           "candidate_stage_id": "step5d_strict_rnn_autotune_v3",

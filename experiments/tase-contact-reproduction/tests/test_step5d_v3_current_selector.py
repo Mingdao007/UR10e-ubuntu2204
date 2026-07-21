@@ -24,7 +24,7 @@ def test_v3_is_the_only_current_selector_surface() -> None:
     assert current["current_stage_id"] == V3
     assert current["program"] == V3
     assert current["selection_state"] == "current"
-    assert current["execution_state"] == "bridge_start_ready_no_arm"
+    assert current["execution_state"] == "blocked_r006_known_incompatible_r007_not_deployed"
     assert current["readiness"]["selected_release"] == V3
     assert protocol["experiment_profiles"]["Step5.step5d_rnn"]["current_program"] == V3
     assert compatibility["program"] == V3
@@ -43,13 +43,17 @@ def test_v3_is_the_only_current_selector_surface() -> None:
     assert rows[V1]["current_binding"]["live_authorized"] is False
 
 
-def test_selected_v3_uses_exact_r006_readback_but_does_not_arm() -> None:
+def test_selected_v3_retains_r006_readback_but_blocks_start() -> None:
     current = _load("config/current_stage.json")
 
     assert current["controller_readback_verified_for_selected_triplet"] is True
     assert current["readiness"]["deployment_ready"] is True
-    assert current["readiness"]["bridge_start_ready"] is True
-    assert current["readiness"]["blockers"] == []
+    assert current["readiness"]["bridge_start_ready"] is False
+    assert current["readiness"]["blockers"] == [
+        "r006_runtime_batch_identity_namespace_mismatch",
+        "requires_r007_offline_release",
+        "requires_r007_controller_readback",
+    ]
     assert current["bridge_trigger"]["live_motion_authorized"] is False
     for field in (
         "bridge_process_ready",

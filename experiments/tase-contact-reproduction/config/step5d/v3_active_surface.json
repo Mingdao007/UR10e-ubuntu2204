@@ -7,12 +7,16 @@
     "commit": "6f9ef0912842ac003545eb1906b38d13c7552218"
   },
   "tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
-  "tp_program_disposition": "controller_readback_verified",
-  "local_candidate_tp_program_id": "step5d_strict_rnn_autotune_v3_r006",
-  "local_candidate_tp_disposition": "controller_readback_verified_promoted_current",
+  "tp_program_disposition": "known_incompatible_do_not_retry",
+  "local_candidate_tp_program_id": "step5d_strict_rnn_autotune_v3_r007",
+  "local_candidate_tp_disposition": "implementation_in_progress_requires_controller_readback",
   "host_protocol": "v3_direct_arm_v1",
-  "bridge_start_ready": true,
-  "blockers": [],
+  "bridge_start_ready": false,
+  "blockers": [
+    "r006_runtime_batch_identity_namespace_mismatch",
+    "requires_r007_offline_release",
+    "requires_r007_controller_readback"
+  ],
   "tp_commands": {
     "arm": 1,
     "operator_stop_request": 3,
