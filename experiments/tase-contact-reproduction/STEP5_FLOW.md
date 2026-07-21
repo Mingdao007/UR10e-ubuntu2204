@@ -524,9 +524,14 @@ starts/reset as RNN state and no alternate IK seed or runtime fallback is used.
 Offline replay bootstraps the existing V3 stable CuPy/CUDA environment through
 the V3 runtime-calibration owner; a missing CuPy runtime is a blocker and never
 causes a NumPy fallback.
-Trial preparation requires the exact campaign fingerprint, trial UID,
-occurrence UID, batch row, plant epoch, normalized V3 overlay, and transport
-identity; none is inferred from a trial number.
+Trial preparation requires the exact campaign fingerprint, trial UID, source
+protocol, logical batch sequence, plan revision, occurrence UID, source
+transport-candidate UID, batch row, selection role, replicate ordinal, plant
+epoch, and normalized V3 overlay. It reuses the r009 identity owner to recompute
+the domain-prefixed control/occurrence/transport chain; none is inferred from a
+trial number. The source transport-candidate UID identifies the selected V3
+campaign row, while the separate Remote `transport_id` identifies this prepared
+execution path.
 
 This release deliberately stops at offline preparation. `run-single-trial`
 fails before importing or contacting a ROS driver, and `import-result` validates

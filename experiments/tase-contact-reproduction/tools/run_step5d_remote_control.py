@@ -92,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
                 "state": "prepared_offline",
                 "trial_uid": prepared.trial_uid,
                 "occurrence_uid": prepared.occurrence_uid,
+                "transport_candidate_uid": prepared.transport_candidate_uid,
                 "envelope_sha256": prepared.envelope_sha256,
                 "output": str(args.output.resolve()),
             }

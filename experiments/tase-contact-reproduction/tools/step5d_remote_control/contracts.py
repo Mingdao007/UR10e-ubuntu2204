@@ -16,16 +16,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from step5d_autotune_contract import ForceCandidate
 from step5d_autotune_v3.profile import (
     ContractViolation,
     canonical_json_bytes,
     load_contract,
 )
+from step5d_autotune_v3.release_identity import ROLLING_PROTOCOL
 from step5d_autotune_v3.runtime_profile import (
     LaunchProfile,
     load_launch_profile,
     normalize_trial_overlay,
     normalized_overlay_sha256,
+)
+from ur10e_experiment_runtime.candidate_identity import (
+    ControlCandidateUid,
+    OccurrenceUid,
+    ParameterUid,
+    TransportCandidateUid,
 )
 
 
@@ -60,12 +68,17 @@ REQUIRED_SOURCE_PATHS = frozenset(
         "experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
         "experiments/tase-contact-reproduction/tools/run_step5d_remote_control.py",
         "experiments/tase-contact-reproduction/tools/step5c_strict_rnn.py",
+        "experiments/tase-contact-reproduction/tools/step5d_autotune_contract.py",
         "experiments/tase-contact-reproduction/tools/step5d_control_contract.py",
         "experiments/tase-contact-reproduction/tools/step5d_remote_control/__init__.py",
         "experiments/tase-contact-reproduction/tools/step5d_remote_control/contracts.py",
         "experiments/tase-contact-reproduction/tools/step5d_remote_control/runtime.py",
         "experiments/tase-contact-reproduction/tools/step5d_remote_control/seam.py",
+        "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/profile.py",
+        "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/release_identity.py",
         "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_calibration.py",
+        "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_profile.py",
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/candidate_identity.py",
         "src/ur10e_step5d_remote_watchdog/CMakeLists.txt",
         "src/ur10e_step5d_remote_watchdog/include/ur10e_step5d_remote_watchdog/watchdog_controller.hpp",
         "src/ur10e_step5d_remote_watchdog/include/ur10e_step5d_remote_watchdog/watchdog_gate.hpp",
@@ -459,8 +472,14 @@ class PreparedControlTrial:
     campaign_id: str
     campaign_fingerprint: str
     trial_uid: str
+    source_protocol: str
+    logical_batch_sequence: int
+    plan_revision: int
     occurrence_uid: str
+    transport_candidate_uid: str
     batch_row_index: int
+    selection_role: str
+    replicate_ordinal: int
     profile_id: str
     plant_epoch: int
     control_candidate_uid: str
@@ -475,8 +494,14 @@ class PreparedControlTrial:
             "campaign_id": self.campaign_id,
             "campaign_fingerprint": self.campaign_fingerprint,
             "trial_uid": self.trial_uid,
+            "source_protocol": self.source_protocol,
+            "logical_batch_sequence": self.logical_batch_sequence,
+            "plan_revision": self.plan_revision,
             "occurrence_uid": self.occurrence_uid,
+            "transport_candidate_uid": self.transport_candidate_uid,
             "batch_row_index": self.batch_row_index,
+            "selection_role": self.selection_role,
+            "replicate_ordinal": self.replicate_ordinal,
             "profile_id": self.profile_id,
             "plant_epoch": self.plant_epoch,
             "control_candidate_uid": self.control_candidate_uid,
@@ -509,8 +534,14 @@ def prepare_control_trial(
             "campaign_id",
             "campaign_fingerprint",
             "trial_uid",
+            "source_protocol",
+            "logical_batch_sequence",
+            "plan_revision",
             "occurrence_uid",
+            "transport_candidate_uid",
             "batch_row_index",
+            "selection_role",
+            "replicate_ordinal",
             "profile_id",
             "plant_epoch",
             "trial_overlay",
@@ -523,9 +554,19 @@ def prepare_control_trial(
         "campaign_fingerprint", row["campaign_fingerprint"]
     )
     trial_uid = _strict_sha("trial_uid", row["trial_uid"])
-    occurrence_uid = _strict_sha("occurrence_uid", row["occurrence_uid"])
+    source_protocol = _strict_string("source_protocol", row["source_protocol"])
+    if source_protocol != ROLLING_PROTOCOL:
+        raise RemoteControlError("Remote source protocol differs from active V3")
+    logical_batch_sequence = _strict_int(
+        "logical_batch_sequence", row["logical_batch_sequence"], minimum=1
+    )
+    plan_revision = _strict_int("plan_revision", row["plan_revision"], minimum=1)
     batch_row_index = _strict_int(
-        "batch_row_index", row["batch_row_index"], minimum=0
+        "batch_row_index", row["batch_row_index"], minimum=1
+    )
+    selection_role = _strict_string("selection_role", row["selection_role"])
+    replicate_ordinal = _strict_int(
+        "replicate_ordinal", row["replicate_ordinal"], minimum=1
     )
     profile_id = _strict_string("profile_id", row["profile_id"])
     plant_epoch = _strict_int("plant_epoch", row["plant_epoch"], minimum=1)
@@ -540,12 +581,51 @@ def prepare_control_trial(
         raise RemoteControlError(f"Remote trial overlay is invalid: {exc}") from exc
     if profile_id != normalized["execution_profile_id"]:
         raise RemoteControlError("Remote trial profile_id differs from its overlay")
+    try:
+        control_uid = ControlCandidateUid.parse(normalized["control_candidate_uid"])
+        occurrence_uid = OccurrenceUid.parse(row["occurrence_uid"])
+        expected_occurrence_uid = OccurrenceUid.from_control(
+            control_uid,
+            protocol=source_protocol,
+            logical_batch_sequence=logical_batch_sequence,
+            row_index=batch_row_index,
+            plan_revision=plan_revision,
+            selection_role=selection_role,
+            replicate_ordinal=replicate_ordinal,
+        )
+        candidate = ForceCandidate(
+            force_p_gain=normalized["force_p_gain"],
+            force_i_gain=normalized["force_i_gain"],
+            force_damping=normalized["force_damping"],
+        )
+        transport_candidate_uid = TransportCandidateUid.parse(
+            row["transport_candidate_uid"]
+        )
+        expected_transport_uid = TransportCandidateUid.from_occurrence(
+            expected_occurrence_uid,
+            parameter_uid=ParameterUid.from_candidate_digest(candidate.candidate_uid),
+            protocol=source_protocol,
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RemoteControlError(f"Remote trial identity chain is invalid: {exc}") from exc
+    if occurrence_uid != expected_occurrence_uid:
+        raise RemoteControlError("Remote occurrence UID differs from its r009 materials")
+    if transport_candidate_uid != expected_transport_uid:
+        raise RemoteControlError(
+            "Remote source transport UID differs from its r009 materials"
+        )
     return PreparedControlTrial(
         campaign_id=campaign_id,
         campaign_fingerprint=campaign_fingerprint,
         trial_uid=trial_uid,
-        occurrence_uid=occurrence_uid,
+        source_protocol=source_protocol,
+        logical_batch_sequence=logical_batch_sequence,
+        plan_revision=plan_revision,
+        occurrence_uid=str(occurrence_uid),
+        transport_candidate_uid=str(transport_candidate_uid),
         batch_row_index=batch_row_index,
+        selection_role=selection_role,
+        replicate_ordinal=replicate_ordinal,
         profile_id=profile_id,
         plant_epoch=plant_epoch,
         control_candidate_uid=str(normalized["control_candidate_uid"]),
@@ -574,8 +654,14 @@ def load_prepared_control_trial(
             "campaign_id",
             "campaign_fingerprint",
             "trial_uid",
+            "source_protocol",
+            "logical_batch_sequence",
+            "plan_revision",
             "occurrence_uid",
+            "transport_candidate_uid",
             "batch_row_index",
+            "selection_role",
+            "replicate_ordinal",
             "profile_id",
             "plant_epoch",
             "control_candidate_uid",
@@ -595,8 +681,14 @@ def load_prepared_control_trial(
         "campaign_id": envelope["campaign_id"],
         "campaign_fingerprint": envelope["campaign_fingerprint"],
         "trial_uid": envelope["trial_uid"],
+        "source_protocol": envelope["source_protocol"],
+        "logical_batch_sequence": envelope["logical_batch_sequence"],
+        "plan_revision": envelope["plan_revision"],
         "occurrence_uid": envelope["occurrence_uid"],
+        "transport_candidate_uid": envelope["transport_candidate_uid"],
         "batch_row_index": envelope["batch_row_index"],
+        "selection_role": envelope["selection_role"],
+        "replicate_ordinal": envelope["replicate_ordinal"],
         "profile_id": envelope["profile_id"],
         "plant_epoch": envelope["plant_epoch"],
         "trial_overlay": envelope["trial_overlay"],
@@ -611,6 +703,7 @@ def load_prepared_control_trial(
 class RemoteTrialReceipt:
     trial_uid: str
     occurrence_uid: str
+    transport_candidate_uid: str
     envelope_sha256: str
     release_sha256: str
     transport_id: str
@@ -636,6 +729,7 @@ def validate_receipt(
             "schema",
             "trial_uid",
             "occurrence_uid",
+            "transport_candidate_uid",
             "envelope_sha256",
             "release_sha256",
             "transport_id",
@@ -691,6 +785,7 @@ def validate_receipt(
     exact_matches = {
         "trial_uid": prepared.trial_uid,
         "occurrence_uid": prepared.occurrence_uid,
+        "transport_candidate_uid": prepared.transport_candidate_uid,
         "envelope_sha256": prepared.envelope_sha256,
         "release_sha256": release.release_sha256,
         "transport_id": release.transport_id,
@@ -701,6 +796,7 @@ def validate_receipt(
     return RemoteTrialReceipt(
         trial_uid=prepared.trial_uid,
         occurrence_uid=prepared.occurrence_uid,
+        transport_candidate_uid=prepared.transport_candidate_uid,
         envelope_sha256=prepared.envelope_sha256,
         release_sha256=release.release_sha256,
         transport_id=release.transport_id,
@@ -729,6 +825,7 @@ def import_result(
         "blocker": "campaign_transport_adapter_not_synced",
         "trial_uid": receipt.trial_uid,
         "occurrence_uid": receipt.occurrence_uid,
+        "transport_candidate_uid": receipt.transport_candidate_uid,
         "transport_id": receipt.transport_id,
         "optimizer_eligible": False,
     }

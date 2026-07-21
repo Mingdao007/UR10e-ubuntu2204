@@ -22,6 +22,8 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "src/ur10e_experiment_runtime"))
 sys.path.insert(0, str(EXPERIMENT_ROOT / "tools"))
 
 from step5c_strict_rnn import StrictRnnCommandResult  # noqa: E402
+from step5d_autotune_contract import ForceCandidate  # noqa: E402
+from step5d_autotune_v3.release_identity import ROLLING_PROTOCOL  # noqa: E402
 from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY  # noqa: E402
 from step5d_control_contract import (  # noqa: E402
     SafetyEnvelope,
@@ -47,6 +49,12 @@ from step5d_remote_control.runtime import (  # noqa: E402
     build_executor,
     reject_live_run,
 )
+from ur10e_experiment_runtime.candidate_identity import (  # noqa: E402
+    ControlCandidateUid,
+    OccurrenceUid,
+    ParameterUid,
+    TransportCandidateUid,
+)
 
 
 def _sha(path: Path) -> str:
@@ -54,16 +62,43 @@ def _sha(path: Path) -> str:
 
 
 def _trial_source() -> dict[str, object]:
+    overlay = dict(DEFAULT_OVERLAY)
+    control_uid = ControlCandidateUid.parse(overlay["control_candidate_uid"])
+    occurrence_uid = OccurrenceUid.from_control(
+        control_uid,
+        protocol=ROLLING_PROTOCOL,
+        logical_batch_sequence=3,
+        row_index=4,
+        plan_revision=7,
+        selection_role="bo_candidate",
+        replicate_ordinal=1,
+    )
+    candidate = ForceCandidate(
+        force_p_gain=overlay["force_p_gain"],
+        force_i_gain=overlay["force_i_gain"],
+        force_damping=overlay["force_damping"],
+    )
+    transport_uid = TransportCandidateUid.from_occurrence(
+        occurrence_uid,
+        parameter_uid=ParameterUid.from_candidate_digest(candidate.candidate_uid),
+        protocol=ROLLING_PROTOCOL,
+    )
     return {
         "schema": TRIAL_SOURCE_SCHEMA,
         "campaign_id": "campaign-remote-test",
         "campaign_fingerprint": "1" * 64,
         "trial_uid": "2" * 64,
-        "occurrence_uid": "3" * 64,
-        "batch_row_index": 7,
+        "source_protocol": ROLLING_PROTOCOL,
+        "logical_batch_sequence": 3,
+        "plan_revision": 7,
+        "occurrence_uid": str(occurrence_uid),
+        "transport_candidate_uid": str(transport_uid),
+        "batch_row_index": 4,
+        "selection_role": "bo_candidate",
+        "replicate_ordinal": 1,
         "profile_id": "nf100-slew050-a050",
         "plant_epoch": 11,
-        "trial_overlay": dict(DEFAULT_OVERLAY),
+        "trial_overlay": overlay,
     }
 
 
@@ -187,8 +222,16 @@ class RemoteTrialContractTest(unittest.TestCase):
         cls.release = load_remote_release()
 
     def test_trial_preserves_explicit_occurrence_epoch_and_transport(self) -> None:
-        prepared = prepare_control_trial(_trial_source(), release=self.release)
-        self.assertEqual(prepared.occurrence_uid, "3" * 64)
+        source = _trial_source()
+        prepared = prepare_control_trial(source, release=self.release)
+        self.assertEqual(prepared.occurrence_uid, source["occurrence_uid"])
+        self.assertEqual(
+            prepared.transport_candidate_uid,
+            source["transport_candidate_uid"],
+        )
+        self.assertEqual(prepared.source_protocol, ROLLING_PROTOCOL)
+        self.assertEqual(prepared.logical_batch_sequence, 3)
+        self.assertEqual(prepared.plan_revision, 7)
         self.assertEqual(prepared.plant_epoch, 11)
         self.assertEqual(prepared.transport_id, TRANSPORT_ID)
         self.assertEqual(
@@ -206,12 +249,19 @@ class RemoteTrialContractTest(unittest.TestCase):
         with self.assertRaisesRegex(RemoteControlError, "missing=.*occurrence_uid"):
             prepare_control_trial(source, release=self.release)
 
+    def test_cross_namespace_or_material_substitution_is_rejected(self) -> None:
+        source = _trial_source()
+        source["occurrence_uid"] = source["transport_candidate_uid"]
+        with self.assertRaisesRegex(RemoteControlError, "identity chain is invalid"):
+            prepare_control_trial(source, release=self.release)
+
     def test_offline_receipt_validates_but_cannot_mutate_campaign(self) -> None:
         prepared = prepare_control_trial(_trial_source(), release=self.release)
         receipt = {
             "schema": RECEIPT_SCHEMA,
             "trial_uid": prepared.trial_uid,
             "occurrence_uid": prepared.occurrence_uid,
+            "transport_candidate_uid": prepared.transport_candidate_uid,
             "envelope_sha256": prepared.envelope_sha256,
             "release_sha256": self.release.release_sha256,
             "transport_id": self.release.transport_id,
@@ -243,6 +293,7 @@ class RemoteTrialContractTest(unittest.TestCase):
             "schema": RECEIPT_SCHEMA,
             "trial_uid": prepared.trial_uid,
             "occurrence_uid": prepared.occurrence_uid,
+            "transport_candidate_uid": prepared.transport_candidate_uid,
             "envelope_sha256": prepared.envelope_sha256,
             "release_sha256": self.release.release_sha256,
             "transport_id": self.release.transport_id,
