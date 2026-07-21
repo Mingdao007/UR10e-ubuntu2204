@@ -6,7 +6,7 @@ It does not modify the r009 source files, release manifest, package, or
 
 ## Frozen execution envelope
 
-- TP program: `step5d_strict_rnn_manual_tune_v2`
+- TP program: `step5d_strict_rnn_manual_tune_v3`
 - protocol: `v3_full_home_manual_hold_v1`
 - default request: P `0.001`, I `0.0001`, damping `7.0`
 - target force: `12 N`; orientation `ko=0.4`

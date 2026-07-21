@@ -13,7 +13,7 @@ from typing import Any, Mapping, Sequence
 import build_step5d_autotune_tp_v3 as r009
 
 
-PROGRAM_NAME = "step5d_strict_rnn_manual_tune_v2"
+PROGRAM_NAME = "step5d_strict_rnn_manual_tune_v3"
 PROTOCOL = "v3_full_home_manual_hold_v1"
 PARENT_R009_COMMIT = "bf6eb59d9530cf7f170f29c68c8812f00613b381"
 PARENT_PROGRAM = r009.PROGRAM_NAME
@@ -152,13 +152,13 @@ def render_script() -> str:
     result = _replace_once(
         result,
         "def codex_step5d_strict_rnn_autotune_v3():",
-        "def codex_step5d_strict_rnn_manual_tune_v2():",
+        "def codex_step5d_strict_rnn_manual_tune_v3():",
         role="manual main definition",
     )
     result = _replace_once(
         result,
         "codex_step5d_strict_rnn_autotune_v3()",
-        "codex_step5d_strict_rnn_manual_tune_v2()",
+        "codex_step5d_strict_rnn_manual_tune_v3()",
         role="manual main call",
     )
     for marker, replacement, role in (
@@ -190,8 +190,8 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         f"# PARENT_R009_COMMIT: {PARENT_R009_COMMIT}",
         f"# RELEASE_STAGE_ID: {PROGRAM_NAME}",
         f"# TP_PROGRAM_ID: {PROGRAM_NAME}",
-        "def codex_step5d_strict_rnn_manual_tune_v2():",
-        "codex_step5d_strict_rnn_manual_tune_v2()",
+        "def codex_step5d_strict_rnn_manual_tune_v3():",
+        "codex_step5d_strict_rnn_manual_tune_v3()",
         "def codex_autotune_wait_for_manual_arm(",
         f"heartbeat_stale_s > {HEARTBEAT_STALE_S:.3f}",
         f"candidate_token, {HEARTBEAT_LOSS_REASON}, execution_profile_id",
@@ -235,8 +235,8 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         role="normalized initial wait",
     )
     normalized = _replace_once(normalized, "batch_row_index != 1", "batch_row_index < 1 or batch_row_index > 5", role="normalized row policy")
-    normalized = _replace_once(normalized, "def codex_step5d_strict_rnn_manual_tune_v2():", "def codex_step5d_strict_rnn_autotune_v3():", role="normalized main definition")
-    normalized = _replace_once(normalized, "codex_step5d_strict_rnn_manual_tune_v2()", "codex_step5d_strict_rnn_autotune_v3()", role="normalized main call")
+    normalized = _replace_once(normalized, "def codex_step5d_strict_rnn_manual_tune_v3():", "def codex_step5d_strict_rnn_autotune_v3():", role="normalized main definition")
+    normalized = _replace_once(normalized, "codex_step5d_strict_rnn_manual_tune_v3()", "codex_step5d_strict_rnn_autotune_v3()", role="normalized main call")
     normalized = _replace_once(normalized, f"# RELEASE_STAGE_ID: {PROGRAM_NAME}", f"# RELEASE_STAGE_ID: {PARENT_PROGRAM}", role="normalized release")
     normalized = _replace_once(normalized, f"# TP_PROGRAM_ID: {PROGRAM_NAME}", f"# TP_PROGRAM_ID: {PARENT_PROGRAM}", role="normalized program")
     if normalized != original:
@@ -245,7 +245,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
 
 def source_stamp(now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_MANUAL_HOLD_V2")
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_MANUAL_HOLD_V3")
 
 
 def build_package_script(stamp: str) -> str:
@@ -284,7 +284,7 @@ def numeric_sanity(script: str) -> dict[str, Any]:
     validate_rendered_script(script.split("\n", 1)[1] if script.startswith("# VERSION:") else script)
     sanity = dict(r009.numeric_sanity(r009.render_script()))
     sanity.update(
-        schema="step5d.manual-hold/tp-numeric-sanity-v2",
+        schema="step5d.manual-hold/tp-numeric-sanity-v3",
         program=PROGRAM_NAME,
         parent_r009_commit=PARENT_R009_COMMIT,
         host_protocol=PROTOCOL,
@@ -323,7 +323,7 @@ def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> dict[str,
             for node in root.iter()
             if node.tag == "URProgram"
         ),
-        "main entrypoint": script.rstrip().endswith("codex_step5d_strict_rnn_manual_tune_v2()"),
+        "main entrypoint": script.rstrip().endswith("codex_step5d_strict_rnn_manual_tune_v3()"),
         "txt protocol": PROTOCOL in txt,
     }
     failed = [name for name, passed in checks.items() if not passed]

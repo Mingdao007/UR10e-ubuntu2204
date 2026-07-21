@@ -12,7 +12,7 @@
     "target_force_n": 12.0
   },
   "parent_r009_commit": "bf6eb59d9530cf7f170f29c68c8812f00613b381",
-  "program": "step5d_strict_rnn_manual_tune_v2",
+  "program": "step5d_strict_rnn_manual_tune_v3",
   "protocol": "v3_full_home_manual_hold_v1",
   "safety_boundary": {
     "bridge_scope": "manual_bridge_no_arm",

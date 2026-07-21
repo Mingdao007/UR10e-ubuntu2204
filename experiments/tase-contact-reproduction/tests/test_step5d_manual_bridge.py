@@ -46,7 +46,7 @@ def test_context_is_write_once_digest_bound_and_no_arm(tmp_path: Path, monkeypat
     monkeypatch.setattr(bridge, "load_launch_profile", lambda _path: SimpleNamespace(fingerprint="5" * 64))
     now = datetime(2026, 7, 21, 7, 0, tzinfo=timezone.utc)
     payload = bridge.build_context(tmp_path, plant_epoch=1, launch_profile_path=launch, now=now)
-    assert payload["program"] == "step5d_strict_rnn_manual_tune_v2"
+    assert payload["program"] == "step5d_strict_rnn_manual_tune_v3"
     assert payload["protocol"] == "v3_full_home_manual_hold_v1"
     assert payload["wire_protocol"] == "v3_full_home_rolling_arm_v1"
     assert payload["bridge_authorized"] is True
@@ -67,7 +67,7 @@ def test_context_is_write_once_digest_bound_and_no_arm(tmp_path: Path, monkeypat
 
 def test_preflight_requires_exact_manual_program() -> None:
     stopped = preflight._program_safe(
-        {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_manual_tune_v2.urp"},
+        {"programState": "STOPPED /programs/andyl/kunwei/step5/step5d_strict_rnn_manual_tune_v3.urp"},
         {},
     )
     wrong = preflight._program_safe(
