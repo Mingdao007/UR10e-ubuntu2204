@@ -18,53 +18,11 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_autotune_v3_bridge as wrapper  # noqa: E402
 from run_step5d_autotune_campaign import closure_sample_from_bridge_row  # noqa: E402
-from step5d_autotune_v3.arming import BridgeStartContext  # noqa: E402
-from step5d_autotune_v3.identity_layers import (  # noqa: E402
-    release_basis_fingerprint,
-    runtime_environment_fingerprint,
+from step5d_autotune_v3.runtime_gate import (  # noqa: E402
+    CampaignLease,
+    write_campaign_lease,
 )
-from step5d_autotune_v3.release_identity import (  # noqa: E402
-    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
-    ReleaseIdentity,
-)
-
-
-def _release(protocol: str = "v3_full_home_rolling_arm_v1") -> ReleaseIdentity:
-    return ReleaseIdentity(
-        program_id="step5d_strict_rnn_autotune_v3_r009",
-        release_stage_id="step5d_strict_rnn_autotune_v3",
-        control_profile_id="step5d_strict_rnn_autotune_v1",
-        protocol_id=protocol,
-        normal_max_rate_rad_s=0.1,
-        execution_profile_id="nf100-slew050-a050",
-        execution_profile_integer_id=633,
-        manifest_path=f"config/step5d/releases/{'f' * 64}/manifest.json",
-        manifest_sha256="f" * 64,
-        artifacts={
-            extension: {"path": f"fixture/program{extension}", "sha256": digest * 64}
-            for extension, digest in ((".script", "1"), (".txt", "2"), (".urp", "3"))
-        },
-        controller_readback={
-            "path": "fixture/readback.json",
-            "sha256": "4" * 64,
-            "triplet_sha256": {
-                ".script": "1" * 64,
-                ".txt": "2" * 64,
-                ".urp": "3" * 64,
-            },
-            "fresh_get": True,
-        },
-        source_fingerprints={"fixture/source.py": "5" * 64},
-        generated_files={"fixture/generated.json": "6" * 64},
-        compatibility_mirrors={"fixture/mirror.json": "7" * 64},
-        verification={
-            "canonical_verifier": "independent_script_urp_v1",
-            "repository_source_fingerprints": {
-                path: "8" * 64 for path in REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS
-            },
-            "repository_source_root_depth": 2,
-        },
-    )
+from step5d_autotune_v3.state import atomic_json  # noqa: E402
 
 
 def _armed_v3_pose_bridge() -> tuple[Any, Any, Any]:
@@ -140,87 +98,130 @@ def _production_pose_tick(
     )
 
 
-def _ticket(path: Path, argv: list[str], release: ReleaseIdentity) -> Path:
-    runtime_manifest = {
-        "schema": "step5d.autotune-v3/runtime-environment-identity-v1",
-        "environment": {"fixture": "bridge-wrapper"},
-    }
-    identity = {
-        "tick_semantics_fingerprint": "0" * 64,
-        "timing_harness_fingerprint": "1" * 64,
-        "runtime_environment_fingerprint": runtime_environment_fingerprint(
-            runtime_manifest["environment"]
-        ),
-        "deployment_fingerprint": "3" * 64,
-        "orchestration_fingerprint": "4" * 64,
-    }
-    identity["release_basis_fingerprint"] = release_basis_fingerprint(
-        **identity,
-        plant_epoch=2,
+def _ticket_fixture(
+    tmp_path: Path,
+    argv: list[str],
+) -> tuple[Path, SimpleNamespace, Path]:
+    root = tmp_path / "experiment"
+    (root / "config/step5d/releases/test").mkdir(parents=True)
+    control = root / "config/step5d/releases/test/config/step5/control.json"
+    control.parent.mkdir(parents=True)
+    control.write_text('{"safety":"frozen"}\n', encoding="utf-8")
+    launch = (
+        root
+        / "config/step5d/releases/test/config/step5/"
+        "step5d_autotune_v3_launch_profile.json"
     )
-    bridge_context = BridgeStartContext(
-        **identity,
-        local_triplet_sha256={
-            ".script": "5" * 64,
-            ".txt": "6" * 64,
-            ".urp": "7" * 64,
+    launch.write_text('{"launch":"frozen"}\n', encoding="utf-8")
+    expected_program = (
+        "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r010.urp"
+    )
+    safety_sha = hashlib.sha256(control.read_bytes()).hexdigest()
+    runtime_identity = {
+        "schema": "step5d.autotune-v3/tp-runtime-identity-v1",
+        "program_id": "step5d_strict_rnn_autotune_v3_r010",
+        "protocol_id": "v3_full_home_rolling_arm_v1",
+        "protocol_version": 1,
+        "digest_hi": 1234,
+        "digest_lo": 5678,
+        "script_basis_sha256": "2" * 64,
+        "script_artifact_sha256": "1" * 64,
+        "registers": {
+            "protocol_version": 35,
+            "digest_hi": 36,
+            "digest_lo": 37,
         },
-        plant_epoch=2,
-        deployment_readback_sha256="8" * 64,
-        runtime_environment_manifest=runtime_manifest,
+    }
+    manifest = root / "config/step5d/releases/test/manifest.json"
+    atomic_json(
+        manifest,
+        {
+            "tp_runtime_identity": runtime_identity,
+            "safety_envelope": {
+                "path": "config/step5/control.json",
+                "sha256": safety_sha,
+            },
+        },
     )
-    bridge_context_path = path.with_name("bridge-start-context.json").resolve()
-    bridge_context_path.write_text(
-        json.dumps(bridge_context.document()), encoding="utf-8"
+    manifest_sha = hashlib.sha256(manifest.read_bytes()).hexdigest()
+    release = SimpleNamespace(
+        program_id="step5d_strict_rnn_autotune_v3_r010",
+        release_stage_id="step5d_strict_rnn_autotune_v3",
+        control_profile_id="step5d_strict_rnn_autotune_v1",
+        protocol_id="v3_full_home_rolling_arm_v1",
+        manifest_path="config/step5d/releases/test/manifest.json",
+        manifest_sha256=manifest_sha,
+        artifacts={".script": {"sha256": "1" * 64}},
+        generated_files={
+            "config/step5/step5d_autotune_v3_launch_profile.json": hashlib.sha256(
+                launch.read_bytes()
+            ).hexdigest()
+        },
+        controller_target=expected_program,
     )
+    lease = CampaignLease.issue(
+        lease_id="1" * 32,
+        launch_id="2" * 32,
+        manifest_sha256=manifest_sha,
+        release_stage_id=release.release_stage_id,
+        program_id=release.program_id,
+        protocol_id=release.protocol_id,
+        campaign_id="step5d-native-1",
+        campaign_epoch=1,
+        campaign_fingerprint="8" * 64,
+        safety_envelope_sha256=safety_sha,
+    )
+    lease_path = root / "run/campaign_lease.json"
+    lease_sha = write_campaign_lease(lease_path.absolute(), lease)
+    path = root / "run/runtime_ticket.json"
     encoded = json.dumps(argv, sort_keys=True, separators=(",", ":")).encode()
-    path.write_text(
-        json.dumps(
-            {
-                "schema": wrapper.TICKET_SCHEMA,
-                "parent_pid": os.getppid(),
-                "argv_sha256": hashlib.sha256(encoded).hexdigest(),
-                "launch_id": "1" * 32,
-                "scope": "bridge_no_arm",
-                "identity": identity,
-                "launch_profile_fingerprint": "b" * 64,
-                "trial_overlay_fingerprint": "c" * 64,
-                "release_stage_id": "step5d_strict_rnn_autotune_v3",
-                "control_profile_id": "step5d_strict_rnn_autotune_v1",
-                "tp_program_id": release.program_id,
-                "bridge_start_context": {
-                    "path": str(bridge_context_path),
-                    "sha256": hashlib.sha256(
-                        bridge_context_path.read_bytes()
-                    ).hexdigest(),
-                },
-                "campaign_binding": {
-                    "campaign_id": "step5d-native-1",
-                    "campaign_epoch": 1,
-                    "candidate_plan_revision": 1,
-                    "candidate_plan_sha256": "9" * 64,
-                    "trial_overlay_plan_sha256": "a" * 64,
-                    "machine_binding_sha256": "d" * 64,
-                },
-            }
-        ),
-        encoding="utf-8",
+    atomic_json(
+        path,
+        {
+            "schema": wrapper.TICKET_SCHEMA,
+            "parent_pid": os.getppid(),
+            "argv_sha256": hashlib.sha256(encoded).hexdigest(),
+            "launch_id": lease.launch_id,
+            "scope": wrapper.TICKET_SCOPE,
+            "launch_profile": {
+                "path": str(launch),
+                "sha256": hashlib.sha256(launch.read_bytes()).hexdigest(),
+            },
+            "launch_profile_fingerprint": "b" * 64,
+            "trial_overlay_fingerprint": "c" * 64,
+            "release_stage_id": release.release_stage_id,
+            "control_profile_id": release.control_profile_id,
+            "tp_program_id": release.program_id,
+            "manifest_sha256": manifest_sha,
+            "safety_envelope_sha256": safety_sha,
+            "campaign_binding": {
+                "campaign_id": lease.campaign_id,
+                "campaign_epoch": lease.campaign_epoch,
+                "campaign_fingerprint": lease.campaign_fingerprint,
+                "candidate_plan_revision": 1,
+                "candidate_plan_sha256": "9" * 64,
+                "trial_overlay_plan_sha256": "a" * 64,
+                "machine_binding_sha256": "d" * 64,
+            },
+            "campaign_lease": {"path": str(lease_path), "sha256": lease_sha},
+            "arm_gate_path": str((root / "run/arm_gate.json").absolute()),
+        },
     )
-    return path
+    return path, release, root
 
 
 def test_wrapper_requires_parent_and_exact_argv_ticket(tmp_path: Path) -> None:
     argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
-    release = _release()
-    ticket = _ticket(tmp_path / "ticket.json", argv, release)
+    ticket, release, root = _ticket_fixture(tmp_path, argv)
     assert wrapper._strict_ticket(
-        ticket, argv, release_identity=release
-    )["scope"] == "bridge_no_arm"
+        ticket, argv, release_identity=release, root=root
+    )["scope"] == wrapper.TICKET_SCOPE
     try:
         wrapper._strict_ticket(
             ticket,
             [*argv, "--duration-s", "1"],
             release_identity=release,
+            root=root,
         )
     except wrapper.BridgeTicketError as exc:
         assert "argv binding" in str(exc)
@@ -241,19 +242,23 @@ def test_wrapper_refuses_direct_start_without_runtime_ticket(capsys) -> None:
     assert "RUNTIME_TICKET" in capsys.readouterr().err
 
 
-def test_bridge_ticket_requires_exact_bridge_start_binding(tmp_path: Path) -> None:
+def test_bridge_ticket_requires_exact_campaign_lease_binding(tmp_path: Path) -> None:
     argv = ["--bridge-profile", "step5d_strict_rnn_autotune_v1"]
-    release = _release()
-    ticket = _ticket(tmp_path / "ticket.json", argv, release)
+    ticket, release, root = _ticket_fixture(tmp_path, argv)
     payload = json.loads(ticket.read_text(encoding="utf-8"))
-    payload["bridge_start_context"].pop("sha256")
+    payload["campaign_lease"].pop("sha256")
     ticket.write_text(json.dumps(payload), encoding="utf-8")
     try:
-        wrapper._strict_ticket(ticket, argv, release_identity=release)
+        wrapper._strict_ticket(
+            ticket,
+            argv,
+            release_identity=release,
+            root=root,
+        )
     except wrapper.BridgeTicketError as exc:
-        assert "bridge-start reference" in str(exc)
+        assert "campaign lease reference" in str(exc)
     else:
-        raise AssertionError("incomplete bridge-start binding was accepted")
+        raise AssertionError("incomplete campaign lease binding was accepted")
 
 
 def test_wrapper_source_has_no_campaign_runner_arm_or_motion_surface() -> None:

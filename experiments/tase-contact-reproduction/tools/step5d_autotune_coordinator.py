@@ -1917,6 +1917,7 @@ class CampaignCoordinator:
         campaign: CampaignSpec,
         source_fingerprint: str,
         config_fingerprint: str,
+        execution_profile: ExecutionProfile | None = None,
         search_attestation: SearchAttestation | None = None,
     ) -> "CampaignCoordinator":
         self._require_healthy()
@@ -1933,6 +1934,7 @@ class CampaignCoordinator:
             campaign=campaign,
             source_fingerprint=source_fingerprint,
             config_fingerprint=config_fingerprint,
+            execution_profile=execution_profile,
             search_attestation=search_attestation,
         )
         coordinator = CampaignCoordinator(

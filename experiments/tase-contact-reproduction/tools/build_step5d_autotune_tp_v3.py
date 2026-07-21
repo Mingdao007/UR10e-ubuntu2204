@@ -35,6 +35,9 @@ from step5d_autotune_v3.runtime_identity import (
 )
 
 PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r010"
+IMMUTABLE_RELEASE_STAMP = (
+    "2026-07-21T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010"
+)
 PROTOCOL_ID = ROLLING_PROTOCOL
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
@@ -249,6 +252,16 @@ end
       sleep(0.20)
     end'''
     return (
+        (
+            "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050 rad/s;",
+            "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100 rad/s;",
+            "r010 normal-rate profile documentation",
+        ),
+        (
+            "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
+            "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
+            "r010 normal-rate profile admission",
+        ),
         (
             "# HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29",
             "# HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29 batch_row=30 logical_batch=31",
@@ -1057,7 +1070,7 @@ def main(argv: list[str] | None = None) -> int:
     operation = check_triplet if args.check else write_triplet
     print(
         json.dumps(
-            operation(args.output_dir, args.stamp or source_stamp()),
+            operation(args.output_dir, args.stamp or IMMUTABLE_RELEASE_STAMP),
             indent=2,
             sort_keys=True,
         )

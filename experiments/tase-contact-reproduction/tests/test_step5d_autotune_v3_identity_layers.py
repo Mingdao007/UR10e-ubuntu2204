@@ -40,6 +40,11 @@ from step5d_autotune_v3.identity_layers import (  # noqa: E402
     tick_semantics_manifest,
     timing_harness_fingerprint,
 )
+from step5d_autotune_v3.release_identity import (  # noqa: E402
+    REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
+    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
+)
+from step5d_autotune_v3.source_closure import production_source_closure  # noqa: E402
 
 
 def _write(root: Path, relative: str, text: str) -> None:
@@ -55,17 +60,18 @@ def test_default_surfaces_use_only_repo_relative_subject_paths() -> None:
         *ORCHESTRATION_PATHS,
     }
     assert subjects.isdisjoint(SELECTOR_AND_DOCUMENT_PATHS)
-    assert subjects.isdisjoint(EVIDENCE_VERIFIER_PATHS)
+    assert set(TICK_SEMANTICS_PATHS + TIMING_MEASUREMENT_PATHS).isdisjoint(
+        EVIDENCE_VERIFIER_PATHS
+    )
     assert all(canonical_repo_relative_path(path) == path for path in subjects)
     assert all(not Path(path).is_absolute() for path in subjects)
-    assert (
-        "experiments/tase-contact-reproduction/tools/step5d_autotune_store.py"
-        in ORCHESTRATION_PATHS
-    )
-    assert (
-        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/authorization.py"
-        in ORCHESTRATION_PATHS
-    )
+    assert set(ORCHESTRATION_PATHS) == {
+        *(
+            f"experiments/tase-contact-reproduction/{path}"
+            for path in REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS
+        ),
+        *REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
+    }
     assert (
         "experiments/tase-contact-reproduction/tools/"
         "rebuild_step5d_autotune_v3_pre_live_evidence.py"
@@ -78,6 +84,25 @@ def test_default_surfaces_use_only_repo_relative_subject_paths() -> None:
         "build_step5d_v30_remote_timing_bundle.py",
         "experiments/tase-contact-reproduction/tools/step5d_v30_timing.py",
     )
+
+
+def test_release_sources_are_the_transitive_production_closure() -> None:
+    experiment, repository = production_source_closure(ROOT)
+    assert experiment == REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS
+    assert repository == REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS
+    assert {
+        "tools/build_step5d_autotune_tp.py",
+        "tools/upload_ur_tp_package.py",
+        "tools/ur10e_mutation_lock.py",
+        "tools/step5d_autotune_v3/rtde_client.py",
+    } <= experiment
+    assert {
+        "experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/"
+        "assets/mjcf/ur10e_nominal.xml",
+        "experiments/sensor-integration/kunwei-kwr75b/tools/"
+        "capture_kunwei_kwr75_1khz.py",
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/physical_prior.py",
+    } <= repository
 
 
 @pytest.mark.parametrize(

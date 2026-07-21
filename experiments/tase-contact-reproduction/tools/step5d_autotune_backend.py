@@ -504,11 +504,6 @@ class Step5dV35Backend:
             blockers.append(
                 f"campaign_stage_delivery_unreadable:{type(exc).__name__}:{exc}"
             )
-        readback_verified, readback_evidence = self._campaign_readback_closure(
-            campaign_delivery if isinstance(campaign_delivery, Mapping) else {}
-        )
-        evidence.update(readback_evidence)
-        evidence["campaign_controller_readback_verified"] = readback_verified
         try:
             current = _json(self.root / "config" / "current_stage.json")
         except (OSError, ValueError, json.JSONDecodeError) as exc:
@@ -523,6 +518,24 @@ class Step5dV35Backend:
             is True
         )
         evidence["selected_release_current"] = selected_release_current
+        if current.get("program") == V3_RELEASE_STAGE_ID:
+            readback_verified = bool(
+                execution_context
+                and execution_context.controller_readback_verified
+                and authorization
+                and authorization.controller_readback_verified
+            )
+            readback_evidence = {
+                "campaign_readback_sha_closed": readback_verified,
+                "campaign_readback_source": "governed_delivery_observation",
+            }
+        else:
+            readback_verified, readback_evidence = self._campaign_readback_closure(
+                campaign_delivery if isinstance(campaign_delivery, Mapping) else {}
+            )
+            readback_evidence["campaign_readback_source"] = "legacy_stage_table"
+        evidence.update(readback_evidence)
+        evidence["campaign_controller_readback_verified"] = readback_verified
         cuda_available = False
         try:
             import cupy
@@ -557,9 +570,7 @@ class Step5dV35Backend:
             and evidence.get("composite_fingerprint")
             == execution_context.campaign_fingerprint
         )
-        # Compatibility is retained only for historical/offline callers. The
-        # active V3 runner supplies CampaignExecutionContext and no auth file.
-        legacy_authorized = bool(
+        lease_authorized = bool(
             authorization
             and authorization.live_authorized
             and authorization.controller_readback_verified
@@ -569,11 +580,17 @@ class Step5dV35Backend:
             and evidence.get("composite_fingerprint")
             == authorization.campaign_fingerprint
         )
-        live_authorized = execution_ready or legacy_authorized
+        evidence["campaign_execution_identity_ready"] = execution_ready
+        evidence["campaign_lease_authorization_ready"] = lease_authorized
+        # Machine identity is necessary, but it is never motion authority.
+        # Live requires both the exact execution binding and the campaign lease
+        # produced by the canonical shell invocation.  The bridge-local gate
+        # independently revalidates the lease at the actual ARM boundary.
+        live_authorized = execution_ready and lease_authorized
         if not offline and not cuda_available:
             blockers.append("cuda_required_for_live_no_cpu_fallback")
         if not offline and not live_authorized:
-            blockers.append("campaign_execution_context_missing_or_mismatched")
+            blockers.append("campaign_lease_authorization_missing_or_mismatched")
         if not offline and not readback_verified:
             blockers.append("autotune_controller_delivery_and_fresh_readback_required")
         if not offline and not selected_release_current:

@@ -25,6 +25,8 @@ from step5d_autotune_v3.release_identity import (
     CONTROL_PROFILE_ID,
     RELEASE_MANIFEST_SCHEMA,
     RELEASE_STAGE_ID,
+    REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
+    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
     ROLLING_EXECUTION_PROFILE_ID,
     ROLLING_EXECUTION_PROFILE_INTEGER_ID,
     ROLLING_NORMAL_MAX_RATE_RAD_S,
@@ -59,57 +61,17 @@ STATIC_PROJECTIONS = (
     Path("config/step5/step5d_autotune_v3_control_contract.json"),
     Path("config/step5/step5d_autotune_v3_launch_profile.json"),
 )
-SOURCE_INPUTS = (
-    Path("tools/build_step5d_autotune_tp_v3.py"),
-    Path("tools/promote_step5d_r009_atomic_release.py"),
-    Path("tools/run_step5d_autotune_campaign.py"),
-    Path("tools/run_step5d_autotune_v3_bridge.py"),
-    Path("tools/run_step5d_autotune_v3_live.py"),
-    Path("tools/run_step5d_autotune_v3_tp_transaction.py"),
-    Path("tools/kunwei_rtde_bridge.py"),
-    Path("tools/prepare_step5d_autotune_launch.py"),
-    Path("tools/step5d_autotune_backend.py"),
-    Path("tools/step5d_autotune_live_driver.py"),
-    Path("tools/step5d_autotune_batch_plan.py"),
-    Path("tools/step5d_autotune_contract.py"),
-    Path("tools/step5d_autotune_coordinator.py"),
-    Path("tools/step5d_autotune_journal.py"),
-    Path("tools/step5d_autotune_optimizer.py"),
-    Path("tools/step5d_autotune_store.py"),
-    Path("tools/step5d_autotune_state_machine.py"),
-    Path("tools/step5d_autotune_supervisor.py"),
-    Path("tools/step5d_production_csv.py"),
-    Path("tools/step5d_runtime_interface.py"),
-    Path("tools/step5d_r008_completion.py"),
-    Path("tools/step5d_autotune_r008_policy.py"),
-    Path("tools/step5d_autotune_runtime_lifecycle.py"),
-    Path("tools/step5d_autotune_v3/arming.py"),
-    Path("tools/step5d_autotune_v3/atomic_release.py"),
-    Path("tools/step5d_autotune_v3/admission.py"),
-    Path("tools/step5d_autotune_v3/identity_layers.py"),
-    Path("tools/step5d_autotune_v3/profile.py"),
-    Path("tools/step5d_autotune_v3/release_identity.py"),
-    Path("tools/step5d_autotune_v3/release_verifier.py"),
-    Path("tools/step5d_autotune_v3/runtime_identity.py"),
-    Path("tools/step5d_autotune_v3/readiness.py"),
-    Path("tools/step5d_autotune_v3/runtime_profile.py"),
-    Path("tools/step5d_autotune_v3/state.py"),
+SOURCE_INPUTS = tuple(
+    Path(relative) for relative in sorted(REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS)
 )
-REPOSITORY_SOURCE_INPUTS = (
-    Path("src/ur10e_experiment_runtime/ur10e_experiment_runtime/__init__.py"),
-    Path(
-        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/candidate_identity.py"
-    ),
-    Path("src/ur10e_experiment_runtime/ur10e_experiment_runtime/batch.py"),
-    Path(
-        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/stage_adapters.py"
-    ),
+REPOSITORY_SOURCE_INPUTS = tuple(
+    Path(relative) for relative in sorted(REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS)
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "539579b7afdf6f9055d937b7bd4b386acf6ddb07c40e4194ecc27c65d24ec334",
+    "config/step5d/v3_active_surface.json": "e07d86daa0706f0ca040c599b8a8583fc70d9859c0452d245092d33734855187",
 }
-CONTRACT_STATIC_SHA256 = "a4b5477a9e23bdc1dea6d016d4d45713c0f852006db4c68465dcc5b1f21facec"
+CONTRACT_STATIC_SHA256 = "6657e98f36d515dcf08d1099f5c9e24ab937a8df3697d5dd0aee5473cd7a5a8f"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
 PENDING = PendingRelease(
     program_id=PROGRAM,
@@ -197,7 +159,6 @@ def _render_current_stage(
             "local_candidate",
             "local_triplet",
             "program",
-            "readiness",
             "sha256",
             "status",
         },
@@ -236,10 +197,14 @@ def _render_current_stage(
             "triplet_sha256": dict(triplet_sha256),
         }
     )
-    readiness = _object(base.get("readiness"), "current-stage readiness")
-    readiness["host_runtime_disposition"] = (
-        "verified_r010_full_home_rolling_production_chain_offline"
-    )
+    for field in (
+        "bridge_trigger",
+        "execution_state",
+        "live_run_status",
+        "liveprep_status",
+        "readiness",
+    ):
+        base.pop(field, None)
     return base
 
 
@@ -250,7 +215,6 @@ def _render_stage_table(
     deploy_manifest_sha256: str,
     numeric_sanity_sha256: str,
     readback_sha256: str,
-    fresh_controller_checked_at: str,
 ) -> dict[str, Any]:
     base = json.loads(json.dumps(source, allow_nan=False))
     stages = base.get("stages")
@@ -269,12 +233,15 @@ def _render_stage_table(
         {"current_binding", "operator_lifecycle", "package_delivery"},
         "selected stage-table row",
     )
+    row.pop("execution_readiness", None)
     local_triplet = (PACKAGE_DIR / PROGRAM).as_posix()
     controller_target = str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.urp")
     current_binding = _object(row.get("current_binding"), "stage current binding")
     current_binding["controller_target"] = controller_target
+    current_binding.pop("live_authorized", None)
     operator = _object(row.get("operator_lifecycle"), "stage operator lifecycle")
     operator["expected_program"] = controller_target
+    operator.pop("live_readiness_state", None)
     package = _object(row.get("package_delivery"), "stage package delivery")
     _require_keys(
         package,
@@ -296,7 +263,7 @@ def _render_stage_table(
             "controller_readback_manifest_sha256": readback_sha256,
             "controller_readback_verified": True,
             "controller_target": controller_target,
-            "fresh_controller_sha_at": fresh_controller_checked_at,
+            "fresh_controller_sha_at": None,
             "local_triplet": local_triplet,
             "program_basename": PROGRAM,
             "sha256": dict(triplet_sha256),
@@ -402,15 +369,57 @@ def _artifact_paths(artifact_dir: Path) -> dict[str, Path]:
     }
 
 
+def validate_local_candidate(
+    root: Path,
+    artifact_dir: Path,
+) -> tuple[Path, dict[str, str]]:
+    """Validate local candidate bytes without asserting controller delivery."""
+
+    root = root.resolve(strict=True)
+    unresolved_artifacts = artifact_dir.expanduser()
+    if unresolved_artifacts.is_symlink():
+        raise R009PromotionError("pending artifact directory is unsafe")
+    resolved_artifacts = unresolved_artifacts.resolve(strict=True)
+    try:
+        resolved_artifacts.relative_to(root)
+    except ValueError as exc:
+        raise R009PromotionError("pending artifact directory escapes experiment root") from exc
+    if resolved_artifacts.is_symlink() or not resolved_artifacts.is_dir():
+        raise R009PromotionError("pending artifact directory is unsafe")
+    local_sha = {
+        extension: _sha256(path)
+        for extension, path in _artifact_paths(resolved_artifacts).items()
+    }
+    return resolved_artifacts, local_sha
+
+
 def validate_delivery(
     root: Path,
     manifest_path: Path,
     artifact_dir: Path,
+    *,
+    expected_transaction_id: str | None = None,
+    expected_manifest_sha256: str | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     root = root.resolve(strict=True)
-    manifest_path = manifest_path.resolve(strict=True)
+    unresolved_manifest = manifest_path.expanduser()
+    if unresolved_manifest.is_symlink():
+        raise R009PromotionError("delivery manifest handoff is unsafe")
+    manifest_path = unresolved_manifest.resolve(strict=True)
+    try:
+        manifest_path.relative_to(root)
+    except ValueError as exc:
+        raise R009PromotionError("delivery manifest escapes experiment root") from exc
     manifest = _load(manifest_path)
-    artifact_dir = artifact_dir.resolve(strict=True)
+    if (
+        expected_manifest_sha256 is not None
+        and _sha256(manifest_path) != expected_manifest_sha256
+    ):
+        raise R009PromotionError("delivery manifest handoff SHA-256 differs")
+    unresolved_artifacts = artifact_dir.expanduser()
+    if unresolved_artifacts.is_symlink():
+        raise R009PromotionError("pending artifact directory is unsafe")
+    artifact_dir = unresolved_artifacts.resolve(strict=True)
     try:
         artifact_dir.relative_to(root)
     except ValueError as exc:
@@ -437,6 +446,8 @@ def validate_delivery(
             != str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.script"),
             not isinstance(transaction, str),
             _TRANSACTION.fullmatch(transaction or "") is None,
+            expected_transaction_id is not None
+            and transaction != expected_transaction_id,
         )
     ):
         raise R009PromotionError("delivery identity, target, or freshness differs")
@@ -461,9 +472,7 @@ def validate_delivery(
 
 
 def _canonical_readback(
-    upload_manifest: Mapping[str, Any],
     *,
-    upload_manifest_sha256: str,
     triplet_sha256: Mapping[str, str],
     tp_fingerprint: str,
 ) -> dict[str, Any]:
@@ -473,15 +482,10 @@ def _canonical_readback(
         "verified": True,
         "program": PROGRAM,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "controller": upload_manifest["controller"],
         "controller_target": str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.urp"),
-        "fresh_controller_checked_at": upload_manifest["fresh_controller_checked_at"],
-        "source_stamp": upload_manifest["validation"]["stamp"],
         "triplet_sha256": dict(triplet_sha256),
         "tp_fingerprint": tp_fingerprint,
-        "fresh_readback_manifest_sha256": upload_manifest_sha256,
-        "fresh_readback_source": RAW_READBACK.as_posix(),
-        "fresh_get": True,
+        "fresh_get_evidence": "per_campaign_delivery_observation",
         "safety_boundary": [
             "controller package upload and fresh GET only",
             "no Load or Play",
@@ -509,28 +513,20 @@ def _local_candidate(
         "disposition": "controller_readback_verified_pending_atomic_pointer",
         "controller_uploaded": True,
         "controller_readback_verified": True,
-        "bridge_context_allowed": True,
-        "motion_authorized": False,
         "triplet_sha256": dict(triplet_sha256),
         "deploy_manifest_sha256": deploy_manifest_sha256,
         "numeric_sanity_sha256": numeric_sanity_sha256,
         "controller_readback_sha256": readback_sha256,
-        "next_legal_action": "build_fresh_bridge_start_context_no_arm",
     }
 
 
-def compose_release(
+def _compose_local_release(
     root: Path,
-    upload_manifest_path: Path,
     artifact_dir: Path,
+    triplet_sha: Mapping[str, str],
 ) -> tuple[dict[str, Any], dict[str, bytes], dict[str, str]]:
     root = root.resolve(strict=True)
-    artifact_dir = artifact_dir.resolve(strict=True)
-    upload, triplet_sha = validate_delivery(
-        root, upload_manifest_path, artifact_dir
-    )
-    raw_upload = upload_manifest_path.read_bytes()
-    raw_upload_sha = _sha256_bytes(raw_upload)
+    artifact_dir = artifact_dir.expanduser().resolve(strict=True)
     deploy = PACKAGE_DIR / f"{PROGRAM}.deploy-manifest.json"
     numeric = PACKAGE_DIR / f"{PROGRAM}.numeric-sanity.json"
     deploy_source = artifact_dir / f"{PROGRAM}.deploy-manifest.json"
@@ -565,8 +561,6 @@ def compose_release(
         raise R009PromotionError("deploy manifest TP runtime identity binding differs")
     canonical_readback = _pretty(
         _canonical_readback(
-            upload,
-            upload_manifest_sha256=raw_upload_sha,
             triplet_sha256=triplet_sha,
             tp_fingerprint=deploy_sha,
         )
@@ -586,7 +580,6 @@ def compose_release(
         bundle_files[(PACKAGE_DIR / f"{PROGRAM}{extension}").as_posix()] = path.read_bytes()
     bundle_files[deploy.as_posix()] = deploy_source.read_bytes()
     bundle_files[numeric.as_posix()] = numeric_source.read_bytes()
-    bundle_files[RAW_READBACK.as_posix()] = raw_upload
     bundle_files[READBACK.as_posix()] = canonical_readback
     bundle_files[LOCAL_CANDIDATE.as_posix()] = local_candidate
     contract_relative = Path("config/step5/step5d_autotune_v3_control_contract.json")
@@ -625,9 +618,6 @@ def compose_release(
                     deploy_manifest_sha256=deploy_sha,
                     numeric_sanity_sha256=numeric_sha,
                     readback_sha256=readback_sha,
-                    fresh_controller_checked_at=upload[
-                        "fresh_controller_checked_at"
-                    ],
                 )
             else:
                 projection = _static_projection(root, relative)
@@ -638,15 +628,10 @@ def compose_release(
         for relative in (
             deploy.as_posix(),
             numeric.as_posix(),
-            RAW_READBACK.as_posix(),
             LOCAL_CANDIDATE.as_posix(),
+            launch_relative.as_posix(),
         )
     }
-    compatibility_mirrors = {
-        relative.as_posix(): _sha256_bytes(bundle_files[relative.as_posix()])
-        for relative in STATIC_PROJECTIONS
-    }
-    compatibility_mirrors[READBACK.as_posix()] = readback_sha
     source_fingerprints = {
         relative.as_posix(): _sha256(root / relative)
         for relative in SOURCE_INPUTS
@@ -670,56 +655,24 @@ def compose_release(
             "execution_profile_integer_id": PENDING.execution_profile_integer_id,
         },
         "artifacts": artifacts,
-        "controller_readback": {
-            "path": READBACK.as_posix(),
-            "sha256": readback_sha,
-            "triplet_sha256": dict(triplet_sha),
-            "fresh_get": True,
-        },
+        "controller_target": str(
+            PurePosixPath(TARGET_DIR) / f"{PROGRAM}.urp"
+        ),
         "tp_runtime_identity": tp_runtime_identity,
         "safety_envelope": {
             "path": SAFETY_ENVELOPE_PATH,
             "sha256": contract_digest,
         },
-        "runtime_policy": {
-            "candidate_plan_schema": "step5d_autotune_rolling_batch_plan_v2",
-            "plan_lifecycle": ["OPEN_READY", "OPEN_EMPTY", "CLOSED_COMPLETE"],
-            "state_78_watchdog_s": 30.0,
-            "host_plan_wait_budget_max_s": 25.0,
-            "tp_identity_commit_register": 30,
-            "tp_identity_commit_timeout_s": 0.25,
-            "tp_state_write_order": [24, 25, 27, 28, 29, 31, 32, 33, 34, 26, 30],
-            "tp_runtime_identity_registers": [35, 36, 37],
-            "tp_runtime_identity_write_order": [35, 36, 37],
-            "completion_state": 77,
-            "complete_command": 4,
-            "terminal_scope": "bridge_start_ready_no_arm",
-        },
-        "optimizer_policy": {
-            "control_grouping_uid": "ControlCandidateUid",
-            "durability_uid": "OccurrenceUid",
-            "transport_uid": "TransportCandidateUid",
-            "parameter_uid_prefix": "parameter:v1:",
-            "control_uid_prefix": "control:v2:",
-            "occurrence_uid_prefix": "occurrence:v2:",
-            "transport_uid_prefix": "transport:v2:",
-            "baseline_repeat_policy": "same_control_distinct_occurrence_and_transport",
-            "initialization_batch_size": 5,
-            "batch_b_requires": [
-                "batch_a_complete",
-                "sealed_bundle",
-                "cold_read",
-                "gp_update",
-            ],
-        },
         "source_fingerprints": source_fingerprints,
         "generated_files": generated_files,
-        "compatibility_mirrors": compatibility_mirrors,
         "verification": {
-            "canonical_verifier": "independent_script_urp_v2",
+            "canonical_verifier": "independent_script_urp_v3",
             "staged_bytes_required": True,
-            "numeric_sanity_is_expected_truth": False,
             "pointer_switched_last": True,
+            "runtime_identity_derivation": (
+                "canonical_script_identity_basis_sha256_plus_"
+                "final_artifact_sha256_v1"
+            ),
             "repository_source_root_depth": 2,
             "repository_source_fingerprints": {
                 relative.as_posix(): _sha256(root.parents[1] / relative)
@@ -731,21 +684,49 @@ def compose_release(
     return manifest, bundle_files, targets
 
 
-def promote(
+def compose_local_release(
+    root: Path,
+    artifact_dir: Path,
+) -> tuple[dict[str, Any], dict[str, bytes], dict[str, str]]:
+    root = root.resolve(strict=True)
+    resolved_artifacts, triplet_sha = validate_local_candidate(root, artifact_dir)
+    return _compose_local_release(root, resolved_artifacts, triplet_sha)
+
+
+def compose_release(
     root: Path,
     upload_manifest_path: Path,
     artifact_dir: Path,
-) -> dict[str, Any]:
+    *,
+    expected_transaction_id: str | None = None,
+    expected_manifest_sha256: str | None = None,
+) -> tuple[dict[str, Any], dict[str, bytes], dict[str, str]]:
     root = root.resolve(strict=True)
-    manifest, bundle_files, targets = compose_release(
-        root, upload_manifest_path, artifact_dir
+    _upload, delivered_triplet = validate_delivery(
+        root,
+        upload_manifest_path,
+        artifact_dir,
+        expected_transaction_id=expected_transaction_id,
+        expected_manifest_sha256=expected_manifest_sha256,
     )
+    manifest, bundle_files, targets = compose_local_release(root, artifact_dir)
+    composed_triplet = {
+        extension: str(reference["sha256"])
+        for extension, reference in manifest["artifacts"].items()
+    }
+    if composed_triplet != delivered_triplet:
+        raise R009PromotionError(
+            "fresh receipt release digest does not match the local candidate"
+        )
+    return manifest, bundle_files, targets
 
-    def verify_stage(stage: Path, manifest_path: Path, digest: str) -> None:
-        overrides = {
-            target: stage / source
-            for target, source in targets.items()
-        }
+
+def _stage_verifier(
+    root: Path,
+    targets: Mapping[str, str],
+):
+    def verify(stage: Path, manifest_path: Path, digest: str) -> None:
+        overrides = {target: stage / source for target, source in targets.items()}
         verify_release_manifest(
             root,
             manifest_path,
@@ -753,11 +734,64 @@ def promote(
             path_overrides=overrides,
         )
 
+    return verify
+
+
+def stage_local_candidate(root: Path, artifact_dir: Path) -> dict[str, Any]:
+    """Stage a verified candidate without publishing current or legacy mirrors."""
+
+    root = root.resolve(strict=True)
+    manifest, bundle_files, targets = compose_local_release(root, artifact_dir)
+    result = AtomicReleasePublisher(root).stage_candidate(
+        manifest=manifest,
+        bundle_files=bundle_files,
+        stage_verifier=_stage_verifier(root, targets),
+    )
+    verification = verify_release_manifest(
+        root,
+        root / result["manifest_path"],
+        expected_manifest_sha256=result["manifest_sha256"],
+    )
+    return {
+        **result,
+        "schema": "step5d.autotune-v3/local-release-candidate-v1",
+        "program": PROGRAM,
+        "verification": verification,
+    }
+
+
+def promote(
+    root: Path,
+    upload_manifest_path: Path,
+    artifact_dir: Path,
+    *,
+    expected_transaction_id: str,
+    expected_manifest_sha256: str,
+    expected_candidate_manifest_sha256: str | None = None,
+) -> dict[str, Any]:
+    root = root.resolve(strict=True)
+    manifest, bundle_files, targets = compose_release(
+        root,
+        upload_manifest_path,
+        artifact_dir,
+        expected_transaction_id=expected_transaction_id,
+        expected_manifest_sha256=expected_manifest_sha256,
+    )
+
+    composed_digest = _sha256_bytes(canonical_bytes(manifest))
+    if (
+        expected_candidate_manifest_sha256 is not None
+        and composed_digest != expected_candidate_manifest_sha256
+    ):
+        raise R009PromotionError(
+            "fresh receipt release digest differs from qualified local candidate"
+        )
+
     result = AtomicReleasePublisher(root).publish(
         manifest=manifest,
         bundle_files=bundle_files,
         compatibility_targets=targets,
-        stage_verifier=verify_stage,
+        stage_verifier=_stage_verifier(root, targets),
     )
     release = load_current_release(root)
     verification = verify_release_manifest(
@@ -769,8 +803,6 @@ def promote(
         **result,
         "program": release.program_id,
         "protocol": release.protocol_id,
-        "bridge_start_ready": True,
-        "motion_arm_ready": False,
         "verification": verification,
     }
 
@@ -778,10 +810,20 @@ def promote(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
-    parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--artifact-dir", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--artifact-dir", type=Path)
     parser.add_argument("--compose-only", action="store_true")
+    parser.add_argument("--stage-local-candidate", action="store_true")
     args = parser.parse_args(argv)
+    if args.artifact_dir is None:
+        parser.error("--artifact-dir is required")
+    if args.stage_local_candidate:
+        if args.manifest is not None or args.compose_only:
+            parser.error("local candidate staging cannot include a delivery manifest")
+        print(json.dumps(stage_local_candidate(args.root, args.artifact_dir), sort_keys=True))
+        return 0
+    if args.manifest is None:
+        parser.error("--manifest is required for receipt-bound composition")
     if args.compose_only:
         manifest, bundle, targets = compose_release(
             args.root, args.manifest, args.artifact_dir
@@ -798,14 +840,9 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
-    print(
-        json.dumps(
-            promote(args.root, args.manifest, args.artifact_dir),
-            indent=2,
-            sort_keys=True,
-        )
+    parser.error(
+        "direct promotion is disabled; use scripts/step5d-autotune-v3.sh bridge"
     )
-    return 0
 
 
 if __name__ == "__main__":

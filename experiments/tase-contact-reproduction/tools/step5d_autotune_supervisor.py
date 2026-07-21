@@ -1186,6 +1186,7 @@ class CampaignSupervisor:
         campaign: CampaignSpec,
         source_fingerprint: str,
         config_fingerprint: str,
+        execution_profile: ExecutionProfile | None = None,
         search_attestation: SearchAttestation | None = None,
     ) -> None:
         if self.phase not in {CampaignPhase.PAUSED_CODE_BUG, CampaignPhase.HOME}:
@@ -1226,6 +1227,10 @@ class CampaignSupervisor:
         self.campaign = campaign
         self.source_fingerprint = source_fingerprint
         self.config_fingerprint = config_fingerprint
+        if execution_profile is not None:
+            if not isinstance(execution_profile, ExecutionProfile):
+                raise TypeError("execution profile must be an ExecutionProfile")
+            self.execution_profile = execution_profile
         self._pending_retry = None
         self._prepared_ack = None
         # Code/guard changes invalidate every prior profile comparison.  The

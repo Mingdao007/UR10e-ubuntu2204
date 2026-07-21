@@ -211,7 +211,10 @@ def load_launch_profile(
     *,
     contract: Mapping[str, Any] | None = None,
 ) -> LaunchProfile:
-    payload_contract = dict(contract or load_contract())
+    payload_contract = dict(
+        contract
+        or load_contract(path.with_name("step5d_autotune_v3_control_contract.json"))
+    )
     if path.is_symlink() or not path.is_file():
         raise ContractViolation(f"launch profile must be a real regular file: {path}")
     try:

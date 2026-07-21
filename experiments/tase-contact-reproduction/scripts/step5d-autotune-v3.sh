@@ -4,6 +4,194 @@ set -euo pipefail
 SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
 EXPERIMENT_ROOT="$(cd -- "$(dirname -- "${SCRIPT_PATH}")/.." && pwd)"
 REPOSITORY_ROOT="$(cd -- "${EXPERIMENT_ROOT}/../.." && pwd)"
+
+bridge_usage() {
+  cat <<'EOF'
+Usage: step5d-autotune-v3.sh bridge [OPTIONS]
+
+Canonical governed Step5d bridge launcher. Qualification, TP delivery,
+preflight, and campaign preparation are automatic.
+
+Options:
+  --output-root PATH       Per-run evidence directory
+  --campaign-root PATH     Campaign state directory
+  --launch-profile PATH    Compatibility-only canonical profile path
+  --ready-timeout-s SEC    Positive bridge/runner readiness timeout
+  --play-timeout-s SEC     Positive TP Play observation timeout
+  -h, --help               Show this help without starting any work
+EOF
+}
+
+usage() {
+  cat <<'EOF'
+Usage: step5d-autotune-v3.sh bridge [OPTIONS]
+       step5d-autotune-v3.sh status [--json]
+       step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
+
+Use "step5d-autotune-v3.sh bridge --help" for bridge options.
+EOF
+}
+
+bridge_argv_error() {
+  echo "bridge argv refused: $1" >&2
+  echo "use: step5d-autotune-v3.sh bridge --help" >&2
+  exit 64
+}
+
+bridge_require_positive_seconds() {
+  local option="$1"
+  local value="$2"
+  local significant=""
+  if [[ ! "${value}" =~ ^([0-9]+([.][0-9]+)?|[.][0-9]+)$ ]]; then
+    bridge_argv_error "${option} requires a finite positive decimal value"
+  fi
+  significant="${value//[0.]/}"
+  if [[ -z "${significant}" ]]; then
+    bridge_argv_error "${option} requires a finite positive decimal value"
+  fi
+}
+
+bridge_record_launch_attempt() {
+  local state="$1"
+  local phase="$2"
+  local exit_code="${3:-}"
+  local detail="${4:-}"
+  local prior_enabled="${launch_attempt_enabled}"
+  local command=(
+    python3 -m step5d_autotune_v3.cli
+    --experiment-root "${EXPERIMENT_ROOT}"
+    --campaign-root "${campaign_root}"
+    --_launch-attempt-id "${launch_attempt_id}"
+    --_launch-attempt-state "${state}"
+    --_launch-attempt-phase "${phase}"
+  )
+  if [[ "${state}" == "FAILED" ]]; then
+    command+=(
+      --_launch-attempt-exit-code "${exit_code}"
+      --_launch-attempt-reason-code LAUNCH_ATTEMPT_FAILED
+      --_launch-attempt-detail "${detail}"
+    )
+  fi
+  launch_attempt_enabled=0
+  "${command[@]}" >>"${output_root}/launch-attempt-recorder.log" 2>&1
+  launch_attempt_enabled="${prior_enabled}"
+}
+
+bridge_begin_phase() {
+  launch_attempt_phase="$1"
+  bridge_record_launch_attempt STARTED "${launch_attempt_phase}"
+}
+
+bridge_failure_trap() {
+  local exit_code=$?
+  trap - ERR
+  if (( launch_attempt_enabled == 1 )) && [[ -n "${launch_attempt_phase}" ]]; then
+    set +e
+    bridge_record_launch_attempt \
+      FAILED \
+      "${launch_attempt_phase}" \
+      "${exit_code}" \
+      "canonical bridge phase ${launch_attempt_phase} exited ${exit_code}"
+  fi
+  exit "${exit_code}"
+}
+
+bridge_mode=0
+arguments=()
+output_root=""
+campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
+canonical_launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
+runner_args=()
+launch_attempt_id=""
+launch_attempt_phase=""
+launch_attempt_enabled=0
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ "${1:-}" == "bridge" ]]; then
+  bridge_mode=1
+  shift
+  arguments=("$@")
+  for option in "${arguments[@]}"; do
+    if [[ "${option}" == "-h" || "${option}" == "--help" ]]; then
+      bridge_usage
+      exit 0
+    fi
+  done
+
+  seen_output_root=0
+  seen_campaign_root=0
+  seen_launch_profile=0
+  seen_ready_timeout=0
+  seen_play_timeout=0
+  index=0
+  while (( index < ${#arguments[@]} )); do
+    option="${arguments[index]}"
+    option_name="${option%%=*}"
+    value=""
+    case "${option}" in
+      --output-root|--campaign-root|--launch-profile|--ready-timeout-s|--play-timeout-s)
+        if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
+          bridge_argv_error "${option} requires a value"
+        fi
+        value="${arguments[index + 1]}"
+        ((index += 2))
+        ;;
+      --output-root=*|--campaign-root=*|--launch-profile=*|--ready-timeout-s=*|--play-timeout-s=*)
+        value="${option#*=}"
+        if [[ -z "${value}" ]]; then
+          bridge_argv_error "${option_name} requires a value"
+        fi
+        ((index += 1))
+        ;;
+      --preflight|--preflight=*|--delivery-observation|--delivery-observation=*|--prepare-only|--prepare-only=*|--qualification-endpoints|--qualification-endpoints=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--authorization-file|--authorization-file=*|--arm-gate|--arm-gate=*|--offline-release-gate|--offline-release-gate=*)
+        bridge_argv_error "${option_name} is an internal worker option"
+        ;;
+      *)
+        bridge_argv_error "unsupported option or positional argument: ${option}"
+        ;;
+    esac
+    if [[ -z "${value}" ]]; then
+      bridge_argv_error "${option_name} requires a value"
+    fi
+
+    case "${option_name}" in
+      --output-root)
+        (( seen_output_root == 0 )) || bridge_argv_error "--output-root may appear only once"
+        seen_output_root=1
+        output_root="${value}"
+        ;;
+      --campaign-root)
+        (( seen_campaign_root == 0 )) || bridge_argv_error "--campaign-root may appear only once"
+        seen_campaign_root=1
+        campaign_root="${value}"
+        ;;
+      --launch-profile)
+        (( seen_launch_profile == 0 )) || bridge_argv_error "--launch-profile may appear only once"
+        seen_launch_profile=1
+        if [[ "$(readlink -m -- "${value}")" != "${canonical_launch_profile}" ]]; then
+          bridge_argv_error "--launch-profile overrides are retired; the immutable release selects the profile"
+        fi
+        ;;
+      --ready-timeout-s)
+        (( seen_ready_timeout == 0 )) || bridge_argv_error "--ready-timeout-s may appear only once"
+        seen_ready_timeout=1
+        bridge_require_positive_seconds "${option_name}" "${value}"
+        runner_args+=("${option_name}" "${value}")
+        ;;
+      --play-timeout-s)
+        (( seen_play_timeout == 0 )) || bridge_argv_error "--play-timeout-s may appear only once"
+        seen_play_timeout=1
+        bridge_require_positive_seconds "${option_name}" "${value}"
+        runner_args+=("${option_name}" "${value}")
+        ;;
+    esac
+  done
+fi
+
 RUNTIME_SOURCE="${REPOSITORY_ROOT}/src/ur10e_experiment_runtime"
 if [[ ! -d "${RUNTIME_SOURCE}/ur10e_experiment_runtime" ]]; then
   echo "missing ur10e_experiment_runtime source: ${RUNTIME_SOURCE}" >&2
@@ -40,77 +228,84 @@ for candidate in "${ROS_PYTHON_PATHS[@]}"; do
 done
 export PYTHONPATH="${RUNTIME_PYTHONPATH}"
 export AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"
-if [[ "${1:-}" == "deliver-r006" ]]; then
-  shift
-  exec python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
-    --root "${EXPERIMENT_ROOT}" "$@"
-fi
-if [[ "${1:-}" == "bridge" || "${1:-}" == "live" ]]; then
-  mode="$1"
-  shift
+if (( bridge_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
-  arguments=("$@")
-  output_root=""
-  bridge_start_context=""
-  launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
-  index=0
-  while (( index < ${#arguments[@]} )); do
-    option="${arguments[index]}"
-    case "${option}" in
-      --output-root|--launch-profile|--bridge-start-context)
-        if (( index + 1 >= ${#arguments[@]} )); then
-          echo "${option} requires a value" >&2
-          exit 64
-        fi
-        value="${arguments[index + 1]}"
-        if [[ "${option}" == "--output-root" ]]; then
-          output_root="${value}"
-        elif [[ "${option}" == "--bridge-start-context" ]]; then
-          bridge_start_context="${value}"
-        else
-          launch_profile="${value}"
-        fi
-        ((index += 2))
-        ;;
-      *)
-        ((index += 1))
-        ;;
-    esac
-  done
+  export STEP5D_V3_SHELL_PID="$$"
   if [[ -z "${output_root}" ]]; then
-    echo "${mode} requires --output-root" >&2
-    exit 64
-  fi
-  if [[ -z "${bridge_start_context}" ]]; then
-    echo "${mode} requires --bridge-start-context" >&2
-    exit 64
+    output_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/bridge-$(date -u +%Y%m%dT%H%M%SZ)-$$"
   fi
   output_root="$(readlink -m -- "${output_root}")"
-  bridge_start_context="$(readlink -m -- "${bridge_start_context}")"
+  campaign_root="$(readlink -m -- "${campaign_root}")"
+  mkdir -p -- "${output_root}" "${campaign_root}"
+  if [[ -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
+    export STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_PID="$$"
+    python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
+      --_exec-live-from-shell-contract \
+      "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
+    exit 0
+  fi
+  if [[ -r /proc/sys/kernel/random/uuid ]]; then
+    read -r launch_attempt_id </proc/sys/kernel/random/uuid
+    launch_attempt_id="${launch_attempt_id//-/}"
+  else
+    launch_attempt_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+  fi
+  export STEP5D_V3_LAUNCH_ATTEMPT_ID="${launch_attempt_id}"
+  launch_attempt_enabled=1
+  trap bridge_failure_trap ERR
+  bridge_begin_phase status_before
+  python3 -m step5d_autotune_v3.cli \
+    --experiment-root "${EXPERIMENT_ROOT}" \
+    --campaign-root "${campaign_root}" \
+    status --json >"${output_root}/status-before.json"
+  delivery_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/delivery-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  bridge_begin_phase tp_build
+  python3 "${EXPERIMENT_ROOT}/tools/build_step5d_autotune_tp_v3.py" \
+    --output-dir "${delivery_root}" \
+    >"${output_root}/tp-build.json"
+  bridge_begin_phase release_candidate
+  python3 "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py" \
+    --root "${EXPERIMENT_ROOT}" \
+    --artifact-dir "${delivery_root}" \
+    --stage-local-candidate \
+    >"${output_root}/local-release-candidate.json"
+  bridge_begin_phase qualification
+  python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
+    --experiment-root "${EXPERIMENT_ROOT}" \
+    --output-root "${campaign_root}" \
+    --release-candidate "${output_root}/local-release-candidate.json" \
+    >"${output_root}/qualification.json"
+  bridge_begin_phase tp_delivery
+  python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
+    --root "${EXPERIMENT_ROOT}" \
+    --artifact-dir "${delivery_root}" \
+    --release-candidate "${output_root}/local-release-candidate.json" \
+    --qualification-result "${output_root}/qualification.json" \
+    --evidence-output "${output_root}/delivery-observation.json" \
+    >"${output_root}/tp-transaction.log"
+  bridge_begin_phase status_after_delivery
+  python3 -m step5d_autotune_v3.cli \
+    --experiment-root "${EXPERIMENT_ROOT}" \
+    --campaign-root "${campaign_root}" \
+    status --json >"${output_root}/status-after-delivery.json"
+  bridge_begin_phase campaign_prepare
+  python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
+    --prepare-only \
+    --campaign-root "${campaign_root}" \
+    >"${output_root}/campaign-prepare.json"
   preflight="${output_root}/preflight.json"
+  bridge_begin_phase preflight
   python3 "${EXPERIMENT_ROOT}/tools/preflight_step5d_autotune_v3.py" \
     --mailbox "${output_root}/runtime/command.json" \
-    --bridge-start-context "${bridge_start_context}" \
-    --launch-profile "${launch_profile}" \
+    --delivery-observation "${output_root}/delivery-observation.json" \
     --output "${preflight}" \
     --json
-  runner_args=()
-  index=0
-  while (( index < ${#arguments[@]} )); do
-    option="${arguments[index]}"
-    case "${option}" in
-      --output-root|--launch-profile|--bridge-start-context)
-        ((index += 2))
-        ;;
-      *)
-        runner_args+=("${option}")
-        ((index += 1))
-        ;;
-    esac
-  done
-  exec python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
+  bridge_begin_phase live_handoff
+  python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     "${runner_args[@]}" --output-root "${output_root}" \
-    --launch-profile "${launch_profile}" --preflight "${preflight}" \
-    --bridge-start-context "${bridge_start_context}"
+    --delivery-observation "${output_root}/delivery-observation.json" \
+    --campaign-root "${campaign_root}" \
+    --preflight "${preflight}"
+  exit 0
 fi
 exec python3 -m step5d_autotune_v3.cli --experiment-root "${EXPERIMENT_ROOT}" "$@"

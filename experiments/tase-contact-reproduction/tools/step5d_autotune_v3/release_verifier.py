@@ -6,14 +6,14 @@ import gzip
 import hashlib
 import html
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
 import xml.etree.ElementTree as ET
 
 from .release_identity import (
-    RELEASE_STAGE_ID,
     ROLLING_EXECUTION_PROFILE_INTEGER_ID,
     ROLLING_NORMAL_MAX_RATE_RAD_S,
+    REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
     REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
     ReleaseIdentity,
     ReleaseIdentityError,
@@ -25,44 +25,6 @@ from .runtime_identity import RuntimeIdentityError, bind_final_script
 
 class ReleaseVerificationError(RuntimeError):
     """Staged or active bytes do not implement the declared release."""
-
-
-REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS = {
-    "tools/build_step5d_autotune_tp_v3.py",
-    "tools/kunwei_rtde_bridge.py",
-    "tools/prepare_step5d_autotune_launch.py",
-    "tools/promote_step5d_r009_atomic_release.py",
-    "tools/run_step5d_autotune_campaign.py",
-    "tools/run_step5d_autotune_v3_bridge.py",
-    "tools/run_step5d_autotune_v3_live.py",
-    "tools/run_step5d_autotune_v3_tp_transaction.py",
-    "tools/step5d_autotune_backend.py",
-    "tools/step5d_autotune_batch_plan.py",
-    "tools/step5d_autotune_contract.py",
-    "tools/step5d_autotune_coordinator.py",
-    "tools/step5d_autotune_journal.py",
-    "tools/step5d_autotune_live_driver.py",
-    "tools/step5d_autotune_optimizer.py",
-    "tools/step5d_autotune_r008_policy.py",
-    "tools/step5d_autotune_runtime_lifecycle.py",
-    "tools/step5d_autotune_state_machine.py",
-    "tools/step5d_autotune_store.py",
-    "tools/step5d_autotune_supervisor.py",
-    "tools/step5d_production_csv.py",
-    "tools/step5d_runtime_interface.py",
-    "tools/step5d_r008_completion.py",
-    "tools/step5d_autotune_v3/admission.py",
-    "tools/step5d_autotune_v3/arming.py",
-    "tools/step5d_autotune_v3/atomic_release.py",
-    "tools/step5d_autotune_v3/identity_layers.py",
-    "tools/step5d_autotune_v3/profile.py",
-    "tools/step5d_autotune_v3/readiness.py",
-    "tools/step5d_autotune_v3/release_identity.py",
-    "tools/step5d_autotune_v3/release_verifier.py",
-    "tools/step5d_autotune_v3/runtime_identity.py",
-    "tools/step5d_autotune_v3/runtime_profile.py",
-    "tools/step5d_autotune_v3/state.py",
-}
 
 
 def _sha256(path: Path) -> str:
@@ -121,26 +83,6 @@ def _function_body(script: str, name: str) -> str:
     return match.group("body")
 
 
-def _require_nested(
-    payload: Mapping[str, Any],
-    path: tuple[str, ...],
-    expected: Any,
-    *,
-    role: str,
-) -> None:
-    value: Any = payload
-    for part in path:
-        if not isinstance(value, Mapping) or part not in value:
-            raise ReleaseVerificationError(
-                f"{role} lacks selected-release field {'.'.join(path)}"
-            )
-        value = value[part]
-    if value != expected:
-        raise ReleaseVerificationError(
-            f"{role} selected-release field differs: {'.'.join(path)}"
-        )
-
-
 def _single_generated(
     release: ReleaseIdentity,
     suffix: str,
@@ -155,87 +97,6 @@ def _single_generated(
             f"release generated-file binding is not unique: {suffix}"
         )
     return matches[0]
-
-
-def _verify_selected_release_mirrors(
-    release: ReleaseIdentity,
-    *,
-    current_stage: Mapping[str, Any],
-    stage_table: Mapping[str, Any],
-    readback: Mapping[str, Any],
-) -> None:
-    controller_target = readback.get("controller_target")
-    if not isinstance(controller_target, str) or not controller_target.endswith(
-        f"/{release.program_id}.urp"
-    ):
-        raise ReleaseVerificationError("controller readback target differs from release program")
-    controller_script = controller_target.removesuffix(".urp") + ".script"
-    local_triplet = str(release.artifacts[".script"]["path"]).removesuffix(".script")
-    candidate_path, _ = _single_generated(release, "/local_candidate.json")
-    _, deploy_sha256 = _single_generated(
-        release, f"/{release.program_id}.deploy-manifest.json"
-    )
-    _, numeric_sha256 = _single_generated(
-        release, f"/{release.program_id}.numeric-sanity.json"
-    )
-    revision = release.program_id.rsplit("_", 1)[-1]
-    if re.fullmatch(r"r\d{3}", revision) is None:
-        raise ReleaseVerificationError("release program lacks immutable rNNN revision")
-    current_expectations = {
-        ("controller_readback_manifest",): release.controller_readback["path"],
-        ("controller_readback_manifest_sha256",): release.controller_readback["sha256"],
-        ("controller_script",): controller_script,
-        ("controller_target",): controller_target,
-        ("delivery_manifest",): release.controller_readback["path"],
-        ("evidence", "sha256"): release.artifact_sha256,
-        ("program",): release.release_stage_id,
-        ("status",): f"step5d_autotune_v3_{revision}_controller_readback_verified",
-        ("local_candidate", "manifest"): candidate_path,
-        ("local_candidate", "deploy_manifest_sha256"): deploy_sha256,
-        ("local_candidate", "numeric_sanity_sha256"): numeric_sha256,
-        ("local_candidate", "program"): release.program_id,
-        ("local_candidate", "triplet_sha256"): release.artifact_sha256,
-        ("local_triplet",): local_triplet,
-        ("sha256",): release.artifact_sha256,
-        ("readiness", "host_runtime_disposition"): (
-            f"verified_{revision}_full_home_rolling_production_chain_offline"
-        ),
-    }
-    for path, expected in current_expectations.items():
-        _require_nested(current_stage, path, expected, role="current_stage mirror")
-
-    stages = stage_table.get("stages")
-    if not isinstance(stages, list):
-        raise ReleaseVerificationError("stage-table mirror lacks stages")
-    rows = [
-        row
-        for row in stages
-        if isinstance(row, Mapping) and row.get("id") == RELEASE_STAGE_ID
-    ]
-    if len(rows) != 1:
-        raise ReleaseVerificationError("stage-table selected-release row is not unique")
-    row = rows[0]
-    table_expectations = {
-        ("current_binding", "program"): release.release_stage_id,
-        ("current_binding", "controller_target"): controller_target,
-        ("operator_lifecycle", "expected_program"): controller_target,
-        ("package_delivery", "controller_readback_manifest"): release.controller_readback["path"],
-        ("package_delivery", "controller_readback_manifest_sha256"): (
-            release.controller_readback["sha256"]
-        ),
-        ("package_delivery", "controller_target"): controller_target,
-        ("package_delivery", "local_triplet"): local_triplet,
-        ("package_delivery", "program_basename"): release.program_id,
-        ("package_delivery", "sha256"): release.artifact_sha256,
-        ("package_delivery", "tp_fingerprint"): deploy_sha256,
-        ("package_delivery", "local_candidate", "deploy_manifest_sha256"): deploy_sha256,
-        ("package_delivery", "local_candidate", "local_triplet"): local_triplet,
-        ("package_delivery", "local_candidate", "numeric_sanity_sha256"): numeric_sha256,
-        ("package_delivery", "local_candidate", "program_basename"): release.program_id,
-        ("package_delivery", "local_candidate", "sha256"): release.artifact_sha256,
-    }
-    for path, expected in table_expectations.items():
-        _require_nested(row, path, expected, role="stage-table mirror")
 
 
 def verify_release_manifest(
@@ -265,27 +126,30 @@ def verify_release_manifest(
     except (ReleaseIdentityError, ValueError) as exc:
         raise ReleaseVerificationError(str(exc)) from exc
 
+    payload_root = manifest_path.resolve().parent
     checked: dict[str, str] = {}
-    if not REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS.issubset(
-        release.source_fingerprints
-    ):
+    if set(release.source_fingerprints) != REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS:
         raise ReleaseVerificationError("runtime source fingerprint coverage differs")
     for extension, reference in release.artifacts.items():
-        path = _resolve(root, str(reference["path"]), overrides)
+        path = _resolve(payload_root, str(reference["path"]), overrides)
         digest = _sha256(path)
         if digest != reference["sha256"]:
             raise ReleaseVerificationError(f"artifact SHA-256 differs: {extension}")
         checked[str(reference["path"])] = digest
-    for role, references in (
-        ("source", release.source_fingerprints),
-        ("generated", release.generated_files),
-        ("mirror", release.compatibility_mirrors),
+    for role, references, base in (
+        ("source", release.source_fingerprints, root),
+        ("generated", release.generated_files, payload_root),
     ):
         for relative, expected in references.items():
-            digest = _sha256(_resolve(root, relative, overrides))
+            digest = _sha256(_resolve(base, relative, overrides))
             if digest != expected:
                 raise ReleaseVerificationError(f"{role} fingerprint differs: {relative}")
             checked[relative] = digest
+    safety_path = _resolve(
+        payload_root, str(release.safety_envelope["path"]), overrides
+    )
+    if _sha256(safety_path) != release.safety_envelope["sha256"]:
+        raise ReleaseVerificationError("safety envelope SHA-256 differs")
     repository_root = root
     for _ in range(release.verification["repository_source_root_depth"]):
         repository_root = repository_root.parent
@@ -307,46 +171,8 @@ def verify_release_manifest(
                 f"repository source fingerprint differs: {relative}"
             )
         checked[f"@repository/{relative}"] = digest
-    readback_path = _resolve(root, str(release.controller_readback["path"]), overrides)
-    if _sha256(readback_path) != release.controller_readback["sha256"]:
-        raise ReleaseVerificationError("fresh controller readback manifest SHA-256 differs")
-    readback = _load_strict_object(readback_path.read_bytes(), "controller readback")
-    if any(
-        (
-            readback.get("status") != "controller read-back verified",
-            readback.get("verified") is not True,
-            readback.get("program") != release.program_id,
-            readback.get("triplet_sha256") != release.artifact_sha256,
-        )
-    ):
-        raise ReleaseVerificationError("controller readback identity or triplet differs")
-    required_semantic_mirrors = {
-        "config/current_stage.json",
-        "config/step5_stage_table.json",
-    }
-    if not required_semantic_mirrors.issubset(release.compatibility_mirrors):
-        raise ReleaseVerificationError("selected-release semantic mirror coverage differs")
-    current_stage_path = _resolve(
-        root, "config/current_stage.json", overrides
-    )
-    stage_table_path = _resolve(
-        root, "config/step5_stage_table.json", overrides
-    )
-    current_stage = _load_strict_object(
-        current_stage_path.read_bytes(), "current_stage mirror"
-    )
-    stage_table = _load_strict_object(
-        stage_table_path.read_bytes(), "step5 stage-table mirror"
-    )
-    _verify_selected_release_mirrors(
-        release,
-        current_stage=current_stage,
-        stage_table=stage_table,
-        readback=readback,
-    )
-
     script_reference = release.artifacts[".script"]
-    script_path = _resolve(root, str(script_reference["path"]), overrides)
+    script_path = _resolve(payload_root, str(script_reference["path"]), overrides)
     script = script_path.read_text(encoding="utf-8")
     try:
         _, observed_runtime_identity = bind_final_script(
@@ -361,7 +187,7 @@ def verify_release_manifest(
     deploy_relative, _ = _single_generated(
         release, f"/{release.program_id}.deploy-manifest.json"
     )
-    deploy_path = _resolve(root, deploy_relative, overrides)
+    deploy_path = _resolve(payload_root, deploy_relative, overrides)
     deploy = _load_strict_object(deploy_path.read_bytes(), "TP deploy manifest")
     expected_deploy_artifacts = [
         {
@@ -376,7 +202,7 @@ def verify_release_manifest(
             deploy.get("schema_version") != 2,
             deploy.get("basename") != release.program_id,
             deploy.get("controller_directory")
-            != str(readback["controller_target"]).rsplit("/", 1)[0],
+            != str(PurePosixPath(release.controller_target).parent),
             deploy.get("artifacts") != expected_deploy_artifacts,
             deploy.get("tp_runtime_identity") != release.tp_runtime_identity,
         )
@@ -435,7 +261,7 @@ def verify_release_manifest(
         raise ReleaseVerificationError("script prealign return segments are not exact")
 
     urp_reference = release.artifacts[".urp"]
-    urp_path = _resolve(root, str(urp_reference["path"]), overrides)
+    urp_path = _resolve(payload_root, str(urp_reference["path"]), overrides)
     try:
         xml_root = ET.fromstring(gzip.decompress(urp_path.read_bytes()))
     except (OSError, ET.ParseError) as exc:

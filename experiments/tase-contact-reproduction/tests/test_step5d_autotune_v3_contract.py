@@ -196,7 +196,7 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
             (ROOT / "config/step5d_autotune_controller_readback_v3.json").read_bytes()
         ).hexdigest(),
         "tp_fingerprint": (
-            "b521b49c6132f59c691a80e8f6a0367a0d562e31a4fd935d6813b026dd4b8757"
+            "057eafb728ee1000ff938f111351eec22f449f89a623d0a04b354271cb832058"
         ),
     }
     assert report["execution_profile_id"] == "nf100-slew050-a050"
@@ -309,6 +309,17 @@ def test_new_parser_field_is_unclassified_and_fails_closed() -> None:
     observed = {**expected, "future_control_knob": 1}
     with pytest.raises(ContractViolation, match="unclassified=.*future_control_knob"):
         validate_effective_config(expected, observed)
+
+
+def test_joint_model_is_resolved_from_the_active_repository() -> None:
+    report = check_effective_config(environ={})
+    model = Path(report["effective_config"]["step5c_joint_model"])
+    assert model == (
+        ROOT.parent
+        / "archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
+    ).resolve()
+    assert model.is_file()
+    assert "/home/andy/ur10e_ros2_ws" not in str(model)
 
 
 def test_parser_default_drift_is_detected_even_when_raw_argv_is_unchanged() -> None:

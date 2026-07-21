@@ -110,7 +110,7 @@ def _deployment_state(
     identity: Mapping[str, Any],
     release: ReleaseIdentity,
 ) -> tuple[bool, Path, str]:
-    relative = release.controller_readback["path"]
+    relative = "config/step5d_autotune_controller_readback_v3.json"
     readback_path = root / relative
     readback_sha256 = _sha256(readback_path, "V3 controller readback")
     readback = _load(readback_path, "V3 controller readback")

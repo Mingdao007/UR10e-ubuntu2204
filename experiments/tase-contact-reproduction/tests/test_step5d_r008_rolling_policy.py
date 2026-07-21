@@ -89,7 +89,7 @@ def _observation(index: int, candidate: ForceCandidate, objective: float) -> Obs
     return Observation(candidate, _evaluation(index, objective), "profile", 1)
 
 
-def test_normal_rate_0_1_is_the_persistent_canonical_default() -> None:
+def test_normal_rate_0_1_is_v3_default_without_mutating_frozen_v1() -> None:
     campaign = json.loads((ROOT / "config/step5d_autotune_campaign_v1.json").read_text())
     contract = json.loads(
         (ROOT / "config/step5/step5d_autotune_v3_control_contract.json").read_text()
@@ -101,8 +101,8 @@ def test_normal_rate_0_1_is_the_persistent_canonical_default() -> None:
     assert launch["trial_overlay_policy"]["execution_profile_id"]["allowed"] == [
         "nf100-slew050-a050"
     ]
-    assert campaign["baseline"]["normal_max_rate_rad_s"] == 0.1
-    assert campaign["baseline"]["execution_profile_integer_id"] == 633
+    assert campaign["baseline"]["normal_max_rate_rad_s"] == 0.05
+    assert campaign["baseline"]["execution_profile_integer_id"] == 533
     defaults = contract["effective_fields"]["safety_invariant"]
     assert defaults["bridge_normal_max_rate_rad_s"] == 0.1
     assert defaults["step4e_normal_max_rate_rad_s"] == 0.1

@@ -157,10 +157,9 @@ def test_r006_exact_plans_materialize_machine_binding_before_runner(
             candidate_batch_size=10,
         )
     )
-    live_runner._ensure_initial_batch(
-        campaign_root=campaign_root,
-        campaign_id=str(prepared["campaign_id"]),
-        launch_profile_path=(
+    live_runner.prepare_campaign_state(
+        campaign_root,
+        live_runner.load_launch_profile(
             ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
         ),
     )

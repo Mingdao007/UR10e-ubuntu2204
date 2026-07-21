@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import shutil
 import sys
 from dataclasses import asdict
@@ -41,6 +42,7 @@ from step5d_autotune_runtime_lifecycle import (  # noqa: E402
     prepare_batch_attempt_context,
 )
 from step5d_autotune_state_machine import HostCommand  # noqa: E402
+from step5d_autotune_v3.runtime_profile import LaunchProfile  # noqa: E402
 from step5d_autotune_store import (  # noqa: E402
     CampaignStore,
     cold_read_resume_history_subprocess,
@@ -55,6 +57,20 @@ from step5d_autotune_supervisor import (  # noqa: E402
 
 PLAN = ROOT / "tests/fixtures/step5d_r005_exact_candidate_plan.json"
 PLAN_SHA256 = "bed54b7482fa596fcc6bf34fa4c4aabbeecfe9c86903b123aa68f4edeaec5935"
+
+
+def _overlay_launch_profile() -> LaunchProfile:
+    payload = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_launch_profile.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    return LaunchProfile(
+        document=payload,
+        launch_overrides=payload["launch_overrides"],
+        trial_overlay_policy=payload["trial_overlay_policy"],
+        fingerprint="b" * 64,
+    )
 
 
 def _batch_context(plan, candidate, profile, campaign_root: Path, row: int):
@@ -114,7 +130,10 @@ def test_legacy_r005_synthetic_snapshot_chain_reaches_arm2(tmp_path: Path) -> No
     coordinator.persist_home()
     mailbox_path = tmp_path / "bridge/runtime/command.json"
     mailbox_path.parent.mkdir(parents=True)
-    mailbox = AtomicCommandMailbox(mailbox_path)
+    mailbox = AtomicCommandMailbox(
+        mailbox_path,
+        launch_profile=_overlay_launch_profile(),
+    )
 
     context1 = _batch_context(plan, first, profile, campaign_root, 1)
     arm1 = coordinator.issue_arm(
@@ -300,7 +319,10 @@ def test_r006_direct_pending_advance_uses_no_ack_sequence(tmp_path: Path) -> Non
     coordinator.persist_home()
     mailbox_path = tmp_path / "bridge/runtime/command.json"
     mailbox_path.parent.mkdir(parents=True)
-    mailbox = AtomicCommandMailbox(mailbox_path)
+    mailbox = AtomicCommandMailbox(
+        mailbox_path,
+        launch_profile=_overlay_launch_profile(),
+    )
     context1 = _batch_context(plan, first, profile, campaign_root, 1)
     arm1 = coordinator.issue_arm(
         store,

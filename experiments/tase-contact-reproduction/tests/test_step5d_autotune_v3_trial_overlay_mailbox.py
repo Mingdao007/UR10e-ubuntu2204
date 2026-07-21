@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import json
 import sys
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 
@@ -32,9 +32,14 @@ from step5d_autotune_state_machine import (  # noqa: E402
 )
 from step5d_autotune_v3.runtime_profile import (  # noqa: E402
     DEFAULT_OVERLAY,
+    LaunchProfile,
+    TP_PROGRAM_ID,
     load_launch_profile,
+    normalize_trial_overlay,
 )
-from step5d_autotune_batch_plan import initialize_rolling_plan  # noqa: E402
+from step5d_autotune_v3.profile import contract_sha256  # noqa: E402
+from step5d_autotune_batch_plan import initialize_rolling_plan, load_plan  # noqa: E402
+from step5d_autotune_r008_policy import initialization_batch  # noqa: E402
 from step5d_autotune_runtime_lifecycle import next_runtime_plan_row  # noqa: E402
 import run_step5d_autotune_v3_bridge as bridge_wrapper  # noqa: E402
 import run_step5d_autotune_campaign as campaign_runner  # noqa: E402
@@ -44,10 +49,54 @@ from run_step5d_autotune_v3_bridge import (  # noqa: E402
     _apply_v3_arm_runtime,
 )
 import run_step5d_autotune_v3_live as live  # noqa: E402
-from run_step5d_autotune_v3_live import (  # noqa: E402
-    initial_candidates,
-    initial_control_overlays,
-)
+
+
+def _initial_control_overlays(profile) -> tuple[dict, ...]:
+    rows = []
+    for occurrence in initialization_batch(1):
+        raw = {
+            **DEFAULT_OVERLAY,
+            "force_p_gain": occurrence.candidate.force_p_gain,
+            "force_i_gain": occurrence.candidate.force_i_gain,
+            "force_damping": occurrence.candidate.force_damping,
+        }
+        raw.pop("control_candidate_uid", None)
+        rows.append(normalize_trial_overlay(raw, profile=profile))
+    return tuple(rows)
+
+
+def _test_launch_profile() -> LaunchProfile:
+    payload = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_launch_profile.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    return LaunchProfile(
+        document=payload,
+        launch_overrides=payload["launch_overrides"],
+        trial_overlay_policy=payload["trial_overlay_policy"],
+        fingerprint="f" * 64,
+    )
+
+
+def _write_test_launch_profile(tmp_path: Path) -> tuple[Path, LaunchProfile]:
+    contract_path = tmp_path / "step5d_autotune_v3_control_contract.json"
+    profile_path = tmp_path / "step5d_autotune_v3_launch_profile.json"
+    contract = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_control_contract.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    payload = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_launch_profile.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    payload["tp_program_id"] = TP_PROGRAM_ID
+    payload["control_contract_sha256"] = contract_sha256(contract)
+    contract_path.write_text(json.dumps(contract) + "\n", encoding="utf-8")
+    profile_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    return profile_path, load_launch_profile(profile_path)
 
 
 def _prepared(overlay: dict) -> SimpleNamespace:
@@ -182,8 +231,11 @@ def test_v3_mailbox_binds_and_applies_all_seven_preload_fields(tmp_path: Path) -
         command_seq=3,
     )
     path = (tmp_path / "command.json").absolute()
-    AtomicCommandMailbox(path).send_command(packet, prepared_trial=prepared)
-    command = AtomicCommandMailbox(path).read_latest()
+    profile = _test_launch_profile()
+    AtomicCommandMailbox(path, launch_profile=profile).send_command(
+        packet, prepared_trial=prepared
+    )
+    command = AtomicCommandMailbox(path, launch_profile=profile).read_latest()
     assert command is not None
     assert command.binding.trial_overlay == overlay
 
@@ -223,11 +275,15 @@ def _direct_runtime(
 ]:
     prepared = _prepared(dict(DEFAULT_OVERLAY))
     arm1 = HostPacket(1, 1, HostCommand.ARM, 2, 633, 3)
-    mailbox = AtomicCommandMailbox((tmp_path / "command.json").absolute())
+    profile = _test_launch_profile()
+    mailbox = AtomicCommandMailbox(
+        (tmp_path / "command.json").absolute(), launch_profile=profile
+    )
     mailbox.send_command(arm1, prepared_trial=prepared)
     runtime = BridgeMailboxRuntime(
         mailbox.path,
         completion_protocol="v3_direct_arm_v1",
+        launch_profile=profile,
     )
     args = SimpleNamespace()
     assert runtime.poll(
@@ -309,10 +365,14 @@ def test_direct_fake_transport_runs_ten_rows_then_refuses_arm11(
     """Exercise the production mailbox protocol for the complete r006 batch."""
 
     template = _prepared(dict(DEFAULT_OVERLAY))
-    mailbox = AtomicCommandMailbox((tmp_path / "command.json").absolute())
+    profile = _test_launch_profile()
+    mailbox = AtomicCommandMailbox(
+        (tmp_path / "command.json").absolute(), launch_profile=profile
+    )
     runtime = BridgeMailboxRuntime(
         mailbox.path,
         completion_protocol="v3_direct_arm_v1",
+        launch_profile=profile,
     )
     args = SimpleNamespace()
     commands: list[HostCommand] = []
@@ -382,7 +442,7 @@ def test_direct_fake_transport_runs_ten_rows_then_refuses_arm11(
 def test_initial_live_batch_uses_fresh_campaign_local_history(
     tmp_path: Path,
 ) -> None:
-    candidates = initial_candidates()
+    candidates = tuple(row.candidate for row in initialization_batch(1))
     assert len(candidates) == 5
     assert len({item.candidate_uid for item in candidates}) == 3
     assert candidates[:3] == (candidates[0],) * 3
@@ -392,18 +452,15 @@ def test_initial_live_batch_uses_fresh_campaign_local_history(
         candidate_plan,
         campaign_id="fresh-v3-plant-epoch",
     )
-    with patch.object(
-        live.v3_cli,
-        "_validate_candidates",
-        wraps=live.v3_cli._validate_candidates,
-    ) as validate:
-        plan, overlays = live._ensure_initial_batch(
-            campaign_root=campaign_root,
-            campaign_id="fresh-v3-plant-epoch",
-            launch_profile_path=(
-                ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
-            ),
-        )
+    launch_profile_path, launch_profile = _write_test_launch_profile(tmp_path)
+    live.prepare_campaign_state(
+        campaign_root,
+        launch_profile,
+    )
+    plan = load_plan(candidate_plan, campaign_id="fresh-v3-plant-epoch")
+    overlays = json.loads(
+        (campaign_root / "control/v3_trial_overlays.json").read_text(encoding="utf-8")
+    )
     assert plan.revision == 1
     assert len(plan.batches[0]) == 5
     assert overlays["candidate_count"] == 5
@@ -420,22 +477,19 @@ def test_initial_live_batch_uses_fresh_campaign_local_history(
         candidate=selected.candidate,
         profile=ExecutionProfile("nf100-slew050-a050", 0.1, 0.5, 0.5),
         plan_revision=plan.revision,
-        launch_profile_path=(
-            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
-        ),
+        launch_profile_path=launch_profile_path,
         runtime_plan_row=selected,
     )
     assert resolved is not None
     assert resolved["control_candidate_uid"] == selected.control_candidate_uid
-    assert validate.call_count == 0
     source = Path(live.__file__).read_text(encoding="utf-8")
     assert "AdoptedCandidateHistory" not in source
     assert "legacy_campaign_root" not in source
 
 
 def test_initial_control_batch_is_five_rows_with_three_baseline_occurrences() -> None:
-    profile = load_launch_profile()
-    overlays = initial_control_overlays(profile)
+    profile = _test_launch_profile()
+    overlays = _initial_control_overlays(profile)
     assert len(overlays) == 5
     assert len({row["control_candidate_uid"] for row in overlays}) == 3
     assert len({row["control_candidate_uid"] for row in overlays[:3]}) == 1
@@ -443,8 +497,8 @@ def test_initial_control_batch_is_five_rows_with_three_baseline_occurrences() ->
 
 
 def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> None:
-    profile = load_launch_profile()
-    overlay = initial_control_overlays(profile)[0]
+    profile = _test_launch_profile()
+    overlay = _initial_control_overlays(profile)[0]
     binding = SimpleNamespace(
         trial_overlay=overlay,
         campaign_epoch=1,
@@ -458,6 +512,7 @@ def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> N
         binding,
         None,
         lambda *_args: None,
+        profile,
     )
 
     assert bridge.STEP5D_V33_ORIENTATION_KO == overlay["orientation_ko"]
@@ -477,7 +532,7 @@ def test_v3_arm_boundary_applies_real_orientation_k_without_moving_sphere() -> N
 
 
 def test_v3_capture_writer_is_async_compact_and_binds_real_candidate(tmp_path: Path) -> None:
-    overlay = initial_control_overlays(load_launch_profile())[0]
+    overlay = _initial_control_overlays(_test_launch_profile())[0]
     fields = (
         *sorted(_V3_RUNNER_CLOSURE_FIELDS),
         "rtde_feedback_age_s",

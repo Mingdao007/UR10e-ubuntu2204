@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 
@@ -232,16 +233,22 @@ def fake_bridge_args() -> SimpleNamespace:
 
 
 class Step5dAutotuneLiveDriverTest(unittest.TestCase):
-    def test_no_arm_provider_blocks_before_mailbox_read(self) -> None:
+    def test_no_arm_provider_reads_exact_mailbox_then_blocks(self) -> None:
         trial = make_trial()
         arm = packet_for(trial, HostCommand.ARM)
+        gate_calls: list[tuple[dict[str, Any], int]] = []
+
+        def no_grant(binding: dict[str, Any], *, connection_epoch: int) -> None:
+            gate_calls.append((binding, connection_epoch))
+            return None
+
         with tempfile.TemporaryDirectory() as directory:
             mailbox_path = Path(directory) / "command.json"
             sink = AtomicCommandMailbox(mailbox_path)
             sink.send_command(arm, prepared_trial=make_prepared(trial))
             runtime = BridgeMailboxRuntime(
                 mailbox_path,
-                arming_context_provider=lambda: None,
+                arming_context_provider=no_grant,
             )
             args = fake_bridge_args()
             with patch.object(
@@ -255,10 +262,13 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                         fake_rtde(TpLoopState.READY_HOME, None, consumed_seq=0),
                     )
                 )
-                read_latest.assert_not_called()
+                read_latest.assert_called_once_with()
+            self.assertEqual(gate_calls[0][0]["mailbox_sha256"], sink.read_latest().sha256)
+            self.assertEqual(gate_calls[0][0]["command_seq"], arm.command_seq)
+            self.assertEqual(gate_calls[0][1], 0)
             self.assertEqual(args.step5d_autotune_handshake["command"], 0)
 
-    def test_published_arming_context_allows_one_mailbox_read(self) -> None:
+    def test_published_arming_context_allows_exact_double_checked_mailbox(self) -> None:
         trial = make_trial()
         arm = packet_for(trial, HostCommand.ARM)
         with tempfile.TemporaryDirectory() as directory:
@@ -267,7 +277,7 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
             sink.send_command(arm, prepared_trial=make_prepared(trial))
             runtime = BridgeMailboxRuntime(
                 mailbox_path,
-                arming_context_provider=lambda: object(),
+                arming_context_provider=lambda *_args, **_kwargs: object(),
             )
             args = fake_bridge_args()
             with patch.object(
@@ -281,8 +291,46 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                         fake_rtde(TpLoopState.READY_HOME, None, consumed_seq=0),
                     )
                 )
-                read_latest.assert_called_once_with()
+                self.assertEqual(read_latest.call_count, 2)
             self.assertEqual(args.step5d_autotune_handshake["command"], 1)
+
+    def test_arm_mailbox_toctou_after_grant_fails_closed(self) -> None:
+        trial1 = make_trial(trial_id=1, command_seq=10, candidate_token=20)
+        trial2 = make_trial(trial_id=2, command_seq=11, candidate_token=21)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mailbox_path = root / "command.json"
+            alternate_path = root / "alternate.json"
+            sink1 = AtomicCommandMailbox(mailbox_path)
+            sink2 = AtomicCommandMailbox(alternate_path)
+            sink1.send_command(
+                packet_for(trial1, HostCommand.ARM),
+                prepared_trial=make_prepared(trial1),
+            )
+            sink2.send_command(
+                packet_for(trial2, HostCommand.ARM),
+                prepared_trial=make_prepared(trial2),
+            )
+            command1 = sink1.read_latest()
+            command2 = sink2.read_latest()
+            runtime = BridgeMailboxRuntime(
+                mailbox_path,
+                arming_context_provider=lambda *_args, **_kwargs: object(),
+            )
+            args = fake_bridge_args()
+
+            with patch.object(
+                runtime.mailbox,
+                "read_latest",
+                side_effect=[command1, command2],
+            ):
+                with self.assertRaisesRegex(MailboxError, "changed after"):
+                    runtime.poll(
+                        args,
+                        fake_rtde(TpLoopState.READY_HOME, None, consumed_seq=0),
+                    )
+
+            self.assertEqual(args.step5d_autotune_handshake["command"], 0)
 
     def test_terminal_float_crosscheck_ignores_transient_search_reason(self) -> None:
         def tp(state: TpLoopState, reason: int) -> TpPacket:
@@ -304,6 +352,23 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                 final_reason=1,
             )
         )
+        for direct_ready in (
+            TpLoopState.READY_NEAR,
+            TpLoopState.READY_HOME_CLOSED,
+            TpLoopState.READY_HOME_NEXT,
+        ):
+            self.assertTrue(
+                terminal_float_reason_crosscheck(
+                    [(tp(direct_ready, 1), 1.0)],
+                    final_reason=1,
+                )
+            )
+            self.assertFalse(
+                terminal_float_reason_crosscheck(
+                    [(tp(direct_ready, 1), 4.0)],
+                    final_reason=1,
+                )
+            )
 
     def test_arm_closure_ack_ready_and_next_arm_in_one_bridge(self) -> None:
         trial1 = make_trial()

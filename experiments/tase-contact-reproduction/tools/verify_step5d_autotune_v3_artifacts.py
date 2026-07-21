@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-bind the current V3 package, readback, pose evidence, and release gate."""
+"""Cross-bind the current V3 package, readback, and immutable pose evidence."""
 
 from __future__ import annotations
 
@@ -10,14 +10,20 @@ import re
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-import verify_step5d_autotune_v3_execution_readiness as execution_readiness
+from step5d_autotune_v3.profile import ContractViolation, load_contract
+from step5d_autotune_v3.runtime_identity import (
+    RuntimeIdentityError,
+    bind_final_script,
+    identity_from_manifest,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r006"
-LOCAL_CANDIDATE_TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r006"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r010"
+LOCAL_CANDIDATE_TP_PROGRAM_ID = TP_PROGRAM_ID
+HOST_PROTOCOL_ID = "v3_full_home_rolling_arm_v1"
 POSE_PRIOR_ID = "step5d_v3_physical_prior_contact_0p1_20260719"
 EXPECTED_ROTVEC = [3.120752062, 0.0, 0.068626833]
 HISTORICAL_POSE_PRIOR_ID = "step5d_v3_start_pose_prior_contact_0p1_20260719"
@@ -37,7 +43,6 @@ BOUND_PATHS = {
     "config/step5_stage_table.json",
     "config/step5/step5d_autotune_v3_control_contract.json",
     "config/step5/step5d_autotune_v3_offline_validation.json",
-    "config/step5/step5d_autotune_v3_live_promotion.json",
     "config/step5/step5d_autotune_v3_attempt_ledger.json",
     "config/step5d_autotune_controller_readback_v3.json",
     "evidence/step5d_autotune_v3/start_pose_prior_20260719.json",
@@ -51,7 +56,7 @@ BOUND_PATHS = {
     f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.script",
     f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.txt",
     f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.urp",
-} | execution_readiness.READINESS_EVIDENCE_RELATIVE_PATHS
+}
 
 
 class ArtifactVerificationError(RuntimeError):
@@ -113,14 +118,9 @@ def _v3_row(table: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def verify(root: Path = ROOT) -> dict[str, Any]:
     root = root.expanduser().resolve(strict=True)
-    try:
-        readiness = execution_readiness.verify(root)
-    except execution_readiness.ReadinessError as exc:
-        raise ArtifactVerificationError(f"execution readiness failed: {exc}") from exc
-
     table = _load_json(root / "config/step5_stage_table.json", role="stage table")
     v3 = _v3_row(table)
-    for field, expected in (("active", True), ("blocked", True), ("bridge", True)):
+    for field, expected in (("active", True), ("bridge", True)):
         _require(v3.get(field), expected, f"V3 selector {field}")
 
     package = v3.get("package_delivery") or {}
@@ -147,9 +147,38 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         }
         for extension in (".script", ".txt", ".urp")
     ]
-    _require(deploy.get("schema_version"), 1, "TP deploy schema")
+    _require(deploy.get("schema_version"), 2, "TP deploy schema")
     _require(deploy.get("basename"), basename, "TP deploy basename")
     _require(deploy.get("artifacts"), expected_artifacts, "TP deploy artifacts")
+    runtime_payload = deploy.get("tp_runtime_identity")
+    if not isinstance(runtime_payload, dict):
+        raise ArtifactVerificationError("TP deploy runtime identity is missing")
+    try:
+        runtime_identity, runtime_script_sha256 = identity_from_manifest(
+            runtime_payload
+        )
+        script = (root / f"{prefix}.script").read_text(encoding="utf-8")
+        _bound_identity, bound_payload = bind_final_script(
+            script,
+            program_id=basename,
+            protocol_id=HOST_PROTOCOL_ID,
+        )
+    except (OSError, UnicodeError, RuntimeIdentityError) as exc:
+        raise ArtifactVerificationError(
+            f"TP deploy runtime identity is invalid: {exc}"
+        ) from exc
+    _require(runtime_identity.program_id, basename, "TP runtime identity program")
+    _require(
+        runtime_identity.protocol_id,
+        HOST_PROTOCOL_ID,
+        "TP runtime identity protocol",
+    )
+    _require(
+        runtime_script_sha256,
+        triplet[".script"],
+        "TP runtime identity script digest",
+    )
+    _require(runtime_payload, bound_payload, "TP runtime identity binding")
 
     readback_relative = package.get("controller_readback_manifest")
     if not isinstance(readback_relative, str):
@@ -163,9 +192,12 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     readback = _load_json(readback_path, role="controller readback")
     _require(readback.get("verified"), True, "controller readback result")
     _require(readback.get("program"), basename, "controller readback program")
-    contract = execution_readiness.load_contract(
-        root / "config/step5/step5d_autotune_v3_control_contract.json"
-    )
+    try:
+        contract = load_contract(
+            root / "config/step5/step5d_autotune_v3_control_contract.json"
+        )
+    except ContractViolation as exc:
+        raise ArtifactVerificationError(f"control contract is invalid: {exc}") from exc
     _require(readback.get("triplet_sha256"), contract["tp_artifact_sha256"], "controller readback triplet")
     _require(
         readback.get("triplet_sha256"),
@@ -193,16 +225,22 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         ("precontact_clearance_m", 0.005),
         ("minimum_start_above_entry_m", 0.01),
         ("precontact_z_policy", "contact_plus_0p1s_robust_z_plus_0p005m_clearance"),
-        ("input_integer_registers", list(range(24, 31))),
-        ("output_integer_registers", list(range(24, 34))),
+        ("input_integer_registers", list(range(24, 32))),
+        ("output_integer_registers", list(range(24, 38))),
         ("safe_transfer_z_m", 0.033),
         ("return_segment_count", 3),
         (
             "batch_row_policy",
-            "rows_1_to_9_near_ready_row_10_campaign_home",
+            "five_row_logical_batches_every_row_campaign_home",
         ),
+        ("host_protocol", HOST_PROTOCOL_ID),
     ):
         _require(numeric.get(key), expected, f"TP numeric sanity {key}")
+    _require(
+        numeric.get("tp_runtime_identity"),
+        runtime_payload,
+        "TP numeric sanity runtime identity",
+    )
 
     source = v3.get("source_binding") or {}
     prior_relative = source.get("precontact_pose_evidence")
@@ -251,34 +289,19 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         sort_keys=True,
     ).encode("utf-8")
     return {
-        "schema": "step5d.autotune-v3/artifact-report-v4",
+        "schema": "step5d.autotune-v3/artifact-report-v5",
         "ok": True,
+        "scope": "immutable_release_identity_and_artifact_integrity",
         "current_stage_id": V3_STAGE_ID,
         "v3_stage_id": V3_STAGE_ID,
         "v3_active": True,
-        "execution_readiness": readiness["state"],
-        "ready_to_execute": readiness["ready_to_execute"],
-        "acceptance_scope": execution_readiness.VALIDATION_SCOPE,
-        "certification_motion_authorization_required": readiness[
-            "certification_motion_authorization_required"
-        ],
-        "campaign_authorization_required": readiness[
-            "campaign_authorization_required"
-        ],
+        "tp_program_id": basename,
+        "tp_protocol_id": runtime_identity.protocol_id,
+        "tp_runtime_identity": runtime_payload,
+        "controller_readback_sha256": package.get(
+            "controller_readback_manifest_sha256"
+        ),
         "tp_fingerprint": package.get("tp_fingerprint"),
-        "tick_semantics_fingerprint": readiness["identity"][
-            "tick_semantics_fingerprint"
-        ],
-        "timing_harness_fingerprint": readiness["identity"][
-            "timing_harness_fingerprint"
-        ],
-        "deployment_fingerprint": readiness["identity"][
-            "deployment_fingerprint"
-        ],
-        "orchestration_fingerprint": readiness["identity"]["orchestration_fingerprint"],
-        "legacy_control_fingerprint": readiness["identity"]["legacy_provenance"][
-            "control_fingerprint"
-        ],
         "artifact_set_fingerprint": hashlib.sha256(fingerprint_input).hexdigest(),
         "verified_paths": verified_paths,
     }

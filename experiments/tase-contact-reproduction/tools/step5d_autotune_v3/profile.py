@@ -365,13 +365,23 @@ def candidate_force_terms(candidate: Mapping[str, Any]) -> dict[str, float]:
     }
 
 
-def runtime_values(runtime_root: Path) -> dict[str, str]:
+def runtime_values(
+    runtime_root: Path,
+    *,
+    experiment_root: Path = EXPERIMENT_ROOT,
+) -> dict[str, str]:
     if not isinstance(runtime_root, Path) or not runtime_root.is_absolute():
         raise ContractViolation("runtime_root must be an absolute pathlib.Path")
     resolved = runtime_root.resolve(strict=False)
     return {
         "command_mailbox": str(resolved / "command.json"),
         "output_dir": str(resolved / "bridge"),
+        "step5c_joint_model": str(
+            (
+                experiment_root.parent
+                / "archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
+            ).resolve(strict=True)
+        ),
     }
 
 
@@ -389,6 +399,7 @@ def resolve_expected_value(
         "$candidate.force_terms": candidate_force_terms(candidate_values),
         "$runtime.command_mailbox": runtime["command_mailbox"],
         "$runtime.output_dir": runtime["output_dir"],
+        "$runtime.step5c_joint_model": runtime["step5c_joint_model"],
     }
     if isinstance(value, str) and value.startswith("$"):
         if value not in placeholders:
@@ -782,11 +793,13 @@ def control_fingerprint(
     governed: dict[str, Any] = {}
     for category in ("control_invariant", "safety_invariant"):
         names = payload["effective_fields"][category]
-        governed[category] = (
-            {name: effective_config[name] for name in names}
-            if effective_config is not None
-            else names
-        )
+        if effective_config is None:
+            governed[category] = names
+            continue
+        values = {name: effective_config[name] for name in names}
+        if "step5c_joint_model" in values:
+            values["step5c_joint_model"] = "$runtime.step5c_joint_model"
+        governed[category] = values
     material = {
         "schema": "step5d.autotune.v3.control-fingerprint/v1",
         "frozen_baseline": payload["frozen_baseline"],

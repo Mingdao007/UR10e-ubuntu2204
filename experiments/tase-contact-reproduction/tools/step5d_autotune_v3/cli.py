@@ -495,6 +495,42 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--_launch-attempt-id", dest="internal_launch_attempt_id", help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--_launch-attempt-state",
+        dest="internal_launch_attempt_state",
+        choices=("STARTED", "FAILED"),
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-attempt-phase",
+        dest="internal_launch_attempt_phase",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-attempt-exit-code",
+        dest="internal_launch_attempt_exit_code",
+        type=int,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-attempt-reason-code",
+        dest="internal_launch_attempt_reason_code",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-attempt-detail",
+        dest="internal_launch_attempt_detail",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-attempt-external-evidence",
+        dest="internal_launch_attempt_external_evidence",
+        type=Path,
+        help=argparse.SUPPRESS,
+    )
     commands = parser.add_subparsers(dest="command")
     start = commands.add_parser("start")
     start.add_argument("--check", action="store_true")
@@ -502,9 +538,6 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--resume", action="store_true")
     status = commands.add_parser("status")
     status.add_argument("--json", action="store_true")
-    status.add_argument("--bridge-start-context", type=Path)
-    status.add_argument("--campaign-arming-context", type=Path)
-    status.add_argument("--runtime-readiness", type=Path)
     enqueue = commands.add_parser("enqueue")
     enqueue.add_argument("--batch", type=Path, required=True)
     report = commands.add_parser("report")
@@ -537,6 +570,69 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     paths = CampaignPaths(campaign_root)
     try:
+        launch_attempt_mode = any(
+            value is not None
+            for value in (
+                args.internal_launch_attempt_id,
+                args.internal_launch_attempt_state,
+                args.internal_launch_attempt_phase,
+                args.internal_launch_attempt_exit_code,
+                args.internal_launch_attempt_reason_code,
+                args.internal_launch_attempt_detail,
+                args.internal_launch_attempt_external_evidence,
+            )
+        )
+        if launch_attempt_mode:
+            if args.command is not None or args.internal_service or args.internal_service_resume:
+                raise CliError(
+                    "internal launch-attempt recording cannot include another mode"
+                )
+            if (
+                args.internal_launch_attempt_id is None
+                or args.internal_launch_attempt_state is None
+                or args.internal_launch_attempt_phase is None
+            ):
+                raise CliError("internal launch-attempt recording fields are incomplete")
+            from .governance import (
+                load_current_release_snapshot,
+                publish_launch_attempt,
+            )
+
+            external_reference = None
+            external_path = args.internal_launch_attempt_external_evidence
+            if external_path is not None:
+                unresolved = external_path.expanduser().absolute()
+                if unresolved.is_symlink() or not unresolved.is_file():
+                    raise CliError("launch-attempt external evidence must be a real file")
+                resolved = unresolved.resolve(strict=True)
+                try:
+                    relative = resolved.relative_to(campaign_root.resolve())
+                except ValueError as exc:
+                    raise CliError(
+                        "launch-attempt external evidence must stay under campaign root"
+                    ) from exc
+                external_reference = {
+                    "path": relative.as_posix(),
+                    "sha256": hashlib.sha256(resolved.read_bytes()).hexdigest(),
+                }
+            current_release = load_current_release_snapshot(experiment_root)
+            recorded = publish_launch_attempt(
+                campaign_root,
+                attempt_id=args.internal_launch_attempt_id,
+                state=args.internal_launch_attempt_state,
+                phase=args.internal_launch_attempt_phase,
+                manifest_sha256=(
+                    current_release.manifest_sha256
+                    if current_release.valid
+                    else None
+                ),
+                exit_code=args.internal_launch_attempt_exit_code,
+                reason_code=args.internal_launch_attempt_reason_code,
+                detail=args.internal_launch_attempt_detail,
+                external_evidence=external_reference,
+            )
+            print(json.dumps(recorded, sort_keys=True))
+            return 0
         if args.internal_service:
             if args.command is not None:
                 raise CliError("internal service mode cannot include an operator command")
@@ -565,31 +661,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             _emit(payload, json_output=args.json, text="offline v3 service start requested")
             return 0
         if args.command == "status":
-            from .readiness import resolve_release_readiness
+            from .governance import resolve_governed_status
 
-            ledger = load_attempt_ledger(ledger_path)
-            payload = {
-                **campaign_status(paths),
-                "release_readiness": resolve_release_readiness(
-                    experiment_root,
-                    bridge_start_context_path=args.bridge_start_context,
-                    campaign_arming_context_path=args.campaign_arming_context,
-                    runtime_readiness_path=args.runtime_readiness,
-                ),
-                "attempt_ledger": {
-                    "sha256": ledger.sha256,
-                    "summary": dict(ledger.summary),
-                },
-            }
+            integrity_errors: dict[str, str] = {}
+            try:
+                integrity_status = campaign_status(paths)
+            except Exception as exc:
+                integrity_errors["legacy_status"] = f"{type(exc).__name__}:{exc}"
+            else:
+                for role in ("queue", "service", "physical"):
+                    section = integrity_status.get(role)
+                    if isinstance(section, Mapping) and section.get("integrity_error"):
+                        integrity_errors[role] = str(section["integrity_error"])
+            try:
+                load_attempt_ledger(ledger_path)
+            except Exception as exc:
+                integrity_errors["attempt_ledger"] = f"{type(exc).__name__}:{exc}"
+            payload = resolve_governed_status(
+                experiment_root,
+                campaign_root,
+                integrity_errors=integrity_errors,
+            )
             _emit(
                 payload,
                 json_output=args.json,
                 text=(
-                    f"phase={payload['service']['phase']} "
-                    f"queue_revision={payload['queue']['revision']} "
-                    f"stop_after_current={str(payload['stop_after_current']['armed']).lower()} "
-                    f"selected_release={payload['release_readiness']['selected_release']} "
-                    f"campaign_ready={str(payload['release_readiness']['campaign_ready']).lower()}"
+                    f"state={payload['state']} "
+                    f"release_sha={payload['release']['sha256']} "
+                    f"offline_proven={str(payload['predicates']['offline_proven']).lower()} "
+                    f"bench_ready={str(payload['predicates']['bench_ready']).lower()} "
+                    f"next_action={payload['next_action']}"
                 ),
             )
             return 0

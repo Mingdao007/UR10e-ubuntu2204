@@ -31,25 +31,26 @@ if str(RUNTIME_SRC) not in sys.path:
 
 from ur10e_experiment_runtime.identity import canonical_sha256
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
-from step5d_autotune_v3.arming import load_bridge_start_context
-from step5d_autotune_v3.readiness import require_bridge_start
 from step5d_autotune_v3.release_identity import (
     ReleaseIdentity,
     ReleaseIdentityError,
-    load_current_release,
+    load_runtime_release,
+)
+from step5d_autotune_v3.runtime_gate import (
+    ArmGateProvider,
+    RuntimeGateError,
+    load_campaign_lease,
+    loaded_program_matches,
+    release_runtime_contract,
 )
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
-TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v4"
-TICKET_SCOPE = "bridge_no_arm"
+TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v6"
+TICKET_SCOPE = "campaign_lease_no_arm_until_observed"
 
 
 class BridgeTicketError(RuntimeError):
     pass
-
-
-def _file_sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 _V3_COMPACT_EXACT_FIELDS = frozenset(
@@ -319,6 +320,7 @@ def _apply_v3_arm_runtime(
     binding: Any,
     arming_context: Any | None,
     original_apply: Any,
+    launch_profile: Any,
 ) -> None:
     """Apply the real V3 control candidate once, at the ARM boundary."""
 
@@ -327,15 +329,11 @@ def _apply_v3_arm_runtime(
     if overlay is None:
         raise BridgeTicketError("V3 ARM requires a bound trial overlay")
     from step5d_autotune_contract import ForceCandidate
-    from step5d_autotune_v3.runtime_profile import (
-        DEFAULT_LAUNCH_PROFILE,
-        load_launch_profile,
-        normalize_trial_overlay,
-    )
+    from step5d_autotune_v3.runtime_profile import normalize_trial_overlay
 
     normalized = normalize_trial_overlay(
         overlay,
-        profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+        profile=launch_profile,
     )
     candidate = ForceCandidate(
         force_p_gain=normalized["force_p_gain"],
@@ -380,7 +378,7 @@ def _strict_ticket(
     root: Path = ROOT,
 ) -> dict[str, Any]:
     try:
-        release = release_identity or load_current_release(root)
+        release = release_identity or load_runtime_release(root)
     except ReleaseIdentityError as exc:
         raise BridgeTicketError(f"active release manifest is invalid: {exc}") from exc
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
@@ -395,14 +393,17 @@ def _strict_ticket(
         "argv_sha256",
         "launch_id",
         "scope",
-        "identity",
+        "launch_profile",
         "launch_profile_fingerprint",
         "trial_overlay_fingerprint",
         "release_stage_id",
         "control_profile_id",
         "tp_program_id",
-        "bridge_start_context",
+        "manifest_sha256",
+        "safety_envelope_sha256",
         "campaign_binding",
+        "campaign_lease",
+        "arm_gate_path",
     }
     if not isinstance(payload, dict) or set(payload) != required:
         raise BridgeTicketError("V3 runtime ticket fields differ")
@@ -417,6 +418,7 @@ def _strict_ticket(
         "release_stage_id": release.release_stage_id,
         "control_profile_id": release.control_profile_id,
         "tp_program_id": release.program_id,
+        "manifest_sha256": release.manifest_sha256,
     }
     for key, value in expected.items():
         if payload[key] != value:
@@ -430,18 +432,7 @@ def _strict_ticket(
         or any(character not in "0123456789abcdef" for character in launch_id)
     ):
         raise BridgeTicketError("V3 runtime ticket launch id differs")
-    identity = payload["identity"]
-    if not isinstance(identity, dict) or set(identity) != {
-        "tick_semantics_fingerprint",
-        "timing_harness_fingerprint",
-        "runtime_environment_fingerprint",
-        "deployment_fingerprint",
-        "orchestration_fingerprint",
-        "release_basis_fingerprint",
-    }:
-        raise BridgeTicketError("V3 runtime ticket identity differs")
     for value in (
-        *identity.values(),
         payload["launch_profile_fingerprint"],
         payload["trial_overlay_fingerprint"],
     ):
@@ -451,35 +442,33 @@ def _strict_ticket(
             or any(character not in "0123456789abcdef" for character in value)
         ):
             raise BridgeTicketError("V3 runtime ticket fingerprint differs")
-    bridge_reference = payload["bridge_start_context"]
+    launch_reference = payload["launch_profile"]
+    if not isinstance(launch_reference, dict) or set(launch_reference) != {
+        "path",
+        "sha256",
+    }:
+        raise BridgeTicketError("V3 runtime ticket launch-profile reference differs")
+    launch_path = Path(str(launch_reference["path"]))
     if (
-        not isinstance(bridge_reference, dict)
-        or set(bridge_reference) != {"path", "sha256"}
-        or not isinstance(bridge_reference["path"], str)
-        or not bridge_reference["path"]
+        not launch_path.is_absolute()
+        or launch_path.is_symlink()
+        or not launch_path.is_file()
     ):
-        raise BridgeTicketError("V3 runtime ticket bridge-start reference differs")
-    bridge_context_path = Path(bridge_reference["path"])
-    bridge_sha256 = bridge_reference["sha256"]
-    if (
-        not bridge_context_path.is_absolute()
-        or bridge_context_path.is_symlink()
-        or not bridge_context_path.is_file()
-        or not isinstance(bridge_sha256, str)
-        or _file_sha256(bridge_context_path) != bridge_sha256
-    ):
-        raise BridgeTicketError("V3 runtime ticket bridge-start digest differs")
+        raise BridgeTicketError("V3 runtime ticket launch profile is unavailable")
+    release_root = (root / release.manifest_path).resolve(strict=True).parent
+    resolved_launch = launch_path.resolve(strict=True)
     try:
-        bridge_context = load_bridge_start_context(
-            bridge_context_path,
-            expected_static_identity=identity,
-        )
-    except Exception as exc:
-        raise BridgeTicketError(f"V3 bridge-start context differs: {exc}") from exc
-    if bridge_context.identity != identity:
-        raise BridgeTicketError(
-            "V3 ticket identity differs from bridge-start context"
-        )
+        launch_relative = resolved_launch.relative_to(release_root).as_posix()
+    except ValueError as exc:
+        raise BridgeTicketError("V3 runtime ticket launch profile is not immutable") from exc
+    expected_launch_sha256 = release.generated_files.get(launch_relative)
+    observed_launch_sha256 = hashlib.sha256(resolved_launch.read_bytes()).hexdigest()
+    if (
+        expected_launch_sha256 is None
+        or launch_reference["sha256"] != expected_launch_sha256
+        or observed_launch_sha256 != expected_launch_sha256
+    ):
+        raise BridgeTicketError("V3 runtime ticket launch-profile binding differs")
     binding = payload["campaign_binding"]
     if (
         not isinstance(binding, dict)
@@ -487,6 +476,7 @@ def _strict_ticket(
         != {
             "campaign_id",
             "campaign_epoch",
+            "campaign_fingerprint",
             "candidate_plan_revision",
             "candidate_plan_sha256",
             "trial_overlay_plan_sha256",
@@ -503,6 +493,7 @@ def _strict_ticket(
     ):
         raise BridgeTicketError("live runtime ticket campaign binding differs")
     for key in (
+        "campaign_fingerprint",
         "candidate_plan_sha256",
         "trial_overlay_plan_sha256",
         "machine_binding_sha256",
@@ -514,6 +505,42 @@ def _strict_ticket(
             or any(character not in "0123456789abcdef" for character in value)
         ):
             raise BridgeTicketError("live runtime ticket plan fingerprint differs")
+    try:
+        contract = release_runtime_contract(root, release)
+    except RuntimeGateError as exc:
+        raise BridgeTicketError(f"release runtime contract differs: {exc}") from exc
+    if payload["safety_envelope_sha256"] != contract["safety_envelope_sha256"]:
+        raise BridgeTicketError("runtime ticket safety envelope differs")
+    lease_reference = payload["campaign_lease"]
+    if (
+        not isinstance(lease_reference, Mapping)
+        or set(lease_reference) != {"path", "sha256"}
+        or not isinstance(lease_reference["path"], str)
+    ):
+        raise BridgeTicketError("runtime ticket campaign lease reference differs")
+    lease_path = Path(lease_reference["path"])
+    try:
+        lease = load_campaign_lease(
+            lease_path,
+            expected_sha256=lease_reference["sha256"],
+        )
+    except RuntimeGateError as exc:
+        raise BridgeTicketError(f"runtime ticket campaign lease differs: {exc}") from exc
+    if (
+        lease.launch_id != payload["launch_id"]
+        or lease.manifest_sha256 != release.manifest_sha256
+        or lease.safety_envelope_sha256 != payload["safety_envelope_sha256"]
+        or lease.campaign_id != binding["campaign_id"]
+        or lease.campaign_epoch != binding["campaign_epoch"]
+        or lease.campaign_fingerprint != binding["campaign_fingerprint"]
+    ):
+        raise BridgeTicketError("runtime ticket campaign lease binding differs")
+    gate_path_text = payload["arm_gate_path"]
+    if not isinstance(gate_path_text, str) or not gate_path_text:
+        raise BridgeTicketError("runtime ticket ARM gate path differs")
+    gate_path = Path(gate_path_text)
+    if not gate_path.is_absolute() or gate_path.is_symlink():
+        raise BridgeTicketError("runtime ticket ARM gate path is unsafe")
     return payload
 
 
@@ -522,12 +549,11 @@ def _require_v3_no_arm_bridge(
     ticket: Mapping[str, Any],
     *,
     root: Path = ROOT,
-    readiness_owner: Callable[..., tuple[Mapping[str, Any], Any]] = require_bridge_start,
     release_identity: ReleaseIdentity | None = None,
 ) -> dict[str, Any]:
     """Replace the legacy V1-selection gate with the ticket-bound V3 gate."""
 
-    release = release_identity or load_current_release(root)
+    release = release_identity or load_runtime_release(root)
     if (
         ticket.get("scope") != TICKET_SCOPE
         or ticket.get("release_stage_id") != release.release_stage_id
@@ -540,15 +566,6 @@ def _require_v3_no_arm_bridge(
         raise BridgeTicketError("V3 NO_ARM bridge requires the continuous command mailbox")
     if args.step5d_stage25_control_mode != "speedj_rnn_live":
         raise BridgeTicketError("V3 NO_ARM bridge requires the frozen V1 Stage25 kernel")
-    reference = ticket.get("bridge_start_context") or {}
-    context_path = Path(str(reference.get("path") or ""))
-    report, context = readiness_owner(root, context_path)
-    if (
-        report.get("selected_release") != release.release_stage_id
-        or report.get("bridge_start_ready") is not True
-        or context.identity != ticket.get("identity")
-    ):
-        raise BridgeTicketError("V3 NO_ARM bridge readiness differs from runtime ticket")
     return {
         "ok": True,
         "selected_release": release.release_stage_id,
@@ -556,6 +573,7 @@ def _require_v3_no_arm_bridge(
         "tp_program_id": release.program_id,
         "protocol_id": release.protocol_id,
         "scope": TICKET_SCOPE,
+        "campaign_lease_bound": True,
         "live_motion_authorized": False,
     }
 
@@ -588,7 +606,11 @@ def build_release_mailbox_runtime(
         release,
         completion_protocol=completion_protocol,
     )
-    return runtime_type(path, completion_protocol=protocol)
+    return runtime_type(
+        path,
+        completion_protocol=protocol,
+        arming_context_provider=lambda *_args, **_kwargs: None,
+    )
 
 
 def install_v3_seams(
@@ -602,14 +624,46 @@ def install_v3_seams(
 
     release = release_identity
     if ticket is not None and release is None:
-        release = load_current_release(ROOT)
+        release = load_runtime_release(ROOT)
+    immutable_launch_profile = None
+    if ticket is not None:
+        from step5d_autotune_v3.runtime_profile import load_launch_profile
+
+        immutable_launch_profile = load_launch_profile(
+            Path(ticket["launch_profile"]["path"])
+        )
+        if (
+            immutable_launch_profile.fingerprint
+            != ticket["launch_profile_fingerprint"]
+        ):
+            raise BridgeTicketError("V3 runtime launch-profile fingerprint differs")
     calibration = validate_installed_calibration()
     original_mailbox = live.AtomicCommandMailbox
     original_runtime = live.BridgeMailboxRuntime
 
     class V3AtomicCommandMailbox(IdentityCachedMailbox):
-        def __init__(self, path: Path, *, network_mode: bool = True) -> None:
-            super().__init__(original_mailbox(path, network_mode=network_mode))
+        def __init__(
+            self,
+            path: Path,
+            *,
+            network_mode: bool = True,
+            launch_profile: Any | None = None,
+        ) -> None:
+            if immutable_launch_profile is None:
+                raise live.MailboxError("V3 immutable launch profile is unavailable")
+            if (
+                launch_profile is not None
+                and launch_profile.fingerprint
+                != immutable_launch_profile.fingerprint
+            ):
+                raise live.MailboxError("V3 alternate launch profile is forbidden")
+            super().__init__(
+                original_mailbox(
+                    path,
+                    network_mode=network_mode,
+                    launch_profile=immutable_launch_profile,
+                )
+            )
 
     live.AtomicCommandMailbox = V3AtomicCommandMailbox
 
@@ -619,7 +673,7 @@ def install_v3_seams(
             path: Path,
             *,
             campaign_home_reference_path: Path | None = None,
-            arming_context_provider: Callable[[], Any | None] | None = None,
+            arming_context_provider: Callable[..., Any | None] | None = None,
             completion_protocol: str | None = None,
         ) -> None:
             protocol = _release_runtime_protocol(
@@ -627,12 +681,50 @@ def install_v3_seams(
                 completion_protocol=completion_protocol,
                 error_type=live.MailboxError,
             )
+            if ticket is None or release is None:
+                raise live.MailboxError("V3 runtime ARM gate ticket is unavailable")
+            if arming_context_provider is not None:
+                raise live.MailboxError(
+                    "V3 runtime forbids an alternate arming-context provider"
+                )
+            lease_reference = ticket["campaign_lease"]
+            try:
+                self._v3_arm_gate = ArmGateProvider(
+                    root=ROOT,
+                    gate_path=Path(ticket["arm_gate_path"]),
+                    lease_path=Path(lease_reference["path"]),
+                    lease_sha256=lease_reference["sha256"],
+                    release=release,
+                )
+            except RuntimeGateError as exc:
+                raise live.MailboxError(f"V3 ARM gate initialization failed: {exc}") from exc
             super().__init__(
                 path,
                 campaign_home_reference_path=campaign_home_reference_path,
-                arming_context_provider=arming_context_provider,
+                arming_context_provider=self._v3_arm_gate,
                 completion_protocol=protocol,
+                launch_profile=immutable_launch_profile,
             )
+
+        def poll(
+            self,
+            args: Any,
+            output: Mapping[str, Any] | None,
+            *,
+            connection_epoch: int = 0,
+        ) -> bool:
+            try:
+                self._v3_arm_gate.observe_rtde(
+                    output,
+                    connection_epoch=connection_epoch,
+                )
+                return super().poll(
+                    args,
+                    output,
+                    connection_epoch=connection_epoch,
+                )
+            except RuntimeGateError as exc:
+                raise live.MailboxError(f"V3 ARM gate failed closed: {exc}") from exc
 
     live.BridgeMailboxRuntime = V3BridgeMailboxRuntime
     live.BridgeTrialCsvRotator = V3AsyncBridgeTrialCsvRotator
@@ -683,25 +775,32 @@ def install_v3_seams(
         binding: Any,
         arming_context: Any | None = None,
     ) -> None:
+        if immutable_launch_profile is None:
+            raise BridgeTicketError("V3 runtime launch profile is unavailable")
         _apply_v3_arm_runtime(
             bridge,
             args,
             binding,
             arming_context,
             original_apply_arm_runtime,
+            immutable_launch_profile,
         )
 
     live.BridgeMailboxRuntime._apply_arm_runtime = staticmethod(v3_apply_arm_runtime)
 
     original_matcher = bridge.step5d_dashboard_program_identity_matches
+    runtime_contract = (
+        None if release is None else release_runtime_contract(ROOT, release)
+    )
 
     def v3_tp_identity_match(value: Any, control_profile: str) -> bool:
-        expected = (
-            release.program_id
-            if release is not None and control_profile == release.control_profile_id
-            else control_profile
-        )
-        return original_matcher(value, expected)
+        if release is not None and control_profile == release.control_profile_id:
+            assert runtime_contract is not None
+            return loaded_program_matches(
+                value,
+                runtime_contract["expected_loaded_program"],
+            )
+        return original_matcher(value, control_profile)
 
     bridge.step5d_dashboard_program_identity_matches = v3_tp_identity_match
 
@@ -754,7 +853,7 @@ def main(argv: list[str] | None = None) -> int:
         print("refusing: STEP5D_V3_RUNTIME_TICKET is required", file=sys.stderr)
         return 24
     try:
-        release = load_current_release(ROOT)
+        release = load_runtime_release(ROOT)
         ticket = _strict_ticket(
             Path(ticket_text),
             bridge_argv,
@@ -764,7 +863,7 @@ def main(argv: list[str] | None = None) -> int:
             ticket,
             release_identity=release,
         )
-    except (BridgeTicketError, ReleaseIdentityError) as exc:
+    except (BridgeTicketError, ReleaseIdentityError, RuntimeGateError) as exc:
         print(f"refusing: {exc}", file=sys.stderr)
         return 24
     return int(bridge.main(bridge_argv))

@@ -16,12 +16,12 @@
       "force_damping": 7.0
     },
     "outer_tangential_kp": 1.5,
-    "execution_profile_id": "nf100-slew050-a050",
-    "execution_profile_integer_id": 633,
+    "execution_profile_id": "nf050-slew050-a050",
+    "execution_profile_integer_id": 533,
     "normal_filter_tau_s": 0.35,
     "normal_filter_dt_mode": "fixed_0.002s",
     "f0_shadow_reaction_normal_base": [0.0, 0.0, 1.0],
-    "normal_max_rate_rad_s": 0.1,
+    "normal_max_rate_rad_s": 0.05,
     "qdot_cap_rad_s": 0.5,
     "host_qdot_slew_rad_s2": 0.5,
     "tp_speedj_accel_rad_s2": 0.5
@@ -83,11 +83,10 @@
     {"profile_id": "nf015-slew010-a010", "integer_id": 211, "normal_max_rate_rad_s": 0.015, "host_qdot_slew_rad_s2": 0.1, "tp_speedj_accel_rad_s2": 0.1, "live_eligible": true},
     {"profile_id": "nf020-slew020-a020", "integer_id": 322, "normal_max_rate_rad_s": 0.02, "host_qdot_slew_rad_s2": 0.2, "tp_speedj_accel_rad_s2": 0.2, "live_eligible": true},
     {"profile_id": "nf030-offline", "integer_id": 411, "normal_max_rate_rad_s": 0.03, "host_qdot_slew_rad_s2": 0.1, "tp_speedj_accel_rad_s2": 0.1, "live_eligible": false},
-    {"profile_id": "nf050-slew050-a050", "integer_id": 533, "normal_max_rate_rad_s": 0.05, "host_qdot_slew_rad_s2": 0.5, "tp_speedj_accel_rad_s2": 0.5, "live_eligible": true},
-    {"profile_id": "nf100-slew050-a050", "integer_id": 633, "normal_max_rate_rad_s": 0.1, "host_qdot_slew_rad_s2": 0.5, "tp_speedj_accel_rad_s2": 0.5, "live_eligible": true}
+    {"profile_id": "nf050-slew050-a050", "integer_id": 533, "normal_max_rate_rad_s": 0.05, "host_qdot_slew_rad_s2": 0.5, "tp_speedj_accel_rad_s2": 0.5, "live_eligible": true}
   ],
   "governor": {
-    "normal_rate_ladder_rad_s": [0.01, 0.015, 0.02, 0.05, 0.1],
+    "normal_rate_ladder_rad_s": [0.01, 0.015, 0.02, 0.05],
     "host_slew_ladder_rad_s2": [0.1, 0.2, 0.5],
     "tp_speedj_accel_ladder_rad_s2": [0.1, 0.2, 0.5],
     "trigger": {"independent_windows": 2, "window_s": 5.0, "minimum_saturation_fraction": 0.2, "or_continuous_saturation_s": 2.0},

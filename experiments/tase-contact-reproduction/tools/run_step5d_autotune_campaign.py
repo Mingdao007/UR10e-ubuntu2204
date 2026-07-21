@@ -25,6 +25,8 @@ from typing import Any, Callable, Iterator, Mapping
 
 _EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 _RUNTIME_SRC = _EXPERIMENT_ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
+_CANONICAL_LAUNCHER_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
+_SUPERVISOR_PID_ENV = "STEP5D_V3_SUPERVISOR_PID"
 if str(_RUNTIME_SRC) not in sys.path:
     sys.path.insert(0, str(_RUNTIME_SRC))
 
@@ -32,43 +34,55 @@ if str(_RUNTIME_SRC) not in sys.path:
 def _bootstrap_stable_cuda_runtime() -> None:
     """Re-exec the CLI with the persistent Step5d CuPy/CUDA runtime."""
 
-    if __name__ != "__main__" or os.environ.get("STEP5D_CUDA_BOOTSTRAPPED") == "1":
+    if __name__ != "__main__":
         return
-    runtime = Path(
-        os.environ.get(
-            "STEP5D_PYTHON_RUNTIME_ROOT",
-            "/home/andy/.codex-python/ur10e-digital-twin-20260711",
-        )
-    )
-    if not (runtime / "cupy").is_dir():
-        return
-    library_dirs = tuple(
-        runtime / "nvidia" / package / "lib"
-        for package in ("cuda_nvrtc", "nvjitlink", "cuda_runtime")
-        if (runtime / "nvidia" / package / "lib").is_dir()
-    )
-    required_libraries = tuple(
-        runtime / "nvidia" / package / "lib"
-        for package in ("cuda_nvrtc", "cuda_runtime")
-    )
-    if not all(path.is_dir() for path in required_libraries):
-        return
-    environment = dict(os.environ)
-    environment["STEP5D_CUDA_BOOTSTRAPPED"] = "1"
-    environment["PYTHONPATH"] = os.pathsep.join(
-        (str(runtime), environment.get("PYTHONPATH", ""))
-    ).rstrip(os.pathsep)
-    environment["LD_LIBRARY_PATH"] = os.pathsep.join(
-        (*map(str, library_dirs), environment.get("LD_LIBRARY_PATH", ""))
-    ).rstrip(os.pathsep)
-    os.execve(sys.executable, [sys.executable, *sys.argv], environment)
+    from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
+
+    bootstrap_stable_cuda_runtime()
 
 
 _bootstrap_stable_cuda_runtime()
 
+
+def _require_v3_supervisor() -> None:
+    canonical = (_EXPERIMENT_ROOT / "scripts/step5d-autotune-v3.sh").resolve()
+    supervisor = (_EXPERIMENT_ROOT / "tools/run_step5d_autotune_v3_live.py").resolve()
+    if os.environ.get(_CANONICAL_LAUNCHER_ENV) != str(canonical):
+        raise RuntimeError(f"use {canonical} bridge")
+    if os.environ.get(_SUPERVISOR_PID_ENV) != str(os.getppid()):
+        raise RuntimeError(f"use {canonical} bridge")
+    try:
+        argv = {
+            str(Path(value.decode("utf-8")).resolve())
+            for value in Path(f"/proc/{os.getppid()}/cmdline").read_bytes().split(b"\0")
+            if value.startswith(b"/")
+        }
+    except (OSError, UnicodeError):
+        argv = set()
+    if str(supervisor) not in argv:
+        raise RuntimeError(f"use {canonical} bridge")
+
+
+if __name__ == "__main__" and "--v3-runtime-root" in sys.argv:
+    try:
+        _require_v3_supervisor()
+    except RuntimeError as exc:
+        print(f"refusing internal V3 campaign runner: {exc}", file=sys.stderr)
+        raise SystemExit(64)
+
 from step5d_autotune_backend import (
+    CampaignAuthorization,
     CampaignExecutionContext,
     Step5dV35Backend,
+)
+from step5d_autotune_v3.delivery_observation import load_delivery_observation
+from step5d_autotune_v3.release_identity import load_runtime_release
+from step5d_autotune_v3.runtime_gate import (
+    ArmGateProvider,
+    RuntimeGateError,
+    load_campaign_lease,
+    process_starttime,
+    release_runtime_contract,
 )
 from step5d_autotune_batch_plan import (
     CandidateBatchPlan,
@@ -84,6 +98,7 @@ from step5d_autotune_contract import (
     CampaignSpec,
     ExecutionProfile,
     ForceCandidate,
+    NORMAL_FILTER_PROFILES,
     sha256_json,
 )
 from step5d_autotune_coordinator import CampaignCoordinator, MailboxObservation
@@ -458,7 +473,21 @@ def _sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _profile(root: Path) -> ExecutionProfile:
+def _profile(root: Path, *, launch_profile: Any | None = None) -> ExecutionProfile:
+    if launch_profile is not None:
+        allowed = launch_profile.trial_overlay_policy["execution_profile_id"][
+            "allowed"
+        ]
+        matches = [
+            profile
+            for profile in NORMAL_FILTER_PROFILES
+            if profile.profile_id in allowed
+        ]
+        if len(allowed) != 1 or len(matches) != 1:
+            raise RuntimeError(
+                "rolling launch profile must select one execution profile"
+            )
+        return matches[0]
     source = json.loads(
         (root / "config" / "step5d_autotune_campaign_v1.json").read_text(
             encoding="utf-8"
@@ -538,6 +567,7 @@ def _campaign_execution_context(
     *,
     campaign: CampaignSpec,
     campaign_fingerprint: str,
+    controller_delivery_verified: bool,
 ) -> CampaignExecutionContext:
     """Bind machine plan/epoch identity without inventing motion authority."""
 
@@ -553,8 +583,44 @@ def _campaign_execution_context(
         campaign_id=campaign.campaign_id,
         campaign_fingerprint=campaign_fingerprint,
         execution_ref_sha256=binding.binding_ref_sha256,
-        controller_readback_verified=True,
+        controller_readback_verified=controller_delivery_verified,
         selected_release_current=True,
+    )
+
+
+def _campaign_lease_authorization(
+    path: Path,
+    *,
+    root: Path,
+    campaign: CampaignSpec,
+    campaign_fingerprint: str,
+    controller_delivery_verified: bool,
+) -> CampaignAuthorization:
+    """Load the canonical supervisor lease; machine binding alone is not authority."""
+
+    lease = load_campaign_lease(path)
+    release = load_runtime_release(root)
+    contract = release_runtime_contract(root, release)
+    if (
+        lease.campaign_id != campaign.campaign_id
+        or lease.campaign_epoch != campaign.campaign_epoch
+        or lease.campaign_fingerprint != campaign_fingerprint
+        or lease.manifest_sha256 != release.manifest_sha256
+        or lease.release_stage_id != release.release_stage_id
+        or lease.program_id != release.program_id
+        or lease.protocol_id != release.protocol_id
+        or lease.safety_envelope_sha256 != contract["safety_envelope_sha256"]
+        or process_starttime(lease.supervisor_pid) != lease.supervisor_starttime
+        or os.getppid() != lease.supervisor_pid
+    ):
+        raise RuntimeError("campaign lease is not current for this runner/release")
+    return CampaignAuthorization(
+        campaign_id=lease.campaign_id,
+        campaign_fingerprint=lease.campaign_fingerprint,
+        authorization_ref_sha256=lease.sha256,
+        bounded_baseline_and_loop=True,
+        live_authorized=True,
+        controller_readback_verified=controller_delivery_verified,
     )
 
 
@@ -687,6 +753,25 @@ def _publish_runner_ready(
             "durable_state_ready": True,
         },
     )
+
+
+def _wait_for_first_arm_gate(
+    provider: ArmGateProvider,
+    *,
+    timeout_s: float,
+    stop_requested: Callable[[], bool],
+) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if stop_requested():
+            raise RuntimeError("campaign stopped before the first ARM gate opened")
+        try:
+            if provider.readiness_context() is not None:
+                return
+        except RuntimeGateError as exc:
+            raise RuntimeError(f"first ARM gate failed closed: {exc}") from exc
+        time.sleep(0.05)
+    raise TimeoutError("first ARM gate did not open before timeout")
 
 
 def _verified_parent_layout(manifest: Mapping[str, Any]) -> CampaignEpochLayout | None:
@@ -875,7 +960,11 @@ def _infra_abort_evidence(latest: Any) -> tuple[JournalReference, TpSnapshot]:
     )
 
 
-def _mailbox_observation_for_latest(latest: Any) -> MailboxObservation:
+def _mailbox_observation_for_latest(
+    latest: Any,
+    *,
+    launch_profile: Any | None = None,
+) -> MailboxObservation:
     cursor = latest.state.active_trial
     if cursor is None:
         return MailboxObservation.missing()
@@ -888,6 +977,7 @@ def _mailbox_observation_for_latest(latest: Any) -> MailboxObservation:
     mailbox = AtomicCommandMailbox(
         Path(provenance) / "runtime" / "command.json",
         network_mode=True,
+        launch_profile=launch_profile,
     )
     return MailboxObservation.from_command(mailbox.read_latest())
 
@@ -1193,16 +1283,6 @@ def run(args: argparse.Namespace) -> int:
         )
     ):
         raise RuntimeError("bridge readiness is not live-complete")
-    if args.offline_release_gate and any(
-        (
-            ready.get("transport") != "fake_no_network_no_motion",
-            ready.get("motion_capable") is not False,
-            ready.get("controller_connected") is not False,
-        )
-    ):
-        raise RuntimeError(
-            "offline release gate requires explicit no-network/no-motion transport"
-        )
     ensure_mailbox_parent(
         mailbox_path,
         bridge_run,
@@ -1232,6 +1312,7 @@ def run(args: argparse.Namespace) -> int:
         )
     plan_path: Path | None = None
     rolling_release = False
+    v3_launch_profile = None
     if args.selection_policy == "codex_batches":
         if args.candidate_plan is None:
             raise RuntimeError("codex_batches requires --candidate-plan")
@@ -1240,6 +1321,14 @@ def run(args: argparse.Namespace) -> int:
         if plan_path != expected_plan or plan_path.is_symlink():
             raise RuntimeError("candidate plan must use campaign_root/control/candidate_plan.json")
         rolling_release = any(load_plan(plan_path).occurrences)
+        if rolling_release:
+            if args.v3_launch_profile is None:
+                raise RuntimeError("rolling release requires its immutable launch profile")
+            from step5d_autotune_v3.runtime_profile import load_launch_profile
+
+            v3_launch_profile = load_launch_profile(
+                args.v3_launch_profile.expanduser().absolute()
+            )
         if rolling_release and not (0.0 < args.plan_wait_timeout_s <= 25.0):
             raise RuntimeError(
                 "rolling plan wait budget must be in (0,25] s, preserving at least "
@@ -1251,6 +1340,19 @@ def run(args: argparse.Namespace) -> int:
             raise RuntimeError(
                 "configured plan closure requires a positive rolling revision"
             )
+    controller_delivery_verified = not rolling_release
+    if rolling_release:
+        if args.delivery_observation is None:
+            raise RuntimeError(
+                "rolling release requires its governed delivery observation"
+            )
+        release = load_runtime_release(root)
+        load_delivery_observation(
+            root,
+            args.delivery_observation.expanduser().absolute(),
+            release=release,
+        )
+        controller_delivery_verified = True
     initial_row = _latest_complete_row(bridge_csv)
     initial = tp_snapshot_from_bridge_row(initial_row)
     if _integer(initial_row, "ur_safety_mode") != 1:
@@ -1300,6 +1402,16 @@ def run(args: argparse.Namespace) -> int:
         machine_binding,
         campaign=campaign,
         campaign_fingerprint=frozen.composite_fingerprint,
+        controller_delivery_verified=controller_delivery_verified,
+    )
+    if args.campaign_lease is None:
+        raise RuntimeError("live campaign requires the canonical campaign lease")
+    lease_authorization = _campaign_lease_authorization(
+        args.campaign_lease.resolve(),
+        root=root,
+        campaign=campaign,
+        campaign_fingerprint=frozen.composite_fingerprint,
+        controller_delivery_verified=controller_delivery_verified,
     )
     if plan_path is None or args.v3_trial_overlays is None:
         raise RuntimeError("V3 campaign binding requires exact candidate/overlay plans")
@@ -1313,8 +1425,9 @@ def run(args: argparse.Namespace) -> int:
     ):
         raise RuntimeError("machine campaign binding plan identity differs")
     preflight = backend.preflight(
-        offline=args.offline_release_gate,
-        execution_context=(None if args.offline_release_gate else execution_context),
+        offline=False,
+        execution_context=execution_context,
+        authorization=lease_authorization,
     )
     if not preflight.ok:
         raise RuntimeError("live backend preflight failed: " + ";".join(preflight.blockers))
@@ -1360,7 +1473,10 @@ def run(args: argparse.Namespace) -> int:
         else campaign_root / "epochs" / f"{campaign.campaign_epoch:010d}"
     )
     store = CampaignStore(epoch_root / "store")
-    current_profile = _profile(root)
+    current_profile = _profile(
+        root,
+        launch_profile=v3_launch_profile if rolling_release else None,
+    )
     if existing_layout is not None:
         store.initialize(dict(existing_layout.manifest))
     else:
@@ -1414,7 +1530,10 @@ def run(args: argparse.Namespace) -> int:
             promotion_history=CampaignStore(prior_layout.store_root).read_promotion_history(),
             prior_resume_history=_prior_resume_history(prior_layout.manifest),
             tp_snapshot=initial,
-            mailbox_observation=_mailbox_observation_for_latest(old_latest),
+            mailbox_observation=_mailbox_observation_for_latest(
+                old_latest,
+                launch_profile=v3_launch_profile,
+            ),
             defer_reconcile=True,
         )
         settled = _settle_home_after_restart(
@@ -1435,6 +1554,7 @@ def run(args: argparse.Namespace) -> int:
             campaign=campaign,
             source_fingerprint=frozen.source_fingerprint,
             config_fingerprint=frozen.config_fingerprint,
+            execution_profile=current_profile,
         )
         supervisor = coordinator.supervisor
         supervisor.completion_protocol = (
@@ -1449,7 +1569,7 @@ def run(args: argparse.Namespace) -> int:
             backend_id=frozen.backend_id,
             source_fingerprint=frozen.source_fingerprint,
             config_fingerprint=frozen.config_fingerprint,
-            execution_profile=_profile(root),
+            execution_profile=current_profile,
             selection_policy=args.selection_policy,
             completion_protocol=(
                 CompletionProtocol.FULL_HOME_ROLLING_ARM_V1
@@ -1477,7 +1597,10 @@ def run(args: argparse.Namespace) -> int:
                 promotion_history=store.read_promotion_history(),
                 prior_resume_history=_prior_resume_history(existing_layout.manifest),
                 tp_snapshot=initial,
-                mailbox_observation=_mailbox_observation_for_latest(latest),
+                mailbox_observation=_mailbox_observation_for_latest(
+                    latest,
+                    launch_profile=v3_launch_profile,
+                ),
                 defer_reconcile=True,
             )
             settled = _settle_home_after_restart(
@@ -1507,7 +1630,29 @@ def run(args: argparse.Namespace) -> int:
             campaign_fingerprint=frozen.composite_fingerprint,
             selection_policy=args.selection_policy,
         )
-    mailbox = AtomicCommandMailbox(mailbox_path, network_mode=True)
+    if args.wait_for_first_arm_gate:
+        if args.v3_runtime_root is None or args.campaign_lease is None:
+            raise RuntimeError("first ARM gate wait requires V3 runtime and campaign lease")
+        lease_path = args.campaign_lease.resolve()
+        gate_path = lease_path.with_name("arm_gate.json")
+        if lease_path.parent != (bridge_run / "runtime").resolve():
+            raise RuntimeError("campaign lease must belong to the bridge runtime")
+        _wait_for_first_arm_gate(
+            ArmGateProvider(
+                root=root,
+                gate_path=gate_path,
+                lease_path=lease_path,
+                lease_sha256=lease_authorization.authorization_ref_sha256,
+                release=load_runtime_release(root),
+            ),
+            timeout_s=args.first_arm_gate_timeout_s,
+            stop_requested=stop_requested,
+        )
+    mailbox = AtomicCommandMailbox(
+        mailbox_path,
+        network_mode=True,
+        launch_profile=v3_launch_profile,
+    )
     event_path = campaign_root / "events.jsonl"
     campaign_root.mkdir(parents=True, exist_ok=True)
     _event(
@@ -1743,9 +1888,11 @@ def run(args: argparse.Namespace) -> int:
                     controller_readback_fingerprint=(
                         frozen.controller_readback_manifest_sha256
                     ),
-                    # Legacy BatchIdentity field; the value is now the exact
-                    # machine execution-context digest, not an authorization.
-                    authorization_ref_sha256=execution_context.execution_ref_sha256,
+                    authorization_ref_sha256=(
+                        execution_context.execution_ref_sha256
+                        if lease_authorization is None
+                        else lease_authorization.authorization_ref_sha256
+                    ),
                     stopping_bound_fingerprint=None,
                     plant_epoch=supervisor.plant_epoch,
                     campaign_root=epoch_root,
@@ -1890,7 +2037,6 @@ def run(args: argparse.Namespace) -> int:
                 snapshot = tp_snapshot_from_bridge_row(row)
                 if (
                     args.offline_release_gate
-                    and not rolling_release
                     and trial.trial_id == 2
                     and snapshot.state == "RUN"
                     and snapshot.campaign_epoch_echo
@@ -2229,6 +2375,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mailbox", type=Path, required=True)
     parser.add_argument("--runner-ready-file", type=Path)
     parser.add_argument("--campaign-binding", type=Path)
+    parser.add_argument("--campaign-lease", type=Path)
+    parser.add_argument("--delivery-observation", type=Path)
     parser.add_argument("--campaign-epoch", type=int, default=1)
     parser.add_argument(
         "--selection-policy",
@@ -2240,6 +2388,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--close-after-plan-revision", type=int)
     parser.add_argument("--wait-for-home", action="store_true")
     parser.add_argument("--home-timeout-s", type=float, default=90.0)
+    parser.add_argument("--wait-for-first-arm-gate", action="store_true")
+    parser.add_argument("--first-arm-gate-timeout-s", type=float, default=120.0)
     parser.add_argument("--recover-infra-aborted-active", action="store_true")
     parser.add_argument("--trial-timeout-s", type=float, default=180.0)
     parser.add_argument("--ack-timeout-s", type=float, default=10.0)
@@ -2256,7 +2406,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--offline-release-gate",
         action="store_true",
-        help="no-network fake-transport gate; exits only after formal ARM2 enters RUN",
+        help="endpoint-only production qualification; exits after formal ARM2 enters RUN",
     )
     return parser.parse_args()
 

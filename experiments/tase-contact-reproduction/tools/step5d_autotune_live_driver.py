@@ -107,6 +107,9 @@ def terminal_float_reason_crosscheck(
             TpLoopState.RETURN,
             TpLoopState.HOME_VERIFY,
             TpLoopState.WAIT_ACK,
+            TpLoopState.READY_NEAR,
+            TpLoopState.READY_HOME_CLOSED,
+            TpLoopState.READY_HOME_NEXT,
         }
         and value is not None
         and math.isfinite(value)
@@ -375,6 +378,22 @@ class MailboxCommand:
         )
         return payload
 
+    @property
+    def arm_gate_binding(self) -> dict[str, Any]:
+        if self.packet.command is not HostCommand.ARM:
+            raise MailboxError("only ARM commands have an ARM gate binding")
+        return {
+            "mailbox_sha256": self.sha256,
+            "campaign_epoch": self.packet.campaign_epoch,
+            "trial_id": self.packet.trial_id,
+            "command": int(self.packet.command),
+            "candidate_token": self.packet.candidate_token,
+            "execution_profile_id": self.packet.execution_profile_id,
+            "command_seq": self.packet.command_seq,
+            "logical_batch_sequence": self.packet.logical_batch_sequence,
+            "trial_uid": self.binding.trial_uid,
+        }
+
 
 def _reject_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON constant is forbidden: {value}")
@@ -421,6 +440,7 @@ def _binding_from_prepared(
     prepared_trial: Any,
     *,
     network_mode: bool,
+    launch_profile: Any | None,
 ) -> RuntimeTrialBinding:
     trial = getattr(prepared_trial, "trial", None)
     if trial is None:
@@ -512,14 +532,13 @@ def _binding_from_prepared(
         raise MailboxError("normal_filter_alpha is forbidden in Step5d autotune")
     if binding.trial_overlay is not None:
         from step5d_autotune_v3.runtime_profile import (
-            DEFAULT_LAUNCH_PROFILE,
-            load_launch_profile,
             normalized_overlay_sha256,
             normalize_trial_overlay,
         )
 
+        if launch_profile is None:
+            raise MailboxError("V3 trial overlay lacks its immutable launch profile")
         try:
-            launch_profile = load_launch_profile(DEFAULT_LAUNCH_PROFILE)
             normalized = normalize_trial_overlay(
                 binding.trial_overlay,
                 profile=launch_profile,
@@ -558,15 +577,25 @@ def _binding_from_prepared(
 class AtomicCommandMailbox:
     """Atomic+fsync command sink implementing ``ContinuousTpCommandSink``."""
 
-    def __init__(self, path: Path, *, network_mode: bool = True) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        network_mode: bool = True,
+        launch_profile: Any | None = None,
+    ) -> None:
         if not isinstance(path, Path) or not path.is_absolute():
             raise MailboxError("command mailbox path must be absolute")
         self.path = path
         self.network_mode = bool(network_mode)
+        self.launch_profile = launch_profile
 
     def send_command(self, packet: HostPacket, *, prepared_trial: Any) -> None:
         binding = _binding_from_prepared(
-            packet, prepared_trial, network_mode=self.network_mode
+            packet,
+            prepared_trial,
+            network_mode=self.network_mode,
+            launch_profile=self.launch_profile,
         )
         payload = {
             "schema": MAILBOX_SCHEMA,
@@ -661,6 +690,7 @@ class AtomicCommandMailbox:
             payload,
             digest.hexdigest(),
             network_mode=self.network_mode,
+            launch_profile=self.launch_profile,
         )
 
 
@@ -669,6 +699,7 @@ def _mailbox_command_from_payload(
     digest: str,
     *,
     network_mode: bool,
+    launch_profile: Any | None,
 ) -> MailboxCommand:
     if not isinstance(payload, Mapping) or set(payload) != {"schema", "packet", "runtime"}:
         raise MailboxError("command mailbox has unknown or missing top-level fields")
@@ -809,15 +840,15 @@ def _mailbox_command_from_payload(
     )
     if binding.trial_overlay is not None:
         from step5d_autotune_v3.runtime_profile import (
-            DEFAULT_LAUNCH_PROFILE,
-            load_launch_profile,
             normalize_trial_overlay,
         )
 
+        if launch_profile is None:
+            raise MailboxError("V3 trial overlay lacks its immutable launch profile")
         try:
             normalized_overlay = normalize_trial_overlay(
                 binding.trial_overlay,
-                profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+                profile=launch_profile,
             )
         except (OSError, ValueError) as exc:
             raise MailboxError(f"V3 trial overlay is invalid: {exc}") from exc
@@ -830,7 +861,7 @@ def _mailbox_command_from_payload(
                 normalized_overlay["control_candidate_uid"]
                 != binding.control_candidate_uid
                 or normalized_overlay_sha256(
-                    load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+                    launch_profile,
                     normalized_overlay,
                 )
                 != binding.trial_overlay_sha256
@@ -913,10 +944,15 @@ class BridgeMailboxRuntime:
         path: Path,
         *,
         campaign_home_reference_path: Path | None = None,
-        arming_context_provider: Callable[[], Any | None] | None = None,
+        arming_context_provider: Callable[..., Any | None] | None = None,
         completion_protocol: str | None = None,
+        launch_profile: Any | None = None,
     ) -> None:
-        self.mailbox = AtomicCommandMailbox(path, network_mode=True)
+        self.mailbox = AtomicCommandMailbox(
+            path,
+            network_mode=True,
+            launch_profile=launch_profile,
+        )
         self.campaign_home_reference_path = (
             path.parent / "campaign_home_reference.json"
             if campaign_home_reference_path is None
@@ -937,6 +973,13 @@ class BridgeMailboxRuntime:
             FULL_HOME_ROLLING_PROTOCOL,
         }:
             raise MailboxError("completion protocol is unsupported")
+        if (
+            self.completion_protocol == FULL_HOME_ROLLING_PROTOCOL
+            and self.arming_context_provider is None
+        ):
+            raise MailboxError(
+                "full-home rolling ARM requires a bridge-local arming gate provider"
+            )
         self.active: MailboxCommand | None = None
         self.last_command: MailboxCommand | None = None
         self.last_command_seq = 0
@@ -1272,15 +1315,30 @@ class BridgeMailboxRuntime:
         *,
         connection_epoch: int = 0,
     ) -> bool:
-        arming_context = None
-        if self.arming_context_provider is not None:
-            arming_context = self.arming_context_provider()
-            if arming_context is None:
-                return False
         command = self.mailbox.read_latest()
         if command is None or output is None:
             return False
         snapshot = tp_packet_from_rtde(output)
+        arm_boundary = command.packet.command is HostCommand.ARM and (
+            self.active is None
+            or self.last_command is None
+            or command.sha256 != self.last_command.sha256
+        )
+        arming_context = None
+        if self.arming_context_provider is not None:
+            if command.packet.command is HostCommand.ARM:
+                arming_context = self.arming_context_provider(
+                    command.arm_gate_binding,
+                    connection_epoch=connection_epoch,
+                )
+            else:
+                arming_context = self.arming_context_provider()
+            if arming_context is None:
+                return False
+        if arm_boundary:
+            confirmed = self.mailbox.read_latest()
+            if confirmed is None or confirmed.sha256 != command.sha256:
+                raise MailboxError("ARM mailbox changed after its command-bound grant")
         if (
             snapshot.state is TpLoopState.READY_HOME
             and command.packet.command is HostCommand.ARM

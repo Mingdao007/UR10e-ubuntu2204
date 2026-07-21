@@ -37,10 +37,11 @@ import pinocchio as pin
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
 STEP4F_SAFE_FRAME_PATH = EXPERIMENT_ROOT / "config" / "step4f_safe_frame.json"
-KUNWEI_TOOLS = Path("/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/tools")
-UR_REALSETUP_SCRIPTS = Path("/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts")
+KUNWEI_TOOLS = (
+    EXPERIMENT_ROOT.parents[1]
+    / "experiments/sensor-integration/kunwei-kwr75b/tools"
+)
 sys.path.insert(0, str(KUNWEI_TOOLS))
-sys.path.insert(0, str(UR_REALSETUP_SCRIPTS))
 
 from capture_kunwei_kwr75_1khz import (  # noqa: E402
     FIELDS as KUNWEI_RAW_FIELDS,
@@ -51,7 +52,7 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
     parse_frame,
     pop_frames,
 )
-from _ur_common import RTDEClient, dashboard_exchange  # noqa: E402
+from step5d_autotune_v3.rtde_client import RTDEClient, dashboard_exchange  # noqa: E402
 from contact_semantics import (  # noqa: E402
     semantic_boundary_is_consistent,
     twist_base_to_same_origin,
@@ -9091,8 +9092,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--step5c-joint-model",
         type=Path,
-        default=Path(
-            "/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
+        default=(
+            EXPERIMENT_ROOT.parent
+            / "archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
         ),
     )
     parser.add_argument("--step5c-joint-site", default="tcp_site_unverified_85mm")
@@ -9572,6 +9574,8 @@ def step5d_bridge_ready_payload(
     baseline_ready: bool,
     sensor_age_s: float,
     parse_errors: int,
+    rtde_output_fields: Sequence[str] | None = None,
+    rtde_output_types: Sequence[str] | None = None,
 ) -> dict[str, Any] | None:
     """Return an armed sentinel only after every live input is trustworthy."""
 
@@ -9604,7 +9608,7 @@ def step5d_bridge_ready_payload(
         or not scheduler_ready
     ):
         return None
-    return {
+    payload = {
         "ready_schema": "step5d_bridge_ready_v2",
         "ok": True,
         "pid": os.getpid(),
@@ -9625,6 +9629,10 @@ def step5d_bridge_ready_payload(
         "parse_errors": int(parse_errors),
         "output_dir": str(args.output_dir),
     }
+    if rtde_output_fields is not None and rtde_output_types is not None:
+        payload["rtde_output_fields"] = list(rtde_output_fields)
+        payload["rtde_output_types"] = list(rtde_output_types)
+    return payload
 
 
 def step5d_dashboard_watch_metadata(
@@ -11865,6 +11873,8 @@ def main(argv: list[str] | None = None) -> int:
                         baseline_ready=baseline_ready,
                         sensor_age_s=sensor_age,
                         parse_errors=parse_errors,
+                        rtde_output_fields=active_rtde_output_fields,
+                        rtde_output_types=rtde_output_types,
                     )
                     if ready_payload is None:
                         if ready_written:

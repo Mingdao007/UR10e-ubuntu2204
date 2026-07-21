@@ -200,7 +200,7 @@
     ],
     [
       "--step5c-joint-model",
-      "/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
+      "$runtime.step5c_joint_model"
     ],
     [
       "--step5c-joint-site",
@@ -376,7 +376,7 @@
       "step4e_version": "step5d_strict_rnn_autotune_v1",
       "step5b_trial_profile": "none",
       "step5c_joint_damping": 0.0001,
-      "step5c_joint_model": "/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml",
+      "step5c_joint_model": "$runtime.step5c_joint_model",
       "step5c_joint_site": "tcp_site_unverified_85mm",
       "step5c_qdot_limit_rad_s": 0.15,
       "step5d_alpha_s_inv": 1.0,
@@ -564,7 +564,7 @@
     "scripts/step5d-autotune-live.sh": "ca0cac4ca0579f0493fd1ab7c93e45bf84b3608a40740a36ec12bf0aad6d1ed6",
     "tools/build_step5d_autotune_tp_v3.py": "d04cdb691082e3fd4bb132d04d89aa2ecf3a9749d9f4e85063f641703709dafd",
     "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
-    "tools/kunwei_rtde_bridge.py": "aec72fb4aebbda25ee06d9768c49846b631eed9152355ce6cea5df5863acc57e",
+    "tools/kunwei_rtde_bridge.py": "120a1eaefdbd8ef505ca9e22cf6331033230dad10fae9d333b19fa6a924109ab",
     "tools/run_step5d_autotune_campaign.py": "896d00f2e5630b55e568de7293f00c4c7e78d61ed910adbe540e4b8681e7b779",
     "tools/step5d_autotune_backend.py": "ac88cab4af98d4435d29181e898a0b121eed58fd981424eaab50df04f00166b0",
     "tools/step5d_autotune_batch_plan.py": "b9312c3348f266f52900030410f0338c55d32e68e40209819e3fafde8a15277d",

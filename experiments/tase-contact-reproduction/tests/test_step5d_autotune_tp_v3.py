@@ -44,6 +44,8 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
     assert "movel(transfer_pose, a=0.135, v=0.090, r=0.0)" in rendered
     assert "movel(target_pose, a=0.060, v=0.040, r=0.0)" in rendered
     assert "local batch_row_index = read_input_integer_register(30)" in rendered
+    assert "normal_level == 6" in rendered
+    assert "normal_level == 6" not in v1.render_script()
     assert "if stale_s2 > 1.000:" in rendered
     assert "if stale_s2 > 1.000:" in v1.render_script()
     assert "if stale_s2 > 0.020:" not in rendered
@@ -145,3 +147,23 @@ def test_r010_generator_check_recomputes_every_output_byte(tmp_path: Path) -> No
     sanity.write_bytes(sanity.read_bytes().replace(b'"return_segment_count": 3', b'"return_segment_count": 4'))
     with pytest.raises(ValueError, match="numeric-sanity.json:byte_drift"):
         v3.check_triplet(tmp_path, stamp)
+
+
+def test_r010_default_build_is_byte_stable(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    assert v3.main(["--output-dir", str(first)]) == 0
+    capsys.readouterr()
+    assert v3.main(["--output-dir", str(second)]) == 0
+    capsys.readouterr()
+
+    first_bytes = {
+        path.name: path.read_bytes() for path in sorted(first.iterdir())
+    }
+    second_bytes = {
+        path.name: path.read_bytes() for path in sorted(second.iterdir())
+    }
+    assert first_bytes == second_bytes
+    assert v3.IMMUTABLE_RELEASE_STAMP.encode() in first_bytes[
+        f"{v3.PROGRAM_NAME}.script"
+    ]
