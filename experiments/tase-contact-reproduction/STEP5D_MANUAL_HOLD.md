@@ -51,7 +51,20 @@ identity closes the inflight request.
 `run_step5d_manual_tp_transaction.py` is limited to package upload, fresh GET,
 SHA closure, and switching `config/step5d/manual/current.json`.  Those actions
 do not authorize Load, Play, a bridge, ARM registers, contact, or robot motion.
-The offline `run_step5d_manual_hold_campaign.py` prepares durable identities
-only and deliberately contains no controller transport.  Any later live
-adapter and live execution require a separate explicit operator trigger and
-the normal UR10e live/contact gates.
+The offline `run_step5d_manual_hold_campaign.py` prepares durable identities.
+
+The isolated live adapter is split into fresh context, read-only preflight,
+and one process-lifetime NO_ARM bridge owner:
+
+- `build_step5d_manual_bridge_start_context.py` binds the exact manual release,
+  frozen launch profile, package hashes, source surface, and plant epoch;
+- `preflight_step5d_manual_bridge.py` requires the exact manual TP program,
+  normal safety, a stationary robot, start clearance, no writer, no mailbox,
+  runtime dependencies, and read-only controller/sensor connectivity;
+- `run_step5d_manual_bridge_live.py` holds both live-writer and throughput locks
+  until shutdown, then starts only `run_step5d_manual_bridge.py`;
+- the bridge declares manual protocol `v3_full_home_manual_hold_v1` while
+  explicitly reusing the frozen r009 register wire protocol.  This mapping does
+  not authorize ARM or motion and cannot silently select the r009 TP program.
+
+Bridge start, TP Play, ARM, and live/contact remain separate explicit gates.

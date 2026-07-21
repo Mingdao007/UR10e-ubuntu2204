@@ -15,6 +15,9 @@
   "program": "step5d_strict_rnn_manual_tune_v1",
   "protocol": "v3_full_home_manual_hold_v1",
   "safety_boundary": {
+    "bridge_scope": "manual_bridge_no_arm",
+    "bridge_start_available": true,
+    "bridge_start_requires_fresh_context_and_preflight": true,
     "heartbeat_loss_reason": 20,
     "heartbeat_stale_s": 1.0,
     "home_wait_timeout_s": null,
