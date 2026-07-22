@@ -106,7 +106,6 @@ bridge_record_launch_attempt() {
     --_launch-owner-pid "$$"
     --_launch-owner-starttime "${launch_owner_starttime}"
     --_launch-owner-authority-epoch "${launch_owner_authority_epoch}"
-    --_launch-capabilities-json "${launch_attempt_capabilities_json}"
   )
   if [[ -n "${launch_manifest_sha256}" ]]; then
     command+=(--_launch-manifest-sha256 "${launch_manifest_sha256}")
@@ -221,7 +220,6 @@ launch_attempt_phase=""
 launch_attempt_enabled=0
 launch_attempt_route="UNKNOWN"
 launch_attempt_route_snapshot=""
-launch_attempt_capabilities_json='{"bridge":true,"play":false,"arm":false,"motion":false,"zero":false,"tare":false}'
 launch_manifest_sha256=""
 launch_repository_head=""
 launch_owner_starttime=""
@@ -272,7 +270,7 @@ if [[ "${1:-}" == "bridge" ]]; then
         fi
         ((index += 1))
         ;;
-      --preflight|--preflight=*|--delivery-observation|--delivery-observation=*|--prepare-only|--prepare-only=*|--qualification-endpoints|--qualification-endpoints=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--authorization-file|--authorization-file=*|--arm-gate|--arm-gate=*|--offline-release-gate|--offline-release-gate=*)
+      --preflight|--preflight=*|--delivery-observation|--delivery-observation=*|--prepare-only|--prepare-only=*|--qualification-endpoints|--qualification-endpoints=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--arm-gate|--arm-gate=*|--offline-release-gate|--offline-release-gate=*)
         bridge_argv_error "${option_name} is an internal worker option"
         ;;
       *)
@@ -644,7 +642,6 @@ if (( bridge_mode == 1 )); then
       --output-root "${output_root}" \
       --pointer-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
       >"${output_root}/manual-active-run.json"
-    manual_authorization="${campaign_root}/control/manual_capability_authorization.json"
     bridge_begin_phase manual_campaign
     "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_manual_live_campaign.py" \
       --bridge-output-root "${output_root}" \
@@ -654,7 +651,6 @@ if (( bridge_mode == 1 )); then
       --campaign-id "${manual_campaign_id}" \
       --release-manifest-sha256 "${manual_release_sha}" \
       --qualification-result "${output_root}/manual-qualification-result.json" \
-      --authorization-file "${manual_authorization}" \
       --play-timeout-s "${play_timeout_s}"
     bridge_finish_phase
     bridge_revoke_authority completed

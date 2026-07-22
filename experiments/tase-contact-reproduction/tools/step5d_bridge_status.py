@@ -91,7 +91,7 @@ def _base_status(reason: str, *, attempt: Mapping[str, Any] | None) -> dict[str,
             "production_path_qualified": False,
             "bridge_process_alive": False,
             "bridge_heartbeat_fresh": False,
-            "authorization_scope_valid": False,
+            "canonical_attempt_bound": False,
             "play_prompt_ready": False,
         },
         "blocker": {"class": blocker_class, "reason_codes": [reason], "evidence": []},
@@ -181,15 +181,6 @@ def _binding_valid(root: Path, attempt: Mapping[str, Any]) -> bool:
     )
 
 
-def _scope_valid(capabilities: Any) -> bool:
-    return bool(
-        isinstance(capabilities, Mapping)
-        and all(capabilities.get(name) is True for name in ("bridge", "play", "arm", "motion"))
-        and capabilities.get("zero") is False
-        and capabilities.get("tare") is False
-    )
-
-
 def _v3_attempt_binding_valid(
     attempt: Mapping[str, Any],
     campaign_root: Path,
@@ -259,14 +250,17 @@ def _apply_attempt_gate(
     status["predicates"]["production_path_qualified"] = bool(
         status["predicates"].get("offline_proven") is True
     )
-    scope = bool(
-        status.get("predicates", {}).get("authorization_scope_valid") is True
+    attempt_bound = bool(
+        (
+            attempt.get("route") == "manual_v2"
+            and status.get("predicates", {}).get("canonical_attempt_bound") is True
+        )
         or (
             attempt.get("route") == "autotune_v3"
             and status.get("predicates", {}).get("lease_valid") is True
         )
     )
-    status["predicates"]["authorization_scope_valid"] = scope
+    status["predicates"]["canonical_attempt_bound"] = attempt_bound
     terminal = attempt["state"] in {"FAILED", "CANCELLED"}
     if terminal:
         reason = (
@@ -285,15 +279,15 @@ def _apply_attempt_gate(
         ]
         return blocked
     if attempt["state"] == "COMPLETED":
-        status["predicates"]["authorization_scope_valid"] = False
+        status["predicates"]["canonical_attempt_bound"] = False
         status["predicates"]["play_prompt_ready"] = False
         status["next_action"] = "inspect_outcome_or_start_new_canonical_attempt"
         return status
-    if not scope:
+    if not attempt_bound:
         status["predicates"]["play_prompt_ready"] = False
         if status.get("state") in {"WAITING_FOR_IDENTITY_PLAY", "WAITING_FOR_PLAY"}:
             status["state"] = "BRIDGE_ALIVE_NO_ARM"
-        status["next_action"] = "await_explicit_play_arm_motion_authorization_or_stop"
+        status["next_action"] = "restart_through_canonical_bridge"
     return status
 
 
@@ -338,9 +332,9 @@ def resolve_status(experiment_root: Path) -> dict[str, Any]:
                 "production_path_qualified": manual.get("offline_proven") is True,
                 "bridge_process_alive": manual.get("bridge_heartbeat") is True,
                 "bridge_heartbeat_fresh": manual.get("bridge_heartbeat") is True,
-                "controller_identity_fresh": manual.get("controller_identity_fresh")
+                "controller_preflight_valid": manual.get("controller_preflight_valid")
                 is True,
-                "authorization_scope_valid": _scope_valid(manual.get("capabilities")),
+                "canonical_attempt_bound": manual.get("canonical_attempt_bound") is True,
                 "play_prompt_ready": manual.get("play_prompt_ready") is True,
             },
             "blocker": {
@@ -368,12 +362,12 @@ def _require_readiness_state(
         status.get("state") != required_state
         or not isinstance(predicates, Mapping)
         or predicates.get("play_prompt_ready") is not True
-        or predicates.get("authorization_scope_valid") is not True
+        or predicates.get("canonical_attempt_bound") is not True
         or predicates.get("offline_proven") is not True
         or predicates.get("production_path_qualified") is not True
         or (
             status.get("route") == "manual_v2"
-            and predicates.get("controller_identity_fresh") is not True
+            and predicates.get("controller_preflight_valid") is not True
         )
     ):
         raise ValueError("machine status does not authorize the requested readiness claim")

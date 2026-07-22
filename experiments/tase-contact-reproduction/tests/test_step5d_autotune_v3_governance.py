@@ -696,7 +696,7 @@ def test_launch_attempt_admits_monotonic_manual_bridge_phases(tmp_path: Path) ->
         assert recorded["attestation"]["phase"] == phase
 
 
-def test_launch_attempt_v2_binds_route_runtime_owner_and_capabilities(
+def test_launch_attempt_v2_binds_route_runtime_and_owner(
     tmp_path: Path,
 ) -> None:
     output = tmp_path / "output"
@@ -715,14 +715,6 @@ def test_launch_attempt_v2_binds_route_runtime_owner_and_capabilities(
             "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
             "authority_epoch": 1,
         },
-        "capabilities": {
-            "bridge": True,
-            "play": False,
-            "arm": False,
-            "motion": False,
-            "zero": False,
-            "tare": False,
-        },
         "route_snapshot": None,
     }
     started = publish_launch_attempt(
@@ -735,7 +727,7 @@ def test_launch_attempt_v2_binds_route_runtime_owner_and_capabilities(
         observed_at_unix_ns=NOW_NS,
     )
     assert started["attestation"]["schema"] == governance.LAUNCH_ATTEMPT_SCHEMA
-    assert started["attestation"]["bindings"]["capabilities"]["arm"] is False
+    assert started["attestation"]["bindings"]["resource_owner"]["pid"] == os.getpid()
 
     publish_launch_attempt(
         tmp_path,
@@ -800,14 +792,6 @@ def test_launch_attempt_v2_rejects_mid_attempt_authority_binding_drift(
             "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
             "authority_epoch": 1,
         },
-        "capabilities": {
-            "bridge": True,
-            "play": False,
-            "arm": False,
-            "motion": False,
-            "zero": False,
-            "tare": False,
-        },
         "route_snapshot": None,
     }
     publish_launch_attempt(
@@ -820,8 +804,8 @@ def test_launch_attempt_v2_rejects_mid_attempt_authority_binding_drift(
         observed_at_unix_ns=NOW_NS,
     )
     changed = json.loads(json.dumps(bindings))
-    changed["capabilities"]["arm"] = True
-    with pytest.raises(GovernanceError, match="capabilities binding cannot change"):
+    changed["resource_owner"]["authority_epoch"] = 2
+    with pytest.raises(GovernanceError, match="resource_owner binding cannot change"):
         publish_launch_attempt(
             tmp_path,
             attempt_id="immutable-bindings",
@@ -849,14 +833,6 @@ def test_launch_attempt_records_closed_world_route_blocker(tmp_path: Path) -> No
             "pid": os.getpid(),
             "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
             "authority_epoch": 1,
-        },
-        "capabilities": {
-            "bridge": True,
-            "play": False,
-            "arm": False,
-            "motion": False,
-            "zero": False,
-            "tare": False,
         },
         "route_snapshot": None,
     }
@@ -903,14 +879,6 @@ def test_launch_attempt_completed_is_terminal(tmp_path: Path) -> None:
             "pid": os.getpid(),
             "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
             "authority_epoch": 1,
-        },
-        "capabilities": {
-            "bridge": True,
-            "play": False,
-            "arm": False,
-            "motion": False,
-            "zero": False,
-            "tare": False,
         },
         "route_snapshot": None,
     }
@@ -1343,17 +1311,6 @@ def test_hidden_cli_is_fenced_to_active_authority_owner(
         str(owner_starttime),
         "--_launch-owner-authority-epoch",
         "1",
-        "--_launch-capabilities-json",
-        json.dumps(
-            {
-                "bridge": True,
-                "play": False,
-                "arm": False,
-                "motion": False,
-                "zero": False,
-                "tare": False,
-            }
-        ),
     ]
     assert cli.main([*common, "--_launch-attempt-state", "STARTED"]) == 0
     recorded = json.loads(capsys.readouterr().out)

@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import time
 from types import SimpleNamespace
-from typing import Any, Callable, Mapping
+from typing import Any, Mapping
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 from step5d_autotune_contract import (
@@ -71,15 +71,7 @@ from step5d_manual_profile import (
     DEFAULT_LAUNCH_PROFILE,
     load_manual_launch_profile as load_launch_profile,
 )
-from step5d_manual_authorization import (
-    AUTHORIZATION_SCHEMA,
-    CAPABILITIES,
-    ManualAuthorizationError,
-    capture_capability_authorization as _capture_capability_authorization,
-    load_capability_authorization as _load_capability_authorization,
-)
 from step5d_manual_qualification import validate_result as validate_manual_qualification
-from preflight_step5d_manual_bridge import observe_manual_controller_triplet
 from run_step5d_manual_bridge import ARM_GATE_SCHEMA
 from ur10e_parallel import ResourceProfile, writer_lease_owner
 
@@ -108,44 +100,6 @@ ARM_ACKNOWLEDGED_STATES = frozenset(
 
 class ManualLiveError(RuntimeError):
     pass
-
-
-def load_capability_authorization(
-    path: Path,
-    *,
-    attempt_id: str,
-    campaign_id: str,
-    release_manifest_sha256: str,
-    now_ns: int | None = None,
-) -> dict[str, Any]:
-    try:
-        return _load_capability_authorization(
-            path,
-            attempt_id=attempt_id,
-            campaign_id=campaign_id,
-            release_manifest_sha256=release_manifest_sha256,
-            now_ns=now_ns,
-        )
-    except ManualAuthorizationError as exc:
-        raise ManualLiveError(str(exc)) from exc
-
-
-def capture_capability_authorization(
-    path: Path,
-    *,
-    attempt_id: str,
-    campaign_id: str,
-    release_manifest_sha256: str,
-) -> tuple[dict[str, Any], dict[str, str]]:
-    try:
-        return _capture_capability_authorization(
-            path,
-            attempt_id=attempt_id,
-            campaign_id=campaign_id,
-            release_manifest_sha256=release_manifest_sha256,
-        )
-    except ManualAuthorizationError as exc:
-        raise ManualLiveError(str(exc)) from exc
 
 
 def _sha(payload: Mapping[str, Any]) -> str:
@@ -362,8 +316,6 @@ def _publish_status(
     total: int,
     next_group: str | None,
     blocker: str | None = None,
-    capabilities: Mapping[str, bool] | None = None,
-    authorization_file: Path | None = None,
     controller_observation: Mapping[str, Any] | None = None,
     launch_attempt_id: str,
 ) -> dict[str, Any]:
@@ -371,18 +323,6 @@ def _publish_status(
         args.bridge_output_root / "bridge_launch.json", "manual bridge launch"
     )
     bridge_pid = bridge_launch.get("pid")
-    authorization_reference = None
-    if authorization_file is not None:
-        observed_authorization, authorization_reference = (
-            capture_capability_authorization(
-                authorization_file,
-                attempt_id=launch_attempt_id,
-                campaign_id=args.campaign_id,
-                release_manifest_sha256=args.release_manifest_sha256,
-            )
-        )
-        if observed_authorization.get("capabilities") != capabilities:
-            raise ManualLiveError("Manual authorization capabilities changed")
     payload = {
         "schema": STATUS_SCHEMA,
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -410,18 +350,8 @@ def _publish_status(
             "sha256": hashlib.sha256(args.qualification_result.read_bytes()).hexdigest(),
         },
         "offline_proven": True,
-        "capabilities": {
-            name: bool((capabilities or {}).get(name, name == "bridge"))
-            for name in CAPABILITIES
-        },
-        "authorization": (
-            authorization_reference
-        ),
-        "play_prompt_ready": (
-            state == "WAITING_FOR_IDENTITY_PLAY"
-            and capabilities is not None
-            and all(capabilities.get(name) is True for name in ("play", "arm", "motion"))
-        ),
+        "canonical_attempt_bound": bool(launch_attempt_id),
+        "play_prompt_ready": state == "WAITING_FOR_PLAY",
         "prepared_group": next_group,
         "completed_trials": completed,
         "planned_trials": total,
@@ -429,11 +359,9 @@ def _publish_status(
         "blocker": blocker,
         "next_action": (
             "press Play once on the loaded Manual V2 program"
-            if state == "WAITING_FOR_IDENTITY_PLAY" and capabilities is not None
-            else "await explicit Play/ARM/motion authorization or stop"
-            if state == "BRIDGE_ALIVE_NO_ARM"
+            if state == "WAITING_FOR_PLAY"
             else "wait for exact TP ARM acknowledgement"
-            if state in {"PLAY_OBSERVED_IDENTITY_RECHECKED", "ARM_PENDING"}
+            if state in {"PLAY_OBSERVED", "ARM_PENDING"}
             else "none" if state in {"RUNNING", "COMPLETE"} else "inspect blocker evidence"
         ),
     }
@@ -462,17 +390,7 @@ def _observe_controller_identity(
     *,
     timeout_s: float = 2.0,
     required_program_state: str | None = None,
-    release_manifest_sha256: str | None = None,
-    verify_controller_bytes: bool = False,
 ) -> dict[str, Any]:
-    controller_triplet = None
-    if verify_controller_bytes:
-        if release_manifest_sha256 is None:
-            raise ManualLiveError("Manual release identity is required for fresh read-back")
-        controller_triplet = observe_manual_controller_triplet(
-            ROOT,
-            release_manifest_sha256,
-        )
     dashboard = dashboard_exchange(
         robot_host,
         ["programState", "safetymode", "get loaded program"],
@@ -480,7 +398,7 @@ def _observe_controller_identity(
     )
     loaded = dashboard["get loaded program"]
     if not loaded_program_matches(loaded, EXPECTED_PROGRAM):
-        raise ManualLiveError("Manual loaded program changed before ARM")
+        raise ManualLiveError("Manual loaded program differs at preflight handoff")
     raw_state = str(dashboard["programState"])
     state = raw_state.split(maxsplit=1)[0].upper() if raw_state else ""
     if required_program_state is not None and state != required_program_state:
@@ -488,17 +406,21 @@ def _observe_controller_identity(
             "Manual controller program state differs: "
             f"expected {required_program_state}, observed {state or 'UNKNOWN'}"
         )
-    observation = {
+    raw_safety = str(dashboard["safetymode"])
+    safety = raw_safety.split(":", 1)[-1].strip().upper()
+    if safety != "NORMAL":
+        raise ManualLiveError(
+            f"Manual controller safety mode differs: expected NORMAL, observed {safety or 'UNKNOWN'}"
+        )
+    return {
         "observed_at_unix_ns": time.time_ns(),
         "loaded_program_response": loaded,
         "program_state": raw_state,
         "program_state_normalized": state,
-        "safety_mode": dashboard["safetymode"],
+        "safety_mode": raw_safety,
+        "safety_mode_normalized": safety,
         "expected_loaded_program": EXPECTED_PROGRAM,
     }
-    if controller_triplet is not None:
-        observation["controller_triplet"] = controller_triplet
-    return observation
 
 
 def _group_id(request: Mapping[str, Any]) -> str:
@@ -625,14 +547,7 @@ def _require_preplay_observation(observed: Mapping[str, int]) -> None:
 def _wait_for_ready_home(
     args: argparse.Namespace,
     deadline: float,
-    *,
-    stopped_observation: Mapping[str, Any],
-    refresh_readiness_claim: Callable[[Mapping[str, Any]], Any] | None = None,
 ) -> dict[str, int]:
-    if stopped_observation.get("program_state_normalized") != "STOPPED":
-        raise ManualLiveError("fresh pre-Play STOPPED observation is missing")
-    next_claim_refresh = 0.0
-    playing_observed = False
     while time.monotonic() < deadline:
         _, observed = validate_bridge(
             args.bridge_output_root,
@@ -642,29 +557,7 @@ def _wait_for_ready_home(
             expected_campaign_id=getattr(args, "campaign_id", None),
         )
         _require_preplay_observation(observed)
-        controller = _observe_controller_identity(args.robot_host)
-        program_state = controller["program_state_normalized"]
-        if not playing_observed:
-            if program_state == "PLAYING":
-                playing_observed = True
-            elif program_state != "STOPPED":
-                raise ManualLiveError(
-                    "Manual controller left STOPPED without a fresh PLAYING observation"
-                )
-        elif program_state != "PLAYING":
-            raise ManualLiveError("Manual controller left PLAYING before READY_HOME")
-        if (
-            not playing_observed
-            and refresh_readiness_claim is not None
-            and time.monotonic() >= next_claim_refresh
-        ):
-            refresh_readiness_claim(controller)
-            next_claim_refresh = time.monotonic() + 0.5
-        if (
-            playing_observed
-            and observed["state"] == READY_HOME
-            and observed["command"] == 0
-        ):
+        if observed["state"] == READY_HOME and observed["command"] == 0:
             return observed
         time.sleep(0.1)
     raise ManualLiveError("physical Play was not observed before timeout")
@@ -703,12 +596,6 @@ def _issue(args: argparse.Namespace, mailbox: Path) -> tuple[dict[str, Any], Hos
         if published_command is None or published_command.packet != host:
             raise ManualLiveError("manual ARM mailbox vanished before gate publication")
         attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", "")
-        authorization, authorization_reference = capture_capability_authorization(
-            args.authorization_file,
-            attempt_id=attempt_id,
-            campaign_id=args.campaign_id,
-            release_manifest_sha256=args.release_manifest_sha256,
-        )
         atomic_json(
             mailbox.parent / "manual_arm_gate.json",
             {
@@ -717,9 +604,6 @@ def _issue(args: argparse.Namespace, mailbox: Path) -> tuple[dict[str, Any], Hos
                 "campaign_id": args.campaign_id,
                 "release_manifest_sha256": args.release_manifest_sha256,
                 "created_at_unix_ns": time.time_ns(),
-                "authorization": {
-                    **authorization_reference,
-                },
                 "arm_binding": published_command.arm_gate_binding,
             },
         )
@@ -792,15 +676,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", "")
     if not attempt_id:
         raise ManualLiveError("canonical launch attempt identity is missing")
-    _publish_status(
-        args,
-        state="BRIDGE_ALIVE_NO_ARM",
-        observed=None,
-        completed=completed,
-        total=len(INITIAL_GROUPS),
-        next_group=next_group,
-        launch_attempt_id=attempt_id,
-    )
     mailbox, _ = validate_bridge(
         args.bridge_output_root,
         args.release_manifest_sha256,
@@ -808,94 +683,32 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         expected_attempt_id=attempt_id,
         expected_campaign_id=args.campaign_id,
     )
-    authorization_deadline = time.monotonic() + args.play_timeout_s
-    while True:
-        if not args.authorization_file.exists() and not args.authorization_file.is_symlink():
-            if time.monotonic() >= authorization_deadline:
-                raise ManualLiveError("explicit Play/ARM/motion authorization was not supplied")
-            time.sleep(0.1)
-            continue
-        authorization = load_capability_authorization(
-            args.authorization_file,
-            attempt_id=attempt_id,
-            campaign_id=args.campaign_id,
-            release_manifest_sha256=args.release_manifest_sha256,
-        )
-        break
-    capabilities = authorization["capabilities"]
-
-    def require_current_authorization() -> None:
-        current = load_capability_authorization(
-            args.authorization_file,
-            attempt_id=attempt_id,
-            campaign_id=args.campaign_id,
-            release_manifest_sha256=args.release_manifest_sha256,
-        )
-        if current["capabilities"] != capabilities:
-            raise ManualLiveError("Manual authorization capabilities changed")
-        validate_bridge(
-            args.bridge_output_root,
-            args.release_manifest_sha256,
-            expected_attempt_id=attempt_id,
-            expected_campaign_id=args.campaign_id,
-        )
-
-    def refresh_preplay_claim(controller: Mapping[str, Any]) -> dict[str, Any]:
-        require_current_authorization()
-        _, bridge_observation = validate_bridge(
-            args.bridge_output_root,
-            args.release_manifest_sha256,
-            require_mailbox_absent=True,
-            expected_attempt_id=attempt_id,
-            expected_campaign_id=args.campaign_id,
-        )
-        _require_preplay_observation(bridge_observation)
-        if controller.get("program_state_normalized") != "STOPPED":
-            raise ManualLiveError("pre-Play readiness requires controller STOPPED")
-        _publish_status(
-            args,
-            state="WAITING_FOR_IDENTITY_PLAY",
-            observed=None,
-            completed=completed,
-            total=len(INITIAL_GROUPS),
-            next_group=next_group,
-            capabilities=capabilities,
-            authorization_file=args.authorization_file,
-            controller_observation=controller,
-            launch_attempt_id=attempt_id,
-        )
-        _publish_canonical_readiness_claim(args, "WAITING_FOR_IDENTITY_PLAY")
-        return dict(controller)
-
     controller_observation = _observe_controller_identity(
         args.robot_host,
         required_program_state="STOPPED",
-        release_manifest_sha256=args.release_manifest_sha256,
-        verify_controller_bytes=True,
-    )
-    refresh_preplay_claim(controller_observation)
-    observed = _wait_for_ready_home(
-        args,
-        time.monotonic() + args.play_timeout_s,
-        stopped_observation=controller_observation,
-        refresh_readiness_claim=refresh_preplay_claim,
-    )
-    require_current_authorization()
-    controller_observation = _observe_controller_identity(
-        args.robot_host,
-        required_program_state="PLAYING",
-        release_manifest_sha256=args.release_manifest_sha256,
-        verify_controller_bytes=True,
     )
     _publish_status(
         args,
-        state="PLAY_OBSERVED_IDENTITY_RECHECKED",
+        state="WAITING_FOR_PLAY",
+        observed=None,
+        completed=completed,
+        total=len(INITIAL_GROUPS),
+        next_group=next_group,
+        controller_observation=controller_observation,
+        launch_attempt_id=attempt_id,
+    )
+    _publish_canonical_readiness_claim(args, "WAITING_FOR_PLAY")
+    observed = _wait_for_ready_home(
+        args,
+        time.monotonic() + args.play_timeout_s,
+    )
+    _publish_status(
+        args,
+        state="PLAY_OBSERVED",
         observed=observed,
         completed=completed,
         total=len(INITIAL_GROUPS),
         next_group=next_group,
-        capabilities=capabilities,
-        authorization_file=args.authorization_file,
         controller_observation=controller_observation,
         launch_attempt_id=attempt_id,
     )
@@ -946,19 +759,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 completed=completed,
                 total=len(queue["requests"]),
                 next_group=None,
-                capabilities=capabilities,
-                authorization_file=args.authorization_file,
                 controller_observation=controller_observation,
                 launch_attempt_id=attempt_id,
             )
         request = queue["requests"][completed]
-        require_current_authorization()
-        controller_observation = _observe_controller_identity(
-            args.robot_host,
-            required_program_state="PLAYING",
-            release_manifest_sha256=args.release_manifest_sha256,
-            verify_controller_bytes=True,
-        )
         issued, arm, trial = _issue(args, mailbox)
         _, last_prepared = _prepared(issued, plant_epoch=args.plant_epoch)
         last_arm = arm
@@ -970,8 +774,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             completed=completed,
             total=len(queue["requests"]),
             next_group=group_id,
-            capabilities=capabilities,
-            authorization_file=args.authorization_file,
             controller_observation=controller_observation,
             launch_attempt_id=attempt_id,
         )
@@ -990,8 +792,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     completed=completed,
                     total=len(queue["requests"]),
                     next_group=group_id,
-                    capabilities=capabilities,
-                    authorization_file=args.authorization_file,
                     controller_observation=controller_observation,
                     launch_attempt_id=attempt_id,
                 )
@@ -1065,7 +865,6 @@ def main() -> int:
     parser.add_argument("--state", type=Path, required=True)
     parser.add_argument("--campaign-id", required=True)
     parser.add_argument("--release-manifest-sha256", required=True)
-    parser.add_argument("--authorization-file", type=Path, required=True)
     parser.add_argument("--qualification-result", type=Path, required=True)
     parser.add_argument("--robot-host", default="192.168.1.18")
     parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)

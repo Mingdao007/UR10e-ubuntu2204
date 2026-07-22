@@ -30,17 +30,6 @@ def _validated_manual_qualification(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         status,
-        "capture_capability_authorization",
-        lambda path, **_kwargs: (
-            {"capabilities": _motion_capabilities()},
-            {
-                "path": str(path),
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            },
-        ),
-    )
-    monkeypatch.setattr(
-        status,
         "writer_lease_owner",
         lambda _profile: {
             "schema": "ur10e/live-writer-lease-owner-v1",
@@ -50,17 +39,6 @@ def _validated_manual_qualification(monkeypatch: pytest.MonkeyPatch) -> None:
             "acquired_at": "fixture",
         },
     )
-
-
-def _motion_capabilities() -> dict[str, bool]:
-    return {
-        "bridge": True,
-        "play": True,
-        "arm": True,
-        "motion": True,
-        "zero": False,
-        "tare": False,
-    }
 
 
 def _bridge_process_fields() -> dict[str, object]:
@@ -83,7 +61,6 @@ def _qualification_ref(campaign: Path) -> dict[str, str]:
                 "ok": True,
                 "state": "MANUAL_BRIDGE_PERSISTENT_NO_ARM_PROVEN",
                 "manual_release_manifest_sha256": "a" * 64,
-                "play_prompt_ready": False,
             }
         ),
         encoding="utf-8",
@@ -98,29 +75,14 @@ def _controller_observation() -> dict[str, object]:
     expected = (
         "/programs/andyl/kunwei/step5/step5d_strict_rnn_manual_tune_v2.urp"
     )
-    observed_at = time.time_ns()
-    triplet = {extension: character * 64 for extension, character in zip(
-        (".script", ".txt", ".urp"),
-        ("1", "2", "3"),
-        strict=True,
-    )}
     return {
-        "observed_at_unix_ns": observed_at,
+        "observed_at_unix_ns": time.time_ns(),
         "loaded_program_response": f"Loaded program: {expected}",
         "program_state": "STOPPED",
         "program_state_normalized": "STOPPED",
         "safety_mode": "Safetymode: NORMAL",
+        "safety_mode_normalized": "NORMAL",
         "expected_loaded_program": expected,
-        "controller_triplet": {
-            "schema": "step5d.manual-v2/controller-triplet-observation-v1",
-            "ok": True,
-            "mode": "fresh_controller_get",
-            "observed_at_unix_ns": observed_at,
-            "expected_sha256": triplet,
-            "observed_sha256": dict(triplet),
-            "endpoint": None,
-            "owner_helper": {"path": "/owner/helper.py", "sha256": "4" * 64},
-        },
     }
 
 
@@ -279,12 +241,10 @@ def test_status_recomputes_bridge_heartbeat(tmp_path: Path) -> None:
     campaign.mkdir()
     output.mkdir()
     _write_bridge_heartbeat(output)
-    authorization = campaign / "authorization.json"
-    authorization.write_text("{}\n", encoding="utf-8")
     status.activate(campaign, output)
     machine = {
         "schema": status.STATUS_SCHEMA,
-        "state": "WAITING_FOR_IDENTITY_PLAY",
+        "state": "WAITING_FOR_PLAY",
         "release_sha": "a" * 64,
         "campaign_id": "manual-test",
         "launch_attempt_id": "attempt-1",
@@ -292,12 +252,8 @@ def test_status_recomputes_bridge_heartbeat(tmp_path: Path) -> None:
         **_bridge_process_fields(),
         "bridge_heartbeat": False,
         "play_prompt_ready": True,
+        "canonical_attempt_bound": True,
         "controller_observation": _controller_observation(),
-        "capabilities": _motion_capabilities(),
-        "authorization": {
-            "path": str(authorization),
-            "sha256": hashlib.sha256(authorization.read_bytes()).hexdigest(),
-        },
         "offline_qualification": _qualification_ref(campaign),
         "blocker": None,
         "next_action": "press Play once",
@@ -305,7 +261,7 @@ def test_status_recomputes_bridge_heartbeat(tmp_path: Path) -> None:
     (campaign / "manual_governed_status.json").write_text(json.dumps(machine))
     observed = status.read_status(campaign)
     assert observed["bridge_heartbeat"] is True
-    assert observed["state"] == "WAITING_FOR_IDENTITY_PLAY"
+    assert observed["state"] == "WAITING_FOR_PLAY"
 
     machine["bridge_starttime_ticks"] += 1
     (campaign / "manual_governed_status.json").write_text(json.dumps(machine))
@@ -362,7 +318,7 @@ def test_status_rejects_unterminated_partial_heartbeat_row(tmp_path: Path) -> No
     ) is False
 
 
-def test_status_revokes_play_prompt_when_controller_identity_is_stale(
+def test_status_keeps_one_bound_controller_preflight_without_age_expiry(
     tmp_path: Path,
 ) -> None:
     campaign = tmp_path / "campaign"
@@ -370,15 +326,11 @@ def test_status_revokes_play_prompt_when_controller_identity_is_stale(
     campaign.mkdir()
     output.mkdir()
     _write_bridge_heartbeat(output)
-    authorization = campaign / "authorization.json"
-    authorization.write_text("{}\n", encoding="utf-8")
     controller = _controller_observation()
-    controller["observed_at_unix_ns"] = (
-        time.time_ns() - status.CONTROLLER_IDENTITY_MAX_AGE_NS - 1
-    )
+    controller["observed_at_unix_ns"] = 1
     machine = {
         "schema": status.STATUS_SCHEMA,
-        "state": "WAITING_FOR_IDENTITY_PLAY",
+        "state": "WAITING_FOR_PLAY",
         "release_sha": "a" * 64,
         "campaign_id": "manual-test",
         "launch_attempt_id": "attempt-1",
@@ -386,13 +338,9 @@ def test_status_revokes_play_prompt_when_controller_identity_is_stale(
         **_bridge_process_fields(),
         "bridge_heartbeat": True,
         "play_prompt_ready": True,
+        "canonical_attempt_bound": True,
         "controller_observation": controller,
         "offline_qualification": _qualification_ref(campaign),
-        "capabilities": _motion_capabilities(),
-        "authorization": {
-            "path": str(authorization),
-            "sha256": hashlib.sha256(authorization.read_bytes()).hexdigest(),
-        },
         "blocker": None,
         "next_action": "press Play once",
     }
@@ -400,13 +348,13 @@ def test_status_revokes_play_prompt_when_controller_identity_is_stale(
 
     observed = status.read_run_status(campaign)
 
-    assert observed["controller_identity_fresh"] is False
-    assert observed["state"] == "BRIDGE_ALIVE_NO_ARM"
-    assert observed["play_prompt_ready"] is False
-    assert observed["blocker"] == "MANUAL_CONTROLLER_IDENTITY_STALE"
+    assert observed["controller_preflight_valid"] is True
+    assert observed["state"] == "WAITING_FOR_PLAY"
+    assert observed["play_prompt_ready"] is True
+    assert observed["blocker"] is None
 
 
-def test_status_revokes_play_prompt_without_exact_capability_scope(tmp_path: Path) -> None:
+def test_status_blocks_without_exact_controller_preflight(tmp_path: Path) -> None:
     campaign = tmp_path / "campaign"
     output = tmp_path / "output"
     campaign.mkdir()
@@ -415,7 +363,7 @@ def test_status_revokes_play_prompt_without_exact_capability_scope(tmp_path: Pat
     status.activate(campaign, output)
     machine = {
         "schema": status.STATUS_SCHEMA,
-        "state": "WAITING_FOR_IDENTITY_PLAY",
+        "state": "WAITING_FOR_PLAY",
         "release_sha": "a" * 64,
         "campaign_id": "manual-test",
         "launch_attempt_id": "attempt-1",
@@ -423,23 +371,20 @@ def test_status_revokes_play_prompt_without_exact_capability_scope(tmp_path: Pat
         **_bridge_process_fields(),
         "bridge_heartbeat": True,
         "play_prompt_ready": True,
+        "canonical_attempt_bound": True,
         "offline_qualification": _qualification_ref(campaign),
-        "capabilities": {
-            "bridge": True,
-            "play": True,
-            "arm": True,
-            "motion": False,
-            "zero": False,
-            "tare": False,
+        "controller_observation": {
+            **_controller_observation(),
+            "program_state_normalized": "PLAYING",
         },
         "blocker": None,
         "next_action": "press Play once",
     }
     (campaign / "manual_governed_status.json").write_text(json.dumps(machine))
     observed = status.read_status(campaign)
-    assert observed["state"] == "BRIDGE_ALIVE_NO_ARM"
+    assert observed["state"] == "BLOCKED"
     assert observed["play_prompt_ready"] is False
-    assert observed["blocker"] == "AUTHORIZATION_SCOPE_INSUFFICIENT"
+    assert observed["blocker"] == "MANUAL_CONTROLLER_PREFLIGHT_INVALID"
 
 
 def test_status_fails_closed_when_bridge_pid_is_dead(tmp_path: Path) -> None:
@@ -482,7 +427,7 @@ def test_status_invalidates_full_qualification_drift(
     status.activate(campaign, output)
     machine = {
         "schema": status.STATUS_SCHEMA,
-        "state": "WAITING_FOR_IDENTITY_PLAY",
+        "state": "WAITING_FOR_PLAY",
         "release_sha": "a" * 64,
         "campaign_id": "manual-test",
         "launch_attempt_id": "attempt-1",
@@ -490,8 +435,8 @@ def test_status_invalidates_full_qualification_drift(
         **_bridge_process_fields(),
         "bridge_heartbeat": True,
         "play_prompt_ready": True,
+        "canonical_attempt_bound": True,
         "offline_qualification": _qualification_ref(campaign),
-        "capabilities": _motion_capabilities(),
         "blocker": None,
         "next_action": "press Play once",
     }

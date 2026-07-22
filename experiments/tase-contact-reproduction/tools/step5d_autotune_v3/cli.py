@@ -574,11 +574,6 @@ def build_parser() -> argparse.ArgumentParser:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--_launch-capabilities-json",
-        dest="internal_launch_capabilities_json",
-        help=argparse.SUPPRESS,
-    )
-    parser.add_argument(
         "--_launch-route-snapshot",
         dest="internal_launch_route_snapshot",
         type=Path,
@@ -642,7 +637,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.internal_launch_owner_pid,
                 args.internal_launch_owner_starttime,
                 args.internal_launch_owner_authority_epoch,
-                args.internal_launch_capabilities_json,
                 args.internal_launch_route_snapshot,
             )
         )
@@ -687,16 +681,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.internal_launch_owner_pid,
                 args.internal_launch_owner_starttime,
                 args.internal_launch_owner_authority_epoch,
-                args.internal_launch_capabilities_json,
             )
             bindings = None
             if any(value is not None for value in binding_values):
                 if any(value is None for value in binding_values):
                     raise CliError("launch-attempt v2 bindings are incomplete")
-                try:
-                    capabilities = json.loads(args.internal_launch_capabilities_json)
-                except json.JSONDecodeError as exc:
-                    raise CliError("launch capabilities are not strict JSON") from exc
                 route_reference = None
                 if args.internal_launch_route_snapshot is not None:
                     snapshot = args.internal_launch_route_snapshot.expanduser().absolute()
@@ -716,7 +705,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "starttime_ticks": args.internal_launch_owner_starttime,
                         "authority_epoch": args.internal_launch_owner_authority_epoch,
                     },
-                    "capabilities": capabilities,
                     "route_snapshot": route_reference,
                 }
             if bindings is None:

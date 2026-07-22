@@ -27,42 +27,10 @@ import run_step5d_manual_bridge as wrapper  # noqa: E402
 import run_step5d_manual_bridge_live as live  # noqa: E402
 import run_step5d_manual_live_campaign as campaign  # noqa: E402
 import step5d_manual_bridge as bridge  # noqa: E402
-import step5d_manual_authorization as manual_authorization  # noqa: E402
 import step5d_manual_qualification as qualification  # noqa: E402
 import step5d_autotune_live_driver as mailbox_driver  # noqa: E402
 from step5d_autotune_state_machine import TpLoopState, TpPacket  # noqa: E402
 from step5d_manual_atomic_release import canonical_bytes  # noqa: E402
-from step5d_autotune_v3.governance import read_proc_starttime_ticks  # noqa: E402
-
-
-def _owner_authority(root: Path, attempt_id: str) -> dict[str, object]:
-    root.mkdir(parents=True, exist_ok=True)
-    owner = {
-        "pid": os.getpid(),
-        "starttime_ticks": read_proc_starttime_ticks(os.getpid()),
-    }
-    path = root / "owner-authority.json"
-    path.write_text(
-        json.dumps(
-            {
-                "schema": "step5d.bridge/owner-authority-v1",
-                "sequence": 1,
-                "state": "ACTIVE",
-                "attempt_id": attempt_id,
-                "owner": owner,
-                "activated_at_unix_ns": 1,
-                "revoked_at_unix_ns": None,
-                "reason": None,
-            }
-        ),
-        encoding="utf-8",
-    )
-    return {
-        "path": str(path),
-        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-        "sequence": 1,
-        "owner": owner,
-    }
 
 
 def test_manual_qualification_preserves_exact_venv_interpreter_path(
@@ -102,91 +70,20 @@ def test_manual_qualification_preserves_exact_venv_interpreter_path(
     ) == payload
 
 
-def test_manual_capability_authorization_is_external_exact_and_no_zero_tare(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    now_ns = 1_000_000
-    authority_root = tmp_path / "authority"
-    monkeypatch.setattr(
-        manual_authorization, "EXPECTED_AUTHORITY_ROOT", authority_root
+def test_manual_production_path_has_no_capability_authorization_gate() -> None:
+    sources = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            ROOT / "scripts/step5d-autotune-v3.sh",
+            ROOT / "tools/run_step5d_manual_live_campaign.py",
+            ROOT / "tools/run_step5d_manual_bridge.py",
+            ROOT / "tools/step5d_manual_status.py",
+        )
     )
-    path = tmp_path / "authorization.json"
-    payload = {
-        "schema": campaign.AUTHORIZATION_SCHEMA,
-        "attempt_id": "attempt-1",
-        "campaign_id": "manual-1",
-        "release_manifest_sha256": "a" * 64,
-        "authorized_at_unix_ns": now_ns - 1,
-        "expires_at_unix_ns": now_ns + 1,
-        "issuer": "ur10e-live-bench-owner",
-        "owner_authority": _owner_authority(authority_root, "attempt-1"),
-        "capabilities": {
-            "bridge": True,
-            "play": True,
-            "arm": True,
-            "motion": True,
-            "zero": False,
-            "tare": False,
-        },
-    }
-    unsigned = dict(payload)
-    unsigned["schema"] = "step5d.manual-v2/capability-authorization-v1"
-    unsigned.pop("owner_authority")
-    path.write_text(json.dumps(unsigned), encoding="utf-8")
-    with pytest.raises(campaign.ManualLiveError, match="schema differs"):
-        campaign.load_capability_authorization(
-            path,
-            attempt_id="attempt-1",
-            campaign_id="manual-1",
-            release_manifest_sha256="a" * 64,
-            now_ns=now_ns,
-        )
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    assert campaign.load_capability_authorization(
-        path,
-        attempt_id="attempt-1",
-        campaign_id="manual-1",
-        release_manifest_sha256="a" * 64,
-        now_ns=now_ns,
-    ) == payload
-
-    payload["expires_at_unix_ns"] = now_ns
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(campaign.ManualLiveError, match="not current"):
-        campaign.load_capability_authorization(
-            path,
-            attempt_id="attempt-1",
-            campaign_id="manual-1",
-            release_manifest_sha256="a" * 64,
-            now_ns=now_ns,
-        )
-
-    payload["expires_at_unix_ns"] = now_ns + 1
-    payload["capabilities"]["motion"] = False
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(campaign.ManualLiveError, match="not authorized"):
-        campaign.load_capability_authorization(
-            path,
-            attempt_id="attempt-1",
-            campaign_id="manual-1",
-            release_manifest_sha256="a" * 64,
-            now_ns=now_ns,
-        )
-
-
-def test_canonical_shell_never_issues_manual_motion_authorization() -> None:
-    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
-    assert "step5d_manual_authorization.py\" issue" not in source
-    assert "issue_capability_authorization" not in source
-
-def test_manual_runner_never_manufactures_arm_authorization() -> None:
-    source = (ROOT / "tools/run_step5d_manual_live_campaign.py").read_text(
-        encoding="utf-8"
-    )
-    assert '"arm_authorized": True' not in source
-    assert '"motion_authorized": True' not in source
-    assert "authorization_source" not in source
-    assert 'state="BRIDGE_ALIVE_NO_ARM"' in source
+    assert "step5d_manual_authorization" not in sources
+    assert "manual_capability_authorization" not in sources
+    assert "--authorization-file" not in sources
+    assert not (ROOT / "tools/step5d_manual_authorization.py").exists()
 
 
 def test_manual_owner_and_bridge_die_with_their_bound_parent() -> None:
@@ -201,7 +98,7 @@ def test_manual_owner_and_bridge_die_with_their_bound_parent() -> None:
     assert '--canonical-owner-starttime "${launch_owner_starttime}"' in shell
 
 
-def test_manual_runner_reaches_persistent_no_arm_before_external_authorization(
+def test_manual_runner_reaches_waiting_for_play_without_authorization_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     observed_states: list[str] = []
@@ -228,6 +125,29 @@ def test_manual_runner_reaches_persistent_no_arm_before_external_authorization(
         "validate_bridge",
         lambda *_args, **_kwargs: (tmp_path / "command.json", {}),
     )
+    monkeypatch.setattr(
+        campaign,
+        "_observe_controller_identity",
+        lambda *_args, **_kwargs: {
+            "observed_at_unix_ns": 1,
+            "loaded_program_response": f"Loaded program: {campaign.EXPECTED_PROGRAM}",
+            "program_state": "STOPPED",
+            "program_state_normalized": "STOPPED",
+            "safety_mode": "Safetymode: NORMAL",
+            "safety_mode_normalized": "NORMAL",
+            "expected_loaded_program": campaign.EXPECTED_PROGRAM,
+        },
+    )
+    monkeypatch.setattr(
+        campaign, "_publish_canonical_readiness_claim", lambda *_args: {}
+    )
+    monkeypatch.setattr(
+        campaign,
+        "_wait_for_ready_home",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            campaign.ManualLiveError("test stop at Play barrier")
+        ),
+    )
     args = SimpleNamespace(
         campaign_root=tmp_path / "campaign",
         qualification_result=tmp_path / "qualification.json",
@@ -237,21 +157,21 @@ def test_manual_runner_reaches_persistent_no_arm_before_external_authorization(
         state=tmp_path / "state.json",
         campaign_id="manual-no-arm",
         bridge_output_root=tmp_path / "bridge",
-        authorization_file=tmp_path / "authorization.json",
         play_timeout_s=0.01,
+        robot_host="127.0.0.1",
     )
 
-    with pytest.raises(campaign.ManualLiveError, match="authorization was not supplied"):
+    with pytest.raises(campaign.ManualLiveError, match="test stop at Play barrier"):
         campaign.run(args)
 
     assert observed_roots == [ROOT]
-    assert observed_states == ["BRIDGE_ALIVE_NO_ARM"]
+    assert observed_states == ["WAITING_FOR_PLAY"]
 
 
 def test_manual_readiness_claim_is_machine_derived_and_persisted(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    machine_status = {"state": "WAITING_FOR_IDENTITY_PLAY"}
+    machine_status = {"state": "WAITING_FOR_PLAY"}
     expected_claim = {
         "schema": "step5d.bridge/readiness-claim-v1",
         "attempt_id": "attempt-claim",
@@ -263,7 +183,7 @@ def test_manual_readiness_claim_is_machine_derived_and_persisted(
         campaign,
         "readiness_claim",
         lambda status, state: expected_claim
-        if status is machine_status and state == "WAITING_FOR_IDENTITY_PLAY"
+        if status is machine_status and state == "WAITING_FOR_PLAY"
         else pytest.fail("Manual readiness claim inputs differ"),
     )
     monkeypatch.setattr(
@@ -278,14 +198,14 @@ def test_manual_readiness_claim_is_machine_derived_and_persisted(
 
     claim = campaign._publish_canonical_readiness_claim(
         SimpleNamespace(bridge_output_root=output),
-        "WAITING_FOR_IDENTITY_PLAY",
+        "WAITING_FOR_PLAY",
     )
 
     assert claim == expected_claim
     assert json.loads((output / "readiness-claim.json").read_text()) == expected_claim
 
 
-def test_manual_controller_identity_must_be_freshly_exact(
+def test_manual_controller_preflight_requires_exact_loaded_stopped_normal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -309,51 +229,8 @@ def test_manual_controller_identity_must_be_freshly_exact(
             "get loaded program": "Loaded program: /programs/wrong.urp",
         },
     )
-    with pytest.raises(campaign.ManualLiveError, match="changed before ARM"):
+    with pytest.raises(campaign.ManualLiveError, match="preflight handoff"):
         campaign._observe_controller_identity("192.0.2.1")
-
-
-def test_manual_controller_triplet_requires_fresh_readback_sha_closure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    expected = {extension: character * 64 for extension, character in zip(
-        (".script", ".txt", ".urp"),
-        ("1", "2", "3"),
-        strict=True,
-    )}
-    files = {extension: tmp_path / f"program{extension}" for extension in expected}
-    monkeypatch.setattr(
-        preflight,
-        "_manual_artifacts",
-        lambda _root, _release: (files, expected),
-    )
-    monkeypatch.setattr(
-        preflight.tp_upload,
-        "resolve_live_controller_helper",
-        lambda *_args: (tmp_path / "owner-helper.py", "4" * 64),
-    )
-    monkeypatch.setattr(
-        preflight.tp_upload,
-        "readback_controller_sha256",
-        lambda *_args, **_kwargs: dict(expected),
-    )
-
-    observed = preflight.observe_manual_controller_triplet(
-        ROOT,
-        "a" * 64,
-    )
-
-    assert observed["mode"] == "fresh_controller_get"
-    assert observed["expected_sha256"] == observed["observed_sha256"] == expected
-
-    monkeypatch.setattr(
-        preflight.tp_upload,
-        "readback_controller_sha256",
-        lambda *_args, **_kwargs: {**expected, ".urp": "0" * 64},
-    )
-    with pytest.raises(bridge.ManualBridgeError, match="triplet differs"):
-        preflight.observe_manual_controller_triplet(ROOT, "a" * 64)
 
 
 def test_manual_running_state_requires_exact_tp_arm_acknowledgement() -> None:
@@ -464,7 +341,7 @@ def test_live_preflight_validation_is_no_arm_and_exact() -> None:
         for name in (
             "safety_normal", "program_safe_for_bridge", "robot_stationary",
             "prealign_start_clearance", "no_existing_writer", "mailbox_initial_zero",
-            "runtime_dependencies", "controller_artifact_identity",
+            "runtime_dependencies",
         )
     }
     context = {"manual_release_manifest_sha256": "a" * 64}
@@ -668,33 +545,6 @@ def test_manual_runtime_uses_full_home_protocol_and_command_bound_arm_gate(
     assert isinstance(runtime.arming_context_provider, wrapper.ManualArmGateProvider)
 
     now_ns = time.time_ns()
-    authorization_path = tmp_path / "authorization.json"
-    authorization = {
-        "schema": campaign.AUTHORIZATION_SCHEMA,
-        "attempt_id": attempt_id,
-        "campaign_id": campaign_id,
-        "release_manifest_sha256": release_sha,
-        "authorized_at_unix_ns": now_ns - 1_000_000,
-        "expires_at_unix_ns": now_ns + 1_000_000_000,
-        "issuer": "ur10e-live-bench-owner",
-        "owner_authority": None,
-        "capabilities": {
-            "bridge": True,
-            "play": True,
-            "arm": True,
-            "motion": True,
-            "zero": False,
-            "tare": False,
-        },
-    }
-    authority_root = tmp_path / "authority"
-    monkeypatch.setattr(
-        manual_authorization, "EXPECTED_AUTHORITY_ROOT", authority_root
-    )
-    authorization["owner_authority"] = _owner_authority(
-        authority_root, attempt_id
-    )
-    authorization_path.write_text(json.dumps(authorization), encoding="utf-8")
     binding = {
         "mailbox_sha256": "b" * 64,
         "campaign_epoch": 1,
@@ -715,12 +565,6 @@ def test_manual_runtime_uses_full_home_protocol_and_command_bound_arm_gate(
                 "campaign_id": campaign_id,
                 "release_manifest_sha256": release_sha,
                 "created_at_unix_ns": now_ns,
-                "authorization": {
-                    "path": str(authorization_path),
-                    "sha256": hashlib.sha256(
-                        authorization_path.read_bytes()
-                    ).hexdigest(),
-                },
                 "arm_binding": binding,
             }
         ),
@@ -728,9 +572,7 @@ def test_manual_runtime_uses_full_home_protocol_and_command_bound_arm_gate(
     )
     admitted = runtime.arming_context_provider(binding, connection_epoch=3)
     assert admitted is not None
-    assert admitted["authorization_sha256"] == hashlib.sha256(
-        authorization_path.read_bytes()
-    ).hexdigest()
+    assert admitted["arm_binding"] == binding
     assert runtime.arming_context_provider(
         {**binding, "command_seq": 2}, connection_epoch=3
     ) is None
@@ -1006,11 +848,10 @@ def test_preplay_wait_rejects_nonzero_nonready_identity(
         campaign._wait_for_ready_home(
             args,
             campaign.time.monotonic() + 1.0,
-            stopped_observation={"program_state_normalized": "STOPPED"},
         )
 
 
-def test_preplay_wait_requires_fresh_stopped_then_playing_edge(
+def test_preplay_wait_accepts_ready_home_without_dashboard_edge(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
@@ -1029,16 +870,12 @@ def test_preplay_wait_requires_fresh_stopped_then_playing_edge(
             },
         ),
     )
-    observations = iter(
-        [
-            {"program_state_normalized": "STOPPED"},
-            {"program_state_normalized": "PLAYING"},
-        ]
-    )
     monkeypatch.setattr(
         campaign,
         "_observe_controller_identity",
-        lambda _host: next(observations),
+        lambda *_args, **_kwargs: pytest.fail(
+            "pre-Play wait must not re-read Dashboard"
+        ),
     )
     args = SimpleNamespace(
         bridge_output_root=tmp_path,
@@ -1049,23 +886,8 @@ def test_preplay_wait_requires_fresh_stopped_then_playing_edge(
     observed = campaign._wait_for_ready_home(
         args,
         campaign.time.monotonic() + 1.0,
-        stopped_observation={"program_state_normalized": "STOPPED"},
     )
     assert observed["state"] == campaign.READY_HOME
-
-
-def test_preplay_wait_rejects_missing_fresh_stopped_edge(tmp_path: Path) -> None:
-    args = SimpleNamespace(
-        bridge_output_root=tmp_path,
-        release_manifest_sha256="a" * 64,
-        robot_host="192.0.2.1",
-    )
-    with pytest.raises(campaign.ManualLiveError, match="STOPPED observation is missing"):
-        campaign._wait_for_ready_home(
-            args,
-            campaign.time.monotonic() + 1.0,
-            stopped_observation={"program_state_normalized": "PLAYING"},
-        )
 
 
 def test_manual_prepared_mailbox_round_trip_i1e4(tmp_path: Path) -> None:

@@ -51,7 +51,7 @@ class ManualWireRelease:
 
 
 class ManualArmGateProvider:
-    """Revalidate one owner authorization bound to the exact ARM mailbox bytes."""
+    """Admit only the ARM gate bound to the exact current mailbox bytes."""
 
     def __init__(self, path: Path, ticket: Mapping[str, Any]) -> None:
         self.path = path
@@ -70,11 +70,6 @@ class ManualArmGateProvider:
         if not self.path.exists() and not self.path.is_symlink():
             return None
         try:
-            from step5d_manual_authorization import (
-                ManualAuthorizationError,
-                capture_capability_authorization,
-            )
-
             payload = strict_object(self.path, "manual bridge ARM gate")
             if set(payload) != {
                 "schema",
@@ -82,7 +77,6 @@ class ManualArmGateProvider:
                 "campaign_id",
                 "release_manifest_sha256",
                 "created_at_unix_ns",
-                "authorization",
                 "arm_binding",
             } or payload.get("schema") != ARM_GATE_SCHEMA:
                 raise ManualBridgeError("manual bridge ARM gate fields differ")
@@ -93,29 +87,12 @@ class ManualArmGateProvider:
                 != self.release_manifest_sha256
             ):
                 raise ManualBridgeError("manual bridge ARM gate binding differs")
-            authorization_ref = payload.get("authorization")
-            if not isinstance(authorization_ref, Mapping) or set(
-                authorization_ref
-            ) != {"path", "sha256"}:
-                raise ManualBridgeError("manual bridge ARM authorization reference differs")
-            authorization_path = Path(str(authorization_ref["path"]))
-            if not authorization_path.is_absolute():
-                raise ManualBridgeError("manual bridge ARM authorization bytes differ")
-            authorization, captured_reference = capture_capability_authorization(
-                authorization_path,
-                attempt_id=self.attempt_id,
-                campaign_id=self.campaign_id,
-                release_manifest_sha256=self.release_manifest_sha256,
-            )
-            if captured_reference != dict(authorization_ref):
-                raise ManualBridgeError("manual bridge ARM authorization bytes differ")
             created_at = payload.get("created_at_unix_ns")
             now_ns = time.time_ns()
             if (
                 isinstance(created_at, bool)
                 or not isinstance(created_at, int)
-                or not authorization["authorized_at_unix_ns"] <= created_at <= now_ns
-                or created_at >= authorization["expires_at_unix_ns"]
+                or created_at > now_ns
             ):
                 raise ManualBridgeError("manual bridge ARM gate timestamp differs")
             arm_binding = payload.get("arm_binding")
@@ -129,11 +106,10 @@ class ManualArmGateProvider:
                 "attempt_id": self.attempt_id,
                 "campaign_id": self.campaign_id,
                 "release_manifest_sha256": self.release_manifest_sha256,
-                "authorization_sha256": authorization_ref["sha256"],
                 "arm_binding": dict(arm_binding),
                 "connection_epoch": int(connection_epoch),
             }
-        except (OSError, ValueError, ManualAuthorizationError, ManualBridgeError) as exc:
+        except (OSError, ValueError, ManualBridgeError) as exc:
             raise live_driver.MailboxError(
                 f"Manual bridge ARM gate failed closed: {exc}"
             ) from exc

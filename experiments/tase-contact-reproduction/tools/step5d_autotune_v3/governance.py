@@ -44,7 +44,6 @@ LAUNCH_ATTEMPT_STATES = (
     "CANCELLED",
 )
 LAUNCH_ATTEMPT_ROUTES = ("UNKNOWN", "manual_v2", "autotune_v3", "BLOCKED")
-LAUNCH_CAPABILITIES = ("bridge", "play", "arm", "motion", "zero", "tare")
 LAUNCH_ROUTE_BLOCKER_REASON_CODES = {
     "CURRENT_RELEASE_INVALID",
     "LOADED_PROGRAM_UNSUPPORTED",
@@ -699,7 +698,6 @@ def validate_launch_attempt(value: Any) -> dict[str, Any]:
                 "campaign_root",
                 "output_root",
                 "resource_owner",
-                "capabilities",
                 "route_snapshot",
             },
             "launch attempt bindings",
@@ -722,13 +720,6 @@ def validate_launch_attempt(value: Any) -> dict[str, Any]:
         _positive_int(owner["pid"], "launch owner PID")
         _positive_int(owner["starttime_ticks"], "launch owner starttime")
         _positive_int(owner["authority_epoch"], "launch owner authority epoch")
-        capabilities = _exact(
-            bindings["capabilities"], set(LAUNCH_CAPABILITIES), "launch capabilities"
-        )
-        if any(not isinstance(capabilities[name], bool) for name in LAUNCH_CAPABILITIES):
-            raise GovernanceError("launch capabilities must be Boolean")
-        if capabilities["bridge"] is not True:
-            raise GovernanceError("canonical launch requires bridge capability")
         route_snapshot = bindings["route_snapshot"]
         if route_snapshot is not None:
             route_snapshot = _exact(
@@ -1311,7 +1302,6 @@ def _publish_launch_attempt_unlocked(
                     "campaign_root",
                     "output_root",
                     "resource_owner",
-                    "capabilities",
                 ):
                     if current_bindings[binding_name] != next_bindings[binding_name]:
                         raise GovernanceError(

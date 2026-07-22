@@ -438,8 +438,6 @@ def validate_result(
         "canary",
         "process_shutdown",
         "canonical_shell_returncode",
-        "capabilities",
-        "play_prompt_ready",
     }
     if (
         set(payload) != required
@@ -451,7 +449,6 @@ def validate_result(
         or payload.get("manual_release_manifest_sha256")
         != release_manifest_sha256
         or payload.get("canonical_shell_returncode") not in {0, 130}
-        or payload.get("play_prompt_ready") is not False
     ):
         raise ManualQualificationError("Manual production qualification did not pass")
     release = load_manual_release(root.resolve(strict=True))
@@ -483,16 +480,6 @@ def validate_result(
         )
     ):
         raise ManualQualificationError("Manual qualification runtime drifted")
-    capabilities = payload.get("capabilities")
-    if capabilities != {
-        "bridge": True,
-        "play": False,
-        "arm": False,
-        "motion": False,
-        "zero": False,
-        "tare": False,
-    }:
-        raise ManualQualificationError("Manual qualification capability scope differs")
     for role in (
         "bridge_launch",
         "bridge_ready",
@@ -776,8 +763,6 @@ def run_qualification(
                 str(DEFAULT_LAUNCH_PROFILE),
                 "--output",
                 str(preflight_path),
-                "--qualification-endpoints",
-                str(endpoint_path),
             ]
             with preflight_log.open("wb") as log:
                 preflight = subprocess.run(
@@ -963,15 +948,6 @@ def run_qualification(
         "canary": canary,
         "process_shutdown": process_shutdown,
         "canonical_shell_returncode": shell_rc,
-        "capabilities": {
-            "bridge": True,
-            "play": False,
-            "arm": False,
-            "motion": False,
-            "zero": False,
-            "tare": False,
-        },
-        "play_prompt_ready": False,
     }
     atomic_json(result_path, result)
     return result

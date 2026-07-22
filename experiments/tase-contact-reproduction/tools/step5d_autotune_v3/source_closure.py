@@ -39,7 +39,6 @@ PRODUCTION_EXPERIMENT_SEEDS = frozenset(
         "tools/run_step5d_manual_live_campaign.py",
         "tools/step5d_bridge_authority.py",
         "tools/step5d_bridge_status.py",
-        "tools/step5d_manual_authorization.py",
         "tools/step5d_manual_qualification.py",
         "tools/step5d_manual_status.py",
         "tools/step5d_autotune_v3/cli.py",

@@ -30,17 +30,6 @@ def _validated_manual_qualification(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         manual_status,
-        "capture_capability_authorization",
-        lambda path, **_kwargs: (
-            {"capabilities": _capabilities(motion=True)},
-            {
-                "path": str(path),
-                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            },
-        ),
-    )
-    monkeypatch.setattr(
-        manual_status,
         "writer_lease_owner",
         lambda _profile: {
             "schema": "ur10e/live-writer-lease-owner-v1",
@@ -52,20 +41,7 @@ def _validated_manual_qualification(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _capabilities(*, motion: bool) -> dict[str, bool]:
-    return {
-        "bridge": True,
-        "play": motion,
-        "arm": motion,
-        "motion": motion,
-        "zero": False,
-        "tare": False,
-    }
-
-
-def _bindings(
-    campaign: Path, output: Path, snapshot: Path, *, motion: bool
-) -> dict[str, object]:
+def _bindings(campaign: Path, output: Path, snapshot: Path) -> dict[str, object]:
     return {
         "repository_head": "a" * 40,
         "runtime_environment_id": hashlib.sha256(b"runtime").hexdigest(),
@@ -76,7 +52,6 @@ def _bindings(
             "starttime_ticks": read_proc_starttime_ticks(os.getpid()),
             "authority_epoch": 1,
         },
-        "capabilities": _capabilities(motion=motion),
         "route_snapshot": {
             "path": str(snapshot),
             "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
@@ -119,9 +94,7 @@ def _route_snapshot(path: Path, route: str) -> None:
     )
 
 
-def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
-    authorization = campaign / "authorization.json"
-    authorization.write_text("{}\n", encoding="utf-8")
+def _manual_status(campaign: Path, *, attempt_id: str) -> None:
     qualification = campaign / "manual-qualification.json"
     qualification.write_text(
         json.dumps(
@@ -130,7 +103,6 @@ def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
                 "ok": True,
                 "state": "MANUAL_BRIDGE_PERSISTENT_NO_ARM_PROVEN",
                 "manual_release_manifest_sha256": "a" * 64,
-                "play_prompt_ready": False,
             }
         ),
         encoding="utf-8",
@@ -154,7 +126,7 @@ def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
         json.dumps(
             {
                 "schema": "step5d.manual-v2/governed-status-v1",
-                "state": "WAITING_FOR_IDENTITY_PLAY",
+                "state": "WAITING_FOR_PLAY",
                 "release_sha": "a" * 64,
                 "campaign_id": "manual-test",
                 "launch_attempt_id": attempt_id,
@@ -166,6 +138,7 @@ def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
                 "bridge_launch_id": "1" * 32,
                 "bridge_heartbeat": True,
                 "play_prompt_ready": True,
+                "canonical_attempt_bound": True,
                 "controller_observation": {
                     "observed_at_unix_ns": time.time_ns(),
                     "loaded_program_response": (
@@ -175,36 +148,11 @@ def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
                     "program_state": "STOPPED",
                     "program_state_normalized": "STOPPED",
                     "safety_mode": "Safetymode: NORMAL",
+                    "safety_mode_normalized": "NORMAL",
                     "expected_loaded_program": (
                         "/programs/andyl/kunwei/step5/"
                         "step5d_strict_rnn_manual_tune_v2.urp"
                     ),
-                    "controller_triplet": {
-                        "schema": "step5d.manual-v2/controller-triplet-observation-v1",
-                        "ok": True,
-                        "mode": "fresh_controller_get",
-                        "observed_at_unix_ns": time.time_ns(),
-                        "expected_sha256": {
-                            ".script": "1" * 64,
-                            ".txt": "2" * 64,
-                            ".urp": "3" * 64,
-                        },
-                        "observed_sha256": {
-                            ".script": "1" * 64,
-                            ".txt": "2" * 64,
-                            ".urp": "3" * 64,
-                        },
-                        "endpoint": None,
-                        "owner_helper": {
-                            "path": "/owner/helper.py",
-                            "sha256": "4" * 64,
-                        },
-                    },
-                },
-                "capabilities": _capabilities(motion=motion),
-                "authorization": {
-                    "path": str(authorization),
-                    "sha256": hashlib.sha256(authorization.read_bytes()).hexdigest(),
                 },
                 "offline_qualification": {
                     "path": str(qualification),
@@ -218,7 +166,7 @@ def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
     )
 
 
-def test_route_neutral_status_cannot_promote_bridge_only_manual_attempt(
+def test_route_neutral_status_uses_canonical_manual_attempt_without_capabilities(
     tmp_path: Path,
 ) -> None:
     campaign = tmp_path / "campaign"
@@ -229,7 +177,7 @@ def test_route_neutral_status_cannot_promote_bridge_only_manual_attempt(
     output.mkdir()
     snapshot = output / "route.json"
     _route_snapshot(snapshot, "manual_v2")
-    _manual_status(campaign, motion=False, attempt_id="attempt-1")
+    _manual_status(campaign, attempt_id="attempt-1")
     _owner_authority(authority, "attempt-1")
     publish_launch_attempt(
         authority,
@@ -237,17 +185,16 @@ def test_route_neutral_status_cannot_promote_bridge_only_manual_attempt(
         state="STARTED",
         phase="manual_campaign",
         route="manual_v2",
-        bindings=_bindings(campaign, output, snapshot, motion=False),
+        bindings=_bindings(campaign, output, snapshot),
     )
 
     status = bridge_status.resolve_status(tmp_path)
     assert status["schema"] == bridge_status.STATUS_SCHEMA
     assert status["route"] == "manual_v2"
-    assert status["state"] == "BRIDGE_ALIVE_NO_ARM"
-    assert status["predicates"]["play_prompt_ready"] is False
-    assert status["predicates"]["authorization_scope_valid"] is False
-    with pytest.raises(ValueError, match="does not authorize"):
-        bridge_status.readiness_claim(status, "WAITING_FOR_IDENTITY_PLAY")
+    assert status["state"] == "WAITING_FOR_PLAY"
+    assert status["predicates"]["play_prompt_ready"] is True
+    assert status["predicates"]["canonical_attempt_bound"] is True
+    assert bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")["attempt_id"] == "attempt-1"
 
 
 def test_readiness_claim_requires_same_attempt_machine_scope(tmp_path: Path) -> None:
@@ -259,7 +206,7 @@ def test_readiness_claim_requires_same_attempt_machine_scope(tmp_path: Path) -> 
     output.mkdir()
     snapshot = output / "route.json"
     _route_snapshot(snapshot, "manual_v2")
-    _manual_status(campaign, motion=True, attempt_id="attempt-2")
+    _manual_status(campaign, attempt_id="attempt-2")
     _owner_authority(authority, "attempt-2")
     publish_launch_attempt(
         authority,
@@ -267,11 +214,11 @@ def test_readiness_claim_requires_same_attempt_machine_scope(tmp_path: Path) -> 
         state="STARTED",
         phase="manual_campaign",
         route="manual_v2",
-        bindings=_bindings(campaign, output, snapshot, motion=True),
+        bindings=_bindings(campaign, output, snapshot),
     )
 
     status = bridge_status.resolve_status(tmp_path)
-    claim = bridge_status.readiness_claim(status, "WAITING_FOR_IDENTITY_PLAY")
+    claim = bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
     assert claim["schema"] == bridge_status.CLAIM_SCHEMA
     assert claim["attempt_id"] == "attempt-2"
     assert claim["expires_at_unix_ns"] > claim["issued_at_unix_ns"]
@@ -303,9 +250,9 @@ def test_failed_latest_attempt_hides_stale_route_status(tmp_path: Path) -> None:
     output.mkdir()
     snapshot = output / "route.json"
     _route_snapshot(snapshot, "manual_v2")
-    _manual_status(campaign, motion=True, attempt_id="attempt-3")
+    _manual_status(campaign, attempt_id="attempt-3")
     _owner_authority(authority, "attempt-3")
-    bindings = _bindings(campaign, output, snapshot, motion=True)
+    bindings = _bindings(campaign, output, snapshot)
     publish_launch_attempt(
         authority,
         attempt_id="attempt-3",
@@ -343,7 +290,7 @@ def test_closed_world_route_failure_preserves_named_physical_blocker(
     output.mkdir()
     snapshot = output / "route.json"
     _route_snapshot(snapshot, "BLOCKED")
-    bindings = _bindings(campaign, output, snapshot, motion=False)
+    bindings = _bindings(campaign, output, snapshot)
     route_reference = bindings["route_snapshot"]
     bindings["route_snapshot"] = None
     publish_launch_attempt(
@@ -403,9 +350,9 @@ def test_passed_phase_with_dead_owner_is_not_a_readiness_authority(
     output.mkdir()
     snapshot = output / "route.json"
     _route_snapshot(snapshot, "manual_v2")
-    _manual_status(campaign, motion=True, attempt_id="attempt-dead")
+    _manual_status(campaign, attempt_id="attempt-dead")
     _owner_authority(authority, "attempt-dead")
-    bindings = _bindings(campaign, output, snapshot, motion=True)
+    bindings = _bindings(campaign, output, snapshot)
     publish_launch_attempt(
         authority,
         attempt_id="attempt-dead",
@@ -439,7 +386,7 @@ def test_route_snapshot_content_must_match_bound_route(tmp_path: Path) -> None:
     output.mkdir()
     snapshot = output / "route.json"
     _route_snapshot(snapshot, "autotune_v3")
-    _manual_status(campaign, motion=True, attempt_id="attempt-route-mismatch")
+    _manual_status(campaign, attempt_id="attempt-route-mismatch")
     _owner_authority(authority, "attempt-route-mismatch")
     publish_launch_attempt(
         authority,
@@ -447,7 +394,7 @@ def test_route_snapshot_content_must_match_bound_route(tmp_path: Path) -> None:
         state="STARTED",
         phase="manual_campaign",
         route="manual_v2",
-        bindings=_bindings(campaign, output, snapshot, motion=True),
+        bindings=_bindings(campaign, output, snapshot),
     )
 
     status = bridge_status.resolve_status(tmp_path)
@@ -456,7 +403,7 @@ def test_route_snapshot_content_must_match_bound_route(tmp_path: Path) -> None:
     assert status["blocker"]["reason_codes"] == ["LAUNCH_ATTEMPT_BINDING_INVALID"]
 
 
-def test_v3_campaign_lease_is_the_authorization_scope(
+def test_v3_campaign_lease_binds_the_canonical_attempt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     campaign = tmp_path / "campaign"
@@ -474,7 +421,7 @@ def test_v3_campaign_lease_is_the_authorization_scope(
         state="STARTED",
         phase="live_handoff",
         route="autotune_v3",
-        bindings=_bindings(campaign, output, snapshot, motion=False),
+        bindings=_bindings(campaign, output, snapshot),
     )
     monkeypatch.setattr(
         bridge_status,
@@ -504,7 +451,7 @@ def test_v3_campaign_lease_is_the_authorization_scope(
     status = bridge_status.resolve_status(tmp_path)
     claim = bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
 
-    assert status["predicates"]["authorization_scope_valid"] is True
+    assert status["predicates"]["canonical_attempt_bound"] is True
     assert claim["attempt_id"] == "attempt-v3"
 
 
@@ -589,7 +536,7 @@ def test_completed_attempt_preserves_outcome_but_cannot_claim_readiness(
     output.mkdir()
     snapshot = output / "route.json"
     _route_snapshot(snapshot, "manual_v2")
-    _manual_status(campaign, motion=True, attempt_id="attempt-complete")
+    _manual_status(campaign, attempt_id="attempt-complete")
     manual_path = campaign / "manual_governed_status.json"
     manual = json.loads(manual_path.read_text(encoding="utf-8"))
     manual["state"] = "COMPLETE"
@@ -597,7 +544,7 @@ def test_completed_attempt_preserves_outcome_but_cannot_claim_readiness(
     manual["next_action"] = "none"
     manual_path.write_text(json.dumps(manual), encoding="utf-8")
     _owner_authority(authority, "attempt-complete")
-    bindings = _bindings(campaign, output, snapshot, motion=True)
+    bindings = _bindings(campaign, output, snapshot)
     publish_launch_attempt(
         authority,
         attempt_id="attempt-complete",
@@ -629,6 +576,6 @@ def test_completed_attempt_preserves_outcome_but_cannot_claim_readiness(
 
     assert status["state"] == "COMPLETE"
     assert status["predicates"]["play_prompt_ready"] is False
-    assert status["predicates"]["authorization_scope_valid"] is False
+    assert status["predicates"]["canonical_attempt_bound"] is False
     with pytest.raises(ValueError, match="pre-Play"):
         bridge_status.readiness_claim(status, "COMPLETE")

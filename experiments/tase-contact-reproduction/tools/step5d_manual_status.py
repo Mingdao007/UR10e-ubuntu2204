@@ -19,7 +19,6 @@ from step5d_autotune_v3.runtime_gate import loaded_program_matches
 from step5d_autotune_v3.governance import read_proc_starttime_ticks
 from step5d_autotune_v3.state import atomic_json
 from step5d_manual_bridge import PROGRAM, ROOT
-from step5d_manual_authorization import capture_capability_authorization
 from step5d_manual_qualification import validate_result as validate_manual_qualification
 from ur10e_parallel import ResourceProfile, writer_lease_owner
 
@@ -27,9 +26,7 @@ from ur10e_parallel import ResourceProfile, writer_lease_owner
 POINTER_SCHEMA = "step5d.manual-v2/active-run-pointer-v1"
 STATUS_SCHEMA = "step5d.manual-v2/governed-status-v1"
 QUALIFICATION_SCHEMA = "step5d.manual-v2/production-startup-qualification-v1"
-CAPABILITIES = ("bridge", "play", "arm", "motion", "zero", "tare")
 EXPECTED_PROGRAM = f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
-CONTROLLER_IDENTITY_MAX_AGE_NS = 2_000_000_000
 BRIDGE_HEARTBEAT_MAX_AGE_NS = 2_000_000_000
 
 
@@ -178,122 +175,35 @@ def read_run_status(campaign_root: Path) -> dict[str, Any]:
             else:
                 qualification_current = True
     payload["offline_proven"] = qualification_current
-    capabilities = payload.get("capabilities")
-    authorization = payload.get("authorization")
-    authorization_current = False
-    if isinstance(authorization, dict) and set(authorization) == {"path", "sha256"}:
-        authorization_path = Path(str(authorization["path"]))
-        if authorization_path.is_absolute():
-            try:
-                observed_authorization, observed_reference = capture_capability_authorization(
-                    authorization_path,
-                    attempt_id=str(payload.get("launch_attempt_id", "")),
-                    campaign_id=str(payload.get("campaign_id", "")),
-                    release_manifest_sha256=str(payload.get("release_sha", "")),
-                )
-            except Exception:
-                authorization_current = False
-            else:
-                authorization_current = bool(
-                    observed_reference == authorization
-                    and observed_authorization.get("capabilities") == capabilities
-                )
-    play_scope = bool(
-        authorization_current
-        and isinstance(capabilities, dict)
-        and set(capabilities) == set(CAPABILITIES)
-        and all(isinstance(capabilities[name], bool) for name in CAPABILITIES)
-        and all(capabilities[name] for name in ("bridge", "play", "arm", "motion"))
-        and not capabilities["zero"]
-        and not capabilities["tare"]
-    )
-    if payload.get("play_prompt_ready") is True and not play_scope:
-        payload["state"] = "BRIDGE_ALIVE_NO_ARM"
-        payload["blocker"] = "AUTHORIZATION_SCOPE_INSUFFICIENT"
-        payload["play_prompt_ready"] = False
-        payload["next_action"] = "await explicit Play/ARM/motion authorization or stop"
     controller = payload.get("controller_observation")
-    observed_at = controller.get("observed_at_unix_ns") if isinstance(controller, dict) else None
     controller_keys = set(controller) if isinstance(controller, dict) else set()
     required_controller_keys = {
         "observed_at_unix_ns",
         "loaded_program_response",
         "program_state",
+        "program_state_normalized",
         "safety_mode",
+        "safety_mode_normalized",
         "expected_loaded_program",
     }
-    triplet = controller.get("controller_triplet") if isinstance(controller, dict) else None
-    triplet_observed_at = (
-        triplet.get("observed_at_unix_ns") if isinstance(triplet, dict) else None
-    )
-    expected_triplet = triplet.get("expected_sha256") if isinstance(triplet, dict) else None
-    owner_helper = triplet.get("owner_helper") if isinstance(triplet, dict) else None
-    triplet_current = bool(
-        isinstance(triplet, dict)
-        and set(triplet)
-        == {
-            "schema",
-            "ok",
-            "mode",
-            "observed_at_unix_ns",
-            "expected_sha256",
-            "observed_sha256",
-            "endpoint",
-            "owner_helper",
-        }
-        and triplet.get("schema")
-        == "step5d.manual-v2/controller-triplet-observation-v1"
-        and triplet.get("ok") is True
-        and triplet.get("mode") == "fresh_controller_get"
-        and isinstance(triplet_observed_at, int)
-        and not isinstance(triplet_observed_at, bool)
-        and 0
-        <= time.time_ns() - triplet_observed_at
-        <= CONTROLLER_IDENTITY_MAX_AGE_NS
-        and isinstance(expected_triplet, dict)
-        and set(expected_triplet) == {".script", ".txt", ".urp"}
-        and all(
-            isinstance(value, str)
-            and len(value) == 64
-            and all(character in "0123456789abcdef" for character in value)
-            for value in expected_triplet.values()
-        )
-        and expected_triplet == triplet.get("observed_sha256")
-        and triplet.get("endpoint") is None
-        and isinstance(owner_helper, dict)
-        and set(owner_helper) == {"path", "sha256"}
-        and Path(str(owner_helper.get("path", ""))).is_absolute()
-        and isinstance(owner_helper.get("sha256"), str)
-        and len(owner_helper["sha256"]) == 64
-    )
-    controller_identity_fresh = bool(
+    controller_preflight_valid = bool(
         isinstance(controller, dict)
-        and required_controller_keys.issubset(controller_keys)
-        and controller_keys
-        <= required_controller_keys
-        | {"program_state_normalized", "controller_triplet"}
-        and isinstance(observed_at, int)
-        and not isinstance(observed_at, bool)
-        and 0 <= time.time_ns() - observed_at <= CONTROLLER_IDENTITY_MAX_AGE_NS
+        and controller_keys == required_controller_keys
+        and isinstance(controller.get("observed_at_unix_ns"), int)
+        and not isinstance(controller.get("observed_at_unix_ns"), bool)
         and controller.get("expected_loaded_program") == EXPECTED_PROGRAM
         and loaded_program_matches(
             str(controller.get("loaded_program_response", "")), EXPECTED_PROGRAM
         )
-        and triplet_current
-        and str(
-            controller.get(
-                "program_state_normalized",
-                str(controller.get("program_state", "")).split(maxsplit=1)[0].upper(),
-            )
-        )
-        == "STOPPED"
+        and controller.get("program_state_normalized") == "STOPPED"
+        and controller.get("safety_mode_normalized") == "NORMAL"
     )
-    payload["controller_identity_fresh"] = controller_identity_fresh
-    if payload.get("play_prompt_ready") is True and not controller_identity_fresh:
-        payload["state"] = "BRIDGE_ALIVE_NO_ARM"
-        payload["blocker"] = "MANUAL_CONTROLLER_IDENTITY_STALE"
+    payload["controller_preflight_valid"] = controller_preflight_valid
+    if payload.get("play_prompt_ready") is True and not controller_preflight_valid:
+        payload["state"] = "BLOCKED"
+        payload["blocker"] = "MANUAL_CONTROLLER_PREFLIGHT_INVALID"
         payload["play_prompt_ready"] = False
-        payload["next_action"] = "refresh exact Manual loaded-program identity or stop"
+        payload["next_action"] = "restart through canonical bridge preflight"
     if not qualification_current:
         payload["state"] = "BLOCKED"
         payload["blocker"] = "MANUAL_PRODUCTION_QUALIFICATION_INVALID"
