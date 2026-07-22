@@ -28,6 +28,7 @@ from step5d_autotune_v3.qualification import (  # noqa: E402
     validate_qualification_result,
 )
 import step5d_autotune_v3.qualification as qualification  # noqa: E402
+from step5d_autotune_v3.release_identity import load_current_release  # noqa: E402
 from step5d_autotune_v3.runtime_functional_gates import (  # noqa: E402
     RuntimeFunctionalGateError,
 )
@@ -42,7 +43,9 @@ def _copy_file(source: Path, destination: Path) -> None:
     os.link(source, destination)
 
 
-def _qualified_release_fixture(tmp_path: Path) -> Path:
+def _qualified_release_fixture(
+    tmp_path: Path, *, restore_deployed_current: bool = False
+) -> tuple[Path, object]:
     repository = tmp_path / "workspace"
     experiment = repository / "experiments/tase-contact-reproduction"
     shutil.copytree(
@@ -117,6 +120,8 @@ def _qualified_release_fixture(tmp_path: Path) -> Path:
     receipt_path = receipt_dir / "manifest.json"
     receipt_path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
     receipt_sha256 = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
+    current_pointer = experiment / "config/step5d/current.json"
+    deployed_current_bytes = current_pointer.read_bytes()
     promotion.promote(
         experiment,
         receipt_path,
@@ -124,14 +129,17 @@ def _qualified_release_fixture(tmp_path: Path) -> Path:
         expected_transaction_id=transaction_id,
         expected_manifest_sha256=receipt_sha256,
     )
-    return experiment
+    candidate = load_current_release(experiment)
+    if restore_deployed_current:
+        current_pointer.write_bytes(deployed_current_bytes)
+    return experiment, candidate
 
 
 def test_endpoint_qualification_never_rebuilds_missing_gpu_authority(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    experiment = _qualified_release_fixture(tmp_path)
+    experiment, _candidate = _qualified_release_fixture(tmp_path)
     canonical = experiment / "scripts/step5d-autotune-v3.sh"
     environment = dict(os.environ)
     environment[CANONICAL_LAUNCH_ENV] = str(canonical)
@@ -152,7 +160,7 @@ def test_endpoint_qualification_never_rebuilds_missing_gpu_authority(
 
 
 def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path) -> None:
-    experiment = _qualified_release_fixture(tmp_path)
+    experiment, _candidate = _qualified_release_fixture(tmp_path)
     canonical = experiment / "scripts/step5d-autotune-v3.sh"
     environment = dict(os.environ)
     environment[CANONICAL_LAUNCH_ENV] = str(canonical)
@@ -232,3 +240,36 @@ def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path
     endpoint = json.loads(endpoint_path.read_text(encoding="utf-8"))
     assert endpoint["counters"]["rtde"]["trials_completed"] >= 1
     assert endpoint["counters"]["rtde"]["arm_acknowledgements"] >= 2
+
+
+def test_candidate_qualification_does_not_mutate_or_require_deployed_current(
+    tmp_path: Path,
+) -> None:
+    experiment, candidate = _qualified_release_fixture(
+        tmp_path, restore_deployed_current=True
+    )
+    current_path = experiment / "config/step5d/current.json"
+    deployed_current_bytes = current_path.read_bytes()
+    assert json.loads(deployed_current_bytes)["manifest_sha256"] != (
+        candidate.manifest_sha256
+    )
+    canonical = experiment / "scripts/step5d-autotune-v3.sh"
+    environment = dict(os.environ)
+    environment[CANONICAL_LAUNCH_ENV] = str(canonical)
+    environment["PYTHONPATH"] = os.pathsep.join(
+        (
+            str(experiment / "tools"),
+            str(experiment.parents[1] / "src/ur10e_experiment_runtime"),
+            environment.get("PYTHONPATH", ""),
+        )
+    ).rstrip(os.pathsep)
+
+    payload, _evidence = run_endpoint_qualification(
+        experiment,
+        experiment / "runs/qualification-output",
+        environment=environment,
+        release_identity=candidate,
+    )
+
+    assert payload["ok"] is True
+    assert current_path.read_bytes() == deployed_current_bytes

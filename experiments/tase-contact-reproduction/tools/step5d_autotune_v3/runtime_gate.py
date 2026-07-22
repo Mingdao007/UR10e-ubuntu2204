@@ -21,6 +21,13 @@ import re
 import time
 from typing import Any, Callable, Mapping
 
+from .release_identity import (
+    QUALIFICATION_ENDPOINT_CONFIG_ENV,
+    ReleaseIdentityError,
+    load_runtime_release,
+    qualification_runtime_environment,
+)
+
 from .delivery_observation import MAX_AGE_NS as CONTROLLER_FRESH_GET_MAX_AGE_NS
 from .runtime_installation import (
     RuntimeInstallationError,
@@ -623,6 +630,73 @@ def _current_manifest_sha256(root: Path) -> str:
     return _sha256(row["manifest_sha256"], "current release manifest SHA-256")
 
 
+@dataclass(frozen=True)
+class _EffectiveReleaseAuthority:
+    mode: str
+    manifest_sha256: str
+    environment: tuple[tuple[str, str], ...]
+    authority_path: Path
+    authority_sha256: str
+
+
+def _effective_release_authority(
+    root: Path, expected_manifest_sha256: str
+) -> _EffectiveReleaseAuthority:
+    """Derive release authority from validated process state, never a caller bypass."""
+
+    try:
+        qualification = qualification_runtime_environment()
+    except (OSError, ReleaseIdentityError) as exc:
+        raise RuntimeGateError(f"qualification release authority is invalid: {exc}") from exc
+    if qualification:
+        try:
+            effective = load_runtime_release(root)
+        except ReleaseIdentityError as exc:
+            raise RuntimeGateError(
+                f"qualification release authority is invalid: {exc}"
+            ) from exc
+        if effective.manifest_sha256 != expected_manifest_sha256:
+            raise RuntimeGateError("qualification release differs from campaign release")
+        launcher_name = "STEP5D_V3_CANONICAL_LAUNCHER"
+        frozen_environment = tuple(
+            sorted(
+                {
+                    **qualification,
+                    launcher_name: os.environ.get(launcher_name, ""),
+                }.items()
+            )
+        )
+        try:
+            endpoint_path = Path(
+                qualification[QUALIFICATION_ENDPOINT_CONFIG_ENV]
+            ).resolve(strict=True)
+        except OSError as exc:
+            raise RuntimeGateError(
+                f"qualification release authority is invalid: {exc}"
+            ) from exc
+        return _EffectiveReleaseAuthority(
+            mode="qualification",
+            manifest_sha256=expected_manifest_sha256,
+            environment=frozen_environment,
+            authority_path=endpoint_path,
+            authority_sha256=_sha256_file(endpoint_path, "qualification endpoint config"),
+        )
+
+    try:
+        pointer_path = (root / "config/step5d/current.json").resolve(strict=True)
+    except OSError as exc:
+        raise RuntimeGateError(f"current release pointer is unavailable: {exc}") from exc
+    if _current_manifest_sha256(root) != expected_manifest_sha256:
+        raise RuntimeGateError("current release differs from campaign release")
+    return _EffectiveReleaseAuthority(
+        mode="current",
+        manifest_sha256=expected_manifest_sha256,
+        environment=(),
+        authority_path=pointer_path,
+        authority_sha256=_sha256_file(pointer_path, "current release pointer"),
+    )
+
+
 def _fingerprint_map(value: Any, role: str) -> dict[str, str]:
     if not isinstance(value, Mapping) or not value:
         raise RuntimeGateError(f"{role} fingerprint map is missing")
@@ -905,6 +979,9 @@ class ArmGateProvider:
         self.source_fingerprints = _fingerprint_map(
             getattr(release, "source_fingerprints", None), "release source"
         )
+        self._release_authority = _effective_release_authority(
+            self.root, release.manifest_sha256
+        )
         if CANONICAL_LAUNCHER not in self.source_fingerprints:
             raise RuntimeGateError("canonical launcher is absent from release sources")
         verification = getattr(release, "verification", {})
@@ -967,8 +1044,14 @@ class ArmGateProvider:
             "lease supervisor",
         ):
             raise RuntimeGateError("campaign lease supervisor process changed")
-        if _current_manifest_sha256(self.root) != self.lease.manifest_sha256:
-            raise RuntimeGateError("current release changed during campaign")
+        try:
+            authority = _effective_release_authority(
+                self.root, self.lease.manifest_sha256
+            )
+        except (OSError, RuntimeGateError) as exc:
+            raise RuntimeGateError("effective release changed during campaign") from exc
+        if authority != self._release_authority:
+            raise RuntimeGateError("effective release changed during campaign")
         if (
             _bound_file_sha256(self.root, self.manifest_path, "release manifest")
             != self.lease.manifest_sha256
