@@ -658,6 +658,27 @@ def test_launch_attempt_pointer_is_content_addressed_and_phase_monotonic(
         )
 
 
+def test_launch_attempt_admits_monotonic_manual_bridge_phases(tmp_path: Path) -> None:
+    phases = (
+        "runtime_gate",
+        "route_resolve",
+        "manual_context",
+        "manual_preflight",
+        "manual_bridge_start",
+        "manual_campaign",
+    )
+    for offset, phase in enumerate(phases):
+        recorded = publish_launch_attempt(
+            tmp_path,
+            attempt_id="manual-attempt-1",
+            state="STARTED",
+            phase=phase,
+            observed_at_unix_ns=NOW_NS + offset,
+        )
+        assert recorded["attestation"]["sequence"] == offset + 1
+        assert recorded["attestation"]["phase"] == phase
+
+
 def test_launch_attempt_external_class_requires_positive_evidence(
     tmp_path: Path,
 ) -> None:

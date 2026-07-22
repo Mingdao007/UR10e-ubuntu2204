@@ -11,6 +11,22 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import resolve_step5d_bridge_route as route  # noqa: E402
 import step5d_manual_status as status  # noqa: E402
+from step5d_autotune_v3.governance import LAUNCH_ATTEMPT_PHASES  # noqa: E402
+
+
+def test_manual_shell_phases_are_registered_in_launch_attempt_fsm() -> None:
+    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+    phases = (
+        "runtime_gate",
+        "route_resolve",
+        "manual_context",
+        "manual_preflight",
+        "manual_bridge_start",
+        "manual_campaign",
+    )
+    for phase in phases:
+        assert phase in LAUNCH_ATTEMPT_PHASES
+        assert f"bridge_begin_phase {phase}" in source
 
 
 def test_route_selects_manual_only_for_exact_loaded_program(monkeypatch) -> None:

@@ -37,6 +37,11 @@ FSM_TRANSITION_ACTOR = "launcher_supervisor"
 LAUNCH_ATTEMPT_STATES = ("STARTED", "FAILED")
 LAUNCH_ATTEMPT_PHASES = (
     "runtime_gate",
+    "route_resolve",
+    "manual_context",
+    "manual_preflight",
+    "manual_bridge_start",
+    "manual_campaign",
     "status_before",
     "tp_build",
     "release_candidate",
