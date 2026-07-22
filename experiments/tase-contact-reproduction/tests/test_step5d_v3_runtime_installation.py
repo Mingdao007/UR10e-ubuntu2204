@@ -193,6 +193,14 @@ def test_shell_binding_uses_identity_pointer_before_command_full_gate(
         "load_runtime_pointer",
         lambda: pytest.fail("shell binding must not import/smoke both profiles"),
     )
+    monkeypatch.setattr(
+        resolver,
+        "production_runtime_environment",
+        lambda *_args, **_kwargs: {
+            "LD_LIBRARY_PATH": "/runtime/control/nvidia",
+            "CUPY_CACHE_DIR": "/runtime/cache/cupy",
+        },
+    )
 
     assert resolver.main(["--shell-binding"]) == 0
     fields = capsys.readouterr().out.strip().split("\t")
@@ -200,6 +208,10 @@ def test_shell_binding_uses_identity_pointer_before_command_full_gate(
     assert fields[:2] == [
         pointer["profiles"]["control"]["python_executable"],
         pointer["profiles"]["optimizer"]["python_executable"],
+    ]
+    assert fields[-2:] == [
+        "/runtime/control/nvidia",
+        "/runtime/cache/cupy",
     ]
 
 

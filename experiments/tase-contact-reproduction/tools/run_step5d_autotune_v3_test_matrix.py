@@ -117,7 +117,7 @@ def _runtime_binding() -> list[str]:
         check=False,
     )
     fields = completed.stdout.strip().split("\t")
-    if completed.returncode != 0 or len(fields) != 9 or not all(fields):
+    if completed.returncode != 0 or len(fields) != 11 or not all(fields):
         raise TestMatrixError(
             "governed control runtime is unavailable for installed-runtime gate"
         )
@@ -211,6 +211,8 @@ def _run_lane(name: str, command: Sequence[str], output: Path) -> dict[str, Any]
         )
         environment["PYTHONNOUSERSITE"] = "1"
         environment["CUDA_VISIBLE_DEVICES"] = binding[8]
+        environment["LD_LIBRARY_PATH"] = binding[9]
+        environment["CUPY_CACHE_DIR"] = binding[10]
         environment["STEP5D_V3_CONTROL_PYTHON"] = binding[0]
         environment["STEP5D_V3_OPTIMIZER_PYTHON"] = binding[1]
         environment["STEP5D_V3_RUNTIME_BUNDLE_ID"] = binding[2]

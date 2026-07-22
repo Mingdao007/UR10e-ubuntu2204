@@ -463,7 +463,9 @@ def _fake_governed_shell(
         "python = os.environ['STEP5D_TEST_PROFILE_PYTHON']\n"
         "digest = 'a' * 64\n"
         "gpu = 'GPU-93d64fd3-924c-9c86-6c3d-b4781ed2133a'\n"
-        "print('\\t'.join((python, python, digest, digest, digest, digest, digest, digest, gpu)))\n",
+        "ld_library_path = '/runtime/control/nvidia'\n"
+        "cupy_cache_dir = '/runtime/cache/cupy'\n"
+        "print('\\t'.join((python, python, digest, digest, digest, digest, digest, digest, gpu, ld_library_path, cupy_cache_dir)))\n",
         encoding="utf-8",
     )
     environment = {

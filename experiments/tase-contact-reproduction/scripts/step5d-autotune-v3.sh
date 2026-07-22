@@ -224,7 +224,9 @@ IFS=$'\t' read -r \
   RUNTIME_LOCK_SHA256 \
   CONTROL_ENVIRONMENT_ID \
   OPTIMIZER_ENVIRONMENT_ID \
-  GOVERNED_GPU_UUID <<<"${runtime_binding}"
+  GOVERNED_GPU_UUID \
+  CONTROL_LD_LIBRARY_PATH \
+  CONTROL_CUPY_CACHE_DIR <<<"${runtime_binding}"
 runtime_fields=(
   "${CONTROL_PYTHON:-}"
   "${OPTIMIZER_PYTHON:-}"
@@ -235,8 +237,10 @@ runtime_fields=(
   "${CONTROL_ENVIRONMENT_ID:-}"
   "${OPTIMIZER_ENVIRONMENT_ID:-}"
   "${GOVERNED_GPU_UUID:-}"
+  "${CONTROL_LD_LIBRARY_PATH:-}"
+  "${CONTROL_CUPY_CACHE_DIR:-}"
 )
-if (( ${#runtime_fields[@]} != 9 )); then
+if (( ${#runtime_fields[@]} != 11 )); then
   echo "governed runtime resolver returned an invalid field count" >&2
   exit 78
 fi
@@ -283,6 +287,8 @@ export PYTHONPATH="${RUNTIME_PYTHONPATH}"
 AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"
 export AMENT_PREFIX_PATH
 export CUDA_VISIBLE_DEVICES="${GOVERNED_GPU_UUID}"
+export CUPY_CACHE_DIR="${CONTROL_CUPY_CACHE_DIR}"
+export LD_LIBRARY_PATH="${CONTROL_LD_LIBRARY_PATH}"
 export PYTHONDONTWRITEBYTECODE=1
 export PYTHONNOUSERSITE=1
 export STEP5D_V3_CONTROL_ENVIRONMENT_ID="${CONTROL_ENVIRONMENT_ID}"

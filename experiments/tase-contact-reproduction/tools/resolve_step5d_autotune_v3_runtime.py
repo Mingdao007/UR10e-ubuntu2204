@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -19,6 +20,7 @@ from step5d_autotune_v3.runtime_installation import (
     load_runtime_pointer_identity,
     runtime_status,
 )
+from step5d_autotune_v3.runtime_environment import production_runtime_environment
 
 
 _NEXT_ACTION = {
@@ -128,6 +130,11 @@ def main(argv: list[str] | None = None) -> int:
         from step5d_autotune_v3.runtime_installation import load_runtime_contract
 
         contract = load_runtime_contract()
+        control_environment = production_runtime_environment(
+            os.environ,
+            profile="control",
+            runtime_pointer=pointer,
+        )
         fields = (
             pointer["profiles"]["control"]["python_executable"],
             pointer["profiles"]["optimizer"]["python_executable"],
@@ -138,6 +145,8 @@ def main(argv: list[str] | None = None) -> int:
             pointer["profiles"]["control"]["environment_id"],
             pointer["profiles"]["optimizer"]["environment_id"],
             contract["gpu"]["uuid"],
+            control_environment["LD_LIBRARY_PATH"],
+            control_environment["CUPY_CACHE_DIR"],
         )
         if any(not isinstance(value, str) or not value or any(c in value for c in "\t\r\n") for value in fields):
             print("runtime binding contains unsafe control characters", file=sys.stderr)

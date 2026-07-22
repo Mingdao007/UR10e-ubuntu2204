@@ -155,6 +155,8 @@ def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath()
     assert 'export PYTHONPATH="${RUNTIME_PYTHONPATH}"' in source
     assert 'AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"' in source
     assert "export AMENT_PREFIX_PATH" in source
+    assert 'export CUPY_CACHE_DIR="${CONTROL_CUPY_CACHE_DIR}"' in source
+    assert 'export LD_LIBRARY_PATH="${CONTROL_LD_LIBRARY_PATH}"' in source
     assert 'PYTHONPATH:+:${PYTHONPATH}' not in source
 
 
