@@ -546,8 +546,41 @@ if (( bridge_mode == 1 )); then
     "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
       --experiment-root "${EXPERIMENT_ROOT}" \
       --_exec-live-from-shell-contract \
-      "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
-    exit 0
+      "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT}" &
+    qualification_manual_owner_pid=$!
+    # shellcheck disable=SC2329  # Invoked by the EXIT trap below.
+    qualification_manual_cleanup() {
+      if kill -0 "${qualification_manual_owner_pid}" 2>/dev/null; then
+        kill -INT "${qualification_manual_owner_pid}" 2>/dev/null || true
+        wait "${qualification_manual_owner_pid}" || true
+      fi
+    }
+    trap qualification_manual_cleanup EXIT
+    qualification_ready_limit_ticks="$("${CONTROL_PYTHON}" -c \
+      'import math,sys; print(math.ceil(float(sys.argv[1]) * 10.0) + 20)' \
+      "${ready_timeout_s}")"
+    qualification_ready_ticks=0
+    while [[ ! -f "${output_root}/bridge_launch.json" ]]; do
+      if ! kill -0 "${qualification_manual_owner_pid}" 2>/dev/null; then
+        qualification_owner_rc=0
+        wait "${qualification_manual_owner_pid}" || qualification_owner_rc=$?
+        echo "Manual qualification bridge owner exited before readiness rc=${qualification_owner_rc}" >&2
+        exit 2
+      fi
+      if (( qualification_ready_ticks >= qualification_ready_limit_ticks )); then
+        echo "Manual qualification bridge owner readiness timeout" >&2
+        exit 2
+      fi
+      sleep 0.1
+      ((qualification_ready_ticks += 1))
+    done
+    qualification_campaign_rc=0
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
+      --experiment-root "${EXPERIMENT_ROOT}" \
+      --_exec-campaign-from-shell-contract \
+      "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT}" \
+      || qualification_campaign_rc=$?
+    exit "${qualification_campaign_rc}"
   fi
   if [[ -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
     if [[ "${bridge_route}" != "autotune_v3" ]]; then

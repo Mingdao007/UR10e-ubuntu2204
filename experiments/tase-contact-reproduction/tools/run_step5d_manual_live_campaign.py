@@ -71,7 +71,11 @@ from step5d_manual_profile import (
     DEFAULT_LAUNCH_PROFILE,
     load_manual_launch_profile as load_launch_profile,
 )
-from step5d_manual_qualification import validate_result as validate_manual_qualification
+from step5d_manual_qualification import (
+    COMPLETION_SIGNAL_SCHEMA,
+    validate_bootstrap as validate_manual_qualification_bootstrap,
+    validate_result as validate_manual_qualification,
+)
 from run_step5d_manual_bridge import ARM_GATE_SCHEMA
 from ur10e_parallel import ResourceProfile, writer_lease_owner
 
@@ -308,6 +312,46 @@ def _status_path(args: argparse.Namespace) -> Path:
     return args.campaign_root / "manual_governed_status.json"
 
 
+def _qualification_reference(args: argparse.Namespace) -> dict[str, str]:
+    path = (
+        args.qualification_result
+        if args.qualification_bootstrap is None
+        else args.qualification_bootstrap
+    )
+    if path is None:
+        raise ManualLiveError("Manual qualification evidence is missing")
+    exact = path.expanduser().resolve(strict=True)
+    return {
+        "path": str(exact),
+        "sha256": hashlib.sha256(exact.read_bytes()).hexdigest(),
+    }
+
+
+def _qualification_completion_requested(
+    args: argparse.Namespace,
+    bootstrap: Mapping[str, Any] | None,
+    *,
+    completed: int,
+    arm: HostPacket,
+) -> bool:
+    if bootstrap is None or completed + 1 != bootstrap["maximum_groups"]:
+        return False
+    path = Path(str(bootstrap["completion_signal"]))
+    if not path.exists():
+        return False
+    payload = strict_object(path, "Manual qualification completion signal")
+    return payload == {
+        "schema": COMPLETION_SIGNAL_SCHEMA,
+        "campaign_id": args.campaign_id,
+        "launch_attempt_id": os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", ""),
+        "release_manifest_sha256": args.release_manifest_sha256,
+        "trial_id": arm.trial_id,
+        "command_seq": arm.command_seq,
+        "first_group_completed": True,
+        "second_group_state": "RUN",
+    }
+
+
 def _publish_status(
     args: argparse.Namespace,
     *,
@@ -346,10 +390,7 @@ def _publish_status(
         ),
         "bridge_launch_id": bridge_launch.get("launch_id"),
         "bridge_heartbeat": _pid_alive(bridge_pid),
-        "offline_qualification": {
-            "path": str(args.qualification_result.resolve(strict=True)),
-            "sha256": hashlib.sha256(args.qualification_result.read_bytes()).hexdigest(),
-        },
+        "offline_qualification": _qualification_reference(args),
         "offline_proven": True,
         "canonical_attempt_bound": bool(launch_attempt_id),
         "play_prompt_ready": state == "WAITING_FOR_PLAY",
@@ -654,11 +695,23 @@ def _complete_at_home(
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     args.campaign_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    validate_manual_qualification(
-        ROOT,
-        args.qualification_result,
-        release_manifest_sha256=args.release_manifest_sha256,
-    )
+    qualification_bootstrap: Mapping[str, Any] | None = None
+    if args.qualification_bootstrap is None:
+        validate_manual_qualification(
+            ROOT,
+            args.qualification_result,
+            release_manifest_sha256=args.release_manifest_sha256,
+        )
+    else:
+        if args.qualification_result is not None:
+            raise ManualLiveError(
+                "Manual qualification bootstrap cannot combine with a final result"
+            )
+        qualification_bootstrap = validate_manual_qualification_bootstrap(
+            ROOT,
+            args.qualification_bootstrap,
+            release_manifest_sha256=args.release_manifest_sha256,
+        )
     seed_initial_grid(
         args.queue,
         campaign_id=args.campaign_id,
@@ -698,7 +751,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         controller_observation=controller_observation,
         launch_attempt_id=attempt_id,
     )
-    _publish_canonical_readiness_claim(args, "WAITING_FOR_PLAY")
+    if args.qualification_bootstrap is None:
+        _publish_canonical_readiness_claim(args, "WAITING_FOR_PLAY")
     observed = _wait_for_ready_home(
         args,
         time.monotonic() + args.play_timeout_s,
@@ -797,6 +851,22 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     launch_attempt_id=attempt_id,
                 )
                 running_published = True
+            if running_published and _qualification_completion_requested(
+                args,
+                qualification_bootstrap,
+                completed=completed,
+                arm=arm,
+            ):
+                return _publish_status(
+                    args,
+                    state="RUNNING",
+                    observed=terminal,
+                    completed=completed,
+                    total=len(queue["requests"]),
+                    next_group=group_id,
+                    controller_observation=controller_observation,
+                    launch_attempt_id=attempt_id,
+                )
             expected = {
                 "campaign_epoch": arm.campaign_epoch,
                 "trial_id": arm.trial_id,
@@ -866,7 +936,9 @@ def main() -> int:
     parser.add_argument("--state", type=Path, required=True)
     parser.add_argument("--campaign-id", required=True)
     parser.add_argument("--release-manifest-sha256", required=True)
-    parser.add_argument("--qualification-result", type=Path, required=True)
+    qualification = parser.add_mutually_exclusive_group(required=True)
+    qualification.add_argument("--qualification-result", type=Path)
+    qualification.add_argument("--qualification-bootstrap", type=Path)
     parser.add_argument("--robot-host", default="192.168.1.18")
     parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)
     parser.add_argument("--plant-epoch", type=int, default=1)

@@ -101,7 +101,7 @@ def _manual_status(campaign: Path, *, attempt_id: str) -> None:
             {
                 "schema": "step5d.manual-v2/production-startup-qualification-v1",
                 "ok": True,
-                "state": "MANUAL_BRIDGE_PERSISTENT_NO_ARM_PROVEN",
+                "state": "MANUAL_PRODUCTION_SECOND_GROUP_RUN_PROVEN",
                 "manual_release_manifest_sha256": "a" * 64,
             }
         ),

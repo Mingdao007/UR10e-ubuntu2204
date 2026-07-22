@@ -151,6 +151,7 @@ def test_manual_runner_reaches_waiting_for_play_without_authorization_file(
     args = SimpleNamespace(
         campaign_root=tmp_path / "campaign",
         qualification_result=tmp_path / "qualification.json",
+        qualification_bootstrap=None,
         release_manifest_sha256="a" * 64,
         queue=tmp_path / "queue.json",
         launch_profile=campaign.DEFAULT_LAUNCH_PROFILE,
@@ -257,6 +258,51 @@ def test_manual_running_state_requires_exact_tp_arm_acknowledgement() -> None:
     assert campaign._arm_acknowledged({**observed, "consumed_command_seq": 3}, arm) is False
     assert campaign._arm_acknowledged(
         {**observed, "state": int(campaign.TpLoopState.READY_HOME)}, arm
+    ) is False
+
+
+def test_manual_qualification_completion_signal_binds_second_arm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    signal = tmp_path / "qualification-complete.json"
+    bootstrap = {"maximum_groups": 2, "completion_signal": str(signal)}
+    args = SimpleNamespace(
+        campaign_id="manual-qualification",
+        release_manifest_sha256="a" * 64,
+    )
+    arm = campaign.HostPacket(
+        campaign_epoch=1,
+        trial_id=2,
+        command=campaign.HostCommand.ARM,
+        candidate_token=3,
+        execution_profile_id=633,
+        command_seq=2,
+        logical_batch_sequence=2,
+    )
+    monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", "attempt-qualification")
+    assert campaign._qualification_completion_requested(
+        args, bootstrap, completed=1, arm=arm
+    ) is False
+    signal.write_text(
+        json.dumps(
+            {
+                "schema": qualification.COMPLETION_SIGNAL_SCHEMA,
+                "campaign_id": args.campaign_id,
+                "launch_attempt_id": "attempt-qualification",
+                "release_manifest_sha256": args.release_manifest_sha256,
+                "trial_id": arm.trial_id,
+                "command_seq": arm.command_seq,
+                "first_group_completed": True,
+                "second_group_state": "RUN",
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert campaign._qualification_completion_requested(
+        args, bootstrap, completed=1, arm=arm
+    ) is True
+    assert campaign._qualification_completion_requested(
+        args, bootstrap, completed=0, arm=arm
     ) is False
 
 

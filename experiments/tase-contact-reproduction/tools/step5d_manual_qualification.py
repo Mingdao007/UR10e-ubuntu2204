@@ -44,9 +44,13 @@ CONTRACT_SCHEMA = "step5d.manual-v2/internal-qualification-shell-contract-v1"
 CONTRACT_ENV = "STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT"
 CONTRACT_SHA_ENV = "STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT_SHA256"
 SHELL_PID_ENV = "STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_PID"
-QUALIFIED = "MANUAL_BRIDGE_PERSISTENT_NO_ARM_PROVEN"
+QUALIFIED = "MANUAL_PRODUCTION_SECOND_GROUP_RUN_PROVEN"
 FAILED = "MANUAL_PRODUCTION_STARTUP_QUALIFICATION_FAILED"
 QUALIFICATION_PLAY_TIMEOUT_S = 30.0
+QUALIFICATION_TRIAL_TIMEOUT_S = 90.0
+QUALIFICATION_LIFECYCLE_TIMEOUT_S = 120.0
+BOOTSTRAP_SCHEMA = "step5d.manual-v2/qualification-bootstrap-v1"
+COMPLETION_SIGNAL_SCHEMA = "step5d.manual-v2/qualification-completion-signal-v1"
 
 
 class ManualQualificationError(RuntimeError):
@@ -139,6 +143,7 @@ def _wait_process_tree(
     expected = {
         "manual_owner": str((root / "tools/run_step5d_manual_bridge_live.py").resolve()),
         "production_bridge": str((root / "tools/run_step5d_manual_bridge.py").resolve()),
+        "manual_campaign": str((root / "tools/run_step5d_manual_live_campaign.py").resolve()),
     }
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -265,6 +270,146 @@ def _persistent_no_arm_canary(
     raise ManualQualificationError("Manual startup canary timed out")
 
 
+def _wait_manual_second_group_run(
+    shell: subprocess.Popen[Any],
+    campaign: Mapping[str, Any],
+    endpoints: QualificationEndpointSimulator,
+    *,
+    timeout_s: float = QUALIFICATION_LIFECYCLE_TIMEOUT_S,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if shell.poll() is not None:
+            raise ManualQualificationError(
+                f"Manual shell exited during lifecycle qualification rc={shell.returncode}"
+            )
+        if (
+            read_process_starttime(campaign.get("pid"))
+            != campaign.get("starttime_ticks")
+        ):
+            raise ManualQualificationError(
+                "Manual campaign exited before the second group entered RUN"
+            )
+        evidence = endpoints.evidence()
+        rtde = evidence.get("counters", {}).get("rtde", {})
+        tp = evidence.get("tp", {})
+        if (
+            rtde.get("trials_completed", 0) >= 1
+            and rtde.get("arm_acknowledgements", 0) >= 2
+            and tp.get("state_name") == "RUN"
+        ):
+            events = evidence.get("events", [])
+            acknowledgements = [
+                row
+                for row in events
+                if isinstance(row, Mapping)
+                and row.get("event") == "tp_arm_acknowledged"
+            ]
+            completions = [
+                row
+                for row in events
+                if isinstance(row, Mapping)
+                and row.get("event") == "tp_trial_completed"
+            ]
+            if len(acknowledgements) < 2 or not completions:
+                raise ManualQualificationError(
+                    "Manual endpoint counters lack exact lifecycle events"
+                )
+            return {
+                "first_group_completed": True,
+                "second_arm_acknowledged": True,
+                "second_group_state": "RUN",
+                "arm_acknowledgements": rtde["arm_acknowledgements"],
+                "trials_completed": rtde["trials_completed"],
+                "first_arm_event": acknowledgements[0],
+                "first_completion_event": completions[0],
+                "second_arm_event": acknowledgements[1],
+                "campaign_pid": campaign["pid"],
+                "campaign_starttime_ticks": campaign["starttime_ticks"],
+                "campaign_alive_at_outcome": True,
+                "bridge_alive_at_outcome": True,
+            }
+        time.sleep(0.02)
+    raise ManualQualificationError(
+        "Manual lifecycle did not complete group one and enter group two RUN"
+    )
+
+
+def validate_bootstrap(
+    root: Path,
+    path: Path,
+    *,
+    release_manifest_sha256: str,
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    values = os.environ if environment is None else environment
+    exact_path = path.expanduser().absolute()
+    payload = strict_object(exact_path, "Manual qualification bootstrap")
+    required = {
+        "schema",
+        "release_manifest_sha256",
+        "campaign_id",
+        "launch_attempt_id",
+        "parent_pid",
+        "parent_starttime_ticks",
+        "shell_contract",
+        "qualification_endpoints",
+        "completion_signal",
+        "maximum_groups",
+    }
+    if (
+        set(payload) != required
+        or payload.get("schema") != BOOTSTRAP_SCHEMA
+        or payload.get("release_manifest_sha256") != release_manifest_sha256
+        or payload.get("maximum_groups") != 2
+        or isinstance(payload.get("parent_pid"), bool)
+        or not isinstance(payload.get("parent_pid"), int)
+        or isinstance(payload.get("parent_starttime_ticks"), bool)
+        or not isinstance(payload.get("parent_starttime_ticks"), int)
+        or payload.get("parent_pid") != os.getppid()
+        or read_process_starttime(payload.get("parent_pid"))
+        != payload.get("parent_starttime_ticks")
+    ):
+        raise ManualQualificationError("Manual qualification bootstrap binding differs")
+    contract_ref = payload.get("shell_contract")
+    endpoint_ref = payload.get("qualification_endpoints")
+    for role, reference in (
+        ("shell contract", contract_ref),
+        ("qualification endpoints", endpoint_ref),
+    ):
+        if not isinstance(reference, Mapping) or set(reference) != {"path", "sha256"}:
+            raise ManualQualificationError(f"Manual bootstrap {role} reference differs")
+        reference_path = Path(str(reference["path"]))
+        if _sha256(reference_path) != reference["sha256"]:
+            raise ManualQualificationError(f"Manual bootstrap {role} bytes differ")
+    contract = _validate_contract(
+        root,
+        strict_object(Path(str(contract_ref["path"])), "Manual qualification contract"),
+        environment=values,
+    )
+    endpoint = strict_object(
+        Path(str(endpoint_ref["path"])), "Manual qualification endpoints"
+    )
+    if (
+        exact_path != Path(contract["qualification_bootstrap"])
+        or Path(str(payload["completion_signal"]))
+        != Path(contract["campaign_root"]) / "qualification-complete.json"
+        or contract["campaign_id"] != payload["campaign_id"]
+        or contract["launch_attempt_id"] != payload["launch_attempt_id"]
+        or endpoint.get("motion_capable") is not False
+        or any(
+            address.get("host") != "127.0.0.1"
+            for address in endpoint.get("addresses", {}).values()
+            if isinstance(address, Mapping)
+        )
+    ):
+        raise ManualQualificationError("Manual bootstrap is not exact loopback qualification")
+    release = load_manual_release(root.resolve(strict=True))
+    if release["manifest_sha256"] != release_manifest_sha256:
+        raise ManualQualificationError("Manual bootstrap release is not current")
+    return payload
+
+
 def _contract_payload(
     root: Path,
     run_root: Path,
@@ -296,9 +441,12 @@ def _contract_payload(
         "schema": CONTRACT_SCHEMA,
         "launch_attempt_id": uuid.uuid4().hex,
         "campaign_id": f"manual-qualification-{uuid.uuid4().hex}",
+        "manual_release_manifest_sha256": load_manual_release(root)["manifest_sha256"],
         "caller": {"pid": os.getpid(), "starttime_ticks": caller_starttime},
         "run_root": str(run_root),
         "output_root": str(live_root),
+        "campaign_root": str(run_root / "campaign"),
+        "qualification_bootstrap": str(run_root / "qualification-bootstrap.json"),
         "canonical_launcher": _file_ref(launcher),
         "live_owner": _file_ref(root / "tools/run_step5d_manual_bridge_live.py"),
         "python": _executable_ref(Path(python_executable)),
@@ -322,9 +470,12 @@ def _validate_contract(
         "schema",
         "launch_attempt_id",
         "campaign_id",
+        "manual_release_manifest_sha256",
         "caller",
         "run_root",
         "output_root",
+        "campaign_root",
+        "qualification_bootstrap",
         "canonical_launcher",
         "live_owner",
         "python",
@@ -382,10 +533,17 @@ def _validate_contract(
         raise ManualQualificationError("Manual qualification launcher differs")
     run_root = Path(str(payload["run_root"]))
     output_root = Path(str(payload["output_root"]))
-    if not run_root.is_absolute() or not output_root.is_absolute():
+    campaign_root = Path(str(payload["campaign_root"]))
+    bootstrap_path = Path(str(payload["qualification_bootstrap"]))
+    if any(
+        not path.is_absolute()
+        for path in (run_root, output_root, campaign_root, bootstrap_path)
+    ):
         raise ManualQualificationError("Manual qualification run paths must be absolute")
     try:
         output_root.relative_to(run_root)
+        campaign_root.relative_to(run_root)
+        bootstrap_path.relative_to(run_root)
         for role in ("bridge_start_context", "preflight", "qualification_endpoints"):
             Path(str(payload[role]["path"])).relative_to(run_root)
     except ValueError as exc:
@@ -404,6 +562,11 @@ def _validate_contract(
     ]
     if payload.get("requested_argv") != expected_argv:
         raise ManualQualificationError("Manual qualification canonical argv differs")
+    if (
+        payload.get("manual_release_manifest_sha256")
+        != load_manual_release(root)["manifest_sha256"]
+    ):
+        raise ManualQualificationError("Manual qualification release binding differs")
     return dict(payload)
 
 
@@ -436,6 +599,7 @@ def validate_result(
         "gpu_functional",
         "endpoint_pre_stop_sha256",
         "canary",
+        "lifecycle",
         "process_shutdown",
         "canonical_shell_returncode",
     }
@@ -506,6 +670,7 @@ def validate_result(
         "canonical_shell",
         "manual_owner",
         "production_bridge",
+        "manual_campaign",
     }:
         raise ManualQualificationError("Manual qualification process tree differs")
     expected_paths = {
@@ -517,6 +682,9 @@ def validate_result(
         ),
         "production_bridge": str(
             (root / "tools/run_step5d_manual_bridge.py").resolve(strict=True)
+        ),
+        "manual_campaign": str(
+            (root / "tools/run_step5d_manual_live_campaign.py").resolve(strict=True)
         ),
     }
     for role, expected_path in expected_paths.items():
@@ -539,6 +707,18 @@ def validate_result(
         or canary.get("observed_duration_s", 0.0) < 0.75
     ):
         raise ManualQualificationError("Manual qualification startup canary differs")
+    lifecycle = payload.get("lifecycle")
+    if (
+        not isinstance(lifecycle, Mapping)
+        or lifecycle.get("first_group_completed") is not True
+        or lifecycle.get("second_arm_acknowledged") is not True
+        or lifecycle.get("second_group_state") != "RUN"
+        or lifecycle.get("arm_acknowledgements", 0) < 2
+        or lifecycle.get("trials_completed", 0) < 1
+        or lifecycle.get("campaign_alive_at_outcome") is not True
+        or lifecycle.get("bridge_alive_at_outcome") is not True
+    ):
+        raise ManualQualificationError("Manual qualification lifecycle differs")
     shutdown = payload.get("process_shutdown")
     if (
         not isinstance(shutdown, Mapping)
@@ -643,6 +823,75 @@ def exec_shell_contract(root: Path, contract_path: Path) -> None:
     os.execve(owner_argv[0], owner_argv, dict(os.environ))
 
 
+def exec_campaign_shell_contract(root: Path, contract_path: Path) -> None:
+    require_canonical_shell()
+    path = contract_path.expanduser().absolute()
+    if path.is_symlink() or not path.is_file() or path.resolve(strict=True) != path:
+        raise ManualQualificationError("Manual qualification contract path is unsafe")
+    if (
+        os.environ.get(CONTRACT_ENV) != str(path)
+        or os.environ.get(CONTRACT_SHA_ENV) != _sha256(path)
+    ):
+        raise ManualQualificationError("Manual qualification contract environment differs")
+    contract = _validate_contract(root, strict_object(path, "Manual qualification contract"))
+    shell_pid = os.getppid()
+    if str(shell_pid) != os.environ.get("STEP5D_V3_SHELL_PID"):
+        raise ManualQualificationError("Manual qualification campaign parent is not canonical shell")
+    shell_starttime = read_process_starttime(shell_pid)
+    if shell_starttime is None:
+        raise ManualQualificationError("Manual qualification shell disappeared")
+    bootstrap_path = Path(contract["qualification_bootstrap"])
+    atomic_json(
+        bootstrap_path,
+        {
+            "schema": BOOTSTRAP_SCHEMA,
+            "release_manifest_sha256": contract["manual_release_manifest_sha256"],
+            "campaign_id": contract["campaign_id"],
+            "launch_attempt_id": contract["launch_attempt_id"],
+            "parent_pid": shell_pid,
+            "parent_starttime_ticks": shell_starttime,
+            "shell_contract": _file_ref(path),
+            "qualification_endpoints": contract["qualification_endpoints"],
+            "completion_signal": str(
+                Path(contract["campaign_root"]) / "qualification-complete.json"
+            ),
+            "maximum_groups": 2,
+        },
+    )
+    campaign_root = Path(contract["campaign_root"])
+    campaign_argv = [
+        contract["python"]["path"],
+        str((root / "tools/run_step5d_manual_live_campaign.py").resolve(strict=True)),
+        "--bridge-output-root",
+        contract["output_root"],
+        "--campaign-root",
+        str(campaign_root),
+        "--queue",
+        str(campaign_root / "control/manual_queue.json"),
+        "--state",
+        str(campaign_root / "control/manual_runtime_state.json"),
+        "--campaign-id",
+        contract["campaign_id"],
+        "--release-manifest-sha256",
+        contract["manual_release_manifest_sha256"],
+        "--qualification-bootstrap",
+        str(bootstrap_path),
+        "--robot-host",
+        "127.0.0.1",
+        "--launch-profile",
+        contract["launch_profile"]["path"],
+        "--play-timeout-s",
+        str(QUALIFICATION_PLAY_TIMEOUT_S),
+        "--trial-timeout-s",
+        str(QUALIFICATION_TRIAL_TIMEOUT_S),
+    ]
+    campaign_environment = {
+        **os.environ,
+        "STEP5D_V3_LAUNCH_ATTEMPT_ID": contract["launch_attempt_id"],
+    }
+    os.execve(campaign_argv[0], campaign_argv, campaign_environment)
+
+
 def _stop_group(process: subprocess.Popen[Any] | None) -> int | None:
     if process is None:
         return None
@@ -709,7 +958,10 @@ def run_qualification(
     process_tree: Mapping[str, Any] | None = None
     launch: Mapping[str, Any] | None = None
     ready: Mapping[str, Any] | None = None
+    launch_reference: Mapping[str, str] | None = None
+    ready_reference: Mapping[str, str] | None = None
     canary: Mapping[str, Any] | None = None
+    lifecycle: Mapping[str, Any] | None = None
     process_shutdown: Mapping[str, Any] | None = None
     blocker: str | None = None
     shell_rc: int | None = None
@@ -817,6 +1069,12 @@ def run_qualification(
                 ready = _wait_json(
                     live_root / "runtime/bridge/bridge_ready.json", shell, 60.0
                 )
+                launch_snapshot = run_root / "bridge-launch-snapshot.json"
+                ready_snapshot = run_root / "bridge-ready-snapshot.json"
+                atomic_json(launch_snapshot, launch)
+                atomic_json(ready_snapshot, ready)
+                launch_reference = _file_ref(launch_snapshot)
+                ready_reference = _file_ref(ready_snapshot)
                 if any(
                     (
                         launch.get("parent_pid")
@@ -844,20 +1102,46 @@ def run_qualification(
                     shell,
                     live_root / "runtime/bridge/bridge_rtde_500hz.csv",
                 )
-                endpoint_pre_stop = endpoints.evidence()
-                counters = endpoint_pre_stop.get("counters", {})
-                events = endpoint_pre_stop.get("events", [])
-                if (
-                    counters.get("rtde", {}).get("arm_acknowledgements") != 0
-                    or any(
-                        isinstance(event, Mapping)
-                        and event.get("event") == "tp_arm_acknowledged"
-                        for event in events
-                    )
-                ):
+                campaign_root = Path(contract["campaign_root"])
+                waiting = _wait_json(
+                    campaign_root / "manual_governed_status.json",
+                    shell,
+                    15.0,
+                )
+                if waiting.get("state") != "WAITING_FOR_PLAY":
                     raise ManualQualificationError(
-                        "Manual startup qualification observed an ARM acknowledgement"
+                        "Manual campaign did not reach its physical Play barrier"
                     )
+                endpoints.simulate_play()
+                lifecycle = _wait_manual_second_group_run(
+                    shell,
+                    process_tree["manual_campaign"],
+                    endpoints,
+                )
+                second_arm = lifecycle["second_arm_event"]
+                atomic_json(
+                    Path(contract["campaign_root"])
+                    / "qualification-complete.json",
+                    {
+                        "schema": COMPLETION_SIGNAL_SCHEMA,
+                        "campaign_id": contract["campaign_id"],
+                        "launch_attempt_id": contract["launch_attempt_id"],
+                        "release_manifest_sha256": contract[
+                            "manual_release_manifest_sha256"
+                        ],
+                        "trial_id": second_arm["trial_id"],
+                        "command_seq": second_arm["command_seq"],
+                        "first_group_completed": True,
+                        "second_group_state": "RUN",
+                    },
+                )
+                try:
+                    shell_rc = shell.wait(timeout=15.0)
+                except subprocess.TimeoutExpired as exc:
+                    raise ManualQualificationError(
+                        "Manual canonical shell ignored qualification completion"
+                    ) from exc
+                endpoint_pre_stop = endpoints.evidence()
             shell_rc = _stop_group(shell)
             if shell_rc not in {0, 130}:
                 raise ManualQualificationError(
@@ -921,12 +1205,8 @@ def run_qualification(
             "control_python": _executable_ref(Path(control_python)),
         },
         "process_tree": process_tree,
-        "bridge_launch": None
-        if launch is None
-        else _file_ref(live_root / "bridge_launch.json"),
-        "bridge_ready": None
-        if ready is None
-        else _file_ref(live_root / "runtime/bridge/bridge_ready.json"),
+        "bridge_launch": launch_reference,
+        "bridge_ready": ready_reference,
         "preflight": _file_ref(preflight_path) if preflight_path.is_file() else None,
         "qualification_endpoints": _file_ref(endpoint_path)
         if endpoint_path.is_file()
@@ -946,6 +1226,7 @@ def run_qualification(
         if endpoint_pre_stop
         else None,
         "canary": canary,
+        "lifecycle": lifecycle,
         "process_shutdown": process_shutdown,
         "canonical_shell_returncode": shell_rc,
     }
@@ -957,13 +1238,23 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment-root", type=Path, default=ROOT)
     parser.add_argument("--output-root", type=Path)
-    parser.add_argument("--_exec-live-from-shell-contract", type=Path)
+    internal = parser.add_mutually_exclusive_group()
+    internal.add_argument("--_exec-live-from-shell-contract", type=Path)
+    internal.add_argument("--_exec-campaign-from-shell-contract", type=Path)
     args = parser.parse_args(argv)
     try:
         if args._exec_live_from_shell_contract is not None:
             if args.output_root is not None:
                 parser.error("internal shell execution cannot combine with --output-root")
             exec_shell_contract(args.experiment_root, args._exec_live_from_shell_contract)
+            return 70
+        if args._exec_campaign_from_shell_contract is not None:
+            if args.output_root is not None:
+                parser.error("internal shell execution cannot combine with --output-root")
+            exec_campaign_shell_contract(
+                args.experiment_root,
+                args._exec_campaign_from_shell_contract,
+            )
             return 70
         if args.output_root is None:
             parser.error("--output-root is required")

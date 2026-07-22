@@ -86,4 +86,3 @@ def test_active_live_adapters_do_not_use_untyped_namespace_boundaries() -> None:
         encoding="utf-8"
     )
     assert 'getattr(prepared_trial,' not in mailbox_source
-
