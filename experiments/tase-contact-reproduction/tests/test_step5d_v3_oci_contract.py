@@ -42,6 +42,7 @@ def test_workflow_mounts_repo_read_only_and_disables_runtime_network() -> None:
         encoding="utf-8"
     )
     assert "docker run --rm --network none --read-only" in workflow
+    assert '--user "$(id -u):$(id -g)"' in workflow
     assert "dst=/workspace,readonly" in workflow
     assert "dst=/output" in workflow
     assert "Dockerfile.cpu" in workflow

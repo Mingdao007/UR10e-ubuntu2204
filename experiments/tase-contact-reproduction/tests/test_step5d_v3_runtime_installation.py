@@ -161,6 +161,12 @@ def test_status_resolver_reuses_one_runtime_status_result(
         "load_runtime_pointer",
         lambda: pytest.fail("status resolver must not reload the pointer"),
     )
+    monkeypatch.setattr(
+        resolver,
+        "load_runtime_pointer_identity",
+        lambda: pytest.fail("status resolver must reuse runtime_status"),
+    )
+
     assert resolver.main(["--status-json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert calls == ["status"]

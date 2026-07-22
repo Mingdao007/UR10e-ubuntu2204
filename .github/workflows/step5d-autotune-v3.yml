@@ -114,6 +114,7 @@ jobs:
         run: |
           mkdir -p "${RUNNER_TEMP}/step5d-v3-oci-output"
           docker run --rm --network none --read-only --cap-drop ALL \
+            --user "$(id -u):$(id -g)" \
             --security-opt no-new-privileges --tmpfs /tmp:rw,noexec,nosuid,size=256m \
             --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/workspace,readonly" \
             --mount "type=bind,src=${RUNNER_TEMP}/step5d-v3-oci-output,dst=/output" \

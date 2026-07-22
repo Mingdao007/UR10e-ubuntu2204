@@ -411,8 +411,25 @@ def _fake_governed_shell(
     scripts.mkdir(parents=True)
     tools.mkdir()
     shell = scripts / "step5d-autotune-v3.sh"
+    shell_source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(
+        encoding="utf-8"
+    )
+    production_ros_python = (
+        "/opt/ros/humble/lib/python${PYTHON_ABI}/site-packages"
+    )
+    fake_ros_root = repository / "tests/fixtures/ros/humble"
+    (fake_ros_root / "lib/python3.10/site-packages").mkdir(parents=True)
+    fake_ros_python = (
+        f"{fake_ros_root}/lib/python${{PYTHON_ABI}}/site-packages"
+    )
+    assert shell_source.count(production_ros_python) == 1
+    shell_source = shell_source.replace(
+        production_ros_python,
+        fake_ros_python,
+        1,
+    )
     shell.write_text(
-        (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8"),
+        shell_source,
         encoding="utf-8",
     )
     shell.chmod(0o755)
