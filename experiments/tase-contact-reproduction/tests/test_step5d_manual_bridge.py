@@ -172,7 +172,22 @@ def test_manual_authorization_seam_is_bridge_only_no_arm(monkeypatch: pytest.Mon
         STEP5D_V31_SENSOR_STALE_S=2.0,
         STEP5D_LINE_ENTRY_PARAM_VALID_CODE=521.0,
     )
-    monkeypatch.setattr(wrapper.r009_bridge, "install_v3_seams", lambda *_args, **_kwargs: fake_bridge)
+    observed: dict[str, object] = {}
+
+    def install(
+        ticket,
+        *,
+        release_identity,
+        no_arm_expected_loaded_program,
+    ):
+        observed.update({
+            "ticket": ticket,
+            "release_identity": release_identity,
+            "loaded_program": no_arm_expected_loaded_program,
+        })
+        return fake_bridge
+
+    monkeypatch.setattr(wrapper.r009_bridge, "install_v3_seams", install)
     monkeypatch.setattr(
         wrapper.live_driver,
         "BridgeMailboxRuntime",
@@ -198,6 +213,11 @@ def test_manual_authorization_seam_is_bridge_only_no_arm(monkeypatch: pytest.Mon
     assert result["protocol_id"] == bridge.PROTOCOL
     assert result["wire_protocol_id"] == bridge.WIRE_PROTOCOL
     assert result["live_motion_authorized"] is False
+    assert observed["ticket"] is None
+    assert observed["loaded_program"] == (
+        "/programs/andyl/kunwei/step5/step5d_strict_rnn_manual_tune_v2.urp"
+    )
+    assert observed["release_identity"].program_id == bridge.PROGRAM
 
 
 def test_manual_guard_semantics_are_fail_closed_and_diagnostic_only() -> None:

@@ -212,7 +212,13 @@ def install_manual_seams(ticket: Mapping[str, Any]) -> Any:
     if live_driver.BridgeMailboxRuntime is not _BASE_BRIDGE_MAILBOX_RUNTIME:
         raise ManualBridgeError("manual mailbox runtime seam was already installed")
     live_driver.BridgeMailboxRuntime = ManualBridgeMailboxRuntime
-    bridge = r009_bridge.install_v3_seams(None, release_identity=wire_release)
+    bridge = r009_bridge.install_v3_seams(
+        None,
+        release_identity=wire_release,
+        no_arm_expected_loaded_program=(
+            f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
+        ),
+    )
     require_manual_guard_semantics(bridge)
 
     def manual_authorization_gate(args: Any, *, root: Path = ROOT) -> dict[str, Any]:
