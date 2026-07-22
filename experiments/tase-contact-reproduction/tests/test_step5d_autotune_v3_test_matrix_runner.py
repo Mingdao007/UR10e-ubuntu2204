@@ -71,6 +71,11 @@ def test_installed_runtime_runs_only_after_passing_hermetic_lanes(
         return {"lane": name, "returncode": 0}
 
     monkeypatch.setattr(runner, "_run_lane", fake_run)
+    monkeypatch.setattr(
+        runner,
+        "load_installed_runtime_command",
+        lambda _path: ["/governed/control/bin/python", "-m", "pytest", "-q"],
+    )
     payload = runner.run(
         ["small", "medium"],
         workers=2,
