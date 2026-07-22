@@ -4,6 +4,7 @@ import io
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -88,6 +89,34 @@ def test_installed_runtime_runs_only_after_passing_hermetic_lanes(
     assert payload["parallel_policy"]["installed_runtime_status"] == (
         "executed_serial_after_hermetic"
     )
+
+
+def test_installed_runtime_lane_uses_governed_cuda_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = ["/control/python", "/optimizer/python", *(["a" * 64] * 6)]
+    binding.extend(["GPU-fixture", "/runtime/nvidia", "/runtime/cupy-cache"])
+    observed: dict[str, str] = {}
+
+    def fake_run(*_args, **kwargs):
+        observed.update(kwargs["env"])
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(runner, "_runtime_binding", lambda: binding)
+    monkeypatch.setattr(runner, "_pytest_overlay", lambda output: output)
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    result = runner._run_lane(
+        "local_installed_runtime",
+        ["/control/python", "-m", "pytest", "-q"],
+        tmp_path,
+    )
+
+    assert result["returncode"] == 0
+    assert observed["CUDA_VISIBLE_DEVICES"] == "GPU-fixture"
+    assert observed["LD_LIBRARY_PATH"] == "/runtime/nvidia"
+    assert observed["CUPY_CACHE_DIR"] == "/runtime/cupy-cache"
 
 
 @pytest.mark.parametrize("lanes", [["large_ursim"], ["hil_no_motion"], []])
