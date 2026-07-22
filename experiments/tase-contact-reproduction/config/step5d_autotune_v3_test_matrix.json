@@ -36,6 +36,7 @@
         "tests/test_step5d_runtime_environment.py",
         "tests/test_step5d_runtime_observation.py",
         "tests/test_step5d_v3_runtime_installation.py",
+        "tests/test_step5d_v3_oci_contract.py",
         "tests/test_step5d_v3_source_closure.py",
         "tests/test_step5d_v3_immutable_payload_routing.py",
         "tests/test_step5d_autotune_v3_installed_runtime.py"
@@ -112,13 +113,18 @@
   "historical_evidence_manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
   "local_installed_runtime_gate": {
     "command": [
-      "python3",
+      ".venv/bin/python",
       "-m",
       "pytest",
       "-q",
+      "tests/test_step5d_autotune_v3_contract.py",
+      "tests/test_step5d_autotune_runtime.py",
+      "tests/test_step5d_autotune_live_driver.py",
+      "tests/test_step5d_autotune_v3_bridge_wrapper.py",
+      "tests/test_step5d_autotune_v3_qualification_production.py",
       "tests/test_step5d_autotune_v3_installed_runtime.py"
     ],
-    "activation": "explicit_local_after_hermetic_small_medium",
+    "activation": "explicit_local_authoritative_after_hermetic_small_medium",
     "ci": false,
     "serial": true,
     "test_doubles_allowed": false,
@@ -144,14 +150,11 @@
       "claim": "pure contracts, parsing, identities, and fail-closed release policy",
       "commands": [
         [
-          "python3",
+          ".venv/bin/python",
           "-m",
           "pytest",
           "-q",
-          "tests/test_step5d_autotune_v3_contract.py",
           "tests/test_step5d_autotune_v3_dashboard.py",
-          "tests/test_step5d_autotune_runtime.py",
-          "tests/test_step5d_autotune_live_driver.py",
           "tests/test_step5d_runtime_identity.py",
           "tests/test_step5d_autotune_v3_identity_layers.py",
           "tests/test_step5d_r009_release_core.py",
@@ -162,6 +165,7 @@
           "tests/test_step5d_runtime_environment.py",
           "tests/test_step5d_v3_active_surface_architecture.py",
           "tests/test_step5d_v3_runtime_installation.py",
+          "tests/test_step5d_v3_oci_contract.py",
           "tests/test_step5d_v3_source_closure.py",
           "tests/test_step5d_autotune_v3_batch_producer.py",
           "tests/test_step5d_optimizer_protocol.py",
@@ -176,14 +180,7 @@
       "pinned": false,
       "test_doubles_allowed": true,
       "production_parser_test_double_allowed": false,
-      "dependency_double_scope": [
-        "_ur_common",
-        "capture_kunwei_kwr75_1khz",
-        "pandas",
-        "pinocchio",
-        "xacro",
-        "yaml"
-      ],
+      "dependency_double_scope": [],
       "network_allowed": false,
       "controller_access_allowed": false,
       "live_writer_allowed": false,
@@ -196,16 +193,14 @@
       "claim": "real local process, filesystem, mailbox, service, timeout, and crash-cut behavior",
       "commands": [
         [
-          "python3",
+          ".venv/bin/python",
           "-m",
           "pytest",
           "-q",
           "tests/test_step5d_autotune_production_second_lap.py",
           "tests/test_step5d_autotune_v3_live_startup.py",
-          "tests/test_step5d_autotune_v3_bridge_wrapper.py",
           "tests/test_step5d_autotune_v3_qualification.py",
           "tests/test_step5d_autotune_v3_qualification_endpoints.py",
-          "tests/test_step5d_autotune_v3_qualification_production.py",
           "tests/test_step5d_runtime_observation.py",
           "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py"
         ]

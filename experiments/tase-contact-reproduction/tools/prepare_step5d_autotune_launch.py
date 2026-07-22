@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Prepare one fingerprint-bound Step5d autotune runner launch."""
 
 from __future__ import annotations

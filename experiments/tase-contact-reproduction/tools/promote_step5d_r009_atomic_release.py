@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Promote one fresh r010 GET into an immutable rolling-v1 release.
 
 This owner is filesystem-only.  The caller performs upload/readback first; this

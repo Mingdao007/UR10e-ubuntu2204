@@ -1186,10 +1186,15 @@ class QualificationEndpointSimulator:
         self, fields: Sequence[str], frequency_hz: float
     ) -> list[Any]:
         with self._lock:
-            self._advance_tp(time.monotonic())
+            now = time.monotonic()
+            self._advance_tp(now)
             tick_step = max(1, round(500.0 / frequency_hz))
             self._rtde_controller_tick += tick_step
-            timestamp = (self._rtde_controller_tick + 0.25) / 500.0
+            timestamp = (
+                now
+                if self._started_at is None
+                else max(0.0, now - self._started_at)
+            )
             output_doubles = {index: 0.0 for index in range(24, 48)}
             for index in range(24, 30):
                 output_doubles[index] = self._last_double_inputs[index]

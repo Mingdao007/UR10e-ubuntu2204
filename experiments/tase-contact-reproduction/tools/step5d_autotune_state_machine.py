@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Pure host/TP transaction state for re-entrant Step5d autotune trials."""
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Run one manifest-bound TP upload/fresh-GET/atomic-promotion transaction."""
 
 from __future__ import annotations

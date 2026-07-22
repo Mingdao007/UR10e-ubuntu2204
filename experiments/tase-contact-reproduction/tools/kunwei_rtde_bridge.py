@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Kunwei KWR75B TCP to UR RTDE input-register bridge.
 
 Live-use boundary:

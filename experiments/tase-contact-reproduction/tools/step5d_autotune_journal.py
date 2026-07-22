@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Durable, fail-closed supervisor journal for Step5d-native autotune.
 
 This module is intentionally offline: it never opens RTDE, controller, bridge,

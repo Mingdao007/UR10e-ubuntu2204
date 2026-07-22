@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -13,7 +15,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 import preflight_step5d_autotune_v3 as preflight  # noqa: E402
 import build_step5d_autotune_v3_bridge_start_context as context_builder  # noqa: E402
 from step5d_autotune_v3 import runtime_calibration as calibration  # noqa: E402
-from step5d_autotune_v3.runtime_calibration import stable_cuda_environment  # noqa: E402
+from step5d_autotune_v3.runtime_environment import (  # noqa: E402
+    production_runtime_environment,
+)
+from step5d_autotune_v3.runtime_installation import (  # noqa: E402
+    load_runtime_pointer_integrity,
+)
 
 
 def test_compact_runtime_calibration_matches_installed_robot_description() -> None:
@@ -82,7 +89,12 @@ if 'pandas' in sys.modules:
     raise AssertionError('pandas remained loaded after control startup')
 print(json.dumps(result, sort_keys=True))
 """
-    environment = stable_cuda_environment(dict(os.environ))
+    pointer = load_runtime_pointer_integrity(environ=os.environ)
+    environment = production_runtime_environment(
+        os.environ,
+        profile="control",
+        runtime_pointer=pointer,
+    )
     environment["PYTHONPATH"] = os.pathsep.join(
         (
             str(ROOT / "tools"),
@@ -91,7 +103,7 @@ print(json.dumps(result, sort_keys=True))
         )
     ).rstrip(os.pathsep)
     completed = subprocess.run(
-        [sys.executable, "-c", code],
+        [pointer["profiles"]["control"]["python_executable"], "-c", code],
         cwd=tmp_path,
         env=environment,
         stdin=subprocess.DEVNULL,
@@ -125,15 +137,19 @@ def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
     )
     assert completed.returncode == 0, completed.stderr
     status = json.loads(completed.stdout)
-    assert status["release_readiness"]["selected_release"] == (
-        "step5d_strict_rnn_autotune_v3"
-    )
+    assert status["schema"] == "step5d.autotune-v3/governed-status-v1"
+    assert status["environment"]["control_ready"] is True
+    assert status["environment"]["optimizer_ready"] is True
+    assert isinstance(status["blocker"]["reason_codes"], list)
+    assert isinstance(status["next_action"], str) and status["next_action"]
 
 
 def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
-    assert 'PYTHON_ABI="$(python3 -c' in source
+    assert '/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding' in source
+    assert 'exec /usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --status-json' in source
+    assert 'PYTHON_ABI="3.10"' in source
     assert '"/opt/ros/humble/lib/python${PYTHON_ABI}/site-packages"' in source
     assert '"/opt/ros/humble/local/lib/python${PYTHON_ABI}/dist-packages"' in source
     assert 'export PYTHONPATH="${RUNTIME_PYTHONPATH}"' in source
@@ -141,19 +157,20 @@ def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath()
     assert 'PYTHONPATH:+:${PYTHONPATH}' not in source
 
 
-def test_installed_runtime_builds_r006_no_arm_bridge_context() -> None:
-    context = context_builder.build_context(
-        ROOT,
-        plant_epoch=1,
-        runtime_environment={
-            "capture_mode": "offline_r006_no_arm_check",
-            "scheduler": {
-                "policy_name": "SCHED_OTHER",
-                "priority": 0,
-                "nice": 0,
+def test_installed_runtime_rejects_known_incompatible_bridge_context() -> None:
+    with pytest.raises(
+        context_builder.BridgeContextBuildError,
+        match="known_incompatible_do_not_retry",
+    ):
+        context_builder.build_context(
+            ROOT,
+            plant_epoch=1,
+            runtime_environment={
+                "capture_mode": "offline_no_arm_check",
+                "scheduler": {
+                    "policy_name": "SCHED_OTHER",
+                    "priority": 0,
+                    "nice": 0,
+                },
             },
-        },
-    )
-    assert context.document()["tp_program_id"] == (
-        "step5d_strict_rnn_autotune_v3_r006"
-    )
+        )

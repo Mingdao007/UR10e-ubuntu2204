@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Production growing-CSV publication and EOF-follow primitives for Step5d.
 
 The module owns the byte-visibility contract shared by the real bridge and the

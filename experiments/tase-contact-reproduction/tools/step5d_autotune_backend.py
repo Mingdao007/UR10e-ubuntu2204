@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Backend seam for Step5d-native autotune without implicit live execution."""
 
 from __future__ import annotations

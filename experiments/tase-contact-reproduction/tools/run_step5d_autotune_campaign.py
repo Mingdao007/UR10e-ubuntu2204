@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Run one durable Step5d-native campaign against an existing bridge.
 
 The TP and bridge are long-lived.  This process is the single campaign writer:

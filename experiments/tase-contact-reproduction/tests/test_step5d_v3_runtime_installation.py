@@ -174,7 +174,7 @@ def test_status_resolver_reuses_one_runtime_status_result(
     assert payload["next_action"] == "provision_runtime"
 
 
-def test_shell_binding_uses_static_integrity_pointer(
+def test_shell_binding_uses_identity_pointer_before_command_full_gate(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -183,11 +183,11 @@ def test_shell_binding_uses_static_integrity_pointer(
     pointer["attestation_sha256"] = "d" * 64
     calls: list[str] = []
 
-    def load_integrity() -> dict[str, object]:
-        calls.append("integrity")
+    def load_identity() -> dict[str, object]:
+        calls.append("identity")
         return pointer
 
-    monkeypatch.setattr(resolver, "load_runtime_pointer_integrity", load_integrity)
+    monkeypatch.setattr(resolver, "load_runtime_pointer_identity", load_identity)
     monkeypatch.setattr(
         resolver,
         "load_runtime_pointer",
@@ -196,7 +196,7 @@ def test_shell_binding_uses_static_integrity_pointer(
 
     assert resolver.main(["--shell-binding"]) == 0
     fields = capsys.readouterr().out.strip().split("\t")
-    assert calls == ["integrity"]
+    assert calls == ["identity"]
     assert fields[:2] == [
         pointer["profiles"]["control"]["python_executable"],
         pointer["profiles"]["optimizer"]["python_executable"],
@@ -361,6 +361,27 @@ def test_dependency_manifest_change_invalidates_environment_identity(
         runtime.runtime_bundle_id(contract)
 
     assert caught.value.reason_code == "RUNTIME_LOCK_MISMATCH"
+
+
+def test_host_identity_binds_calibration_bytes_not_checkout_location() -> None:
+    first = {
+        "schema": "step5d.autotune-v3/host-observation-v1",
+        "observed_at_unix_ns": 1,
+        "calibration": {
+            "artifact_path": "/checkout-a/runtime-calibration.json",
+            "artifact_sha256": "a" * 64,
+            "yaml_path": "/checkout-a/calibration.yaml",
+            "yaml_sha256": "b" * 64,
+        },
+    }
+    relocated = json.loads(json.dumps(first))
+    relocated["observed_at_unix_ns"] = 2
+    relocated["calibration"]["artifact_path"] = "/checkout-b/runtime-calibration.json"
+    relocated["calibration"]["yaml_path"] = "/checkout-b/calibration.yaml"
+
+    assert runtime._host_identity(first) == runtime._host_identity(relocated)
+    relocated["calibration"]["yaml_sha256"] = "c" * 64
+    assert runtime._host_identity(first) != runtime._host_identity(relocated)
 
 
 def test_profile_tree_digest_covers_untracked_files_symlinks_and_modes(

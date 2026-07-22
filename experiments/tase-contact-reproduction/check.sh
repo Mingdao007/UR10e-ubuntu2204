@@ -7,7 +7,7 @@ cd "${ROOT}"
 TEST_PYTHON="${UR10E_TEST_PYTHON:-${ROOT}/.venv/bin/python}"
 if [[ ! -x "${TEST_PYTHON}" ]]; then
   echo "isolated test environment missing: ${TEST_PYTHON}" >&2
-  echo "run: uv venv --system-site-packages --python python3 ${ROOT}/.venv && uv pip install --python ${ROOT}/.venv/bin/python -r ${ROOT}/requirements-test.txt" >&2
+  echo "run: cd ${ROOT} && uv sync --frozen --only-group test-hermetic" >&2
   exit 2
 fi
 

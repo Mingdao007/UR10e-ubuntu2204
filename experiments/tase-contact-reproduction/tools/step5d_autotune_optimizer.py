@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Bounded log2-native search policy for Step5d force autotuning."""
 
 from __future__ import annotations

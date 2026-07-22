@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Fail-closed continuous host seam for Step5d-native autotune.
 
 This module deliberately contains no controller connection or program-start

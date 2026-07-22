@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Atomic Codex-managed hybrid I-scale/log2 batches for Step5d autotune."""
 
 from __future__ import annotations

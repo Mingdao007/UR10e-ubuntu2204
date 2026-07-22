@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 import sys
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = ROOT.parents[1]
@@ -21,8 +23,13 @@ sys.path.insert(0, str(RUNTIME_SOURCE))
 
 from step5d_autotune_v3.qualification import (  # noqa: E402
     CANONICAL_LAUNCH_ENV,
+    QualificationError,
     run_endpoint_qualification,
     validate_qualification_result,
+)
+import step5d_autotune_v3.qualification as qualification  # noqa: E402
+from step5d_autotune_v3.runtime_functional_gates import (  # noqa: E402
+    RuntimeFunctionalGateError,
 )
 import build_step5d_autotune_tp_v3 as builder  # noqa: E402
 import promote_step5d_r009_atomic_release as promotion  # noqa: E402
@@ -118,6 +125,30 @@ def _qualified_release_fixture(tmp_path: Path) -> Path:
         expected_manifest_sha256=receipt_sha256,
     )
     return experiment
+
+
+def test_endpoint_qualification_never_rebuilds_missing_gpu_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    experiment = _qualified_release_fixture(tmp_path)
+    canonical = experiment / "scripts/step5d-autotune-v3.sh"
+    environment = dict(os.environ)
+    environment[CANONICAL_LAUNCH_ENV] = str(canonical)
+
+    def missing_gate(**_kwargs: object) -> None:
+        raise RuntimeFunctionalGateError("stale test evidence")
+
+    monkeypatch.setattr(qualification, "load_gpu_functional_attestation", missing_gate)
+    with pytest.raises(
+        QualificationError,
+        match="GPU_FUNCTIONAL_GATE_MISSING: stale test evidence",
+    ):
+        run_endpoint_qualification(
+            experiment,
+            experiment / "runs/qualification-output",
+            environment=environment,
+        )
 
 
 def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path) -> None:

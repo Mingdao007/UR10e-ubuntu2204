@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Build the explicit V3 TP triplet from the frozen V1 control script."""
 
 from __future__ import annotations

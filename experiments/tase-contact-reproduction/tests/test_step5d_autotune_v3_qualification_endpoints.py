@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import inspect
 import socket
 import struct
@@ -19,6 +18,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(RUNTIME_SOURCE))
 
 from step5d_autotune_v3.dashboard import dashboard_exchange  # noqa: E402
+from step5d_autotune_v3.rtde_client import RTDEClient  # noqa: E402
 from step5d_autotune_v3.qualification_endpoints import (  # noqa: E402
     ENDPOINT_EVIDENCE_SCHEMA,
     EndpointSimulatorError,
@@ -271,6 +271,22 @@ def test_defaults_are_content_bound_r010_and_loopback_only() -> None:
     for host in ("0.0.0.0", "192.168.1.18", "localhost"):
         with pytest.raises(EndpointSimulatorError, match="loopback"):
             QualificationEndpointSimulator(host=host, runtime_identity=IDENTITY)
+
+
+def test_rtde_controller_timestamp_tracks_elapsed_monotonic_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    simulator = QualificationEndpointSimulator(runtime_identity=IDENTITY)
+    simulator._started_at = 100.0
+    clock = [100.125]
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+
+    first = simulator._rtde_output_values(("timestamp",), 500.0)[0]
+    clock[0] = 100.375
+    second = simulator._rtde_output_values(("timestamp",), 500.0)[0]
+
+    assert first == pytest.approx(0.125)
+    assert second - first == pytest.approx(0.250)
 
 
 def test_dashboard_secondary_and_kunwei_are_real_local_tcp_endpoints() -> None:
@@ -572,14 +588,7 @@ def test_rtde_arm_batch_row_domain_matches_tp_one_through_five(
         assert counters["rejected_arm_packets"] == int(not accepted)
 
 
-def test_rtde_is_compatible_with_ur_common_and_rejects_unknown_recipe_field() -> None:
-    common_path = Path(
-        "/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts/_ur_common.py"
-    )
-    spec = importlib.util.spec_from_file_location("qualification_ur_common", common_path)
-    assert spec is not None and spec.loader is not None
-    common = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(common)
+def test_rtde_repository_client_rejects_unknown_recipe_field() -> None:
     fields = [
         "timestamp",
         "actual_TCP_pose",
@@ -596,7 +605,7 @@ def test_rtde_is_compatible_with_ur_common_and_rejects_unknown_recipe_field() ->
     with QualificationEndpointSimulator(
         runtime_identity=IDENTITY, trial_duration_s=0.05
     ) as simulator:
-        with common.RTDEClient(
+        with RTDEClient(
             simulator.host, port=simulator.rtde_port, timeout=1.0
         ) as client:
             client.negotiate()

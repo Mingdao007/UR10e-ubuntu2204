@@ -29,7 +29,8 @@ class ProjectCheckEntrypointTest(unittest.TestCase):
         self.assertIn("UR10E_FULL_SUITE", text)
         self.assertIn("UR10E_TEST_REUSE", text)
         self.assertIn("UR10E_PARALLEL", text)
-        self.assertIn("requirements-test.txt", text)
+        self.assertIn("uv sync --frozen --only-group test-hermetic", text)
+        self.assertNotIn("requirements-test.txt", text)
         self.assertNotIn("/home/andy/.local/bin/check.sh", text)
 
 

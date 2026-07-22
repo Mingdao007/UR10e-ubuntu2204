@@ -34,9 +34,12 @@ from .runtime_environment import (
 from .runtime_functional_gates import (
     RuntimeFunctionalGateError,
     load_gpu_functional_attestation,
-    run_native_functional_gates,
 )
-from .runtime_installation import load_runtime_pointer, runtime_binding
+from .runtime_installation import (
+    load_runtime_contract,
+    load_runtime_pointer,
+    runtime_binding,
+)
 
 
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
@@ -279,19 +282,21 @@ def _source_binding(
 def _environment_binding(environment: Mapping[str, str]) -> dict[str, Any]:
     values = {key: environment.get(key, "") for key in _ENVIRONMENT_KEYS}
     pointer = load_runtime_pointer(environ=environment)
+    contract = load_runtime_contract()
+    control = pointer["profiles"]["control"]
     _gpu_payload, gpu_reference = load_gpu_functional_attestation(
         runtime_pointer=pointer
     )
     values.update(
         {
-            "python_executable": os.path.abspath(sys.executable),
-            "python_prefix": os.path.abspath(sys.prefix),
+            "python_executable": control["python_executable"],
+            "python_prefix": control["root"],
             "runtime_binding": runtime_binding(
                 environ=environment,
                 runtime_pointer=pointer,
             ),
             "gpu_functional_evidence": gpu_reference,
-            "python_version": ".".join(str(value) for value in sys.version_info[:3]),
+            "python_version": contract["python"]["version"],
         }
     )
     return {
@@ -2277,6 +2282,7 @@ def _write_internal_shell_contract(
     delivery_observation_path: Path,
     ready_timeout_s: float,
     play_timeout_s: float,
+    python_executable: str,
 ) -> tuple[Path, Mapping[str, Any]]:
     root = Path(experiment_root).resolve(strict=True)
     run = Path(run_root).resolve(strict=True)
@@ -2303,7 +2309,7 @@ def _write_internal_shell_contract(
         "live_worker": _reference_file(
             (root / "tools/run_step5d_autotune_v3_live.py").resolve(strict=True)
         ),
-        "python_executable": os.path.abspath(sys.executable),
+        "python_executable": python_executable,
         "run_root": str(run),
         "output_root": str(Path(output_root).resolve()),
         "campaign_root": str(Path(campaign_root).resolve()),
@@ -2670,8 +2676,8 @@ def run_endpoint_qualification(
     runtime_pointer = load_runtime_pointer(environ=clean_environment)
     try:
         load_gpu_functional_attestation(runtime_pointer=runtime_pointer)
-    except RuntimeFunctionalGateError:
-        run_native_functional_gates()
+    except RuntimeFunctionalGateError as exc:
+        raise QualificationError(f"GPU_FUNCTIONAL_GATE_MISSING: {exc}") from exc
     runtime_environment = clean_environment
     prebinding = capture_content_binding(
         root,
@@ -2799,7 +2805,7 @@ def run_endpoint_qualification(
                 endpoint_content_sha256=endpoints.content_sha256,
             )
             preflight_command = [
-                sys.executable,
+                runtime_pointer["profiles"]["control"]["python_executable"],
                 str(root / "tools/preflight_step5d_autotune_v3.py"),
                 "--robot-host",
                 "127.0.0.1",
@@ -2851,6 +2857,9 @@ def run_endpoint_qualification(
                 delivery_observation_path=delivery_observation_path,
                 ready_timeout_s=60.0,
                 play_timeout_s=30.0,
+                python_executable=runtime_pointer["profiles"]["control"][
+                    "python_executable"
+                ],
             )
             runtime_environment = {
                 **runtime_environment,
@@ -2869,7 +2878,7 @@ def run_endpoint_qualification(
                     close_fds=True,
                 )
                 process_pids = _wait_for_production_processes(
-                    supervisor, root, timeout_s=60.0
+                    supervisor, root, timeout_s=180.0
                 )
                 binding = capture_content_binding(
                     root,

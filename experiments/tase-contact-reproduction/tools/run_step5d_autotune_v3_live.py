@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Own one continuous V3 bridge + real-motion campaign after deterministic release gates."""
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Write-ahead coordinator for Step5d-native autotune ARM/ACK commands.
 
 The policy supervisor remains pure.  This offline coordinator is the command

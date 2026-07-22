@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Step5d live-prep runtime interface defaults and read-only status helpers."""
 
 from __future__ import annotations

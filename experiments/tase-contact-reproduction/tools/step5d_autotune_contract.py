@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Pure contracts for the Step5d-native force autotune campaign.
 
 This module deliberately contains no RTDE, Dashboard, controller, or process

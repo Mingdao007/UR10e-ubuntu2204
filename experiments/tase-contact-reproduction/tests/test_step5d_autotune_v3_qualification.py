@@ -97,6 +97,33 @@ def runtime_process_binding_fixture() -> dict[str, object]:
     }
 
 
+def runtime_pointer_fixture() -> dict[str, object]:
+    process = runtime_process_binding_fixture()
+    return {
+        "bundle_id": process["bundle_id"],
+        "contract_sha256": process["contract_sha256"],
+        "lock_sha256": process["lock_sha256"],
+        "attestation_sha256": SHA_C,
+        "attestation_path": "/runtime/attestation/attestation.json",
+        "profiles": {
+            "control": {
+                "root": "/runtime/control",
+                "environment_id": process["profiles"]["control"]["environment_id"],
+                "python_executable": process["profiles"]["control"]["python_executable"],
+                "record_tree_sha256": process["profiles"]["control"]["record_tree_sha256"],
+                "profile_tree_sha256": process["profiles"]["control"]["profile_tree_sha256"],
+            },
+            "optimizer": {
+                "root": "/runtime/optimizer",
+                "environment_id": process["profiles"]["optimizer"]["environment_id"],
+                "python_executable": process["profiles"]["optimizer"]["python_executable"],
+                "record_tree_sha256": process["profiles"]["optimizer"]["record_tree_sha256"],
+                "profile_tree_sha256": process["profiles"]["optimizer"]["profile_tree_sha256"],
+            },
+        },
+    }
+
+
 def make_trial(
     *,
     trial_id: int = 1,
@@ -273,7 +300,7 @@ class Step5dQualificationTest(unittest.TestCase):
         ), patch.object(
             qualification,
             "load_runtime_pointer",
-            return_value={},
+            return_value=runtime_pointer_fixture(),
         ), patch.object(
             qualification,
             "runtime_binding",
@@ -485,7 +512,7 @@ class Step5dQualificationTest(unittest.TestCase):
         with patch.object(
             qualification,
             "load_runtime_pointer",
-            return_value={},
+            return_value=runtime_pointer_fixture(),
         ), patch.object(
             qualification,
             "runtime_binding",

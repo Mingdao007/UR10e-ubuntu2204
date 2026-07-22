@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Canonical-shell-only worker for Step5d V3 production qualification."""
 
 from __future__ import annotations

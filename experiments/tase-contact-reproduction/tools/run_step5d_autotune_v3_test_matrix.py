@@ -96,7 +96,7 @@ def load_commands(path: Path, lanes: Sequence[str], workers: int) -> dict[str, l
         if not isinstance(commands, list) or len(commands) != 1:
             raise TestMatrixError(f"{lane_name} must have exactly one governed command")
         command = list(commands[0])
-        if command[:4] != ["python3", "-m", "pytest", "-q"]:
+        if command[:4] != [".venv/bin/python", "-m", "pytest", "-q"]:
             raise TestMatrixError(f"{lane_name} command is not governed pytest")
         if lane_name == "small" and workers > 1:
             command[4:4] = ["-p", "xdist.plugin", "-n", str(workers), "--dist", "loadgroup"]
@@ -110,8 +110,15 @@ def load_installed_runtime_command(path: Path) -> list[str]:
     command = gate.get("command") if isinstance(gate, dict) else None
     if (
         not isinstance(command, list)
-        or command[:4] != ["python3", "-m", "pytest", "-q"]
-        or command[4:] != ["tests/test_step5d_autotune_v3_installed_runtime.py"]
+        or command[:4] != [".venv/bin/python", "-m", "pytest", "-q"]
+        or command[4:] != [
+            "tests/test_step5d_autotune_v3_contract.py",
+            "tests/test_step5d_autotune_runtime.py",
+            "tests/test_step5d_autotune_live_driver.py",
+            "tests/test_step5d_autotune_v3_bridge_wrapper.py",
+            "tests/test_step5d_autotune_v3_qualification_production.py",
+            "tests/test_step5d_autotune_v3_installed_runtime.py",
+        ]
         or gate.get("ci") is not False
         or gate.get("serial") is not True
     ):
@@ -152,11 +159,7 @@ def _run_lane(name: str, command: Sequence[str], output: Path) -> dict[str, Any]
         "started_at": started,
         "elapsed_s": time.monotonic() - monotonic,
         "returncode": completed.returncode,
-        "dependency_mode": (
-            "hosted_ci_parser_stubs"
-            if environment.get("STEP5D_V3_HERMETIC_PARSER_CI") == "1"
-            else "installed_runtime_dependencies"
-        ),
+        "dependency_mode": "frozen_uv_environment",
         "log": log.relative_to(ROOT).as_posix() if log.is_relative_to(ROOT) else str(log),
         "log_sha256": _sha256(log),
     }

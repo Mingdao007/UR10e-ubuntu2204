@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Fast, read-only preflight for the one-Play V3 live campaign."""
 
 from __future__ import annotations

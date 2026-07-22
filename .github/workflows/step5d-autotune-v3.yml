@@ -1,16 +1,19 @@
-name: Step5d Autotune v3 fast gate
+name: Step5d Autotune v3 hermetic gate
 
 on:
   pull_request:
     paths:
       - ".github/pull_request_template.md"
       - ".github/workflows/step5d-autotune-v3.yml"
+      - "ci/step5d-v3/**"
       - "experiments/tase-contact-reproduction/REFACTORING_CONTRACT.md"
       - "experiments/tase-contact-reproduction/STEP5_FLOW.md"
-      - "experiments/tase-contact-reproduction/requirements-test.txt"
+      - "experiments/tase-contact-reproduction/pyproject.toml"
+      - "experiments/tase-contact-reproduction/uv.lock"
       - "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/**"
       - "src/ur10e_experiment_runtime/**"
       - "experiments/tase-contact-reproduction/tools/validate_step5d_autotune_v3_refactor.py"
+      - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v3_test_matrix.py"
       - "experiments/tase-contact-reproduction/scripts/step5d-autotune-v3.sh"
       - "experiments/tase-contact-reproduction/config/step5d_autotune_v3*.json"
       - "experiments/tase-contact-reproduction/config/step5/**"
@@ -18,46 +21,26 @@ on:
       - "experiments/tase-contact-reproduction/config/systemd/step5d-autotune-v3.service"
       - "experiments/tase-contact-reproduction/config/step5d_autotune_controller_readback_v2.json"
       - "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v3_*.py"
+      - "experiments/tase-contact-reproduction/tests/test_step5d_v3_*.py"
       - "experiments/tase-contact-reproduction/tests/step5d_v3_fake_bridge_harness.py"
-      - "experiments/tase-contact-reproduction/tests/step5d_v3_parser_ci_stubs.py"
-      - "experiments/tase-contact-reproduction/tests/fixtures/hermetic_ur_description/ur.urdf.xacro"
       - "experiments/tase-contact-reproduction/tools/export_step5d_autotune_v2_attempt_ledger.py"
       - "experiments/tase-contact-reproduction/tools/verify_step5d_autotune_v3_artifacts.py"
       - "experiments/tase-contact-reproduction/tools/verify_step5d_autotune_v3_execution_readiness.py"
       - "experiments/tase-contact-reproduction/tools/verify_step5d_autotune_v3_hil_authorization.py"
       - "experiments/tase-contact-reproduction/tools/verify_step5d_autotune_v3_g10.py"
       - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v3_ursim_hold_gate.py"
-      - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v3_test_matrix.py"
       - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v3_bridge.py"
       - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v3_hil_hold.py"
       - "experiments/tase-contact-reproduction/tools/preflight_step5d_autotune_v3.py"
       - "experiments/tase-contact-reproduction/tools/build_step5d_autotune_tp_v3.py"
       - "experiments/tase-contact-reproduction/scripts/step5d-autotune-v3-hil-hold.sh"
       - "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v3.*"
-      - "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v2.*"
       - "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py"
-      - "experiments/tase-contact-reproduction/tools/step5d_p0_v9_control_core.py"
-      - "experiments/tase-contact-reproduction/tools/step5d_p0_v9_bridge.py"
       - "experiments/tase-contact-reproduction/tools/step5d_autotune_contract.py"
       - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py"
-      - "experiments/tase-contact-reproduction/tools/step5d_autotune_coordinator.py"
-      - "experiments/tase-contact-reproduction/tools/step5d_autotune_journal.py"
-      - "experiments/tase-contact-reproduction/tools/step5d_autotune_store.py"
       - "experiments/tase-contact-reproduction/tools/step5d_autotune_live_driver.py"
-      - "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py"
-      - "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py"
-      - "experiments/tase-contact-reproduction/tools/step5d_control_contract.py"
-      - "experiments/tase-contact-reproduction/tools/contact_semantics.py"
-      - "experiments/tase-contact-reproduction/tools/build_step5d_autotune_tp.py"
-      - "experiments/tase-contact-reproduction/scripts/bridge-line-operator.sh"
-      - "experiments/tase-contact-reproduction/scripts/step5d-autotune-live.sh"
       - "experiments/tase-contact-reproduction/config/step5_safe_frame.json"
       - "experiments/tase-contact-reproduction/config/step5d_autotune_campaign_v1.json"
-      - "experiments/tase-contact-reproduction/config/step5d_autotune_i_scale_sanity_v1.json"
-      - "experiments/tase-contact-reproduction/config/current_stage.json"
-      - "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v1.script"
-      - "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v1.txt"
-      - "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v1.urp"
 
 permissions:
   contents: read
@@ -69,11 +52,10 @@ concurrency:
 jobs:
   hermetic-fast:
     runs-on: ubuntu-22.04
-    timeout-minutes: 2
+    timeout-minutes: 5
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
-      STEP5D_V3_HERMETIC_PARSER_CI: "1"
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
@@ -85,33 +67,62 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install pinned test runner
+      - name: Install pinned uv
         run: >-
           python3 -m pip install --disable-pip-version-check --no-input
-          -r experiments/tase-contact-reproduction/requirements-test.txt
+          uv==0.9.30
 
-      - name: Install test-only UR description identity fixture
-        run: |
-          sudo install -d -m 0755 /opt/ros/humble/share/ur_description/urdf
-          sudo install -m 0644 experiments/tase-contact-reproduction/tests/fixtures/hermetic_ur_description/ur.urdf.xacro /opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro
+      - name: Sync frozen hermetic test environment
+        working-directory: experiments/tase-contact-reproduction
+        run: uv sync --frozen --only-group test-hermetic
 
       - name: Validate declaration, frozen v1, budget, and matrix
-        run: >-
-          python3
-          experiments/tase-contact-reproduction/tools/validate_step5d_autotune_v3_refactor.py
-          --root experiments/tase-contact-reproduction
-          --declaration-env STEP5D_V3_PR_BODY
-
-      - name: Verify production parser through test-only bootstrap
         working-directory: experiments/tase-contact-reproduction
         run: >-
-          env PYTHONPATH=tests:tools:../../src/ur10e_experiment_runtime
-          python3 -m step5d_v3_parser_ci_stubs
-          --experiment-root . start --check --json
+          .venv/bin/python tools/validate_step5d_autotune_v3_refactor.py
+          --root . --declaration-env STEP5D_V3_PR_BODY
 
-      - name: Run bounded-parallel Small and hermetic Medium tests only
+      - name: Probe repository-owned RTDE parser against local endpoint
         working-directory: experiments/tase-contact-reproduction
         run: >-
-          python3 tools/run_step5d_autotune_v3_test_matrix.py
+          .venv/bin/python -m pytest -q
+          tests/test_step5d_autotune_v3_qualification_endpoints.py::test_rtde_repository_client_rejects_unknown_recipe_field
+
+      - name: Run portable Small and Medium lanes
+        working-directory: experiments/tase-contact-reproduction
+        run: >-
+          .venv/bin/python tools/run_step5d_autotune_v3_test_matrix.py
           --lanes small medium --workers auto
           --output runs/ci-step5d-autotune-v3-${{ github.run_id }}
+
+  oci-cleanroom-cpu:
+    needs: hermetic-fast
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout immutable source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Build fixed ROS clean-room image
+        run: >-
+          docker build
+          --file ci/step5d-v3/Dockerfile.cpu
+          --tag step5d-v3-oci-cpu:${{ github.sha }}
+          .
+
+      - name: Run networkless read-only ROS/source-closure slice
+        run: |
+          mkdir -p "${RUNNER_TEMP}/step5d-v3-oci-output"
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --tmpfs /tmp:rw,noexec,nosuid,size=256m \
+            --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/workspace,readonly" \
+            --mount "type=bind,src=${RUNNER_TEMP}/step5d-v3-oci-output,dst=/output" \
+            step5d-v3-oci-cpu:${{ github.sha }} \
+            --slice cpu --output /output/attestation.json
+
+      - name: Upload native clean-room evidence
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: step5d-v3-hermetic-ci-${{ github.run_id }}
+          path: ${{ runner.temp }}/step5d-v3-oci-output/
+          if-no-files-found: error

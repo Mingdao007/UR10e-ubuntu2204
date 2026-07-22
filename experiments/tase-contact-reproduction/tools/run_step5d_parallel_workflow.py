@@ -127,8 +127,7 @@ def test_python() -> Path:
     if not candidate.is_file():
         raise RuntimeError(
             "isolated test Python missing; run: "
-            "uv venv --system-site-packages --python python3 .venv && "
-            "uv pip install --python .venv/bin/python -r requirements-test.txt"
+            "uv sync --frozen --only-group test-hermetic"
         )
     return Path(os.path.abspath(candidate))
 

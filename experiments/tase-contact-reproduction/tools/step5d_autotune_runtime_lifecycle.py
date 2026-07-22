@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Production adapter from Step5d V3 trials to the shared batch runtime."""
 
 from __future__ import annotations

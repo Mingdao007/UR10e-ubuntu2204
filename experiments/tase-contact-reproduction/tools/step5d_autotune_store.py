@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Strict, atomic campaign evidence store for Step5d-native autotune."""
 
 from __future__ import annotations

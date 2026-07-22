@@ -1407,6 +1407,10 @@ def _installed_profiles(
 def _host_identity(observation: Mapping[str, Any]) -> dict[str, Any]:
     result = dict(observation)
     result.pop("observed_at_unix_ns", None)
+    calibration = dict(result["calibration"])
+    calibration.pop("artifact_path", None)
+    calibration.pop("yaml_path", None)
+    result["calibration"] = calibration
     return result
 
 
@@ -1966,10 +1970,11 @@ def load_runtime_pointer_identity(
 ) -> dict[str, Any]:
     """Validate immutable runtime identity without rehashing package trees.
 
-    This is only for children of a process that already passed
-    ``load_runtime_pointer``.  It deliberately retains the contract, lock,
-    pointer and attestation byte bindings, but it does not issue production
-    authority on its own.
+    This is for children of a process that already passed
+    ``load_runtime_pointer`` or for bootstrap selection of an exact interpreter
+    whose invoked production command performs its own full gate.  It retains
+    the contract, lock, pointer and attestation byte bindings, but it does not
+    issue production authority on its own.
     """
 
     path = current_pointer_path(environ)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Pure host supervisor for a continuous Step5d-native autotune campaign.
 
 The supervisor has no controller, RTDE, process, or filesystem side effects.

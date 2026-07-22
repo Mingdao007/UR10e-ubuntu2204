@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Ticket-gated V3 wrapper around the SHA-governed production bridge.
 
 The wrapper changes three V3 integration seams: immutable mailbox reads are

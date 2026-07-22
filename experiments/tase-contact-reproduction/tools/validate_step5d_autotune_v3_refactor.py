@@ -27,10 +27,7 @@ DEFAULT_GOVERNANCE = (
 FROZEN_COMMIT = "6f9ef0912842ac003545eb1906b38d13c7552218"
 FROZEN_TAG = "archive/step5d-autotune-v1-20260715"
 REQUIRED_LANES = {"small", "medium"}
-PARSER_CI_DEPENDENCY_STUBS = {
-    "_ur_common", "capture_kunwei_kwr75_1khz", "pandas",
-    "pinocchio", "xacro", "yaml",
-}
+PORTABLE_CI_DEPENDENCY_DOUBLES: frozenset[str] = frozenset()
 STEP5D_V3_TEST_MARKERS = (
     "step5d_autotune_v3",
     "step5d.autotune-v3",
@@ -67,6 +64,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_runtime_observation.py",
     "tests/test_step5d_v3_active_surface_architecture.py",
     "tests/test_step5d_v3_immutable_payload_routing.py",
+    "tests/test_step5d_v3_oci_contract.py",
     "tests/test_step5d_v3_runtime_installation.py",
     "tests/test_step5d_v3_source_closure.py",
 }
@@ -435,10 +433,15 @@ def matrix_issues(payload: Any, *, root: Path = ROOT) -> list[str]:
     installed_runtime = payload.get("local_installed_runtime_gate")
     expected_installed_runtime = {
         "command": [
-            "python3", "-m", "pytest", "-q",
+            ".venv/bin/python", "-m", "pytest", "-q",
+            "tests/test_step5d_autotune_v3_contract.py",
+            "tests/test_step5d_autotune_runtime.py",
+            "tests/test_step5d_autotune_live_driver.py",
+            "tests/test_step5d_autotune_v3_bridge_wrapper.py",
+            "tests/test_step5d_autotune_v3_qualification_production.py",
             "tests/test_step5d_autotune_v3_installed_runtime.py",
         ],
-        "activation": "explicit_local_after_hermetic_small_medium",
+        "activation": "explicit_local_authoritative_after_hermetic_small_medium",
         "ci": False,
         "serial": True,
         "test_doubles_allowed": False,
@@ -501,7 +504,7 @@ def matrix_issues(payload: Any, *, root: Path = ROOT) -> list[str]:
     small = lanes.get("small", {})
     if small.get("production_parser_test_double_allowed") is not False:
         issues.append("test_matrix_production_parser_double_not_forbidden")
-    if set(small.get("dependency_double_scope", [])) != PARSER_CI_DEPENDENCY_STUBS:
+    if set(small.get("dependency_double_scope", [])) != PORTABLE_CI_DEPENDENCY_DOUBLES:
         issues.append("test_matrix_parser_dependency_stub_scope_mismatch")
     ci = payload.get("ci")
     if not isinstance(ci, dict):

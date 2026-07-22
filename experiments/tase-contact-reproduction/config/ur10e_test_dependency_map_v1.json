@@ -12,7 +12,8 @@
     "tools/ur10e_artifact_store.py",
     "tools/step5d_workflow_state.py",
     "tests/fixtures/**/*",
-    "requirements-test.txt",
+    "pyproject.toml",
+    "uv.lock",
     "pytest.ini"
   ],
   "rules": [

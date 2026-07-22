@@ -342,49 +342,34 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         )
         self.assertIn("tools/run_step5d_autotune_v3_test_matrix.py", workflow)
         self.assertIn("--lanes small medium --workers auto", workflow)
-        self.assertIn("STEP5D_V3_HERMETIC_PARSER_CI", workflow)
+        self.assertIn("uv==0.9.30", workflow)
+        self.assertIn("uv sync --frozen --only-group test-hermetic", workflow)
+        self.assertIn(".venv/bin/python", workflow)
         self.assertIn('"src/ur10e_experiment_runtime/**"', workflow)
-        self.assertIn(
-            "PYTHONPATH=tests:tools:../../src/ur10e_experiment_runtime",
-            workflow,
-        )
-        self.assertIn("python3 -m step5d_v3_parser_ci_stubs", workflow)
-        fixture = "tests/fixtures/hermetic_ur_description/ur.urdf.xacro"
-        self.assertIn(fixture, workflow)
-        fixture_path = ROOT / fixture
-        self.assertTrue(fixture_path.is_file())
-        self.assertFalse(fixture_path.is_symlink())
-        install_command = (
-            "sudo install -m 0644 experiments/tase-contact-reproduction/"
-            f"{fixture} /opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro"
-        )
-        self.assertIn(install_command, workflow)
-        self.assertLess(
-            workflow.index(install_command),
-            workflow.index("python3 -m step5d_v3_parser_ci_stubs"),
-        )
-        self.assertNotIn("docker run", workflow)
+        self.assertIn("test_rtde_repository_client_rejects_unknown_recipe_field", workflow)
+        self.assertIn("docker run --rm --network none --read-only", workflow)
+        self.assertIn("dst=/workspace,readonly", workflow)
+        self.assertNotIn("STEP5D_V3_HERMETIC_PARSER_CI", workflow)
+        self.assertNotIn("step5d_v3_parser_ci_stubs", workflow)
+        self.assertNotIn("sudo install", workflow)
+        self.assertNotIn("/opt/ros/humble/share/ur_description", workflow)
         self.assertNotIn("large_ursim", workflow)
         self.assertNotIn("hil_no_motion", workflow)
 
-    def test_workflow_parser_bootstrap_imports_repository_runtime_source(self) -> None:
+    def test_repository_rtde_probe_needs_no_private_skill(self) -> None:
         result = subprocess.run(
             [
                 sys.executable,
-                "-m",
-                "step5d_v3_parser_ci_stubs",
-                "--experiment-root",
-                ".",
-                "start",
-                "--check",
-                "--json",
+                "-m", "pytest", "-q",
+                "tests/test_step5d_autotune_v3_qualification_endpoints.py::"
+                "test_rtde_repository_client_rejects_unknown_recipe_field",
             ],
             cwd=ROOT,
             env={
                 "PATH": os.environ.get("PATH", os.defpath),
                 "PYTHONDONTWRITEBYTECODE": "1",
-                "PYTHONPATH": "tests:tools:../../src/ur10e_experiment_runtime",
-                "STEP5D_V3_HERMETIC_PARSER_CI": "1",
+                "PYTHONPATH": "tools:../../src/ur10e_experiment_runtime",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
             },
             check=False,
             capture_output=True,
@@ -392,9 +377,7 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        payload = json.loads(result.stdout)
-        self.assertTrue(payload["ok"])
-        self.assertTrue(payload["no_motion"])
+        self.assertIn("1 passed", result.stdout)
 
 
 if __name__ == "__main__":

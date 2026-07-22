@@ -16,7 +16,7 @@ from step5d_autotune_v3.runtime_installation import (
     PROFILES,
     RuntimeInstallationError,
     load_runtime_pointer,
-    load_runtime_pointer_integrity,
+    load_runtime_pointer_identity,
     runtime_status,
 )
 
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"ok": True, **status}, sort_keys=True))
         return 0
     pointer_loader = (
-        load_runtime_pointer_integrity if args.shell_binding else load_runtime_pointer
+        load_runtime_pointer_identity if args.shell_binding else load_runtime_pointer
     )
     try:
         pointer = pointer_loader()
