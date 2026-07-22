@@ -1,0 +1,48 @@
+{
+  "status": "controller read-back verified",
+  "controller": "root@192.168.1.18",
+  "target_dir": "/programs/andyl/kunwei/step5",
+  "target_source": "override",
+  "local_dir": "/home/andy/.codex-worktrees/ur10e-step5d-manual-hold-i1e4-20260721/experiments/tase-contact-reproduction/programs/step5/step5d",
+  "validation": {
+    "stamp": "2026-07-21T1626HKT_STEP5D_MANUAL_HOLD_V2",
+    "program": "step5d_strict_rnn_manual_tune_v2",
+    "target_dir": "/programs/andyl/kunwei/step5",
+    "installation_relative_path": "../../../default",
+    "script_node_path": "/programs/andyl/kunwei/step5/step5d_strict_rnn_manual_tune_v2.script",
+    "urp_sha256": "17812d089aecb207b1468a876b9b8ed6b674d13223a8a849803a26b6b9ffc1b0",
+    "script_sha256": "30cbebd7225a0e210100d56c4e6030c63cbb08bb72c88bcba26b7bbf225090e3",
+    "txt_sha256": "e57345245f86cf0a80278f16846511bf0060a4f14fbeba8beabd421885b07bef"
+  },
+  "sha256": {
+    "local": {
+      ".script": "30cbebd7225a0e210100d56c4e6030c63cbb08bb72c88bcba26b7bbf225090e3",
+      ".txt": "e57345245f86cf0a80278f16846511bf0060a4f14fbeba8beabd421885b07bef",
+      ".urp": "17812d089aecb207b1468a876b9b8ed6b674d13223a8a849803a26b6b9ffc1b0"
+    },
+    "controller": {
+      ".script": "30cbebd7225a0e210100d56c4e6030c63cbb08bb72c88bcba26b7bbf225090e3",
+      ".txt": "e57345245f86cf0a80278f16846511bf0060a4f14fbeba8beabd421885b07bef",
+      ".urp": "17812d089aecb207b1468a876b9b8ed6b674d13223a8a849803a26b6b9ffc1b0"
+    },
+    "readback": {
+      ".script": "30cbebd7225a0e210100d56c4e6030c63cbb08bb72c88bcba26b7bbf225090e3",
+      ".txt": "e57345245f86cf0a80278f16846511bf0060a4f14fbeba8beabd421885b07bef",
+      ".urp": "17812d089aecb207b1468a876b9b8ed6b674d13223a8a849803a26b6b9ffc1b0"
+    }
+  },
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ],
+  "delivery_mode": "full_upload_readback",
+  "target_override_reason": "isolated manual-hold upload, fresh GET, and manual pointer promotion",
+  "fresh_controller_sha_verified": true,
+  "fresh_controller_checked_at": "2026-07-21T16:26:52+08:00",
+  "readback_source": "fresh_controller_get",
+  "upload_transaction_id": "2fdfed940a434fa0a7b520c89f14001c"
+}
