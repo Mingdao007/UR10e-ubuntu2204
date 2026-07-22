@@ -83,17 +83,27 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
             process.wait(timeout=8.0)
         except subprocess.TimeoutExpired:
             process.terminate()
-            process.wait(timeout=5.0)
+            try:
+                process.wait(timeout=5.0)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5.0)
     return process.returncode
 
 
-def _parent_death_guard(expected_parent_pid: int) -> None:
+def _parent_death_guard(
+    expected_parent_pid: int,
+    expected_parent_starttime: int,
+) -> None:
     """Terminate the production bridge if its lease-owning parent disappears."""
 
     libc = ctypes.CDLL(None, use_errno=True)
     if libc.prctl(1, int(signal.SIGTERM), 0, 0, 0) != 0:
         raise OSError(ctypes.get_errno(), "prctl(PR_SET_PDEATHSIG) failed")
-    if os.getppid() != expected_parent_pid:
+    if (
+        os.getppid() != expected_parent_pid
+        or process_starttime(expected_parent_pid) != expected_parent_starttime
+    ):
         os.kill(os.getpid(), signal.SIGTERM)
 
 
@@ -107,7 +117,7 @@ def _validate_preflight(path: Path, context: Mapping[str, Any]) -> dict[str, Any
     required_predicates = {
         "safety_normal", "program_safe_for_bridge", "robot_stationary",
         "prealign_start_clearance", "no_existing_writer", "mailbox_initial_zero",
-        "runtime_dependencies",
+        "runtime_dependencies", "controller_artifact_identity",
     }
     predicates = payload.get("predicates")
     if any(
@@ -199,6 +209,7 @@ def run(args: argparse.Namespace) -> int:
     process: subprocess.Popen[Any] | None = None
     stop_requested = False
     owner_pid = os.getpid()
+    owner_starttime = process_starttime(owner_pid)
 
     def request_stop(_signum: int, _frame: Any) -> None:
         nonlocal stop_requested
@@ -218,7 +229,10 @@ def run(args: argparse.Namespace) -> int:
                     stdout=bridge_log,
                     stderr=subprocess.STDOUT,
                     close_fds=True,
-                    preexec_fn=lambda expected=owner_pid: _parent_death_guard(expected),
+                    preexec_fn=lambda expected_pid=owner_pid, expected_start=owner_starttime: _parent_death_guard(
+                        expected_pid,
+                        expected_start,
+                    ),
                 )
                 ready_path = bridge_run / "bridge_ready.json"
                 deadline = time.monotonic() + args.ready_timeout_s
@@ -247,7 +261,6 @@ def run(args: argparse.Namespace) -> int:
                 else:
                     raise ManualBridgeError("manual bridge readiness timeout")
                 bridge_starttime = process_starttime(process.pid)
-                owner_starttime = process_starttime(os.getpid())
                 if bridge_starttime <= 0 or owner_starttime <= 0:
                     raise ManualBridgeError(
                         "manual bridge process identity is unavailable"
@@ -303,10 +316,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--qualification-endpoints", type=Path)
     parser.add_argument("--launch-attempt-id", required=True)
     parser.add_argument("--campaign-id", required=True)
+    parser.add_argument("--canonical-owner-pid", type=int, required=True)
+    parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--ready-timeout-s", type=float, default=20.0)
     args = parser.parse_args(argv)
     try:
         require_canonical_shell()
+        _parent_death_guard(
+            args.canonical_owner_pid,
+            args.canonical_owner_starttime,
+        )
         return run(args)
     except (OSError, TimeoutError, ValueError, ManualBridgeError) as exc:
         print(f"manual bridge start blocked: {exc}", file=sys.stderr)

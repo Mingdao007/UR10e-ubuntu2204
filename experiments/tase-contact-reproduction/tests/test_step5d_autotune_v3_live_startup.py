@@ -284,6 +284,30 @@ def test_preplay_does_not_wait_for_stale_stopped_tp_output_registers() -> None:
     assert "stationary zero-identity READY_HOME" not in source
 
 
+def test_live_supervisor_fences_children_to_parent_lifetime() -> None:
+    source = (ROOT / "tools/run_step5d_autotune_v3_live.py").read_text(
+        encoding="utf-8"
+    )
+    shell = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+
+    assert "PR_SET_PDEATHSIG" in source
+    assert source.count("preexec_fn=") >= 2
+    assert '--canonical-owner-pid "$$"' in shell
+    assert '--canonical-owner-starttime "${launch_owner_starttime}"' in shell
+
+
+def test_qualification_traverses_route_resolver_before_internal_exec() -> None:
+    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+
+    route = source.index("resolve_step5d_bridge_route.py")
+    manual_internal = source.index(
+        "STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_PID"
+    )
+    v3_internal = source.index("STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_PID")
+    assert route < manual_internal
+    assert route < v3_internal
+
+
 def test_live_consumer_accepts_the_complete_production_preflight_schema(
     tmp_path: Path,
 ) -> None:

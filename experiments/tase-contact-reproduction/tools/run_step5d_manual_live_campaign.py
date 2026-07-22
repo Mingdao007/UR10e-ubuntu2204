@@ -79,6 +79,7 @@ from step5d_manual_authorization import (
     load_capability_authorization as _load_capability_authorization,
 )
 from step5d_manual_qualification import validate_result as validate_manual_qualification
+from preflight_step5d_manual_bridge import observe_manual_controller_triplet
 from run_step5d_manual_bridge import ARM_GATE_SCHEMA
 from ur10e_parallel import ResourceProfile, writer_lease_owner
 
@@ -457,8 +458,21 @@ def _publish_canonical_readiness_claim(
 
 
 def _observe_controller_identity(
-    robot_host: str, *, timeout_s: float = 2.0
+    robot_host: str,
+    *,
+    timeout_s: float = 2.0,
+    required_program_state: str | None = None,
+    release_manifest_sha256: str | None = None,
+    verify_controller_bytes: bool = False,
 ) -> dict[str, Any]:
+    controller_triplet = None
+    if verify_controller_bytes:
+        if release_manifest_sha256 is None:
+            raise ManualLiveError("Manual release identity is required for fresh read-back")
+        controller_triplet = observe_manual_controller_triplet(
+            ROOT,
+            release_manifest_sha256,
+        )
     dashboard = dashboard_exchange(
         robot_host,
         ["programState", "safetymode", "get loaded program"],
@@ -467,13 +481,24 @@ def _observe_controller_identity(
     loaded = dashboard["get loaded program"]
     if not loaded_program_matches(loaded, EXPECTED_PROGRAM):
         raise ManualLiveError("Manual loaded program changed before ARM")
-    return {
+    raw_state = str(dashboard["programState"])
+    state = raw_state.split(maxsplit=1)[0].upper() if raw_state else ""
+    if required_program_state is not None and state != required_program_state:
+        raise ManualLiveError(
+            "Manual controller program state differs: "
+            f"expected {required_program_state}, observed {state or 'UNKNOWN'}"
+        )
+    observation = {
         "observed_at_unix_ns": time.time_ns(),
         "loaded_program_response": loaded,
-        "program_state": dashboard["programState"],
+        "program_state": raw_state,
+        "program_state_normalized": state,
         "safety_mode": dashboard["safetymode"],
         "expected_loaded_program": EXPECTED_PROGRAM,
     }
+    if controller_triplet is not None:
+        observation["controller_triplet"] = controller_triplet
+    return observation
 
 
 def _group_id(request: Mapping[str, Any]) -> str:
@@ -601,13 +626,14 @@ def _wait_for_ready_home(
     args: argparse.Namespace,
     deadline: float,
     *,
-    refresh_readiness_claim: Callable[[], Any] | None = None,
+    stopped_observation: Mapping[str, Any],
+    refresh_readiness_claim: Callable[[Mapping[str, Any]], Any] | None = None,
 ) -> dict[str, int]:
+    if stopped_observation.get("program_state_normalized") != "STOPPED":
+        raise ManualLiveError("fresh pre-Play STOPPED observation is missing")
     next_claim_refresh = 0.0
+    playing_observed = False
     while time.monotonic() < deadline:
-        if refresh_readiness_claim is not None and time.monotonic() >= next_claim_refresh:
-            refresh_readiness_claim()
-            next_claim_refresh = time.monotonic() + 0.5
         _, observed = validate_bridge(
             args.bridge_output_root,
             args.release_manifest_sha256,
@@ -616,7 +642,29 @@ def _wait_for_ready_home(
             expected_campaign_id=getattr(args, "campaign_id", None),
         )
         _require_preplay_observation(observed)
-        if observed["state"] == READY_HOME and observed["command"] == 0:
+        controller = _observe_controller_identity(args.robot_host)
+        program_state = controller["program_state_normalized"]
+        if not playing_observed:
+            if program_state == "PLAYING":
+                playing_observed = True
+            elif program_state != "STOPPED":
+                raise ManualLiveError(
+                    "Manual controller left STOPPED without a fresh PLAYING observation"
+                )
+        elif program_state != "PLAYING":
+            raise ManualLiveError("Manual controller left PLAYING before READY_HOME")
+        if (
+            not playing_observed
+            and refresh_readiness_claim is not None
+            and time.monotonic() >= next_claim_refresh
+        ):
+            refresh_readiness_claim(controller)
+            next_claim_refresh = time.monotonic() + 0.5
+        if (
+            playing_observed
+            and observed["state"] == READY_HOME
+            and observed["command"] == 0
+        ):
             return observed
         time.sleep(0.1)
     raise ManualLiveError("physical Play was not observed before timeout")
@@ -792,7 +840,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             expected_campaign_id=args.campaign_id,
         )
 
-    def refresh_preplay_claim() -> dict[str, Any]:
+    def refresh_preplay_claim(controller: Mapping[str, Any]) -> dict[str, Any]:
         require_current_authorization()
         _, bridge_observation = validate_bridge(
             args.bridge_output_root,
@@ -802,7 +850,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             expected_campaign_id=args.campaign_id,
         )
         _require_preplay_observation(bridge_observation)
-        controller = _observe_controller_identity(args.robot_host)
+        if controller.get("program_state_normalized") != "STOPPED":
+            raise ManualLiveError("pre-Play readiness requires controller STOPPED")
         _publish_status(
             args,
             state="WAITING_FOR_IDENTITY_PLAY",
@@ -816,16 +865,28 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             launch_attempt_id=attempt_id,
         )
         _publish_canonical_readiness_claim(args, "WAITING_FOR_IDENTITY_PLAY")
-        return controller
+        return dict(controller)
 
-    controller_observation = refresh_preplay_claim()
+    controller_observation = _observe_controller_identity(
+        args.robot_host,
+        required_program_state="STOPPED",
+        release_manifest_sha256=args.release_manifest_sha256,
+        verify_controller_bytes=True,
+    )
+    refresh_preplay_claim(controller_observation)
     observed = _wait_for_ready_home(
         args,
         time.monotonic() + args.play_timeout_s,
+        stopped_observation=controller_observation,
         refresh_readiness_claim=refresh_preplay_claim,
     )
     require_current_authorization()
-    controller_observation = _observe_controller_identity(args.robot_host)
+    controller_observation = _observe_controller_identity(
+        args.robot_host,
+        required_program_state="PLAYING",
+        release_manifest_sha256=args.release_manifest_sha256,
+        verify_controller_bytes=True,
+    )
     _publish_status(
         args,
         state="PLAY_OBSERVED_IDENTITY_RECHECKED",
@@ -892,7 +953,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             )
         request = queue["requests"][completed]
         require_current_authorization()
-        controller_observation = _observe_controller_identity(args.robot_host)
+        controller_observation = _observe_controller_identity(
+            args.robot_host,
+            required_program_state="PLAYING",
+            release_manifest_sha256=args.release_manifest_sha256,
+            verify_controller_bytes=True,
+        )
         issued, arm, trial = _issue(args, mailbox)
         _, last_prepared = _prepared(issued, plant_epoch=args.plant_epoch)
         last_arm = arm

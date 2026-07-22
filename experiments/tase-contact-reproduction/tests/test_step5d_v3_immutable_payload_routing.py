@@ -250,6 +250,7 @@ def test_live_prepare_only_ignores_mutable_launch_override(
 
     monkeypatch.setattr(live, "ROOT", tmp_path)
     monkeypatch.setattr(live, "_require_canonical_launcher", lambda: None)
+    monkeypatch.setattr(live, "_parent_death_guard", lambda *_args: None)
     monkeypatch.setattr(
         live, "require_runtime_profile", lambda _profile: _runtime_pointer()
     )
@@ -269,6 +270,10 @@ def test_live_prepare_only_ignores_mutable_launch_override(
             str(tmp_path / "campaign"),
             "--launch-profile",
             str(tmp_path / LAUNCH_PROFILE_PATH),
+            "--canonical-owner-pid",
+            "1",
+            "--canonical-owner-starttime",
+            "1",
         ]
     )
 

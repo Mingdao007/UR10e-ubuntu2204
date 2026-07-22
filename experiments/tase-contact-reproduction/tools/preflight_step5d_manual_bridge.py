@@ -26,6 +26,105 @@ from step5d_manual_bridge import (
     ManualBridgeError, load_context, sha256_path,
 )
 from step5d_manual_profile import DEFAULT_LAUNCH_PROFILE, load_manual_launch_profile
+from promote_step5d_manual_release import TARGET_DIR, load_manual_release
+import upload_ur_tp_package as tp_upload
+
+
+def _manual_artifacts(
+    root: Path,
+    release_manifest_sha256: str,
+) -> tuple[dict[str, Path], dict[str, str]]:
+    release = load_manual_release(root)
+    if release.get("manifest_sha256") != release_manifest_sha256:
+        raise ManualBridgeError("Manual release identity changed before controller read-back")
+    manifest_path = root / str(release["manifest_path"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, Mapping) or set(artifacts) != set(tp_upload.EXTENSIONS):
+        raise ManualBridgeError("Manual release triplet fields differ")
+    files: dict[str, Path] = {}
+    expected: dict[str, str] = {}
+    for extension in tp_upload.EXTENSIONS:
+        reference = artifacts.get(extension)
+        if not isinstance(reference, Mapping):
+            raise ManualBridgeError(f"Manual {extension} release reference differs")
+        path = root / str(reference.get("path", ""))
+        digest = str(reference.get("sha256", ""))
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or hashlib.sha256(path.read_bytes()).hexdigest() != digest
+        ):
+            raise ManualBridgeError(f"Manual {extension} local artifact drifted")
+        files[extension] = path
+        expected[extension] = digest
+    return files, expected
+
+
+def observe_manual_controller_triplet(
+    root: Path,
+    release_manifest_sha256: str,
+    *,
+    qualification_endpoints: Path | None = None,
+) -> dict[str, Any]:
+    files, expected = _manual_artifacts(root, release_manifest_sha256)
+    if qualification_endpoints is not None:
+        endpoint_path = qualification_endpoints.expanduser().resolve(strict=True)
+        endpoint = json.loads(endpoint_path.read_text(encoding="utf-8"))
+        addresses = endpoint.get("addresses") if isinstance(endpoint, Mapping) else None
+        if (
+            endpoint.get("schema")
+            != "step5d.autotune-v3/qualification-endpoint-config-v1"
+            or endpoint.get("motion_capable") is not False
+            or not isinstance(addresses, Mapping)
+            or any(
+                not isinstance(addresses.get(role), Mapping)
+                or addresses[role].get("host") != "127.0.0.1"
+                for role in ("dashboard", "secondary", "rtde", "kunwei")
+            )
+        ):
+            raise ManualBridgeError("Manual qualification endpoint identity differs")
+        return {
+            "schema": "step5d.manual-v2/controller-triplet-observation-v1",
+            "ok": True,
+            "mode": "qualification_endpoint_substitution",
+            "observed_at_unix_ns": time.time_ns(),
+            "expected_sha256": expected,
+            "observed_sha256": dict(expected),
+            "endpoint": {
+                "path": str(endpoint_path),
+                "sha256": hashlib.sha256(endpoint_path.read_bytes()).hexdigest(),
+                "content_sha256": endpoint.get("content_sha256"),
+                "controller_contacted": False,
+            },
+            "owner_helper": None,
+        }
+    try:
+        helper, helper_sha256 = tp_upload.resolve_live_controller_helper(None, None)
+        observed = tp_upload.readback_controller_sha256(
+            helper,
+            files,
+            PROGRAM,
+            TARGET_DIR,
+            helper_sha256=helper_sha256,
+            local_sha=expected,
+        )
+    except SystemExit as exc:
+        raise ManualBridgeError(
+            "Manual controller fresh read-back helper failed"
+        ) from exc
+    if observed != expected:
+        raise ManualBridgeError("Manual controller fresh read-back triplet differs")
+    return {
+        "schema": "step5d.manual-v2/controller-triplet-observation-v1",
+        "ok": True,
+        "mode": "fresh_controller_get",
+        "observed_at_unix_ns": time.time_ns(),
+        "expected_sha256": expected,
+        "observed_sha256": observed,
+        "endpoint": None,
+        "owner_helper": {"path": str(helper), "sha256": helper_sha256},
+    }
 
 
 def _read_rtde_once(
@@ -55,19 +154,13 @@ def _program_safe(dashboard: Mapping[str, Any], rtde: Mapping[str, Any]) -> dict
         dashboard.get("get loaded program", dashboard.get("loaded_program", raw))
     )
     exact_program = loaded_program_matches(loaded, expected)
-    if state == "STOPPED":
-        checks = {"exact_program": exact_program, "stopped": True}
-        return {"ok": all(checks.values()), "mode": "loaded_stopped", "checks": checks, "raw": raw}
-    identity_fields = [24, 25, 27, 28, 29, 30]
     checks = {
         "exact_program": exact_program,
-        "playing": state == "PLAYING",
-        "ready_home": rtde.get("output_int_register_26") == 10,
-        "zero_identity": all(rtde.get(f"output_int_register_{index}") == 0 for index in identity_fields),
+        "stopped": state == "STOPPED",
     }
     return {
         "ok": all(checks.values()),
-        "mode": "playing_ready_home_zero_identity",
+        "mode": "loaded_stopped" if checks["stopped"] else "not_stopped",
         "checks": checks,
         "raw": raw,
     }
@@ -123,6 +216,11 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
     controller_identity, controller_sha = r009_preflight._controller_identity(
         dashboard, rtde, robot_host=args.robot_host
     )
+    controller_triplet = observe_manual_controller_triplet(
+        ROOT,
+        context["manual_release_manifest_sha256"],
+        qualification_endpoints=args.qualification_endpoints,
+    )
     predicates = {
         "safety_normal": r009_preflight._safety_normal(dashboard),
         "program_safe_for_bridge": _program_safe(dashboard, rtde),
@@ -140,6 +238,10 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "calibration": r009_preflight._value(local.get("runtime_calibration", {})),
             "production_startup_prewarm": r009_preflight._value(local.get("production_startup_prewarm", {})),
+        },
+        "controller_artifact_identity": {
+            "ok": controller_triplet["ok"] is True,
+            "observation": controller_triplet,
         },
     }
     transport_ok = (
@@ -189,6 +291,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bridge-start-context", type=Path, required=True)
     parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--qualification-endpoints", type=Path)
     args = parser.parse_args(argv)
     try:
         payload = run_preflight(args)

@@ -7,6 +7,7 @@ import argparse
 import csv
 from datetime import datetime, timezone
 import hashlib
+import io
 import json
 import math
 from pathlib import Path
@@ -82,25 +83,36 @@ def _bridge_heartbeat(payload: dict[str, Any]) -> bool:
     ):
         return False
     try:
-        with csv_path.open(newline="") as stream:
-            rows = list(csv.DictReader(stream))
-        if len(rows) < 2:
+        encoded = csv_path.read_bytes()
+        if not encoded.endswith(b"\n"):
+            return False
+        table = list(csv.reader(io.StringIO(encoded.decode("utf-8"), newline="")))
+        if len(table) < 3:
+            return False
+        header = table[0]
+        if len(header) != len(set(header)) or any(
+            len(row) != len(header) for row in table[1:]
+        ):
             return False
         required = {
             "write_index",
+            "t_wall_ns",
             "heartbeat",
             "command",
             "step4e_controller_state",
             "ur_safety_mode",
         }
-        if not required.issubset(rows[-1]) or not required.issubset(rows[-2]):
+        if not required.issubset(header):
             return False
-        previous = {name: float(rows[-2][name]) for name in required}
-        current = {name: float(rows[-1][name]) for name in required}
-    except (OSError, TypeError, ValueError):
+        indices = {name: header.index(name) for name in required}
+        previous = {name: float(table[-2][indices[name]]) for name in required}
+        current = {name: float(table[-1][indices[name]]) for name in required}
+    except (OSError, TypeError, UnicodeError, ValueError):
         return False
+    wall_age_ns = time.time_ns() - int(current["t_wall_ns"])
     return bool(
         all(math.isfinite(value) for value in (*previous.values(), *current.values()))
+        and 0 <= wall_age_ns <= BRIDGE_HEARTBEAT_MAX_AGE_NS
         and current["write_index"] > previous["write_index"]
         and current["heartbeat"] > previous["heartbeat"]
         and int(current["ur_safety_mode"]) == 1
@@ -202,16 +214,64 @@ def read_run_status(campaign_root: Path) -> dict[str, Any]:
         payload["next_action"] = "await explicit Play/ARM/motion authorization or stop"
     controller = payload.get("controller_observation")
     observed_at = controller.get("observed_at_unix_ns") if isinstance(controller, dict) else None
+    controller_keys = set(controller) if isinstance(controller, dict) else set()
+    required_controller_keys = {
+        "observed_at_unix_ns",
+        "loaded_program_response",
+        "program_state",
+        "safety_mode",
+        "expected_loaded_program",
+    }
+    triplet = controller.get("controller_triplet") if isinstance(controller, dict) else None
+    triplet_observed_at = (
+        triplet.get("observed_at_unix_ns") if isinstance(triplet, dict) else None
+    )
+    expected_triplet = triplet.get("expected_sha256") if isinstance(triplet, dict) else None
+    owner_helper = triplet.get("owner_helper") if isinstance(triplet, dict) else None
+    triplet_current = bool(
+        isinstance(triplet, dict)
+        and set(triplet)
+        == {
+            "schema",
+            "ok",
+            "mode",
+            "observed_at_unix_ns",
+            "expected_sha256",
+            "observed_sha256",
+            "endpoint",
+            "owner_helper",
+        }
+        and triplet.get("schema")
+        == "step5d.manual-v2/controller-triplet-observation-v1"
+        and triplet.get("ok") is True
+        and triplet.get("mode") == "fresh_controller_get"
+        and isinstance(triplet_observed_at, int)
+        and not isinstance(triplet_observed_at, bool)
+        and 0
+        <= time.time_ns() - triplet_observed_at
+        <= CONTROLLER_IDENTITY_MAX_AGE_NS
+        and isinstance(expected_triplet, dict)
+        and set(expected_triplet) == {".script", ".txt", ".urp"}
+        and all(
+            isinstance(value, str)
+            and len(value) == 64
+            and all(character in "0123456789abcdef" for character in value)
+            for value in expected_triplet.values()
+        )
+        and expected_triplet == triplet.get("observed_sha256")
+        and triplet.get("endpoint") is None
+        and isinstance(owner_helper, dict)
+        and set(owner_helper) == {"path", "sha256"}
+        and Path(str(owner_helper.get("path", ""))).is_absolute()
+        and isinstance(owner_helper.get("sha256"), str)
+        and len(owner_helper["sha256"]) == 64
+    )
     controller_identity_fresh = bool(
         isinstance(controller, dict)
-        and set(controller)
-        == {
-            "observed_at_unix_ns",
-            "loaded_program_response",
-            "program_state",
-            "safety_mode",
-            "expected_loaded_program",
-        }
+        and required_controller_keys.issubset(controller_keys)
+        and controller_keys
+        <= required_controller_keys
+        | {"program_state_normalized", "controller_triplet"}
         and isinstance(observed_at, int)
         and not isinstance(observed_at, bool)
         and 0 <= time.time_ns() - observed_at <= CONTROLLER_IDENTITY_MAX_AGE_NS
@@ -219,6 +279,14 @@ def read_run_status(campaign_root: Path) -> dict[str, Any]:
         and loaded_program_matches(
             str(controller.get("loaded_program_response", "")), EXPECTED_PROGRAM
         )
+        and triplet_current
+        and str(
+            controller.get(
+                "program_state_normalized",
+                str(controller.get("program_state", "")).split(maxsplit=1)[0].upper(),
+            )
+        )
+        == "STOPPED"
     )
     payload["controller_identity_fresh"] = controller_identity_fresh
     if payload.get("play_prompt_ready") is True and not controller_identity_fresh:

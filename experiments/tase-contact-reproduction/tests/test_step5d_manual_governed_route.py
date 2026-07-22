@@ -98,12 +98,29 @@ def _controller_observation() -> dict[str, object]:
     expected = (
         "/programs/andyl/kunwei/step5/step5d_strict_rnn_manual_tune_v2.urp"
     )
+    observed_at = time.time_ns()
+    triplet = {extension: character * 64 for extension, character in zip(
+        (".script", ".txt", ".urp"),
+        ("1", "2", "3"),
+        strict=True,
+    )}
     return {
-        "observed_at_unix_ns": time.time_ns(),
+        "observed_at_unix_ns": observed_at,
         "loaded_program_response": f"Loaded program: {expected}",
         "program_state": "STOPPED",
+        "program_state_normalized": "STOPPED",
         "safety_mode": "Safetymode: NORMAL",
         "expected_loaded_program": expected,
+        "controller_triplet": {
+            "schema": "step5d.manual-v2/controller-triplet-observation-v1",
+            "ok": True,
+            "mode": "fresh_controller_get",
+            "observed_at_unix_ns": observed_at,
+            "expected_sha256": triplet,
+            "observed_sha256": dict(triplet),
+            "endpoint": None,
+            "owner_helper": {"path": "/owner/helper.py", "sha256": "4" * 64},
+        },
     }
 
 
@@ -111,9 +128,9 @@ def _write_bridge_heartbeat(output: Path) -> None:
     path = output / "runtime/bridge/bridge_rtde_500hz.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        "write_index,heartbeat,command,step4e_controller_state,ur_safety_mode\n"
-        "1,1,0,0,1\n"
-        "2,2,0,0,1\n",
+        "write_index,t_wall_ns,heartbeat,command,step4e_controller_state,ur_safety_mode\n"
+        f"1,{time.time_ns()},1,0,0,1\n"
+        f"2,{time.time_ns()},2,0,0,1\n",
         encoding="utf-8",
     )
     (path.parent / "bridge_ready.json").write_text(
@@ -300,9 +317,9 @@ def test_status_recomputes_bridge_heartbeat(tmp_path: Path) -> None:
 
     csv_path = output / "runtime/bridge/bridge_rtde_500hz.csv"
     csv_path.write_text(
-        "write_index,heartbeat,command,step4e_controller_state,ur_safety_mode\n"
-        "2,2,0,0,1\n"
-        "2,2,0,0,1\n",
+        "write_index,t_wall_ns,heartbeat,command,step4e_controller_state,ur_safety_mode\n"
+        f"2,{time.time_ns()},2,0,0,1\n"
+        f"2,{time.time_ns()},2,0,0,1\n",
         encoding="utf-8",
     )
     stalled = status.read_status(campaign)
@@ -316,6 +333,33 @@ def test_status_recomputes_bridge_heartbeat(tmp_path: Path) -> None:
     assert stale["bridge_heartbeat"] is False
     assert stale["state"] == "BLOCKED"
     assert stale["blocker"] == "BRIDGE_HEARTBEAT_LOST"
+
+
+def test_status_rejects_touched_mtime_with_stale_row_timestamp(tmp_path: Path) -> None:
+    output = tmp_path / "output"
+    _write_bridge_heartbeat(output)
+    csv_path = output / "runtime/bridge/bridge_rtde_500hz.csv"
+    stale_ns = time.time_ns() - status.BRIDGE_HEARTBEAT_MAX_AGE_NS - 1
+    csv_path.write_text(
+        "write_index,t_wall_ns,heartbeat,command,step4e_controller_state,ur_safety_mode\n"
+        f"1,{stale_ns},1,0,0,1\n"
+        f"2,{stale_ns},2,0,0,1\n",
+        encoding="utf-8",
+    )
+    assert status._bridge_heartbeat(
+        {"output_root": str(output), **_bridge_process_fields()}
+    ) is False
+
+
+def test_status_rejects_unterminated_partial_heartbeat_row(tmp_path: Path) -> None:
+    output = tmp_path / "output"
+    _write_bridge_heartbeat(output)
+    csv_path = output / "runtime/bridge/bridge_rtde_500hz.csv"
+    with csv_path.open("a", encoding="utf-8") as stream:
+        stream.write(f"3,{time.time_ns()},3,0")
+    assert status._bridge_heartbeat(
+        {"output_root": str(output), **_bridge_process_fields()}
+    ) is False
 
 
 def test_status_revokes_play_prompt_when_controller_identity_is_stale(

@@ -43,6 +43,21 @@ SUPERVISOR_PID = 4100
 SUPERVISOR_STARTTIME = 7100
 
 
+def test_governance_process_identity_rejects_zombie_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = Path.read_text
+
+    def fake_read_text(path: Path, *args, **kwargs) -> str:
+        if path == Path("/proc/43/stat"):
+            return "43 (zombie child) Z " + " ".join(["0"] * 18 + ["701"])
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    assert governance.read_proc_starttime_ticks(43) is None
+
+
 def digest(label: str) -> str:
     return hashlib.sha256(label.encode("ascii")).hexdigest()
 

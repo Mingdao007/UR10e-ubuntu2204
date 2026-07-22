@@ -486,29 +486,33 @@ if (( bridge_mode == 1 )); then
   output_root="$(readlink -m -- "${output_root}")"
   campaign_root="$(readlink -m -- "${campaign_root}")"
   mkdir -p -- "${output_root}" "${campaign_root}"
-  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
-    export STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_PID="$$"
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
-      --experiment-root "${EXPERIMENT_ROOT}" \
-      --_exec-live-from-shell-contract \
-      "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
-    exit 0
-  fi
-  if [[ -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
-    export STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_PID="$$"
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
-      --_exec-live-from-shell-contract \
-      "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
-    exit 0
-  fi
   launch_runtime_bootstrap=0
-  bridge_begin_phase route_resolve
+  qualification_shell=0
+  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" || -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
+    qualification_shell=1
+    shell_proc_stat="$(</proc/$$/stat)"
+    shell_proc_fields="${shell_proc_stat##*) }"
+    read -r -a shell_proc_values <<<"${shell_proc_fields}"
+    launch_owner_starttime="${shell_proc_values[19]:-}"
+    if [[ ! "${launch_owner_starttime}" =~ ^[1-9][0-9]*$ ]]; then
+      echo "qualification shell owner starttime is unavailable" >&2
+      exit 66
+    fi
+  else
+    bridge_begin_phase route_resolve
+  fi
   route_snapshot="${output_root}/route-snapshot.json"
   launch_attempt_route_snapshot="${route_snapshot}"
   route_resolve_rc=0
+  route_resolve_args=(
+    --root "${EXPERIMENT_ROOT}"
+    --output "${route_snapshot}"
+  )
+  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" || -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
+    route_resolve_args+=(--robot-host 127.0.0.1)
+  fi
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/resolve_step5d_bridge_route.py" \
-    --root "${EXPERIMENT_ROOT}" \
-    --output "${route_snapshot}" \
+    "${route_resolve_args[@]}" \
     >"${output_root}/route-resolve.log" 2>&1 || route_resolve_rc=$?
   bridge_route="UNKNOWN"
   resolved_release_sha=""
@@ -523,15 +527,40 @@ if (( bridge_mode == 1 )); then
   launch_attempt_route="${bridge_route}"
   launch_manifest_sha256="${resolved_release_sha}"
   if (( route_resolve_rc != 0 )); then
-    bridge_record_launch_attempt \
-      FAILED \
-      route_resolve \
-      "${route_resolve_rc}" \
-      "canonical route resolution stopped: ${route_reason_code}" \
-      "${route_reason_code}"
-    bridge_revoke_authority failed
-    launch_attempt_enabled=0
+    if (( qualification_shell == 0 )); then
+      bridge_record_launch_attempt \
+        FAILED \
+        route_resolve \
+        "${route_resolve_rc}" \
+        "canonical route resolution stopped: ${route_reason_code}" \
+        "${route_reason_code}"
+      bridge_revoke_authority failed
+      launch_attempt_enabled=0
+    fi
     exit "${route_resolve_rc}"
+  fi
+  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
+    if [[ "${bridge_route}" != "manual_v2" ]]; then
+      echo "Manual qualification did not traverse the Manual production route" >&2
+      exit 2
+    fi
+    export STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_PID="$$"
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
+      --experiment-root "${EXPERIMENT_ROOT}" \
+      --_exec-live-from-shell-contract \
+      "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
+    exit 0
+  fi
+  if [[ -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
+    if [[ "${bridge_route}" != "autotune_v3" ]]; then
+      echo "V3 qualification did not traverse the V3 production route" >&2
+      exit 2
+    fi
+    export STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_PID="$$"
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
+      --_exec-live-from-shell-contract \
+      "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
+    exit 0
   fi
   if [[ "${bridge_route}" == "manual_v2" ]]; then
     manual_release_sha="${resolved_release_sha}"
@@ -564,6 +593,8 @@ if (( bridge_mode == 1 )); then
       --preflight "${manual_preflight}" \
       --launch-attempt-id "${launch_attempt_id}" \
       --campaign-id "${manual_campaign_id}" \
+      --canonical-owner-pid "$$" \
+      --canonical-owner-starttime "${launch_owner_starttime}" \
       --ready-timeout-s "${ready_timeout_s}" \
       >"${output_root}/manual-bridge-owner.log" 2>&1 &
     manual_bridge_owner_pid=$!
@@ -614,16 +645,6 @@ if (( bridge_mode == 1 )); then
       --pointer-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
       >"${output_root}/manual-active-run.json"
     manual_authorization="${campaign_root}/control/manual_capability_authorization.json"
-    mkdir -p -- "$(dirname -- "${manual_authorization}")"
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_authorization.py" issue \
-      --output "${manual_authorization}" \
-      --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
-      --attempt-id "${launch_attempt_id}" \
-      --owner-pid "$$" \
-      --owner-starttime "${launch_owner_starttime}" \
-      --campaign-id "${manual_campaign_id}" \
-      --release-manifest-sha256 "${manual_release_sha}" \
-      >"${output_root}/manual-authorization.json"
     bridge_begin_phase manual_campaign
     "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_manual_live_campaign.py" \
       --bridge-output-root "${output_root}" \
@@ -682,6 +703,8 @@ if (( bridge_mode == 1 )); then
   bridge_begin_phase campaign_prepare
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     --prepare-only \
+    --canonical-owner-pid "$$" \
+    --canonical-owner-starttime "${launch_owner_starttime}" \
     --campaign-root "${campaign_root}" \
     >"${output_root}/campaign-prepare.json"
   preflight="${output_root}/preflight.json"
@@ -694,6 +717,8 @@ if (( bridge_mode == 1 )); then
   bridge_begin_phase live_handoff
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     "${runner_args[@]}" --output-root "${output_root}" \
+    --canonical-owner-pid "$$" \
+    --canonical-owner-starttime "${launch_owner_starttime}" \
     --delivery-observation "${output_root}/delivery-observation.json" \
     --campaign-root "${campaign_root}" \
     --preflight "${preflight}"

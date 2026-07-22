@@ -163,6 +163,13 @@ def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath()
     assert 'PYTHONPATH:+:${PYTHONPATH}' not in source
 
 
+def test_installed_manual_guard_contract_matches_production_bridge() -> None:
+    import kunwei_rtde_bridge as production
+    import run_step5d_manual_bridge as manual
+
+    manual.require_manual_guard_semantics(production)
+
+
 def test_installed_runtime_rejects_known_incompatible_bridge_context() -> None:
     with pytest.raises(
         context_builder.BridgeContextBuildError,

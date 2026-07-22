@@ -295,6 +295,8 @@ def process_starttime(pid: int) -> int:
         stat_line = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
         suffix = stat_line.rsplit(")", 1)[1].split()
         # suffix[0] is field 3 (state); starttime is field 22.
+        if suffix[0].upper() in {"Z", "X"}:
+            raise RuntimeGateError(f"process {pid} is not live (state={suffix[0]})")
         starttime = int(suffix[19])
     except (FileNotFoundError, IndexError, OSError, ValueError) as exc:
         raise RuntimeGateError(f"process {pid} is not alive with readable identity") from exc

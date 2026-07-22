@@ -1120,6 +1120,8 @@ def read_proc_starttime_ticks(pid: int) -> int | None:
         if closing < 0:
             return None
         fields = encoded[closing + 2 :].split()
+        if fields[0].upper() in {"Z", "X"}:
+            return None
         return int(fields[19])
     except (OSError, UnicodeError, ValueError, IndexError):
         return None

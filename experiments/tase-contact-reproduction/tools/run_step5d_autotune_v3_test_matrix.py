@@ -19,7 +19,7 @@ from typing import Any, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX = ROOT / "config/step5d_autotune_v3_test_matrix.json"
-SCHEMA = "step5d.autotune-v3/parallel-test-run/v1"
+SCHEMA = "step5d.autotune-v3/parallel-test-run/v2"
 ALLOWED_LANES = {"small", "medium"}
 MAX_SMALL_WORKERS = 4
 FAILURE_TAIL_BYTES = 64 * 1024
@@ -28,6 +28,57 @@ FAILURE_TAIL_LINES = 200
 
 class TestMatrixError(RuntimeError):
     pass
+
+
+def _repository_binding() -> dict[str, Any]:
+    repository = ROOT.parents[1]
+
+    def git(*arguments: str) -> bytes:
+        completed = subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            raise TestMatrixError(
+                f"repository binding command failed: git {' '.join(arguments)}"
+            )
+        return completed.stdout
+
+    head = git("rev-parse", "HEAD").decode("ascii").strip()
+    status = git(
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+    )
+    return {
+        "root": str(repository.resolve(strict=True)),
+        "head": head,
+        "clean": not status,
+        "status_sha256": hashlib.sha256(status).hexdigest(),
+        "matrix_sha256": _sha256(MATRIX),
+    }
+
+
+def _runtime_binding_evidence(fields: Sequence[str]) -> dict[str, str]:
+    names = (
+        "control_python",
+        "optimizer_python",
+        "runtime_bundle_id",
+        "runtime_attestation_sha256",
+        "runtime_contract_sha256",
+        "uv_lock_sha256",
+        "control_environment_id",
+        "optimizer_environment_id",
+        "gpu_uuid",
+        "ld_library_path",
+        "cupy_cache_dir",
+    )
+    if len(fields) != len(names):
+        raise TestMatrixError("installed runtime binding fields differ")
+    return dict(zip(names, fields, strict=True))
 
 
 def _sha256(path: Path) -> str:
@@ -250,7 +301,9 @@ def run(
     output: Path,
     serial: bool = False,
     include_installed_runtime: bool = False,
+    require_clean: bool = False,
 ) -> dict[str, Any]:
+    repository_before = _repository_binding()
     resolved_workers = 1 if serial else resolve_workers(workers, lanes)
     commands = load_commands(MATRIX, lanes, resolved_workers)
     output = output.absolute()
@@ -269,8 +322,10 @@ def run(
             }
             results = [futures[name].result() for name in commands]
     installed_runtime_status = "not_requested"
+    installed_runtime_binding = None
     if include_installed_runtime:
         if all(item["returncode"] == 0 for item in results):
+            installed_runtime_binding = _runtime_binding_evidence(_runtime_binding())
             results.append(
                 _run_lane(
                     "local_installed_runtime",
@@ -281,9 +336,19 @@ def run(
             installed_runtime_status = "executed_serial_after_hermetic"
         else:
             installed_runtime_status = "blocked_by_hermetic_failure"
+    repository_after = _repository_binding()
+    repository_stable = repository_after == repository_before
+    clean_requirement_satisfied = bool(
+        not require_clean
+        or (repository_before["clean"] and repository_after["clean"])
+    )
     payload = {
         "schema": SCHEMA,
-        "ok": all(item["returncode"] == 0 for item in results),
+        "ok": bool(
+            all(item["returncode"] == 0 for item in results)
+            and repository_stable
+            and clean_requirement_satisfied
+        ),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "elapsed_s": time.monotonic() - started,
         "parallel_policy": {
@@ -295,6 +360,14 @@ def run(
             "serial_fallback": serial,
             "installed_runtime_status": installed_runtime_status,
         },
+        "repository_binding": {
+            "before": repository_before,
+            "after": repository_after,
+            "stable": repository_stable,
+            "require_clean": require_clean,
+            "clean_requirement_satisfied": clean_requirement_satisfied,
+        },
+        "installed_runtime_binding": installed_runtime_binding,
         "results": results,
     }
     manifest = output / "parallel_run_manifest.json"
@@ -315,6 +388,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--serial", action="store_true")
     parser.add_argument("--include-installed-runtime", action="store_true")
+    parser.add_argument("--require-clean", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--json", action="store_true")
     return parser.parse_args(argv)
@@ -329,6 +403,7 @@ def main(argv: list[str] | None = None) -> int:
             output=args.output,
             serial=args.serial,
             include_installed_runtime=args.include_installed_runtime,
+            require_clean=args.require_clean,
         )
     except Exception as exc:
         print(json.dumps({"schema": SCHEMA, "ok": False, "blocker": str(exc)}))

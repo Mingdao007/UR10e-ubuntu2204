@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import csv
 import hashlib
 import json
@@ -885,6 +886,20 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
     return process.returncode
 
 
+def _parent_death_guard(
+    expected_parent_pid: int,
+    expected_parent_starttime: int,
+) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(1, int(signal.SIGTERM), 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_PDEATHSIG) failed")
+    if (
+        os.getppid() != expected_parent_pid
+        or process_starttime(expected_parent_pid) != expected_parent_starttime
+    ):
+        os.kill(os.getpid(), signal.SIGTERM)
+
+
 def _program_stopped(result: Mapping[str, Any]) -> bool:
     state = str(result.get("programState", result.get("program_state", ""))).upper()
     return "STOPPED" in state
@@ -1259,6 +1274,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     )
     mailbox_tracker: dict[str, Any] = {"seen": {}, "duplicate": False}
     preexisting_bundles = _immutable_trial_bundles(args.campaign_root)
+    supervisor_pid = os.getpid()
+    supervisor_starttime = process_starttime(supervisor_pid)
     try:
         writer_guard = writer_lease(
             ResourceProfile.from_env(),
@@ -1280,6 +1297,10 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 stdout=bridge_log,
                 stderr=subprocess.STDOUT,
                 close_fds=True,
+                preexec_fn=lambda expected_pid=supervisor_pid, expected_start=supervisor_starttime: _parent_death_guard(
+                    expected_pid,
+                    expected_start,
+                ),
             )
             _wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")
             bridge_ready = read_strict_json(
@@ -1340,6 +1361,10 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                     stdout=runner_log,
                     stderr=subprocess.STDOUT,
                     close_fds=True,
+                    preexec_fn=lambda expected_pid=supervisor_pid, expected_start=supervisor_starttime: _parent_death_guard(
+                        expected_pid,
+                        expected_start,
+                    ),
                 )
                 _wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")
                 if qualification is None:
@@ -1758,6 +1783,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--ready-timeout-s", type=float, default=45.0)
     parser.add_argument("--play-timeout-s", type=float, default=120.0)
+    parser.add_argument("--canonical-owner-pid", type=int, required=True)
+    parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--qualification-endpoints",
@@ -1768,9 +1795,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
     try:
         _require_canonical_launcher()
+    except Exception as exc:
+        print(
+            json.dumps(
+                {"schema": RESULT_SCHEMA, "ok": False, "blocker": str(exc)},
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+    args = parse_args(argv)
+    try:
+        _parent_death_guard(
+            args.canonical_owner_pid,
+            args.canonical_owner_starttime,
+        )
         args._runtime_pointer = require_runtime_profile("control")
         if args.prepare_only:
             release = load_current_release(ROOT)

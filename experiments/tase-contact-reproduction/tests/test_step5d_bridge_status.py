@@ -138,9 +138,9 @@ def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
     bridge_csv = campaign.parent / "output/runtime/bridge/bridge_rtde_500hz.csv"
     bridge_csv.parent.mkdir(parents=True, exist_ok=True)
     bridge_csv.write_text(
-        "write_index,heartbeat,command,step4e_controller_state,ur_safety_mode\n"
-        "1,1,0,0,1\n"
-        "2,2,0,0,1\n",
+        "write_index,t_wall_ns,heartbeat,command,step4e_controller_state,ur_safety_mode\n"
+        f"1,{time.time_ns()},1,0,0,1\n"
+        f"2,{time.time_ns()},2,0,0,1\n",
         encoding="utf-8",
     )
     (bridge_csv.parent / "bridge_ready.json").write_text(
@@ -173,11 +173,33 @@ def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
                         "step5d_strict_rnn_manual_tune_v2.urp"
                     ),
                     "program_state": "STOPPED",
+                    "program_state_normalized": "STOPPED",
                     "safety_mode": "Safetymode: NORMAL",
                     "expected_loaded_program": (
                         "/programs/andyl/kunwei/step5/"
                         "step5d_strict_rnn_manual_tune_v2.urp"
                     ),
+                    "controller_triplet": {
+                        "schema": "step5d.manual-v2/controller-triplet-observation-v1",
+                        "ok": True,
+                        "mode": "fresh_controller_get",
+                        "observed_at_unix_ns": time.time_ns(),
+                        "expected_sha256": {
+                            ".script": "1" * 64,
+                            ".txt": "2" * 64,
+                            ".urp": "3" * 64,
+                        },
+                        "observed_sha256": {
+                            ".script": "1" * 64,
+                            ".txt": "2" * 64,
+                            ".urp": "3" * 64,
+                        },
+                        "endpoint": None,
+                        "owner_helper": {
+                            "path": "/owner/helper.py",
+                            "sha256": "4" * 64,
+                        },
+                    },
                 },
                 "capabilities": _capabilities(motion=motion),
                 "authorization": {

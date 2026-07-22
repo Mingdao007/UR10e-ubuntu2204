@@ -77,6 +77,11 @@ def test_installed_runtime_runs_only_after_passing_hermetic_lanes(
         "load_installed_runtime_command",
         lambda _path: ["/governed/control/bin/python", "-m", "pytest", "-q"],
     )
+    monkeypatch.setattr(
+        runner,
+        "_runtime_binding",
+        lambda: ["/control/python", "/optimizer/python", *("a" * 64 for _ in range(6)), "GPU-fixture", "/runtime/nvidia", "/runtime/cupy-cache"],
+    )
     payload = runner.run(
         ["small", "medium"],
         workers=2,
@@ -89,6 +94,47 @@ def test_installed_runtime_runs_only_after_passing_hermetic_lanes(
     assert payload["parallel_policy"]["installed_runtime_status"] == (
         "executed_serial_after_hermetic"
     )
+    assert payload["installed_runtime_binding"]["gpu_uuid"] == "GPU-fixture"
+
+
+def test_repository_binding_drift_blocks_a_passing_matrix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bindings = iter(
+        [
+            {
+                "root": "/repo",
+                "head": "a" * 40,
+                "clean": True,
+                "status_sha256": "0" * 64,
+                "matrix_sha256": "1" * 64,
+            },
+            {
+                "root": "/repo",
+                "head": "b" * 40,
+                "clean": True,
+                "status_sha256": "0" * 64,
+                "matrix_sha256": "1" * 64,
+            },
+        ]
+    )
+    monkeypatch.setattr(runner, "_repository_binding", lambda: next(bindings))
+    monkeypatch.setattr(
+        runner,
+        "_run_lane",
+        lambda name, _command, _output: {"lane": name, "returncode": 0},
+    )
+
+    payload = runner.run(
+        ["small"],
+        workers=1,
+        output=tmp_path / "drift",
+        require_clean=True,
+    )
+
+    assert payload["ok"] is False
+    assert payload["repository_binding"]["stable"] is False
 
 
 def test_installed_runtime_lane_uses_governed_cuda_paths(

@@ -311,7 +311,13 @@ def _contract_payload(
     }
 
 
-def _validate_contract(root: Path, payload: Mapping[str, Any]) -> dict[str, Any]:
+def _validate_contract(
+    root: Path,
+    payload: Mapping[str, Any],
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    values = os.environ if environment is None else environment
     required = {
         "schema",
         "launch_attempt_id",
@@ -367,7 +373,7 @@ def _validate_contract(root: Path, payload: Mapping[str, Any]) -> dict[str, Any]
     python_path = Path(str(python_reference["path"]))
     if (
         not python_path.is_absolute()
-        or str(python_path) != os.environ.get("STEP5D_V3_CONTROL_PYTHON")
+        or str(python_path) != values.get("STEP5D_V3_CONTROL_PYTHON")
         or _executable_sha256(python_path) != python_reference["sha256"]
     ):
         raise ManualQualificationError("Manual qualification python binding differs")
@@ -640,6 +646,10 @@ def exec_shell_contract(root: Path, contract_path: Path) -> None:
         contract["launch_attempt_id"],
         "--campaign-id",
         contract["campaign_id"],
+        "--canonical-owner-pid",
+        str(shell_pid),
+        "--canonical-owner-starttime",
+        str(read_process_starttime(shell_pid)),
         "--ready-timeout-s",
         str(contract["ready_timeout_s"]),
     ]
@@ -766,6 +776,8 @@ def run_qualification(
                 str(DEFAULT_LAUNCH_PROFILE),
                 "--output",
                 str(preflight_path),
+                "--qualification-endpoints",
+                str(endpoint_path),
             ]
             with preflight_log.open("wb") as log:
                 preflight = subprocess.run(
@@ -796,7 +808,7 @@ def run_qualification(
                 python_executable=control_python,
                 ready_timeout_s=30.0,
             )
-            _validate_contract(root, contract)
+            _validate_contract(root, contract, environment=clean_environment)
             contract_path = run_root / "internal-shell-contract.json"
             atomic_json(contract_path, contract)
             shell_environment = {
