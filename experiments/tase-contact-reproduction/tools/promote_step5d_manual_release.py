@@ -58,6 +58,8 @@ SOURCE_INPUTS = (
     Path("tools/step5d_autotune_live_driver.py"),
     Path("tools/step5d_autotune_state_machine.py"),
     Path("tools/step5d_autotune_v3/dashboard.py"),
+    Path("tools/step5d_autotune_v3/cli.py"),
+    Path("tools/step5d_autotune_v3/governance.py"),
     Path("tools/step5d_autotune_v3/launcher.py"),
     Path("tools/step5d_autotune_v3/preflight_support.py"),
     Path("tools/step5d_autotune_v3/profile.py"),
