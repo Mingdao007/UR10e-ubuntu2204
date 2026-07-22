@@ -4,20 +4,23 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from datetime import datetime, timezone
 import hashlib
 import json
-import os
+import math
 from pathlib import Path
 import sys
 import time
 from typing import Any
 
 from step5d_autotune_v3.runtime_gate import loaded_program_matches
+from step5d_autotune_v3.governance import read_proc_starttime_ticks
 from step5d_autotune_v3.state import atomic_json
 from step5d_manual_bridge import PROGRAM, ROOT
-from step5d_manual_authorization import load_capability_authorization
+from step5d_manual_authorization import capture_capability_authorization
 from step5d_manual_qualification import validate_result as validate_manual_qualification
+from ur10e_parallel import ResourceProfile, writer_lease_owner
 
 
 POINTER_SCHEMA = "step5d.manual-v2/active-run-pointer-v1"
@@ -29,30 +32,78 @@ CONTROLLER_IDENTITY_MAX_AGE_NS = 2_000_000_000
 BRIDGE_HEARTBEAT_MAX_AGE_NS = 2_000_000_000
 
 
-def _pid_alive(value: Any) -> bool:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+def _process_identity_current(pid: Any, starttime_ticks: Any) -> bool:
+    if (
+        isinstance(pid, bool)
+        or not isinstance(pid, int)
+        or pid < 1
+        or isinstance(starttime_ticks, bool)
+        or not isinstance(starttime_ticks, int)
+        or starttime_ticks < 1
+    ):
         return False
-    try:
-        os.kill(value, 0)
-    except OSError:
-        return False
-    return True
+    return read_proc_starttime_ticks(pid) == starttime_ticks
 
 
 def _bridge_heartbeat(payload: dict[str, Any]) -> bool:
     output_root = Path(str(payload.get("output_root", "")))
     csv_path = output_root / "runtime/bridge/bridge_rtde_500hz.csv"
+    ready_path = output_root / "runtime/bridge/bridge_ready.json"
     try:
         stat = csv_path.stat()
-    except OSError:
+        ready = json.loads(ready_path.read_text(encoding="utf-8"))
+        lease_owner = writer_lease_owner(ResourceProfile.from_env())
+    except (OSError, ValueError, json.JSONDecodeError):
         return False
-    return bool(
+    if not (
         output_root.is_absolute()
         and not csv_path.is_symlink()
         and csv_path.is_file()
         and stat.st_size > 0
         and 0 <= time.time_ns() - stat.st_mtime_ns <= BRIDGE_HEARTBEAT_MAX_AGE_NS
-        and _pid_alive(payload.get("bridge_pid"))
+        and _process_identity_current(
+            payload.get("bridge_pid"), payload.get("bridge_starttime_ticks")
+        )
+        and _process_identity_current(
+            payload.get("bridge_owner_pid"),
+            payload.get("bridge_owner_starttime_ticks"),
+        )
+        and isinstance(payload.get("bridge_launch_id"), str)
+        and len(payload["bridge_launch_id"]) == 32
+        and isinstance(ready, dict)
+        and ready.get("ok") is True
+        and ready.get("pid") == payload.get("bridge_pid")
+        and ready.get("launch_nonce") == payload.get("bridge_launch_id")
+        and isinstance(lease_owner, dict)
+        and lease_owner.get("pid") == payload.get("bridge_owner_pid")
+        and lease_owner.get("starttime_ticks")
+        == payload.get("bridge_owner_starttime_ticks")
+        and lease_owner.get("task") == "step5d-manual-no-arm-bridge"
+    ):
+        return False
+    try:
+        with csv_path.open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        if len(rows) < 2:
+            return False
+        required = {
+            "write_index",
+            "heartbeat",
+            "command",
+            "step4e_controller_state",
+            "ur_safety_mode",
+        }
+        if not required.issubset(rows[-1]) or not required.issubset(rows[-2]):
+            return False
+        previous = {name: float(rows[-2][name]) for name in required}
+        current = {name: float(rows[-1][name]) for name in required}
+    except (OSError, TypeError, ValueError):
+        return False
+    return bool(
+        all(math.isfinite(value) for value in (*previous.values(), *current.values()))
+        and current["write_index"] > previous["write_index"]
+        and current["heartbeat"] > previous["heartbeat"]
+        and int(current["ur_safety_mode"]) == 1
     )
 
 
@@ -120,15 +171,9 @@ def read_run_status(campaign_root: Path) -> dict[str, Any]:
     authorization_current = False
     if isinstance(authorization, dict) and set(authorization) == {"path", "sha256"}:
         authorization_path = Path(str(authorization["path"]))
-        if (
-            authorization_path.is_absolute()
-            and not authorization_path.is_symlink()
-            and authorization_path.is_file()
-            and hashlib.sha256(authorization_path.read_bytes()).hexdigest()
-            == authorization["sha256"]
-        ):
+        if authorization_path.is_absolute():
             try:
-                observed_authorization = load_capability_authorization(
+                observed_authorization, observed_reference = capture_capability_authorization(
                     authorization_path,
                     attempt_id=str(payload.get("launch_attempt_id", "")),
                     campaign_id=str(payload.get("campaign_id", "")),
@@ -137,7 +182,10 @@ def read_run_status(campaign_root: Path) -> dict[str, Any]:
             except Exception:
                 authorization_current = False
             else:
-                authorization_current = observed_authorization.get("capabilities") == capabilities
+                authorization_current = bool(
+                    observed_reference == authorization
+                    and observed_authorization.get("capabilities") == capabilities
+                )
     play_scope = bool(
         authorization_current
         and isinstance(capabilities, dict)

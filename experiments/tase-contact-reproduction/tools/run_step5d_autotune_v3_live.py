@@ -87,9 +87,11 @@ from step5d_autotune_v3.state import (
     read_strict_json,
 )
 from step5d_autotune_live_driver import AtomicCommandMailbox
+from ur10e_parallel import ResourceProfile, writer_lease, writer_lease_owner
 from step5d_bridge_status import (
     readiness_claim,
     resolve_status as resolve_bridge_status,
+    verify_readiness_claim,
 )
 
 
@@ -128,6 +130,7 @@ def _publish_canonical_readiness_claim(
     try:
         status = resolve_bridge_status(ROOT)
         claim = readiness_claim(status, required_state)
+        verify_readiness_claim(status, claim)
     except Exception as exc:
         raise LiveLaunchError(
             f"canonical readiness claim was not admitted: {type(exc).__name__}:{exc}"
@@ -663,6 +666,14 @@ def _publish_runtime_observation(
     bridge_starttime = process_starttime(bridge.pid)
     if bridge_starttime <= 0:
         raise LiveLaunchError("bridge process starttime is unavailable")
+    lease_owner = writer_lease_owner(ResourceProfile.from_env())
+    if (
+        not isinstance(lease_owner, Mapping)
+        or lease_owner.get("pid") != os.getpid()
+        or lease_owner.get("starttime_ticks") != process_starttime(os.getpid())
+        or lease_owner.get("task") != "step5d-autotune-v3-production-bridge"
+    ):
+        raise LiveLaunchError("exclusive production writer lease ownership was lost")
     try:
         publisher.publish(
             bridge_pid=bridge.pid,
@@ -1229,6 +1240,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     runner_log_path = args.output_root / "campaign_runner.log"
     bridge: subprocess.Popen[Any] | None = None
     runner: subprocess.Popen[Any] | None = None
+    bridge_rc: int | None = None
+    runner_rc: int | None = None
     cleanup: Mapping[str, Any] | None = None
     play_observed = False
     bridge_alive_at_campaign_outcome = False
@@ -1246,6 +1259,17 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     )
     mailbox_tracker: dict[str, Any] = {"seen": {}, "duplicate": False}
     preexisting_bundles = _immutable_trial_bundles(args.campaign_root)
+    try:
+        writer_guard = writer_lease(
+            ResourceProfile.from_env(),
+            "step5d-autotune-v3-production-bridge",
+            blocking=False,
+        )
+        writer_guard.__enter__()
+    except (OSError, TimeoutError) as exc:
+        raise LiveLaunchError(
+            f"exclusive production writer lease is unavailable: {exc}"
+        ) from exc
     try:
         with bridge_log_path.open("wb") as bridge_log:
             bridge = subprocess.Popen(
@@ -1604,41 +1628,82 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                     campaign_completed = True
                     print("V3_CAMPAIGN_RUNNER_STOPPED_BRIDGE_STILL_ALIVE", flush=True)
     finally:
-        authority_revocation_errors.extend(
-            _revoke_campaign_authority(
-                arm_gate_path,
-                lease=lease,
-                lease_sha256=lease_sha256,
-                publisher=(
-                    None if publisher_terminalization_started else publisher
-                ),
-                reason=(
-                    "campaign_terminal" if campaign_completed else "supervisor_exit"
-                ),
-            )
-        )
-        producer_stopped, producer_exception = producer_poller.close()
-        if producer_exception is not None:
-            producer_error = (
-                f"{type(producer_exception).__name__}:{producer_exception}"
-            )
-        runner_rc = _terminate(runner)
-        bridge_rc = _terminate(bridge)
-        if bridge is not None:
-            if play_observed:
-                _announce_stop_if_playing(robot_host)
-            cleanup = _stop_v3_program(robot_host)
-        atomic_json(
-            args.output_root / "cleanup.json",
-            {
-                "runner_exit_code": runner_rc,
-                "bridge_exit_code": bridge_rc,
-                "program_stop": cleanup,
-                "authority_revocation_errors": authority_revocation_errors,
-                "producer_stopped": producer_stopped,
-                "producer_error": producer_error,
-            },
-        )
+        try:
+            try:
+                authority_revocation_errors.extend(
+                    _revoke_campaign_authority(
+                        arm_gate_path,
+                        lease=lease,
+                        lease_sha256=lease_sha256,
+                        publisher=(
+                            None if publisher_terminalization_started else publisher
+                        ),
+                        reason=(
+                            "campaign_terminal"
+                            if campaign_completed
+                            else "supervisor_exit"
+                        ),
+                    )
+                )
+            except Exception as exc:
+                authority_revocation_errors.append(
+                    f"authority_revoke:{type(exc).__name__}:{exc}"
+                )
+            try:
+                producer_stopped, producer_exception = producer_poller.close()
+            except Exception as exc:
+                producer_stopped = False
+                producer_error = f"producer_close:{type(exc).__name__}:{exc}"
+            else:
+                if producer_exception is not None:
+                    producer_error = (
+                        f"{type(producer_exception).__name__}:{producer_exception}"
+                    )
+            try:
+                runner_rc = _terminate(runner)
+            except Exception as exc:
+                authority_revocation_errors.append(
+                    f"runner_terminate:{type(exc).__name__}:{exc}"
+                )
+            try:
+                bridge_rc = _terminate(bridge)
+            except Exception as exc:
+                authority_revocation_errors.append(
+                    f"bridge_terminate:{type(exc).__name__}:{exc}"
+                )
+            if bridge is not None:
+                if play_observed:
+                    try:
+                        _announce_stop_if_playing(robot_host)
+                    except Exception as exc:
+                        authority_revocation_errors.append(
+                            f"stop_announcement:{type(exc).__name__}:{exc}"
+                        )
+                try:
+                    cleanup = _stop_v3_program(robot_host)
+                except Exception as exc:
+                    authority_revocation_errors.append(
+                        f"program_stop:{type(exc).__name__}:{exc}"
+                    )
+            try:
+                atomic_json(
+                    args.output_root / "cleanup.json",
+                    {
+                        "runner_exit_code": runner_rc,
+                        "bridge_exit_code": bridge_rc,
+                        "program_stop": cleanup,
+                        "authority_revocation_errors": authority_revocation_errors,
+                        "producer_stopped": producer_stopped,
+                        "producer_error": producer_error,
+                    },
+                )
+            except Exception as exc:
+                print(
+                    f"cleanup evidence unavailable: {type(exc).__name__}:{exc}",
+                    file=sys.stderr,
+                )
+        finally:
+            writer_guard.__exit__(None, None, None)
     result = {
         "schema": RESULT_SCHEMA,
         "ok": (

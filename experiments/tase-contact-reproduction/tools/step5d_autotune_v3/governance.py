@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import copy
+import fcntl
 import hashlib
 import json
 import os
@@ -755,6 +756,7 @@ def validate_launch_attempt(value: Any) -> dict[str, Any]:
             "LAUNCH_ATTEMPT_FAILED",
             "LAUNCH_ATTEMPT_CANCELLED",
             *LAUNCH_ROUTE_BLOCKER_REASON_CODES,
+            *INTERNAL_REASON_CODES,
         }
         if reason not in allowed_reasons and reason not in EXTERNAL_REASON_CODES:
             raise GovernanceError("launch attempt reason code differs")
@@ -1232,7 +1234,7 @@ def load_current_launch_attempt(
     return attestation, pointer
 
 
-def publish_launch_attempt(
+def _publish_launch_attempt_unlocked(
     campaign_root: Path,
     *,
     attempt_id: str,
@@ -1385,6 +1387,44 @@ def publish_launch_attempt(
     }
     _atomic_bytes(pointer_path, _canonical_bytes(pointer))
     return {"attestation": payload, "pointer": pointer}
+
+
+def publish_launch_attempt(
+    campaign_root: Path,
+    *,
+    attempt_id: str,
+    state: str,
+    phase: str,
+    manifest_sha256: str | None = None,
+    observed_at_unix_ns: int | None = None,
+    exit_code: int | None = None,
+    reason_code: str | None = None,
+    detail: str | None = None,
+    external_evidence: Mapping[str, Any] | None = None,
+    route: str | None = None,
+    bindings: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    root = _campaign_root(campaign_root)
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    governance_root = root / "governance"
+    governance_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock_path = governance_root / ".launch-attempt.lock"
+    with lock_path.open("a+") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        return _publish_launch_attempt_unlocked(
+            root,
+            attempt_id=attempt_id,
+            state=state,
+            phase=phase,
+            manifest_sha256=manifest_sha256,
+            observed_at_unix_ns=observed_at_unix_ns,
+            exit_code=exit_code,
+            reason_code=reason_code,
+            detail=detail,
+            external_evidence=external_evidence,
+            route=route,
+            bindings=bindings,
+        )
 
 
 def publish_observed_attestation(

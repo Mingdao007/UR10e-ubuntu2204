@@ -58,6 +58,8 @@ class ManualArmGateProvider:
         self.release_manifest_sha256 = str(
             ticket["manual_release_manifest_sha256"]
         )
+        self.attempt_id = str(ticket["launch_attempt_id"])
+        self.campaign_id = str(ticket["campaign_id"])
 
     def __call__(
         self,
@@ -70,7 +72,7 @@ class ManualArmGateProvider:
         try:
             from step5d_manual_authorization import (
                 ManualAuthorizationError,
-                load_capability_authorization,
+                capture_capability_authorization,
             )
 
             payload = strict_object(self.path, "manual bridge ARM gate")
@@ -84,10 +86,9 @@ class ManualArmGateProvider:
                 "arm_binding",
             } or payload.get("schema") != ARM_GATE_SCHEMA:
                 raise ManualBridgeError("manual bridge ARM gate fields differ")
-            attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", "")
             if (
-                not attempt_id
-                or payload.get("attempt_id") != attempt_id
+                payload.get("attempt_id") != self.attempt_id
+                or payload.get("campaign_id") != self.campaign_id
                 or payload.get("release_manifest_sha256")
                 != self.release_manifest_sha256
             ):
@@ -98,17 +99,16 @@ class ManualArmGateProvider:
             ) != {"path", "sha256"}:
                 raise ManualBridgeError("manual bridge ARM authorization reference differs")
             authorization_path = Path(str(authorization_ref["path"]))
-            if (
-                not authorization_path.is_absolute()
-                or sha256_path(authorization_path) != authorization_ref["sha256"]
-            ):
+            if not authorization_path.is_absolute():
                 raise ManualBridgeError("manual bridge ARM authorization bytes differ")
-            authorization = load_capability_authorization(
+            authorization, captured_reference = capture_capability_authorization(
                 authorization_path,
-                attempt_id=attempt_id,
-                campaign_id=str(payload["campaign_id"]),
+                attempt_id=self.attempt_id,
+                campaign_id=self.campaign_id,
                 release_manifest_sha256=self.release_manifest_sha256,
             )
+            if captured_reference != dict(authorization_ref):
+                raise ManualBridgeError("manual bridge ARM authorization bytes differ")
             created_at = payload.get("created_at_unix_ns")
             now_ns = time.time_ns()
             if (
@@ -126,8 +126,8 @@ class ManualArmGateProvider:
                 # the expected fail-closed half of that two-file transition.
                 return None
             return {
-                "attempt_id": attempt_id,
-                "campaign_id": payload["campaign_id"],
+                "attempt_id": self.attempt_id,
+                "campaign_id": self.campaign_id,
                 "release_manifest_sha256": self.release_manifest_sha256,
                 "authorization_sha256": authorization_ref["sha256"],
                 "arm_binding": dict(arm_binding),
@@ -213,6 +213,7 @@ def strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         "schema", "parent_pid", "argv_sha256", "launch_id", "scope",
         "program", "protocol", "wire_protocol", "control_profile_id",
         "release_stage_id", "manual_release_manifest_sha256",
+        "launch_attempt_id", "campaign_id",
         "bridge_start_context", "preflight", "qualification_endpoints",
     }
     if set(payload) != required:
@@ -228,6 +229,10 @@ def strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
             payload["wire_protocol"] != WIRE_PROTOCOL,
             payload["control_profile_id"] != CONTROL_PROFILE,
             payload["release_stage_id"] != RELEASE_STAGE,
+            not isinstance(payload["launch_attempt_id"], str),
+            not payload["launch_attempt_id"],
+            not isinstance(payload["campaign_id"], str),
+            not payload["campaign_id"],
         )
     ):
         raise ManualBridgeError("manual runtime ticket identity differs")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -657,8 +658,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             ):
                 raise CliError("internal launch-attempt recording fields are incomplete")
             from .governance import (
-                load_current_release_snapshot,
                 publish_launch_attempt,
+                read_proc_starttime_ticks,
             )
 
             external_reference = None
@@ -718,28 +719,62 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "capabilities": capabilities,
                     "route_snapshot": route_reference,
                 }
-            current_release = load_current_release_snapshot(experiment_root)
-            recorded = publish_launch_attempt(
-                campaign_root,
-                attempt_id=args.internal_launch_attempt_id,
-                state=args.internal_launch_attempt_state,
-                phase=args.internal_launch_attempt_phase,
-                manifest_sha256=(
-                    args.internal_launch_manifest_sha256
-                    if bindings is not None
-                    else (
-                        current_release.manifest_sha256
-                        if current_release.valid
-                        else None
-                    )
-                ),
-                exit_code=args.internal_launch_attempt_exit_code,
-                reason_code=args.internal_launch_attempt_reason_code,
-                detail=args.internal_launch_attempt_detail,
-                external_evidence=external_reference,
-                route=args.internal_launch_attempt_route,
-                bindings=bindings,
+            if bindings is None:
+                raise CliError(
+                    "legacy unbound launch-attempt recording is retired"
+                )
+            from step5d_bridge_authority import (
+                BridgeAuthorityError,
+                LOCK_FILE as BRIDGE_AUTHORITY_LOCK_FILE,
+                load_current as load_bridge_authority,
             )
+
+            authority_lock = (campaign_root / BRIDGE_AUTHORITY_LOCK_FILE).open(
+                "a+"
+            )
+            fcntl.flock(authority_lock.fileno(), fcntl.LOCK_EX)
+            try:
+                try:
+                    authority = load_bridge_authority(campaign_root)
+                except (OSError, ValueError, BridgeAuthorityError) as exc:
+                    raise CliError(
+                        f"launch-attempt owner authority is invalid: {exc}"
+                    ) from exc
+                owner = bindings["resource_owner"]
+                if (
+                    authority is None
+                    or authority.get("state") != "ACTIVE"
+                    or authority.get("attempt_id")
+                    != args.internal_launch_attempt_id
+                    or authority.get("sequence") != owner["authority_epoch"]
+                    or authority.get("owner")
+                    != {
+                        "pid": owner["pid"],
+                        "starttime_ticks": owner["starttime_ticks"],
+                    }
+                    or os.getppid() != owner["pid"]
+                    or read_proc_starttime_ticks(owner["pid"])
+                    != owner["starttime_ticks"]
+                ):
+                    raise CliError(
+                        "launch-attempt recorder is not the active authority-owner child"
+                    )
+                recorded = publish_launch_attempt(
+                    campaign_root,
+                    attempt_id=args.internal_launch_attempt_id,
+                    state=args.internal_launch_attempt_state,
+                    phase=args.internal_launch_attempt_phase,
+                    manifest_sha256=args.internal_launch_manifest_sha256,
+                    exit_code=args.internal_launch_attempt_exit_code,
+                    reason_code=args.internal_launch_attempt_reason_code,
+                    detail=args.internal_launch_attempt_detail,
+                    external_evidence=external_reference,
+                    route=args.internal_launch_attempt_route,
+                    bindings=bindings,
+                )
+            finally:
+                fcntl.flock(authority_lock.fileno(), fcntl.LOCK_UN)
+                authority_lock.close()
             print(json.dumps(recorded, sort_keys=True))
             return 0
         if args.internal_service:

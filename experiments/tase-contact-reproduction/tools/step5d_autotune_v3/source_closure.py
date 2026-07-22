@@ -47,7 +47,10 @@ PRODUCTION_EXPERIMENT_DATA = frozenset(
     {
         "config/schemas/step5d_autotune_campaign_v1.schema.json",
         "config/step5/step5d_v3_runtime_contract.json",
+        "config/step5/step5d_autotune_v3_control_contract.json",
         "config/step5_safe_frame.json",
+        "config/step5d/manual/launch_profile.json",
+        "config/step5d/manual/stage_table.json",
         "config/step5d/artifact_locators/step5d_v35_retained_inputs.json",
         "config/step5d/manifests/step5d_strict_rnn_ablation_v35/"
         "controller_readback_receipt.json",

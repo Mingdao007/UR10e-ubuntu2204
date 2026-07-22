@@ -1254,7 +1254,7 @@ def test_queue_integrity_error_is_explicit_internal_blocker(
     assert isinstance(status["next_action"], str)
 
 
-def test_hidden_cli_records_started_and_failed_launch_attempt(
+def test_hidden_cli_rejects_unbound_legacy_launch_attempt(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     campaign = tmp_path / "campaign"
@@ -1268,8 +1268,84 @@ def test_hidden_cli_records_started_and_failed_launch_attempt(
         "--_launch-attempt-phase",
         "status_before",
     ]
+    assert cli.main([*common, "--_launch-attempt-state", "STARTED"]) == 2
+    captured = capsys.readouterr()
+    assert "unbound launch-attempt recording is retired" in captured.err
+    assert not (campaign / "governance/current-launch.json").exists()
+    assert "_launch-attempt" not in cli.build_parser().format_help()
+
+
+def test_hidden_cli_is_fenced_to_active_authority_owner(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import step5d_bridge_authority as bridge_authority
+
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    owner_pid = 42
+    owner_starttime = 700
+    monkeypatch.setattr(os, "getppid", lambda: owner_pid)
+    monkeypatch.setattr(
+        bridge_authority,
+        "read_proc_starttime_ticks",
+        lambda pid: owner_starttime if pid == owner_pid else None,
+    )
+    monkeypatch.setattr(
+        governance,
+        "read_proc_starttime_ticks",
+        lambda pid: owner_starttime if pid == owner_pid else None,
+    )
+    bridge_authority.begin(
+        campaign,
+        attempt_id="shell-attempt-bound",
+        owner_pid=owner_pid,
+        owner_starttime_ticks=owner_starttime,
+    )
+    common = [
+        "--experiment-root",
+        str(ROOT),
+        "--campaign-root",
+        str(campaign),
+        "--_launch-attempt-id",
+        "shell-attempt-bound",
+        "--_launch-attempt-phase",
+        "status_before",
+        "--_launch-attempt-route",
+        "UNKNOWN",
+        "--_launch-repository-head",
+        "a" * 40,
+        "--_launch-runtime-environment-id",
+        "b" * 64,
+        "--_launch-campaign-path",
+        str(campaign),
+        "--_launch-output-root",
+        str(output),
+        "--_launch-owner-pid",
+        str(owner_pid),
+        "--_launch-owner-starttime",
+        str(owner_starttime),
+        "--_launch-owner-authority-epoch",
+        "1",
+        "--_launch-capabilities-json",
+        json.dumps(
+            {
+                "bridge": True,
+                "play": False,
+                "arm": False,
+                "motion": False,
+                "zero": False,
+                "tare": False,
+            }
+        ),
+    ]
     assert cli.main([*common, "--_launch-attempt-state", "STARTED"]) == 0
-    capsys.readouterr()
+    recorded = json.loads(capsys.readouterr().out)
+    assert recorded["attestation"]["state"] == "STARTED"
+    before, before_pointer = load_current_launch_attempt(campaign)
+
+    monkeypatch.setattr(os, "getppid", lambda: owner_pid + 1)
     assert (
         cli.main(
             [
@@ -1281,13 +1357,12 @@ def test_hidden_cli_records_started_and_failed_launch_attempt(
                 "--_launch-attempt-reason-code",
                 "LAUNCH_ATTEMPT_FAILED",
                 "--_launch-attempt-detail",
-                "status_before exited 41",
+                "sibling recorder rejected",
             ]
         )
-        == 0
+        == 2
     )
-    recorded = json.loads(capsys.readouterr().out)
-    assert recorded["attestation"]["state"] == "FAILED"
-    assert recorded["attestation"]["exit_code"] == 41
-    assert load_current_launch_attempt(campaign)[0] == recorded["attestation"]
-    assert "_launch-attempt" not in cli.build_parser().format_help()
+    assert "active authority-owner child" in capsys.readouterr().err
+    after, after_pointer = load_current_launch_attempt(campaign)
+    assert after == before
+    assert after_pointer == before_pointer

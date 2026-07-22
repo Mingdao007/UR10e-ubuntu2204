@@ -294,6 +294,8 @@ def _contract_payload(
     ]
     return {
         "schema": CONTRACT_SCHEMA,
+        "launch_attempt_id": uuid.uuid4().hex,
+        "campaign_id": f"manual-qualification-{uuid.uuid4().hex}",
         "caller": {"pid": os.getpid(), "starttime_ticks": caller_starttime},
         "run_root": str(run_root),
         "output_root": str(live_root),
@@ -312,6 +314,8 @@ def _contract_payload(
 def _validate_contract(root: Path, payload: Mapping[str, Any]) -> dict[str, Any]:
     required = {
         "schema",
+        "launch_attempt_id",
+        "campaign_id",
         "caller",
         "run_root",
         "output_root",
@@ -327,6 +331,16 @@ def _validate_contract(root: Path, payload: Mapping[str, Any]) -> dict[str, Any]
     }
     if set(payload) != required or payload.get("schema") != CONTRACT_SCHEMA:
         raise ManualQualificationError("Manual qualification shell contract fields differ")
+    launch_attempt_id = payload.get("launch_attempt_id")
+    campaign_id = payload.get("campaign_id")
+    if (
+        not isinstance(launch_attempt_id, str)
+        or len(launch_attempt_id) != 32
+        or any(character not in "0123456789abcdef" for character in launch_attempt_id)
+        or not isinstance(campaign_id, str)
+        or not campaign_id.startswith("manual-qualification-")
+    ):
+        raise ManualQualificationError("Manual qualification campaign identity differs")
     caller = payload.get("caller")
     if not isinstance(caller, Mapping) or set(caller) != {"pid", "starttime_ticks"}:
         raise ManualQualificationError("Manual qualification caller binding differs")
@@ -413,8 +427,10 @@ def validate_result(
         "preflight",
         "qualification_endpoints",
         "endpoint_evidence",
+        "gpu_functional",
         "endpoint_pre_stop_sha256",
         "canary",
+        "process_shutdown",
         "canonical_shell_returncode",
         "capabilities",
         "play_prompt_ready",
@@ -445,6 +461,11 @@ def validate_result(
     runtime = load_runtime_pointer(
         environ=os.environ if environment is None else environment
     )
+    _gpu_payload, current_gpu_reference = load_gpu_functional_attestation(
+        runtime_pointer=runtime
+    )
+    if payload.get("gpu_functional") != current_gpu_reference:
+        raise ManualQualificationError("Manual qualification GPU evidence drifted")
     observed_runtime = payload.get("runtime")
     if not isinstance(observed_runtime, Mapping) or any(
         (
@@ -525,6 +546,31 @@ def validate_result(
         or canary.get("observed_duration_s", 0.0) < 0.75
     ):
         raise ManualQualificationError("Manual qualification startup canary differs")
+    shutdown = payload.get("process_shutdown")
+    if (
+        not isinstance(shutdown, Mapping)
+        or shutdown.get("all_processes_gone") is not True
+        or shutdown.get("bridge_returncode") not in {0, 130}
+    ):
+        raise ManualQualificationError("Manual qualification process shutdown differs")
+    closure_reference = shutdown.get("bridge_closure")
+    if (
+        not isinstance(closure_reference, Mapping)
+        or set(closure_reference) != {"path", "sha256"}
+        or _sha256(Path(str(closure_reference["path"])))
+        != closure_reference["sha256"]
+    ):
+        raise ManualQualificationError("Manual qualification bridge closure drifted")
+    closure = strict_object(
+        Path(str(closure_reference["path"])), "Manual qualification bridge closure"
+    )
+    if (
+        closure.get("schema") != "step5d.manual-hold/bridge-closure-v1"
+        or closure.get("bridge_rc") != shutdown.get("bridge_returncode")
+        or closure.get("arm_authorized") is not False
+        or closure.get("motion_authorized") is not False
+    ):
+        raise ManualQualificationError("Manual qualification bridge closure differs")
     endpoint = strict_object(
         Path(payload["endpoint_evidence"]["path"]),
         "Manual qualification endpoint evidence",
@@ -590,6 +636,10 @@ def exec_shell_contract(root: Path, contract_path: Path) -> None:
         contract["launch_profile"]["path"],
         "--qualification-endpoints",
         contract["qualification_endpoints"]["path"],
+        "--launch-attempt-id",
+        contract["launch_attempt_id"],
+        "--campaign-id",
+        contract["campaign_id"],
         "--ready-timeout-s",
         str(contract["ready_timeout_s"]),
     ]
@@ -631,7 +681,9 @@ def run_qualification(
     values = dict(os.environ if environment is None else environment)
     release = load_manual_release(root)
     runtime = load_runtime_pointer(environ=values)
-    load_gpu_functional_attestation(runtime_pointer=runtime)
+    _gpu_payload, gpu_reference = load_gpu_functional_attestation(
+        runtime_pointer=runtime
+    )
     control_python = runtime["profiles"]["control"]["python_executable"]
     if Path(sys.executable).resolve() != Path(control_python).resolve():
         raise ManualQualificationError("Manual qualifier is not using the control runtime")
@@ -661,6 +713,7 @@ def run_qualification(
     launch: Mapping[str, Any] | None = None
     ready: Mapping[str, Any] | None = None
     canary: Mapping[str, Any] | None = None
+    process_shutdown: Mapping[str, Any] | None = None
     blocker: str | None = None
     shell_rc: int | None = None
     endpoint_simulator: QualificationEndpointSimulator | None = None
@@ -771,8 +824,16 @@ def run_qualification(
                     (
                         launch.get("parent_pid")
                         != process_tree["manual_owner"]["pid"],
+                        launch.get("parent_starttime_ticks")
+                        != process_tree["manual_owner"]["starttime_ticks"],
                         launch.get("pid")
                         != process_tree["production_bridge"]["pid"],
+                        launch.get("pid_starttime_ticks")
+                        != process_tree["production_bridge"]["starttime_ticks"],
+                        launch.get("launch_attempt_id")
+                        != contract["launch_attempt_id"],
+                        launch.get("campaign_id") != contract["campaign_id"],
+                        launch.get("launch_id") != ready.get("launch_nonce"),
                         launch.get("arm_authorized") is not False,
                         launch.get("motion_authorized") is not False,
                         ready.get("pid") != launch.get("pid"),
@@ -805,6 +866,31 @@ def run_qualification(
                 raise ManualQualificationError(
                     f"Manual canonical shell did not stop cleanly rc={shell_rc}"
                 )
+            closure_path = live_root / "bridge_closure.json"
+            closure = strict_object(closure_path, "Manual qualification bridge closure")
+            bridge_rc = closure.get("bridge_rc")
+            if (
+                closure.get("schema") != "step5d.manual-hold/bridge-closure-v1"
+                or bridge_rc not in {0, 130}
+                or closure.get("arm_authorized") is not False
+                or closure.get("motion_authorized") is not False
+            ):
+                raise ManualQualificationError(
+                    "Manual production bridge did not close cleanly"
+                )
+            still_alive = []
+            for role, row in process_tree.items():
+                if read_process_starttime(row["pid"]) == row["starttime_ticks"]:
+                    still_alive.append(role)
+            if still_alive:
+                raise ManualQualificationError(
+                    f"Manual production descendants survived shutdown: {still_alive}"
+                )
+            process_shutdown = {
+                "all_processes_gone": True,
+                "bridge_returncode": bridge_rc,
+                "bridge_closure": _file_ref(closure_path),
+            }
             atomic_json(endpoint_evidence_path, endpoints.evidence())
     except (OSError, ValueError, TimeoutError, QualificationBlocked, ManualQualificationError) as exc:
         blocker = f"{type(exc).__name__}:{exc}"
@@ -851,6 +937,7 @@ def run_qualification(
         "endpoint_evidence": _file_ref(endpoint_evidence_path)
         if endpoint_evidence_path.is_file()
         else None,
+        "gpu_functional": gpu_reference,
         "endpoint_pre_stop_sha256": hashlib.sha256(
             json.dumps(
                 endpoint_pre_stop,
@@ -862,6 +949,7 @@ def run_qualification(
         if endpoint_pre_stop
         else None,
         "canary": canary,
+        "process_shutdown": process_shutdown,
         "canonical_shell_returncode": shell_rc,
         "capabilities": {
             "bridge": True,

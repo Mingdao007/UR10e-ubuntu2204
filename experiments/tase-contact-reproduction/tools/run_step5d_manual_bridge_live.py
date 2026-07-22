@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import ipaddress
 import json
@@ -28,6 +29,7 @@ from step5d_manual_bridge import (
 from step5d_manual_profile import DEFAULT_LAUNCH_PROFILE, load_manual_launch_profile
 from ur10e_parallel import ResourceProfile, writer_lease
 from step5d_autotune_v3.qualification import QUALIFICATION_ENDPOINT_PORTS
+from step5d_autotune_v3.runtime_gate import process_starttime
 
 
 WRAPPER = ROOT / "tools/run_step5d_manual_bridge.py"
@@ -83,6 +85,16 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
             process.terminate()
             process.wait(timeout=5.0)
     return process.returncode
+
+
+def _parent_death_guard(expected_parent_pid: int) -> None:
+    """Terminate the production bridge if its lease-owning parent disappears."""
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(1, int(signal.SIGTERM), 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_PDEATHSIG) failed")
+    if os.getppid() != expected_parent_pid:
+        os.kill(os.getpid(), signal.SIGTERM)
 
 
 def _validate_preflight(path: Path, context: Mapping[str, Any]) -> dict[str, Any]:
@@ -157,6 +169,8 @@ def run(args: argparse.Namespace) -> int:
         "control_profile_id": CONTROL_PROFILE,
         "release_stage_id": RELEASE_STAGE,
         "manual_release_manifest_sha256": context["manual_release_manifest_sha256"],
+        "launch_attempt_id": args.launch_attempt_id,
+        "campaign_id": args.campaign_id,
         "bridge_start_context": {
             "path": str(args.bridge_start_context.expanduser().absolute()),
             "sha256": sha256_path(args.bridge_start_context),
@@ -184,6 +198,7 @@ def run(args: argparse.Namespace) -> int:
     log_path = output_root / "bridge.log"
     process: subprocess.Popen[Any] | None = None
     stop_requested = False
+    owner_pid = os.getpid()
 
     def request_stop(_signum: int, _frame: Any) -> None:
         nonlocal stop_requested
@@ -203,6 +218,7 @@ def run(args: argparse.Namespace) -> int:
                     stdout=bridge_log,
                     stderr=subprocess.STDOUT,
                     close_fds=True,
+                    preexec_fn=lambda expected=owner_pid: _parent_death_guard(expected),
                 )
                 ready_path = bridge_run / "bridge_ready.json"
                 deadline = time.monotonic() + args.ready_timeout_s
@@ -230,6 +246,12 @@ def run(args: argparse.Namespace) -> int:
                     time.sleep(0.05)
                 else:
                     raise ManualBridgeError("manual bridge readiness timeout")
+                bridge_starttime = process_starttime(process.pid)
+                owner_starttime = process_starttime(os.getpid())
+                if bridge_starttime <= 0 or owner_starttime <= 0:
+                    raise ManualBridgeError(
+                        "manual bridge process identity is unavailable"
+                    )
                 result = {
                     "schema": "step5d.manual-hold/bridge-launch-result-v1",
                     "ok": True,
@@ -238,7 +260,12 @@ def run(args: argparse.Namespace) -> int:
                     "wire_protocol": WIRE_PROTOCOL,
                     "scope": "manual_bridge_no_arm",
                     "pid": process.pid,
+                    "pid_starttime_ticks": bridge_starttime,
                     "parent_pid": os.getpid(),
+                    "parent_starttime_ticks": owner_starttime,
+                    "launch_id": ticket["launch_id"],
+                    "launch_attempt_id": args.launch_attempt_id,
+                    "campaign_id": args.campaign_id,
                     "output_root": str(output_root),
                     "bridge_ready": str(ready_path),
                     "mailbox": str(runtime_root / "command.json"),
@@ -274,6 +301,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--preflight", type=Path, required=True)
     parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)
     parser.add_argument("--qualification-endpoints", type=Path)
+    parser.add_argument("--launch-attempt-id", required=True)
+    parser.add_argument("--campaign-id", required=True)
     parser.add_argument("--ready-timeout-s", type=float, default=20.0)
     args = parser.parse_args(argv)
     try:

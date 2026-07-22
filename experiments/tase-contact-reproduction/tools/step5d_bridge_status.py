@@ -12,18 +12,21 @@ import sys
 import time
 from typing import Any, Mapping
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from step5d_autotune_v3.governance import (
     EXTERNAL_REASON_CODES,
     LAUNCH_ATTEMPT_SCHEMA,
     LaunchAttemptAttestationError,
     LaunchAttemptPointerError,
     PHYSICAL_REASON_CODES,
+    ObservationPointerError,
+    ObservedAttestationError,
+    load_current_observation,
     load_current_launch_attempt,
     read_proc_starttime_ticks,
     resolve_governed_status,
 )
-from step5d_autotune_v3.profile import canonical_json_bytes
-from step5d_manual_status import read_run_status
 from step5d_bridge_authority import (
     BridgeAuthorityError,
     load_current as load_owner_authority,
@@ -34,6 +37,16 @@ STATUS_SCHEMA = "step5d.bridge/governed-status-v2"
 CLAIM_SCHEMA = "step5d.bridge/readiness-claim-v1"
 AUTHORITY_RELATIVE = Path("runs/step5d_bridge_authority")
 CLAIM_TTL_NS = 5_000_000_000
+
+
+def canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
 
 
 def _launch_view(attempt: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -177,6 +190,65 @@ def _scope_valid(capabilities: Any) -> bool:
     )
 
 
+def _v3_attempt_binding_valid(
+    attempt: Mapping[str, Any],
+    campaign_root: Path,
+    status: Mapping[str, Any],
+) -> bool:
+    try:
+        attestation, _pointer = load_current_observation(campaign_root)
+        process_reference = attestation["process"]["evidence"]
+        process_path = campaign_root / str(process_reference["path"])
+        process_bytes = process_path.read_bytes()
+        process_evidence = json.loads(process_bytes.decode("utf-8"))
+    except (
+        OSError,
+        UnicodeError,
+        ValueError,
+        KeyError,
+        json.JSONDecodeError,
+        ObservationPointerError,
+        ObservedAttestationError,
+    ):
+        return False
+    owner = attempt["bindings"]["resource_owner"]
+    processes = process_evidence.get("processes")
+    if not isinstance(processes, list):
+        return False
+    by_role = {
+        row.get("role"): row for row in processes if isinstance(row, Mapping)
+    }
+    canonical = by_role.get("canonical_launcher")
+    bridge = by_role.get("bridge_wrapper")
+    release = status.get("release")
+    attestation_view = status.get("attestation")
+    lease = status.get("campaign_lease")
+    return bool(
+        process_path.is_file()
+        and not process_path.is_symlink()
+        and hashlib.sha256(process_bytes).hexdigest()
+        == process_reference.get("sha256")
+        and process_evidence.get("schema")
+        == "step5d.autotune-v3/process-observation-evidence-v1"
+        and attestation.get("run_id") == attempt.get("attempt_id")
+        and attestation.get("campaign_id")
+        == (lease.get("campaign_id") if isinstance(lease, Mapping) else None)
+        and attestation.get("bindings", {}).get("manifest_sha256")
+        == attempt.get("manifest_sha256")
+        and isinstance(release, Mapping)
+        and release.get("sha256") == attempt.get("manifest_sha256")
+        and isinstance(attestation_view, Mapping)
+        and attestation_view.get("run_id") == attempt.get("attempt_id")
+        and isinstance(canonical, Mapping)
+        and canonical.get("pid") == owner.get("pid")
+        and canonical.get("starttime_ticks") == owner.get("starttime_ticks")
+        and isinstance(bridge, Mapping)
+        and bridge.get("pid") == attestation["process"]["bridge_pid"]
+        and bridge.get("starttime_ticks")
+        == attestation["process"]["bridge_starttime_ticks"]
+    )
+
+
 def _apply_attempt_gate(
     status: dict[str, Any], attempt: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -187,14 +259,12 @@ def _apply_attempt_gate(
     status["predicates"]["production_path_qualified"] = bool(
         status["predicates"].get("offline_proven") is True
     )
-    bindings = attempt.get("bindings") or {}
     scope = bool(
         status.get("predicates", {}).get("authorization_scope_valid") is True
         or (
             attempt.get("route") == "autotune_v3"
             and status.get("predicates", {}).get("lease_valid") is True
         )
-        or _scope_valid(bindings.get("capabilities"))
     )
     status["predicates"]["authorization_scope_valid"] = scope
     terminal = attempt["state"] in {"FAILED", "CANCELLED"}
@@ -252,8 +322,10 @@ def resolve_status(experiment_root: Path) -> dict[str, Any]:
     campaign_root = Path(attempt["bindings"]["campaign_root"])
     if route == "manual_v2":
         try:
+            from step5d_manual_status import read_run_status
+
             manual = read_run_status(campaign_root)
-        except (OSError, ValueError, json.JSONDecodeError):
+        except (ImportError, OSError, ValueError, json.JSONDecodeError):
             return _base_status("ROUTE_RUNTIME_NOT_OBSERVED", attempt=attempt)
         if manual.get("launch_attempt_id") != attempt.get("attempt_id"):
             return _base_status("LAUNCH_ATTEMPT_BINDING_INVALID", attempt=attempt)
@@ -281,10 +353,14 @@ def resolve_status(experiment_root: Path) -> dict[str, Any]:
         }
         return _apply_attempt_gate(status, attempt)
     status = resolve_governed_status(root, campaign_root)
+    if not _v3_attempt_binding_valid(attempt, campaign_root, status):
+        return _base_status("LAUNCH_ATTEMPT_BINDING_INVALID", attempt=attempt)
     return _apply_attempt_gate(status, attempt)
 
 
-def readiness_claim(status: Mapping[str, Any], required_state: str) -> dict[str, Any]:
+def _require_readiness_state(
+    status: Mapping[str, Any], required_state: str
+) -> None:
     if required_state not in {"WAITING_FOR_IDENTITY_PLAY", "WAITING_FOR_PLAY"}:
         raise ValueError("only pre-Play readiness states can be asserted")
     predicates = status.get("predicates")
@@ -301,6 +377,10 @@ def readiness_claim(status: Mapping[str, Any], required_state: str) -> dict[str,
         )
     ):
         raise ValueError("machine status does not authorize the requested readiness claim")
+
+
+def readiness_claim(status: Mapping[str, Any], required_state: str) -> dict[str, Any]:
+    _require_readiness_state(status, required_state)
     issued = time.time_ns()
     status_sha = hashlib.sha256(canonical_json_bytes(dict(status))).hexdigest()
     return {
@@ -311,6 +391,46 @@ def readiness_claim(status: Mapping[str, Any], required_state: str) -> dict[str,
         "issued_at_unix_ns": issued,
         "expires_at_unix_ns": issued + CLAIM_TTL_NS,
     }
+
+
+def verify_readiness_claim(
+    status: Mapping[str, Any],
+    claim: Mapping[str, Any],
+    *,
+    now_ns: int | None = None,
+) -> dict[str, Any]:
+    required = {
+        "schema",
+        "state",
+        "attempt_id",
+        "status_sha256",
+        "issued_at_unix_ns",
+        "expires_at_unix_ns",
+    }
+    if set(claim) != required or claim.get("schema") != CLAIM_SCHEMA:
+        raise ValueError("readiness claim schema differs")
+    state = claim.get("state")
+    if not isinstance(state, str):
+        raise ValueError("readiness claim state differs")
+    _require_readiness_state(status, state)
+    issued = claim.get("issued_at_unix_ns")
+    expires = claim.get("expires_at_unix_ns")
+    observed_now = time.time_ns() if now_ns is None else now_ns
+    expected_status_sha = hashlib.sha256(
+        canonical_json_bytes(dict(status))
+    ).hexdigest()
+    if (
+        claim.get("attempt_id") != status["launch_attempt"]["attempt_id"]
+        or claim.get("status_sha256") != expected_status_sha
+        or isinstance(issued, bool)
+        or not isinstance(issued, int)
+        or isinstance(expires, bool)
+        or not isinstance(expires, int)
+        or expires - issued != CLAIM_TTL_NS
+        or not issued <= observed_now < expires
+    ):
+        raise ValueError("readiness claim is stale or bound to different status")
+    return dict(claim)
 
 
 def main(argv: list[str] | None = None) -> int:

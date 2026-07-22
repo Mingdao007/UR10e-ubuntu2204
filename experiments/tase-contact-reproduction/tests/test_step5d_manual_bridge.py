@@ -27,10 +27,42 @@ import run_step5d_manual_bridge as wrapper  # noqa: E402
 import run_step5d_manual_bridge_live as live  # noqa: E402
 import run_step5d_manual_live_campaign as campaign  # noqa: E402
 import step5d_manual_bridge as bridge  # noqa: E402
+import step5d_manual_authorization as manual_authorization  # noqa: E402
 import step5d_manual_qualification as qualification  # noqa: E402
 import step5d_autotune_live_driver as mailbox_driver  # noqa: E402
 from step5d_autotune_state_machine import TpLoopState, TpPacket  # noqa: E402
 from step5d_manual_atomic_release import canonical_bytes  # noqa: E402
+from step5d_autotune_v3.governance import read_proc_starttime_ticks  # noqa: E402
+
+
+def _owner_authority(root: Path, attempt_id: str) -> dict[str, object]:
+    root.mkdir(parents=True, exist_ok=True)
+    owner = {
+        "pid": os.getpid(),
+        "starttime_ticks": read_proc_starttime_ticks(os.getpid()),
+    }
+    path = root / "owner-authority.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.bridge/owner-authority-v1",
+                "sequence": 1,
+                "state": "ACTIVE",
+                "attempt_id": attempt_id,
+                "owner": owner,
+                "activated_at_unix_ns": 1,
+                "revoked_at_unix_ns": None,
+                "reason": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "path": str(path),
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "sequence": 1,
+        "owner": owner,
+    }
 
 
 def test_manual_qualification_preserves_exact_venv_interpreter_path(
@@ -64,9 +96,13 @@ def test_manual_qualification_preserves_exact_venv_interpreter_path(
 
 
 def test_manual_capability_authorization_is_external_exact_and_no_zero_tare(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now_ns = 1_000_000
+    authority_root = tmp_path / "authority"
+    monkeypatch.setattr(
+        manual_authorization, "EXPECTED_AUTHORITY_ROOT", authority_root
+    )
     path = tmp_path / "authorization.json"
     payload = {
         "schema": campaign.AUTHORIZATION_SCHEMA,
@@ -76,6 +112,7 @@ def test_manual_capability_authorization_is_external_exact_and_no_zero_tare(
         "authorized_at_unix_ns": now_ns - 1,
         "expires_at_unix_ns": now_ns + 1,
         "issuer": "ur10e-live-bench-owner",
+        "owner_authority": _owner_authority(authority_root, "attempt-1"),
         "capabilities": {
             "bridge": True,
             "play": True,
@@ -85,6 +122,18 @@ def test_manual_capability_authorization_is_external_exact_and_no_zero_tare(
             "tare": False,
         },
     }
+    unsigned = dict(payload)
+    unsigned["schema"] = "step5d.manual-v2/capability-authorization-v1"
+    unsigned.pop("owner_authority")
+    path.write_text(json.dumps(unsigned), encoding="utf-8")
+    with pytest.raises(campaign.ManualLiveError, match="schema differs"):
+        campaign.load_capability_authorization(
+            path,
+            attempt_id="attempt-1",
+            campaign_id="manual-1",
+            release_manifest_sha256="a" * 64,
+            now_ns=now_ns,
+        )
     path.write_text(json.dumps(payload), encoding="utf-8")
     assert campaign.load_capability_authorization(
         path,
@@ -117,6 +166,64 @@ def test_manual_capability_authorization_is_external_exact_and_no_zero_tare(
             now_ns=now_ns,
         )
 
+
+def test_manual_authorization_is_issued_by_and_invalidated_with_owner_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    attempt_id = "attempt-owner-issued"
+    campaign_id = "manual-owner-issued"
+    release_sha = "a" * 64
+    authority_root = tmp_path / "authority"
+    owner_reference = _owner_authority(authority_root, attempt_id)
+    monkeypatch.setattr(
+        manual_authorization, "EXPECTED_AUTHORITY_ROOT", authority_root
+    )
+    monkeypatch.setattr(
+        manual_authorization,
+        "_caller_owner",
+        lambda pid, starttime: None
+        if (pid, starttime)
+        == (
+            owner_reference["owner"]["pid"],
+            owner_reference["owner"]["starttime_ticks"],
+        )
+        else pytest.fail("issuer owner identity differs"),
+    )
+    output = tmp_path / "authorization.json"
+    issued = manual_authorization.issue_capability_authorization(
+        output,
+        authority_root=authority_root,
+        attempt_id=attempt_id,
+        owner_pid=owner_reference["owner"]["pid"],
+        owner_starttime_ticks=owner_reference["owner"]["starttime_ticks"],
+        campaign_id=campaign_id,
+        release_manifest_sha256=release_sha,
+    )
+    assert issued["owner_authority"] == owner_reference
+    assert issued["capabilities"]["motion"] is True
+    assert issued["capabilities"]["zero"] is False
+
+    authority_path = authority_root / "owner-authority.json"
+    revoked = json.loads(authority_path.read_text(encoding="utf-8"))
+    revoked.update(
+        {
+            "sequence": 2,
+            "state": "REVOKED",
+            "revoked_at_unix_ns": time.time_ns(),
+            "reason": "cancelled",
+        }
+    )
+    authority_path.write_text(json.dumps(revoked), encoding="utf-8")
+    with pytest.raises(
+        manual_authorization.ManualAuthorizationError,
+        match="authority bytes differ|not current",
+    ):
+        manual_authorization.capture_capability_authorization(
+            output,
+            attempt_id=attempt_id,
+            campaign_id=campaign_id,
+            release_manifest_sha256=release_sha,
+        )
 
 def test_manual_runner_never_manufactures_arm_authorization() -> None:
     source = (ROOT / "tools/run_step5d_manual_live_campaign.py").read_text(
@@ -192,6 +299,13 @@ def test_manual_readiness_claim_is_machine_derived_and_persisted(
         lambda status, state: expected_claim
         if status is machine_status and state == "WAITING_FOR_IDENTITY_PLAY"
         else pytest.fail("Manual readiness claim inputs differ"),
+    )
+    monkeypatch.setattr(
+        campaign,
+        "verify_readiness_claim",
+        lambda status, claim: claim
+        if status is machine_status and claim is expected_claim
+        else pytest.fail("Manual readiness claim verification inputs differ"),
     )
     output = tmp_path / "bridge"
     output.mkdir()
@@ -399,6 +513,8 @@ def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, 
         "control_profile_id": bridge.CONTROL_PROFILE,
         "release_stage_id": bridge.RELEASE_STAGE,
         "manual_release_manifest_sha256": "a" * 64,
+        "launch_attempt_id": "attempt-ticket",
+        "campaign_id": "manual-ticket",
         "bridge_start_context": {
             "path": str(context_path),
             "sha256": hashlib.sha256(context_path.read_bytes()).hexdigest(),
@@ -507,7 +623,11 @@ def test_manual_runtime_uses_full_home_protocol_and_command_bound_arm_gate(
     release_sha = "a" * 64
     monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", attempt_id)
     wrapper.ManualBridgeMailboxRuntime.configure(
-        {"manual_release_manifest_sha256": release_sha}
+        {
+            "manual_release_manifest_sha256": release_sha,
+            "launch_attempt_id": attempt_id,
+            "campaign_id": campaign_id,
+        }
     )
     mailbox = (tmp_path / "runtime/command.json").resolve()
     mailbox.parent.mkdir(parents=True)
@@ -525,6 +645,7 @@ def test_manual_runtime_uses_full_home_protocol_and_command_bound_arm_gate(
         "authorized_at_unix_ns": now_ns - 1_000_000,
         "expires_at_unix_ns": now_ns + 1_000_000_000,
         "issuer": "ur10e-live-bench-owner",
+        "owner_authority": None,
         "capabilities": {
             "bridge": True,
             "play": True,
@@ -534,6 +655,13 @@ def test_manual_runtime_uses_full_home_protocol_and_command_bound_arm_gate(
             "tare": False,
         },
     }
+    authority_root = tmp_path / "authority"
+    monkeypatch.setattr(
+        manual_authorization, "EXPECTED_AUTHORITY_ROOT", authority_root
+    )
+    authorization["owner_authority"] = _owner_authority(
+        authority_root, attempt_id
+    )
     authorization_path.write_text(json.dumps(authorization), encoding="utf-8")
     binding = {
         "mailbox_sha256": "b" * 64,
@@ -580,7 +708,11 @@ def _pending_identity_runtime(
     tmp_path: Path,
 ) -> tuple[wrapper.ManualBridgeMailboxRuntime, object]:
     wrapper.ManualBridgeMailboxRuntime.configure(
-        {"manual_release_manifest_sha256": "a" * 64}
+        {
+            "manual_release_manifest_sha256": "a" * 64,
+            "launch_attempt_id": "attempt-commit-test",
+            "campaign_id": "manual-commit-test",
+        }
     )
     overlay = campaign.normalize_trial_overlay(
         {

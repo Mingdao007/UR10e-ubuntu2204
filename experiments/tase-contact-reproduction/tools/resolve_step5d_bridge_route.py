@@ -20,6 +20,28 @@ MANUAL_PATH = f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
 ROUTES = frozenset({"manual_v2", "autotune_v3", "BLOCKED"})
 
 
+def _v3_program_paths(root: Path) -> tuple[str, frozenset[str]]:
+    path = root / "config/step5d/v3_active_surface.json"
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("V3 active surface is unavailable")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    active = payload.get("tp_program_id") if isinstance(payload, dict) else None
+    recovery = payload.get("recovery_loaded_program_ids") if isinstance(payload, dict) else None
+    if (
+        not isinstance(active, str)
+        or not active
+        or not isinstance(recovery, list)
+        or any(not isinstance(value, str) or not value for value in recovery)
+        or active in recovery
+    ):
+        raise ValueError("V3 active/recovery program identity differs")
+    prefix = "/programs/andyl/kunwei/step5/"
+    return (
+        f"{prefix}{active}.urp",
+        frozenset(f"{prefix}{program}.urp" for program in recovery),
+    )
+
+
 def resolve(*, root: Path, robot_host: str, timeout_s: float) -> dict[str, object]:
     dashboard = dashboard_exchange(
         robot_host,
@@ -28,22 +50,18 @@ def resolve(*, root: Path, robot_host: str, timeout_s: float) -> dict[str, objec
     )
     loaded = dashboard["get loaded program"]
     manual = loaded_program_matches(loaded, MANUAL_PATH)
+    active_v3_path, recovery_v3_paths = _v3_program_paths(root)
     manual_release = load_manual_release(root) if manual else None
     autotune_release = None if manual else load_current_release_snapshot(root)
-    autotune = bool(
-        autotune_release is not None
-        and autotune_release.valid
-        and autotune_release.expected_loaded_program is not None
-        and loaded_program_matches(loaded, autotune_release.expected_loaded_program)
+    active_v3 = loaded_program_matches(loaded, active_v3_path)
+    recovery_v3 = any(
+        loaded_program_matches(loaded, path) for path in recovery_v3_paths
     )
+    autotune = not manual and (active_v3 or recovery_v3)
     route = "manual_v2" if manual else "autotune_v3" if autotune else "BLOCKED"
     reason_code = None
     if route == "BLOCKED":
-        reason_code = (
-            "CURRENT_RELEASE_INVALID"
-            if autotune_release is not None and not autotune_release.valid
-            else "LOADED_PROGRAM_UNSUPPORTED"
-        )
+        reason_code = "LOADED_PROGRAM_UNSUPPORTED"
     return {
         "schema": "step5d.bridge-route/v2",
         "route": route,
@@ -51,7 +69,11 @@ def resolve(*, root: Path, robot_host: str, timeout_s: float) -> dict[str, objec
         "loaded_program_response": loaded,
         "expected_manual_program": MANUAL_PATH,
         "expected_autotune_program": (
-            None if autotune_release is None else autotune_release.expected_loaded_program
+            active_v3_path
+        ),
+        "accepted_autotune_recovery_programs": sorted(recovery_v3_paths),
+        "autotune_route_mode": (
+            "active" if active_v3 else "recovery" if recovery_v3 else None
         ),
         "program_state": dashboard["programState"],
         "safety_mode": dashboard["safetymode"],

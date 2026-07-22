@@ -34,6 +34,7 @@ from step5d_autotune_live_driver import AtomicCommandMailbox, TrialArtifactProdu
 from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
 from step5d_autotune_v3.dashboard import dashboard_exchange
 from step5d_autotune_v3.runtime_gate import loaded_program_matches
+from step5d_autotune_v3.governance import read_proc_starttime_ticks
 from step5d_autotune_v3.state import atomic_json
 from step5d_autotune_v3.profile import canonical_json_bytes
 from step5d_autotune_v3.runtime_profile import (
@@ -43,6 +44,7 @@ from step5d_autotune_v3.runtime_profile import (
 from step5d_bridge_status import (
     readiness_claim,
     resolve_status as resolve_bridge_status,
+    verify_readiness_claim,
 )
 from step5d_manual_bridge import (
     PROGRAM,
@@ -73,10 +75,12 @@ from step5d_manual_authorization import (
     AUTHORIZATION_SCHEMA,
     CAPABILITIES,
     ManualAuthorizationError,
+    capture_capability_authorization as _capture_capability_authorization,
     load_capability_authorization as _load_capability_authorization,
 )
 from step5d_manual_qualification import validate_result as validate_manual_qualification
 from run_step5d_manual_bridge import ARM_GATE_SCHEMA
+from ur10e_parallel import ResourceProfile, writer_lease_owner
 
 
 BACKEND_ID = "step5d_manual_hold_v1"
@@ -120,6 +124,24 @@ def load_capability_authorization(
             campaign_id=campaign_id,
             release_manifest_sha256=release_manifest_sha256,
             now_ns=now_ns,
+        )
+    except ManualAuthorizationError as exc:
+        raise ManualLiveError(str(exc)) from exc
+
+
+def capture_capability_authorization(
+    path: Path,
+    *,
+    attempt_id: str,
+    campaign_id: str,
+    release_manifest_sha256: str,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    try:
+        return _capture_capability_authorization(
+            path,
+            attempt_id=attempt_id,
+            campaign_id=campaign_id,
+            release_manifest_sha256=release_manifest_sha256,
         )
     except ManualAuthorizationError as exc:
         raise ManualLiveError(str(exc)) from exc
@@ -182,11 +204,14 @@ def validate_bridge(
     release_sha: str,
     *,
     require_mailbox_absent: bool = False,
+    expected_attempt_id: str | None = None,
+    expected_campaign_id: str | None = None,
 ) -> tuple[Path, dict[str, int]]:
     root = output_root.expanduser().resolve(strict=True)
     launch = strict_object(root / "bridge_launch.json", "manual bridge launch")
     ticket = strict_object(root / "runtime/runtime_ticket.json", "manual runtime ticket")
     ready = strict_object(root / "runtime/bridge/bridge_ready.json", "manual bridge readiness")
+    lease_owner = writer_lease_owner(ResourceProfile.from_env())
     if any((
         launch.get("ok") is not True,
         launch.get("scope") != "manual_bridge_no_arm",
@@ -195,13 +220,27 @@ def validate_bridge(
         launch.get("manual_release_manifest_sha256") != release_sha,
         launch.get("arm_authorized") is not False,
         launch.get("motion_authorized") is not False,
-        not _pid_alive(launch.get("parent_pid")),
-        not _pid_alive(launch.get("pid")),
+        read_proc_starttime_ticks(launch.get("parent_pid"))
+        != launch.get("parent_starttime_ticks"),
+        read_proc_starttime_ticks(launch.get("pid"))
+        != launch.get("pid_starttime_ticks"),
+        expected_attempt_id is not None
+        and launch.get("launch_attempt_id") != expected_attempt_id,
+        expected_campaign_id is not None
+        and launch.get("campaign_id") != expected_campaign_id,
         ready.get("ok") is not True,
         ready.get("pid") != launch.get("pid"),
         ready.get("launch_nonce") != ticket.get("launch_id"),
         ready.get("rtde_send_succeeded") is not True,
         ready.get("sensor_stream_ready") is not True,
+        not isinstance(lease_owner, Mapping),
+        isinstance(lease_owner, Mapping)
+        and lease_owner.get("pid") != launch.get("parent_pid"),
+        isinstance(lease_owner, Mapping)
+        and lease_owner.get("starttime_ticks")
+        != launch.get("parent_starttime_ticks"),
+        isinstance(lease_owner, Mapping)
+        and lease_owner.get("task") != "step5d-manual-no-arm-bridge",
     )):
         raise ManualLiveError("running manual bridge identity/readiness differs")
     mailbox = Path(str(launch.get("mailbox"))).resolve()
@@ -331,6 +370,18 @@ def _publish_status(
         args.bridge_output_root / "bridge_launch.json", "manual bridge launch"
     )
     bridge_pid = bridge_launch.get("pid")
+    authorization_reference = None
+    if authorization_file is not None:
+        observed_authorization, authorization_reference = (
+            capture_capability_authorization(
+                authorization_file,
+                attempt_id=launch_attempt_id,
+                campaign_id=args.campaign_id,
+                release_manifest_sha256=args.release_manifest_sha256,
+            )
+        )
+        if observed_authorization.get("capabilities") != capabilities:
+            raise ManualLiveError("Manual authorization capabilities changed")
     payload = {
         "schema": STATUS_SCHEMA,
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -346,6 +397,12 @@ def _publish_status(
             None if controller_observation is None else dict(controller_observation)
         ),
         "bridge_pid": bridge_pid,
+        "bridge_starttime_ticks": bridge_launch.get("pid_starttime_ticks"),
+        "bridge_owner_pid": bridge_launch.get("parent_pid"),
+        "bridge_owner_starttime_ticks": bridge_launch.get(
+            "parent_starttime_ticks"
+        ),
+        "bridge_launch_id": bridge_launch.get("launch_id"),
         "bridge_heartbeat": _pid_alive(bridge_pid),
         "offline_qualification": {
             "path": str(args.qualification_result.resolve(strict=True)),
@@ -357,12 +414,7 @@ def _publish_status(
             for name in CAPABILITIES
         },
         "authorization": (
-            None
-            if authorization_file is None
-            else {
-                "path": str(authorization_file.resolve(strict=True)),
-                "sha256": hashlib.sha256(authorization_file.read_bytes()).hexdigest(),
-            }
+            authorization_reference
         ),
         "play_prompt_ready": (
             state == "WAITING_FOR_IDENTITY_PLAY"
@@ -394,6 +446,7 @@ def _publish_canonical_readiness_claim(
     try:
         status = resolve_bridge_status(ROOT)
         claim = readiness_claim(status, required_state)
+        verify_readiness_claim(status, claim)
     except Exception as exc:
         raise ManualLiveError(
             "canonical Manual readiness claim was not admitted: "
@@ -559,6 +612,8 @@ def _wait_for_ready_home(
             args.bridge_output_root,
             args.release_manifest_sha256,
             require_mailbox_absent=True,
+            expected_attempt_id=os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", ""),
+            expected_campaign_id=getattr(args, "campaign_id", None),
         )
         _require_preplay_observation(observed)
         if observed["state"] == READY_HOME and observed["command"] == 0:
@@ -600,7 +655,7 @@ def _issue(args: argparse.Namespace, mailbox: Path) -> tuple[dict[str, Any], Hos
         if published_command is None or published_command.packet != host:
             raise ManualLiveError("manual ARM mailbox vanished before gate publication")
         attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", "")
-        authorization = load_capability_authorization(
+        authorization, authorization_reference = capture_capability_authorization(
             args.authorization_file,
             attempt_id=attempt_id,
             campaign_id=args.campaign_id,
@@ -615,10 +670,7 @@ def _issue(args: argparse.Namespace, mailbox: Path) -> tuple[dict[str, Any], Hos
                 "release_manifest_sha256": args.release_manifest_sha256,
                 "created_at_unix_ns": time.time_ns(),
                 "authorization": {
-                    "path": str(args.authorization_file.expanduser().absolute()),
-                    "sha256": hashlib.sha256(
-                        args.authorization_file.read_bytes()
-                    ).hexdigest(),
+                    **authorization_reference,
                 },
                 "arm_binding": published_command.arm_gate_binding,
             },
@@ -705,6 +757,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.bridge_output_root,
         args.release_manifest_sha256,
         require_mailbox_absent=True,
+        expected_attempt_id=attempt_id,
+        expected_campaign_id=args.campaign_id,
     )
     authorization_deadline = time.monotonic() + args.play_timeout_s
     while True:
@@ -731,6 +785,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         )
         if current["capabilities"] != capabilities:
             raise ManualLiveError("Manual authorization capabilities changed")
+        validate_bridge(
+            args.bridge_output_root,
+            args.release_manifest_sha256,
+            expected_attempt_id=attempt_id,
+            expected_campaign_id=args.campaign_id,
+        )
 
     def refresh_preplay_claim() -> dict[str, Any]:
         require_current_authorization()
@@ -738,6 +798,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.bridge_output_root,
             args.release_manifest_sha256,
             require_mailbox_absent=True,
+            expected_attempt_id=attempt_id,
+            expected_campaign_id=args.campaign_id,
         )
         _require_preplay_observation(bridge_observation)
         controller = _observe_controller_identity(args.robot_host)

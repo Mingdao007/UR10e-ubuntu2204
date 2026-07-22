@@ -30,7 +30,6 @@ from step5d_autotune_v3.release_identity import (
 from step5d_autotune_v3.runtime_gate import (
     loaded_program_matches,
     release_runtime_contract,
-    validate_tp_runtime_identity,
 )
 from step5d_autotune_v3.runtime_identity import validate_rtde_output_recipe
 from step5d_autotune_v3.rtde_client import RTDEClient
@@ -122,43 +121,17 @@ def _program_safe_for_bridge(
     )
     state = raw_state.split(maxsplit=1)[0].upper() if raw_state else ""
     exact_program = loaded_program_matches(raw_loaded, expected_controller_program)
-    if state == "STOPPED":
-        checks = {"exact_program": exact_program, "stopped": True}
-        return {
-            "ok": all(checks.values()),
-            "mode": "loaded_stopped",
-            "checks": checks,
-            "program_state": raw_state,
-            "loaded_program": raw_loaded,
-            "expected_loaded_program": expected_controller_program,
-        }
-    identity_fields = [24, 25, 27, 28, 29, 30, 31, 32, 33, 34]
-    ready_home = rtde.get("output_int_register_26") == 10
-    zero_identity = all(
-        rtde.get(f"output_int_register_{index}") == 0 for index in identity_fields
-    )
-    try:
-        validate_tp_runtime_identity(rtde, runtime_identity)
-        runtime_identity_ok = True
-        runtime_identity_error = None
-    except Exception as exc:
-        runtime_identity_ok = False
-        runtime_identity_error = f"{type(exc).__name__}:{exc}"
     checks = {
         "exact_program": exact_program,
-        "playing": state == "PLAYING",
-        "ready_home": ready_home,
-        "zero_identity": zero_identity,
-        "tp_runtime_identity": runtime_identity_ok,
+        "stopped": state == "STOPPED",
     }
     return {
         "ok": all(checks.values()),
-        "mode": "playing_ready_home_zero_identity",
+        "mode": "loaded_stopped",
         "checks": checks,
         "program_state": raw_state,
         "loaded_program": raw_loaded,
         "expected_loaded_program": expected_controller_program,
-        "tp_runtime_identity_error": runtime_identity_error,
     }
 
 

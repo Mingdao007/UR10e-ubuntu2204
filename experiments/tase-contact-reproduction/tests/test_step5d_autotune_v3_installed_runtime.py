@@ -149,7 +149,9 @@ def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath()
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     assert '/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding' in source
-    assert 'exec /usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --status-json' in source
+    assert '"${EXPERIMENT_ROOT}/tools/step5d_bridge_status.py"' in source
+    assert 'exec "${status_command[@]}"' in source
+    assert '"${RUNTIME_RESOLVER}" --status-json' not in source
     assert 'PYTHON_ABI="3.10"' in source
     assert '"/opt/ros/humble/lib/python${PYTHON_ABI}/site-packages"' in source
     assert '"/opt/ros/humble/local/lib/python${PYTHON_ABI}/dist-packages"' in source

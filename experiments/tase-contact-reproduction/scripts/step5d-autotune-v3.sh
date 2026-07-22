@@ -59,6 +59,38 @@ bridge_record_launch_attempt() {
   local detail="${4:-}"
   local explicit_reason_code="${5:-}"
   local prior_enabled="${launch_attempt_enabled}"
+  if (( launch_runtime_bootstrap == 1 )); then
+    local bootstrap_action="runtime-start"
+    local bootstrap_reason="${explicit_reason_code:-LAUNCH_ATTEMPT_FAILED}"
+    if [[ "${state}" == "FAILED" ]]; then
+      bootstrap_action="runtime-fail"
+    elif [[ "${state}" != "STARTED" ]]; then
+      echo "bootstrap launch recorder only accepts STARTED or FAILED" >&2
+      return 2
+    fi
+    local bootstrap_command=(
+      /usr/bin/python3.10 -B -I
+      "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py"
+      "${bootstrap_action}"
+      --authority-root "${BRIDGE_AUTHORITY_ROOT}"
+      --attempt-id "${launch_attempt_id}"
+      --owner-pid "$$"
+      --owner-starttime "${launch_owner_starttime}"
+    )
+    if [[ "${state}" == "FAILED" ]]; then
+      bootstrap_command+=(
+        --exit-code "${exit_code}"
+        --reason-code "${bootstrap_reason}"
+        --detail "${detail}"
+      )
+    fi
+    launch_attempt_enabled=0
+    local bootstrap_rc=0
+    "${bootstrap_command[@]}" >>"${output_root}/launch-attempt-recorder.log" 2>&1 \
+      || bootstrap_rc=$?
+    launch_attempt_enabled="${prior_enabled}"
+    return "${bootstrap_rc}"
+  fi
   local command=(
     "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli
     --experiment-root "${EXPERIMENT_ROOT}"
@@ -94,8 +126,11 @@ bridge_record_launch_attempt() {
     )
   fi
   launch_attempt_enabled=0
-  "${command[@]}" >>"${output_root}/launch-attempt-recorder.log" 2>&1
+  local recorder_rc=0
+  "${command[@]}" >>"${output_root}/launch-attempt-recorder.log" 2>&1 \
+    || recorder_rc=$?
   launch_attempt_enabled="${prior_enabled}"
+  return "${recorder_rc}"
 }
 
 bridge_begin_phase() {
@@ -118,7 +153,8 @@ bridge_revoke_authority() {
   if (( launch_authority_active == 0 )); then
     return 0
   fi
-  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" revoke \
+  local authority_python="${CONTROL_PYTHON:-/usr/bin/python3.10}"
+  "${authority_python}" "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" revoke \
     --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
     --attempt-id "${launch_attempt_id}" \
     --owner-pid "$$" \
@@ -126,6 +162,21 @@ bridge_revoke_authority() {
     --reason "${reason}" \
     >>"${output_root}/bridge-authority.log" 2>&1
   launch_authority_active=0
+}
+
+bridge_runtime_fail() {
+  local exit_code="$1"
+  local reason_code="$2"
+  local detail="$3"
+  if (( launch_attempt_enabled == 1 )); then
+    set +e
+    bridge_record_launch_attempt \
+      FAILED runtime_gate "${exit_code}" "${detail}" "${reason_code}"
+    bridge_revoke_authority failed
+    launch_attempt_enabled=0
+  fi
+  echo "${detail}" >&2
+  exit "${exit_code}"
 }
 
 bridge_failure_trap() {
@@ -176,6 +227,8 @@ launch_repository_head=""
 launch_owner_starttime=""
 launch_owner_authority_epoch=""
 launch_authority_active=0
+launch_runtime_bootstrap=0
+CONTROL_PYTHON=""
 BRIDGE_AUTHORITY_ROOT="${EXPERIMENT_ROOT}/runs/step5d_bridge_authority"
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -266,24 +319,81 @@ if [[ "${1:-}" == "bridge" ]]; then
   done
 fi
 
+if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
+  status_command=(
+    /usr/bin/python3.10 -B -I
+    "${EXPERIMENT_ROOT}/tools/step5d_bridge_status.py"
+    --experiment-root "${EXPERIMENT_ROOT}"
+  )
+  if (( $# == 4 )) && [[ "${3}" == "--assert-state" ]]; then
+    status_command+=(--assert-state "${4}")
+  elif (( $# != 2 )); then
+    echo "status accepts only --json and optional --assert-state STATE" >&2
+    exit 64
+  fi
+  exec "${status_command[@]}"
+fi
+
+if (( bridge_mode == 1 )) \
+  && [[ -z "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]] \
+  && [[ -z "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]
+then
+  export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
+  export STEP5D_V3_SHELL_PID="$$"
+  if [[ -z "${output_root}" ]]; then
+    output_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/bridge-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  fi
+  output_root="$(readlink -m -- "${output_root}")"
+  campaign_root="$(readlink -m -- "${campaign_root}")"
+  mkdir -p -- "${output_root}" "${campaign_root}" "${BRIDGE_AUTHORITY_ROOT}"
+  if [[ -r /proc/sys/kernel/random/uuid ]]; then
+    read -r launch_attempt_id </proc/sys/kernel/random/uuid
+    launch_attempt_id="${launch_attempt_id//-/}"
+  else
+    launch_attempt_id="$(/usr/bin/python3.10 -B -I -c 'import secrets; print(secrets.token_hex(16))')"
+  fi
+  export STEP5D_V3_LAUNCH_ATTEMPT_ID="${launch_attempt_id}"
+  launch_repository_head="$(git -C "${REPOSITORY_ROOT}" rev-parse --verify HEAD)"
+  shell_proc_stat="$(</proc/$$/stat)"
+  shell_proc_fields="${shell_proc_stat##*) }"
+  read -r -a shell_proc_values <<<"${shell_proc_fields}"
+  launch_owner_starttime="${shell_proc_values[19]:-}"
+  if [[ ! "${launch_owner_starttime}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "canonical bridge owner starttime is unavailable" >&2
+    exit 66
+  fi
+  launch_authority_epoch_file="${output_root}/bridge-authority-epoch.txt"
+  /usr/bin/python3.10 -B -I \
+    "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" begin \
+    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+    --attempt-id "${launch_attempt_id}" \
+    --owner-pid "$$" \
+    --owner-starttime "${launch_owner_starttime}" \
+    >"${launch_authority_epoch_file}"
+  read -r launch_owner_authority_epoch <"${launch_authority_epoch_file}"
+  launch_authority_active=1
+  launch_attempt_enabled=1
+  launch_runtime_bootstrap=1
+  launch_attempt_phase="runtime_gate"
+  trap bridge_failure_trap ERR
+  trap bridge_cancel_trap INT TERM
+  bridge_record_launch_attempt STARTED runtime_gate
+fi
+
 RUNTIME_SOURCE="${REPOSITORY_ROOT}/src/ur10e_experiment_runtime"
 if [[ ! -d "${RUNTIME_SOURCE}/ur10e_experiment_runtime" ]]; then
-  echo "missing ur10e_experiment_runtime source: ${RUNTIME_SOURCE}" >&2
-  exit 66
+  bridge_runtime_fail 66 ACTIVE_SOURCE_CLOSURE_UNRESOLVED \
+    "missing ur10e_experiment_runtime source: ${RUNTIME_SOURCE}"
 fi
 RUNTIME_RESOLVER="${EXPERIMENT_ROOT}/tools/resolve_step5d_autotune_v3_runtime.py"
 if [[ ! -f "${RUNTIME_RESOLVER}" || -L "${RUNTIME_RESOLVER}" ]]; then
-  echo "missing governed runtime resolver: ${RUNTIME_RESOLVER}" >&2
-  exit 66
+  bridge_runtime_fail 66 ACTIVE_SOURCE_CLOSURE_UNRESOLVED \
+    "missing governed runtime resolver: ${RUNTIME_RESOLVER}"
 fi
 runtime_binding=""
 if ! runtime_binding="$(/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding)"; then
-  if [[ "${1:-}" == "status" && "${2:-}" == "--json" && $# -eq 2 ]]; then
-    exec /usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --status-json
-  fi
-  echo "governed runtime unavailable: ${runtime_binding}" >&2
-  echo "next action: provision the current uv.lock runtime before bridge delivery" >&2
-  exit 78
+  bridge_runtime_fail 78 RUNTIME_NOT_PROVISIONED \
+    "governed runtime unavailable; provision the current uv.lock runtime before bridge delivery"
 fi
 IFS=$'\t' read -r \
   CONTROL_PYTHON \
@@ -311,18 +421,18 @@ runtime_fields=(
   "${CONTROL_CUPY_CACHE_DIR:-}"
 )
 if (( ${#runtime_fields[@]} != 11 )); then
-  echo "governed runtime resolver returned an invalid field count" >&2
-  exit 78
+  bridge_runtime_fail 78 CONTROL_RUNTIME_INVALID \
+    "governed runtime resolver returned an invalid field count"
 fi
 for field in "${runtime_fields[@]}"; do
   if [[ -z "${field}" || "${field}" == *$'\n'* || "${field}" == *$'\r'* ]]; then
-    echo "governed runtime resolver returned an unsafe field" >&2
-    exit 78
+    bridge_runtime_fail 78 CONTROL_RUNTIME_INVALID \
+      "governed runtime resolver returned an unsafe field"
   fi
 done
 if [[ ! -x "${CONTROL_PYTHON}" || ! -x "${OPTIMIZER_PYTHON}" ]]; then
-  echo "governed runtime interpreter is unavailable" >&2
-  exit 78
+  bridge_runtime_fail 78 CONTROL_RUNTIME_INVALID \
+    "governed runtime interpreter is unavailable"
 fi
 PYTHON_ABI="3.10"
 ROS_PYTHON_PATHS=()
@@ -335,8 +445,8 @@ do
   fi
 done
 if (( ${#ROS_PYTHON_PATHS[@]} == 0 )); then
-  echo "missing ROS Humble Python runtime for Python ${PYTHON_ABI}" >&2
-  exit 66
+  bridge_runtime_fail 66 HOST_CONTRACT_MISMATCH \
+    "missing ROS Humble Python runtime for Python ${PYTHON_ABI}"
 fi
 AMENT_PREFIX_CANDIDATES=("${REPOSITORY_ROOT}/install" "/opt/ros/humble")
 AMENT_PREFIXES=()
@@ -346,8 +456,7 @@ for candidate in "${AMENT_PREFIX_CANDIDATES[@]}"; do
   fi
 done
 if (( ${#AMENT_PREFIXES[@]} == 0 )); then
-  echo "missing ROS ament prefix" >&2
-  exit 66
+  bridge_runtime_fail 66 HOST_CONTRACT_MISMATCH "missing ROS ament prefix"
 fi
 RUNTIME_PYTHONPATH="${EXPERIMENT_ROOT}/tools:${RUNTIME_SOURCE}"
 for candidate in "${ROS_PYTHON_PATHS[@]}"; do
@@ -368,19 +477,6 @@ export STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID="${OPTIMIZER_ENVIRONMENT_ID}"
 export STEP5D_V3_OPTIMIZER_PYTHON="${OPTIMIZER_PYTHON}"
 export STEP5D_V3_RUNTIME_ATTESTATION_SHA256="${RUNTIME_ATTESTATION_SHA256}"
 export STEP5D_V3_RUNTIME_BUNDLE_ID="${RUNTIME_BUNDLE_ID}"
-if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
-  status_command=(
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_bridge_status.py"
-    --experiment-root "${EXPERIMENT_ROOT}"
-  )
-  if (( $# == 4 )) && [[ "${3}" == "--assert-state" ]]; then
-    status_command+=(--assert-state "${4}")
-  elif (( $# != 2 )); then
-    echo "status accepts only --json and optional --assert-state STATE" >&2
-    exit 64
-  fi
-  exec "${status_command[@]}"
-fi
 if (( bridge_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
@@ -405,29 +501,7 @@ if (( bridge_mode == 1 )); then
       "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
     exit 0
   fi
-  if [[ -r /proc/sys/kernel/random/uuid ]]; then
-    read -r launch_attempt_id </proc/sys/kernel/random/uuid
-    launch_attempt_id="${launch_attempt_id//-/}"
-  else
-    launch_attempt_id="$("${CONTROL_PYTHON}" -c 'import uuid; print(uuid.uuid4().hex)')"
-  fi
-  export STEP5D_V3_LAUNCH_ATTEMPT_ID="${launch_attempt_id}"
-  launch_repository_head="$(git -C "${REPOSITORY_ROOT}" rev-parse --verify HEAD)"
-  launch_owner_starttime="$("${CONTROL_PYTHON}" -c \
-    'from pathlib import Path; import os; print((Path("/proc") / str(os.getppid()) / "stat").read_text().split()[21])')"
-  mkdir -p -- "${BRIDGE_AUTHORITY_ROOT}"
-  launch_owner_authority_epoch="$(
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" begin \
-      --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
-      --attempt-id "${launch_attempt_id}" \
-      --owner-pid "$$" \
-      --owner-starttime "${launch_owner_starttime}"
-  )"
-  launch_authority_active=1
-  launch_attempt_enabled=1
-  trap bridge_failure_trap ERR
-  trap bridge_cancel_trap INT TERM
-  bridge_begin_phase runtime_gate
+  launch_runtime_bootstrap=0
   bridge_begin_phase route_resolve
   route_snapshot="${output_root}/route-snapshot.json"
   launch_attempt_route_snapshot="${route_snapshot}"
@@ -488,6 +562,8 @@ if (( bridge_mode == 1 )); then
       --output-root "${output_root}" \
       --bridge-start-context "${manual_context}" \
       --preflight "${manual_preflight}" \
+      --launch-attempt-id "${launch_attempt_id}" \
+      --campaign-id "${manual_campaign_id}" \
       --ready-timeout-s "${ready_timeout_s}" \
       >"${output_root}/manual-bridge-owner.log" 2>&1 &
     manual_bridge_owner_pid=$!
@@ -537,6 +613,17 @@ if (( bridge_mode == 1 )); then
       --output-root "${output_root}" \
       --pointer-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
       >"${output_root}/manual-active-run.json"
+    manual_authorization="${campaign_root}/control/manual_capability_authorization.json"
+    mkdir -p -- "$(dirname -- "${manual_authorization}")"
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_authorization.py" issue \
+      --output "${manual_authorization}" \
+      --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+      --attempt-id "${launch_attempt_id}" \
+      --owner-pid "$$" \
+      --owner-starttime "${launch_owner_starttime}" \
+      --campaign-id "${manual_campaign_id}" \
+      --release-manifest-sha256 "${manual_release_sha}" \
+      >"${output_root}/manual-authorization.json"
     bridge_begin_phase manual_campaign
     "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_manual_live_campaign.py" \
       --bridge-output-root "${output_root}" \
@@ -546,7 +633,7 @@ if (( bridge_mode == 1 )); then
       --campaign-id "${manual_campaign_id}" \
       --release-manifest-sha256 "${manual_release_sha}" \
       --qualification-result "${output_root}/manual-qualification-result.json" \
-      --authorization-file "${campaign_root}/control/manual_capability_authorization.json" \
+      --authorization-file "${manual_authorization}" \
       --play-timeout-s "${play_timeout_s}"
     bridge_finish_phase
     bridge_revoke_authority completed

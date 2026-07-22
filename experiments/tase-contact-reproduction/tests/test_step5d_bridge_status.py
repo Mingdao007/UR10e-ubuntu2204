@@ -30,8 +30,25 @@ def _validated_manual_qualification(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         manual_status,
-        "load_capability_authorization",
-        lambda *_args, **_kwargs: {"capabilities": _capabilities(motion=True)},
+        "capture_capability_authorization",
+        lambda path, **_kwargs: (
+            {"capabilities": _capabilities(motion=True)},
+            {
+                "path": str(path),
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        manual_status,
+        "writer_lease_owner",
+        lambda _profile: {
+            "schema": "ur10e/live-writer-lease-owner-v1",
+            "pid": os.getpid(),
+            "starttime_ticks": read_proc_starttime_ticks(os.getpid()),
+            "task": "step5d-manual-no-arm-bridge",
+            "acquired_at": "fixture",
+        },
     )
 
 
@@ -120,7 +137,19 @@ def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
     )
     bridge_csv = campaign.parent / "output/runtime/bridge/bridge_rtde_500hz.csv"
     bridge_csv.parent.mkdir(parents=True, exist_ok=True)
-    bridge_csv.write_text("heartbeat\n1\n", encoding="utf-8")
+    bridge_csv.write_text(
+        "write_index,heartbeat,command,step4e_controller_state,ur_safety_mode\n"
+        "1,1,0,0,1\n"
+        "2,2,0,0,1\n",
+        encoding="utf-8",
+    )
+    (bridge_csv.parent / "bridge_ready.json").write_text(
+        json.dumps(
+            {"ok": True, "pid": os.getpid(), "launch_nonce": "1" * 32}
+        ),
+        encoding="utf-8",
+    )
+    starttime = read_proc_starttime_ticks(os.getpid())
     (campaign / "manual_governed_status.json").write_text(
         json.dumps(
             {
@@ -131,6 +160,10 @@ def _manual_status(campaign: Path, *, motion: bool, attempt_id: str) -> None:
                 "launch_attempt_id": attempt_id,
                 "output_root": str(campaign.parent / "output"),
                 "bridge_pid": os.getpid(),
+                "bridge_starttime_ticks": starttime,
+                "bridge_owner_pid": os.getpid(),
+                "bridge_owner_starttime_ticks": starttime,
+                "bridge_launch_id": "1" * 32,
                 "bridge_heartbeat": True,
                 "play_prompt_ready": True,
                 "controller_observation": {
@@ -220,6 +253,23 @@ def test_readiness_claim_requires_same_attempt_machine_scope(tmp_path: Path) -> 
     assert claim["schema"] == bridge_status.CLAIM_SCHEMA
     assert claim["attempt_id"] == "attempt-2"
     assert claim["expires_at_unix_ns"] > claim["issued_at_unix_ns"]
+    assert bridge_status.verify_readiness_claim(
+        status,
+        claim,
+        now_ns=claim["issued_at_unix_ns"],
+    ) == claim
+    with pytest.raises(ValueError, match="stale or bound"):
+        bridge_status.verify_readiness_claim(
+            status,
+            claim,
+            now_ns=claim["expires_at_unix_ns"],
+        )
+    with pytest.raises(ValueError, match="stale or bound"):
+        bridge_status.verify_readiness_claim(
+            {**status, "next_action": "different"},
+            claim,
+            now_ns=claim["issued_at_unix_ns"],
+        )
 
 
 def test_failed_latest_attempt_hides_stale_route_status(tmp_path: Path) -> None:
@@ -419,12 +469,91 @@ def test_v3_campaign_lease_is_the_authorization_scope(
             "next_action": "press_play_or_stop",
         },
     )
+    monkeypatch.setattr(
+        bridge_status,
+        "_v3_attempt_binding_valid",
+        lambda observed_attempt, observed_campaign, observed_status: (
+            observed_attempt["attempt_id"] == "attempt-v3"
+            and observed_campaign == campaign
+            and observed_status["state"] == "WAITING_FOR_PLAY"
+        ),
+    )
 
     status = bridge_status.resolve_status(tmp_path)
     claim = bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
 
     assert status["predicates"]["authorization_scope_valid"] is True
     assert claim["attempt_id"] == "attempt-v3"
+
+
+def test_v3_runtime_evidence_must_bind_same_attempt_campaign_release_and_processes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    process_path = tmp_path / "governance/evidence/process.json"
+    process_path.parent.mkdir(parents=True)
+    process_payload = {
+        "schema": "step5d.autotune-v3/process-observation-evidence-v1",
+        "processes": [
+            {
+                "role": "canonical_launcher",
+                "pid": 41,
+                "starttime_ticks": 701,
+            },
+            {
+                "role": "bridge_wrapper",
+                "pid": 42,
+                "starttime_ticks": 702,
+            },
+        ],
+    }
+    process_path.write_text(json.dumps(process_payload), encoding="utf-8")
+    manifest_sha = "a" * 64
+    attestation = {
+        "run_id": "attempt-v3-bound",
+        "campaign_id": "campaign-v3-bound",
+        "bindings": {"manifest_sha256": manifest_sha},
+        "process": {
+            "evidence": {
+                "path": str(process_path.relative_to(tmp_path)),
+                "sha256": hashlib.sha256(process_path.read_bytes()).hexdigest(),
+            },
+            "bridge_pid": 42,
+            "bridge_starttime_ticks": 702,
+        },
+    }
+    monkeypatch.setattr(
+        bridge_status,
+        "load_current_observation",
+        lambda _campaign: (attestation, {}),
+    )
+    attempt = {
+        "attempt_id": "attempt-v3-bound",
+        "manifest_sha256": manifest_sha,
+        "bindings": {
+            "resource_owner": {"pid": 41, "starttime_ticks": 701},
+        },
+    }
+    status = {
+        "release": {"sha256": manifest_sha},
+        "attestation": {"run_id": "attempt-v3-bound"},
+        "campaign_lease": {"campaign_id": "campaign-v3-bound"},
+    }
+
+    assert bridge_status._v3_attempt_binding_valid(attempt, tmp_path, status) is True
+    assert (
+        bridge_status._v3_attempt_binding_valid(
+            {**attempt, "attempt_id": "different-attempt"}, tmp_path, status
+        )
+        is False
+    )
+    assert (
+        bridge_status._v3_attempt_binding_valid(
+            attempt,
+            tmp_path,
+            {**status, "campaign_lease": {"campaign_id": "different-campaign"}},
+        )
+        is False
+    )
 
 
 def test_completed_attempt_preserves_outcome_but_cannot_claim_readiness(

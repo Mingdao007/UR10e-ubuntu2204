@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import json
 import inspect
 import os
+import shutil
 import sys
 import threading
 import time
@@ -30,6 +31,11 @@ if (
 
 import run_step5d_autotune_v3_live as live  # noqa: E402
 import preflight_step5d_autotune_v3 as preflight  # noqa: E402
+from ur10e_parallel import (  # noqa: E402
+    ResourceProfile,
+    writer_lease,
+    writer_lease_owner,
+)
 
 
 def _row(*, runtime_state: int, state: int = 10) -> dict[str, str]:
@@ -308,6 +314,8 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
 
 def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     source = inspect.getsource(live.run)
+    writer_lease_acquired = source.index("writer_guard.__enter__()")
+    bridge_start = source.index("bridge = subprocess.Popen(")
     runner_start = source.index("runner = subprocess.Popen(")
     runner_ready = source.index(
         '_wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")'
@@ -325,7 +333,8 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
         play_observed,
     )
 
-    assert bridge_ready < no_arm_ready < runner_start < runner_ready
+    assert writer_lease_acquired < bridge_start < bridge_ready < no_arm_ready
+    assert no_arm_ready < runner_start < runner_ready
     assert runner_ready < claim_gate < campaign_ready < play_signal < play_observed < gate_refresh
     assert '"--wait-for-first-arm-gate"' in source
     runner_source = (ROOT / "tools/run_step5d_autotune_campaign.py").read_text(
@@ -344,6 +353,27 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     assert '"--campaign-arming-context"' not in source
     assert "legacy_campaign_root" not in source
     assert "--close-after-plan-revision" not in source
+
+
+def test_production_writer_lease_has_exact_live_owner_and_excludes_overlap(
+    tmp_path: Path,
+) -> None:
+    profile = ResourceProfile(
+        cpu_workers=1,
+        gpu_workers=1,
+        gpu_vram_limit_pct=85.0,
+        parallel=False,
+        lock_root=tmp_path / "locks",
+    )
+    with writer_lease(profile, "step5d-autotune-v3-production-bridge"):
+        owner = writer_lease_owner(profile)
+        assert owner is not None
+        assert owner["pid"] == os.getpid()
+        assert owner["task"] == "step5d-autotune-v3-production-bridge"
+        with pytest.raises(BlockingIOError):
+            with writer_lease(profile, "second-live-writer", blocking=False):
+                pytest.fail("overlapping live writer was admitted")
+    assert writer_lease_owner(profile) is None
 
 
 def test_canonical_shell_bridge_route_has_one_explicit_manual_v2_branch() -> None:
@@ -382,6 +412,13 @@ def test_production_play_prompt_requires_route_neutral_readiness_claim(
         return expected_claim
 
     monkeypatch.setattr(live, "readiness_claim", admit)
+    monkeypatch.setattr(
+        live,
+        "verify_readiness_claim",
+        lambda status, claim: claim
+        if status is machine_status and claim is expected_claim
+        else pytest.fail("V3 readiness claim verification inputs differ"),
+    )
 
     observed = live._publish_canonical_readiness_claim(
         tmp_path, "WAITING_FOR_PLAY"
@@ -428,7 +465,6 @@ def test_canonical_shell_records_each_pre_live_phase_without_a_second_entrypoint
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     for phase in (
-        "runtime_gate",
         "status_before",
         "tp_build",
         "release_candidate",
@@ -440,6 +476,11 @@ def test_canonical_shell_records_each_pre_live_phase_without_a_second_entrypoint
         "live_handoff",
     ):
         assert f"bridge_begin_phase {phase}" in source
+    assert 'launch_attempt_phase="runtime_gate"' in source
+    assert "bridge_record_launch_attempt STARTED runtime_gate" in source
+    assert source.index("bridge_record_launch_attempt STARTED runtime_gate") < source.index(
+        'RUNTIME_SOURCE="${REPOSITORY_ROOT}/src/ur10e_experiment_runtime"'
+    )
     assert "trap bridge_failure_trap ERR" in source
     assert "--_launch-attempt-state" in source
     exact_live = (
@@ -462,6 +503,17 @@ def _fake_governed_shell(
     tools = experiment / "tools"
     scripts.mkdir(parents=True)
     tools.mkdir()
+    governance_package = tools / "step5d_autotune_v3"
+    governance_package.mkdir()
+    for relative in (
+        "tools/step5d_bridge_authority.py",
+        "tools/step5d_autotune_v3/__init__.py",
+        "tools/step5d_autotune_v3/governance.py",
+        "tools/step5d_autotune_v3/delivery_observation.py",
+    ):
+        source_path = ROOT / relative
+        destination = tools / Path(relative).relative_to("tools")
+        shutil.copy2(source_path, destination)
     shell = scripts / "step5d-autotune-v3.sh"
     shell_source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(
         encoding="utf-8"
@@ -525,6 +577,8 @@ def _fake_governed_shell(
         "import os, sys\n"
         "if '--shell-binding' not in sys.argv:\n"
         "    raise SystemExit(64)\n"
+        "if os.environ.get('STEP5D_TEST_RUNTIME_RESOLVER_FAIL') == '1':\n"
+        "    raise SystemExit(78)\n"
         "python = os.environ['STEP5D_TEST_PROFILE_PYTHON']\n"
         "digest = 'a' * 64\n"
         "gpu = 'GPU-93d64fd3-924c-9c86-6c3d-b4781ed2133a'\n"
@@ -540,6 +594,51 @@ def _fake_governed_shell(
         "STEP5D_TEST_PROFILE_PYTHON": str(profile_python),
     }
     return shell, command_log, environment
+
+
+def test_shell_runtime_gate_failure_is_recorded_before_runtime_resolution(
+    tmp_path: Path,
+) -> None:
+    shell, _command_log, environment = _fake_governed_shell(
+        tmp_path,
+        fail_status=False,
+    )
+    environment["STEP5D_TEST_RUNTIME_RESOLVER_FAIL"] = "1"
+    output = tmp_path / "output"
+    result = subprocess.run(
+        [
+            str(shell),
+            "bridge",
+            "--output-root",
+            str(output),
+            "--campaign-root",
+            str(tmp_path / "campaign"),
+        ],
+        cwd=shell.parent.parent,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=10.0,
+        check=False,
+    )
+
+    assert result.returncode == 78
+    authority_root = shell.parent.parent / "runs/step5d_bridge_authority"
+    pointer = json.loads(
+        (authority_root / "governance/current-launch.json").read_text(encoding="utf-8")
+    )
+    attestation = json.loads(
+        (authority_root / pointer["attestation_path"]).read_text(encoding="utf-8")
+    )
+    assert attestation["state"] == "FAILED"
+    assert attestation["phase"] == "runtime_gate"
+    assert attestation["reason_code"] == "RUNTIME_NOT_PROVISIONED"
+    owner = json.loads(
+        (authority_root / "owner-authority.json").read_text(encoding="utf-8")
+    )
+    assert owner["state"] == "REVOKED"
+    assert owner["reason"] == "failed"
 
 
 def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> None:

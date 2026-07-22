@@ -141,7 +141,14 @@ def verify_release_manifest(
         ("generated", release.generated_files, payload_root),
     ):
         for relative, expected in references.items():
-            digest = _sha256(_resolve(base, relative, overrides))
+            source_base = base
+            if (
+                role == "source"
+                and relative not in overrides
+                and (payload_root / relative).is_file()
+            ):
+                source_base = payload_root
+            digest = _sha256(_resolve(source_base, relative, overrides))
             if digest != expected:
                 raise ReleaseVerificationError(f"{role} fingerprint differs: {relative}")
             checked[relative] = digest

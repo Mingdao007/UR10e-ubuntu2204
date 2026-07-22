@@ -15,6 +15,7 @@ from typing import Any, Mapping
 import build_step5d_manual_tp_v1 as builder
 from step5d_manual_atomic_release import ManualAtomicReleasePublisher, canonical_bytes
 from step5d_autotune_v3.release_identity import load_current_release
+from step5d_autotune_v3.source_closure import production_source_closure_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,52 +34,6 @@ HOST_BINDING_SCHEMA = "step5d.manual-v2/host-runtime-binding-v1"
 HOST_POINTER_SCHEMA = "step5d.manual-v2/host-runtime-pointer-v1"
 HOST_BINDING_ROOT = Path("config/step5d/manual/host-runtime/bindings")
 HOST_BINDING_POINTER = Path("config/step5d/manual/host-runtime/current.json")
-SOURCE_INPUTS = (
-    Path("STEP5D_MANUAL_HOLD.md"),
-    Path("config/step5d/manual/launch_profile.json"),
-    Path("config/step5d/manual/stage_table.json"),
-    Path("config/step5/step5d_autotune_v3_control_contract.json"),
-    Path("scripts/step5d-autotune-v3.sh"),
-    Path("tools/build_step5d_manual_tp_v1.py"),
-    Path("tools/step5d_manual_queue.py"),
-    Path("tools/step5d_manual_runtime.py"),
-    Path("tools/run_step5d_manual_hold_campaign.py"),
-    Path("tools/step5d_manual_bridge.py"),
-    Path("tools/build_step5d_manual_bridge_start_context.py"),
-    Path("tools/preflight_step5d_manual_bridge.py"),
-    Path("tools/run_step5d_manual_bridge.py"),
-    Path("tools/run_step5d_manual_bridge_live.py"),
-    Path("tools/step5d_manual_qualification.py"),
-    Path("tools/step5d_manual_authorization.py"),
-    Path("tools/run_step5d_manual_live_campaign.py"),
-    Path("tools/step5d_manual_campaign_plan.py"),
-    Path("tools/step5d_manual_profile.py"),
-    Path("tools/step5d_manual_status.py"),
-    Path("tools/step5d_bridge_status.py"),
-    Path("tools/step5d_bridge_authority.py"),
-    Path("tools/resolve_step5d_bridge_route.py"),
-    Path("tools/step5d_manual_atomic_release.py"),
-    Path("tools/promote_step5d_manual_release.py"),
-    Path("tools/run_step5d_manual_tp_transaction.py"),
-    Path("tools/preflight_step5d_autotune_v3.py"),
-    Path("tools/run_step5d_autotune_v3_bridge.py"),
-    Path("tools/step5d_autotune_contract.py"),
-    Path("tools/step5d_autotune_evaluator.py"),
-    Path("tools/step5d_autotune_live_driver.py"),
-    Path("tools/step5d_autotune_state_machine.py"),
-    Path("tools/step5d_autotune_v3/dashboard.py"),
-    Path("tools/step5d_autotune_v3/cli.py"),
-    Path("tools/step5d_autotune_v3/governance.py"),
-    Path("tools/step5d_autotune_v3/qualification.py"),
-    Path("tools/step5d_autotune_v3/qualification_endpoints.py"),
-    Path("tools/step5d_autotune_v3/launcher.py"),
-    Path("tools/step5d_autotune_v3/preflight_support.py"),
-    Path("tools/step5d_autotune_v3/profile.py"),
-    Path("tools/step5d_autotune_v3/rtde_client.py"),
-    Path("tools/step5d_autotune_v3/runtime_profile.py"),
-    Path("tools/step5d_autotune_v3/state.py"),
-    Path("tools/ur10e_parallel.py"),
-)
 _TRANSACTION = re.compile(r"^[0-9a-f]{32}$")
 
 
@@ -113,10 +68,28 @@ def _pretty(payload: Mapping[str, Any]) -> bytes:
 
 
 def _source_fingerprints(root: Path) -> dict[str, str]:
-    return {
-        relative.as_posix(): _sha256((root / relative).resolve())
-        for relative in SOURCE_INPUTS
-    }
+    repository = root.parents[1]
+    report = production_source_closure_report(root)
+    rows = report["classifications"]["repository"]
+    fingerprints: dict[str, str] = {}
+    for row in rows:
+        relative = Path(str(row["path"]))
+        unresolved = repository / relative
+        if unresolved.is_symlink() or not unresolved.is_file():
+            raise ManualPromotionError(
+                f"Manual production source is missing or unsafe: {relative}"
+            )
+        resolved = unresolved.resolve(strict=True)
+        try:
+            resolved.relative_to(repository)
+        except ValueError as exc:
+            raise ManualPromotionError(
+                f"Manual production source escapes repository: {relative}"
+            ) from exc
+        fingerprints[relative.as_posix()] = _sha256(unresolved)
+    if not fingerprints:
+        raise ManualPromotionError("Manual production source closure is empty")
+    return fingerprints
 
 
 def _fsync_directory(path: Path) -> None:
@@ -404,10 +377,7 @@ def compose_release(
             "complete_command": 4,
         },
         "default_request": candidate["default_request"],
-        "source_fingerprints": {
-            relative.as_posix(): _sha256((root / relative).resolve())
-            for relative in SOURCE_INPUTS
-        },
+        "source_fingerprints": _source_fingerprints(root),
         "generated_files": {
             deploy.as_posix(): _sha256(root / deploy),
             numeric.as_posix(): _sha256(root / numeric),
