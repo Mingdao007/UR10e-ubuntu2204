@@ -316,7 +316,8 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
         '_wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")'
     )
     no_arm_ready = source.index('print("V3_BRIDGE_READY_NO_ARM"', bridge_ready)
-    campaign_ready = source.index('print("V3_CAMPAIGN_READY_FOR_TP_PLAY"', no_arm_ready)
+    claim_gate = source.index("_publish_canonical_readiness_claim(", runner_ready)
+    campaign_ready = source.index('print("V3_CAMPAIGN_READY_FOR_TP_PLAY"', claim_gate)
     play_signal = source.index('print("READY_FOR_ONE_PLAY_TO_MOVE"')
     play_observed = source.index("if _runtime_playing_normal", play_signal)
     gate_refresh = source.index(
@@ -325,7 +326,7 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     )
 
     assert bridge_ready < no_arm_ready < runner_start < runner_ready
-    assert runner_ready < campaign_ready < play_signal < play_observed < gate_refresh
+    assert runner_ready < claim_gate < campaign_ready < play_signal < play_observed < gate_refresh
     assert '"--wait-for-first-arm-gate"' in source
     runner_source = (ROOT / "tools/run_step5d_autotune_campaign.py").read_text(
         encoding="utf-8"
@@ -335,6 +336,7 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     mailbox_open = runner_source.index("mailbox = AtomicCommandMailbox", first_gate_wait)
     assert ready_publish < first_gate_wait < mailbox_open
     assert source.count("READY_FOR_ONE_PLAY_TO_MOVE") == 1
+    assert source.count("V3_QUALIFICATION_SIMULATED_PLAY_BARRIER") == 1
     assert 'READY_FOR_TP_PLAY_V3"' not in source
     assert "campaign_authorization.json" not in source
     assert '"--authorization-file"' not in source
@@ -349,7 +351,8 @@ def test_canonical_shell_bridge_route_has_one_explicit_manual_v2_branch() -> Non
 
     assert '"${1:-}" == "bridge"' in source
     assert '"${1:-}" == "live"' not in source
-    assert source.count("resolve_step5d_bridge_route.py") == 2
+    assert source.count("resolve_step5d_bridge_route.py") == 1
+    assert 'route_snapshot="${output_root}/route-snapshot.json"' in source
     assert source.count("run_step5d_manual_bridge_live.py") == 1
     assert source.count("run_step5d_manual_live_campaign.py") == 1
     assert "manual_v1" not in source
@@ -359,15 +362,64 @@ def test_canonical_shell_bridge_route_has_one_explicit_manual_v2_branch() -> Non
     assert "bridge-line-operator.sh" not in source
 
 
+def test_production_play_prompt_requires_route_neutral_readiness_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_status = {
+        "state": "WAITING_FOR_PLAY",
+        "launch_attempt": {"attempt_id": "attempt-1"},
+    }
+    expected_claim = {
+        "schema": "step5d.bridge/readiness-claim-v1",
+        "state": "WAITING_FOR_PLAY",
+        "attempt_id": "attempt-1",
+    }
+    monkeypatch.setattr(live, "resolve_bridge_status", lambda _root: machine_status)
+
+    def admit(status: dict[str, Any], required_state: str) -> dict[str, Any]:
+        assert status is machine_status
+        assert required_state == "WAITING_FOR_PLAY"
+        return expected_claim
+
+    monkeypatch.setattr(live, "readiness_claim", admit)
+
+    observed = live._publish_canonical_readiness_claim(
+        tmp_path, "WAITING_FOR_PLAY"
+    )
+
+    assert observed == expected_claim
+    assert json.loads((tmp_path / "readiness-claim.json").read_text()) == expected_claim
+
+
+def test_production_play_prompt_fails_closed_when_claim_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(live, "resolve_bridge_status", lambda _root: {"state": None})
+    monkeypatch.setattr(
+        live,
+        "readiness_claim",
+        lambda *_args: (_ for _ in ()).throw(ValueError("not admitted")),
+    )
+
+    with pytest.raises(live.LiveLaunchError, match="not admitted"):
+        live._publish_canonical_readiness_claim(tmp_path, "WAITING_FOR_PLAY")
+
+    assert not (tmp_path / "readiness-claim.json").exists()
+
+
 def test_canonical_shell_qualifies_candidate_before_controller_delivery() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
     build = source.index("tools/build_step5d_autotune_tp_v3.py")
     stage = source.index("tools/promote_step5d_r009_atomic_release.py", build)
     qualify = source.index("tools/run_step5d_autotune_v3_qualification.py", stage)
     deliver = source.index("tools/run_step5d_autotune_v3_tp_transaction.py", qualify)
+    rebind_manifest = source.index(
+        'json.load(open(sys.argv[1], encoding="utf-8"))["release_manifest_sha256"]',
+        deliver,
+    )
     prepare = source.index("--prepare-only", deliver)
 
-    assert build < stage < qualify < deliver < prepare
+    assert build < stage < qualify < deliver < rebind_manifest < prepare
     assert '--release-candidate "${output_root}/local-release-candidate.json"' in source
     assert '--qualification-result "${output_root}/qualification.json"' in source
 
@@ -437,6 +489,19 @@ def _fake_governed_shell(
         parents=True
     )
     (repository / "install/share/ament_index/resource_index").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "test@example.invalid"],
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Step5d Test"],
+        check=True,
+    )
+    subprocess.run(["git", "-C", str(repository), "add", "."], check=True)
+    subprocess.run(
+        ["git", "-C", str(repository), "commit", "-q", "-m", "fixture"], check=True
+    )
 
     command_log = tmp_path / "python-commands.log"
     profile_python = tmp_path / "governed-profile-python"

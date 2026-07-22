@@ -137,11 +137,12 @@ def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
     )
     assert completed.returncode == 0, completed.stderr
     status = json.loads(completed.stdout)
-    assert status["schema"] == "step5d.autotune-v3/governed-status-v1"
-    assert status["environment"]["control_ready"] is True
-    assert status["environment"]["optimizer_ready"] is True
+    assert status["schema"] == "step5d.bridge/governed-status-v2"
+    assert status["launch_attempt"]["present"] is False
+    assert status["predicates"]["play_prompt_ready"] is False
+    assert "NO_CANONICAL_LAUNCH_ATTEMPT" in status["blocker"]["reason_codes"]
     assert isinstance(status["blocker"]["reason_codes"], list)
-    assert isinstance(status["next_action"], str) and status["next_action"]
+    assert status["next_action"] == "start_canonical_bridge"
 
 
 def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath() -> None:

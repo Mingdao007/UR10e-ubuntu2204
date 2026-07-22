@@ -62,6 +62,8 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",
     "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
     "tests/test_step5d_autotune_v3_bridge_wrapper.py",
+    "tests/test_step5d_bridge_status.py",
+    "tests/test_step5d_bridge_authority.py",
     "tests/test_step5d_r008_rolling_policy.py",
     "tests/test_step5d_r009_release_core.py",
     "tests/test_step5d_runtime_environment.py",

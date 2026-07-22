@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -662,6 +663,7 @@ def test_launch_attempt_admits_monotonic_manual_bridge_phases(tmp_path: Path) ->
     phases = (
         "runtime_gate",
         "route_resolve",
+        "manual_qualification",
         "manual_context",
         "manual_preflight",
         "manual_bridge_start",
@@ -679,11 +681,261 @@ def test_launch_attempt_admits_monotonic_manual_bridge_phases(tmp_path: Path) ->
         assert recorded["attestation"]["phase"] == phase
 
 
+def test_launch_attempt_v2_binds_route_runtime_owner_and_capabilities(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "output"
+    campaign = tmp_path / "campaign"
+    output.mkdir()
+    campaign.mkdir()
+    snapshot = output / "route.json"
+    snapshot.write_text('{"route":"manual_v2"}\n', encoding="utf-8")
+    bindings = {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": digest("runtime"),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "capabilities": {
+            "bridge": True,
+            "play": False,
+            "arm": False,
+            "motion": False,
+            "zero": False,
+            "tare": False,
+        },
+        "route_snapshot": None,
+    }
+    started = publish_launch_attempt(
+        tmp_path,
+        attempt_id="manual-v2-attempt",
+        state="STARTED",
+        phase="runtime_gate",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS,
+    )
+    assert started["attestation"]["schema"] == governance.LAUNCH_ATTEMPT_SCHEMA
+    assert started["attestation"]["bindings"]["capabilities"]["arm"] is False
+
+    publish_launch_attempt(
+        tmp_path,
+        attempt_id="manual-v2-attempt",
+        state="PASSED",
+        phase="runtime_gate",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 1,
+    )
+    publish_launch_attempt(
+        tmp_path,
+        attempt_id="manual-v2-attempt",
+        state="STARTED",
+        phase="route_resolve",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 2,
+    )
+    bindings["route_snapshot"] = {
+        "path": str(snapshot),
+        "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+    }
+    passed = publish_launch_attempt(
+        tmp_path,
+        attempt_id="manual-v2-attempt",
+        state="PASSED",
+        phase="route_resolve",
+        route="manual_v2",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 3,
+    )
+    assert passed["attestation"]["route"] == "manual_v2"
+    assert passed["attestation"]["bindings"]["route_snapshot"]["sha256"]
+
+    with pytest.raises(GovernanceError, match="next phase"):
+        publish_launch_attempt(
+            tmp_path,
+            attempt_id="manual-v2-attempt",
+            state="STARTED",
+            phase="route_resolve",
+            route="manual_v2",
+            bindings=bindings,
+            observed_at_unix_ns=NOW_NS + 4,
+        )
+
+
+def test_launch_attempt_v2_rejects_mid_attempt_authority_binding_drift(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "output"
+    campaign = tmp_path / "campaign"
+    output.mkdir()
+    campaign.mkdir()
+    bindings = {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": digest("runtime"),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "capabilities": {
+            "bridge": True,
+            "play": False,
+            "arm": False,
+            "motion": False,
+            "zero": False,
+            "tare": False,
+        },
+        "route_snapshot": None,
+    }
+    publish_launch_attempt(
+        tmp_path,
+        attempt_id="immutable-bindings",
+        state="STARTED",
+        phase="runtime_gate",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS,
+    )
+    changed = json.loads(json.dumps(bindings))
+    changed["capabilities"]["arm"] = True
+    with pytest.raises(GovernanceError, match="capabilities binding cannot change"):
+        publish_launch_attempt(
+            tmp_path,
+            attempt_id="immutable-bindings",
+            state="PASSED",
+            phase="runtime_gate",
+            route="UNKNOWN",
+            bindings=changed,
+            observed_at_unix_ns=NOW_NS + 1,
+        )
+
+
+def test_launch_attempt_records_closed_world_route_blocker(tmp_path: Path) -> None:
+    output = tmp_path / "output"
+    campaign = tmp_path / "campaign"
+    output.mkdir()
+    campaign.mkdir()
+    snapshot = output / "route.json"
+    snapshot.write_text('{"route":"BLOCKED"}\n', encoding="utf-8")
+    bindings = {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": digest("runtime"),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "capabilities": {
+            "bridge": True,
+            "play": False,
+            "arm": False,
+            "motion": False,
+            "zero": False,
+            "tare": False,
+        },
+        "route_snapshot": None,
+    }
+    publish_launch_attempt(
+        tmp_path,
+        attempt_id="unsupported-route",
+        state="STARTED",
+        phase="route_resolve",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS,
+    )
+    bindings["route_snapshot"] = {
+        "path": str(snapshot),
+        "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+    }
+    failed = publish_launch_attempt(
+        tmp_path,
+        attempt_id="unsupported-route",
+        state="FAILED",
+        phase="route_resolve",
+        route="BLOCKED",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 1,
+        exit_code=3,
+        reason_code="LOADED_PROGRAM_UNSUPPORTED",
+        detail="loaded program is outside the closed route set",
+    )
+    assert failed["attestation"]["route"] == "BLOCKED"
+    assert failed["attestation"]["reason_code"] == "LOADED_PROGRAM_UNSUPPORTED"
+
+
+def test_launch_attempt_completed_is_terminal(tmp_path: Path) -> None:
+    output = tmp_path / "output"
+    campaign = tmp_path / "campaign"
+    output.mkdir()
+    campaign.mkdir()
+    bindings = {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": digest("runtime"),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "capabilities": {
+            "bridge": True,
+            "play": False,
+            "arm": False,
+            "motion": False,
+            "zero": False,
+            "tare": False,
+        },
+        "route_snapshot": None,
+    }
+    started = publish_launch_attempt(
+        tmp_path,
+        attempt_id="completed-attempt",
+        state="STARTED",
+        phase="live_handoff",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS,
+    )
+    assert started["attestation"]["state"] == "STARTED"
+    completed = publish_launch_attempt(
+        tmp_path,
+        attempt_id="completed-attempt",
+        state="COMPLETED",
+        phase="live_handoff",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 1,
+    )
+    assert completed["attestation"]["state"] == "COMPLETED"
+    with pytest.raises(GovernanceError, match="terminal"):
+        publish_launch_attempt(
+            tmp_path,
+            attempt_id="completed-attempt",
+            state="STARTED",
+            phase="live_handoff",
+            route="UNKNOWN",
+            bindings=bindings,
+            observed_at_unix_ns=NOW_NS + 2,
+        )
+
+
 def test_launch_attempt_external_class_requires_positive_evidence(
     tmp_path: Path,
 ) -> None:
     row = {
-        "schema": governance.LAUNCH_ATTEMPT_SCHEMA,
+        "schema": governance.LAUNCH_ATTEMPT_SCHEMA_V1,
         "sequence": 1,
         "attempt_id": "attempt-1",
         "state": "FAILED",

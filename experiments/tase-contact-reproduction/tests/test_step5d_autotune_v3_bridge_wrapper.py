@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +24,22 @@ from step5d_autotune_v3.runtime_gate import (  # noqa: E402
     write_campaign_lease,
 )
 from step5d_autotune_v3.state import atomic_json  # noqa: E402
+
+
+def test_capture_worker_ignores_interactive_sigint_and_closes_from_parent_queue(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    observed: list[tuple[int, object]] = []
+    monkeypatch.setattr(
+        wrapper.signal,
+        "signal",
+        lambda number, handler: observed.append((number, handler)),
+    )
+    commands = SimpleNamespace(get=lambda: ("close",))
+    errors = SimpleNamespace(put_nowait=lambda _value: None)
+    wrapper._v3_capture_worker(commands, errors, str(tmp_path), ())
+    assert observed == [(signal.SIGINT, signal.SIG_IGN)]
 
 
 def _armed_v3_pose_bridge() -> tuple[Any, Any, Any]:

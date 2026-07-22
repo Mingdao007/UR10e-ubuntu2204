@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 import sys
+import time
 
 import pytest
 
@@ -26,9 +27,237 @@ import run_step5d_manual_bridge as wrapper  # noqa: E402
 import run_step5d_manual_bridge_live as live  # noqa: E402
 import run_step5d_manual_live_campaign as campaign  # noqa: E402
 import step5d_manual_bridge as bridge  # noqa: E402
+import step5d_manual_qualification as qualification  # noqa: E402
 import step5d_autotune_live_driver as mailbox_driver  # noqa: E402
 from step5d_autotune_state_machine import TpLoopState, TpPacket  # noqa: E402
 from step5d_manual_atomic_release import canonical_bytes  # noqa: E402
+
+
+def test_manual_qualification_preserves_exact_venv_interpreter_path(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "python-target"
+    target.write_bytes(b"exact-runtime-python")
+    interpreter = tmp_path / "control/bin/python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.symlink_to(target)
+    context = tmp_path / "context.json"
+    preflight_path = tmp_path / "preflight.json"
+    endpoints = tmp_path / "endpoints.json"
+    for path in (context, preflight_path, endpoints):
+        path.write_text("{}\n", encoding="utf-8")
+
+    payload = qualification._contract_payload(
+        ROOT,
+        tmp_path,
+        live_root=tmp_path / "live",
+        context_path=context,
+        preflight_path=preflight_path,
+        endpoint_path=endpoints,
+        python_executable=str(interpreter),
+        ready_timeout_s=30.0,
+    )
+
+    assert payload["python"]["path"] == str(interpreter)
+    assert payload["python"]["path"] != str(target)
+    assert payload["python"]["sha256"] == hashlib.sha256(target.read_bytes()).hexdigest()
+
+
+def test_manual_capability_authorization_is_external_exact_and_no_zero_tare(
+    tmp_path: Path,
+) -> None:
+    now_ns = 1_000_000
+    path = tmp_path / "authorization.json"
+    payload = {
+        "schema": campaign.AUTHORIZATION_SCHEMA,
+        "attempt_id": "attempt-1",
+        "campaign_id": "manual-1",
+        "release_manifest_sha256": "a" * 64,
+        "authorized_at_unix_ns": now_ns - 1,
+        "expires_at_unix_ns": now_ns + 1,
+        "issuer": "ur10e-live-bench-owner",
+        "capabilities": {
+            "bridge": True,
+            "play": True,
+            "arm": True,
+            "motion": True,
+            "zero": False,
+            "tare": False,
+        },
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert campaign.load_capability_authorization(
+        path,
+        attempt_id="attempt-1",
+        campaign_id="manual-1",
+        release_manifest_sha256="a" * 64,
+        now_ns=now_ns,
+    ) == payload
+
+    payload["expires_at_unix_ns"] = now_ns
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(campaign.ManualLiveError, match="not current"):
+        campaign.load_capability_authorization(
+            path,
+            attempt_id="attempt-1",
+            campaign_id="manual-1",
+            release_manifest_sha256="a" * 64,
+            now_ns=now_ns,
+        )
+
+    payload["expires_at_unix_ns"] = now_ns + 1
+    payload["capabilities"]["motion"] = False
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(campaign.ManualLiveError, match="not authorized"):
+        campaign.load_capability_authorization(
+            path,
+            attempt_id="attempt-1",
+            campaign_id="manual-1",
+            release_manifest_sha256="a" * 64,
+            now_ns=now_ns,
+        )
+
+
+def test_manual_runner_never_manufactures_arm_authorization() -> None:
+    source = (ROOT / "tools/run_step5d_manual_live_campaign.py").read_text(
+        encoding="utf-8"
+    )
+    assert '"arm_authorized": True' not in source
+    assert '"motion_authorized": True' not in source
+    assert "authorization_source" not in source
+    assert 'state="BRIDGE_ALIVE_NO_ARM"' in source
+
+
+def test_manual_runner_reaches_persistent_no_arm_before_external_authorization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed_states: list[str] = []
+    observed_roots: list[Path] = []
+    monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", "attempt-no-arm")
+    monkeypatch.setattr(
+        campaign,
+        "validate_manual_qualification",
+        lambda root, *_args, **_kwargs: observed_roots.append(root),
+    )
+    monkeypatch.setattr(campaign, "seed_initial_grid", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        campaign,
+        "load_queue",
+        lambda _path: {"requests": [{"source": "initial:G01"}]},
+    )
+    monkeypatch.setattr(
+        campaign,
+        "_publish_status",
+        lambda _args, **kwargs: observed_states.append(kwargs["state"]) or {},
+    )
+    monkeypatch.setattr(
+        campaign,
+        "validate_bridge",
+        lambda *_args, **_kwargs: (tmp_path / "command.json", {}),
+    )
+    args = SimpleNamespace(
+        campaign_root=tmp_path / "campaign",
+        qualification_result=tmp_path / "qualification.json",
+        release_manifest_sha256="a" * 64,
+        queue=tmp_path / "queue.json",
+        launch_profile=campaign.DEFAULT_LAUNCH_PROFILE,
+        state=tmp_path / "state.json",
+        campaign_id="manual-no-arm",
+        bridge_output_root=tmp_path / "bridge",
+        authorization_file=tmp_path / "authorization.json",
+        play_timeout_s=0.01,
+    )
+
+    with pytest.raises(campaign.ManualLiveError, match="authorization was not supplied"):
+        campaign.run(args)
+
+    assert observed_roots == [ROOT]
+    assert observed_states == ["BRIDGE_ALIVE_NO_ARM"]
+
+
+def test_manual_readiness_claim_is_machine_derived_and_persisted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_status = {"state": "WAITING_FOR_IDENTITY_PLAY"}
+    expected_claim = {
+        "schema": "step5d.bridge/readiness-claim-v1",
+        "attempt_id": "attempt-claim",
+    }
+    monkeypatch.setattr(
+        campaign, "resolve_bridge_status", lambda _root: machine_status
+    )
+    monkeypatch.setattr(
+        campaign,
+        "readiness_claim",
+        lambda status, state: expected_claim
+        if status is machine_status and state == "WAITING_FOR_IDENTITY_PLAY"
+        else pytest.fail("Manual readiness claim inputs differ"),
+    )
+    output = tmp_path / "bridge"
+    output.mkdir()
+
+    claim = campaign._publish_canonical_readiness_claim(
+        SimpleNamespace(bridge_output_root=output),
+        "WAITING_FOR_IDENTITY_PLAY",
+    )
+
+    assert claim == expected_claim
+    assert json.loads((output / "readiness-claim.json").read_text()) == expected_claim
+
+
+def test_manual_controller_identity_must_be_freshly_exact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        campaign,
+        "dashboard_exchange",
+        lambda *_args, **_kwargs: {
+            "programState": "STOPPED",
+            "safetymode": "Safetymode: NORMAL",
+            "get loaded program": f"Loaded program: {campaign.EXPECTED_PROGRAM}",
+        },
+    )
+    observed = campaign._observe_controller_identity("192.0.2.1")
+    assert observed["expected_loaded_program"] == campaign.EXPECTED_PROGRAM
+
+    monkeypatch.setattr(
+        campaign,
+        "dashboard_exchange",
+        lambda *_args, **_kwargs: {
+            "programState": "STOPPED",
+            "safetymode": "Safetymode: NORMAL",
+            "get loaded program": "Loaded program: /programs/wrong.urp",
+        },
+    )
+    with pytest.raises(campaign.ManualLiveError, match="changed before ARM"):
+        campaign._observe_controller_identity("192.0.2.1")
+
+
+def test_manual_running_state_requires_exact_tp_arm_acknowledgement() -> None:
+    arm = campaign.HostPacket(
+        campaign_epoch=1,
+        trial_id=2,
+        command=campaign.HostCommand.ARM,
+        candidate_token=3,
+        execution_profile_id=633,
+        command_seq=4,
+        logical_batch_sequence=5,
+    )
+    observed = {
+        "campaign_epoch": 1,
+        "trial_id": 2,
+        "state": int(campaign.TpLoopState.ARMED),
+        "candidate_token": 3,
+        "execution_profile_id": 633,
+        "consumed_command_seq": 4,
+        "logical_batch_sequence": 5,
+        "batch_row_index": 1,
+    }
+    assert campaign._arm_acknowledged(observed, arm) is True
+    assert campaign._arm_acknowledged({**observed, "consumed_command_seq": 3}, arm) is False
+    assert campaign._arm_acknowledged(
+        {**observed, "state": int(campaign.TpLoopState.READY_HOME)}, arm
+    ) is False
 
 
 def _fake_release() -> tuple[dict, dict]:
@@ -43,7 +272,10 @@ def _fake_release() -> tuple[dict, dict]:
         },
         "source_fingerprints": {"tools/manual.py": "4" * 64},
     }
-    return {"manifest_sha256": "a" * 64}, manifest
+    return {
+        "manifest_sha256": "a" * 64,
+        "source_surface_sha256": "4" * 64,
+    }, manifest
 
 
 def test_context_is_write_once_digest_bound_and_no_arm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -118,6 +350,27 @@ def test_live_preflight_validation_is_no_arm_and_exact() -> None:
         live.strict_object = original
 
 
+def test_manual_qualification_endpoint_override_is_fixed_loopback_only(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "endpoints.json"
+    payload = {
+        "schema": "step5d.autotune-v3/qualification-endpoint-config-v1",
+        "content_sha256": "a" * 64,
+        "addresses": {
+            role: {"host": "127.0.0.1", "port": port}
+            for role, port in live.QUALIFICATION_ENDPOINT_PORTS.items()
+        },
+        "motion_capable": False,
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert live._qualification_endpoints(path) == payload
+    payload["addresses"]["rtde"]["port"] = 31004
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(bridge.ManualBridgeError, match="production-shaped"):
+        live._qualification_endpoints(path)
+
+
 def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     context_path = tmp_path / "context.json"
     preflight_path = tmp_path / "preflight.json"
@@ -154,6 +407,7 @@ def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, 
             "path": str(preflight_path),
             "sha256": hashlib.sha256(preflight_path.read_bytes()).hexdigest(),
         },
+        "qualification_endpoints": None,
     }
     ticket_path = tmp_path / "ticket.json"
     ticket_path.write_text(json.dumps(ticket))
@@ -244,9 +498,90 @@ def test_manual_guard_semantics_are_fail_closed_and_diagnostic_only() -> None:
         wrapper.require_manual_guard_semantics(drifted)
 
 
+def test_manual_runtime_uses_full_home_protocol_and_command_bound_arm_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempt_id = "attempt-manual-gate"
+    campaign_id = "manual-gate-campaign"
+    release_sha = "a" * 64
+    monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", attempt_id)
+    wrapper.ManualBridgeMailboxRuntime.configure(
+        {"manual_release_manifest_sha256": release_sha}
+    )
+    mailbox = (tmp_path / "runtime/command.json").resolve()
+    mailbox.parent.mkdir(parents=True)
+    runtime = wrapper.ManualBridgeMailboxRuntime(mailbox)
+    assert runtime.completion_protocol == bridge.WIRE_PROTOCOL
+    assert isinstance(runtime.arming_context_provider, wrapper.ManualArmGateProvider)
+
+    now_ns = time.time_ns()
+    authorization_path = tmp_path / "authorization.json"
+    authorization = {
+        "schema": campaign.AUTHORIZATION_SCHEMA,
+        "attempt_id": attempt_id,
+        "campaign_id": campaign_id,
+        "release_manifest_sha256": release_sha,
+        "authorized_at_unix_ns": now_ns - 1_000_000,
+        "expires_at_unix_ns": now_ns + 1_000_000_000,
+        "issuer": "ur10e-live-bench-owner",
+        "capabilities": {
+            "bridge": True,
+            "play": True,
+            "arm": True,
+            "motion": True,
+            "zero": False,
+            "tare": False,
+        },
+    }
+    authorization_path.write_text(json.dumps(authorization), encoding="utf-8")
+    binding = {
+        "mailbox_sha256": "b" * 64,
+        "campaign_epoch": 1,
+        "trial_id": 1,
+        "command": 1,
+        "candidate_token": 2,
+        "execution_profile_id": 633,
+        "command_seq": 1,
+        "logical_batch_sequence": 1,
+        "trial_uid": "trial-1",
+    }
+    gate_path = mailbox.parent / "manual_arm_gate.json"
+    gate_path.write_text(
+        json.dumps(
+            {
+                "schema": wrapper.ARM_GATE_SCHEMA,
+                "attempt_id": attempt_id,
+                "campaign_id": campaign_id,
+                "release_manifest_sha256": release_sha,
+                "created_at_unix_ns": now_ns,
+                "authorization": {
+                    "path": str(authorization_path),
+                    "sha256": hashlib.sha256(
+                        authorization_path.read_bytes()
+                    ).hexdigest(),
+                },
+                "arm_binding": binding,
+            }
+        ),
+        encoding="utf-8",
+    )
+    admitted = runtime.arming_context_provider(binding, connection_epoch=3)
+    assert admitted is not None
+    assert admitted["authorization_sha256"] == hashlib.sha256(
+        authorization_path.read_bytes()
+    ).hexdigest()
+    assert runtime.arming_context_provider(
+        {**binding, "command_seq": 2}, connection_epoch=3
+    ) is None
+
+
 def _pending_identity_runtime(
     tmp_path: Path,
 ) -> tuple[wrapper.ManualBridgeMailboxRuntime, object]:
+    wrapper.ManualBridgeMailboxRuntime.configure(
+        {"manual_release_manifest_sha256": "a" * 64}
+    )
     overlay = campaign.normalize_trial_overlay(
         {
             "force_p_gain": 0.001,
