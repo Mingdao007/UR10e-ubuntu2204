@@ -885,7 +885,7 @@ def test_arm_gate_hot_path_has_one_io_refresh_per_monotonic_watchdog_interval(
     ("invalidated_binding", "message"),
     (
         ("lease", "campaign lease canonical digest differs"),
-        ("pointer", "current release changed during campaign"),
+        ("pointer", "effective release changed during campaign"),
         ("manifest", "release manifest changed during campaign"),
         ("safety", "safety envelope changed during campaign"),
         ("source", "release source tools/runtime_source.py changed"),
@@ -957,4 +957,105 @@ def test_watchdog_invalidations_fail_closed_no_later_than_cache_ttl(
     assert provider() == context
     clock[0] += ARM_GATE_WATCHDOG_INTERVAL_S / 2 + 0.000001
     with pytest.raises(RuntimeGateError, match=message):
+        provider()
+
+
+def test_candidate_without_qualification_authority_cannot_bypass_current(
+    tmp_path: Path,
+) -> None:
+    root, release, contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    deployed = json.loads(
+        (root / "config/step5d/current.json").read_text(encoding="utf-8")
+    )
+    deployed["manifest_sha256"] = "d" * 64
+    atomic_json(root / "config/step5d/current.json", deployed)
+    publish_arm_observation(
+        gate_path.absolute(),
+        lease=lease,
+        lease_sha256=lease.sha256,
+        bridge_pid=os.getpid(),
+        dashboard=_dashboard(),
+        rtde_row=_row(),
+        contract=contract,
+        csv_age_s=0.01,
+        **_fresh_get_binding(),
+    )
+    with pytest.raises(RuntimeGateError, match="current release differs"):
+        ArmGateProvider(
+            root=root,
+            gate_path=gate_path.absolute(),
+            lease_path=lease_path.absolute(),
+            lease_sha256=lease.sha256,
+            release=release,
+        )
+
+
+def test_incomplete_qualification_authority_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, release, _contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    monkeypatch.setenv(
+        "STEP5D_V3_QUALIFICATION_RELEASE_MANIFEST", str(root / release.manifest_path)
+    )
+
+    with pytest.raises(RuntimeGateError, match="qualification release authority is invalid"):
+        ArmGateProvider(
+            root=root,
+            gate_path=gate_path.absolute(),
+            lease_path=lease_path.absolute(),
+            lease_sha256=lease.sha256,
+            release=release,
+        )
+
+
+def test_watchdog_tracks_verified_qualification_candidate_and_endpoint_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, release, contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    deployed = json.loads(
+        (root / "config/step5d/current.json").read_text(encoding="utf-8")
+    )
+    deployed["manifest_sha256"] = "d" * 64
+    atomic_json(root / "config/step5d/current.json", deployed)
+    endpoint = tmp_path / "qualification-endpoints.json"
+    endpoint.write_text('{"motion_capable":false}\n', encoding="utf-8")
+    monkeypatch.setenv(
+        "STEP5D_V3_QUALIFICATION_RELEASE_MANIFEST", str(root / release.manifest_path)
+    )
+    monkeypatch.setenv("STEP5D_V3_QUALIFICATION_ENDPOINT_CONFIG", str(endpoint))
+    monkeypatch.setenv("STEP5D_V3_QUALIFICATION_MODE", "endpoint-only-no-motion-v1")
+    monkeypatch.setenv(
+        "STEP5D_V3_CANONICAL_LAUNCHER",
+        str((root / "scripts/step5d-autotune-v3.sh").resolve()),
+    )
+    monkeypatch.setattr(gate_module, "load_runtime_release", lambda _root: release)
+    publish_arm_observation(
+        gate_path.absolute(),
+        lease=lease,
+        lease_sha256=lease.sha256,
+        bridge_pid=os.getpid(),
+        dashboard=_dashboard(),
+        rtde_row=_row(),
+        contract=contract,
+        csv_age_s=0.01,
+        **_fresh_get_binding(),
+    )
+    clock = [700.0]
+    monkeypatch.setattr(gate_module.time, "monotonic", lambda: clock[0])
+    provider = ArmGateProvider(
+        root=root,
+        gate_path=gate_path.absolute(),
+        lease_path=lease_path.absolute(),
+        lease_sha256=lease.sha256,
+        release=release,
+    )
+
+    assert provider() is not None
+    endpoint.write_text('{"motion_capable":false,"changed":true}\n', encoding="utf-8")
+    clock[0] += ARM_GATE_WATCHDOG_INTERVAL_S + 0.000001
+    with pytest.raises(
+        RuntimeGateError, match="effective release changed during campaign"
+    ):
         provider()

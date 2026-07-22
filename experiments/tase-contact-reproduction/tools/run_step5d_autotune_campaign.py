@@ -1631,13 +1631,14 @@ def run(args: argparse.Namespace) -> int:
         gate_path = lease_path.with_name("arm_gate.json")
         if lease_path.parent != (bridge_run / "runtime").resolve():
             raise RuntimeError("campaign lease must belong to the bridge runtime")
+        runtime_release = load_runtime_release(root)
         _wait_for_first_arm_gate(
             ArmGateProvider(
                 root=root,
                 gate_path=gate_path,
                 lease_path=lease_path,
                 lease_sha256=lease_authorization.authorization_ref_sha256,
-                release=load_runtime_release(root),
+                release=runtime_release,
             ),
             timeout_s=args.first_arm_gate_timeout_s,
             stop_requested=stop_requested,
