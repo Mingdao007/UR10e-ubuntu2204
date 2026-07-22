@@ -104,6 +104,12 @@ def release() -> CurrentReleaseSnapshot:
 
 def qualification_processes() -> list[dict[str, Any]]:
     role_paths = production_process_role_paths()
+    role_profiles = {
+        "canonical_launcher": None,
+        "launcher_supervisor": "control",
+        "bridge_wrapper": "control",
+        "campaign_runner": "optimizer",
+    }
     processes = []
     for role, relative in sorted(role_paths.items()):
         script = (ROOT / relative).resolve(strict=True)
@@ -115,16 +121,27 @@ def qualification_processes() -> list[dict[str, Any]]:
             if role == "launcher_supervisor"
             else SUPERVISOR_PID
         )
-        argv = ["/usr/bin/python3", str(script), "--output-root", "/qualification/run"]
+        profile = role_profiles[role]
+        argv0 = (
+            "/usr/bin/bash"
+            if profile is None
+            else f"/runtime/{profile}/bin/python"
+        )
+        argv = [argv0, str(script), "--output-root", "/qualification/run"]
         processes.append(
             {
                 "role": role,
                 "pid": pid,
                 "ppid": ppid,
                 "starttime": pid + 1000,
-                "executable": "/usr/bin/python3",
+                "executable": argv0,
                 "argv": argv,
+                "argv0": argv0,
                 "argv_sha256": hashlib.sha256(canonical_bytes(argv)).hexdigest(),
+                "runtime_profile": profile,
+                "environment_id": (
+                    None if profile is None else digest(f"{profile}-environment")
+                ),
                 "script": str(script),
                 "script_sha256": file_sha256(script),
             }
@@ -141,6 +158,23 @@ def qualification_binding(current: CurrentReleaseSnapshot) -> dict[str, Any]:
     environment = {
         "python_executable": "/usr/bin/python3",
         "python_version": "3.test",
+        "runtime_binding": {
+            "schema": "step5d.autotune-v3/runtime-process-binding-v1",
+            "bundle_id": digest("runtime-bundle"),
+            "contract_sha256": digest("runtime-contract"),
+            "lock_sha256": digest("runtime-lock"),
+            "runtime_attestation_sha256": digest("runtime-attestation"),
+            "gpu_uuid": "GPU-runtime-observation-fixture",
+            "profiles": {
+                profile: {
+                    "environment_id": digest(f"{profile}-environment"),
+                    "python_executable": f"/runtime/{profile}/bin/python",
+                    "record_tree_sha256": digest(f"{profile}-record"),
+                    "profile_tree_sha256": digest(f"{profile}-tree"),
+                }
+                for profile in ("control", "optimizer")
+            },
+        },
     }
     return {
         "schema": CONTENT_BINDING_SCHEMA,

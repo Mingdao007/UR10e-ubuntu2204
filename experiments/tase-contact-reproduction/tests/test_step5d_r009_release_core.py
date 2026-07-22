@@ -27,7 +27,9 @@ from step5d_autotune_v3.release_identity import (  # noqa: E402
     REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
     REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
     ReleaseIdentityError,
+    identity_from_manifest,
     load_current_release,
+    release_runtime_environment_binding,
 )
 from step5d_autotune_v3.release_verifier import (  # noqa: E402
     ReleaseVerificationError,
@@ -243,6 +245,9 @@ def _release_fixture(
             "path": "config/step5/step5d_autotune_v3_control_contract.json",
             "sha256": _sha(safety_path.read_bytes()),
         },
+        "runtime_environment": release_runtime_environment_binding(
+            source_fingerprints
+        ),
         "source_fingerprints": source_fingerprints,
         "generated_files": generated_files,
         "verification": {
@@ -307,6 +312,52 @@ def test_independent_verifier_accepts_release_without_cached_dynamic_readiness(
     report = verify_release_manifest(tmp_path, manifest)
 
     assert report["ok"] is True
+
+
+def test_release_manifest_binds_exact_dual_runtime_environment_identity(
+    tmp_path: Path,
+) -> None:
+    manifest_path = _release_fixture(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    release = load_current_release(tmp_path)
+
+    expected = release_runtime_environment_binding(manifest["source_fingerprints"])
+    assert release.runtime_environment == expected
+    assert expected["required_environment_id"] != (
+        expected["profile_environment_ids"]["control"]
+    )
+    assert expected["profile_environment_ids"]["control"] != (
+        expected["profile_environment_ids"]["optimizer"]
+    )
+    for role in ("runtime_contract", "uv_lock", "dependency_manifest"):
+        reference = expected[role]
+        assert reference["sha256"] == manifest["source_fingerprints"][
+            reference["path"]
+        ]
+
+
+@pytest.mark.parametrize("tamper", ["bundle", "profile", "lock_reference"])
+def test_release_identity_rejects_tampered_runtime_environment_binding(
+    tmp_path: Path,
+    tamper: str,
+) -> None:
+    manifest_path = _release_fixture(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if tamper == "bundle":
+        manifest["runtime_environment"]["required_environment_id"] = "0" * 64
+    elif tamper == "profile":
+        manifest["runtime_environment"]["profile_environment_ids"][
+            "optimizer"
+        ] = "0" * 64
+    else:
+        manifest["runtime_environment"]["uv_lock"]["sha256"] = "0" * 64
+
+    with pytest.raises(ReleaseIdentityError, match="release .*environment|uv_lock"):
+        identity_from_manifest(
+            manifest,
+            manifest_path=manifest_path.relative_to(tmp_path).as_posix(),
+            manifest_sha256=_sha(manifest_path.read_bytes()),
+        )
 
 
 @pytest.mark.parametrize("coverage_change", ["missing", "extra"])

@@ -36,10 +36,8 @@ from step5d_autotune_v3.runtime_identity import validate_rtde_output_recipe
 from step5d_autotune_v3.rtde_client import RTDEClient
 from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY
 from step5d_autotune_v3.runtime_profile import load_launch_profile
-from step5d_autotune_v3.runtime_calibration import (
-    bootstrap_stable_cuda_runtime,
-    dependency_observation,
-)
+from step5d_autotune_v3.runtime_calibration import dependency_observation
+from step5d_autotune_v3.runtime_installation import require_runtime_profile
 from step5d_autotune_v3.state import atomic_json
 
 
@@ -454,6 +452,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        require_runtime_profile("control")
         payload = run_preflight(args)
     except Exception as exc:
         payload = {"schema": SCHEMA, "ok": False, "fresh": False, "blocker": str(exc)}
@@ -462,5 +461,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    bootstrap_stable_cuda_runtime()
     raise SystemExit(main())

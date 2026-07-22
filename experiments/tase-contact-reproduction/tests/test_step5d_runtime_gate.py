@@ -21,6 +21,7 @@ from step5d_autotune_v3.runtime_gate import (  # noqa: E402
     ARM_GATE_WATCHDOG_INTERVAL_S,
     ArmGateProvider,
     CampaignLease,
+    RuntimeEnvironmentBindingGuard,
     RuntimeGateError,
     process_starttime,
     publish_arm_observation,
@@ -28,6 +29,44 @@ from step5d_autotune_v3.runtime_gate import (  # noqa: E402
     write_campaign_lease,
 )
 from step5d_autotune_v3.state import atomic_json  # noqa: E402
+
+
+def _runtime_binding_payload(*, bundle_id: str = "a" * 64) -> dict[str, object]:
+    return {
+        "schema": "step5d.autotune-v3/runtime-process-binding-v1",
+        "bundle_id": bundle_id,
+        "contract_sha256": "b" * 64,
+        "lock_sha256": "c" * 64,
+        "runtime_attestation_sha256": "d" * 64,
+        "gpu_uuid": "GPU-test-runtime-binding",
+        "profiles": {
+            profile: {
+                "environment_id": character * 64,
+                "python_executable": f"/runtime/{profile}/bin/python",
+                "record_tree_sha256": "e" * 64,
+                "profile_tree_sha256": "f" * 64,
+            }
+            for profile, character in (("control", "1"), ("optimizer", "2"))
+        },
+    }
+
+
+@pytest.fixture(autouse=True)
+def _stable_managed_runtime_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, object]:
+    state: dict[str, object] = {"binding": _runtime_binding_payload()}
+    monkeypatch.setattr(
+        gate_module,
+        "load_runtime_pointer_identity",
+        lambda: {"test_pointer": True},
+    )
+    monkeypatch.setattr(
+        gate_module,
+        "runtime_binding",
+        lambda *, runtime_pointer=None: state["binding"],
+    )
+    return state
 
 
 def _sha(path: Path) -> str:
@@ -208,6 +247,90 @@ def test_campaign_lease_binds_supervisor_starttime(tmp_path: Path) -> None:
     assert lease.document["safety_boundary"].startswith("lease_is_not_an_estop")
 
 
+def test_runtime_environment_guard_rechecks_once_per_new_arm_sequence() -> None:
+    expected = _runtime_binding_payload()
+    observed = {"binding": expected}
+    calls: list[int] = []
+
+    def load() -> object:
+        calls.append(len(calls) + 1)
+        return observed["binding"]
+
+    guard = RuntimeEnvironmentBindingGuard(
+        expected_binding=expected,
+        binding_loader=load,
+    )
+
+    first_sha = guard.recheck(1)
+    assert guard.recheck(1) == first_sha
+    assert guard.recheck(3) == first_sha
+    assert len(calls) == 2
+
+    observed["binding"] = _runtime_binding_payload(bundle_id="9" * 64)
+    with pytest.raises(RuntimeGateError, match="changed before ARM"):
+        guard.recheck(5)
+    assert len(calls) == 3
+
+    observed["binding"] = expected
+    assert guard.recheck(5) == first_sha
+    assert len(calls) == 4
+    with pytest.raises(RuntimeGateError, match="sequence regressed"):
+        guard.recheck(3)
+    assert len(calls) == 4
+
+
+def test_full_runtime_guard_rehashes_instead_of_reusing_startup_pointer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _runtime_binding_payload()
+    startup_pointer = {"startup": "fully-verified"}
+    rehashed_pointer = {"arm": "package-and-host-rehashed"}
+    calls: list[object] = []
+
+    def bind(*, runtime_pointer=None):
+        calls.append(runtime_pointer)
+        return expected
+
+    monkeypatch.setattr(gate_module, "runtime_binding", bind)
+    monkeypatch.setattr(
+        gate_module,
+        "load_runtime_pointer_integrity",
+        lambda: rehashed_pointer,
+    )
+    guard = RuntimeEnvironmentBindingGuard.full(
+        runtime_pointer=startup_pointer
+    )
+    guard.recheck(1)
+
+    assert calls == [startup_pointer, rehashed_pointer]
+
+
+def test_lightweight_runtime_guard_reloads_pointer_identity_for_new_arm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _runtime_binding_payload()
+    identities = iter(({"generation": 1}, {"generation": 2}))
+    identity_calls: list[object] = []
+    binding_calls: list[object] = []
+
+    def load_identity():
+        identity = next(identities)
+        identity_calls.append(identity)
+        return identity
+
+    def bind(*, runtime_pointer=None):
+        binding_calls.append(runtime_pointer)
+        return expected
+
+    monkeypatch.setattr(gate_module, "load_runtime_pointer_identity", load_identity)
+    monkeypatch.setattr(gate_module, "runtime_binding", bind)
+    guard = RuntimeEnvironmentBindingGuard.lightweight()
+    guard.recheck(1)
+
+    assert identity_calls == [{"generation": 1}, {"generation": 2}]
+    assert binding_calls == identity_calls
+
+
 def test_fresh_identity_closed_observation_opens_the_actual_arm_gate(tmp_path: Path) -> None:
     root, release, contract, lease, lease_path, gate_path = _fixture(tmp_path)
     lease_sha = lease.sha256
@@ -355,6 +478,64 @@ def test_cached_arm1_grant_is_invalidated_immediately_for_arm2(
 
     assert provider(arm2, connection_epoch=0) is None
     assert reads > reads_after_arm1
+
+
+def test_lightweight_runtime_binding_change_blocks_arm2_before_context(
+    tmp_path: Path,
+    _stable_managed_runtime_binding: dict[str, object],
+) -> None:
+    root, release, contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    arm1 = _arm_binding()
+    arm2 = _arm_binding(mailbox_sha256="e" * 64, trial_id=2, command_seq=3)
+    requested_at = time.time_ns()
+    publish_arm_observation(
+        gate_path.absolute(),
+        lease=lease,
+        lease_sha256=lease.sha256,
+        bridge_pid=os.getpid(),
+        dashboard=_dashboard(),
+        rtde_row=_row(),
+        contract=contract,
+        csv_age_s=0.01,
+        **_fresh_get_binding(),
+        arm_command=arm1,
+        command_observed_at_unix_ns=requested_at,
+        rtde_row_wall_ns=requested_at + 1,
+        connection_epoch=0,
+    )
+    provider = ArmGateProvider(
+        root=root,
+        gate_path=gate_path.absolute(),
+        lease_path=lease_path.absolute(),
+        lease_sha256=lease.sha256,
+        release=release,
+    )
+    _observe_provider(provider)
+    assert provider(arm1, connection_epoch=0) is not None
+
+    arm2_requested_at = time.time_ns()
+    publish_arm_observation(
+        gate_path.absolute(),
+        lease=lease,
+        lease_sha256=lease.sha256,
+        bridge_pid=os.getpid(),
+        dashboard=_dashboard(),
+        rtde_row=_row(ur_timestamp=101.0),
+        contract=contract,
+        csv_age_s=0.01,
+        **_fresh_get_binding(),
+        arm_command=arm2,
+        command_observed_at_unix_ns=arm2_requested_at,
+        rtde_row_wall_ns=arm2_requested_at + 1,
+        connection_epoch=0,
+    )
+    _observe_provider(provider, timestamp=101.0)
+    _stable_managed_runtime_binding["binding"] = _runtime_binding_payload(
+        bundle_id="9" * 64
+    )
+
+    with pytest.raises(RuntimeGateError, match="changed before ARM"):
+        provider(arm2, connection_epoch=0)
 
 
 def test_same_sequence_with_different_mailbox_sha_is_a_hard_failure(

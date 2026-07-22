@@ -23,6 +23,7 @@ from step5d_autotune_contract import (
 
 CUDA_FIT_MODES = {"serial", "verified_parallel"}
 R008_NOISE_VARIANCE_FLOOR_N2 = 1e-4
+PRODUCTION_OPTIMIZER_SEED = 9009
 
 
 @dataclass(frozen=True)
@@ -465,6 +466,7 @@ def _cuda_botorch_candidate(
     *,
     cuda_fit_mode: str,
     parallel_cuda_verified: bool,
+    seed: int,
 ) -> tuple[ForceCandidate, dict[str, Any]]:
     if cuda_fit_mode not in CUDA_FIT_MODES:
         raise ValueError(f"unsupported CUDA fit mode: {cuda_fit_mode}")
@@ -493,6 +495,12 @@ def _cuda_botorch_candidate(
 
     device = torch.device("cuda:0")
     torch.cuda.set_device(device)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.use_deterministic_algorithms(True)
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cudnn.benchmark = False
     torch.set_default_dtype(torch.double)
     torch.set_num_threads(1)
     train_x = torch.tensor([candidate_vector(item.candidate) for item in trainable], device=device)
@@ -513,7 +521,7 @@ def _cuda_botorch_candidate(
     acquisition = qLogNoisyExpectedImprovement(
         model=model,
         X_baseline=train_x,
-        sampler=SobolQMCNormalSampler(sample_shape=torch.Size([256])),
+        sampler=SobolQMCNormalSampler(sample_shape=torch.Size([256]), seed=seed),
         prune_baseline=True,
     )
     values = acquisition(candidate_x).detach().cpu().numpy().reshape(-1)
@@ -524,6 +532,7 @@ def _cuda_botorch_candidate(
         "gpu_name": torch.cuda.get_device_name(device),
         "gpu_workers": 1,
         "cuda_fit_mode": "serial",
+        "seed": seed,
         "training_observation_count": len(trainable),
         "selected_acquisition": float(values[index]),
     }
@@ -630,6 +639,10 @@ def cuda_botorch_joint_candidates(
     torch.cuda.set_device(device)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    torch.use_deterministic_algorithms(True)
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
+    torch.backends.cudnn.benchmark = False
     torch.set_default_dtype(torch.double)
     torch.set_num_threads(1)
     train_x = torch.tensor(
@@ -687,9 +700,12 @@ def choose_candidate(
     require_cuda_botorch: bool = True,
     cuda_fit_mode: str = "serial",
     parallel_cuda_verified: bool = False,
+    optimizer_seed: int = PRODUCTION_OPTIMIZER_SEED,
     search_attestations: Iterable[SearchAttestation] = (),
     forbidden_candidate_uids: frozenset[str] = frozenset(),
 ) -> tuple[ForceCandidate, dict[str, Any]]:
+    if isinstance(optimizer_seed, bool) or not isinstance(optimizer_seed, int):
+        raise ValueError("optimizer_seed must be an integer")
     attestations = tuple(search_attestations)
     if any(not isinstance(item, SearchAttestation) for item in attestations):
         raise ValueError("search_attestations must contain SearchAttestation values")
@@ -890,6 +906,7 @@ def choose_candidate(
         catalog,
         cuda_fit_mode=cuda_fit_mode,
         parallel_cuda_verified=parallel_cuda_verified,
+        seed=optimizer_seed,
     )
     return finalize(
         selected,

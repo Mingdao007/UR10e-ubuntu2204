@@ -36,6 +36,11 @@ from step5d_autotune_v3.runtime_identity import (
 from step5d_autotune_v3.runtime_installation import (
     RuntimeInstallationError,
     owner_dependency,
+    require_runtime_profile,
+)
+from step5d_autotune_v3.runtime_functional_gates import (
+    RuntimeFunctionalGateError,
+    load_gpu_functional_attestation,
 )
 from step5d_autotune_v3.qualification import (
     QualificationError,
@@ -315,6 +320,11 @@ def main(argv: list[str] | None = None) -> int:
         raise RuntimeError(
             "--release-candidate and --qualification-result are required before live delivery"
         )
+    try:
+        runtime_pointer = require_runtime_profile("control")
+        load_gpu_functional_attestation(runtime_pointer=runtime_pointer)
+    except (RuntimeInstallationError, RuntimeFunctionalGateError) as exc:
+        raise RuntimeError(f"production environment gate failed: {exc}") from exc
     try:
         candidate_release = _validate_candidate_and_qualification(
             root,

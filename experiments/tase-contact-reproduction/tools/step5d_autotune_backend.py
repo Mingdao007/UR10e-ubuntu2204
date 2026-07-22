@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -526,30 +527,39 @@ class Step5dV35Backend:
         evidence.update(readback_evidence)
         evidence["campaign_controller_readback_verified"] = readback_verified
         cuda_available = False
-        try:
-            import cupy
+        runtime_profile = os.environ.get("STEP5D_V3_RUNTIME_PROFILE")
+        evidence["runtime_profile"] = runtime_profile
+        if runtime_profile == "optimizer":
+            try:
+                import torch
 
-            cupy_devices = int(cupy.cuda.runtime.getDeviceCount())
-            evidence["cupy_version"] = cupy.__version__
-            evidence["cupy_device_count"] = cupy_devices
-            cuda_available = cupy_devices > 0
-            if cuda_available:
-                properties = cupy.cuda.runtime.getDeviceProperties(0)
-                name = properties.get("name", "unknown")
-                evidence["gpu_name"] = (
-                    name.decode("utf-8", errors="replace")
-                    if isinstance(name, bytes)
-                    else str(name)
-                )
-        except (ImportError, RuntimeError):
-            evidence["cupy_device_count"] = 0
-        try:
-            import torch
+                torch_available = bool(torch.cuda.is_available())
+                evidence["torch_version"] = torch.__version__
+                evidence["torch_cuda_available"] = torch_available
+                evidence["torch_cuda_device_count"] = int(torch.cuda.device_count())
+                if torch_available:
+                    evidence["gpu_name"] = str(torch.cuda.get_device_name(0))
+                cuda_available = torch_available
+            except (ImportError, RuntimeError):
+                evidence["torch_cuda_available"] = False
+        else:
+            try:
+                import cupy
 
-            evidence["torch_version"] = torch.__version__
-            evidence["torch_cuda_available"] = bool(torch.cuda.is_available())
-        except ImportError:
-            evidence["torch_cuda_available"] = False
+                cupy_devices = int(cupy.cuda.runtime.getDeviceCount())
+                evidence["cupy_version"] = cupy.__version__
+                evidence["cupy_device_count"] = cupy_devices
+                cuda_available = cupy_devices > 0
+                if cuda_available:
+                    properties = cupy.cuda.runtime.getDeviceProperties(0)
+                    name = properties.get("name", "unknown")
+                    evidence["gpu_name"] = (
+                        name.decode("utf-8", errors="replace")
+                        if isinstance(name, bytes)
+                        else str(name)
+                    )
+            except (ImportError, RuntimeError):
+                evidence["cupy_device_count"] = 0
         execution_ready = bool(
             execution_context
             and execution_context.controller_readback_verified

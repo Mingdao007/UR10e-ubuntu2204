@@ -19,9 +19,15 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import time
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from .delivery_observation import MAX_AGE_NS as CONTROLLER_FRESH_GET_MAX_AGE_NS
+from .runtime_installation import (
+    RuntimeInstallationError,
+    load_runtime_pointer_identity,
+    load_runtime_pointer_integrity,
+    runtime_binding,
+)
 from .state import StateError, atomic_json, read_strict_json
 
 
@@ -41,6 +47,121 @@ _LOADED_PROGRAM_RE = re.compile(r"([^<>\s]+\.urp)(?=$|[>\s])", re.IGNORECASE)
 
 class RuntimeGateError(RuntimeError):
     """A campaign lease or observed ARM predicate is missing or stale."""
+
+
+RuntimeBindingLoader = Callable[[], Mapping[str, Any]]
+
+
+def _load_runtime_environment_binding(
+    loader: RuntimeBindingLoader,
+    *,
+    role: str,
+) -> dict[str, Any]:
+    try:
+        value = loader()
+    except RuntimeGateError:
+        raise
+    except RuntimeInstallationError as exc:
+        raise RuntimeGateError(
+            f"{exc.reason_code}: {role} failed: {exc.detail}"
+        ) from exc
+    except (OSError, UnicodeError, TypeError, ValueError, KeyError) as exc:
+        raise RuntimeGateError(f"{role} failed: {exc}") from exc
+    if not isinstance(value, Mapping) or value.get("schema") != (
+        "step5d.autotune-v3/runtime-process-binding-v1"
+    ):
+        raise RuntimeGateError(f"{role} returned an invalid binding")
+    try:
+        encoded = json.dumps(
+            value,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        detached = json.loads(encoded)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeGateError(f"{role} is not canonical JSON") from exc
+    if not isinstance(detached, dict):
+        raise RuntimeGateError(f"{role} must be a JSON object")
+    return detached
+
+
+class RuntimeEnvironmentBindingGuard:
+    """Revalidate one frozen managed-runtime binding before each new ARM."""
+
+    def __init__(
+        self,
+        *,
+        expected_binding: Mapping[str, Any],
+        binding_loader: RuntimeBindingLoader,
+    ) -> None:
+        if not callable(binding_loader):
+            raise RuntimeGateError("runtime environment binding loader is not callable")
+        self._expected_binding = _load_runtime_environment_binding(
+            lambda: expected_binding,
+            role="expected runtime environment binding",
+        )
+        self._binding_loader = binding_loader
+        self._last_command_seq: int | None = None
+
+    @classmethod
+    def full(
+        cls,
+        *,
+        runtime_pointer: Mapping[str, Any],
+    ) -> "RuntimeEnvironmentBindingGuard":
+        """Use a verified startup pointer, then rehash package/host inputs per ARM."""
+
+        expected = _load_runtime_environment_binding(
+            lambda: runtime_binding(runtime_pointer=runtime_pointer),
+            role="startup runtime environment binding",
+        )
+        return cls(
+            expected_binding=expected,
+            binding_loader=lambda: runtime_binding(
+                runtime_pointer=load_runtime_pointer_integrity()
+            ),
+        )
+
+    @classmethod
+    def lightweight(cls) -> "RuntimeEnvironmentBindingGuard":
+        """Recheck immutable pointer/attestation identity without package rehashing."""
+
+        def load_identity_binding() -> Mapping[str, Any]:
+            pointer = load_runtime_pointer_identity()
+            return runtime_binding(runtime_pointer=pointer)
+
+        expected = _load_runtime_environment_binding(
+            load_identity_binding,
+            role="startup lightweight runtime environment binding",
+        )
+        return cls(
+            expected_binding=expected,
+            binding_loader=load_identity_binding,
+        )
+
+    @property
+    def binding_sha256(self) -> str:
+        return _canonical_sha256(self._expected_binding)
+
+    def recheck(self, command_seq: int) -> str:
+        sequence = _positive_int(command_seq, "runtime recheck command_seq")
+        if self._last_command_seq == sequence:
+            return self.binding_sha256
+        if self._last_command_seq is not None and sequence < self._last_command_seq:
+            raise RuntimeGateError(
+                "runtime recheck command sequence regressed"
+            )
+        observed = _load_runtime_environment_binding(
+            self._binding_loader,
+            role=f"runtime environment binding recheck for command {sequence}",
+        )
+        if observed != self._expected_binding:
+            raise RuntimeGateError(
+                "runtime environment binding changed before ARM"
+            )
+        self._last_command_seq = sequence
+        return self.binding_sha256
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -768,6 +889,7 @@ class ArmGateProvider:
         lease_path: Path,
         lease_sha256: str,
         release: Any,
+        runtime_environment_guard: RuntimeEnvironmentBindingGuard | None = None,
     ) -> None:
         if not gate_path.is_absolute() or gate_path.is_symlink():
             raise RuntimeGateError("ARM gate path must be absolute and non-symlink")
@@ -809,6 +931,15 @@ class ArmGateProvider:
             != self.contract["safety_envelope_sha256"]
         ):
             raise RuntimeGateError("campaign lease release binding differs")
+        self._runtime_environment_guard = (
+            RuntimeEnvironmentBindingGuard.lightweight()
+            if runtime_environment_guard is None
+            else runtime_environment_guard
+        )
+        if not isinstance(
+            self._runtime_environment_guard, RuntimeEnvironmentBindingGuard
+        ):
+            raise RuntimeGateError("ARM gate runtime environment guard is invalid")
         self._cache_initialized = False
         self._cached_context: ValidatedArmContext | None = None
         self._cache_valid_until = float("-inf")
@@ -1189,6 +1320,7 @@ class ArmGateProvider:
             grant_id = _sha256(row["grant_id"], "ARM grant id")
             mailbox_sha256 = expected_command.mailbox_sha256
             command_seq = expected_command.command_seq
+            self._runtime_environment_guard.recheck(command_seq)
         elif rtde["row_wall_ns"] is not None:
             _positive_int(rtde["row_wall_ns"], "readiness RTDE row wall timestamp")
         return (
@@ -1224,6 +1356,7 @@ __all__ = [
     "LEASE_SCHEMA",
     "OBSERVATION_SCHEMA",
     "RuntimeGateError",
+    "RuntimeEnvironmentBindingGuard",
     "ValidatedArmContext",
     "load_campaign_lease",
     "loaded_program_matches",

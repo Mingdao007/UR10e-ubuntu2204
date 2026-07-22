@@ -373,6 +373,7 @@ def test_canonical_shell_records_each_pre_live_phase_without_a_second_entrypoint
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     for phase in (
+        "runtime_gate",
         "status_before",
         "tp_build",
         "release_candidate",
@@ -386,15 +387,26 @@ def test_canonical_shell_records_each_pre_live_phase_without_a_second_entrypoint
         assert f"bridge_begin_phase {phase}" in source
     assert "trap bridge_failure_trap ERR" in source
     assert "--_launch-attempt-state" in source
-    assert source.count('python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"') == 2
-    assert 'exec python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"' not in source
+    exact_live = (
+        '"${CONTROL_PYTHON}" '
+        '"${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"'
+    )
+    assert source.count(exact_live) == 2
+    assert f"exec {exact_live}" not in source
+    assert 'python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"' not in source
 
 
-def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> None:
+def _fake_governed_shell(
+    tmp_path: Path,
+    *,
+    fail_status: bool,
+) -> tuple[Path, Path, dict[str, str]]:
     repository = tmp_path / "repository"
     experiment = repository / "experiments/fake"
     scripts = experiment / "scripts"
+    tools = experiment / "tools"
     scripts.mkdir(parents=True)
+    tools.mkdir()
     shell = scripts / "step5d-autotune-v3.sh"
     shell.write_text(
         (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8"),
@@ -406,25 +418,49 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
     )
     (repository / "install/share/ament_index/resource_index").mkdir(parents=True)
 
-    shim = tmp_path / "shim"
-    shim.mkdir()
     command_log = tmp_path / "python-commands.log"
-    python = shim / "python3"
-    python.write_text(
+    profile_python = tmp_path / "governed-profile-python"
+    profile_python.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
         "printf '%q ' \"$@\" >>\"${STEP5D_TEST_COMMAND_LOG:?}\"\n"
         "printf '\\n' >>\"${STEP5D_TEST_COMMAND_LOG:?}\"\n"
-        "if [[ \"${1:-}\" == '-c' ]]; then exec /usr/bin/python3 \"$@\"; fi\n"
-        "if [[ \" $* \" == *' --_launch-attempt-state '* ]]; then\n"
-        "  printf '{}\\n'\n"
-        "  exit 0\n"
-        "fi\n"
-        "if [[ \" $* \" == *' status --json '* ]]; then exit 41; fi\n"
-        "exit 99\n",
+        "if [[ \"${1:-}\" == '-c' ]]; then printf '%032d\\n' 0; exit 0; fi\n"
+        + (
+            "if [[ \" $* \" == *' status --json '* ]]; then exit 41; fi\n"
+            if fail_status
+            else ""
+        )
+        + "printf '{}\\n'\n",
         encoding="utf-8",
     )
-    python.chmod(0o755)
+    profile_python.chmod(0o755)
+    resolver = tools / "resolve_step5d_autotune_v3_runtime.py"
+    resolver.write_text(
+        "import os, sys\n"
+        "if '--shell-binding' not in sys.argv:\n"
+        "    raise SystemExit(64)\n"
+        "python = os.environ['STEP5D_TEST_PROFILE_PYTHON']\n"
+        "digest = 'a' * 64\n"
+        "gpu = 'GPU-93d64fd3-924c-9c86-6c3d-b4781ed2133a'\n"
+        "print('\\t'.join((python, python, digest, digest, digest, digest, digest, digest, gpu)))\n",
+        encoding="utf-8",
+    )
+    environment = {
+        **os.environ,
+        "PATH": "/usr/bin:/bin",
+        "STEP5D_TEST_COMMAND_LOG": str(command_log),
+        "STEP5D_TEST_PROFILE_PYTHON": str(profile_python),
+    }
+    return shell, command_log, environment
+
+
+def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> None:
+    shell, command_log, environment = _fake_governed_shell(
+        tmp_path,
+        fail_status=True,
+    )
+    experiment = shell.parent.parent
     output = tmp_path / "output"
     campaign = tmp_path / "campaign"
     result = subprocess.run(
@@ -437,11 +473,7 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
             str(campaign),
         ],
         cwd=experiment,
-        env={
-            **os.environ,
-            "PATH": os.pathsep.join((str(shim), "/usr/bin", "/bin")),
-            "STEP5D_TEST_COMMAND_LOG": str(command_log),
-        },
+        env=environment,
         stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,
@@ -451,8 +483,18 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
 
     assert result.returncode == 41, result.stderr
     commands = command_log.read_text(encoding="utf-8").splitlines()
-    started = next(line for line in commands if "_launch-attempt-state STARTED" in line)
-    failed = next(line for line in commands if "_launch-attempt-state FAILED" in line)
+    started = next(
+        line
+        for line in commands
+        if "_launch-attempt-state STARTED" in line
+        and "_launch-attempt-phase status_before" in line
+    )
+    failed = next(
+        line
+        for line in commands
+        if "_launch-attempt-state FAILED" in line
+        and "_launch-attempt-phase status_before" in line
+    )
     assert "_launch-attempt-phase status_before" in started
     assert "_launch-attempt-phase status_before" in failed
     assert "_launch-attempt-exit-code 41" in failed
@@ -462,35 +504,21 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
 def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
     tmp_path: Path,
 ) -> None:
-    shim = tmp_path / "shim"
-    shim.mkdir()
-    command_log = tmp_path / "python-commands.log"
-    python = shim / "python3"
-    python.write_text(
-        "#!/usr/bin/env bash\n"
-        "set -euo pipefail\n"
-        "printf '%q ' \"$@\" >>\"${STEP5D_TEST_COMMAND_LOG:?}\"\n"
-        "printf '\\n' >>\"${STEP5D_TEST_COMMAND_LOG:?}\"\n"
-        "if [[ \"${1:-}\" == '-c' ]]; then exec /usr/bin/python3 \"$@\"; fi\n"
-        "printf '{}\\n'\n",
-        encoding="utf-8",
+    shell, command_log, environment = _fake_governed_shell(
+        tmp_path,
+        fail_status=False,
     )
-    python.chmod(0o755)
     result = subprocess.run(
         [
-            str(ROOT / "scripts/step5d-autotune-v3.sh"),
+            str(shell),
             "bridge",
             "--output-root",
             str(tmp_path / "output"),
             "--campaign-root",
             str(tmp_path / "campaign"),
         ],
-        cwd=ROOT,
-        env={
-            **os.environ,
-            "PATH": os.pathsep.join((str(shim), "/usr/bin", "/bin")),
-            "STEP5D_TEST_COMMAND_LOG": str(command_log),
-        },
+        cwd=shell.parent.parent,
+        env=environment,
         stdin=subprocess.DEVNULL,
         capture_output=True,
         text=True,

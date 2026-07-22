@@ -46,6 +46,10 @@ QUALIFICATION_ENDPOINT_CONFIG_ENV = "STEP5D_V3_QUALIFICATION_ENDPOINT_CONFIG"
 QUALIFICATION_MODE_ENV = "STEP5D_V3_QUALIFICATION_MODE"
 QUALIFICATION_MODE_VALUE = "endpoint-only-no-motion-v1"
 LOCAL_RELEASE_CANDIDATE_SCHEMA = "step5d.autotune-v3/local-release-candidate-v1"
+RELEASE_RUNTIME_ENVIRONMENT_SCHEMA = (
+    "step5d.autotune-v3/release-runtime-environment-v1"
+)
+RELEASE_PYTHON_ABI = "cpython-310-x86_64-linux-gnu"
 
 
 class ReleaseIdentityError(RuntimeError):
@@ -103,6 +107,71 @@ def _relative_path(value: Any, role: str) -> PurePosixPath:
     return path
 
 
+def _environment_identity(
+    contract_sha256: str,
+    lock_sha256: str,
+    *,
+    profile: str | None = None,
+) -> str:
+    material = {
+        "schema": (
+            "step5d.autotune-v3/runtime-bundle-identity-v1"
+            if profile is None
+            else "step5d.autotune-v3/runtime-environment-identity-v1"
+        ),
+        "contract_sha256": contract_sha256,
+        "lock_sha256": lock_sha256,
+        "python_abi": RELEASE_PYTHON_ABI,
+    }
+    if profile is None:
+        material["profiles"] = ["control", "optimizer"]
+    else:
+        material["profile"] = profile
+    return _sha256_bytes(
+        (
+            json.dumps(
+                material,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            )
+            + "\n"
+        ).encode("ascii")
+    )
+
+
+def release_runtime_environment_binding(
+    source_fingerprints: Mapping[str, str],
+) -> dict[str, Any]:
+    paths = {
+        "runtime_contract": "config/step5/step5d_v3_runtime_contract.json",
+        "uv_lock": "uv.lock",
+        "dependency_manifest": "pyproject.toml",
+    }
+    try:
+        references = {
+            role: {"path": path, "sha256": source_fingerprints[path]}
+            for role, path in paths.items()
+        }
+    except KeyError as exc:
+        raise ReleaseIdentityError(
+            f"release runtime source binding is missing: {exc.args[0]}"
+        ) from exc
+    contract_sha = references["runtime_contract"]["sha256"]
+    lock_sha = references["uv_lock"]["sha256"]
+    return {
+        "schema": RELEASE_RUNTIME_ENVIRONMENT_SCHEMA,
+        **references,
+        "python_abi": RELEASE_PYTHON_ABI,
+        "required_environment_id": _environment_identity(contract_sha, lock_sha),
+        "profile_environment_ids": {
+            profile: _environment_identity(contract_sha, lock_sha, profile=profile)
+            for profile in ("control", "optimizer")
+        },
+    }
+
+
 @dataclass(frozen=True)
 class ReleaseIdentity:
     program_id: str
@@ -118,6 +187,7 @@ class ReleaseIdentity:
     controller_target: str
     tp_runtime_identity: Mapping[str, Any]
     safety_envelope: Mapping[str, str]
+    runtime_environment: Mapping[str, Any]
     source_fingerprints: Mapping[str, str]
     generated_files: Mapping[str, str]
     verification: Mapping[str, Any]
@@ -170,6 +240,50 @@ class ReleaseIdentity:
                 _sha256_text(digest, f"{role} SHA-256")
         if set(self.source_fingerprints) != REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS:
             raise ReleaseIdentityError("experiment source fingerprint coverage differs")
+        runtime = self.runtime_environment
+        runtime_fields = {
+            "schema",
+            "runtime_contract",
+            "uv_lock",
+            "dependency_manifest",
+            "python_abi",
+            "required_environment_id",
+            "profile_environment_ids",
+        }
+        if (
+            not isinstance(runtime, Mapping)
+            or set(runtime) != runtime_fields
+            or runtime.get("schema") != RELEASE_RUNTIME_ENVIRONMENT_SCHEMA
+            or runtime.get("python_abi") != RELEASE_PYTHON_ABI
+        ):
+            raise ReleaseIdentityError("release runtime environment fields differ")
+        references = {
+            "runtime_contract": "config/step5/step5d_v3_runtime_contract.json",
+            "uv_lock": "uv.lock",
+            "dependency_manifest": "pyproject.toml",
+        }
+        for role, expected_path in references.items():
+            reference = runtime.get(role)
+            if (
+                not isinstance(reference, Mapping)
+                or set(reference) != {"path", "sha256"}
+                or reference.get("path") != expected_path
+                or reference.get("sha256")
+                != self.source_fingerprints.get(expected_path)
+            ):
+                raise ReleaseIdentityError(f"release {role} binding differs")
+        contract_sha = runtime["runtime_contract"]["sha256"]
+        lock_sha = runtime["uv_lock"]["sha256"]
+        expected_profiles = {
+            profile: _environment_identity(contract_sha, lock_sha, profile=profile)
+            for profile in ("control", "optimizer")
+        }
+        if (
+            runtime.get("required_environment_id")
+            != _environment_identity(contract_sha, lock_sha)
+            or runtime.get("profile_environment_ids") != expected_profiles
+        ):
+            raise ReleaseIdentityError("release runtime environment identity is not derived")
         if (
             not isinstance(self.controller_target, str)
             or not self.controller_target.startswith("/")
@@ -251,6 +365,7 @@ def identity_from_manifest(
         "controller_target",
         "tp_runtime_identity",
         "safety_envelope",
+        "runtime_environment",
         "source_fingerprints",
         "generated_files",
         "verification",
@@ -276,6 +391,7 @@ def identity_from_manifest(
         controller_target=manifest["controller_target"],
         tp_runtime_identity=manifest["tp_runtime_identity"],
         safety_envelope=manifest["safety_envelope"],
+        runtime_environment=manifest["runtime_environment"],
         source_fingerprints=manifest["source_fingerprints"],
         generated_files=manifest["generated_files"],
         verification=manifest["verification"],
@@ -620,6 +736,8 @@ __all__ = [
     "QUALIFICATION_MODE_VALUE",
     "QUALIFICATION_RELEASE_MANIFEST_ENV",
     "RELEASE_MANIFEST_SCHEMA",
+    "RELEASE_PYTHON_ABI",
+    "RELEASE_RUNTIME_ENVIRONMENT_SCHEMA",
     "RELEASE_STAGE_ID",
     "REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS",
     "REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS",
@@ -636,5 +754,6 @@ __all__ = [
     "load_release_manifest",
     "load_runtime_release",
     "qualification_runtime_environment",
+    "release_runtime_environment_binding",
     "release_payload_path",
 ]

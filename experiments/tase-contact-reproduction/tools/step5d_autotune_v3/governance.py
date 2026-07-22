@@ -36,6 +36,7 @@ FSM_TRANSITION_ACTOR = "launcher_supervisor"
 
 LAUNCH_ATTEMPT_STATES = ("STARTED", "FAILED")
 LAUNCH_ATTEMPT_PHASES = (
+    "runtime_gate",
     "status_before",
     "tp_build",
     "release_candidate",
@@ -81,6 +82,16 @@ TP_RUNTIME_REGISTERS = {
 }
 
 REASON_ORDER = (
+    "RUNTIME_NOT_PROVISIONED",
+    "RUNTIME_LOCK_MISMATCH",
+    "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+    "CONTROL_RUNTIME_INVALID",
+    "OPTIMIZER_RUNTIME_INVALID",
+    "HOST_CONTRACT_MISMATCH",
+    "GPU_IDENTITY_MISMATCH",
+    "GPU_FUNCTIONAL_GATE_MISSING",
+    "OWNER_DEPENDENCY_MISMATCH",
+    "ACTIVE_SOURCE_CLOSURE_UNRESOLVED",
     "CURRENT_RELEASE_INVALID",
     "CURRENT_OBSERVATION_MISSING",
     "LAUNCH_ATTEMPT_POINTER_INVALID",
@@ -147,6 +158,16 @@ EXTERNAL_REASON_CODES = {
     "KUNWEI_STALE",
 }
 INTERNAL_REASON_CODES = {
+    "RUNTIME_NOT_PROVISIONED",
+    "RUNTIME_LOCK_MISMATCH",
+    "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+    "CONTROL_RUNTIME_INVALID",
+    "OPTIMIZER_RUNTIME_INVALID",
+    "HOST_CONTRACT_MISMATCH",
+    "GPU_IDENTITY_MISMATCH",
+    "GPU_FUNCTIONAL_GATE_MISSING",
+    "OWNER_DEPENDENCY_MISMATCH",
+    "ACTIVE_SOURCE_CLOSURE_UNRESOLVED",
     "CURRENT_RELEASE_INVALID",
     "LAUNCH_ATTEMPT_POINTER_INVALID",
     "LAUNCH_ATTEMPT_ATTESTATION_INVALID",
@@ -207,6 +228,16 @@ TERMINAL_VOLATILE_REASON_CODES = {
 }
 
 INVALIDATION_TABLE: Mapping[str, tuple[str, ...]] = {
+    "runtime_package_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
+    "runtime_lock_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
+    "host_contract_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
+    "gpu_identity_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
+    "gpu_functional_evidence_changed": (
+        "offline_proven",
+        "play_prompt_ready",
+        "bench_ready",
+    ),
+    "owner_dependency_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
     "manifest_sha_changed": (
         "release_current",
         "offline_proven",
@@ -1606,6 +1637,21 @@ def _blocker_class(reasons: Sequence[str]) -> str | None:
 
 def _next_action(state: str | None, reasons: Sequence[str], live_proven: bool) -> str:
     values = set(reasons)
+    environment_actions = {
+        "RUNTIME_NOT_PROVISIONED": "provision_runtime",
+        "RUNTIME_LOCK_MISMATCH": "provision_runtime_for_current_lock",
+        "RUNTIME_PACKAGE_INTEGRITY_MISMATCH": "reprovision_runtime",
+        "CONTROL_RUNTIME_INVALID": "reprovision_control_runtime",
+        "OPTIMIZER_RUNTIME_INVALID": "reprovision_optimizer_runtime",
+        "HOST_CONTRACT_MISMATCH": "restore_host_contract",
+        "GPU_IDENTITY_MISMATCH": "restore_governed_gpu_identity",
+        "GPU_FUNCTIONAL_GATE_MISSING": "run_native_gpu_functional_gates",
+        "OWNER_DEPENDENCY_MISMATCH": "restore_owner_dependency",
+        "ACTIVE_SOURCE_CLOSURE_UNRESOLVED": "resolve_active_source_closure",
+    }
+    for reason in REASON_ORDER:
+        if reason in values and reason in environment_actions:
+            return environment_actions[reason]
     if "CURRENT_RELEASE_INVALID" in values:
         return "repair_current_release"
     if "CURRENT_OBSERVATION_MISSING" in values:
@@ -2263,6 +2309,71 @@ def reduce_observed_attestation(
     }
 
 
+def _environment_status(
+    experiment_root: Path,
+) -> tuple[dict[str, Any], list[str], list[dict[str, Any]]]:
+    from .runtime_functional_gates import (
+        RuntimeFunctionalGateError,
+        load_gpu_functional_attestation,
+    )
+    from .runtime_installation import load_runtime_pointer_identity, runtime_status
+    from .source_closure import SourceClosureError, production_source_closure_report
+
+    observed = dict(runtime_status())
+    try:
+        production_source_closure_report(experiment_root)
+    except SourceClosureError as exc:
+        reason = "ACTIVE_SOURCE_CLOSURE_UNRESOLVED"
+        detail = exc.detail
+    else:
+        reason = observed.get("reason_code")
+        detail = observed.get("detail")
+    gpu_reference: dict[str, str] | None = None
+    gpu_functional_proven = False
+    if reason is None:
+        try:
+            from .release_identity import load_current_release
+
+            release = load_current_release(experiment_root)
+            required = release.runtime_environment["required_environment_id"]
+            if (
+                observed.get("required_environment_id") != required
+                or observed.get("observed_environment_id") != required
+            ):
+                reason = "RUNTIME_LOCK_MISMATCH"
+                detail = "current release and promoted runtime environment IDs differ"
+            else:
+                pointer = load_runtime_pointer_identity()
+                _payload, gpu_reference = load_gpu_functional_attestation(
+                    runtime_pointer=pointer
+                )
+                gpu_functional_proven = True
+        except RuntimeFunctionalGateError as exc:
+            reason = "GPU_FUNCTIONAL_GATE_MISSING"
+            detail = str(exc)
+        except Exception:
+            # Release errors retain their more precise CURRENT_RELEASE_INVALID reason.
+            pass
+    observed.update(
+        {
+            "gpu_identity_ready": bool(
+                observed.get("host_contract_ready") and reason != "GPU_IDENTITY_MISMATCH"
+            ),
+            "gpu_functional_proven": gpu_functional_proven,
+            "gpu_functional_evidence": gpu_reference,
+            "environment_attestation_sha256": None,
+            "blocker": {"reason_code": reason, "detail": detail},
+        }
+    )
+    reasons = [] if reason is None else [str(reason)]
+    evidence = (
+        []
+        if reason is None
+        else [_evidence_row("runtime_environment", detail=str(detail))]
+    )
+    return observed, reasons, evidence
+
+
 def resolve_governed_status(
     experiment_root: Path,
     campaign_root: Path,
@@ -2271,10 +2382,13 @@ def resolve_governed_status(
     proc_starttime_reader: Callable[[int], int | None] = read_proc_starttime_ticks,
     integrity_errors: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
+    environment, environment_reasons, environment_evidence = _environment_status(
+        experiment_root
+    )
     release = load_current_release_snapshot(experiment_root)
     observed_now = time.time_ns() if now_ns is None else now_ns
-    reasons: list[str] = []
-    evidence: list[dict[str, Any]] = []
+    reasons: list[str] = list(environment_reasons)
+    evidence: list[dict[str, Any]] = list(environment_evidence)
     for role, detail in sorted((integrity_errors or {}).items()):
         reason = {
             "queue": "QUEUE_INTEGRITY_ERROR",
@@ -2423,6 +2537,26 @@ def resolve_governed_status(
         initial_reasons=reasons,
         initial_evidence=evidence,
         offline_proof=offline_proof,
+    )
+    if environment_reasons:
+        status["predicates"]["offline_proven"] = False
+        status["predicates"]["play_prompt_ready"] = False
+        status["predicates"]["bench_ready"] = False
+        status["state"] = None
+        status["outcome"]["live_proven"] = False
+    elif offline_proof is not None:
+        environment["environment_attestation_sha256"] = offline_proof[
+            "evidence"
+        ]["sha256"]
+    status["environment"] = environment
+    status["next_action"] = (
+        _next_action(
+            status["state"],
+            status["blocker"]["reason_codes"],
+            bool(status["outcome"]["live_proven"]),
+        )
+        if environment_reasons
+        else status["next_action"]
     )
     status["launch_attempt"] = launch_status
     return status

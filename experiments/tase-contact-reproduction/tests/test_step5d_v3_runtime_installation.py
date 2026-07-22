@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import importlib.util
 import inspect
 import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Mapping
 
 import pytest
 
@@ -14,6 +16,40 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT.parents[1] / "src/ur10e_experiment_runtime"))
 
 from step5d_autotune_v3 import runtime_installation as runtime  # noqa: E402
+
+
+RESOLVER_PATH = ROOT / "tools/resolve_step5d_autotune_v3_runtime.py"
+RESOLVER_SPEC = importlib.util.spec_from_file_location(
+    "step5d_v3_runtime_resolver_test", RESOLVER_PATH
+)
+assert RESOLVER_SPEC is not None and RESOLVER_SPEC.loader is not None
+resolver = importlib.util.module_from_spec(RESOLVER_SPEC)
+RESOLVER_SPEC.loader.exec_module(resolver)
+
+
+def _runtime_pointer_fixture(tmp_path: Path) -> dict[str, object]:
+    return {
+        "bundle_id": "a" * 64,
+        "contract_sha256": "b" * 64,
+        "lock_sha256": "c" * 64,
+        "attestation_sha256": "d" * 64,
+        "profiles": {
+            profile: {
+                "root": str(tmp_path / profile),
+                "environment_id": ("1" if profile == "control" else "2") * 64,
+                "python_executable": str(tmp_path / profile / "bin/python"),
+                "record_tree_sha256": (
+                    "3" if profile == "control" else "4"
+                )
+                * 64,
+                "profile_tree_sha256": (
+                    "5" if profile == "control" else "6"
+                )
+                * 64,
+            }
+            for profile in runtime.PROFILES
+        },
+    }
 
 
 def test_runtime_contract_and_lock_define_two_distinct_profiles() -> None:
@@ -43,7 +79,188 @@ def test_missing_runtime_pointer_has_one_machine_reason(tmp_path: Path) -> None:
     assert status["observed_environment_id"] is None
     assert status["control_ready"] is False
     assert status["optimizer_ready"] is False
+    assert status["gpu_identity_ready"] is False
+    assert status["runtime_attestation_sha256"] is None
+    assert set(status["profiles"]) == set(runtime.PROFILES)
+    assert all(
+        status["profiles"][profile]["ready"] is False
+        for profile in runtime.PROFILES
+    )
     assert status["reason_code"] == "RUNTIME_NOT_PROVISIONED"
+
+
+def test_runtime_binding_exposes_exact_dual_profile_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pointer = _runtime_pointer_fixture(tmp_path)
+    monkeypatch.setattr(runtime, "load_runtime_pointer", lambda **_kwargs: pointer)
+
+    binding = runtime.runtime_binding()
+
+    assert binding["schema"] == "step5d.autotune-v3/runtime-process-binding-v1"
+    assert binding["bundle_id"] == pointer["bundle_id"]
+    assert binding["contract_sha256"] == pointer["contract_sha256"]
+    assert binding["lock_sha256"] == pointer["lock_sha256"]
+    assert binding["runtime_attestation_sha256"] == pointer["attestation_sha256"]
+    assert binding["gpu_uuid"] == runtime.load_runtime_contract()["gpu"]["uuid"]
+    for profile in runtime.PROFILES:
+        assert binding["profiles"][profile] == {
+            key: value
+            for key, value in pointer["profiles"][profile].items()
+            if key != "root"
+        }
+
+
+def test_runtime_status_uses_one_static_integrity_scan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pointer = _runtime_pointer_fixture(tmp_path)
+    calls: list[Mapping[str, str] | None] = []
+    monkeypatch.setattr(runtime, "runtime_bundle_id", lambda: pointer["bundle_id"])
+    monkeypatch.setattr(
+        runtime,
+        "profile_environment_id",
+        lambda profile: pointer["profiles"][profile]["environment_id"],
+    )
+
+    def load_integrity(*, environ=None):
+        calls.append(environ)
+        return pointer
+
+    monkeypatch.setattr(runtime, "load_runtime_pointer_integrity", load_integrity)
+    monkeypatch.setattr(
+        runtime,
+        "load_runtime_pointer",
+        lambda **_kwargs: pytest.fail("status must not import/smoke both profiles"),
+    )
+
+    status = runtime.runtime_status(environ={"HOME": str(tmp_path)})
+
+    assert status["reason_code"] is None
+    assert calls == [{"HOME": str(tmp_path)}]
+
+
+def test_status_resolver_reuses_one_runtime_status_result(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+
+    def status() -> dict[str, object]:
+        calls.append("status")
+        return {
+            "reason_code": "RUNTIME_NOT_PROVISIONED",
+            "detail": "fixture",
+        }
+
+    monkeypatch.setattr(resolver, "runtime_status", status)
+    monkeypatch.setattr(
+        resolver,
+        "load_runtime_pointer",
+        lambda: pytest.fail("status resolver must not reload the pointer"),
+    )
+    monkeypatch.setattr(
+        resolver,
+        "load_runtime_pointer_integrity",
+        lambda: pytest.fail("status resolver must reuse runtime_status"),
+    )
+
+    assert resolver.main(["--status-json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert calls == ["status"]
+    assert payload["blocker"]["reason_codes"] == ["RUNTIME_NOT_PROVISIONED"]
+    assert payload["next_action"] == "provision_runtime"
+
+
+def test_shell_binding_uses_static_integrity_pointer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pointer = _runtime_pointer_fixture(tmp_path)
+    pointer["attestation_sha256"] = "d" * 64
+    calls: list[str] = []
+
+    def load_integrity() -> dict[str, object]:
+        calls.append("integrity")
+        return pointer
+
+    monkeypatch.setattr(resolver, "load_runtime_pointer_integrity", load_integrity)
+    monkeypatch.setattr(
+        resolver,
+        "load_runtime_pointer",
+        lambda: pytest.fail("shell binding must not import/smoke both profiles"),
+    )
+
+    assert resolver.main(["--shell-binding"]) == 0
+    fields = capsys.readouterr().out.strip().split("\t")
+    assert calls == ["integrity"]
+    assert fields[:2] == [
+        pointer["profiles"]["control"]["python_executable"],
+        pointer["profiles"]["optimizer"]["python_executable"],
+    ]
+
+
+def test_require_runtime_profile_rejects_cross_profile_interpreter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pointer = _runtime_pointer_fixture(tmp_path)
+    monkeypatch.setattr(runtime, "load_runtime_pointer", lambda **_kwargs: pointer)
+    control_python = pointer["profiles"]["control"]["python_executable"]
+    optimizer_python = pointer["profiles"]["optimizer"]["python_executable"]
+
+    monkeypatch.setattr(runtime.sys, "executable", control_python)
+    monkeypatch.setattr(runtime.sys, "prefix", pointer["profiles"]["control"]["root"])
+    assert runtime.require_runtime_profile("control") == pointer
+
+    with pytest.raises(runtime.RuntimeInstallationError) as caught:
+        runtime.require_runtime_profile("optimizer")
+    assert caught.value.reason_code == "OPTIMIZER_RUNTIME_INVALID"
+    assert optimizer_python in caught.value.detail
+    assert control_python in caught.value.detail
+
+
+def test_runtime_status_reports_exact_profile_bindings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pointer = _runtime_pointer_fixture(tmp_path)
+    required_profiles = {"control": "7" * 64, "optimizer": "8" * 64}
+    monkeypatch.setattr(runtime, "runtime_bundle_id", lambda: pointer["bundle_id"])
+    monkeypatch.setattr(
+        runtime, "load_runtime_pointer_integrity", lambda **_kwargs: pointer
+    )
+    monkeypatch.setattr(
+        runtime,
+        "profile_environment_id",
+        lambda profile: required_profiles[profile],
+    )
+
+    status = runtime.runtime_status()
+
+    assert status["required_environment_id"] == pointer["bundle_id"]
+    assert status["observed_environment_id"] == pointer["bundle_id"]
+    assert status["runtime_attestation_sha256"] == pointer["attestation_sha256"]
+    assert status["gpu_identity_ready"] is True
+    assert status["reason_code"] is None
+    for profile in runtime.PROFILES:
+        assert status["profiles"][profile] == {
+            "required_environment_id": required_profiles[profile],
+            "observed_environment_id": pointer["profiles"][profile][
+                "environment_id"
+            ],
+            "ready": True,
+            "python_executable": pointer["profiles"][profile]["python_executable"],
+            "record_tree_sha256": pointer["profiles"][profile][
+                "record_tree_sha256"
+            ],
+            "profile_tree_sha256": pointer["profiles"][profile][
+                "profile_tree_sha256"
+            ],
+        }
 
 
 def _write_distribution(site: Path, name: str, version: str, payload: bytes) -> None:

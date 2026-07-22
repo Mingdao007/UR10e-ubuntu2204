@@ -30,19 +30,6 @@ if str(_RUNTIME_SRC) not in sys.path:
     sys.path.insert(0, str(_RUNTIME_SRC))
 
 
-def _bootstrap_stable_cuda_runtime() -> None:
-    """Re-exec the CLI with the persistent Step5d CuPy/CUDA runtime."""
-
-    if __name__ != "__main__":
-        return
-    from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
-
-    bootstrap_stable_cuda_runtime()
-
-
-_bootstrap_stable_cuda_runtime()
-
-
 def _require_v3_supervisor() -> None:
     canonical = (_EXPERIMENT_ROOT / "scripts/step5d-autotune-v3.sh").resolve()
     supervisor = (_EXPERIMENT_ROOT / "tools/run_step5d_autotune_v3_live.py").resolve()
@@ -78,11 +65,13 @@ from step5d_autotune_v3.delivery_observation import load_delivery_observation
 from step5d_autotune_v3.release_identity import load_runtime_release
 from step5d_autotune_v3.runtime_gate import (
     ArmGateProvider,
+    RuntimeEnvironmentBindingGuard,
     RuntimeGateError,
     load_campaign_lease,
     process_starttime,
     release_runtime_contract,
 )
+from step5d_autotune_v3.runtime_installation import require_runtime_profile
 from step5d_autotune_batch_plan import (
     CandidateBatchPlan,
     PlanLifecycle,
@@ -1253,6 +1242,12 @@ def _v3_overlay_for_candidate(
 
 
 def run(args: argparse.Namespace) -> int:
+    runtime_environment_guard: RuntimeEnvironmentBindingGuard | None = None
+    if args.v3_runtime_root is not None:
+        runtime_pointer = require_runtime_profile("optimizer")
+        runtime_environment_guard = RuntimeEnvironmentBindingGuard.full(
+            runtime_pointer=runtime_pointer
+        )
     root = args.experiment_root.resolve()
     bridge_run = args.bridge_run.resolve()
     mailbox_path = args.mailbox.resolve()
@@ -1905,6 +1900,11 @@ def run(args: argparse.Namespace) -> int:
                     force_i_gain=float(control["force_i_gain"]),
                     force_damping=float(control["force_damping"]),
                 )
+            next_arm_command_seq = (
+                supervisor.recovery_snapshot().command_seq + 1
+            )
+            if runtime_environment_guard is not None:
+                runtime_environment_guard.recheck(next_arm_command_seq)
             arm = coordinator.issue_arm(
                 store,
                 provenance_run_dir=bridge_run,
@@ -1945,6 +1945,10 @@ def run(args: argparse.Namespace) -> int:
                     else batch_context.identity.logical_batch_sequence
                 ),
             )
+            if arm.command_seq != next_arm_command_seq:
+                raise RuntimeError(
+                    "issued ARM command sequence differs from runtime recheck"
+                )
             if args.selection_policy == "codex_batches":
                 _event(
                     event_path,

@@ -26,12 +26,14 @@ PRODUCTION_EXPERIMENT_SEEDS = frozenset(
         "scripts/step5d-autotune-v3.sh",
         "tools/build_step5d_autotune_tp_v3.py",
         "tools/preflight_step5d_autotune_v3.py",
+        "tools/resolve_step5d_autotune_v3_runtime.py",
         "tools/run_step5d_autotune_campaign.py",
         "tools/run_step5d_autotune_v3_bridge.py",
         "tools/run_step5d_autotune_v3_live.py",
         "tools/run_step5d_autotune_v3_qualification.py",
         "tools/run_step5d_autotune_v3_tp_transaction.py",
         "tools/step5d_autotune_v3/cli.py",
+        "tools/step5d_autotune_v3/optimizer_worker.py",
     }
 )
 

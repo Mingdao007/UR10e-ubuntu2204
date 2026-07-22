@@ -18,20 +18,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
-if (
-    __name__ == "__main__"
-    and os.environ.get("STEP5D_V3_CANONICAL_LAUNCHER")
-    == str(
-        (
-            Path(__file__).resolve().parents[1]
-            / "scripts/step5d-autotune-v3.sh"
-        ).resolve()
-    )
-):
-    from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
-
-    bootstrap_stable_cuda_runtime()
-
 from prepare_step5d_autotune_launch import prepare, write_machine_campaign_binding
 from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
 from run_step5d_autotune_campaign import discover_campaign_epochs
@@ -59,6 +45,7 @@ from step5d_autotune_v3.governance import (
     resolve_governed_status,
 )
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
+from step5d_autotune_v3.optimizer_protocol import ExactOptimizerClient
 from step5d_autotune_v3.profile import load_contract
 from step5d_autotune_v3.release_identity import (
     LAUNCH_PROFILE_PATH,
@@ -70,6 +57,8 @@ from step5d_autotune_v3.release_identity import (
     release_payload_path,
 )
 from step5d_autotune_v3.runtime_environment import production_runtime_environment
+from step5d_autotune_v3.runtime_functional_gates import load_gpu_functional_attestation
+from step5d_autotune_v3.runtime_installation import require_runtime_profile
 from step5d_autotune_v3.runtime_profile import (
     CONTROL_PROFILE_ID,
     DEFAULT_OVERLAY,
@@ -1007,6 +996,12 @@ def _validate_preflight(
 
 
 def run(args: argparse.Namespace) -> Mapping[str, Any]:
+    runtime_pointer = getattr(args, "_runtime_pointer", None)
+    if not isinstance(runtime_pointer, Mapping):
+        runtime_pointer = require_runtime_profile("control")
+    load_gpu_functional_attestation(runtime_pointer=runtime_pointer)
+    control_python = runtime_pointer["profiles"]["control"]["python_executable"]
+    optimizer_python = runtime_pointer["profiles"]["optimizer"]["python_executable"]
     qualification = _qualification_endpoints(args.qualification_endpoints)
     qualification_environment = qualification_runtime_environment()
     if bool(qualification) != bool(qualification_environment):
@@ -1041,7 +1036,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         trial_overlay=DEFAULT_OVERLAY,
     )
     command = [
-        sys.executable,
+        control_python,
         str(WRAPPER),
         *build_bridge_argv(
             runtime_root,
@@ -1128,6 +1123,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         campaign_root=args.campaign_root,
         campaign_id=str(prepared["campaign_id"]),
         catalog=production_candidate_catalog(),
+        optimizer_client=ExactOptimizerClient(runtime_pointer=runtime_pointer),
     )
     try:
         producer_snapshot = producer.poll_once(proposal_provider=proposal_provider)
@@ -1191,24 +1187,24 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     }
     ticket_path = runtime_root / "runtime_ticket.json"
     atomic_json(ticket_path, ticket)
-    base_environment = production_runtime_environment(
-        os.environ,
-        additions=qualification_environment or None,
-    )
     bridge_environment = production_runtime_environment(
-        base_environment,
+        os.environ,
+        profile="control",
         additions={
             **qualification_environment,
             "STEP5D_V3_RUNTIME_TICKET": str(ticket_path),
             "STEP5D_BRIDGE_LAUNCH_NONCE": uuid.uuid4().hex,
         },
+        runtime_pointer=runtime_pointer,
     )
     runner_environment = production_runtime_environment(
-        base_environment,
+        os.environ,
+        profile="optimizer",
         additions={
             **qualification_environment,
             "STEP5D_V3_SUPERVISOR_PID": str(os.getpid()),
         },
+        runtime_pointer=runtime_pointer,
     )
     runner_ready = bridge_runtime / "campaign_runner_ready.json"
     bridge_log_path = args.output_root / "bridge.log"
@@ -1251,7 +1247,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
             csv_follower = _LatestCsvFollower(csv_path)
             print("V3_BRIDGE_READY_NO_ARM", flush=True)
             runner_command = [
-                sys.executable,
+                optimizer_python,
                 str(RUNNER),
                 "--experiment-root",
                 str(ROOT),
@@ -1682,6 +1678,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         _require_canonical_launcher()
+        args._runtime_pointer = require_runtime_profile("control")
         if args.prepare_only:
             release = load_current_release(ROOT)
             contract_path = release_payload_path(

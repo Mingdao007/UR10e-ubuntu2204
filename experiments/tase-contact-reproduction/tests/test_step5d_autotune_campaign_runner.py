@@ -396,6 +396,24 @@ def test_v3_derived_queue_hook_is_after_direct_commit() -> None:
     assert finalized < committed < queued
 
 
+def test_each_v3_arm_rechecks_full_runtime_binding_before_issue() -> None:
+    source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
+        encoding="utf-8"
+    )
+    guard = source.index("RuntimeEnvironmentBindingGuard.full(")
+    next_sequence = source.index("next_arm_command_seq = (", guard)
+    recheck = source.index(
+        "runtime_environment_guard.recheck(next_arm_command_seq)",
+        next_sequence,
+    )
+    issue = source.index("arm = coordinator.issue_arm(", recheck)
+    identity_check = source.index(
+        "if arm.command_seq != next_arm_command_seq:", issue
+    )
+
+    assert guard < next_sequence < recheck < issue < identity_check
+
+
 def test_campaign_runner_has_no_implicit_plot_or_network_publisher() -> None:
     source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
         encoding="utf-8"

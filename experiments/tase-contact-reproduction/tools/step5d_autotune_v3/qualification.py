@@ -26,12 +26,17 @@ import time
 from typing import Any, Callable, Mapping, Sequence
 import uuid
 
-from .runtime_calibration import CUDA_BOOTSTRAP_MARKER
 from .runtime_environment import (
     DETERMINISTIC_VALUES,
     PASSTHROUGH_KEYS,
     production_runtime_environment,
 )
+from .runtime_functional_gates import (
+    RuntimeFunctionalGateError,
+    load_gpu_functional_attestation,
+    run_native_functional_gates,
+)
+from .runtime_installation import load_runtime_pointer, runtime_binding
 
 
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
@@ -71,8 +76,14 @@ _PROCESS_ROLE_PATHS = {
     "bridge_wrapper": "tools/run_step5d_autotune_v3_bridge.py",
     "campaign_runner": "tools/run_step5d_autotune_campaign.py",
 }
+_PROCESS_ROLE_PROFILES = {
+    "canonical_launcher": None,
+    "launcher_supervisor": "control",
+    "bridge_wrapper": "control",
+    "campaign_runner": "optimizer",
+}
 _ENVIRONMENT_KEYS = tuple(
-    sorted({*PASSTHROUGH_KEYS, *DETERMINISTIC_VALUES, CUDA_BOOTSTRAP_MARKER})
+    sorted({*PASSTHROUGH_KEYS, *DETERMINISTIC_VALUES})
 )
 _WAITING_MARKERS = (
     "V3_CAMPAIGN_READY_FOR_TP_PLAY",
@@ -267,9 +278,19 @@ def _source_binding(
 
 def _environment_binding(environment: Mapping[str, str]) -> dict[str, Any]:
     values = {key: environment.get(key, "") for key in _ENVIRONMENT_KEYS}
+    pointer = load_runtime_pointer(environ=environment)
+    _gpu_payload, gpu_reference = load_gpu_functional_attestation(
+        runtime_pointer=pointer
+    )
     values.update(
         {
-            "python_executable": str(Path(sys.executable).resolve()),
+            "python_executable": os.path.abspath(sys.executable),
+            "python_prefix": os.path.abspath(sys.prefix),
+            "runtime_binding": runtime_binding(
+                environ=environment,
+                runtime_pointer=pointer,
+            ),
+            "gpu_functional_evidence": gpu_reference,
             "python_version": ".".join(str(value) for value in sys.version_info[:3]),
         }
     )
@@ -292,7 +313,67 @@ def read_process_starttime(pid: int) -> int | None:
         return None
 
 
-def _capture_process(pid: int, role: str, expected_script: Path) -> dict[str, Any]:
+def _runtime_profile_row(
+    runtime_process_binding: Mapping[str, Any], role: str
+) -> tuple[str | None, Mapping[str, Any] | None]:
+    profile = _PROCESS_ROLE_PROFILES.get(role)
+    if role not in _PROCESS_ROLE_PROFILES:
+        raise QualificationError(f"unknown production process role: {role}")
+    if profile is None:
+        return None, None
+    if (
+        not isinstance(runtime_process_binding, Mapping)
+        or runtime_process_binding.get("schema")
+        != "step5d.autotune-v3/runtime-process-binding-v1"
+        or not isinstance(runtime_process_binding.get("profiles"), Mapping)
+    ):
+        raise QualificationError("runtime process binding is invalid")
+    row = runtime_process_binding["profiles"].get(profile)
+    if not isinstance(row, Mapping):
+        raise QualificationError(f"{profile} runtime profile binding is missing")
+    environment_id = row.get("environment_id")
+    python_executable = row.get("python_executable")
+    _require_sha256(environment_id, f"{profile} runtime environment ID")
+    if (
+        not isinstance(python_executable, str)
+        or not Path(python_executable).is_absolute()
+    ):
+        raise QualificationError(f"{profile} runtime interpreter path is invalid")
+    return profile, row
+
+
+def _read_process_runtime_environment(proc: Path, role: str) -> dict[str, str]:
+    required = {
+        "STEP5D_V3_CONTROL_ENVIRONMENT_ID",
+        "STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID",
+        "STEP5D_V3_RUNTIME_PROFILE",
+    }
+    try:
+        encoded = (proc / "environ").read_bytes()
+    except OSError as exc:
+        raise QualificationError(f"cannot inspect {role} process environment: {exc}") from exc
+    values: dict[str, str] = {}
+    for entry in encoded.split(b"\0"):
+        raw_name, separator, raw_value = entry.partition(b"=")
+        if not separator:
+            continue
+        name = raw_name.decode("utf-8", errors="surrogateescape")
+        if name not in required:
+            continue
+        if name in values:
+            raise QualificationError(
+                f"{role} process environment repeats runtime binding {name}"
+            )
+        values[name] = raw_value.decode("utf-8", errors="surrogateescape")
+    return values
+
+
+def _capture_process(
+    pid: int,
+    role: str,
+    expected_script: Path,
+    runtime_process_binding: Mapping[str, Any],
+) -> dict[str, Any]:
     starttime = read_process_starttime(pid)
     if starttime is None:
         raise QualificationError(f"{role} process is not alive")
@@ -318,6 +399,32 @@ def _capture_process(pid: int, role: str, expected_script: Path) -> dict[str, An
         raise QualificationError(
             f"{role} process does not execute production script {expected}"
         )
+    if not argv:
+        raise QualificationError(f"{role} process argv is empty")
+    profile, profile_row = _runtime_profile_row(runtime_process_binding, role)
+    environment_id: str | None = None
+    if profile is not None:
+        assert profile_row is not None
+        expected_python = profile_row["python_executable"]
+        if argv[0] != expected_python:
+            raise QualificationError(
+                f"{role} raw argv0 differs from the {profile} runtime interpreter"
+            )
+        runtime_environment = _read_process_runtime_environment(proc, role)
+        if runtime_environment.get("STEP5D_V3_RUNTIME_PROFILE") != profile:
+            raise QualificationError(
+                f"{role} process runtime profile differs from {profile}"
+            )
+        environment_key = (
+            "STEP5D_V3_CONTROL_ENVIRONMENT_ID"
+            if profile == "control"
+            else "STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID"
+        )
+        environment_id = runtime_environment.get(environment_key)
+        if environment_id != profile_row["environment_id"]:
+            raise QualificationError(
+                f"{role} process environment ID differs from the {profile} runtime"
+            )
     return {
         "role": role,
         "pid": pid,
@@ -325,7 +432,10 @@ def _capture_process(pid: int, role: str, expected_script: Path) -> dict[str, An
         "starttime": starttime,
         "executable": executable,
         "argv": list(argv),
+        "argv0": argv[0],
         "argv_sha256": _sha256_bytes(_canonical_bytes(list(argv))),
+        "runtime_profile": profile,
+        "environment_id": environment_id,
         "script": expected,
         "script_sha256": _sha256_file(Path(expected)),
     }
@@ -336,6 +446,7 @@ def _process_tree_shape(processes: Sequence[Mapping[str, Any]]) -> dict[str, Any
         str(process["role"]): {
             "script": str(process["script"]),
             "script_sha256": str(process["script_sha256"]),
+            "runtime_profile": process["runtime_profile"],
         }
         for process in processes
     }
@@ -363,6 +474,7 @@ def production_process_tree_fingerprint(experiment_root: Path) -> str:
             "role": role,
             "script": str((root / relative).resolve(strict=True)),
             "script_sha256": _sha256_file(root / relative),
+            "runtime_profile": _PROCESS_ROLE_PROFILES[role],
         }
         for role, relative in sorted(_PROCESS_ROLE_PATHS.items())
     ]
@@ -393,6 +505,8 @@ def capture_content_binding(
     launcher = root / "scripts/step5d-autotune-v3.sh"
     if launcher.is_symlink() or not launcher.is_file():
         raise QualificationError("canonical launcher is missing")
+    environment_binding = _environment_binding(values)
+    runtime_process_binding = environment_binding["values"]["runtime_binding"]
     processes: list[dict[str, Any]] = []
     complete = process_pids is not None
     if process_pids is not None:
@@ -407,7 +521,10 @@ def capture_content_binding(
         for role in sorted(role_paths):
             processes.append(
                 _capture_process(
-                    process_pids[role], role, root / role_paths[role]
+                    process_pids[role],
+                    role,
+                    root / role_paths[role],
+                    runtime_process_binding,
                 )
             )
         process_by_role = {process["role"]: process for process in processes}
@@ -439,7 +556,7 @@ def capture_content_binding(
             manifest,
             release_identity=release_identity,
         ),
-        "environment": _environment_binding(values),
+        "environment": environment_binding,
         "launcher": {
             "path": str(launcher),
             "sha256": _sha256_file(launcher),
@@ -535,6 +652,7 @@ def validate_content_binding(binding: Mapping[str, Any]) -> None:
     if not process_tree["complete"] and process_tree["processes"]:
         raise QualificationError("incomplete process tree must not imply observations")
     process_by_role: dict[str, Mapping[str, Any]] = {}
+    runtime_process_binding = environment["values"].get("runtime_binding")
     for process in process_tree["processes"]:
         if not isinstance(process, Mapping) or set(process) != {
             "role",
@@ -543,7 +661,10 @@ def validate_content_binding(binding: Mapping[str, Any]) -> None:
             "starttime",
             "executable",
             "argv",
+            "argv0",
             "argv_sha256",
+            "runtime_profile",
+            "environment_id",
             "script",
             "script_sha256",
         }:
@@ -560,12 +681,42 @@ def validate_content_binding(binding: Mapping[str, Any]) -> None:
             isinstance(argument, str) for argument in process["argv"]
         ):
             raise QualificationError("process-tree argv is invalid")
+        if (
+            not process["argv"]
+            or not isinstance(process["argv0"], str)
+            or process["argv0"] != process["argv"][0]
+        ):
+            raise QualificationError("process-tree raw argv0 is invalid")
         if process["argv_sha256"] != _sha256_bytes(_canonical_bytes(process["argv"])):
             raise QualificationError("process-tree argv fingerprint is not derived")
         for name in ("executable", "script"):
             if not isinstance(process[name], str) or not Path(process[name]).is_absolute():
                 raise QualificationError(f"process-tree {name} path must be absolute")
         _require_sha256(process["script_sha256"], "process script")
+        expected_profile, profile_row = _runtime_profile_row(
+            runtime_process_binding, role
+        )
+        if process["runtime_profile"] != expected_profile:
+            raise QualificationError(
+                f"process-tree {role} runtime profile binding differs"
+            )
+        if expected_profile is None:
+            if process["environment_id"] is not None:
+                raise QualificationError(
+                    "canonical launcher must not claim a Python runtime environment"
+                )
+        else:
+            assert profile_row is not None
+            if process["argv0"] != profile_row["python_executable"]:
+                raise QualificationError(
+                    f"process-tree {role} raw argv0 differs from the "
+                    f"{expected_profile} runtime interpreter"
+                )
+            if process["environment_id"] != profile_row["environment_id"]:
+                raise QualificationError(
+                    f"process-tree {role} environment ID differs from the "
+                    f"{expected_profile} runtime"
+                )
         process_by_role[role] = process
     if process_tree["complete"]:
         supervisor_pid = process_by_role["launcher_supervisor"]["pid"]
@@ -2042,11 +2193,18 @@ def _validate_internal_shell_contract(
         if path != expected.resolve(strict=True):
             raise QualificationError(f"internal qualification {role} path differs")
 
-    python_path = _absolute_contract_path(
-        payload["python_executable"], "internal qualification Python", must_exist=True
-    )
-    if not python_path.is_file():
-        raise QualificationError("internal qualification Python is not a file")
+    python_value = payload["python_executable"]
+    if not isinstance(python_value, str) or not Path(python_value).is_absolute():
+        raise QualificationError("internal qualification Python path is invalid")
+    python_path = Path(python_value)
+    runtime_pointer = load_runtime_pointer()
+    if (
+        python_value
+        != runtime_pointer["profiles"]["control"]["python_executable"]
+        or not python_path.is_file()
+        or not os.access(python_path, os.X_OK)
+    ):
+        raise QualificationError("internal qualification Python binding differs")
     run_root = _absolute_contract_path(
         payload["run_root"], "internal qualification run root", must_exist=True
     )
@@ -2145,7 +2303,7 @@ def _write_internal_shell_contract(
         "live_worker": _reference_file(
             (root / "tools/run_step5d_autotune_v3_live.py").resolve(strict=True)
         ),
-        "python_executable": str(Path(sys.executable).resolve(strict=True)),
+        "python_executable": os.path.abspath(sys.executable),
         "run_root": str(run),
         "output_root": str(Path(output_root).resolve()),
         "campaign_root": str(Path(campaign_root).resolve()),
@@ -2200,6 +2358,7 @@ def exec_internal_shell_contract(
         shell_pid,
         "canonical_launcher",
         root / _PROCESS_ROLE_PATHS["canonical_launcher"],
+        {},
     )
     caller = contract["caller"]
     if (
@@ -2500,7 +2659,19 @@ def run_endpoint_qualification(
     if output.exists() and (output.is_symlink() or not output.is_dir()):
         raise QualificationError("qualification output root is unsafe")
     output.mkdir(parents=True, exist_ok=True)
+    # Reject a stale or incomplete release source closure before consulting
+    # any host-local runtime state.
+    _source_binding(
+        root,
+        release.manifest_sha256,
+        release_identity=binding_release,
+    )
     clean_environment = _qualification_environment(values)
+    runtime_pointer = load_runtime_pointer(environ=clean_environment)
+    try:
+        load_gpu_functional_attestation(runtime_pointer=runtime_pointer)
+    except RuntimeFunctionalGateError:
+        run_native_functional_gates()
     runtime_environment = clean_environment
     prebinding = capture_content_binding(
         root,

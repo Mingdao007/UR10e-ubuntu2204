@@ -11,11 +11,16 @@ import sys
 from step5d_autotune_v3.qualification import (
     QualificationError,
     exec_internal_shell_contract,
+    require_canonical_launcher,
     run_endpoint_qualification,
 )
 from step5d_autotune_v3.release_identity import (
     ReleaseIdentityError,
     load_local_release_candidate,
+)
+from step5d_autotune_v3.runtime_installation import (
+    RuntimeInstallationError,
+    require_runtime_profile,
 )
 
 
@@ -52,6 +57,8 @@ def main(argv: list[str] | None = None) -> int:
             raise AssertionError("internal shell execution unexpectedly returned")
         if args.output_root is None:
             raise QualificationError("--output-root is required")
+        require_canonical_launcher(args.experiment_root)
+        require_runtime_profile("control")
         release = None
         if args.release_candidate is not None:
             release, _descriptor = load_local_release_candidate(
@@ -63,7 +70,11 @@ def main(argv: list[str] | None = None) -> int:
             args.output_root.resolve(),
             release_identity=release,
         )
-    except (QualificationError, ReleaseIdentityError) as exc:
+    except (
+        QualificationError,
+        ReleaseIdentityError,
+        RuntimeInstallationError,
+    ) as exc:
         print(
             json.dumps(
                 {

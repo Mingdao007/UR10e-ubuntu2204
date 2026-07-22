@@ -1317,13 +1317,12 @@ def _static_profile_integrity(
         )
 
 
-def _installed_profiles(
+def _verified_installation_manifest(
     final: Path,
     *,
     snapshot: RuntimeInputSnapshot,
-    environ: Mapping[str, str] | None,
     installation_manifest_sha256: str,
-) -> dict[str, dict[str, Any]]:
+) -> dict[str, Any]:
     contract = snapshot.contract
     manifest_path = final / "installation-manifest.json"
     if _sha256_file(manifest_path) != installation_manifest_sha256:
@@ -1362,6 +1361,22 @@ def _installed_profiles(
         bootstrap_python=Path(contract["python"]["bootstrap_executable"]),
     )
     _reject_untracked_bytecode(final)
+    return manifest
+
+
+def _installed_profiles(
+    final: Path,
+    *,
+    snapshot: RuntimeInputSnapshot,
+    environ: Mapping[str, str] | None,
+    installation_manifest_sha256: str,
+) -> dict[str, dict[str, Any]]:
+    contract = snapshot.contract
+    manifest = _verified_installation_manifest(
+        final,
+        snapshot=snapshot,
+        installation_manifest_sha256=installation_manifest_sha256,
+    )
     for profile in PROFILES:
         _static_profile_integrity(
             final / profile,
@@ -1921,6 +1936,42 @@ def load_runtime_pointer(
     *,
     environ: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
+    payload = load_runtime_pointer_identity(environ=environ)
+    snapshot = _capture_runtime_inputs()
+    attestation_path = Path(payload["attestation_path"])
+    try:
+        observed_pointer = _verify_runtime_attestation(
+            attestation_path,
+            snapshot=snapshot,
+            environ=environ,
+        )
+    except RuntimeInstallationError:
+        raise
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError) as exc:
+        raise RuntimeInstallationError(
+            "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+            f"runtime integrity verification failed closed: {exc}",
+        ) from exc
+    if observed_pointer != payload:
+        raise RuntimeInstallationError(
+            "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+            "runtime pointer differs from installed runtime",
+        )
+    return payload
+
+
+def load_runtime_pointer_identity(
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Validate immutable runtime identity without rehashing package trees.
+
+    This is only for children of a process that already passed
+    ``load_runtime_pointer``.  It deliberately retains the contract, lock,
+    pointer and attestation byte bindings, but it does not issue production
+    authority on its own.
+    """
+
     path = current_pointer_path(environ)
     if not path.exists():
         raise RuntimeInstallationError(
@@ -1983,23 +2034,76 @@ def load_runtime_pointer(
         raise RuntimeInstallationError(
             "RUNTIME_PACKAGE_INTEGRITY_MISMATCH", "runtime attestation binding differs"
         )
-    try:
-        observed_pointer = _verify_runtime_attestation(
-            attestation_path,
+    return payload
+
+
+def load_runtime_pointer_integrity(
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Rehash installed packages and host inputs without importing profiles.
+
+    Production startup and qualification still use ``load_runtime_pointer``.
+    This narrower full-byte gate is used between trials, where importing both
+    CuPy and Torch runtimes again would consume the TP watchdog budget.  It
+    verifies the same lock, manifest, RECORD/profile trees, duplicate metadata,
+    interpreter topology, ROS/GPU/driver/calibration and owner dependency
+    observations.
+    """
+
+    payload = load_runtime_pointer_identity(environ=environ)
+    snapshot = _capture_runtime_inputs()
+    attestation_path = Path(payload["attestation_path"])
+    attestation = _load_json(
+        attestation_path,
+        role="runtime attestation",
+        reason_code="RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+    )
+    final = runtime_store(environ) / payload["bundle_id"]
+    manifest = _verified_installation_manifest(
+        final,
+        snapshot=snapshot,
+        installation_manifest_sha256=payload["installation_manifest_sha256"],
+    )
+    for profile in PROFILES:
+        expected = manifest["profiles"][profile]
+        _static_profile_integrity(
+            final / profile,
+            profile,
             snapshot=snapshot,
-            environ=environ,
+            expected=expected,
         )
-    except RuntimeInstallationError:
-        raise
-    except (OSError, UnicodeError, ValueError, TypeError, KeyError) as exc:
+        pointer_row = payload["profiles"][profile]
+        if (
+            pointer_row["environment_id"] != expected["environment_id"]
+            or pointer_row["record_tree_sha256"]
+            != expected["record_tree_sha256"]
+            or pointer_row["profile_tree_sha256"]
+            != expected["profile_tree_sha256"]
+        ):
+            raise RuntimeInstallationError(
+                "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+                f"{profile} runtime pointer differs from installation manifest",
+            )
+    try:
+        host = attestation["host"]
+        uv_path = Path(host["uv"]["executable"])
+        helper_path = Path(
+            host["owner_dependencies"]["controller_helper"]["path"]
+        )
+    except (KeyError, TypeError) as exc:
         raise RuntimeInstallationError(
             "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
-            f"runtime integrity verification failed closed: {exc}",
+            "runtime attestation host binding differs",
         ) from exc
-    if observed_pointer != payload:
+    current_host = observe_host(
+        snapshot.contract,
+        uv_executable=uv_path,
+        controller_helper=helper_path,
+    )
+    if _host_identity(current_host) != _host_identity(host):
         raise RuntimeInstallationError(
-            "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
-            "runtime pointer differs from installed runtime",
+            "HOST_CONTRACT_MISMATCH", "runtime host observation differs"
         )
     return payload
 
@@ -2072,39 +2176,151 @@ def profile_python(
     return python
 
 
+def require_runtime_profile(
+    profile: str,
+    *,
+    environ: Mapping[str, str] | None = None,
+    full_integrity: bool = True,
+) -> dict[str, Any]:
+    """Require this process to be running under the promoted exact interpreter."""
+
+    if profile not in PROFILES:
+        raise RuntimeInstallationError(
+            "RUNTIME_NOT_PROVISIONED", f"unknown runtime profile {profile!r}"
+        )
+    pointer = (
+        load_runtime_pointer(environ=environ)
+        if full_integrity
+        else load_runtime_pointer_identity(environ=environ)
+    )
+    expected = pointer["profiles"][profile]["python_executable"]
+    observed = os.path.abspath(sys.executable)
+    expected_prefix = pointer["profiles"][profile]["root"]
+    observed_prefix = os.path.abspath(sys.prefix)
+    if observed != expected or observed_prefix != expected_prefix:
+        reason = (
+            "CONTROL_RUNTIME_INVALID"
+            if profile == "control"
+            else "OPTIMIZER_RUNTIME_INVALID"
+        )
+        raise RuntimeInstallationError(
+            reason,
+            f"{profile} process binding differs: expected interpreter {expected} "
+            f"and prefix {expected_prefix}, observed {observed} and {observed_prefix}",
+        )
+    return pointer
+
+
+def runtime_binding(
+    *,
+    environ: Mapping[str, str] | None = None,
+    runtime_pointer: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return the immutable host-local binding used to launch production workers."""
+
+    pointer = (
+        load_runtime_pointer(environ=environ)
+        if runtime_pointer is None
+        else dict(runtime_pointer)
+    )
+    contract = load_runtime_contract()
+    return {
+        "schema": "step5d.autotune-v3/runtime-process-binding-v1",
+        "bundle_id": pointer["bundle_id"],
+        "contract_sha256": pointer["contract_sha256"],
+        "lock_sha256": pointer["lock_sha256"],
+        "runtime_attestation_sha256": pointer["attestation_sha256"],
+        "gpu_uuid": contract["gpu"]["uuid"],
+        "profiles": {
+            profile: {
+                "environment_id": pointer["profiles"][profile]["environment_id"],
+                "python_executable": pointer["profiles"][profile]["python_executable"],
+                "record_tree_sha256": pointer["profiles"][profile][
+                    "record_tree_sha256"
+                ],
+                "profile_tree_sha256": pointer["profiles"][profile][
+                    "profile_tree_sha256"
+                ],
+            }
+            for profile in PROFILES
+        },
+    }
+
+
 def runtime_status(*, environ: Mapping[str, str] | None = None) -> dict[str, Any]:
+    def blocked(
+        reason_code: str,
+        detail: str,
+        *,
+        required_environment_id: str | None,
+    ) -> dict[str, Any]:
+        return {
+            "required_environment_id": required_environment_id,
+            "observed_environment_id": None,
+            "control_ready": False,
+            "optimizer_ready": False,
+            "host_contract_ready": False,
+            "gpu_identity_ready": False,
+            "runtime_attestation_sha256": None,
+            "attestation_sha256": None,
+            "profiles": {
+                profile: {
+                    "required_environment_id": None,
+                    "observed_environment_id": None,
+                    "ready": False,
+                    "python_executable": None,
+                    "record_tree_sha256": None,
+                    "profile_tree_sha256": None,
+                }
+                for profile in PROFILES
+            },
+            "reason_code": reason_code,
+            "detail": detail,
+        }
+
     try:
         required = runtime_bundle_id()
-        pointer = load_runtime_pointer(environ=environ)
+        pointer = load_runtime_pointer_integrity(environ=environ)
     except RuntimeInstallationError as exc:
-        return {
-            "required_environment_id": locals().get("required"),
-            "observed_environment_id": None,
-            "control_ready": False,
-            "optimizer_ready": False,
-            "host_contract_ready": False,
-            "attestation_sha256": None,
-            "reason_code": exc.reason_code,
-            "detail": exc.detail,
-        }
+        return blocked(
+            exc.reason_code,
+            exc.detail,
+            required_environment_id=locals().get("required"),
+        )
     except (OSError, UnicodeError, ValueError, TypeError, KeyError) as exc:
-        return {
-            "required_environment_id": locals().get("required"),
-            "observed_environment_id": None,
-            "control_ready": False,
-            "optimizer_ready": False,
-            "host_contract_ready": False,
-            "attestation_sha256": None,
-            "reason_code": "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
-            "detail": f"runtime status failed closed: {exc}",
-        }
+        return blocked(
+            "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+            f"runtime status failed closed: {exc}",
+            required_environment_id=locals().get("required"),
+        )
     return {
         "required_environment_id": required,
         "observed_environment_id": pointer["bundle_id"],
         "control_ready": True,
         "optimizer_ready": True,
         "host_contract_ready": True,
+        "gpu_identity_ready": True,
+        "runtime_attestation_sha256": pointer["attestation_sha256"],
         "attestation_sha256": pointer["attestation_sha256"],
+        "profiles": {
+            profile: {
+                "required_environment_id": profile_environment_id(profile),
+                "observed_environment_id": pointer["profiles"][profile][
+                    "environment_id"
+                ],
+                "ready": True,
+                "python_executable": pointer["profiles"][profile][
+                    "python_executable"
+                ],
+                "record_tree_sha256": pointer["profiles"][profile][
+                    "record_tree_sha256"
+                ],
+                "profile_tree_sha256": pointer["profiles"][profile][
+                    "profile_tree_sha256"
+                ],
+            }
+            for profile in PROFILES
+        },
         "reason_code": None,
         "detail": None,
     }
@@ -2121,6 +2337,8 @@ __all__ = [
     "current_pointer_path",
     "load_runtime_contract",
     "load_runtime_pointer",
+    "load_runtime_pointer_identity",
+    "load_runtime_pointer_integrity",
     "lock_sha256",
     "observe_host",
     "observe_profile",
@@ -2128,6 +2346,8 @@ __all__ = [
     "profile_environment_id",
     "profile_python",
     "provision_runtime",
+    "require_runtime_profile",
+    "runtime_binding",
     "runtime_bundle_id",
     "runtime_contract_sha256",
     "runtime_status",

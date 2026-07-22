@@ -50,6 +50,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_v3_identity_layers.py",
     "tests/test_step5d_autotune_v3_installed_runtime.py",
     "tests/test_step5d_autotune_v3_live_startup.py",
+    "tests/test_step5d_optimizer_protocol.py",
     "tests/test_step5d_autotune_v3_qualification.py",
     "tests/test_step5d_autotune_v3_qualification_endpoints.py",
     "tests/test_step5d_autotune_v3_qualification_production.py",

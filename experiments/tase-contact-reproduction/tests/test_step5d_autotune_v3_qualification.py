@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import hashlib
 import inspect
 import io
@@ -69,6 +70,31 @@ import run_step5d_autotune_v3_qualification as worker  # noqa: E402
 SHA_A = "a" * 64
 SHA_B = "b" * 64
 SHA_C = "c" * 64
+
+
+def runtime_process_binding_fixture() -> dict[str, object]:
+    return {
+        "schema": "step5d.autotune-v3/runtime-process-binding-v1",
+        "bundle_id": SHA_A,
+        "contract_sha256": SHA_B,
+        "lock_sha256": SHA_C,
+        "runtime_attestation_sha256": SHA_A,
+        "gpu_uuid": "GPU-qualification-fixture",
+        "profiles": {
+            "control": {
+                "environment_id": SHA_B,
+                "python_executable": "/runtime/control/bin/python",
+                "record_tree_sha256": SHA_C,
+                "profile_tree_sha256": SHA_A,
+            },
+            "optimizer": {
+                "environment_id": SHA_C,
+                "python_executable": "/runtime/optimizer/bin/python",
+                "record_tree_sha256": SHA_A,
+                "profile_tree_sha256": SHA_B,
+            },
+        },
+    }
 
 
 def make_trial(
@@ -244,6 +270,18 @@ class Step5dQualificationTest(unittest.TestCase):
         ), patch(
             "step5d_autotune_v3.release_identity.load_current_release",
             return_value=identity,
+        ), patch.object(
+            qualification,
+            "load_runtime_pointer",
+            return_value={},
+        ), patch.object(
+            qualification,
+            "runtime_binding",
+            return_value=runtime_process_binding_fixture(),
+        ), patch.object(
+            qualification,
+            "load_gpu_functional_attestation",
+            return_value=({}, {"path": "/qualification/gpu.json", "sha256": SHA_A}),
         ):
             return capture_content_binding(
                 ROOT,
@@ -331,7 +369,15 @@ class Step5dQualificationTest(unittest.TestCase):
         }
         evidence = {"path": "/tmp/evidence", "sha256": SHA_A}
         stream = io.StringIO()
-        with patch.object(worker, "run_endpoint_qualification", return_value=(payload, evidence)):
+        with patch.object(
+            worker, "require_canonical_launcher"
+        ), patch.object(
+            worker, "require_runtime_profile"
+        ), patch.object(
+            worker,
+            "run_endpoint_qualification",
+            return_value=(payload, evidence),
+        ):
             with contextlib.redirect_stdout(stream):
                 rc = worker.main(["--output-root", "/tmp"])
         self.assertEqual(rc, 78)
@@ -436,17 +482,176 @@ class Step5dQualificationTest(unittest.TestCase):
         binding["source"]["files"]["invented.py"] = SHA_B
         with self.assertRaisesRegex(QualificationError, "source-file fingerprint"):
             validate_content_binding(binding)
-        with self.assertRaisesRegex(QualificationError, "does not execute production script"):
-            capture_content_binding(
-                ROOT,
-                manifest_sha256=SHA_A,
-                process_pids={
-                    "canonical_launcher": os.getpid(),
-                    "launcher_supervisor": os.getpid(),
-                    "bridge_wrapper": os.getpid(),
-                    "campaign_runner": os.getpid(),
-                },
+        with patch.object(
+            qualification,
+            "load_runtime_pointer",
+            return_value={},
+        ), patch.object(
+            qualification,
+            "runtime_binding",
+            return_value=runtime_process_binding_fixture(),
+        ), patch.object(
+            qualification,
+            "load_gpu_functional_attestation",
+            return_value=({}, {"path": "/qualification/gpu.json", "sha256": SHA_A}),
+        ):
+            with self.assertRaisesRegex(
+                QualificationError, "does not execute production script"
+            ):
+                capture_content_binding(
+                    ROOT,
+                    manifest_sha256=SHA_A,
+                    process_pids={
+                        "canonical_launcher": os.getpid(),
+                        "launcher_supervisor": os.getpid(),
+                        "bridge_wrapper": os.getpid(),
+                        "campaign_runner": os.getpid(),
+                    },
+                )
+
+    def test_process_tree_requires_exact_role_runtime_binding(self) -> None:
+        binding = self.binding()
+        runtime_profiles = binding["environment"]["values"]["runtime_binding"][
+            "profiles"
+        ]
+        role_profiles = {
+            "canonical_launcher": None,
+            "launcher_supervisor": "control",
+            "bridge_wrapper": "control",
+            "campaign_runner": "optimizer",
+        }
+        pids = {
+            "canonical_launcher": 101,
+            "launcher_supervisor": 102,
+            "bridge_wrapper": 103,
+            "campaign_runner": 104,
+        }
+        processes = []
+        for role, relative in sorted(qualification.production_process_role_paths().items()):
+            profile = role_profiles[role]
+            argv0 = (
+                "/usr/bin/bash"
+                if profile is None
+                else runtime_profiles[profile]["python_executable"]
             )
+            script = (ROOT / relative).resolve(strict=True)
+            argv = [argv0, str(script)]
+            processes.append(
+                {
+                    "role": role,
+                    "pid": pids[role],
+                    "ppid": (
+                        1
+                        if role == "canonical_launcher"
+                        else pids["canonical_launcher"]
+                        if role == "launcher_supervisor"
+                        else pids["launcher_supervisor"]
+                    ),
+                    "starttime": pids[role] + 1000,
+                    "executable": argv0,
+                    "argv": argv,
+                    "argv0": argv0,
+                    "argv_sha256": qualification._sha256_bytes(
+                        qualification._canonical_bytes(argv)
+                    ),
+                    "runtime_profile": profile,
+                    "environment_id": (
+                        None
+                        if profile is None
+                        else runtime_profiles[profile]["environment_id"]
+                    ),
+                    "script": str(script),
+                    "script_sha256": hashlib.sha256(script.read_bytes()).hexdigest(),
+                }
+            )
+        binding["process_tree"] = {
+            "complete": True,
+            "processes": processes,
+            "fingerprint": qualification._process_tree_shape_fingerprint(processes),
+        }
+        binding["endpoint_substitution"].update(
+            {
+                "production_processes_retained": True,
+                "ready_writer": "production_bridge",
+            }
+        )
+        validate_content_binding(binding)
+
+        by_role = {process["role"]: process for process in processes}
+        self.assertEqual(by_role["launcher_supervisor"]["runtime_profile"], "control")
+        self.assertEqual(by_role["bridge_wrapper"]["environment_id"], SHA_B)
+        self.assertEqual(by_role["campaign_runner"]["argv0"], "/runtime/optimizer/bin/python")
+
+        wrong_argv0 = copy.deepcopy(binding)
+        runner = next(
+            process
+            for process in wrong_argv0["process_tree"]["processes"]
+            if process["role"] == "campaign_runner"
+        )
+        runner["argv0"] = runner["argv"][0] = "/runtime/control/bin/python"
+        runner["argv_sha256"] = qualification._sha256_bytes(
+            qualification._canonical_bytes(runner["argv"])
+        )
+        with self.assertRaisesRegex(QualificationError, "raw argv0 differs"):
+            validate_content_binding(wrong_argv0)
+
+        wrong_profile = copy.deepcopy(binding)
+        supervisor = next(
+            process
+            for process in wrong_profile["process_tree"]["processes"]
+            if process["role"] == "launcher_supervisor"
+        )
+        supervisor["runtime_profile"] = "optimizer"
+        wrong_profile["process_tree"]["fingerprint"] = (
+            qualification._process_tree_shape_fingerprint(
+                wrong_profile["process_tree"]["processes"]
+            )
+        )
+        with self.assertRaisesRegex(QualificationError, "runtime profile binding differs"):
+            validate_content_binding(wrong_profile)
+
+        wrong_environment = copy.deepcopy(binding)
+        bridge = next(
+            process
+            for process in wrong_environment["process_tree"]["processes"]
+            if process["role"] == "bridge_wrapper"
+        )
+        bridge["environment_id"] = SHA_C
+        with self.assertRaisesRegex(QualificationError, "environment ID differs"):
+            validate_content_binding(wrong_environment)
+
+    def test_process_capture_uses_raw_argv0_and_process_runtime_environment(self) -> None:
+        runtime_binding = runtime_process_binding_fixture()
+        runtime_binding["profiles"]["optimizer"]["python_executable"] = sys.executable
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory).resolve() / "campaign_runner.py"
+            script.write_text("import time\ntime.sleep(30)\n", encoding="utf-8")
+            environment = {
+                **os.environ,
+                "STEP5D_V3_RUNTIME_PROFILE": "optimizer",
+                "STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID": SHA_C,
+            }
+            process = subprocess.Popen(
+                [sys.executable, str(script)],
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+            )
+            try:
+                observed = qualification._capture_process(
+                    process.pid,
+                    "campaign_runner",
+                    script,
+                    runtime_binding,
+                )
+            finally:
+                process.terminate()
+                process.wait(timeout=5)
+        self.assertEqual(observed["argv0"], sys.executable)
+        self.assertEqual(observed["runtime_profile"], "optimizer")
+        self.assertEqual(observed["environment_id"], SHA_C)
 
     def test_fake_ready_and_print_only_ready_are_rejected(self) -> None:
         starttime = read_process_starttime(os.getpid())

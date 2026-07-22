@@ -472,6 +472,16 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     with (
         mock.patch.object(
             transaction,
+            "require_runtime_profile",
+            return_value={"bundle_id": "a" * 64},
+        ),
+        mock.patch.object(
+            transaction,
+            "load_gpu_functional_attestation",
+            return_value=({}, {"path": "/gpu.json", "sha256": "a" * 64}),
+        ),
+        mock.patch.object(
+            transaction,
             "_validate_candidate_and_qualification",
             side_effect=lambda *_args: events.append("qualify") or release,
         ),
@@ -689,6 +699,16 @@ def test_transaction_qualification_failure_precedes_controller_lock_and_upload(
     evidence_output = root / "runs/campaign/delivery-observation.json"
 
     with (
+        mock.patch.object(
+            transaction,
+            "require_runtime_profile",
+            return_value={"bundle_id": "a" * 64},
+        ),
+        mock.patch.object(
+            transaction,
+            "load_gpu_functional_attestation",
+            return_value=({}, {"path": "/gpu.json", "sha256": "a" * 64}),
+        ),
         mock.patch.object(
             transaction,
             "_validate_candidate_and_qualification",

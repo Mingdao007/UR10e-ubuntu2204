@@ -21,9 +21,6 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from step5d_autotune_v3.runtime_calibration import bootstrap_stable_cuda_runtime
-
-
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_SRC = ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
 if str(RUNTIME_SRC) not in sys.path:
@@ -43,6 +40,7 @@ from step5d_autotune_v3.runtime_gate import (
     loaded_program_matches,
     release_runtime_contract,
 )
+from step5d_autotune_v3.runtime_installation import require_runtime_profile
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v6"
@@ -860,6 +858,7 @@ def main(argv: list[str] | None = None) -> int:
         print("refusing: STEP5D_V3_RUNTIME_TICKET is required", file=sys.stderr)
         return 24
     try:
+        require_runtime_profile("control")
         release = load_runtime_release(ROOT)
         ticket = _strict_ticket(
             Path(ticket_text),
@@ -877,6 +876,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    if os.environ.get(TICKET_ENV):
-        bootstrap_stable_cuda_runtime()
     raise SystemExit(main())

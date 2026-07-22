@@ -488,6 +488,7 @@ class ProductionProposalProvider:
         campaign_root: Path,
         campaign_id: str,
         catalog: Sequence[ForceCandidate],
+        optimizer_client: Any | None = None,
     ) -> None:
         if not isinstance(campaign_id, str) or not campaign_id.strip():
             raise BatchProducerError(
@@ -505,6 +506,7 @@ class ProductionProposalProvider:
         self.paths = CampaignPaths(campaign_root)
         self.campaign_id = campaign_id
         self.catalog = candidates
+        self.optimizer_client = optimizer_client
 
     def _verified_runtime_batches(
         self,
@@ -832,11 +834,19 @@ class ProductionProposalProvider:
             )
         try:
             if target_revision % 2 == 1:
-                occurrences, optimizer_evidence = supercycle_batch_a(
-                    truth.observations,
-                    self.catalog,
-                    sequence=target_revision,
-                )
+                if self.optimizer_client is None:
+                    occurrences, optimizer_evidence = supercycle_batch_a(
+                        truth.observations,
+                        self.catalog,
+                        sequence=target_revision,
+                    )
+                else:
+                    occurrences, optimizer_evidence = self.optimizer_client.propose(
+                        mode="rolling_batch_a",
+                        observations=truth.observations,
+                        catalog=self.catalog,
+                        sequence=target_revision,
+                    )
                 return BatchProposal(
                     occurrences,
                     PRODUCTION_BATCH_A_SOURCE,
@@ -852,12 +862,21 @@ class ProductionProposalProvider:
                 plan=plan,
                 truth=truth,
             )
-            occurrences, optimizer_evidence = supercycle_batch_b_after_gp_update(
-                truth.observations,
-                self.catalog,
-                sequence=target_revision,
-                batch_a_closure=closure.policy_payload(),
-            )
+            if self.optimizer_client is None:
+                occurrences, optimizer_evidence = supercycle_batch_b_after_gp_update(
+                    truth.observations,
+                    self.catalog,
+                    sequence=target_revision,
+                    batch_a_closure=closure.policy_payload(),
+                )
+            else:
+                occurrences, optimizer_evidence = self.optimizer_client.propose(
+                    mode="rolling_batch_b",
+                    observations=truth.observations,
+                    catalog=self.catalog,
+                    sequence=target_revision,
+                    batch_a_closure=closure.policy_payload(),
+                )
             return BatchProposal(
                 occurrences,
                 PRODUCTION_BATCH_B_SOURCE,

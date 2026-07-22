@@ -474,6 +474,12 @@ def test_terminal_event_requires_zero_exit_and_terminal_lease_revocation(
 
 def test_every_invalidation_fails_closed_without_erasing_outcome() -> None:
     assert set(INVALIDATION_TABLE) == {
+        "runtime_package_changed",
+        "runtime_lock_changed",
+        "host_contract_changed",
+        "gpu_identity_changed",
+        "gpu_functional_evidence_changed",
+        "owner_dependency_changed",
         "manifest_sha_changed",
         "source_fingerprint_changed",
         "launcher_changed",
@@ -679,6 +685,99 @@ def _stub_governed_release(monkeypatch: pytest.MonkeyPatch) -> None:
         "_load_current_offline_proof",
         lambda _experiment, _campaign, _release: None,
     )
+    monkeypatch.setattr(
+        governance,
+        "_environment_status",
+        lambda _root: (
+            {
+                "required_environment_id": digest("environment"),
+                "observed_environment_id": digest("environment"),
+                "control_ready": True,
+                "optimizer_ready": True,
+                "host_contract_ready": True,
+                "gpu_identity_ready": True,
+                "gpu_functional_proven": True,
+                "environment_attestation_sha256": None,
+                "blocker": {"reason_code": None, "detail": None},
+            },
+            [],
+            [],
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("reason", "next_action"),
+    [
+        ("RUNTIME_NOT_PROVISIONED", "provision_runtime"),
+        ("RUNTIME_LOCK_MISMATCH", "provision_runtime_for_current_lock"),
+        ("RUNTIME_PACKAGE_INTEGRITY_MISMATCH", "reprovision_runtime"),
+        ("CONTROL_RUNTIME_INVALID", "reprovision_control_runtime"),
+        ("OPTIMIZER_RUNTIME_INVALID", "reprovision_optimizer_runtime"),
+        ("HOST_CONTRACT_MISMATCH", "restore_host_contract"),
+        ("GPU_IDENTITY_MISMATCH", "restore_governed_gpu_identity"),
+        ("GPU_FUNCTIONAL_GATE_MISSING", "run_native_gpu_functional_gates"),
+        ("OWNER_DEPENDENCY_MISMATCH", "restore_owner_dependency"),
+        ("ACTIVE_SOURCE_CLOSURE_UNRESOLVED", "resolve_active_source_closure"),
+    ],
+)
+def test_environment_reason_has_one_internal_recovery_action(
+    reason: str,
+    next_action: str,
+) -> None:
+    assert reason in governance.INTERNAL_REASON_CODES
+    assert governance._next_action(None, [reason], False) == next_action
+
+
+def test_environment_blocker_invalidates_status_before_play(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_governed_release(monkeypatch)
+    monkeypatch.setattr(
+        governance,
+        "_environment_status",
+        lambda _root: (
+            {
+                "required_environment_id": digest("required-environment"),
+                "observed_environment_id": None,
+                "control_ready": False,
+                "optimizer_ready": False,
+                "host_contract_ready": False,
+                "gpu_identity_ready": False,
+                "gpu_functional_proven": False,
+                "environment_attestation_sha256": None,
+                "blocker": {
+                    "reason_code": "RUNTIME_NOT_PROVISIONED",
+                    "detail": "current runtime pointer is missing",
+                },
+            },
+            ["RUNTIME_NOT_PROVISIONED"],
+            [
+                {
+                    "role": "runtime_environment",
+                    "path": None,
+                    "sha256": None,
+                    "detail": "current runtime pointer is missing",
+                }
+            ],
+        ),
+    )
+
+    status = resolve_governed_status(ROOT, tmp_path, now_ns=NOW_NS)
+
+    assert status["environment"]["required_environment_id"] == digest(
+        "required-environment"
+    )
+    assert status["environment"]["control_ready"] is False
+    assert status["environment"]["gpu_functional_proven"] is False
+    assert status["blocker"]["class"] == "INTERNAL"
+    assert status["blocker"]["reason_codes"][0] == "RUNTIME_NOT_PROVISIONED"
+    assert status["predicates"]["offline_proven"] is False
+    assert status["predicates"]["play_prompt_ready"] is False
+    assert status["predicates"]["bench_ready"] is False
+    assert status["state"] is None
+    assert status["next_action"] == "provision_runtime"
 
 
 def test_unsuperseded_launch_failure_is_status_visible_and_unknown_by_default(

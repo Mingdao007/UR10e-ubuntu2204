@@ -43,6 +43,7 @@ from step5d_autotune_governor import (
 )
 from step5d_autotune_optimizer import (
     Observation,
+    PRODUCTION_OPTIMIZER_SEED,
     choose_candidate,
     live_trust_region_step,
     success_confirmed,
@@ -453,6 +454,7 @@ class CampaignSupervisor:
         require_cuda_botorch: bool = True,
         cuda_fit_mode: str = "serial",
         parallel_cuda_verified: bool = False,
+        optimizer_seed: int = PRODUCTION_OPTIMIZER_SEED,
         search_attestations: Sequence[SearchAttestation] = (),
         forced_candidate: ForceCandidate | None = None,
         forbidden_candidate_uids: Collection[str] = (),
@@ -682,6 +684,7 @@ class CampaignSupervisor:
                 require_cuda_botorch=require_cuda_botorch,
                 cuda_fit_mode=cuda_fit_mode,
                 parallel_cuda_verified=parallel_cuda_verified,
+                optimizer_seed=optimizer_seed,
                 search_attestations=search_attestations,
                 forbidden_candidate_uids=self._forbidden_candidate_uids(
                     trial_profile.profile_id

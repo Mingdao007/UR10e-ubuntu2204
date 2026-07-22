@@ -37,6 +37,21 @@ def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _runtime_pointer() -> dict[str, object]:
+    return {
+        "bundle_id": "a" * 64,
+        "attestation_sha256": "b" * 64,
+        "profiles": {
+            profile: {
+                "root": f"/runtime/{profile}",
+                "python_executable": f"/runtime/{profile}/bin/python",
+                "environment_id": ("c" if profile == "control" else "d") * 64,
+            }
+            for profile in ("control", "optimizer")
+        },
+    }
+
+
 def _write(path: Path, value: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(value)
@@ -178,6 +193,14 @@ def test_live_routes_both_configs_through_immutable_bundle(
         return SimpleNamespace(fingerprint="immutable-profile")
 
     monkeypatch.setattr(live, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        live, "require_runtime_profile", lambda _profile: _runtime_pointer()
+    )
+    monkeypatch.setattr(
+        live,
+        "load_gpu_functional_attestation",
+        lambda **_kwargs: ({}, {"path": "/gpu.json", "sha256": "e" * 64}),
+    )
     monkeypatch.setattr(live, "load_runtime_release", lambda _root: release)
     monkeypatch.setattr(live, "load_delivery_observation", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(live, "_qualification_endpoints", lambda _path: None)
@@ -227,6 +250,9 @@ def test_live_prepare_only_ignores_mutable_launch_override(
 
     monkeypatch.setattr(live, "ROOT", tmp_path)
     monkeypatch.setattr(live, "_require_canonical_launcher", lambda: None)
+    monkeypatch.setattr(
+        live, "require_runtime_profile", lambda _profile: _runtime_pointer()
+    )
     monkeypatch.setattr(live, "load_current_release", lambda _root: release)
     monkeypatch.setattr(live, "load_contract", load_contract)
     monkeypatch.setattr(live, "load_launch_profile", load_profile)

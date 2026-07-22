@@ -58,7 +58,7 @@ bridge_record_launch_attempt() {
   local detail="${4:-}"
   local prior_enabled="${launch_attempt_enabled}"
   local command=(
-    python3 -m step5d_autotune_v3.cli
+    "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli
     --experiment-root "${EXPERIMENT_ROOT}"
     --campaign-root "${campaign_root}"
     --_launch-attempt-id "${launch_attempt_id}"
@@ -197,7 +197,56 @@ if [[ ! -d "${RUNTIME_SOURCE}/ur10e_experiment_runtime" ]]; then
   echo "missing ur10e_experiment_runtime source: ${RUNTIME_SOURCE}" >&2
   exit 66
 fi
-PYTHON_ABI="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+RUNTIME_RESOLVER="${EXPERIMENT_ROOT}/tools/resolve_step5d_autotune_v3_runtime.py"
+if [[ ! -f "${RUNTIME_RESOLVER}" || -L "${RUNTIME_RESOLVER}" ]]; then
+  echo "missing governed runtime resolver: ${RUNTIME_RESOLVER}" >&2
+  exit 66
+fi
+runtime_binding=""
+if ! runtime_binding="$(/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding)"; then
+  if [[ "${1:-}" == "status" && "${2:-}" == "--json" && $# -eq 2 ]]; then
+    exec /usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --status-json
+  fi
+  echo "governed runtime unavailable: ${runtime_binding}" >&2
+  echo "next action: provision the current uv.lock runtime before bridge delivery" >&2
+  exit 78
+fi
+IFS=$'\t' read -r \
+  CONTROL_PYTHON \
+  OPTIMIZER_PYTHON \
+  RUNTIME_BUNDLE_ID \
+  RUNTIME_ATTESTATION_SHA256 \
+  RUNTIME_CONTRACT_SHA256 \
+  RUNTIME_LOCK_SHA256 \
+  CONTROL_ENVIRONMENT_ID \
+  OPTIMIZER_ENVIRONMENT_ID \
+  GOVERNED_GPU_UUID <<<"${runtime_binding}"
+runtime_fields=(
+  "${CONTROL_PYTHON:-}"
+  "${OPTIMIZER_PYTHON:-}"
+  "${RUNTIME_BUNDLE_ID:-}"
+  "${RUNTIME_ATTESTATION_SHA256:-}"
+  "${RUNTIME_CONTRACT_SHA256:-}"
+  "${RUNTIME_LOCK_SHA256:-}"
+  "${CONTROL_ENVIRONMENT_ID:-}"
+  "${OPTIMIZER_ENVIRONMENT_ID:-}"
+  "${GOVERNED_GPU_UUID:-}"
+)
+if (( ${#runtime_fields[@]} != 9 )); then
+  echo "governed runtime resolver returned an invalid field count" >&2
+  exit 78
+fi
+for field in "${runtime_fields[@]}"; do
+  if [[ -z "${field}" || "${field}" == *$'\n'* || "${field}" == *$'\r'* ]]; then
+    echo "governed runtime resolver returned an unsafe field" >&2
+    exit 78
+  fi
+done
+if [[ ! -x "${CONTROL_PYTHON}" || ! -x "${OPTIMIZER_PYTHON}" ]]; then
+  echo "governed runtime interpreter is unavailable" >&2
+  exit 78
+fi
+PYTHON_ABI="3.10"
 ROS_PYTHON_PATHS=()
 for candidate in \
   "/opt/ros/humble/lib/python${PYTHON_ABI}/site-packages" \
@@ -228,6 +277,16 @@ for candidate in "${ROS_PYTHON_PATHS[@]}"; do
 done
 export PYTHONPATH="${RUNTIME_PYTHONPATH}"
 export AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"
+export CUDA_VISIBLE_DEVICES="${GOVERNED_GPU_UUID}"
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONNOUSERSITE=1
+export STEP5D_V3_CONTROL_ENVIRONMENT_ID="${CONTROL_ENVIRONMENT_ID}"
+export STEP5D_V3_CONTROL_PYTHON="${CONTROL_PYTHON}"
+export STEP5D_V3_GPU_UUID="${GOVERNED_GPU_UUID}"
+export STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID="${OPTIMIZER_ENVIRONMENT_ID}"
+export STEP5D_V3_OPTIMIZER_PYTHON="${OPTIMIZER_PYTHON}"
+export STEP5D_V3_RUNTIME_ATTESTATION_SHA256="${RUNTIME_ATTESTATION_SHA256}"
+export STEP5D_V3_RUNTIME_BUNDLE_ID="${RUNTIME_BUNDLE_ID}"
 if (( bridge_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
@@ -239,7 +298,7 @@ if (( bridge_mode == 1 )); then
   mkdir -p -- "${output_root}" "${campaign_root}"
   if [[ -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
     export STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_PID="$$"
-    python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
       --_exec-live-from-shell-contract \
       "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
     exit 0
@@ -248,35 +307,36 @@ if (( bridge_mode == 1 )); then
     read -r launch_attempt_id </proc/sys/kernel/random/uuid
     launch_attempt_id="${launch_attempt_id//-/}"
   else
-    launch_attempt_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+    launch_attempt_id="$("${CONTROL_PYTHON}" -c 'import uuid; print(uuid.uuid4().hex)')"
   fi
   export STEP5D_V3_LAUNCH_ATTEMPT_ID="${launch_attempt_id}"
   launch_attempt_enabled=1
   trap bridge_failure_trap ERR
+  bridge_begin_phase runtime_gate
   bridge_begin_phase status_before
-  python3 -m step5d_autotune_v3.cli \
+  "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli \
     --experiment-root "${EXPERIMENT_ROOT}" \
     --campaign-root "${campaign_root}" \
     status --json >"${output_root}/status-before.json"
   delivery_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/delivery-$(date -u +%Y%m%dT%H%M%SZ)-$$"
   bridge_begin_phase tp_build
-  python3 "${EXPERIMENT_ROOT}/tools/build_step5d_autotune_tp_v3.py" \
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/build_step5d_autotune_tp_v3.py" \
     --output-dir "${delivery_root}" \
     >"${output_root}/tp-build.json"
   bridge_begin_phase release_candidate
-  python3 "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py" \
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py" \
     --root "${EXPERIMENT_ROOT}" \
     --artifact-dir "${delivery_root}" \
     --stage-local-candidate \
     >"${output_root}/local-release-candidate.json"
   bridge_begin_phase qualification
-  python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
     --experiment-root "${EXPERIMENT_ROOT}" \
     --output-root "${campaign_root}" \
     --release-candidate "${output_root}/local-release-candidate.json" \
     >"${output_root}/qualification.json"
   bridge_begin_phase tp_delivery
-  python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
     --root "${EXPERIMENT_ROOT}" \
     --artifact-dir "${delivery_root}" \
     --release-candidate "${output_root}/local-release-candidate.json" \
@@ -284,28 +344,28 @@ if (( bridge_mode == 1 )); then
     --evidence-output "${output_root}/delivery-observation.json" \
     >"${output_root}/tp-transaction.log"
   bridge_begin_phase status_after_delivery
-  python3 -m step5d_autotune_v3.cli \
+  "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli \
     --experiment-root "${EXPERIMENT_ROOT}" \
     --campaign-root "${campaign_root}" \
     status --json >"${output_root}/status-after-delivery.json"
   bridge_begin_phase campaign_prepare
-  python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     --prepare-only \
     --campaign-root "${campaign_root}" \
     >"${output_root}/campaign-prepare.json"
   preflight="${output_root}/preflight.json"
   bridge_begin_phase preflight
-  python3 "${EXPERIMENT_ROOT}/tools/preflight_step5d_autotune_v3.py" \
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/preflight_step5d_autotune_v3.py" \
     --mailbox "${output_root}/runtime/command.json" \
     --delivery-observation "${output_root}/delivery-observation.json" \
     --output "${preflight}" \
     --json
   bridge_begin_phase live_handoff
-  python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     "${runner_args[@]}" --output-root "${output_root}" \
     --delivery-observation "${output_root}/delivery-observation.json" \
     --campaign-root "${campaign_root}" \
     --preflight "${preflight}"
   exit 0
 fi
-exec python3 -m step5d_autotune_v3.cli --experiment-root "${EXPERIMENT_ROOT}" "$@"
+exec "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli --experiment-root "${EXPERIMENT_ROOT}" "$@"

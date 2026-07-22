@@ -33,6 +33,7 @@ from step5d_autotune_v3.release_identity import (
     ROLLING_PROTOCOL,
     SAFETY_ENVELOPE_PATH,
     load_current_release,
+    release_runtime_environment_binding,
 )
 from step5d_autotune_v3.release_verifier import verify_release_manifest
 from step5d_autotune_v3.profile import contract_sha256
@@ -69,7 +70,7 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "1005cc223b2f492c910a6b80396e07b1fbda188b0960d26d1c1d03f54a37d407",
+    "config/step5d/v3_active_surface.json": "812090252675673d348f1de4bb5bad1757cdbe12b243f8b9e9782db49717d90e",
 }
 CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
@@ -663,6 +664,9 @@ def _compose_local_release(
             "path": SAFETY_ENVELOPE_PATH,
             "sha256": contract_digest,
         },
+        "runtime_environment": release_runtime_environment_binding(
+            source_fingerprints
+        ),
         "source_fingerprints": source_fingerprints,
         "generated_files": generated_files,
         "verification": {
