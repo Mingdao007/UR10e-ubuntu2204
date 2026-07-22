@@ -165,6 +165,21 @@ def test_installed_runtime_lane_uses_governed_cuda_paths(
     assert observed["CUPY_CACHE_DIR"] == "/runtime/cupy-cache"
 
 
+def test_installed_runtime_pytest_overlay_comes_from_frozen_venv(
+    tmp_path: Path,
+) -> None:
+    overlay = runner._pytest_overlay(tmp_path)
+
+    assert (overlay / "pytest").is_symlink()
+    assert (overlay / "_pytest").is_symlink()
+    assert (overlay / "pytest").resolve().is_relative_to(
+        (runner.ROOT / ".venv").resolve()
+    )
+    assert (overlay / "_pytest").resolve().is_relative_to(
+        (runner.ROOT / ".venv").resolve()
+    )
+
+
 @pytest.mark.parametrize("lanes", [["large_ursim"], ["hil_no_motion"], []])
 def test_runner_refuses_nonhermetic_or_empty_selection(lanes: list[str]) -> None:
     with pytest.raises(runner.TestMatrixError):

@@ -9,7 +9,6 @@ import json
 import os
 import subprocess
 import sys
-import sysconfig
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -204,7 +203,28 @@ def load_installed_runtime_command(path: Path) -> list[str]:
 def _pytest_overlay(output: Path) -> Path:
     overlay = output / "control-pytest-overlay"
     overlay.mkdir(parents=True, exist_ok=True, mode=0o700)
-    hermetic_site = Path(sysconfig.get_paths()["purelib"])
+    hermetic_python = ROOT / ".venv/bin/python"
+    completed = subprocess.run(
+        [
+            str(hermetic_python),
+            "-I",
+            "-c",
+            "import sysconfig; print(sysconfig.get_paths()['purelib'])",
+        ],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=10.0,
+        check=False,
+    )
+    if completed.returncode != 0:
+        raise TestMatrixError("frozen hermetic pytest environment is unavailable")
+    hermetic_site = Path(completed.stdout.strip()).resolve(strict=True)
+    try:
+        hermetic_site.relative_to((ROOT / ".venv").resolve(strict=True))
+    except ValueError as exc:
+        raise TestMatrixError("hermetic pytest packages escape the frozen venv") from exc
     prefixes = (
         "_pytest",
         "pytest",
@@ -226,6 +246,8 @@ def _pytest_overlay(output: Path) -> Path:
         destination = overlay / source.name
         if not destination.exists() and not destination.is_symlink():
             destination.symlink_to(source, target_is_directory=source.is_dir())
+    if not (overlay / "pytest").is_dir() or not (overlay / "_pytest").is_dir():
+        raise TestMatrixError("frozen hermetic pytest packages are incomplete")
     return overlay
 
 
