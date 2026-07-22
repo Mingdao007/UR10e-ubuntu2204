@@ -28,7 +28,6 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
@@ -61,7 +60,11 @@ from contact_semantics import (  # noqa: E402
 from step_pose_contract import PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID, contract_target_axis_base  # noqa: E402
 import step5c_calibrated_kinematics_audit as step5d_kin  # noqa: E402
 from step5_table import step5_path_reference  # noqa: E402
-from step5c_strict_rnn import StrictRnnConfig, StrictTaseRnnSolver  # noqa: E402
+from step5c_strict_rnn import (  # noqa: E402
+    StrictRnnCommandResult,
+    StrictRnnConfig,
+    StrictTaseRnnSolver,
+)
 from verify_step5d_current_binding import (  # noqa: E402
     verify_binding as verify_step5d_binding,
     verify_live_bridge_authorization as verify_step5d_live_bridge_authorization,
@@ -74,6 +77,7 @@ from verify_step5d_current_binding import (  # noqa: E402
 from step5d_paper_outer_loop import (  # noqa: E402
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
+    Step5dOuterLoopOutput,
     Step5dOuterLoopState,
     compute_step5d_outer_loop,
     rnn_target_state_from_outer_loop,
@@ -3107,7 +3111,7 @@ def step5d_no_contact_p0_press_only_outer_output(
     reaction_normal_b: Sequence[float],
     force_error_n: float,
     press_speed_m_s: float = STEP5D_NO_CONTACT_P0_PRESS_ONLY_SPEED_M_S,
-) -> SimpleNamespace:
+) -> Step5dOuterLoopOutput:
     return shared_press_only_outer_output(
         reaction_normal_b=reaction_normal_b,
         force_error_n=force_error_n,
@@ -5821,8 +5825,13 @@ def compute_bridge_values(
                         )
                         state.step5d_p0_v9_tangent_base = step5d_p0_v9_target.tangent_base
                         step5d_p0_posture_policy = dict(step5d_p0_v9_target.posture_policy)
-                        step5d_outer_output = SimpleNamespace(
-                            xdot_c=np.asarray(step5d_p0_v9_target.raw_outer_twist, dtype=float),
+                        raw_outer_twist = tuple(
+                            float(value) for value in step5d_p0_v9_target.raw_outer_twist
+                        )
+                        step5d_outer_output = Step5dOuterLoopOutput(
+                            xdot_p=raw_outer_twist[:3],
+                            xdot_o=raw_outer_twist[3:],
+                            xdot_c=raw_outer_twist,
                             cmd_valid=True,
                             next_state=Step5dOuterLoopState(),
                             diagnostics={
@@ -5846,8 +5855,13 @@ def compute_bridge_values(
                             qdot_cap_rad_s=float(args.step5d_qdot_limit_rad_s),
                         )
                         step5d_p0_posture_policy = dict(step5d_p0_v8_target.posture_policy)
-                        step5d_outer_output = SimpleNamespace(
-                            xdot_c=np.asarray(step5d_p0_v8_target.raw_outer_twist, dtype=float),
+                        raw_outer_twist = tuple(
+                            float(value) for value in step5d_p0_v8_target.raw_outer_twist
+                        )
+                        step5d_outer_output = Step5dOuterLoopOutput(
+                            xdot_p=raw_outer_twist[:3],
+                            xdot_o=raw_outer_twist[3:],
+                            xdot_c=raw_outer_twist,
                             cmd_valid=True,
                             next_state=Step5dOuterLoopState(),
                             diagnostics=dict(step5d_p0_v8_target.outer_diagnostics),
@@ -6095,7 +6109,7 @@ def compute_bridge_values(
                             bridge_solver_status = float(raw_candidate_v30.solver_status)
                         except (TypeError, ValueError):
                             bridge_solver_status = STEP5C_STATUS_INVALID
-                        step5d_result = SimpleNamespace(
+                        step5d_result = StrictRnnCommandResult(
                             qdot=raw_candidate_v30.qdot,
                             solver_status=bridge_solver_status,
                             residual_norm=raw_candidate_v30.residual_norm,

@@ -34,6 +34,7 @@ from step5d_autotune_contract import (  # noqa: E402
     TrialTransitionKind,
     TrialSpec,
 )
+from step5d_autotune_backend import PreparedFingerprint, PreparedTrial  # noqa: E402
 from step5d_autotune_live_driver import (  # noqa: E402
     AtomicCommandMailbox,
     BridgeMailboxRuntime,
@@ -152,12 +153,12 @@ def make_trial(
     )
 
 
-def make_prepared(trial: TrialSpec) -> SimpleNamespace:
+def make_prepared(trial: TrialSpec) -> PreparedTrial:
     candidate = trial.candidate
     profile = trial.execution_profile
-    return SimpleNamespace(
+    return PreparedTrial(
         trial=trial,
-        frozen=SimpleNamespace(
+        frozen=PreparedFingerprint(
             source_fingerprint=trial.source_fingerprint,
             config_fingerprint=trial.config_fingerprint,
             composite_fingerprint=trial.campaign.campaign_fingerprint,

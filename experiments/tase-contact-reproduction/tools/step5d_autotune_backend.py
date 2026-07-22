@@ -64,6 +64,15 @@ class FrozenFingerprint:
 
 
 @dataclass(frozen=True)
+class PreparedFingerprint:
+    """Fingerprint subset consumed by the production mailbox boundary."""
+
+    source_fingerprint: str
+    config_fingerprint: str
+    composite_fingerprint: str
+
+
+@dataclass(frozen=True)
 class BackendPreflight:
     ok: bool
     offline_only: bool
@@ -79,7 +88,7 @@ class BackendPreflight:
 @dataclass(frozen=True)
 class PreparedTrial:
     trial: TrialSpec
-    frozen: FrozenFingerprint
+    frozen: FrozenFingerprint | PreparedFingerprint
     environment: Mapping[str, str]
     runner_arguments: tuple[str, ...]
     # V3 may bind the complete validated per-trial overlay at READY_HOME.

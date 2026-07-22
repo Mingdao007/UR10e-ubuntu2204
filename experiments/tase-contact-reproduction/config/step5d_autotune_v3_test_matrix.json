@@ -11,6 +11,8 @@
       "active": [
         "tests/test_step5d_v3_active_surface_architecture.py",
         "tests/test_step5d_autotune_runtime.py",
+        "tests/test_step5d_autotune_runtime_lifecycle.py",
+        "tests/test_step5d_autotune_store.py",
         "tests/test_step5d_autotune_live_driver.py",
         "tests/test_step5d_runtime_identity.py",
         "tests/test_step5d_autotune_v3_identity_layers.py",
@@ -35,6 +37,9 @@
         "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
         "tests/test_step5d_runtime_environment.py",
         "tests/test_step5d_runtime_observation.py",
+        "tests/test_step5d_production_csv.py",
+        "tests/test_step5d_historical_incident_contracts.py",
+        "tests/test_step5d_no_contact_p0.py",
     "tests/test_step5d_bridge_status.py",
     "tests/test_step5d_bridge_authority.py",
         "tests/test_step5d_v3_runtime_installation.py",
@@ -81,7 +86,6 @@
         "tests/test_step5d_autotune_campaign_runner.py",
         "tests/test_step5d_autotune_journal.py",
         "tests/test_step5d_autotune_recovery.py",
-        "tests/test_step5d_autotune_runtime_lifecycle.py",
         "tests/test_step5d_autotune_supervisor.py",
         "tests/test_step5d_autotune_tp_v3.py",
         "tests/test_step5d_autotune_v3_acceptance.py",
@@ -92,7 +96,6 @@
         "tests/test_step5d_autotune_v3_runtime_calibration.py",
         "tests/test_step5d_autotune_v3_runtime_profile.py",
         "tests/test_step5d_autotune_v3_service.py",
-        "tests/test_step5d_production_csv.py",
         "tests/test_step5d_v3_current_selector.py",
         "tests/test_step5d_v3_diagnostic_bundle_replay.py",
         "tests/test_step5d_v3_sphere_seam_timing.py",
@@ -131,7 +134,8 @@
       "tests/test_step5d_autotune_v3_bridge_wrapper.py",
       "tests/test_step5d_autotune_v3_qualification_production.py",
       "tests/test_step5d_autotune_v3_installed_runtime.py",
-      "tests/test_step5d_manual_bridge.py"
+      "tests/test_step5d_manual_bridge.py",
+      "tests/test_step5d_no_contact_p0.py"
     ],
     "activation": "explicit_local_authoritative_after_hermetic_small_medium",
     "ci": false,
@@ -164,6 +168,10 @@
           "pytest",
           "-q",
           "tests/test_step5d_autotune_v3_dashboard.py",
+          "tests/test_step5d_autotune_runtime_lifecycle.py",
+          "tests/test_step5d_autotune_store.py",
+          "tests/test_step5d_production_csv.py",
+          "tests/test_step5d_historical_incident_contracts.py",
           "tests/test_step5d_runtime_identity.py",
           "tests/test_step5d_autotune_v3_identity_layers.py",
           "tests/test_step5d_r009_release_core.py",
@@ -235,6 +243,46 @@
     }
   },
   "requirements": [
+    {
+      "id": "r004_return_telemetry_mismatch_not_fresh_row_timeout",
+      "incident_fixture": "tests/fixtures/v3_r004_return_telemetry_incident.json",
+      "test_node": "tests/test_step5d_autotune_runtime_lifecycle.py::test_r004_incident_replay_reports_return_phase_mismatch"
+    },
+    {
+      "id": "r005_typed_closure_v2_independent_cold_read",
+      "incident_fixture": "tests/fixtures/step5d_r005_typed_closure_v2_incident.json",
+      "test_node": "tests/test_step5d_autotune_store.py::test_typed_v2_bundle_survives_cold_history_read"
+    },
+    {
+      "id": "r005_post_ack_prefixed_csv_schema",
+      "incident_fixture": "tests/fixtures/step5d_r005_post_ack_csv_schema_incident.json",
+      "test_node": "tests/test_step5d_production_csv.py::test_r005_incident_is_fresh_rows_with_prefixed_schema_not_no_fresh"
+    },
+    {
+      "id": "r005_batch_bootstrap_null_source_reaches_arm2",
+      "incident_fixture": "tests/fixtures/step5d_r005_exact_candidate_plan.json",
+      "test_node": "tests/test_step5d_autotune_production_second_lap.py::test_legacy_r005_synthetic_snapshot_chain_reaches_arm2"
+    },
+    {
+      "id": "r009_plan_overlay_control_uid_composition",
+      "incident_fixture": "tests/test_step5d_autotune_v3_campaign_prepare.py",
+      "test_node": "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py::test_initial_live_batch_uses_fresh_campaign_local_history"
+    },
+    {
+      "id": "p0_v7_outer_output_requires_cmd_valid",
+      "incident_fixture": "tests/test_step5d_historical_incident_contracts.py",
+      "test_node": "tests/test_step5d_historical_incident_contracts.py::test_p0_outer_output_requires_and_propagates_cmd_valid"
+    },
+    {
+      "id": "r010_manual_required_launch_fields",
+      "incident_fixture": "tests/test_step5d_historical_incident_contracts.py",
+      "test_node": "tests/test_step5d_historical_incident_contracts.py::test_launch_profile_is_required_at_launch_request_constructor"
+    },
+    {
+      "id": "r010_release_manifest_path_required",
+      "incident_fixture": "tests/test_step5d_historical_incident_contracts.py",
+      "test_node": "tests/test_step5d_historical_incident_contracts.py::test_manifest_path_is_required_at_release_constructor"
+    },
     {
       "id": "escaped_effective_configuration_drift",
       "incident_fixture": "tests/test_step5d_autotune_v3_contract.py"

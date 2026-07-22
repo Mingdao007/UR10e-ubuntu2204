@@ -190,6 +190,7 @@ def load_installed_runtime_command(path: Path) -> list[str]:
             "tests/test_step5d_autotune_v3_qualification_production.py",
             "tests/test_step5d_autotune_v3_installed_runtime.py",
             "tests/test_step5d_manual_bridge.py",
+            "tests/test_step5d_no_contact_p0.py",
         ]
         or gate.get("ci") is not False
         or gate.get("serial") is not True

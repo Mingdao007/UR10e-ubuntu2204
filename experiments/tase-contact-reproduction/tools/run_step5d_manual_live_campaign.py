@@ -12,7 +12,6 @@ import math
 import os
 from pathlib import Path
 import time
-from types import SimpleNamespace
 from typing import Any, Mapping
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
@@ -30,6 +29,7 @@ from step5d_autotune_evaluator import (
     qd_tracking_metrics,
     read_csv_rows,
 )
+from step5d_autotune_backend import PreparedFingerprint, PreparedTrial
 from step5d_autotune_live_driver import AtomicCommandMailbox, TrialArtifactProducer
 from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
 from step5d_autotune_v3.dashboard import dashboard_exchange
@@ -265,7 +265,7 @@ def _prepared(intent: Mapping[str, Any], *, plant_epoch: int = 1) -> tuple[HostP
         config_fingerprint=config_fingerprint,
         transition=TrialTransition(TrialTransitionKind.BATCH_BOOTSTRAP),
     )
-    frozen = SimpleNamespace(
+    frozen = PreparedFingerprint(
         source_fingerprint=source_fingerprint,
         config_fingerprint=config_fingerprint,
         composite_fingerprint=campaign_fingerprint,
@@ -278,7 +278,8 @@ def _prepared(intent: Mapping[str, Any], *, plant_epoch: int = 1) -> tuple[HostP
         "STEP5D_AUTOTUNE_HOST_SLEW_RAD_S2": repr(profile.host_qdot_slew_rad_s2),
         "STEP5D_AUTOTUNE_SPEEDJ_ACCELERATION_RAD_S2": repr(profile.tp_speedj_accel_rad_s2),
     }
-    prepared = SimpleNamespace(
+    prepared = PreparedTrial(
+        runner_arguments=(),
         trial=trial,
         frozen=frozen,
         environment=environment,

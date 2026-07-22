@@ -149,12 +149,16 @@ def test_r006_exact_plans_materialize_machine_binding_before_runner(
     binding_path = (tmp_path / "runtime/campaign_binding.json").resolve()
     binding_path.parent.mkdir()
     prepared = live_runner.prepare(
-        SimpleNamespace(
+        live_runner.LaunchPreparationRequest(
             experiment_root=ROOT,
             campaign_root=campaign_root,
             binding_file=binding_path,
             binding_source="canonical_v3_live_entrypoint",
+            launch_profile_path=(
+                ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+            ),
             candidate_batch_size=10,
+            rolling_plan=True,
         )
     )
     live_runner.prepare_campaign_state(

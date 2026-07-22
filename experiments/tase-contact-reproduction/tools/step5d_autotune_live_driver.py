@@ -41,6 +41,7 @@ from step5d_autotune_contract import (
     TypedSafeClosureEvidence,
     TrialSpec,
 )
+from step5d_autotune_backend import PreparedTrial
 from step5d_autotune_state_machine import (
     FULL_HOME_ROLLING_PROTOCOL,
     HostCommand,
@@ -437,14 +438,14 @@ def _packet_payload(packet: HostPacket) -> dict[str, int]:
 
 def _binding_from_prepared(
     packet: HostPacket,
-    prepared_trial: Any,
+    prepared_trial: PreparedTrial,
     *,
     network_mode: bool,
     launch_profile: Any | None,
 ) -> RuntimeTrialBinding:
-    trial = getattr(prepared_trial, "trial", None)
-    if trial is None:
-        raise MailboxError("prepared_trial lacks its durable TrialSpec")
+    if not isinstance(prepared_trial, PreparedTrial):
+        raise MailboxError("prepared_trial must use the shared PreparedTrial contract")
+    trial = prepared_trial.trial
     expected_identity = (
         trial.campaign.campaign_epoch,
         trial.trial_id,
@@ -474,9 +475,7 @@ def _binding_from_prepared(
         packet.execution_profile_id,
         network_mode=network_mode,
     )
-    frozen = getattr(prepared_trial, "frozen", None)
-    if frozen is None:
-        raise MailboxError("prepared_trial lacks its frozen fingerprint")
+    frozen = prepared_trial.frozen
     binding = RuntimeTrialBinding(
         trial_uid=trial.trial_uid,
         backend_id=trial.backend_id,
@@ -490,28 +489,25 @@ def _binding_from_prepared(
         source_fingerprint=trial.source_fingerprint,
         config_fingerprint=trial.config_fingerprint,
         campaign_fingerprint=trial.campaign.campaign_fingerprint,
-        trial_overlay=getattr(prepared_trial, "trial_overlay", None),
-        batch_row_index=getattr(prepared_trial, "batch_row_index", None),
+        trial_overlay=prepared_trial.trial_overlay,
+        batch_row_index=prepared_trial.batch_row_index,
         logical_batch_sequence=(
             packet.logical_batch_sequence or None
         ),
-        occurrence_uid=getattr(prepared_trial, "occurrence_uid", None),
-        transport_candidate_uid=getattr(
-            prepared_trial, "transport_candidate_uid", None
-        ),
-        control_candidate_uid=getattr(prepared_trial, "control_candidate_uid", None),
-        trial_overlay_sha256=getattr(prepared_trial, "trial_overlay_sha256", None),
+        occurrence_uid=prepared_trial.occurrence_uid,
+        transport_candidate_uid=prepared_trial.transport_candidate_uid,
+        control_candidate_uid=prepared_trial.control_candidate_uid,
+        trial_overlay_sha256=prepared_trial.trial_overlay_sha256,
     )
     if any(
         (
-            getattr(frozen, "source_fingerprint", None) != binding.source_fingerprint,
-            getattr(frozen, "config_fingerprint", None) != binding.config_fingerprint,
-            getattr(frozen, "composite_fingerprint", None)
-            != binding.campaign_fingerprint,
+            frozen.source_fingerprint != binding.source_fingerprint,
+            frozen.config_fingerprint != binding.config_fingerprint,
+            frozen.composite_fingerprint != binding.campaign_fingerprint,
         )
     ):
         raise MailboxError("prepared frozen fingerprint differs from TrialSpec")
-    environment = getattr(prepared_trial, "environment", None)
+    environment = prepared_trial.environment
     if not isinstance(environment, Mapping):
         raise MailboxError("prepared_trial lacks its exact runtime environment")
     expected_numbers = {
@@ -551,11 +547,7 @@ def _binding_from_prepared(
         for name, expected in expected_overlay_identity.items():
             if normalized[name] != expected:
                 raise MailboxError(f"V3 trial overlay differs from TrialSpec at {name}")
-        expected_overlay_sha256 = getattr(
-            prepared_trial,
-            "trial_overlay_sha256",
-            None,
-        )
+        expected_overlay_sha256 = prepared_trial.trial_overlay_sha256
         if binding.logical_batch_sequence is not None and (
             expected_overlay_sha256 is None
             or normalized_overlay_sha256(

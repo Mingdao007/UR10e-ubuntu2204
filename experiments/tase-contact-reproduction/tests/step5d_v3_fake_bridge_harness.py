@@ -39,6 +39,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by hermetic CI.
     sys.modules["numpy"] = numpy_stub
 
 from step5d_autotune_batch_plan import CandidateBatchPlan  # noqa: E402
+from step5d_autotune_backend import PreparedFingerprint, PreparedTrial  # noqa: E402
 import build_step5d_autotune_tp_v3 as tp_v3  # noqa: E402
 from step5d_autotune_contract import (  # noqa: E402
     CampaignSpec,
@@ -302,7 +303,7 @@ def prepared_trial(
     *,
     batch_row_index: int,
     trial_overlay: Mapping[str, Any],
-) -> SimpleNamespace:
+) -> PreparedTrial:
     candidate = trial.candidate
     execution = trial.execution_profile
     environment = {
@@ -325,7 +326,7 @@ def prepared_trial(
             execution.tp_speedj_accel_rad_s2
         ),
     }
-    frozen = SimpleNamespace(
+    frozen = PreparedFingerprint(
         source_fingerprint=trial.source_fingerprint,
         config_fingerprint=trial.config_fingerprint,
         composite_fingerprint=trial.campaign.campaign_fingerprint,
@@ -356,7 +357,7 @@ def prepared_trial(
         "--step5d-autotune-command-sequence",
         environment["STEP5D_AUTOTUNE_COMMAND_SEQ"],
     )
-    return SimpleNamespace(
+    return PreparedTrial(
         trial=trial,
         frozen=frozen,
         environment=environment,

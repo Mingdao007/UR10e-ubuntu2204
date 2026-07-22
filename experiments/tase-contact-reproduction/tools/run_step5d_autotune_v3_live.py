@@ -16,10 +16,13 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
-from prepare_step5d_autotune_launch import prepare, write_machine_campaign_binding
+from prepare_step5d_autotune_launch import (
+    LaunchPreparationRequest,
+    prepare,
+    write_machine_campaign_binding,
+)
 from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
 from run_step5d_autotune_campaign import discover_campaign_epochs
 from step5d_autotune_batch_plan import load_plan
@@ -1116,13 +1119,12 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     campaign_binding = bridge_runtime / "campaign_binding.json"
     launch_plan_path = bridge_runtime / "campaign_launch_plan.json"
     prepared = prepare(
-        SimpleNamespace(
+        LaunchPreparationRequest(
             experiment_root=ROOT,
             campaign_root=args.campaign_root,
             binding_file=campaign_binding,
             binding_source="canonical_v3_live_entrypoint",
-            authorization_file=None,
-            authorization_source=None,
+            launch_profile_path=launch_profile_path,
             candidate_batch_size=5,
             rolling_plan=True,
         )
