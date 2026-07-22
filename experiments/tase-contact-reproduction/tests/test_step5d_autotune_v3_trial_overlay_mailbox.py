@@ -20,6 +20,7 @@ from step5d_autotune_contract import (  # noqa: E402
     TrialTransition,
     TrialTransitionKind,
 )
+from step5d_autotune_backend import PreparedFingerprint, PreparedTrial  # noqa: E402
 from step5d_autotune_live_driver import (  # noqa: E402
     AtomicCommandMailbox,
     BridgeMailboxRuntime,
@@ -99,7 +100,7 @@ def _write_test_launch_profile(tmp_path: Path) -> tuple[Path, LaunchProfile]:
     return profile_path, load_launch_profile(profile_path)
 
 
-def _prepared(overlay: dict) -> SimpleNamespace:
+def _prepared(overlay: dict) -> PreparedTrial:
     overlay = dict(overlay)
     overlay["execution_profile_id"] = "nf100-slew050-a050"
     candidate = ForceCandidate()
@@ -117,9 +118,9 @@ def _prepared(overlay: dict) -> SimpleNamespace:
         config_fingerprint="c" * 64,
         transition=TrialTransition(TrialTransitionKind.BASELINE),
     )
-    return SimpleNamespace(
+    return PreparedTrial(
         trial=trial,
-        frozen=SimpleNamespace(
+        frozen=PreparedFingerprint(
             source_fingerprint=trial.source_fingerprint,
             config_fingerprint=trial.config_fingerprint,
             composite_fingerprint=trial.campaign.campaign_fingerprint,
@@ -137,49 +138,45 @@ def _prepared(overlay: dict) -> SimpleNamespace:
     )
 
 
-def _prepared_next(prepared: SimpleNamespace) -> SimpleNamespace:
+def _prepared_next(prepared: PreparedTrial) -> PreparedTrial:
     trial = replace(
         prepared.trial,
         trial_id=2,
         candidate_token=3,
         command_seq=4,
     )
-    return SimpleNamespace(
-        **{
-            **vars(prepared),
-            "trial": trial,
-            "frozen": SimpleNamespace(
-                source_fingerprint=trial.source_fingerprint,
-                config_fingerprint=trial.config_fingerprint,
-                composite_fingerprint=trial.campaign.campaign_fingerprint,
-            ),
-        }
+    return replace(
+        prepared,
+        trial=trial,
+        frozen=PreparedFingerprint(
+            source_fingerprint=trial.source_fingerprint,
+            config_fingerprint=trial.config_fingerprint,
+            composite_fingerprint=trial.campaign.campaign_fingerprint,
+        ),
     )
 
 
 def _prepared_at(
-    prepared: SimpleNamespace,
+    prepared: PreparedTrial,
     *,
     trial_id: int,
     candidate_token: int,
     command_seq: int,
-) -> SimpleNamespace:
+) -> PreparedTrial:
     trial = replace(
         prepared.trial,
         trial_id=trial_id,
         candidate_token=candidate_token,
         command_seq=command_seq,
     )
-    return SimpleNamespace(
-        **{
-            **vars(prepared),
-            "trial": trial,
-            "frozen": SimpleNamespace(
-                source_fingerprint=trial.source_fingerprint,
-                config_fingerprint=trial.config_fingerprint,
-                composite_fingerprint=trial.campaign.campaign_fingerprint,
-            ),
-        }
+    return replace(
+        prepared,
+        trial=trial,
+        frozen=PreparedFingerprint(
+            source_fingerprint=trial.source_fingerprint,
+            config_fingerprint=trial.config_fingerprint,
+            composite_fingerprint=trial.campaign.campaign_fingerprint,
+        ),
     )
 
 
@@ -254,8 +251,7 @@ def test_v3_mailbox_binds_and_applies_all_seven_preload_fields(tmp_path: Path) -
 
 
 def test_v1_mailbox_schema_remains_without_trial_overlay(tmp_path: Path) -> None:
-    prepared = _prepared(dict(DEFAULT_OVERLAY))
-    del prepared.trial_overlay
+    prepared = replace(_prepared(dict(DEFAULT_OVERLAY)), trial_overlay=None)
     packet = HostPacket(1, 1, HostCommand.ARM, 2, 633, 3)
     path = (tmp_path / "command.json").absolute()
     AtomicCommandMailbox(path).send_command(packet, prepared_trial=prepared)

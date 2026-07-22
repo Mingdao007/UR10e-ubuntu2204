@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -40,6 +41,21 @@ BRIDGE_PID = 4101
 BRIDGE_STARTTIME = 7101
 SUPERVISOR_PID = 4100
 SUPERVISOR_STARTTIME = 7100
+
+
+def test_governance_process_identity_rejects_zombie_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = Path.read_text
+
+    def fake_read_text(path: Path, *args, **kwargs) -> str:
+        if path == Path("/proc/43/stat"):
+            return "43 (zombie child) Z " + " ".join(["0"] * 18 + ["701"])
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    assert governance.read_proc_starttime_ticks(43) is None
 
 
 def digest(label: str) -> str:
@@ -662,6 +678,7 @@ def test_launch_attempt_admits_monotonic_manual_bridge_phases(tmp_path: Path) ->
     phases = (
         "runtime_gate",
         "route_resolve",
+        "manual_qualification",
         "manual_context",
         "manual_preflight",
         "manual_bridge_start",
@@ -679,11 +696,229 @@ def test_launch_attempt_admits_monotonic_manual_bridge_phases(tmp_path: Path) ->
         assert recorded["attestation"]["phase"] == phase
 
 
+def test_launch_attempt_v2_binds_route_runtime_and_owner(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "output"
+    campaign = tmp_path / "campaign"
+    output.mkdir()
+    campaign.mkdir()
+    snapshot = output / "route.json"
+    snapshot.write_text('{"route":"manual_v2"}\n', encoding="utf-8")
+    bindings = {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": digest("runtime"),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "route_snapshot": None,
+    }
+    started = publish_launch_attempt(
+        tmp_path,
+        attempt_id="manual-v2-attempt",
+        state="STARTED",
+        phase="runtime_gate",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS,
+    )
+    assert started["attestation"]["schema"] == governance.LAUNCH_ATTEMPT_SCHEMA
+    assert started["attestation"]["bindings"]["resource_owner"]["pid"] == os.getpid()
+
+    publish_launch_attempt(
+        tmp_path,
+        attempt_id="manual-v2-attempt",
+        state="PASSED",
+        phase="runtime_gate",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 1,
+    )
+    publish_launch_attempt(
+        tmp_path,
+        attempt_id="manual-v2-attempt",
+        state="STARTED",
+        phase="route_resolve",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 2,
+    )
+    bindings["route_snapshot"] = {
+        "path": str(snapshot),
+        "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+    }
+    passed = publish_launch_attempt(
+        tmp_path,
+        attempt_id="manual-v2-attempt",
+        state="PASSED",
+        phase="route_resolve",
+        route="manual_v2",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 3,
+    )
+    assert passed["attestation"]["route"] == "manual_v2"
+    assert passed["attestation"]["bindings"]["route_snapshot"]["sha256"]
+
+    with pytest.raises(GovernanceError, match="next phase"):
+        publish_launch_attempt(
+            tmp_path,
+            attempt_id="manual-v2-attempt",
+            state="STARTED",
+            phase="route_resolve",
+            route="manual_v2",
+            bindings=bindings,
+            observed_at_unix_ns=NOW_NS + 4,
+        )
+
+
+def test_launch_attempt_v2_rejects_mid_attempt_authority_binding_drift(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "output"
+    campaign = tmp_path / "campaign"
+    output.mkdir()
+    campaign.mkdir()
+    bindings = {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": digest("runtime"),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "route_snapshot": None,
+    }
+    publish_launch_attempt(
+        tmp_path,
+        attempt_id="immutable-bindings",
+        state="STARTED",
+        phase="runtime_gate",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS,
+    )
+    changed = json.loads(json.dumps(bindings))
+    changed["resource_owner"]["authority_epoch"] = 2
+    with pytest.raises(GovernanceError, match="resource_owner binding cannot change"):
+        publish_launch_attempt(
+            tmp_path,
+            attempt_id="immutable-bindings",
+            state="PASSED",
+            phase="runtime_gate",
+            route="UNKNOWN",
+            bindings=changed,
+            observed_at_unix_ns=NOW_NS + 1,
+        )
+
+
+def test_launch_attempt_records_closed_world_route_blocker(tmp_path: Path) -> None:
+    output = tmp_path / "output"
+    campaign = tmp_path / "campaign"
+    output.mkdir()
+    campaign.mkdir()
+    snapshot = output / "route.json"
+    snapshot.write_text('{"route":"BLOCKED"}\n', encoding="utf-8")
+    bindings = {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": digest("runtime"),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "route_snapshot": None,
+    }
+    publish_launch_attempt(
+        tmp_path,
+        attempt_id="unsupported-route",
+        state="STARTED",
+        phase="route_resolve",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS,
+    )
+    bindings["route_snapshot"] = {
+        "path": str(snapshot),
+        "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+    }
+    failed = publish_launch_attempt(
+        tmp_path,
+        attempt_id="unsupported-route",
+        state="FAILED",
+        phase="route_resolve",
+        route="BLOCKED",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 1,
+        exit_code=3,
+        reason_code="LOADED_PROGRAM_UNSUPPORTED",
+        detail="loaded program is outside the closed route set",
+    )
+    assert failed["attestation"]["route"] == "BLOCKED"
+    assert failed["attestation"]["reason_code"] == "LOADED_PROGRAM_UNSUPPORTED"
+
+
+def test_launch_attempt_completed_is_terminal(tmp_path: Path) -> None:
+    output = tmp_path / "output"
+    campaign = tmp_path / "campaign"
+    output.mkdir()
+    campaign.mkdir()
+    bindings = {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": digest("runtime"),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": governance.read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "route_snapshot": None,
+    }
+    started = publish_launch_attempt(
+        tmp_path,
+        attempt_id="completed-attempt",
+        state="STARTED",
+        phase="live_handoff",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS,
+    )
+    assert started["attestation"]["state"] == "STARTED"
+    completed = publish_launch_attempt(
+        tmp_path,
+        attempt_id="completed-attempt",
+        state="COMPLETED",
+        phase="live_handoff",
+        route="UNKNOWN",
+        bindings=bindings,
+        observed_at_unix_ns=NOW_NS + 1,
+    )
+    assert completed["attestation"]["state"] == "COMPLETED"
+    with pytest.raises(GovernanceError, match="terminal"):
+        publish_launch_attempt(
+            tmp_path,
+            attempt_id="completed-attempt",
+            state="STARTED",
+            phase="live_handoff",
+            route="UNKNOWN",
+            bindings=bindings,
+            observed_at_unix_ns=NOW_NS + 2,
+        )
+
+
 def test_launch_attempt_external_class_requires_positive_evidence(
     tmp_path: Path,
 ) -> None:
     row = {
-        "schema": governance.LAUNCH_ATTEMPT_SCHEMA,
+        "schema": governance.LAUNCH_ATTEMPT_SCHEMA_V1,
         "sequence": 1,
         "attempt_id": "attempt-1",
         "state": "FAILED",
@@ -1002,7 +1237,7 @@ def test_queue_integrity_error_is_explicit_internal_blocker(
     assert isinstance(status["next_action"], str)
 
 
-def test_hidden_cli_records_started_and_failed_launch_attempt(
+def test_hidden_cli_rejects_unbound_legacy_launch_attempt(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     campaign = tmp_path / "campaign"
@@ -1016,8 +1251,73 @@ def test_hidden_cli_records_started_and_failed_launch_attempt(
         "--_launch-attempt-phase",
         "status_before",
     ]
+    assert cli.main([*common, "--_launch-attempt-state", "STARTED"]) == 2
+    captured = capsys.readouterr()
+    assert "unbound launch-attempt recording is retired" in captured.err
+    assert not (campaign / "governance/current-launch.json").exists()
+    assert "_launch-attempt" not in cli.build_parser().format_help()
+
+
+def test_hidden_cli_is_fenced_to_active_authority_owner(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import step5d_bridge_authority as bridge_authority
+
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    owner_pid = 42
+    owner_starttime = 700
+    monkeypatch.setattr(os, "getppid", lambda: owner_pid)
+    monkeypatch.setattr(
+        bridge_authority,
+        "read_proc_starttime_ticks",
+        lambda pid: owner_starttime if pid == owner_pid else None,
+    )
+    monkeypatch.setattr(
+        governance,
+        "read_proc_starttime_ticks",
+        lambda pid: owner_starttime if pid == owner_pid else None,
+    )
+    bridge_authority.begin(
+        campaign,
+        attempt_id="shell-attempt-bound",
+        owner_pid=owner_pid,
+        owner_starttime_ticks=owner_starttime,
+    )
+    common = [
+        "--experiment-root",
+        str(ROOT),
+        "--campaign-root",
+        str(campaign),
+        "--_launch-attempt-id",
+        "shell-attempt-bound",
+        "--_launch-attempt-phase",
+        "status_before",
+        "--_launch-attempt-route",
+        "UNKNOWN",
+        "--_launch-repository-head",
+        "a" * 40,
+        "--_launch-runtime-environment-id",
+        "b" * 64,
+        "--_launch-campaign-path",
+        str(campaign),
+        "--_launch-output-root",
+        str(output),
+        "--_launch-owner-pid",
+        str(owner_pid),
+        "--_launch-owner-starttime",
+        str(owner_starttime),
+        "--_launch-owner-authority-epoch",
+        "1",
+    ]
     assert cli.main([*common, "--_launch-attempt-state", "STARTED"]) == 0
-    capsys.readouterr()
+    recorded = json.loads(capsys.readouterr().out)
+    assert recorded["attestation"]["state"] == "STARTED"
+    before, before_pointer = load_current_launch_attempt(campaign)
+
+    monkeypatch.setattr(os, "getppid", lambda: owner_pid + 1)
     assert (
         cli.main(
             [
@@ -1029,13 +1329,12 @@ def test_hidden_cli_records_started_and_failed_launch_attempt(
                 "--_launch-attempt-reason-code",
                 "LAUNCH_ATTEMPT_FAILED",
                 "--_launch-attempt-detail",
-                "status_before exited 41",
+                "sibling recorder rejected",
             ]
         )
-        == 0
+        == 2
     )
-    recorded = json.loads(capsys.readouterr().out)
-    assert recorded["attestation"]["state"] == "FAILED"
-    assert recorded["attestation"]["exit_code"] == 41
-    assert load_current_launch_attempt(campaign)[0] == recorded["attestation"]
-    assert "_launch-attempt" not in cli.build_parser().format_help()
+    assert "active authority-owner child" in capsys.readouterr().err
+    after, after_pointer = load_current_launch_attempt(campaign)
+    assert after == before
+    assert after_pointer == before_pointer

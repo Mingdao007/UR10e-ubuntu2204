@@ -6,8 +6,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
-from types import SimpleNamespace
+import time
 from typing import Any, Mapping, Sequence
 import sys
 
@@ -29,7 +30,9 @@ from step5d_manual_profile import (
 
 TICKET_ENV = "STEP5D_MANUAL_BRIDGE_TICKET"
 TICKET_SCOPE = "manual_bridge_no_arm"
+ARM_GATE_SCHEMA = "step5d.manual-v2/bridge-arm-gate-v1"
 _BASE_BRIDGE_MAILBOX_RUNTIME = live_driver.BridgeMailboxRuntime
+_BASE_ATOMIC_COMMAND_MAILBOX = live_driver.AtomicCommandMailbox
 MANUAL_HARD_GUARDS = {
     "max_normal_force_n": 60.0,
     "max_force_norm_n": 100.0,
@@ -39,8 +42,116 @@ MANUAL_HARD_GUARDS = {
 }
 
 
+@dataclass(frozen=True)
+class ManualWireRelease:
+    release_stage_id: str
+    control_profile_id: str
+    program_id: str
+    protocol_id: str
+
+
+class ManualArmGateProvider:
+    """Admit only the ARM gate bound to the exact current mailbox bytes."""
+
+    def __init__(self, path: Path, ticket: Mapping[str, Any]) -> None:
+        self.path = path
+        self.release_manifest_sha256 = str(
+            ticket["manual_release_manifest_sha256"]
+        )
+        self.attempt_id = str(ticket["launch_attempt_id"])
+        self.campaign_id = str(ticket["campaign_id"])
+
+    def __call__(
+        self,
+        binding: Mapping[str, Any] | None = None,
+        *,
+        connection_epoch: int = 0,
+    ) -> dict[str, Any] | None:
+        if not self.path.exists() and not self.path.is_symlink():
+            return None
+        try:
+            payload = strict_object(self.path, "manual bridge ARM gate")
+            if set(payload) != {
+                "schema",
+                "attempt_id",
+                "campaign_id",
+                "release_manifest_sha256",
+                "created_at_unix_ns",
+                "arm_binding",
+            } or payload.get("schema") != ARM_GATE_SCHEMA:
+                raise ManualBridgeError("manual bridge ARM gate fields differ")
+            if (
+                payload.get("attempt_id") != self.attempt_id
+                or payload.get("campaign_id") != self.campaign_id
+                or payload.get("release_manifest_sha256")
+                != self.release_manifest_sha256
+            ):
+                raise ManualBridgeError("manual bridge ARM gate binding differs")
+            created_at = payload.get("created_at_unix_ns")
+            now_ns = time.time_ns()
+            if (
+                isinstance(created_at, bool)
+                or not isinstance(created_at, int)
+                or created_at > now_ns
+            ):
+                raise ManualBridgeError("manual bridge ARM gate timestamp differs")
+            arm_binding = payload.get("arm_binding")
+            if not isinstance(arm_binding, Mapping):
+                raise ManualBridgeError("manual bridge ARM command binding differs")
+            if binding is not None and dict(arm_binding) != dict(binding):
+                # The mailbox is published before its matching gate. Holding here is
+                # the expected fail-closed half of that two-file transition.
+                return None
+            return {
+                "attempt_id": self.attempt_id,
+                "campaign_id": self.campaign_id,
+                "release_manifest_sha256": self.release_manifest_sha256,
+                "arm_binding": dict(arm_binding),
+                "connection_epoch": int(connection_epoch),
+            }
+        except (OSError, ValueError, ManualBridgeError) as exc:
+            raise live_driver.MailboxError(
+                f"Manual bridge ARM gate failed closed: {exc}"
+            ) from exc
+
+
 class ManualBridgeMailboxRuntime(_BASE_BRIDGE_MAILBOX_RUNTIME):
-    """Manual route uses the canonical production identity-commit FSM."""
+    """Manual full-home runtime with a command-bound bridge-local ARM gate."""
+
+    _ticket: Mapping[str, Any] | None = None
+
+    @classmethod
+    def configure(cls, ticket: Mapping[str, Any]) -> None:
+        cls._ticket = dict(ticket)
+
+    def __init__(
+        self,
+        path: Path,
+        *,
+        campaign_home_reference_path: Path | None = None,
+        arming_context_provider: Any | None = None,
+        completion_protocol: str | None = None,
+        launch_profile: Any | None = None,
+    ) -> None:
+        if self._ticket is None:
+            raise live_driver.MailboxError("Manual runtime ticket is unavailable")
+        if arming_context_provider is not None:
+            raise live_driver.MailboxError("Manual alternate ARM gate is forbidden")
+        if completion_protocol is not None and completion_protocol != WIRE_PROTOCOL:
+            raise live_driver.MailboxError("Manual completion protocol differs")
+        profile = load_launch_profile(DEFAULT_LAUNCH_PROFILE)
+        if launch_profile is not None and launch_profile.fingerprint != profile.fingerprint:
+            raise live_driver.MailboxError("Manual alternate launch profile is forbidden")
+        super().__init__(
+            path,
+            campaign_home_reference_path=campaign_home_reference_path,
+            arming_context_provider=ManualArmGateProvider(
+                path.parent / "manual_arm_gate.json",
+                self._ticket,
+            ),
+            completion_protocol=WIRE_PROTOCOL,
+            launch_profile=profile,
+        )
 
 
 def require_manual_guard_semantics(bridge: Any) -> None:
@@ -78,7 +189,8 @@ def strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         "schema", "parent_pid", "argv_sha256", "launch_id", "scope",
         "program", "protocol", "wire_protocol", "control_profile_id",
         "release_stage_id", "manual_release_manifest_sha256",
-        "bridge_start_context", "preflight",
+        "launch_attempt_id", "campaign_id",
+        "bridge_start_context", "preflight", "qualification_endpoints",
     }
     if set(payload) != required:
         raise ManualBridgeError("manual runtime ticket fields differ")
@@ -93,6 +205,10 @@ def strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
             payload["wire_protocol"] != WIRE_PROTOCOL,
             payload["control_profile_id"] != CONTROL_PROFILE,
             payload["release_stage_id"] != RELEASE_STAGE,
+            not isinstance(payload["launch_attempt_id"], str),
+            not payload["launch_attempt_id"],
+            not isinstance(payload["campaign_id"], str),
+            not payload["campaign_id"],
         )
     ):
         raise ManualBridgeError("manual runtime ticket identity differs")
@@ -107,6 +223,22 @@ def strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         target = Path(str(reference["path"]))
         if not target.is_absolute() or sha256_path(target) != reference["sha256"]:
             raise ManualBridgeError(f"manual runtime ticket {role} digest differs")
+    qualification_ref = payload["qualification_endpoints"]
+    if qualification_ref is not None:
+        if not isinstance(qualification_ref, Mapping) or set(qualification_ref) != {
+            "path", "sha256"
+        }:
+            raise ManualBridgeError(
+                "manual runtime ticket qualification endpoint reference differs"
+            )
+        qualification_path = Path(str(qualification_ref["path"]))
+        if (
+            not qualification_path.is_absolute()
+            or sha256_path(qualification_path) != qualification_ref["sha256"]
+        ):
+            raise ManualBridgeError(
+                "manual runtime ticket qualification endpoint digest differs"
+            )
     context = load_context(ROOT, Path(context_ref["path"]))
     if payload["manual_release_manifest_sha256"] != context["manual_release_manifest_sha256"]:
         raise ManualBridgeError("manual runtime ticket release differs")
@@ -203,7 +335,7 @@ def apply_manual_arm_runtime(
 
 
 def install_manual_seams(ticket: Mapping[str, Any]) -> Any:
-    wire_release = SimpleNamespace(
+    wire_release = ManualWireRelease(
         release_stage_id=RELEASE_STAGE,
         control_profile_id=CONTROL_PROFILE,
         program_id=PROGRAM,
@@ -211,7 +343,6 @@ def install_manual_seams(ticket: Mapping[str, Any]) -> Any:
     )
     if live_driver.BridgeMailboxRuntime is not _BASE_BRIDGE_MAILBOX_RUNTIME:
         raise ManualBridgeError("manual mailbox runtime seam was already installed")
-    live_driver.BridgeMailboxRuntime = ManualBridgeMailboxRuntime
     bridge = r009_bridge.install_v3_seams(
         None,
         release_identity=wire_release,
@@ -219,6 +350,10 @@ def install_manual_seams(ticket: Mapping[str, Any]) -> Any:
             f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
         ),
     )
+    ManualBridgeMailboxRuntime.configure(ticket)
+    live_driver.AtomicCommandMailbox = _BASE_ATOMIC_COMMAND_MAILBOX
+    live_driver.BridgeMailboxRuntime = ManualBridgeMailboxRuntime
+    bridge.BridgeMailboxRuntime = ManualBridgeMailboxRuntime
     require_manual_guard_semantics(bridge)
 
     def manual_authorization_gate(args: Any, *, root: Path = ROOT) -> dict[str, Any]:

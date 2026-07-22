@@ -224,6 +224,8 @@ def _release_fixture(
     safety_path = root / "config/step5/step5d_autotune_v3_control_contract.json"
     safety_path.parent.mkdir(parents=True, exist_ok=True)
     safety_path.write_bytes(canonical_bytes({"safety_envelope": "fixture"}))
+    for relative in source_fingerprints:
+        source_fingerprints[relative] = _sha((root / relative).read_bytes())
     mirror_path = root / "config/mirror.json"
     mirror_path.write_text('{"program":"r010"}\n', encoding="utf-8")
 

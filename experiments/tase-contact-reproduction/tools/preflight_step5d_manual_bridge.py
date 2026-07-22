@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
-import hashlib
 import json
 from pathlib import Path
 import time
@@ -55,19 +54,13 @@ def _program_safe(dashboard: Mapping[str, Any], rtde: Mapping[str, Any]) -> dict
         dashboard.get("get loaded program", dashboard.get("loaded_program", raw))
     )
     exact_program = loaded_program_matches(loaded, expected)
-    if state == "STOPPED":
-        checks = {"exact_program": exact_program, "stopped": True}
-        return {"ok": all(checks.values()), "mode": "loaded_stopped", "checks": checks, "raw": raw}
-    identity_fields = [24, 25, 27, 28, 29, 30]
     checks = {
         "exact_program": exact_program,
-        "playing": state == "PLAYING",
-        "ready_home": rtde.get("output_int_register_26") == 10,
-        "zero_identity": all(rtde.get(f"output_int_register_{index}") == 0 for index in identity_fields),
+        "stopped": state == "STOPPED",
     }
     return {
         "ok": all(checks.values()),
-        "mode": "playing_ready_home_zero_identity",
+        "mode": "loaded_stopped" if checks["stopped"] else "not_stopped",
         "checks": checks,
         "raw": raw,
     }

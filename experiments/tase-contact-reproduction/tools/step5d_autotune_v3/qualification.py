@@ -11,6 +11,7 @@ content-bound blocker instead of manufacturing a passing fixture.
 from __future__ import annotations
 
 import csv
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -25,6 +26,8 @@ import sys
 import time
 from typing import Any, Callable, Mapping, Sequence
 import uuid
+
+from ur10e_parallel import ResourceProfile, exclusive_lane
 
 from .runtime_environment import (
     DETERMINISTIC_VALUES,
@@ -71,6 +74,14 @@ BRIDGE_NOT_ALIVE_AFTER_NEXT_ACK = "BRIDGE_NOT_ALIVE_AFTER_NEXT_ACK"
 PROCESS_TREE_BINDING_INCOMPLETE = "PROCESS_TREE_BINDING_INCOMPLETE"
 QUALIFIED = "QUALIFIED"
 PRODUCTION_LIFECYCLE_FAILED = "PRODUCTION_LIFECYCLE_FAILED"
+QUALIFICATION_ENDPOINT_LEASE_BUSY = "QUALIFICATION_ENDPOINT_LEASE_BUSY"
+
+QUALIFICATION_ENDPOINT_PORTS = {
+    "dashboard": 29999,
+    "secondary": 30002,
+    "rtde": 30004,
+    "kunwei": 5152,
+}
 
 _SHA256_LENGTH = 64
 _PROCESS_ROLE_PATHS = {
@@ -89,8 +100,7 @@ _ENVIRONMENT_KEYS = tuple(
     sorted({*PASSTHROUGH_KEYS, *DETERMINISTIC_VALUES})
 )
 _WAITING_MARKERS = (
-    "V3_CAMPAIGN_READY_FOR_TP_PLAY",
-    "READY_FOR_ONE_PLAY_TO_MOVE",
+    "V3_QUALIFICATION_SIMULATED_PLAY_BARRIER",
 )
 _SUCCESS_PHASES = (
     "STARTED",
@@ -121,6 +131,77 @@ class QualificationPhase(str, Enum):
     TRIAL_COMPLETE = "TRIAL_COMPLETE"
     NEXT_ARM_ACK = "NEXT_ARM_ACK"
     QUALIFIED = "QUALIFIED"
+
+
+@contextmanager
+def qualification_endpoint_lease(
+    run_root: Path,
+    *,
+    environment: Mapping[str, str] | None = None,
+    task: str = "step5d-v3-production-qualification",
+):
+    """Own production-shaped localhost ports with retained process evidence."""
+
+    from step5d_autotune_v3.state import atomic_json
+
+    evidence_path = Path(run_root) / "qualification_endpoint_lease.json"
+    values = os.environ if environment is None else environment
+    profile = ResourceProfile.from_env(values)
+    lease = exclusive_lane(
+        profile,
+        "step5d-qualification-fixed-endpoints",
+        task,
+        blocking=False,
+    )
+    base = {
+        "schema": "step5d.bridge/qualification-endpoint-lease-v1",
+        "task": task,
+        "lane": "step5d-qualification-fixed-endpoints",
+        "lock_path": str(lease.path.resolve()),
+        "owner_pid": os.getpid(),
+        "owner_starttime": read_process_starttime(os.getpid()),
+        "run_root": str(Path(run_root).resolve()),
+        "ports": dict(QUALIFICATION_ENDPOINT_PORTS),
+    }
+    try:
+        lease.__enter__()
+    except BlockingIOError as exc:
+        atomic_json(
+            evidence_path,
+            {
+                **base,
+                "status": "BLOCKED",
+                "reason_code": QUALIFICATION_ENDPOINT_LEASE_BUSY,
+                "observed_at_unix_ns": time.time_ns(),
+            },
+        )
+        raise QualificationBlocked(
+            f"{QUALIFICATION_ENDPOINT_LEASE_BUSY}: {lease.path} is already owned"
+        ) from exc
+    acquired_at_unix_ns = time.time_ns()
+    atomic_json(
+        evidence_path,
+        {
+            **base,
+            "status": "ACTIVE",
+            "reason_code": None,
+            "acquired_at_unix_ns": acquired_at_unix_ns,
+        },
+    )
+    try:
+        yield evidence_path
+    finally:
+        lease.__exit__(None, None, None)
+        atomic_json(
+            evidence_path,
+            {
+                **base,
+                "status": "RELEASED",
+                "reason_code": None,
+                "acquired_at_unix_ns": acquired_at_unix_ns,
+                "released_at_unix_ns": time.time_ns(),
+            },
+        )
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -2406,6 +2487,10 @@ def exec_internal_shell_contract(
         contract["delivery_observation"]["path"],
         "--qualification-endpoints",
         contract["endpoint_config"]["path"],
+        "--canonical-owner-pid",
+        str(shell_pid),
+        "--canonical-owner-starttime",
+        str(read_process_starttime(shell_pid)),
         "--ready-timeout-s",
         str(contract["ready_timeout_s"]),
         "--play-timeout-s",
@@ -2770,14 +2855,20 @@ def run_endpoint_qualification(
     started_at = time.time_ns()
 
     try:
-        with QualificationEndpointSimulator(
-            dashboard_port=29999,
-            secondary_port=30002,
-            rtde_port=30004,
-            kunwei_port=5152,
-            runtime_identity=runtime_contract["tp_runtime_identity"],
-            loaded_program=runtime_contract["expected_loaded_program"],
-        ) as endpoints:
+        with (
+            qualification_endpoint_lease(
+                run_root,
+                environment=clean_environment,
+            ),
+            QualificationEndpointSimulator(
+                dashboard_port=QUALIFICATION_ENDPOINT_PORTS["dashboard"],
+                secondary_port=QUALIFICATION_ENDPOINT_PORTS["secondary"],
+                rtde_port=QUALIFICATION_ENDPOINT_PORTS["rtde"],
+                kunwei_port=QUALIFICATION_ENDPOINT_PORTS["kunwei"],
+                runtime_identity=runtime_contract["tp_runtime_identity"],
+                loaded_program=runtime_contract["expected_loaded_program"],
+            ) as endpoints,
+        ):
             endpoint_simulator = endpoints
             atomic_json(
                 endpoint_config_path,
@@ -2790,6 +2881,7 @@ def run_endpoint_qualification(
             )
             runtime_environment = production_runtime_environment(
                 clean_environment,
+                runtime_pointer=runtime_pointer,
                 additions={
                     QUALIFICATION_RELEASE_MANIFEST_ENV: str(
                         (root / release.manifest_path).resolve(strict=True)

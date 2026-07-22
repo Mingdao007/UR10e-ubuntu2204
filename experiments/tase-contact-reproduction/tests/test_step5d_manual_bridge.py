@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 import sys
+import time
 
 import pytest
 
@@ -26,9 +27,283 @@ import run_step5d_manual_bridge as wrapper  # noqa: E402
 import run_step5d_manual_bridge_live as live  # noqa: E402
 import run_step5d_manual_live_campaign as campaign  # noqa: E402
 import step5d_manual_bridge as bridge  # noqa: E402
+import step5d_manual_qualification as qualification  # noqa: E402
 import step5d_autotune_live_driver as mailbox_driver  # noqa: E402
 from step5d_autotune_state_machine import TpLoopState, TpPacket  # noqa: E402
 from step5d_manual_atomic_release import canonical_bytes  # noqa: E402
+
+
+def test_manual_qualification_preserves_exact_venv_interpreter_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "python-target"
+    target.write_bytes(b"exact-runtime-python")
+    interpreter = tmp_path / "control/bin/python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.symlink_to(target)
+    context = tmp_path / "context.json"
+    preflight_path = tmp_path / "preflight.json"
+    endpoints = tmp_path / "endpoints.json"
+    for path in (context, preflight_path, endpoints):
+        path.write_text("{}\n", encoding="utf-8")
+
+    payload = qualification._contract_payload(
+        ROOT,
+        tmp_path,
+        live_root=tmp_path / "live",
+        context_path=context,
+        preflight_path=preflight_path,
+        endpoint_path=endpoints,
+        python_executable=str(interpreter),
+        ready_timeout_s=30.0,
+    )
+
+    assert payload["python"]["path"] == str(interpreter)
+    assert payload["python"]["path"] != str(target)
+    assert payload["python"]["sha256"] == hashlib.sha256(target.read_bytes()).hexdigest()
+
+    monkeypatch.setenv("STEP5D_V3_CONTROL_PYTHON", "/polluted/caller/python")
+    assert qualification._validate_contract(
+        ROOT,
+        payload,
+        environment={"STEP5D_V3_CONTROL_PYTHON": str(interpreter)},
+    ) == payload
+
+
+def test_manual_production_path_has_no_capability_authorization_gate() -> None:
+    sources = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in (
+            ROOT / "scripts/step5d-autotune-v3.sh",
+            ROOT / "tools/run_step5d_manual_live_campaign.py",
+            ROOT / "tools/run_step5d_manual_bridge.py",
+            ROOT / "tools/step5d_manual_status.py",
+        )
+    )
+    assert "step5d_manual_authorization" not in sources
+    assert "manual_capability_authorization" not in sources
+    assert "--authorization-file" not in sources
+    assert not (ROOT / "tools/step5d_manual_authorization.py").exists()
+
+
+def test_manual_owner_and_bridge_die_with_their_bound_parent() -> None:
+    owner = (ROOT / "tools/run_step5d_manual_bridge_live.py").read_text(
+        encoding="utf-8"
+    )
+    shell = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+
+    assert "PR_SET_PDEATHSIG" in owner
+    assert "preexec_fn=" in owner
+    assert '--canonical-owner-pid "$$"' in shell
+    assert '--canonical-owner-starttime "${launch_owner_starttime}"' in shell
+
+
+def test_manual_runner_reaches_waiting_for_play_without_authorization_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    observed_states: list[str] = []
+    observed_roots: list[Path] = []
+    monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", "attempt-no-arm")
+    monkeypatch.setattr(
+        campaign,
+        "validate_manual_qualification",
+        lambda root, *_args, **_kwargs: observed_roots.append(root),
+    )
+    monkeypatch.setattr(campaign, "seed_initial_grid", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        campaign,
+        "load_queue",
+        lambda _path: {"requests": [{"source": "initial:G01"}]},
+    )
+    monkeypatch.setattr(
+        campaign,
+        "_publish_status",
+        lambda _args, **kwargs: observed_states.append(kwargs["state"]) or {},
+    )
+    monkeypatch.setattr(
+        campaign,
+        "validate_bridge",
+        lambda *_args, **_kwargs: (tmp_path / "command.json", {}),
+    )
+    monkeypatch.setattr(
+        campaign,
+        "_observe_controller_identity",
+        lambda *_args, **_kwargs: {
+            "observed_at_unix_ns": 1,
+            "loaded_program_response": f"Loaded program: {campaign.EXPECTED_PROGRAM}",
+            "program_state": "STOPPED",
+            "program_state_normalized": "STOPPED",
+            "safety_mode": "Safetymode: NORMAL",
+            "safety_mode_normalized": "NORMAL",
+            "expected_loaded_program": campaign.EXPECTED_PROGRAM,
+        },
+    )
+    monkeypatch.setattr(
+        campaign, "_publish_canonical_readiness_claim", lambda *_args: {}
+    )
+    monkeypatch.setattr(
+        campaign,
+        "_wait_for_ready_home",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            campaign.ManualLiveError("test stop at Play barrier")
+        ),
+    )
+    args = SimpleNamespace(
+        campaign_root=tmp_path / "campaign",
+        qualification_result=tmp_path / "qualification.json",
+        qualification_bootstrap=None,
+        release_manifest_sha256="a" * 64,
+        queue=tmp_path / "queue.json",
+        launch_profile=campaign.DEFAULT_LAUNCH_PROFILE,
+        state=tmp_path / "state.json",
+        campaign_id="manual-no-arm",
+        bridge_output_root=tmp_path / "bridge",
+        play_timeout_s=0.01,
+        robot_host="127.0.0.1",
+    )
+
+    with pytest.raises(campaign.ManualLiveError, match="test stop at Play barrier"):
+        campaign.run(args)
+
+    assert observed_roots == [ROOT]
+    assert observed_states == ["WAITING_FOR_PLAY"]
+
+
+def test_manual_readiness_claim_is_machine_derived_and_persisted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    machine_status = {"state": "WAITING_FOR_PLAY"}
+    expected_claim = {
+        "schema": "step5d.bridge/readiness-claim-v1",
+        "attempt_id": "attempt-claim",
+    }
+    monkeypatch.setattr(
+        campaign, "resolve_bridge_status", lambda _root: machine_status
+    )
+    monkeypatch.setattr(
+        campaign,
+        "readiness_claim",
+        lambda status, state: expected_claim
+        if status is machine_status and state == "WAITING_FOR_PLAY"
+        else pytest.fail("Manual readiness claim inputs differ"),
+    )
+    monkeypatch.setattr(
+        campaign,
+        "verify_readiness_claim",
+        lambda status, claim: claim
+        if status is machine_status and claim is expected_claim
+        else pytest.fail("Manual readiness claim verification inputs differ"),
+    )
+    output = tmp_path / "bridge"
+    output.mkdir()
+
+    claim = campaign._publish_canonical_readiness_claim(
+        SimpleNamespace(bridge_output_root=output),
+        "WAITING_FOR_PLAY",
+    )
+
+    assert claim == expected_claim
+    assert json.loads((output / "readiness-claim.json").read_text()) == expected_claim
+
+
+def test_manual_controller_preflight_requires_exact_loaded_stopped_normal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        campaign,
+        "dashboard_exchange",
+        lambda *_args, **_kwargs: {
+            "programState": "STOPPED",
+            "safetymode": "Safetymode: NORMAL",
+            "get loaded program": f"Loaded program: {campaign.EXPECTED_PROGRAM}",
+        },
+    )
+    observed = campaign._observe_controller_identity("192.0.2.1")
+    assert observed["expected_loaded_program"] == campaign.EXPECTED_PROGRAM
+
+    monkeypatch.setattr(
+        campaign,
+        "dashboard_exchange",
+        lambda *_args, **_kwargs: {
+            "programState": "STOPPED",
+            "safetymode": "Safetymode: NORMAL",
+            "get loaded program": "Loaded program: /programs/wrong.urp",
+        },
+    )
+    with pytest.raises(campaign.ManualLiveError, match="preflight handoff"):
+        campaign._observe_controller_identity("192.0.2.1")
+
+
+def test_manual_running_state_requires_exact_tp_arm_acknowledgement() -> None:
+    arm = campaign.HostPacket(
+        campaign_epoch=1,
+        trial_id=2,
+        command=campaign.HostCommand.ARM,
+        candidate_token=3,
+        execution_profile_id=633,
+        command_seq=4,
+        logical_batch_sequence=5,
+    )
+    observed = {
+        "campaign_epoch": 1,
+        "trial_id": 2,
+        "state": int(campaign.TpLoopState.ARMED),
+        "candidate_token": 3,
+        "execution_profile_id": 633,
+        "consumed_command_seq": 4,
+        "logical_batch_sequence": 5,
+        "batch_row_index": 1,
+    }
+    assert campaign._arm_acknowledged(observed, arm) is True
+    assert campaign._arm_acknowledged({**observed, "consumed_command_seq": 3}, arm) is False
+    assert campaign._arm_acknowledged(
+        {**observed, "state": int(campaign.TpLoopState.READY_HOME)}, arm
+    ) is False
+
+
+def test_manual_qualification_completion_signal_binds_second_arm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    signal = tmp_path / "qualification-complete.json"
+    bootstrap = {"maximum_groups": 2, "completion_signal": str(signal)}
+    args = SimpleNamespace(
+        campaign_id="manual-qualification",
+        release_manifest_sha256="a" * 64,
+    )
+    arm = campaign.HostPacket(
+        campaign_epoch=1,
+        trial_id=2,
+        command=campaign.HostCommand.ARM,
+        candidate_token=3,
+        execution_profile_id=633,
+        command_seq=2,
+        logical_batch_sequence=2,
+    )
+    monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", "attempt-qualification")
+    assert campaign._qualification_completion_requested(
+        args, bootstrap, completed=1, arm=arm
+    ) is False
+    signal.write_text(
+        json.dumps(
+            {
+                "schema": qualification.COMPLETION_SIGNAL_SCHEMA,
+                "campaign_id": args.campaign_id,
+                "launch_attempt_id": "attempt-qualification",
+                "release_manifest_sha256": args.release_manifest_sha256,
+                "trial_id": arm.trial_id,
+                "command_seq": arm.command_seq,
+                "first_group_completed": True,
+                "second_group_state": "RUN",
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert campaign._qualification_completion_requested(
+        args, bootstrap, completed=1, arm=arm
+    ) is True
+    assert campaign._qualification_completion_requested(
+        args, bootstrap, completed=0, arm=arm
+    ) is False
 
 
 def _fake_release() -> tuple[dict, dict]:
@@ -43,7 +318,10 @@ def _fake_release() -> tuple[dict, dict]:
         },
         "source_fingerprints": {"tools/manual.py": "4" * 64},
     }
-    return {"manifest_sha256": "a" * 64}, manifest
+    return {
+        "manifest_sha256": "a" * 64,
+        "source_surface_sha256": "4" * 64,
+    }, manifest
 
 
 def test_context_is_write_once_digest_bound_and_no_arm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -85,6 +363,24 @@ def test_preflight_requires_exact_manual_program() -> None:
     assert wrong["ok"] is False
 
 
+def test_preflight_rejects_already_playing_program() -> None:
+    playing = preflight._program_safe(
+        {
+            "programState": "PLAYING",
+            "get loaded program": (
+                "Loaded program: /programs/andyl/kunwei/step5/"
+                "step5d_strict_rnn_manual_tune_v2.urp"
+            ),
+        },
+        {
+            "output_int_register_26": 10,
+            **{f"output_int_register_{index}": 0 for index in (24, 25, 27, 28, 29, 30)},
+        },
+    )
+    assert playing["ok"] is False
+    assert playing["mode"] == "not_stopped"
+
+
 def test_live_preflight_validation_is_no_arm_and_exact() -> None:
     predicates = {
         name: {"ok": True}
@@ -118,6 +414,27 @@ def test_live_preflight_validation_is_no_arm_and_exact() -> None:
         live.strict_object = original
 
 
+def test_manual_qualification_endpoint_override_is_fixed_loopback_only(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "endpoints.json"
+    payload = {
+        "schema": "step5d.autotune-v3/qualification-endpoint-config-v1",
+        "content_sha256": "a" * 64,
+        "addresses": {
+            role: {"host": "127.0.0.1", "port": port}
+            for role, port in live.QUALIFICATION_ENDPOINT_PORTS.items()
+        },
+        "motion_capable": False,
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert live._qualification_endpoints(path) == payload
+    payload["addresses"]["rtde"]["port"] = 31004
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(bridge.ManualBridgeError, match="production-shaped"):
+        live._qualification_endpoints(path)
+
+
 def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     context_path = tmp_path / "context.json"
     preflight_path = tmp_path / "preflight.json"
@@ -146,6 +463,8 @@ def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, 
         "control_profile_id": bridge.CONTROL_PROFILE,
         "release_stage_id": bridge.RELEASE_STAGE,
         "manual_release_manifest_sha256": "a" * 64,
+        "launch_attempt_id": "attempt-ticket",
+        "campaign_id": "manual-ticket",
         "bridge_start_context": {
             "path": str(context_path),
             "sha256": hashlib.sha256(context_path.read_bytes()).hexdigest(),
@@ -154,6 +473,7 @@ def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, 
             "path": str(preflight_path),
             "sha256": hashlib.sha256(preflight_path.read_bytes()).hexdigest(),
         },
+        "qualification_endpoints": None,
     }
     ticket_path = tmp_path / "ticket.json"
     ticket_path.write_text(json.dumps(ticket))
@@ -221,11 +541,16 @@ def test_manual_authorization_seam_is_bridge_only_no_arm(monkeypatch: pytest.Mon
 
 
 def test_manual_guard_semantics_are_fail_closed_and_diagnostic_only() -> None:
-    import kunwei_rtde_bridge as production
+    production_contract = SimpleNamespace(
+        STEP5D_PERMISSIVE_CONTACT_PROFILE_IDS={bridge.CONTROL_PROFILE},
+        STEP5D_V31_QDOT_CAP_RAD_S=0.5,
+        STEP5D_V31_SENSOR_STALE_S=2.0,
+        STEP5D_LINE_ENTRY_PARAM_VALID_CODE=521.0,
+    )
 
-    wrapper.require_manual_guard_semantics(production)
-    assert bridge.CONTROL_PROFILE in production.STEP5D_PERMISSIVE_CONTACT_PROFILE_IDS
-    assert production.STEP5D_LINE_ENTRY_PARAM_VALID_CODE == 521.0
+    wrapper.require_manual_guard_semantics(production_contract)
+    assert bridge.CONTROL_PROFILE in production_contract.STEP5D_PERMISSIVE_CONTACT_PROFILE_IDS
+    assert production_contract.STEP5D_LINE_ENTRY_PARAM_VALID_CODE == 521.0
     assert wrapper.MANUAL_HARD_GUARDS == {
         "max_normal_force_n": 60.0,
         "max_force_norm_n": 100.0,
@@ -244,9 +569,71 @@ def test_manual_guard_semantics_are_fail_closed_and_diagnostic_only() -> None:
         wrapper.require_manual_guard_semantics(drifted)
 
 
+def test_manual_runtime_uses_full_home_protocol_and_command_bound_arm_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempt_id = "attempt-manual-gate"
+    campaign_id = "manual-gate-campaign"
+    release_sha = "a" * 64
+    monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", attempt_id)
+    wrapper.ManualBridgeMailboxRuntime.configure(
+        {
+            "manual_release_manifest_sha256": release_sha,
+            "launch_attempt_id": attempt_id,
+            "campaign_id": campaign_id,
+        }
+    )
+    mailbox = (tmp_path / "runtime/command.json").resolve()
+    mailbox.parent.mkdir(parents=True)
+    runtime = wrapper.ManualBridgeMailboxRuntime(mailbox)
+    assert runtime.completion_protocol == bridge.WIRE_PROTOCOL
+    assert isinstance(runtime.arming_context_provider, wrapper.ManualArmGateProvider)
+
+    now_ns = time.time_ns()
+    binding = {
+        "mailbox_sha256": "b" * 64,
+        "campaign_epoch": 1,
+        "trial_id": 1,
+        "command": 1,
+        "candidate_token": 2,
+        "execution_profile_id": 633,
+        "command_seq": 1,
+        "logical_batch_sequence": 1,
+        "trial_uid": "trial-1",
+    }
+    gate_path = mailbox.parent / "manual_arm_gate.json"
+    gate_path.write_text(
+        json.dumps(
+            {
+                "schema": wrapper.ARM_GATE_SCHEMA,
+                "attempt_id": attempt_id,
+                "campaign_id": campaign_id,
+                "release_manifest_sha256": release_sha,
+                "created_at_unix_ns": now_ns,
+                "arm_binding": binding,
+            }
+        ),
+        encoding="utf-8",
+    )
+    admitted = runtime.arming_context_provider(binding, connection_epoch=3)
+    assert admitted is not None
+    assert admitted["arm_binding"] == binding
+    assert runtime.arming_context_provider(
+        {**binding, "command_seq": 2}, connection_epoch=3
+    ) is None
+
+
 def _pending_identity_runtime(
     tmp_path: Path,
 ) -> tuple[wrapper.ManualBridgeMailboxRuntime, object]:
+    wrapper.ManualBridgeMailboxRuntime.configure(
+        {
+            "manual_release_manifest_sha256": "a" * 64,
+            "launch_attempt_id": "attempt-commit-test",
+            "campaign_id": "manual-commit-test",
+        }
+    )
     overlay = campaign.normalize_trial_overlay(
         {
             "force_p_gain": 0.001,
@@ -498,9 +885,55 @@ def test_preplay_wait_rejects_nonzero_nonready_identity(
             },
         ),
     )
-    args = SimpleNamespace(bridge_output_root=tmp_path, release_manifest_sha256="a" * 64)
+    args = SimpleNamespace(
+        bridge_output_root=tmp_path,
+        release_manifest_sha256="a" * 64,
+        robot_host="192.0.2.1",
+    )
     with pytest.raises(campaign.ManualLiveError, match="neither zero nor READY_HOME"):
-        campaign._wait_for_ready_home(args, campaign.time.monotonic() + 1.0)
+        campaign._wait_for_ready_home(
+            args,
+            campaign.time.monotonic() + 1.0,
+        )
+
+
+def test_preplay_wait_accepts_ready_home_without_dashboard_edge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        campaign,
+        "validate_bridge",
+        lambda *_args, **_kwargs: (
+            tmp_path / "runtime/command.json",
+            {
+                "state": campaign.READY_HOME,
+                "campaign_epoch": 1,
+                "trial_id": 0,
+                "consumed_command_seq": 0,
+                "command": 0,
+                "controller_state": 0,
+                "safety_mode": 1,
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        campaign,
+        "_observe_controller_identity",
+        lambda *_args, **_kwargs: pytest.fail(
+            "pre-Play wait must not re-read Dashboard"
+        ),
+    )
+    args = SimpleNamespace(
+        bridge_output_root=tmp_path,
+        release_manifest_sha256="a" * 64,
+        robot_host="192.0.2.1",
+        campaign_id="manual-edge",
+    )
+    observed = campaign._wait_for_ready_home(
+        args,
+        campaign.time.monotonic() + 1.0,
+    )
+    assert observed["state"] == campaign.READY_HOME
 
 
 def test_manual_prepared_mailbox_round_trip_i1e4(tmp_path: Path) -> None:

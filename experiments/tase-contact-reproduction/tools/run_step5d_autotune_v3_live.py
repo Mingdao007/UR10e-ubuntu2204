@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import csv
 import hashlib
 import json
@@ -15,10 +16,13 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 
-from prepare_step5d_autotune_launch import prepare, write_machine_campaign_binding
+from prepare_step5d_autotune_launch import (
+    LaunchPreparationRequest,
+    prepare,
+    write_machine_campaign_binding,
+)
 from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
 from run_step5d_autotune_campaign import discover_campaign_epochs
 from step5d_autotune_batch_plan import load_plan
@@ -87,6 +91,12 @@ from step5d_autotune_v3.state import (
     read_strict_json,
 )
 from step5d_autotune_live_driver import AtomicCommandMailbox
+from ur10e_parallel import ResourceProfile, writer_lease, writer_lease_owner
+from step5d_bridge_status import (
+    readiness_claim,
+    resolve_status as resolve_bridge_status,
+    verify_readiness_claim,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -116,6 +126,21 @@ class LiveLaunchError(RuntimeError):
 
 
 _NO_PRODUCER_RESULT = object()
+
+
+def _publish_canonical_readiness_claim(
+    output_root: Path, required_state: str
+) -> dict[str, Any]:
+    try:
+        status = resolve_bridge_status(ROOT)
+        claim = readiness_claim(status, required_state)
+        verify_readiness_claim(status, claim)
+    except Exception as exc:
+        raise LiveLaunchError(
+            f"canonical readiness claim was not admitted: {type(exc).__name__}:{exc}"
+        ) from exc
+    atomic_json(output_root / "readiness-claim.json", claim)
+    return claim
 
 
 class _LatestCsvFollower:
@@ -645,6 +670,14 @@ def _publish_runtime_observation(
     bridge_starttime = process_starttime(bridge.pid)
     if bridge_starttime <= 0:
         raise LiveLaunchError("bridge process starttime is unavailable")
+    lease_owner = writer_lease_owner(ResourceProfile.from_env())
+    if (
+        not isinstance(lease_owner, Mapping)
+        or lease_owner.get("pid") != os.getpid()
+        or lease_owner.get("starttime_ticks") != process_starttime(os.getpid())
+        or lease_owner.get("task") != "step5d-autotune-v3-production-bridge"
+    ):
+        raise LiveLaunchError("exclusive production writer lease ownership was lost")
     try:
         publisher.publish(
             bridge_pid=bridge.pid,
@@ -854,6 +887,20 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
                 process.kill()
                 process.wait(timeout=5.0)
     return process.returncode
+
+
+def _parent_death_guard(
+    expected_parent_pid: int,
+    expected_parent_starttime: int,
+) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(1, int(signal.SIGTERM), 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_PDEATHSIG) failed")
+    if (
+        os.getppid() != expected_parent_pid
+        or process_starttime(expected_parent_pid) != expected_parent_starttime
+    ):
+        os.kill(os.getpid(), signal.SIGTERM)
 
 
 def _program_stopped(result: Mapping[str, Any]) -> bool:
@@ -1072,13 +1119,12 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     campaign_binding = bridge_runtime / "campaign_binding.json"
     launch_plan_path = bridge_runtime / "campaign_launch_plan.json"
     prepared = prepare(
-        SimpleNamespace(
+        LaunchPreparationRequest(
             experiment_root=ROOT,
             campaign_root=args.campaign_root,
             binding_file=campaign_binding,
             binding_source="canonical_v3_live_entrypoint",
-            authorization_file=None,
-            authorization_source=None,
+            launch_profile_path=launch_profile_path,
             candidate_batch_size=5,
             rolling_plan=True,
         )
@@ -1211,6 +1257,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     runner_log_path = args.output_root / "campaign_runner.log"
     bridge: subprocess.Popen[Any] | None = None
     runner: subprocess.Popen[Any] | None = None
+    bridge_rc: int | None = None
+    runner_rc: int | None = None
     cleanup: Mapping[str, Any] | None = None
     play_observed = False
     bridge_alive_at_campaign_outcome = False
@@ -1228,6 +1276,19 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     )
     mailbox_tracker: dict[str, Any] = {"seen": {}, "duplicate": False}
     preexisting_bundles = _immutable_trial_bundles(args.campaign_root)
+    supervisor_pid = os.getpid()
+    supervisor_starttime = process_starttime(supervisor_pid)
+    try:
+        writer_guard = writer_lease(
+            ResourceProfile.from_env(),
+            "step5d-autotune-v3-production-bridge",
+            blocking=False,
+        )
+        writer_guard.__enter__()
+    except (OSError, TimeoutError) as exc:
+        raise LiveLaunchError(
+            f"exclusive production writer lease is unavailable: {exc}"
+        ) from exc
     try:
         with bridge_log_path.open("wb") as bridge_log:
             bridge = subprocess.Popen(
@@ -1238,6 +1299,10 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 stdout=bridge_log,
                 stderr=subprocess.STDOUT,
                 close_fds=True,
+                preexec_fn=lambda expected_pid=supervisor_pid, expected_start=supervisor_starttime: _parent_death_guard(
+                    expected_pid,
+                    expected_start,
+                ),
             )
             _wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")
             bridge_ready = read_strict_json(
@@ -1298,6 +1363,10 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                     stdout=runner_log,
                     stderr=subprocess.STDOUT,
                     close_fds=True,
+                    preexec_fn=lambda expected_pid=supervisor_pid, expected_start=supervisor_starttime: _parent_death_guard(
+                        expected_pid,
+                        expected_start,
+                    ),
                 )
                 _wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")
                 if qualification is None:
@@ -1343,8 +1412,14 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                             "machine state did not reach a governed Play barrier: "
                             + ",".join(governed_status["blocker"]["reason_codes"])
                         )
-                print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
-                print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
+                    _publish_canonical_readiness_claim(
+                        args.output_root,
+                        governed_status["state"],
+                    )
+                    print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
+                    print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
+                else:
+                    print("V3_QUALIFICATION_SIMULATED_PLAY_BARRIER", flush=True)
                 deadline = time.monotonic() + args.play_timeout_s
                 next_observation = time.monotonic() + 0.2
                 while time.monotonic() < deadline:
@@ -1382,6 +1457,10 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                                     governed_status["blocker"]["reason_codes"]
                                 )
                             )
+                        _publish_canonical_readiness_claim(
+                            args.output_root,
+                            governed_status["state"],
+                        )
                         next_observation = time.monotonic() + 0.2
                     time.sleep(0.025)
                 else:
@@ -1576,41 +1655,82 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                     campaign_completed = True
                     print("V3_CAMPAIGN_RUNNER_STOPPED_BRIDGE_STILL_ALIVE", flush=True)
     finally:
-        authority_revocation_errors.extend(
-            _revoke_campaign_authority(
-                arm_gate_path,
-                lease=lease,
-                lease_sha256=lease_sha256,
-                publisher=(
-                    None if publisher_terminalization_started else publisher
-                ),
-                reason=(
-                    "campaign_terminal" if campaign_completed else "supervisor_exit"
-                ),
-            )
-        )
-        producer_stopped, producer_exception = producer_poller.close()
-        if producer_exception is not None:
-            producer_error = (
-                f"{type(producer_exception).__name__}:{producer_exception}"
-            )
-        runner_rc = _terminate(runner)
-        bridge_rc = _terminate(bridge)
-        if bridge is not None:
-            if play_observed:
-                _announce_stop_if_playing(robot_host)
-            cleanup = _stop_v3_program(robot_host)
-        atomic_json(
-            args.output_root / "cleanup.json",
-            {
-                "runner_exit_code": runner_rc,
-                "bridge_exit_code": bridge_rc,
-                "program_stop": cleanup,
-                "authority_revocation_errors": authority_revocation_errors,
-                "producer_stopped": producer_stopped,
-                "producer_error": producer_error,
-            },
-        )
+        try:
+            try:
+                authority_revocation_errors.extend(
+                    _revoke_campaign_authority(
+                        arm_gate_path,
+                        lease=lease,
+                        lease_sha256=lease_sha256,
+                        publisher=(
+                            None if publisher_terminalization_started else publisher
+                        ),
+                        reason=(
+                            "campaign_terminal"
+                            if campaign_completed
+                            else "supervisor_exit"
+                        ),
+                    )
+                )
+            except Exception as exc:
+                authority_revocation_errors.append(
+                    f"authority_revoke:{type(exc).__name__}:{exc}"
+                )
+            try:
+                producer_stopped, producer_exception = producer_poller.close()
+            except Exception as exc:
+                producer_stopped = False
+                producer_error = f"producer_close:{type(exc).__name__}:{exc}"
+            else:
+                if producer_exception is not None:
+                    producer_error = (
+                        f"{type(producer_exception).__name__}:{producer_exception}"
+                    )
+            try:
+                runner_rc = _terminate(runner)
+            except Exception as exc:
+                authority_revocation_errors.append(
+                    f"runner_terminate:{type(exc).__name__}:{exc}"
+                )
+            try:
+                bridge_rc = _terminate(bridge)
+            except Exception as exc:
+                authority_revocation_errors.append(
+                    f"bridge_terminate:{type(exc).__name__}:{exc}"
+                )
+            if bridge is not None:
+                if play_observed:
+                    try:
+                        _announce_stop_if_playing(robot_host)
+                    except Exception as exc:
+                        authority_revocation_errors.append(
+                            f"stop_announcement:{type(exc).__name__}:{exc}"
+                        )
+                try:
+                    cleanup = _stop_v3_program(robot_host)
+                except Exception as exc:
+                    authority_revocation_errors.append(
+                        f"program_stop:{type(exc).__name__}:{exc}"
+                    )
+            try:
+                atomic_json(
+                    args.output_root / "cleanup.json",
+                    {
+                        "runner_exit_code": runner_rc,
+                        "bridge_exit_code": bridge_rc,
+                        "program_stop": cleanup,
+                        "authority_revocation_errors": authority_revocation_errors,
+                        "producer_stopped": producer_stopped,
+                        "producer_error": producer_error,
+                    },
+                )
+            except Exception as exc:
+                print(
+                    f"cleanup evidence unavailable: {type(exc).__name__}:{exc}",
+                    file=sys.stderr,
+                )
+        finally:
+            writer_guard.__exit__(None, None, None)
     result = {
         "schema": RESULT_SCHEMA,
         "ok": (
@@ -1665,6 +1785,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--ready-timeout-s", type=float, default=45.0)
     parser.add_argument("--play-timeout-s", type=float, default=120.0)
+    parser.add_argument("--canonical-owner-pid", type=int, required=True)
+    parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "--qualification-endpoints",
@@ -1675,9 +1797,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv)
     try:
         _require_canonical_launcher()
+    except Exception as exc:
+        print(
+            json.dumps(
+                {"schema": RESULT_SCHEMA, "ok": False, "blocker": str(exc)},
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+    args = parse_args(argv)
+    try:
+        _parent_death_guard(
+            args.canonical_owner_pid,
+            args.canonical_owner_starttime,
+        )
         args._runtime_pointer = require_runtime_profile("control")
         if args.prepare_only:
             release = load_current_release(ROOT)

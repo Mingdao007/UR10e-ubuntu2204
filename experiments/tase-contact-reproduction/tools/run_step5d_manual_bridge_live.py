@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -26,9 +28,45 @@ from step5d_manual_bridge import (
 )
 from step5d_manual_profile import DEFAULT_LAUNCH_PROFILE, load_manual_launch_profile
 from ur10e_parallel import ResourceProfile, writer_lease
+from step5d_autotune_v3.qualification import QUALIFICATION_ENDPOINT_PORTS
+from step5d_autotune_v3.runtime_gate import process_starttime
 
 
 WRAPPER = ROOT / "tools/run_step5d_manual_bridge.py"
+
+
+def _qualification_endpoints(path: Path | None) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    payload = strict_object(path.expanduser().absolute(), "manual qualification endpoints")
+    if set(payload) != {"schema", "content_sha256", "addresses", "motion_capable"}:
+        raise ManualBridgeError("manual qualification endpoint fields differ")
+    addresses = payload.get("addresses")
+    if (
+        payload.get("schema")
+        != "step5d.autotune-v3/qualification-endpoint-config-v1"
+        or payload.get("motion_capable") is not False
+        or not isinstance(payload.get("content_sha256"), str)
+        or len(payload["content_sha256"]) != 64
+        or not isinstance(addresses, Mapping)
+        or set(addresses) != set(QUALIFICATION_ENDPOINT_PORTS)
+    ):
+        raise ManualBridgeError("manual qualification endpoint identity differs")
+    for role, expected_port in QUALIFICATION_ENDPOINT_PORTS.items():
+        address = addresses.get(role)
+        if not isinstance(address, Mapping) or set(address) != {"host", "port"}:
+            raise ManualBridgeError(f"manual qualification {role} address differs")
+        try:
+            host = ipaddress.ip_address(address["host"])
+        except ValueError as exc:
+            raise ManualBridgeError(
+                f"manual qualification {role} host differs"
+            ) from exc
+        if not host.is_loopback or address["port"] != expected_port:
+            raise ManualBridgeError(
+                f"manual qualification {role} endpoint is not production-shaped loopback"
+            )
+    return payload
 
 
 def _argv_sha256(argv: list[str]) -> str:
@@ -45,8 +83,28 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
             process.wait(timeout=8.0)
         except subprocess.TimeoutExpired:
             process.terminate()
-            process.wait(timeout=5.0)
+            try:
+                process.wait(timeout=5.0)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5.0)
     return process.returncode
+
+
+def _parent_death_guard(
+    expected_parent_pid: int,
+    expected_parent_starttime: int,
+) -> None:
+    """Terminate the production bridge if its lease-owning parent disappears."""
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(1, int(signal.SIGTERM), 0, 0, 0) != 0:
+        raise OSError(ctypes.get_errno(), "prctl(PR_SET_PDEATHSIG) failed")
+    if (
+        os.getppid() != expected_parent_pid
+        or process_starttime(expected_parent_pid) != expected_parent_starttime
+    ):
+        os.kill(os.getpid(), signal.SIGTERM)
 
 
 def _validate_preflight(path: Path, context: Mapping[str, Any]) -> dict[str, Any]:
@@ -95,6 +153,19 @@ def run(args: argparse.Namespace) -> int:
         launch_profile=launch,
         trial_overlay=DEFAULT_OVERLAY,
     )[2:]
+    qualification = _qualification_endpoints(args.qualification_endpoints)
+    if qualification is not None:
+        addresses = qualification["addresses"]
+        bridge_argv.extend(
+            (
+                "--robot-host",
+                str(addresses["dashboard"]["host"]),
+                "--sensor-ip",
+                str(addresses["kunwei"]["host"]),
+                "--sensor-port",
+                str(addresses["kunwei"]["port"]),
+            )
+        )
     command = [sys.executable, str(WRAPPER), *bridge_argv]
     ticket = {
         "schema": TICKET_SCHEMA,
@@ -108,6 +179,8 @@ def run(args: argparse.Namespace) -> int:
         "control_profile_id": CONTROL_PROFILE,
         "release_stage_id": RELEASE_STAGE,
         "manual_release_manifest_sha256": context["manual_release_manifest_sha256"],
+        "launch_attempt_id": args.launch_attempt_id,
+        "campaign_id": args.campaign_id,
         "bridge_start_context": {
             "path": str(args.bridge_start_context.expanduser().absolute()),
             "sha256": sha256_path(args.bridge_start_context),
@@ -116,6 +189,14 @@ def run(args: argparse.Namespace) -> int:
             "path": str(args.preflight.expanduser().absolute()),
             "sha256": sha256_path(args.preflight),
         },
+        "qualification_endpoints": (
+            None
+            if args.qualification_endpoints is None
+            else {
+                "path": str(args.qualification_endpoints.expanduser().absolute()),
+                "sha256": sha256_path(args.qualification_endpoints),
+            }
+        ),
     }
     ticket_path = runtime_root / "runtime_ticket.json"
     atomic_json(ticket_path, ticket)
@@ -127,6 +208,8 @@ def run(args: argparse.Namespace) -> int:
     log_path = output_root / "bridge.log"
     process: subprocess.Popen[Any] | None = None
     stop_requested = False
+    owner_pid = os.getpid()
+    owner_starttime = process_starttime(owner_pid)
 
     def request_stop(_signum: int, _frame: Any) -> None:
         nonlocal stop_requested
@@ -146,6 +229,10 @@ def run(args: argparse.Namespace) -> int:
                     stdout=bridge_log,
                     stderr=subprocess.STDOUT,
                     close_fds=True,
+                    preexec_fn=lambda expected_pid=owner_pid, expected_start=owner_starttime: _parent_death_guard(
+                        expected_pid,
+                        expected_start,
+                    ),
                 )
                 ready_path = bridge_run / "bridge_ready.json"
                 deadline = time.monotonic() + args.ready_timeout_s
@@ -173,6 +260,11 @@ def run(args: argparse.Namespace) -> int:
                     time.sleep(0.05)
                 else:
                     raise ManualBridgeError("manual bridge readiness timeout")
+                bridge_starttime = process_starttime(process.pid)
+                if bridge_starttime <= 0 or owner_starttime <= 0:
+                    raise ManualBridgeError(
+                        "manual bridge process identity is unavailable"
+                    )
                 result = {
                     "schema": "step5d.manual-hold/bridge-launch-result-v1",
                     "ok": True,
@@ -181,7 +273,12 @@ def run(args: argparse.Namespace) -> int:
                     "wire_protocol": WIRE_PROTOCOL,
                     "scope": "manual_bridge_no_arm",
                     "pid": process.pid,
+                    "pid_starttime_ticks": bridge_starttime,
                     "parent_pid": os.getpid(),
+                    "parent_starttime_ticks": owner_starttime,
+                    "launch_id": ticket["launch_id"],
+                    "launch_attempt_id": args.launch_attempt_id,
+                    "campaign_id": args.campaign_id,
                     "output_root": str(output_root),
                     "bridge_ready": str(ready_path),
                     "mailbox": str(runtime_root / "command.json"),
@@ -216,10 +313,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bridge-start-context", type=Path, required=True)
     parser.add_argument("--preflight", type=Path, required=True)
     parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)
+    parser.add_argument("--qualification-endpoints", type=Path)
+    parser.add_argument("--launch-attempt-id", required=True)
+    parser.add_argument("--campaign-id", required=True)
+    parser.add_argument("--canonical-owner-pid", type=int, required=True)
+    parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--ready-timeout-s", type=float, default=20.0)
     args = parser.parse_args(argv)
     try:
         require_canonical_shell()
+        _parent_death_guard(
+            args.canonical_owner_pid,
+            args.canonical_owner_starttime,
+        )
         return run(args)
     except (OSError, TimeoutError, ValueError, ManualBridgeError) as exc:
         print(f"manual bridge start blocked: {exc}", file=sys.stderr)

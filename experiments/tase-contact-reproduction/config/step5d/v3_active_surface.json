@@ -4,6 +4,9 @@
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "host_protocol": "v3_full_home_rolling_arm_v1",
   "tp_program_id": "step5d_strict_rnn_autotune_v3_r010",
+  "recovery_loaded_program_ids": [
+    "step5d_strict_rnn_autotune_v3_r009"
+  ],
   "tp_program_disposition": "immutable_identity_only_readiness_is_observed",
   "release_truth": {
     "current_pointer": "config/step5d/current.json",
@@ -91,6 +94,9 @@
     "tools/run_step5d_autotune_v3_live.py",
     "tools/run_step5d_autotune_v3_qualification.py",
     "tools/run_step5d_autotune_v3_tp_transaction.py",
+    "tools/resolve_step5d_bridge_route.py",
+    "tools/step5d_bridge_authority.py",
+    "tools/step5d_bridge_status.py",
     "tools/step5d_autotune_backend.py",
     "tools/step5d_autotune_batch_plan.py",
     "tools/step5d_autotune_contract.py",

@@ -446,7 +446,9 @@ def _load_release_reference(
             if _sha256_bytes(path.read_bytes()) != reference["sha256"]:
                 raise ReleaseIdentityError(f"{role} file fingerprint drifted: {reference['path']}")
     for relative, expected in release.source_fingerprints.items():
-        path = root / _relative_path(relative, "source fingerprint path")
+        source_relative = _relative_path(relative, "source fingerprint path")
+        immutable_path = resolved.parent / source_relative
+        path = immutable_path if immutable_path.is_file() else root / source_relative
         if path.is_symlink() or not path.is_file():
             raise ReleaseIdentityError(
                 f"source file is missing or unsafe: {relative}"

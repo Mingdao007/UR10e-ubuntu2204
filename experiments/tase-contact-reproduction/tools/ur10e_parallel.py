@@ -251,12 +251,73 @@ def tp_transaction_lease(profile: ResourceProfile, task: str) -> FileLease:
     return exclusive_lane(profile, "tp-deploy-readback-sha-promotion", task)
 
 
+def _process_starttime_ticks(pid: int) -> int | None:
+    try:
+        encoded = (Path("/proc") / str(pid) / "stat").read_text(encoding="ascii")
+        closing = encoded.rfind(")")
+        return int(encoded[closing + 2 :].split()[19])
+    except (OSError, UnicodeError, ValueError, IndexError):
+        return None
+
+
+def writer_lease_owner(profile: ResourceProfile) -> dict[str, Any] | None:
+    path = profile.lock_root / "live-writer-throughput.owner.json"
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    if (
+        not isinstance(payload, dict)
+        or set(payload)
+        != {"schema", "pid", "starttime_ticks", "task", "acquired_at"}
+        or payload.get("schema") != "ur10e/live-writer-lease-owner-v1"
+        or isinstance(payload.get("pid"), bool)
+        or not isinstance(payload.get("pid"), int)
+        or isinstance(payload.get("starttime_ticks"), bool)
+        or not isinstance(payload.get("starttime_ticks"), int)
+        or not isinstance(payload.get("task"), str)
+        or not payload["task"]
+        or not isinstance(payload.get("acquired_at"), str)
+        or not payload["acquired_at"]
+        or _process_starttime_ticks(payload["pid"])
+        != payload.get("starttime_ticks")
+    ):
+        return None
+    return payload
+
+
 @contextmanager
 def writer_lease(profile: ResourceProfile, task: str, *, blocking: bool = True):
     """Match the live shell writer contract: writer lock plus throughput exclusion."""
     with exclusive_lane(profile, "live-writer-throughput", task, blocking=blocking):
         with throughput_lease(profile, exclusive=True, blocking=blocking):
-            yield
+            owner_path = profile.lock_root / "live-writer-throughput.owner.json"
+            starttime = _process_starttime_ticks(os.getpid())
+            if starttime is None:
+                raise RuntimeError("writer lease owner process identity is unavailable")
+            owner = {
+                "schema": "ur10e/live-writer-lease-owner-v1",
+                "pid": os.getpid(),
+                "starttime_ticks": starttime,
+                "task": task,
+                "acquired_at": utc_now(),
+            }
+            temporary = owner_path.with_name(
+                f".{owner_path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
+            )
+            temporary.write_text(
+                json.dumps(owner, sort_keys=True, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            temporary.replace(owner_path)
+            try:
+                yield owner
+            finally:
+                current = writer_lease_owner(profile)
+                if current == owner:
+                    owner_path.unlink(missing_ok=True)
 
 
 def observer_endpoint_lease(profile: ResourceProfile, endpoint: str, task: str) -> FileLease:

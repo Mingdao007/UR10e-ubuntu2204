@@ -14,6 +14,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -33,6 +34,7 @@ from step5d_autotune_contract import (  # noqa: E402
     TrialTransitionKind,
     TrialSpec,
 )
+from step5d_autotune_backend import PreparedFingerprint, PreparedTrial  # noqa: E402
 from step5d_autotune_live_driver import (  # noqa: E402
     AtomicCommandMailbox,
     BridgeMailboxRuntime,
@@ -151,12 +153,12 @@ def make_trial(
     )
 
 
-def make_prepared(trial: TrialSpec) -> SimpleNamespace:
+def make_prepared(trial: TrialSpec) -> PreparedTrial:
     candidate = trial.candidate
     profile = trial.execution_profile
-    return SimpleNamespace(
+    return PreparedTrial(
         trial=trial,
-        frozen=SimpleNamespace(
+        frozen=PreparedFingerprint(
             source_fingerprint=trial.source_fingerprint,
             config_fingerprint=trial.config_fingerprint,
             composite_fingerprint=trial.campaign.campaign_fingerprint,
@@ -336,6 +338,58 @@ class Step5dQualificationTest(unittest.TestCase):
             with self.assertRaisesRegex(QualificationError, "not a public entrypoint"):
                 require_canonical_launcher(ROOT, {CANONICAL_LAUNCH_ENV: str(alias)})
 
+    def test_production_shaped_endpoint_ports_require_one_cross_process_lease(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            first = root / "first"
+            second = root / "second"
+            first.mkdir()
+            second.mkdir()
+            environment = {
+                **os.environ,
+                "UR10E_LOCK_ROOT": str(root / "locks"),
+            }
+            with qualification.qualification_endpoint_lease(
+                first,
+                environment=environment,
+            ):
+                active = json.loads(
+                    (first / "qualification_endpoint_lease.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                self.assertEqual(active["status"], "ACTIVE")
+                self.assertEqual(
+                    active["ports"], qualification.QUALIFICATION_ENDPOINT_PORTS
+                )
+                with self.assertRaisesRegex(
+                    QualificationError,
+                    qualification.QUALIFICATION_ENDPOINT_LEASE_BUSY,
+                ):
+                    with qualification.qualification_endpoint_lease(
+                        second,
+                        environment=environment,
+                    ):
+                        self.fail("a second qualification endpoint owner was admitted")
+            released = json.loads(
+                (first / "qualification_endpoint_lease.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            blocked = json.loads(
+                (second / "qualification_endpoint_lease.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(released["status"], "RELEASED")
+            self.assertLess(
+                released["acquired_at_unix_ns"], released["released_at_unix_ns"]
+            )
+            self.assertEqual(blocked["status"], "BLOCKED")
+            self.assertEqual(
+                blocked["reason_code"],
+                qualification.QUALIFICATION_ENDPOINT_LEASE_BUSY,
+            )
     def test_direct_worker_refuses_before_creating_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory).resolve()
@@ -667,6 +721,11 @@ class Step5dQualificationTest(unittest.TestCase):
                 close_fds=True,
             )
             try:
+                deadline = time.monotonic() + 2.0
+                while str(script) not in qualification._process_cmdline(process.pid):
+                    if process.poll() is not None or time.monotonic() >= deadline:
+                        self.fail("fixture process did not expose its script argv")
+                    time.sleep(0.005)
                 observed = qualification._capture_process(
                     process.pid,
                     "campaign_runner",
@@ -796,7 +855,7 @@ class Step5dQualificationTest(unittest.TestCase):
             )
             supervisor_log = root / "launcher_supervisor.log"
             supervisor_log.write_text(
-                "V3_CAMPAIGN_READY_FOR_TP_PLAY\nREADY_FOR_ONE_PLAY_TO_MOVE\n",
+                "V3_QUALIFICATION_SIMULATED_PLAY_BARRIER\n",
                 encoding="ascii",
             )
             lifecycle.observe_waiting_barrier(runner_ready, supervisor_log)

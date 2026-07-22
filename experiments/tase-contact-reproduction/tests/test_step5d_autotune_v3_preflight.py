@@ -41,7 +41,7 @@ def _program_gate(dashboard, rtde):
     )
 
 
-def test_exact_v3_stopped_or_ready_home_program_binding() -> None:
+def test_exact_v3_must_be_stopped_before_bridge_start() -> None:
     assert _program_gate(
         {
             "programState": "STOPPED",
@@ -75,11 +75,11 @@ def test_exact_v3_stopped_or_ready_home_program_binding() -> None:
         },
         ready_home,
     )
-    assert result["ok"] is True
-    assert result["mode"] == "playing_ready_home_zero_identity"
+    assert result["ok"] is False
+    assert result["mode"] == "loaded_stopped"
 
 
-def test_playing_v3_before_bridge_requires_ready_home_zero_identity() -> None:
+def test_playing_v3_before_bridge_is_always_rejected() -> None:
     base = {f"output_int_register_{index}": 0 for index in range(24, 35)}
     dashboard = {
         "programState": "PLAYING",

@@ -77,6 +77,11 @@ def test_installed_runtime_runs_only_after_passing_hermetic_lanes(
         "load_installed_runtime_command",
         lambda _path: ["/governed/control/bin/python", "-m", "pytest", "-q"],
     )
+    monkeypatch.setattr(
+        runner,
+        "_runtime_binding",
+        lambda: ["/control/python", "/optimizer/python", *("a" * 64 for _ in range(6)), "GPU-fixture", "/runtime/nvidia", "/runtime/cupy-cache"],
+    )
     payload = runner.run(
         ["small", "medium"],
         workers=2,
@@ -89,6 +94,47 @@ def test_installed_runtime_runs_only_after_passing_hermetic_lanes(
     assert payload["parallel_policy"]["installed_runtime_status"] == (
         "executed_serial_after_hermetic"
     )
+    assert payload["installed_runtime_binding"]["gpu_uuid"] == "GPU-fixture"
+
+
+def test_repository_binding_drift_blocks_a_passing_matrix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bindings = iter(
+        [
+            {
+                "root": "/repo",
+                "head": "a" * 40,
+                "clean": True,
+                "status_sha256": "0" * 64,
+                "matrix_sha256": "1" * 64,
+            },
+            {
+                "root": "/repo",
+                "head": "b" * 40,
+                "clean": True,
+                "status_sha256": "0" * 64,
+                "matrix_sha256": "1" * 64,
+            },
+        ]
+    )
+    monkeypatch.setattr(runner, "_repository_binding", lambda: next(bindings))
+    monkeypatch.setattr(
+        runner,
+        "_run_lane",
+        lambda name, _command, _output: {"lane": name, "returncode": 0},
+    )
+
+    payload = runner.run(
+        ["small"],
+        workers=1,
+        output=tmp_path / "drift",
+        require_clean=True,
+    )
+
+    assert payload["ok"] is False
+    assert payload["repository_binding"]["stable"] is False
 
 
 def test_installed_runtime_lane_uses_governed_cuda_paths(
@@ -117,6 +163,21 @@ def test_installed_runtime_lane_uses_governed_cuda_paths(
     assert observed["CUDA_VISIBLE_DEVICES"] == "GPU-fixture"
     assert observed["LD_LIBRARY_PATH"] == "/runtime/nvidia"
     assert observed["CUPY_CACHE_DIR"] == "/runtime/cupy-cache"
+
+
+def test_installed_runtime_pytest_overlay_comes_from_frozen_venv(
+    tmp_path: Path,
+) -> None:
+    overlay = runner._pytest_overlay(tmp_path)
+
+    assert (overlay / "pytest").is_symlink()
+    assert (overlay / "_pytest").is_symlink()
+    assert (overlay / "pytest").resolve().is_relative_to(
+        (runner.ROOT / ".venv").resolve()
+    )
+    assert (overlay / "_pytest").resolve().is_relative_to(
+        (runner.ROOT / ".venv").resolve()
+    )
 
 
 @pytest.mark.parametrize("lanes", [["large_ursim"], ["hil_no_motion"], []])
@@ -202,3 +263,36 @@ def test_authoritative_gate_binds_the_production_vertical_slice() -> None:
         "tests/test_step5d_autotune_v3_bridge_wrapper.py",
         "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
     } <= active
+
+
+def test_historical_incident_regressions_are_authoritative_and_resolvable() -> None:
+    payload = json.loads(runner.MATRIX.read_text(encoding="utf-8"))
+    commands = [
+        token
+        for lane in payload["lanes"].values()
+        for command in lane["commands"]
+        for token in command
+    ] + payload["local_installed_runtime_gate"]["command"]
+    commanded_files = {token for token in commands if token.startswith("tests/")}
+    required_ids = {
+        "r004_return_telemetry_mismatch_not_fresh_row_timeout",
+        "r005_typed_closure_v2_independent_cold_read",
+        "r005_post_ack_prefixed_csv_schema",
+        "r005_batch_bootstrap_null_source_reaches_arm2",
+        "r009_plan_overlay_control_uid_composition",
+        "p0_v7_outer_output_requires_cmd_valid",
+        "r010_manual_required_launch_fields",
+        "r010_release_manifest_path_required",
+    }
+    requirements = {row["id"]: row for row in payload["requirements"]}
+
+    assert required_ids <= requirements.keys()
+    for incident_id in required_ids:
+        row = requirements[incident_id]
+        fixture = ROOT / row["incident_fixture"]
+        test_file = row["test_node"].split("::", 1)[0]
+        assert fixture.is_file()
+        assert test_file in commanded_files
+        assert f"def {row['test_node'].rsplit('::', 1)[-1]}(" in (
+            ROOT / test_file
+        ).read_text(encoding="utf-8")

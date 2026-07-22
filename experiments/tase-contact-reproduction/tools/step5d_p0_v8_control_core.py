@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from types import SimpleNamespace
 from typing import Any, Sequence
 
 import numpy as np
@@ -20,6 +19,7 @@ from contact_semantics import twist_base_to_same_origin, twist_same_origin_to_ba
 from step5d_paper_outer_loop import (
     Step5dOuterLoopConfig,
     Step5dOuterLoopInputs,
+    Step5dOuterLoopOutput,
     Step5dOuterLoopState,
     compute_step5d_outer_loop,
     rotvec_to_matrix,
@@ -119,15 +119,18 @@ def press_only_outer_output(
     reaction_normal_b: Sequence[float],
     force_error_n: float,
     press_speed_m_s: float = P0_PRESS_ONLY_SPEED_M_S,
-) -> SimpleNamespace:
+) -> Step5dOuterLoopOutput:
     reaction = _normalized3(reaction_normal_b)
     speed = float(press_speed_m_s)
     if not math.isfinite(speed) or speed <= 0.0:
         raise ValueError("P0 press-only speed must be finite and positive")
     xdot_c = np.zeros(6, dtype=float)
     xdot_c[:3] = -reaction * speed
-    return SimpleNamespace(
-        xdot_c=xdot_c,
+    xdot = _tuple6(xdot_c)
+    return Step5dOuterLoopOutput(
+        xdot_p=xdot[:3],
+        xdot_o=xdot[3:],
+        xdot_c=xdot,
         cmd_valid=True,
         next_state=Step5dOuterLoopState(),
         diagnostics={

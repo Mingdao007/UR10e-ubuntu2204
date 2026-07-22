@@ -413,6 +413,7 @@ class QualificationEndpointSimulator:
         rtde_port: int = 0,
         kunwei_port: int = 0,
         runtime_identity: R010RuntimeIdentity | Mapping[str, Any] | None = None,
+        expected_program_id: str = R010_PROGRAM_ID,
         loaded_program: str = (
             "/programs/andyl/kunwei/step5/"
             "step5d_strict_rnn_autotune_v3_r010.urp"
@@ -458,10 +459,19 @@ class QualificationEndpointSimulator:
             self.runtime_identity = runtime_identity
         else:
             self.runtime_identity = R010RuntimeIdentity.from_mapping(runtime_identity)
-        if not isinstance(loaded_program, str) or not loaded_program.endswith(
-            f"/{R010_PROGRAM_ID}.urp"
+        if (
+            not isinstance(expected_program_id, str)
+            or not expected_program_id
+            or any(character not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for character in expected_program_id)
         ):
-            raise EndpointSimulatorError("loaded program must be the exact r010 controller path")
+            raise EndpointSimulatorError("expected program ID is invalid")
+        if not isinstance(loaded_program, str) or not loaded_program.endswith(
+            f"/{expected_program_id}.urp"
+        ):
+            raise EndpointSimulatorError(
+                "loaded program must match the exact expected controller program"
+            )
+        self.expected_program_id = expected_program_id
         self.loaded_program = loaded_program
         self.trial_duration_s = _positive(trial_duration_s, "trial duration")
         self.rtde_frequency_limit_hz = _positive(
@@ -570,6 +580,7 @@ class QualificationEndpointSimulator:
             "transport": "localhost_tcp_endpoint_substitution_only",
             "host": self.host,
             "requested_ports": dict(self.requested_ports),
+            "expected_program_id": self.expected_program_id,
             "loaded_program": self.loaded_program,
             "runtime_identity": self.runtime_identity.as_dict(),
             "trial_duration_s": self.trial_duration_s,

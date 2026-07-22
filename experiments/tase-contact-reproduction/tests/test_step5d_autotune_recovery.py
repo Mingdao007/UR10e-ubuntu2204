@@ -24,6 +24,7 @@ from step5d_autotune_contract import (  # noqa: E402
     TrialDisposition,
     canonical_json_bytes,
 )
+from step5d_autotune_backend import PreparedFingerprint, PreparedTrial  # noqa: E402
 from step5d_autotune_coordinator import (  # noqa: E402
     CampaignCoordinator,
     CoordinatorError,
@@ -299,7 +300,7 @@ def prepared(trial):
             execution.tp_speedj_accel_rad_s2
         ),
     }
-    frozen = SimpleNamespace(
+    frozen = PreparedFingerprint(
         source_fingerprint=trial.source_fingerprint,
         config_fingerprint=trial.config_fingerprint,
         composite_fingerprint=trial.campaign.campaign_fingerprint,
@@ -330,7 +331,7 @@ def prepared(trial):
         "--step5d-autotune-command-sequence",
         environment["STEP5D_AUTOTUNE_COMMAND_SEQ"],
     )
-    return SimpleNamespace(
+    return PreparedTrial(
         trial=trial,
         frozen=frozen,
         environment=environment,

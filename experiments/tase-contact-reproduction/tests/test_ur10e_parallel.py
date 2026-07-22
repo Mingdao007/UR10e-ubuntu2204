@@ -30,6 +30,7 @@ from ur10e_parallel import (  # noqa: E402
     source_closure_snapshot,
     throughput_lease,
     writer_lease,
+    writer_lease_owner,
 )
 
 
@@ -210,12 +211,17 @@ class Ur10eParallelTest(unittest.TestCase):
                     with throughput_lease(profile, exclusive=False, blocking=False):
                         pass
             with writer_lease(profile, "live"):
+                owner = writer_lease_owner(profile)
+                self.assertIsNotNone(owner)
+                self.assertEqual(owner["pid"], os.getpid())
+                self.assertEqual(owner["task"], "live")
                 with self.assertRaises(BlockingIOError):
                     with writer_lease(profile, "second-live", blocking=False):
                         pass
                 with self.assertRaises(BlockingIOError):
                     with throughput_lease(profile, exclusive=False, blocking=False):
                         pass
+            self.assertIsNone(writer_lease_owner(profile))
 
     def test_observer_barrier_requires_every_endpoint(self) -> None:
         barrier = ObserverBarrier({"kunwei", "rtde", "video"})

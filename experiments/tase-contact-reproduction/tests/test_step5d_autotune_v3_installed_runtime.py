@@ -137,18 +137,21 @@ def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
     )
     assert completed.returncode == 0, completed.stderr
     status = json.loads(completed.stdout)
-    assert status["schema"] == "step5d.autotune-v3/governed-status-v1"
-    assert status["environment"]["control_ready"] is True
-    assert status["environment"]["optimizer_ready"] is True
+    assert status["schema"] == "step5d.bridge/governed-status-v2"
+    assert status["launch_attempt"]["present"] is False
+    assert status["predicates"]["play_prompt_ready"] is False
+    assert "NO_CANONICAL_LAUNCH_ATTEMPT" in status["blocker"]["reason_codes"]
     assert isinstance(status["blocker"]["reason_codes"], list)
-    assert isinstance(status["next_action"], str) and status["next_action"]
+    assert status["next_action"] == "start_canonical_bridge"
 
 
 def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     assert '/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding' in source
-    assert 'exec /usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --status-json' in source
+    assert '"${EXPERIMENT_ROOT}/tools/step5d_bridge_status.py"' in source
+    assert 'exec "${status_command[@]}"' in source
+    assert '"${RUNTIME_RESOLVER}" --status-json' not in source
     assert 'PYTHON_ABI="3.10"' in source
     assert '"/opt/ros/humble/lib/python${PYTHON_ABI}/site-packages"' in source
     assert '"/opt/ros/humble/local/lib/python${PYTHON_ABI}/dist-packages"' in source
@@ -158,6 +161,13 @@ def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath()
     assert 'export CUPY_CACHE_DIR="${CONTROL_CUPY_CACHE_DIR}"' in source
     assert 'export LD_LIBRARY_PATH="${CONTROL_LD_LIBRARY_PATH}"' in source
     assert 'PYTHONPATH:+:${PYTHONPATH}' not in source
+
+
+def test_installed_manual_guard_contract_matches_production_bridge() -> None:
+    import kunwei_rtde_bridge as production
+    import run_step5d_manual_bridge as manual
+
+    manual.require_manual_guard_semantics(production)
 
 
 def test_installed_runtime_rejects_known_incompatible_bridge_context() -> None:

@@ -31,6 +31,22 @@ from step5d_autotune_v3.runtime_gate import (  # noqa: E402
 from step5d_autotune_v3.state import atomic_json  # noqa: E402
 
 
+def test_process_starttime_rejects_zombie_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = Path.read_text
+
+    def fake_read_text(path: Path, *args, **kwargs) -> str:
+        if path == Path("/proc/42/stat"):
+            return "42 (zombie child) Z " + " ".join(["0"] * 18 + ["700"])
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", fake_read_text)
+
+    with pytest.raises(RuntimeGateError, match="not live"):
+        process_starttime(42)
+
+
 def _runtime_binding_payload(*, bundle_id: str = "a" * 64) -> dict[str, object]:
     return {
         "schema": "step5d.autotune-v3/runtime-process-binding-v1",

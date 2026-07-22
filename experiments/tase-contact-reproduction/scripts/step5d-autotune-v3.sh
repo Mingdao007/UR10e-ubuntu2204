@@ -26,6 +26,7 @@ usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh bridge [OPTIONS]
        step5d-autotune-v3.sh status [--json]
+       step5d-autotune-v3.sh status --json --assert-state STATE
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
 
 Use "step5d-autotune-v3.sh bridge --help" for bridge options.
@@ -56,30 +57,125 @@ bridge_record_launch_attempt() {
   local phase="$2"
   local exit_code="${3:-}"
   local detail="${4:-}"
+  local explicit_reason_code="${5:-}"
   local prior_enabled="${launch_attempt_enabled}"
+  if (( launch_runtime_bootstrap == 1 )); then
+    local bootstrap_action="runtime-start"
+    local bootstrap_reason="${explicit_reason_code:-LAUNCH_ATTEMPT_FAILED}"
+    if [[ "${state}" == "FAILED" ]]; then
+      bootstrap_action="runtime-fail"
+    elif [[ "${state}" != "STARTED" ]]; then
+      echo "bootstrap launch recorder only accepts STARTED or FAILED" >&2
+      return 2
+    fi
+    local bootstrap_command=(
+      /usr/bin/python3.10 -B -I
+      "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py"
+      "${bootstrap_action}"
+      --authority-root "${BRIDGE_AUTHORITY_ROOT}"
+      --attempt-id "${launch_attempt_id}"
+      --owner-pid "$$"
+      --owner-starttime "${launch_owner_starttime}"
+    )
+    if [[ "${state}" == "FAILED" ]]; then
+      bootstrap_command+=(
+        --exit-code "${exit_code}"
+        --reason-code "${bootstrap_reason}"
+        --detail "${detail}"
+      )
+    fi
+    launch_attempt_enabled=0
+    local bootstrap_rc=0
+    "${bootstrap_command[@]}" >>"${output_root}/launch-attempt-recorder.log" 2>&1 \
+      || bootstrap_rc=$?
+    launch_attempt_enabled="${prior_enabled}"
+    return "${bootstrap_rc}"
+  fi
   local command=(
     "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli
     --experiment-root "${EXPERIMENT_ROOT}"
-    --campaign-root "${campaign_root}"
+    --campaign-root "${BRIDGE_AUTHORITY_ROOT}"
     --_launch-attempt-id "${launch_attempt_id}"
     --_launch-attempt-state "${state}"
     --_launch-attempt-phase "${phase}"
+    --_launch-attempt-route "${launch_attempt_route}"
+    --_launch-repository-head "${launch_repository_head}"
+    --_launch-runtime-environment-id "${RUNTIME_BUNDLE_ID}"
+    --_launch-campaign-path "${campaign_root}"
+    --_launch-output-root "${output_root}"
+    --_launch-owner-pid "$$"
+    --_launch-owner-starttime "${launch_owner_starttime}"
+    --_launch-owner-authority-epoch "${launch_owner_authority_epoch}"
   )
-  if [[ "${state}" == "FAILED" ]]; then
+  if [[ -n "${launch_manifest_sha256}" ]]; then
+    command+=(--_launch-manifest-sha256 "${launch_manifest_sha256}")
+  fi
+  if [[ -n "${launch_attempt_route_snapshot}" && -f "${launch_attempt_route_snapshot}" ]]; then
+    command+=(--_launch-route-snapshot "${launch_attempt_route_snapshot}")
+  fi
+  if [[ "${state}" == "FAILED" || "${state}" == "CANCELLED" ]]; then
+    local terminal_reason="${explicit_reason_code:-LAUNCH_ATTEMPT_FAILED}"
+    if [[ "${state}" == "CANCELLED" && -z "${explicit_reason_code}" ]]; then
+      terminal_reason="LAUNCH_ATTEMPT_CANCELLED"
+    fi
     command+=(
       --_launch-attempt-exit-code "${exit_code}"
-      --_launch-attempt-reason-code LAUNCH_ATTEMPT_FAILED
+      --_launch-attempt-reason-code "${terminal_reason}"
       --_launch-attempt-detail "${detail}"
     )
   fi
   launch_attempt_enabled=0
-  "${command[@]}" >>"${output_root}/launch-attempt-recorder.log" 2>&1
+  local recorder_rc=0
+  "${command[@]}" >>"${output_root}/launch-attempt-recorder.log" 2>&1 \
+    || recorder_rc=$?
   launch_attempt_enabled="${prior_enabled}"
+  return "${recorder_rc}"
 }
 
 bridge_begin_phase() {
+  if [[ -n "${launch_attempt_phase}" ]]; then
+    bridge_record_launch_attempt PASSED "${launch_attempt_phase}"
+  fi
   launch_attempt_phase="$1"
   bridge_record_launch_attempt STARTED "${launch_attempt_phase}"
+}
+
+bridge_finish_phase() {
+  if [[ -n "${launch_attempt_phase}" ]]; then
+    bridge_record_launch_attempt COMPLETED "${launch_attempt_phase}"
+    launch_attempt_phase=""
+  fi
+}
+
+bridge_revoke_authority() {
+  local reason="$1"
+  if (( launch_authority_active == 0 )); then
+    return 0
+  fi
+  local authority_python="${CONTROL_PYTHON:-/usr/bin/python3.10}"
+  "${authority_python}" "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" revoke \
+    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+    --attempt-id "${launch_attempt_id}" \
+    --owner-pid "$$" \
+    --owner-starttime "${launch_owner_starttime}" \
+    --reason "${reason}" \
+    >>"${output_root}/bridge-authority.log" 2>&1
+  launch_authority_active=0
+}
+
+bridge_runtime_fail() {
+  local exit_code="$1"
+  local reason_code="$2"
+  local detail="$3"
+  if (( launch_attempt_enabled == 1 )); then
+    set +e
+    bridge_record_launch_attempt \
+      FAILED runtime_gate "${exit_code}" "${detail}" "${reason_code}"
+    bridge_revoke_authority failed
+    launch_attempt_enabled=0
+  fi
+  echo "${detail}" >&2
+  exit "${exit_code}"
 }
 
 bridge_failure_trap() {
@@ -92,8 +188,23 @@ bridge_failure_trap() {
       "${launch_attempt_phase}" \
       "${exit_code}" \
       "canonical bridge phase ${launch_attempt_phase} exited ${exit_code}"
+    bridge_revoke_authority failed
   fi
   exit "${exit_code}"
+}
+
+bridge_cancel_trap() {
+  trap - ERR INT TERM
+  set +e
+  if (( launch_attempt_enabled == 1 )) && [[ -n "${launch_attempt_phase}" ]]; then
+    bridge_record_launch_attempt \
+      CANCELLED \
+      "${launch_attempt_phase}" \
+      130 \
+      "canonical bridge was cancelled during ${launch_attempt_phase}"
+  fi
+  bridge_revoke_authority cancelled
+  exit 130
 }
 
 bridge_mode=0
@@ -107,6 +218,16 @@ play_timeout_s="900"
 launch_attempt_id=""
 launch_attempt_phase=""
 launch_attempt_enabled=0
+launch_attempt_route="UNKNOWN"
+launch_attempt_route_snapshot=""
+launch_manifest_sha256=""
+launch_repository_head=""
+launch_owner_starttime=""
+launch_owner_authority_epoch=""
+launch_authority_active=0
+launch_runtime_bootstrap=0
+CONTROL_PYTHON=""
+BRIDGE_AUTHORITY_ROOT="${EXPERIMENT_ROOT}/runs/step5d_bridge_authority"
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
@@ -149,7 +270,7 @@ if [[ "${1:-}" == "bridge" ]]; then
         fi
         ((index += 1))
         ;;
-      --preflight|--preflight=*|--delivery-observation|--delivery-observation=*|--prepare-only|--prepare-only=*|--qualification-endpoints|--qualification-endpoints=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--authorization-file|--authorization-file=*|--arm-gate|--arm-gate=*|--offline-release-gate|--offline-release-gate=*)
+      --preflight|--preflight=*|--delivery-observation|--delivery-observation=*|--prepare-only|--prepare-only=*|--qualification-endpoints|--qualification-endpoints=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--arm-gate|--arm-gate=*|--offline-release-gate|--offline-release-gate=*)
         bridge_argv_error "${option_name} is an internal worker option"
         ;;
       *)
@@ -196,24 +317,81 @@ if [[ "${1:-}" == "bridge" ]]; then
   done
 fi
 
+if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
+  status_command=(
+    /usr/bin/python3.10 -B -I
+    "${EXPERIMENT_ROOT}/tools/step5d_bridge_status.py"
+    --experiment-root "${EXPERIMENT_ROOT}"
+  )
+  if (( $# == 4 )) && [[ "${3}" == "--assert-state" ]]; then
+    status_command+=(--assert-state "${4}")
+  elif (( $# != 2 )); then
+    echo "status accepts only --json and optional --assert-state STATE" >&2
+    exit 64
+  fi
+  exec "${status_command[@]}"
+fi
+
+if (( bridge_mode == 1 )) \
+  && [[ -z "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]] \
+  && [[ -z "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]
+then
+  export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
+  export STEP5D_V3_SHELL_PID="$$"
+  if [[ -z "${output_root}" ]]; then
+    output_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/bridge-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  fi
+  output_root="$(readlink -m -- "${output_root}")"
+  campaign_root="$(readlink -m -- "${campaign_root}")"
+  mkdir -p -- "${output_root}" "${campaign_root}" "${BRIDGE_AUTHORITY_ROOT}"
+  if [[ -r /proc/sys/kernel/random/uuid ]]; then
+    read -r launch_attempt_id </proc/sys/kernel/random/uuid
+    launch_attempt_id="${launch_attempt_id//-/}"
+  else
+    launch_attempt_id="$(/usr/bin/python3.10 -B -I -c 'import secrets; print(secrets.token_hex(16))')"
+  fi
+  export STEP5D_V3_LAUNCH_ATTEMPT_ID="${launch_attempt_id}"
+  launch_repository_head="$(git -C "${REPOSITORY_ROOT}" rev-parse --verify HEAD)"
+  shell_proc_stat="$(</proc/$$/stat)"
+  shell_proc_fields="${shell_proc_stat##*) }"
+  read -r -a shell_proc_values <<<"${shell_proc_fields}"
+  launch_owner_starttime="${shell_proc_values[19]:-}"
+  if [[ ! "${launch_owner_starttime}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "canonical bridge owner starttime is unavailable" >&2
+    exit 66
+  fi
+  launch_authority_epoch_file="${output_root}/bridge-authority-epoch.txt"
+  /usr/bin/python3.10 -B -I \
+    "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" begin \
+    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+    --attempt-id "${launch_attempt_id}" \
+    --owner-pid "$$" \
+    --owner-starttime "${launch_owner_starttime}" \
+    >"${launch_authority_epoch_file}"
+  read -r launch_owner_authority_epoch <"${launch_authority_epoch_file}"
+  launch_authority_active=1
+  launch_attempt_enabled=1
+  launch_runtime_bootstrap=1
+  launch_attempt_phase="runtime_gate"
+  trap bridge_failure_trap ERR
+  trap bridge_cancel_trap INT TERM
+  bridge_record_launch_attempt STARTED runtime_gate
+fi
+
 RUNTIME_SOURCE="${REPOSITORY_ROOT}/src/ur10e_experiment_runtime"
 if [[ ! -d "${RUNTIME_SOURCE}/ur10e_experiment_runtime" ]]; then
-  echo "missing ur10e_experiment_runtime source: ${RUNTIME_SOURCE}" >&2
-  exit 66
+  bridge_runtime_fail 66 ACTIVE_SOURCE_CLOSURE_UNRESOLVED \
+    "missing ur10e_experiment_runtime source: ${RUNTIME_SOURCE}"
 fi
 RUNTIME_RESOLVER="${EXPERIMENT_ROOT}/tools/resolve_step5d_autotune_v3_runtime.py"
 if [[ ! -f "${RUNTIME_RESOLVER}" || -L "${RUNTIME_RESOLVER}" ]]; then
-  echo "missing governed runtime resolver: ${RUNTIME_RESOLVER}" >&2
-  exit 66
+  bridge_runtime_fail 66 ACTIVE_SOURCE_CLOSURE_UNRESOLVED \
+    "missing governed runtime resolver: ${RUNTIME_RESOLVER}"
 fi
 runtime_binding=""
 if ! runtime_binding="$(/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding)"; then
-  if [[ "${1:-}" == "status" && "${2:-}" == "--json" && $# -eq 2 ]]; then
-    exec /usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --status-json
-  fi
-  echo "governed runtime unavailable: ${runtime_binding}" >&2
-  echo "next action: provision the current uv.lock runtime before bridge delivery" >&2
-  exit 78
+  bridge_runtime_fail 78 RUNTIME_NOT_PROVISIONED \
+    "governed runtime unavailable; provision the current uv.lock runtime before bridge delivery"
 fi
 IFS=$'\t' read -r \
   CONTROL_PYTHON \
@@ -241,18 +419,18 @@ runtime_fields=(
   "${CONTROL_CUPY_CACHE_DIR:-}"
 )
 if (( ${#runtime_fields[@]} != 11 )); then
-  echo "governed runtime resolver returned an invalid field count" >&2
-  exit 78
+  bridge_runtime_fail 78 CONTROL_RUNTIME_INVALID \
+    "governed runtime resolver returned an invalid field count"
 fi
 for field in "${runtime_fields[@]}"; do
   if [[ -z "${field}" || "${field}" == *$'\n'* || "${field}" == *$'\r'* ]]; then
-    echo "governed runtime resolver returned an unsafe field" >&2
-    exit 78
+    bridge_runtime_fail 78 CONTROL_RUNTIME_INVALID \
+      "governed runtime resolver returned an unsafe field"
   fi
 done
 if [[ ! -x "${CONTROL_PYTHON}" || ! -x "${OPTIMIZER_PYTHON}" ]]; then
-  echo "governed runtime interpreter is unavailable" >&2
-  exit 78
+  bridge_runtime_fail 78 CONTROL_RUNTIME_INVALID \
+    "governed runtime interpreter is unavailable"
 fi
 PYTHON_ABI="3.10"
 ROS_PYTHON_PATHS=()
@@ -265,8 +443,8 @@ do
   fi
 done
 if (( ${#ROS_PYTHON_PATHS[@]} == 0 )); then
-  echo "missing ROS Humble Python runtime for Python ${PYTHON_ABI}" >&2
-  exit 66
+  bridge_runtime_fail 66 HOST_CONTRACT_MISMATCH \
+    "missing ROS Humble Python runtime for Python ${PYTHON_ABI}"
 fi
 AMENT_PREFIX_CANDIDATES=("${REPOSITORY_ROOT}/install" "/opt/ros/humble")
 AMENT_PREFIXES=()
@@ -276,8 +454,7 @@ for candidate in "${AMENT_PREFIX_CANDIDATES[@]}"; do
   fi
 done
 if (( ${#AMENT_PREFIXES[@]} == 0 )); then
-  echo "missing ROS ament prefix" >&2
-  exit 66
+  bridge_runtime_fail 66 HOST_CONTRACT_MISMATCH "missing ROS ament prefix"
 fi
 RUNTIME_PYTHONPATH="${EXPERIMENT_ROOT}/tools:${RUNTIME_SOURCE}"
 for candidate in "${ROS_PYTHON_PATHS[@]}"; do
@@ -298,16 +475,6 @@ export STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID="${OPTIMIZER_ENVIRONMENT_ID}"
 export STEP5D_V3_OPTIMIZER_PYTHON="${OPTIMIZER_PYTHON}"
 export STEP5D_V3_RUNTIME_ATTESTATION_SHA256="${RUNTIME_ATTESTATION_SHA256}"
 export STEP5D_V3_RUNTIME_BUNDLE_ID="${RUNTIME_BUNDLE_ID}"
-if [[ "${1:-}" == "status" && "${2:-}" == "--json" && $# -eq 2 ]]; then
-  manual_pointer_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
-  if [[ -f "${manual_pointer_root}/manual_active_run.json" ]]; then
-    if "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_status.py" \
-      status --campaign-root "${manual_pointer_root}"
-    then
-      exit 0
-    fi
-  fi
-fi
 if (( bridge_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
@@ -317,34 +484,127 @@ if (( bridge_mode == 1 )); then
   output_root="$(readlink -m -- "${output_root}")"
   campaign_root="$(readlink -m -- "${campaign_root}")"
   mkdir -p -- "${output_root}" "${campaign_root}"
+  launch_runtime_bootstrap=0
+  qualification_shell=0
+  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" || -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
+    qualification_shell=1
+    shell_proc_stat="$(</proc/$$/stat)"
+    shell_proc_fields="${shell_proc_stat##*) }"
+    read -r -a shell_proc_values <<<"${shell_proc_fields}"
+    launch_owner_starttime="${shell_proc_values[19]:-}"
+    if [[ ! "${launch_owner_starttime}" =~ ^[1-9][0-9]*$ ]]; then
+      echo "qualification shell owner starttime is unavailable" >&2
+      exit 66
+    fi
+  else
+    bridge_begin_phase route_resolve
+  fi
+  route_snapshot="${output_root}/route-snapshot.json"
+  launch_attempt_route_snapshot="${route_snapshot}"
+  route_resolve_rc=0
+  route_resolve_args=(
+    --root "${EXPERIMENT_ROOT}"
+    --output "${route_snapshot}"
+  )
+  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" || -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
+    route_resolve_args+=(--robot-host 127.0.0.1)
+  fi
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/resolve_step5d_bridge_route.py" \
+    "${route_resolve_args[@]}" \
+    >"${output_root}/route-resolve.log" 2>&1 || route_resolve_rc=$?
+  bridge_route="UNKNOWN"
+  resolved_release_sha=""
+  route_reason_code="LAUNCH_ATTEMPT_FAILED"
+  if [[ -f "${route_snapshot}" && ! -L "${route_snapshot}" ]]; then
+    IFS=$'\t' read -r bridge_route resolved_release_sha route_reason_code < <(
+      "${CONTROL_PYTHON}" -c \
+        'import json,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print(p["route"], p.get("manual_release_manifest_sha256") or p.get("autotune_release_manifest_sha256") or "", p.get("reason_code") or "LAUNCH_ATTEMPT_FAILED", sep="\t")' \
+        "${route_snapshot}"
+    )
+  fi
+  launch_attempt_route="${bridge_route}"
+  launch_manifest_sha256="${resolved_release_sha}"
+  if (( route_resolve_rc != 0 )); then
+    if (( qualification_shell == 0 )); then
+      bridge_record_launch_attempt \
+        FAILED \
+        route_resolve \
+        "${route_resolve_rc}" \
+        "canonical route resolution stopped: ${route_reason_code}" \
+        "${route_reason_code}"
+      bridge_revoke_authority failed
+      launch_attempt_enabled=0
+    fi
+    exit "${route_resolve_rc}"
+  fi
+  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
+    if [[ "${bridge_route}" != "manual_v2" ]]; then
+      echo "Manual qualification did not traverse the Manual production route" >&2
+      exit 2
+    fi
+    export STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_PID="$$"
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
+      --experiment-root "${EXPERIMENT_ROOT}" \
+      --_exec-live-from-shell-contract \
+      "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT}" &
+    qualification_manual_owner_pid=$!
+    # shellcheck disable=SC2329  # Invoked by the EXIT trap below.
+    qualification_manual_cleanup() {
+      if kill -0 "${qualification_manual_owner_pid}" 2>/dev/null; then
+        kill -INT "${qualification_manual_owner_pid}" 2>/dev/null || true
+        wait "${qualification_manual_owner_pid}" || true
+      fi
+    }
+    trap qualification_manual_cleanup EXIT
+    qualification_ready_limit_ticks="$("${CONTROL_PYTHON}" -c \
+      'import math,sys; print(math.ceil(float(sys.argv[1]) * 10.0) + 20)' \
+      "${ready_timeout_s}")"
+    qualification_ready_ticks=0
+    while [[ ! -f "${output_root}/bridge_launch.json" ]]; do
+      if ! kill -0 "${qualification_manual_owner_pid}" 2>/dev/null; then
+        qualification_owner_rc=0
+        wait "${qualification_manual_owner_pid}" || qualification_owner_rc=$?
+        echo "Manual qualification bridge owner exited before readiness rc=${qualification_owner_rc}" >&2
+        exit 2
+      fi
+      if (( qualification_ready_ticks >= qualification_ready_limit_ticks )); then
+        echo "Manual qualification bridge owner readiness timeout" >&2
+        exit 2
+      fi
+      sleep 0.1
+      ((qualification_ready_ticks += 1))
+    done
+    qualification_campaign_rc=0
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
+      --experiment-root "${EXPERIMENT_ROOT}" \
+      --_exec-campaign-from-shell-contract \
+      "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT}" \
+      || qualification_campaign_rc=$?
+    exit "${qualification_campaign_rc}"
+  fi
   if [[ -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
+    if [[ "${bridge_route}" != "autotune_v3" ]]; then
+      echo "V3 qualification did not traverse the V3 production route" >&2
+      exit 2
+    fi
     export STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_PID="$$"
     "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
       --_exec-live-from-shell-contract \
       "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
     exit 0
   fi
-  if [[ -r /proc/sys/kernel/random/uuid ]]; then
-    read -r launch_attempt_id </proc/sys/kernel/random/uuid
-    launch_attempt_id="${launch_attempt_id//-/}"
-  else
-    launch_attempt_id="$("${CONTROL_PYTHON}" -c 'import uuid; print(uuid.uuid4().hex)')"
-  fi
-  export STEP5D_V3_LAUNCH_ATTEMPT_ID="${launch_attempt_id}"
-  launch_attempt_enabled=1
-  trap bridge_failure_trap ERR
-  bridge_begin_phase runtime_gate
-  bridge_begin_phase route_resolve
-  bridge_route="$("${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/resolve_step5d_bridge_route.py" \
-    --root "${EXPERIMENT_ROOT}" --field route)"
   if [[ "${bridge_route}" == "manual_v2" ]]; then
-    manual_release_sha="$("${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/resolve_step5d_bridge_route.py" \
-      --root "${EXPERIMENT_ROOT}" --field release)"
+    manual_release_sha="${resolved_release_sha}"
     manual_campaign_id="manual-v2-${launch_attempt_id}"
     manual_context="${output_root}/manual-bridge-context.json"
     manual_preflight="${output_root}/manual-preflight.json"
     manual_queue="${campaign_root}/control/manual_queue.json"
     manual_state="${campaign_root}/control/manual_runtime_state.json"
+    bridge_begin_phase manual_qualification
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
+      --experiment-root "${EXPERIMENT_ROOT}" \
+      --output-root "${output_root}" \
+      >"${output_root}/manual-qualification-command.json"
     bridge_begin_phase manual_context
     "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/build_step5d_manual_bridge_start_context.py" \
       --root "${EXPERIMENT_ROOT}" \
@@ -362,6 +622,10 @@ if (( bridge_mode == 1 )); then
       --output-root "${output_root}" \
       --bridge-start-context "${manual_context}" \
       --preflight "${manual_preflight}" \
+      --launch-attempt-id "${launch_attempt_id}" \
+      --campaign-id "${manual_campaign_id}" \
+      --canonical-owner-pid "$$" \
+      --canonical-owner-starttime "${launch_owner_starttime}" \
       --ready-timeout-s "${ready_timeout_s}" \
       >"${output_root}/manual-bridge-owner.log" 2>&1 &
     manual_bridge_owner_pid=$!
@@ -371,6 +635,7 @@ if (( bridge_mode == 1 )); then
         kill -INT "${manual_bridge_owner_pid}" 2>/dev/null || true
         wait "${manual_bridge_owner_pid}" || true
       fi
+      bridge_revoke_authority failed || true
     }
     trap manual_bridge_cleanup EXIT
     manual_ready_limit_ticks="$("${CONTROL_PYTHON}" -c \
@@ -379,11 +644,27 @@ if (( bridge_mode == 1 )); then
     manual_ready_ticks=0
     while [[ ! -f "${output_root}/bridge_launch.json" ]]; do
       if ! kill -0 "${manual_bridge_owner_pid}" 2>/dev/null; then
-        wait "${manual_bridge_owner_pid}"
-        exit $?
+        manual_owner_rc=0
+        wait "${manual_bridge_owner_pid}" || manual_owner_rc=$?
+        if (( manual_owner_rc == 0 )); then
+          manual_owner_rc=2
+        fi
+        bridge_record_launch_attempt \
+          FAILED \
+          "${launch_attempt_phase}" \
+          "${manual_owner_rc}" \
+          "manual bridge owner exited before the persistent readiness barrier"
+        bridge_revoke_authority failed
+        exit "${manual_owner_rc}"
       fi
       if (( manual_ready_ticks >= manual_ready_limit_ticks )); then
         echo "manual bridge owner readiness timeout" >&2
+        bridge_record_launch_attempt \
+          FAILED \
+          "${launch_attempt_phase}" \
+          2 \
+          "manual bridge owner did not sustain the readiness barrier before timeout"
+        bridge_revoke_authority failed
         exit 2
       fi
       sleep 0.1
@@ -402,7 +683,10 @@ if (( bridge_mode == 1 )); then
       --state "${manual_state}" \
       --campaign-id "${manual_campaign_id}" \
       --release-manifest-sha256 "${manual_release_sha}" \
+      --qualification-result "${output_root}/manual-qualification-result.json" \
       --play-timeout-s "${play_timeout_s}"
+    bridge_finish_phase
+    bridge_revoke_authority completed
     exit 0
   fi
   bridge_begin_phase status_before
@@ -435,6 +719,11 @@ if (( bridge_mode == 1 )); then
     --qualification-result "${output_root}/qualification.json" \
     --evidence-output "${output_root}/delivery-observation.json" \
     >"${output_root}/tp-transaction.log"
+  launch_manifest_sha256="$(
+    "${CONTROL_PYTHON}" -c \
+      'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["release_manifest_sha256"])' \
+      "${output_root}/delivery-observation.json"
+  )"
   bridge_begin_phase status_after_delivery
   "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli \
     --experiment-root "${EXPERIMENT_ROOT}" \
@@ -443,6 +732,8 @@ if (( bridge_mode == 1 )); then
   bridge_begin_phase campaign_prepare
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     --prepare-only \
+    --canonical-owner-pid "$$" \
+    --canonical-owner-starttime "${launch_owner_starttime}" \
     --campaign-root "${campaign_root}" \
     >"${output_root}/campaign-prepare.json"
   preflight="${output_root}/preflight.json"
@@ -455,9 +746,13 @@ if (( bridge_mode == 1 )); then
   bridge_begin_phase live_handoff
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     "${runner_args[@]}" --output-root "${output_root}" \
+    --canonical-owner-pid "$$" \
+    --canonical-owner-starttime "${launch_owner_starttime}" \
     --delivery-observation "${output_root}/delivery-observation.json" \
     --campaign-root "${campaign_root}" \
     --preflight "${preflight}"
+  bridge_finish_phase
+  bridge_revoke_authority completed
   exit 0
 fi
 exec "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli --experiment-root "${EXPERIMENT_ROOT}" "$@"

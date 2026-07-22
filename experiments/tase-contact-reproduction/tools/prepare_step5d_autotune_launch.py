@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,6 +21,17 @@ from step5d_autotune_batch_plan import (
     initialize_rolling_plan,
     load_plan,
 )
+
+
+@dataclass(frozen=True)
+class LaunchPreparationRequest:
+    experiment_root: Path
+    campaign_root: Path
+    binding_file: Path
+    binding_source: str
+    launch_profile_path: Path
+    candidate_batch_size: int
+    rolling_plan: bool
 
 
 def _sha256_path(path: Path) -> str:
@@ -54,18 +66,21 @@ def write_machine_campaign_binding(
     return payload
 
 
-def prepare(args: argparse.Namespace) -> dict[str, object]:
+def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
     root = args.experiment_root.resolve()
     campaign_root = args.campaign_root.resolve()
     binding_file = args.binding_file.resolve()
+    launch_profile_path = args.launch_profile_path.resolve()
     if campaign_root.is_symlink() or binding_file.is_symlink():
         raise RuntimeError("campaign/binding paths must not be symlinks")
+    if not launch_profile_path.is_file() or launch_profile_path.is_symlink():
+        raise RuntimeError("launch preparation requires an exact regular launch profile")
+    if not args.binding_source.strip():
+        raise RuntimeError("launch preparation requires a nonempty binding source")
     campaign_root.mkdir(parents=True, exist_ok=True)
     backend = Step5dV35Backend(root)
     frozen = backend.freeze_fingerprint()
     chain = discover_campaign_epochs(campaign_root)
-    if getattr(args, "legacy_campaign_root", None) is not None:
-        raise RuntimeError("V3 launch preparation forbids legacy campaign adoption")
     if chain:
         latest = chain[-1]
         retained = latest.manifest.get("frozen_fingerprint")
@@ -90,13 +105,13 @@ def prepare(args: argparse.Namespace) -> dict[str, object]:
     if plan_path.exists():
         load_plan(plan_path, campaign_id=campaign.campaign_id)
     else:
-        if getattr(args, "rolling_plan", False):
+        if args.rolling_plan:
             initialize_rolling_plan(plan_path, campaign_id=campaign.campaign_id)
         else:
             initialize_plan(
                 plan_path,
                 campaign_id=campaign.campaign_id,
-                batch_size=getattr(args, "candidate_batch_size", 5),
+                batch_size=args.candidate_batch_size,
             )
     return {
         "ok": True,
@@ -105,12 +120,14 @@ def prepare(args: argparse.Namespace) -> dict[str, object]:
         "campaign_fingerprint": campaign.campaign_fingerprint,
         "campaign_root": str(campaign_root),
         "campaign_binding_file": str(binding_file),
+        "launch_profile_path": str(launch_profile_path),
+        "launch_profile_sha256": _sha256_path(launch_profile_path),
         "machine_binding_status": "pending_exact_candidate_and_overlay_plans",
         "candidate_plan": str(plan_path),
     }
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args() -> LaunchPreparationRequest:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--experiment-root",
@@ -120,9 +137,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--campaign-root", type=Path, required=True)
     parser.add_argument("--binding-file", type=Path, required=True)
     parser.add_argument("--binding-source", required=True)
+    parser.add_argument(
+        "--launch-profile",
+        type=Path,
+        default=Path(__file__).resolve().parents[1]
+        / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
     parser.add_argument("--candidate-batch-size", type=int, choices=(5, 10), default=5)
     args = parser.parse_args()
-    return args
+    return LaunchPreparationRequest(
+        experiment_root=args.experiment_root,
+        campaign_root=args.campaign_root,
+        binding_file=args.binding_file,
+        binding_source=args.binding_source,
+        launch_profile_path=args.launch_profile,
+        candidate_batch_size=args.candidate_batch_size,
+        rolling_plan=False,
+    )
 
 
 if __name__ == "__main__":
