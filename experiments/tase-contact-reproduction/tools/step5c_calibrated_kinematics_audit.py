@@ -11,13 +11,16 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 import pinocchio as pin
 import xacro
 import yaml
+
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -145,6 +148,8 @@ def rotation_angle(matrix: np.ndarray) -> float:
 
 
 def finite_run_rows(csv_path: Path) -> pd.DataFrame:
+    import pandas as pd
+
     cols = (
         [f"ur_actual_q_{idx}" for idx in range(6)]
         + [f"ur_actual_qd_{idx}" for idx in range(6)]
@@ -230,6 +235,8 @@ def compute_residuals(
     rows: pd.DataFrame,
     tcp_offset_tool0: np.ndarray,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
+    import pandas as pd
+
     records: list[dict[str, float]] = []
     residuals = []
     for _, row in rows.iterrows():

@@ -49,12 +49,15 @@ from step5d_autotune_live_driver import (  # noqa: E402
     TrialArtifactProducer,
 )
 from step5d_autotune_state_machine import (  # noqa: E402
-    HOST_TO_TP_INTEGER_REGISTERS as LEGACY_HOST_TO_TP,
-    TP_TO_HOST_INTEGER_REGISTERS as LEGACY_TP_TO_HOST,
+    HOST_TO_TP_INTEGER_REGISTERS as ACTIVE_HOST_TO_TP,
+    TP_TO_HOST_INTEGER_REGISTERS as ACTIVE_TP_TO_HOST,
 )
-from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY  # noqa: E402
-from step5d_autotune_v3.runtime_profile import load_launch_profile  # noqa: E402
-from run_step5d_autotune_v3_live import initial_control_overlays  # noqa: E402
+from step5d_autotune_r008_policy import PROTOCOL, initialization_batch  # noqa: E402
+from step5d_autotune_v3.runtime_profile import (  # noqa: E402
+    DEFAULT_OVERLAY,
+    load_launch_profile,
+    normalize_trial_overlay as normalize_v3_trial_overlay,
+)
 
 
 SPEC = (
@@ -81,6 +84,20 @@ def _trial() -> TrialSpec:
     )
 
 
+def _initial_control_overlays(profile) -> tuple[dict, ...]:
+    rows = []
+    for occurrence in initialization_batch(1):
+        raw = {
+            **DEFAULT_OVERLAY,
+            "force_p_gain": occurrence.candidate.force_p_gain,
+            "force_i_gain": occurrence.candidate.force_i_gain,
+            "force_damping": occurrence.candidate.force_damping,
+        }
+        raw.pop("control_candidate_uid", None)
+        rows.append(normalize_v3_trial_overlay(raw, profile=profile))
+    return tuple(rows)
+
+
 def test_step5d_spec_and_plan_freeze_current_behavior_without_external_actions() -> None:
     spec = load_experiment_spec(SPEC)
     plan = plan_experiment(spec, "offline")
@@ -105,20 +122,20 @@ def test_step5d_spec_and_plan_freeze_current_behavior_without_external_actions()
 
 
 def test_register_and_csv_contracts_match_the_current_bridge_and_state_machine() -> None:
-    assert {
-        name: HOST_TO_TP_INTEGER_REGISTERS[name] for name in LEGACY_HOST_TO_TP
-    } == LEGACY_HOST_TO_TP
-    assert {
-        name: TP_TO_HOST_INTEGER_REGISTERS[name] for name in LEGACY_TP_TO_HOST
-    } == LEGACY_TP_TO_HOST
+    assert tuple(HOST_TO_TP_INTEGER_REGISTERS.values()) == tuple(
+        ACTIVE_HOST_TO_TP.values()
+    )[: len(HOST_TO_TP_INTEGER_REGISTERS)]
+    assert tuple(TP_TO_HOST_INTEGER_REGISTERS.values()) == tuple(
+        ACTIVE_TP_TO_HOST.values()
+    )[: len(TP_TO_HOST_INTEGER_REGISTERS)]
     assert STEP5D_AUTOTUNE_HANDSHAKE_INPUT_FIELDS == [
-        f"input_int_register_{index}" for index in range(24, 31)
+        f"input_int_register_{index}" for index in range(24, 32)
     ]
-    assert STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES == list(HOST_TO_TP_INTEGER_REGISTERS)
+    assert STEP5D_AUTOTUNE_HANDSHAKE_INPUT_NAMES == list(ACTIVE_HOST_TO_TP)
     assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_FIELDS == [
-        f"output_int_register_{index}" for index in range(24, 34)
+        f"output_int_register_{index}" for index in range(24, 35)
     ]
-    assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES == list(TP_TO_HOST_INTEGER_REGISTERS)
+    assert STEP5D_AUTOTUNE_HANDSHAKE_OUTPUT_NAMES == list(ACTIVE_TP_TO_HOST)
     assert CSV_IDENTITY_COLUMNS == BridgeTrialCsvRotator.IDENTITY_COLUMNS
     assert CSV_HANDSHAKE_COLUMNS == tuple(
         f"ur_output_int_register_{index}" for index in range(24, 34)
@@ -148,6 +165,11 @@ def test_trial_uid_and_overlay_are_golden_parity_with_current_v3() -> None:
     normalized = normalize_trial_overlay(DEFAULT_OVERLAY)
     assert normalized == DEFAULT_OVERLAY
     assert tuple(normalized) == OVERLAY_FIELDS
+    legacy_overlay = dict(DEFAULT_OVERLAY)
+    legacy_overlay["control_candidate_uid"] = DEFAULT_OVERLAY[
+        "control_candidate_uid"
+    ].removeprefix("control:v2:")
+    assert normalize_trial_overlay(legacy_overlay) == legacy_overlay
     altered = dict(DEFAULT_OVERLAY)
     altered["orientation_ko"] = 0.8
     with pytest.raises(ValueError, match="control_candidate_uid"):
@@ -184,10 +206,16 @@ def test_exact_ack_requires_current_identity_bundle_and_safe_closure() -> None:
     )
 
 
-def test_batch_identity_binds_the_exact_current_ten_control_overlay_rows() -> None:
+def test_batch_identity_binds_the_exact_current_five_rolling_rows() -> None:
     spec = load_experiment_spec(SPEC)
     profile = load_launch_profile()
-    overlays = initial_control_overlays(profile)
+    overlays = _initial_control_overlays(profile)
+    occurrences = tuple(
+        occurrence.bind_control_candidate_uid(overlay["control_candidate_uid"])
+        for occurrence, overlay in zip(
+            initialization_batch(1), overlays, strict=True
+        )
+    )
     identity = BatchIdentity(
         campaign_uid="campaign-uid",
         experiment_fingerprint=spec.fingerprint,
@@ -212,11 +240,20 @@ def test_batch_identity_binds_the_exact_current_ten_control_overlay_rows() -> No
                     )
                 },
                 trial_overlay=overlay,
+                occurrence_uid=str(occurrence.occurrence_uid),
+                transport_candidate_uid=str(occurrence.transport_candidate_uid),
+                role=occurrence.selection_role,
+                replicate_ordinal=occurrence.replicate_ordinal,
             )
-            for index, overlay in enumerate(overlays, start=1)
+            for index, (occurrence, overlay) in enumerate(
+                zip(occurrences, overlays, strict=True), start=1
+            )
         ),
+        protocol=PROTOCOL,
+        logical_batch_sequence=1,
+        plan_revision=1,
     )
-    assert len(identity.rows) == 10
+    assert len(identity.rows) == 5
     assert [row.control_candidate_uid for row in identity.rows] == [
         overlay["control_candidate_uid"] for overlay in overlays
     ]

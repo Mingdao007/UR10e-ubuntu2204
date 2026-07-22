@@ -21,6 +21,7 @@ from run_step5d_autotune_campaign import (  # noqa: E402
     StopAfterCurrentRequested,
     _campaign_binding,
     _campaign_spec,
+    _observe_pending_identity_commit,
     _publish_runner_ready,
     _v3_stop_requested,
     _wait_for_codex_candidate,
@@ -374,11 +375,100 @@ def test_waiting_at_ready_home_observes_v3_latch_before_selecting_candidate(
         )
 
 
-def test_v3_derived_queue_hook_is_after_exact_ack_reconcile() -> None:
+def test_terminal_identity_commit_budget_starts_at_first_pending_row() -> None:
+    deadline = _observe_pending_identity_commit(None, observed_at_s=1_000.0)
+    assert deadline == pytest.approx(1_000.25)
+    assert (
+        _observe_pending_identity_commit(deadline, observed_at_s=1_000.20)
+        == deadline
+    )
+    with pytest.raises(RuntimeError, match="identity commit exceeded"):
+        _observe_pending_identity_commit(deadline, observed_at_s=1_000.251)
+
+
+def test_v3_derived_queue_hook_is_after_direct_commit() -> None:
     source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
         encoding="utf-8"
     )
-    reconcile = source.index("coordinator.reconcile(snapshot)")
-    post_ack = source.index('_event(event_path, "post_ack"', reconcile)
-    queued = source.index("derived_postprocess.submit(", post_ack)
-    assert reconcile < post_ack < queued
+    finalized = source.index("result = finalize_produced_bundle_direct(")
+    committed = source.index('"direct_ready_committed"', finalized)
+    queued = source.index("derived_postprocess.submit(", committed)
+    assert finalized < committed < queued
+
+
+def test_each_v3_arm_rechecks_full_runtime_binding_before_issue() -> None:
+    source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
+        encoding="utf-8"
+    )
+    guard = source.index("RuntimeEnvironmentBindingGuard.full(")
+    next_sequence = source.index("next_arm_command_seq = (", guard)
+    recheck = source.index(
+        "runtime_environment_guard.recheck(next_arm_command_seq)",
+        next_sequence,
+    )
+    issue = source.index("arm = coordinator.issue_arm(", recheck)
+    identity_check = source.index(
+        "if arm.command_seq != next_arm_command_seq:", issue
+    )
+
+    assert guard < next_sequence < recheck < issue < identity_check
+
+
+def test_campaign_runner_has_no_implicit_plot_or_network_publisher() -> None:
+    source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
+        encoding="utf-8"
+    )
+    active = json.loads(
+        (ROOT / "config/step5d/v3_active_surface.json").read_text(encoding="utf-8")
+    )
+
+    assert "publish_step5d_autotune_plot.py" not in source
+    assert "trial_plot_published" not in source
+    assert "trial_plot_publish_failed" not in source
+    assert "subprocess" not in source
+    assert "ssh" not in source
+    assert "scp" not in source
+    assert (ROOT / "tools/publish_step5d_autotune_plot.py").is_file()
+    assert (
+        "tools/publish_step5d_autotune_plot.py"
+        not in active["active_orchestration_paths"]
+    )
+
+
+def test_campaign_runner_import_does_not_load_matplotlib() -> None:
+    import_paths = [
+        str(ROOT / "tools"),
+        str(ROOT.parents[1] / "src/ur10e_experiment_runtime"),
+    ]
+    code = f"""
+import builtins
+import sys
+
+sys.path[:0] = {import_paths!r}
+original_import = builtins.__import__
+
+def reject_matplotlib(name, globals=None, locals=None, fromlist=(), level=0):
+    if name.split(".", 1)[0] == "matplotlib":
+        raise AssertionError(f"matplotlib imported by campaign runner: {{name}}")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = reject_matplotlib
+import run_step5d_autotune_campaign
+
+loaded = sorted(
+    name for name in sys.modules
+    if name == "matplotlib" or name.startswith("matplotlib.")
+)
+if loaded:
+    raise AssertionError(f"matplotlib loaded by campaign runner: {{loaded}}")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-I", "-c", code],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr

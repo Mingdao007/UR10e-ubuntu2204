@@ -1,14 +1,17 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Strict, atomic campaign evidence store for Step5d-native autotune."""
 
 from __future__ import annotations
 
+import argparse
 import fcntl
 import hashlib
 import json
 import math
 import os
 import stat
+import subprocess
+import sys
 import tempfile
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -1345,3 +1348,64 @@ class CampaignStore:
             if row["evaluation"]["eligible"] is True
             and row["evaluation"]["disposition"] == TrialDisposition.OBJECTIVE.value
         ]
+
+
+def cold_read_resume_history_subprocess(
+    store_root: Path,
+    *,
+    timeout_s: float = 30.0,
+) -> list[dict[str, Any]]:
+    """Verify committed store bytes in a fresh interpreter process."""
+
+    if not isinstance(store_root, Path) or not store_root.is_absolute():
+        raise ValueError("store_root must be an absolute pathlib.Path")
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--cold-read-resume-history",
+            str(store_root),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=timeout_s,
+    )
+    if result.returncode != 0:
+        raise EvidenceIntegrityError(
+            "independent CampaignStore cold-read failed: "
+            + result.stderr.strip()
+        )
+    try:
+        payload = json.loads(result.stdout, parse_constant=_reject_json_constant)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise EvidenceIntegrityError(
+            "independent CampaignStore cold-read returned malformed JSON"
+        ) from exc
+    if not isinstance(payload, list) or any(
+        not isinstance(row, dict) for row in payload
+    ):
+        raise EvidenceIntegrityError(
+            "independent CampaignStore cold-read did not return history rows"
+        )
+    return payload
+
+
+def _main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="step5d-autotune-store")
+    parser.add_argument("--cold-read-resume-history", type=Path)
+    args = parser.parse_args(argv)
+    if args.cold_read_resume_history is None:
+        parser.error("--cold-read-resume-history is required")
+    rows = CampaignStore(
+        args.cold_read_resume_history.expanduser().absolute()
+    ).read_resume_history()
+    sys.stdout.write(
+        json.dumps(rows, allow_nan=False, separators=(",", ":"), sort_keys=True)
+        + "\n"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main())

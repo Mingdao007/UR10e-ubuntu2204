@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import sys
 from pathlib import Path
 
@@ -11,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_autotune_v3_test_matrix as runner  # noqa: E402
+import validate_step5d_autotune_v3_refactor as validator  # noqa: E402
 
 
 def test_small_uses_bounded_xdist_while_medium_remains_serial() -> None:
@@ -69,6 +71,11 @@ def test_installed_runtime_runs_only_after_passing_hermetic_lanes(
         return {"lane": name, "returncode": 0}
 
     monkeypatch.setattr(runner, "_run_lane", fake_run)
+    monkeypatch.setattr(
+        runner,
+        "load_installed_runtime_command",
+        lambda _path: ["/governed/control/bin/python", "-m", "pytest", "-q"],
+    )
     payload = runner.run(
         ["small", "medium"],
         workers=2,
@@ -114,3 +121,55 @@ def test_failed_lane_emits_bounded_log_tail_without_polluting_manifest(
     assert "diagnostic-249" in output
     assert "diagnostic-049" not in output
     assert "successful-secret" not in output
+
+
+def test_authoritative_gate_runs_every_active_file_and_no_obsolete_file() -> None:
+    payload = json.loads(runner.MATRIX.read_text(encoding="utf-8"))
+    gate = payload["authoritative_bridge_gate"]
+    classifications = gate["classified_test_files"]
+    commanded = {
+        token
+        for lane in payload["lanes"].values()
+        for command in lane["commands"]
+        for token in command
+        if token.startswith("tests/")
+    }
+    commanded.update(
+        token
+        for token in payload["local_installed_runtime_gate"]["command"]
+        if token.startswith("tests/")
+    )
+    classified = set().union(*map(set, classifications.values()))
+
+    assert gate["current_tp_program_id"] == "step5d_strict_rnn_autotune_v3_r010"
+    assert gate["unclassified_failure_policy"] == "block"
+    assert set(classifications["active"]).issubset(commanded)
+    assert set(classifications["obsolete"]).isdisjoint(commanded)
+    assert set(classifications["active"]).isdisjoint(classifications["obsolete"])
+    assert validator.step5d_v3_test_paths(ROOT) <= classified
+
+
+def test_authoritative_gate_binds_the_production_vertical_slice() -> None:
+    payload = json.loads(runner.MATRIX.read_text(encoding="utf-8"))
+    gate = payload["authoritative_bridge_gate"]
+
+    assert gate["canonical_launcher"] == "scripts/step5d-autotune-v3.sh bridge"
+    assert gate["status_reanchor"] == "scripts/step5d-autotune-v3.sh status --json"
+    assert gate["acceptance_path"][1] == "release_manifest_v3_verified"
+    assert gate["acceptance_path"][-5:] == [
+        "one_trial_completed",
+        "command_bound_next_arm_grant",
+        "next_arm_acknowledged",
+        "bridge_process_still_alive_at_campaign_outcome",
+        "campaign_terminal_attested_before_bridge_cleanup",
+    ]
+
+    active = set(gate["classified_test_files"]["active"])
+    assert {
+        "tests/test_step5d_autotune_v3_qualification_production.py",
+        "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",
+        "tests/test_step5d_runtime_environment.py",
+        "tests/test_step5d_autotune_live_driver.py",
+        "tests/test_step5d_autotune_v3_bridge_wrapper.py",
+        "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
+    } <= active

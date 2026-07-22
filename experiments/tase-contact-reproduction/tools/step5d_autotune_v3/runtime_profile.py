@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from ur10e_experiment_runtime.candidate_identity import ControlCandidateUid
+
 from .profile import ContractViolation, canonical_json_bytes, contract_sha256, load_contract
 
 
@@ -22,7 +24,7 @@ LAUNCH_SCHEMA = "step5d.autotune-v3/launch-profile-v1"
 OVERLAY_SCHEMA = "step5d.autotune-v3/trial-overlay-v2"
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r005"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r010"
 DEFAULT_LAUNCH_PROFILE = (
     Path(__file__).resolve().parents[2]
     / "config/step5/step5d_autotune_v3_launch_profile.json"
@@ -44,20 +46,10 @@ ORIENTATION_KO_LATTICE = (
 
 
 def control_candidate_uid(candidate: Mapping[str, Any]) -> str:
-    values: dict[str, float] = {}
-    for field in CONTROL_CANDIDATE_FIELDS:
-        value = candidate[field]
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ContractViolation(f"{field} must be numeric")
-        numeric = float(value)
-        if not math.isfinite(numeric):
-            raise ContractViolation(f"{field} must be finite")
-        values[field] = numeric
-    material = {
-        "schema": "step5d.autotune-v3/control-candidate/v2",
-        **values,
-    }
-    return hashlib.sha256(canonical_json_bytes(material)).hexdigest()
+    try:
+        return str(ControlCandidateUid.from_overlay(candidate))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ContractViolation(str(exc)) from exc
 
 
 OVERLAY_FIELDS = (
@@ -77,7 +69,7 @@ _DEFAULT_OVERLAY_INPUT: dict[str, Any] = {
     "force_i_gain": 0.00001,
     "force_damping": 7.0,
     "orientation_ko": 0.4,
-    "execution_profile_id": "nf050-slew050-a050",
+    "execution_profile_id": "nf100-slew050-a050",
     "step5d_preload_filtered_min_n": 7.5,
     "step5d_preload_filtered_max_n": 14.0,
     "step5d_preload_raw_min_n": 7.0,
@@ -218,8 +210,12 @@ def load_launch_profile(
     path: Path = DEFAULT_LAUNCH_PROFILE,
     *,
     contract: Mapping[str, Any] | None = None,
+    expected_tp_program_id: str | None = None,
 ) -> LaunchProfile:
-    payload_contract = dict(contract or load_contract())
+    payload_contract = dict(
+        contract
+        or load_contract(path.with_name("step5d_autotune_v3_control_contract.json"))
+    )
     if path.is_symlink() or not path.is_file():
         raise ContractViolation(f"launch profile must be a real regular file: {path}")
     try:
@@ -248,7 +244,7 @@ def load_launch_profile(
         "schema": LAUNCH_SCHEMA,
         "release_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "tp_program_id": TP_PROGRAM_ID,
+        "tp_program_id": expected_tp_program_id or TP_PROGRAM_ID,
     }
     for key, expected in expected_identity.items():
         if payload[key] != expected:
@@ -427,6 +423,17 @@ def overlay_fingerprint(profile: LaunchProfile, overlay: Mapping[str, Any]) -> s
         "overlay": normalized,
     }
     return hashlib.sha256(canonical_json_bytes(material)).hexdigest()
+
+
+def normalized_overlay_sha256(
+    profile: LaunchProfile,
+    overlay: Mapping[str, Any],
+) -> str:
+    """Digest only the normalized overlay bytes for transport-row binding."""
+
+    return hashlib.sha256(
+        canonical_json_bytes(normalize_trial_overlay(overlay, profile=profile))
+    ).hexdigest()
 
 
 def comparison_profile_fingerprint(

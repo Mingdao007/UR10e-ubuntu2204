@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Prepare one fingerprint-bound Step5d autotune runner launch."""
 
 from __future__ import annotations
@@ -15,7 +15,11 @@ from run_step5d_autotune_campaign import (
     discover_campaign_epochs,
 )
 from step5d_autotune_backend import Step5dV35Backend
-from step5d_autotune_batch_plan import initialize_plan, load_plan
+from step5d_autotune_batch_plan import (
+    initialize_plan,
+    initialize_rolling_plan,
+    load_plan,
+)
 
 
 def _sha256_path(path: Path) -> str:
@@ -86,11 +90,14 @@ def prepare(args: argparse.Namespace) -> dict[str, object]:
     if plan_path.exists():
         load_plan(plan_path, campaign_id=campaign.campaign_id)
     else:
-        initialize_plan(
-            plan_path,
-            campaign_id=campaign.campaign_id,
-            batch_size=getattr(args, "candidate_batch_size", 5),
-        )
+        if getattr(args, "rolling_plan", False):
+            initialize_rolling_plan(plan_path, campaign_id=campaign.campaign_id)
+        else:
+            initialize_plan(
+                plan_path,
+                campaign_id=campaign.campaign_id,
+                batch_size=getattr(args, "candidate_batch_size", 5),
+            )
     return {
         "ok": True,
         "campaign_id": campaign.campaign_id,

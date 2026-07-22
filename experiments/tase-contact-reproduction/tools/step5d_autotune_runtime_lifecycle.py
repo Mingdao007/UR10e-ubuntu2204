@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Production adapter from Step5d V3 trials to the shared batch runtime."""
 
 from __future__ import annotations
@@ -23,11 +23,13 @@ from ur10e_experiment_runtime import (  # noqa: E402
     BatchIdentity,
     BatchJournal,
     BatchRow,
+    DirectReadyReceipt,
     EvidenceSink,
     ExactAckReceipt,
     ReturnReferenceKind,
     SafeClosureReceipt,
     build_trial_brief,
+    build_direct_trial_brief,
     canonical_sha256,
     return_reference,
 )
@@ -55,9 +57,19 @@ from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
     stage_autotune_adapter_fingerprint,
 )
 
-from step5d_autotune_batch_plan import CandidateBatchPlan  # noqa: E402
+from step5d_autotune_batch_plan import (  # noqa: E402
+    CandidateBatchPlan,
+    RuntimePlanRow,
+    SCHEMA_VERSION_ROLLING_V2,
+)
+from step5d_autotune_r008_policy import (  # noqa: E402
+    ControlCandidateUid,
+    OccurrenceUid,
+    TransportCandidateUid,
+)
 from step5d_autotune_contract import (  # noqa: E402
     CaptureManifest,
+    DirectReadyClosureEvidence,
     Evaluation,
     ExecutionProfile,
     ForceCandidate,
@@ -234,6 +246,144 @@ class PostAckControllerReadback:
         return canonical_sha256(self.document())
 
 
+@dataclass(frozen=True)
+class TerminalReadyControllerReadback:
+    """Exact direct-ready proof from the sealed production capture."""
+
+    batch_uid: str
+    row_index: int
+    trial_uid: str
+    return_reference_uid: str
+    return_reference: ReturnReferenceKind
+    arm_command_seq: int
+    consumed_command_seq: int
+    tp_state: str
+    batch_row_echo: int
+    return_kind_echo: str
+    return_guard_mask: int
+    position_error_m: float
+    orientation_error_rad: float
+    tcp_linear_speed_m_s: float
+    tcp_angular_speed_rad_s: float
+    qd_max_rad_s: float
+    return_phase_echo: float
+    return_segment_id: int
+    return_current_angular_speed_rad_s: float
+    return_current_angular_acceleration_rad_s2: float
+    return_max_angular_speed_rad_s: float
+    return_max_angular_acceleration_rad_s2: float
+    return_max_sample_gap_s: float
+    safety_mode: str
+    safety_guards: Mapping[str, bool]
+    transcript_sha256: str
+    protocol: str = "v3_direct_arm_v1"
+    logical_batch_sequence: int = 0
+    host_joint_error_max_rad: float = 0.0
+
+    def __post_init__(self) -> None:
+        for name in (
+            "batch_uid",
+            "trial_uid",
+            "return_reference_uid",
+            "transcript_sha256",
+        ):
+            _sha256(name, getattr(self, name))
+        rolling = self.protocol == "v3_full_home_rolling_arm_v1"
+        if self.protocol not in {"v3_direct_arm_v1", "v3_full_home_rolling_arm_v1"}:
+            raise ValueError("terminal-ready protocol is unsupported")
+        if rolling and self.logical_batch_sequence <= 0:
+            raise ValueError("rolling terminal-ready proof lacks logical batch identity")
+        expected_reference = (
+            ReturnReferenceKind.CAMPAIGN_HOME
+            if rolling or self.row_index == 10
+            else ReturnReferenceKind.NEAR_READY
+        )
+        expected_state = "READY_HOME_NEXT" if rolling else (
+            "READY_HOME_CLOSED"
+            if expected_reference is ReturnReferenceKind.CAMPAIGN_HOME
+            else "READY_NEAR"
+        )
+        if self.return_reference is not expected_reference or self.tp_state != expected_state:
+            raise ValueError("terminal-ready reference/state differs from batch row")
+        if self.batch_row_echo != self.row_index or self.return_kind_echo != self.return_reference.value:
+            raise ValueError("terminal-ready return identity echo differs")
+        if self.return_guard_mask != 0x7F:
+            raise ValueError("terminal-ready guard mask is incomplete")
+        if self.consumed_command_seq != self.arm_command_seq:
+            raise ValueError("terminal-ready readback does not retain exact ARM sequence")
+        if self.safety_mode != "NORMAL":
+            raise ValueError("terminal-ready controller safety mode is not NORMAL")
+        limits = {
+            "position_error_m": 0.003,
+            "orientation_error_rad": 0.05,
+            "tcp_linear_speed_m_s": 0.001,
+            "tcp_angular_speed_rad_s": 0.01,
+            "qd_max_rad_s": 0.01,
+            "host_joint_error_max_rad": 0.01,
+            "return_current_angular_speed_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+            "return_current_angular_acceleration_rad_s2": RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+            "return_max_angular_speed_rad_s": RETURN_ANGULAR_SPEED_GUARD_RAD_S,
+            "return_max_angular_acceleration_rad_s2": RETURN_ANGULAR_ACCELERATION_GUARD_RAD_S2,
+            "return_max_sample_gap_s": RETURN_CONTROLLER_MAX_SAMPLE_GAP_S,
+        }
+        for name, maximum in limits.items():
+            value = float(getattr(self, name))
+            if not math.isfinite(value) or value < 0.0 or value > maximum:
+                raise ValueError(f"terminal-ready {name} exceeds the frozen limit")
+        if not math.isclose(self.return_phase_echo, 40.3, abs_tol=1e-9):
+            raise ValueError("terminal-ready readback lacks completed return phase")
+        if self.return_segment_id != 3 or self.return_max_sample_gap_s <= 0.0:
+            raise ValueError("terminal-ready return envelope is incomplete")
+        if set(self.safety_guards) != _RETURN_GUARDS or not all(
+            type(value) is bool and value for value in self.safety_guards.values()
+        ):
+            raise ValueError("terminal-ready safety guards are incomplete or failed")
+
+    def document(self) -> dict[str, Any]:
+        document = {
+            "schema": (
+                "step5d.autotune-v3/terminal-ready-controller-readback-v2"
+                if self.protocol == "v3_full_home_rolling_arm_v1"
+                else "step5d.autotune-v3/terminal-ready-controller-readback-v1"
+            ),
+            "protocol": self.protocol,
+            "batch_uid": self.batch_uid,
+            "row_index": self.row_index,
+            "trial_uid": self.trial_uid,
+            "return_reference_uid": self.return_reference_uid,
+            "return_reference": self.return_reference.value,
+            "arm_command_seq": self.arm_command_seq,
+            "consumed_command_seq": self.consumed_command_seq,
+            "tp_state": self.tp_state,
+            "batch_row_echo": self.batch_row_echo,
+            "return_kind_echo": self.return_kind_echo,
+            "return_guard_mask": self.return_guard_mask,
+            "position_error_m": self.position_error_m,
+            "orientation_error_rad": self.orientation_error_rad,
+            "tcp_linear_speed_m_s": self.tcp_linear_speed_m_s,
+            "tcp_angular_speed_rad_s": self.tcp_angular_speed_rad_s,
+            "qd_max_rad_s": self.qd_max_rad_s,
+            "return_phase_echo": self.return_phase_echo,
+            "return_segment_id": self.return_segment_id,
+            "return_current_angular_speed_rad_s": self.return_current_angular_speed_rad_s,
+            "return_current_angular_acceleration_rad_s2": self.return_current_angular_acceleration_rad_s2,
+            "return_max_angular_speed_rad_s": self.return_max_angular_speed_rad_s,
+            "return_max_angular_acceleration_rad_s2": self.return_max_angular_acceleration_rad_s2,
+            "return_max_sample_gap_s": self.return_max_sample_gap_s,
+            "safety_mode": self.safety_mode,
+            "safety_guards": dict(sorted(self.safety_guards.items())),
+            "transcript_sha256": self.transcript_sha256,
+        }
+        if self.protocol == "v3_full_home_rolling_arm_v1":
+            document["logical_batch_sequence"] = self.logical_batch_sequence
+            document["host_joint_error_max_rad"] = self.host_joint_error_max_rad
+        return document
+
+    @property
+    def controller_readback_sha256(self) -> str:
+        return canonical_sha256(self.document())
+
+
 def _post_ack_readback_relative_path(
     *, row_index: int, trial_uid: str, controller_readback_sha256: str
 ) -> Path:
@@ -352,6 +502,112 @@ def _load_post_ack_readback(
     return readback
 
 
+def _terminal_ready_readback_relative_path(
+    *, row_index: int, trial_uid: str, controller_readback_sha256: str
+) -> Path:
+    _sha256("trial_uid", trial_uid)
+    _sha256("controller_readback_sha256", controller_readback_sha256)
+    if type(row_index) is not int or not 1 <= row_index <= 10:
+        raise ValueError("terminal-ready row index must be in [1,10]")
+    return Path("terminal_ready_controller_readbacks") / (
+        f"row-{row_index:02d}-{trial_uid}-{controller_readback_sha256}.json"
+    )
+
+
+def _persist_terminal_ready_readback(
+    *, campaign_root: Path, readback: TerminalReadyControllerReadback
+) -> tuple[str, Path]:
+    root = campaign_root.resolve()
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("campaign root is not a safe directory")
+    relative = _terminal_ready_readback_relative_path(
+        row_index=readback.row_index,
+        trial_uid=readback.trial_uid,
+        controller_readback_sha256=readback.controller_readback_sha256,
+    )
+    artifact_root = root / relative.parent
+    artifact_root.mkdir(mode=0o700, exist_ok=True)
+    if artifact_root.is_symlink() or not artifact_root.is_dir():
+        raise ValueError("terminal-ready readback root is not a safe directory")
+    path = root / relative
+    payload = canonical_json_bytes(readback.document()) + b"\n"
+    try:
+        descriptor = os.open(
+            path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            0o444,
+        )
+    except FileExistsError:
+        if path.is_symlink() or not path.is_file() or path.read_bytes() != payload:
+            raise FileExistsError("terminal-ready readback identity collision")
+    else:
+        try:
+            with os.fdopen(descriptor, "wb", closefd=False) as stream:
+                stream.write(payload)
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(descriptor)
+        _fsync_directory(artifact_root)
+    return relative.as_posix(), path.resolve()
+
+
+def _load_terminal_ready_readback(
+    *, campaign_root: Path, completion: DirectReadyReceipt
+) -> TerminalReadyControllerReadback:
+    expected_relative = _terminal_ready_readback_relative_path(
+        row_index=completion.row_index,
+        trial_uid=completion.trial_uid,
+        controller_readback_sha256=completion.controller_readback_sha256,
+    )
+    if completion.controller_readback_path != expected_relative.as_posix():
+        raise ValueError("terminal-ready readback path differs")
+    path = campaign_root.resolve() / expected_relative
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("terminal-ready readback artifact is missing")
+    encoded = path.read_bytes()
+    document = strict_json_loads(encoded)
+    if not isinstance(document, Mapping):
+        raise ValueError("terminal-ready readback is not an object")
+    payload = dict(document)
+    schema = payload.pop("schema", None)
+    protocol = payload.pop("protocol", None)
+    if (schema, protocol) not in {
+        (
+            "step5d.autotune-v3/terminal-ready-controller-readback-v1",
+            "v3_direct_arm_v1",
+        ),
+        (
+            "step5d.autotune-v3/terminal-ready-controller-readback-v2",
+            "v3_full_home_rolling_arm_v1",
+        ),
+    }:
+        raise ValueError("terminal-ready readback schema differs")
+    try:
+        payload["protocol"] = protocol
+        payload["return_reference"] = ReturnReferenceKind(payload["return_reference"])
+        readback = TerminalReadyControllerReadback(**payload)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("terminal-ready readback fields differ") from exc
+    if encoded != canonical_json_bytes(readback.document()) + b"\n":
+        raise ValueError("terminal-ready readback encoding differs")
+    if any(
+        (
+            readback.controller_readback_sha256
+            != completion.controller_readback_sha256,
+            readback.batch_uid != completion.batch_uid,
+            readback.row_index != completion.row_index,
+            readback.trial_uid != completion.trial_uid,
+            readback.return_reference_uid != completion.return_reference_uid,
+            readback.arm_command_seq != completion.arm_command_seq,
+            readback.consumed_command_seq != completion.consumed_command_seq,
+            readback.tp_state != completion.tp_state,
+        )
+    ):
+        raise ValueError("terminal-ready readback identity differs")
+    return readback
+
+
 @dataclass(frozen=True)
 class TrialBriefAdmissionReceipt:
     trial_uid: str
@@ -373,6 +629,27 @@ class TrialBriefAdmissionReceipt:
             raise ValueError("admission ACK sequence must be positive")
         if type(self.optimizer_eligible) is not bool:
             raise ValueError("admission optimizer_eligible must be boolean")
+
+
+@dataclass(frozen=True)
+class DirectTrialBriefAdmissionReceipt:
+    trial_uid: str
+    arm_command_seq: int
+    publication_uid: str
+    document_sha256: str
+    path: Path
+    file_sha256: str
+    optimizer_eligible: bool
+
+    def __post_init__(self) -> None:
+        for name in ("trial_uid", "publication_uid", "document_sha256", "file_sha256"):
+            _sha256(name, getattr(self, name))
+        if not self.path.is_absolute() or not self.path.is_file() or self.path.is_symlink():
+            raise ValueError("direct admission requires absolute regular TrialBrief bytes")
+        if self.arm_command_seq < 1:
+            raise ValueError("direct admission ARM sequence must be positive")
+        if type(self.optimizer_eligible) is not bool:
+            raise ValueError("direct admission optimizer_eligible must be boolean")
 
 
 class PreAckTypedClosureCollector:
@@ -975,6 +1252,186 @@ class PostAckClosureCollector:
         )
 
 
+def direct_ready_closure_from_sealed_capture(
+    *,
+    context: "BatchAttemptContext",
+    trial: TrialSpec,
+    expected_arm: HostPacket,
+    campaign_home_reference: CampaignHomeReference,
+    producer: Any,
+) -> tuple[DirectReadyClosureEvidence, TerminalReadyControllerReadback, int]:
+    """Read the fsync-sealed production CSV and derive direct-ARM lifecycle proof."""
+
+    campaign_home_reference.verify_trial(trial)
+    rows, _, _ = producer._capture_rows()
+    row = rows[-1]
+    number = PostAckClosureCollector._number
+    integer = PostAckClosureCollector._integer
+    vector = PostAckClosureCollector._vector
+    pose = vector(row, "ur_actual_TCP_pose")
+    speed = vector(row, "ur_actual_TCP_speed")
+    joints = vector(row, "ur_actual_q")
+    qd = vector(row, "ur_actual_qd")
+    rolling = expected_arm.logical_batch_sequence > 0
+    expected_state = 78 if rolling else (77 if context.row_index == 10 else 76)
+    expected_kind = 2 if rolling or context.row_index == 10 else 1
+    terminal_reason = integer(row, "ur_output_int_register_28")
+    identity_ok = all(
+        (
+            integer(row, "ur_output_int_register_24")
+            == trial.campaign.campaign_epoch,
+            integer(row, "ur_output_int_register_25") == trial.trial_id,
+            integer(row, "ur_output_int_register_26") == expected_state,
+            integer(row, "ur_output_int_register_27") == trial.candidate_token,
+            terminal_reason == 1,
+            integer(row, "ur_output_int_register_29")
+            == expected_arm.execution_profile_id,
+            integer(row, "ur_output_int_register_30") == expected_arm.command_seq,
+            integer(row, "ur_output_int_register_31") == context.row_index,
+            integer(row, "ur_output_int_register_32") == expected_kind,
+            integer(row, "ur_output_int_register_33") == 0x7F,
+            not rolling
+            or integer(row, "ur_output_int_register_34")
+            == expected_arm.logical_batch_sequence,
+            integer(row, "ur_safety_mode") == 1,
+        )
+    )
+    if not identity_ok:
+        raise ClosureNotReady("sealed capture lacks exact direct-ready identity")
+    host_position_error = PostAckClosureCollector._norm(
+        tuple(
+            pose[index] - context.reference.pose_xyz_m[index]
+            for index in range(3)
+        )
+    )
+    host_orientation_error = PostAckClosureCollector._orientation_error(
+        context.reference.pose_rotvec_rad,
+        pose[3:],
+    )
+    host_linear_speed = PostAckClosureCollector._norm(speed[:3])
+    host_angular_speed = PostAckClosureCollector._norm(speed[3:])
+    host_qd_max = max(abs(value) for value in qd)
+    host_joint_error_max = max(
+        abs(joints[index] - campaign_home_reference.home_q[index])
+        for index in range(6)
+    )
+    guards = {
+        "force": abs(number(row, "normal_force_n")) <= 60.0
+        and number(row, "force_norm_n") <= 100.0,
+        "torque": number(row, "torque_norm_nm") <= 3.0,
+        "joints": all(abs(value) <= 6.283185307 for value in joints)
+        and (not rolling or host_joint_error_max <= 0.010),
+        "sensor_freshness": number(row, "sensor_age_s") <= 0.1
+        and number(row, "rtde_feedback_age_s") <= 0.05,
+        "heartbeat": True,
+        "contact_loss": terminal_reason > 0,
+        "route_workspace": 0.350 <= pose[0] <= 0.650
+        and -0.050 <= pose[1] <= 0.250
+        and 0.000 <= pose[2] <= 0.350,
+    }
+    transcript_sha256 = canonical_sha256(
+        {
+            "t_monotonic_s": number(row, "t_monotonic_s"),
+            "ur_timestamp": number(row, "ur_timestamp"),
+            "identity": [
+                integer(row, f"ur_output_int_register_{index}")
+                for index in range(24, 35 if rolling else 34)
+            ],
+            "pose": list(pose),
+            "speed": list(speed),
+            "qd": list(qd),
+        }
+    )
+    readback = TerminalReadyControllerReadback(
+        batch_uid=context.identity.batch_uid,
+        row_index=context.row_index,
+        trial_uid=trial.trial_uid,
+        return_reference_uid=context.reference.reference_uid,
+        return_reference=context.reference.kind,
+        arm_command_seq=expected_arm.command_seq,
+        consumed_command_seq=expected_arm.command_seq,
+        tp_state=(
+            "READY_HOME_NEXT"
+            if rolling
+            else "READY_HOME_CLOSED" if context.row_index == 10 else "READY_NEAR"
+        ),
+        batch_row_echo=context.row_index,
+        return_kind_echo=context.reference.kind.value,
+        return_guard_mask=0x7F,
+        position_error_m=host_position_error,
+        orientation_error_rad=host_orientation_error,
+        tcp_linear_speed_m_s=host_linear_speed,
+        tcp_angular_speed_rad_s=host_angular_speed,
+        qd_max_rad_s=host_qd_max,
+        protocol=(
+            "v3_full_home_rolling_arm_v1" if rolling else "v3_direct_arm_v1"
+        ),
+        logical_batch_sequence=expected_arm.logical_batch_sequence,
+        host_joint_error_max_rad=host_joint_error_max,
+        return_phase_echo=number(row, "ur_output_double_register_35"),
+        return_segment_id=int(round(number(row, "ur_output_double_register_39"))),
+        return_current_angular_speed_rad_s=number(
+            row, "ur_output_double_register_40"
+        ),
+        return_current_angular_acceleration_rad_s2=number(
+            row, "ur_output_double_register_41"
+        ),
+        return_max_angular_speed_rad_s=number(
+            row, "ur_output_double_register_42"
+        ),
+        return_max_angular_acceleration_rad_s2=number(
+            row, "ur_output_double_register_43"
+        ),
+        return_max_sample_gap_s=number(row, "ur_output_double_register_44"),
+        safety_mode="NORMAL",
+        safety_guards=guards,
+        transcript_sha256=transcript_sha256,
+    )
+    closure = DirectReadyClosureEvidence(
+        return_reference_uid=context.reference.reference_uid,
+        return_reference_kind=context.reference.kind.value,
+        batch_row_index=context.row_index,
+        tp_position_error_m=number(row, "ur_output_double_register_36"),
+        tp_orientation_error_rad=number(row, "ur_output_double_register_37"),
+        tp_qd_max_rad_s=number(row, "ur_output_double_register_38"),
+        return_phase_echo=readback.return_phase_echo,
+        return_segment_id=readback.return_segment_id,
+        return_current_angular_speed_rad_s=(
+            readback.return_current_angular_speed_rad_s
+        ),
+        return_current_angular_acceleration_rad_s2=(
+            readback.return_current_angular_acceleration_rad_s2
+        ),
+        return_max_angular_speed_rad_s=readback.return_max_angular_speed_rad_s,
+        return_max_angular_acceleration_rad_s2=(
+            readback.return_max_angular_acceleration_rad_s2
+        ),
+        return_max_sample_gap_s=readback.return_max_sample_gap_s,
+        host_position_error_m=host_position_error,
+        host_orientation_error_rad=host_orientation_error,
+        host_tcp_linear_speed_m_s=host_linear_speed,
+        host_tcp_angular_speed_rad_s=host_angular_speed,
+        host_qd_max_rad_s=host_qd_max,
+        return_guard_mask=0x7F,
+        safety_guards=guards,
+        host_safety_mode="NORMAL",
+        host_dwell_s=0.0,
+        trial_token_match=True,
+        capture_hashes_complete=True,
+        terminal_manifest_complete=True,
+        fingerprint_closed=True,
+        protocol=(
+            "v3_full_home_rolling_arm_v1" if rolling else "v3_direct_arm_v1"
+        ),
+        logical_batch_sequence=expected_arm.logical_batch_sequence,
+    )
+    if not closure.returned_safe:
+        raise ClosureNotReady(
+            "sealed direct-ready closure failed: " + ",".join(closure.failures())
+        )
+    return closure, readback, terminal_reason
+
+
 @dataclass(frozen=True)
 class BatchAttemptContext:
     identity: BatchIdentity
@@ -1119,6 +1576,118 @@ class BatchAttemptContext:
             optimizer_eligible=published["optimizer_eligible"],
         )
 
+    def complete_terminal_ready(
+        self,
+        *,
+        trial: TrialSpec,
+        arm_packet: HostPacket,
+        store_receipt: ImmutableBundleStoreReceipt,
+        manifest: CaptureManifest,
+        evaluation: Evaluation,
+        readback: TerminalReadyControllerReadback,
+    ) -> DirectTrialBriefAdmissionReceipt:
+        """Commit one r006 row without creating or consuming an ACK packet."""
+
+        if any(
+            (
+                readback.batch_uid != self.identity.batch_uid,
+                readback.row_index != self.row_index,
+                readback.trial_uid != trial.trial_uid,
+                readback.return_reference_uid != self.reference.reference_uid,
+                readback.arm_command_seq != arm_packet.command_seq,
+                readback.consumed_command_seq != arm_packet.command_seq,
+                store_receipt.trial_uid != trial.trial_uid,
+            )
+        ):
+            raise ValueError("terminal-ready evidence differs from active batch attempt")
+        campaign_root = self.trial_brief_root.parent.resolve()
+        readback_relative_path, _ = _persist_terminal_ready_readback(
+            campaign_root=campaign_root,
+            readback=readback,
+        )
+        completion = DirectReadyReceipt(
+            batch_uid=self.identity.batch_uid,
+            row_index=self.row_index,
+            trial_uid=trial.trial_uid,
+            control_candidate_uid=self.expected_row.control_candidate_uid,
+            immutable_bundle_sha256=store_receipt.bundle_sha256,
+            return_reference_uid=self.reference.reference_uid,
+            controller_readback_sha256=readback.controller_readback_sha256,
+            arm_command_seq=arm_packet.command_seq,
+            consumed_command_seq=readback.consumed_command_seq,
+            tp_state=readback.tp_state,
+            controller_readback_path=readback_relative_path,
+            protocol=(
+                self.identity.protocol
+                if self.identity.protocol == "v3_full_home_rolling_arm_v1"
+                else "v3_direct_arm_v1"
+            ),
+            logical_batch_sequence=self.identity.logical_batch_sequence,
+            occurrence_uid=self.expected_row.occurrence_uid,
+            transport_candidate_uid=self.expected_row.transport_candidate_uid,
+        )
+        verified_readback = _load_terminal_ready_readback(
+            campaign_root=campaign_root,
+            completion=completion,
+        )
+        self.journal.record_direct_ready(completion)
+        outcome_class, metric_role = _classify(evaluation)
+        artifact_digests = {
+            "bundle": store_receipt.bundle_sha256,
+            "capture_csv": manifest.csv_sha256,
+            "capture_metadata": manifest.metadata_sha256,
+            "terminal_manifest": manifest.terminal_manifest_sha256,
+            "terminal_ready_controller_readback": (
+                verified_readback.controller_readback_sha256
+            ),
+        }
+        fingerprint_verified = bool(
+            manifest.fingerprint_closed
+            and manifest.source_fingerprint_pre == trial.source_fingerprint
+            and manifest.source_fingerprint_post == trial.source_fingerprint
+            and manifest.config_fingerprint_pre == trial.config_fingerprint
+            and manifest.config_fingerprint_post == trial.config_fingerprint
+        )
+        brief = build_direct_trial_brief(
+            batch=self.identity,
+            row_index=self.row_index,
+            trial_uid=trial.trial_uid,
+            immutable_bundle_sha256=store_receipt.bundle_sha256,
+            completion=completion,
+            outcome_class=outcome_class,
+            metric_role=metric_role,
+            objective=(
+                evaluation.objective_mae_n
+                if metric_role is MetricRole.TRAINABLE_OBJECTIVE
+                else None
+            ),
+            oracle_status=(
+                OracleStatus.CREDIBLE
+                if manifest.rnn_oracle_aligned
+                else OracleStatus.FAILED
+            ),
+            observer_status=(
+                ObserverStatus.COMPLETE
+                if manifest.cadence_ok and manifest.feedback_fresh
+                else ObserverStatus.INCOMPLETE
+            ),
+            artifact_digests=artifact_digests,
+            fingerprint_verified=fingerprint_verified,
+        )
+        path = EvidenceSink(self.trial_brief_root, self.journal).publish_trial_brief(
+            brief
+        )
+        published = strict_json_loads(path.read_bytes())
+        return DirectTrialBriefAdmissionReceipt(
+            trial_uid=trial.trial_uid,
+            arm_command_seq=arm_packet.command_seq,
+            publication_uid=brief.publication_uid,
+            document_sha256=canonical_sha256(published),
+            path=path,
+            file_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+            optimizer_eligible=published["optimizer_eligible"],
+        )
+
 
 def _classify(
     evaluation: Evaluation,
@@ -1181,6 +1750,24 @@ def _ack_from_document(document: Mapping[str, Any] | None) -> ExactAckReceipt:
     return ExactAckReceipt(**payload)
 
 
+def _direct_ready_from_document(
+    document: Mapping[str, Any] | None,
+) -> DirectReadyReceipt:
+    if not isinstance(document, Mapping):
+        raise ValueError("runtime batch lacks a direct-ready receipt")
+    payload = dict(document)
+    schema = payload.pop("schema", None)
+    if schema not in {
+        "ur10e.direct_ready_receipt/v1",
+        "ur10e.direct_ready_receipt/v2",
+    }:
+        raise ValueError("runtime batch direct-ready receipt schema differs")
+    if schema == "ur10e.direct_ready_receipt/v1":
+        payload.setdefault("protocol", "v3_direct_arm_v1")
+        payload.setdefault("logical_batch_sequence", 0)
+    return DirectReadyReceipt(**payload)
+
+
 def _closure_from_document(
     document: Mapping[str, Any] | None,
 ) -> SafeClosureReceipt:
@@ -1196,7 +1783,9 @@ def _closure_from_document(
 def recover_runtime_batch_trial_briefs(
     *,
     campaign_root: Path,
-) -> dict[str, TrialBriefAdmissionReceipt]:
+) -> dict[
+    str, TrialBriefAdmissionReceipt | DirectTrialBriefAdmissionReceipt
+]:
     """Idempotently close the safe-closure -> TrialBrief crash cut."""
 
     batches_root = campaign_root.resolve() / "runtime_batches"
@@ -1217,6 +1806,89 @@ def recover_runtime_batch_trial_briefs(
     state = journal.state()
     for row_index in state.unpublished_trial_brief_row_indices:
         row = state.rows[row_index - 1]
+        if row.fate is BatchFate.DIRECT_COMPLETED:
+            completion = _direct_ready_from_document(
+                row.direct_ready_receipt_document
+            )
+            readback = _load_terminal_ready_readback(
+                campaign_root=campaign_root,
+                completion=completion,
+            )
+            if row.trial_uid is None or row.immutable_bundle_sha256 is None:
+                raise ValueError("direct-completed row lacks bundle identity")
+            bundle_path = (
+                campaign_root.resolve()
+                / "store"
+                / "trials"
+                / row.trial_uid
+                / "immutable_trial_bundle.json"
+            )
+            if (
+                bundle_path.is_symlink()
+                or not bundle_path.is_file()
+                or hashlib.sha256(bundle_path.read_bytes()).hexdigest()
+                != row.immutable_bundle_sha256
+            ):
+                raise ValueError("runtime batch recovery bundle differs")
+            bundle = strict_json_loads(bundle_path.read_bytes())
+            if not isinstance(bundle, Mapping):
+                raise ValueError("runtime batch recovery bundle is not an object")
+            trial_payload = bundle.get("trial")
+            capture_payload = bundle.get("capture")
+            if not isinstance(trial_payload, Mapping) or not isinstance(
+                capture_payload, Mapping
+            ):
+                raise ValueError("runtime batch recovery bundle fields differ")
+            manifest = CaptureManifest(**dict(capture_payload))
+            evaluation = _evaluation_from_bundle(bundle.get("evaluation"))
+            outcome_class, metric_role = _classify(evaluation)
+            brief = build_direct_trial_brief(
+                batch=identity,
+                row_index=row_index,
+                trial_uid=row.trial_uid,
+                immutable_bundle_sha256=row.immutable_bundle_sha256,
+                completion=completion,
+                outcome_class=outcome_class,
+                metric_role=metric_role,
+                objective=(
+                    evaluation.objective_mae_n
+                    if metric_role is MetricRole.TRAINABLE_OBJECTIVE
+                    else None
+                ),
+                oracle_status=(
+                    OracleStatus.CREDIBLE
+                    if manifest.rnn_oracle_aligned
+                    else OracleStatus.FAILED
+                ),
+                observer_status=(
+                    ObserverStatus.COMPLETE
+                    if manifest.cadence_ok and manifest.feedback_fresh
+                    else ObserverStatus.INCOMPLETE
+                ),
+                artifact_digests={
+                    "bundle": row.immutable_bundle_sha256,
+                    "capture_csv": manifest.csv_sha256,
+                    "capture_metadata": manifest.metadata_sha256,
+                    "terminal_manifest": manifest.terminal_manifest_sha256,
+                    "terminal_ready_controller_readback": (
+                        readback.controller_readback_sha256
+                    ),
+                },
+                fingerprint_verified=bool(
+                    manifest.fingerprint_closed
+                    and manifest.source_fingerprint_pre
+                    == trial_payload.get("source_fingerprint")
+                    and manifest.source_fingerprint_post
+                    == trial_payload.get("source_fingerprint")
+                    and manifest.config_fingerprint_pre
+                    == trial_payload.get("config_fingerprint")
+                    and manifest.config_fingerprint_post
+                    == trial_payload.get("config_fingerprint")
+                ),
+            )
+            EvidenceSink(brief_root, journal).publish_trial_brief(brief)
+            state = journal.state()
+            continue
         ack = _ack_from_document(row.ack_receipt_document)
         closure = _closure_from_document(row.closure_receipt_document)
         readback = _load_post_ack_readback(campaign_root=campaign_root, ack=ack)
@@ -1298,9 +1970,46 @@ def recover_runtime_batch_trial_briefs(
         EvidenceSink(brief_root, journal).publish_trial_brief(brief)
         state = journal.state()
 
-    receipts: dict[str, TrialBriefAdmissionReceipt] = {}
+    receipts: dict[
+        str, TrialBriefAdmissionReceipt | DirectTrialBriefAdmissionReceipt
+    ] = {}
     for row in state.rows:
-        if row.fate is not BatchFate.ACK_COMPLETED:
+        if row.fate not in {BatchFate.ACK_COMPLETED, BatchFate.DIRECT_COMPLETED}:
+            continue
+        if row.fate is BatchFate.DIRECT_COMPLETED:
+            completion = _direct_ready_from_document(
+                row.direct_ready_receipt_document
+            )
+            if any(
+                value is None
+                for value in (
+                    row.trial_uid,
+                    row.trial_brief_publication_uid,
+                    row.trial_brief_document_sha256,
+                    row.optimizer_eligible,
+                )
+            ):
+                raise ValueError("direct-completed row lacks TrialBrief identity")
+            path = brief_root / f"{row.trial_brief_publication_uid}.trial-brief.json"
+            encoded = path.read_bytes()
+            published = strict_json_loads(encoded)
+            if (
+                not isinstance(published, Mapping)
+                or published.get("completion_uid") != completion.completion_uid
+            ):
+                raise ValueError("direct TrialBrief completion digest differs")
+            receipt = DirectTrialBriefAdmissionReceipt(
+                trial_uid=str(row.trial_uid),
+                arm_command_seq=completion.arm_command_seq,
+                publication_uid=str(row.trial_brief_publication_uid),
+                document_sha256=canonical_sha256(published),
+                path=path.resolve(),
+                file_sha256=hashlib.sha256(encoded).hexdigest(),
+                optimizer_eligible=bool(row.optimizer_eligible),
+            )
+            if receipt.document_sha256 != row.trial_brief_document_sha256:
+                raise ValueError("direct TrialBrief document digest differs")
+            receipts[receipt.trial_uid] = receipt
             continue
         ack = _ack_from_document(row.ack_receipt_document)
         readback = _load_post_ack_readback(campaign_root=campaign_root, ack=ack)
@@ -1344,6 +2053,7 @@ def prepare_batch_attempt_context(
     *,
     plan: CandidateBatchPlan,
     selected_candidate: ForceCandidate,
+    selected_plan_row: RuntimePlanRow | None = None,
     profile: ExecutionProfile,
     overlay_resolver: Callable[[ForceCandidate], Mapping[str, Any]],
     campaign_uid: str,
@@ -1362,21 +2072,98 @@ def prepare_batch_attempt_context(
     _sha256("authorization_ref_sha256", authorization_ref_sha256)
     if stopping_bound_fingerprint is not None:
         _sha256("stopping_bound_fingerprint", stopping_bound_fingerprint)
-    matches = [
-        (batch_index, row_index)
-        for batch_index, batch in enumerate(plan.batches, start=1)
-        for row_index, candidate in enumerate(batch, start=1)
-        if candidate.candidate_uid == selected_candidate.candidate_uid
-    ]
-    if len(matches) != 1:
-        raise ValueError("selected candidate must occur once in the exact batch plan")
-    batch_index, row_index = matches[0]
+    rolling = any(plan.occurrences)
+    allow_legacy_identity = (
+        plan.payload.get("schema_version") != SCHEMA_VERSION_ROLLING_V2
+    )
+    if rolling:
+        batch_index = 0
+        row_index = 0
+        batches_root = campaign_root.resolve() / "runtime_batches"
+        existing: dict[int, BatchJournal] = {}
+        if batches_root.exists():
+            if batches_root.is_symlink() or not batches_root.is_dir():
+                raise ValueError("runtime batch root is not a safe directory")
+            for root in batches_root.iterdir():
+                if root.is_symlink() or not root.is_dir():
+                    raise ValueError("runtime batch root contains an unsafe entry")
+                journal = BatchJournal.open(root)
+                identity = journal.identity()
+                if identity.protocol != "v3_full_home_rolling_arm_v1":
+                    raise ValueError("rolling campaign contains a non-rolling BatchIdentity")
+                if identity.logical_batch_sequence in existing:
+                    raise ValueError("rolling campaign repeats a logical batch sequence")
+                existing[identity.logical_batch_sequence] = journal
+        for sequence, batch in enumerate(plan.batches, start=1):
+            journal = existing.get(sequence)
+            next_row = 1 if journal is None else journal.state().next_row_index
+            if next_row is None:
+                continue
+            occurrence = plan.occurrences[sequence - 1][next_row - 1]
+            expected_row = RuntimePlanRow(
+                logical_batch_sequence=sequence,
+                row_index=next_row,
+                plan_revision=plan.batch_revisions[sequence - 1],
+                occurrence_uid=OccurrenceUid.parse(
+                    occurrence.occurrence_uid, allow_legacy=allow_legacy_identity
+                ),
+                transport_candidate_uid=TransportCandidateUid.parse(
+                    occurrence.transport_candidate_uid,
+                    allow_legacy=allow_legacy_identity,
+                ),
+                control_candidate_uid=ControlCandidateUid.parse(
+                    occurrence.control_candidate_uid,
+                    allow_legacy=allow_legacy_identity,
+                ),
+                candidate=occurrence.candidate,
+            )
+            if selected_plan_row is None or selected_plan_row != expected_row:
+                raise ValueError("selected runtime plan row is not the next occurrence")
+            if expected_row.candidate != selected_candidate:
+                raise ValueError("selected transport row differs from its control candidate")
+            batch_index, row_index = sequence, next_row
+            break
+        if batch_index == 0:
+            raise ValueError("rolling candidate plan has no incomplete occurrence")
+    else:
+        matches = [
+            (batch_index, row_index)
+            for batch_index, batch in enumerate(plan.batches, start=1)
+            for row_index, candidate in enumerate(batch, start=1)
+            if candidate.candidate_uid == selected_candidate.candidate_uid
+        ]
+        if len(matches) != 1:
+            raise ValueError("selected candidate must occur once in the exact batch plan")
+        batch_index, row_index = matches[0]
     candidates = plan.batches[batch_index - 1]
-    if len(candidates) != 10:
-        raise ValueError("runtime BatchIdentity requires an exact 10-row batch")
+    expected_size = 5 if rolling else 10
+    if len(candidates) != expected_size:
+        raise ValueError(f"runtime BatchIdentity requires an exact {expected_size}-row batch")
     rows = []
     for index, candidate in enumerate(candidates, start=1):
-        overlay = dict(overlay_resolver(candidate))
+        occurrence = plan.occurrences[batch_index - 1][index - 1] if rolling else None
+        plan_row = (
+            RuntimePlanRow(
+                logical_batch_sequence=batch_index,
+                row_index=index,
+                plan_revision=plan.batch_revisions[batch_index - 1],
+                occurrence_uid=OccurrenceUid.parse(
+                    occurrence.occurrence_uid, allow_legacy=allow_legacy_identity
+                ),
+                transport_candidate_uid=TransportCandidateUid.parse(
+                    occurrence.transport_candidate_uid,
+                    allow_legacy=allow_legacy_identity,
+                ),
+                control_candidate_uid=ControlCandidateUid.parse(
+                    occurrence.control_candidate_uid,
+                    allow_legacy=allow_legacy_identity,
+                ),
+                candidate=occurrence.candidate,
+            )
+            if occurrence is not None
+            else None
+        )
+        overlay = dict(overlay_resolver(plan_row if plan_row is not None else candidate))
         control_candidate = {
             name: overlay[name]
             for name in (
@@ -1386,7 +2173,21 @@ def prepare_batch_attempt_context(
                 "orientation_ko",
             )
         }
-        rows.append(BatchRow(index, control_candidate, overlay))
+        rows.append(
+            BatchRow(
+                index,
+                control_candidate,
+                overlay,
+                occurrence_uid=(None if occurrence is None else occurrence.occurrence_uid),
+                transport_candidate_uid=(
+                    None if occurrence is None else occurrence.transport_candidate_uid
+                ),
+                role=(None if occurrence is None else occurrence.role),
+                replicate_ordinal=(
+                    None if occurrence is None else occurrence.replicate_ordinal
+                ),
+            )
+        )
     near_pose = (
         *STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m,
         *STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad,
@@ -1410,6 +2211,11 @@ def prepare_batch_attempt_context(
         authorization_ref_sha256=authorization_ref_sha256,
         plant_epoch=plant_epoch,
         rows=tuple(rows),
+        protocol=(
+            "v3_full_home_rolling_arm_v1" if rolling else "legacy_ack_bundle_v1"
+        ),
+        logical_batch_sequence=batch_index if rolling else 0,
+        plan_revision=batch_index if rolling else 0,
     )
     batch_root = (
         campaign_root.resolve() / "runtime_batches" / identity.batch_uid
@@ -1461,12 +2267,16 @@ def next_runtime_batch_candidate(
 ) -> ForceCandidate | None:
     """Select only the exact next non-ACK-completed row on resume."""
 
-    if len(plan.batches) != 1 or len(plan.batches[0]) != 10:
-        raise ValueError("production runtime requires one exact ten-row batch plan")
-    candidates = plan.batches[0]
+    rolling = any(plan.occurrences)
+    if not plan.batches or any(
+        len(batch) != (5 if rolling else 10) for batch in plan.batches
+    ):
+        raise ValueError("production runtime batch dimensions differ")
+    if not rolling and len(plan.batches) != 1:
+        raise ValueError("legacy production runtime requires one exact ten-row batch")
     batches_root = campaign_root.resolve() / "runtime_batches"
     if not batches_root.exists():
-        return candidates[0]
+        return plan.batches[0][0]
     if batches_root.is_symlink() or not batches_root.is_dir():
         raise ValueError("runtime batch root is not a safe directory")
     roots = tuple(
@@ -1474,39 +2284,113 @@ def next_runtime_batch_candidate(
         for path in batches_root.iterdir()
         if path.is_dir() and not path.is_symlink()
     )
-    if len(roots) != 1:
-        raise ValueError("campaign must contain exactly one runtime BatchIdentity")
-    journal = BatchJournal.open(roots[0])
-    identity = journal.identity()
-    planned_values = tuple(
-        (
-            candidate.force_p_gain,
-            candidate.force_i_gain,
-            candidate.force_damping,
+    journals: dict[int, BatchJournal] = {}
+    for root in roots:
+        journal = BatchJournal.open(root)
+        identity = journal.identity()
+        sequence = identity.logical_batch_sequence if rolling else 1
+        if sequence in journals:
+            raise ValueError("campaign repeats a runtime BatchIdentity sequence")
+        journals[sequence] = journal
+    if set(journals) - set(range(1, len(plan.batches) + 1)):
+        raise ValueError("campaign contains an unplanned runtime batch sequence")
+    for sequence, candidates in enumerate(plan.batches, start=1):
+        journal = journals.get(sequence)
+        if journal is None:
+            if any(prior not in journals for prior in range(1, sequence)):
+                raise ValueError("runtime batch sequences are not contiguous")
+            return candidates[0]
+        identity = journal.identity()
+        if rolling and (
+            identity.protocol != "v3_full_home_rolling_arm_v1"
+            or identity.plan_revision != sequence
+        ):
+            raise ValueError("runtime rolling BatchIdentity generation differs")
+        planned_values = tuple(
+            (item.force_p_gain, item.force_i_gain, item.force_damping)
+            for item in candidates
         )
-        for candidate in candidates
-    )
-    identity_values = tuple(
-        (
-            row.control_candidate["force_p_gain"],
-            row.control_candidate["force_i_gain"],
-            row.control_candidate["force_damping"],
+        identity_values = tuple(
+            (
+                row.control_candidate["force_p_gain"],
+                row.control_candidate["force_i_gain"],
+                row.control_candidate["force_damping"],
+            )
+            for row in identity.rows
         )
-        for row in identity.rows
-    )
-    if planned_values != identity_values:
-        raise ValueError("runtime BatchIdentity candidates differ from the durable plan")
-    state = journal.state()
-    if state.unpublished_trial_brief_row_indices:
-        raise ValueError(
-            "ACK-completed batch row requires TrialBrief recovery before selection"
-        )
-    if state.next_row_index is None:
+        if planned_values != identity_values:
+            raise ValueError("runtime BatchIdentity candidates differ from durable plan")
+        state = journal.state()
+        if state.unpublished_trial_brief_row_indices:
+            raise ValueError(
+                "completed batch occurrence requires TrialBrief recovery before selection"
+            )
+        if state.next_row_index is not None:
+            return candidates[state.next_row_index - 1]
         journal.finalize()
         if journal.verified_exit_code() != 0:
             raise ValueError("durable runtime BatchResult exit code differs")
+    return None
+
+
+def next_runtime_plan_row(
+    *,
+    plan: CandidateBatchPlan,
+    campaign_root: Path,
+) -> RuntimePlanRow | None:
+    """Return the exact next rolling occurrence with all three UID namespaces."""
+
+    if not any(plan.occurrences):
+        raise ValueError("RuntimePlanRow selection requires a rolling candidate plan")
+    candidate = next_runtime_batch_candidate(plan=plan, campaign_root=campaign_root)
+    if candidate is None:
         return None
-    return candidates[state.next_row_index - 1]
+    batches_root = campaign_root.resolve() / "runtime_batches"
+    completed: dict[int, int] = {}
+    if batches_root.exists():
+        if batches_root.is_symlink() or not batches_root.is_dir():
+            raise ValueError("runtime batch root is not a safe directory")
+        for root in batches_root.iterdir():
+            if root.is_symlink() or not root.is_dir():
+                raise ValueError("runtime batch root contains an unsafe entry")
+            journal = BatchJournal.open(root)
+            identity = journal.identity()
+            sequence = identity.logical_batch_sequence
+            if sequence in completed:
+                raise ValueError("campaign repeats a rolling batch sequence")
+            next_row = journal.state().next_row_index
+            completed[sequence] = len(identity.rows) + 1 if next_row is None else next_row
+    sequence = 0
+    row_index = 0
+    for candidate_sequence, occurrences in enumerate(plan.occurrences, start=1):
+        candidate_row = completed.get(candidate_sequence, 1)
+        if candidate_row <= len(occurrences):
+            sequence = candidate_sequence
+            row_index = candidate_row
+            break
+    if sequence == 0:
+        raise ValueError("rolling selector candidate exists without an occurrence")
+    occurrence = plan.occurrences[sequence - 1][row_index - 1]
+    if occurrence.candidate != candidate:
+        raise ValueError("rolling selector control candidate differs from occurrence")
+    allow_legacy_identity = plan.payload.get("schema_version") != SCHEMA_VERSION_ROLLING_V2
+    return RuntimePlanRow(
+        logical_batch_sequence=sequence,
+        row_index=row_index,
+        plan_revision=plan.batch_revisions[sequence - 1],
+        occurrence_uid=OccurrenceUid.parse(
+            occurrence.occurrence_uid, allow_legacy=allow_legacy_identity
+        ),
+        transport_candidate_uid=TransportCandidateUid.parse(
+            occurrence.transport_candidate_uid,
+            allow_legacy=allow_legacy_identity,
+        ),
+        control_candidate_uid=ControlCandidateUid.parse(
+            occurrence.control_candidate_uid,
+            allow_legacy=allow_legacy_identity,
+        ),
+        candidate=occurrence.candidate,
+    )
 
 
 def runtime_batch_verified_complete(*, campaign_root: Path) -> bool:
@@ -1518,11 +2402,15 @@ def runtime_batch_verified_complete(*, campaign_root: Path) -> bool:
         for path in batches_root.iterdir()
         if path.is_dir() and not path.is_symlink()
     )
-    if len(roots) != 1:
+    if not roots:
         return False
-    journal = BatchJournal.open(roots[0])
-    return bool(
+    journals = tuple(BatchJournal.open(root) for root in roots)
+    sequences = tuple(journal.identity().logical_batch_sequence for journal in journals)
+    if any(sequences) and set(sequences) != set(range(1, len(sequences) + 1)):
+        return False
+    return all(
         journal.state().complete
         and journal.state().result_published
         and journal.verified_exit_code() == 0
+        for journal in journals
     )

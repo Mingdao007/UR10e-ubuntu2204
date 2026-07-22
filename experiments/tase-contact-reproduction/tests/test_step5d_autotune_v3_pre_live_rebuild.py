@@ -64,7 +64,7 @@ def test_rebuild_binds_the_versioned_active_tp_manifest() -> None:
     ).hexdigest()
 
 
-def test_current_readback_promotes_after_r005_second_lap_regression() -> None:
+def test_r008_exact_readback_promotes_bridge_start_without_arm() -> None:
     table = json.loads((ROOT / rebuild.STAGE_TABLE_RELATIVE).read_text(encoding="utf-8"))
     row = next(row for row in table["stages"] if row["id"] == rebuild.V3_STAGE_ID)
     execution = row["execution_readiness"]
@@ -88,12 +88,17 @@ def test_current_readback_promotes_after_r005_second_lap_regression() -> None:
     assert promotion["campaign_authorization_required"] is False
     assert promotion["blocker"] is None
     assert current["readiness"] == {
-        "blockers": [],
+        "blockers": execution["blockers"],
         "bridge_process_ready": False,
         "bridge_start_ready": True,
         "campaign_ready": False,
-            "deployment_ready": True,
-        "host_runtime_disposition": "verified_r005_exact_plan_production_ack1_arm2",
+        "deployment_ready": True,
+        "host_runtime_disposition": "verified_r008_full_home_rolling_production_chain_offline",
         "motion_arm_ready": False,
         "selected_release": rebuild.V3_STAGE_ID,
     }
+    assert current["local_candidate"]["program"].endswith("_r008")
+    assert current["local_candidate"]["controller_readback_verified"] is True
+    assert current["local_candidate"]["disposition"] == (
+        "controller_readback_verified_promoted_current"
+    )

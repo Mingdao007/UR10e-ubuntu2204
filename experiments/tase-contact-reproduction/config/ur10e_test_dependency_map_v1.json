@@ -12,7 +12,8 @@
     "tools/ur10e_artifact_store.py",
     "tools/step5d_workflow_state.py",
     "tests/fixtures/**/*",
-    "requirements-test.txt",
+    "pyproject.toml",
+    "uv.lock",
     "pytest.ini"
   ],
   "rules": [
@@ -120,6 +121,7 @@
       "paths": [
         "tools/step5d_autotune_v3/**",
         "tools/step5d_autotune_runtime_lifecycle.py",
+        "tools/step5d_production_csv.py",
         "tools/run_step5d_autotune_v3_bridge.py",
         "tools/build_step5d_autotune_tp_v3.py",
         "tools/build_step5d_autotune_v3_*_evidence.py",
@@ -129,14 +131,23 @@
         "tools/validate_step5d_autotune_v3_refactor.py",
         "tools/verify_step5d_autotune_v3_*.py",
         "config/step5/step5d_autotune_v3_*.json",
+        "config/step5d/v3_active_surface.json",
+        "config/step5d_autotune_v3_test_matrix.json",
         "programs/step5/step5d/step5d_strict_rnn_autotune_v3.*",
         "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.*",
+        "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.*",
         "tests/step5d_v3_fake_bridge_harness.py",
-        "tests/fixtures/step5d_r005_typed_closure_v2_incident.json"
+        "tests/step5d_r006_production_csv_transport.py",
+        "tests/fixtures/step5d_r005_typed_closure_v2_incident.json",
+        "tests/fixtures/step5d_r005_post_ack_csv_schema_incident.json"
       ],
       "tests": [
         "tests/test_step5d_autotune_v3_contract.py",
         "tests/test_step5d_autotune_runtime_lifecycle.py",
+        "tests/test_step5d_autotune_production_second_lap.py",
+        "tests/test_step5d_production_csv.py",
+        "tests/test_step5d_r006_production_chain.py",
+        "tests/test_failure_to_guard.py",
         "tests/test_step5d_autotune_tp_v3.py",
         "tests/test_step5d_autotune_v3_bridge_wrapper.py",
         "tests/test_step5d_v30_timing.py",

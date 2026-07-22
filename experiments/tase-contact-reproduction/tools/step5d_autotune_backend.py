@@ -1,10 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Backend seam for Step5d-native autotune without implicit live execution."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -30,8 +31,12 @@ from step5d_autotune_replay import (
     verify_candidate_bound_search_attestation,
 )
 from step5d_autotune_supervisor import execution_profile_integer_id
-from step5d_workflow_state import WorkflowStateError, resolve_artifacts, verify_current
-from ur10e_artifact_store import artifact_store
+from step5d_workflow_state import (
+    CONTROLLER_READBACK_ROLES,
+    WorkflowStateError,
+    resolve_artifacts,
+    verify_current,
+)
 
 
 BACKEND_ID = "step5d_v35_native_backend_v1"
@@ -80,8 +85,13 @@ class PreparedTrial:
     # V3 may bind the complete validated per-trial overlay at READY_HOME.
     # V1 callers leave this unset and retain the frozen legacy mailbox schema.
     trial_overlay: Mapping[str, Any] | None = None
+    # Hash of the exact normalized overlay selected from the rolling plan.
+    trial_overlay_sha256: str | None = None
     # Exact V3 BatchIdentity row; transport-only and never inferred from trial_id.
     batch_row_index: int | None = None
+    occurrence_uid: str | None = None
+    transport_candidate_uid: str | None = None
+    control_candidate_uid: str | None = None
 
 
 @dataclass(frozen=True)
@@ -270,15 +280,9 @@ class Step5dV35Backend:
             artifacts = resolve_artifacts(
                 root=self.root,
                 locator_path=locator_path,
-                store=artifact_store(self.root),
+                required_roles=CONTROLLER_READBACK_ROLES,
             )
-            required_roles = {
-                "controller_readback_manifest",
-                "controller_readback_script",
-                "controller_readback_txt",
-                "controller_readback_urp",
-            }
-            if not required_roles.issubset(artifacts):
+            if not CONTROLLER_READBACK_ROLES.issubset(artifacts):
                 raise ValueError("campaign artifact locator lacks readback closure")
             manifest_path = artifacts["controller_readback_manifest"]
             manifest_sha = _sha256_file(manifest_path)
@@ -322,10 +326,7 @@ class Step5dV35Backend:
             if promoted.get("current_stage_id") != V3_RELEASE_STAGE_ID:
                 raise ValueError("selected V3 stage/program identity differs")
         else:
-            workflow = verify_current(
-                root=self.root,
-                store=artifact_store(self.root),
-            )
+            workflow = verify_current(root=self.root)
             if workflow.get("program") not in {
                 SOURCE_STAGE_ID,
                 CAMPAIGN_STAGE_ID,
@@ -406,15 +407,9 @@ class Step5dV35Backend:
                 / "artifact_locators"
                 / "step5d_v35_retained_inputs.json"
             ),
-            store=artifact_store(self.root),
+            required_roles=CONTROLLER_READBACK_ROLES,
         )
-        required_roles = {
-            "controller_readback_manifest",
-            "controller_readback_script",
-            "controller_readback_txt",
-            "controller_readback_urp",
-        }
-        if not required_roles.issubset(retained):
+        if not CONTROLLER_READBACK_ROLES.issubset(retained):
             raise ValueError("canonical v35 retained artifact closure is incomplete")
         readback_path = Path(retained["controller_readback_manifest"])
         readback_sha = _sha256_file(readback_path)
@@ -499,11 +494,6 @@ class Step5dV35Backend:
             blockers.append(
                 f"campaign_stage_delivery_unreadable:{type(exc).__name__}:{exc}"
             )
-        readback_verified, readback_evidence = self._campaign_readback_closure(
-            campaign_delivery if isinstance(campaign_delivery, Mapping) else {}
-        )
-        evidence.update(readback_evidence)
-        evidence["campaign_controller_readback_verified"] = readback_verified
         try:
             current = _json(self.root / "config" / "current_stage.json")
         except (OSError, ValueError, json.JSONDecodeError) as exc:
@@ -518,31 +508,58 @@ class Step5dV35Backend:
             is True
         )
         evidence["selected_release_current"] = selected_release_current
+        if current.get("program") == V3_RELEASE_STAGE_ID:
+            readback_verified = bool(
+                execution_context
+                and execution_context.controller_readback_verified
+                and authorization
+                and authorization.controller_readback_verified
+            )
+            readback_evidence = {
+                "campaign_readback_sha_closed": readback_verified,
+                "campaign_readback_source": "governed_delivery_observation",
+            }
+        else:
+            readback_verified, readback_evidence = self._campaign_readback_closure(
+                campaign_delivery if isinstance(campaign_delivery, Mapping) else {}
+            )
+            readback_evidence["campaign_readback_source"] = "legacy_stage_table"
+        evidence.update(readback_evidence)
+        evidence["campaign_controller_readback_verified"] = readback_verified
         cuda_available = False
-        try:
-            import cupy
+        runtime_profile = os.environ.get("STEP5D_V3_RUNTIME_PROFILE")
+        evidence["runtime_profile"] = runtime_profile
+        if runtime_profile == "optimizer":
+            try:
+                import torch
 
-            cupy_devices = int(cupy.cuda.runtime.getDeviceCount())
-            evidence["cupy_version"] = cupy.__version__
-            evidence["cupy_device_count"] = cupy_devices
-            cuda_available = cupy_devices > 0
-            if cuda_available:
-                properties = cupy.cuda.runtime.getDeviceProperties(0)
-                name = properties.get("name", "unknown")
-                evidence["gpu_name"] = (
-                    name.decode("utf-8", errors="replace")
-                    if isinstance(name, bytes)
-                    else str(name)
-                )
-        except (ImportError, RuntimeError):
-            evidence["cupy_device_count"] = 0
-        try:
-            import torch
+                torch_available = bool(torch.cuda.is_available())
+                evidence["torch_version"] = torch.__version__
+                evidence["torch_cuda_available"] = torch_available
+                evidence["torch_cuda_device_count"] = int(torch.cuda.device_count())
+                if torch_available:
+                    evidence["gpu_name"] = str(torch.cuda.get_device_name(0))
+                cuda_available = torch_available
+            except (ImportError, RuntimeError):
+                evidence["torch_cuda_available"] = False
+        else:
+            try:
+                import cupy
 
-            evidence["torch_version"] = torch.__version__
-            evidence["torch_cuda_available"] = bool(torch.cuda.is_available())
-        except ImportError:
-            evidence["torch_cuda_available"] = False
+                cupy_devices = int(cupy.cuda.runtime.getDeviceCount())
+                evidence["cupy_version"] = cupy.__version__
+                evidence["cupy_device_count"] = cupy_devices
+                cuda_available = cupy_devices > 0
+                if cuda_available:
+                    properties = cupy.cuda.runtime.getDeviceProperties(0)
+                    name = properties.get("name", "unknown")
+                    evidence["gpu_name"] = (
+                        name.decode("utf-8", errors="replace")
+                        if isinstance(name, bytes)
+                        else str(name)
+                    )
+            except (ImportError, RuntimeError):
+                evidence["cupy_device_count"] = 0
         execution_ready = bool(
             execution_context
             and execution_context.controller_readback_verified
@@ -552,9 +569,7 @@ class Step5dV35Backend:
             and evidence.get("composite_fingerprint")
             == execution_context.campaign_fingerprint
         )
-        # Compatibility is retained only for historical/offline callers. The
-        # active V3 runner supplies CampaignExecutionContext and no auth file.
-        legacy_authorized = bool(
+        lease_authorized = bool(
             authorization
             and authorization.live_authorized
             and authorization.controller_readback_verified
@@ -564,11 +579,17 @@ class Step5dV35Backend:
             and evidence.get("composite_fingerprint")
             == authorization.campaign_fingerprint
         )
-        live_authorized = execution_ready or legacy_authorized
+        evidence["campaign_execution_identity_ready"] = execution_ready
+        evidence["campaign_lease_authorization_ready"] = lease_authorized
+        # Machine identity is necessary, but it is never motion authority.
+        # Live requires both the exact execution binding and the campaign lease
+        # produced by the canonical shell invocation.  The bridge-local gate
+        # independently revalidates the lease at the actual ARM boundary.
+        live_authorized = execution_ready and lease_authorized
         if not offline and not cuda_available:
             blockers.append("cuda_required_for_live_no_cpu_fallback")
         if not offline and not live_authorized:
-            blockers.append("campaign_execution_context_missing_or_mismatched")
+            blockers.append("campaign_lease_authorization_missing_or_mismatched")
         if not offline and not readback_verified:
             blockers.append("autotune_controller_delivery_and_fresh_readback_required")
         if not offline and not selected_release_current:

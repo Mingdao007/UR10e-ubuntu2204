@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -13,7 +15,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 import preflight_step5d_autotune_v3 as preflight  # noqa: E402
 import build_step5d_autotune_v3_bridge_start_context as context_builder  # noqa: E402
 from step5d_autotune_v3 import runtime_calibration as calibration  # noqa: E402
-from step5d_autotune_v3.runtime_calibration import stable_cuda_environment  # noqa: E402
+from step5d_autotune_v3.runtime_environment import (  # noqa: E402
+    production_runtime_environment,
+)
+from step5d_autotune_v3.runtime_installation import (  # noqa: E402
+    load_runtime_pointer_integrity,
+)
 
 
 def test_compact_runtime_calibration_matches_installed_robot_description() -> None:
@@ -43,8 +50,31 @@ def test_real_production_startup_prewarm_needs_no_ignored_legacy_csv(
     tmp_path: Path,
 ) -> None:
     code = """
+import builtins
 import json
+import sys
 import run_step5d_autotune_v3_bridge as wrapper
+from step5d_autotune_v3.runtime_calibration import validate_installed_calibration
+
+original_import = builtins.__import__
+
+def reject_pandas(name, globals=None, locals=None, fromlist=(), level=0):
+    if name.split('.', 1)[0] == 'pandas':
+        raise AssertionError(f'pandas imported during control startup: {name}')
+    return original_import(name, globals, locals, fromlist, level)
+
+def reject_legacy_rows(*args, **kwargs):
+    raise AssertionError('legacy calibration CSV reached during V3 control startup')
+
+builtins.__import__ = reject_pandas
+original_install = wrapper.install_v3_seams
+
+def guarded_install(*args, **kwargs):
+    bridge = original_install(*args, **kwargs)
+    bridge.step5d_kin.finite_run_rows = reject_legacy_rows
+    return bridge
+
+wrapper.install_v3_seams = guarded_install
 
 result = wrapper.check_v3_runtime_prewarm([
     '--bridge-mode', 'line',
@@ -52,9 +82,19 @@ result = wrapper.check_v3_runtime_prewarm([
     '--step5d-rnn-backend', 'numpy',
     '--step5d-rnn-inner-iterations', '4',
 ])
+expected = validate_installed_calibration()
+if result['tcp_offset_tool0_m'] != list(expected.tcp_offset_tool0_m):
+    raise AssertionError('prewarmed TCP offset differs from compact calibration')
+if 'pandas' in sys.modules:
+    raise AssertionError('pandas remained loaded after control startup')
 print(json.dumps(result, sort_keys=True))
 """
-    environment = stable_cuda_environment(dict(os.environ))
+    pointer = load_runtime_pointer_integrity(environ=os.environ)
+    environment = production_runtime_environment(
+        os.environ,
+        profile="control",
+        runtime_pointer=pointer,
+    )
     environment["PYTHONPATH"] = os.pathsep.join(
         (
             str(ROOT / "tools"),
@@ -63,7 +103,7 @@ print(json.dumps(result, sort_keys=True))
         )
     ).rstrip(os.pathsep)
     completed = subprocess.run(
-        [sys.executable, "-c", code],
+        [pointer["profiles"]["control"]["python_executable"], "-c", code],
         cwd=tmp_path,
         env=environment,
         stdin=subprocess.DEVNULL,
@@ -77,6 +117,9 @@ print(json.dumps(result, sort_keys=True))
     assert result["ok"] is True
     assert result["missing"] == []
     assert result["rnn_backend"] == "numpy"
+    assert result["tcp_offset_tool0_m"] == list(
+        calibration.validate_installed_calibration().tcp_offset_tool0_m
+    )
 
 
 def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
@@ -94,133 +137,41 @@ def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
     )
     assert completed.returncode == 0, completed.stderr
     status = json.loads(completed.stdout)
-    assert status["release_readiness"]["selected_release"] == (
-        "step5d_strict_rnn_autotune_v3"
-    )
+    assert status["schema"] == "step5d.autotune-v3/governed-status-v1"
+    assert status["environment"]["control_ready"] is True
+    assert status["environment"]["optimizer_ready"] is True
+    assert isinstance(status["blocker"]["reason_codes"], list)
+    assert isinstance(status["next_action"], str) and status["next_action"]
 
 
 def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
-    assert 'PYTHON_ABI="$(python3 -c' in source
+    assert '/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding' in source
+    assert 'exec /usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --status-json' in source
+    assert 'PYTHON_ABI="3.10"' in source
     assert '"/opt/ros/humble/lib/python${PYTHON_ABI}/site-packages"' in source
     assert '"/opt/ros/humble/local/lib/python${PYTHON_ABI}/dist-packages"' in source
     assert 'export PYTHONPATH="${RUNTIME_PYTHONPATH}"' in source
-    assert 'export AMENT_PREFIX_PATH=' in source
+    assert 'AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"' in source
+    assert "export AMENT_PREFIX_PATH" in source
     assert 'PYTHONPATH:+:${PYTHONPATH}' not in source
 
 
-def test_canonical_shell_rehearses_v3_no_arm_ready_without_network(
-    tmp_path: Path,
-) -> None:
-    context_path = tmp_path / "bridge-start-context.json"
-    context = context_builder.build_context(
-        ROOT,
-        plant_epoch=1,
-        runtime_environment={
-            "capture_mode": "canonical_no_network_rehearsal",
-            "scheduler": {"policy_name": "SCHED_OTHER", "priority": 0, "nice": 0},
-        },
-    )
-    context_builder.write_once(context_path, context.document())
-
-    shim_dir = tmp_path / "bin"
-    shim_dir.mkdir()
-    shim = shim_dir / "python3"
-    shim.write_text(
-        f"""#!{sys.executable}
-import json
-import os
-from pathlib import Path
-import sys
-
-real_python = os.environ["STEP5D_REHEARSAL_REAL_PYTHON"]
-if len(sys.argv) > 1 and sys.argv[1] == "-c":
-    os.execv(real_python, [real_python, *sys.argv[1:]])
-
-target = Path(sys.argv[1]).name if len(sys.argv) > 1 else ""
-arguments = sys.argv[2:]
-
-def value(name):
-    index = arguments.index(name)
-    return arguments[index + 1]
-
-if target == "preflight_step5d_autotune_v3.py":
-    import preflight_step5d_autotune_v3 as production
-    from step5d_autotune_v3.readiness import require_bridge_start
-
-    _, bridge = require_bridge_start(production.ROOT, Path(value("--bridge-start-context")))
-    payload = {{
-        "schema": production.SCHEMA,
-        "ok": True,
-        "fresh": True,
-        "candidate_stage_id": production.RELEASE_STAGE_ID,
-        "control_profile_id": production.CONTROL_PROFILE_ID,
-        "tp_program_id": production.TP_PROGRAM_ID,
-        "identity": bridge.identity,
-        "controller_identity_sha256": "0" * 64,
-        "predicates": {{name: {{"ok": True}} for name in production.PREDICATE_NAMES}},
-    }}
-    output = Path(value("--output"))
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload), encoding="utf-8")
-    print(json.dumps(payload, sort_keys=True))
-    raise SystemExit(0)
-
-if target == "run_step5d_autotune_v3_live.py":
-    import run_step5d_autotune_v3_live as production
-    import run_step5d_autotune_v3_bridge as bridge_wrapper
-    from step5d_autotune_v3.readiness import require_bridge_start
-
-    _, bridge = require_bridge_start(
-        production.ROOT, Path(value("--bridge-start-context"))
-    )
-    production._validate_preflight(Path(value("--preflight")), bridge.identity)
-    prewarm = bridge_wrapper.check_v3_runtime_prewarm([
-        "--bridge-mode", "line",
-        "--bridge-profile", "step5d_strict_rnn_autotune_v1",
-        "--step5d-rnn-backend", "numpy",
-        "--step5d-rnn-inner-iterations", "4",
-    ])
-    if prewarm.get("ok") is not True:
-        raise SystemExit("production bridge prewarm failed")
-    if Path(value("--campaign-arming-context")).exists():
-        raise SystemExit("rehearsal must not consume an arming context")
-    print("V3_BRIDGE_READY_NO_ARM", flush=True)
-    raise SystemExit(0)
-
-os.execv(real_python, [real_python, *sys.argv[1:]])
-""",
-        encoding="utf-8",
-    )
-    shim.chmod(0o755)
-
-    environment = {
-        "HOME": os.environ["HOME"],
-        "LANG": os.environ.get("LANG", "C.UTF-8"),
-        "PATH": os.pathsep.join((str(shim_dir), "/usr/bin", "/bin")),
-        "STEP5D_REHEARSAL_REAL_PYTHON": sys.executable,
-    }
-    output_root = tmp_path / "rehearsal-output"
-    completed = subprocess.run(
-        [
-            str(ROOT / "scripts/step5d-autotune-v3.sh"),
-            "bridge",
-            "--output-root",
-            str(output_root),
-            "--bridge-start-context",
-            str(context_path),
-            "--campaign-arming-context",
-            str(tmp_path / "not-created-campaign-arming-context.json"),
-        ],
-        cwd=ROOT,
-        env=environment,
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        timeout=30.0,
-        check=False,
-    )
-    assert completed.returncode == 0, completed.stderr
-    assert completed.stdout.rstrip().endswith("V3_BRIDGE_READY_NO_ARM")
-    assert not (tmp_path / "not-created-campaign-arming-context.json").exists()
+def test_installed_runtime_rejects_known_incompatible_bridge_context() -> None:
+    with pytest.raises(
+        context_builder.BridgeContextBuildError,
+        match="known_incompatible_do_not_retry",
+    ):
+        context_builder.build_context(
+            ROOT,
+            plant_epoch=1,
+            runtime_environment={
+                "capture_mode": "offline_no_arm_check",
+                "scheduler": {
+                    "policy_name": "SCHED_OTHER",
+                    "priority": 0,
+                    "nice": 0,
+                },
+            },
+        )

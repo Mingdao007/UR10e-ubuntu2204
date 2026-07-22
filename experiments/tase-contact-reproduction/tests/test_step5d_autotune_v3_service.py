@@ -68,9 +68,7 @@ def write_trial_batch(path: Path, candidates: list[dict], *, campaign_id: str) -
     for index, candidate_row in enumerate(candidates):
         row = {**DEFAULT_OVERLAY, **candidate_row}
         row.pop("control_candidate_uid", None)
-        row["execution_profile_id"] = (
-            "nf020-slew010-a010" if index % 2 else "nf050-slew050-a050"
-        )
+        row["execution_profile_id"] = "nf100-slew050-a050"
         row["step5d_preload_hold_s"] = 0.1 + index * 0.01
         trials.append(row)
     path.write_text(
@@ -194,26 +192,45 @@ def test_enqueue_is_visible_to_process_boundary_status(
     assert json.loads(status.stdout)["queue"]["revision"] == 1
 
 
-def test_enqueue_rejects_attempt_ledger_tuple_before_plan_publication(
+def test_status_reports_stale_plan_as_fail_closed_queue_evidence(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    campaign = tmp_path / "campaign"
+    plan = campaign / "control/candidate_plan.json"
+    plan.parent.mkdir(parents=True)
+    plan.write_text(
+        json.dumps({"schema_version": "stale-rolling-plan"}),
+        encoding="utf-8",
+    )
+
+    assert cli.main([*cli_args(campaign), "status", "--json"]) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["queue"] == {
+        "campaign_id": None,
+        "revision": 0,
+        "candidate_count": 0,
+        "closed": False,
+        "integrity_error": "ValueError:candidate plan schema is incomplete",
+    }
+    assert status["release_readiness"]["selected_release"] == (
+        "step5d_strict_rnn_autotune_v3"
+    )
+
+
+def test_historical_nf050_attempt_does_not_pollute_active_nf100_plan(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     batch = tmp_path / "attempted.json"
-    attempted_g10 = {
-        "force_p_gain": 0.001681792830507429,
-        "force_i_gain": 0.00001,
-        "force_damping": 8.324449805019047,
-    }
     write_batch(
         batch,
-        [attempted_g10]
-        + [candidate(value, -0.5) for value in (-1.0, -0.75, -0.5, -0.25)],
+        [candidate(value, 0.25) for value in (-0.25, 0.0, 0.25, 0.5, 0.75)],
     )
     campaign_root = tmp_path / "campaign"
 
-    assert cli.main([*cli_args(campaign_root), "enqueue", "--batch", str(batch)]) == 2
-    error = capsys.readouterr().err
-    assert "G10" in error
-    assert not (campaign_root / "control" / "candidate_plan.json").exists()
+    assert cli.main([*cli_args(campaign_root), "enqueue", "--batch", str(batch)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["execution_profile_id"] == "per_trial_overlay"
+    assert (campaign_root / "control" / "candidate_plan.json").is_file()
 
 
 def test_batch_rejects_unknown_candidate_fields(tmp_path: Path) -> None:

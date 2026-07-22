@@ -1,27 +1,64 @@
 # Step5 Flow
 
-`config/current_stage.json` currently selects `step5d_strict_rnn_autotune_v3` as the
-unique current release route. Its immutable r005 TP package has exact local,
-controller, and fresh read-back SHA closure. r005's first live attempt remains
-immutable `attempted_incomplete` evidence, while the host reader repair is
-promoted only after the exact live candidate-plan fixture drives real
-Supervisor/Coordinator/Store/Journal components through source-free
-`batch_bootstrap`, fresh-store cold-read, exactly-once ACK1, READY_NEAR, and
-ARM2. r004 remains immutable
-`known_incompatible_do_not_retry` incident evidence and is never an optimizer
-observation. V1 remains frozen control-profile provenance and cannot be
-launched or selected as a fallback. The first r005 live attempt is retained as
-`attempted_incomplete`: typed-v2 closure and its immutable bundle were written,
-but the legal `batch_bootstrap` transition with `source=null` failed the store's
-cold-read assertion before ACK1 and ARM2. Existing fake ten-trial evidence never
-executed this production-runner branch and is not release evidence. r005
-bridge-context generation is restored for the attended r005 recovery. r006,
-the TP WAIT_ACK watchdog, URSim/HIL protocol gates, and the full second-lap
-certificate remain a separate debt lane and are not part of this recovery;
-the bridge and campaign still require fresh runtime identity binding. Formal
-10k/30k timing pressure testing and the temporary CPU/GPU timing service are
-not prerequisites. The bridge starts in `NO_ARM`; Codex never presses Play or
-Stop, and only the user's TP Play enters the command-1 campaign path.
+## Governed Step5d route
+
+Prose is not the current-release authority. The content-addressed manifest named
+by `config/step5d/current.json` is the only immutable release truth, and
+`step5d-autotune-v3.sh status --json` recomputes runtime state from that manifest
+plus the current observed attestation. `config/current_stage.json`, the stage
+table, and this document are compatibility projections; they cannot establish
+`OFFLINE_PROVEN`, `WAITING_FOR_IDENTITY_PLAY`, `BENCH_READY`,
+`WAITING_FOR_PLAY`, or `RUNNING`; `LIVE_PROVEN` is an outcome pointer, not a
+reusable readiness state. A stopped TP program cannot
+prove registers 35--37 before it executes, so that pre-identity Play barrier
+is explicit and never aliases `BENCH_READY`; Play may start the TP program but
+ARM remains fail-closed until the runtime identity is observed and rechecked.
+
+The governed TP identity revision is r010. It adds protocol/digest identity on
+output integer registers 35--37 and requires release-manifest v3 verification,
+fresh controller GET closure, exact Dashboard loaded-program identity, and the
+runtime register identity before ARM. r009 lacks that runtime identity oracle;
+r009, r008, r006, and r004 are historical-only and cannot be treated as the
+active release. Until the r010 atomic promotion and current observed predicates
+both verify, the route remains fail-closed and no `BENCH_READY` claim is valid.
+
+The only public live command is `step5d-autotune-v3.sh bridge`; the only resume
+anchor is `step5d-autotune-v3.sh status --json`. The Python live/bridge/campaign
+runners are internal workers, not operator entrypoints. The old
+`step5d-autotune-live.sh bridge` name is a passthrough adapter only through TP
+revision r010 and performs no write before `exec`; it fails with exit 64 after
+that cutoff. `step5d-liveprep-operator.sh` and `step5d-workflow.sh` are retired
+stubs and cannot start a bridge, upload, promote, load, Play, or ARM.
+
+The production qualification gate must launch the canonical shell and real
+supervisor/worker/mailbox lifecycle in a clean environment. It replaces only
+Dashboard, RTDE, Kunwei, and TP endpoints and must observe simulated Play, the
+post-Play identity recheck, command-bound first ARM acknowledgement, one
+completed trial, command-bound next ARM acknowledgement, and a still-live
+bridge process. Normal live completion additionally requires a zero-exit runner,
+terminal lease revocation, and a terminal attestation before bridge cleanup.
+Historical r004/r006/r008 fake-chain tests are classified as obsolete release
+acceptance, not evidence for this path.
+
+Bridge incidents follow the earliest evidenced failure layer. A reproducible
+internal defect must first fail on the old code, gain a regression at that
+layer, pass after the fix, and then requalify. A nondeterministic internal defect
+first gains instrumentation, fault injection, or an invariant test; an idealized
+fixture is not a fix. A physical-only failure preserves bench evidence and adds
+the earliest feasible HIL oracle. `BLOCKED_EXTERNAL` requires positive network,
+port, controller, or device evidence and does not route to code repair.
+`UNKNOWN` routes to read-only evidence collection or one explicit diagnostic
+hypothesis, never to speculative patching.
+
+## Historical control and incident evidence
+
+Immutable r005 preserves 5,013 fresh state-76 rows, consumed command sequence 2,
+and no ARM2. The deterministic fault was the post-ACK collector reading
+unprefixed register fields from a production CSV that publishes `ur_`-prefixed
+fields; the generic timeout then mislabeled predicate resets as no fresh row.
+CSV buffering remains a separately tested historical risk, not that incident's
+sole asserted root cause. V1 remains frozen control-profile provenance and
+cannot be launched as a fallback.
 
 Kunwei software zero now uses two evidence roles. The first qualified Stage23
 window latches one campaign anchor used by control, guards, and optimizer force
@@ -47,12 +84,13 @@ tick cannot relatch; live-normal blending starts only after load is at least
 
 Each V3 trial binds four real control coordinates: force P, I, damping, and
 `orientation_ko`. A `BatchIdentity` binds exactly ten candidate/overlay rows.
-Rows remain `unattempted` or `attempted_incomplete` until exact ACK consumption
-and typed safe closure make them `ack_completed`; resume executes only the
-remaining rows. TrialBrief publication happens once, after immutable bundle,
-exact ACK, and safe closure. Trials 13--22 remain diagnostic-only evidence;
-trial 21's force metric is `unavailable`, never zero, and none of those ten
-trials is optimizer eligible.
+For r006, rows remain `unattempted` or `attempted_incomplete` until a durable
+direct completion makes them `direct_completed`; resume executes only the
+remaining rows. TrialBrief publication happens exactly once after immutable
+bundle and independent cold-read, before the next ARM. Legacy r001--r005 ACK
+states remain replay-decode only. Trials 13--22 remain diagnostic-only
+evidence; trial 21's force metric is `unavailable`, never zero, and none of
+those ten trials is optimizer eligible.
 
 Return is typed by exact batch identity: rows 1--9 close at
 `NearReadyReference`, and row 10 closes at `CampaignHomeReference`. Both use
@@ -60,7 +98,9 @@ the fixed three-segment route: vertical transfer to `z=0.033 m` at
 `a=0.060 m/s^2`, `v=0.040 m/s`; constant-Z translation to precontact XY/prior
 orientation at `a=0.135 m/s^2`, `v=0.090 m/s`; then vertical descent to
 `z=0.022863519 m`. Pose, stillness, and transfer guards must pass before
-`WAIT_ACK`.
+state 76 (`READY_NEAR`) for rows 1--9 or state 77
+(`READY_HOME_CLOSED`) for row 10. A read-only observer may sample TCP angular
+speed and controller/sample time but cannot issue any motion call.
 
 During active Stage25, the shared moving-sphere kernel checks actual and
 conservative predicted-stop distance against a `15 mm` radius using the
@@ -1129,24 +1169,17 @@ phrase for any Step5 stage.
 
 On a valid trigger:
 
-1. The first command of the turn is the prepared operator command. Do not
-   re-read owner docs, re-validate packages, repeat read-back, or run Git
-   checks in the trigger turn.
-2. Operator-internal interlocks are supplied by Codex in the same command,
-   for example:
-
-   ```bash
-   printf 'START_STEP4E_LINE_STEP5B_V1\n' | \
-     STEP5B_CONFIRM='LIVE STEP5B CONTACT RUN' \
-     scripts/step5b-contact-operator.sh contact-bridge
-   ```
-
-3. The fast trigger has no TTL cache, duplicate RTDE probe, or blocking full
-   bench preflight. Exact package binding, live authorization, Dashboard
-   snapshot, realtime launcher, and ready sentinel remain. `diagnose-bench`
-   (`prep-long-checks` compatibility alias) is an explicit optional snapshot
-   whose result never grants bridge authorization.
-4. Target from user trigger to bridge process start is a few seconds.
+1. For governed Step5d V3, invoke `scripts/step5d-autotune-v3.sh bridge` once;
+   do not ask for stage-by-stage authorization. The invocation is the typed
+   campaign authorization bound to the release, campaign, and safety envelope.
+2. The canonical shell performs status re-anchor, candidate build, production
+   qualification, TP delivery/fresh read-back, atomic promotion/load, campaign
+   preparation, and preflight. The operator owns only physical Play and Stop.
+3. `WAITING_FOR_PLAY` is the only state that permits a Play prompt. Every ARM
+   still requires a fresh exact-command grant; readiness observations cannot
+   authorize ARM and a prior grant cannot be reused by the next command.
+4. After compaction or resume, run `scripts/step5d-autotune-v3.sh status --json`
+   before continuing. A state-digest mismatch invalidates the previous plan.
 
 ## Step5b Post-Run Diagnostic Bundle
 

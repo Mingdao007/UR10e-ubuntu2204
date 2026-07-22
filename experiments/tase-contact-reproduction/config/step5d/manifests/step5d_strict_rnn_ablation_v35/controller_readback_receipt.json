@@ -1,0 +1,57 @@
+{
+  "status": "controller read-back verified",
+  "controller": "root@192.168.1.18",
+  "target_dir": "/programs/andyl/kunwei/step5",
+  "target_source": "table",
+  "local_dir": "programs/step5/step5d",
+  "validation": {
+    "stamp": "2026-07-15T0204HKT_STEP5D_STRICT_RNN_ABLATION_V35_QUOTA_SAFE_SCHED_OTHER_ACCEL_0P1",
+    "program": "step5d_strict_rnn_ablation_v35",
+    "target_dir": "/programs/andyl/kunwei/step5",
+    "installation_relative_path": "../../../default",
+    "script_node_path": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v35.script",
+    "urp_sha256": "7ccf4c4c6608f0c082d6e400a9e9fc05e65a0ad085605c11240ba8dcf293439a",
+    "script_sha256": "50894de5cdf74dd17309c829b904251a3da26613a4d73e93653f7c165f5fbbd0",
+    "txt_sha256": "0589480dd068078a3e4dd666d5f4c081ef121a6ef016a4ac766c131659af0003"
+  },
+  "sha256": {
+    "local": {
+      ".script": "50894de5cdf74dd17309c829b904251a3da26613a4d73e93653f7c165f5fbbd0",
+      ".txt": "0589480dd068078a3e4dd666d5f4c081ef121a6ef016a4ac766c131659af0003",
+      ".urp": "7ccf4c4c6608f0c082d6e400a9e9fc05e65a0ad085605c11240ba8dcf293439a"
+    },
+    "controller": {
+      ".script": "50894de5cdf74dd17309c829b904251a3da26613a4d73e93653f7c165f5fbbd0",
+      ".txt": "0589480dd068078a3e4dd666d5f4c081ef121a6ef016a4ac766c131659af0003",
+      ".urp": "7ccf4c4c6608f0c082d6e400a9e9fc05e65a0ad085605c11240ba8dcf293439a"
+    },
+    "readback": {
+      ".script": "50894de5cdf74dd17309c829b904251a3da26613a4d73e93653f7c165f5fbbd0",
+      ".txt": "0589480dd068078a3e4dd666d5f4c081ef121a6ef016a4ac766c131659af0003",
+      ".urp": "7ccf4c4c6608f0c082d6e400a9e9fc05e65a0ad085605c11240ba8dcf293439a"
+    }
+  },
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ],
+  "delivery_mode": "full_upload_readback",
+  "target_resolution": {
+    "row_id": "step5d_strict_rnn_ablation_v35",
+    "source": "config/step5_stage_table.json#stages[id=step5d_strict_rnn_ablation_v35]",
+    "controller_dir": "/programs/andyl/kunwei/step5",
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v35.urp"
+  },
+  "fresh_controller_sha_verified": true,
+  "fresh_controller_checked_at": "2026-07-15T02:16:43+08:00",
+  "readback_source": "fresh_controller_get",
+  "promoted_from_local_candidate": {
+    "marker_schema": "ur_tp_local_candidate_v1",
+    "semantic_fingerprint": "24d296bc0d2609a6a2ae850b83eda5fe9bf46b827beb829e08eab9d7fba5b312",
+    "stamp": "2026-07-15T0204HKT_STEP5D_STRICT_RNN_ABLATION_V35_QUOTA_SAFE_SCHED_OTHER_ACCEL_0P1"
+  }
+}

@@ -21,11 +21,12 @@ from step5d_autotune_v3.identity_layers import (  # noqa: E402
     runtime_environment_fingerprint,
 )
 from step5d_autotune_v3 import readiness  # noqa: E402
+from step5d_autotune_v3 import admission  # noqa: E402
 
 
 V1 = "step5d_strict_rnn_autotune_v1"
 V3 = "step5d_strict_rnn_autotune_v3"
-R005 = "step5d_strict_rnn_autotune_v3_r005"
+R009 = "step5d_strict_rnn_autotune_v3_r009"
 
 
 def _write(path: Path, payload: object) -> Path:
@@ -92,11 +93,9 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     _write(
         root / "config/step5d/current.json",
         {
-            "program": V3,
-            "tp_program_id": R005,
-            "tp_program_disposition": "controller_readback_verified",
-            "host_runtime_disposition": "verified_r005_exact_plan_production_ack1_arm2",
-            "selection_state": "current",
+            "schema": "step5d.autotune-v3/current-release-pointer-v1",
+            "manifest_path": "config/step5d/releases/fixture/manifest.json",
+            "manifest_sha256": "f" * 64,
         },
     )
     _write(root / "config/step5/step5d_autotune_v3_control_contract.json", {})
@@ -105,10 +104,23 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         {
             "schema": "step5d.autotune.controller-readback/v3",
             "verified": True,
-            "program": R005,
+            "program": R009,
             "control_profile_id": V1,
             "triplet_sha256": triplet,
         },
+    )
+    release = SimpleNamespace(
+        program_id=R009,
+        protocol_id="v3_full_home_rolling_arm_v1",
+        manifest_path="config/step5d/releases/fixture/manifest.json",
+        manifest_sha256="f" * 64,
+        controller_readback={"path": "config/readback.json"},
+    )
+    monkeypatch.setattr(readiness, "load_current_release", lambda *_args: release)
+    monkeypatch.setattr(
+        readiness,
+        "verify_release_manifest",
+        lambda *_args, **_kwargs: {"ok": True},
     )
     monkeypatch.setattr(readiness, "load_contract", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(
@@ -167,19 +179,27 @@ def test_selected_release_rejects_a_different_tp_revision(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root, _identity, _bridge, bridge_path = _fixture(tmp_path, monkeypatch)
-    current_path = root / "config/step5d/current.json"
-    current = json.loads(current_path.read_text(encoding="utf-8"))
-    current["tp_program_id"] = "step5d_strict_rnn_autotune_v3_r001"
-    _write(current_path, current)
+    monkeypatch.setattr(
+        readiness,
+        "load_current_release",
+        lambda *_args: (_ for _ in ()).throw(
+            readiness.ReleaseIdentityError("release program differs")
+        ),
+    )
 
-    with pytest.raises(readiness.ReleaseReadinessError, match="selector surfaces"):
-        readiness.resolve_release_readiness(
-            root,
-            bridge_start_context_path=bridge_path,
-        )
+    report = readiness.resolve_release_readiness(
+        root,
+        bridge_start_context_path=bridge_path,
+    )
+
+    assert report["ok"] is False
+    assert report["bridge_start_ready"] is False
+    assert report["blockers"] == [
+        "canonical_active_release_verification_failed:release program differs"
+    ]
 
 
-def test_known_incompatible_tp_program_cannot_reuse_a_bridge_context(
+def test_historical_tp_disposition_cannot_override_canonical_release(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root, _identity, _bridge, bridge_path = _fixture(tmp_path, monkeypatch)
@@ -194,12 +214,13 @@ def test_known_incompatible_tp_program_cannot_reuse_a_bridge_context(
     )
 
     assert report["deployment_ready"] is True
-    assert report["bridge_start_ready"] is False
-    assert report["tp_program_start_allowed"] is False
-    assert "selected_tp_program_known_incompatible_do_not_retry" in report["blockers"]
+    assert report["bridge_start_ready"] is True
+    assert report["tp_program_start_allowed"] is True
+    assert report["tp_program_disposition"] == "controller_readback_verified"
+    assert report["blockers"] == []
 
 
-def test_known_incompatible_host_runtime_cannot_reuse_a_bridge_context(
+def test_historical_host_disposition_cannot_override_canonical_release(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root, _identity, _bridge, bridge_path = _fixture(tmp_path, monkeypatch)
@@ -214,9 +235,10 @@ def test_known_incompatible_host_runtime_cannot_reuse_a_bridge_context(
     )
 
     assert report["deployment_ready"] is True
-    assert report["bridge_start_ready"] is False
-    assert report["host_runtime_start_allowed"] is False
-    assert "r005_batch_bootstrap_production_second_lap_unverified" in report["blockers"]
+    assert report["bridge_start_ready"] is True
+    assert report["host_runtime_start_allowed"] is True
+    assert report["host_runtime_disposition"] == "canonical_r009_rolling_release_verified"
+    assert report["blockers"] == []
 
 
 def test_runtime_no_arm_claim_requires_live_pid_and_cannot_claim_campaign(
@@ -303,6 +325,26 @@ def test_campaign_ready_requires_typed_context_bound_to_running_release(
         runtime_readiness_path=runtime_path,
     )
 
-    assert report["motion_arm_ready"] is True
-    assert report["campaign_ready"] is True
+    assert report["motion_arm_ready"] is False
+    assert report["campaign_ready"] is False
+    candidate_plan = _write(root / "campaign/control/candidate_plan.json", {})
+    _write(root / "campaign/control/v3_trial_overlays.json", {})
+    monkeypatch.setattr(
+        admission,
+        "verify_first_row_admission",
+        lambda *_args, **_kwargs: {"ok": True, "fixture": True},
+    )
+    admitted = readiness.resolve_release_readiness(
+        root,
+        bridge_start_context_path=bridge_path,
+        campaign_arming_context_path=campaign_path,
+        runtime_readiness_path=runtime_path,
+        campaign_root=candidate_plan.parents[1],
+        launch_profile_path=root / "launch.json",
+        campaign_epoch=7,
+        ready_consumed_command_seq=0,
+    )
+    assert admitted["first_row_admission_ready"] is True
+    assert admitted["motion_arm_ready"] is True
+    assert admitted["campaign_ready"] is True
     assert report["release_fingerprint"] == fake.release_fingerprint

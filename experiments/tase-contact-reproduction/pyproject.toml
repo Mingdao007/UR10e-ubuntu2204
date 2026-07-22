@@ -1,0 +1,56 @@
+[project]
+name = "step5d-v3-runtime"
+version = "0.0.0"
+requires-python = "==3.10.*"
+dependencies = []
+
+[dependency-groups]
+control = [
+  "cupy-cuda12x==13.6.0",
+  "jsonschema==4.26.0",
+  "numpy==1.24.4",
+  "nvidia-cuda-nvrtc-cu12==12.9.86",
+  "nvidia-cuda-runtime-cu12==12.9.79",
+  "pexpect==4.9.0",
+  "pyyaml==6.0.3",
+]
+optimizer = [
+  "botorch==0.16.1",
+  "gpytorch==1.15.2",
+  "jsonschema==4.26.0",
+  "numpy==1.24.4",
+  "pyyaml==6.0.3",
+  "torch==2.11.0+cu128",
+]
+test-hermetic = [
+  "jsonschema==4.26.0",
+  "mujoco==3.8.1",
+  "numpy==1.24.4",
+  "pytest==8.4.1",
+  "pytest-xdist==3.8.0",
+  "pyyaml==6.0.3",
+]
+analysis = [
+  "matplotlib==3.10.8",
+  "mujoco==3.8.1",
+  "numpy==1.24.4",
+  "pandas==2.3.3",
+]
+
+[tool.uv]
+conflicts = [
+  [
+    { group = "control" },
+    { group = "optimizer" },
+  ],
+]
+default-groups = []
+package = false
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Pure host supervisor for a continuous Step5d-native autotune campaign.
 
 The supervisor has no controller, RTDE, process, or filesystem side effects.
@@ -43,6 +43,7 @@ from step5d_autotune_governor import (
 )
 from step5d_autotune_optimizer import (
     Observation,
+    PRODUCTION_OPTIMIZER_SEED,
     choose_candidate,
     live_trust_region_step,
     success_confirmed,
@@ -60,6 +61,7 @@ class CampaignPhase(str, Enum):
     HOME = "home"
     TRIAL_ACTIVE = "trial_active"
     WAIT_ACK = "wait_ack"
+    WAIT_DIRECT_COMMIT = "wait_direct_commit"
     WAIT_INFRA_READY = "wait_infra_ready"
     PAUSED_CODE_BUG = "paused_code_bug"
     MANUAL_RECOVERY = "manual_recovery"
@@ -77,6 +79,20 @@ TERMINAL_PHASES = {
     CampaignPhase.STOPPED_OPERATOR,
     CampaignPhase.STOPPED_FAIL_CLOSED,
     CampaignPhase.SUCCEEDED,
+}
+
+
+class CompletionProtocol(str, Enum):
+    """Versioned terminal lifecycle; r006 uses no ACK command."""
+
+    LEGACY_ACK_BUNDLE_V1 = "legacy_ack_bundle_v1"
+    DIRECT_ARM_V1 = "v3_direct_arm_v1"
+    FULL_HOME_ROLLING_ARM_V1 = "v3_full_home_rolling_arm_v1"
+
+
+DIRECT_COMPLETION_PROTOCOLS = {
+    CompletionProtocol.DIRECT_ARM_V1,
+    CompletionProtocol.FULL_HOME_ROLLING_ARM_V1,
 }
 
 
@@ -103,6 +119,25 @@ class TrialIntent:
     execution_profile_integer_id: int
     selection: Mapping[str, Any]
     retry_kind: str | None
+    logical_batch_sequence: int = 0
+
+
+@dataclass(frozen=True)
+class PendingAdvance:
+    """Policy outcome waiting only for durable direct-ready publication."""
+
+    intent: TrialIntent
+    post_commit_phase: CampaignPhase
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.intent, TrialIntent):
+            raise ValueError("pending advance requires a TrialIntent")
+        if self.post_commit_phase in {
+            CampaignPhase.TRIAL_ACTIVE,
+            CampaignPhase.WAIT_ACK,
+            CampaignPhase.WAIT_DIRECT_COMMIT,
+        }:
+            raise ValueError("pending advance post phase is transitional")
 
 
 @dataclass(frozen=True)
@@ -110,6 +145,8 @@ class CloseDecision:
     disposition: TrialDisposition
     phase: CampaignPhase
     ack_permitted: bool
+    advance_permitted: bool
+    completion_protocol: CompletionProtocol
     post_ack_phase: CampaignPhase | None
     same_candidate_retry_pending: bool
     reason: str
@@ -204,6 +241,7 @@ class SupervisorRecoverySnapshot:
     ] | None
     pending_ack: tuple[TrialIntent, CampaignPhase] | None
     prepared_ack: HostPacket | None
+    pending_advance: PendingAdvance | None
     cooldown_remaining: int
     governor_probe: GovernorProbeState | None
 
@@ -211,7 +249,14 @@ class SupervisorRecoverySnapshot:
 def execution_profile_integer_id(profile: ExecutionProfile) -> int:
     """Encode normal/slew/TP-accel levels for the TP ones-digit contract."""
 
-    normal_levels = {0.010: 1, 0.015: 2, 0.020: 3, 0.030: 4, 0.050: 5}
+    normal_levels = {
+        0.010: 1,
+        0.015: 2,
+        0.020: 3,
+        0.030: 4,
+        0.050: 5,
+        0.100: 6,
+    }
     actuator_levels = {0.1: 1, 0.2: 2, 0.5: 3}
     try:
         normal = normal_levels[profile.normal_max_rate_rad_s]
@@ -235,11 +280,14 @@ class CampaignSupervisor:
         execution_profile: ExecutionProfile,
         plant_epoch: int = 1,
         selection_policy: str = "adaptive",
+        completion_protocol: CompletionProtocol = CompletionProtocol.LEGACY_ACK_BUNDLE_V1,
     ) -> None:
         if plant_epoch < 1:
             raise ValueError("plant_epoch must be positive")
         if selection_policy not in {"adaptive", "codex_batches"}:
             raise ValueError("selection_policy must be adaptive or codex_batches")
+        if not isinstance(completion_protocol, CompletionProtocol):
+            raise ValueError("completion_protocol must be CompletionProtocol")
         self.campaign = campaign
         self.backend_id = backend_id
         self.source_fingerprint = source_fingerprint
@@ -247,6 +295,7 @@ class CampaignSupervisor:
         self.execution_profile = execution_profile
         self.plant_epoch = plant_epoch
         self.selection_policy = selection_policy
+        self.completion_protocol = completion_protocol
         self.phase = CampaignPhase.HOME
         # ``outcome_timeline`` is authoritative for tier unlock, replay
         # attestation, and recovery. ``observations`` remains the legacy
@@ -269,6 +318,7 @@ class CampaignSupervisor:
         ] | None = None
         self._pending_ack: tuple[TrialIntent, CampaignPhase] | None = None
         self._prepared_ack: HostPacket | None = None
+        self._pending_advance: PendingAdvance | None = None
         self._cooldown_remaining = 0
         self._governor_probe: GovernorProbeState | None = None
 
@@ -335,6 +385,7 @@ class CampaignSupervisor:
                 self._command_seq != 0,
                 self._active is not None,
                 self._pending_ack is not None,
+                self._pending_advance is not None,
             )
         ):
             raise RuntimeError("TP command sequence can be seeded only before first ARM")
@@ -403,17 +454,32 @@ class CampaignSupervisor:
         require_cuda_botorch: bool = True,
         cuda_fit_mode: str = "serial",
         parallel_cuda_verified: bool = False,
+        optimizer_seed: int = PRODUCTION_OPTIMIZER_SEED,
         search_attestations: Sequence[SearchAttestation] = (),
         forced_candidate: ForceCandidate | None = None,
         forbidden_candidate_uids: Collection[str] = (),
         allow_archived_code_fix_replay: bool = False,
         allow_exact_incomplete_batch_retry: bool = False,
         allow_fresh_exact_batch_bootstrap: bool = False,
+        allow_intentional_occurrence_repeat: bool = False,
+        logical_batch_sequence: int = 0,
     ) -> TrialIntent:
+        if (
+            isinstance(logical_batch_sequence, bool)
+            or not isinstance(logical_batch_sequence, int)
+            or logical_batch_sequence < 0
+        ):
+            raise ValueError("logical_batch_sequence must be non-negative")
         if self.phase is not CampaignPhase.HOME:
             raise RuntimeError(f"campaign cannot arm from phase {self.phase.value}")
-        if self._active is not None or self._pending_ack is not None:
-            raise RuntimeError("a trial or bundle ACK is already active")
+        if any(
+            (
+                self._active is not None,
+                self._pending_ack is not None,
+                self._pending_advance is not None,
+            )
+        ):
+            raise RuntimeError("a trial or terminal advance is already active")
         if self._prepared_ack is not None:
             raise RuntimeError("a durable ACK is still awaiting exact TP consumption")
         probe = self._governor_probe
@@ -463,7 +529,10 @@ class CampaignSupervisor:
         elif forced_candidate is not None:
             if (
                 forced_candidate.candidate_uid in external_forbidden
-                and not allow_exact_incomplete_batch_retry
+                and not (
+                    allow_exact_incomplete_batch_retry
+                    or allow_intentional_occurrence_repeat
+                )
             ):
                 raise ValueError("forced live candidate was already physically attempted")
             context = [
@@ -517,6 +586,10 @@ class CampaignSupervisor:
                 and not code_fix_replay
                 and not fresh_exact_batch_start
                 and not (
+                    allow_intentional_occurrence_repeat
+                    and incomplete_retry_sources
+                )
+                and not (
                     allow_exact_incomplete_batch_retry
                     and incomplete_retry_sources
                 )
@@ -527,6 +600,8 @@ class CampaignSupervisor:
             source_outcome = (
                 None
                 if baseline_start or fresh_exact_batch_start
+                else incomplete_retry_sources[-1]
+                if allow_intentional_occurrence_repeat and incomplete_retry_sources
                 else incomplete_retry_sources[-1]
                 if allow_exact_incomplete_batch_retry and incomplete_retry_sources
                 else replay_sources[-1]
@@ -543,6 +618,8 @@ class CampaignSupervisor:
                     if baseline_start
                     else TrialTransitionKind.BATCH_BOOTSTRAP
                     if fresh_exact_batch_start
+                    else TrialTransitionKind.REPLICATION
+                    if allow_intentional_occurrence_repeat
                     else TrialTransitionKind.RETRY
                     if allow_exact_incomplete_batch_retry
                     else TrialTransitionKind.RETRY
@@ -593,7 +670,9 @@ class CampaignSupervisor:
                     None if source_outcome is None else source_outcome.evaluation.trial_uid
                 ),
                 "exact_parameter_set_reuse_allowed": (
-                    code_fix_replay or allow_exact_incomplete_batch_retry
+                    code_fix_replay
+                    or allow_exact_incomplete_batch_retry
+                    or allow_intentional_occurrence_repeat
                 ),
                 "exact_incomplete_batch_retry": allow_exact_incomplete_batch_retry,
             }
@@ -605,6 +684,7 @@ class CampaignSupervisor:
                 require_cuda_botorch=require_cuda_botorch,
                 cuda_fit_mode=cuda_fit_mode,
                 parallel_cuda_verified=parallel_cuda_verified,
+                optimizer_seed=optimizer_seed,
                 search_attestations=search_attestations,
                 forbidden_candidate_uids=self._forbidden_candidate_uids(
                     trial_profile.profile_id
@@ -662,6 +742,7 @@ class CampaignSupervisor:
         if (
             not code_fix_replay
             and not allow_exact_incomplete_batch_retry
+            and not allow_intentional_occurrence_repeat
             and candidate.candidate_uid
             in self._forbidden_candidate_uids(trial_profile.profile_id)
         ):
@@ -688,6 +769,7 @@ class CampaignSupervisor:
             ),
             selection=dict(selection),
             retry_kind=retry_kind,
+            logical_batch_sequence=logical_batch_sequence,
         )
         self._active = intent
         self.phase = CampaignPhase.TRIAL_ACTIVE
@@ -710,6 +792,7 @@ class CampaignSupervisor:
         safe_closure: ClosureEvidence,
         bundle_path: Path | None,
         failure_cause: str = "evidence",
+        control_candidate_uid: str | None = None,
     ) -> CloseDecision:
         if self.phase is not CampaignPhase.TRIAL_ACTIVE or self._active is None:
             raise RuntimeError("no active trial can be closed")
@@ -765,6 +848,7 @@ class CampaignSupervisor:
             profile_id=trial.execution_profile.profile_id,
             plant_epoch=trial.plant_epoch,
             latest_trace_sha256=manifest.csv_sha256,
+            control_candidate_uid=control_candidate_uid,
         )
         self.outcome_timeline.append(outcome)
         profile_diagnostic = self._is_profile_diagnostic(outcome)
@@ -878,7 +962,13 @@ class CampaignSupervisor:
                     # uncompletable governor state behind the terminal ACK.
                     self._governor_probe = None
 
-        if ack_permitted:
+        if ack_permitted and self.completion_protocol in DIRECT_COMPLETION_PROTOCOLS:
+            self._pending_advance = PendingAdvance(
+                intent=self._active,
+                post_commit_phase=post_ack_phase,
+            )
+            self.phase = CampaignPhase.WAIT_DIRECT_COMMIT
+        elif ack_permitted:
             self._pending_ack = (self._active, post_ack_phase)
             self.phase = CampaignPhase.WAIT_ACK
         else:
@@ -895,7 +985,13 @@ class CampaignSupervisor:
         return CloseDecision(
             disposition=disposition,
             phase=self.phase,
-            ack_permitted=ack_permitted,
+            ack_permitted=(
+                ack_permitted
+                and self.completion_protocol
+                is CompletionProtocol.LEGACY_ACK_BUNDLE_V1
+            ),
+            advance_permitted=ack_permitted,
+            completion_protocol=self.completion_protocol,
             post_ack_phase=post_ack_phase if ack_permitted else None,
             same_candidate_retry_pending=retry,
             reason=reason,
@@ -908,6 +1004,8 @@ class CampaignSupervisor:
         packet before it may return the packet to a TP writer.
         """
 
+        if self.completion_protocol is not CompletionProtocol.LEGACY_ACK_BUNDLE_V1:
+            raise RuntimeError("ACK is unavailable in the direct-ARM protocol")
         if self.phase is not CampaignPhase.WAIT_ACK or self._pending_ack is None:
             raise RuntimeError("ACK is permitted only after closed immutable bundle evidence")
         if self._prepared_ack is not None:
@@ -954,6 +1052,41 @@ class CampaignSupervisor:
         self._pending_ack = None
         self._prepared_ack = None
         self.phase = post_ack_phase
+
+    def confirm_direct_ready(self, trial_uid: str) -> None:
+        """Advance r006 policy after durable bundle + terminal-ready proof."""
+
+        if self.completion_protocol not in DIRECT_COMPLETION_PROTOCOLS:
+            raise RuntimeError("direct-ready completion requires direct-ARM protocol")
+        if (
+            self.phase is not CampaignPhase.WAIT_DIRECT_COMMIT
+            or self._pending_advance is None
+        ):
+            raise RuntimeError("no direct-ready trial can be confirmed")
+        if self._pending_ack is not None or self._prepared_ack is not None:
+            raise RuntimeError("direct-ready completion cannot reuse ACK state")
+        pending = self._pending_advance
+        intent = pending.intent
+        post_phase = pending.post_commit_phase
+        if intent.trial.trial_uid != trial_uid:
+            raise ValueError("direct-ready confirmation differs from pending trial")
+        matches = [
+            outcome
+            for outcome in self.outcome_timeline
+            if outcome.evaluation.trial_uid == trial_uid
+        ]
+        if len(matches) != 1:
+            raise RuntimeError("direct-ready completion requires one closed outcome")
+        outcome = matches[0]
+        if outcome.eligible:
+            if any(
+                observed.evaluation.trial_uid == trial_uid
+                for observed in self.observations
+            ):
+                raise RuntimeError("direct-ready outcome was already admitted")
+            self.observations.append(outcome)
+        self._pending_advance = None
+        self.phase = post_phase
 
     def ack_bundle(self) -> HostPacket:
         """Legacy pure-state helper; live issuance must use CampaignCoordinator."""
@@ -1056,6 +1189,7 @@ class CampaignSupervisor:
         campaign: CampaignSpec,
         source_fingerprint: str,
         config_fingerprint: str,
+        execution_profile: ExecutionProfile | None = None,
         search_attestation: SearchAttestation | None = None,
     ) -> None:
         if self.phase not in {CampaignPhase.PAUSED_CODE_BUG, CampaignPhase.HOME}:
@@ -1096,6 +1230,10 @@ class CampaignSupervisor:
         self.campaign = campaign
         self.source_fingerprint = source_fingerprint
         self.config_fingerprint = config_fingerprint
+        if execution_profile is not None:
+            if not isinstance(execution_profile, ExecutionProfile):
+                raise TypeError("execution profile must be an ExecutionProfile")
+            self.execution_profile = execution_profile
         self._pending_retry = None
         self._prepared_ack = None
         # Code/guard changes invalidate every prior profile comparison.  The
@@ -1636,6 +1774,7 @@ class CampaignSupervisor:
             pending_retry=self._pending_retry,
             pending_ack=self._pending_ack,
             prepared_ack=self._prepared_ack,
+            pending_advance=self._pending_advance,
             cooldown_remaining=self._cooldown_remaining,
             governor_probe=self._governor_probe,
         )
@@ -1657,6 +1796,7 @@ class CampaignSupervisor:
                 self._pending_retry,
                 self._pending_ack,
                 self._prepared_ack,
+                self._pending_advance,
             )
         ):
             raise RuntimeError("recovery may populate only a fresh CampaignSupervisor")
@@ -1693,8 +1833,26 @@ class CampaignSupervisor:
             snapshot.pending_ack is not None
         ):
             raise ValueError("recovery pending ACK differs from phase")
+        if (snapshot.phase is CampaignPhase.WAIT_DIRECT_COMMIT) != (
+            snapshot.pending_advance is not None
+        ):
+            raise ValueError("recovery pending advance differs from phase")
+        if snapshot.pending_advance is not None and not isinstance(
+            snapshot.pending_advance, PendingAdvance
+        ):
+            raise ValueError("recovery pending advance is invalid")
+        if snapshot.pending_advance is not None and any(
+            (
+                snapshot.pending_ack is not None,
+                snapshot.prepared_ack is not None,
+                snapshot.active is not None,
+            )
+        ):
+            raise ValueError("recovery direct advance reused ACK or active state")
         pending_trial_uid = (
-            None
+            snapshot.pending_advance.intent.trial.trial_uid
+            if snapshot.pending_advance is not None
+            else None
             if snapshot.pending_ack is None
             else snapshot.pending_ack[0].trial.trial_uid
         )
@@ -1768,6 +1926,8 @@ class CampaignSupervisor:
                 if snapshot.active is not None
                 else snapshot.pending_ack[0]
                 if snapshot.pending_ack is not None
+                else snapshot.pending_advance.intent
+                if snapshot.pending_advance is not None
                 else None
             )
             if transitional is not None and any(
@@ -1796,6 +1956,7 @@ class CampaignSupervisor:
         self._pending_retry = snapshot.pending_retry
         self._pending_ack = snapshot.pending_ack
         self._prepared_ack = snapshot.prepared_ack
+        self._pending_advance = snapshot.pending_advance
         self._cooldown_remaining = snapshot.cooldown_remaining
         self._governor_probe = probe
 

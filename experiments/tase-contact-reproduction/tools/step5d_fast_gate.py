@@ -463,7 +463,7 @@ def _store_readback(
         })
         roles[role] = ref.sha256
     locator = {
-        "schema_version": "ur10e_artifact_locator_v1",
+        "schema_version": "ur10e_artifact_locator_v2",
         "program": program,
         "store_layout": "sha256/<digest>",
         "destructive_migration_performed": False,

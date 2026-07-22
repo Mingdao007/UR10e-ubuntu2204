@@ -20,10 +20,15 @@ from typing import Any, Mapping, Sequence
 
 from ur10e_experiment_runtime.identity import canonical_sha256
 
+from .release_identity import (
+    REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
+    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
+)
+
 
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r005"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r010"
 
 EXPERIMENT_REPO_PREFIX = "experiments/tase-contact-reproduction"
 
@@ -62,54 +67,10 @@ TIMING_MEASUREMENT_PATHS = (
 
 ORCHESTRATION_PATHS = tuple(
     _experiment_path(relative)
-    for relative in (
-        "tools/run_step5d_autotune_campaign.py",
-        "tools/prepare_step5d_autotune_launch.py",
-        "tools/step5d_autotune_backend.py",
-        "tools/step5d_autotune_contract.py",
-        "tools/step5d_autotune_coordinator.py",
-        "tools/step5d_autotune_journal.py",
-        "tools/step5d_autotune_state_machine.py",
-        "tools/step5d_autotune_store.py",
-        "tools/step5d_autotune_supervisor.py",
-        "tools/step5d_autotune_live_driver.py",
-        "tools/step5d_autotune_runtime_lifecycle.py",
-        "tools/step5d_autotune_batch_plan.py",
-        "tools/run_step5d_autotune_v3_live.py",
-        "tools/run_step5d_autotune_v3_bridge.py",
-        "tools/build_step5d_autotune_v3_bridge_start_context.py",
-        "tools/preflight_step5d_autotune_v3.py",
-        "tools/step5d_autotune_v3/arming.py",
-        "tools/step5d_autotune_v3/certification.py",
-        "tools/step5d_autotune_v3/cli.py",
-        "tools/step5d_autotune_v3/launcher.py",
-        "tools/step5d_autotune_v3/postprocess.py",
-        "tools/step5d_autotune_v3/runtime_calibration.py",
-        "tools/step5d_autotune_v3/runtime_profile.py",
-        "tools/step5d_autotune_v3/readiness.py",
-        "tools/step5d_autotune_v3/service.py",
-        "tools/step5d_autotune_v3/state.py",
-        "tools/step5d_workflow_state.py",
-        "scripts/step5d-autotune-v3.sh",
-        "config/systemd/step5d-autotune-v3.service",
-        "config/step5/step5d_autotune_v3_launch_profile.json",
-        "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
-    )
-) + (
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/authorization.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/batch.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/contracts.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/evidence.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/failure_to_guard.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/registry.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/return_route.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/rollout.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/runtime.py",
-)
+    for relative in sorted(REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS)
+) + tuple(sorted(REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS))
 
 EVIDENCE_VERIFIER_PATHS = (
-    _experiment_path("tools/step5d_autotune_v3/identity_layers.py"),
     _experiment_path("tools/step5d_timing_acceptance.py"),
     _experiment_path("tools/verify_step5d_autotune_v3_execution_readiness.py"),
     _experiment_path("tools/rebuild_step5d_autotune_v3_pre_live_evidence.py"),

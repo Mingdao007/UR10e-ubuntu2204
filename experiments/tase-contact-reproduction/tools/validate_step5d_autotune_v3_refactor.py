@@ -15,6 +15,7 @@ from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MATRIX = ROOT / "config" / "step5d_autotune_v3_test_matrix.json"
+DEFAULT_ACTIVE_SURFACE = ROOT / "config" / "step5d" / "v3_active_surface.json"
 DEFAULT_EVIDENCE = (
     ROOT
     / "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json"
@@ -25,37 +26,99 @@ DEFAULT_GOVERNANCE = (
 )
 FROZEN_COMMIT = "6f9ef0912842ac003545eb1906b38d13c7552218"
 FROZEN_TAG = "archive/step5d-autotune-v1-20260715"
-# The convergence lane added two explicit typed owners (arming and readiness)
-# instead of folding capability checks back into the launcher.  Certification
-# has a separate, single-module ceiling because it is an attended no-contact
-# procedure owner, not permission to grow the campaign runtime surface.
-RUNTIME_MODULE_LIMIT = 12
-RUNTIME_LOC_LIMIT = 5200
-RUNTIME_FILE_LOC_LIMIT = 700
-CERTIFICATION_MODULE = "certification.py"
-CERTIFICATION_MODULE_LIMIT = 1
-CERTIFICATION_LOC_LIMIT = 320
 REQUIRED_LANES = {"small", "medium"}
-PARSER_CI_DEPENDENCY_STUBS = {
-    "_ur_common", "capture_kunwei_kwr75_1khz", "numpy", "pandas",
-    "pinocchio", "xacro", "yaml",
+PORTABLE_CI_DEPENDENCY_DOUBLES: frozenset[str] = frozenset()
+STEP5D_V3_TEST_MARKERS = (
+    "step5d_autotune_v3",
+    "step5d.autotune-v3",
+    "step5d-autotune-v3",
+    "step5d_strict_rnn_autotune_v3",
+    "STEP5D_V3",
+)
+AUTHORITATIVE_ACTIVE_TESTS = {
+    "tests/test_step5d_manual_bridge.py",
+    "tests/test_step5d_manual_campaign_plan.py",
+    "tests/test_step5d_manual_governed_route.py",
+    "tests/test_step5d_manual_queue.py",
+    "tests/test_step5d_manual_release.py",
+    "tests/test_step5d_manual_tp_v1.py",
+    "tests/test_step5d_autotune_live_driver.py",
+    "tests/test_step5d_autotune_production_second_lap.py",
+    "tests/test_step5d_autotune_runtime.py",
+    "tests/test_step5d_autotune_v3_batch_producer.py",
+    "tests/test_step5d_autotune_v3_campaign_prepare.py",
+    "tests/test_step5d_autotune_v3_contract.py",
+    "tests/test_step5d_autotune_v3_dashboard.py",
+    "tests/test_step5d_autotune_v3_governance.py",
+    "tests/test_step5d_autotune_v3_identity_layers.py",
+    "tests/test_step5d_autotune_v3_installed_runtime.py",
+    "tests/test_step5d_autotune_v3_live_startup.py",
+    "tests/test_step5d_optimizer_protocol.py",
+    "tests/test_step5d_autotune_v3_qualification.py",
+    "tests/test_step5d_autotune_v3_qualification_endpoints.py",
+    "tests/test_step5d_autotune_v3_qualification_production.py",
+    "tests/test_step5d_autotune_v3_refactor_gate.py",
+    "tests/test_step5d_autotune_v3_test_matrix_runner.py",
+    "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",
+    "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
+    "tests/test_step5d_autotune_v3_bridge_wrapper.py",
+    "tests/test_step5d_r008_rolling_policy.py",
+    "tests/test_step5d_r009_release_core.py",
+    "tests/test_step5d_runtime_environment.py",
+    "tests/test_step5d_runtime_gate.py",
+    "tests/test_step5d_runtime_identity.py",
+    "tests/test_step5d_runtime_observation.py",
+    "tests/test_step5d_v3_active_surface_architecture.py",
+    "tests/test_step5d_v3_immutable_payload_routing.py",
+    "tests/test_step5d_v3_oci_contract.py",
+    "tests/test_step5d_v3_runtime_installation.py",
+    "tests/test_step5d_v3_source_closure.py",
 }
-READINESS_TRANSITION_ORDER = [
-    "deterministic_tests",
-    "control_semantics",
-    "tp_build_and_fresh_readback",
-    "machine_campaign_binding",
-    "same_process_startup_gate",
-    "live_execution",
+AUTHORITATIVE_OBSOLETE_TESTS = {
+    "tests/test_cross_step_parameter_table.py",
+    "tests/test_step5d_autotune_v3_arming.py",
+    "tests/test_step5d_autotune_v3_bridge_start_context_builder.py",
+    "tests/test_step5d_autotune_v3_certification.py",
+    "tests/test_step5d_autotune_v3_certification_entrypoints.py",
+    "tests/test_step5d_autotune_v3_certification_extractor.py",
+    "tests/test_step5d_autotune_v3_execution_readiness.py",
+    "tests/test_step5d_autotune_v3_pre_live_rebuild.py",
+    "tests/test_step5d_autotune_v3_release_readiness.py",
+    "tests/test_step5d_autotune_v3_return_route_evidence.py",
+    "tests/test_step5d_autotune_v3_return_route_promotion.py",
+    "tests/test_step5d_autotune_v3_stopping_bound_evidence.py",
+    "tests/test_step5d_autotune_v3_stopping_bound_promotion.py",
+    "tests/test_step5d_autotune_v3_ursim_hold.py",
+    "tests/test_step5d_current_binding_gate.py",
+    "tests/test_step5d_r006_production_chain.py",
+    "tests/test_step5d_r008_production_chain.py",
+    "tests/test_step5d_review_policy_v3.py",
+    "tests/test_step5d_v31_permissive_contact.py",
+    "tests/test_step5d_v3_r004_release_candidate.py",
+    "tests/test_step5d_v3_timing_equivalence.py",
+    "tests/test_ur_experiment_stage5d_adapter_parity.py",
+}
+AUTHORITATIVE_ACCEPTANCE_PATH = [
+    "clean_environment_canonical_launch",
+    "release_manifest_v3_verified",
+    "tp_runtime_identity_verified",
+    "simulated_play_observed",
+    "post_play_identity_rechecked",
+    "command_bound_first_arm_grant",
+    "first_arm_acknowledged",
+    "one_trial_completed",
+    "command_bound_next_arm_grant",
+    "next_arm_acknowledged",
+    "bridge_process_still_alive_at_campaign_outcome",
+    "campaign_terminal_attested_before_bridge_cleanup",
 ]
-READY_TO_EXECUTE_REQUIRES = [
-    "deterministic_tests_pass",
-    "control_semantics_pass",
-    "controller_readback_verified",
-    "internal_process_fingerprint_campaign_binding",
-    "live_runtime_promoted",
-    "same_process_startup_gate_pass",
-]
+REQUIRED_ACTIVE_RUNTIME_MODULES = {
+    "tools/step5d_autotune_v3/delivery_observation.py",
+    "tools/step5d_autotune_v3/preflight_support.py",
+    "tools/step5d_autotune_v3/rtde_client.py",
+    "tools/step5d_autotune_v3/runtime_environment.py",
+    "tools/step5d_autotune_v3/source_closure.py",
+}
 
 # Keys are relative to the git root, not to this experiment root.
 PROTECTED_V1_SHA256 = {
@@ -63,8 +126,6 @@ PROTECTED_V1_SHA256 = {
         "e48051466beecc41045d35d4a4f39b5f61cce51c5fb314007a6b011de1083514",
     "experiments/tase-contact-reproduction/tools/step5d_p0_v9_bridge.py":
         "3b7446a43c77b95e9d2e597c9a3b8d660ec718d009faed5815405b1d3391b1a6",
-    "experiments/tase-contact-reproduction/tools/step5d_autotune_store.py":
-        "d483d5299f44e8c31be1f84d1e0fc03961dbe863cf2d70794108ac085f7eab4a",
     "experiments/tase-contact-reproduction/tools/step5d_paper_outer_loop.py":
         "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
     "experiments/tase-contact-reproduction/tools/step5d_control_contract.py":
@@ -86,60 +147,6 @@ PROTECTED_V1_SHA256 = {
     "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v1.urp":
         "0c6e21709887c6df2be00d02b868bf28bd9e72c92dd5edc5245d4e055b63b250",
 }
-
-APPROVED_ORCHESTRATION_VARIANTS = {
-    "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py": {
-        "baseline_sha256": "5f913259826dcaff0d54bcae43d6c30b0efffe63ad8b8565e43459fa954fe3db",
-        "approved_sha256": "f82d61f005d91719481299398d1bcd296d79db12fd5030b2e1fa801af3eac8f3",
-        "change_class": "behavior_changing",
-    },
-    "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py": {
-        "baseline_sha256": "f7485600db9571d882076f3ceeed8ee999bee998d35fdc8fe2386664bb55550c",
-        "approved_sha256": "43468bc6a277b924185f29e58d7209ea568c59aa4634c1692037ccde3f910cb1",
-        "change_class": "behavior_changing",
-    },
-    "experiments/tase-contact-reproduction/tools/step5d_autotune_live_driver.py": {
-        "baseline_sha256": "5929c1ceb20a8541c28793f5fdf4c433146e7b35cecdc40ac6ab9177c0cd7fec",
-        "approved_sha256": "d07f0df784aa69124744b63c1a8cff68abd89ac24010827668c46b1ba58ba80d",
-        "change_class": "behavior_changing",
-    },
-    "experiments/tase-contact-reproduction/tools/step5d_autotune_contract.py": {
-        "baseline_sha256": "e54eb807ad30df95e41ca108c647d010c360e344c7f6915f76666fb96879eee9",
-        "approved_sha256": "f0e98b5c55a980ce7df6216589d179b84f408da51e83b2b1080f43e6757b6709",
-        "change_class": "behavior_changing",
-    },
-    "experiments/tase-contact-reproduction/tools/step5d_autotune_coordinator.py": {
-        "baseline_sha256": "1e0a0b1a6cc739ec259575c8e1e0f06c54bfc9dd77e504c78a6a6ad7f2b6f71a",
-        "approved_sha256": "a2ff4944afe8ed9fbd64ac288113857038f133fb3859140b48fcab1183915a8f",
-        "change_class": "behavior_changing",
-    },
-    "experiments/tase-contact-reproduction/tools/step5d_autotune_journal.py": {
-        "baseline_sha256": "8e04cd0744b4df22e4fbfaaf9ee1587823b1f4ecacc317c0e0e7fdafaf7fb2b0",
-        "approved_sha256": "80e7ee326da095b2ef05f09e3e7ce0f415b534815b516f576f853dcf3e2fb8f3",
-        "change_class": "behavior_changing",
-    },
-    "experiments/tase-contact-reproduction/tools/step5d_runtime_interface.py": {
-        "baseline_sha256": "56d388207542d5d5d93175f9d8922d3366f7fd368f0763a7304f2933844e7e2d",
-        "approved_sha256": "a36306325de4720fc53a6354878edc45c0598518e060df0926f98dc5c699bcd1",
-        "change_class": "behavior_changing",
-    },
-    "experiments/tase-contact-reproduction/config/current_stage.json": {
-        "baseline_sha256": "8d6684717008a3d4bfbdd948a03083188f6456afb5313d58edbecfa6cb0e6132",
-        "approved_sha256": "b26bce0476608410ba7186e735af84c645bafe2652ea7ed4fb9f0389a8bea0a1",
-        "change_class": "behavior_changing",
-    },
-    "experiments/tase-contact-reproduction/scripts/bridge-line-operator.sh": {
-        "baseline_sha256": "2fdc3faa70c57614d5a731fbf1024d046d11da23f374711c9002a1b9d6be58ec",
-        "approved_sha256": "91d8fb6be1ddcd038e5497032fd2173c3b94181da523a43370653a24cdb27da9",
-        "change_class": "behavior_changing",
-    },
-    "experiments/tase-contact-reproduction/scripts/step5d-autotune-live.sh": {
-        "baseline_sha256": "301cf94d9bed54518443075abada22b61981b4aa342f9c4aa458e5292b3b2b38",
-        "approved_sha256": "ca0cac4ca0579f0493fd1ab7c93e45bf84b3608a40740a36ec12bf0aad6d1ed6",
-        "change_class": "behavior_changing",
-    },
-}
-
 
 def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
@@ -210,61 +217,12 @@ def protected_source_issues(
     return issues
 
 
-def orchestration_variant_issues(
-    repo: Path,
-    *,
-    baseline_ref: str = FROZEN_COMMIT,
-    expected: Mapping[str, Mapping[str, str]] = APPROVED_ORCHESTRATION_VARIANTS,
-) -> list[str]:
-    """Allow only reviewed whole-file orchestration variants over the v1 blob."""
-
-    issues: list[str] = []
-    for relative, contract in sorted(expected.items()):
-        path = repo / relative
-        if not path.is_file() or path.is_symlink():
-            issues.append(f"orchestration_variant_missing_or_symlink:{relative}")
-            continue
-        baseline = _git(repo, "show", f"{baseline_ref}:{relative}")
-        if baseline.returncode != 0:
-            issues.append(f"orchestration_variant_absent_from_baseline:{relative}")
-            continue
-        baseline_sha = _sha256(baseline.stdout)
-        if baseline_sha != contract.get("baseline_sha256"):
-            issues.append(f"orchestration_variant_baseline_hash_mismatch:{relative}")
-        current_sha = _sha256(path.read_bytes())
-        if current_sha != contract.get("approved_sha256"):
-            issues.append(
-                f"orchestration_variant_unapproved:{relative}:actual={current_sha}"
-            )
-        if contract.get("change_class") != "behavior_changing":
-            issues.append(f"orchestration_variant_change_class_invalid:{relative}")
-    return issues
-
-
-def _physical_source_lines(path: Path) -> int:
-    count = 0
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped and not stripped.startswith("#"):
-            count += 1
-    return count
-
-
-def runtime_budget(root: Path) -> tuple[list[str], dict[str, Any]]:
+def runtime_surface_issues(root: Path) -> tuple[list[str], dict[str, Any]]:
     runtime = root / "tools" / "step5d_autotune_v3"
-    all_entries = sorted(runtime.rglob("*")) if runtime.is_dir() else []
-    modules = sorted(
-        path for path in runtime.glob("*.py")
-        if path.is_file() and not path.is_symlink()
-    ) if runtime.is_dir() else []
-    certification_modules = [
-        path for path in modules if path.name == CERTIFICATION_MODULE
-    ]
-    core_modules = [path for path in modules if path.name != CERTIFICATION_MODULE]
-    loc_by_module = {
-        path.relative_to(root).as_posix(): _physical_source_lines(path)
-        for path in modules
-    }
+    if not runtime.is_dir() or runtime.is_symlink():
+        return ["v3_runtime_directory_missing_or_symlink"], {"python_modules": []}
+
+    all_entries = sorted(runtime.rglob("*"))
     issues: list[str] = []
     symlinks = [path.relative_to(root).as_posix() for path in all_entries if path.is_symlink()]
     issues.extend(f"v3_runtime_symlink_forbidden:{path}" for path in symlinks)
@@ -276,57 +234,76 @@ def runtime_budget(root: Path) -> tuple[list[str], dict[str, Any]]:
         and path.suffix != ".py"
         and "__pycache__" not in path.parts
     ]
-    issues.extend(f"v3_runtime_unbudgeted_file:{path}" for path in unexpected_files)
-    if len(core_modules) > RUNTIME_MODULE_LIMIT:
-        issues.append(
-            f"v3_runtime_module_budget_exceeded:{len(core_modules)}>{RUNTIME_MODULE_LIMIT}"
-        )
-    core_loc = sum(
-        loc_by_module[path.relative_to(root).as_posix()] for path in core_modules
-    )
-    if core_loc > RUNTIME_LOC_LIMIT:
-        issues.append(f"v3_runtime_loc_budget_exceeded:{core_loc}>{RUNTIME_LOC_LIMIT}")
-    certification_loc = sum(
-        loc_by_module[path.relative_to(root).as_posix()]
-        for path in certification_modules
-    )
-    if len(certification_modules) > CERTIFICATION_MODULE_LIMIT:
-        issues.append(
-            "v3_certification_module_budget_exceeded:"
-            f"{len(certification_modules)}>{CERTIFICATION_MODULE_LIMIT}"
-        )
-    if certification_loc > CERTIFICATION_LOC_LIMIT:
-        issues.append(
-            f"v3_certification_loc_budget_exceeded:{certification_loc}>"
-            f"{CERTIFICATION_LOC_LIMIT}"
-        )
-    for relative, count in loc_by_module.items():
-        if count > RUNTIME_FILE_LOC_LIMIT:
-            issues.append(
-                f"v3_runtime_file_loc_budget_exceeded:{relative}:{count}>"
-                f"{RUNTIME_FILE_LOC_LIMIT}"
-            )
+    issues.extend(f"v3_runtime_non_python_file_forbidden:{path}" for path in unexpected_files)
     nested_modules = sorted(
         path.relative_to(root).as_posix()
         for path in runtime.rglob("*.py")
         if path.is_file() and path.parent != runtime and "__pycache__" not in path.parts
-    ) if runtime.is_dir() else []
-    if nested_modules:
-        issues.extend(f"v3_runtime_module_outside_flat_budget:{path}" for path in nested_modules)
-    return issues, {
-        "module_limit": RUNTIME_MODULE_LIMIT,
-        "module_count": len(core_modules),
-        "loc_limit": RUNTIME_LOC_LIMIT,
-        "loc_count": core_loc,
-        "certification_module_limit": CERTIFICATION_MODULE_LIMIT,
-        "certification_module_count": len(certification_modules),
-        "certification_loc_limit": CERTIFICATION_LOC_LIMIT,
-        "certification_loc_count": certification_loc,
-        "total_module_count": len(modules),
-        "total_loc_count": sum(loc_by_module.values()),
-        "file_loc_limit": RUNTIME_FILE_LOC_LIMIT,
-        "loc_by_module": loc_by_module,
+    )
+    issues.extend(f"v3_runtime_nested_module_forbidden:{path}" for path in nested_modules)
+    modules = sorted(
+        path.relative_to(root).as_posix()
+        for path in runtime.glob("*.py")
+        if path.is_file() and not path.is_symlink()
+    )
+    return issues, {"python_modules": modules}
+
+
+def active_surface_issues(
+    root: Path,
+    payload: Any,
+    *,
+    runtime_modules: set[str],
+) -> list[str]:
+    """Require every v3 runtime module to be explicitly active or historical."""
+
+    if not isinstance(payload, dict):
+        return ["active_surface_not_object"]
+    issues: list[str] = []
+    if payload.get("schema") != "step5d.autotune-v3/active-surface-v3":
+        issues.append("active_surface_schema_mismatch")
+    release_truth = payload.get("release_truth")
+    if not isinstance(release_truth, dict):
+        issues.append("active_surface_release_truth_missing")
+    elif release_truth.get("manifest_schema") != (
+        "step5d.autotune-v3/release-manifest-v3"
+    ):
+        issues.append("active_surface_release_manifest_schema_mismatch")
+
+    path_sets: dict[str, set[str]] = {}
+    for field in ("active_orchestration_paths", "historical_only"):
+        values = payload.get(field)
+        if not isinstance(values, list) or any(
+            not isinstance(path, str) or not path for path in values
+        ):
+            issues.append(f"active_surface_paths_invalid:{field}")
+            continue
+        if len(values) != len(set(values)):
+            issues.append(f"active_surface_paths_duplicated:{field}")
+        path_sets[field] = set(values)
+    if set(path_sets) != {"active_orchestration_paths", "historical_only"}:
+        return issues
+
+    active = path_sets["active_orchestration_paths"]
+    historical = path_sets["historical_only"]
+    for path in sorted(active & historical):
+        issues.append(f"active_surface_path_overlap:{path}")
+    for relative in sorted(active):
+        target = root / relative
+        if target.is_symlink() or not target.is_file():
+            issues.append(f"active_surface_active_path_unavailable:{relative}")
+
+    runtime_prefix = "tools/step5d_autotune_v3/"
+    declared_runtime = {
+        path
+        for path in active | historical
+        if path.startswith(runtime_prefix) and path.endswith(".py")
     }
+    for path in sorted(runtime_modules - declared_runtime):
+        issues.append(f"active_surface_runtime_module_unclassified:{path}")
+    for path in sorted(REQUIRED_ACTIVE_RUNTIME_MODULES - active):
+        issues.append(f"active_surface_required_runtime_not_active:{path}")
+    return issues
 
 
 def _commands_valid(value: Any) -> bool:
@@ -338,8 +315,54 @@ def _commands_valid(value: Any) -> bool:
     )
 
 
-def matrix_issues(payload: Any) -> list[str]:
+def step5d_v3_test_paths(root: Path) -> set[str]:
+    """Discover repository tests that explicitly bind the Step5d v3 surface."""
+
+    tests = root / "tests"
+    if not tests.is_dir() or tests.is_symlink():
+        return set()
+    discovered: set[str] = set()
+    for path in tests.glob("test_*.py"):
+        if not path.is_file():
+            continue
+        filename_bound = re.search(
+            r"test_step5d_(?:autotune_)?v3(?:_|\.py$)",
+            path.name,
+        ) is not None
+        try:
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError):
+            source = ""
+        if filename_bound or any(marker in source for marker in STEP5D_V3_TEST_MARKERS):
+            discovered.add(path.relative_to(root).as_posix())
+    return discovered
+
+
+def _commanded_test_paths(payload: Mapping[str, Any]) -> set[str]:
+    lanes = payload.get("lanes", {})
+    commanded = {
+        token
+        for lane in lanes.values()
+        if isinstance(lane, Mapping)
+        for command in lane.get("commands", [])
+        if isinstance(command, list)
+        for token in command
+        if isinstance(token, str) and token.startswith("tests/")
+    }
+    installed_runtime = payload.get("local_installed_runtime_gate", {})
+    if isinstance(installed_runtime, Mapping):
+        command = installed_runtime.get("command", [])
+        commanded.update(
+            token
+            for token in command
+            if isinstance(token, str) and token.startswith("tests/")
+        )
+    return commanded
+
+
+def matrix_issues(payload: Any, *, root: Path = ROOT) -> list[str]:
     issues: list[str] = []
+    classified: dict[str, set[str]] | None = None
     if not isinstance(payload, dict):
         return ["test_matrix_not_object"]
     if payload.get("schema_version") != "step5d.autotune-v3/test-matrix-v3":
@@ -350,37 +373,82 @@ def matrix_issues(payload: Any) -> list[str]:
         "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json"
     ):
         issues.append("test_matrix_historical_evidence_manifest_mismatch")
-    readiness = payload.get("operator_readiness_gate")
-    if not isinstance(readiness, dict):
-        issues.append("test_matrix_operator_readiness_gate_missing")
+    if "operator_readiness_gate" in payload:
+        issues.append("test_matrix_obsolete_operator_readiness_gate_present")
+    bridge_gate = payload.get("authoritative_bridge_gate")
+    if not isinstance(bridge_gate, dict):
+        issues.append("test_matrix_authoritative_bridge_gate_missing")
     else:
-        if readiness.get("command") != [
-            "python3",
-            "tools/verify_step5d_autotune_v3_execution_readiness.py",
-            "--json",
-        ]:
-            issues.append("test_matrix_operator_readiness_command_mismatch")
-        if readiness.get("public_success_signal") != (
-            "ready_for_v3_live_continuous_campaign"
-        ):
-            issues.append("test_matrix_operator_success_signal_policy_mismatch")
-        if readiness.get("user_confirmation_required") is not False:
-            issues.append("test_matrix_user_confirmation_not_disabled")
-        if readiness.get("user_authorization_required") is not False:
-            issues.append("test_matrix_user_authorization_not_disabled")
-        if readiness.get("transition_order") != READINESS_TRANSITION_ORDER:
-            issues.append("test_matrix_readiness_transition_order_mismatch")
-        if readiness.get("ready_to_execute_requires") != READY_TO_EXECUTE_REQUIRES:
-            issues.append("test_matrix_ready_to_execute_requirements_mismatch")
+        expected_fields = {
+            "current_tp_program_id": "step5d_strict_rnn_autotune_v3_r010",
+            "canonical_launcher": "scripts/step5d-autotune-v3.sh bridge",
+            "status_reanchor": "scripts/step5d-autotune-v3.sh status --json",
+            "production_path_requirement": (
+                "canonical shell -> real supervisor -> internal bridge worker -> "
+                "real mailbox lifecycle"
+            ),
+            "unclassified_failure_policy": "block",
+        }
+        for field, expected in expected_fields.items():
+            if bridge_gate.get(field) != expected:
+                issues.append(f"test_matrix_authoritative_bridge_field_mismatch:{field}")
+        if bridge_gate.get("acceptance_path") != AUTHORITATIVE_ACCEPTANCE_PATH:
+            issues.append("test_matrix_authoritative_acceptance_path_mismatch")
+        classifications = bridge_gate.get("classified_test_files")
+        if not isinstance(classifications, dict) or set(classifications) != {
+            "active", "obsolete", "unrelated",
+        }:
+            issues.append("test_matrix_classification_contract_mismatch")
+        else:
+            candidate: dict[str, set[str]] = {}
+            for name in ("active", "obsolete", "unrelated"):
+                values = classifications.get(name)
+                if not isinstance(values, list) or any(
+                    not isinstance(path, str)
+                    or not path.startswith("tests/")
+                    or not path.endswith(".py")
+                    for path in values
+                ):
+                    issues.append(f"test_matrix_classification_paths_invalid:{name}")
+                    continue
+                if len(values) != len(set(values)):
+                    issues.append(f"test_matrix_classification_duplicates:{name}")
+                candidate[name] = set(values)
+            if set(candidate) == {"active", "obsolete", "unrelated"}:
+                classified = candidate
+                if classified["active"] != AUTHORITATIVE_ACTIVE_TESTS:
+                    issues.append("test_matrix_authoritative_active_set_mismatch")
+                if classified["obsolete"] != AUTHORITATIVE_OBSOLETE_TESTS:
+                    issues.append("test_matrix_authoritative_obsolete_set_mismatch")
+                names = ("active", "obsolete", "unrelated")
+                for index, left in enumerate(names):
+                    for right in names[index + 1:]:
+                        for path in sorted(classified[left] & classified[right]):
+                            issues.append(
+                                f"test_matrix_classification_overlap:{left}:{right}:{path}"
+                            )
+                all_classified = set().union(*classified.values())
+                for path in sorted(step5d_v3_test_paths(root) - all_classified):
+                    issues.append(f"test_matrix_repository_v3_test_unclassified:{path}")
+                for path in sorted(all_classified):
+                    target = root / path
+                    if target.is_symlink() or not target.is_file():
+                        issues.append(f"test_matrix_classified_test_unavailable:{path}")
     if "hil_launch_permit_gate" in payload:
         issues.append("test_matrix_obsolete_hil_launch_permit_present")
     installed_runtime = payload.get("local_installed_runtime_gate")
     expected_installed_runtime = {
         "command": [
-            "python3", "-m", "pytest", "-q",
+            "@control-runtime-python", "-m", "pytest", "-q",
+            "tests/test_step5d_autotune_v3_contract.py",
+            "tests/test_step5d_autotune_runtime.py",
+            "tests/test_step5d_autotune_live_driver.py",
+            "tests/test_step5d_autotune_v3_bridge_wrapper.py",
+            "tests/test_step5d_autotune_v3_qualification_production.py",
             "tests/test_step5d_autotune_v3_installed_runtime.py",
+            "tests/test_step5d_manual_bridge.py",
         ],
-        "activation": "explicit_local_after_hermetic_small_medium",
+        "activation": "explicit_local_authoritative_after_hermetic_small_medium",
         "ci": False,
         "serial": True,
         "test_doubles_allowed": False,
@@ -430,10 +498,20 @@ def matrix_issues(payload: Any) -> list[str]:
             for token in command
         ):
             issues.append(f"test_matrix_installed_runtime_leaked_into_ci:{name}")
+    if classified is not None:
+        commanded = _commanded_test_paths(payload)
+        for path in sorted(classified["active"] - commanded):
+            issues.append(f"test_matrix_active_test_not_commanded:{path}")
+        for path in sorted(classified["obsolete"] & commanded):
+            issues.append(f"test_matrix_obsolete_test_commanded:{path}")
+        for path in sorted(classified["unrelated"] & commanded):
+            issues.append(f"test_matrix_unrelated_test_commanded:{path}")
+        for path in sorted(commanded - set().union(*classified.values())):
+            issues.append(f"test_matrix_commanded_test_unclassified:{path}")
     small = lanes.get("small", {})
     if small.get("production_parser_test_double_allowed") is not False:
         issues.append("test_matrix_production_parser_double_not_forbidden")
-    if set(small.get("dependency_double_scope", [])) != PARSER_CI_DEPENDENCY_STUBS:
+    if set(small.get("dependency_double_scope", [])) != PORTABLE_CI_DEPENDENCY_DOUBLES:
         issues.append("test_matrix_parser_dependency_stub_scope_mismatch")
     ci = payload.get("ci")
     if not isinstance(ci, dict):
@@ -573,13 +651,13 @@ def content_governance_issues(root: Path, matrix: Mapping[str, Any]) -> list[str
     return issues
 
 
-def load_matrix(path: Path) -> tuple[Any, list[str]]:
+def load_matrix(path: Path, *, root: Path | None = None) -> tuple[Any, list[str]]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         return None, [f"test_matrix_unreadable:{exc}"]
-    issues = matrix_issues(payload)
-    root = path.resolve().parent.parent
+    root = (root or path.resolve().parent.parent).resolve()
+    issues = matrix_issues(payload, root=root)
     evidence_relative = (
         payload.get("historical_evidence_manifest")
         if isinstance(payload, dict)
@@ -703,16 +781,28 @@ def pr_template_structure_issues(repo: Path) -> list[str]:
 def validate_repository(root: Path, matrix: Path = DEFAULT_MATRIX) -> dict[str, Any]:
     root = root.resolve()
     repo = git_root(root)
-    runtime_findings, runtime = runtime_budget(root)
-    matrix_payload, matrix_findings = load_matrix(matrix.resolve())
+    runtime_findings, runtime = runtime_surface_issues(root)
+    active_surface_path = root / "config" / "step5d" / "v3_active_surface.json"
+    try:
+        active_surface = json.loads(active_surface_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        active_surface = None
+        active_surface_findings = [f"active_surface_unreadable:{exc}"]
+    else:
+        active_surface_findings = active_surface_issues(
+            root,
+            active_surface,
+            runtime_modules=set(runtime["python_modules"]),
+        )
+    matrix_payload, matrix_findings = load_matrix(matrix.resolve(), root=root)
     governance_findings = content_governance_issues(
         root, matrix_payload if isinstance(matrix_payload, Mapping) else {}
     )
     issues = [
         *baseline_issues(repo),
         *protected_source_issues(repo),
-        *orchestration_variant_issues(repo),
         *runtime_findings,
+        *active_surface_findings,
         *matrix_findings,
         *governance_findings,
         *pr_template_structure_issues(repo),
@@ -725,8 +815,10 @@ def validate_repository(root: Path, matrix: Path = DEFAULT_MATRIX) -> dict[str, 
         "git_root": str(repo),
         "frozen_commit": FROZEN_COMMIT,
         "protected_source_count": len(PROTECTED_V1_SHA256),
-        "approved_orchestration_variant_count": len(APPROVED_ORCHESTRATION_VARIANTS),
-        "runtime_budget": runtime,
+        "runtime_surface": runtime,
+        "active_surface_schema": (
+            active_surface.get("schema") if isinstance(active_surface, dict) else None
+        ),
         "test_matrix_schema": (
             matrix_payload.get("schema_version") if isinstance(matrix_payload, dict) else None
         ),

@@ -2,15 +2,6 @@
 
 from typing import Any
 
-from .profile import (
-    ContractViolation,
-    control_fingerprint,
-    load_contract,
-    normalize_candidate,
-    validate_candidate,
-)
-
-
 _LAUNCHER_EXPORTS = {
     "build_bridge_argv",
     "check_effective_config",
@@ -19,9 +10,20 @@ _LAUNCHER_EXPORTS = {
     "validate_effective_config",
     "validate_raw_argv",
 }
+_PROFILE_EXPORTS = {
+    "ContractViolation",
+    "control_fingerprint",
+    "load_contract",
+    "normalize_candidate",
+    "validate_candidate",
+}
 
 
 def __getattr__(name: str) -> Any:
+    if name in _PROFILE_EXPORTS:
+        from . import profile
+
+        return getattr(profile, name)
     if name in _LAUNCHER_EXPORTS:
         from . import launcher
 

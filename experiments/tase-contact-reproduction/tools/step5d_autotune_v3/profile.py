@@ -99,6 +99,7 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
         "source_sha256",
         "tp_artifact_sha256",
         "candidate_tp_artifact_sha256",
+        "candidate_tp_identity",
         "deployment_tp_identity",
         "promotion_status",
         "cli_arguments",
@@ -119,7 +120,7 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     _git_sha1(baseline["commit"], name="frozen_baseline.commit")
     if baseline["stage_id"] != "step5d_strict_rnn_autotune_v1":
         raise ContractViolation("frozen v1 stage differs")
-    if payload["execution_profile_id"] != "nf050-slew050-a050":
+    if payload["execution_profile_id"] != "nf100-slew050-a050":
         raise ContractViolation("execution profile identity differs")
 
     candidate_schema = payload["candidate_schema"]
@@ -152,7 +153,51 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
         raise ContractViolation("candidate TP artifact hash set differs")
     for suffix, digest in candidate_artifacts.items():
         _sha256(digest, name=f"candidate_tp_artifact_sha256.{suffix}")
-    if payload["promotion_status"] != "requires_attended_tp_upload_readback":
+    candidate_identity = payload["candidate_tp_identity"]
+    if not isinstance(candidate_identity, dict) or set(candidate_identity) != {
+        "program",
+        "mode",
+        "artifact_dir",
+        "deploy_manifest_sha256",
+        "numeric_sanity_sha256",
+    }:
+        raise ContractViolation("candidate_tp_identity schema differs")
+    if (
+        candidate_identity["program"]
+        not in {
+            "step5d_strict_rnn_autotune_v3_r008",
+            "step5d_strict_rnn_autotune_v3_r009",
+            "step5d_strict_rnn_autotune_v3_r010",
+        }
+        or candidate_identity["mode"]
+        not in {
+            "local_only_requires_attended_controller_readback",
+            "controller_readback_verified_promoted_current",
+        }
+    ):
+        raise ContractViolation("candidate TP must be an immutable V3 revision")
+    candidate_dir = candidate_identity["artifact_dir"]
+    candidate_dir_path = (
+        Path(candidate_dir) if isinstance(candidate_dir, str) else Path("/")
+    )
+    if (
+        not isinstance(candidate_dir, str)
+        or candidate_dir_path.is_absolute()
+        or ".." in candidate_dir_path.parts
+    ):
+        raise ContractViolation("unsafe candidate TP artifact directory")
+    _sha256(
+        candidate_identity["deploy_manifest_sha256"],
+        name="candidate_tp_identity.deploy_manifest_sha256",
+    )
+    _sha256(
+        candidate_identity["numeric_sanity_sha256"],
+        name="candidate_tp_identity.numeric_sanity_sha256",
+    )
+    if payload["promotion_status"] not in {
+        "requires_attended_tp_upload_readback",
+        "controller_readback_verified",
+    }:
         raise ContractViolation("candidate TP promotion status differs")
     deployment = payload["deployment_tp_identity"]
     if not isinstance(deployment, dict) or set(deployment) != {
@@ -165,7 +210,14 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     }:
         raise ContractViolation("deployment_tp_identity schema differs")
     if (
-        deployment["program"] != "step5d_strict_rnn_autotune_v3_r005"
+        deployment["program"]
+        not in {
+            "step5d_strict_rnn_autotune_v3_r005",
+            "step5d_strict_rnn_autotune_v3_r006",
+            "step5d_strict_rnn_autotune_v3_r008",
+            "step5d_strict_rnn_autotune_v3_r009",
+            "step5d_strict_rnn_autotune_v3_r010",
+        }
         or deployment["mode"]
         != "explicit_v3_identity_precontact_pose_frozen_v1_control"
     ):
@@ -313,7 +365,11 @@ def candidate_force_terms(candidate: Mapping[str, Any]) -> dict[str, float]:
     }
 
 
-def runtime_values(runtime_root: Path) -> dict[str, str]:
+def runtime_values(
+    runtime_root: Path,
+    *,
+    experiment_root: Path = EXPERIMENT_ROOT,
+) -> dict[str, str]:
     if not isinstance(runtime_root, Path) or not runtime_root.is_absolute():
         raise ContractViolation("runtime_root must be an absolute pathlib.Path")
     resolved = runtime_root.resolve(strict=False)
@@ -419,17 +475,35 @@ def validate_source_bindings(
         or manifest.get("triplet_sha256") != contract["tp_artifact_sha256"]
     ):
         raise ContractViolation("deployment TP readback identity differs from the contract")
+    candidate_identity = contract["candidate_tp_identity"]
+    candidate_program = candidate_identity["program"]
+    candidate_dir = Path(candidate_identity["artifact_dir"])
     for suffix, expected in contract["candidate_tp_artifact_sha256"].items():
-        relative = Path(deployment["artifact_dir"]) / f"{deployment['program']}{suffix}"
+        relative = candidate_dir / f"{candidate_program}{suffix}"
         artifact = experiment_root / relative
         if artifact.is_symlink() or not artifact.is_file():
-            raise ContractViolation(f"deployment TP artifact is missing or symlinked: {relative}")
+            raise ContractViolation(f"candidate TP artifact is missing or symlinked: {relative}")
         digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
         observed[str(relative)] = digest
         if digest != expected:
             raise ContractViolation(
                 f"candidate TP artifact drifted: {relative} "
                 f"expected={expected} observed={digest}"
+            )
+    for role, suffix, expected_key in (
+        ("deploy manifest", ".deploy-manifest.json", "deploy_manifest_sha256"),
+        ("numeric sanity", ".numeric-sanity.json", "numeric_sanity_sha256"),
+    ):
+        relative = candidate_dir / f"{candidate_program}{suffix}"
+        artifact = experiment_root / relative
+        if artifact.is_symlink() or not artifact.is_file():
+            raise ContractViolation(f"candidate TP {role} is missing: {relative}")
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        observed[str(relative)] = digest
+        if digest != candidate_identity[expected_key]:
+            raise ContractViolation(
+                f"candidate TP {role} drifted: expected="
+                f"{candidate_identity[expected_key]} observed={digest}"
             )
     return observed
 
@@ -676,6 +750,7 @@ def active_identity_snapshot(
         "deployment_fingerprint": deployment_fingerprint(
             triplet_sha256=local_triplet,
             controller_readback_identity=readback,
+            tp_program_id=program,
         ),
         "orchestration_fingerprint": active_orchestration_fingerprint(
             experiment_root
@@ -711,11 +786,11 @@ def control_fingerprint(
     governed: dict[str, Any] = {}
     for category in ("control_invariant", "safety_invariant"):
         names = payload["effective_fields"][category]
-        governed[category] = (
-            {name: effective_config[name] for name in names}
-            if effective_config is not None
-            else names
-        )
+        if effective_config is None:
+            governed[category] = names
+            continue
+        values = {name: effective_config[name] for name in names}
+        governed[category] = values
     material = {
         "schema": "step5d.autotune.v3.control-fingerprint/v1",
         "frozen_baseline": payload["frozen_baseline"],
@@ -723,6 +798,7 @@ def control_fingerprint(
         "source_sha256": payload["source_sha256"],
         "tp_artifact_sha256": payload["tp_artifact_sha256"],
         "candidate_tp_artifact_sha256": payload["candidate_tp_artifact_sha256"],
+        "candidate_tp_identity": payload["candidate_tp_identity"],
         "promotion_status": payload["promotion_status"],
         "deployment_tp_identity": payload["deployment_tp_identity"],
         "governed_effective_fields": governed,

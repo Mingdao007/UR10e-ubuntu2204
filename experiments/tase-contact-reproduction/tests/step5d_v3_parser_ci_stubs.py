@@ -18,7 +18,6 @@ STUBBED_MODULES = frozenset(
     {
         "_ur_common",
         "capture_kunwei_kwr75_1khz",
-        "numpy",
         "pandas",
         "pinocchio",
         "xacro",
@@ -58,11 +57,6 @@ def install() -> None:
         raise RuntimeError("parser CI stubs must be installed before the bridge import")
     for name in STUBBED_MODULES:
         sys.modules[name] = _UnusedDependency(name)
-
-    # pytest probes numpy.bool_ when comparing nested numeric values.  Keep the
-    # hermetic numpy double inert while exposing the one type-shaped attribute
-    # required by pytest's own comparison machinery.
-    sys.modules["numpy"].bool_ = bool
 
     capture = sys.modules["capture_kunwei_kwr75_1khz"]
     capture.FIELDS = ("fx", "fy", "fz", "mx", "my", "mz")

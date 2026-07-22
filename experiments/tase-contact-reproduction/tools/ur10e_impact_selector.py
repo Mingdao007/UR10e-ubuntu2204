@@ -22,7 +22,7 @@ FAIL_CLOSED_PREFIXES = (
     "tests/",
     "src/ur10e_experiment_runtime/",
 )
-FAIL_CLOSED_ROOT_FILES = {"check.sh", "pytest.ini", "requirements-test.txt"}
+FAIL_CLOSED_ROOT_FILES = {"check.sh", "pyproject.toml", "pytest.ini", "uv.lock"}
 
 
 def sha(path: Path) -> str:

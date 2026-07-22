@@ -72,8 +72,8 @@ from step5d_autotune_supervisor import (  # noqa: E402
     CampaignSupervisor,
     execution_profile_integer_id,
 )
-from ur10e_experiment_runtime.stage_adapters import (  # noqa: E402
-    control_candidate_uid,
+from ur10e_experiment_runtime.candidate_identity import (  # noqa: E402
+    ControlCandidateUid,
 )
 
 
@@ -378,7 +378,7 @@ def exact_trial_overlay(
     }
     return {
         **control,
-        "control_candidate_uid": control_candidate_uid(control),
+        "control_candidate_uid": str(ControlCandidateUid.from_overlay(control)),
         "execution_profile_id": profile.profile_id,
         "step5d_preload_filtered_min_n": 5.0,
         "step5d_preload_filtered_max_n": 22.0,

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Build the explicit V3 TP triplet from the frozen V1 control script."""
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import sys
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import build_step5d_autotune_tp as v1
 
@@ -25,8 +25,20 @@ if str(RUNTIME_SRC) not in sys.path:
     sys.path.insert(0, str(RUNTIME_SRC))
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+from step5d_autotune_v3.release_identity import ROLLING_PROTOCOL
+from step5d_autotune_v3.runtime_identity import (
+    RuntimeIdentityError,
+    TpRuntimeIdentity,
+    bind_final_script,
+    derive_runtime_identity,
+    runtime_identity_assignment_block,
+)
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r005"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r010"
+IMMUTABLE_RELEASE_STAMP = (
+    "2026-07-21T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010"
+)
+PROTOCOL_ID = ROLLING_PROTOCOL
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
 PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
@@ -39,6 +51,7 @@ MINIMUM_START_ABOVE_ENTRY_M = 0.01
 # shorter TP timeout would turn ordinary host scheduling jitter into a false
 # transport-loss stop and would no longer be V1 control-kernel parity.
 STAGE25_STALE_COMMAND_HOLD_S = 1.000
+READY_ARM_TIMEOUT_S = 30.000
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 
@@ -60,6 +73,7 @@ global codex_autotune_return_current_angular_accel_rad_s2 = 0.0
 global codex_autotune_return_max_angular_speed_rad_s = 0.0
 global codex_autotune_return_max_angular_accel_rad_s2 = 0.0
 global codex_autotune_return_max_sample_gap_s = 0.0
+global codex_autotune_logical_batch_sequence_echo = 0
 
 def codex_autotune_norm3(x, y, z):
   return sqrt(x * x + y * y + z * z)
@@ -153,12 +167,8 @@ def codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, camp
   local current_pose = get_actual_tcp_pose()
   local safe_z = 0.033
   local near_pose = p[0.487834547, 0.129337053, 0.022863519, 3.120752062, 0.000000000, 0.068626833]
-  local target_pose = near_pose
-  local require_home_q = False
-  if batch_row_index == 10:
-    target_pose = campaign_home_pose
-    require_home_q = True
-  end
+  local target_pose = campaign_home_pose
+  local require_home_q = True
   local rise_pose = p[current_pose[0], current_pose[1], safe_z, current_pose[3], current_pose[4], current_pose[5]]
   local transfer_pose = p[target_pose[0], target_pose[1], safe_z, target_pose[3], target_pose[4], target_pose[5]]
   codex_autotune_return_guard_mask = 0
@@ -225,17 +235,10 @@ end
       sleep(0.20)
     end'''
     new_stage22 = '''    local p_current = get_actual_tcp_pose()
-    if batch_row_index > 1:
-      local expected_near = p[entry_x, entry_y, precontact_z, target_rx, target_ry, target_rz]
-      local near_delta = pose_trans(pose_inv(expected_near), p_current)
-      local near_position_error_m = sqrt(near_delta[0] * near_delta[0] + near_delta[1] * near_delta[1] + near_delta[2] * near_delta[2])
-      local near_orientation_error_rad = sqrt(near_delta[3] * near_delta[3] + near_delta[4] * near_delta[4] + near_delta[5] * near_delta[5])
-      if near_position_error_m > 0.003 or near_orientation_error_rad > 0.050:
-        return 17.0
-      end
-      write_output_float_register(35, 22.0)
-      codex_echo_step4e(stop_reason)
-    elif p_current[2] < precontact_z + minimum_start_above_entry_m:
+    local expected_home_orientation = p[p_current[0], p_current[1], p_current[2], target_rx, target_ry, target_rz]
+    local home_orientation_delta = pose_trans(pose_inv(expected_home_orientation), p_current)
+    local home_orientation_error_rad = sqrt(home_orientation_delta[3] * home_orientation_delta[3] + home_orientation_delta[4] * home_orientation_delta[4] + home_orientation_delta[5] * home_orientation_delta[5])
+    if p_current[2] < precontact_z + minimum_start_above_entry_m or home_orientation_error_rad > 0.035:
       return 17.0
     else:
       write_output_float_register(35, 22.0)
@@ -250,13 +253,23 @@ end
     end'''
     return (
         (
+            "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050 rad/s;",
+            "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100 rad/s;",
+            "r010 normal-rate profile documentation",
+        ),
+        (
+            "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
+            "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
+            "r010 normal-rate profile admission",
+        ),
+        (
             "# HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29",
-            "# HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29 batch_row=30",
+            "# HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29 batch_row=30 logical_batch=31",
             "batch-row host register",
         ),
         (
             "# TP_TO_HOST_INT: epoch=24 trial=25 state=26 token=27 reason=28 profile=29 consumed_sequence=30",
-            "# TP_TO_HOST_INT: epoch=24 trial=25 state=26 token=27 reason=28 profile=29 consumed_sequence=30 batch_row=31 return_kind=32 guard_mask=33",
+            "# TP_TO_HOST_INT: epoch=24 trial=25 state=26 token=27 reason=28 profile=29 consumed_sequence=30 batch_row=31 return_kind=32 guard_mask=33 logical_batch=34",
             "typed-return output registers",
         ),
         (
@@ -265,9 +278,9 @@ end
             "typed return helpers",
         ),
         (
-            "  write_output_integer_register(30, consumed_command_seq)\nend",
-            "  write_output_integer_register(30, consumed_command_seq)\n  write_output_integer_register(31, codex_autotune_batch_row_echo)\n  write_output_integer_register(32, codex_autotune_return_kind_echo)\n  write_output_integer_register(33, codex_autotune_return_guard_mask)\nend",
-            "typed return echoes",
+            "  write_output_integer_register(24, campaign_epoch)\n  write_output_integer_register(25, trial_id)\n  write_output_integer_register(26, state)\n  write_output_integer_register(27, candidate_token)\n  write_output_integer_register(28, terminal_reason)\n  write_output_integer_register(29, execution_profile_id)\n  write_output_integer_register(30, consumed_command_seq)\nend",
+            "  codex_step5d_publish_runtime_identity()\n  write_output_integer_register(24, campaign_epoch)\n  write_output_integer_register(25, trial_id)\n  write_output_integer_register(27, candidate_token)\n  write_output_integer_register(28, terminal_reason)\n  write_output_integer_register(29, execution_profile_id)\n  write_output_integer_register(31, codex_autotune_batch_row_echo)\n  write_output_integer_register(32, codex_autotune_return_kind_echo)\n  write_output_integer_register(33, codex_autotune_return_guard_mask)\n  write_output_integer_register(34, codex_autotune_logical_batch_sequence_echo)\n  write_output_integer_register(26, state)\n  write_output_integer_register(30, consumed_command_seq)\nend",
+            "typed return echoes with consumed-sequence commit last",
         ),
         (
             "def codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2):",
@@ -277,17 +290,17 @@ end
         (old_stage22, new_stage22, "first-only Stage22 and typed near-ready entry"),
         (
             "      local execution_profile_id = read_input_integer_register(28)\n      local tp_speedj_accel_rad_s2",
-            "      local execution_profile_id = read_input_integer_register(28)\n      local batch_row_index = read_input_integer_register(30)\n      local tp_speedj_accel_rad_s2",
+            "      local execution_profile_id = read_input_integer_register(28)\n      local batch_row_index = read_input_integer_register(30)\n      local logical_batch_sequence = read_input_integer_register(31)\n      local tp_speedj_accel_rad_s2",
             "batch-row ARM read",
         ),
         (
             "if campaign_epoch <= 0 or trial_id <= 0 or candidate_token <= 0 or execution_profile_id <= 0 or not codex_autotune_network_profile_valid(execution_profile_id)",
-            "if campaign_epoch <= 0 or trial_id <= 0 or candidate_token <= 0 or execution_profile_id <= 0 or batch_row_index < 1 or batch_row_index > 10 or not codex_autotune_network_profile_valid(execution_profile_id)",
+            "if campaign_epoch <= 0 or trial_id <= 0 or candidate_token <= 0 or execution_profile_id <= 0 or batch_row_index < 1 or batch_row_index > 5 or logical_batch_sequence <= 0 or not codex_autotune_network_profile_valid(execution_profile_id)",
             "batch-row ARM validation",
         ),
         (
             "      codex_autotune_write_state(campaign_epoch, trial_id, 11, candidate_token, 0, execution_profile_id, last_consumed_command_seq)",
-            "      codex_autotune_batch_row_echo = batch_row_index\n      if batch_row_index == 10:\n        codex_autotune_return_kind_echo = 2\n      else:\n        codex_autotune_return_kind_echo = 1\n      end\n      codex_autotune_return_guard_mask = 0\n      codex_autotune_write_state(campaign_epoch, trial_id, 11, candidate_token, 0, execution_profile_id, last_consumed_command_seq)",
+            "      codex_autotune_batch_row_echo = batch_row_index\n      codex_autotune_logical_batch_sequence_echo = logical_batch_sequence\n      codex_autotune_return_kind_echo = 2\n      codex_autotune_return_guard_mask = 0\n      codex_autotune_write_state(campaign_epoch, trial_id, 11, candidate_token, 0, execution_profile_id, last_consumed_command_seq)",
             "typed return ARM identity",
         ),
         (
@@ -298,7 +311,7 @@ end
         (old_return, new_return, "exact guarded three-segment return"),
         (
             "read_input_integer_register(28) == execution_profile_id:",
-            "read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == batch_row_index:",
+            "read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == batch_row_index and read_input_integer_register(31) == logical_batch_sequence:",
             "exact ACK batch-row binding",
         ),
         (
@@ -316,6 +329,145 @@ def _apply_batch_lifecycle(source: str) -> str:
     return result
 
 
+def _direct_arm_replacements() -> tuple[tuple[str, str, str], ...]:
+    legacy_header = '''# STEP5D_AUTOTUNE_CONTINUOUS_TP: one campaign home, fresh integer handshake,
+# immutable-bundle ACK barrier, and no automatic retry limit for infra reasons.'''
+    direct_header = '''# STEP5D_AUTOTUNE_CONTINUOUS_TP: every trial returns to the captured campaign home.
+# Immutable bundle cold-read precedes each rolling next ARM; no ACK command is active.'''
+    legacy_stop_contract = '''# STOP_CONTRACT: integer STOP is polled only at READY_HOME/WAIT_ACK; during RUN
+# the frozen trial consumes the legacy float stop_request safety carrier.'''
+    direct_stop_contract = '''# STOP_CONTRACT: integer STOP is polled only in stationary ready states; during RUN
+# the frozen trial consumes the legacy float stop_request safety carrier.'''
+    legacy_post_ack_state = '''def codex_autotune_post_ack_state(stop_reason):
+  # Host journals reason-4 host_cause separately.  TP reason 4 always returns
+  # READY_HOME; host policy may remain WAIT_INFRA_READY for infra_stop.
+  if stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
+    return 75
+  elif stop_reason == 1 or stop_reason == 4:
+    return 10
+  end
+  return 90
+end'''
+    direct_terminal_state = '''def codex_autotune_direct_terminal_state(stop_reason, batch_row_index):
+  if stop_reason == 1:
+    return 78
+  elif stop_reason == 4 or stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
+    return 75
+  end
+  return 90
+end'''
+    legacy_fault = '''def codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  while True:
+    codex_autotune_write_state(campaign_epoch, trial_id, 90, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+    sync()
+  end
+end'''
+    bounded_fault = f'''def codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  local publish_s = 0.0
+  while publish_s < 0.100:
+    codex_autotune_write_state(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+    sync()
+    publish_s = publish_s + get_steptime()
+  end
+  halt
+end
+
+def codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 90, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+end
+
+def codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+end
+
+def codex_autotune_wait_for_arm(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
+  local waiting_s = 0.0
+  while waiting_s < {READY_ARM_TIMEOUT_S:.3f}:
+    codex_autotune_write_state(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+    local next_command = read_input_integer_register(26)
+    local next_sequence = read_input_integer_register(29)
+    if next_command == 1 and next_sequence > consumed_command_seq:
+      return True
+    elif state == 78 and next_command == 4 and next_sequence > consumed_command_seq and read_input_integer_register(24) == campaign_epoch and read_input_integer_register(25) == trial_id and read_input_integer_register(27) == candidate_token and read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == codex_autotune_batch_row_echo and read_input_integer_register(31) == codex_autotune_logical_batch_sequence_echo:
+      codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 77, candidate_token, terminal_reason, execution_profile_id, next_sequence)
+    elif next_command == 3 and next_sequence > consumed_command_seq:
+      codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 4, execution_profile_id, next_sequence)
+    elif trial_id > 0 and next_command == 2 and next_sequence > consumed_command_seq:
+      codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 13, execution_profile_id, consumed_command_seq)
+    end
+    sync()
+    waiting_s = waiting_s + get_steptime()
+  end
+  codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 19, execution_profile_id, consumed_command_seq)
+  return False
+end'''
+    legacy_ack = '''        # Host may ACK only after immutable bundle + host 0.5 s safe closure.
+        codex_autotune_write_state(campaign_epoch, trial_id, 70, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        local waiting_for_ack = True
+        while waiting_for_ack:
+          local ack_command = read_input_integer_register(26)
+          local ack_sequence = read_input_integer_register(29)
+          if ack_command == 2 and ack_sequence > last_consumed_command_seq and read_input_integer_register(24) == campaign_epoch and read_input_integer_register(25) == trial_id and read_input_integer_register(27) == candidate_token and read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == batch_row_index and read_input_integer_register(31) == logical_batch_sequence:
+            last_consumed_command_seq = ack_sequence
+            waiting_for_ack = False
+          elif ack_command == 3 and ack_sequence > last_consumed_command_seq:
+            last_consumed_command_seq = ack_sequence
+            codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, 4, execution_profile_id, last_consumed_command_seq)
+          else:
+            sync()
+          end
+        end
+
+        local post_ack_state = codex_autotune_post_ack_state(stop_reason)
+        if stop_reason == 1 and batch_row_index == 10:
+          codex_autotune_write_state(campaign_epoch, trial_id, 77, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        elif stop_reason == 1:
+          codex_autotune_write_state(campaign_epoch, trial_id, 76, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        elif post_ack_state == 75:
+          codex_autotune_write_state(campaign_epoch, trial_id, 75, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        elif post_ack_state == 10:
+          codex_autotune_write_state(0, 0, 10, 0, 0, 0, last_consumed_command_seq)
+        else:
+          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        end'''
+    direct_ready = '''        # rolling-v1 full-home protocol: every sealed return waits at campaign home.
+        if stop_reason == 1:
+          codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        elif stop_reason == 4 or stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
+          codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 75, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        else:
+          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        end'''
+    initial_ready = '''  codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)
+
+  while True:'''
+    initial_wait = '''  codex_autotune_wait_for_arm(0, 0, 10, 0, 0, 0, 0)
+
+  while True:'''
+    return (
+        (legacy_header, direct_header, "direct ARM protocol header"),
+        (legacy_stop_contract, direct_stop_contract, "stationary STOP contract"),
+        (legacy_post_ack_state, direct_terminal_state, "direct terminal state map"),
+        (legacy_fault, bounded_fault, "bounded terminal halt"),
+        (legacy_ack, direct_ready, "direct ARM ready lifecycle"),
+        (initial_ready, initial_wait, "bounded initial ARM wait"),
+    )
+
+
+def _apply_direct_arm_protocol(source: str) -> str:
+    result = source
+    for old, new, role in _direct_arm_replacements():
+        result = _replace_once(result, old, new, role=role)
+    return result
+
+
+def _remove_direct_arm_protocol(source: str) -> str:
+    result = source
+    for old, new, role in reversed(_direct_arm_replacements()):
+        result = _replace_once(result, new, old, role=f"normalized {role}")
+    return result
+
+
 def _remove_batch_lifecycle(source: str) -> str:
     result = source
     for old, new, role in reversed(_batch_lifecycle_replacements()):
@@ -323,8 +475,22 @@ def _remove_batch_lifecycle(source: str) -> str:
     return result
 
 
-def render_script() -> str:
-    parent = v1.render_script()
+def _runtime_identity_header(identity: TpRuntimeIdentity | None) -> str:
+    return (
+        "# TP_RUNTIME_IDENTITY_INT: protocol_version=35 digest_hi=36 digest_lo=37\n"
+        f"{runtime_identity_assignment_block(identity)}\n\n"
+        "def codex_step5d_publish_runtime_identity():\n"
+        "  write_output_integer_register(35, codex_step5d_runtime_protocol_version)\n"
+        "  write_output_integer_register(36, codex_step5d_runtime_digest_hi)\n"
+        "  write_output_integer_register(37, codex_step5d_runtime_digest_lo)\n"
+        "end\n\n"
+    )
+
+
+def _render_script_body(
+    parent: str,
+    runtime_identity: TpRuntimeIdentity | None,
+) -> str:
     parent_sha = hashlib.sha256(parent.encode("utf-8")).hexdigest()
     rendered = _replace_once(
         parent,
@@ -406,20 +572,47 @@ def render_script() -> str:
         role="two-step safe prealign",
     )
     rendered = _apply_batch_lifecycle(rendered)
+    rendered = _apply_direct_arm_protocol(rendered)
     identity = (
         f"# RELEASE_STAGE_ID: {PROGRAM_NAME}\n"
         f"# CONTROL_PROFILE_ID: {CONTROL_PROFILE_ID}\n"
         f"# TP_PROGRAM_ID: {PROGRAM_NAME}\n"
         f"# PHYSICAL_PRIOR_SHA256: {PRECONTACT_POSE_PRIOR_SHA256}\n"
         f"# PARENT_AUTOTUNE_V1_RENDERED_SHA256: {parent_sha}\n"
+        f"{_runtime_identity_header(runtime_identity)}"
     )
     rendered = identity + rendered
+    return rendered
+
+
+def render_script() -> str:
+    parent = v1.render_script()
+    identity_basis = _render_script_body(parent, None).encode("utf-8")
+    runtime_identity = derive_runtime_identity(
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+        script_identity_basis=identity_basis,
+    )
+    rendered = _render_script_body(parent, runtime_identity)
+    bind_final_script(
+        rendered,
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+    )
     validate_rendered_script(rendered, parent=parent)
     return rendered
 
 
 def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
     original = v1.render_script() if parent is None else parent
+    try:
+        runtime_identity, _ = bind_final_script(
+            script,
+            program_id=PROGRAM_NAME,
+            protocol_id=PROTOCOL_ID,
+        )
+    except RuntimeIdentityError as exc:
+        raise ValueError(f"V3 TP runtime identity differs: {exc}") from exc
     required = (
         f"# RELEASE_STAGE_ID: {PROGRAM_NAME}",
         f"# CONTROL_PROFILE_ID: {CONTROL_PROFILE_ID}",
@@ -436,7 +629,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         f"local target_ry = {PRECONTACT_ROTVEC_RAD[1]:.9f}",
         f"local target_rz = {PRECONTACT_ROTVEC_RAD[2]:.9f}",
         "local entry_precontact_pose = p[entry_x, entry_y, precontact_z",
-        "if p_current[2] < precontact_z + minimum_start_above_entry_m:",
+        "if p_current[2] < precontact_z + minimum_start_above_entry_m or home_orientation_error_rad > 0.035:",
         "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)",
         "local qdot_cap_rad_s = 0.500",
         f"if stale_s2 > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:",
@@ -451,9 +644,18 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "codex_autotune_latch_return_telemetry()",
         "codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, campaign_home_q)",
         "if stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17:",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 76",
-        "codex_autotune_write_state(campaign_epoch, trial_id, 77",
-        "codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)",
+        "codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78",
+        "next_command == 4",
+        "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 77",
+        "read_input_integer_register(31)",
+        "write_output_integer_register(34, codex_autotune_logical_batch_sequence_echo)",
+        "write_output_integer_register(35, codex_step5d_runtime_protocol_version)",
+        "write_output_integer_register(36, codex_step5d_runtime_digest_hi)",
+        "write_output_integer_register(37, codex_step5d_runtime_digest_lo)",
+        "codex_step5d_publish_runtime_identity()",
+        f"while waiting_s < {READY_ARM_TIMEOUT_S:.3f}",
+        "codex_autotune_wait_for_arm(0, 0, 10, 0, 0, 0, 0)",
+        "codex_autotune_publish_fault_and_halt",
     )
     missing = [marker for marker in required if marker not in script]
     if missing:
@@ -471,8 +673,15 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
             continue
         if in_thread and motion_call.search(line):
             raise ValueError("V3 TP helper thread contains a motion command")
+    body = script.split("\n", 1)[1] if script.startswith("# VERSION:") else script
     prefix_lines = 5
-    normalized = "".join(script.splitlines(keepends=True)[prefix_lines:])
+    normalized = "".join(body.splitlines(keepends=True)[prefix_lines:])
+    normalized = _replace_once(
+        normalized,
+        _runtime_identity_header(runtime_identity),
+        "",
+        role="normalized runtime identity header",
+    )
     normalized = _replace_once(
         normalized,
         "# STEP5_STAGE_ID: step5d_strict_rnn_autotune_v3",
@@ -491,6 +700,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         "codex_step5d_strict_rnn_autotune_v1()",
         role="normalized main call",
     )
+    normalized = _remove_direct_arm_protocol(normalized)
     normalized = _remove_batch_lifecycle(normalized)
     normalized = _replace_once(
         normalized,
@@ -559,13 +769,23 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
 
 def source_stamp(now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R005")
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010")
 
 
 def build_package_script(stamp: str) -> str:
     if not stamp or "\n" in stamp:
         raise ValueError("source stamp must be one non-empty line")
-    return f"# VERSION: {stamp}\n" + render_script()
+    version = f"# VERSION: {stamp}\n"
+    parent = v1.render_script()
+    identity_basis = (version + _render_script_body(parent, None)).encode("utf-8")
+    runtime_identity = derive_runtime_identity(
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+        script_identity_basis=identity_basis,
+    )
+    rendered = version + _render_script_body(parent, runtime_identity)
+    validate_rendered_script(rendered, parent=parent)
+    return rendered
 
 
 def build_txt(stamp: str) -> str:
@@ -591,9 +811,14 @@ Motion class:
   force thresholds remain frozen.
 
 Frozen control contract:
-  qdot cap 0.500 rad/s; target 12 N; input integer registers 24..30;
-  output integer registers 24..33; heartbeat watchdog fail-closed.
-  Batch row is explicit; rows 1..9 return NearReady and row 10 returns CampaignHome.
+  qdot cap 0.500 rad/s; target 12 N; input integer registers 24..31;
+  transactional output integer registers 24..34; immutable runtime identity
+  protocol/digest output integer registers 35..37; heartbeat watchdog fail-closed.
+  Every trial returns to the campaign home captured once when Play begins.
+  Five-trial logical batches roll without imposing a physical stop at row 5 or 10.
+  ACK_BUNDLE and WAIT_ACK are not active. A fresh next ARM is accepted only after
+  the host has durably committed and cold-read the previous trial bundle.
+  READY_HOME_NEXT waits at most {READY_ARM_TIMEOUT_S:.0f} s without motion.
 """
 
 
@@ -642,7 +867,12 @@ def simulate_return_telemetry(
 
 
 def numeric_sanity(script: str) -> dict[str, Any]:
-    validate_rendered_script(script.split("\n", 1)[1] if script.startswith("# VERSION:") else script)
+    validate_rendered_script(script)
+    _, runtime_identity = bind_final_script(
+        script,
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+    )
     return {
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
         "program": PROGRAM_NAME,
@@ -659,15 +889,20 @@ def numeric_sanity(script: str) -> dict[str, Any]:
         "precontact_z_policy": "contact_plus_0p1s_robust_z_plus_0p005m_clearance",
         "qdot_cap_rad_s": 0.5,
         "stage25_stale_command_hold_s": STAGE25_STALE_COMMAND_HOLD_S,
+        "ready_arm_timeout_s": READY_ARM_TIMEOUT_S,
         "precontact_entry_accel_m_s2": 0.135,
         "precontact_entry_speed_m_s": 0.09,
         "far_search_speed_m_s": 0.03375,
         "speedj_acceleration_profiles_rad_s2": [0.1, 0.2, 0.5],
-        "input_integer_registers": [24, 25, 26, 27, 28, 29, 30],
-        "output_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
+        "input_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31],
+        "output_integer_registers": list(range(24, 38)),
+        "tp_runtime_identity": runtime_identity,
+        "execution_profile_id": "nf100-slew050-a050",
+        "execution_profile_integer_id": 633,
         "safe_transfer_z_m": 0.033,
         "return_segment_count": 3,
-        "batch_row_policy": "rows_1_to_9_near_ready_row_10_campaign_home",
+        "batch_row_policy": "five_row_logical_batches_every_row_campaign_home",
+        "host_protocol": "v3_full_home_rolling_arm_v1",
     }
 
 
@@ -698,8 +933,32 @@ def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> dict[str,
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         raise ValueError(f"V3 TP triplet validation failed: {failed}")
-    validate_rendered_script(script.split("\n", 1)[1])
+    validate_rendered_script(script)
     return checks
+
+
+def _deploy_manifest(script: str, digests: Mapping[str, str]) -> dict[str, Any]:
+    _, runtime_identity = bind_final_script(
+        script,
+        program_id=PROGRAM_NAME,
+        protocol_id=PROTOCOL_ID,
+    )
+    if runtime_identity["script_artifact_sha256"] != digests[".script"]:
+        raise ValueError("TP runtime identity final script SHA-256 differs")
+    return {
+        "schema_version": 2,
+        "basename": PROGRAM_NAME,
+        "controller_directory": CONTROLLER_DIR,
+        "tp_runtime_identity": runtime_identity,
+        "artifacts": [
+            {
+                "filename": f"{PROGRAM_NAME}{suffix}",
+                "source": f"{PROGRAM_NAME}{suffix}",
+                "sha256": digests[suffix],
+            }
+            for suffix in (".script", ".txt", ".urp")
+        ],
+    }
 
 
 def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
@@ -732,19 +991,7 @@ def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
         suffix: hashlib.sha256(path.read_bytes()).hexdigest()
         for suffix, path in paths.items()
     }
-    manifest = {
-        "schema_version": 1,
-        "basename": PROGRAM_NAME,
-        "controller_directory": CONTROLLER_DIR,
-        "artifacts": [
-            {
-                "filename": path.name,
-                "source": path.name,
-                "sha256": digests[suffix],
-            }
-            for suffix, path in paths.items()
-        ],
-    }
+    manifest = _deploy_manifest(script, digests)
     with manifest_path.open("x", encoding="utf-8") as handle:
         handle.write(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     sanity = numeric_sanity(script)
@@ -763,14 +1010,67 @@ def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
     }
 
 
+def check_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
+    """Re-render canonical bytes and fail if an immutable output differs."""
+
+    script = build_package_script(stamp)
+    txt = build_txt(stamp)
+    urp = v1.build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
+    checks = validate_triplet(script, txt, urp, stamp)
+    triplet = {
+        ".script": script.encode("utf-8"),
+        ".txt": txt.encode("utf-8"),
+        ".urp": urp,
+    }
+    digests = {
+        suffix: hashlib.sha256(encoded).hexdigest()
+        for suffix, encoded in triplet.items()
+    }
+    manifest = _deploy_manifest(script, digests)
+    expected = {
+        **{
+            f"{PROGRAM_NAME}{suffix}": encoded
+            for suffix, encoded in triplet.items()
+        },
+        f"{PROGRAM_NAME}.deploy-manifest.json": (
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8"),
+        f"{PROGRAM_NAME}.numeric-sanity.json": (
+            json.dumps(numeric_sanity(script), indent=2, sort_keys=True) + "\n"
+        ).encode("utf-8"),
+    }
+    failures: list[str] = []
+    for filename, encoded in expected.items():
+        path = output_dir / filename
+        if path.is_symlink() or not path.is_file():
+            failures.append(f"{filename}:missing_or_unsafe")
+        elif path.read_bytes() != encoded:
+            failures.append(f"{filename}:byte_drift")
+    if failures:
+        raise ValueError("V3 TP generator --check failed: " + ", ".join(failures))
+    return {
+        "ok": True,
+        "program": PROGRAM_NAME,
+        "stamp": stamp,
+        "output_dir": str(output_dir),
+        "sha256": digests,
+        "checked_files": sorted(expected),
+        "checks": checks,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=LOCAL_PROGRAM_DIR)
     parser.add_argument("--stamp", default=None)
+    parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
+    if args.check and args.stamp is None:
+        parser.error("--check requires the immutable --stamp input")
+    operation = check_triplet if args.check else write_triplet
     print(
         json.dumps(
-            write_triplet(args.output_dir, args.stamp or source_stamp()),
+            operation(args.output_dir, args.stamp or IMMUTABLE_RELEASE_STAMP),
             indent=2,
             sort_keys=True,
         )

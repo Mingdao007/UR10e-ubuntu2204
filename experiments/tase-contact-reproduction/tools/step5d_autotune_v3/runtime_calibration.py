@@ -5,8 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -23,12 +21,6 @@ EXPECTED_CALIBRATION_HASH = "calib_7367377276742883610"
 EXPECTED_CALIBRATION_SHA256 = (
     "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
 )
-DEFAULT_STABLE_PYTHON_RUNTIME = Path(
-    "/home/andy/.codex-python/ur10e-digital-twin-20260711"
-)
-CUDA_BOOTSTRAP_MARKER = "STEP5D_V3_CUDA_BOOTSTRAPPED"
-
-
 class RuntimeCalibrationError(RuntimeError):
     """The compact runtime calibration or its installed model source differs."""
 
@@ -273,44 +265,3 @@ def dependency_observation(path: Path = DEFAULT_ARTIFACT) -> dict[str, Any]:
         "source_summary_sha256": calibration.source_summary_sha256,
         "finite_samples": calibration.finite_samples,
     }
-
-
-def stable_cuda_environment(
-    environ: dict[str, str] | None = None,
-) -> dict[str, str]:
-    """Return the reviewed Step5d CuPy/CUDA search paths for a child process."""
-
-    environment = dict(os.environ if environ is None else environ)
-    runtime = Path(
-        environment.get("STEP5D_PYTHON_RUNTIME_ROOT", str(DEFAULT_STABLE_PYTHON_RUNTIME))
-    )
-    if not (runtime / "cupy").is_dir():
-        raise RuntimeCalibrationError(f"stable CuPy runtime is missing: {runtime}")
-    library_dirs = [
-        runtime / "nvidia" / package / "lib"
-        for package in ("cuda_nvrtc", "nvjitlink", "cuda_runtime")
-        if (runtime / "nvidia" / package / "lib").is_dir()
-    ]
-    required = [
-        runtime / "nvidia" / package / "lib"
-        for package in ("cuda_nvrtc", "cuda_runtime")
-    ]
-    if not all(path.is_dir() for path in required):
-        raise RuntimeCalibrationError(f"stable CUDA runtime libraries are incomplete: {runtime}")
-    environment["PYTHONPATH"] = os.pathsep.join(
-        (str(runtime), environment.get("PYTHONPATH", ""))
-    ).rstrip(os.pathsep)
-    environment["LD_LIBRARY_PATH"] = os.pathsep.join(
-        (*map(str, library_dirs), environment.get("LD_LIBRARY_PATH", ""))
-    ).rstrip(os.pathsep)
-    environment[CUDA_BOOTSTRAP_MARKER] = "1"
-    return environment
-
-
-def bootstrap_stable_cuda_runtime() -> None:
-    """Re-exec a live entrypoint before imports allocate any CUDA state."""
-
-    if os.environ.get(CUDA_BOOTSTRAP_MARKER) == "1":
-        return
-    environment = stable_cuda_environment()
-    os.execve(sys.executable, [sys.executable, *sys.argv], environment)

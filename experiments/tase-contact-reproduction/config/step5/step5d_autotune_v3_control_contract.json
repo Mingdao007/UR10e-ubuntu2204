@@ -8,9 +8,16 @@
     ]
   },
   "candidate_tp_artifact_sha256": {
-    ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
-    ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
-    ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
+    ".script": "bcae4a5a367ade85a77014c4a779f46e662c48a23499d29ff1588a6237b48ae2",
+    ".txt": "734e802b75db561dea02f59d3bed0e30e16c3c8c3820d00a666b9caba1097f89",
+    ".urp": "235c6da7f829d63505f0a8a32d0009092be7613830fed59f8c24ba80e39684d6"
+  },
+  "candidate_tp_identity": {
+    "artifact_dir": "programs/step5/step5d",
+    "deploy_manifest_sha256": "057eafb728ee1000ff938f111351eec22f449f89a623d0a04b354271cb832058",
+    "mode": "controller_readback_verified_promoted_current",
+    "numeric_sanity_sha256": "8c5c42249eccbe2d31f271950c3d5d1f7325795adf5a65f75a338052e486d49d",
+    "program": "step5d_strict_rnn_autotune_v3_r009"
   },
   "cli_arguments": [
     [
@@ -169,7 +176,7 @@
     ],
     [
       "--bridge-normal-max-rate-rad-s",
-      "0.050"
+      "0.100"
     ],
     [
       "--bridge-normal-min-force-n",
@@ -190,10 +197,6 @@
     [
       "--step5c-joint-damping",
       "0.0001"
-    ],
-    [
-      "--step5c-joint-model",
-      "/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
     ],
     [
       "--step5c-joint-site",
@@ -269,7 +272,7 @@
     ],
     [
       "--step5d-autotune-normal-rate-rad-s",
-      "0.050"
+      "0.100"
     ],
     [
       "--step5d-autotune-host-slew-rad-s2",
@@ -315,10 +318,10 @@
   "deployment_tp_identity": {
     "artifact_dir": "programs/step5/step5d",
     "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
-    "program": "step5d_strict_rnn_autotune_v3_r005",
+    "program": "step5d_strict_rnn_autotune_v3_r009",
     "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-    "readback_manifest_sha256": "ae74111ca58216c9b4b72f0c5bdc576ac0c62ce38c49f139df09b1adf79d2ea3",
-    "tp_fingerprint": "61ed7c95c96cfab6d0522f596787dfb461bdd8a21f0ea53e561c4893b2e63d45"
+    "readback_manifest_sha256": "29378aacd48d7707022b9ba6c937fc78abc29705cb42ac853b182a029c598688",
+    "tp_fingerprint": "057eafb728ee1000ff938f111351eec22f449f89a623d0a04b354271cb832058"
   },
   "effective_fields": {
     "campaign_tunable": {
@@ -369,7 +372,7 @@
       "step4e_version": "step5d_strict_rnn_autotune_v1",
       "step5b_trial_profile": "none",
       "step5c_joint_damping": 0.0001,
-      "step5c_joint_model": "/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml",
+      "step5c_joint_model": null,
       "step5c_joint_site": "tcp_site_unverified_85mm",
       "step5c_qdot_limit_rad_s": 0.15,
       "step5d_alpha_s_inv": 1.0,
@@ -398,6 +401,7 @@
         "command": 0,
         "command_seq": 0,
         "execution_profile_id": 0,
+        "logical_batch_sequence": 0,
         "trial_id": 0
       },
       "step5d_autotune_trial_id": 0
@@ -416,7 +420,7 @@
       "bridge_normal_follow_mode": "filtered_live",
       "bridge_normal_friction_projection": "on",
       "bridge_normal_max_angle_from_latch_deg": 20.0,
-      "bridge_normal_max_rate_rad_s": 0.05,
+      "bridge_normal_max_rate_rad_s": 0.1,
       "bridge_normal_min_force_n": 2.0,
       "bridge_normal_velocity_limit_m_s": 1.0,
       "bridge_total_linear_limit_m_s": 1.0,
@@ -443,12 +447,12 @@
       "step4e_normal_follow_mode": "filtered_live",
       "step4e_normal_friction_projection": "on",
       "step4e_normal_max_angle_from_latch_deg": 20.0,
-      "step4e_normal_max_rate_rad_s": 0.05,
+      "step4e_normal_max_rate_rad_s": 0.1,
       "step4e_normal_min_force_n": 2.0,
       "step4e_normal_velocity_limit_m_s": 1.0,
       "step4e_total_linear_limit_m_s": 1.0,
       "step5d_autotune_host_slew_rad_s2": 0.5,
-      "step5d_autotune_normal_rate_rad_s": 0.05,
+      "step5d_autotune_normal_rate_rad_s": 0.1,
       "step5d_autotune_offline_only_profile": false,
       "step5d_autotune_profile_eligibility": "live_eligible",
       "step5d_autotune_speedj_acceleration_rad_s2": 0.5,
@@ -464,7 +468,7 @@
       "write_rtde_inputs": true
     }
   },
-  "execution_profile_id": "nf050-slew050-a050",
+  "execution_profile_id": "nf100-slew050-a050",
   "forbidden_cli_flags": [
     "--step4e-normal-filter-alpha",
     "--bridge-normal-filter-alpha",
@@ -545,32 +549,38 @@
     "stage_id": "step5d_strict_rnn_autotune_v1",
     "tag": "archive/step5d-autotune-v1-20260715"
   },
-  "promotion_status": "requires_attended_tp_upload_readback",
+  "promotion_status": "controller_readback_verified",
   "schema": "step5d.autotune.v3.control-contract/v1",
   "source_sha256": {
+    "config/step5/step5d_r008_botorch_runtime.json": "16ce50309bbc8262755cbbd1938740b842c8eb3e3d2b15d6248306c8898c6440",
+    "config/step5/step5d_r008_botorch_runtime.lock": "e781dc5f9fdaee04576ef47fa544ba9f95a89e94afa3a9de610f39e684b9e434",
     "config/step5_safe_frame.json": "e0e4cda8c07d68161ff448223626b46d0eef903973d74e1af0483bf110aecfa4",
     "config/step5d_autotune_i_scale_sanity_v1.json": "19b2a07cc43722cf486863150b65b9984160ccec1b326e762022135d20f6a225",
     "scripts/bridge-line-operator.sh": "91d8fb6be1ddcd038e5497032fd2173c3b94181da523a43370653a24cdb27da9",
-    "scripts/step5d-autotune-live.sh": "ca0cac4ca0579f0493fd1ab7c93e45bf84b3608a40740a36ec12bf0aad6d1ed6",
-    "tools/build_step5d_autotune_tp_v3.py": "9546668970ee251e357ee4af8d5ecdc9a6025ecbb304fd8f3a22893a40a74cf1",
+    "scripts/step5d-autotune-live.sh": "fb15b84df5c235d7944ab1c60b2a3a30b35e4e82de75ace907cb2452aeb6dd0e",
+    "tools/build_step5d_autotune_tp_v3.py": "bdd51cb96cfe5b71a16edaa3e74207b70b1544517dbd417cadb842b5513d66e7",
     "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
-    "tools/kunwei_rtde_bridge.py": "f82d61f005d91719481299398d1bcd296d79db12fd5030b2e1fa801af3eac8f3",
-    "tools/run_step5d_autotune_campaign.py": "43468bc6a277b924185f29e58d7209ea568c59aa4634c1692037ccde3f910cb1",
-    "tools/step5d_autotune_backend.py": "a53fbf566ecc474c5de819dc2a8066efcc7338a7e4f5d11131b7144854028b2c",
-    "tools/step5d_autotune_contract.py": "f0e98b5c55a980ce7df6216589d179b84f408da51e83b2b1080f43e6757b6709",
-    "tools/step5d_autotune_coordinator.py": "a2ff4944afe8ed9fbd64ac288113857038f133fb3859140b48fcab1183915a8f",
-    "tools/step5d_autotune_journal.py": "80e7ee326da095b2ef05f09e3e7ce0f415b534815b516f576f853dcf3e2fb8f3",
-    "tools/step5d_autotune_live_driver.py": "d07f0df784aa69124744b63c1a8cff68abd89ac24010827668c46b1ba58ba80d",
-    "tools/step5d_autotune_runtime_lifecycle.py": "2188f7b8177d65116735621a91d1b8b5c409034fbf6ebfecc9df1b6892509bc0",
-    "tools/step5d_autotune_state_machine.py": "401e75425c9b34d237b707a49293f93308bbf06bf140e4ad2a26d07fed76f8a9",
-    "tools/step5d_autotune_supervisor.py": "d9bd74ba0e3fe95235f6133dd5158b3a20a73367981583b8cef02983efd37628",
+    "tools/kunwei_rtde_bridge.py": "b141cd92a307f85ebfb97cda3b21983021348beea4e0e91b793aeddc8c553cb0",
+    "tools/run_step5d_autotune_campaign.py": "4bd45b355077d71fd741ca436f56dd43da1975627a8694b24edcbf2bb8df5cfe",
+    "tools/step5d_autotune_backend.py": "72a565593d703bf50c5825a3ac730074a90b3d91619c660e9673d1d2bba00597",
+    "tools/step5d_autotune_batch_plan.py": "f56833222903cd2f9442c3aa5f9f1491e06dd04def7c9b78e942bc8b45e0c9f1",
+    "tools/step5d_autotune_contract.py": "ac595537770401e0a064a0a720277d05dc182ea098bf425c1b2f04dbd319c648",
+    "tools/step5d_autotune_coordinator.py": "3b65e0bb4fa746a5c56cce3a7caf4a01302b725f47c99e17099fe1812770f102",
+    "tools/step5d_autotune_journal.py": "bd3f7accf87ba02932d9e30772fcf261635b572f6f1be5ccaa6010bdaa2978d5",
+    "tools/step5d_autotune_live_driver.py": "b1071b0a9078acd3c3796407b24392433cf4c3ac0010887cda07f24f1663bc43",
+    "tools/step5d_autotune_optimizer.py": "53fbfecc94cbade09dc13ee754633b9ca2635dc7dc6303e6a684d27caaeb62cd",
+    "tools/step5d_autotune_r008_policy.py": "f32338a0936caaa637dcce888b54cc7627325a4664f75aa7ba9b78f4f09b8cd6",
+    "tools/step5d_autotune_runtime_lifecycle.py": "308a10c5de21108db3d6db2094ebc321397181264eaffa3eac121fc1feda3ed8",
+    "tools/step5d_autotune_state_machine.py": "a6273c7fc909a6d5c4553421d10772ed3eb5bc20c4cda7212fcde2916c40dabd",
+    "tools/step5d_autotune_supervisor.py": "367578280d8cf32be9ab78a551b6dbea5ed227080732886bd607f17ffe0efc91",
     "tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
     "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
-    "tools/step5d_runtime_interface.py": "a36306325de4720fc53a6354878edc45c0598518e060df0926f98dc5c699bcd1"
+    "tools/step5d_r008_completion.py": "8abad28f2da85b34ec793f7c6c42f203f5d7136217711a8cc01f83f02ce09321",
+    "tools/step5d_runtime_interface.py": "ca92fa25a86dccbdbb68439ecdbb2c5163205beeef0ddbb978e5332fbc5b0216"
   },
   "tp_artifact_sha256": {
-    ".script": "ab84f7c189f1c96afaaa09105ecbef83995f5a8c84ce21220c30a57493b5c303",
-    ".txt": "ef52779b7ac46da0984ce436740100063168c58396a10f9abd917e42dcd25319",
-    ".urp": "33b86f81ff34023a7a62bbaa370f43ab2450806d4f11723a2493cf83e68d399d"
+    ".script": "bcae4a5a367ade85a77014c4a779f46e662c48a23499d29ff1588a6237b48ae2",
+    ".txt": "734e802b75db561dea02f59d3bed0e30e16c3c8c3820d00a666b9caba1097f89",
+    ".urp": "235c6da7f829d63505f0a8a32d0009092be7613830fed59f8c24ba80e39684d6"
   }
 }

@@ -5,9 +5,16 @@ from .batch import (
     BatchIdentity,
     BatchJournal,
     BatchRow,
+    DirectReadyReceipt,
     ExactAckReceipt,
     ReturnReferenceKind,
     SafeClosureReceipt,
+)
+from .candidate_identity import (
+    ControlCandidateUid,
+    OccurrenceUid,
+    ParameterUid,
+    TransportCandidateUid,
 )
 
 from .contracts import (
@@ -64,7 +71,12 @@ from .return_route import (
     return_reference,
     return_route,
 )
-from .evidence import EvidenceSink, TrialBrief, build_trial_brief
+from .evidence import (
+    EvidenceSink,
+    TrialBrief,
+    build_direct_trial_brief,
+    build_trial_brief,
+)
 from .runtime import (
     HostResourceLock,
     append_run_state_event,
@@ -92,6 +104,7 @@ __all__ = [
     "BatchRow",
     "ComponentKind",
     "ComponentRegistry",
+    "ControlCandidateUid",
     "CERTIFICATION_PROCEDURES",
     "CampaignAuthorization",
     "CertificationMotionAuthorization",
@@ -99,9 +112,12 @@ __all__ = [
     "ExperimentRuntimeError",
     "ExperimentSpec",
     "ExactAckReceipt",
+    "DirectReadyReceipt",
     "EvidenceSink",
     "ObjectiveContract",
+    "OccurrenceUid",
     "OutputPathError",
+    "ParameterUid",
     "PhysicalPriorArtifact",
     "MovingSphereKernel",
     "ResourceLockError",
@@ -124,12 +140,14 @@ __all__ = [
     "StoppingBoundEvidenceComponent",
     "StoppingBoundEvidenceManifest",
     "TrialBrief",
+    "TransportCandidateUid",
     "STEP5D_V3_PHYSICAL_PRIOR",
     "STEP5D_V3_STAGE_IDENTITY",
     "Step5dV3StageIdentity",
     "UnsupportedExecutionError",
     "build_default_registry",
     "build_trial_brief",
+    "build_direct_trial_brief",
     "append_run_state_event",
     "canonical_json_bytes",
     "canonical_sha256",

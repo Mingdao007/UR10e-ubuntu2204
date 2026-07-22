@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Build one write-once Step5d V3 NO_ARM bridge-start context.
 
 This tool is intentionally incapable of creating either certification-motion
@@ -30,10 +30,11 @@ from step5d_autotune_v3.readiness import (
     ReleaseReadinessError,
     resolve_release_readiness,
 )
-from step5d_autotune_v3.runtime_calibration import (
-    DEFAULT_STABLE_PYTHON_RUNTIME,
-    RuntimeCalibrationError,
-    stable_cuda_environment,
+from step5d_autotune_v3.runtime_environment import DETERMINISTIC_VALUES
+from step5d_autotune_v3.runtime_installation import (
+    RuntimeInstallationError,
+    load_runtime_contract,
+    load_runtime_pointer_integrity,
 )
 
 
@@ -121,12 +122,20 @@ def _module_version(name: str) -> str | None:
 def capture_passive_runtime_environment() -> dict[str, Any]:
     """Capture identity inputs without benchmarking or changing host state."""
 
-    stable_environment = stable_cuda_environment(dict(os.environ))
-    stable_runtime = Path(
-        stable_environment.get(
-            "STEP5D_PYTHON_RUNTIME_ROOT",
-            str(DEFAULT_STABLE_PYTHON_RUNTIME),
-        )
+    pointer = load_runtime_pointer_integrity(environ=os.environ)
+    contract = load_runtime_contract()
+    abi = ".".join(str(contract["python"]["version"]).split(".")[:2])
+    stable_runtime = (
+        Path(pointer["profiles"]["control"]["root"])
+        / f"lib/python{abi}/site-packages"
+    )
+    stable_environment = dict(os.environ)
+    stable_environment.update(DETERMINISTIC_VALUES)
+    stable_environment.update(
+        {
+            "CUDA_VISIBLE_DEVICES": contract["gpu"]["uuid"],
+            "UR10E_RNN_GPU_DEVICE": "cuda:0",
+        }
     )
     scheduler = os.sched_getscheduler(0)
     scheduler_names = {
@@ -263,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     except (
         BridgeContextBuildError,
         ReleaseReadinessError,
-        RuntimeCalibrationError,
+        RuntimeInstallationError,
         KeyError,
         ValueError,
     ) as exc:

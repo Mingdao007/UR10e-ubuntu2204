@@ -1,0 +1,590 @@
+{
+  "candidate_schema": {
+    "additionalProperties": false,
+    "required": [
+      "force_p_gain",
+      "force_i_gain",
+      "force_damping"
+    ]
+  },
+  "candidate_tp_artifact_sha256": {
+    ".script": "bcae4a5a367ade85a77014c4a779f46e662c48a23499d29ff1588a6237b48ae2",
+    ".txt": "734e802b75db561dea02f59d3bed0e30e16c3c8c3820d00a666b9caba1097f89",
+    ".urp": "235c6da7f829d63505f0a8a32d0009092be7613830fed59f8c24ba80e39684d6"
+  },
+  "candidate_tp_identity": {
+    "artifact_dir": "programs/step5/step5d",
+    "deploy_manifest_sha256": "057eafb728ee1000ff938f111351eec22f449f89a623d0a04b354271cb832058",
+    "mode": "controller_readback_verified_promoted_current",
+    "numeric_sanity_sha256": "8c5c42249eccbe2d31f271950c3d5d1f7325795adf5a65f75a338052e486d49d",
+    "program": "step5d_strict_rnn_autotune_v3_r009"
+  },
+  "cli_arguments": [
+    [
+      "--allow-kunwei-stream-command"
+    ],
+    [
+      "--write-rtde-inputs"
+    ],
+    [
+      "--baseline-s",
+      "1.0"
+    ],
+    [
+      "--rezero-s",
+      "1.0"
+    ],
+    [
+      "--duration-s",
+      "180"
+    ],
+    [
+      "--rtde-hz",
+      "500"
+    ],
+    [
+      "--socket-timeout-s",
+      "0.0"
+    ],
+    [
+      "--sensor-stale-s",
+      "2.0"
+    ],
+    [
+      "--dashboard-program-watch-timeout-s",
+      "135"
+    ],
+    [
+      "--target-force-n",
+      "5"
+    ],
+    [
+      "--normal-axis",
+      "fz"
+    ],
+    [
+      "--normal-sign",
+      "1"
+    ],
+    [
+      "--max-normal-force-n",
+      "60"
+    ],
+    [
+      "--max-force-norm-n",
+      "100"
+    ],
+    [
+      "--max-torque-norm-nm",
+      "3.0"
+    ],
+    [
+      "--bridge-mode",
+      "line"
+    ],
+    [
+      "--bridge-profile",
+      "step5d_strict_rnn_autotune_v1"
+    ],
+    [
+      "--bridge-path-shape",
+      "cycloid"
+    ],
+    [
+      "--bridge-line-speed-m-s",
+      "0.003"
+    ],
+    [
+      "--bridge-line-settle-s",
+      "0.0"
+    ],
+    [
+      "--bridge-path-p-gain",
+      "1.5"
+    ],
+    [
+      "--bridge-motion-limit-m-s",
+      "0.004"
+    ],
+    [
+      "--bridge-total-linear-limit-m-s",
+      "0.006"
+    ],
+    [
+      "--bridge-normal-velocity-limit-m-s",
+      "0.003"
+    ],
+    [
+      "--bridge-force-p-gain",
+      "0.0007"
+    ],
+    [
+      "--bridge-force-i-gain",
+      "0.00008"
+    ],
+    [
+      "--bridge-force-damping",
+      "0.35"
+    ],
+    [
+      "--bridge-normal-command-sign",
+      "1"
+    ],
+    [
+      "--bridge-integral-limit-n-s",
+      "10.0"
+    ],
+    [
+      "--bridge-min-force-for-control-n",
+      "1.0"
+    ],
+    [
+      "--bridge-acquire-grace-s",
+      "0.25"
+    ],
+    [
+      "--bridge-reacquire-velocity-m-s",
+      "0.001"
+    ],
+    [
+      "--bridge-orientation-gain",
+      "0.20"
+    ],
+    [
+      "--bridge-orientation-wx-sign",
+      "1"
+    ],
+    [
+      "--bridge-orientation-wy-sign",
+      "1"
+    ],
+    [
+      "--bridge-angular-limit-rad-s",
+      "0.050"
+    ],
+    [
+      "--bridge-contact-offset-min-fz-n",
+      "1.0"
+    ],
+    [
+      "--bridge-normal-follow-mode",
+      "filtered_live"
+    ],
+    [
+      "--bridge-normal-filter-tau-s",
+      "0.35"
+    ],
+    [
+      "--bridge-normal-max-rate-rad-s",
+      "0.100"
+    ],
+    [
+      "--bridge-normal-min-force-n",
+      "2.0"
+    ],
+    [
+      "--bridge-normal-max-angle-from-latch-deg",
+      "20"
+    ],
+    [
+      "--bridge-normal-friction-projection",
+      "on"
+    ],
+    [
+      "--step5c-qdot-limit-rad-s",
+      "0.15"
+    ],
+    [
+      "--step5c-joint-damping",
+      "0.0001"
+    ],
+    [
+      "--step5c-joint-model",
+      "/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml"
+    ],
+    [
+      "--step5c-joint-site",
+      "tcp_site_unverified_85mm"
+    ],
+    [
+      "--step5d-stage25-control-mode",
+      "speedj_rnn_live"
+    ],
+    [
+      "--step5d-qdot-limit-rad-s",
+      "0.500"
+    ],
+    [
+      "--step5d-epsilon",
+      "0.010"
+    ],
+    [
+      "--step5d-sigr-exponent-r",
+      "0.800"
+    ],
+    [
+      "--step5d-rnn-inner-iterations",
+      "512"
+    ],
+    [
+      "--step5d-rnn-backend",
+      "cupy"
+    ],
+    [
+      "--step5d-stop-register-canary-s",
+      "0"
+    ],
+    [
+      "--step5d-preload-filtered-min-n",
+      "7.5"
+    ],
+    [
+      "--step5d-preload-filtered-max-n",
+      "14.0"
+    ],
+    [
+      "--step5d-preload-raw-min-n",
+      "7.0"
+    ],
+    [
+      "--step5d-preload-raw-max-n",
+      "15.0"
+    ],
+    [
+      "--step5d-preload-force-norm-max-n",
+      "25.0"
+    ],
+    [
+      "--step5d-preload-hold-s",
+      "0.100"
+    ],
+    [
+      "--step5d-preload-timeout-s",
+      "10.0"
+    ],
+    [
+      "--step5d-autotune-force-p",
+      "$candidate.force_p_gain"
+    ],
+    [
+      "--step5d-autotune-force-i",
+      "$candidate.force_i_gain"
+    ],
+    [
+      "--step5d-autotune-force-damping",
+      "$candidate.force_damping"
+    ],
+    [
+      "--step5d-autotune-normal-rate-rad-s",
+      "0.100"
+    ],
+    [
+      "--step5d-autotune-host-slew-rad-s2",
+      "0.500"
+    ],
+    [
+      "--step5d-autotune-speedj-acceleration-rad-s2",
+      "0.500"
+    ],
+    [
+      "--step5d-autotune-campaign-epoch",
+      "0"
+    ],
+    [
+      "--step5d-autotune-trial-id",
+      "0"
+    ],
+    [
+      "--step5d-autotune-command",
+      "0"
+    ],
+    [
+      "--step5d-autotune-candidate-token",
+      "0"
+    ],
+    [
+      "--step5d-autotune-execution-profile-id",
+      "0"
+    ],
+    [
+      "--step5d-autotune-command-sequence",
+      "0"
+    ],
+    [
+      "--step5d-autotune-command-mailbox",
+      "$runtime.command_mailbox"
+    ],
+    [
+      "--output-dir",
+      "$runtime.output_dir"
+    ]
+  ],
+  "deployment_tp_identity": {
+    "artifact_dir": "programs/step5/step5d",
+    "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
+    "program": "step5d_strict_rnn_autotune_v3_r009",
+    "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
+    "readback_manifest_sha256": "29378aacd48d7707022b9ba6c937fc78abc29705cb42ac853b182a029c598688",
+    "tp_fingerprint": "057eafb728ee1000ff938f111351eec22f449f89a623d0a04b354271cb832058"
+  },
+  "effective_fields": {
+    "campaign_tunable": {
+      "step5d_autotune_force_damping": "$candidate.force_damping",
+      "step5d_autotune_force_i": "$candidate.force_i_gain",
+      "step5d_autotune_force_p": "$candidate.force_p_gain",
+      "step5d_autotune_force_terms": "$candidate.force_terms"
+    },
+    "control_invariant": {
+      "baseline_s": 1.0,
+      "bridge_acquire_grace_s": 0.25,
+      "bridge_axis_iso_tilt_deg": 10.0,
+      "bridge_force_damping": 0.35,
+      "bridge_force_i_gain": 8e-05,
+      "bridge_force_p_gain": 0.0007,
+      "bridge_integrate_stage25_only": false,
+      "bridge_line_settle_s": 0.0,
+      "bridge_line_speed_m_s": 0.003,
+      "bridge_min_force_for_control_n": 1.0,
+      "bridge_mode": "line",
+      "bridge_orientation_gain": 0.2,
+      "bridge_orientation_wx_sign": 1.0,
+      "bridge_orientation_wy_sign": 1.0,
+      "bridge_path_p_gain": 1.5,
+      "bridge_path_shape": "cycloid",
+      "bridge_profile": "step5d_strict_rnn_autotune_v1",
+      "bridge_reacquire_velocity_m_s": 0.001,
+      "bridge_version": "step5d_strict_rnn_autotune_v1",
+      "duration_s": 180.0,
+      "rezero_s": 1.0,
+      "rtde_hz": 500.0,
+      "step4e_acquire_grace_s": 0.25,
+      "step4e_axis_iso_tilt_deg": 10.0,
+      "step4e_force_damping": 0.35,
+      "step4e_force_i_gain": 8e-05,
+      "step4e_force_p_gain": 0.0007,
+      "step4e_integrate_stage25_only": false,
+      "step4e_line_settle_s": 0.0,
+      "step4e_line_speed_m_s": 0.003,
+      "step4e_min_force_for_control_n": 1.0,
+      "step4e_mode": "line",
+      "step4e_orientation_gain": 0.2,
+      "step4e_orientation_wx_sign": 1.0,
+      "step4e_orientation_wy_sign": 1.0,
+      "step4e_path_p_gain": 1.5,
+      "step4e_path_shape": "cycloid",
+      "step4e_reacquire_velocity_m_s": 0.001,
+      "step4e_version": "step5d_strict_rnn_autotune_v1",
+      "step5b_trial_profile": "none",
+      "step5c_joint_damping": 0.0001,
+      "step5c_joint_model": "/home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml",
+      "step5c_joint_site": "tcp_site_unverified_85mm",
+      "step5c_qdot_limit_rad_s": 0.15,
+      "step5d_alpha_s_inv": 1.0,
+      "step5d_epsilon": 0.01,
+      "step5d_rnn_backend": "cupy",
+      "step5d_rnn_inner_iterations": 512,
+      "step5d_sigr_exponent_r": 0.8,
+      "step5d_stage25_control_mode": "speedj_rnn_live",
+      "target_force_n": 12.0
+    },
+    "runtime_identity": {
+      "output_dir": "$runtime.output_dir",
+      "robot_host": "192.168.1.18",
+      "sensor_ip": "192.168.50.25",
+      "sensor_port": 5152,
+      "step5d_autotune_campaign_epoch": 0,
+      "step5d_autotune_candidate_token": 0,
+      "step5d_autotune_command": 0,
+      "step5d_autotune_command_mailbox": "$runtime.command_mailbox",
+      "step5d_autotune_command_sequence": 0,
+      "step5d_autotune_execution_profile_id": 0,
+      "step5d_autotune_handshake": {
+        "batch_row_index": 0,
+        "campaign_epoch": 0,
+        "candidate_token": 0,
+        "command": 0,
+        "command_seq": 0,
+        "execution_profile_id": 0,
+        "logical_batch_sequence": 0,
+        "trial_id": 0
+      },
+      "step5d_autotune_trial_id": 0
+    },
+    "safety_invariant": {
+      "allow_kunwei_stream_command": true,
+      "bias_contact_force_norm_threshold_n": 2.0,
+      "bias_contact_normal_threshold_n": 0.75,
+      "bridge_angular_limit_rad_s": 0.05,
+      "bridge_contact_offset_min_fz_n": 1.0,
+      "bridge_integral_limit_n_s": 10.0,
+      "bridge_motion_limit_m_s": 0.004,
+      "bridge_normal_command_sign": 1.0,
+      "bridge_normal_filter_alpha": 0.0,
+      "bridge_normal_filter_tau_s": 0.35,
+      "bridge_normal_follow_mode": "filtered_live",
+      "bridge_normal_friction_projection": "on",
+      "bridge_normal_max_angle_from_latch_deg": 20.0,
+      "bridge_normal_max_rate_rad_s": 0.1,
+      "bridge_normal_min_force_n": 2.0,
+      "bridge_normal_velocity_limit_m_s": 1.0,
+      "bridge_total_linear_limit_m_s": 1.0,
+      "connect_timeout_s": 3.0,
+      "dashboard_program_watch_timeout_s": 135.0,
+      "disable_dashboard_program_watch": false,
+      "max_force_norm_n": 100.0,
+      "max_normal_force_n": 60.0,
+      "max_torque_norm_nm": 3.0,
+      "no_start_command": false,
+      "no_stop_command": false,
+      "normal_axis": "fz",
+      "normal_sign": 1.0,
+      "sensor_stale_s": 2.0,
+      "skip_dashboard_preflight": false,
+      "socket_timeout_s": 0.0,
+      "step4e_angular_limit_rad_s": 0.05,
+      "step4e_contact_offset_min_fz_n": 1.0,
+      "step4e_integral_limit_n_s": 10.0,
+      "step4e_motion_limit_m_s": 0.004,
+      "step4e_normal_command_sign": 1.0,
+      "step4e_normal_filter_alpha": 0.0,
+      "step4e_normal_filter_tau_s": 0.35,
+      "step4e_normal_follow_mode": "filtered_live",
+      "step4e_normal_friction_projection": "on",
+      "step4e_normal_max_angle_from_latch_deg": 20.0,
+      "step4e_normal_max_rate_rad_s": 0.1,
+      "step4e_normal_min_force_n": 2.0,
+      "step4e_normal_velocity_limit_m_s": 1.0,
+      "step4e_total_linear_limit_m_s": 1.0,
+      "step5d_autotune_host_slew_rad_s2": 0.5,
+      "step5d_autotune_normal_rate_rad_s": 0.1,
+      "step5d_autotune_offline_only_profile": false,
+      "step5d_autotune_profile_eligibility": "live_eligible",
+      "step5d_autotune_speedj_acceleration_rad_s2": 0.5,
+      "step5d_preload_filtered_max_n": 14.0,
+      "step5d_preload_filtered_min_n": 7.5,
+      "step5d_preload_force_norm_max_n": 25.0,
+      "step5d_preload_hold_s": 0.1,
+      "step5d_preload_raw_max_n": 15.0,
+      "step5d_preload_raw_min_n": 7.0,
+      "step5d_preload_timeout_s": 10.0,
+      "step5d_qdot_limit_rad_s": 0.5,
+      "step5d_stop_register_canary_s": 0.0,
+      "write_rtde_inputs": true
+    }
+  },
+  "execution_profile_id": "nf100-slew050-a050",
+  "forbidden_cli_flags": [
+    "--step4e-normal-filter-alpha",
+    "--bridge-normal-filter-alpha",
+    "--step5d-autotune-offline-only-profile"
+  ],
+  "forbidden_environment": [
+    "BRIDGE_ANGULAR_LIMIT_RAD_S",
+    "BRIDGE_FORCE_DAMPING",
+    "BRIDGE_FORCE_I_GAIN",
+    "BRIDGE_FORCE_P_GAIN",
+    "BRIDGE_INTEGRAL_LIMIT_N_S",
+    "BRIDGE_LINE_SPEED_M_S",
+    "BRIDGE_MOTION_LIMIT_M_S",
+    "BRIDGE_NORMAL_FILTER_ALPHA",
+    "BRIDGE_NORMAL_FILTER_TAU_S",
+    "BRIDGE_NORMAL_FOLLOW_MODE",
+    "BRIDGE_NORMAL_FRICTION_PROJECTION",
+    "BRIDGE_NORMAL_MAX_ANGLE_FROM_LATCH_DEG",
+    "BRIDGE_NORMAL_MAX_RATE_RAD_S",
+    "BRIDGE_NORMAL_MIN_FORCE_N",
+    "BRIDGE_NORMAL_VELOCITY_LIMIT_M_S",
+    "BRIDGE_PATH_SHAPE",
+    "BRIDGE_PROFILE",
+    "BRIDGE_REACQUIRE_VELOCITY_M_S",
+    "BRIDGE_STEP5D_PRELOAD_FILTERED_MAX_N",
+    "BRIDGE_STEP5D_PRELOAD_FILTERED_MIN_N",
+    "BRIDGE_STEP5D_PRELOAD_FORCE_NORM_MAX_N",
+    "BRIDGE_STEP5D_PRELOAD_HOLD_S",
+    "BRIDGE_STEP5D_PRELOAD_RAW_MAX_N",
+    "BRIDGE_STEP5D_PRELOAD_RAW_MIN_N",
+    "BRIDGE_STEP5D_PRELOAD_TIMEOUT_S",
+    "BRIDGE_TARGET_FORCE_N",
+    "BRIDGE_TOTAL_LINEAR_LIMIT_M_S",
+    "MAX_FORCE_NORM_N",
+    "MAX_NORMAL_FORCE_N",
+    "MAX_TORQUE_NORM_NM",
+    "STEP4E_NORMAL_FILTER_ALPHA",
+    "STEP4E_NORMAL_FILTER_TAU_S",
+    "STEP4E_NORMAL_FOLLOW_MODE",
+    "STEP4E_NORMAL_FRICTION_PROJECTION",
+    "STEP4E_NORMAL_MAX_ANGLE_FROM_LATCH_DEG",
+    "STEP4E_NORMAL_MAX_RATE_RAD_S",
+    "STEP4E_NORMAL_MIN_FORCE_N",
+    "STEP5C_JOINT_DAMPING",
+    "STEP5C_JOINT_MODEL",
+    "STEP5C_JOINT_SITE",
+    "STEP5C_QDOT_LIMIT_RAD_S",
+    "STEP5D_AUTOTUNE_CAMPAIGN_EPOCH",
+    "STEP5D_AUTOTUNE_CANDIDATE_TOKEN",
+    "STEP5D_AUTOTUNE_COMMAND",
+    "STEP5D_AUTOTUNE_COMMAND_MAILBOX",
+    "STEP5D_AUTOTUNE_COMMAND_SEQUENCE",
+    "STEP5D_AUTOTUNE_EXECUTION_PROFILE_ID",
+    "STEP5D_AUTOTUNE_FORCE_DAMPING",
+    "STEP5D_AUTOTUNE_FORCE_I",
+    "STEP5D_AUTOTUNE_FORCE_P",
+    "STEP5D_AUTOTUNE_HOST_SLEW_RAD_S2",
+    "STEP5D_AUTOTUNE_NORMAL_RATE_RAD_S",
+    "STEP5D_AUTOTUNE_SPEEDJ_ACCELERATION_RAD_S2",
+    "STEP5D_AUTOTUNE_TRIAL_ID",
+    "STEP5D_EPSILON",
+    "STEP5D_NORMAL_FILTER_ALPHA",
+    "STEP5D_PRELOAD_FILTERED_MAX_N",
+    "STEP5D_PRELOAD_FILTERED_MIN_N",
+    "STEP5D_PRELOAD_FORCE_NORM_MAX_N",
+    "STEP5D_PRELOAD_HOLD_S",
+    "STEP5D_PRELOAD_RAW_MAX_N",
+    "STEP5D_PRELOAD_RAW_MIN_N",
+    "STEP5D_PRELOAD_TIMEOUT_S",
+    "STEP5D_QDOT_LIMIT_RAD_S",
+    "STEP5D_RNN_BACKEND",
+    "STEP5D_RNN_INNER_ITERATIONS",
+    "STEP5D_SIGR_EXPONENT_R",
+    "STEP5D_STAGE25_CONTROL_MODE"
+  ],
+  "frozen_baseline": {
+    "commit": "6f9ef0912842ac003545eb1906b38d13c7552218",
+    "stage_id": "step5d_strict_rnn_autotune_v1",
+    "tag": "archive/step5d-autotune-v1-20260715"
+  },
+  "promotion_status": "controller_readback_verified",
+  "schema": "step5d.autotune.v3.control-contract/v1",
+  "source_sha256": {
+    "config/step5/step5d_r008_botorch_runtime.json": "16ce50309bbc8262755cbbd1938740b842c8eb3e3d2b15d6248306c8898c6440",
+    "config/step5/step5d_r008_botorch_runtime.lock": "e781dc5f9fdaee04576ef47fa544ba9f95a89e94afa3a9de610f39e684b9e434",
+    "config/step5_safe_frame.json": "e0e4cda8c07d68161ff448223626b46d0eef903973d74e1af0483bf110aecfa4",
+    "config/step5d_autotune_i_scale_sanity_v1.json": "19b2a07cc43722cf486863150b65b9984160ccec1b326e762022135d20f6a225",
+    "scripts/bridge-line-operator.sh": "91d8fb6be1ddcd038e5497032fd2173c3b94181da523a43370653a24cdb27da9",
+    "scripts/step5d-autotune-live.sh": "ca0cac4ca0579f0493fd1ab7c93e45bf84b3608a40740a36ec12bf0aad6d1ed6",
+    "tools/build_step5d_autotune_tp_v3.py": "d04cdb691082e3fd4bb132d04d89aa2ecf3a9749d9f4e85063f641703709dafd",
+    "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+    "tools/kunwei_rtde_bridge.py": "aec72fb4aebbda25ee06d9768c49846b631eed9152355ce6cea5df5863acc57e",
+    "tools/run_step5d_autotune_campaign.py": "896d00f2e5630b55e568de7293f00c4c7e78d61ed910adbe540e4b8681e7b779",
+    "tools/step5d_autotune_backend.py": "ac88cab4af98d4435d29181e898a0b121eed58fd981424eaab50df04f00166b0",
+    "tools/step5d_autotune_batch_plan.py": "b9312c3348f266f52900030410f0338c55d32e68e40209819e3fafde8a15277d",
+    "tools/step5d_autotune_contract.py": "85230800abbd121830a5aa64c910d9157fe0c73afb7304bb10e6d9f36284c870",
+    "tools/step5d_autotune_coordinator.py": "e913c60f0049330321076ae84a95d98d6c04bc0deb43735dc96fdc2550f21a35",
+    "tools/step5d_autotune_journal.py": "e21adf7010b08eab49fc12a10ff24f1dcbfff5e69a11888ecf0d9d0e68131a8e",
+    "tools/step5d_autotune_live_driver.py": "a0a87be144c3b08b9877dec94e1d6bc4f08c0bee9a636f7274f357e27429b86c",
+    "tools/step5d_autotune_optimizer.py": "0033d1a245708efabd3b7c2a9597e0ffb6a144f0db7f36ec9cc925b476c20c70",
+    "tools/step5d_autotune_r008_policy.py": "f32338a0936caaa637dcce888b54cc7627325a4664f75aa7ba9b78f4f09b8cd6",
+    "tools/step5d_autotune_runtime_lifecycle.py": "8f4f494e0b59f77c37360719f2c546a312e9cd8ebce03756518ae0ea18236a47",
+    "tools/step5d_autotune_state_machine.py": "9d17a07b3c475959653f65102b2692f816049fb2e380a231f7ad21aebdda5ec9",
+    "tools/step5d_autotune_supervisor.py": "5e5a31112b793315b2c83d0b6df46f82d6e01c7377d574b2b73af13e5ecd9b2f",
+    "tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
+    "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+    "tools/step5d_r008_completion.py": "8abad28f2da85b34ec793f7c6c42f203f5d7136217711a8cc01f83f02ce09321",
+    "tools/step5d_runtime_interface.py": "2e9981ca289637466cd594249924a036c058eb7546a6901fd372e3c7bb438ed8"
+  },
+  "tp_artifact_sha256": {
+    ".script": "bcae4a5a367ade85a77014c4a779f46e662c48a23499d29ff1588a6237b48ae2",
+    ".txt": "734e802b75db561dea02f59d3bed0e30e16c3c8c3820d00a666b9caba1097f89",
+    ".urp": "235c6da7f829d63505f0a8a32d0009092be7613830fed59f8c24ba80e39684d6"
+  }
+}

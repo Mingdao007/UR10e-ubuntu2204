@@ -85,7 +85,7 @@ def build_bridge_argv(
 
     payload = dict(contract or load_contract())
     candidate_values = normalize_candidate(candidate)
-    runtime = runtime_values(runtime_root)
+    runtime = runtime_values(runtime_root, experiment_root=experiment_root)
     bridge = experiment_root / "tools/kunwei_rtde_bridge.py"
     if bridge.is_symlink() or not bridge.is_file():
         raise ContractViolation(f"production bridge entrypoint is unavailable: {bridge}")
@@ -287,7 +287,7 @@ def check_effective_config(
 
     contract = load_contract(contract_path)
     candidate_values = normalize_candidate(candidate)
-    runtime = runtime_values(runtime_root)
+    runtime = runtime_values(runtime_root, experiment_root=EXPERIMENT_ROOT)
     launch_profile = None
     normalized_overlay = None
     if launch_profile_path is not None:

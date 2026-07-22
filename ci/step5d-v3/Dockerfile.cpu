@@ -1,0 +1,20 @@
+FROM ghcr.io/astral-sh/uv:0.9.30 AS uv
+FROM ros:humble-ros-base-jammy@sha256:5c793b92e0b12d6babb438cb20eed7766495fde6419a21e3d2e918464f09dc17
+
+COPY --from=uv /uv /uvx /bin/
+
+WORKDIR /opt/step5d-hermetic
+COPY experiments/tase-contact-reproduction/pyproject.toml ./pyproject.toml
+COPY experiments/tase-contact-reproduction/uv.lock ./uv.lock
+RUN uv sync --frozen --only-group test-hermetic
+
+ENV HOME=/tmp/step5d-home \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONNOUSERSITE=1 \
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 \
+    STEP5D_OCI_NETWORK_MODE=none \
+    STEP5D_OCI_REPOSITORY_MODE=read_only
+WORKDIR /workspace/experiments/tase-contact-reproduction
+ENTRYPOINT ["/opt/step5d-hermetic/.venv/bin/python", "/workspace/ci/step5d-v3/run_oci_gate.py"]

@@ -27,6 +27,10 @@ from .identity_layers import (
     orchestration_fingerprint as _layered_orchestration_fingerprint,
     orchestration_manifest as _layered_orchestration_manifest,
 )
+from .release_identity import (
+    REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
+    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
+)
 
 
 SERVICE_SCHEMA = "step5d.autotune-v3.service-state/v1"
@@ -330,49 +334,9 @@ def read_service_state(paths: CampaignPaths) -> dict[str, Any]:
     return payload
 
 
-ORCHESTRATION_RELATIVE_PATHS = (
-    # Frozen v1 physical ownership and recovery sources.  Queue *data* is
-    # intentionally excluded; only the append-only plan implementation is
-    # orchestration code.
-    "tools/run_step5d_autotune_campaign.py",
-    "tools/step5d_autotune_coordinator.py",
-    "tools/step5d_autotune_journal.py",
-    "tools/step5d_autotune_store.py",
-    "tools/step5d_autotune_live_driver.py",
-    "tools/step5d_autotune_runtime_lifecycle.py",
-    "tools/step5d_autotune_batch_plan.py",
-    "tools/step5d_autotune_v3/state.py",
-    "tools/step5d_autotune_v3/service.py",
-    "tools/step5d_autotune_v3/postprocess.py",
-    "tools/step5d_autotune_v3/cli.py",
-    "tools/step5d_autotune_v3/launcher.py",
-    "tools/step5d_autotune_v3/runtime_calibration.py",
-    "tools/step5d_autotune_v3/runtime_profile.py",
-    "tools/run_step5d_autotune_v3_bridge.py",
-    "tools/run_step5d_autotune_v3_live.py",
-    "tools/preflight_step5d_autotune_v3.py",
-    "tools/verify_step5d_autotune_v3_execution_readiness.py",
-    "tools/build_step5d_autotune_v3_stopping_bound_evidence.py",
-    "tools/promote_step5d_autotune_v3_stopping_bound_evidence.py",
-    "tools/build_step5d_autotune_v3_return_route_evidence.py",
-    "tools/promote_step5d_autotune_v3_return_route_evidence.py",
-    "tools/run_step5d_autotune_v3_ursim_return_gate.py",
-    "tools/rebuild_step5d_autotune_v3_pre_live_evidence.py",
-    "tools/run_step5d_parallel_workflow.py",
-    "tools/run_step5d_v30_remote_timing.py",
-    "tools/build_step5d_v30_remote_timing_bundle.py",
-    "tools/step5d_v30_timing.py",
-    "tools/step5d_timing_acceptance.py",
-    "scripts/step5d-autotune-v3.sh",
-    "config/systemd/step5d-autotune-v3.service",
-    "config/step5/step5d_autotune_v3_launch_profile.json",
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3/runtime_calibration.json",
-)
-
-ORCHESTRATION_REPO_RELATIVE_PATHS = (
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/authorization.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py",
-    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/return_route.py",
+ORCHESTRATION_RELATIVE_PATHS = tuple(sorted(REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS))
+ORCHESTRATION_REPO_RELATIVE_PATHS = tuple(
+    sorted(REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS)
 )
 
 
@@ -652,19 +616,31 @@ def campaign_status(paths: CampaignPaths) -> dict[str, Any]:
     if paths.candidate_plan.is_symlink():
         raise StateError("candidate plan must not be a symlink")
     if paths.candidate_plan.is_file():
-        plan = load_plan(paths.candidate_plan)
-        plan_payload = {
-            "campaign_id": plan.campaign_id,
-            "revision": plan.revision,
-            "candidate_count": len(plan.candidates),
-            "closed": plan.closed,
-        }
+        try:
+            plan = load_plan(paths.candidate_plan)
+        except (OSError, ValueError) as exc:
+            plan_payload = {
+                "campaign_id": None,
+                "revision": 0,
+                "candidate_count": 0,
+                "closed": False,
+                "integrity_error": f"{type(exc).__name__}:{exc}",
+            }
+        else:
+            plan_payload = {
+                "campaign_id": plan.campaign_id,
+                "revision": plan.revision,
+                "candidate_count": len(plan.candidates),
+                "closed": plan.closed,
+                "integrity_error": None,
+            }
     else:
         plan_payload = {
             "campaign_id": None,
             "revision": 0,
             "candidate_count": 0,
             "closed": False,
+            "integrity_error": None,
         }
     return {
         "schema": "step5d.autotune-v3.status/v1",

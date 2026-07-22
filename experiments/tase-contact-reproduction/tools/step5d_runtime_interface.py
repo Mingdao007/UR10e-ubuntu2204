@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3.10
 """Step5d live-prep runtime interface defaults and read-only status helpers."""
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ STEP5D_ABLATION_STAGE_IDS = (
 )
 STEP5D_AUTOTUNE_NORMAL_FILTER_TAU_S = 0.35
 STEP5D_AUTOTUNE_NORMAL_FILTER_DT_S = 0.002
-STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S = (0.010, 0.015, 0.020, 0.050)
+STEP5D_AUTOTUNE_LIVE_NORMAL_RATE_RAD_S = (0.010, 0.015, 0.020, 0.050, 0.100)
 STEP5D_AUTOTUNE_OFFLINE_ONLY_NORMAL_RATE_RAD_S = (0.030,)
 STEP5D_AUTOTUNE_QDOT_CAP_RAD_S = 0.5
 STEP5D_AUTOTUNE_SLEW_LEVELS_RAD_S2 = (0.1, 0.2, 0.5)
@@ -91,6 +91,7 @@ STEP5D_AUTOTUNE_HANDSHAKE_HOST_TO_TP = {
     "input_int_register_28": "execution_profile_id",
     "input_int_register_29": "command_seq",
     "input_int_register_30": "batch_row_index",
+    "input_int_register_31": "logical_batch_sequence",
 }
 STEP5D_AUTOTUNE_HANDSHAKE_TP_TO_HOST = {
     "output_int_register_24": "campaign_epoch_echo",
@@ -101,8 +102,12 @@ STEP5D_AUTOTUNE_HANDSHAKE_TP_TO_HOST = {
     "output_int_register_29": "execution_profile_id_echo",
     "output_int_register_30": "consumed_command_seq",
     "output_int_register_31": "batch_row_index_echo",
-    "output_int_register_32": "return_reference_kind_echo",
+    "output_int_register_32": "return_kind_echo",
     "output_int_register_33": "return_guard_mask",
+    "output_int_register_34": "logical_batch_sequence_echo",
+    "output_int_register_35": "runtime_protocol_version",
+    "output_int_register_36": "runtime_digest_hi",
+    "output_int_register_37": "runtime_digest_lo",
 }
 STEP5D_STAGE25_CONTROL_MODES = ("speedl_cartesian_oracle", "speedj_dls_oracle", "speedj_rnn_live")
 STEP5D_STAGE25_CARTESIAN_LAYOUT_CODE = 523.0

@@ -278,6 +278,8 @@ def gate_optimizer_observation(
     fingerprint_verified: bool = False,
     exact_ack_consumed: bool = False,
     post_ack_closure_verified: bool = False,
+    durable_completion_verified: bool | None = None,
+    terminal_ready_verified: bool | None = None,
     publication_unique: bool = False,
 ) -> OutcomeGate:
     """Fail closed before an observation reaches a store or optimizer."""
@@ -316,10 +318,20 @@ def gate_optimizer_observation(
         reasons.append(f"oracle_status:{oracle.value}")
     if observer is not ObserverStatus.COMPLETE:
         reasons.append(f"observer_status:{observer.value}")
-    if exact_ack_consumed is not True:
-        reasons.append("exact_ack_unverified")
-    if post_ack_closure_verified is not True:
-        reasons.append("post_ack_closure_unverified")
+    direct_protocol = (
+        durable_completion_verified is not None
+        or terminal_ready_verified is not None
+    )
+    if direct_protocol:
+        if durable_completion_verified is not True:
+            reasons.append("durable_completion_unverified")
+        if terminal_ready_verified is not True:
+            reasons.append("terminal_ready_unverified")
+    else:
+        if exact_ack_consumed is not True:
+            reasons.append("exact_ack_unverified")
+        if post_ack_closure_verified is not True:
+            reasons.append("post_ack_closure_unverified")
     if publication_unique is not True:
         reasons.append("publication_not_unique")
 
@@ -364,6 +376,18 @@ class FailureToGuardOutcomeClassifier:
             fingerprint_verified=verified("fingerprint_verified"),
             exact_ack_consumed=verified("exact_ack_consumed"),
             post_ack_closure_verified=verified("post_ack_closure_verified"),
+            durable_completion_verified=(
+                verified("durable_completion_verified")
+                if "durable_completion_verified" in evidence
+                or "durable_completion_verified" in checks
+                else None
+            ),
+            terminal_ready_verified=(
+                verified("terminal_ready_verified")
+                if "terminal_ready_verified" in evidence
+                or "terminal_ready_verified" in checks
+                else None
+            ),
             publication_unique=verified("publication_unique"),
         ).to_dict()
 

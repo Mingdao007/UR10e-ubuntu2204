@@ -306,6 +306,8 @@ def test_registry_coverage_ledger_and_incident_provenance_are_closed() -> None:
         "step5d-v3-aabb-sphere-dual-enforcement",
         "step5d-v3-r005-typed-closure-cold-read",
         "step5d-v3-r005-batch-bootstrap-cold-read",
+        "step5d-v3-r005-post-ack-csv-schema-timeout",
+        "step5d-v3-production-test-topology-escape",
     }
     assert {row["incident_id"] for row in fixture_rows} == expected_ids
     ledger_by_signature = {entry["canonical_signature"]: entry for entry in entries}
@@ -315,7 +317,22 @@ def test_registry_coverage_ledger_and_incident_provenance_are_closed() -> None:
         ledger_row = ledger_by_signature[signature]
         assert ledger_row["counts_for_recurrence"] is row["counts_for_recurrence"]
         assert ledger_row["outcome_class"] == row["outcome_class"]
-    assert len(entries) == 11
+    assert len(entries) == 13
+    debt_requests = load_failure_ledger(
+        F2G_CONFIG / "debt_lane_requests_v1.jsonl"
+    )
+    assert {row["request_id"] for row in debt_requests} == {
+        "step5d-r006-ursim-hil-protocol",
+        "step5d-r006-live-second-lap-certificate",
+        "step5d-r006-old-worktree-governance",
+        "step5d-r006-cross-session-retrospective",
+    }
+    assert all(
+        row["schema"] == "failure_to_guard.debt_lane_request/v1"
+        and row["required"] is True
+        and row["execution_mode"] == "plan_only"
+        for row in debt_requests
+    )
 
     registry_ids = {item["id"] for item in registry["invariants"]}
     coverage_ids = {item["invariant_id"] for item in coverage["invariants"]}
@@ -327,6 +344,8 @@ def test_registry_coverage_ledger_and_incident_provenance_are_closed() -> None:
         "f2g.actual_overlay_identity",
         "f2g.exact_batch_completion",
         "f2g.trial_bundle_cold_read_ack_next_arm",
+        "f2g.runtime_csv_schema_timeout_classification",
+        "f2g.direct_trial_commit_next_arm",
         "f2g.metric_role_optimizer_gate",
         "f2g.typed_return_reference",
         "f2g.trajectory_reference_binding",

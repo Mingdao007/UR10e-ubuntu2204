@@ -49,6 +49,11 @@ RELATIVES = set(v3_state.ORCHESTRATION_RELATIVE_PATHS) | ACTIVE_EXPERIMENT_RELAT
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.script",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.txt",
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.urp",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.deploy-manifest.json",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.numeric-sanity.json",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.urp",
     "config/step5/step5d_autotune_v3_control_contract.json",
 } | set(readiness.READINESS_EVIDENCE_RELATIVE_PATHS)
 REPO_RELATIVES = (
@@ -89,8 +94,10 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     report = readiness.verify(ROOT)
     assert report["ok"] is True
     assert report["state"] == "bridge_start_ready"
-    assert report["public_success_signal"] == "controller_readback_verified_ready_for_bridge_context"
-    assert report["package_delivery"] == "controller_readback_verified"
+    assert report["public_success_signal"] == (
+        "controller_readback_verified_ready_for_bridge_context"
+    )
+    assert report["package_delivery"] == "r006_controller_readback_verified"
     assert report["ready_to_execute"] is True
     assert report["current_stage_id"] == readiness.V3_STAGE_ID
     assert report["next_owner"] == "ur10e-bridge-ops"
@@ -98,7 +105,8 @@ def test_repository_signal_names_the_next_legal_action() -> None:
         "diagnostic_only_partial_lane_reuse_not_required_by_user"
     )
     assert report["canonical_gate"] == [
-        "exact_r005_controller_readback",
+        "immutable_r006_local_triplet",
+        "exact_r006_controller_readback",
         "fresh_bridge_start_context",
         "same_process_runtime_binding",
     ]
@@ -197,7 +205,7 @@ def test_readiness_verification_is_independent_of_checkout_mtime(
     assert report["state"] == "bridge_start_ready"
 
 
-def test_user_confirmation_is_required_while_pre_live_blocked(tmp_path: Path) -> None:
+def test_user_confirmation_is_required_before_bridge_start(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     _mutate_v3(
         fixture,
@@ -304,7 +312,7 @@ def test_local_triplet_drift_invalidates_package_readiness(tmp_path: Path) -> No
     fixture = _fixture_root(tmp_path)
     script = (
         fixture
-        / "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.script"
+        / "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.script"
     )
     script.write_bytes(script.read_bytes() + b"\n# drift\n")
     with pytest.raises(readiness.ReadinessError, match="local package digest"):

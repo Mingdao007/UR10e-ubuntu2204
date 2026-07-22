@@ -29,7 +29,7 @@ MACHINE_BINDING = "machine_generated_epoch_and_process_fingerprint"
 PRE_LIVE_VALIDATION_DECISION = {
     "acceptance_scope": VALIDATION_SCOPE,
     "offline_implementation": "pass",
-    "hardware_promotion": "deployment_ready",
+    "hardware_promotion": "candidate_controller_readback_verified",
     "current_selector": V3_STAGE_ID,
     "v3_active": True,
     "robot_power_state": "runtime_observation_required",
@@ -253,9 +253,16 @@ def _verify_validation(
         _require((gates.get(name) or {}).get("status"), "pass", f"validation gate {name}")
     ten_trial = gates.get("exact_batch_lifecycle") or {}
     _require(ten_trial.get("batch_size"), 10, "V3 validation batch size")
-    _require(ten_trial.get("ack_completed_rows"), 10, "ACK-completed rows")
-    _require(ten_trial.get("trial_briefs"), 10, "post-closure TrialBrief rows")
-    _require(ten_trial.get("batch_result_exit_code"), 0, "BatchResult exit code")
+    _require(ten_trial.get("protocol"), "v3_direct_arm_v1", "lifecycle protocol")
+    _require(
+        ten_trial.get("formal_production_runner_arm2_entered_run"),
+        True,
+        "formal runner ARM2",
+    )
+    _require(ten_trial.get("production_trial_briefs_exactly_once"), 1, "TrialBrief count")
+    _require(ten_trial.get("fake_transport_rows"), 10, "fake transport rows")
+    _require(ten_trial.get("ack_commands"), 0, "active ACK count")
+    _require(ten_trial.get("arm_11_dispatched"), False, "ARM11 exclusion")
 
     replay = gates.get("diagnostic_bundle_replay") or {}
     _require(replay.get("status"), "pass", "diagnostic bundle replay")
@@ -616,9 +623,29 @@ def _verify_validation(
         "pass_current_triplet_controller_readback",
         "package/readback status",
     )
-    _require(package_gate.get("blocker"), None, "package blocker")
+    _require(
+        package_gate.get("blocker"),
+        None,
+        "package blocker",
+    )
     _require(package_gate.get("controller_readback"), readback_relative, "controller readback path")
     _require(package_gate.get("controller_readback_sha256"), readback_sha256, "controller readback digest")
+    local_candidate = package_gate.get("local_candidate") or {}
+    _require(
+        local_candidate.get("program"),
+        "step5d_strict_rnn_autotune_v3_r006",
+        "validation local candidate program",
+    )
+    _require(
+        local_candidate.get("controller_readback_verified"),
+        True,
+        "validation local candidate readback",
+    )
+    _require(
+        local_candidate.get("promotion_status"),
+        "controller_readback_verified",
+        "validation local candidate promotion",
+    )
     stopping = gates.get("stopping_bound") or {}
     _require(stopping.get("status"), "blocked", "stopping-bound status")
     _require(stopping.get("certified"), False, "stopping-bound certification")
@@ -917,7 +944,11 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         _require(v3.get(field), expected, f"v3 {field}")
 
     package = v3.get("package_delivery") or {}
-    _require(package.get("status"), "controller_readback_verified", "package status")
+    _require(
+        package.get("status"),
+        "controller_readback_verified",
+        "package status",
+    )
     _require(package.get("controller_uploaded_by_v3"), True, "V3 upload claim")
     _require(package.get("controller_readback_verified"), True, "V3 readback claim")
     program = package.get("program_basename")
@@ -957,6 +988,46 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         readback.get("fresh_controller_checked_at"), role="readback timestamp"
     )
     _require(package.get("fresh_controller_sha_at"), readback_at, "fresh controller timestamp")
+
+    candidate = package.get("local_candidate") or {}
+    candidate_identity = contract["candidate_tp_identity"]
+    candidate_program = candidate_identity["program"]
+    candidate_prefix = candidate.get("local_triplet")
+    _require(candidate.get("program_basename"), candidate_program, "candidate program")
+    _require(
+        candidate.get("status"),
+        "controller_readback_verified",
+        "candidate status",
+    )
+    _require(candidate.get("controller_uploaded"), True, "candidate upload claim")
+    _require(
+        candidate.get("controller_readback_verified"),
+        True,
+        "candidate readback claim",
+    )
+    if not isinstance(candidate_prefix, str):
+        raise ReadinessError("candidate local triplet is missing")
+    _require(
+        candidate.get("sha256"),
+        contract["candidate_tp_artifact_sha256"],
+        "candidate triplet digests",
+    )
+    for extension, expected_sha in contract["candidate_tp_artifact_sha256"].items():
+        _require(
+            _sha256(root / f"{candidate_prefix}{extension}"),
+            expected_sha,
+            f"candidate local digest {extension}",
+        )
+    _require(
+        _sha256(root / f"{candidate_prefix}.deploy-manifest.json"),
+        candidate_identity["deploy_manifest_sha256"],
+        "candidate deploy manifest digest",
+    )
+    _require(
+        _sha256(root / f"{candidate_prefix}.numeric-sanity.json"),
+        candidate_identity["numeric_sanity_sha256"],
+        "candidate numeric sanity digest",
+    )
 
     validation_path, _validation, timing_passed = _verify_validation(
         root,
@@ -1019,14 +1090,13 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         "state": "bridge_start_ready",
         "public_success_signal": public_success_signal,
         "ready_to_execute": True,
-        "package_delivery": "controller_readback_verified",
+        "package_delivery": "r006_controller_readback_verified",
         "controller_readback_at": readback_at,
         "controller_target": package.get("controller_target"),
         "identity": current_identity,
         "next_owner": "ur10e-bridge-ops",
         "next_legal_action": (
-            "build a fresh identity-bound bridge-start context, start the canonical "
-            "V3 bridge in NO_ARM, and wait for user-owned TP Play"
+            "build a fresh bridge-start context without ARM, Load, Play, or motion"
         ),
         "timing_diagnostic": (
             "pass_current_source_formal_500hz_timing"
@@ -1034,7 +1104,8 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
             else "diagnostic_only_partial_lane_reuse_not_required_by_user"
         ),
         "canonical_gate": [
-            "exact_r005_controller_readback",
+            "immutable_r006_local_triplet",
+            "exact_r006_controller_readback",
             "fresh_bridge_start_context",
             "same_process_runtime_binding",
         ],

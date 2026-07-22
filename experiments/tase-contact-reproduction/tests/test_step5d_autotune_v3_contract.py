@@ -8,6 +8,7 @@ import copy
 import hashlib
 import json
 import os
+import subprocess
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -51,9 +52,59 @@ def test_real_parser_is_bound_to_sha_protected_bridge_source() -> None:
 
     protected = (ROOT / "tools/kunwei_rtde_bridge.py").resolve()
     assert Path(bridge.parse_args.__code__.co_filename).resolve() == protected
-    assert hashlib.sha256(protected.read_bytes()).hexdigest() == (
-        "f82d61f005d91719481299398d1bcd296d79db12fd5030b2e1fa801af3eac8f3"
+    assert hashlib.sha256(protected.read_bytes()).hexdigest() == CONTRACT[
+        "source_sha256"
+    ]["tools/kunwei_rtde_bridge.py"]
+
+
+def test_bridge_import_does_not_load_optional_analysis_modules() -> None:
+    import_paths = list(
+        dict.fromkeys(
+            (
+                str(ROOT / "tests"),
+                str(ROOT / "tools"),
+                str(RUNTIME_SRC),
+                *(path for path in sys.path if path),
+            )
+        )
     )
+    code = f"""
+import builtins
+import sys
+
+sys.path[:0] = {import_paths!r}
+from step5d_v3_parser_ci_stubs import install
+
+install()
+sys.modules.pop("pandas", None)
+sys.modules.pop("step5c_dls_joint_solver", None)
+blocked = {{"pandas", "matplotlib", "mujoco"}}
+original_import = builtins.__import__
+
+def reject_optional(name, globals=None, locals=None, fromlist=(), level=0):
+    if name.split(".", 1)[0] in blocked:
+        raise AssertionError(f"optional analysis import during bridge import: {{name}}")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = reject_optional
+import kunwei_rtde_bridge
+
+loaded = sorted(blocked.intersection(sys.modules))
+if loaded:
+    raise AssertionError(f"optional analysis modules loaded during bridge import: {{loaded}}")
+if "step5c_dls_joint_solver" in sys.modules:
+    raise AssertionError("Step5c diagnostic solver loaded during V3 bridge import")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-I", "-c", code],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_physical_prior_binding_and_search_stop_use_production_bridge_path() -> None:
@@ -188,18 +239,18 @@ def test_real_parser_round_trip_classifies_every_effective_field() -> None:
         "6f9ef0912842ac003545eb1906b38d13c7552218"
     )
     assert report["deployment_tp_identity"] == {
-        "program": "step5d_strict_rnn_autotune_v3_r005",
+        "program": "step5d_strict_rnn_autotune_v3_r009",
         "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
         "artifact_dir": "programs/step5/step5d",
         "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "readback_manifest_sha256": (
-            "ae74111ca58216c9b4b72f0c5bdc576ac0c62ce38c49f139df09b1adf79d2ea3"
-        ),
+        "readback_manifest_sha256": hashlib.sha256(
+            (ROOT / "config/step5d_autotune_controller_readback_v3.json").read_bytes()
+        ).hexdigest(),
         "tp_fingerprint": (
-            "61ed7c95c96cfab6d0522f596787dfb461bdd8a21f0ea53e561c4893b2e63d45"
+            "057eafb728ee1000ff938f111351eec22f449f89a623d0a04b354271cb832058"
         ),
     }
-    assert report["execution_profile_id"] == "nf050-slew050-a050"
+    assert report["execution_profile_id"] == "nf100-slew050-a050"
     categories = report["field_categories"]
     classified = [name for category in CATEGORIES for name in categories[category]]
     assert len(classified) == len(set(classified)) == 126
@@ -309,6 +360,12 @@ def test_new_parser_field_is_unclassified_and_fails_closed() -> None:
     observed = {**expected, "future_control_knob": 1}
     with pytest.raises(ContractViolation, match="unclassified=.*future_control_knob"):
         validate_effective_config(expected, observed)
+
+
+def test_step5c_diagnostic_model_is_inactive_for_v3() -> None:
+    report = check_effective_config(environ={})
+    assert report["effective_config"]["step5c_joint_model"] is None
+    assert "--step5c-joint-model" not in report["argv"]
 
 
 def test_parser_default_drift_is_detected_even_when_raw_argv_is_unchanged() -> None:
