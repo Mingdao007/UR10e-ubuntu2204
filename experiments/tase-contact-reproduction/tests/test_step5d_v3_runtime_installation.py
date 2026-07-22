@@ -163,7 +163,7 @@ def test_status_resolver_reuses_one_runtime_status_result(
     )
     monkeypatch.setattr(
         resolver,
-        "load_runtime_pointer_integrity",
+        "load_runtime_pointer_identity",
         lambda: pytest.fail("status resolver must reuse runtime_status"),
     )
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import sys
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from step5d_autotune_v3.runtime_environment import (  # noqa: E402
     DETERMINISTIC_VALUES,
     production_runtime_environment,
 )
+import step5d_autotune_v3.runtime_environment as runtime_environment  # noqa: E402
 
 
 def _runtime_pointer(tmp_path: Path) -> dict[str, object]:
@@ -60,7 +62,21 @@ def _source(tmp_path: Path) -> dict[str, str]:
 
 def test_control_runtime_environment_is_sanitized_and_pointer_bound(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    ros_prefix = tmp_path / "ros/humble"
+    for relative in (
+        "lib/python3.10/site-packages",
+        "local/lib/python3.10/dist-packages",
+    ):
+        (ros_prefix / relative).mkdir(parents=True)
+    contract = deepcopy(runtime_environment.load_runtime_contract())
+    contract["ros"]["prefix"] = str(ros_prefix)
+    monkeypatch.setattr(
+        runtime_environment,
+        "load_runtime_contract",
+        lambda: contract,
+    )
     pointer = _runtime_pointer(tmp_path)
     environment = production_runtime_environment(
         _source(tmp_path),
@@ -86,7 +102,7 @@ def test_control_runtime_environment_is_sanitized_and_pointer_bound(
     )
     assert environment["CUDA_VISIBLE_DEVICES"].startswith("GPU-")
     assert environment["UR10E_RNN_GPU_DEVICE"] == "cuda:0"
-    assert environment["AMENT_PREFIX_PATH"] == "/opt/ros/humble"
+    assert environment["AMENT_PREFIX_PATH"] == str(ros_prefix)
     assert environment["CUPY_CACHE_DIR"].endswith(
         f"/{pointer['bundle_id']}/control/cupy"
     )
