@@ -8,13 +8,14 @@ import json
 from pathlib import Path
 
 from step5d_manual_bridge import ROOT, ManualBridgeError, build_context, write_once
+from step5d_manual_profile import DEFAULT_LAUNCH_PROFILE
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--plant-epoch", type=int, required=True)
-    parser.add_argument("--launch-profile", type=Path, default=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json")
+    parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
     try:

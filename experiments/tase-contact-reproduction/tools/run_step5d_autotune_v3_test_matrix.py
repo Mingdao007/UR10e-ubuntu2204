@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import sysconfig
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -104,13 +105,32 @@ def load_commands(path: Path, lanes: Sequence[str], workers: int) -> dict[str, l
     return result
 
 
+def _runtime_binding() -> list[str]:
+    resolver = ROOT / "tools/resolve_step5d_autotune_v3_runtime.py"
+    completed = subprocess.run(
+        ["/usr/bin/python3.10", "-B", "-I", str(resolver), "--shell-binding"],
+        cwd=ROOT,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=20.0,
+        check=False,
+    )
+    fields = completed.stdout.strip().split("\t")
+    if completed.returncode != 0 or len(fields) != 9 or not all(fields):
+        raise TestMatrixError(
+            "governed control runtime is unavailable for installed-runtime gate"
+        )
+    return fields
+
+
 def load_installed_runtime_command(path: Path) -> list[str]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     gate = payload.get("local_installed_runtime_gate")
     command = gate.get("command") if isinstance(gate, dict) else None
     if (
         not isinstance(command, list)
-        or command[:4] != [".venv/bin/python", "-m", "pytest", "-q"]
+        or command[:4] != ["@control-runtime-python", "-m", "pytest", "-q"]
         or command[4:] != [
             "tests/test_step5d_autotune_v3_contract.py",
             "tests/test_step5d_autotune_runtime.py",
@@ -118,12 +138,43 @@ def load_installed_runtime_command(path: Path) -> list[str]:
             "tests/test_step5d_autotune_v3_bridge_wrapper.py",
             "tests/test_step5d_autotune_v3_qualification_production.py",
             "tests/test_step5d_autotune_v3_installed_runtime.py",
+            "tests/test_step5d_manual_bridge.py",
         ]
         or gate.get("ci") is not False
         or gate.get("serial") is not True
     ):
         raise TestMatrixError("local installed-runtime gate differs")
-    return list(command)
+    resolved = list(command)
+    resolved[0] = _runtime_binding()[0]
+    return resolved
+
+
+def _pytest_overlay(output: Path) -> Path:
+    overlay = output / "control-pytest-overlay"
+    overlay.mkdir(parents=True, exist_ok=True, mode=0o700)
+    hermetic_site = Path(sysconfig.get_paths()["purelib"])
+    prefixes = (
+        "_pytest",
+        "pytest",
+        "pluggy",
+        "iniconfig",
+        "packaging",
+        "pygments",
+        "tomli",
+        "typing_extensions",
+        "exceptiongroup",
+    )
+    for source in hermetic_site.iterdir():
+        normalized = source.name.lower().replace("-", "_")
+        if source.name != "py.py" and not any(
+            normalized == prefix or normalized.startswith(prefix + "_")
+            for prefix in prefixes
+        ):
+            continue
+        destination = overlay / source.name
+        if not destination.exists() and not destination.is_symlink():
+            destination.symlink_to(source, target_is_directory=source.is_dir())
+    return overlay
 
 
 def _run_lane(name: str, command: Sequence[str], output: Path) -> dict[str, Any]:
@@ -140,9 +191,34 @@ def _run_lane(name: str, command: Sequence[str], output: Path) -> dict[str, Any]
         "NUMEXPR_NUM_THREADS": "1",
     }
     runtime_source = ROOT.parents[1] / "src" / "ur10e_experiment_runtime"
-    environment["PYTHONPATH"] = os.pathsep.join(
-        (str(runtime_source), environment.get("PYTHONPATH", ""))
-    ).rstrip(os.pathsep)
+    if name == "local_installed_runtime":
+        binding = _runtime_binding()
+        ros_paths = [
+            path
+            for path in (
+                Path("/opt/ros/humble/lib/python3.10/site-packages"),
+                Path("/opt/ros/humble/local/lib/python3.10/dist-packages"),
+            )
+            if path.is_dir()
+        ]
+        environment["PYTHONPATH"] = os.pathsep.join(
+            [
+                str(_pytest_overlay(output)),
+                str(ROOT / "tools"),
+                str(runtime_source),
+                *(str(path) for path in ros_paths),
+            ]
+        )
+        environment["PYTHONNOUSERSITE"] = "1"
+        environment["CUDA_VISIBLE_DEVICES"] = binding[8]
+        environment["STEP5D_V3_CONTROL_PYTHON"] = binding[0]
+        environment["STEP5D_V3_OPTIMIZER_PYTHON"] = binding[1]
+        environment["STEP5D_V3_RUNTIME_BUNDLE_ID"] = binding[2]
+        environment["STEP5D_V3_RUNTIME_ATTESTATION_SHA256"] = binding[3]
+    else:
+        environment["PYTHONPATH"] = os.pathsep.join(
+            (str(runtime_source), environment.get("PYTHONPATH", ""))
+        ).rstrip(os.pathsep)
     with log.open("wb") as handle:
         completed = subprocess.run(
             list(command),

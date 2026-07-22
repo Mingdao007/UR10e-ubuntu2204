@@ -36,6 +36,12 @@ STEP5D_V3_TEST_MARKERS = (
     "STEP5D_V3",
 )
 AUTHORITATIVE_ACTIVE_TESTS = {
+    "tests/test_step5d_manual_bridge.py",
+    "tests/test_step5d_manual_campaign_plan.py",
+    "tests/test_step5d_manual_governed_route.py",
+    "tests/test_step5d_manual_queue.py",
+    "tests/test_step5d_manual_release.py",
+    "tests/test_step5d_manual_tp_v1.py",
     "tests/test_step5d_autotune_live_driver.py",
     "tests/test_step5d_autotune_production_second_lap.py",
     "tests/test_step5d_autotune_runtime.py",
@@ -433,13 +439,14 @@ def matrix_issues(payload: Any, *, root: Path = ROOT) -> list[str]:
     installed_runtime = payload.get("local_installed_runtime_gate")
     expected_installed_runtime = {
         "command": [
-            ".venv/bin/python", "-m", "pytest", "-q",
+            "@control-runtime-python", "-m", "pytest", "-q",
             "tests/test_step5d_autotune_v3_contract.py",
             "tests/test_step5d_autotune_runtime.py",
             "tests/test_step5d_autotune_live_driver.py",
             "tests/test_step5d_autotune_v3_bridge_wrapper.py",
             "tests/test_step5d_autotune_v3_qualification_production.py",
             "tests/test_step5d_autotune_v3_installed_runtime.py",
+            "tests/test_step5d_manual_bridge.py",
         ],
         "activation": "explicit_local_authoritative_after_hermetic_small_medium",
         "ci": False,

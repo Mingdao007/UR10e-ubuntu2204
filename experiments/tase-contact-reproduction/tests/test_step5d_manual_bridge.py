@@ -10,6 +10,13 @@ import sys
 
 import pytest
 
+from ur10e_experiment_runtime.candidate_identity import (
+    ControlCandidateUid,
+    OccurrenceUid,
+    ParameterUid,
+    TransportCandidateUid,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -158,7 +165,13 @@ def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, 
 
 
 def test_manual_authorization_seam_is_bridge_only_no_arm(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake_bridge = SimpleNamespace(require_v29_live_bridge_authorization=lambda *_args, **_kwargs: None)
+    fake_bridge = SimpleNamespace(
+        require_v29_live_bridge_authorization=lambda *_args, **_kwargs: None,
+        STEP5D_PERMISSIVE_CONTACT_PROFILE_IDS={bridge.CONTROL_PROFILE},
+        STEP5D_V31_QDOT_CAP_RAD_S=0.5,
+        STEP5D_V31_SENSOR_STALE_S=2.0,
+        STEP5D_LINE_ENTRY_PARAM_VALID_CODE=521.0,
+    )
     monkeypatch.setattr(wrapper.r009_bridge, "install_v3_seams", lambda *_args, **_kwargs: fake_bridge)
     monkeypatch.setattr(
         wrapper.live_driver,
@@ -185,6 +198,30 @@ def test_manual_authorization_seam_is_bridge_only_no_arm(monkeypatch: pytest.Mon
     assert result["protocol_id"] == bridge.PROTOCOL
     assert result["wire_protocol_id"] == bridge.WIRE_PROTOCOL
     assert result["live_motion_authorized"] is False
+
+
+def test_manual_guard_semantics_are_fail_closed_and_diagnostic_only() -> None:
+    import kunwei_rtde_bridge as production
+
+    wrapper.require_manual_guard_semantics(production)
+    assert bridge.CONTROL_PROFILE in production.STEP5D_PERMISSIVE_CONTACT_PROFILE_IDS
+    assert production.STEP5D_LINE_ENTRY_PARAM_VALID_CODE == 521.0
+    assert wrapper.MANUAL_HARD_GUARDS == {
+        "max_normal_force_n": 60.0,
+        "max_force_norm_n": 100.0,
+        "max_torque_norm_nm": 3.0,
+        "qdot_cap_rad_s": 0.5,
+        "sensor_stale_s": 2.0,
+    }
+
+    drifted = SimpleNamespace(
+        STEP5D_PERMISSIVE_CONTACT_PROFILE_IDS=set(),
+        STEP5D_V31_QDOT_CAP_RAD_S=0.5,
+        STEP5D_V31_SENSOR_STALE_S=2.0,
+        STEP5D_LINE_ENTRY_PARAM_VALID_CODE=521.0,
+    )
+    with pytest.raises(bridge.ManualBridgeError, match="guard semantics differ"):
+        wrapper.require_manual_guard_semantics(drifted)
 
 
 def _pending_identity_runtime(
@@ -220,20 +257,17 @@ def _pending_identity_runtime(
             "logical_batch_sequence": 1,
             "batch_row_index": 1,
         },
-        "request_identity": {
-            "occurrence_uid": "b" * 64,
-            "transport_candidate_uid": "c" * 64,
-            "normalized_overlay_sha256": campaign.normalized_overlay_sha256(
-                campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE),
-                overlay,
-            ),
-        },
+        "request_identity": _request_identity(overlay),
         "overlay": overlay,
     }
     packet, prepared = campaign._prepared(intent)
     mailbox_path = (tmp_path / "command.json").resolve()
     mailbox_path.parent.mkdir(parents=True, exist_ok=True)
-    sink = campaign.AtomicCommandMailbox(mailbox_path, network_mode=True)
+    sink = campaign.AtomicCommandMailbox(
+        mailbox_path,
+        network_mode=True,
+        launch_profile=campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE),
+    )
     sink.send_command(packet, prepared_trial=prepared)
     command = sink.read_latest()
     assert command is not None
@@ -267,6 +301,32 @@ def _identity_snapshot(
     )
 
 
+def _request_identity(overlay: dict, *, sequence: int = 1) -> dict[str, str]:
+    overlay_sha = campaign.normalized_overlay_sha256(
+        campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE), overlay
+    )
+    control = ControlCandidateUid.parse(overlay["control_candidate_uid"])
+    occurrence = OccurrenceUid.from_control(
+        control,
+        protocol=campaign.PROTOCOL,
+        logical_batch_sequence=sequence,
+        row_index=1,
+        plan_revision=sequence,
+        selection_role="test",
+        replicate_ordinal=1,
+    )
+    transport = TransportCandidateUid.from_occurrence(
+        occurrence,
+        parameter_uid=ParameterUid.from_candidate_digest(overlay_sha),
+        protocol=campaign.PROTOCOL,
+    )
+    return {
+        "occurrence_uid": str(occurrence),
+        "transport_candidate_uid": str(transport),
+        "normalized_overlay_sha256": overlay_sha,
+    }
+
+
 def test_manual_identity_commit_accepts_torn_armed_then_exact_commit(
     tmp_path: Path,
 ) -> None:
@@ -274,6 +334,7 @@ def test_manual_identity_commit_accepts_torn_armed_then_exact_commit(
     runtime._reconcile_snapshot(
         _identity_snapshot(command, TpLoopState.ARMED, 0, token_delta=1),
         durable_command_seq=command.packet.command_seq,
+        connection_epoch=0,
     )
     assert runtime.identity_commit_pending is True
     runtime._reconcile_snapshot(
@@ -283,6 +344,7 @@ def test_manual_identity_commit_accepts_torn_armed_then_exact_commit(
             command.packet.command_seq,
         ),
         durable_command_seq=command.packet.command_seq,
+        connection_epoch=0,
     )
     assert runtime.identity_commit_pending is False
 
@@ -291,7 +353,7 @@ def test_manual_identity_commit_accepts_torn_armed_then_exact_commit(
     ("state", "consumed_seq", "token_delta", "message"),
     (
         (TpLoopState.RUN, 0, 0, "RUN before ARM identity commit"),
-        (TpLoopState.ARMED, 2, 0, "overshot pending ARM"),
+        (TpLoopState.ARMED, 2, 0, "newer than this bridge mailbox"),
         (TpLoopState.ARMED, 1, 1, "different identity"),
     ),
 )
@@ -312,6 +374,7 @@ def test_manual_identity_commit_fails_closed(
                 token_delta=token_delta,
             ),
             durable_command_seq=command.packet.command_seq,
+            connection_epoch=0,
         )
 
 
@@ -324,6 +387,7 @@ def test_manual_identity_commit_fails_on_reconnect_timeout_and_regression(
         runtime._reconcile_snapshot(
             _identity_snapshot(command, TpLoopState.ARMED, 0),
             durable_command_seq=command.packet.command_seq,
+            connection_epoch=1,
         )
 
     runtime, command = _pending_identity_runtime(tmp_path / "timeout")
@@ -333,6 +397,7 @@ def test_manual_identity_commit_fails_on_reconnect_timeout_and_regression(
         runtime._reconcile_snapshot(
             _identity_snapshot(command, TpLoopState.ARMED, 0),
             durable_command_seq=command.packet.command_seq,
+            connection_epoch=0,
         )
 
     runtime, command = _pending_identity_runtime(tmp_path / "regression")
@@ -341,6 +406,7 @@ def test_manual_identity_commit_fails_on_reconnect_timeout_and_regression(
         runtime._reconcile_snapshot(
             _identity_snapshot(command, TpLoopState.ARMED, 0),
             durable_command_seq=command.packet.command_seq,
+            connection_epoch=0,
         )
 
 
@@ -386,39 +452,35 @@ def test_manual_arm_runtime_applies_exact_i1e4_and_uid(monkeypatch: pytest.Monke
     assert args.step5d_autotune_force_i == 0.0001
     assert args.step5d_autotune_control_candidate_uid == overlay["control_candidate_uid"]
     assert args.step5d_autotune_batch_row_index == 1
+    assert args.max_normal_force_n == 60.0
+    assert args.max_force_norm_n == 100.0
+    assert args.max_torque_norm_nm == 3.0
+    assert args.step5d_qdot_limit_rad_s == 0.5
+    assert args.sensor_stale_s == 2.0
 
 
-def test_live_campaign_rejects_stale_intent_before_mailbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    state_path = tmp_path / "control/state.json"
-    state_path.parent.mkdir(parents=True)
-    state_path.write_text("{}")
-    monkeypatch.setattr(campaign, "validate_bridge", lambda *_args: (
-        tmp_path / "runtime/command.json",
-        {
-            "state": 10,
-            "campaign_epoch": 1,
-            "trial_id": 1,
-            "consumed_command_seq": 1,
-            "command": 0,
-            "controller_state": 0,
-            "safety_mode": 1,
-        },
-    ))
-    monkeypatch.setattr(campaign, "load_state", lambda *_args, **_kwargs: {
-        "inflight": {
-            "packet": {"campaign_epoch": 1, "trial_id": 1, "command_seq": 1},
-            "overlay": {"force_i_gain": 0.0001},
-        }
-    })
-    args = SimpleNamespace(
-        bridge_output_root=tmp_path,
-        queue=tmp_path / "control/queue.json",
-        state=state_path,
-        campaign_id="manual-test",
-        release_manifest_sha256="a" * 64,
+def test_preplay_wait_rejects_nonzero_nonready_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        campaign,
+        "validate_bridge",
+        lambda *_args, **_kwargs: (
+            tmp_path / "runtime/command.json",
+            {
+                "state": 20,
+                "campaign_epoch": 1,
+                "trial_id": 1,
+                "consumed_command_seq": 1,
+                "command": 0,
+                "controller_state": 0,
+                "safety_mode": 1,
+            },
+        ),
     )
-    with pytest.raises(campaign.ManualLiveError, match="stale"):
-        campaign.run(args)
+    args = SimpleNamespace(bridge_output_root=tmp_path, release_manifest_sha256="a" * 64)
+    with pytest.raises(campaign.ManualLiveError, match="neither zero nor READY_HOME"):
+        campaign._wait_for_ready_home(args, campaign.time.monotonic() + 1.0)
 
 
 def test_manual_prepared_mailbox_round_trip_i1e4(tmp_path: Path) -> None:
@@ -452,18 +514,16 @@ def test_manual_prepared_mailbox_round_trip_i1e4(tmp_path: Path) -> None:
             "logical_batch_sequence": 1,
             "batch_row_index": 1,
         },
-        "request_identity": {
-            "occurrence_uid": "b" * 64,
-            "transport_candidate_uid": "c" * 64,
-            "normalized_overlay_sha256": campaign.normalized_overlay_sha256(
-                campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE), overlay
-            ),
-        },
+            "request_identity": _request_identity(overlay),
         "overlay": overlay,
     }
     packet, prepared = campaign._prepared(intent)
     mailbox_path = (tmp_path / "command.json").resolve()
-    mailbox = campaign.AtomicCommandMailbox(mailbox_path, network_mode=True)
+    mailbox = campaign.AtomicCommandMailbox(
+        mailbox_path,
+        network_mode=True,
+        launch_profile=campaign.load_launch_profile(campaign.DEFAULT_LAUNCH_PROFILE),
+    )
     mailbox.send_command(packet, prepared_trial=prepared)
     decoded = mailbox.read_latest()
     assert decoded is not None

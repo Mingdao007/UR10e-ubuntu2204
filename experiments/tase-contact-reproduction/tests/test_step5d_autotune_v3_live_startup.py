@@ -344,12 +344,15 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     assert "--close-after-plan-revision" not in source
 
 
-def test_canonical_shell_bridge_route_cannot_fall_back_to_v1() -> None:
+def test_canonical_shell_bridge_route_has_one_explicit_manual_v2_branch() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     assert '"${1:-}" == "bridge"' in source
     assert '"${1:-}" == "live"' not in source
-    assert "--bridge-start-context" not in source
+    assert source.count("resolve_step5d_bridge_route.py") == 2
+    assert source.count("run_step5d_manual_bridge_live.py") == 1
+    assert source.count("run_step5d_manual_live_campaign.py") == 1
+    assert "manual_v1" not in source
     assert "--campaign-arming-context" not in source
     assert "run_step5d_autotune_v3_live.py" in source
     assert "step5d-autotune-live.sh" not in source

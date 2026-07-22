@@ -11,8 +11,8 @@ import tempfile
 from typing import Any, Mapping
 
 import promote_step5d_manual_release as manual_release
-from step5d_autotune_v3.runtime_profile import load_launch_profile
 from step5d_manual_atomic_release import canonical_bytes
+from step5d_manual_profile import load_manual_launch_profile as load_launch_profile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,10 +26,27 @@ CONTROL_PROFILE = "step5d_strict_rnn_autotune_v1"
 RELEASE_STAGE = "step5d_strict_rnn_autotune_v3"
 DEFAULT_CONTEXT_MAX_AGE_S = 900.0
 DEFAULT_PREFLIGHT_MAX_AGE_S = 30.0
+CANONICAL_SHELL = ROOT / "scripts/step5d-autotune-v3.sh"
 
 
 class ManualBridgeError(RuntimeError):
     pass
+
+
+def require_canonical_shell() -> None:
+    launcher = os.environ.get("STEP5D_V3_CANONICAL_LAUNCHER", "")
+    shell_pid = os.environ.get("STEP5D_V3_SHELL_PID", "")
+    try:
+        shell_pid_value = int(shell_pid)
+        launcher_path = Path(launcher).resolve(strict=True)
+    except (OSError, TypeError, ValueError) as exc:
+        raise ManualBridgeError(
+            "internal Manual V2 runner requires scripts/step5d-autotune-v3.sh bridge"
+        ) from exc
+    if launcher_path != CANONICAL_SHELL.resolve(strict=True) or os.getppid() != shell_pid_value:
+        raise ManualBridgeError(
+            "internal Manual V2 runner requires scripts/step5d-autotune-v3.sh bridge"
+        )
 
 
 def sha256_path(path: Path) -> str:

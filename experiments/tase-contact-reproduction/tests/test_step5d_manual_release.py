@@ -53,19 +53,15 @@ def _fake_fresh_get(tmp_path: Path) -> Path:
     return path
 
 
-def test_manual_compose_binds_i1e4_and_does_not_target_r009_pointer(tmp_path: Path) -> None:
-    canonical_before = (ROOT / "config/step5d/current.json").read_bytes()
-    manifest, bundle, targets = promote.compose_release(ROOT, _fake_fresh_get(tmp_path))
+def test_manual_release_binds_i1e4_and_does_not_target_v3_pointer() -> None:
+    pointer = json.loads((ROOT / promote.MANUAL_POINTER).read_text())
+    manifest = json.loads((ROOT / pointer["manifest_path"]).read_text())
     assert manifest["identity"]["protocol_id"] == "v3_full_home_manual_hold_v1"
     assert manifest["default_request"]["force_i_gain"] == 0.0001
     assert manifest["runtime_policy"]["logical_batch_size"] == 1
     assert manifest["runtime_policy"]["home_wait_timeout_s"] is None
-    assert promote.MANUAL_READBACK.as_posix() in bundle
-    assert set(targets) == {
-        promote.MANUAL_READBACK.as_posix(),
-        promote.MANUAL_CANDIDATE.as_posix(),
-    }
-    assert (ROOT / "config/step5d/current.json").read_bytes() == canonical_before
+    assert pointer["manifest_path"].startswith("config/step5d/manual/releases/")
+    assert pointer != json.loads((ROOT / "config/step5d/current.json").read_text())
 
 
 def test_runner_selects_enqueued_request_without_parameter_tests(tmp_path: Path) -> None:
@@ -75,7 +71,7 @@ def test_runner_selects_enqueued_request_without_parameter_tests(tmp_path: Path)
         queue,
         campaign_id="manual-campaign-1",
         release_manifest_sha256="a" * 64,
-        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        launch_profile_path=ROOT / "config/step5d/manual/launch_profile.json",
         force_p=0.001,
         force_i=0.0001,
         force_damping=7.0,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind one durable manual intent to a running NO_ARM bridge mailbox."""
+"""Run the governed Manual V2 grid on one already-running production bridge."""
 
 from __future__ import annotations
 
@@ -8,32 +8,61 @@ import csv
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
+import time
 from types import SimpleNamespace
 from typing import Any, Mapping
 
-from step5d_autotune_contract import ForceCandidate, NORMAL_FILTER_PROFILES
-from step5d_autotune_live_driver import AtomicCommandMailbox
+from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
+from step5d_autotune_contract import (
+    CampaignSpec,
+    ForceCandidate,
+    NORMAL_FILTER_PROFILES,
+    TrialSpec,
+    TrialTransition,
+    TrialTransitionKind,
+)
+from step5d_autotune_evaluator import (
+    fixed_f0_bin_metrics,
+    profile_metrics,
+    qd_tracking_metrics,
+    read_csv_rows,
+)
+from step5d_autotune_live_driver import AtomicCommandMailbox, TrialArtifactProducer
 from step5d_autotune_state_machine import HostCommand, HostPacket
+from step5d_autotune_v3.state import atomic_json
 from step5d_autotune_v3.profile import canonical_json_bytes
 from step5d_autotune_v3.runtime_profile import (
-    DEFAULT_LAUNCH_PROFILE,
-    load_launch_profile,
     normalized_overlay_sha256,
     normalize_trial_overlay,
 )
-from step5d_manual_bridge import PROGRAM, PROTOCOL, strict_object
+from step5d_manual_bridge import PROGRAM, PROTOCOL, require_canonical_shell, strict_object
+from step5d_manual_campaign_plan import (
+    INITIAL_GROUPS,
+    TrialScore,
+    append_top2_repeats,
+    seed_initial_grid,
+)
+from step5d_manual_queue import close as close_queue, load_queue
 from step5d_manual_runtime import (
+    confirm_home_complete,
     issue_prepared_intent,
     load_state,
     prepare_next_intent,
     seed_home_state,
 )
+from step5d_manual_profile import (
+    DEFAULT_LAUNCH_PROFILE,
+    load_manual_launch_profile as load_launch_profile,
+)
 
 
 BACKEND_ID = "step5d_manual_hold_v1"
 READY_HOME = 10
+READY_HOME_NEXT = 78
+STATUS_SCHEMA = "step5d.manual-v2/governed-status-v1"
 
 
 class ManualLiveError(RuntimeError):
@@ -92,7 +121,12 @@ def _latest_bridge_row(path: Path) -> dict[str, str]:
     return rows[-1]
 
 
-def validate_bridge(output_root: Path, release_sha: str) -> tuple[Path, dict[str, int]]:
+def validate_bridge(
+    output_root: Path,
+    release_sha: str,
+    *,
+    require_mailbox_absent: bool = False,
+) -> tuple[Path, dict[str, int]]:
     root = output_root.expanduser().resolve(strict=True)
     launch = strict_object(root / "bridge_launch.json", "manual bridge launch")
     ticket = strict_object(root / "runtime/runtime_ticket.json", "manual runtime ticket")
@@ -116,7 +150,9 @@ def validate_bridge(output_root: Path, release_sha: str) -> tuple[Path, dict[str
         raise ManualLiveError("running manual bridge identity/readiness differs")
     mailbox = Path(str(launch.get("mailbox"))).resolve()
     expected = root / "runtime/command.json"
-    if mailbox != expected or mailbox.exists() or mailbox.is_symlink():
+    if mailbox != expected or mailbox.is_symlink():
+        raise ManualLiveError("manual mailbox path differs at the bridge runtime")
+    if require_mailbox_absent and mailbox.exists():
         raise ManualLiveError("manual mailbox is not initially absent at the bridge runtime")
     row = _latest_bridge_row(root / "runtime/bridge/bridge_rtde_500hz.csv")
     observed = {
@@ -129,19 +165,17 @@ def validate_bridge(output_root: Path, release_sha: str) -> tuple[Path, dict[str
         "safety_mode": int(float(row["ur_safety_mode"])),
     }
     if any((
-        observed["state"] != READY_HOME,
-        observed["command"] != 0,
         observed["controller_state"] != 0,
         observed["safety_mode"] != 1,
         observed["campaign_epoch"] < 0,
         observed["trial_id"] < 0,
         observed["consumed_command_seq"] < 0,
     )):
-        raise ManualLiveError("bridge/TP is not stationary READY_HOME command=0")
+        raise ManualLiveError("bridge/TP safety or identity observation differs")
     return mailbox, observed
 
 
-def _prepared(intent: Mapping[str, Any]) -> tuple[HostPacket, Any]:
+def _prepared(intent: Mapping[str, Any], *, plant_epoch: int = 1) -> tuple[HostPacket, Any]:
     packet = intent["packet"]
     overlay = normalize_trial_overlay(
         intent["overlay"], profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE)
@@ -162,21 +196,24 @@ def _prepared(intent: Mapping[str, Any]) -> tuple[HostPacket, Any]:
     })
     source_fingerprint = intent["release_manifest_sha256"]
     config_fingerprint = intent["request_identity"]["normalized_overlay_sha256"]
-    campaign = SimpleNamespace(
+    campaign = CampaignSpec(
+        campaign_id=intent["campaign_id"],
         campaign_epoch=packet["campaign_epoch"],
         campaign_fingerprint=campaign_fingerprint,
+        f0_shadow_reaction_normal_base=STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b,
     )
-    trial = SimpleNamespace(
+    trial = TrialSpec(
         campaign=campaign,
         trial_id=packet["trial_id"],
         candidate_token=packet["candidate_token"],
         command_seq=packet["command_seq"],
-        trial_uid=intent["request_identity"]["occurrence_uid"],
+        plant_epoch=plant_epoch,
         backend_id=BACKEND_ID,
         candidate=candidate,
         execution_profile=profile,
         source_fingerprint=source_fingerprint,
         config_fingerprint=config_fingerprint,
+        transition=TrialTransition(TrialTransitionKind.BATCH_BOOTSTRAP),
     )
     frozen = SimpleNamespace(
         source_fingerprint=source_fingerprint,
@@ -200,6 +237,9 @@ def _prepared(intent: Mapping[str, Any]) -> tuple[HostPacket, Any]:
             load_launch_profile(DEFAULT_LAUNCH_PROFILE), overlay
         ),
         batch_row_index=1,
+        occurrence_uid=intent["request_identity"]["occurrence_uid"],
+        transport_candidate_uid=intent["request_identity"]["transport_candidate_uid"],
+        control_candidate_uid=overlay["control_candidate_uid"],
     )
     host = HostPacket(
         campaign_epoch=packet["campaign_epoch"],
@@ -213,8 +253,264 @@ def _prepared(intent: Mapping[str, Any]) -> tuple[HostPacket, Any]:
     return host, prepared
 
 
+def _status_path(args: argparse.Namespace) -> Path:
+    return args.campaign_root / "manual_governed_status.json"
+
+
+def _publish_status(
+    args: argparse.Namespace,
+    *,
+    state: str,
+    observed: Mapping[str, int] | None,
+    completed: int,
+    total: int,
+    next_group: str | None,
+    blocker: str | None = None,
+) -> dict[str, Any]:
+    bridge_launch = strict_object(
+        args.bridge_output_root / "bridge_launch.json", "manual bridge launch"
+    )
+    bridge_pid = bridge_launch.get("pid")
+    payload = {
+        "schema": STATUS_SCHEMA,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "route": "manual_v2",
+        "state": state,
+        "release_sha": args.release_manifest_sha256,
+        "campaign_id": args.campaign_id,
+        "campaign_root": str(args.campaign_root.resolve()),
+        "output_root": str(args.bridge_output_root.resolve()),
+        "loaded_program": f"/programs/andyl/kunwei/step5/{PROGRAM}.urp",
+        "bridge_pid": bridge_pid,
+        "bridge_heartbeat": _pid_alive(bridge_pid),
+        "play_prompt_ready": state == "WAITING_FOR_IDENTITY_PLAY",
+        "prepared_group": next_group,
+        "completed_trials": completed,
+        "planned_trials": total,
+        "tp_observation": None if observed is None else dict(observed),
+        "blocker": blocker,
+        "next_action": (
+            "press Play once on the loaded Manual V2 program"
+            if state == "WAITING_FOR_IDENTITY_PLAY"
+            else "none" if state in {"RUNNING", "COMPLETE"} else "inspect blocker evidence"
+        ),
+    }
+    atomic_json(_status_path(args), payload)
+    return payload
+
+
+def _group_id(request: Mapping[str, Any]) -> str:
+    source = str(request.get("source", ""))
+    parts = source.split(":")
+    if len(parts) < 2 or not parts[1].startswith("G"):
+        raise ManualLiveError("manual request group identity differs")
+    return parts[1]
+
+
+def _terminal_observation(row: Mapping[str, str]) -> dict[str, int]:
+    return {
+        "campaign_epoch": int(float(row["ur_output_int_register_24"])),
+        "trial_id": int(float(row["ur_output_int_register_25"])),
+        "state": int(float(row["ur_output_int_register_26"])),
+        "candidate_token": int(float(row["ur_output_int_register_27"])),
+        "execution_profile_id": int(float(row["ur_output_int_register_29"])),
+        "consumed_command_seq": int(float(row["ur_output_int_register_30"])),
+        "logical_batch_sequence": int(float(row["ur_output_int_register_34"])),
+        "batch_row_index": int(float(row["ur_output_int_register_31"])),
+    }
+
+
+def _score_capture(
+    capture: Path,
+    *,
+    trial: TrialSpec,
+    expected_arm: HostPacket,
+    group_id: str,
+) -> TrialScore:
+    rows = read_csv_rows(capture)
+    final_reason = int(float(rows[-1]["ur_output_int_register_28"]))
+    assessment = TrialArtifactProducer(capture.parent.parent, trial).derive_assessment(
+        expected_arm, expected_terminal_reason=final_reason
+    )
+    objective = fixed_f0_bin_metrics(
+        rows,
+        reaction_normal_base=trial.campaign.f0_shadow_reaction_normal_base or (),
+    )
+    profile = profile_metrics(
+        rows,
+        angular_rate_limit_rad_s=trial.execution_profile.normal_max_rate_rad_s,
+        tp_accel_limit_rad_s2=trial.execution_profile.tp_speedj_accel_rad_s2,
+    )
+    tracking = qd_tracking_metrics(rows)
+    force_norm = [
+        float(row["force_norm_n"])
+        for row in rows
+        if row.get("force_norm_n") not in (None, "")
+        and math.isfinite(float(row["force_norm_n"]))
+    ]
+    eligible = bool(
+        final_reason == 1
+        and assessment.completion_marker
+        and assessment.cadence_ok
+        and assessment.feedback_fresh
+        and assessment.rnn_oracle_aligned
+        and objective.get("complete_bins") == 550
+        and isinstance(objective.get("mae_n"), (int, float))
+        and profile.get("orientation_evidence_complete") is True
+        and profile.get("orientation_qualified") is True
+        and tracking.get("evidence_complete") is True
+        and force_norm
+    )
+    return TrialScore(
+        group_id=group_id,
+        eligible=eligible,
+        objective_mae_n=float(objective["mae_n"]) if eligible else None,
+        gross_peak_force_norm_n=max(force_norm) if eligible else None,
+        qdot_saturation_duty=(
+            float(profile["qdot_saturation_duty"]) if eligible else None
+        ),
+    )
+
+
+def _write_result(path: Path, payload: Mapping[str, Any]) -> None:
+    atomic_json(path, dict(payload))
+
+
+def _load_initial_scores(root: Path) -> dict[str, TrialScore]:
+    scores: dict[str, TrialScore] = {}
+    if not root.exists():
+        return scores
+    for path in sorted(root.glob("[0-9][0-9]-G[0-9][0-9].json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        request = payload.get("request")
+        score = payload.get("score")
+        if not isinstance(request, Mapping) or not isinstance(score, Mapping):
+            raise ManualLiveError("persisted manual result fields differ")
+        if int(request.get("logical_batch_sequence", 0)) > len(INITIAL_GROUPS):
+            continue
+        parsed = TrialScore(**score)
+        if parsed.group_id in scores:
+            raise ManualLiveError("persisted manual result repeats an initial group")
+        scores[parsed.group_id] = parsed
+    return scores
+
+
+def _wait_for_ready_home(args: argparse.Namespace, deadline: float) -> dict[str, int]:
+    while time.monotonic() < deadline:
+        _, observed = validate_bridge(
+            args.bridge_output_root,
+            args.release_manifest_sha256,
+            require_mailbox_absent=True,
+        )
+        if observed["state"] == READY_HOME and observed["command"] == 0:
+            return observed
+        identity = (
+            observed["campaign_epoch"],
+            observed["trial_id"],
+            observed["consumed_command_seq"],
+        )
+        if observed["state"] != 0 or identity != (0, 0, 0):
+            raise ManualLiveError("pre-Play TP identity is neither zero nor READY_HOME")
+        time.sleep(0.1)
+    raise ManualLiveError("physical Play was not observed before timeout")
+
+
+def _issue(args: argparse.Namespace, mailbox: Path) -> tuple[dict[str, Any], HostPacket, TrialSpec]:
+    state = load_state(
+        args.state,
+        campaign_id=args.campaign_id,
+        release_sha=args.release_manifest_sha256,
+    )
+    if state["inflight"] is None:
+        prepared_intent = prepare_next_intent(
+            queue_path=args.queue,
+            state_path=args.state,
+            campaign_id=args.campaign_id,
+            release_manifest_sha256=args.release_manifest_sha256,
+        )
+        if prepared_intent is None:
+            raise ManualLiveError("manual queue contains no request to ARM")
+
+    prepared_values: tuple[HostPacket, Any] | None = None
+
+    def sink(document: Mapping[str, Any]) -> None:
+        nonlocal prepared_values
+        prepared_values = _prepared(document, plant_epoch=args.plant_epoch)
+        host, prepared = prepared_values
+        AtomicCommandMailbox(
+            mailbox,
+            network_mode=True,
+            launch_profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+        ).send_command(host, prepared_trial=prepared)
+
+    issued = issue_prepared_intent(
+        state_path=args.state,
+        campaign_id=args.campaign_id,
+        release_manifest_sha256=args.release_manifest_sha256,
+        sink=sink,
+    )
+    if prepared_values is None:
+        raise ManualLiveError("manual ARM was not atomically published")
+    host, prepared = prepared_values
+    decoded = AtomicCommandMailbox(mailbox, network_mode=True).read_latest()
+    if decoded is None or decoded.packet != host or decoded.binding.trial_uid != prepared.trial.trial_uid:
+        raise ManualLiveError("manual ARM mailbox readback differs")
+    return issued, host, prepared.trial
+
+
+def _complete_at_home(
+    mailbox: Path,
+    *,
+    arm: HostPacket,
+    prepared_trial: Any,
+) -> None:
+    complete = HostPacket(
+        campaign_epoch=arm.campaign_epoch,
+        trial_id=arm.trial_id,
+        command=HostCommand.COMPLETE_AT_HOME,
+        candidate_token=arm.candidate_token,
+        execution_profile_id=arm.execution_profile_id,
+        command_seq=arm.command_seq + 1,
+        logical_batch_sequence=arm.logical_batch_sequence,
+    )
+    AtomicCommandMailbox(
+        mailbox,
+        network_mode=True,
+        launch_profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+    ).send_command(complete, prepared_trial=prepared_trial)
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
-    mailbox, observed = validate_bridge(args.bridge_output_root, args.release_manifest_sha256)
+    args.campaign_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    seed_initial_grid(
+        args.queue,
+        campaign_id=args.campaign_id,
+        release_manifest_sha256=args.release_manifest_sha256,
+        launch_profile_path=args.launch_profile,
+    )
+    queue = load_queue(args.queue)
+    completed = 0
+    if args.state.exists():
+        completed = len(load_state(
+            args.state,
+            campaign_id=args.campaign_id,
+            release_sha=args.release_manifest_sha256,
+        )["completed_sequences"])
+    next_group = _group_id(queue["requests"][completed])
+    _publish_status(
+        args,
+        state="WAITING_FOR_IDENTITY_PLAY",
+        observed=None,
+        completed=completed,
+        total=len(INITIAL_GROUPS),
+        next_group=next_group,
+    )
+    mailbox, _ = validate_bridge(
+        args.bridge_output_root,
+        args.release_manifest_sha256,
+        require_mailbox_absent=True,
+    )
+    observed = _wait_for_ready_home(args, time.monotonic() + args.play_timeout_s)
     if not args.state.exists() and not args.state.is_symlink():
         seed_home_state(
             args.state,
@@ -224,87 +520,167 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             last_trial_id=observed["trial_id"],
             last_command_seq=observed["consumed_command_seq"],
         )
-        prepared = prepare_next_intent(
-            queue_path=args.queue,
-            state_path=args.state,
-            campaign_id=args.campaign_id,
-            release_manifest_sha256=args.release_manifest_sha256,
-        )
-        if prepared is None:
-            raise ManualLiveError("manual queue contains no request to ARM")
-    state = load_state(
-        args.state,
-        campaign_id=args.campaign_id,
-        release_sha=args.release_manifest_sha256,
-    )
-    intent = state.get("inflight")
-    if not isinstance(intent, Mapping):
-        raise ManualLiveError("manual durable inflight intent is missing")
-    packet = intent["packet"]
-    if any((
-        packet["campaign_epoch"] != max(1, observed["campaign_epoch"]),
-        packet["trial_id"] <= observed["trial_id"],
-        packet["command_seq"] <= observed["consumed_command_seq"],
-        intent["overlay"]["force_i_gain"] != 0.0001,
-    )):
-        raise ManualLiveError("manual ARM intent is stale or not exact I=1e-4")
     authorization = {
         "schema": "step5d.manual-hold/arm-authorization-v1",
         "authorized_at": datetime.now(timezone.utc).isoformat(),
         "authorization_source": "explicit_current_turn_user_request",
-        "intent_sha256": intent["intent_sha256"],
         "bridge_output_root": str(args.bridge_output_root.resolve()),
         "arm_authorized": True,
         "motion_authorized": True,
     }
     auth_path = args.state.parent / "arm_authorization.json"
-    _write_once(auth_path, authorization)
+    if not auth_path.exists():
+        _write_once(auth_path, authorization)
 
-    def sink(document: Mapping[str, Any]) -> None:
-        host, prepared = _prepared(document)
-        AtomicCommandMailbox(mailbox, network_mode=True).send_command(
-            host, prepared_trial=prepared
+    results_root = args.campaign_root / "manual_results"
+    score_by_group = _load_initial_scores(results_root)
+    last_arm: HostPacket | None = None
+    last_prepared: Any | None = None
+    while True:
+        queue = load_queue(args.queue)
+        state = load_state(
+            args.state,
+            campaign_id=args.campaign_id,
+            release_sha=args.release_manifest_sha256,
         )
-
-    issued = issue_prepared_intent(
-        state_path=args.state,
-        campaign_id=args.campaign_id,
-        release_manifest_sha256=args.release_manifest_sha256,
-        sink=sink,
-    )
-    decoded = AtomicCommandMailbox(mailbox, network_mode=True).read_latest()
-    if decoded is None or decoded.packet.command is not HostCommand.ARM:
-        raise ManualLiveError("manual ARM mailbox readback differs")
-    result = {
-        "schema": "step5d.manual-hold/arm-staged-v1",
-        "ok": True,
-        "mailbox": str(mailbox),
-        "intent_sha256": issued["intent_sha256"],
-        "campaign_epoch": decoded.packet.campaign_epoch,
-        "trial_id": decoded.packet.trial_id,
-        "command_seq": decoded.packet.command_seq,
-        "candidate_token": decoded.packet.candidate_token,
-        "force_i_gain": decoded.binding.candidate.force_i_gain,
-        "arm_authorized": True,
-        "motion_authorized": True,
-        "operator_action": "press_play_on_loaded_manual_program",
-    }
-    result_path = args.state.parent / "arm_staged.json"
-    _write_once(result_path, result)
-    return result
+        completed = len(state["completed_sequences"])
+        if completed == len(INITIAL_GROUPS) and len(queue["requests"]) == len(INITIAL_GROUPS):
+            if len(score_by_group) != len(INITIAL_GROUPS):
+                raise ManualLiveError("all 18 canonical scores are required before Top-2")
+            append_top2_repeats(
+                args.queue,
+                campaign_id=args.campaign_id,
+                release_manifest_sha256=args.release_manifest_sha256,
+                launch_profile_path=args.launch_profile,
+                scores=score_by_group.values(),
+            )
+            queue = load_queue(args.queue)
+        if completed >= len(queue["requests"]):
+            close_queue(args.queue, reason="governed_manual_v2_complete")
+            if last_arm is not None and last_prepared is not None:
+                _complete_at_home(
+                    mailbox,
+                    arm=last_arm,
+                    prepared_trial=last_prepared,
+                )
+            return _publish_status(
+                args,
+                state="COMPLETE",
+                observed=observed,
+                completed=completed,
+                total=len(queue["requests"]),
+                next_group=None,
+            )
+        request = queue["requests"][completed]
+        issued, arm, trial = _issue(args, mailbox)
+        _, last_prepared = _prepared(issued, plant_epoch=args.plant_epoch)
+        last_arm = arm
+        group_id = _group_id(request)
+        _publish_status(
+            args,
+            state="RUNNING",
+            observed=observed,
+            completed=completed,
+            total=len(queue["requests"]),
+            next_group=group_id,
+        )
+        deadline = time.monotonic() + args.trial_timeout_s
+        while time.monotonic() < deadline:
+            row = _latest_bridge_row(
+                args.bridge_output_root / "runtime/bridge/bridge_rtde_500hz.csv"
+            )
+            terminal = _terminal_observation(row)
+            expected = {
+                "campaign_epoch": arm.campaign_epoch,
+                "trial_id": arm.trial_id,
+                "state": READY_HOME_NEXT,
+                "candidate_token": arm.candidate_token,
+                "execution_profile_id": arm.execution_profile_id,
+                "consumed_command_seq": arm.command_seq,
+                "logical_batch_sequence": arm.logical_batch_sequence,
+                "batch_row_index": 1,
+            }
+            if terminal == expected:
+                observed = {
+                    "state": terminal["state"],
+                    "campaign_epoch": terminal["campaign_epoch"],
+                    "trial_id": terminal["trial_id"],
+                    "consumed_command_seq": terminal["consumed_command_seq"],
+                    "command": int(float(row["command"])),
+                    "controller_state": int(float(row["step4e_controller_state"])),
+                    "safety_mode": int(float(row["ur_safety_mode"])),
+                }
+                break
+            time.sleep(0.1)
+        else:
+            raise ManualLiveError(f"{group_id} did not reach exact READY_HOME_NEXT")
+        capture = (
+            args.bridge_output_root
+            / "runtime/bridge/autotune_trials"
+            / trial.trial_uid
+            / "capture.csv"
+        )
+        capture_deadline = time.monotonic() + 5.0
+        while not capture.is_file() and time.monotonic() < capture_deadline:
+            time.sleep(0.05)
+        score = _score_capture(
+            capture,
+            trial=trial,
+            expected_arm=arm,
+            group_id=group_id,
+        )
+        if request["logical_batch_sequence"] <= len(INITIAL_GROUPS):
+            score_by_group[group_id] = score
+        _write_result(
+            results_root / f"{request['logical_batch_sequence']:02d}-{group_id}.json",
+            {
+                "schema": "step5d.manual-v2/trial-result-v1",
+                "request": request,
+                "intent_sha256": issued["intent_sha256"],
+                "trial_uid": trial.trial_uid,
+                "capture": str(capture),
+                "score": score.__dict__,
+                "terminal_observation": terminal,
+            },
+        )
+        confirm_home_complete(
+            state_path=args.state,
+            campaign_id=args.campaign_id,
+            release_manifest_sha256=args.release_manifest_sha256,
+            observed=terminal,
+        )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bridge-output-root", type=Path, required=True)
+    parser.add_argument("--campaign-root", type=Path, required=True)
     parser.add_argument("--queue", type=Path, required=True)
     parser.add_argument("--state", type=Path, required=True)
     parser.add_argument("--campaign-id", required=True)
     parser.add_argument("--release-manifest-sha256", required=True)
+    parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)
+    parser.add_argument("--plant-epoch", type=int, default=1)
+    parser.add_argument("--play-timeout-s", type=float, default=900.0)
+    parser.add_argument("--trial-timeout-s", type=float, default=180.0)
     args = parser.parse_args()
     try:
+        require_canonical_shell()
         print(json.dumps(run(args), indent=2, sort_keys=True))
-    except (OSError, ValueError, ManualLiveError) as exc:
+    except Exception as exc:
+        try:
+            if (args.bridge_output_root / "bridge_launch.json").is_file():
+                _publish_status(
+                    args,
+                    state="BLOCKED",
+                    observed=None,
+                    completed=0,
+                    total=len(INITIAL_GROUPS),
+                    next_group=None,
+                    blocker=f"{type(exc).__name__}:{exc}",
+                )
+        except Exception:
+            pass
         print(f"manual live campaign blocked: {exc}", file=__import__("sys").stderr)
         return 2
     return 0

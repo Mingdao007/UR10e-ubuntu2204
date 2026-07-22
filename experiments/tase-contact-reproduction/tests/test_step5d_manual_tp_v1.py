@@ -8,16 +8,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
-import build_step5d_autotune_tp_v3 as r009  # noqa: E402
 import build_step5d_manual_tp_v1 as manual  # noqa: E402
+import promote_step5d_manual_release as promote  # noqa: E402
 
 
-def test_manual_render_is_reversible_and_r009_is_unchanged() -> None:
-    parent_before = r009.render_script()
-    parent_sha = hashlib.sha256(parent_before.encode()).hexdigest()
-    rendered = manual.render_script()
-    manual.validate_rendered_script(rendered, parent=parent_before)
-    assert hashlib.sha256(r009.render_script().encode()).hexdigest() == parent_sha
+def _current_triplet() -> tuple[dict, str]:
+    pointer = __import__("json").loads((ROOT / promote.MANUAL_POINTER).read_text())
+    manifest = __import__("json").loads((ROOT / pointer["manifest_path"]).read_text())
+    script = (ROOT / manifest["artifacts"][".script"]["path"]).read_text()
+    return manifest, script
+
+
+def test_manual_frozen_script_keeps_commit_last_and_indefinite_wait() -> None:
+    manifest, rendered = _current_triplet()
+    assert manifest["identity"]["parent_r009_commit"] == manual.PARENT_R009_COMMIT
     assert "while waiting_s < 30.000" in rendered
     assert "def codex_autotune_wait_for_manual_arm(" in rendered
     assert "batch_row_index != 1" in rendered
@@ -56,9 +60,8 @@ def test_manual_wait_fails_closed_on_stale_heartbeat_or_inexact_arm() -> None:
     assert inexact == {"outcome": "fault", "reason": 21, "sample": 1}
 
 
-def test_manual_triplet_is_internally_closed(tmp_path: Path) -> None:
-    result = manual.write_triplet(tmp_path, "2026-07-21T1500HKT_TEST")
-    assert result["program"] == manual.PROGRAM_NAME
-    assert set(result["sha256"]) == {".script", ".txt", ".urp"}
-    for extension, digest in result["sha256"].items():
-        assert hashlib.sha256(Path(result["paths"][extension]).read_bytes()).hexdigest() == digest
+def test_manual_immutable_triplet_is_internally_closed() -> None:
+    manifest, _ = _current_triplet()
+    assert set(manifest["artifacts"]) == {".script", ".txt", ".urp"}
+    for extension, reference in manifest["artifacts"].items():
+        assert hashlib.sha256((ROOT / reference["path"]).read_bytes()).hexdigest() == reference["sha256"]

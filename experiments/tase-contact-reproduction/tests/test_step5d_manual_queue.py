@@ -29,7 +29,7 @@ from step5d_manual_runtime import (  # noqa: E402
 )
 
 
-PROFILE = ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+PROFILE = ROOT / "config/step5d/manual/launch_profile.json"
 RELEASE_SHA = "a" * 64
 
 

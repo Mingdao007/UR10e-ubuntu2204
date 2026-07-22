@@ -16,14 +16,15 @@ import uuid
 from typing import Any, Mapping
 
 from step5d_autotune_v3.launcher import build_bridge_argv
-from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY, load_launch_profile
+from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY
 from step5d_autotune_v3.state import atomic_json
 from step5d_manual_bridge import (
     CONTROL_PROFILE, DEFAULT_PREFLIGHT_MAX_AGE_S, PREFLIGHT_SCHEMA, PROGRAM,
     PROTOCOL, RELEASE_STAGE, ROOT, TICKET_SCHEMA, WIRE_PROTOCOL,
     ManualBridgeError, load_context, require_fresh_timestamp, sha256_path,
-    strict_object,
+    strict_object, require_canonical_shell,
 )
+from step5d_manual_profile import DEFAULT_LAUNCH_PROFILE, load_manual_launch_profile
 from ur10e_parallel import ResourceProfile, writer_lease
 
 
@@ -88,7 +89,7 @@ def run(args: argparse.Namespace) -> int:
     runtime_root.mkdir(parents=True, exist_ok=False, mode=0o700)
     bridge_run = runtime_root / "bridge"
     (bridge_run / "runtime").mkdir(parents=True, exist_ok=False, mode=0o700)
-    launch = load_launch_profile(args.launch_profile)
+    launch = load_manual_launch_profile(args.launch_profile)
     bridge_argv = build_bridge_argv(
         runtime_root,
         launch_profile=launch,
@@ -214,10 +215,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--bridge-start-context", type=Path, required=True)
     parser.add_argument("--preflight", type=Path, required=True)
-    parser.add_argument("--launch-profile", type=Path, default=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json")
+    parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)
     parser.add_argument("--ready-timeout-s", type=float, default=20.0)
     args = parser.parse_args(argv)
     try:
+        require_canonical_shell()
         return run(args)
     except (OSError, TimeoutError, ValueError, ManualBridgeError) as exc:
         print(f"manual bridge start blocked: {exc}", file=sys.stderr)

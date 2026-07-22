@@ -102,6 +102,8 @@ output_root=""
 campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
 canonical_launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
 runner_args=()
+ready_timeout_s="20"
+play_timeout_s="900"
 launch_attempt_id=""
 launch_attempt_phase=""
 launch_attempt_enabled=0
@@ -180,12 +182,14 @@ if [[ "${1:-}" == "bridge" ]]; then
         (( seen_ready_timeout == 0 )) || bridge_argv_error "--ready-timeout-s may appear only once"
         seen_ready_timeout=1
         bridge_require_positive_seconds "${option_name}" "${value}"
+        ready_timeout_s="${value}"
         runner_args+=("${option_name}" "${value}")
         ;;
       --play-timeout-s)
         (( seen_play_timeout == 0 )) || bridge_argv_error "--play-timeout-s may appear only once"
         seen_play_timeout=1
         bridge_require_positive_seconds "${option_name}" "${value}"
+        play_timeout_s="${value}"
         runner_args+=("${option_name}" "${value}")
         ;;
     esac
@@ -276,7 +280,8 @@ for candidate in "${ROS_PYTHON_PATHS[@]}"; do
   RUNTIME_PYTHONPATH="${RUNTIME_PYTHONPATH}:${candidate}"
 done
 export PYTHONPATH="${RUNTIME_PYTHONPATH}"
-export AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"
+AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"
+export AMENT_PREFIX_PATH
 export CUDA_VISIBLE_DEVICES="${GOVERNED_GPU_UUID}"
 export PYTHONDONTWRITEBYTECODE=1
 export PYTHONNOUSERSITE=1
@@ -287,6 +292,16 @@ export STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID="${OPTIMIZER_ENVIRONMENT_ID}"
 export STEP5D_V3_OPTIMIZER_PYTHON="${OPTIMIZER_PYTHON}"
 export STEP5D_V3_RUNTIME_ATTESTATION_SHA256="${RUNTIME_ATTESTATION_SHA256}"
 export STEP5D_V3_RUNTIME_BUNDLE_ID="${RUNTIME_BUNDLE_ID}"
+if [[ "${1:-}" == "status" && "${2:-}" == "--json" && $# -eq 2 ]]; then
+  manual_pointer_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
+  if [[ -f "${manual_pointer_root}/manual_active_run.json" ]]; then
+    if "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_status.py" \
+      status --campaign-root "${manual_pointer_root}"
+    then
+      exit 0
+    fi
+  fi
+fi
 if (( bridge_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
@@ -313,6 +328,77 @@ if (( bridge_mode == 1 )); then
   launch_attempt_enabled=1
   trap bridge_failure_trap ERR
   bridge_begin_phase runtime_gate
+  bridge_begin_phase route_resolve
+  bridge_route="$("${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/resolve_step5d_bridge_route.py" \
+    --root "${EXPERIMENT_ROOT}" --field route)"
+  if [[ "${bridge_route}" == "manual_v2" ]]; then
+    manual_release_sha="$("${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/resolve_step5d_bridge_route.py" \
+      --root "${EXPERIMENT_ROOT}" --field release)"
+    manual_campaign_id="manual-v2-${launch_attempt_id}"
+    manual_context="${output_root}/manual-bridge-context.json"
+    manual_preflight="${output_root}/manual-preflight.json"
+    manual_queue="${campaign_root}/control/manual_queue.json"
+    manual_state="${campaign_root}/control/manual_runtime_state.json"
+    bridge_begin_phase manual_context
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/build_step5d_manual_bridge_start_context.py" \
+      --root "${EXPERIMENT_ROOT}" \
+      --plant-epoch 1 \
+      --output "${manual_context}" \
+      >"${output_root}/manual-context-result.json"
+    bridge_begin_phase manual_preflight
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/preflight_step5d_manual_bridge.py" \
+      --mailbox "${output_root}/runtime/command.json" \
+      --bridge-start-context "${manual_context}" \
+      --output "${manual_preflight}" \
+      >"${output_root}/manual-preflight.log"
+    bridge_begin_phase manual_bridge_start
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_manual_bridge_live.py" \
+      --output-root "${output_root}" \
+      --bridge-start-context "${manual_context}" \
+      --preflight "${manual_preflight}" \
+      --ready-timeout-s "${ready_timeout_s}" \
+      >"${output_root}/manual-bridge-owner.log" 2>&1 &
+    manual_bridge_owner_pid=$!
+    # shellcheck disable=SC2329  # Invoked by the EXIT trap below.
+    manual_bridge_cleanup() {
+      if kill -0 "${manual_bridge_owner_pid}" 2>/dev/null; then
+        kill -INT "${manual_bridge_owner_pid}" 2>/dev/null || true
+        wait "${manual_bridge_owner_pid}" || true
+      fi
+    }
+    trap manual_bridge_cleanup EXIT
+    manual_ready_limit_ticks="$("${CONTROL_PYTHON}" -c \
+      'import math,sys; print(math.ceil(float(sys.argv[1]) * 10.0) + 20)' \
+      "${ready_timeout_s}")"
+    manual_ready_ticks=0
+    while [[ ! -f "${output_root}/bridge_launch.json" ]]; do
+      if ! kill -0 "${manual_bridge_owner_pid}" 2>/dev/null; then
+        wait "${manual_bridge_owner_pid}"
+        exit $?
+      fi
+      if (( manual_ready_ticks >= manual_ready_limit_ticks )); then
+        echo "manual bridge owner readiness timeout" >&2
+        exit 2
+      fi
+      sleep 0.1
+      ((manual_ready_ticks += 1))
+    done
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_status.py" activate \
+      --campaign-root "${campaign_root}" \
+      --output-root "${output_root}" \
+      --pointer-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
+      >"${output_root}/manual-active-run.json"
+    bridge_begin_phase manual_campaign
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_manual_live_campaign.py" \
+      --bridge-output-root "${output_root}" \
+      --campaign-root "${campaign_root}" \
+      --queue "${manual_queue}" \
+      --state "${manual_state}" \
+      --campaign-id "${manual_campaign_id}" \
+      --release-manifest-sha256 "${manual_release_sha}" \
+      --play-timeout-s "${play_timeout_s}"
+    exit 0
+  fi
   bridge_begin_phase status_before
   "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli \
     --experiment-root "${EXPERIMENT_ROOT}" \

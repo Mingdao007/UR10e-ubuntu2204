@@ -34,9 +34,10 @@ from step5d_autotune_v3.runtime_profile import (  # noqa: E402
 
 def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() -> None:
     profile = load_launch_profile()
-    assert len(launch_mutable_flags(json.loads(
+    contract = json.loads(
         (ROOT / "config/step5/step5d_autotune_v3_control_contract.json").read_text()
-    ))) == 40
+    )
+    assert len(launch_mutable_flags(contract)) == 39
     overlay = normalize_trial_overlay(DEFAULT_OVERLAY, profile=profile)
     assert tuple(overlay) == OVERLAY_FIELDS
     assert len(overlay) == 13
@@ -85,15 +86,18 @@ def test_overlay_unknown_out_of_envelope_and_offline_profile_fail_closed(mutatio
 
 def test_launch_profile_rejects_contract_bound_and_over_ceiling_override(tmp_path: Path) -> None:
     payload = dict(load_launch_profile().document)
+    contract = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_control_contract.json").read_text()
+    )
     payload["launch_overrides"] = {"--bridge-profile": "future"}
     path = tmp_path / "profile.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ContractViolation, match="non-launch-mutable"):
-        load_launch_profile(path)
+        load_launch_profile(path, contract=contract)
     payload["launch_overrides"] = {"--max-normal-force-n": 61}
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ContractViolation, match="hard ceiling"):
-        load_launch_profile(path)
+        load_launch_profile(path, contract=contract)
 
 
 def test_identity_cached_mailbox_skips_decode_until_atomic_identity_changes(

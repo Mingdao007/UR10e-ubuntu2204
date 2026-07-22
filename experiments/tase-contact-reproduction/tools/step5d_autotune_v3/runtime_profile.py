@@ -210,6 +210,7 @@ def load_launch_profile(
     path: Path = DEFAULT_LAUNCH_PROFILE,
     *,
     contract: Mapping[str, Any] | None = None,
+    expected_tp_program_id: str | None = None,
 ) -> LaunchProfile:
     payload_contract = dict(
         contract
@@ -243,7 +244,7 @@ def load_launch_profile(
         "schema": LAUNCH_SCHEMA,
         "release_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "tp_program_id": TP_PROGRAM_ID,
+        "tp_program_id": expected_tp_program_id or TP_PROGRAM_ID,
     }
     for key, expected in expected_identity.items():
         if payload[key] != expected:

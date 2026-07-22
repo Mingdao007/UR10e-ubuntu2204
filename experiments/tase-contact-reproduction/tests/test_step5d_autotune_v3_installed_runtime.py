@@ -153,7 +153,8 @@ def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath()
     assert '"/opt/ros/humble/lib/python${PYTHON_ABI}/site-packages"' in source
     assert '"/opt/ros/humble/local/lib/python${PYTHON_ABI}/dist-packages"' in source
     assert 'export PYTHONPATH="${RUNTIME_PYTHONPATH}"' in source
-    assert 'export AMENT_PREFIX_PATH=' in source
+    assert 'AMENT_PREFIX_PATH="$(IFS=:; echo "${AMENT_PREFIXES[*]}")"' in source
+    assert "export AMENT_PREFIX_PATH" in source
     assert 'PYTHONPATH:+:${PYTHONPATH}' not in source
 
 

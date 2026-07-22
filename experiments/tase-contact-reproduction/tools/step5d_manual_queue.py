@@ -14,14 +14,20 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
+from ur10e_experiment_runtime.candidate_identity import (
+    ControlCandidateUid,
+    OccurrenceUid,
+    ParameterUid,
+    TransportCandidateUid,
+)
 from step5d_autotune_v3.profile import canonical_json_bytes
 from step5d_autotune_v3.runtime_profile import (
     DEFAULT_OVERLAY,
     control_candidate_uid,
-    load_launch_profile,
     normalize_trial_overlay,
     normalized_overlay_sha256,
 )
+from step5d_manual_profile import load_manual_launch_profile
 
 
 SCHEMA = "step5d.autotune-v3/manual-queue-v1"
@@ -163,6 +169,7 @@ def validate_queue(payload: Mapping[str, Any]) -> dict[str, Any]:
     seen_occurrence: set[str] = set()
     seen_transport: set[str] = set()
     seen_token: set[int] = set()
+    replicate_counts: dict[str, int] = {}
     for sequence, row in enumerate(requests, start=1):
         fields = {
             "logical_batch_sequence",
@@ -182,9 +189,12 @@ def validate_queue(payload: Mapping[str, Any]) -> dict[str, Any]:
             raise ManualQueueError("manual request sequence or row differs")
         if not isinstance(row["occurrence_nonce"], str) or len(row["occurrence_nonce"]) != 32:
             raise ManualQueueError("manual occurrence nonce differs")
-        occurrence = _sha256(row["occurrence_uid"], "occurrence UID")
-        transport = _sha256(row["transport_candidate_uid"], "transport UID")
-        control = _sha256(row["control_candidate_uid"], "control UID")
+        try:
+            occurrence = OccurrenceUid.parse(row["occurrence_uid"])
+            transport = TransportCandidateUid.parse(row["transport_candidate_uid"])
+            control = ControlCandidateUid.parse(row["control_candidate_uid"])
+        except (TypeError, ValueError) as exc:
+            raise ManualQueueError(f"manual request UID closure differs: {exc}") from exc
         if occurrence in seen_occurrence or transport in seen_transport:
             raise ManualQueueError("manual request repeats occurrence or transport identity")
         seen_occurrence.add(occurrence)
@@ -205,27 +215,26 @@ def validate_queue(payload: Mapping[str, Any]) -> dict[str, Any]:
             raise ManualQueueError("manual overlay parameters differ from control identity")
         if hashlib.sha256(canonical_json_bytes(dict(overlay))).hexdigest() != overlay_sha:
             raise ManualQueueError("manual normalized overlay digest differs")
-        expected_occurrence = _digest(
-            {
-                "schema": "step5d.autotune-v3/manual-occurrence-v1",
-                "protocol": PROTOCOL,
-                "campaign_id": payload["campaign_id"],
-                "logical_batch_sequence": sequence,
-                "row_index": 1,
-                "occurrence_nonce": row["occurrence_nonce"],
-                "control_candidate_uid": control,
-            }
+        control_text = str(control)
+        replicate_ordinal = replicate_counts.get(control_text, 0) + 1
+        replicate_counts[control_text] = replicate_ordinal
+        expected_occurrence = OccurrenceUid.from_control(
+            control,
+            protocol=PROTOCOL,
+            logical_batch_sequence=sequence,
+            row_index=1,
+            plan_revision=sequence,
+            selection_role=row["source"],
+            replicate_ordinal=replicate_ordinal,
         )
-        expected_transport = _digest(
-            {
-                "schema": "step5d.autotune-v3/manual-transport-v1",
-                "occurrence_uid": occurrence,
-                "normalized_overlay_sha256": overlay_sha,
-            }
+        expected_transport = TransportCandidateUid.from_occurrence(
+            occurrence,
+            parameter_uid=ParameterUid.from_candidate_digest(overlay_sha),
+            protocol=PROTOCOL,
         )
         if occurrence != expected_occurrence or transport != expected_transport:
             raise ManualQueueError("manual request identity digest differs")
-        expected_token = int(occurrence[:8], 16) & 0x7FFFFFFF or 1
+        expected_token = int(occurrence.digest[:8], 16) & 0x7FFFFFFF or 1
         if token != expected_token:
             raise ManualQueueError("manual candidate-token projection differs")
     lifecycle = payload["lifecycle"]
@@ -254,7 +263,7 @@ def enqueue(
     source: str = "manual_cli",
     occurrence_nonce: str | None = None,
 ) -> dict[str, Any]:
-    profile = load_launch_profile(launch_profile_path)
+    profile = load_manual_launch_profile(launch_profile_path)
     overlay_input = {
         **DEFAULT_OVERLAY,
         "force_p_gain": force_p,
@@ -294,34 +303,34 @@ def enqueue(
             }
         sequence = payload["revision"] + 1
         control_uid = overlay["control_candidate_uid"]
-        occurrence_uid = _digest(
-            {
-                "schema": "step5d.autotune-v3/manual-occurrence-v1",
-                "protocol": PROTOCOL,
-                "campaign_id": campaign_id,
-                "logical_batch_sequence": sequence,
-                "row_index": 1,
-                "occurrence_nonce": nonce,
-                "control_candidate_uid": control_uid,
-            }
+        typed_control = ControlCandidateUid.parse(control_uid)
+        replicate_ordinal = 1 + sum(
+            row["control_candidate_uid"] == control_uid for row in payload["requests"]
         )
-        transport_uid = _digest(
-            {
-                "schema": "step5d.autotune-v3/manual-transport-v1",
-                "occurrence_uid": occurrence_uid,
-                "normalized_overlay_sha256": overlay_sha,
-            }
+        occurrence_uid = OccurrenceUid.from_control(
+            typed_control,
+            protocol=PROTOCOL,
+            logical_batch_sequence=sequence,
+            row_index=1,
+            plan_revision=sequence,
+            selection_role=source,
+            replicate_ordinal=replicate_ordinal,
         )
-        candidate_token = int(occurrence_uid[:8], 16) & 0x7FFFFFFF or 1
+        transport_uid = TransportCandidateUid.from_occurrence(
+            occurrence_uid,
+            parameter_uid=ParameterUid.from_candidate_digest(overlay_sha),
+            protocol=PROTOCOL,
+        )
+        candidate_token = int(occurrence_uid.digest[:8], 16) & 0x7FFFFFFF or 1
         if any(row["candidate_token"] == candidate_token for row in payload["requests"]):
             raise ManualQueueError("manual candidate-token projection collision; retry enqueue")
         request = {
             "logical_batch_sequence": sequence,
             "row_index": 1,
             "occurrence_nonce": nonce,
-            "occurrence_uid": occurrence_uid,
-            "transport_candidate_uid": transport_uid,
-            "control_candidate_uid": control_uid,
+            "occurrence_uid": str(occurrence_uid),
+            "transport_candidate_uid": str(transport_uid),
+            "control_candidate_uid": str(typed_control),
             "candidate_token": candidate_token,
             "overlay": overlay,
             "normalized_overlay_sha256": overlay_sha,

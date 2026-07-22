@@ -39,7 +39,13 @@
         "tests/test_step5d_v3_oci_contract.py",
         "tests/test_step5d_v3_source_closure.py",
         "tests/test_step5d_v3_immutable_payload_routing.py",
-        "tests/test_step5d_autotune_v3_installed_runtime.py"
+        "tests/test_step5d_autotune_v3_installed_runtime.py",
+        "tests/test_step5d_manual_bridge.py",
+        "tests/test_step5d_manual_campaign_plan.py",
+        "tests/test_step5d_manual_governed_route.py",
+        "tests/test_step5d_manual_queue.py",
+        "tests/test_step5d_manual_release.py",
+        "tests/test_step5d_manual_tp_v1.py"
       ],
       "obsolete": [
         "tests/test_cross_step_parameter_table.py",
@@ -113,7 +119,7 @@
   "historical_evidence_manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3/test_evidence.json",
   "local_installed_runtime_gate": {
     "command": [
-      ".venv/bin/python",
+      "@control-runtime-python",
       "-m",
       "pytest",
       "-q",
@@ -122,7 +128,8 @@
       "tests/test_step5d_autotune_live_driver.py",
       "tests/test_step5d_autotune_v3_bridge_wrapper.py",
       "tests/test_step5d_autotune_v3_qualification_production.py",
-      "tests/test_step5d_autotune_v3_installed_runtime.py"
+      "tests/test_step5d_autotune_v3_installed_runtime.py",
+      "tests/test_step5d_manual_bridge.py"
     ],
     "activation": "explicit_local_authoritative_after_hermetic_small_medium",
     "ci": false,
@@ -172,7 +179,12 @@
           "tests/test_step5d_autotune_v3_campaign_prepare.py",
           "tests/test_step5d_v3_immutable_payload_routing.py",
           "tests/test_step5d_autotune_v3_refactor_gate.py",
-          "tests/test_step5d_autotune_v3_test_matrix_runner.py"
+          "tests/test_step5d_autotune_v3_test_matrix_runner.py",
+          "tests/test_step5d_manual_campaign_plan.py",
+          "tests/test_step5d_manual_governed_route.py",
+          "tests/test_step5d_manual_queue.py",
+          "tests/test_step5d_manual_release.py",
+          "tests/test_step5d_manual_tp_v1.py"
         ]
       ],
       "ci": true,
