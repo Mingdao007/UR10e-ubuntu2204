@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -26,9 +27,44 @@ from step5d_manual_bridge import (
 )
 from step5d_manual_profile import DEFAULT_LAUNCH_PROFILE, load_manual_launch_profile
 from ur10e_parallel import ResourceProfile, writer_lease
+from step5d_autotune_v3.qualification import QUALIFICATION_ENDPOINT_PORTS
 
 
 WRAPPER = ROOT / "tools/run_step5d_manual_bridge.py"
+
+
+def _qualification_endpoints(path: Path | None) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    payload = strict_object(path.expanduser().absolute(), "manual qualification endpoints")
+    if set(payload) != {"schema", "content_sha256", "addresses", "motion_capable"}:
+        raise ManualBridgeError("manual qualification endpoint fields differ")
+    addresses = payload.get("addresses")
+    if (
+        payload.get("schema")
+        != "step5d.autotune-v3/qualification-endpoint-config-v1"
+        or payload.get("motion_capable") is not False
+        or not isinstance(payload.get("content_sha256"), str)
+        or len(payload["content_sha256"]) != 64
+        or not isinstance(addresses, Mapping)
+        or set(addresses) != set(QUALIFICATION_ENDPOINT_PORTS)
+    ):
+        raise ManualBridgeError("manual qualification endpoint identity differs")
+    for role, expected_port in QUALIFICATION_ENDPOINT_PORTS.items():
+        address = addresses.get(role)
+        if not isinstance(address, Mapping) or set(address) != {"host", "port"}:
+            raise ManualBridgeError(f"manual qualification {role} address differs")
+        try:
+            host = ipaddress.ip_address(address["host"])
+        except ValueError as exc:
+            raise ManualBridgeError(
+                f"manual qualification {role} host differs"
+            ) from exc
+        if not host.is_loopback or address["port"] != expected_port:
+            raise ManualBridgeError(
+                f"manual qualification {role} endpoint is not production-shaped loopback"
+            )
+    return payload
 
 
 def _argv_sha256(argv: list[str]) -> str:
@@ -95,6 +131,19 @@ def run(args: argparse.Namespace) -> int:
         launch_profile=launch,
         trial_overlay=DEFAULT_OVERLAY,
     )[2:]
+    qualification = _qualification_endpoints(args.qualification_endpoints)
+    if qualification is not None:
+        addresses = qualification["addresses"]
+        bridge_argv.extend(
+            (
+                "--robot-host",
+                str(addresses["dashboard"]["host"]),
+                "--sensor-ip",
+                str(addresses["kunwei"]["host"]),
+                "--sensor-port",
+                str(addresses["kunwei"]["port"]),
+            )
+        )
     command = [sys.executable, str(WRAPPER), *bridge_argv]
     ticket = {
         "schema": TICKET_SCHEMA,
@@ -116,6 +165,14 @@ def run(args: argparse.Namespace) -> int:
             "path": str(args.preflight.expanduser().absolute()),
             "sha256": sha256_path(args.preflight),
         },
+        "qualification_endpoints": (
+            None
+            if args.qualification_endpoints is None
+            else {
+                "path": str(args.qualification_endpoints.expanduser().absolute()),
+                "sha256": sha256_path(args.qualification_endpoints),
+            }
+        ),
     }
     ticket_path = runtime_root / "runtime_ticket.json"
     atomic_json(ticket_path, ticket)
@@ -216,6 +273,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bridge-start-context", type=Path, required=True)
     parser.add_argument("--preflight", type=Path, required=True)
     parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)
+    parser.add_argument("--qualification-endpoints", type=Path)
     parser.add_argument("--ready-timeout-s", type=float, default=20.0)
     args = parser.parse_args(argv)
     try:

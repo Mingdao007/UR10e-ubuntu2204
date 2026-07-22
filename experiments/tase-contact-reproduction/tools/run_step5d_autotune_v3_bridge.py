@@ -16,6 +16,7 @@ import json
 import multiprocessing
 import os
 import queue
+import signal
 import sys
 import time
 from pathlib import Path, PurePosixPath
@@ -143,6 +144,7 @@ def _v3_capture_worker(
     root_text: str,
     fieldnames: tuple[str, ...],
 ) -> None:
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     root = Path(root_text)
     handle: Any | None = None
     writer: csv.DictWriter | None = None

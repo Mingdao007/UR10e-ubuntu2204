@@ -87,6 +87,10 @@ from step5d_autotune_v3.state import (
     read_strict_json,
 )
 from step5d_autotune_live_driver import AtomicCommandMailbox
+from step5d_bridge_status import (
+    readiness_claim,
+    resolve_status as resolve_bridge_status,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -116,6 +120,20 @@ class LiveLaunchError(RuntimeError):
 
 
 _NO_PRODUCER_RESULT = object()
+
+
+def _publish_canonical_readiness_claim(
+    output_root: Path, required_state: str
+) -> dict[str, Any]:
+    try:
+        status = resolve_bridge_status(ROOT)
+        claim = readiness_claim(status, required_state)
+    except Exception as exc:
+        raise LiveLaunchError(
+            f"canonical readiness claim was not admitted: {type(exc).__name__}:{exc}"
+        ) from exc
+    atomic_json(output_root / "readiness-claim.json", claim)
+    return claim
 
 
 class _LatestCsvFollower:
@@ -1343,8 +1361,14 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                             "machine state did not reach a governed Play barrier: "
                             + ",".join(governed_status["blocker"]["reason_codes"])
                         )
-                print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
-                print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
+                    _publish_canonical_readiness_claim(
+                        args.output_root,
+                        governed_status["state"],
+                    )
+                    print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
+                    print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
+                else:
+                    print("V3_QUALIFICATION_SIMULATED_PLAY_BARRIER", flush=True)
                 deadline = time.monotonic() + args.play_timeout_s
                 next_observation = time.monotonic() + 0.2
                 while time.monotonic() < deadline:
@@ -1382,6 +1406,10 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                                     governed_status["blocker"]["reason_codes"]
                                 )
                             )
+                        _publish_canonical_readiness_claim(
+                            args.output_root,
+                            governed_status["state"],
+                        )
                         next_observation = time.monotonic() + 0.2
                     time.sleep(0.025)
                 else:

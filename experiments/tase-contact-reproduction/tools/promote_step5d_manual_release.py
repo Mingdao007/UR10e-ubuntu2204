@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import hashlib
 import json
+import os
 import re
 from pathlib import Path, PurePosixPath
+import tempfile
 from typing import Any, Mapping
 
 import build_step5d_manual_tp_v1 as builder
@@ -28,6 +29,10 @@ MANUAL_RELEASE_ROOT = "config/step5d/manual/releases"
 MANUAL_POINTER = "config/step5d/manual/current.json"
 MANUAL_READBACK = Path("config/step5d/manual/controller_readback.json")
 MANUAL_CANDIDATE = Path("config/step5d/manual/local_candidate.json")
+HOST_BINDING_SCHEMA = "step5d.manual-v2/host-runtime-binding-v1"
+HOST_POINTER_SCHEMA = "step5d.manual-v2/host-runtime-pointer-v1"
+HOST_BINDING_ROOT = Path("config/step5d/manual/host-runtime/bindings")
+HOST_BINDING_POINTER = Path("config/step5d/manual/host-runtime/current.json")
 SOURCE_INPUTS = (
     Path("STEP5D_MANUAL_HOLD.md"),
     Path("config/step5d/manual/launch_profile.json"),
@@ -43,10 +48,14 @@ SOURCE_INPUTS = (
     Path("tools/preflight_step5d_manual_bridge.py"),
     Path("tools/run_step5d_manual_bridge.py"),
     Path("tools/run_step5d_manual_bridge_live.py"),
+    Path("tools/step5d_manual_qualification.py"),
+    Path("tools/step5d_manual_authorization.py"),
     Path("tools/run_step5d_manual_live_campaign.py"),
     Path("tools/step5d_manual_campaign_plan.py"),
     Path("tools/step5d_manual_profile.py"),
     Path("tools/step5d_manual_status.py"),
+    Path("tools/step5d_bridge_status.py"),
+    Path("tools/step5d_bridge_authority.py"),
     Path("tools/resolve_step5d_bridge_route.py"),
     Path("tools/step5d_manual_atomic_release.py"),
     Path("tools/promote_step5d_manual_release.py"),
@@ -60,6 +69,8 @@ SOURCE_INPUTS = (
     Path("tools/step5d_autotune_v3/dashboard.py"),
     Path("tools/step5d_autotune_v3/cli.py"),
     Path("tools/step5d_autotune_v3/governance.py"),
+    Path("tools/step5d_autotune_v3/qualification.py"),
+    Path("tools/step5d_autotune_v3/qualification_endpoints.py"),
     Path("tools/step5d_autotune_v3/launcher.py"),
     Path("tools/step5d_autotune_v3/preflight_support.py"),
     Path("tools/step5d_autotune_v3/profile.py"),
@@ -99,6 +110,127 @@ def _load(path: Path) -> dict[str, Any]:
 
 def _pretty(payload: Mapping[str, Any]) -> bytes:
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def _source_fingerprints(root: Path) -> dict[str, str]:
+    return {
+        relative.as_posix(): _sha256((root / relative).resolve())
+        for relative in SOURCE_INPUTS
+    }
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _atomic_bytes(path: Path, encoded: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+        _fsync_directory(path.parent)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _publish_host_binding(root: Path, manual_release_sha256: str) -> dict[str, Any]:
+    binding = {
+        "schema": HOST_BINDING_SCHEMA,
+        "manual_release_manifest_sha256": manual_release_sha256,
+        "source_fingerprints": _source_fingerprints(root),
+        "uv_lock_sha256": _sha256(root / "uv.lock"),
+        "runtime_contract_sha256": _sha256(
+            root / "config/step5/step5d_v3_runtime_contract.json"
+        ),
+    }
+    encoded = canonical_bytes(binding)
+    digest = _sha256_bytes(encoded)
+    relative = HOST_BINDING_ROOT / digest / "binding.json"
+    destination = root / relative
+    if destination.exists() or destination.is_symlink():
+        if destination.is_symlink() or destination.read_bytes() != encoded:
+            raise ManualPromotionError(
+                "content-addressed Manual host binding contains different bytes"
+            )
+    else:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("xb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        _fsync_directory(destination.parent)
+    pointer = {
+        "schema": HOST_POINTER_SCHEMA,
+        "binding_path": relative.as_posix(),
+        "binding_sha256": digest,
+        "manual_release_manifest_sha256": manual_release_sha256,
+    }
+    _atomic_bytes(root / HOST_BINDING_POINTER, canonical_bytes(pointer))
+    return {
+        "binding_path": relative.as_posix(),
+        "binding_sha256": digest,
+        "source_surface_sha256": _sha256_bytes(
+            canonical_bytes(binding["source_fingerprints"])
+        ),
+    }
+
+
+def _load_host_binding(root: Path, manual_release_sha256: str) -> dict[str, Any]:
+    pointer = _load(root / HOST_BINDING_POINTER)
+    if set(pointer) != {
+        "schema",
+        "binding_path",
+        "binding_sha256",
+        "manual_release_manifest_sha256",
+    }:
+        raise ManualPromotionError("Manual host-runtime pointer fields differ")
+    digest = pointer["binding_sha256"]
+    expected = (HOST_BINDING_ROOT / str(digest) / "binding.json").as_posix()
+    if any(
+        (
+            pointer["schema"] != HOST_POINTER_SCHEMA,
+            pointer["binding_path"] != expected,
+            pointer["manual_release_manifest_sha256"] != manual_release_sha256,
+        )
+    ):
+        raise ManualPromotionError("Manual host-runtime pointer identity differs")
+    path = root / expected
+    binding = _load(path)
+    if path.read_bytes() != canonical_bytes(binding) or _sha256(path) != digest:
+        raise ManualPromotionError("Manual host-runtime binding digest differs")
+    if (
+        set(binding)
+        != {
+            "schema",
+            "manual_release_manifest_sha256",
+            "source_fingerprints",
+            "uv_lock_sha256",
+            "runtime_contract_sha256",
+        }
+        or binding["schema"] != HOST_BINDING_SCHEMA
+        or binding["manual_release_manifest_sha256"] != manual_release_sha256
+        or binding["source_fingerprints"] != _source_fingerprints(root)
+        or binding["uv_lock_sha256"] != _sha256(root / "uv.lock")
+        or binding["runtime_contract_sha256"]
+        != _sha256(root / "config/step5/step5d_v3_runtime_contract.json")
+    ):
+        raise ManualPromotionError("Manual host-runtime binding drifted")
+    return {
+        "binding_path": expected,
+        "binding_sha256": digest,
+        "source_surface_sha256": _sha256_bytes(
+            canonical_bytes(binding["source_fingerprints"])
+        ),
+    }
 
 
 def _artifact_paths(root: Path) -> dict[str, Path]:
@@ -307,8 +439,10 @@ def promote(root: Path, upload_manifest_path: Path) -> dict[str, Any]:
     )
     if (root / "config/step5d/current.json").read_bytes() != canonical_before:
         raise ManualPromotionError("manual promotion changed canonical r009 pointer")
+    host_binding = _publish_host_binding(root, result["manifest_sha256"])
     return {
         **result,
+        **host_binding,
         "program": PROGRAM,
         "protocol": PROTOCOL,
         "controller_readback_verified": True,
@@ -346,7 +480,7 @@ def load_manual_release(root: Path) -> dict[str, Any]:
         )
     ):
         raise ManualPromotionError("manual release identity differs")
-    for role in ("artifacts", "source_fingerprints", "generated_files"):
+    for role in ("artifacts", "generated_files"):
         references = manifest.get(role)
         if not isinstance(references, Mapping) or not references:
             raise ManualPromotionError(f"manual release {role} is empty")
@@ -357,6 +491,9 @@ def load_manual_release(root: Path) -> dict[str, Any]:
                 raise ManualPromotionError(f"manual release {role} reference differs")
             if _sha256(root / path_value) != expected:
                 raise ManualPromotionError(f"manual release {role} fingerprint drifted: {path_value}")
+    legacy_sources = manifest.get("source_fingerprints")
+    if not isinstance(legacy_sources, Mapping) or not legacy_sources:
+        raise ManualPromotionError("manual release legacy source inventory is empty")
     parent_sha = identity.get("parent_r009_release_manifest_sha256")
     parent_path = root / "config/step5d/releases" / str(parent_sha) / "manifest.json"
     parent = _load(parent_path)
@@ -370,6 +507,7 @@ def load_manual_release(root: Path) -> dict[str, Any]:
         raise ManualPromotionError("manual immutable parent r009 manifest differs")
     if manifest["default_request"]["force_i_gain"] != 0.0001:
         raise ManualPromotionError("manual default I gain is not 1e-4")
+    host_binding = _load_host_binding(root, digest)
     return {
         "ok": True,
         "manifest_path": expected_path,
@@ -377,12 +515,15 @@ def load_manual_release(root: Path) -> dict[str, Any]:
         "program": PROGRAM,
         "protocol": PROTOCOL,
         "force_i_gain": 0.0001,
+        "host_binding_path": host_binding["binding_path"],
+        "host_binding_sha256": host_binding["binding_sha256"],
+        "source_surface_sha256": host_binding["source_surface_sha256"],
         "motion_authorized": False,
     }
 
 
 def rebind_host_sources(root: Path) -> dict[str, Any]:
-    """Atomically bind current host code to the unchanged verified TP triplet."""
+    """Atomically bind host code without changing the Manual TP release identity."""
 
     root = root.resolve(strict=True)
     pointer = _load(root / MANUAL_POINTER)
@@ -399,60 +540,29 @@ def rebind_host_sources(root: Path) -> dict[str, Any]:
         )
     ):
         raise ManualPromotionError("manual source release identity differs")
-    rebound = copy.deepcopy(manifest)
-    rebound["source_fingerprints"] = {
-        relative.as_posix(): _sha256((root / relative).resolve())
-        for relative in SOURCE_INPUTS
-    }
-    verification = rebound.get("verification")
-    if not isinstance(verification, dict):
-        raise ManualPromotionError("manual release verification block differs")
-    verification["host_source_rebound"] = True
-    bundle_paths: set[str] = set()
     for role in ("artifacts", "generated_files"):
-        references = rebound.get(role)
-        if not isinstance(references, Mapping):
+        references = manifest.get(role)
+        if not isinstance(references, Mapping) or not references:
             raise ManualPromotionError(f"manual release {role} differs")
         for relative, reference in references.items():
-            bundle_paths.add(
-                str(reference.get("path"))
-                if isinstance(reference, Mapping)
-                else str(relative)
-            )
-    controller_readback = rebound.get("controller_readback")
-    if not isinstance(controller_readback, Mapping):
-        raise ManualPromotionError("manual controller readback reference differs")
-    bundle_paths.add(str(controller_readback.get("path")))
-    bundle = {relative: (root / relative).read_bytes() for relative in bundle_paths}
-
-    def verify(stage: Path, path: Path, digest: str) -> None:
-        document = _load(path)
-        if _sha256_bytes(canonical_bytes(document)) != digest:
-            raise ManualPromotionError("rebound manual manifest digest differs")
-        for role in ("artifacts", "generated_files", "source_fingerprints"):
-            references = document.get(role)
-            if not isinstance(references, Mapping) or not references:
-                raise ManualPromotionError(f"rebound manual {role} differs")
-            for relative, reference in references.items():
-                expected = reference.get("sha256") if isinstance(reference, Mapping) else reference
-                path_value = reference.get("path") if isinstance(reference, Mapping) else relative
-                base = stage if role != "source_fingerprints" else root
-                if _sha256(base / str(path_value)) != expected:
-                    raise ManualPromotionError(f"rebound manual {role} fingerprint differs")
-
+            expected = reference.get("sha256") if isinstance(reference, Mapping) else reference
+            path_value = reference.get("path") if isinstance(reference, Mapping) else relative
+            if _sha256(root / str(path_value)) != expected:
+                raise ManualPromotionError(f"manual release {role} fingerprint drifted")
+    manual_pointer_before = (root / MANUAL_POINTER).read_bytes()
     canonical_before = (root / "config/step5d/current.json").read_bytes()
-    result = ManualAtomicReleasePublisher(root).publish(
-        manifest=rebound,
-        bundle_files=bundle,
-        compatibility_targets={
-            MANUAL_READBACK.as_posix(): MANUAL_READBACK.as_posix(),
-            MANUAL_CANDIDATE.as_posix(): MANUAL_CANDIDATE.as_posix(),
-        },
-        stage_verifier=verify,
-    )
+    binding = _publish_host_binding(root, str(pointer["manifest_sha256"]))
+    if (root / MANUAL_POINTER).read_bytes() != manual_pointer_before:
+        raise ManualPromotionError("Manual host rebind changed the TP release pointer")
     if (root / "config/step5d/current.json").read_bytes() != canonical_before:
-        raise ManualPromotionError("manual host rebind changed canonical V3 pointer")
-    return {**result, "triplet_unchanged": True, "controller_write": False}
+        raise ManualPromotionError("Manual host rebind changed canonical V3 pointer")
+    return {
+        "ok": True,
+        "manual_release_manifest_sha256": pointer["manifest_sha256"],
+        **binding,
+        "triplet_unchanged": True,
+        "controller_write": False,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:

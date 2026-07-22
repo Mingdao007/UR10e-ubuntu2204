@@ -18,7 +18,7 @@ from step5d_manual_profile import load_manual_launch_profile as load_launch_prof
 ROOT = Path(__file__).resolve().parents[1]
 CONTEXT_SCHEMA = "step5d.manual-hold/bridge-start-context-v1"
 PREFLIGHT_SCHEMA = "step5d.manual-hold/live-preflight-v1"
-TICKET_SCHEMA = "step5d.manual-hold/runtime-ticket-v1"
+TICKET_SCHEMA = "step5d.manual-hold/runtime-ticket-v2"
 PROGRAM = manual_release.PROGRAM
 PROTOCOL = manual_release.PROTOCOL
 WIRE_PROTOCOL = "v3_full_home_rolling_arm_v1"
@@ -105,13 +105,6 @@ def _release_document(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     return verified, manifest
 
 
-def _source_surface_sha256(manifest: Mapping[str, Any]) -> str:
-    sources = manifest.get("source_fingerprints")
-    if not isinstance(sources, Mapping) or not sources:
-        raise ManualBridgeError("manual release source fingerprints are missing")
-    return hashlib.sha256(canonical_bytes(dict(sources))).hexdigest()
-
-
 def build_context(
     root: Path,
     *,
@@ -145,7 +138,7 @@ def build_context(
             extension: reference["sha256"]
             for extension, reference in manifest["artifacts"].items()
         },
-        "source_surface_sha256": _source_surface_sha256(manifest),
+        "source_surface_sha256": verified["source_surface_sha256"],
         "launch_profile": {
             "path": launch_path.relative_to(root).as_posix(),
             "sha256": sha256_path(launch_path),
@@ -198,7 +191,7 @@ def load_context(
         "parent_r009_release_manifest_sha256": manifest["identity"][
             "parent_r009_release_manifest_sha256"
         ],
-        "source_surface_sha256": _source_surface_sha256(manifest),
+        "source_surface_sha256": verified["source_surface_sha256"],
         "bridge_authorized": True,
         "arm_authorized": False,
         "motion_authorized": False,

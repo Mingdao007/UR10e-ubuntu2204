@@ -501,7 +501,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--_launch-attempt-state",
         dest="internal_launch_attempt_state",
-        choices=("STARTED", "FAILED"),
+        choices=("STARTED", "PASSED", "COMPLETED", "FAILED", "CANCELLED"),
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
@@ -528,6 +528,58 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--_launch-attempt-external-evidence",
         dest="internal_launch_attempt_external_evidence",
+        type=Path,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-attempt-route", dest="internal_launch_attempt_route", help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--_launch-manifest-sha256", dest="internal_launch_manifest_sha256", help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--_launch-repository-head", dest="internal_launch_repository_head", help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--_launch-runtime-environment-id",
+        dest="internal_launch_runtime_environment_id",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-campaign-path",
+        dest="internal_launch_campaign_path",
+        type=Path,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-output-root",
+        dest="internal_launch_output_root",
+        type=Path,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-owner-pid", dest="internal_launch_owner_pid", type=int, help=argparse.SUPPRESS
+    )
+    parser.add_argument(
+        "--_launch-owner-starttime",
+        dest="internal_launch_owner_starttime",
+        type=int,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-owner-authority-epoch",
+        dest="internal_launch_owner_authority_epoch",
+        type=int,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-capabilities-json",
+        dest="internal_launch_capabilities_json",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_launch-route-snapshot",
+        dest="internal_launch_route_snapshot",
         type=Path,
         help=argparse.SUPPRESS,
     )
@@ -580,6 +632,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.internal_launch_attempt_reason_code,
                 args.internal_launch_attempt_detail,
                 args.internal_launch_attempt_external_evidence,
+                args.internal_launch_attempt_route,
+                args.internal_launch_manifest_sha256,
+                args.internal_launch_repository_head,
+                args.internal_launch_runtime_environment_id,
+                args.internal_launch_campaign_path,
+                args.internal_launch_output_root,
+                args.internal_launch_owner_pid,
+                args.internal_launch_owner_starttime,
+                args.internal_launch_owner_authority_epoch,
+                args.internal_launch_capabilities_json,
+                args.internal_launch_route_snapshot,
             )
         )
         if launch_attempt_mode:
@@ -615,6 +678,46 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "path": relative.as_posix(),
                     "sha256": hashlib.sha256(resolved.read_bytes()).hexdigest(),
                 }
+            binding_values = (
+                args.internal_launch_repository_head,
+                args.internal_launch_runtime_environment_id,
+                args.internal_launch_campaign_path,
+                args.internal_launch_output_root,
+                args.internal_launch_owner_pid,
+                args.internal_launch_owner_starttime,
+                args.internal_launch_owner_authority_epoch,
+                args.internal_launch_capabilities_json,
+            )
+            bindings = None
+            if any(value is not None for value in binding_values):
+                if any(value is None for value in binding_values):
+                    raise CliError("launch-attempt v2 bindings are incomplete")
+                try:
+                    capabilities = json.loads(args.internal_launch_capabilities_json)
+                except json.JSONDecodeError as exc:
+                    raise CliError("launch capabilities are not strict JSON") from exc
+                route_reference = None
+                if args.internal_launch_route_snapshot is not None:
+                    snapshot = args.internal_launch_route_snapshot.expanduser().absolute()
+                    if snapshot.is_symlink() or not snapshot.is_file():
+                        raise CliError("launch route snapshot must be a real file")
+                    route_reference = {
+                        "path": str(snapshot.resolve(strict=True)),
+                        "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+                    }
+                bindings = {
+                    "repository_head": args.internal_launch_repository_head,
+                    "runtime_environment_id": args.internal_launch_runtime_environment_id,
+                    "campaign_root": str(args.internal_launch_campaign_path.expanduser().absolute()),
+                    "output_root": str(args.internal_launch_output_root.expanduser().absolute()),
+                    "resource_owner": {
+                        "pid": args.internal_launch_owner_pid,
+                        "starttime_ticks": args.internal_launch_owner_starttime,
+                        "authority_epoch": args.internal_launch_owner_authority_epoch,
+                    },
+                    "capabilities": capabilities,
+                    "route_snapshot": route_reference,
+                }
             current_release = load_current_release_snapshot(experiment_root)
             recorded = publish_launch_attempt(
                 campaign_root,
@@ -622,14 +725,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 state=args.internal_launch_attempt_state,
                 phase=args.internal_launch_attempt_phase,
                 manifest_sha256=(
-                    current_release.manifest_sha256
-                    if current_release.valid
-                    else None
+                    args.internal_launch_manifest_sha256
+                    if bindings is not None
+                    else (
+                        current_release.manifest_sha256
+                        if current_release.valid
+                        else None
+                    )
                 ),
                 exit_code=args.internal_launch_attempt_exit_code,
                 reason_code=args.internal_launch_attempt_reason_code,
                 detail=args.internal_launch_attempt_detail,
                 external_evidence=external_reference,
+                route=args.internal_launch_attempt_route,
+                bindings=bindings,
             )
             print(json.dumps(recorded, sort_keys=True))
             return 0

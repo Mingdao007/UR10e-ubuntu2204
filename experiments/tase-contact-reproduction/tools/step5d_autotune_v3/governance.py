@@ -28,16 +28,30 @@ GOVERNED_STATUS_SCHEMA = "step5d.autotune-v3/governed-status-v1"
 QUALIFICATION_CURRENT_POINTER_SCHEMA = (
     "step5d.autotune-v3/qualification-current-pointer-v1"
 )
-LAUNCH_ATTEMPT_SCHEMA = "step5d.autotune-v3/launch-attempt-v1"
+LAUNCH_ATTEMPT_SCHEMA_V1 = "step5d.autotune-v3/launch-attempt-v1"
+LAUNCH_ATTEMPT_SCHEMA = "step5d.bridge/launch-attempt-v2"
 CURRENT_LAUNCH_ATTEMPT_POINTER_SCHEMA = (
     "step5d.autotune-v3/current-launch-attempt-pointer-v1"
 )
 FSM_TRANSITION_ACTOR = "launcher_supervisor"
 
-LAUNCH_ATTEMPT_STATES = ("STARTED", "FAILED")
+LAUNCH_ATTEMPT_STATES = (
+    "STARTED",
+    "PASSED",
+    "COMPLETED",
+    "FAILED",
+    "CANCELLED",
+)
+LAUNCH_ATTEMPT_ROUTES = ("UNKNOWN", "manual_v2", "autotune_v3", "BLOCKED")
+LAUNCH_CAPABILITIES = ("bridge", "play", "arm", "motion", "zero", "tare")
+LAUNCH_ROUTE_BLOCKER_REASON_CODES = {
+    "CURRENT_RELEASE_INVALID",
+    "LOADED_PROGRAM_UNSUPPORTED",
+}
 LAUNCH_ATTEMPT_PHASES = (
     "runtime_gate",
     "route_resolve",
+    "manual_qualification",
     "manual_context",
     "manual_preflight",
     "manual_bridge_start",
@@ -98,6 +112,7 @@ REASON_ORDER = (
     "OWNER_DEPENDENCY_MISMATCH",
     "ACTIVE_SOURCE_CLOSURE_UNRESOLVED",
     "CURRENT_RELEASE_INVALID",
+    "LOADED_PROGRAM_UNSUPPORTED",
     "CURRENT_OBSERVATION_MISSING",
     "LAUNCH_ATTEMPT_POINTER_INVALID",
     "LAUNCH_ATTEMPT_ATTESTATION_INVALID",
@@ -206,6 +221,7 @@ INTERNAL_REASON_CODES = {
     "LEGACY_STATE_INTEGRITY_ERROR",
 }
 PHYSICAL_REASON_CODES = {
+    "LOADED_PROGRAM_UNSUPPORTED",
     "DASHBOARD_LOADED_PROGRAM_MISMATCH",
     "TP_RUNTIME_IDENTITY_UNAVAILABLE",
     "TP_RUNTIME_IDENTITY_MISMATCH",
@@ -627,29 +643,37 @@ def validate_campaign_lease(value: Any) -> dict[str, Any]:
 
 
 def validate_launch_attempt(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise GovernanceError("launch attempt must be a JSON object")
+    schema = value.get("schema")
+    v2 = schema == LAUNCH_ATTEMPT_SCHEMA
+    if schema not in {LAUNCH_ATTEMPT_SCHEMA_V1, LAUNCH_ATTEMPT_SCHEMA}:
+        raise GovernanceError("launch attempt schema differs")
+    fields = {
+        "schema",
+        "sequence",
+        "attempt_id",
+        "state",
+        "phase",
+        "observed_at_unix_ns",
+        "manifest_sha256",
+        "exit_code",
+        "reason_code",
+        "detail",
+        "external_evidence",
+    }
+    if v2:
+        fields.update({"route", "bindings"})
     row = _exact(
         value,
-        {
-            "schema",
-            "sequence",
-            "attempt_id",
-            "state",
-            "phase",
-            "observed_at_unix_ns",
-            "manifest_sha256",
-            "exit_code",
-            "reason_code",
-            "detail",
-            "external_evidence",
-        },
+        fields,
         "launch attempt",
     )
-    if row["schema"] != LAUNCH_ATTEMPT_SCHEMA:
-        raise GovernanceError("launch attempt schema differs")
     _positive_int(row["sequence"], "launch attempt sequence")
     _text(row["attempt_id"], "launch attempt ID")
     state = row["state"]
-    if state not in LAUNCH_ATTEMPT_STATES:
+    allowed_states = LAUNCH_ATTEMPT_STATES if v2 else ("STARTED", "FAILED")
+    if state not in allowed_states:
         raise GovernanceError("launch attempt state differs")
     phase = row["phase"]
     if phase not in LAUNCH_ATTEMPT_PHASES:
@@ -662,18 +686,77 @@ def validate_launch_attempt(value: Any) -> dict[str, Any]:
     if detail is not None:
         _text(detail, "launch attempt detail")
 
-    if state == "STARTED":
+    if v2:
+        route = row["route"]
+        if route not in LAUNCH_ATTEMPT_ROUTES:
+            raise GovernanceError("launch attempt route differs")
+        bindings = _exact(
+            row["bindings"],
+            {
+                "repository_head",
+                "runtime_environment_id",
+                "campaign_root",
+                "output_root",
+                "resource_owner",
+                "capabilities",
+                "route_snapshot",
+            },
+            "launch attempt bindings",
+        )
+        revision = _text(bindings["repository_head"], "launch repository HEAD")
+        if len(revision) != 40 or any(
+            character not in "0123456789abcdef" for character in revision
+        ):
+            raise GovernanceError("launch repository HEAD must be a lowercase Git SHA-1")
+        _sha256(bindings["runtime_environment_id"], "launch runtime environment ID")
+        for name in ("campaign_root", "output_root"):
+            bound_path = Path(_text(bindings[name], f"launch {name}"))
+            if not bound_path.is_absolute():
+                raise GovernanceError(f"launch {name} must be absolute")
+        owner = _exact(
+            bindings["resource_owner"],
+            {"pid", "starttime_ticks", "authority_epoch"},
+            "launch resource owner",
+        )
+        _positive_int(owner["pid"], "launch owner PID")
+        _positive_int(owner["starttime_ticks"], "launch owner starttime")
+        _positive_int(owner["authority_epoch"], "launch owner authority epoch")
+        capabilities = _exact(
+            bindings["capabilities"], set(LAUNCH_CAPABILITIES), "launch capabilities"
+        )
+        if any(not isinstance(capabilities[name], bool) for name in LAUNCH_CAPABILITIES):
+            raise GovernanceError("launch capabilities must be Boolean")
+        if capabilities["bridge"] is not True:
+            raise GovernanceError("canonical launch requires bridge capability")
+        route_snapshot = bindings["route_snapshot"]
+        if route_snapshot is not None:
+            route_snapshot = _exact(
+                route_snapshot, {"path", "sha256"}, "launch route snapshot"
+            )
+            snapshot_path = Path(_text(route_snapshot["path"], "route snapshot path"))
+            if not snapshot_path.is_absolute():
+                raise GovernanceError("route snapshot path must be absolute")
+            _sha256(route_snapshot["sha256"], "route snapshot SHA-256")
+        elif route != "UNKNOWN":
+            raise GovernanceError("resolved route requires a route snapshot")
+
+    if state in {"STARTED", "PASSED", "COMPLETED"}:
         if any(
             row[name] is not None
             for name in ("exit_code", "reason_code", "detail", "external_evidence")
         ):
-            raise GovernanceError("started launch attempt contains failure fields")
+            raise GovernanceError("non-failed launch attempt contains failure fields")
     else:
         exit_code = _positive_int(row["exit_code"], "launch attempt exit code")
         if exit_code > 255:
             raise GovernanceError("launch attempt exit code exceeds shell status range")
         reason = _text(row["reason_code"], "launch attempt reason code")
-        if reason != "LAUNCH_ATTEMPT_FAILED" and reason not in EXTERNAL_REASON_CODES:
+        allowed_reasons = {
+            "LAUNCH_ATTEMPT_FAILED",
+            "LAUNCH_ATTEMPT_CANCELLED",
+            *LAUNCH_ROUTE_BLOCKER_REASON_CODES,
+        }
+        if reason not in allowed_reasons and reason not in EXTERNAL_REASON_CODES:
             raise GovernanceError("launch attempt reason code differs")
         external = row["external_evidence"]
         if reason in EXTERNAL_REASON_CODES:
@@ -1161,6 +1244,8 @@ def publish_launch_attempt(
     reason_code: str | None = None,
     detail: str | None = None,
     external_evidence: Mapping[str, Any] | None = None,
+    route: str | None = None,
+    bindings: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     root = _campaign_root(campaign_root)
     current: Mapping[str, Any] | None = None
@@ -1171,9 +1256,10 @@ def publish_launch_attempt(
     else:
         sequence = 1
 
-    payload = validate_launch_attempt(
-        {
-            "schema": LAUNCH_ATTEMPT_SCHEMA,
+    raw_payload: dict[str, Any] = {
+            "schema": (
+                LAUNCH_ATTEMPT_SCHEMA if bindings is not None else LAUNCH_ATTEMPT_SCHEMA_V1
+            ),
             "sequence": sequence,
             "attempt_id": attempt_id,
             "state": state,
@@ -1191,7 +1277,10 @@ def publish_launch_attempt(
                 None if external_evidence is None else dict(external_evidence)
             ),
         }
-    )
+    if bindings is not None:
+        raw_payload["route"] = "UNKNOWN" if route is None else route
+        raw_payload["bindings"] = dict(bindings)
+    payload = validate_launch_attempt(raw_payload)
     if current is not None:
         if payload["observed_at_unix_ns"] < current["observed_at_unix_ns"]:
             raise GovernanceError("launch attempt observation cannot move backwards")
@@ -1199,13 +1288,65 @@ def publish_launch_attempt(
         if not same_attempt and payload["state"] != "STARTED":
             raise GovernanceError("a new launch attempt must start before failing")
         if same_attempt:
-            if current["state"] != "STARTED":
-                raise GovernanceError("a failed launch attempt is terminal")
+            if current["state"] in {"COMPLETED", "FAILED", "CANCELLED"}:
+                raise GovernanceError("a completed, failed, or cancelled launch attempt is terminal")
             current_phase = LAUNCH_ATTEMPT_PHASES.index(current["phase"])
             next_phase = LAUNCH_ATTEMPT_PHASES.index(payload["phase"])
             if next_phase < current_phase:
                 raise GovernanceError("launch attempt phase cannot move backwards")
-            if payload["state"] == "FAILED" and next_phase != current_phase:
+            v2_transition = (
+                current["schema"] == LAUNCH_ATTEMPT_SCHEMA
+                and payload["schema"] == LAUNCH_ATTEMPT_SCHEMA
+            )
+            if v2_transition:
+                current_bindings = current["bindings"]
+                next_bindings = payload["bindings"]
+                for binding_name in (
+                    "repository_head",
+                    "runtime_environment_id",
+                    "campaign_root",
+                    "output_root",
+                    "resource_owner",
+                    "capabilities",
+                ):
+                    if current_bindings[binding_name] != next_bindings[binding_name]:
+                        raise GovernanceError(
+                            f"launch attempt {binding_name} binding cannot change"
+                        )
+                if current["route"] != payload["route"] and not (
+                    current["route"] == "UNKNOWN"
+                    and current["phase"] == "route_resolve"
+                    and next_phase == current_phase
+                    and payload["route"] in {"manual_v2", "autotune_v3", "BLOCKED"}
+                ):
+                    raise GovernanceError("launch attempt route cannot change")
+                if (
+                    current_bindings["route_snapshot"]
+                    != next_bindings["route_snapshot"]
+                    and not (
+                        current_bindings["route_snapshot"] is None
+                        and next_bindings["route_snapshot"] is not None
+                        and current["phase"] == "route_resolve"
+                        and next_phase == current_phase
+                    )
+                ):
+                    raise GovernanceError(
+                        "launch attempt route snapshot cannot change"
+                    )
+                if current["manifest_sha256"] != payload["manifest_sha256"] and not (
+                    current["phase"] in {"route_resolve", "tp_delivery"}
+                    and next_phase == current_phase
+                ):
+                    raise GovernanceError(
+                        "launch attempt release binding cannot change in this phase"
+                    )
+                if current["state"] == "STARTED":
+                    if next_phase != current_phase or payload["state"] == "STARTED":
+                        raise GovernanceError("active launch phase must finish before advancing")
+                elif current["state"] == "PASSED":
+                    if payload["state"] != "STARTED" or next_phase <= current_phase:
+                        raise GovernanceError("passed launch phase requires the next phase to start")
+            elif payload["state"] == "FAILED" and next_phase != current_phase:
                 raise GovernanceError("launch attempt must fail in its active phase")
 
     if payload["external_evidence"] is not None and not _reference_is_current(

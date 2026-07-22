@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 import time
 from types import SimpleNamespace
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from ur10e_experiment_runtime.physical_prior import STEP5D_V3_PHYSICAL_PRIOR
 from step5d_autotune_contract import (
@@ -31,14 +31,26 @@ from step5d_autotune_evaluator import (
     read_csv_rows,
 )
 from step5d_autotune_live_driver import AtomicCommandMailbox, TrialArtifactProducer
-from step5d_autotune_state_machine import HostCommand, HostPacket
+from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
+from step5d_autotune_v3.dashboard import dashboard_exchange
+from step5d_autotune_v3.runtime_gate import loaded_program_matches
 from step5d_autotune_v3.state import atomic_json
 from step5d_autotune_v3.profile import canonical_json_bytes
 from step5d_autotune_v3.runtime_profile import (
     normalized_overlay_sha256,
     normalize_trial_overlay,
 )
-from step5d_manual_bridge import PROGRAM, PROTOCOL, require_canonical_shell, strict_object
+from step5d_bridge_status import (
+    readiness_claim,
+    resolve_status as resolve_bridge_status,
+)
+from step5d_manual_bridge import (
+    PROGRAM,
+    PROTOCOL,
+    ROOT,
+    require_canonical_shell,
+    strict_object,
+)
 from step5d_manual_campaign_plan import (
     INITIAL_GROUPS,
     TrialScore,
@@ -57,16 +69,60 @@ from step5d_manual_profile import (
     DEFAULT_LAUNCH_PROFILE,
     load_manual_launch_profile as load_launch_profile,
 )
+from step5d_manual_authorization import (
+    AUTHORIZATION_SCHEMA,
+    CAPABILITIES,
+    ManualAuthorizationError,
+    load_capability_authorization as _load_capability_authorization,
+)
+from step5d_manual_qualification import validate_result as validate_manual_qualification
+from run_step5d_manual_bridge import ARM_GATE_SCHEMA
 
 
 BACKEND_ID = "step5d_manual_hold_v1"
 READY_HOME = 10
 READY_HOME_NEXT = 78
 STATUS_SCHEMA = "step5d.manual-v2/governed-status-v1"
+EXPECTED_PROGRAM = f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
+ARM_ACKNOWLEDGED_STATES = frozenset(
+    {
+        int(TpLoopState.ARMED),
+        int(TpLoopState.RUN),
+        int(TpLoopState.TERMINAL),
+        int(TpLoopState.RETRACT),
+        int(TpLoopState.RETURN),
+        int(TpLoopState.HOME_VERIFY),
+        int(TpLoopState.WAIT_ACK),
+        int(TpLoopState.WAIT_INFRA_READY),
+        int(TpLoopState.READY_NEAR),
+        int(TpLoopState.READY_HOME_CLOSED),
+        int(TpLoopState.READY_HOME_NEXT),
+    }
+)
 
 
 class ManualLiveError(RuntimeError):
     pass
+
+
+def load_capability_authorization(
+    path: Path,
+    *,
+    attempt_id: str,
+    campaign_id: str,
+    release_manifest_sha256: str,
+    now_ns: int | None = None,
+) -> dict[str, Any]:
+    try:
+        return _load_capability_authorization(
+            path,
+            attempt_id=attempt_id,
+            campaign_id=campaign_id,
+            release_manifest_sha256=release_manifest_sha256,
+            now_ns=now_ns,
+        )
+    except ManualAuthorizationError as exc:
+        raise ManualLiveError(str(exc)) from exc
 
 
 def _sha(payload: Mapping[str, Any]) -> str:
@@ -266,6 +322,10 @@ def _publish_status(
     total: int,
     next_group: str | None,
     blocker: str | None = None,
+    capabilities: Mapping[str, bool] | None = None,
+    authorization_file: Path | None = None,
+    controller_observation: Mapping[str, Any] | None = None,
+    launch_attempt_id: str,
 ) -> dict[str, Any]:
     bridge_launch = strict_object(
         args.bridge_output_root / "bridge_launch.json", "manual bridge launch"
@@ -278,12 +338,37 @@ def _publish_status(
         "state": state,
         "release_sha": args.release_manifest_sha256,
         "campaign_id": args.campaign_id,
+        "launch_attempt_id": launch_attempt_id,
         "campaign_root": str(args.campaign_root.resolve()),
         "output_root": str(args.bridge_output_root.resolve()),
-        "loaded_program": f"/programs/andyl/kunwei/step5/{PROGRAM}.urp",
+        "loaded_program": EXPECTED_PROGRAM,
+        "controller_observation": (
+            None if controller_observation is None else dict(controller_observation)
+        ),
         "bridge_pid": bridge_pid,
         "bridge_heartbeat": _pid_alive(bridge_pid),
-        "play_prompt_ready": state == "WAITING_FOR_IDENTITY_PLAY",
+        "offline_qualification": {
+            "path": str(args.qualification_result.resolve(strict=True)),
+            "sha256": hashlib.sha256(args.qualification_result.read_bytes()).hexdigest(),
+        },
+        "offline_proven": True,
+        "capabilities": {
+            name: bool((capabilities or {}).get(name, name == "bridge"))
+            for name in CAPABILITIES
+        },
+        "authorization": (
+            None
+            if authorization_file is None
+            else {
+                "path": str(authorization_file.resolve(strict=True)),
+                "sha256": hashlib.sha256(authorization_file.read_bytes()).hexdigest(),
+            }
+        ),
+        "play_prompt_ready": (
+            state == "WAITING_FOR_IDENTITY_PLAY"
+            and capabilities is not None
+            and all(capabilities.get(name) is True for name in ("play", "arm", "motion"))
+        ),
         "prepared_group": next_group,
         "completed_trials": completed,
         "planned_trials": total,
@@ -291,12 +376,51 @@ def _publish_status(
         "blocker": blocker,
         "next_action": (
             "press Play once on the loaded Manual V2 program"
-            if state == "WAITING_FOR_IDENTITY_PLAY"
+            if state == "WAITING_FOR_IDENTITY_PLAY" and capabilities is not None
+            else "await explicit Play/ARM/motion authorization or stop"
+            if state == "BRIDGE_ALIVE_NO_ARM"
+            else "wait for exact TP ARM acknowledgement"
+            if state in {"PLAY_OBSERVED_IDENTITY_RECHECKED", "ARM_PENDING"}
             else "none" if state in {"RUNNING", "COMPLETE"} else "inspect blocker evidence"
         ),
     }
     atomic_json(_status_path(args), payload)
     return payload
+
+
+def _publish_canonical_readiness_claim(
+    args: argparse.Namespace, required_state: str
+) -> dict[str, Any]:
+    try:
+        status = resolve_bridge_status(ROOT)
+        claim = readiness_claim(status, required_state)
+    except Exception as exc:
+        raise ManualLiveError(
+            "canonical Manual readiness claim was not admitted: "
+            f"{type(exc).__name__}:{exc}"
+        ) from exc
+    atomic_json(args.bridge_output_root / "readiness-claim.json", claim)
+    return claim
+
+
+def _observe_controller_identity(
+    robot_host: str, *, timeout_s: float = 2.0
+) -> dict[str, Any]:
+    dashboard = dashboard_exchange(
+        robot_host,
+        ["programState", "safetymode", "get loaded program"],
+        timeout=timeout_s,
+    )
+    loaded = dashboard["get loaded program"]
+    if not loaded_program_matches(loaded, EXPECTED_PROGRAM):
+        raise ManualLiveError("Manual loaded program changed before ARM")
+    return {
+        "observed_at_unix_ns": time.time_ns(),
+        "loaded_program_response": loaded,
+        "program_state": dashboard["programState"],
+        "safety_mode": dashboard["safetymode"],
+        "expected_loaded_program": EXPECTED_PROGRAM,
+    }
 
 
 def _group_id(request: Mapping[str, Any]) -> str:
@@ -318,6 +442,19 @@ def _terminal_observation(row: Mapping[str, str]) -> dict[str, int]:
         "logical_batch_sequence": int(float(row["ur_output_int_register_34"])),
         "batch_row_index": int(float(row["ur_output_int_register_31"])),
     }
+
+
+def _arm_acknowledged(observed: Mapping[str, int], arm: HostPacket) -> bool:
+    return bool(
+        observed.get("state") in ARM_ACKNOWLEDGED_STATES
+        and observed.get("campaign_epoch") == arm.campaign_epoch
+        and observed.get("trial_id") == arm.trial_id
+        and observed.get("candidate_token") == arm.candidate_token
+        and observed.get("execution_profile_id") == arm.execution_profile_id
+        and observed.get("consumed_command_seq") == arm.command_seq
+        and observed.get("logical_batch_sequence") == arm.logical_batch_sequence
+        and observed.get("batch_row_index") == 1
+    )
 
 
 def _score_capture(
@@ -395,22 +532,37 @@ def _load_initial_scores(root: Path) -> dict[str, TrialScore]:
     return scores
 
 
-def _wait_for_ready_home(args: argparse.Namespace, deadline: float) -> dict[str, int]:
+def _require_preplay_observation(observed: Mapping[str, int]) -> None:
+    if observed["state"] == READY_HOME and observed["command"] == 0:
+        return
+    identity = (
+        observed["campaign_epoch"],
+        observed["trial_id"],
+        observed["consumed_command_seq"],
+    )
+    if observed["state"] != 0 or identity != (0, 0, 0):
+        raise ManualLiveError("pre-Play TP identity is neither zero nor READY_HOME")
+
+
+def _wait_for_ready_home(
+    args: argparse.Namespace,
+    deadline: float,
+    *,
+    refresh_readiness_claim: Callable[[], Any] | None = None,
+) -> dict[str, int]:
+    next_claim_refresh = 0.0
     while time.monotonic() < deadline:
+        if refresh_readiness_claim is not None and time.monotonic() >= next_claim_refresh:
+            refresh_readiness_claim()
+            next_claim_refresh = time.monotonic() + 0.5
         _, observed = validate_bridge(
             args.bridge_output_root,
             args.release_manifest_sha256,
             require_mailbox_absent=True,
         )
+        _require_preplay_observation(observed)
         if observed["state"] == READY_HOME and observed["command"] == 0:
             return observed
-        identity = (
-            observed["campaign_epoch"],
-            observed["trial_id"],
-            observed["consumed_command_seq"],
-        )
-        if observed["state"] != 0 or identity != (0, 0, 0):
-            raise ManualLiveError("pre-Play TP identity is neither zero nor READY_HOME")
         time.sleep(0.1)
     raise ManualLiveError("physical Play was not observed before timeout")
 
@@ -432,16 +584,45 @@ def _issue(args: argparse.Namespace, mailbox: Path) -> tuple[dict[str, Any], Hos
             raise ManualLiveError("manual queue contains no request to ARM")
 
     prepared_values: tuple[HostPacket, Any] | None = None
+    published_command: Any | None = None
 
     def sink(document: Mapping[str, Any]) -> None:
-        nonlocal prepared_values
+        nonlocal prepared_values, published_command
         prepared_values = _prepared(document, plant_epoch=args.plant_epoch)
         host, prepared = prepared_values
-        AtomicCommandMailbox(
+        command_mailbox = AtomicCommandMailbox(
             mailbox,
             network_mode=True,
             launch_profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
-        ).send_command(host, prepared_trial=prepared)
+        )
+        command_mailbox.send_command(host, prepared_trial=prepared)
+        published_command = command_mailbox.read_latest()
+        if published_command is None or published_command.packet != host:
+            raise ManualLiveError("manual ARM mailbox vanished before gate publication")
+        attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", "")
+        authorization = load_capability_authorization(
+            args.authorization_file,
+            attempt_id=attempt_id,
+            campaign_id=args.campaign_id,
+            release_manifest_sha256=args.release_manifest_sha256,
+        )
+        atomic_json(
+            mailbox.parent / "manual_arm_gate.json",
+            {
+                "schema": ARM_GATE_SCHEMA,
+                "attempt_id": attempt_id,
+                "campaign_id": args.campaign_id,
+                "release_manifest_sha256": args.release_manifest_sha256,
+                "created_at_unix_ns": time.time_ns(),
+                "authorization": {
+                    "path": str(args.authorization_file.expanduser().absolute()),
+                    "sha256": hashlib.sha256(
+                        args.authorization_file.read_bytes()
+                    ).hexdigest(),
+                },
+                "arm_binding": published_command.arm_gate_binding,
+            },
+        )
 
     issued = issue_prepared_intent(
         state_path=args.state,
@@ -452,9 +633,15 @@ def _issue(args: argparse.Namespace, mailbox: Path) -> tuple[dict[str, Any], Hos
     if prepared_values is None:
         raise ManualLiveError("manual ARM was not atomically published")
     host, prepared = prepared_values
-    decoded = AtomicCommandMailbox(mailbox, network_mode=True).read_latest()
+    decoded = AtomicCommandMailbox(
+        mailbox,
+        network_mode=True,
+        launch_profile=load_launch_profile(DEFAULT_LAUNCH_PROFILE),
+    ).read_latest()
     if decoded is None or decoded.packet != host or decoded.binding.trial_uid != prepared.trial.trial_uid:
         raise ManualLiveError("manual ARM mailbox readback differs")
+    if published_command is None or decoded.sha256 != published_command.sha256:
+        raise ManualLiveError("manual ARM mailbox changed after gate publication")
     return issued, host, prepared.trial
 
 
@@ -482,6 +669,11 @@ def _complete_at_home(
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     args.campaign_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    validate_manual_qualification(
+        ROOT,
+        args.qualification_result,
+        release_manifest_sha256=args.release_manifest_sha256,
+    )
     seed_initial_grid(
         args.queue,
         campaign_id=args.campaign_id,
@@ -497,20 +689,93 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             release_sha=args.release_manifest_sha256,
         )["completed_sequences"])
     next_group = _group_id(queue["requests"][completed])
+    attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", "")
+    if not attempt_id:
+        raise ManualLiveError("canonical launch attempt identity is missing")
     _publish_status(
         args,
-        state="WAITING_FOR_IDENTITY_PLAY",
+        state="BRIDGE_ALIVE_NO_ARM",
         observed=None,
         completed=completed,
         total=len(INITIAL_GROUPS),
         next_group=next_group,
+        launch_attempt_id=attempt_id,
     )
     mailbox, _ = validate_bridge(
         args.bridge_output_root,
         args.release_manifest_sha256,
         require_mailbox_absent=True,
     )
-    observed = _wait_for_ready_home(args, time.monotonic() + args.play_timeout_s)
+    authorization_deadline = time.monotonic() + args.play_timeout_s
+    while True:
+        if not args.authorization_file.exists() and not args.authorization_file.is_symlink():
+            if time.monotonic() >= authorization_deadline:
+                raise ManualLiveError("explicit Play/ARM/motion authorization was not supplied")
+            time.sleep(0.1)
+            continue
+        authorization = load_capability_authorization(
+            args.authorization_file,
+            attempt_id=attempt_id,
+            campaign_id=args.campaign_id,
+            release_manifest_sha256=args.release_manifest_sha256,
+        )
+        break
+    capabilities = authorization["capabilities"]
+
+    def require_current_authorization() -> None:
+        current = load_capability_authorization(
+            args.authorization_file,
+            attempt_id=attempt_id,
+            campaign_id=args.campaign_id,
+            release_manifest_sha256=args.release_manifest_sha256,
+        )
+        if current["capabilities"] != capabilities:
+            raise ManualLiveError("Manual authorization capabilities changed")
+
+    def refresh_preplay_claim() -> dict[str, Any]:
+        require_current_authorization()
+        _, bridge_observation = validate_bridge(
+            args.bridge_output_root,
+            args.release_manifest_sha256,
+            require_mailbox_absent=True,
+        )
+        _require_preplay_observation(bridge_observation)
+        controller = _observe_controller_identity(args.robot_host)
+        _publish_status(
+            args,
+            state="WAITING_FOR_IDENTITY_PLAY",
+            observed=None,
+            completed=completed,
+            total=len(INITIAL_GROUPS),
+            next_group=next_group,
+            capabilities=capabilities,
+            authorization_file=args.authorization_file,
+            controller_observation=controller,
+            launch_attempt_id=attempt_id,
+        )
+        _publish_canonical_readiness_claim(args, "WAITING_FOR_IDENTITY_PLAY")
+        return controller
+
+    controller_observation = refresh_preplay_claim()
+    observed = _wait_for_ready_home(
+        args,
+        time.monotonic() + args.play_timeout_s,
+        refresh_readiness_claim=refresh_preplay_claim,
+    )
+    require_current_authorization()
+    controller_observation = _observe_controller_identity(args.robot_host)
+    _publish_status(
+        args,
+        state="PLAY_OBSERVED_IDENTITY_RECHECKED",
+        observed=observed,
+        completed=completed,
+        total=len(INITIAL_GROUPS),
+        next_group=next_group,
+        capabilities=capabilities,
+        authorization_file=args.authorization_file,
+        controller_observation=controller_observation,
+        launch_attempt_id=attempt_id,
+    )
     if not args.state.exists() and not args.state.is_symlink():
         seed_home_state(
             args.state,
@@ -520,18 +785,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             last_trial_id=observed["trial_id"],
             last_command_seq=observed["consumed_command_seq"],
         )
-    authorization = {
-        "schema": "step5d.manual-hold/arm-authorization-v1",
-        "authorized_at": datetime.now(timezone.utc).isoformat(),
-        "authorization_source": "explicit_current_turn_user_request",
-        "bridge_output_root": str(args.bridge_output_root.resolve()),
-        "arm_authorized": True,
-        "motion_authorized": True,
-    }
-    auth_path = args.state.parent / "arm_authorization.json"
-    if not auth_path.exists():
-        _write_once(auth_path, authorization)
-
     results_root = args.campaign_root / "manual_results"
     score_by_group = _load_initial_scores(results_root)
     last_arm: HostPacket | None = None
@@ -570,26 +823,51 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 completed=completed,
                 total=len(queue["requests"]),
                 next_group=None,
+                capabilities=capabilities,
+                authorization_file=args.authorization_file,
+                controller_observation=controller_observation,
+                launch_attempt_id=attempt_id,
             )
         request = queue["requests"][completed]
+        require_current_authorization()
+        controller_observation = _observe_controller_identity(args.robot_host)
         issued, arm, trial = _issue(args, mailbox)
         _, last_prepared = _prepared(issued, plant_epoch=args.plant_epoch)
         last_arm = arm
         group_id = _group_id(request)
         _publish_status(
             args,
-            state="RUNNING",
+            state="ARM_PENDING",
             observed=observed,
             completed=completed,
             total=len(queue["requests"]),
             next_group=group_id,
+            capabilities=capabilities,
+            authorization_file=args.authorization_file,
+            controller_observation=controller_observation,
+            launch_attempt_id=attempt_id,
         )
         deadline = time.monotonic() + args.trial_timeout_s
+        running_published = False
         while time.monotonic() < deadline:
             row = _latest_bridge_row(
                 args.bridge_output_root / "runtime/bridge/bridge_rtde_500hz.csv"
             )
             terminal = _terminal_observation(row)
+            if not running_published and _arm_acknowledged(terminal, arm):
+                _publish_status(
+                    args,
+                    state="RUNNING",
+                    observed=terminal,
+                    completed=completed,
+                    total=len(queue["requests"]),
+                    next_group=group_id,
+                    capabilities=capabilities,
+                    authorization_file=args.authorization_file,
+                    controller_observation=controller_observation,
+                    launch_attempt_id=attempt_id,
+                )
+                running_published = True
             expected = {
                 "campaign_epoch": arm.campaign_epoch,
                 "trial_id": arm.trial_id,
@@ -659,6 +937,9 @@ def main() -> int:
     parser.add_argument("--state", type=Path, required=True)
     parser.add_argument("--campaign-id", required=True)
     parser.add_argument("--release-manifest-sha256", required=True)
+    parser.add_argument("--authorization-file", type=Path, required=True)
+    parser.add_argument("--qualification-result", type=Path, required=True)
+    parser.add_argument("--robot-host", default="192.168.1.18")
     parser.add_argument("--launch-profile", type=Path, default=DEFAULT_LAUNCH_PROFILE)
     parser.add_argument("--plant-epoch", type=int, default=1)
     parser.add_argument("--play-timeout-s", type=float, default=900.0)
@@ -678,6 +959,9 @@ def main() -> int:
                     total=len(INITIAL_GROUPS),
                     next_group=None,
                     blocker=f"{type(exc).__name__}:{exc}",
+                    launch_attempt_id=os.environ.get(
+                        "STEP5D_V3_LAUNCH_ATTEMPT_ID", ""
+                    ),
                 )
         except Exception:
             pass
