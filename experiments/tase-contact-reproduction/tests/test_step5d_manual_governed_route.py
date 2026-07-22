@@ -204,8 +204,29 @@ def test_route_selects_v3_only_for_exact_current_loaded_program(monkeypatch) -> 
     ),
 )
 def test_v3_delivery_recovery_route_precedes_current_release_repair(
-    monkeypatch: pytest.MonkeyPatch, program_id: str, expected_mode: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    program_id: str,
+    expected_mode: str,
 ) -> None:
+    root = tmp_path / "experiment"
+    for relative in (
+        Path("config/step5d/v3_active_surface.json"),
+        Path("config/step5d/current.json"),
+    ):
+        destination = root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((ROOT / relative).read_bytes())
+    pointer = json.loads((root / "config/step5d/current.json").read_text())
+    manifest = Path(pointer["manifest_path"])
+    destination = root / manifest
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes((ROOT / manifest).read_bytes())
+
+    current = route.load_current_release_snapshot(root)
+    assert current.valid is False
+    assert current.error == "GovernanceError:TP runtime identity fields differ"
+
     monkeypatch.setattr(
         route,
         "dashboard_exchange",
@@ -218,17 +239,8 @@ def test_v3_delivery_recovery_route_precedes_current_release_repair(
             ),
         },
     )
-    monkeypatch.setattr(
-        route,
-        "load_current_release_snapshot",
-        lambda _root: type(
-            "Release",
-            (),
-            {"valid": False, "manifest_sha256": None},
-        )(),
-    )
 
-    result = route.resolve(root=ROOT, robot_host="192.0.2.1", timeout_s=0.1)
+    result = route.resolve(root=root, robot_host="192.0.2.1", timeout_s=0.1)
 
     assert result["route"] == "autotune_v3"
     assert result["autotune_route_mode"] == expected_mode
