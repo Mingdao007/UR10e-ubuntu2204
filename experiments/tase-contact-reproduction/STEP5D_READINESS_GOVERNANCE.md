@@ -6,7 +6,7 @@ authority.
 
 ## Canonical authority
 
-- The only public live launcher is `scripts/step5d-autotune-v3.sh bridge`.
+- The only public live launcher is `scripts/step5d-autotune-v3.sh bridge-live`.
 - The only public status reducer is
   `scripts/step5d-autotune-v3.sh status --json`.
 - A caller that needs permission to use readiness language must additionally

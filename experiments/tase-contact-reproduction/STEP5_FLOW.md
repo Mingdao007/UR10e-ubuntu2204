@@ -22,7 +22,7 @@ r009, r008, r006, and r004 are historical-only and cannot be treated as the
 active release. Until the r010 atomic promotion and current observed predicates
 both verify, the route remains fail-closed and no `BENCH_READY` claim is valid.
 
-The only public live command is `step5d-autotune-v3.sh bridge`; the only resume
+The only public live command is `step5d-autotune-v3.sh bridge-live`; the only resume
 anchor is `step5d-autotune-v3.sh status --json`. The Python live/bridge/campaign
 runners are internal workers, not operator entrypoints. The old
 `step5d-autotune-live.sh bridge` name is a passthrough adapter only through TP
@@ -1169,12 +1169,19 @@ phrase for any Step5 stage.
 
 On a valid trigger:
 
-1. For governed Step5d V3, invoke `scripts/step5d-autotune-v3.sh bridge` once;
+1. For governed Step5d V3, invoke `scripts/step5d-autotune-v3.sh bridge-live` once;
    do not ask for stage-by-stage authorization. The invocation is the typed
    campaign authorization bound to the release, campaign, and safety envelope.
-2. The canonical shell performs status re-anchor, candidate build, production
-   qualification, TP delivery/fresh read-back, atomic promotion/load, campaign
-   preparation, and preflight. The operator owns only physical Play and Stop.
+2. `release-certify` performs only offline/no-motion candidate staging and
+   release qualification. `tp-deliver` consumes that certificate, uploads,
+   performs a fresh controller GET, writes the immutable delivery receipt, and
+   promotes the current-release pointer; it never sends Dashboard Load or Play.
+   `bridge-live` consumes the promoted receipt and performs a read-only
+   exact-program-loaded/stopped observation before creating an attempt. If the
+   TP has not loaded and stopped the exact program, it exits 75 with
+   `EXTERNAL_ACTION_REQUIRED`; after the operator completes Load/Stop, rerun the
+   same `bridge-live` command. The operator separately owns physical Play and
+   Stop.
 3. `WAITING_FOR_PLAY` is the only state that permits a Play prompt. Every ARM
    still requires a fresh exact-command grant; readiness observations cannot
    authorize ARM and a prior grant cannot be reused by the next command.
