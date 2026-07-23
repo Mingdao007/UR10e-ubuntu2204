@@ -10,25 +10,21 @@ import os
 from pathlib import Path
 import sys
 import tempfile
-import time
 import uuid
 
 import promote_step5d_r009_atomic_release as promote
 import upload_ur_tp_package as upload
-from step5d_autotune_v3.dashboard import (
-    DashboardProgramLoadError,
-    ensure_exact_loaded_program,
+from step5d_autotune_v3.delivery_observation import (
+    build_delivery_observation,
+    delivery_index_path,
+    load_delivery_observation,
 )
-from step5d_autotune_v3.delivery_observation import build_delivery_observation
-from step5d_autotune_v3.profile import ContractViolation, load_contract
 from step5d_autotune_v3.release_identity import (
-    SAFETY_ENVELOPE_PATH,
     ReleaseIdentity,
     ReleaseIdentityError,
     load_current_release,
-    load_current_release_for_source_rebind,
+    load_current_release_for_compatible_readback,
     load_local_release_candidate,
-    release_payload_path,
 )
 from step5d_autotune_v3.runtime_identity import (
     RuntimeIdentityError,
@@ -38,10 +34,6 @@ from step5d_autotune_v3.runtime_installation import (
     RuntimeInstallationError,
     owner_dependency,
     require_runtime_profile,
-)
-from step5d_autotune_v3.runtime_functional_gates import (
-    RuntimeFunctionalGateError,
-    load_gpu_functional_attestation,
 )
 from step5d_autotune_v3.qualification import (
     QualificationError,
@@ -132,79 +124,9 @@ def _artifact_program(local_dir: Path) -> str:
 def _require_canonical_shell() -> None:
     launcher = (ROOT / "scripts/step5d-autotune-v3.sh").resolve()
     if os.environ.get(CANONICAL_LAUNCH_ENV) != str(launcher):
-        raise RuntimeError(f"use {launcher} bridge")
+        raise RuntimeError(f"use {launcher} tp-deliver")
     if os.environ.get(SHELL_PID_ENV) != str(os.getppid()):
-        raise RuntimeError(f"use {launcher} bridge")
-
-
-def _program_load_host(root: Path, release: ReleaseIdentity) -> str:
-    contract_path = release_payload_path(root, release, SAFETY_ENVELOPE_PATH)
-    contract = load_contract(contract_path)
-    try:
-        robot_host = contract["effective_fields"]["runtime_identity"]["robot_host"]
-    except (KeyError, TypeError) as exc:
-        raise ContractViolation("immutable release contract lacks robot_host") from exc
-    if not isinstance(robot_host, str) or not robot_host or any(
-        character in robot_host for character in ("\x00", "\r", "\n")
-    ):
-        raise ContractViolation("immutable release robot_host is unsafe")
-    return robot_host
-
-
-def _internal_program_load_observation(
-    release: ReleaseIdentity,
-    error: BaseException,
-) -> dict[str, object]:
-    return {
-        "schema": "step5d.autotune-v3/program-load-observation-v1",
-        "ok": False,
-        "reason_code": "PROGRAM_LOAD_BINDING_INVALID",
-        "blocker_class": "INTERNAL",
-        "observed_at_unix_ns": time.time_ns(),
-        "release_binding": {
-            "manifest_sha256": release.manifest_sha256,
-            "program_id": release.program_id,
-            "controller_target": release.controller_target,
-        },
-        "dashboard_endpoint": None,
-        "expected_program": release.controller_target,
-        "before_get_loaded_program": None,
-        "load_attempted": False,
-        "load_response": None,
-        "after_get_loaded_program": None,
-        "detail": f"{type(error).__name__}:{error}",
-    }
-
-
-def _load_release_program(
-    root: Path,
-    release: ReleaseIdentity,
-    evidence_path: Path,
-) -> tuple[int, dict[str, object]]:
-    try:
-        robot_host = _program_load_host(root, release)
-        observation = ensure_exact_loaded_program(
-            robot_host,
-            release.controller_target,
-        )
-    except DashboardProgramLoadError as exc:
-        observation = exc.observation
-        return_code = 69
-    except (ContractViolation, ReleaseIdentityError) as exc:
-        observation = _internal_program_load_observation(release, exc)
-        return_code = 70
-    else:
-        return_code = 0
-    observation = {
-        **observation,
-        "release_binding": {
-            "manifest_sha256": release.manifest_sha256,
-            "program_id": release.program_id,
-            "controller_target": release.controller_target,
-        },
-    }
-    atomic_json(evidence_path, observation)
-    return return_code, observation
+        raise RuntimeError(f"use {launcher} tp-deliver")
 
 
 def _validate_candidate_and_qualification(
@@ -325,18 +247,14 @@ def main(argv: list[str] | None = None) -> int:
         evidence_output.relative_to(evidence_root)
     except ValueError as exc:
         raise RuntimeError("delivery evidence output escapes runs evidence root") from exc
-    program_load_evidence = evidence_output.with_name("program-load-observation.json")
-    if program_load_evidence.is_symlink():
-        raise RuntimeError("program-load evidence output is unsafe")
     if args.release_candidate is None or args.qualification_result is None:
         raise RuntimeError(
-            "--release-candidate and --qualification-result are required before live delivery"
+            "--release-candidate and --qualification-result are required before TP delivery"
         )
     try:
-        runtime_pointer = require_runtime_profile("control")
-        load_gpu_functional_attestation(runtime_pointer=runtime_pointer)
-    except (RuntimeInstallationError, RuntimeFunctionalGateError) as exc:
-        raise RuntimeError(f"production environment gate failed: {exc}") from exc
+        require_runtime_profile("control")
+    except RuntimeInstallationError as exc:
+        raise RuntimeError(f"control environment gate failed: {exc}") from exc
     try:
         candidate_release = _validate_candidate_and_qualification(
             root,
@@ -347,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     except (QualificationError, ReleaseIdentityError, StateError) as exc:
         raise RuntimeError(f"candidate qualification gate failed: {exc}") from exc
     if args.readback_only_existing:
-        existing_release = load_current_release_for_source_rebind(root)
+        existing_release = load_current_release_for_compatible_readback(root)
         if (
             candidate_release.program_id != existing_release.program_id
             or candidate_release.controller_target != existing_release.controller_target
@@ -421,15 +339,6 @@ def main(argv: list[str] | None = None) -> int:
                 or release.program_id != program_id
             ):
                 raise RuntimeError("promoted release pointer identity differs")
-            if not args.readback_only_existing:
-                load_rc, program_load = _load_release_program(
-                    root,
-                    release,
-                    program_load_evidence,
-                )
-                if load_rc != 0:
-                    print(json.dumps(program_load, sort_keys=True), file=sys.stderr)
-                    return load_rc
             observation = build_delivery_observation(
                 root,
                 receipt_path=manifest,
@@ -438,17 +347,27 @@ def main(argv: list[str] | None = None) -> int:
                 release=release,
             )
             atomic_json(evidence_output, observation)
+            indexed_observation = delivery_index_path(root, observation)
+            if indexed_observation.exists():
+                existing = load_delivery_observation(
+                    root,
+                    indexed_observation,
+                    release=release,
+                )
+                if existing != observation:
+                    raise RuntimeError(
+                        "content-addressed delivery observation differs"
+                    )
+            else:
+                atomic_json(indexed_observation, observation)
             print(
                 json.dumps(
                     {
                         "ok": True,
                         "release_manifest_sha256": promotion["manifest_sha256"],
                         "delivery_observation": str(evidence_output),
-                        "program_load_observation": (
-                            None
-                            if args.readback_only_existing
-                            else str(program_load_evidence)
-                        ),
+                        "indexed_delivery_observation": str(indexed_observation),
+                        "dashboard_load_attempted": False,
                     },
                     sort_keys=True,
                 )

@@ -531,19 +531,16 @@ def test_canonical_shell_reuses_existing_qualification_and_delivery() -> None:
     assert '--delivery-observation "${delivery_observation}"' in production
 
 
-def test_source_rebind_runs_one_qualification_and_readback_only_transaction() -> None:
+def test_source_rebind_and_embedded_delivery_recovery_are_removed() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
-    start = source.index("if (( source_rebind == 1 )); then")
-    end = source.index("bridge_begin_phase route_resolve", start)
-    recovery = source[start:end]
 
-    assert recovery.count("run_step5d_autotune_v3_qualification.py") == 1
-    assert recovery.count("run_step5d_autotune_v3_tp_transaction.py") == 1
-    assert "--readback-only-existing" in recovery
-    assert "build_step5d_autotune_tp_v3.py" not in recovery
-    assert "--force-upload-readback" not in recovery
-    assert "ensure_exact_loaded_program" not in recovery
-    assert "bridge_begin_phase source_rebind_" not in recovery
+    assert "source_rebind" not in source
+    assert "--source-rebind" not in source
+    delivery = source.index("if (( tp_deliver_mode == 1 )); then")
+    bridge = source.index("if (( bridge_mode == 1 )); then", delivery)
+    assert source.count("run_step5d_autotune_v3_tp_transaction.py") == 1
+    assert "run_step5d_autotune_v3_tp_transaction.py" in source[delivery:bridge]
+    assert "run_step5d_autotune_v3_tp_transaction.py" not in source[bridge:]
 
 
 def test_canonical_shell_records_only_direct_live_phases() -> None:
@@ -561,9 +558,11 @@ def test_canonical_shell_records_only_direct_live_phases() -> None:
     assert 'status --json >"${output_root}/status-after-delivery.json"' not in source
     assert 'launch_attempt_phase="runtime_gate"' in source
     assert "bridge_record_launch_attempt STARTED runtime_gate" in source
-    assert source.index("bridge_record_launch_attempt STARTED runtime_gate") < source.index(
-        'RUNTIME_SOURCE="${REPOSITORY_ROOT}/src/ur10e_experiment_runtime"'
+    admission = source.index(
+        '"${EXPERIMENT_ROOT}/tools/check_step5d_autotune_v3_bridge_admission.py"'
     )
+    authority = source.index("bridge_acquire_authority", admission)
+    assert admission < authority
     assert "trap bridge_failure_trap ERR" in source
     assert "--_launch-attempt-state" in source
     exact_live = (
@@ -645,6 +644,21 @@ def _fake_governed_shell(
         "set -euo pipefail\n"
         "printf '%q ' \"$@\" >>\"${STEP5D_TEST_COMMAND_LOG:?}\"\n"
         "printf '\\n' >>\"${STEP5D_TEST_COMMAND_LOG:?}\"\n"
+        "if [[ \" $* \" == *'/check_step5d_autotune_v3_bridge_admission.py '* ]]; then\n"
+        "  admission_output=''\n"
+        "  while (( $# > 0 )); do\n"
+        "    if [[ \"$1\" == '--output' ]]; then admission_output=\"$2\"; break; fi\n"
+        "    shift\n"
+        "  done\n"
+        "  [[ -n \"${admission_output}\" ]]\n"
+        "  if [[ \"${STEP5D_TEST_ADMISSION_RC:-0}\" == '75' ]]; then\n"
+        "    printf '%s\\n' '{\"ok\":false,\"state\":\"ACTION_REQUIRED\",\"reason_code\":\"EXTERNAL_ACTION_REQUIRED\"}' >\"${admission_output}\"\n"
+        "    exit 75\n"
+        "  fi\n"
+        "  printf '%s\\n' '{\"ok\":true,\"state\":\"BENCH_READY\",\"delivery_observation\":{\"path\":\"scripts/step5d-autotune-v3.sh\"}}' >\"${admission_output}\"\n"
+        "  printf '{}\\n'\n"
+        "  exit 0\n"
+        "fi\n"
         "if [[ \"${1:-}\" == '-c' ]]; then printf '%032d\\n' 0; exit 0; fi\n"
         + (
             "if [[ \" $* \" == *' --prepare-only '* ]]; then exit 41; fi\n"
@@ -679,7 +693,7 @@ def _fake_governed_shell(
     return shell, command_log, environment
 
 
-def test_shell_runtime_gate_failure_is_recorded_before_runtime_resolution(
+def test_shell_runtime_gate_failure_precedes_attempt_and_authority(
     tmp_path: Path,
 ) -> None:
     shell, _command_log, environment = _fake_governed_shell(
@@ -710,20 +724,9 @@ def test_shell_runtime_gate_failure_is_recorded_before_runtime_resolution(
 
     assert result.returncode == 78
     authority_root = shell.parent.parent / "runs/step5d_bridge_authority"
-    pointer = json.loads(
-        (authority_root / "governance/current-launch.json").read_text(encoding="utf-8")
-    )
-    attestation = json.loads(
-        (authority_root / pointer["attestation_path"]).read_text(encoding="utf-8")
-    )
-    assert attestation["state"] == "FAILED"
-    assert attestation["phase"] == "runtime_gate"
-    assert attestation["reason_code"] == "RUNTIME_NOT_PROVISIONED"
-    owner = json.loads(
-        (authority_root / "owner-authority.json").read_text(encoding="utf-8")
-    )
-    assert owner["state"] == "REVOKED"
-    assert owner["reason"] == "failed"
+    assert not authority_root.exists()
+    assert not (output / "bridge-authority-epoch.txt").exists()
+    assert not (output / "launch-attempt-recorder.log").exists()
 
 
 def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> None:
@@ -811,7 +814,49 @@ def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
     assert "step5d_autotune_v3.cli" not in live_calls[-1]
 
 
-def test_shell_source_rebind_uses_existing_governed_phases(
+def test_shell_action_required_creates_no_attempt_or_authority(
+    tmp_path: Path,
+) -> None:
+    shell, command_log, environment = _fake_governed_shell(
+        tmp_path,
+        fail_prepare=False,
+    )
+    environment["STEP5D_TEST_ADMISSION_RC"] = "75"
+    experiment = shell.parent.parent
+    output = experiment / "runs/action-required"
+    result = subprocess.run(
+        [
+            str(shell),
+            "bridge-live",
+            "--output-root",
+            str(output),
+            "--campaign-root",
+            str(tmp_path / "campaign"),
+            "--delivery-observation",
+            str(shell),
+        ],
+        cwd=experiment,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=10.0,
+        check=False,
+    )
+
+    assert result.returncode == 75, result.stderr
+    assert "EXTERNAL_ACTION_REQUIRED" in result.stderr
+    commands = command_log.read_text(encoding="utf-8").splitlines()
+    assert any("check_step5d_autotune_v3_bridge_admission.py" in line for line in commands)
+    assert not any("run_step5d_autotune_v3_qualification.py" in line for line in commands)
+    assert not any("run_step5d_autotune_v3_tp_transaction.py" in line for line in commands)
+    authority_root = experiment / "runs/step5d_bridge_authority"
+    assert not authority_root.exists()
+    assert not (output / "bridge-authority-epoch.txt").exists()
+    assert not (output / "launch-attempt-recorder.log").exists()
+
+
+def test_shell_tp_deliver_is_independent_from_bridge_authority(
     tmp_path: Path,
 ) -> None:
     shell, command_log, environment = _fake_governed_shell(
@@ -819,15 +864,17 @@ def test_shell_source_rebind_uses_existing_governed_phases(
         fail_prepare=False,
     )
     experiment = shell.parent.parent
+    evidence = experiment / "runs/delivery-observation.json"
     result = subprocess.run(
         [
             str(shell),
-            "bridge-live",
-            "--source-rebind",
-            "--output-root",
-            str(experiment / "runs/source-rebind"),
-            "--campaign-root",
-            str(tmp_path / "campaign"),
+            "tp-deliver",
+            "--release-candidate",
+            str(shell),
+            "--qualification-result",
+            str(shell),
+            "--evidence-output",
+            str(evidence),
         ],
         cwd=experiment,
         env=environment,
@@ -840,19 +887,17 @@ def test_shell_source_rebind_uses_existing_governed_phases(
 
     assert result.returncode == 0, result.stderr
     commands = command_log.read_text(encoding="utf-8").splitlines()
-    assert sum(
-        "run_step5d_autotune_v3_qualification.py" in line for line in commands
-    ) == 1
     transaction_calls = [
         line
         for line in commands
         if "run_step5d_autotune_v3_tp_transaction.py" in line
     ]
     assert len(transaction_calls) == 1
-    assert "--readback-only-existing" in transaction_calls[0]
-    assert not any(
-        "_launch-attempt-phase source_rebind_" in line for line in commands
-    )
+    assert "--release-candidate" in transaction_calls[0]
+    assert "--qualification-result" in transaction_calls[0]
+    assert "--evidence-output" in transaction_calls[0]
+    assert not any("check_step5d_autotune_v3_bridge_admission.py" in line for line in commands)
+    assert not (experiment / "runs/step5d_bridge_authority").exists()
 
 
 def _run_shell_argv_gate(
@@ -901,11 +946,16 @@ def _run_shell_argv_gate(
         ),
         (["bridge", "--output-root="], "requires a value"),
         (["bridge", "--campaign-root", ""], "requires a value"),
-        (["bridge-live"], "--delivery-observation is required"),
         (
             ["bridge", "--source-rebind"],
-            "--source-rebind is supported only by bridge-live",
+            "unsupported option",
         ),
+        (["tp-deliver"], "--release-candidate is required"),
+        (
+            ["tp-deliver", "--release-candidate", "/tmp/candidate.json"],
+            "--qualification-result is required",
+        ),
+        (["tp-deliver", "--unknown"], "unsupported option"),
         (["bridge", "--prepare-only"], "internal worker option"),
         (
             ["bridge", "--qualification-endpoints=/tmp/endpoints.json"],
@@ -956,6 +1006,7 @@ def test_bridge_invalid_argv_cannot_create_requested_output_root(tmp_path: Path)
         ["--help"],
         ["bridge", "--help"],
         ["bridge-live", "--help"],
+        ["tp-deliver", "--help"],
         ["bridge", "--unknown", "--help"],
     ],
 )

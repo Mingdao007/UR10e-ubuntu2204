@@ -12,6 +12,7 @@ from typing import Any, Mapping
 
 
 SCHEMA = "step5d.autotune-v3/delivery-observation-v1"
+INDEX_ROOT = Path("runs/step5d_autotune_v3/delivery-receipts")
 _TRANSACTION = re.compile(r"^[0-9a-f]{32}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _TRIPLET = frozenset({".script", ".txt", ".urp"})
@@ -330,6 +331,108 @@ def load_delivery_observation(
         _load(path, "delivery observation"),
         release=release,
     )
+
+
+def delivery_index_path(root: Path, value: Mapping[str, Any]) -> Path:
+    """Return the immutable content-addressed index path for one observation."""
+
+    release_sha256 = _sha256_text(
+        value.get("release_manifest_sha256"),
+        "delivery observation release SHA-256",
+    )
+    try:
+        encoded = (
+            json.dumps(
+                dict(value),
+                allow_nan=False,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            + "\n"
+        ).encode("ascii")
+    except (TypeError, ValueError, UnicodeError) as exc:
+        raise DeliveryObservationError(
+            f"delivery observation is not canonical JSON: {exc}"
+        ) from exc
+    digest = hashlib.sha256(encoded).hexdigest()
+    return (
+        root.resolve(strict=True)
+        / INDEX_ROOT
+        / release_sha256
+        / f"{digest}.json"
+    )
+
+
+def resolve_delivery_observation(
+    root: Path,
+    *,
+    release: Any,
+    compatibility_path: Path | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    """Resolve one valid receipt from the current release without mutable mirrors."""
+
+    experiment = root.resolve(strict=True)
+    if compatibility_path is not None:
+        unresolved = compatibility_path.expanduser()
+        if unresolved.is_symlink():
+            raise DeliveryObservationError(
+                "compatibility delivery observation path is unsafe"
+            )
+        path = unresolved.resolve(strict=True)
+        try:
+            path.relative_to(experiment)
+        except ValueError as exc:
+            raise DeliveryObservationError(
+                "compatibility delivery observation escapes experiment root"
+            ) from exc
+        return path, load_delivery_observation(
+            experiment,
+            path,
+            release=release,
+        )
+
+    release_sha256 = _sha256_text(
+        release.manifest_sha256,
+        "current release manifest SHA-256",
+    )
+    index = experiment / INDEX_ROOT / release_sha256
+    if index.is_symlink():
+        raise DeliveryObservationError("delivery receipt index is unsafe")
+    if not index.is_dir():
+        raise DeliveryObservationError(
+            "current release has no indexed delivery receipt"
+        )
+    candidates: list[tuple[int, str, Path, dict[str, Any]]] = []
+    for path in sorted(index.glob("*.json")):
+        if path.is_symlink() or not path.is_file():
+            raise DeliveryObservationError(
+                "delivery receipt index contains an unsafe entry"
+            )
+        observed_sha256 = _sha256(path, "indexed delivery observation")
+        if path.stem != observed_sha256:
+            raise DeliveryObservationError(
+                "indexed delivery observation filename differs from content"
+            )
+        row = load_delivery_observation(
+            experiment,
+            path,
+            release=release,
+        )
+        candidates.append(
+            (
+                int(row["recorded_at_unix_ns"]),
+                observed_sha256,
+                path,
+                row,
+            )
+        )
+    if not candidates:
+        raise DeliveryObservationError(
+            "current release has no indexed delivery receipt"
+        )
+    _recorded_at, _digest, path, row = max(candidates)
+    return path, row
 
 
 __all__ = [

@@ -537,10 +537,10 @@ def load_current_release(experiment_root: Path) -> ReleaseIdentity:
     )
 
 
-def load_current_release_for_source_rebind(
+def load_current_release_for_compatible_readback(
     experiment_root: Path,
 ) -> ReleaseIdentity:
-    """Load historical current identity without requiring its sources to stay current."""
+    """Load current identity for a byte-equivalent compatibility readback."""
 
     root = experiment_root.expanduser().resolve(strict=True)
     pointer_path = root / "config/step5d/current.json"
@@ -557,7 +557,7 @@ def load_current_release_for_source_rebind(
         root,
         relative,
         expected_sha,
-        role="source-rebind current",
+        role="compatible-readback current",
         verify_worktree_sources=False,
     )
 

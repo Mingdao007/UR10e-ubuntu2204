@@ -16,9 +16,8 @@ Options:
   --output-root PATH       Per-run evidence directory
   --campaign-root PATH     Campaign state directory
   --delivery-observation PATH
-                           Existing governed TP delivery observation
-  --source-rebind          Qualify current r012 source once, fresh GET the
-                           existing triplet, and promote without upload or Load
+                           Compatibility-only explicit governed TP delivery
+                           observation; current release resolves it by default
   --launch-profile PATH    Compatibility-only canonical profile path
   --ready-timeout-s SEC    Positive bridge/runner readiness timeout
   --play-timeout-s SEC     Positive TP Play observation timeout
@@ -26,21 +25,50 @@ Options:
 EOF
 }
 
+tp_deliver_usage() {
+  cat <<'EOF'
+Usage: step5d-autotune-v3.sh tp-deliver [OPTIONS]
+
+Canonical TP-local delivery transaction. Uploads the qualified triplet, performs
+a fresh controller GET, promotes the immutable release, and writes a delivery
+receipt. It never sends Dashboard Load or Play.
+
+Required options:
+  --release-candidate PATH   Immutable local release candidate
+  --qualification-result PATH
+                             Offline qualification result bound to the candidate
+
+Optional:
+  --artifact-dir PATH        TP package directory (default: canonical Step5d)
+  --evidence-output PATH     Receipt output under runs/ (default: generated)
+  --readback-only-existing   Compatibility-only fresh GET without upload
+  -h, --help                 Show this help without starting any work
+EOF
+}
+
 usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
        step5d-autotune-v3.sh bridge [OPTIONS]
+       step5d-autotune-v3.sh tp-deliver [OPTIONS]
        step5d-autotune-v3.sh status [--json]
        step5d-autotune-v3.sh status --json --assert-state STATE
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
 
 Use "step5d-autotune-v3.sh bridge-live --help" for bridge options.
+Use "step5d-autotune-v3.sh tp-deliver --help" for delivery options.
 EOF
 }
 
 bridge_argv_error() {
   echo "bridge argv refused: $1" >&2
   echo "use: step5d-autotune-v3.sh bridge --help" >&2
+  exit 64
+}
+
+tp_deliver_argv_error() {
+  echo "tp-deliver argv refused: $1" >&2
+  echo "use: step5d-autotune-v3.sh tp-deliver --help" >&2
   exit 64
 }
 
@@ -168,6 +196,46 @@ bridge_revoke_authority() {
   launch_authority_active=0
 }
 
+bridge_acquire_authority() {
+  if (( launch_authority_active == 1 )); then
+    return 0
+  fi
+  if [[ -r /proc/sys/kernel/random/uuid ]]; then
+    read -r launch_attempt_id </proc/sys/kernel/random/uuid
+    launch_attempt_id="${launch_attempt_id//-/}"
+  else
+    launch_attempt_id="$(/usr/bin/python3.10 -B -I -c 'import secrets; print(secrets.token_hex(16))')"
+  fi
+  export STEP5D_V3_LAUNCH_ATTEMPT_ID="${launch_attempt_id}"
+  launch_repository_head="$(git -C "${REPOSITORY_ROOT}" rev-parse --verify HEAD)"
+  shell_proc_stat="$(</proc/$$/stat)"
+  shell_proc_fields="${shell_proc_stat##*) }"
+  read -r -a shell_proc_values <<<"${shell_proc_fields}"
+  launch_owner_starttime="${shell_proc_values[19]:-}"
+  if [[ ! "${launch_owner_starttime}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "canonical bridge owner starttime is unavailable" >&2
+    return 66
+  fi
+  mkdir -p -- "${BRIDGE_AUTHORITY_ROOT}"
+  launch_authority_epoch_file="${output_root}/bridge-authority-epoch.txt"
+  /usr/bin/python3.10 -B -I \
+    "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" begin \
+    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+    --attempt-id "${launch_attempt_id}" \
+    --owner-pid "$$" \
+    --owner-starttime "${launch_owner_starttime}" \
+    >"${launch_authority_epoch_file}"
+  read -r launch_owner_authority_epoch <"${launch_authority_epoch_file}"
+  launch_authority_active=1
+  launch_attempt_enabled=1
+  launch_runtime_bootstrap=1
+  launch_attempt_phase="runtime_gate"
+  trap bridge_failure_trap ERR
+  trap bridge_cancel_trap INT TERM
+  bridge_record_launch_attempt STARTED runtime_gate
+  launch_runtime_bootstrap=0
+}
+
 bridge_runtime_fail() {
   local exit_code="$1"
   local reason_code="$2"
@@ -213,12 +281,12 @@ bridge_cancel_trap() {
 }
 
 bridge_mode=0
-bridge_live_mode=0
+tp_deliver_mode=0
+tp_deliver_args=()
 arguments=()
 output_root=""
 campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
 delivery_observation=""
-source_rebind=0
 canonical_launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
 runner_args=()
 ready_timeout_s="20"
@@ -244,9 +312,6 @@ fi
 
 if [[ "${1:-}" == "bridge" || "${1:-}" == "bridge-live" ]]; then
   bridge_mode=1
-  if [[ "${1}" == "bridge-live" ]]; then
-    bridge_live_mode=1
-  fi
   shift
   arguments=("$@")
   for option in "${arguments[@]}"; do
@@ -259,7 +324,6 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "bridge-live" ]]; then
   seen_output_root=0
   seen_campaign_root=0
   seen_delivery_observation=0
-  seen_source_rebind=0
   seen_launch_profile=0
   seen_ready_timeout=0
   seen_play_timeout=0
@@ -281,10 +345,6 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "bridge-live" ]]; then
         if [[ -z "${value}" ]]; then
           bridge_argv_error "${option_name} requires a value"
         fi
-        ((index += 1))
-        ;;
-      --source-rebind)
-        value="true"
         ((index += 1))
         ;;
       --preflight|--preflight=*|--prepare-only|--prepare-only=*|--qualification-endpoints|--qualification-endpoints=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--arm-gate|--arm-gate=*|--offline-release-gate|--offline-release-gate=*)
@@ -314,11 +374,6 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "bridge-live" ]]; then
         seen_delivery_observation=1
         delivery_observation="$(readlink -m -- "${value}")"
         ;;
-      --source-rebind)
-        (( seen_source_rebind == 0 )) || bridge_argv_error "--source-rebind may appear only once"
-        seen_source_rebind=1
-        source_rebind=1
-        ;;
       --launch-profile)
         (( seen_launch_profile == 0 )) || bridge_argv_error "--launch-profile may appear only once"
         seen_launch_profile=1
@@ -342,17 +397,100 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "bridge-live" ]]; then
         ;;
     esac
   done
-  if (( bridge_live_mode == 1 )) \
-    && [[ -z "${delivery_observation}" ]] \
-    && (( source_rebind == 0 )) \
-    && [[ -z "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]] \
-    && [[ -z "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]
-  then
-    bridge_argv_error "--delivery-observation is required"
+fi
+
+if [[ "${1:-}" == "tp-deliver" ]]; then
+  tp_deliver_mode=1
+  shift
+  arguments=("$@")
+  for option in "${arguments[@]}"; do
+    if [[ "${option}" == "-h" || "${option}" == "--help" ]]; then
+      tp_deliver_usage
+      exit 0
+    fi
+  done
+
+  artifact_dir="${EXPERIMENT_ROOT}/programs/step5/step5d"
+  release_candidate=""
+  qualification_result=""
+  delivery_evidence_output=""
+  seen_artifact_dir=0
+  seen_release_candidate=0
+  seen_qualification_result=0
+  seen_evidence_output=0
+  seen_readback_only=0
+  index=0
+  while (( index < ${#arguments[@]} )); do
+    option="${arguments[index]}"
+    option_name="${option%%=*}"
+    value=""
+    case "${option}" in
+      --artifact-dir|--release-candidate|--qualification-result|--evidence-output)
+        if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
+          tp_deliver_argv_error "${option} requires a value"
+        fi
+        value="${arguments[index + 1]}"
+        ((index += 2))
+        ;;
+      --artifact-dir=*|--release-candidate=*|--qualification-result=*|--evidence-output=*)
+        value="${option#*=}"
+        if [[ -z "${value}" ]]; then
+          tp_deliver_argv_error "${option_name} requires a value"
+        fi
+        ((index += 1))
+        ;;
+      --readback-only-existing)
+        (( seen_readback_only == 0 )) || tp_deliver_argv_error "--readback-only-existing may appear only once"
+        seen_readback_only=1
+        tp_deliver_args+=(--readback-only-existing)
+        ((index += 1))
+        continue
+        ;;
+      *)
+        tp_deliver_argv_error "unsupported option or positional argument: ${option}"
+        ;;
+    esac
+
+    case "${option_name}" in
+      --artifact-dir)
+        (( seen_artifact_dir == 0 )) || tp_deliver_argv_error "--artifact-dir may appear only once"
+        seen_artifact_dir=1
+        artifact_dir="$(readlink -m -- "${value}")"
+        ;;
+      --release-candidate)
+        (( seen_release_candidate == 0 )) || tp_deliver_argv_error "--release-candidate may appear only once"
+        seen_release_candidate=1
+        release_candidate="$(readlink -m -- "${value}")"
+        ;;
+      --qualification-result)
+        (( seen_qualification_result == 0 )) || tp_deliver_argv_error "--qualification-result may appear only once"
+        seen_qualification_result=1
+        qualification_result="$(readlink -m -- "${value}")"
+        ;;
+      --evidence-output)
+        (( seen_evidence_output == 0 )) || tp_deliver_argv_error "--evidence-output may appear only once"
+        seen_evidence_output=1
+        delivery_evidence_output="$(readlink -m -- "${value}")"
+        ;;
+    esac
+  done
+  if [[ -z "${release_candidate}" ]]; then
+    tp_deliver_argv_error "--release-candidate is required"
   fi
-  if (( source_rebind == 1 && bridge_live_mode == 0 )); then
-    bridge_argv_error "--source-rebind is supported only by bridge-live"
+  if [[ -z "${qualification_result}" ]]; then
+    tp_deliver_argv_error "--qualification-result is required"
   fi
+  if [[ -z "${delivery_evidence_output}" ]]; then
+    delivery_evidence_output="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/delivery-$(date -u +%Y%m%dT%H%M%SZ)-$$.json"
+  fi
+  tp_deliver_args=(
+    --root "${EXPERIMENT_ROOT}"
+    --artifact-dir "${artifact_dir}"
+    --release-candidate "${release_candidate}"
+    --qualification-result "${qualification_result}"
+    --evidence-output "${delivery_evidence_output}"
+    "${tp_deliver_args[@]}"
+  )
 fi
 
 if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
@@ -381,39 +519,7 @@ then
   fi
   output_root="$(readlink -m -- "${output_root}")"
   campaign_root="$(readlink -m -- "${campaign_root}")"
-  mkdir -p -- "${output_root}" "${campaign_root}" "${BRIDGE_AUTHORITY_ROOT}"
-  if [[ -r /proc/sys/kernel/random/uuid ]]; then
-    read -r launch_attempt_id </proc/sys/kernel/random/uuid
-    launch_attempt_id="${launch_attempt_id//-/}"
-  else
-    launch_attempt_id="$(/usr/bin/python3.10 -B -I -c 'import secrets; print(secrets.token_hex(16))')"
-  fi
-  export STEP5D_V3_LAUNCH_ATTEMPT_ID="${launch_attempt_id}"
-  launch_repository_head="$(git -C "${REPOSITORY_ROOT}" rev-parse --verify HEAD)"
-  shell_proc_stat="$(</proc/$$/stat)"
-  shell_proc_fields="${shell_proc_stat##*) }"
-  read -r -a shell_proc_values <<<"${shell_proc_fields}"
-  launch_owner_starttime="${shell_proc_values[19]:-}"
-  if [[ ! "${launch_owner_starttime}" =~ ^[1-9][0-9]*$ ]]; then
-    echo "canonical bridge owner starttime is unavailable" >&2
-    exit 66
-  fi
-  launch_authority_epoch_file="${output_root}/bridge-authority-epoch.txt"
-  /usr/bin/python3.10 -B -I \
-    "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" begin \
-    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
-    --attempt-id "${launch_attempt_id}" \
-    --owner-pid "$$" \
-    --owner-starttime "${launch_owner_starttime}" \
-    >"${launch_authority_epoch_file}"
-  read -r launch_owner_authority_epoch <"${launch_authority_epoch_file}"
-  launch_authority_active=1
-  launch_attempt_enabled=1
-  launch_runtime_bootstrap=1
-  launch_attempt_phase="runtime_gate"
-  trap bridge_failure_trap ERR
-  trap bridge_cancel_trap INT TERM
-  bridge_record_launch_attempt STARTED runtime_gate
+  mkdir -p -- "${output_root}" "${campaign_root}"
 fi
 
 RUNTIME_SOURCE="${REPOSITORY_ROOT}/src/ur10e_experiment_runtime"
@@ -513,6 +619,14 @@ export STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID="${OPTIMIZER_ENVIRONMENT_ID}"
 export STEP5D_V3_OPTIMIZER_PYTHON="${OPTIMIZER_PYTHON}"
 export STEP5D_V3_RUNTIME_ATTESTATION_SHA256="${RUNTIME_ATTESTATION_SHA256}"
 export STEP5D_V3_RUNTIME_BUNDLE_ID="${RUNTIME_BUNDLE_ID}"
+if (( tp_deliver_mode == 1 )); then
+  export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
+  export STEP5D_V3_SHELL_PID="$$"
+  "${CONTROL_PYTHON}" \
+    "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
+    "${tp_deliver_args[@]}"
+  exit $?
+fi
 if (( bridge_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
@@ -523,9 +637,7 @@ if (( bridge_mode == 1 )); then
   campaign_root="$(readlink -m -- "${campaign_root}")"
   mkdir -p -- "${output_root}" "${campaign_root}"
   launch_runtime_bootstrap=0
-  qualification_shell=0
   if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" || -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
-    qualification_shell=1
     shell_proc_stat="$(</proc/$$/stat)"
     shell_proc_fields="${shell_proc_stat##*) }"
     read -r -a shell_proc_values <<<"${shell_proc_fields}"
@@ -534,29 +646,6 @@ if (( bridge_mode == 1 )); then
       echo "qualification shell owner starttime is unavailable" >&2
       exit 66
     fi
-  else
-    if (( source_rebind == 1 )); then
-      source_rebind_candidate="${output_root}/source-rebind-candidate.json"
-      "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py" \
-        --root "${EXPERIMENT_ROOT}" \
-        --artifact-dir "${EXPERIMENT_ROOT}/programs/step5/step5d" \
-        --stage-local-candidate >"${source_rebind_candidate}"
-      source_rebind_qualification="${output_root}/source-rebind-qualification.json"
-      "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
-        --experiment-root "${EXPERIMENT_ROOT}" \
-        --output-root "${campaign_root}" \
-        --release-candidate "${source_rebind_candidate}" \
-        >"${source_rebind_qualification}"
-      delivery_observation="${output_root}/delivery-observation.json"
-      "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
-        --root "${EXPERIMENT_ROOT}" \
-        --artifact-dir "${EXPERIMENT_ROOT}/programs/step5/step5d" \
-        --release-candidate "${source_rebind_candidate}" \
-        --qualification-result "${source_rebind_qualification}" \
-        --evidence-output "${delivery_observation}" \
-        --readback-only-existing >"${output_root}/source-rebind-transaction.json"
-    fi
-    bridge_begin_phase route_resolve
   fi
   route_snapshot="${output_root}/route-snapshot.json"
   launch_attempt_route_snapshot="${route_snapshot}"
@@ -584,16 +673,7 @@ if (( bridge_mode == 1 )); then
   launch_attempt_route="${bridge_route}"
   launch_manifest_sha256="${resolved_release_sha}"
   if (( route_resolve_rc != 0 )); then
-    if (( qualification_shell == 0 )); then
-      bridge_record_launch_attempt \
-        FAILED \
-        route_resolve \
-        "${route_resolve_rc}" \
-        "canonical route resolution stopped: ${route_reason_code}" \
-        "${route_reason_code}"
-      bridge_revoke_authority failed
-      launch_attempt_enabled=0
-    fi
+    echo "canonical route resolution stopped: ${route_reason_code}" >&2
     exit "${route_resolve_rc}"
   fi
   if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
@@ -653,6 +733,7 @@ if (( bridge_mode == 1 )); then
     exit 0
   fi
   if [[ "${bridge_route}" == "manual_v2" ]]; then
+    bridge_acquire_authority
     manual_release_sha="${resolved_release_sha}"
     manual_campaign_id="manual-v2-${launch_attempt_id}"
     manual_context="${output_root}/manual-bridge-context.json"
@@ -748,10 +829,33 @@ if (( bridge_mode == 1 )); then
     bridge_revoke_authority completed
     exit 0
   fi
-  if [[ -z "${delivery_observation}" ]]; then
-    bridge_runtime_fail 64 DELIVERY_OBSERVATION_REQUIRED \
-      "V3 bridge requires --delivery-observation from an existing governed TP delivery"
+  admission="${output_root}/bridge-admission.json"
+  admission_args=(
+    --root "${EXPERIMENT_ROOT}"
+    --output "${admission}"
+  )
+  if [[ -n "${delivery_observation}" ]]; then
+    admission_args+=(--delivery-observation "${delivery_observation}")
   fi
+  admission_rc=0
+  "${CONTROL_PYTHON}" \
+    "${EXPERIMENT_ROOT}/tools/check_step5d_autotune_v3_bridge_admission.py" \
+    "${admission_args[@]}" \
+    >"${output_root}/bridge-admission.log" || admission_rc=$?
+  if (( admission_rc == 75 )); then
+    echo "EXTERNAL_ACTION_REQUIRED: load the exact current TP program and leave it STOPPED, then rerun the same bridge command" >&2
+    exit 75
+  fi
+  if (( admission_rc != 0 )); then
+    echo "bridge admission observation failed; see ${admission}" >&2
+    exit "${admission_rc}"
+  fi
+  delivery_observation="$(
+    "${CONTROL_PYTHON}" -c \
+      'import json,pathlib,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print((pathlib.Path(sys.argv[2]) / p["delivery_observation"]["path"]).resolve())' \
+      "${admission}" "${EXPERIMENT_ROOT}"
+  )"
+  bridge_acquire_authority
   bridge_begin_phase campaign_prepare
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     --prepare-only \
