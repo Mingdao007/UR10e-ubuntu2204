@@ -1036,6 +1036,37 @@ def test_environment_blocker_invalidates_status_before_play(
     assert status["next_action"] == "provision_runtime"
 
 
+def test_status_freshness_is_anchored_before_slow_environment_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_governed_release(monkeypatch)
+    publish_observed_attestation(tmp_path, observed_attestation(tmp_path))
+    clock = {"now_ns": NOW_NS}
+    environment_status = governance._environment_status
+
+    def slow_environment_status(root: Path):
+        clock["now_ns"] += 30_000_000_000
+        return environment_status(root)
+
+    monkeypatch.setattr(governance, "_environment_status", slow_environment_status)
+    monkeypatch.setattr(governance.time, "time_ns", lambda: clock["now_ns"])
+
+    status = resolve_governed_status(
+        ROOT,
+        tmp_path,
+        proc_starttime_reader=process_reader,
+    )
+
+    assert status["generated_at_unix_ns"] == NOW_NS
+    assert status["predicates"]["bridge_heartbeat_fresh"] is True
+    assert status["predicates"]["controller_fresh"] is True
+    assert status["predicates"]["rtde_fresh"] is True
+    assert status["predicates"]["kunwei_fresh"] is True
+    assert status["predicates"]["mailbox_clean"] is True
+    assert status["state"] == "BENCH_READY"
+
+
 def test_unsuperseded_launch_failure_is_status_visible_and_unknown_by_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
