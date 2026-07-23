@@ -338,6 +338,190 @@ class Step5dQualificationTest(unittest.TestCase):
             with self.assertRaisesRegex(QualificationError, "not a public entrypoint"):
                 require_canonical_launcher(ROOT, {CANONICAL_LAUNCH_ENV: str(alias)})
 
+    def test_launch_attempt_id_does_not_invalidate_offline_environment(self) -> None:
+        pointer = runtime_pointer_fixture()
+        common = {
+            CANONICAL_LAUNCH_ENV: str(ROOT / "scripts/step5d-autotune-v3.sh"),
+            "PYTHONNOUSERSITE": "1",
+        }
+        with patch.object(
+            qualification,
+            "load_runtime_contract",
+            return_value={"python": {"version": "3.10.12"}},
+        ), patch.object(
+            qualification,
+            "runtime_binding",
+            return_value=runtime_process_binding_fixture(),
+        ), patch.object(
+            qualification,
+            "load_gpu_functional_attestation",
+            return_value=({}, {"path": "/qualification/gpu.json", "sha256": SHA_A}),
+        ):
+            first = qualification._environment_binding(
+                {**common, "STEP5D_V3_LAUNCH_ATTEMPT_ID": "attempt-a"},
+                runtime_pointer=pointer,
+            )
+            second = qualification._environment_binding(
+                {**common, "STEP5D_V3_LAUNCH_ATTEMPT_ID": "attempt-b"},
+                runtime_pointer=pointer,
+            )
+        self.assertEqual(first, second)
+        self.assertNotIn(
+            "STEP5D_V3_LAUNCH_ATTEMPT_ID",
+            first["values"],
+        )
+
+    def test_release_scope_ignores_optimizer_deployment_but_binds_control(self) -> None:
+        first = runtime_pointer_fixture()
+        optimizer_changed = json.loads(json.dumps(first))
+        optimizer_changed["bundle_id"] = SHA_B
+        optimizer_changed["contract_sha256"] = SHA_C
+        optimizer_changed["lock_sha256"] = SHA_A
+        optimizer_changed["profiles"]["optimizer"]["environment_id"] = SHA_A
+        optimizer_changed["profiles"]["optimizer"]["record_tree_sha256"] = SHA_B
+        optimizer_changed["profiles"]["optimizer"]["profile_tree_sha256"] = SHA_C
+
+        self.assertEqual(
+            qualification._control_environment_fingerprint(first),
+            qualification._control_environment_fingerprint(optimizer_changed),
+        )
+
+        control_changed = json.loads(json.dumps(first))
+        control_changed["profiles"]["control"]["profile_tree_sha256"] = SHA_B
+        self.assertNotEqual(
+            qualification._control_environment_fingerprint(first),
+            qualification._control_environment_fingerprint(control_changed),
+        )
+
+    def test_release_scope_process_tree_excludes_optimizer_runner(self) -> None:
+        observed_paths: list[Path] = []
+
+        def hash_path(path: Path) -> str:
+            observed_paths.append(path)
+            return hashlib.sha256(str(path).encode("utf-8")).hexdigest()
+
+        with patch.object(
+            qualification,
+            "_sha256_file",
+            side_effect=hash_path,
+        ):
+            fingerprint = (
+                qualification.qualification_safety_process_tree_fingerprint(ROOT)
+            )
+
+        self.assertEqual(len(fingerprint), 64)
+        observed = {path.name for path in observed_paths}
+        self.assertNotIn("run_step5d_autotune_campaign.py", observed)
+        self.assertIn("run_step5d_autotune_v3_live.py", observed)
+        self.assertIn("run_step5d_autotune_v3_bridge.py", observed)
+
+    def test_worker_reuse_only_never_runs_full_runtime_gate(self) -> None:
+        payload = {
+            "ok": True,
+            "reason_code": "QUALIFIED",
+            "remaining_integration_seam": None,
+            "binding": {"manifest_sha256": SHA_A},
+        }
+        evidence = {"path": "/qualification/evidence.json", "sha256": SHA_B}
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            worker, "require_canonical_launcher"
+        ), patch.object(
+            worker, "require_runtime_profile"
+        ) as runtime_gate, patch.object(
+            worker,
+            "run_endpoint_qualification",
+            return_value=(payload, evidence),
+        ) as qualify:
+            stream = io.StringIO()
+            with contextlib.redirect_stdout(stream):
+                rc = worker.main(
+                    ["--output-root", directory, "--reuse-only"]
+                )
+        self.assertEqual(rc, 0)
+        runtime_gate.assert_not_called()
+        self.assertTrue(qualify.call_args.kwargs["reuse_only"])
+        self.assertEqual(json.loads(stream.getvalue())["reason_code"], "QUALIFIED")
+
+    def test_worker_reuse_only_reports_missing_release_certificate(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            worker, "require_canonical_launcher"
+        ), patch.object(
+            worker,
+            "run_endpoint_qualification",
+            side_effect=qualification.QualificationBlocked(
+                qualification.RELEASE_CERTIFICATE_MISSING
+            ),
+        ):
+            stream = io.StringIO()
+            with contextlib.redirect_stderr(stream):
+                rc = worker.main(
+                    ["--output-root", directory, "--reuse-only"]
+                )
+        self.assertEqual(rc, 64)
+        self.assertEqual(
+            json.loads(stream.getvalue())["reason_code"],
+            qualification.RELEASE_CERTIFICATE_MISSING,
+        )
+
+    def test_reuse_only_certificate_miss_stops_before_full_runtime_gate(self) -> None:
+        release = SimpleNamespace(manifest_sha256=SHA_A)
+        prebinding = {
+            "source": {
+                "fingerprint": SHA_A,
+                "files_fingerprint": SHA_B,
+            },
+            "launcher": {"sha256": SHA_C},
+            "environment": {"fingerprint": SHA_A},
+        }
+        environment = {
+            CANONICAL_LAUNCH_ENV: str(ROOT / "scripts/step5d-autotune-v3.sh")
+        }
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            qualification,
+            "_qualification_release",
+            return_value=(release, release),
+        ), patch.object(
+            qualification,
+            "_source_binding",
+            return_value=prebinding["source"],
+        ), patch.object(
+            qualification,
+            "load_runtime_pointer_identity",
+            return_value=runtime_pointer_fixture(),
+        ), patch.object(
+            qualification,
+            "production_runtime_environment",
+            return_value=environment,
+        ) as environment_builder, patch.object(
+            qualification,
+            "capture_content_binding",
+            return_value=prebinding,
+        ), patch.object(
+            qualification,
+            "qualification_safety_process_tree_fingerprint",
+            return_value=SHA_C,
+        ), patch.object(
+            qualification,
+            "_read_release_certificate_for_scope",
+            return_value=None,
+        ), patch.object(
+            qualification,
+            "load_runtime_pointer",
+        ) as full_runtime:
+            with self.assertRaisesRegex(
+                qualification.QualificationBlocked,
+                qualification.RELEASE_CERTIFICATE_MISSING,
+            ):
+                run_endpoint_qualification(
+                    ROOT,
+                    Path(directory),
+                    environment=environment,
+                    release_identity=release,
+                    reuse_only=True,
+                )
+        full_runtime.assert_not_called()
+        environment_builder.assert_not_called()
+
     def test_production_shaped_endpoint_ports_require_one_cross_process_lease(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -465,6 +649,8 @@ class Step5dQualificationTest(unittest.TestCase):
         result = json.loads(stream.getvalue())
         self.assertFalse(result["ok"])
         self.assertEqual(result["reason_code"], ENDPOINT_INJECTION_UNAVAILABLE)
+        self.assertIsNone(result["certificate"])
+        self.assertEqual(result["qualification_evidence"], evidence)
 
     def test_invalid_release_binding_stops_before_endpoints_and_never_writes_current(self) -> None:
         canonical = ROOT / "scripts/step5d-autotune-v3.sh"
@@ -489,7 +675,7 @@ class Step5dQualificationTest(unittest.TestCase):
                         output,
                         environment={CANONICAL_LAUNCH_ENV: str(canonical)},
                     )
-            self.assertFalse((output / "qualification/current.json").exists())
+            self.assertEqual(list(output.rglob("certificate.json")), [])
             self.assertEqual(list(output.rglob("bridge_ready.json")), [])
 
     def test_synthetic_delivery_observation_is_endpoint_only_and_loadable(self) -> None:

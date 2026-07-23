@@ -61,6 +61,9 @@ def test_active_surface_has_one_public_live_entrypoint_and_internal_workers() ->
     assert active["entrypoints"]["public_live"] == (
         "scripts/step5d-autotune-v3.sh bridge"
     )
+    assert active["entrypoints"]["public_release_certification"] == (
+        "scripts/step5d-autotune-v3.sh release-certify"
+    )
     assert active["entrypoints"]["public_tp_delivery"] == (
         "scripts/step5d-autotune-v3.sh tp-deliver"
     )
@@ -308,6 +311,7 @@ def test_authoritative_matrix_classifies_stale_release_files() -> None:
     active_tests = set(gate["classified_test_files"]["active"])
     assert {
         "tests/test_step5d_autotune_v3_qualification_production.py",
+        "tests/test_step5d_autotune_v3_release_certificate.py",
         "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",
         "tests/test_step5d_runtime_environment.py",
         "tests/test_step5d_v3_immutable_payload_routing.py",

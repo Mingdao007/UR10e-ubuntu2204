@@ -644,8 +644,8 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         ),
         mock.patch.object(
             transaction,
-            "_validate_candidate_and_qualification",
-            side_effect=lambda *_args: events.append("qualify") or release,
+            "_validate_candidate_and_certificate",
+            side_effect=lambda *_args: events.append("certify") or release,
         ),
         mock.patch.object(
             transaction,
@@ -694,7 +694,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
                 str(root / promotion.PACKAGE_DIR),
                 "--release-candidate",
                 str(candidate_path),
-                "--qualification-result",
+                "--release-certificate",
                 str(qualification_path),
                 "--evidence-output",
                 str(evidence_output),
@@ -702,7 +702,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         ) == 0
 
     assert events == [
-        "qualify",
+        "certify",
         "lock",
         "upload",
         "promote",
@@ -791,7 +791,7 @@ def test_readback_only_transaction_skips_upload_and_program_load(
         mock.patch.object(transaction, "require_runtime_profile", return_value={}),
         mock.patch.object(
             transaction,
-            "_validate_candidate_and_qualification",
+            "_validate_candidate_and_certificate",
             return_value=release,
         ),
         mock.patch.object(
@@ -839,7 +839,7 @@ def test_readback_only_transaction_skips_upload_and_program_load(
                 str(artifact_dir),
                 "--release-candidate",
                 str(root / "candidate.json"),
-                "--qualification-result",
+                "--release-certificate",
                 str(root / "qualification.json"),
                 "--evidence-output",
                 str(evidence_output),
@@ -895,7 +895,7 @@ def test_readback_only_transaction_rejects_identity_drift_before_lock(
         mock.patch.object(transaction, "require_runtime_profile", return_value={}),
         mock.patch.object(
             transaction,
-            "_validate_candidate_and_qualification",
+            "_validate_candidate_and_certificate",
             return_value=candidate,
         ),
         mock.patch.object(
@@ -914,7 +914,7 @@ def test_readback_only_transaction_rejects_identity_drift_before_lock(
                 str(artifact_dir),
                 "--release-candidate",
                 str(root / "candidate.json"),
-                "--qualification-result",
+                "--release-certificate",
                 str(root / "qualification.json"),
                 "--evidence-output",
                 str(root / "runs/campaign/delivery-observation.json"),
@@ -976,12 +976,12 @@ def test_transaction_qualification_failure_precedes_controller_lock_and_upload(
         ),
         mock.patch.object(
             transaction,
-            "_validate_candidate_and_qualification",
-            side_effect=RuntimeError("qualification evidence differs"),
-        ) as qualification_gate,
+            "_validate_candidate_and_certificate",
+            side_effect=RuntimeError("release certificate differs"),
+        ) as certificate_gate,
         mock.patch.object(transaction, "acquire_controller_mutation_locks") as lock,
         mock.patch.object(transaction.upload, "_main") as upload,
-        pytest.raises(RuntimeError, match="qualification evidence differs"),
+        pytest.raises(RuntimeError, match="release certificate differs"),
     ):
         transaction.main(
             [
@@ -991,14 +991,14 @@ def test_transaction_qualification_failure_precedes_controller_lock_and_upload(
                 str(artifact_dir),
                 "--release-candidate",
                 str(root / "candidate.json"),
-                "--qualification-result",
+                "--release-certificate",
                 str(root / "qualification.json"),
                 "--evidence-output",
                 str(evidence_output),
             ]
         )
 
-    qualification_gate.assert_called_once()
+    certificate_gate.assert_called_once()
     lock.assert_not_called()
     upload.assert_not_called()
 

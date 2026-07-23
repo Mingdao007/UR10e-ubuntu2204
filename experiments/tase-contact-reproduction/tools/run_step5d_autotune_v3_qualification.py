@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 
 from step5d_autotune_v3.qualification import (
+    RELEASE_CERTIFICATE_MISSING,
     QualificationError,
     exec_internal_shell_contract,
     require_canonical_launcher,
@@ -34,6 +35,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--experiment-root", type=Path, default=ROOT)
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--release-candidate", type=Path)
+    parser.add_argument("--reuse-only", action="store_true")
     parser.add_argument(
         "--_exec-live-from-shell-contract",
         type=Path,
@@ -46,7 +48,11 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args._exec_live_from_shell_contract is not None:
-            if args.output_root is not None or args.release_candidate is not None:
+            if (
+                args.output_root is not None
+                or args.release_candidate is not None
+                or args.reuse_only
+            ):
                 raise QualificationError(
                     "internal shell execution cannot accept qualification worker options"
                 )
@@ -58,28 +64,35 @@ def main(argv: list[str] | None = None) -> int:
         if args.output_root is None:
             raise QualificationError("--output-root is required")
         require_canonical_launcher(args.experiment_root)
-        require_runtime_profile("control")
+        if not args.reuse_only:
+            require_runtime_profile("control")
         release = None
         if args.release_candidate is not None:
             release, _descriptor = load_local_release_candidate(
                 args.experiment_root,
                 args.release_candidate,
             )
-        payload, evidence = run_endpoint_qualification(
+        payload, certificate = run_endpoint_qualification(
             args.experiment_root,
             args.output_root.resolve(),
             release_identity=release,
+            reuse_only=args.reuse_only,
         )
     except (
         QualificationError,
         ReleaseIdentityError,
         RuntimeInstallationError,
     ) as exc:
+        reason_code = (
+            RELEASE_CERTIFICATE_MISSING
+            if str(exc) == RELEASE_CERTIFICATE_MISSING
+            else "CANONICAL_QUALIFICATION_REFUSED"
+        )
         print(
             json.dumps(
                 {
                     "ok": False,
-                    "reason_code": "CANONICAL_QUALIFICATION_REFUSED",
+                    "reason_code": reason_code,
                     "error": str(exc),
                 },
                 sort_keys=True,
@@ -90,7 +103,10 @@ def main(argv: list[str] | None = None) -> int:
     print(
         json.dumps(
             {
-                "schema": "step5d.autotune-v3/qualification-worker-result-v1",
+                "schema": (
+                    "step5d.autotune-v3/"
+                    "release-certificate-worker-result-v1"
+                ),
                 "ok": payload["ok"],
                 "release_manifest_sha256": (
                     payload.get("binding", {}).get("manifest_sha256")
@@ -99,7 +115,10 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "reason_code": payload["reason_code"],
                 "remaining_integration_seam": payload["remaining_integration_seam"],
-                "evidence": evidence,
+                "certificate": certificate if payload["ok"] is True else None,
+                "qualification_evidence": (
+                    None if payload["ok"] is True else certificate
+                ),
             },
             sort_keys=True,
         )

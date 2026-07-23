@@ -25,15 +25,13 @@ CURRENT_OBSERVATION_POINTER_SCHEMA = (
 )
 CAMPAIGN_LEASE_SCHEMA = "step5d.autotune-v3/campaign-lease-v1"
 GOVERNED_STATUS_SCHEMA = "step5d.autotune-v3/governed-status-v1"
-QUALIFICATION_CURRENT_POINTER_SCHEMA = (
-    "step5d.autotune-v3/qualification-current-pointer-v1"
-)
 LAUNCH_ATTEMPT_SCHEMA_V1 = "step5d.autotune-v3/launch-attempt-v1"
 LAUNCH_ATTEMPT_SCHEMA = "step5d.bridge/launch-attempt-v2"
 CURRENT_LAUNCH_ATTEMPT_POINTER_SCHEMA = (
     "step5d.autotune-v3/current-launch-attempt-pointer-v1"
 )
 FSM_TRANSITION_ACTOR = "launcher_supervisor"
+_OFFLINE_REFERENCE_VERIFIED = object()
 
 LAUNCH_ATTEMPT_STATES = (
     "STARTED",
@@ -124,7 +122,7 @@ REASON_ORDER = (
     "ENVIRONMENT_BINDING_MISMATCH",
     "PROCESS_TREE_BINDING_MISMATCH",
     "SAFETY_ENVELOPE_BINDING_MISMATCH",
-    "OFFLINE_EVIDENCE_MISSING",
+    "RELEASE_CERTIFICATE_MISSING",
     "OFFLINE_BINDING_MISMATCH",
     "BRIDGE_PROCESS_DEAD",
     "BRIDGE_PID_REUSED",
@@ -197,7 +195,7 @@ INTERNAL_REASON_CODES = {
     "ENVIRONMENT_BINDING_MISMATCH",
     "PROCESS_TREE_BINDING_MISMATCH",
     "SAFETY_ENVELOPE_BINDING_MISMATCH",
-    "OFFLINE_EVIDENCE_MISSING",
+    "RELEASE_CERTIFICATE_MISSING",
     "OFFLINE_BINDING_MISMATCH",
     "BRIDGE_PROCESS_DEAD",
     "BRIDGE_PID_REUSED",
@@ -1725,34 +1723,45 @@ def _delivery_provenance_is_current(
 
 def _load_current_offline_proof(
     experiment_root: Path,
-    campaign_root: Path,
+    certificate_root: Path,
     release: CurrentReleaseSnapshot,
 ) -> Mapping[str, Any] | None:
     if not release.valid:
         return None
-    root = _campaign_root(campaign_root)
-    pointer_path = root / "qualification/current.json"
-    if not pointer_path.exists():
+    unresolved_root = certificate_root
+    if unresolved_root.is_symlink() or not unresolved_root.is_dir():
         return None
-    pointer = _exact(
-        _read_json(pointer_path, "qualification current pointer"),
-        {"schema", "cache_key", "path", "sha256"},
-        "qualification current pointer",
-    )
-    if pointer["schema"] != QUALIFICATION_CURRENT_POINTER_SCHEMA:
-        raise GovernanceError("qualification current pointer schema differs")
-    _sha256(pointer["cache_key"], "qualification cache key")
-    reference = {
-        "path": _relative_path(pointer["path"], "qualification evidence path"),
-        "sha256": _sha256(pointer["sha256"], "qualification evidence SHA-256"),
-    }
-    evidence_path = _rooted_file(root, reference["path"], "qualification evidence")
-    if _file_sha256(evidence_path, "qualification evidence") != reference["sha256"]:
-        raise GovernanceError("qualification evidence SHA-256 differs")
-    payload = _read_json(evidence_path, "qualification evidence")
+    root = unresolved_root.resolve(strict=True)
     try:
-        from .qualification import validate_qualification_binding
+        from .qualification import (
+            release_certificate_scope_for_release,
+            validate_qualification_binding,
+        )
+        from .release_certificate import (
+            certificate_path,
+            load_release_certificate,
+        )
+        from .release_identity import load_current_release
 
+        identity = load_current_release(experiment_root)
+        if (
+            identity.manifest_sha256 != release.manifest_sha256
+            or release.source_fingerprint is None
+            or release.launcher_sha256 is None
+        ):
+            return None
+        scope = release_certificate_scope_for_release(
+            experiment_root,
+            identity,
+        )
+        path = certificate_path(root, scope)
+        if not path.exists():
+            return None
+        _certificate, evidence_path, payload = load_release_certificate(
+            root,
+            path,
+            expected_scope=scope,
+        )
         binding = validate_qualification_binding(
             payload,
             experiment_root=experiment_root,
@@ -1761,9 +1770,18 @@ def _load_current_offline_proof(
             launcher_sha256=release.launcher_sha256,
         )
     except Exception as exc:
-        raise GovernanceError(f"qualification evidence is invalid: {exc}") from exc
+        raise GovernanceError(f"release certificate is invalid: {exc}") from exc
+    try:
+        relative_evidence = evidence_path.relative_to(root).as_posix()
+    except ValueError as exc:
+        raise GovernanceError("qualification evidence escapes certificate root") from exc
+    reference = {
+        "path": _relative_path(relative_evidence, "qualification evidence path"),
+        "sha256": _file_sha256(evidence_path, "qualification evidence"),
+    }
     return {
         "evidence": reference,
+        "_reference_verification": _OFFLINE_REFERENCE_VERIFIED,
         "completed_at_unix_ns": _positive_int(
             payload.get("completed_at_unix_ns"), "qualification completion"
         ),
@@ -1975,8 +1993,10 @@ def reduce_observed_attestation(
     state: str | None = None
     if attestation is None:
         if offline_proof is not None:
-            offline_reference_current = _reference_is_current(
-                root, offline_proof["evidence"]
+            offline_reference_current = (
+                offline_proof.get("_reference_verification")
+                is _OFFLINE_REFERENCE_VERIFIED
+                or _reference_is_current(root, offline_proof["evidence"])
             )
             offline_binding_matches = (
                 offline_proof["manifest_sha256"] == release.manifest_sha256
@@ -1984,7 +2004,7 @@ def reduce_observed_attestation(
                 and offline_proof["launcher_sha256"] == release.launcher_sha256
             )
             if not offline_reference_current:
-                reasons.append("OFFLINE_EVIDENCE_MISSING")
+                reasons.append("RELEASE_CERTIFICATE_MISSING")
             if not offline_binding_matches:
                 reasons.append("OFFLINE_BINDING_MISMATCH")
             predicates["offline_proven"] = all(
@@ -2038,7 +2058,7 @@ def reduce_observed_attestation(
 
         offline_reference_current = _reference_is_current(root, offline["evidence"])
         if not offline_reference_current:
-            reasons.append("OFFLINE_EVIDENCE_MISSING")
+            reasons.append("RELEASE_CERTIFICATE_MISSING")
         offline_binding_matches = (
             offline["manifest_sha256"] == bindings["manifest_sha256"]
             and offline["source_fingerprint"] == bindings["source_fingerprint"]
@@ -2562,12 +2582,15 @@ def resolve_governed_status(
         reasons.append(reason)
         evidence.append(_evidence_row(role, detail=detail))
     offline_proof: Mapping[str, Any] | None = None
+    certificate_root = experiment_root / "runs/step5d_autotune_v3"
     try:
         offline_proof = _load_current_offline_proof(
-            experiment_root, campaign_root, release
+            experiment_root,
+            certificate_root,
+            release,
         )
     except GovernanceError as exc:
-        reasons.append("OFFLINE_EVIDENCE_MISSING")
+        reasons.append("RELEASE_CERTIFICATE_MISSING")
         evidence.append(
             _evidence_row("offline_qualification", detail=f"{type(exc).__name__}:{exc}")
         )
