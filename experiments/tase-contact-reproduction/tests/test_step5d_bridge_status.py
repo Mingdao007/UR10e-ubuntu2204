@@ -428,6 +428,7 @@ def test_v3_campaign_lease_binds_the_canonical_attempt(
         "resolve_governed_status",
         lambda *_args, **_kwargs: {
             "schema": "legacy",
+            "generated_at_unix_ns": time.time_ns(),
             "state": "WAITING_FOR_PLAY",
             "predicates": {
                 "offline_proven": True,
@@ -453,6 +454,33 @@ def test_v3_campaign_lease_binds_the_canonical_attempt(
 
     assert status["predicates"]["canonical_attempt_bound"] is True
     assert claim["attempt_id"] == "attempt-v3"
+
+
+def test_readiness_claim_rejects_an_aged_status_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_now = 20_000_000_000
+    status = {
+        "state": "WAITING_FOR_PLAY",
+        "generated_at_unix_ns": (
+            observed_now - bridge_status.STATUS_CLAIM_MAX_AGE_NS - 1
+        ),
+        "route": "autotune_v3",
+        "launch_attempt": {"attempt_id": "attempt-aged"},
+        "predicates": {
+            "play_prompt_ready": True,
+            "canonical_attempt_bound": True,
+            "offline_proven": True,
+            "production_path_qualified": True,
+        },
+    }
+    monkeypatch.setattr(bridge_status.time, "time_ns", lambda: observed_now)
+
+    with pytest.raises(ValueError, match="does not authorize"):
+        bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
+
+    assert not (tmp_path / "readiness-claim.json").exists()
 
 
 def test_v3_runtime_evidence_must_bind_same_attempt_campaign_release_and_processes(

@@ -142,6 +142,39 @@ def test_runtime_status_uses_one_static_integrity_scan(
     assert calls == [{"HOME": str(tmp_path)}]
 
 
+def test_runtime_status_identity_mode_does_not_repeat_package_tree_scan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pointer = _runtime_pointer_fixture(tmp_path)
+    calls: list[Mapping[str, str] | None] = []
+    monkeypatch.setattr(runtime, "runtime_bundle_id", lambda: pointer["bundle_id"])
+    monkeypatch.setattr(
+        runtime,
+        "profile_environment_id",
+        lambda profile: pointer["profiles"][profile]["environment_id"],
+    )
+    monkeypatch.setattr(
+        runtime,
+        "load_runtime_pointer_integrity",
+        lambda **_kwargs: pytest.fail("identity mode repeated package-tree integrity"),
+    )
+
+    def load_identity(*, environ=None):
+        calls.append(environ)
+        return pointer
+
+    monkeypatch.setattr(runtime, "load_runtime_pointer_identity", load_identity)
+
+    status = runtime.runtime_status(
+        environ={"HOME": str(tmp_path)},
+        full_integrity=False,
+    )
+
+    assert status["reason_code"] is None
+    assert calls == [{"HOME": str(tmp_path)}]
+
+
 def test_status_resolver_reuses_one_runtime_status_result(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

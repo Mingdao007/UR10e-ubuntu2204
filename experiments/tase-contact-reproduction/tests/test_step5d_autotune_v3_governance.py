@@ -4,6 +4,7 @@ import copy
 from dataclasses import replace
 from datetime import datetime, timezone
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
@@ -236,6 +237,70 @@ def offline_proof(root: Path) -> dict[str, object]:
         "environment_sha256": digest("environment"),
         "process_tree_fingerprint": digest("process-tree"),
     }
+
+
+def test_offline_proof_status_uses_content_binding_without_replaying_lifecycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from step5d_autotune_v3 import qualification
+
+    payload = {
+        "content": "already fully validated by qualification",
+        "completed_at_unix_ns": NOW_NS,
+    }
+    evidence_path = tmp_path / "qualification/evidence/proof/qualification.json"
+    evidence_path.parent.mkdir(parents=True)
+    evidence_path.write_text(json.dumps(payload), encoding="utf-8")
+    evidence_sha = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+    pointer_path = tmp_path / "qualification/current.json"
+    pointer_path.write_text(
+        json.dumps(
+            {
+                "schema": governance.QUALIFICATION_CURRENT_POINTER_SCHEMA,
+                "cache_key": digest("cache-key"),
+                "path": evidence_path.relative_to(tmp_path).as_posix(),
+                "sha256": evidence_sha,
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls: list[dict[str, object]] = []
+
+    def validate_binding(
+        observed: dict[str, object],
+        **_kwargs: object,
+    ) -> dict[str, object]:
+        calls.append(observed)
+        return {
+            "environment": {"fingerprint": digest("environment")},
+            "process_tree": {"fingerprint": digest("process-tree")},
+        }
+
+    monkeypatch.setattr(
+        qualification,
+        "validate_qualification_binding",
+        validate_binding,
+    )
+    monkeypatch.setattr(
+        qualification,
+        "validate_qualification_result",
+        lambda *_args, **_kwargs: pytest.fail(
+            "status replayed full qualification lifecycle"
+        ),
+    )
+
+    proof = governance._load_current_offline_proof(
+        ROOT,
+        tmp_path,
+        release(),
+    )
+
+    assert calls == [payload]
+    assert proof is not None
+    assert proof["evidence"]["sha256"] == evidence_sha
+    assert proof["environment_sha256"] == digest("environment")
+    assert proof["process_tree_fingerprint"] == digest("process-tree")
 
 
 def test_strict_attestation_rejects_manual_readiness_flag(tmp_path: Path) -> None:
@@ -1065,6 +1130,13 @@ def test_status_freshness_is_anchored_before_slow_environment_validation(
     assert status["predicates"]["kunwei_fresh"] is True
     assert status["predicates"]["mailbox_clean"] is True
     assert status["state"] == "BENCH_READY"
+
+
+def test_live_status_consumes_attested_hotpath_without_requalification() -> None:
+    source = inspect.getsource(governance._environment_status)
+
+    assert "runtime_status(full_integrity=False)" in source
+    assert "production_source_closure_report" not in source
 
 
 def test_unsuperseded_launch_failure_is_status_visible_and_unknown_by_default(

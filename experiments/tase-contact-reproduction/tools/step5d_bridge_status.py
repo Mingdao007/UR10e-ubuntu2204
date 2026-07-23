@@ -37,6 +37,7 @@ STATUS_SCHEMA = "step5d.bridge/governed-status-v2"
 CLAIM_SCHEMA = "step5d.bridge/readiness-claim-v1"
 AUTHORITY_RELATIVE = Path("runs/step5d_bridge_authority")
 CLAIM_TTL_NS = 5_000_000_000
+STATUS_CLAIM_MAX_AGE_NS = 1_000_000_000
 
 
 def canonical_json_bytes(value: Mapping[str, Any]) -> bytes:
@@ -326,6 +327,7 @@ def resolve_status(experiment_root: Path) -> dict[str, Any]:
         status = {
             "schema": STATUS_SCHEMA,
             "route": "manual_v2",
+            "generated_at_unix_ns": time.time_ns(),
             "state": manual.get("state"),
             "predicates": {
                 "offline_proven": manual.get("offline_proven") is True,
@@ -353,14 +355,22 @@ def resolve_status(experiment_root: Path) -> dict[str, Any]:
 
 
 def _require_readiness_state(
-    status: Mapping[str, Any], required_state: str
+    status: Mapping[str, Any],
+    required_state: str,
+    *,
+    now_ns: int | None = None,
 ) -> None:
     if required_state not in {"WAITING_FOR_IDENTITY_PLAY", "WAITING_FOR_PLAY"}:
         raise ValueError("only pre-Play readiness states can be asserted")
     predicates = status.get("predicates")
+    generated_at = status.get("generated_at_unix_ns")
+    observed_now = time.time_ns() if now_ns is None else now_ns
     if (
         status.get("state") != required_state
         or not isinstance(predicates, Mapping)
+        or isinstance(generated_at, bool)
+        or not isinstance(generated_at, int)
+        or not 0 <= observed_now - generated_at <= STATUS_CLAIM_MAX_AGE_NS
         or predicates.get("play_prompt_ready") is not True
         or predicates.get("canonical_attempt_bound") is not True
         or predicates.get("offline_proven") is not True
@@ -374,8 +384,8 @@ def _require_readiness_state(
 
 
 def readiness_claim(status: Mapping[str, Any], required_state: str) -> dict[str, Any]:
-    _require_readiness_state(status, required_state)
     issued = time.time_ns()
+    _require_readiness_state(status, required_state, now_ns=issued)
     status_sha = hashlib.sha256(canonical_json_bytes(dict(status))).hexdigest()
     return {
         "schema": CLAIM_SCHEMA,
@@ -406,7 +416,6 @@ def verify_readiness_claim(
     state = claim.get("state")
     if not isinstance(state, str):
         raise ValueError("readiness claim state differs")
-    _require_readiness_state(status, state)
     issued = claim.get("issued_at_unix_ns")
     expires = claim.get("expires_at_unix_ns")
     observed_now = time.time_ns() if now_ns is None else now_ns
@@ -424,6 +433,7 @@ def verify_readiness_claim(
         or not issued <= observed_now < expires
     ):
         raise ValueError("readiness claim is stale or bound to different status")
+    _require_readiness_state(status, state, now_ns=observed_now)
     return dict(claim)
 
 
