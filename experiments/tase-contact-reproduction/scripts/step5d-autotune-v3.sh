@@ -536,20 +536,17 @@ if (( bridge_mode == 1 )); then
     fi
   else
     if (( source_rebind == 1 )); then
-      bridge_begin_phase source_rebind_candidate
       source_rebind_candidate="${output_root}/source-rebind-candidate.json"
       "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py" \
         --root "${EXPERIMENT_ROOT}" \
         --artifact-dir "${EXPERIMENT_ROOT}/programs/step5/step5d" \
         --stage-local-candidate >"${source_rebind_candidate}"
-      bridge_begin_phase source_rebind_qualification
       source_rebind_qualification="${output_root}/source-rebind-qualification.json"
       "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
         --experiment-root "${EXPERIMENT_ROOT}" \
         --output-root "${campaign_root}" \
         --release-candidate "${source_rebind_candidate}" \
         >"${source_rebind_qualification}"
-      bridge_begin_phase source_rebind_readback
       delivery_observation="${output_root}/delivery-observation.json"
       "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
         --root "${EXPERIMENT_ROOT}" \
