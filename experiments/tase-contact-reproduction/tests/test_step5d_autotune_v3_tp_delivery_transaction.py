@@ -716,9 +716,10 @@ def test_readback_only_transaction_skips_upload_and_program_load(
         ),
         mock.patch.object(
             transaction,
-            "load_current_release",
+            "load_current_release_for_source_rebind",
             return_value=release,
         ),
+        mock.patch.object(transaction, "load_current_release", return_value=release),
         mock.patch.object(transaction, "owner_dependency", return_value={
             "path": "/verified/helper.py",
             "sha256": "a" * 64,
@@ -821,7 +822,7 @@ def test_readback_only_transaction_rejects_identity_drift_before_lock(
         ),
         mock.patch.object(
             transaction,
-            "load_current_release",
+            "load_current_release_for_source_rebind",
             return_value=current,
         ),
         mock.patch.object(transaction, "acquire_controller_mutation_locks") as lock,

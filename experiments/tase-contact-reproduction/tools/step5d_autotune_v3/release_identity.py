@@ -404,6 +404,7 @@ def _load_release_reference(
     expected_sha: str,
     *,
     role: str,
+    verify_worktree_sources: bool = True,
 ) -> ReleaseIdentity:
     unresolved = root / relative
     resolved = unresolved.resolve()
@@ -445,36 +446,37 @@ def _load_release_reference(
                 raise ReleaseIdentityError(f"{role} file is missing or unsafe: {reference['path']}")
             if _sha256_bytes(path.read_bytes()) != reference["sha256"]:
                 raise ReleaseIdentityError(f"{role} file fingerprint drifted: {reference['path']}")
-    for relative, expected in release.source_fingerprints.items():
-        source_relative = _relative_path(relative, "source fingerprint path")
-        immutable_path = resolved.parent / source_relative
-        path = immutable_path if immutable_path.is_file() else root / source_relative
-        if path.is_symlink() or not path.is_file():
-            raise ReleaseIdentityError(
-                f"source file is missing or unsafe: {relative}"
+    if verify_worktree_sources:
+        for relative, expected in release.source_fingerprints.items():
+            source_relative = _relative_path(relative, "source fingerprint path")
+            immutable_path = resolved.parent / source_relative
+            path = immutable_path if immutable_path.is_file() else root / source_relative
+            if path.is_symlink() or not path.is_file():
+                raise ReleaseIdentityError(
+                    f"source file is missing or unsafe: {relative}"
+                )
+            if _sha256_bytes(path.read_bytes()) != expected:
+                raise ReleaseIdentityError(
+                    f"source file fingerprint drifted: {relative}"
+                )
+        repository_root = root
+        for _ in range(release.verification["repository_source_root_depth"]):
+            repository_root = repository_root.parent
+        repository_root = repository_root.resolve(strict=True)
+        for relative, expected in release.verification[
+            "repository_source_fingerprints"
+        ].items():
+            path = repository_root / _relative_path(
+                relative, "repository source fingerprint"
             )
-        if _sha256_bytes(path.read_bytes()) != expected:
-            raise ReleaseIdentityError(
-                f"source file fingerprint drifted: {relative}"
-            )
-    repository_root = root
-    for _ in range(release.verification["repository_source_root_depth"]):
-        repository_root = repository_root.parent
-    repository_root = repository_root.resolve(strict=True)
-    for relative, expected in release.verification[
-        "repository_source_fingerprints"
-    ].items():
-        path = repository_root / _relative_path(
-            relative, "repository source fingerprint"
-        )
-        if path.is_symlink() or not path.is_file():
-            raise ReleaseIdentityError(
-                f"repository source file is missing or unsafe: {relative}"
-            )
-        if _sha256_bytes(path.read_bytes()) != expected:
-            raise ReleaseIdentityError(
-                f"repository source file fingerprint drifted: {relative}"
-            )
+            if path.is_symlink() or not path.is_file():
+                raise ReleaseIdentityError(
+                    f"repository source file is missing or unsafe: {relative}"
+                )
+            if _sha256_bytes(path.read_bytes()) != expected:
+                raise ReleaseIdentityError(
+                    f"repository source file fingerprint drifted: {relative}"
+                )
     return release
 
 
@@ -532,6 +534,31 @@ def load_current_release(experiment_root: Path) -> ReleaseIdentity:
         relative,
         expected_sha,
         role="current",
+    )
+
+
+def load_current_release_for_source_rebind(
+    experiment_root: Path,
+) -> ReleaseIdentity:
+    """Load historical current identity without requiring its sources to stay current."""
+
+    root = experiment_root.expanduser().resolve(strict=True)
+    pointer_path = root / "config/step5d/current.json"
+    if pointer_path.is_symlink() or not pointer_path.is_file():
+        raise ReleaseIdentityError("current release pointer is missing or unsafe")
+    pointer = _strict_object(pointer_path.read_bytes(), "current release pointer")
+    if set(pointer) != {"schema", "manifest_path", "manifest_sha256"}:
+        raise ReleaseIdentityError("current release pointer must contain manifest path and SHA only")
+    if pointer.get("schema") != CURRENT_POINTER_SCHEMA:
+        raise ReleaseIdentityError("current release pointer schema differs")
+    relative = _relative_path(pointer["manifest_path"], "current manifest path")
+    expected_sha = _sha256_text(pointer["manifest_sha256"], "current manifest SHA-256")
+    return _load_release_reference(
+        root,
+        relative,
+        expected_sha,
+        role="source-rebind current",
+        verify_worktree_sources=False,
     )
 
 

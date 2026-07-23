@@ -26,6 +26,7 @@ from step5d_autotune_v3.release_identity import (
     ReleaseIdentity,
     ReleaseIdentityError,
     load_current_release,
+    load_current_release_for_source_rebind,
     load_local_release_candidate,
     release_payload_path,
 )
@@ -346,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:
     except (QualificationError, ReleaseIdentityError, StateError) as exc:
         raise RuntimeError(f"candidate qualification gate failed: {exc}") from exc
     if args.readback_only_existing:
-        existing_release = load_current_release(root)
+        existing_release = load_current_release_for_source_rebind(root)
         if (
             candidate_release.program_id != existing_release.program_id
             or candidate_release.controller_target != existing_release.controller_target
