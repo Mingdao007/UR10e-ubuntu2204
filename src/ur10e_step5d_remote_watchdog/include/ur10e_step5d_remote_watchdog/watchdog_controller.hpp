@@ -54,6 +54,8 @@ private:
   rclcpp::TimerBase::SharedPtr status_timer_;
   std::atomic<std::uint64_t> next_sequence_{0};
   std::atomic<bool> accepting_commands_{false};
+  std::atomic<std::uint8_t> pending_invalid_kind_{
+      static_cast<std::uint8_t>(CommandEventKind::NONE)};
   std::uint64_t processed_sequence_{0};
   std::atomic<std::uint8_t> published_status_{
       static_cast<std::uint8_t>(WatchdogStatus::WAITING_ZERO)};

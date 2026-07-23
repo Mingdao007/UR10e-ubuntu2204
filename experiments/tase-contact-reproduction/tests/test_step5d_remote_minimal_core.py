@@ -47,7 +47,7 @@ def test_load_r012_config_resolves_and_types(r012_cfg: dict) -> None:
     assert r012_cfg["route"] == "ros2_remote_control_headless"
     assert r012_cfg["watchdog"]["max_abs_velocity_rad_s"] == 0.5
     assert r012_cfg["watchdog"]["max_acceleration_rad_s2"] == 0.5
-    assert r012_cfg["watchdog"]["command_stale_s"] == 0.01
+    assert r012_cfg["watchdog"]["command_stale_s"] == 0.05
     assert r012_cfg["sensor"]["connect_timeout_s"] == 3.0
     assert r012_cfg["sensor"]["recv_timeout_s"] == 0.25
     assert r012_cfg["sensor"]["ready_timeout_s"] == 3.0
@@ -102,7 +102,7 @@ def test_load_r012_config_rejects_bad_rnn_and_preload_watchdog_bounds(tmp_path: 
         load_r012_config(tmp_path, config_path=str(bad_preload_path.relative_to(tmp_path)))
 
     bad_watchdog = deepcopy(cfg)
-    bad_watchdog["watchdog"]["command_stale_s"] = 0.005
+    bad_watchdog["watchdog"]["command_stale_s"] = 0.012
     bad_watchdog_path = tmp_path / "bad_watchdog.yaml"
     bad_watchdog_path.write_text(yaml.safe_dump(bad_watchdog), encoding="utf-8")
     with pytest.raises(Step5dRemoteCoreError):

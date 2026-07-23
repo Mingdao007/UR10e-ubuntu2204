@@ -185,9 +185,17 @@ def build_canary_evidence(
     created_at = _as_float(created_at_epoch_s, "created_at_epoch_s")
     if created_at < 0.0:
         raise ValueError("created_at_epoch_s must be non-negative")
-    allowed = {"zero", "free_space", "guarded_contact"}
+    allowed = {
+        "zero",
+        "free_space",
+        "guarded_contact",
+        "post_canary_safe_pose",
+    }
     if set(stage_statuses.keys()) != allowed:
-        raise ValueError("stages must be exactly zero/free_space/guarded_contact")
+        raise ValueError(
+            "stages must be exactly "
+            "zero/free_space/guarded_contact/post_canary_safe_pose"
+        )
     status = {}
     for key in allowed:
         value = stage_statuses[key]

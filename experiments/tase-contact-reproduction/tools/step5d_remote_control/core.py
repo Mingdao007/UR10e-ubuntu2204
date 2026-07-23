@@ -89,6 +89,24 @@ _R012_SCHEMA: dict[str, object] = {
     "frame": {"reaction_normal_b": ("vec", 3), "approach_normal_b": ("vec", 3), "normal_axis": ("str", ("fz",)), "normal_sign": ("int",)},
     "calibration": {"expected_hash": ("str",)}, "kinematics": {"calibration_yaml": ("str",), "xacro_path": ("str",), "tcp_offset_tool0_m": ("vec", 3), "position_bound_gain_s_inv": ("float", "pos")},
     "solver": {"paper_truth_path": ("str",)}, "search": {"speed_m_s": ("float", "pos"), "timeout_s": ("float", "nonneg")},
+    "prealign": {
+        "minimum_start_above_target_m": ("float", "pos"),
+        "max_xy_offset_m": ("float", "pos"),
+        "max_z_offset_m": ("float", "pos"),
+        "linear_speed_m_s": ("float", "pos"),
+        "position_gain_s_inv": ("float", "pos"),
+        "orientation_gain_s_inv": ("float", "pos"),
+        "angular_limit_rad_s": ("float", "pos"),
+        "position_tolerance_m": ("float", "pos"),
+        "orientation_tolerance_rad": ("float", "pos"),
+        "corridor_position_m": ("float", "pos"),
+        "corridor_orientation_rad": ("float", "pos"),
+        "recovery_orientation_tolerance_rad": ("float", "pos"),
+        "max_contact_force_n": ("float", "pos"),
+        "minimum_progress_cosine": ("float", "pos"),
+        "completion_dwell_s": ("float", "pos"),
+        "segment_timeout_s": ("float", "pos"),
+    },
     "preflight": {"prior_xyz": ("vec", 3), "prior_rotvec": ("vec", 3), "position_tolerance_m": ("float", "pos"), "orientation_tolerance_rad": ("float", "pos"), "qd_tolerance_rad_s": ("float", "pos"), "joint_state_stale_timeout_s": ("float", "pos"), "ready_timeout_s": ("float", "pos")},
     "canary": {"zero_s": ("float", "pos"), "free_space_s": ("float", "pos"), "guarded_contact_s": ("float", "pos"), "free_space_linear_limit_m_s": ("float", "pos"), "free_space_qdot_limit_rad_s": ("float", "pos"), "evidence_max_age_s": ("float", "pos")},
     "retract": {"distance_m": ("float", "pos"), "speed_m_s": ("float", "pos")},
@@ -188,8 +206,24 @@ def load_r012_config(repo_root: RepositoryPath, config_path: str = "config/step5
         raise Step5dRemoteCoreError("preload raw_min_n must be <= raw_max_n")
     if cfg["preload"]["filtered_min_n"] > cfg["preload"]["filtered_max_n"]:
         raise Step5dRemoteCoreError("preload filtered_min_n must be <= filtered_max_n")
-    if cfg["guard"]["rate_watchdog_max_miss_s"] > cfg["watchdog"]["command_stale_s"]:
-        raise Step5dRemoteCoreError("guard.rate_watchdog_max_miss_s must be <= watchdog.command_stale_s")
+    minimum_stale_window_s = (
+        cfg["guard"]["rate_watchdog_max_miss_s"]
+        + 1.0 / cfg["command_rate_hz"]
+    )
+    if cfg["watchdog"]["command_stale_s"] <= minimum_stale_window_s:
+        raise Step5dRemoteCoreError(
+            "watchdog.command_stale_s must exceed one command period plus "
+            "guard.rate_watchdog_max_miss_s"
+        )
+    if cfg["prealign"]["minimum_progress_cosine"] > 1.0:
+        raise Step5dRemoteCoreError("prealign.minimum_progress_cosine must be <= 1")
+    if (
+        cfg["prealign"]["orientation_tolerance_rad"]
+        > cfg["prealign"]["corridor_orientation_rad"]
+        or cfg["prealign"]["corridor_orientation_rad"]
+        > cfg["prealign"]["recovery_orientation_tolerance_rad"]
+    ):
+        raise Step5dRemoteCoreError("prealign orientation tolerances must be ordered")
     for key in ("origin_xy_m", "u_along_xy", "p_lateral_xy"):
         if len(cfg["path"]["basis"][key]) != 2:
             raise Step5dRemoteCoreError(f"path.basis.{key} must be 2D")

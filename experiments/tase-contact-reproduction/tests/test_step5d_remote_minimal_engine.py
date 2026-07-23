@@ -271,7 +271,7 @@ def test_canary_evidence_parser_rejects_bad_and_accepts_exact(tmp_path):
             f'"params_sha256": "{params_sha}", '
             '"boot_id": "abc", '
             '"created_at_epoch_s": 1000.0, '
-            '"stages": {"zero":"passed","free_space":"passed","guarded_contact":"passed"}'
+            '"stages": {"zero":"passed","free_space":"passed","guarded_contact":"passed","post_canary_safe_pose":"passed"}'
             "}"
         ),
         encoding="utf-8",
@@ -292,7 +292,7 @@ def test_canary_evidence_parser_rejects_bad_and_accepts_exact(tmp_path):
             f'"params_sha256": "{params_sha}", '
             '"boot_id": "abc", '
             '"created_at_epoch_s": 1000.0, '
-            '"stages": {"zero":"passed","free_space":"passed","guarded_contact":"passed"}'
+            '"stages": {"zero":"passed","free_space":"passed","guarded_contact":"passed","post_canary_safe_pose":"passed"}'
             "}"
         ),
         encoding="utf-8",

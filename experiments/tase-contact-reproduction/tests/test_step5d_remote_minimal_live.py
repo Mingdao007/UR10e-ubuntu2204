@@ -6,7 +6,10 @@ import copy
 import csv
 import io
 import json
+import os
+import signal
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,7 +23,7 @@ TOOLS_ROOT = str(EXPERIMENT_ROOT / "tools")
 if TOOLS_ROOT not in sys.path:
     sys.path.insert(0, TOOLS_ROOT)
 
-from step5d_remote_control import core, engine, live, primitives, runtime
+from step5d_remote_control import core, engine, live, primitives, ros_adapter, runtime
 from step5d_remote_control.kinematics import CalibratedKinematics
 
 
@@ -93,14 +96,21 @@ class FakeKernel:
         return (0.001, -0.001, 0.0, 0.0, 0.0, 0.0)
 
 
-def _sample(cfg: dict, timestamp_s: float) -> engine.KinematicSample:
+def _sample(
+    cfg: dict,
+    timestamp_s: float,
+    *,
+    tcp_pose: tuple[float, float, float, float, float, float] | None = None,
+) -> engine.KinematicSample:
+    if tcp_pose is None:
+        tcp_pose = (
+            *tuple(float(value) for value in cfg["preflight"]["prior_xyz"]),
+            *tuple(float(value) for value in cfg["preflight"]["prior_rotvec"]),
+        )
     return engine.KinematicSample(
         q=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         qd=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-        tcp_pose=(
-            *tuple(float(value) for value in cfg["preflight"]["prior_xyz"]),
-            *tuple(float(value) for value in cfg["preflight"]["prior_rotvec"]),
-        ),
+        tcp_pose=tcp_pose,
         tcp_twist=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         wrench_tcp=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
         jacobian=tuple(
@@ -118,7 +128,7 @@ def _dashboard() -> dict[str, str]:
         "is in remote control": "Is in remote control: true",
         "safetymode": "Safetymode: NORMAL",
         "robotmode": "Robotmode: RUNNING",
-        "running": "Program running: false",
+        "running": "Program running: true",
     }
 
 
@@ -183,6 +193,11 @@ def _patch_fast_stages(monkeypatch: pytest.MonkeyPatch) -> None:
             ),
         ),
     )
+    monkeypatch.setattr(
+        live,
+        "_run_post_canary_safe_pose",
+        lambda *_args, **_kwargs: 5,
+    )
 
 
 def test_dashboard_snapshot_accepts_canonical_prefixed_responses() -> None:
@@ -191,12 +206,110 @@ def test_dashboard_snapshot_accepts_canonical_prefixed_responses() -> None:
         "is in remote control": "true",
         "safetymode": "normal",
         "robotmode": "running",
-        "running": "false",
+        "running": "true",
     }
     bad = _dashboard()
     bad["is in remote control"] = "Is in remote control: false"
     with pytest.raises(live.LiveError, match="not in remote"):
         live.validate_dashboard_snapshot(bad)
+    stopped = _dashboard()
+    stopped["running"] = "Program running: false"
+    assert live.validate_dashboard_snapshot(stopped)["running"] == "false"
+    with pytest.raises(live.LiveError, match="not running"):
+        live.validate_dashboard_snapshot(stopped, require_running=True)
+
+
+def test_driver_cleanup_terminates_the_entire_launch_process_group() -> None:
+    process = ros_adapter._launch_driver(("/bin/bash", "-lc", "sleep 30 & wait"))
+    process_group = process.pid
+    time.sleep(0.05)
+    try:
+        os.killpg(process_group, 0)
+        ros_adapter._stop_driver(process)
+        with pytest.raises(ProcessLookupError):
+            os.killpg(process_group, 0)
+    finally:
+        try:
+            os.killpg(process_group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def test_dashboard_ticker_requires_running_only_after_motion_arm() -> None:
+    cfg = _cfg()
+    clock = FakeClock()
+    deps = _dependencies(cfg, clock=clock, events=[])
+    stopped = _dashboard()
+    stopped["running"] = "Program running: false"
+    deps.dashboard_check = lambda: stopped
+    ticker = live._SafetyTicker(deps, clock.monotonic())
+    ticker.check(clock.monotonic(), force=True)
+    ticker.require_running()
+    with pytest.raises(live.LiveError, match="not running"):
+        ticker.check(clock.monotonic(), force=True)
+
+
+def test_prealign_restores_r012_xy_then_vertical_contract() -> None:
+    cfg = _cfg()
+    current_pose = (
+        0.460802483,
+        0.124884915,
+        0.066847150,
+        3.109205904,
+        0.004330144,
+        0.038693807,
+    )
+    sample = _sample(cfg, 1.0, tcp_pose=current_pose)
+    live._validate_prealign_start(cfg, sample, 1.0)
+
+    target_xyz = tuple(cfg["preflight"]["prior_xyz"])
+    target_rotvec = tuple(cfg["preflight"]["prior_rotvec"])
+    xy_target = (target_xyz[0], target_xyz[1], current_pose[2], *target_rotvec)
+    xy_twist, xy_error, orientation_error = live._prealign_desired_twist(
+        cfg,
+        sample,
+        xy_target,
+    )
+    assert xy_error < cfg["prealign"]["max_xy_offset_m"]
+    assert 0.0 < orientation_error < cfg["preflight"]["orientation_tolerance_rad"]
+    assert xy_twist[0] > 0.0
+    assert xy_twist[1] > 0.0
+    assert abs(xy_twist[2]) < 1e-12
+    assert np.linalg.norm(xy_twist[:3]) <= cfg["prealign"]["linear_speed_m_s"] + 1e-12
+    assert np.linalg.norm(xy_twist[3:]) <= cfg["prealign"]["angular_limit_rad_s"] + 1e-12
+
+    at_xy = _sample(cfg, 2.0, tcp_pose=xy_target)
+    z_target = (*target_xyz, *target_rotvec)
+    z_twist, z_error, z_orientation_error = live._prealign_desired_twist(
+        cfg,
+        at_xy,
+        z_target,
+    )
+    assert z_error > 0.04
+    assert z_orientation_error < 1e-7
+    assert abs(z_twist[0]) < 1e-12
+    assert abs(z_twist[1]) < 1e-12
+    assert z_twist[2] < 0.0
+
+
+def test_prealign_start_rejects_low_or_far_pose() -> None:
+    cfg = _cfg()
+    target = tuple(cfg["preflight"]["prior_xyz"])
+    rotvec = tuple(cfg["preflight"]["prior_rotvec"])
+    low = _sample(
+        cfg,
+        1.0,
+        tcp_pose=(target[0], target[1], target[2] + 0.005, *rotvec),
+    )
+    with pytest.raises(live.LiveError, match="not high enough"):
+        live._validate_prealign_start(cfg, low, 1.0)
+    far = _sample(
+        cfg,
+        1.0,
+        tcp_pose=(target[0] + 0.2, target[1], target[2] + 0.02, *rotvec),
+    )
+    with pytest.raises(live.LiveError, match="XY offset"):
+        live._validate_prealign_start(cfg, far, 1.0)
 
 
 def test_calibrated_kinematics_uses_six_limits_and_tcp_jacobian() -> None:
@@ -365,6 +478,7 @@ def test_run_requires_same_boot_fresh_canary_before_external_io(
             "zero": "passed",
             "free_space": "passed",
             "guarded_contact": "passed",
+            "post_canary_safe_pose": "passed",
         },
     )
     (canary_root / "summary.json").write_text(json.dumps(evidence), encoding="utf-8")

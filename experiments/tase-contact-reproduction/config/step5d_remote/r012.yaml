@@ -23,7 +23,10 @@ controller:
   status_topic: /step5d_watchdog_controller/status
   joint_state_topic: /joint_states
 watchdog:
-  command_stale_s: 0.01
+  # Direct ROS2/DDS command delivery needs margin beyond the 2 ms nominal
+  # period plus the 10 ms host-loop miss gate. This remains fail-closed while
+  # avoiding startup latches caused by normal userspace scheduling jitter.
+  command_stale_s: 0.05
   max_abs_velocity_rad_s: 0.5
   max_acceleration_rad_s2: 0.5
 force:
@@ -93,6 +96,23 @@ solver:
 search:
   speed_m_s: 0.003
   timeout_s: 10.0
+prealign:
+  minimum_start_above_target_m: 0.010
+  max_xy_offset_m: 0.120
+  max_z_offset_m: 0.100
+  linear_speed_m_s: 0.003
+  position_gain_s_inv: 2.0
+  orientation_gain_s_inv: 2.0
+  angular_limit_rad_s: 0.05
+  position_tolerance_m: 0.0008
+  orientation_tolerance_rad: 0.010
+  corridor_position_m: 0.002
+  corridor_orientation_rad: 0.035
+  recovery_orientation_tolerance_rad: 0.350
+  max_contact_force_n: 5.0
+  minimum_progress_cosine: 0.90
+  completion_dwell_s: 0.10
+  segment_timeout_s: 45.0
 preflight:
   prior_xyz:
     - +0.487834547

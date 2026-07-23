@@ -102,12 +102,17 @@ WatchdogController::on_configure(const rclcpp_lifecycle::State &) {
                 }
               }
             }
+            if (event.kind != CommandEventKind::VALID) {
+              pending_invalid_kind_.store(
+                  static_cast<std::uint8_t>(event.kind),
+                  std::memory_order_release);
+            }
             command_buffer_.writeFromNonRT(event);
           });
   status_publisher_ = node->create_publisher<std_msgs::msg::UInt8>(
       "~/status", rclcpp::QoS(1).reliable());
   status_timer_ = node->create_wall_timer(
-      std::chrono::milliseconds(100),
+      std::chrono::milliseconds(2),
       std::bind(&WatchdogController::publish_status, this));
   return controller_interface::CallbackReturn::SUCCESS;
 }
@@ -120,6 +125,9 @@ WatchdogController::on_activate(const rclcpp_lifecycle::State &) {
   command_buffer_.initRT(CommandEvent{});
   next_sequence_.store(0, std::memory_order_release);
   accepting_commands_.store(false, std::memory_order_release);
+  pending_invalid_kind_.store(
+      static_cast<std::uint8_t>(CommandEventKind::NONE),
+      std::memory_order_release);
   processed_sequence_ = 0;
   gate_->reset(steady_now_s());
   published_status_.store(
@@ -134,6 +142,9 @@ WatchdogController::on_activate(const rclcpp_lifecycle::State &) {
 controller_interface::CallbackReturn
 WatchdogController::on_deactivate(const rclcpp_lifecycle::State &) {
   accepting_commands_.store(false, std::memory_order_release);
+  pending_invalid_kind_.store(
+      static_cast<std::uint8_t>(CommandEventKind::NONE),
+      std::memory_order_release);
   write_zero();
   if (gate_) {
     gate_->reset(steady_now_s());
@@ -150,6 +161,9 @@ WatchdogController::on_deactivate(const rclcpp_lifecycle::State &) {
 controller_interface::CallbackReturn
 WatchdogController::on_cleanup(const rclcpp_lifecycle::State &) {
   accepting_commands_.store(false, std::memory_order_release);
+  pending_invalid_kind_.store(
+      static_cast<std::uint8_t>(CommandEventKind::NONE),
+      std::memory_order_release);
   write_zero();
   status_timer_.reset();
   status_publisher_.reset();
@@ -166,11 +180,25 @@ WatchdogController::update(const rclcpp::Time &,
     write_zero();
     return controller_interface::return_type::ERROR;
   }
+  const auto invalid_kind = static_cast<CommandEventKind>(
+      pending_invalid_kind_.exchange(
+          static_cast<std::uint8_t>(CommandEventKind::NONE),
+          std::memory_order_acq_rel));
+  if (invalid_kind != CommandEventKind::NONE) {
+    CommandEvent invalid_event;
+    invalid_event.kind = invalid_kind;
+    invalid_event.received_at_s = steady_now_s();
+    gate_->submit(invalid_event);
+  }
   const CommandEvent *event = command_buffer_.readFromRT();
   if (event != nullptr && event->sequence != 0 &&
       event->sequence != processed_sequence_) {
     CommandEvent submitted = *event;
-    if (submitted.sequence != processed_sequence_ + 1) {
+    // This is a latest-value velocity topic. A forward sequence jump means
+    // callback batching; the gate still checks the latest command against the
+    // actual last output for qdot, slew, and staleness. An old/out-of-order
+    // sequence is never admissible.
+    if (submitted.sequence < processed_sequence_) {
       submitted.kind = CommandEventKind::INVALID_OVERRUN;
     }
     gate_->submit(submitted);

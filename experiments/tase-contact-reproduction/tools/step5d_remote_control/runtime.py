@@ -206,7 +206,12 @@ def validate_canary_evidence(
     stages = evidence["stages"]
     if not isinstance(stages, Mapping):
         raise ValueError("canary evidence stages must be mapping")
-    expected_stage_keys = {"zero", "free_space", "guarded_contact"}
+    expected_stage_keys = {
+        "zero",
+        "free_space",
+        "guarded_contact",
+        "post_canary_safe_pose",
+    }
     if set(stages.keys()) != expected_stage_keys:
         raise ValueError("canary evidence stages missing required entries")
     if not all(str(stages[name]) == "passed" for name in expected_stage_keys):

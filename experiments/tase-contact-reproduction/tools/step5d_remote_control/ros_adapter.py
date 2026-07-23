@@ -7,6 +7,8 @@ dependency methods.
 
 from __future__ import annotations
 
+import os
+import signal
 import socket
 import subprocess
 import threading
@@ -353,18 +355,43 @@ def _build_monitor(cfg: Mapping[str, Any], raw_frames_path: Path) -> Any:
 
 
 def _launch_driver(command: tuple[str, ...]) -> subprocess.Popen[Any]:
-    return subprocess.Popen(command)
+    return subprocess.Popen(command, start_new_session=True)
 
 
 def _stop_driver(process: subprocess.Popen[Any]) -> None:
-    if process.poll() is not None:
+    process_group = int(process.pid)
+
+    def group_exists() -> bool:
+        process.poll()
+        try:
+            os.killpg(process_group, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
+    def stop_group(sig: signal.Signals, timeout_s: float) -> bool:
+        try:
+            os.killpg(process_group, sig)
+        except ProcessLookupError:
+            return True
+        deadline_s = time.monotonic() + timeout_s
+        while time.monotonic() < deadline_s:
+            if not group_exists():
+                return True
+            time.sleep(0.05)
+        return not group_exists()
+
+    if not group_exists():
+        process.poll()
         return
-    process.terminate()
+    if not stop_group(signal.SIGINT, 5.0):
+        if not stop_group(signal.SIGTERM, 2.0):
+            if not stop_group(signal.SIGKILL, 2.0):
+                raise RuntimeError(f"driver process group {process_group} did not exit")
     try:
-        process.wait(timeout=5.0)
+        process.wait(timeout=0.5)
     except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=2.0)
+        pass
 
 
 def build_production_dependencies(

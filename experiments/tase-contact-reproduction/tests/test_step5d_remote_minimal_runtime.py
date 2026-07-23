@@ -98,7 +98,12 @@ def test_validate_canary_evidence_enforces_strict_schema_and_age(tmp_path: Path)
         "params_sha256": params_sha,
         "boot_id": "boot-id-1",
         "created_at_epoch_s": now - 1.0,
-        "stages": {"zero": "passed", "free_space": "passed", "guarded_contact": "passed"},
+        "stages": {
+            "zero": "passed",
+            "free_space": "passed",
+            "guarded_contact": "passed",
+            "post_canary_safe_pose": "passed",
+        },
     }
     evidence_path = tmp_path / "good.json"
     evidence_path.write_text(json.dumps(good), encoding="utf-8")
@@ -148,7 +153,12 @@ def test_validate_canary_evidence_enforces_strict_schema_and_age(tmp_path: Path)
         )
 
     bad_stage = dict(good)
-    bad_stage["stages"] = {"zero": "passed", "free_space": "failed", "guarded_contact": "passed"}
+    bad_stage["stages"] = {
+        "zero": "passed",
+        "free_space": "failed",
+        "guarded_contact": "passed",
+        "post_canary_safe_pose": "passed",
+    }
     bad_stage_path = tmp_path / "bad_stage.json"
     bad_stage_path.write_text(json.dumps(bad_stage), encoding="utf-8")
     with pytest.raises(ValueError, match="requires all stages"):
