@@ -29,6 +29,7 @@ from step5d_autotune_v3.release_identity import (  # noqa: E402
     ReleaseIdentityError,
     identity_from_manifest,
     load_current_release,
+    load_current_release_for_source_rebind,
     release_runtime_environment_binding,
 )
 from step5d_autotune_v3.release_verifier import (  # noqa: E402
@@ -580,6 +581,25 @@ def test_active_release_source_fingerprint_drift_fails_closed(
 
     with pytest.raises(ReleaseIdentityError, match="source file fingerprint drifted"):
         load_current_release(tmp_path)
+
+
+def test_source_rebind_loads_historical_identity_but_still_verifies_bundle(
+    tmp_path: Path,
+) -> None:
+    _release_fixture(tmp_path)
+    release = load_current_release(tmp_path)
+    source = tmp_path / "tools/step5d_autotune_coordinator.py"
+    source.write_text("# source rebind candidate\n", encoding="utf-8")
+
+    historical = load_current_release_for_source_rebind(tmp_path)
+    assert historical.manifest_sha256 == release.manifest_sha256
+    assert historical.artifact_sha256 == release.artifact_sha256
+
+    manifest_path = tmp_path / release.manifest_path
+    script_path = manifest_path.parent / release.artifacts[".script"]["path"]
+    script_path.write_text("# immutable artifact drift\n", encoding="utf-8")
+    with pytest.raises(ReleaseIdentityError, match="artifact file fingerprint drifted"):
+        load_current_release_for_source_rebind(tmp_path)
 
 
 ATOMIC_RUNTIME_REGISTERS = {
