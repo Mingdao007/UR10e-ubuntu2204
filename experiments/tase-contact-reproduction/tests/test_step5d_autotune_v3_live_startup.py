@@ -411,6 +411,8 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     assert no_arm_ready < runner_start < runner_ready
     assert runner_ready < claim_gate < campaign_ready < play_signal < play_observed < gate_refresh
     assert '"--wait-for-first-arm-gate"' in source
+    assert '"--home-timeout-s"' in source
+    assert source.count("str(args.play_timeout_s + 5.0)") == 2
     runner_source = (ROOT / "tools/run_step5d_autotune_campaign.py").read_text(
         encoding="utf-8"
     )

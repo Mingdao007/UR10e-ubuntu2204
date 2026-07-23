@@ -1339,6 +1339,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 "--candidate-plan",
                 str(paths.candidate_plan),
                 "--wait-for-home",
+                "--home-timeout-s",
+                str(args.play_timeout_s + 5.0),
                 "--recover-infra-aborted-active",
                 "--v3-stop-latch",
                 str(paths.stop_latch),
