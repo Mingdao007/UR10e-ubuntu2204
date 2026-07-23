@@ -516,9 +516,9 @@ if (( bridge_mode == 1 )); then
   resolved_release_sha=""
   route_reason_code="LAUNCH_ATTEMPT_FAILED"
   if [[ -f "${route_snapshot}" && ! -L "${route_snapshot}" ]]; then
-    IFS=$'\t' read -r bridge_route resolved_release_sha route_reason_code < <(
+    IFS=$'\x1f' read -r bridge_route resolved_release_sha route_reason_code < <(
       "${CONTROL_PYTHON}" -c \
-        'import json,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print(p["route"], p.get("manual_release_manifest_sha256") or p.get("autotune_release_manifest_sha256") or "", p.get("reason_code") or "LAUNCH_ATTEMPT_FAILED", sep="\t")' \
+        'import json,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print(p["route"], p.get("manual_release_manifest_sha256") or p.get("autotune_release_manifest_sha256") or "", p.get("reason_code") or "LAUNCH_ATTEMPT_FAILED", sep="\x1f")' \
         "${route_snapshot}"
     )
   fi
