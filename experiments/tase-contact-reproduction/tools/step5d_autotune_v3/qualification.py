@@ -44,6 +44,15 @@ from .runtime_installation import (
     load_runtime_pointer_identity,
     runtime_binding,
 )
+from .release_certificate import (
+    REFERENCE_SCHEMA as RELEASE_CERTIFICATE_REFERENCE_SCHEMA,
+    ReleaseCertificateError,
+    certificate_path,
+    load_release_certificate,
+    release_certificate_scope,
+    sha256_file as release_certificate_file_sha256,
+    write_release_certificate,
+)
 
 
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
@@ -76,7 +85,7 @@ PROCESS_TREE_BINDING_INCOMPLETE = "PROCESS_TREE_BINDING_INCOMPLETE"
 QUALIFIED = "QUALIFIED"
 PRODUCTION_LIFECYCLE_FAILED = "PRODUCTION_LIFECYCLE_FAILED"
 QUALIFICATION_ENDPOINT_LEASE_BUSY = "QUALIFICATION_ENDPOINT_LEASE_BUSY"
-OFFLINE_EVIDENCE_MISSING = "OFFLINE_EVIDENCE_MISSING"
+RELEASE_CERTIFICATE_MISSING = "RELEASE_CERTIFICATE_MISSING"
 
 QUALIFICATION_ENDPOINT_PORTS = {
     "dashboard": 29999,
@@ -627,6 +636,58 @@ def qualification_process_tree_fingerprint(experiment_root: Path) -> str:
     return production_process_tree_fingerprint(experiment_root)
 
 
+def qualification_safety_process_tree_fingerprint(
+    experiment_root: Path,
+) -> str:
+    """Bind live authority owners while excluding the optimizer deployment."""
+
+    root = Path(experiment_root).resolve(strict=True)
+    roles = {
+        role: relative
+        for role, relative in _PROCESS_ROLE_PATHS.items()
+        if role != "campaign_runner"
+    }
+    processes = [
+        {
+            "role": role,
+            "script": str((root / relative).resolve(strict=True)),
+            "script_sha256": _sha256_file(root / relative),
+            "runtime_profile": _PROCESS_ROLE_PROFILES[role],
+        }
+        for role, relative in sorted(roles.items())
+    ]
+    return _process_tree_shape_fingerprint(processes)
+
+
+def _control_environment_fingerprint(
+    runtime_pointer: Mapping[str, Any],
+) -> str:
+    profiles = runtime_pointer.get("profiles")
+    control = profiles.get("control") if isinstance(profiles, Mapping) else None
+    if not isinstance(control, Mapping):
+        raise QualificationError("control runtime identity is missing")
+    required_control = {
+        "environment_id",
+        "record_tree_sha256",
+        "profile_tree_sha256",
+    }
+    if not required_control <= set(control):
+        raise QualificationError("control runtime identity fields differ")
+    payload = {
+        "schema": "step5d.autotune-v3/control-environment-scope-v1",
+        "environment_id": _require_sha256(
+            control["environment_id"], "control environment ID"
+        ),
+        "record_tree_sha256": _require_sha256(
+            control["record_tree_sha256"], "control RECORD tree SHA-256"
+        ),
+        "profile_tree_sha256": _require_sha256(
+            control["profile_tree_sha256"], "control profile tree SHA-256"
+        ),
+    }
+    return _sha256_bytes(_canonical_bytes(payload))
+
+
 def production_process_role_paths() -> Mapping[str, str]:
     return dict(_PROCESS_ROLE_PATHS)
 
@@ -1155,12 +1216,8 @@ def validate_qualification_binding(
     binding = payload.get("binding")
     validate_content_binding(binding)
     process_tree = binding["process_tree"]
-    if (
-        process_tree["complete"] is not True
-        or process_tree["fingerprint"]
-        != qualification_process_tree_fingerprint(experiment_root)
-    ):
-        raise QualificationError("qualification process topology differs")
+    if process_tree["complete"] is not True:
+        raise QualificationError("qualification process topology is incomplete")
     expected = {
         "manifest_sha256": _require_sha256(manifest_sha256, "release manifest"),
         "source_fingerprint": _require_sha256(
@@ -2816,49 +2873,64 @@ def _qualification_release(
     return release, release if release_identity is not None else None
 
 
-def _read_cached_qualification(
+def _read_release_certificate_for_scope(
     output: Path,
     *,
-    expected_cache_key: str | None,
+    scope: Mapping[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
-    from step5d_autotune_v3.state import read_strict_json
-
-    current_path = output / "qualification/current.json"
-    if not current_path.is_file() or current_path.is_symlink():
+    path = certificate_path(output, scope)
+    if not path.exists():
         return None
-    current = read_strict_json(current_path, role="qualification current pointer")
-    if (
-        not isinstance(current, Mapping)
-        or set(current) != {"schema", "cache_key", "path", "sha256"}
-        or current["schema"]
-        != "step5d.autotune-v3/qualification-current-pointer-v1"
-        or not isinstance(current["path"], str)
-        or (expected_cache_key is not None and current["cache_key"] != expected_cache_key)
-    ):
-        return None
-    _require_sha256(current["cache_key"], "qualification cache key")
-    evidence_sha256 = _require_sha256(
-        current["sha256"], "qualification evidence SHA-256"
-    )
-    cached_path = (output / current["path"]).resolve()
     try:
-        cached_path.relative_to(output)
-    except ValueError:
-        return None
-    if (
-        not cached_path.is_file()
-        or cached_path.is_symlink()
-        or _sha256_file(cached_path) != evidence_sha256
-    ):
-        return None
-    cached = read_strict_json(cached_path, role="cached qualification")
-    if not isinstance(cached, dict):
-        return None
-    return cached, {
-        "schema": QUALIFICATION_EVIDENCE_SCHEMA,
-        "path": str(cached_path),
-        "sha256": evidence_sha256,
+        _certificate, _evidence_path, qualification = load_release_certificate(
+            output,
+            path,
+            expected_scope=scope,
+        )
+    except ReleaseCertificateError as exc:
+        raise QualificationError(f"release certificate is invalid: {exc}") from exc
+    if not isinstance(qualification, dict):
+        raise QualificationError(
+            "release certificate qualification evidence is not an object"
+        )
+    return qualification, {
+        "schema": RELEASE_CERTIFICATE_REFERENCE_SCHEMA,
+        "path": str(path),
+        "sha256": release_certificate_file_sha256(
+            path,
+            "release certificate",
+        ),
     }
+
+
+def release_certificate_scope_for_release(
+    experiment_root: Path,
+    release_identity: Any,
+    *,
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    root = Path(experiment_root).resolve(strict=True)
+    values = os.environ if environment is None else environment
+    source_binding = _source_binding(
+        root,
+        release_identity.manifest_sha256,
+        release_identity=release_identity,
+    )
+    runtime_pointer = load_runtime_pointer_identity(environ=values)
+    return release_certificate_scope(
+        release_manifest_sha256=release_identity.manifest_sha256,
+        source_fingerprint=source_binding["fingerprint"],
+        source_files_fingerprint=source_binding["files_fingerprint"],
+        launcher_sha256=_sha256_file(
+            root / "scripts/step5d-autotune-v3.sh"
+        ),
+        control_environment_sha256=_control_environment_fingerprint(
+            runtime_pointer
+        ),
+        process_tree_fingerprint=(
+            qualification_safety_process_tree_fingerprint(root)
+        ),
+    )
 
 
 def run_endpoint_qualification(
@@ -2894,12 +2966,47 @@ def run_endpoint_qualification(
     if output.exists() and (output.is_symlink() or not output.is_dir()):
         raise QualificationError("qualification output root is unsafe")
     output.mkdir(parents=True, exist_ok=True)
-    _source_binding(
+    source_binding = _source_binding(
         root,
         release.manifest_sha256,
         release_identity=binding_release,
     )
     runtime_pointer = load_runtime_pointer_identity(environ=values)
+    launcher_sha256 = _sha256_file(launcher)
+    certificate_scope = release_certificate_scope(
+        release_manifest_sha256=release.manifest_sha256,
+        source_fingerprint=source_binding["fingerprint"],
+        source_files_fingerprint=source_binding["files_fingerprint"],
+        launcher_sha256=launcher_sha256,
+        control_environment_sha256=_control_environment_fingerprint(
+            runtime_pointer
+        ),
+        process_tree_fingerprint=(
+            qualification_safety_process_tree_fingerprint(root)
+        ),
+    )
+    cached = _read_release_certificate_for_scope(
+        output,
+        scope=certificate_scope,
+    )
+    if cached is not None:
+        payload, certificate_reference = cached
+        try:
+            validate_qualification_result(
+                payload,
+                experiment_root=root,
+                manifest_sha256=release.manifest_sha256,
+                source_fingerprint=source_binding["fingerprint"],
+                launcher_sha256=launcher_sha256,
+                release_identity=binding_release,
+            )
+        except QualificationError as exc:
+            raise QualificationError(
+                f"release certificate qualification is invalid: {exc}"
+            ) from exc
+        return payload, certificate_reference
+    if reuse_only:
+        raise QualificationBlocked(RELEASE_CERTIFICATE_MISSING)
     clean_environment = _qualification_environment(
         values,
         runtime_pointer=runtime_pointer,
@@ -2912,41 +3019,6 @@ def run_endpoint_qualification(
         release_identity=binding_release,
         runtime_pointer=runtime_pointer,
     )
-    process_fingerprint = qualification_process_tree_fingerprint(root)
-    cache_key = _sha256_bytes(
-        _canonical_bytes(
-            {
-                "schema": "step5d.autotune-v3/qualification-cache-key-v1",
-                "manifest_sha256": release.manifest_sha256,
-                "source_fingerprint": prebinding["source"]["fingerprint"],
-                "source_files_fingerprint": prebinding["source"][
-                    "files_fingerprint"
-                ],
-                "launcher_sha256": prebinding["launcher"]["sha256"],
-                "environment_sha256": prebinding["environment"]["fingerprint"],
-                "process_tree_fingerprint": process_fingerprint,
-            }
-        )
-    )
-    current_path = output / "qualification/current.json"
-    cached = _read_cached_qualification(output, expected_cache_key=cache_key)
-    if cached is not None:
-        payload, evidence = cached
-        try:
-            validate_qualification_result(
-                payload,
-                experiment_root=root,
-                manifest_sha256=release.manifest_sha256,
-                source_fingerprint=prebinding["source"]["fingerprint"],
-                launcher_sha256=prebinding["launcher"]["sha256"],
-                release_identity=binding_release,
-            )
-        except QualificationError:
-            pass
-        else:
-            return payload, evidence
-    if reuse_only:
-        raise QualificationBlocked(OFFLINE_EVIDENCE_MISSING)
     runtime_pointer = load_runtime_pointer(environ=clean_environment)
     try:
         _gpu_payload, gpu_reference = load_gpu_functional_attestation(
@@ -3308,15 +3380,14 @@ def run_endpoint_qualification(
     evidence_ref = write_qualification_evidence(output, payload)
     if payload["ok"] is True:
         evidence_path = Path(evidence_ref["path"])
-        atomic_json(
-            current_path,
-            {
-                "schema": "step5d.autotune-v3/qualification-current-pointer-v1",
-                "cache_key": cache_key,
-                "path": str(evidence_path.relative_to(output)),
-                "sha256": evidence_ref["sha256"],
-            },
+        _certificate, certificate_reference = write_release_certificate(
+            output,
+            scope=certificate_scope,
+            qualification_evidence_path=evidence_path,
+            qualification_evidence_sha256=evidence_ref["sha256"],
+            completed_at_unix_ns=payload["completed_at_unix_ns"],
         )
+        return payload, certificate_reference
     return payload, evidence_ref
 
 
@@ -3330,7 +3401,7 @@ __all__ = [
     "ENDPOINT_INJECTION_UNAVAILABLE",
     "FIRST_ARM_ACK_MISSING",
     "NEXT_ARM_ACK_MISSING",
-    "OFFLINE_EVIDENCE_MISSING",
+    "RELEASE_CERTIFICATE_MISSING",
     "PROCESS_TREE_BINDING_INCOMPLETE",
     "PRODUCTION_LIFECYCLE_FAILED",
     "QUALIFIED",
@@ -3343,7 +3414,9 @@ __all__ = [
     "qualification_integration_blocker",
     "production_process_tree_fingerprint",
     "production_process_role_paths",
+    "qualification_safety_process_tree_fingerprint",
     "read_process_starttime",
+    "release_certificate_scope_for_release",
     "resolve_process_argv_paths",
     "require_canonical_launcher",
     "run_endpoint_qualification",

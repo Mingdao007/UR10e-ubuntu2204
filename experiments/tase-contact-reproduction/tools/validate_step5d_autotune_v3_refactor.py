@@ -60,6 +60,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_v3_qualification.py",
     "tests/test_step5d_autotune_v3_qualification_endpoints.py",
     "tests/test_step5d_autotune_v3_qualification_production.py",
+    "tests/test_step5d_autotune_v3_release_certificate.py",
     "tests/test_step5d_autotune_v3_refactor_gate.py",
     "tests/test_step5d_autotune_v3_test_matrix_runner.py",
     "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",

@@ -35,8 +35,8 @@ receipt. It never sends Dashboard Load or Play.
 
 Required options:
   --release-candidate PATH   Immutable local release candidate
-  --qualification-result PATH
-                             Offline qualification result bound to the candidate
+  --release-certificate PATH
+                             Immutable offline certificate bound to the candidate
 
 Optional:
   --artifact-dir PATH        TP package directory (default: canonical Step5d)
@@ -46,16 +46,32 @@ Optional:
 EOF
 }
 
+release_certify_usage() {
+  cat <<'EOF'
+Usage: step5d-autotune-v3.sh release-certify [OPTIONS]
+
+Canonical offline/no-motion release qualification. Runs the governed localhost
+endpoint lifecycle and writes an immutable release-scoped certificate.
+
+Required options:
+  --release-candidate PATH   Immutable local release candidate
+
+  -h, --help                 Show this help without starting any work
+EOF
+}
+
 usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
        step5d-autotune-v3.sh bridge [OPTIONS]
+       step5d-autotune-v3.sh release-certify [OPTIONS]
        step5d-autotune-v3.sh tp-deliver [OPTIONS]
        step5d-autotune-v3.sh status [--json]
        step5d-autotune-v3.sh status --json --assert-state STATE
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
 
 Use "step5d-autotune-v3.sh bridge-live --help" for bridge options.
+Use "step5d-autotune-v3.sh release-certify --help" for certification options.
 Use "step5d-autotune-v3.sh tp-deliver --help" for delivery options.
 EOF
 }
@@ -69,6 +85,12 @@ bridge_argv_error() {
 tp_deliver_argv_error() {
   echo "tp-deliver argv refused: $1" >&2
   echo "use: step5d-autotune-v3.sh tp-deliver --help" >&2
+  exit 64
+}
+
+release_certify_argv_error() {
+  echo "release-certify argv refused: $1" >&2
+  echo "use: step5d-autotune-v3.sh release-certify --help" >&2
   exit 64
 }
 
@@ -281,8 +303,10 @@ bridge_cancel_trap() {
 }
 
 bridge_mode=0
+release_certify_mode=0
 tp_deliver_mode=0
 tp_deliver_args=()
+release_candidate=""
 arguments=()
 output_root=""
 campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
@@ -399,6 +423,52 @@ if [[ "${1:-}" == "bridge" || "${1:-}" == "bridge-live" ]]; then
   done
 fi
 
+if [[ "${1:-}" == "release-certify" ]]; then
+  release_certify_mode=1
+  shift
+  arguments=("$@")
+  for option in "${arguments[@]}"; do
+    if [[ "${option}" == "-h" || "${option}" == "--help" ]]; then
+      release_certify_usage
+      exit 0
+    fi
+  done
+
+  seen_release_candidate=0
+  index=0
+  while (( index < ${#arguments[@]} )); do
+    option="${arguments[index]}"
+    option_name="${option%%=*}"
+    value=""
+    case "${option}" in
+      --release-candidate)
+        if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
+          release_certify_argv_error "${option} requires a value"
+        fi
+        value="${arguments[index + 1]}"
+        ((index += 2))
+        ;;
+      --release-candidate=*)
+        value="${option#*=}"
+        if [[ -z "${value}" ]]; then
+          release_certify_argv_error "${option_name} requires a value"
+        fi
+        ((index += 1))
+        ;;
+      *)
+        release_certify_argv_error "unsupported option or positional argument: ${option}"
+        ;;
+    esac
+    (( seen_release_candidate == 0 )) \
+      || release_certify_argv_error "--release-candidate may appear only once"
+    seen_release_candidate=1
+    release_candidate="$(readlink -m -- "${value}")"
+  done
+  if [[ -z "${release_candidate}" ]]; then
+    release_certify_argv_error "--release-candidate is required"
+  fi
+fi
+
 if [[ "${1:-}" == "tp-deliver" ]]; then
   tp_deliver_mode=1
   shift
@@ -411,12 +481,11 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
   done
 
   artifact_dir="${EXPERIMENT_ROOT}/programs/step5/step5d"
-  release_candidate=""
-  qualification_result=""
+  release_certificate=""
   delivery_evidence_output=""
   seen_artifact_dir=0
   seen_release_candidate=0
-  seen_qualification_result=0
+  seen_release_certificate=0
   seen_evidence_output=0
   seen_readback_only=0
   index=0
@@ -425,14 +494,14 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
     option_name="${option%%=*}"
     value=""
     case "${option}" in
-      --artifact-dir|--release-candidate|--qualification-result|--evidence-output)
+      --artifact-dir|--release-candidate|--release-certificate|--evidence-output)
         if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
           tp_deliver_argv_error "${option} requires a value"
         fi
         value="${arguments[index + 1]}"
         ((index += 2))
         ;;
-      --artifact-dir=*|--release-candidate=*|--qualification-result=*|--evidence-output=*)
+      --artifact-dir=*|--release-candidate=*|--release-certificate=*|--evidence-output=*)
         value="${option#*=}"
         if [[ -z "${value}" ]]; then
           tp_deliver_argv_error "${option_name} requires a value"
@@ -462,10 +531,10 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
         seen_release_candidate=1
         release_candidate="$(readlink -m -- "${value}")"
         ;;
-      --qualification-result)
-        (( seen_qualification_result == 0 )) || tp_deliver_argv_error "--qualification-result may appear only once"
-        seen_qualification_result=1
-        qualification_result="$(readlink -m -- "${value}")"
+      --release-certificate)
+        (( seen_release_certificate == 0 )) || tp_deliver_argv_error "--release-certificate may appear only once"
+        seen_release_certificate=1
+        release_certificate="$(readlink -m -- "${value}")"
         ;;
       --evidence-output)
         (( seen_evidence_output == 0 )) || tp_deliver_argv_error "--evidence-output may appear only once"
@@ -477,8 +546,8 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
   if [[ -z "${release_candidate}" ]]; then
     tp_deliver_argv_error "--release-candidate is required"
   fi
-  if [[ -z "${qualification_result}" ]]; then
-    tp_deliver_argv_error "--qualification-result is required"
+  if [[ -z "${release_certificate}" ]]; then
+    tp_deliver_argv_error "--release-certificate is required"
   fi
   if [[ -z "${delivery_evidence_output}" ]]; then
     delivery_evidence_output="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/delivery-$(date -u +%Y%m%dT%H%M%SZ)-$$.json"
@@ -487,7 +556,7 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
     --root "${EXPERIMENT_ROOT}"
     --artifact-dir "${artifact_dir}"
     --release-candidate "${release_candidate}"
-    --qualification-result "${qualification_result}"
+    --release-certificate "${release_certificate}"
     --evidence-output "${delivery_evidence_output}"
     "${tp_deliver_args[@]}"
   )
@@ -619,6 +688,16 @@ export STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID="${OPTIMIZER_ENVIRONMENT_ID}"
 export STEP5D_V3_OPTIMIZER_PYTHON="${OPTIMIZER_PYTHON}"
 export STEP5D_V3_RUNTIME_ATTESTATION_SHA256="${RUNTIME_ATTESTATION_SHA256}"
 export STEP5D_V3_RUNTIME_BUNDLE_ID="${RUNTIME_BUNDLE_ID}"
+if (( release_certify_mode == 1 )); then
+  export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
+  export STEP5D_V3_SHELL_PID="$$"
+  "${CONTROL_PYTHON}" \
+    "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
+    --experiment-root "${EXPERIMENT_ROOT}" \
+    --output-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
+    --release-candidate "${release_candidate}"
+  exit $?
+fi
 if (( tp_deliver_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"

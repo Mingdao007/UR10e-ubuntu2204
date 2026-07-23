@@ -51,6 +51,11 @@ from step5d_autotune_v3.governance import (
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
 from step5d_autotune_v3.optimizer_protocol import ExactOptimizerClient
 from step5d_autotune_v3.profile import load_contract
+from step5d_autotune_v3.qualification import release_certificate_scope_for_release
+from step5d_autotune_v3.release_certificate import (
+    certificate_path,
+    load_release_certificate,
+)
 from step5d_autotune_v3.release_identity import (
     LAUNCH_PROFILE_PATH,
     SAFETY_ENVELOPE_PATH,
@@ -458,26 +463,21 @@ def _release_triplet(release: ReleaseIdentity) -> dict[str, str]:
     }
 
 
-def _qualification_evidence_reference(campaign_root: Path) -> dict[str, str]:
-    pointer = read_strict_json(
-        campaign_root / "qualification/current.json",
-        role="current qualification pointer",
+def _qualification_evidence_reference(
+    experiment_root: Path,
+    release: ReleaseIdentity,
+) -> dict[str, str]:
+    certificate_root = experiment_root / "runs/step5d_autotune_v3"
+    scope = release_certificate_scope_for_release(experiment_root, release)
+    _certificate, evidence, _qualification = load_release_certificate(
+        certificate_root,
+        certificate_path(certificate_root, scope),
+        expected_scope=scope,
     )
-    if not isinstance(pointer, Mapping) or set(pointer) != {
-        "schema",
-        "cache_key",
-        "path",
-        "sha256",
-    }:
-        raise LiveLaunchError("current qualification pointer fields differ")
-    if pointer["schema"] != "step5d.autotune-v3/qualification-current-pointer-v1":
-        raise LiveLaunchError("current qualification pointer schema differs")
-    evidence = (campaign_root / str(pointer["path"])).resolve()
-    try:
-        evidence.relative_to(campaign_root.resolve())
-    except ValueError as exc:
-        raise LiveLaunchError("current qualification evidence escapes campaign root") from exc
-    return {"path": str(evidence), "sha256": str(pointer["sha256"])}
+    return {
+        "path": str(evidence),
+        "sha256": hashlib.sha256(evidence.read_bytes()).hexdigest(),
+    }
 
 
 def _immutable_trial_bundles(campaign_root: Path) -> set[Path]:
@@ -1385,7 +1385,8 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                         run_id=launch_id,
                         release=release_snapshot,
                         qualification_evidence=_qualification_evidence_reference(
-                            args.campaign_root
+                            ROOT,
+                            release,
                         ),
                         lease=lease,
                         lease_expires_at_unix_ns=time.time_ns()

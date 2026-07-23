@@ -9,7 +9,7 @@ from pathlib import Path
 import sys
 
 from step5d_autotune_v3.qualification import (
-    OFFLINE_EVIDENCE_MISSING,
+    RELEASE_CERTIFICATE_MISSING,
     QualificationError,
     exec_internal_shell_contract,
     require_canonical_launcher,
@@ -72,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.experiment_root,
                 args.release_candidate,
             )
-        payload, evidence = run_endpoint_qualification(
+        payload, certificate = run_endpoint_qualification(
             args.experiment_root,
             args.output_root.resolve(),
             release_identity=release,
@@ -84,8 +84,8 @@ def main(argv: list[str] | None = None) -> int:
         RuntimeInstallationError,
     ) as exc:
         reason_code = (
-            OFFLINE_EVIDENCE_MISSING
-            if str(exc) == OFFLINE_EVIDENCE_MISSING
+            RELEASE_CERTIFICATE_MISSING
+            if str(exc) == RELEASE_CERTIFICATE_MISSING
             else "CANONICAL_QUALIFICATION_REFUSED"
         )
         print(
@@ -103,7 +103,10 @@ def main(argv: list[str] | None = None) -> int:
     print(
         json.dumps(
             {
-                "schema": "step5d.autotune-v3/qualification-worker-result-v1",
+                "schema": (
+                    "step5d.autotune-v3/"
+                    "release-certificate-worker-result-v1"
+                ),
                 "ok": payload["ok"],
                 "release_manifest_sha256": (
                     payload.get("binding", {}).get("manifest_sha256")
@@ -112,7 +115,10 @@ def main(argv: list[str] | None = None) -> int:
                 ),
                 "reason_code": payload["reason_code"],
                 "remaining_integration_seam": payload["remaining_integration_seam"],
-                "evidence": evidence,
+                "certificate": certificate if payload["ok"] is True else None,
+                "qualification_evidence": (
+                    None if payload["ok"] is True else certificate
+                ),
             },
             sort_keys=True,
         )

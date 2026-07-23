@@ -32,16 +32,19 @@ from step5d_autotune_v3.runtime_identity import (
 )
 from step5d_autotune_v3.runtime_installation import (
     RuntimeInstallationError,
-    load_runtime_pointer_identity,
     owner_dependency,
     require_runtime_profile,
 )
 from step5d_autotune_v3.qualification import (
     QualificationError,
-    capture_content_binding,
+    release_certificate_scope_for_release,
     validate_qualification_result,
 )
-from step5d_autotune_v3.state import StateError, atomic_json, read_strict_json
+from step5d_autotune_v3.release_certificate import (
+    ReleaseCertificateError,
+    load_release_certificate,
+)
+from step5d_autotune_v3.state import StateError, atomic_json
 from ur10e_mutation_lock import (
     acquire_controller_mutation_locks,
     release_controller_mutation_locks,
@@ -130,11 +133,11 @@ def _require_canonical_shell() -> None:
         raise RuntimeError(f"use {launcher} tp-deliver")
 
 
-def _validate_candidate_and_qualification(
+def _validate_candidate_and_certificate(
     root: Path,
     artifact_dir: Path,
     candidate_path: Path,
-    qualification_path: Path,
+    certificate_path: Path,
 ) -> ReleaseIdentity:
     release, _descriptor = load_local_release_candidate(root, candidate_path)
     manifest, _bundle, _targets = promote.compose_local_release(root, artifact_dir)
@@ -142,51 +145,21 @@ def _validate_candidate_and_qualification(
     if recomposed_sha256 != release.manifest_sha256:
         raise RuntimeError("local release candidate digest differs before delivery")
 
-    wrapper = read_strict_json(qualification_path, role="qualification worker result")
-    required = {
-        "schema",
-        "ok",
-        "release_manifest_sha256",
-        "reason_code",
-        "remaining_integration_seam",
-        "evidence",
-    }
-    if (
-        not isinstance(wrapper, dict)
-        or set(wrapper) != required
-        or wrapper.get("schema")
-        != "step5d.autotune-v3/qualification-worker-result-v1"
-        or wrapper.get("ok") is not True
-        or wrapper.get("release_manifest_sha256") != release.manifest_sha256
-        or wrapper.get("reason_code") != "QUALIFIED"
-        or wrapper.get("remaining_integration_seam") is not None
-    ):
-        raise RuntimeError("production qualification is absent or not candidate-bound")
-    evidence = wrapper.get("evidence")
-    if not isinstance(evidence, dict) or set(evidence) != {"schema", "path", "sha256"}:
-        raise RuntimeError("production qualification evidence reference differs")
-    evidence_path = Path(str(evidence.get("path", ""))).expanduser()
-    if evidence_path.is_symlink() or not evidence_path.is_file():
-        raise RuntimeError("production qualification evidence is missing or unsafe")
-    evidence_sha256 = str(evidence.get("sha256", ""))
-    if _sha256(evidence_path) != evidence_sha256:
-        raise RuntimeError("production qualification evidence SHA differs")
-    payload = read_strict_json(evidence_path, role="production qualification evidence")
-    binding = payload.get("binding") if isinstance(payload, dict) else None
-    if not isinstance(binding, dict):
-        raise RuntimeError("production qualification binding is missing")
-    current = capture_content_binding(
+    scope = release_certificate_scope_for_release(
         root,
-        manifest_sha256=release.manifest_sha256,
-        release_identity=release,
-        runtime_pointer=load_runtime_pointer_identity(),
+        release,
+    )
+    _certificate, _evidence_path, payload = load_release_certificate(
+        root / "runs/step5d_autotune_v3",
+        certificate_path,
+        expected_scope=scope,
     )
     validate_qualification_result(
         payload,
         experiment_root=root,
         manifest_sha256=release.manifest_sha256,
-        source_fingerprint=current["source"]["fingerprint"],
-        launcher_sha256=current["launcher"]["sha256"],
+        source_fingerprint=scope["source_fingerprint"],
+        launcher_sha256=scope["launcher_sha256"],
         release_identity=release,
     )
     return release
@@ -197,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--artifact-dir", type=Path, required=True)
     parser.add_argument("--release-candidate", type=Path)
-    parser.add_argument("--qualification-result", type=Path)
+    parser.add_argument("--release-certificate", type=Path)
     parser.add_argument("--evidence-output", type=Path)
     parser.add_argument(
         "--readback-only-existing",
@@ -249,23 +222,28 @@ def main(argv: list[str] | None = None) -> int:
         evidence_output.relative_to(evidence_root)
     except ValueError as exc:
         raise RuntimeError("delivery evidence output escapes runs evidence root") from exc
-    if args.release_candidate is None or args.qualification_result is None:
+    if args.release_candidate is None or args.release_certificate is None:
         raise RuntimeError(
-            "--release-candidate and --qualification-result are required before TP delivery"
+            "--release-candidate and --release-certificate are required before TP delivery"
         )
     try:
         require_runtime_profile("control")
     except RuntimeInstallationError as exc:
         raise RuntimeError(f"control environment gate failed: {exc}") from exc
     try:
-        candidate_release = _validate_candidate_and_qualification(
+        candidate_release = _validate_candidate_and_certificate(
             root,
             local_dir,
             args.release_candidate,
-            args.qualification_result,
+            args.release_certificate,
         )
-    except (QualificationError, ReleaseIdentityError, StateError) as exc:
-        raise RuntimeError(f"candidate qualification gate failed: {exc}") from exc
+    except (
+        QualificationError,
+        ReleaseCertificateError,
+        ReleaseIdentityError,
+        StateError,
+    ) as exc:
+        raise RuntimeError(f"candidate certificate gate failed: {exc}") from exc
     if args.readback_only_existing:
         existing_release = load_current_release_for_compatible_readback(root)
         if (

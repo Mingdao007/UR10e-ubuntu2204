@@ -871,7 +871,7 @@ def test_shell_tp_deliver_is_independent_from_bridge_authority(
             "tp-deliver",
             "--release-candidate",
             str(shell),
-            "--qualification-result",
+            "--release-certificate",
             str(shell),
             "--evidence-output",
             str(evidence),
@@ -894,9 +894,52 @@ def test_shell_tp_deliver_is_independent_from_bridge_authority(
     ]
     assert len(transaction_calls) == 1
     assert "--release-candidate" in transaction_calls[0]
-    assert "--qualification-result" in transaction_calls[0]
+    assert "--release-certificate" in transaction_calls[0]
     assert "--evidence-output" in transaction_calls[0]
     assert not any("check_step5d_autotune_v3_bridge_admission.py" in line for line in commands)
+    assert not (experiment / "runs/step5d_bridge_authority").exists()
+
+
+def test_shell_release_certify_is_offline_and_independent_from_bridge_authority(
+    tmp_path: Path,
+) -> None:
+    shell, command_log, environment = _fake_governed_shell(
+        tmp_path,
+        fail_prepare=False,
+    )
+    experiment = shell.parent.parent
+    result = subprocess.run(
+        [
+            str(shell),
+            "release-certify",
+            "--release-candidate",
+            str(shell),
+        ],
+        cwd=experiment,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=10.0,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    commands = command_log.read_text(encoding="utf-8").splitlines()
+    qualification_calls = [
+        line
+        for line in commands
+        if "run_step5d_autotune_v3_qualification.py" in line
+    ]
+    assert len(qualification_calls) == 1
+    assert "--release-candidate" in qualification_calls[0]
+    assert "--output-root" in qualification_calls[0]
+    assert not any(
+        "run_step5d_autotune_v3_tp_transaction.py" in line for line in commands
+    )
+    assert not any(
+        "check_step5d_autotune_v3_bridge_admission.py" in line for line in commands
+    )
     assert not (experiment / "runs/step5d_bridge_authority").exists()
 
 
@@ -953,9 +996,11 @@ def _run_shell_argv_gate(
         (["tp-deliver"], "--release-candidate is required"),
         (
             ["tp-deliver", "--release-candidate", "/tmp/candidate.json"],
-            "--qualification-result is required",
+            "--release-certificate is required",
         ),
         (["tp-deliver", "--unknown"], "unsupported option"),
+        (["release-certify"], "--release-candidate is required"),
+        (["release-certify", "--unknown"], "unsupported option"),
         (["bridge", "--prepare-only"], "internal worker option"),
         (
             ["bridge", "--qualification-endpoints=/tmp/endpoints.json"],

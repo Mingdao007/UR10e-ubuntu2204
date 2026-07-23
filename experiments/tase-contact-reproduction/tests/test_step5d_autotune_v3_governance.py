@@ -242,7 +242,8 @@ def test_offline_proof_status_uses_content_binding_without_replaying_lifecycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from step5d_autotune_v3 import qualification
+    from step5d_autotune_v3 import qualification, release_certificate
+    from step5d_autotune_v3 import release_identity
 
     payload = {
         "content": "already fully validated by qualification",
@@ -252,18 +253,17 @@ def test_offline_proof_status_uses_content_binding_without_replaying_lifecycle(
     evidence_path.parent.mkdir(parents=True)
     evidence_path.write_text(json.dumps(payload), encoding="utf-8")
     evidence_sha = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
-    pointer_path = tmp_path / "qualification/current.json"
-    pointer_path.write_text(
-        json.dumps(
-            {
-                "schema": governance.QUALIFICATION_CURRENT_POINTER_SCHEMA,
-                "cache_key": digest("cache-key"),
-                "path": evidence_path.relative_to(tmp_path).as_posix(),
-                "sha256": evidence_sha,
-            }
-        ),
-        encoding="utf-8",
+    scope = release_certificate.release_certificate_scope(
+        release_manifest_sha256=release().manifest_sha256,
+        source_fingerprint=release().source_fingerprint,
+        source_files_fingerprint=digest("source-files"),
+        launcher_sha256=release().launcher_sha256,
+        control_environment_sha256=digest("control-environment"),
+        process_tree_fingerprint=digest("safety-process-tree"),
     )
+    certificate_path = release_certificate.certificate_path(tmp_path, scope)
+    certificate_path.parent.mkdir(parents=True)
+    certificate_path.write_text("{}\n", encoding="utf-8")
     calls: list[dict[str, object]] = []
 
     def validate_binding(
@@ -276,6 +276,25 @@ def test_offline_proof_status_uses_content_binding_without_replaying_lifecycle(
             "process_tree": {"fingerprint": digest("process-tree")},
         }
 
+    monkeypatch.setattr(
+        qualification,
+        "release_certificate_scope_for_release",
+        lambda *_args, **_kwargs: scope,
+    )
+    monkeypatch.setattr(
+        release_identity,
+        "load_current_release",
+        lambda _root: type(
+            "Release",
+            (),
+            {"manifest_sha256": release().manifest_sha256},
+        )(),
+    )
+    monkeypatch.setattr(
+        release_certificate,
+        "load_release_certificate",
+        lambda *_args, **_kwargs: ({}, evidence_path, payload),
+    )
     monkeypatch.setattr(
         qualification,
         "validate_qualification_binding",
@@ -1001,7 +1020,7 @@ def _stub_governed_release(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         governance,
         "_load_current_offline_proof",
-        lambda _experiment, _release: None,
+        lambda _experiment, _certificate_root, _release: None,
     )
     monkeypatch.setattr(
         governance,

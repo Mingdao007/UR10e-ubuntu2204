@@ -371,6 +371,50 @@ class Step5dQualificationTest(unittest.TestCase):
             first["values"],
         )
 
+    def test_release_scope_ignores_optimizer_deployment_but_binds_control(self) -> None:
+        first = runtime_pointer_fixture()
+        optimizer_changed = json.loads(json.dumps(first))
+        optimizer_changed["bundle_id"] = SHA_B
+        optimizer_changed["contract_sha256"] = SHA_C
+        optimizer_changed["lock_sha256"] = SHA_A
+        optimizer_changed["profiles"]["optimizer"]["environment_id"] = SHA_A
+        optimizer_changed["profiles"]["optimizer"]["record_tree_sha256"] = SHA_B
+        optimizer_changed["profiles"]["optimizer"]["profile_tree_sha256"] = SHA_C
+
+        self.assertEqual(
+            qualification._control_environment_fingerprint(first),
+            qualification._control_environment_fingerprint(optimizer_changed),
+        )
+
+        control_changed = json.loads(json.dumps(first))
+        control_changed["profiles"]["control"]["profile_tree_sha256"] = SHA_B
+        self.assertNotEqual(
+            qualification._control_environment_fingerprint(first),
+            qualification._control_environment_fingerprint(control_changed),
+        )
+
+    def test_release_scope_process_tree_excludes_optimizer_runner(self) -> None:
+        observed_paths: list[Path] = []
+
+        def hash_path(path: Path) -> str:
+            observed_paths.append(path)
+            return hashlib.sha256(str(path).encode("utf-8")).hexdigest()
+
+        with patch.object(
+            qualification,
+            "_sha256_file",
+            side_effect=hash_path,
+        ):
+            fingerprint = (
+                qualification.qualification_safety_process_tree_fingerprint(ROOT)
+            )
+
+        self.assertEqual(len(fingerprint), 64)
+        observed = {path.name for path in observed_paths}
+        self.assertNotIn("run_step5d_autotune_campaign.py", observed)
+        self.assertIn("run_step5d_autotune_v3_live.py", observed)
+        self.assertIn("run_step5d_autotune_v3_bridge.py", observed)
+
     def test_worker_reuse_only_never_runs_full_runtime_gate(self) -> None:
         payload = {
             "ok": True,
@@ -398,14 +442,14 @@ class Step5dQualificationTest(unittest.TestCase):
         self.assertTrue(qualify.call_args.kwargs["reuse_only"])
         self.assertEqual(json.loads(stream.getvalue())["reason_code"], "QUALIFIED")
 
-    def test_worker_reuse_only_reports_missing_offline_evidence(self) -> None:
+    def test_worker_reuse_only_reports_missing_release_certificate(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch.object(
             worker, "require_canonical_launcher"
         ), patch.object(
             worker,
             "run_endpoint_qualification",
             side_effect=qualification.QualificationBlocked(
-                qualification.OFFLINE_EVIDENCE_MISSING
+                qualification.RELEASE_CERTIFICATE_MISSING
             ),
         ):
             stream = io.StringIO()
@@ -416,10 +460,10 @@ class Step5dQualificationTest(unittest.TestCase):
         self.assertEqual(rc, 64)
         self.assertEqual(
             json.loads(stream.getvalue())["reason_code"],
-            qualification.OFFLINE_EVIDENCE_MISSING,
+            qualification.RELEASE_CERTIFICATE_MISSING,
         )
 
-    def test_reuse_only_cache_miss_stops_before_full_runtime_gate(self) -> None:
+    def test_reuse_only_certificate_miss_stops_before_full_runtime_gate(self) -> None:
         release = SimpleNamespace(manifest_sha256=SHA_A)
         prebinding = {
             "source": {
@@ -454,11 +498,11 @@ class Step5dQualificationTest(unittest.TestCase):
             return_value=prebinding,
         ), patch.object(
             qualification,
-            "qualification_process_tree_fingerprint",
+            "qualification_safety_process_tree_fingerprint",
             return_value=SHA_C,
         ), patch.object(
             qualification,
-            "_read_cached_qualification",
+            "_read_release_certificate_for_scope",
             return_value=None,
         ), patch.object(
             qualification,
@@ -466,7 +510,7 @@ class Step5dQualificationTest(unittest.TestCase):
         ) as full_runtime:
             with self.assertRaisesRegex(
                 qualification.QualificationBlocked,
-                qualification.OFFLINE_EVIDENCE_MISSING,
+                qualification.RELEASE_CERTIFICATE_MISSING,
             ):
                 run_endpoint_qualification(
                     ROOT,
@@ -476,10 +520,7 @@ class Step5dQualificationTest(unittest.TestCase):
                     reuse_only=True,
                 )
         full_runtime.assert_not_called()
-        self.assertEqual(
-            environment_builder.call_args.kwargs["runtime_pointer"],
-            runtime_pointer_fixture(),
-        )
+        environment_builder.assert_not_called()
 
     def test_production_shaped_endpoint_ports_require_one_cross_process_lease(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -608,6 +649,8 @@ class Step5dQualificationTest(unittest.TestCase):
         result = json.loads(stream.getvalue())
         self.assertFalse(result["ok"])
         self.assertEqual(result["reason_code"], ENDPOINT_INJECTION_UNAVAILABLE)
+        self.assertIsNone(result["certificate"])
+        self.assertEqual(result["qualification_evidence"], evidence)
 
     def test_invalid_release_binding_stops_before_endpoints_and_never_writes_current(self) -> None:
         canonical = ROOT / "scripts/step5d-autotune-v3.sh"
@@ -632,7 +675,7 @@ class Step5dQualificationTest(unittest.TestCase):
                         output,
                         environment={CANONICAL_LAUNCH_ENV: str(canonical)},
                     )
-            self.assertFalse((output / "qualification/current.json").exists())
+            self.assertEqual(list(output.rglob("certificate.json")), [])
             self.assertEqual(list(output.rglob("bridge_ready.json")), [])
 
     def test_synthetic_delivery_observation_is_endpoint_only_and_loadable(self) -> None:
