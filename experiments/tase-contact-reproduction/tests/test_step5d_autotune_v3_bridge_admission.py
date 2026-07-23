@@ -5,6 +5,8 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
@@ -56,6 +58,11 @@ def _observation_fixture(
             delivery_path,
             {"transaction_id": "b" * 32},
         ),
+    )
+    monkeypatch.setattr(
+        bridge_admission,
+        "load_delivery_observation",
+        lambda _root, _path, **_kwargs: {"transaction_id": "b" * 32},
     )
     monkeypatch.setattr(
         bridge_admission,
@@ -121,6 +128,34 @@ def test_exact_loaded_stopped_program_is_bench_ready(
     assert commands == ["programState", "get loaded program"]
 
 
+def test_admission_expected_program_is_bound_to_release_contract(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    result, _commands = _observation_fixture(
+        tmp_path,
+        monkeypatch,
+        program_state="STOPPED step5d_strict_rnn_autotune_v3_r012.urp",
+        loaded_program=EXPECTED_PROGRAM,
+    )
+    result["expected_loaded_program"] = "/programs/forged.urp"
+    release = SimpleNamespace(
+        manifest_sha256="a" * 64,
+        program_id="step5d_strict_rnn_autotune_v3_r012",
+    )
+
+    with pytest.raises(
+        bridge_admission.BridgeAdmissionError,
+        match="expected program differs",
+    ):
+        bridge_admission.validate_bridge_admission(
+            tmp_path / "experiment",
+            result,
+            release=release,
+            now_ns=int(result["observed_at_unix_ns"]),
+        )
+
+
 def test_cli_uses_exit_75_for_external_action_required(
     tmp_path: Path,
     monkeypatch,
@@ -138,6 +173,11 @@ def test_cli_uses_exit_75_for_external_action_required(
         admission_cli,
         "observe_bridge_admission",
         lambda *_args, **_kwargs: payload,
+    )
+    monkeypatch.setattr(
+        admission_cli,
+        "admission_index_path",
+        lambda *_args, **_kwargs: tmp_path / "indexed-admission.json",
     )
 
     assert admission_cli.main(["--root", str(tmp_path), "--output", str(output)]) == 75

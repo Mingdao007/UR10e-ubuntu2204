@@ -344,6 +344,8 @@ def test_current_release_resolves_latest_content_addressed_delivery_receipt(
             + "\n",
             encoding="ascii",
         )
+    corrupt = delivery_index_path(root, first).parent / f"{'f' * 64}.json"
+    corrupt.write_text('{"broken":true}\n', encoding="utf-8")
 
     resolved_path, resolved = resolve_delivery_observation(
         root,
@@ -625,6 +627,10 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         artifact_dir: Path,
         **kwargs: Any,
     ) -> dict[str, Any]:
+        assert events[-2:] == [
+            "evidence:delivery-observation.json",
+            "evidence:indexed-delivery.json",
+        ]
         events.append("promote")
         exact.extend((manifest, artifact_dir))
         promotion_arguments.update(kwargs)
@@ -705,11 +711,11 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         "certify",
         "lock",
         "upload",
-        "promote",
-        "load",
         "observe",
         "evidence:delivery-observation.json",
         "evidence:indexed-delivery.json",
+        "promote",
+        "load",
         "release",
     ]
     assert upload_arguments[0] == builder.PROGRAM_NAME
@@ -723,10 +729,10 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     assert upload_arguments[
         upload_arguments.index("--controller-helper-sha256") + 1
     ] == "a" * 64
-    assert exact[0] == exact[1]
-    assert exact[2] == (root / promotion.PACKAGE_DIR).resolve()
-    assert exact[3] == evidence_output.resolve()
-    assert exact[4] == evidence_output.with_name("indexed-delivery.json").resolve()
+    assert exact[0] == exact[3]
+    assert exact[4] == (root / promotion.PACKAGE_DIR).resolve()
+    assert exact[1] == evidence_output.resolve()
+    assert exact[2] == evidence_output.with_name("indexed-delivery.json").resolve()
     token = upload_arguments[upload_arguments.index("--upload-transaction-id") + 1]
     assert promotion_arguments == {
         "expected_transaction_id": token,

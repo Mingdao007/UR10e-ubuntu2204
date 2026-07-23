@@ -62,7 +62,7 @@ def _request(payload: Any) -> tuple[dict[str, Any], bytes]:
 
 
 def run(encoded: bytes) -> dict[str, Any]:
-    pointer = require_runtime_profile("optimizer", full_integrity=False)
+    pointer = require_runtime_profile("optimizer", full_integrity=True)
     request, canonical = _request(strict_json(encoded, "optimizer request"))
     expected_identity = optimizer_identity(
         optimizer_digest=pointer["profiles"]["optimizer"]["record_tree_sha256"],

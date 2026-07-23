@@ -307,10 +307,6 @@ class Step5dQualificationTest(unittest.TestCase):
             qualification,
             "runtime_binding",
             return_value=runtime_process_binding_fixture(),
-        ), patch.object(
-            qualification,
-            "load_gpu_functional_attestation",
-            return_value=({}, {"path": "/qualification/gpu.json", "sha256": SHA_A}),
         ):
             return capture_content_binding(
                 ROOT,
@@ -352,10 +348,6 @@ class Step5dQualificationTest(unittest.TestCase):
             qualification,
             "runtime_binding",
             return_value=runtime_process_binding_fixture(),
-        ), patch.object(
-            qualification,
-            "load_gpu_functional_attestation",
-            return_value=({}, {"path": "/qualification/gpu.json", "sha256": SHA_A}),
         ):
             first = qualification._environment_binding(
                 {**common, "STEP5D_V3_LAUNCH_ATTEMPT_ID": "attempt-a"},
@@ -757,10 +749,6 @@ class Step5dQualificationTest(unittest.TestCase):
             qualification,
             "runtime_binding",
             return_value=runtime_process_binding_fixture(),
-        ), patch.object(
-            qualification,
-            "load_gpu_functional_attestation",
-            return_value=({}, {"path": "/qualification/gpu.json", "sha256": SHA_A}),
         ):
             with self.assertRaisesRegex(
                 QualificationError, "does not execute production script"

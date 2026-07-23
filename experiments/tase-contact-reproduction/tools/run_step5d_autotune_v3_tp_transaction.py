@@ -305,6 +305,31 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 raise RuntimeError("upload-result manifest handoff differs")
             receipt_sha256 = str(result["manifest_sha256"])
+            observation = build_delivery_observation(
+                root,
+                receipt_path=manifest,
+                receipt_sha256=receipt_sha256,
+                transaction_id=transaction_id,
+                release=candidate_release,
+            )
+            atomic_json(evidence_output, observation)
+            indexed_observation = delivery_index_path(root, observation)
+            if indexed_observation.exists():
+                existing = load_delivery_observation(
+                    root,
+                    indexed_observation,
+                    release=candidate_release,
+                )
+                if existing != observation:
+                    raise RuntimeError(
+                        "content-addressed delivery observation differs"
+                    )
+            else:
+                atomic_json(indexed_observation, observation)
+
+            # Publishing current-release is the transaction commit point.  Once
+            # that pointer changes, its immutable delivery receipt already
+            # exists and can be resolved after any subsequent process crash.
             promotion = promote.promote(
                 root,
                 manifest,
@@ -317,29 +342,10 @@ def main(argv: list[str] | None = None) -> int:
             if (
                 promotion.get("manifest_sha256") != release.manifest_sha256
                 or release.program_id != program_id
+                or release.manifest_sha256
+                != observation["release_manifest_sha256"]
             ):
                 raise RuntimeError("promoted release pointer identity differs")
-            observation = build_delivery_observation(
-                root,
-                receipt_path=manifest,
-                receipt_sha256=receipt_sha256,
-                transaction_id=transaction_id,
-                release=release,
-            )
-            atomic_json(evidence_output, observation)
-            indexed_observation = delivery_index_path(root, observation)
-            if indexed_observation.exists():
-                existing = load_delivery_observation(
-                    root,
-                    indexed_observation,
-                    release=release,
-                )
-                if existing != observation:
-                    raise RuntimeError(
-                        "content-addressed delivery observation differs"
-                    )
-            else:
-                atomic_json(indexed_observation, observation)
             print(
                 json.dumps(
                     {

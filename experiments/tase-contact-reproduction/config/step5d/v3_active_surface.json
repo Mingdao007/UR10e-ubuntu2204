@@ -23,7 +23,7 @@
     ]
   },
   "entrypoints": {
-    "public_live": "scripts/step5d-autotune-v3.sh bridge",
+    "public_live": "scripts/step5d-autotune-v3.sh bridge-live",
     "public_release_certification": "scripts/step5d-autotune-v3.sh release-certify",
     "public_tp_delivery": "scripts/step5d-autotune-v3.sh tp-deliver",
     "public_status": "scripts/step5d-autotune-v3.sh status --json",
@@ -125,13 +125,17 @@
     "tools/step5d_autotune_v3/bridge_admission.py",
     "tools/step5d_autotune_v3/campaign_prepare.py",
     "tools/step5d_autotune_v3/cli.py",
+    "tools/step5d_autotune_v3/control_policy.py",
     "tools/step5d_autotune_v3/dashboard.py",
     "tools/step5d_autotune_v3/delivery_observation.py",
     "tools/step5d_autotune_v3/governance.py",
     "tools/step5d_autotune_v3/identity_layers.py",
     "tools/step5d_autotune_v3/launcher.py",
+    "tools/step5d_autotune_v3/optimizer_deployment.py",
     "tools/step5d_autotune_v3/optimizer_payloads.py",
+    "tools/step5d_autotune_v3/optimizer_policy.py",
     "tools/step5d_autotune_v3/optimizer_protocol.py",
+    "tools/step5d_autotune_v3/optimizer_types.py",
     "tools/step5d_autotune_v3/optimizer_wire.py",
     "tools/step5d_autotune_v3/optimizer_worker.py",
     "tools/step5d_autotune_v3/postprocess.py",
@@ -155,7 +159,8 @@
     "tools/step5d_autotune_v3/service.py",
     "tools/step5d_autotune_v3/shared_contracts.py",
     "tools/step5d_autotune_v3/source_closure.py",
-    "tools/step5d_autotune_v3/state.py"
+    "tools/step5d_autotune_v3/state.py",
+    "tools/step5d_autotune_v3/trial_contract_admission.py"
   ],
   "deployment_paths": [
     "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r012.script",

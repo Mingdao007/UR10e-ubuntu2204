@@ -15,6 +15,7 @@ import math
 import os
 import stat
 import sys
+import time
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
@@ -72,7 +73,12 @@ from step5d_autotune_journal import (
     TrialCursor,
     reconcile_tp_snapshot,
 )
-from step5d_autotune_optimizer import Observation, success_confirmed
+from step5d_autotune_v3.optimizer_policy import success_confirmed
+from step5d_autotune_v3.optimizer_types import Observation
+from step5d_autotune_v3.trial_contract_admission import (
+    persist_terminal_result,
+    persist_trial_admission,
+)
 from step5d_autotune_state_machine import HostCommand, HostPacket, host_packet_for_trial
 from step5d_autotune_supervisor import (
     CampaignPhase,
@@ -1289,6 +1295,12 @@ class CampaignCoordinator:
             )
             reference = _trial_reference(intent.trial, trial_dir)
             self._trial_spec_references[intent.trial.trial_uid] = reference
+            persist_trial_admission(
+                Path(reference.path).parent,
+                intent.trial,
+                selection=intent.selection,
+                admitted_at_unix_ns=time.time_ns(),
+            )
             if attempt_started is not None:
                 attempt_started(intent.trial)
             self._append_snapshot(self.supervisor.recovery_snapshot())
@@ -1304,7 +1316,29 @@ class CampaignCoordinator:
 
     def close_trial(self, **kwargs: Any) -> CloseDecision:
         self._require_healthy()
-        return self.supervisor.close_trial(**kwargs)
+        trial = self.supervisor.active_trial
+        if trial is None:
+            raise CoordinatorError("no active trial can be closed")
+        decision = self.supervisor.close_trial(**kwargs)
+        reference = self._trial_spec_references.get(trial.trial_uid)
+        if reference is None:
+            self._poisoned = True
+            raise CoordinatorError(
+                "terminal TrialResult lacks its admitted TrialSpec reference"
+            )
+        try:
+            persist_terminal_result(
+                Path(reference.path).parent,
+                trial,
+                kwargs["manifest"],
+                kwargs["evaluation"],
+                completed_at_unix_ns=time.time_ns(),
+                immutable_bundle=kwargs.get("bundle_path"),
+            )
+        except Exception:
+            self._poisoned = True
+            raise
+        return decision
 
     def issue_ack(
         self,

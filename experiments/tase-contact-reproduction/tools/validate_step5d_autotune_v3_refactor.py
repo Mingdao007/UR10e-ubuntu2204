@@ -125,8 +125,12 @@ AUTHORITATIVE_ACCEPTANCE_PATH = [
     "campaign_terminal_attested_before_bridge_cleanup",
 ]
 REQUIRED_ACTIVE_RUNTIME_MODULES = {
+    "tools/step5d_autotune_v3/control_policy.py",
     "tools/step5d_autotune_v3/delivery_observation.py",
+    "tools/step5d_autotune_v3/optimizer_deployment.py",
     "tools/step5d_autotune_v3/optimizer_payloads.py",
+    "tools/step5d_autotune_v3/optimizer_policy.py",
+    "tools/step5d_autotune_v3/optimizer_types.py",
     "tools/step5d_autotune_v3/optimizer_wire.py",
     "tools/step5d_autotune_v3/preflight_support.py",
     "tools/step5d_autotune_v3/public_state.py",
@@ -134,6 +138,7 @@ REQUIRED_ACTIVE_RUNTIME_MODULES = {
     "tools/step5d_autotune_v3/runtime_environment.py",
     "tools/step5d_autotune_v3/shared_contracts.py",
     "tools/step5d_autotune_v3/source_closure.py",
+    "tools/step5d_autotune_v3/trial_contract_admission.py",
 }
 
 # Keys are relative to the git root, not to this experiment root.
@@ -397,7 +402,7 @@ def matrix_issues(payload: Any, *, root: Path = ROOT) -> list[str]:
     else:
         expected_fields = {
             "current_tp_program_id": "step5d_strict_rnn_autotune_v3_r012",
-            "canonical_launcher": "scripts/step5d-autotune-v3.sh bridge",
+            "canonical_launcher": "scripts/step5d-autotune-v3.sh bridge-live",
             "status_reanchor": "scripts/step5d-autotune-v3.sh status --json",
             "production_path_requirement": (
                 "canonical shell -> real supervisor -> internal bridge worker -> "

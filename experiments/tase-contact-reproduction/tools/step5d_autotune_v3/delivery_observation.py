@@ -405,20 +405,19 @@ def resolve_delivery_observation(
         )
     candidates: list[tuple[int, str, Path, dict[str, Any]]] = []
     for path in sorted(index.glob("*.json")):
-        if path.is_symlink() or not path.is_file():
-            raise DeliveryObservationError(
-                "delivery receipt index contains an unsafe entry"
+        try:
+            if path.is_symlink() or not path.is_file():
+                continue
+            observed_sha256 = _sha256(path, "indexed delivery observation")
+            if path.stem != observed_sha256:
+                continue
+            row = load_delivery_observation(
+                experiment,
+                path,
+                release=release,
             )
-        observed_sha256 = _sha256(path, "indexed delivery observation")
-        if path.stem != observed_sha256:
-            raise DeliveryObservationError(
-                "indexed delivery observation filename differs from content"
-            )
-        row = load_delivery_observation(
-            experiment,
-            path,
-            release=release,
-        )
+        except DeliveryObservationError:
+            continue
         candidates.append(
             (
                 int(row["recorded_at_unix_ns"]),

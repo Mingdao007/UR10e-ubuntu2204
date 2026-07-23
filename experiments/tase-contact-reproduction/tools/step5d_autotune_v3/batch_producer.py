@@ -38,15 +38,13 @@ from step5d_autotune_batch_plan import (
     candidate_log2_payload,
     load_plan,
 )
-from step5d_autotune_r008_policy import (
+from step5d_autotune_v3.control_policy import (
     PlannedOccurrence,
     bo_gate,
     initialization_batch,
     recovery_batch,
-    supercycle_batch_a,
-    supercycle_batch_b_after_gp_update,
 )
-from step5d_autotune_optimizer import Observation
+from step5d_autotune_v3.optimizer_types import Observation
 from step5d_autotune_store import CampaignStore
 from ur10e_experiment_runtime import BatchJournal, ControlCandidateUid
 
@@ -835,18 +833,16 @@ class ProductionProposalProvider:
         try:
             if target_revision % 2 == 1:
                 if self.optimizer_client is None:
-                    occurrences, optimizer_evidence = supercycle_batch_a(
-                        truth.observations,
-                        self.catalog,
-                        sequence=target_revision,
+                    raise BatchProducerError(
+                        "OPTIMIZER_CLIENT_REQUIRED",
+                        "BO-gated production proposals require the isolated optimizer",
                     )
-                else:
-                    occurrences, optimizer_evidence = self.optimizer_client.propose(
-                        mode="rolling_batch_a",
-                        observations=truth.observations,
-                        catalog=self.catalog,
-                        sequence=target_revision,
-                    )
+                occurrences, optimizer_evidence = self.optimizer_client.propose(
+                    mode="rolling_batch_a",
+                    observations=truth.observations,
+                    catalog=self.catalog,
+                    sequence=target_revision,
+                )
                 return BatchProposal(
                     occurrences,
                     PRODUCTION_BATCH_A_SOURCE,
@@ -863,20 +859,17 @@ class ProductionProposalProvider:
                 truth=truth,
             )
             if self.optimizer_client is None:
-                occurrences, optimizer_evidence = supercycle_batch_b_after_gp_update(
-                    truth.observations,
-                    self.catalog,
-                    sequence=target_revision,
-                    batch_a_closure=closure.policy_payload(),
+                raise BatchProducerError(
+                    "OPTIMIZER_CLIENT_REQUIRED",
+                    "BO-gated production proposals require the isolated optimizer",
                 )
-            else:
-                occurrences, optimizer_evidence = self.optimizer_client.propose(
-                    mode="rolling_batch_b",
-                    observations=truth.observations,
-                    catalog=self.catalog,
-                    sequence=target_revision,
-                    batch_a_closure=closure.policy_payload(),
-                )
+            occurrences, optimizer_evidence = self.optimizer_client.propose(
+                mode="rolling_batch_b",
+                observations=truth.observations,
+                catalog=self.catalog,
+                sequence=target_revision,
+                batch_a_closure=closure.policy_payload(),
+            )
             return BatchProposal(
                 occurrences,
                 PRODUCTION_BATCH_B_SOURCE,

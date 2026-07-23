@@ -38,6 +38,7 @@ from step5d_autotune_v3.release_identity import (
 from step5d_autotune_v3.release_verifier import verify_release_manifest
 from step5d_autotune_v3.profile import contract_sha256
 from step5d_autotune_v3.runtime_identity import RuntimeIdentityError, bind_final_script
+from step5d_autotune_v3.state import atomic_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,7 +71,7 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "9b86da4d158b1eee2256c046a1102bbead01fbfca1a298ad070ce5d31bbfa1d6",
+    "config/step5d/v3_active_surface.json": "61015d9fbcb72c786b04b4c8cde66fb5be673f49eb67ec9def2a89b30e6b8baa",
 }
 CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
@@ -828,14 +829,28 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--artifact-dir", type=Path)
     parser.add_argument("--compose-only", action="store_true")
     parser.add_argument("--stage-local-candidate", action="store_true")
+    parser.add_argument("--candidate-output", type=Path)
     args = parser.parse_args(argv)
     if args.artifact_dir is None:
         parser.error("--artifact-dir is required")
     if args.stage_local_candidate:
         if args.manifest is not None or args.compose_only:
             parser.error("local candidate staging cannot include a delivery manifest")
-        print(json.dumps(stage_local_candidate(args.root, args.artifact_dir), sort_keys=True))
+        candidate = stage_local_candidate(args.root, args.artifact_dir)
+        if args.candidate_output is not None:
+            output = args.candidate_output.expanduser().resolve(strict=False)
+            evidence_root = (args.root / "runs").resolve()
+            if output.is_symlink() or not output.is_relative_to(evidence_root):
+                parser.error("--candidate-output must be a safe path under runs/")
+            atomic_json(output, candidate)
+            candidate = {
+                **candidate,
+                "candidate_path": output.relative_to(args.root.resolve()).as_posix(),
+            }
+        print(json.dumps(candidate, sort_keys=True))
         return 0
+    if args.candidate_output is not None:
+        parser.error("--candidate-output requires --stage-local-candidate")
     if args.manifest is None:
         parser.error("--manifest is required for receipt-bound composition")
     if args.compose_only:
@@ -855,7 +870,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     parser.error(
-        "direct promotion is disabled; use scripts/step5d-autotune-v3.sh bridge"
+        "direct promotion is disabled; use scripts/step5d-autotune-v3.sh "
+        "release-certify followed by tp-deliver"
     )
 
 

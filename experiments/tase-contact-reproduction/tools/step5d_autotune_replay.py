@@ -28,7 +28,7 @@ from step5d_autotune_contract import (
     TrialSpec,
     canonical_json_bytes,
 )
-from step5d_autotune_optimizer import live_trust_region_step
+from step5d_autotune_v3.optimizer_policy import live_trust_region_step
 from step5d_autotune_state_machine import (
     HostPacket,
     TpLoopState,

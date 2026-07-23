@@ -1204,6 +1204,37 @@ def test_status_uses_observed_snapshot_time_for_freshness_when_observation_is_pu
     assert status["state"] == "BENCH_READY"
 
 
+def test_future_observation_cannot_advance_freshness_clock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_governed_release(monkeypatch)
+    row = observed_attestation(tmp_path)
+    future_snapshot = NOW_NS + 86_400_000_000_000
+    row["observed_at_unix_ns"] = future_snapshot
+    row["process"]["heartbeat_at_unix_ns"] = future_snapshot
+    row["controller"]["observed_at_unix_ns"] = future_snapshot
+    row["controller"]["fresh_get_observed_at_unix_ns"] = future_snapshot
+    row["controller"]["rtde_observed_at_unix_ns"] = future_snapshot
+    row["controller"]["kunwei_observed_at_unix_ns"] = future_snapshot
+    row["mailbox"]["observed_at_unix_ns"] = future_snapshot
+    row["controller"]["delivery_observation"] = delivery_evidence(
+        tmp_path,
+        future_snapshot,
+    )
+    publish_observed_attestation(tmp_path, row)
+
+    status = resolve_governed_status(
+        ROOT,
+        tmp_path,
+        now_ns=NOW_NS,
+        proc_starttime_reader=process_reader,
+    )
+
+    assert "OBSERVED_ATTESTATION_FUTURE" in status["blocker"]["reason_codes"]
+    assert status["state"] != "BENCH_READY"
+
+
 def test_live_status_consumes_attested_hotpath_without_requalification() -> None:
     source = inspect.getsource(governance._environment_status)
 

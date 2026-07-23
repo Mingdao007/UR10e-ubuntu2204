@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any, Mapping, Sequence
 
 from step5d_autotune_contract import Evaluation, ForceCandidate, TrialDisposition
-from step5d_autotune_optimizer import Observation
-from step5d_autotune_r008_policy import PlannedOccurrence
+from .control_policy import PlannedOccurrence
+from .optimizer_types import Observation
 from ur10e_experiment_runtime import ControlCandidateUid
 
 from .shared_contracts import (
@@ -159,7 +159,9 @@ def _candidate_parameters(
     candidate: ForceCandidate,
     catalog: Sequence[ForceCandidate],
 ) -> dict[str, UnitParameter]:
-    rows = tuple(catalog) + (candidate,)
+    rows = tuple(catalog)
+    if not rows:
+        raise ValueError("optimizer catalog must not be empty")
     payloads = [candidate_payload(value) for value in rows]
     values = candidate_payload(candidate)
     return {
@@ -217,6 +219,7 @@ def encode_suggestions(
 def decode_suggestion(
     value: Any,
     *,
+    catalog: Sequence[ForceCandidate],
     identity: Mapping[str, str],
     seed: int,
     history_digest: str,
@@ -233,9 +236,20 @@ def decode_suggestion(
         or set(candidate.parameters) != set(PARAMETER_UNITS)
     ):
         raise ValueError("optimizer suggestion binding differs")
+    catalog_rows = tuple(catalog)
+    if not catalog_rows:
+        raise ValueError("optimizer catalog must not be empty")
+    catalog_payloads = [candidate_payload(row) for row in catalog_rows]
     for name, parameter in candidate.parameters.items():
-        if parameter.unit != PARAMETER_UNITS[name]:
-            raise ValueError("optimizer suggestion parameter unit differs")
+        lower = min(row[name] for row in catalog_payloads)
+        upper = max(row[name] for row in catalog_payloads)
+        if (
+            parameter.unit != PARAMETER_UNITS[name]
+            or parameter.lower_bound != lower
+            or parameter.upper_bound != upper
+            or not lower <= parameter.value <= upper
+        ):
+            raise ValueError("optimizer suggestion parameter catalog binding differs")
     constraints = candidate.constraints
     return PlannedOccurrence(
         logical_batch_sequence=constraints["logical_batch_sequence"],

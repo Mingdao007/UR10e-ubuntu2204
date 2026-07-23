@@ -346,6 +346,22 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         self.assertIn("uv sync --frozen --only-group test-hermetic", workflow)
         self.assertIn(".venv/bin/python", workflow)
         self.assertIn('"src/ur10e_experiment_runtime/**"', workflow)
+        self.assertIn(
+            '"experiments/tase-contact-reproduction/tools/step5d_autotune_*.py"',
+            workflow,
+        )
+        self.assertIn(
+            '"experiments/tase-contact-reproduction/tools/run_step5d_autotune_*.py"',
+            workflow,
+        )
+        self.assertIn(
+            '"experiments/tase-contact-reproduction/config/step5d/**"',
+            workflow,
+        )
+        self.assertIn(
+            '"experiments/tase-contact-reproduction/tests/test_step5d_autotune*.py"',
+            workflow,
+        )
         self.assertIn("test_rtde_repository_client_rejects_unknown_recipe_field", workflow)
         self.assertIn("docker run --rm --network none --read-only", workflow)
         self.assertIn("dst=/workspace,readonly", workflow)

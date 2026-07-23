@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from step5d_autotune_contract import ForceCandidate, LOG2_LATTICE_OCTAVE
-from step5d_autotune_r008_policy import (
+from ur10e_experiment_runtime.candidate_identity import (
     ControlCandidateUid,
     OccurrenceUid,
     TransportCandidateUid,

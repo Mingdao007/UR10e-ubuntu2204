@@ -455,7 +455,9 @@ def test_production_writer_lease_has_exact_live_owner_and_excludes_overlap(
 def test_canonical_shell_bridge_route_has_one_explicit_manual_v2_branch() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
+    assert '"${1:-}" == "bridge-live"' in source
     assert '"${1:-}" == "bridge"' in source
+    assert "compatibility cutoff passed" in source
     assert '"${1:-}" == "live"' not in source
     assert source.count("resolve_step5d_bridge_route.py") == 1
     assert 'route_snapshot="${output_root}/route-snapshot.json"' in source
@@ -705,7 +707,7 @@ def test_shell_runtime_gate_failure_precedes_attempt_and_authority(
     result = subprocess.run(
         [
             str(shell),
-            "bridge",
+            "bridge-live",
             "--output-root",
             str(output),
             "--campaign-root",
@@ -740,7 +742,7 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
     result = subprocess.run(
         [
             str(shell),
-            "bridge",
+            "bridge-live",
             "--output-root",
             str(output),
             "--campaign-root",
@@ -787,7 +789,7 @@ def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
     result = subprocess.run(
         [
             str(shell),
-            "bridge",
+            "bridge-live",
             "--output-root",
             str(tmp_path / "output"),
             "--campaign-root",
@@ -943,6 +945,37 @@ def test_shell_release_certify_is_offline_and_independent_from_bridge_authority(
     assert not (experiment / "runs/step5d_bridge_authority").exists()
 
 
+def test_shell_release_certify_stages_public_r012_candidate_when_omitted(
+    tmp_path: Path,
+) -> None:
+    shell, command_log, environment = _fake_governed_shell(
+        tmp_path,
+        fail_prepare=False,
+    )
+    experiment = shell.parent.parent
+    result = subprocess.run(
+        [str(shell), "release-certify"],
+        cwd=experiment,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=10.0,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    commands = command_log.read_text(encoding="utf-8").splitlines()
+    assert len(commands) == 2
+    assert "promote_step5d_r009_atomic_release.py" in commands[0]
+    assert "--stage-local-candidate" in commands[0]
+    assert "--candidate-output" in commands[0]
+    assert "run_step5d_autotune_v3_qualification.py" in commands[1]
+    assert "--release-candidate" in commands[1]
+    assert "runs/step5d_autotune_v3/release-candidates/" in commands[1]
+    assert not (experiment / "runs/step5d_bridge_authority").exists()
+
+
 def _run_shell_argv_gate(
     tmp_path: Path,
     arguments: list[str],
@@ -980,17 +1013,17 @@ def _run_shell_argv_gate(
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
-        (["bridge", "--unknown"], "unsupported option"),
-        (["bridge", "unexpected-positional"], "positional argument"),
-        (["bridge", "--output-root"], "requires a value"),
+        (["bridge-live", "--unknown"], "unsupported option"),
+        (["bridge-live", "unexpected-positional"], "positional argument"),
+        (["bridge-live", "--output-root"], "requires a value"),
         (
-            ["bridge", "--output-root", "--play-timeout-s", "1"],
+            ["bridge-live", "--output-root", "--play-timeout-s", "1"],
             "requires a value",
         ),
-        (["bridge", "--output-root="], "requires a value"),
-        (["bridge", "--campaign-root", ""], "requires a value"),
+        (["bridge-live", "--output-root="], "requires a value"),
+        (["bridge-live", "--campaign-root", ""], "requires a value"),
         (
-            ["bridge", "--source-rebind"],
+            ["bridge-live", "--source-rebind"],
             "unsupported option",
         ),
         (["tp-deliver"], "--release-candidate is required"),
@@ -999,19 +1032,18 @@ def _run_shell_argv_gate(
             "--release-certificate is required",
         ),
         (["tp-deliver", "--unknown"], "unsupported option"),
-        (["release-certify"], "--release-candidate is required"),
         (["release-certify", "--unknown"], "unsupported option"),
-        (["bridge", "--prepare-only"], "internal worker option"),
+        (["bridge-live", "--prepare-only"], "internal worker option"),
         (
-            ["bridge", "--qualification-endpoints=/tmp/endpoints.json"],
+            ["bridge-live", "--qualification-endpoints=/tmp/endpoints.json"],
             "internal worker option",
         ),
-        (["bridge", "--preflight", "/tmp/preflight.json"], "internal worker option"),
-        (["bridge", "--ready-timeout-s", "nan"], "finite positive decimal"),
-        (["bridge", "--play-timeout-s", "0"], "finite positive decimal"),
+        (["bridge-live", "--preflight", "/tmp/preflight.json"], "internal worker option"),
+        (["bridge-live", "--ready-timeout-s", "nan"], "finite positive decimal"),
+        (["bridge-live", "--play-timeout-s", "0"], "finite positive decimal"),
         (
             [
-                "bridge",
+                "bridge-live",
                 "--ready-timeout-s",
                 "1",
                 "--ready-timeout-s=2",
@@ -1037,7 +1069,7 @@ def test_bridge_invalid_argv_cannot_create_requested_output_root(tmp_path: Path)
 
     completed, python_marker = _run_shell_argv_gate(
         tmp_path,
-        ["bridge", "--output-root", str(requested_output), "--unknown"],
+        ["bridge-live", "--output-root", str(requested_output), "--unknown"],
     )
 
     assert completed.returncode == 64
@@ -1045,14 +1077,21 @@ def test_bridge_invalid_argv_cannot_create_requested_output_root(tmp_path: Path)
     assert not python_marker.exists()
 
 
+def test_bridge_alias_is_past_its_release_window(tmp_path: Path) -> None:
+    completed, python_marker = _run_shell_argv_gate(tmp_path, ["bridge"])
+
+    assert completed.returncode == 64
+    assert "compatibility cutoff passed" in completed.stderr
+    assert "bridge-live" in completed.stderr
+    assert not python_marker.exists()
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
         ["--help"],
-        ["bridge", "--help"],
         ["bridge-live", "--help"],
         ["tp-deliver", "--help"],
-        ["bridge", "--unknown", "--help"],
     ],
 )
 def test_shell_help_has_no_runtime_or_controller_side_effects(

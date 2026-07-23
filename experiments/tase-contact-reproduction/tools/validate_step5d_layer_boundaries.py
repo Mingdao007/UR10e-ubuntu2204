@@ -20,13 +20,17 @@ SHARED_FILES = {
     V3 / "shared_contracts.py",
 }
 OPTIMIZER_FILES = {
+    V3 / "control_policy.py",
     V3 / "optimizer_payloads.py",
+    V3 / "optimizer_policy.py",
+    V3 / "optimizer_types.py",
     V3 / "optimizer_worker.py",
     TOOLS / "step5d_autotune_optimizer.py",
     TOOLS / "step5d_autotune_r008_policy.py",
 }
 ADAPTER_FILES = {V3 / "optimizer_protocol.py"}
 DEPLOYMENT_FILES = {
+    V3 / "optimizer_deployment.py",
     V3 / "runtime_environment.py",
     V3 / "runtime_installation.py",
 }

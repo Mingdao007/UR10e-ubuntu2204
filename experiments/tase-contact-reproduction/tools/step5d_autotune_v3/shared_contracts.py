@@ -545,15 +545,26 @@ class TrialResult:
 
 
 def accept_terminal_result(
+    trial_spec: TrialSpec,
     current: TrialResult | None,
     proposed: TrialResult,
 ) -> TrialResult:
-    if not isinstance(proposed, TrialResult):
-        raise SharedContractError("proposed terminal result differs")
+    if not isinstance(trial_spec, TrialSpec):
+        raise SharedContractError("TrialSpec binding differs")
+    if (
+        not isinstance(proposed, TrialResult)
+        or proposed.trial_id != trial_spec.trial_id
+        or proposed.trial_spec_digest != trial_spec.digest
+    ):
+        raise SharedContractError("terminal result TrialSpec binding differs")
+    if current is not None and (
+        not isinstance(current, TrialResult)
+        or current.trial_id != trial_spec.trial_id
+        or current.trial_spec_digest != trial_spec.digest
+    ):
+        raise SharedContractError("current terminal result TrialSpec binding differs")
     if current is None:
         return proposed
-    if not isinstance(current, TrialResult) or current.trial_id != proposed.trial_id:
-        raise SharedContractError("terminal result trial identity differs")
     if current.digest != proposed.digest:
         raise SharedContractError("trial already has a different terminal result")
     return current
@@ -739,14 +750,72 @@ class OptimizerDeploymentCertificate:
         return canonical_sha256(self.to_payload())
 
 
-SHARED_SCHEMA_DIGEST = canonical_sha256(
-    {
-        "candidate_suggestion": CANDIDATE_SUGGESTION_SCHEMA,
-        "optimizer_deployment_certificate": OPTIMIZER_DEPLOYMENT_CERTIFICATE_SCHEMA,
-        "trial_result": TRIAL_RESULT_SCHEMA,
-        "trial_spec": TRIAL_SPEC_SCHEMA,
-    }
-)
+SHARED_SCHEMA_DEFINITION = {
+    "candidate_suggestion": {
+        "schema": CANDIDATE_SUGGESTION_SCHEMA,
+        "fields": {
+            "suggestion_id": "sha256",
+            "parameters": "map[str,UnitParameter]",
+            "optimizer_digest": "sha256",
+            "schema_digest": "sha256",
+            "build_digest": "sha256",
+            "seed": "non_negative_int",
+            "accepted_history_digest": "sha256",
+            "constraints": "pure_json_without_authority_keys",
+            "uncertainty": "pure_json",
+        },
+    },
+    "optimizer_deployment_certificate": {
+        "schema": OPTIMIZER_DEPLOYMENT_CERTIFICATE_SCHEMA,
+        "fields": {
+            "optimizer_digest": "sha256",
+            "build_digest": "sha256",
+            "runtime_attestation_digest": "sha256",
+            "gpu_attestation_digest": "sha256",
+            "module_closure_digest": "sha256",
+        },
+    },
+    "trial_result": {
+        "schema": TRIAL_RESULT_SCHEMA,
+        "fields": {
+            "trial_id": "non_empty_str",
+            "disposition": sorted(value.value for value in TerminalDisposition),
+            "metrics": "map[str,MetricValue]",
+            "stop_reason": "non_empty_str",
+            "timing": {
+                "started_at_unix_ns": "positive_int",
+                "completed_at_unix_ns": "int_gte_started",
+            },
+            "safety_observations": "list[SafetyObservation]",
+            "artifacts": "list[ArtifactReference]",
+            "runner_version": "non_empty_str",
+            "trial_spec_digest": "sha256",
+        },
+    },
+    "trial_spec": {
+        "schema": TRIAL_SPEC_SCHEMA,
+        "fields": {
+            "trial_id": "non_empty_str",
+            "suggestion_id": "sha256",
+            "parameters": "map[str,UnitParameter]",
+            "release_id": "sha256",
+            "safety_id": "sha256",
+            "deadline_unix_ns": "positive_int",
+            "required_observations": "non_empty_unique_tuple[str]",
+        },
+    },
+    "unit_parameter": {
+        "fields": {
+            "value": "finite_float_within_bounds",
+            "unit": "non_empty_str",
+            "bounds": {
+                "lower": "finite_float",
+                "upper": "finite_float_gte_lower",
+            },
+        }
+    },
+}
+SHARED_SCHEMA_DIGEST = canonical_sha256(SHARED_SCHEMA_DEFINITION)
 
 
 __all__ = [
@@ -756,6 +825,7 @@ __all__ = [
     "MetricValue",
     "OPTIMIZER_DEPLOYMENT_CERTIFICATE_SCHEMA",
     "OptimizerDeploymentCertificate",
+    "SHARED_SCHEMA_DEFINITION",
     "SHARED_SCHEMA_DIGEST",
     "SafetyObservation",
     "SharedContractError",

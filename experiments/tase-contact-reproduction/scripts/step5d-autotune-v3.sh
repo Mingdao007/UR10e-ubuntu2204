@@ -33,8 +33,10 @@ Canonical TP-local delivery transaction. Uploads the qualified triplet, performs
 a fresh controller GET, promotes the immutable release, and writes a delivery
 receipt. It never sends Dashboard Load or Play.
 
-Required options:
-  --release-candidate PATH   Immutable local release candidate
+Options:
+  --release-candidate PATH   Existing immutable local release candidate
+  --artifact-dir PATH        TP package directory used to stage a candidate
+                             when --release-candidate is omitted
   --release-certificate PATH
                              Immutable offline certificate bound to the candidate
 
@@ -63,7 +65,6 @@ EOF
 usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
-       step5d-autotune-v3.sh bridge [OPTIONS]
        step5d-autotune-v3.sh release-certify [OPTIONS]
        step5d-autotune-v3.sh tp-deliver [OPTIONS]
        step5d-autotune-v3.sh status [--json]
@@ -78,7 +79,7 @@ EOF
 
 bridge_argv_error() {
   echo "bridge argv refused: $1" >&2
-  echo "use: step5d-autotune-v3.sh bridge --help" >&2
+  echo "use: step5d-autotune-v3.sh bridge-live --help" >&2
   exit 64
 }
 
@@ -334,7 +335,12 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
-if [[ "${1:-}" == "bridge" || "${1:-}" == "bridge-live" ]]; then
+if [[ "${1:-}" == "bridge" ]]; then
+  echo "bridge argv refused: compatibility cutoff passed; use bridge-live" >&2
+  exit 64
+fi
+
+if [[ "${1:-}" == "bridge-live" ]]; then
   bridge_mode=1
   shift
   arguments=("$@")
@@ -435,6 +441,8 @@ if [[ "${1:-}" == "release-certify" ]]; then
   done
 
   seen_release_candidate=0
+  seen_artifact_dir=0
+  artifact_dir="${EXPERIMENT_ROOT}/programs/step5/step5d"
   index=0
   while (( index < ${#arguments[@]} )); do
     option="${arguments[index]}"
@@ -455,6 +463,30 @@ if [[ "${1:-}" == "release-certify" ]]; then
         fi
         ((index += 1))
         ;;
+      --artifact-dir)
+        if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
+          release_certify_argv_error "${option} requires a value"
+        fi
+        value="${arguments[index + 1]}"
+        ((index += 2))
+        (( seen_artifact_dir == 0 )) \
+          || release_certify_argv_error "--artifact-dir may appear only once"
+        seen_artifact_dir=1
+        artifact_dir="$(readlink -m -- "${value}")"
+        continue
+        ;;
+      --artifact-dir=*)
+        value="${option#*=}"
+        if [[ -z "${value}" ]]; then
+          release_certify_argv_error "${option_name} requires a value"
+        fi
+        ((index += 1))
+        (( seen_artifact_dir == 0 )) \
+          || release_certify_argv_error "--artifact-dir may appear only once"
+        seen_artifact_dir=1
+        artifact_dir="$(readlink -m -- "${value}")"
+        continue
+        ;;
       *)
         release_certify_argv_error "unsupported option or positional argument: ${option}"
         ;;
@@ -464,9 +496,6 @@ if [[ "${1:-}" == "release-certify" ]]; then
     seen_release_candidate=1
     release_candidate="$(readlink -m -- "${value}")"
   done
-  if [[ -z "${release_candidate}" ]]; then
-    release_certify_argv_error "--release-candidate is required"
-  fi
 fi
 
 if [[ "${1:-}" == "tp-deliver" ]]; then
@@ -691,6 +720,15 @@ export STEP5D_V3_RUNTIME_BUNDLE_ID="${RUNTIME_BUNDLE_ID}"
 if (( release_certify_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
+  if [[ -z "${release_candidate}" ]]; then
+    release_candidate="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/release-candidates/$(date -u +%Y%m%dT%H%M%SZ)-$$/candidate.json"
+    "${CONTROL_PYTHON}" \
+      "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py" \
+      --root "${EXPERIMENT_ROOT}" \
+      --artifact-dir "${artifact_dir}" \
+      --stage-local-candidate \
+      --candidate-output "${release_candidate}"
+  fi
   "${CONTROL_PYTHON}" \
     "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
     --experiment-root "${EXPERIMENT_ROOT}" \

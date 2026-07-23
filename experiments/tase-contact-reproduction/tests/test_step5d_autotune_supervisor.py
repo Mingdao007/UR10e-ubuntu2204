@@ -28,7 +28,7 @@ from step5d_autotune_governor import (  # noqa: E402
 )
 from step5d_autotune_journal import TpSnapshot  # noqa: E402
 from step5d_autotune_state_machine import SafeClosureEvidence  # noqa: E402
-from step5d_autotune_optimizer import Observation  # noqa: E402
+from step5d_autotune_optimizer import Observation, choose_candidate  # noqa: E402
 from step5d_autotune_supervisor import (  # noqa: E402
     CampaignPhase,
     CampaignSupervisor,
@@ -62,6 +62,7 @@ def supervisor(*, selection_policy: str = "adaptive") -> CampaignSupervisor:
         config_fingerprint=SHA_C,
         execution_profile=profile(),
         selection_policy=selection_policy,
+        optimizer_selector=choose_candidate,
     )
 
 

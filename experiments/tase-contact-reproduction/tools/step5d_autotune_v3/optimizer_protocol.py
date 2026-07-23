@@ -6,12 +6,11 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from step5d_autotune_contract import ForceCandidate
-from step5d_autotune_optimizer import Observation
-from step5d_autotune_r008_policy import PlannedOccurrence
-
+from .control_policy import PlannedOccurrence
+from .optimizer_types import Observation
 from .optimizer_payloads import (
     accepted_history_digest,
     candidate_payload,
@@ -91,6 +90,7 @@ class ExactOptimizerClient:
         *,
         deployment: OptimizerDeploymentCertificate,
         runtime_pointer: Mapping[str, Any] | None = None,
+        pointer_loader: Callable[[], Mapping[str, Any]] = load_runtime_pointer,
         timeout_s: float = 180.0,
     ) -> None:
         if timeout_s <= 0.0:
@@ -98,6 +98,7 @@ class ExactOptimizerClient:
         if not isinstance(deployment, OptimizerDeploymentCertificate):
             raise ValueError("optimizer deployment certificate is required")
         self.pointer = dict(runtime_pointer or load_runtime_pointer())
+        self.pointer_loader = pointer_loader
         expected = _pointer_certificate_fields(self.pointer)
         if any(getattr(deployment, name) != value for name, value in expected.items()):
             raise OptimizerProtocolError(
@@ -121,6 +122,28 @@ class ExactOptimizerClient:
     ) -> tuple[tuple[PlannedOccurrence, ...], Mapping[str, Any]]:
         if mode not in MODE_SEEDS:
             raise OptimizerProtocolError(f"unsupported optimizer mode: {mode}")
+        try:
+            current_pointer = dict(self.pointer_loader())
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise OptimizerProtocolError(
+                f"optimizer runtime pointer could not be refreshed: {exc}"
+            ) from exc
+        if (
+            current_pointer.get("bundle_id") != self.pointer.get("bundle_id")
+            or current_pointer.get("attestation_sha256")
+            != self.pointer.get("attestation_sha256")
+            or _pointer_certificate_fields(current_pointer)
+            != _pointer_certificate_fields(self.pointer)
+            or current_pointer.get("profiles", {}).get("optimizer", {}).get(
+                "python_executable"
+            )
+            != self.pointer.get("profiles", {}).get("optimizer", {}).get(
+                "python_executable"
+            )
+        ):
+            raise OptimizerProtocolError(
+                "optimizer runtime pointer changed after deployment admission"
+            )
         history_digest = accepted_history_digest(observations)
         request = {
             "schema": REQUEST_SCHEMA,
@@ -192,6 +215,7 @@ class ExactOptimizerClient:
             occurrences = tuple(
                 decode_suggestion(
                     row,
+                    catalog=catalog,
                     identity=self.identity,
                     seed=MODE_SEEDS[mode],
                     history_digest=history_digest,

@@ -243,7 +243,7 @@ def test_authoritative_gate_binds_the_production_vertical_slice() -> None:
     payload = json.loads(runner.MATRIX.read_text(encoding="utf-8"))
     gate = payload["authoritative_bridge_gate"]
 
-    assert gate["canonical_launcher"] == "scripts/step5d-autotune-v3.sh bridge"
+    assert gate["canonical_launcher"] == "scripts/step5d-autotune-v3.sh bridge-live"
     assert gate["status_reanchor"] == "scripts/step5d-autotune-v3.sh status --json"
     assert gate["acceptance_path"][1] == "release_manifest_v3_verified"
     assert gate["acceptance_path"][-5:] == [
