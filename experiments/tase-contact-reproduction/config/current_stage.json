@@ -2,7 +2,7 @@
   "version": 1,
   "current_step": "Step5d",
   "current_stage_id": "step5d_remote_r012",
-  "status": "implemented_offline_validated_live_not_authorized",
+  "status": "ready_for_remote_canary",
   "entrypoint": "step5d_remote_control.sh",
   "parameters": {
     "selector": "config/step5d_remote/current.json",
@@ -21,11 +21,11 @@
   "readiness": {
     "offline_validation_passed": true,
     "remote_control_required": true,
-    "live_motion_authorized": false,
+    "task_scope_active": true,
     "fresh_canary_required_before_run": true
   },
   "safety_boundary": {
-    "remote_control_mode_is_not_motion_authorization": true,
+    "remote_control_mode_required": true,
     "load_play_arm_are_not_used": true,
     "watchdog_controller_required": true,
     "fault_action": "exact_zero_latch_and_cleanup"

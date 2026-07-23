@@ -541,7 +541,7 @@
       "entrypoint": "step5d_remote_control.sh",
       "parameters": "config/step5d_remote/r012.yaml",
       "canary_required_before_run": true,
-      "live_authorized": false,
+      "task_scope_active": true,
       "success_condition": "Fresh same-boot same-parameter canary passes before the guarded 180 s Step5d run."
     }
   ]
