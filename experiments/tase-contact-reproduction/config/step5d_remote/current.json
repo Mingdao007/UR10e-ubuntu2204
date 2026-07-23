@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "stage_id": "step5d_remote_r012",
+  "route": "ros2_remote_control_headless",
+  "params_file": "config/step5d_remote/r012.yaml"
+}

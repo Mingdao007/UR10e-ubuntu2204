@@ -1,0 +1,135 @@
+route: ros2_remote_control_headless
+source: r012_live_evidence
+profile_id: nf100-slew050-a050
+run_duration_s: 180
+command_rate_hz: 500
+robot:
+  ip: 192.168.1.18
+  reverse_ip: 192.168.1.10
+  controller_manager: /controller_manager
+sensor:
+  ip: 192.168.50.25
+  port: 5152
+  window_s: 0.5
+  latest_max_age_s: 0.25
+  min_recent_samples: 20
+  connect_timeout_s: 3.0
+  recv_timeout_s: 0.25
+  ready_timeout_s: 3.0
+  baseline_s: 1.0
+  rezero_s: 1.0
+controller:
+  command_topic: /step5d_watchdog_controller/commands
+  status_topic: /step5d_watchdog_controller/status
+  joint_state_topic: /joint_states
+watchdog:
+  command_stale_s: 0.01
+  max_abs_velocity_rad_s: 0.5
+  max_acceleration_rad_s2: 0.5
+force:
+  target_force_n: 5.0
+  hard_normal_force_n: 60.0
+  max_force_norm_n: 100.0
+  max_torque_norm_nm: 3.0
+  p_gain: 0.001
+  i_gain: 1.0e-5
+  damping: 7.0
+  orientation_ko: 0.4
+path:
+  shape: cycloid
+  line_speed_m_s: 0.003
+  path_gain: 1.5
+  motion_limit_m_s: 0.004
+  total_linear_limit_m_s: 0.006
+  normal_velocity_limit_m_s: 0.003
+  integral_limit_n_s: 1.0
+  amplitude_m: 0.015
+  omega_rad_s: 0.1
+  basis:
+    origin_xy_m:
+      - 0.487795411149049
+      - 0.12932679270060748
+    u_along_xy:
+      - -0.010785642631908187
+      - 0.9999418332648238
+    p_lateral_xy:
+      - -0.9999418332648239
+      - -0.010785642631908406
+guard:
+  orientation_gain: 0.20
+  angular_limit_rad_s: 0.05
+  normal_follow_mode: filtered_live
+  normal_filter_tau_s: 0.35
+  normal_filter_rate_rad_s: 0.1
+  min_force_n: 2.0
+  min_force_for_control_n: 1.0
+  contact_offset_min_fz_n: 1.0
+  max_angle_from_latch_deg: 20.0
+  rate_watchdog_max_miss_s: 0.01
+  friction_projection: "on"
+frame:
+  reaction_normal_b:
+    - -0.043955267
+    - 0.020079909
+    - 0.998831683
+  approach_normal_b:
+    - 0.043955267
+    - -0.020079909
+    - -0.998831683
+  normal_axis: fz
+  normal_sign: 1
+calibration:
+  expected_hash: calib_7367377276742883610
+kinematics:
+  calibration_yaml: src/ur10e_bringup/config/ur10e_calibration.yaml
+  xacro_path: /opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro
+  tcp_offset_tool0_m:
+    - 1.8186503701174852e-06
+    - 2.2293003722353485e-07
+    - 0.12209917288991741
+  position_bound_gain_s_inv: 4.0
+solver:
+  paper_truth_path: experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json
+search:
+  speed_m_s: 0.003
+  timeout_s: 10.0
+preflight:
+  prior_xyz:
+    - +0.487834547
+    - +0.129337053
+    - +0.022863519
+  prior_rotvec:
+    - +3.120752062
+    - +0.0
+    - +0.068626833
+  position_tolerance_m: 0.003
+  orientation_tolerance_rad: 0.035
+  qd_tolerance_rad_s: 0.01
+  joint_state_stale_timeout_s: 0.05
+  ready_timeout_s: 15
+canary:
+  zero_s: 2.0
+  free_space_s: 10.0
+  guarded_contact_s: 60.0
+  free_space_linear_limit_m_s: 0.0005
+  free_space_qdot_limit_rad_s: 0.05
+  evidence_max_age_s: 1800
+retract:
+  distance_m: 0.010
+  speed_m_s: 0.003
+preload:
+  raw_min_n: 7.0
+  raw_max_n: 15.0
+  filtered_min_n: 7.5
+  filtered_max_n: 14.0
+  force_norm_max_n: 25.0
+  hold_s: 0.1
+  timeout_s: 10.0
+limits:
+  qdot_limit_rad_s: 0.5
+  host_slew_rad_s2: 0.5
+rates:
+  rnn_epsilon: 0.01
+  rnn_sigr_exponent_r: 0.8
+  rnn_inner_iterations: 512
+  rnn_backend: cupy

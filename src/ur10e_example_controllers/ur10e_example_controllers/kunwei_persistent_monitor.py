@@ -105,6 +105,29 @@ class KunweiPersistentMonitor:
                 f"Kunwei force delta exceeded limit: {force_delta:.3f} N > {self.config.max_force_delta_n:.3f} N"
             )
 
+    def latest_zeroed_wrench_si(self, *, now: float | None = None) -> tuple[float, float, float, float, float, float]:
+        now_ts = time.monotonic() if now is None else float(now)
+        with self._lock:
+            if self._baseline is None:
+                raise RuntimeError("latest_zeroed_wrench_si has no baseline")
+            if not self._samples:
+                raise RuntimeError("latest_zeroed_wrench_si has no latest sample")
+            latest_time, latest_sample = self._samples[-1]
+            if now_ts - latest_time > self.config.latest_max_age_s:
+                raise RuntimeError("latest sample is stale")
+            delta = [
+                (latest_sample[index] - self._baseline[index]) for index in range(len(FIELDS))
+            ]
+        payload = _si_payload(tuple(delta))
+        return (
+            payload["Fx_N"],
+            payload["Fy_N"],
+            payload["Fz_N"],
+            payload["Mx_Nm"],
+            payload["My_Nm"],
+            payload["Mz_Nm"],
+        )
+
     def stop(self) -> None:
         self._stop_event.set()
         if self._thread is not None:

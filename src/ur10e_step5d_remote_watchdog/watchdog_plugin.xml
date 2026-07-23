@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="ur10e_step5d_remote_watchdog">
+  <class
+    name="ur10e_step5d_remote_watchdog/WatchdogController"
+    type="ur10e_step5d_remote_watchdog::WatchdogController"
+    base_class_type="controller_interface::ControllerInterface">
+    <description>Six-joint velocity command sink with stale and invalid-command zero latch.</description>
+  </class>
+</library>
