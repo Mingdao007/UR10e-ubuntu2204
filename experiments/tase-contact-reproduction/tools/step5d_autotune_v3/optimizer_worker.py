@@ -1,12 +1,9 @@
-"""Internal exact-runtime worker for CUDA BoTorch production proposals."""
+"""Internal exact-runtime worker for CUDA BoTorch candidate suggestions."""
 
 from __future__ import annotations
 
 import hashlib
-import importlib.metadata
 import json
-import os
-from pathlib import Path
 import sys
 from typing import Any, Mapping
 
@@ -16,44 +13,21 @@ from step5d_autotune_r008_policy import (
     supercycle_batch_b_after_gp_update,
 )
 
-from .optimizer_protocol import (
+from .optimizer_payloads import (
+    accepted_history_digest,
+    decode_observation,
+    encode_suggestions,
+    optimizer_identity,
+    validate_optimizer_identity,
+)
+from .optimizer_wire import (
     MODE_SEEDS,
     REQUEST_SCHEMA,
     RESPONSE_SCHEMA,
     canonical_bytes,
-    decode_observation,
-    occurrence_payload,
     strict_json,
 )
 from .runtime_installation import require_runtime_profile
-
-
-_FORBIDDEN_MODULES = ("cupy", "matplotlib", "mujoco", "pandas", "pinocchio", "xacro")
-
-
-def _module_closure() -> dict[str, Any]:
-    rows: list[dict[str, str]] = []
-    violations: list[str] = []
-    for name, module in sorted(sys.modules.items()):
-        if name.split(".", 1)[0] in _FORBIDDEN_MODULES:
-            violations.append(f"forbidden_module:{name}")
-        raw_path = getattr(module, "__file__", None)
-        if not isinstance(raw_path, str):
-            continue
-        try:
-            path = str(Path(raw_path).resolve(strict=True))
-        except OSError:
-            violations.append(f"unresolved_module_path:{name}")
-            continue
-        if "/.codex-python/" in path or "/site-packages/pandas/" in path:
-            violations.append(f"forbidden_module_path:{name}:{path}")
-        rows.append({"module": name, "path": path})
-    digest = hashlib.sha256(canonical_bytes(rows)).hexdigest()
-    return {
-        "sha256": digest,
-        "module_file_count": len(rows),
-        "violations": violations,
-    }
 
 
 def _request(payload: Any) -> tuple[dict[str, Any], bytes]:
@@ -62,7 +36,8 @@ def _request(payload: Any) -> tuple[dict[str, Any], bytes]:
         "mode",
         "seed",
         "sequence",
-        "runtime",
+        "optimizer_identity",
+        "accepted_history_digest",
         "observations",
         "catalog",
         "batch_a_closure",
@@ -81,26 +56,28 @@ def _request(payload: Any) -> tuple[dict[str, Any], bytes]:
         or not isinstance(payload.get("catalog"), list)
     ):
         raise ValueError("optimizer request contract differs")
+    validate_optimizer_identity(payload["optimizer_identity"])
     encoded = canonical_bytes(dict(payload))
     return dict(payload), encoded
 
 
 def run(encoded: bytes) -> dict[str, Any]:
-    # The spawning control process already completed full package/host
-    # verification.  Rebind this short-lived worker to the same immutable
-    # pointer without spending the optimizer response budget rehashing both
-    # runtime trees.
     pointer = require_runtime_profile("optimizer", full_integrity=False)
     request, canonical = _request(strict_json(encoded, "optimizer request"))
-    expected_runtime = {
-        "bundle_id": pointer["bundle_id"],
-        "environment_id": pointer["profiles"]["optimizer"]["environment_id"],
-        "attestation_sha256": pointer["attestation_sha256"],
-    }
-    if request["runtime"] != expected_runtime:
-        raise ValueError("optimizer request runtime binding differs")
-    observations = tuple(decode_observation(row) for row in request["observations"])
-    catalog = tuple(ForceCandidate.from_payload(row) for row in request["catalog"])
+    expected_identity = optimizer_identity(
+        optimizer_digest=pointer["profiles"]["optimizer"]["record_tree_sha256"],
+        build_digest=pointer["profiles"]["optimizer"]["environment_id"],
+    )
+    if request["optimizer_identity"] != expected_identity:
+        raise ValueError("optimizer request deployment identity differs")
+    observations = tuple(
+        decode_observation(row) for row in request["observations"]
+    )
+    if request["accepted_history_digest"] != accepted_history_digest(observations):
+        raise ValueError("optimizer request accepted history digest differs")
+    catalog = tuple(
+        ForceCandidate.from_payload(row) for row in request["catalog"]
+    )
     if len({candidate.candidate_uid for candidate in catalog}) != len(catalog):
         raise ValueError("optimizer request catalog repeats a candidate")
     if request["mode"] == "rolling_batch_a":
@@ -122,28 +99,19 @@ def run(encoded: bytes) -> dict[str, Any]:
             batch_a_closure=request["batch_a_closure"],
             seed=request["seed"],
         )
-    import torch
-
-    closure = _module_closure()
-    if closure["violations"]:
-        raise ValueError("optimizer module closure contains forbidden inputs")
     return {
         "schema": RESPONSE_SCHEMA,
         "ok": True,
         "request_sha256": hashlib.sha256(canonical).hexdigest(),
-        "runtime": expected_runtime,
-        "gpu": {
-            "visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
-            "mapped_device": "cuda:0",
-            "name": torch.cuda.get_device_name(0),
-            "torch_version": importlib.metadata.version("torch"),
-            "botorch_version": importlib.metadata.version("botorch"),
-            "gpytorch_version": importlib.metadata.version("gpytorch"),
-            "torch_cuda_version": torch.version.cuda,
-        },
-        "occurrences": [occurrence_payload(value) for value in occurrences],
+        "suggestions": encode_suggestions(
+            occurrences,
+            catalog=catalog,
+            identity=expected_identity,
+            seed=request["seed"],
+            history_digest=request["accepted_history_digest"],
+            evidence=evidence,
+        ),
         "evidence": dict(evidence),
-        "module_closure": closure,
     }
 
 

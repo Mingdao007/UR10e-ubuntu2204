@@ -49,7 +49,10 @@ from step5d_autotune_v3.governance import (
     resolve_governed_status,
 )
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
-from step5d_autotune_v3.optimizer_protocol import ExactOptimizerClient
+from step5d_autotune_v3.optimizer_protocol import (
+    ExactOptimizerClient,
+    deployment_certificate,
+)
 from step5d_autotune_v3.profile import load_contract
 from step5d_autotune_v3.qualification import release_certificate_scope_for_release
 from step5d_autotune_v3.release_certificate import (
@@ -1048,7 +1051,13 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     runtime_pointer = getattr(args, "_runtime_pointer", None)
     if not isinstance(runtime_pointer, Mapping):
         runtime_pointer = require_runtime_profile("control")
-    load_gpu_functional_attestation(runtime_pointer=runtime_pointer)
+    _gpu_attestation, gpu_reference = load_gpu_functional_attestation(
+        runtime_pointer=runtime_pointer
+    )
+    optimizer_deployment = deployment_certificate(
+        runtime_pointer=runtime_pointer,
+        gpu_attestation_digest=gpu_reference["sha256"],
+    )
     control_python = runtime_pointer["profiles"]["control"]["python_executable"]
     optimizer_python = runtime_pointer["profiles"]["optimizer"]["python_executable"]
     qualification = _qualification_endpoints(args.qualification_endpoints)
@@ -1171,7 +1180,10 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         campaign_root=args.campaign_root,
         campaign_id=str(prepared["campaign_id"]),
         catalog=production_candidate_catalog(),
-        optimizer_client=ExactOptimizerClient(runtime_pointer=runtime_pointer),
+        optimizer_client=ExactOptimizerClient(
+            deployment=optimizer_deployment,
+            runtime_pointer=runtime_pointer,
+        ),
     )
     try:
         producer_snapshot = producer.poll_once(proposal_provider=proposal_provider)

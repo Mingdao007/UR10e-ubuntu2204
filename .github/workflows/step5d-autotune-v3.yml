@@ -89,6 +89,10 @@ jobs:
           .venv/bin/python tools/validate_step5d_autotune_v3_refactor.py
           --root . --declaration-env STEP5D_V3_PR_BODY
 
+      - name: Validate Step5d import and deployment boundaries
+        working-directory: experiments/tase-contact-reproduction
+        run: .venv/bin/python tools/validate_step5d_layer_boundaries.py
+
       - name: Probe repository-owned RTDE parser against local endpoint
         working-directory: experiments/tase-contact-reproduction
         run: >-

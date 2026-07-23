@@ -56,6 +56,8 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_v3_identity_layers.py",
     "tests/test_step5d_autotune_v3_installed_runtime.py",
     "tests/test_step5d_autotune_v3_live_startup.py",
+    "tests/test_step5d_autotune_v3_public_state.py",
+    "tests/test_step5d_autotune_v3_shared_contracts.py",
     "tests/test_step5d_optimizer_protocol.py",
     "tests/test_step5d_autotune_v3_qualification.py",
     "tests/test_step5d_autotune_v3_qualification_endpoints.py",
@@ -82,6 +84,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_v3_oci_contract.py",
     "tests/test_step5d_v3_runtime_installation.py",
     "tests/test_step5d_v3_source_closure.py",
+    "tests/test_step5d_layer_boundaries.py",
 }
 AUTHORITATIVE_OBSOLETE_TESTS = {
     "tests/test_cross_step_parameter_table.py",
@@ -123,9 +126,13 @@ AUTHORITATIVE_ACCEPTANCE_PATH = [
 ]
 REQUIRED_ACTIVE_RUNTIME_MODULES = {
     "tools/step5d_autotune_v3/delivery_observation.py",
+    "tools/step5d_autotune_v3/optimizer_payloads.py",
+    "tools/step5d_autotune_v3/optimizer_wire.py",
     "tools/step5d_autotune_v3/preflight_support.py",
+    "tools/step5d_autotune_v3/public_state.py",
     "tools/step5d_autotune_v3/rtde_client.py",
     "tools/step5d_autotune_v3/runtime_environment.py",
+    "tools/step5d_autotune_v3/shared_contracts.py",
     "tools/step5d_autotune_v3/source_closure.py",
 }
 
