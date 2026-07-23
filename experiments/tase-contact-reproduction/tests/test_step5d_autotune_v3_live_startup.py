@@ -555,6 +555,10 @@ def test_canonical_shell_records_only_direct_live_phases() -> None:
         "live_handoff",
     ):
         assert f"bridge_begin_phase {phase}" in source
+    assert "bridge_begin_phase status_before" not in source
+    assert "bridge_begin_phase status_after_delivery" not in source
+    assert 'status --json >"${output_root}/status-before.json"' not in source
+    assert 'status --json >"${output_root}/status-after-delivery.json"' not in source
     assert 'launch_attempt_phase="runtime_gate"' in source
     assert "bridge_record_launch_attempt STARTED runtime_gate" in source
     assert source.index("bridge_record_launch_attempt STARTED runtime_gate") < source.index(

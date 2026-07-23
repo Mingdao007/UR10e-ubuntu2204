@@ -429,14 +429,21 @@ def _proc_observation(pid: int, role: str, expected_script: Path) -> dict[str, A
             for item in (proc / "cmdline").read_bytes().split(b"\0")
             if item
         ]
+        cwd = (proc / "cwd").resolve(strict=True)
         executable = str((proc / "exe").resolve(strict=True))
     except (OSError, UnicodeError, IndexError, ValueError) as exc:
         raise RuntimeObservationError(f"cannot inspect {role} process {pid}: {exc}") from exc
     expected = str(expected_script.resolve(strict=True))
     resolved_arguments = {
-        str(Path(argument).resolve())
+        str(
+            (
+                Path(argument)
+                if Path(argument).is_absolute()
+                else cwd / argument
+            ).resolve(strict=False)
+        )
         for argument in argv
-        if argument.startswith("/")
+        if not argument.startswith("-")
     }
     if expected not in argv and expected not in resolved_arguments:
         raise RuntimeObservationError(f"{role} does not execute {expected_script.name}")

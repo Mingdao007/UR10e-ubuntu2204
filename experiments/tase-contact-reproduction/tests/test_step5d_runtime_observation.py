@@ -4,7 +4,9 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import subprocess
 import sys
+import time
 from types import SimpleNamespace
 from typing import Any, Mapping, Sequence
 
@@ -39,6 +41,7 @@ from step5d_autotune_v3.runtime_observation import (
 )
 
 
+REAL_PROC_OBSERVATION = observation._proc_observation
 REAL_DISCOVER_WRITER_PROCESSES = observation._discover_writer_processes
 NOW_NS = 2_000_000_000_000_000_000
 CANONICAL_PID = 199
@@ -284,6 +287,47 @@ def fake_process(
         "source": str(expected_script),
         "source_sha256": file_sha256(expected_script),
     }
+
+
+def test_process_observation_resolves_relative_shell_launcher_from_process_cwd(
+    tmp_path: Path,
+) -> None:
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    launcher = scripts / "step5d-autotune-v3.sh"
+    launcher.write_text(
+        "#!/usr/bin/env bash\n"
+        "while true; do sleep 0.1; done\n",
+        encoding="utf-8",
+    )
+    launcher.chmod(0o755)
+    process = subprocess.Popen(
+        ["scripts/step5d-autotune-v3.sh"],
+        cwd=tmp_path,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        deadline = time.monotonic() + 2.0
+        while (
+            b"step5d-autotune-v3.sh"
+            not in Path(f"/proc/{process.pid}/cmdline").read_bytes()
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.01)
+        observed = REAL_PROC_OBSERVATION(
+            process.pid,
+            "canonical_launcher",
+            launcher,
+        )
+    finally:
+        process.terminate()
+        process.wait(timeout=5.0)
+
+    assert observed["pid"] == process.pid
+    assert observed["source"] == str(launcher.resolve())
+    assert observed["argv"][-1] == "scripts/step5d-autotune-v3.sh"
 
 
 def fake_writer_processes(_experiment_root: Path) -> list[dict[str, Any]]:
