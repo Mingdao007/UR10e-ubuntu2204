@@ -2547,6 +2547,7 @@ def resolve_governed_status(
     integrity_errors: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     observed_now = time.time_ns() if now_ns is None else now_ns
+    freshness_now = observed_now
     environment, environment_reasons, environment_evidence = _environment_status(
         experiment_root
     )
@@ -2586,6 +2587,13 @@ def resolve_governed_status(
             evidence.append(
                 _evidence_row("current_observation", detail=f"{type(exc).__name__}:{exc}")
             )
+    if attestation is not None:
+        attestation_observed_at = attestation.get("observed_at_unix_ns")
+        if (
+            isinstance(attestation_observed_at, int)
+            and not isinstance(attestation_observed_at, bool)
+        ):
+            freshness_now = max(freshness_now, attestation_observed_at)
 
     launch_attempt: Mapping[str, Any] | None = None
     launch_pointer: Mapping[str, Any] | None = None
@@ -2695,13 +2703,14 @@ def resolve_governed_status(
         release,
         attestation,
         campaign_root=campaign_root,
-        now_ns=observed_now,
+        now_ns=freshness_now,
         proc_starttime_reader=proc_starttime_reader,
         pointer=pointer,
         initial_reasons=reasons,
         initial_evidence=evidence,
         offline_proof=offline_proof,
     )
+    status["generated_at_unix_ns"] = observed_now
     if environment_reasons:
         status["predicates"]["offline_proven"] = False
         status["predicates"]["play_prompt_ready"] = False

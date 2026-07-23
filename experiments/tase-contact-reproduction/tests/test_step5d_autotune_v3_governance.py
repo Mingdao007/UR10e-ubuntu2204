@@ -1129,6 +1129,62 @@ def test_status_freshness_is_anchored_before_slow_environment_validation(
     assert status["state"] == "BENCH_READY"
 
 
+def test_status_uses_observed_snapshot_time_for_freshness_when_observation_is_published_mid_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_governed_release(monkeypatch)
+    clock = {"now_ns": NOW_NS}
+
+    def delayed_publish_environment_status(root: Path):
+        clock["now_ns"] += 340_000_000
+        row = observed_attestation(tmp_path)
+        future_snapshot = clock["now_ns"]
+        row["observed_at_unix_ns"] = future_snapshot
+        row["process"]["heartbeat_at_unix_ns"] = future_snapshot - 50_000_000
+        row["controller"]["observed_at_unix_ns"] = future_snapshot - 50_000_000
+        row["controller"]["fresh_get_observed_at_unix_ns"] = future_snapshot - 100_000_000
+        row["controller"]["rtde_observed_at_unix_ns"] = future_snapshot - 20_000_000
+        row["controller"]["kunwei_observed_at_unix_ns"] = future_snapshot - 20_000_000
+        row["mailbox"]["observed_at_unix_ns"] = future_snapshot - 20_000_000
+        row["controller"]["delivery_observation"] = delivery_evidence(
+            tmp_path, row["controller"]["fresh_get_observed_at_unix_ns"]
+        )
+        publish_observed_attestation(tmp_path, row)
+        return (
+            {
+                "required_environment_id": digest("environment"),
+                "observed_environment_id": digest("environment"),
+                "control_ready": True,
+                "optimizer_ready": True,
+                "host_contract_ready": True,
+                "gpu_identity_ready": True,
+                "gpu_functional_proven": True,
+                "environment_attestation_sha256": None,
+                "blocker": {"reason_code": None, "detail": None},
+            },
+            [],
+            [],
+        )
+
+    monkeypatch.setattr(governance, "_environment_status", delayed_publish_environment_status)
+    monkeypatch.setattr(governance.time, "time_ns", lambda: clock["now_ns"])
+
+    status = resolve_governed_status(
+        ROOT,
+        tmp_path,
+        proc_starttime_reader=process_reader,
+    )
+
+    assert status["generated_at_unix_ns"] == NOW_NS
+    assert status["attestation"]["observed_at_unix_ns"] > NOW_NS
+    assert status["predicates"]["bridge_heartbeat_fresh"] is True
+    assert status["predicates"]["controller_fresh"] is True
+    assert status["predicates"]["rtde_fresh"] is True
+    assert status["predicates"]["kunwei_fresh"] is True
+    assert status["predicates"]["mailbox_clean"] is True
+    assert status["state"] == "BENCH_READY"
+
+
 def test_live_status_consumes_attested_hotpath_without_requalification() -> None:
     source = inspect.getsource(governance._environment_status)
 
