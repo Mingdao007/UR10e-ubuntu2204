@@ -438,9 +438,17 @@ class Step5dQualificationTest(unittest.TestCase):
             return_value=(release, release),
         ), patch.object(
             qualification,
+            "_source_binding",
+            return_value=prebinding["source"],
+        ), patch.object(
+            qualification,
             "load_runtime_pointer_identity",
             return_value=runtime_pointer_fixture(),
         ), patch.object(
+            qualification,
+            "production_runtime_environment",
+            return_value=environment,
+        ) as environment_builder, patch.object(
             qualification,
             "capture_content_binding",
             return_value=prebinding,
@@ -468,6 +476,10 @@ class Step5dQualificationTest(unittest.TestCase):
                     reuse_only=True,
                 )
         full_runtime.assert_not_called()
+        self.assertEqual(
+            environment_builder.call_args.kwargs["runtime_pointer"],
+            runtime_pointer_fixture(),
+        )
 
     def test_production_shaped_endpoint_ports_require_one_cross_process_lease(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

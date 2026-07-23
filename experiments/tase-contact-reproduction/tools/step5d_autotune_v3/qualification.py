@@ -2124,8 +2124,15 @@ def write_qualification_evidence(output_root: Path, payload: Mapping[str, Any]) 
     }
 
 
-def _qualification_environment(values: Mapping[str, str]) -> dict[str, str]:
-    return production_runtime_environment(values)
+def _qualification_environment(
+    values: Mapping[str, str],
+    *,
+    runtime_pointer: Mapping[str, Any],
+) -> dict[str, str]:
+    return production_runtime_environment(
+        values,
+        runtime_pointer=runtime_pointer,
+    )
 
 
 def _process_cmdline(pid: int) -> tuple[str, ...]:
@@ -2887,8 +2894,16 @@ def run_endpoint_qualification(
     if output.exists() and (output.is_symlink() or not output.is_dir()):
         raise QualificationError("qualification output root is unsafe")
     output.mkdir(parents=True, exist_ok=True)
-    clean_environment = _qualification_environment(values)
-    runtime_pointer = load_runtime_pointer_identity(environ=clean_environment)
+    _source_binding(
+        root,
+        release.manifest_sha256,
+        release_identity=binding_release,
+    )
+    runtime_pointer = load_runtime_pointer_identity(environ=values)
+    clean_environment = _qualification_environment(
+        values,
+        runtime_pointer=runtime_pointer,
+    )
     runtime_environment = clean_environment
     prebinding = capture_content_binding(
         root,
