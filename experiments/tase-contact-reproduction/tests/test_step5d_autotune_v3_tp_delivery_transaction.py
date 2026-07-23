@@ -268,11 +268,15 @@ def test_delivery_observation_revalidates_receipt_and_release_closure(
         now=now,
     )
 
-    assert validate_delivery_observation(
+    validated = validate_delivery_observation(
         root,
         observation,
         release=release,
-    ) == observation
+    )
+    assert validated == observation
+    assert validated["fresh_controller_checked_at"] == (
+        now - timedelta(seconds=5)
+    ).isoformat()
     changed = json.loads(json.dumps(observation))
     changed["fresh_controller_checked_at"] = now.isoformat()
     with pytest.raises(DeliveryObservationError, match="receipt content differs"):
@@ -297,11 +301,13 @@ def test_delivery_observation_age_does_not_expire_exact_content_binding(
         now=checked_at,
     )
 
-    assert validate_delivery_observation(
+    validated = validate_delivery_observation(
         root,
         observation,
         release=release,
-    ) == observation
+    )
+    assert validated == observation
+    assert validated["fresh_controller_checked_at"] == checked_at.isoformat()
 
 
 def test_delivery_observation_rejects_receipt_triplet_not_bound_to_release(
