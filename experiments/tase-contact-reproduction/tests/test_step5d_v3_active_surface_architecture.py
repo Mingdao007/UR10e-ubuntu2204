@@ -54,7 +54,7 @@ def test_active_surface_has_one_public_live_entrypoint_and_internal_workers() ->
     active = json.loads(ACTIVE.read_text(encoding="utf-8"))
 
     assert active["schema"] == "step5d.autotune-v3/active-surface-v3"
-    assert active["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r011"
+    assert active["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r012"
     assert active["release_truth"]["manifest_schema"] == (
         "step5d.autotune-v3/release-manifest-v3"
     )
@@ -115,12 +115,12 @@ def test_stale_release_claims_are_historical_not_active() -> None:
     active = json.loads(ACTIVE.read_text(encoding="utf-8"))
     claims = active["release_claims"]
 
-    assert claims["step5d_strict_rnn_autotune_v3_r011"].startswith("governed_identity")
-    for revision in (4, 6, 8, 9, 10):
+    assert claims["step5d_strict_rnn_autotune_v3_r012"].startswith("governed_identity")
+    for revision in (4, 6, 8, 9, 10, 11):
         assert claims[
             f"step5d_strict_rnn_autotune_v3_r{revision:03d}"
         ].startswith("historical_")
-    assert all("r011" in path for path in active["deployment_paths"])
+    assert all("r012" in path for path in active["deployment_paths"])
 
 
 def test_only_one_compatibility_adapter_and_retired_stubs_have_no_live_path() -> None:
@@ -285,7 +285,7 @@ def test_authoritative_matrix_classifies_stale_release_files() -> None:
     matrix = json.loads(MATRIX.read_text(encoding="utf-8"))
     gate = matrix["authoritative_bridge_gate"]
 
-    assert gate["current_tp_program_id"] == "step5d_strict_rnn_autotune_v3_r011"
+    assert gate["current_tp_program_id"] == "step5d_strict_rnn_autotune_v3_r012"
     assert gate["unclassified_failure_policy"] == "block"
     assert gate["canonical_launcher"] == "scripts/step5d-autotune-v3.sh bridge"
     assert set(gate["classified_test_files"]) == {"active", "obsolete", "unrelated"}
@@ -298,7 +298,7 @@ def test_authoritative_matrix_classifies_stale_release_files() -> None:
             "current rolling policy regression retained under its historical filename"
         ),
         "tests/test_step5d_r009_release_core.py": (
-            "r011 release-manifest-v3 regression retained under its compatibility filename"
+            "r012 release-manifest-v3 regression retained under its compatibility filename"
         ),
     }
 

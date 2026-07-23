@@ -46,7 +46,7 @@ from step5d_autotune_v3.runtime_identity import (  # noqa: E402
 )
 
 
-PROGRAM = "step5d_strict_rnn_autotune_v3_r011"
+PROGRAM = "step5d_strict_rnn_autotune_v3_r012"
 
 
 def _sha(encoded: bytes) -> str:
@@ -71,7 +71,7 @@ def _release_fixture(
     bad_registers: bool = False,
     bad_write_order: bool = False,
 ) -> Path:
-    stamp = "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011"
+    stamp = "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012"
     script = builder.build_package_script(stamp)
     numeric = {
         "input_integer_registers": list(range(24, 32)),
@@ -481,7 +481,7 @@ def test_verifier_ignores_semantically_stale_compatibility_mirror(
     assert verify_release_manifest(tmp_path, manifest_path)["ok"] is True
 
 
-def test_promotion_rewrites_selected_release_mirrors_to_r011() -> None:
+def test_promotion_rewrites_selected_release_mirrors_to_r012() -> None:
     triplet = {".script": "1" * 64, ".txt": "2" * 64, ".urp": "3" * 64}
     current = promoter._render_current_stage(
         json.loads((ROOT / "config/current_stage.json").read_text(encoding="utf-8")),
@@ -492,7 +492,7 @@ def test_promotion_rewrites_selected_release_mirrors_to_r011() -> None:
     )
     assert current["local_candidate"]["program"] == PROGRAM
     assert current["evidence"]["sha256"] == triplet
-    assert current["status"] == "step5d_autotune_v3_r011_controller_readback_verified"
+    assert current["status"] == "step5d_autotune_v3_r012_controller_readback_verified"
     assert {
         "bridge_trigger",
         "execution_state",
