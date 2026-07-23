@@ -61,6 +61,9 @@ def test_active_surface_has_one_public_live_entrypoint_and_internal_workers() ->
     assert active["entrypoints"]["public_live"] == (
         "scripts/step5d-autotune-v3.sh bridge"
     )
+    assert active["entrypoints"]["public_tp_delivery"] == (
+        "scripts/step5d-autotune-v3.sh tp-deliver"
+    )
     assert active["entrypoints"]["public_status"] == (
         "scripts/step5d-autotune-v3.sh status --json"
     )
@@ -278,7 +281,7 @@ def test_internal_tp_transaction_refuses_direct_execution() -> None:
     )
 
     assert result.returncode == 64
-    assert "step5d-autotune-v3.sh bridge" in result.stderr
+    assert "step5d-autotune-v3.sh tp-deliver" in result.stderr
 
 
 def test_authoritative_matrix_classifies_stale_release_files() -> None:

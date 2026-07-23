@@ -24,6 +24,7 @@
   },
   "entrypoints": {
     "public_live": "scripts/step5d-autotune-v3.sh bridge",
+    "public_tp_delivery": "scripts/step5d-autotune-v3.sh tp-deliver",
     "public_status": "scripts/step5d-autotune-v3.sh status --json",
     "compatibility_adapter": "scripts/step5d-autotune-live.sh bridge",
     "internal_workers": [
@@ -87,6 +88,7 @@
   "active_orchestration_paths": [
     "scripts/step5d-autotune-v3.sh",
     "tools/build_step5d_autotune_tp_v3.py",
+    "tools/check_step5d_autotune_v3_bridge_admission.py",
     "tools/kunwei_rtde_bridge.py",
     "tools/preflight_step5d_autotune_v3.py",
     "tools/prepare_step5d_autotune_launch.py",
@@ -118,6 +120,7 @@
     "tools/step5d_autotune_v3/admission.py",
     "tools/step5d_autotune_v3/atomic_release.py",
     "tools/step5d_autotune_v3/batch_producer.py",
+    "tools/step5d_autotune_v3/bridge_admission.py",
     "tools/step5d_autotune_v3/campaign_prepare.py",
     "tools/step5d_autotune_v3/cli.py",
     "tools/step5d_autotune_v3/dashboard.py",

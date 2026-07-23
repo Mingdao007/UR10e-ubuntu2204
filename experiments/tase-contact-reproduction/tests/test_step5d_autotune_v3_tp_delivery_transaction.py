@@ -21,6 +21,8 @@ import run_step5d_autotune_v3_tp_transaction as transaction  # noqa: E402
 from step5d_autotune_v3.delivery_observation import (  # noqa: E402
     DeliveryObservationError,
     build_delivery_observation,
+    delivery_index_path,
+    resolve_delivery_observation,
     validate_delivery_observation,
 )
 from step5d_autotune_v3.release_identity import load_local_release_candidate  # noqa: E402
@@ -310,6 +312,75 @@ def test_delivery_observation_age_does_not_expire_exact_content_binding(
     assert validated["fresh_controller_checked_at"] == checked_at.isoformat()
 
 
+def test_current_release_resolves_latest_content_addressed_delivery_receipt(
+    tmp_path: Path,
+) -> None:
+    root, receipt = _fixture_manifest(tmp_path)
+    release = _release_for_receipt(receipt)
+    receipt_sha256 = hashlib.sha256(receipt.read_bytes()).hexdigest()
+    first = build_delivery_observation(
+        root,
+        receipt_path=receipt,
+        receipt_sha256=receipt_sha256,
+        transaction_id="a" * 32,
+        release=release,
+        now=datetime(2026, 7, 21, 3, 1, tzinfo=timezone.utc),
+    )
+    second = {
+        **first,
+        "recorded_at_unix_ns": first["recorded_at_unix_ns"] + 1,
+    }
+    for observation in (first, second):
+        path = delivery_index_path(root, observation)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                observation,
+                allow_nan=False,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="ascii",
+        )
+
+    resolved_path, resolved = resolve_delivery_observation(
+        root,
+        release=release,
+    )
+
+    assert resolved == second
+    assert resolved_path == delivery_index_path(root, second)
+
+
+def test_explicit_delivery_observation_remains_read_only_compatibility_path(
+    tmp_path: Path,
+) -> None:
+    root, receipt = _fixture_manifest(tmp_path)
+    release = _release_for_receipt(receipt)
+    observation = build_delivery_observation(
+        root,
+        receipt_path=receipt,
+        receipt_sha256=hashlib.sha256(receipt.read_bytes()).hexdigest(),
+        transaction_id="a" * 32,
+        release=release,
+        now=datetime(2026, 7, 21, 3, 1, tzinfo=timezone.utc),
+    )
+    compatibility = root / "runs/campaign/delivery-observation.json"
+    compatibility.parent.mkdir(parents=True)
+    compatibility.write_text(json.dumps(observation) + "\n", encoding="utf-8")
+
+    resolved_path, resolved = resolve_delivery_observation(
+        root,
+        release=release,
+        compatibility_path=compatibility,
+    )
+
+    assert resolved_path == compatibility
+    assert resolved == observation
+
+
 def test_delivery_observation_rejects_receipt_triplet_not_bound_to_release(
     tmp_path: Path,
 ) -> None:
@@ -573,11 +644,6 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         ),
         mock.patch.object(
             transaction,
-            "load_gpu_functional_attestation",
-            return_value=({}, {"path": "/gpu.json", "sha256": "a" * 64}),
-        ),
-        mock.patch.object(
-            transaction,
             "_validate_candidate_and_qualification",
             side_effect=lambda *_args: events.append("qualify") or release,
         ),
@@ -600,26 +666,17 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         ),
         mock.patch.object(
             transaction,
-            "_program_load_host",
-            side_effect=lambda _root, _release: events.append("load_host")
-            or "127.0.0.1",
-        ),
-        mock.patch.object(
-            transaction,
-            "ensure_exact_loaded_program",
-            side_effect=lambda host, target: events.append("program_load")
+            "build_delivery_observation",
+            side_effect=lambda *args, **kwargs: events.append("observe")
             or {
-                "schema": "step5d.autotune-v3/program-load-observation-v1",
-                "ok": True,
-                "host": host,
-                "target": target,
+                "schema": "fixture",
+                "release_manifest_sha256": release.manifest_sha256,
             },
         ),
         mock.patch.object(
             transaction,
-            "build_delivery_observation",
-            side_effect=lambda *args, **kwargs: events.append("observe")
-            or {"schema": "fixture"},
+            "delivery_index_path",
+            return_value=evidence_output.with_name("indexed-delivery.json"),
         ),
         mock.patch.object(
             transaction,
@@ -650,11 +707,9 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         "upload",
         "promote",
         "load",
-        "load_host",
-        "program_load",
-        "evidence:program-load-observation.json",
         "observe",
         "evidence:delivery-observation.json",
+        "evidence:indexed-delivery.json",
         "release",
     ]
     assert upload_arguments[0] == builder.PROGRAM_NAME
@@ -670,8 +725,8 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     ] == "a" * 64
     assert exact[0] == exact[1]
     assert exact[2] == (root / promotion.PACKAGE_DIR).resolve()
-    assert exact[3] == evidence_output.with_name("program-load-observation.json").resolve()
-    assert exact[4] == evidence_output.resolve()
+    assert exact[3] == evidence_output.resolve()
+    assert exact[4] == evidence_output.with_name("indexed-delivery.json").resolve()
     token = upload_arguments[upload_arguments.index("--upload-transaction-id") + 1]
     assert promotion_arguments == {
         "expected_transaction_id": token,
@@ -736,17 +791,12 @@ def test_readback_only_transaction_skips_upload_and_program_load(
         mock.patch.object(transaction, "require_runtime_profile", return_value={}),
         mock.patch.object(
             transaction,
-            "load_gpu_functional_attestation",
-            return_value=({}, {}),
-        ),
-        mock.patch.object(
-            transaction,
             "_validate_candidate_and_qualification",
             return_value=release,
         ),
         mock.patch.object(
             transaction,
-            "load_current_release_for_source_rebind",
+            "load_current_release_for_compatible_readback",
             return_value=release,
         ),
         mock.patch.object(transaction, "load_current_release", return_value=release),
@@ -767,12 +817,16 @@ def test_readback_only_transaction_skips_upload_and_program_load(
         ),
         mock.patch.object(
             transaction,
-            "_load_release_program",
-        ) as program_load,
+            "build_delivery_observation",
+            return_value={
+                "schema": "fixture",
+                "release_manifest_sha256": release.manifest_sha256,
+            },
+        ),
         mock.patch.object(
             transaction,
-            "build_delivery_observation",
-            return_value={"schema": "fixture"},
+            "delivery_index_path",
+            return_value=evidence_output.with_name("indexed-delivery.json"),
         ),
         mock.patch.object(transaction, "atomic_json"),
         mock.patch.object(transaction, "release_controller_mutation_locks"),
@@ -795,7 +849,6 @@ def test_readback_only_transaction_skips_upload_and_program_load(
 
     assert "--readback-only-existing" in upload_arguments
     assert "--force-upload-readback" not in upload_arguments
-    program_load.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -842,17 +895,12 @@ def test_readback_only_transaction_rejects_identity_drift_before_lock(
         mock.patch.object(transaction, "require_runtime_profile", return_value={}),
         mock.patch.object(
             transaction,
-            "load_gpu_functional_attestation",
-            return_value=({}, {}),
-        ),
-        mock.patch.object(
-            transaction,
             "_validate_candidate_and_qualification",
             return_value=candidate,
         ),
         mock.patch.object(
             transaction,
-            "load_current_release_for_source_rebind",
+            "load_current_release_for_compatible_readback",
             return_value=current,
         ),
         mock.patch.object(transaction, "acquire_controller_mutation_locks") as lock,
@@ -875,77 +923,6 @@ def test_readback_only_transaction_rejects_identity_drift_before_lock(
         )
 
     lock.assert_not_called()
-
-
-def test_program_load_failure_evidence_is_persisted_before_nonzero_return(
-    tmp_path: Path,
-) -> None:
-    release = SimpleNamespace(
-        manifest_sha256="f" * 64,
-        program_id=promotion.PROGRAM,
-        controller_target=f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
-    )
-    evidence = tmp_path / "run/program-load-observation.json"
-    external = {
-        "schema": "step5d.autotune-v3/program-load-observation-v1",
-        "ok": False,
-        "reason_code": "DASHBOARD_POST_LOAD_MISMATCH",
-        "blocker_class": "BLOCKED_EXTERNAL",
-        "observed_at_unix_ns": 1,
-        "expected_program": release.controller_target,
-    }
-
-    with (
-        mock.patch.object(transaction, "_program_load_host", return_value="robot"),
-        mock.patch.object(
-            transaction,
-            "ensure_exact_loaded_program",
-            side_effect=transaction.DashboardProgramLoadError(external),
-        ),
-    ):
-        return_code, observation = transaction._load_release_program(
-            tmp_path,
-            release,
-            evidence,
-        )
-
-    assert return_code == 69
-    assert observation == {
-        **external,
-        "release_binding": {
-            "manifest_sha256": "f" * 64,
-            "program_id": promotion.PROGRAM,
-            "controller_target": release.controller_target,
-        },
-    }
-    assert json.loads(evidence.read_text(encoding="utf-8")) == observation
-
-
-def test_program_load_binding_failure_is_named_internal_evidence(
-    tmp_path: Path,
-) -> None:
-    release = SimpleNamespace(
-        manifest_sha256="f" * 64,
-        program_id=promotion.PROGRAM,
-        controller_target=f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
-    )
-    evidence = tmp_path / "run/program-load-observation.json"
-
-    with mock.patch.object(
-        transaction,
-        "_program_load_host",
-        side_effect=transaction.ContractViolation("missing immutable robot_host"),
-    ):
-        return_code, observation = transaction._load_release_program(
-            tmp_path,
-            release,
-            evidence,
-        )
-
-    assert return_code == 70
-    assert observation["reason_code"] == "PROGRAM_LOAD_BINDING_INVALID"
-    assert observation["blocker_class"] == "INTERNAL"
-    assert json.loads(evidence.read_text(encoding="utf-8")) == observation
 
 
 def test_transaction_rejects_evidence_output_outside_runs_before_lock(
@@ -996,11 +973,6 @@ def test_transaction_qualification_failure_precedes_controller_lock_and_upload(
             transaction,
             "require_runtime_profile",
             return_value={"bundle_id": "a" * 64},
-        ),
-        mock.patch.object(
-            transaction,
-            "load_gpu_functional_attestation",
-            return_value=({}, {"path": "/gpu.json", "sha256": "a" * 64}),
         ),
         mock.patch.object(
             transaction,

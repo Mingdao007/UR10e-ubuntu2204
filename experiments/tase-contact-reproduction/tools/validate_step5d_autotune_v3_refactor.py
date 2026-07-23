@@ -48,6 +48,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_runtime_lifecycle.py",
     "tests/test_step5d_autotune_store.py",
     "tests/test_step5d_autotune_v3_batch_producer.py",
+    "tests/test_step5d_autotune_v3_bridge_admission.py",
     "tests/test_step5d_autotune_v3_campaign_prepare.py",
     "tests/test_step5d_autotune_v3_contract.py",
     "tests/test_step5d_autotune_v3_dashboard.py",

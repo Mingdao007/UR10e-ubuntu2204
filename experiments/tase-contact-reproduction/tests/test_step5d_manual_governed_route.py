@@ -103,11 +103,10 @@ def _write_bridge_heartbeat(output: Path) -> None:
     )
 
 
-def test_manual_shell_phases_are_registered_in_launch_attempt_fsm() -> None:
+def test_manual_shell_records_only_post_route_authority_phases() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
     phases = (
         "runtime_gate",
-        "route_resolve",
         "manual_qualification",
         "manual_context",
         "manual_preflight",
@@ -121,6 +120,14 @@ def test_manual_shell_phases_are_registered_in_launch_attempt_fsm() -> None:
             assert "bridge_record_launch_attempt STARTED runtime_gate" in source
         else:
             assert f"bridge_begin_phase {phase}" in source
+    assert "route_resolve" in LAUNCH_ATTEMPT_PHASES
+    assert "bridge_begin_phase route_resolve" not in source
+    route_observation = source.index(
+        '"${EXPERIMENT_ROOT}/tools/resolve_step5d_bridge_route.py"'
+    )
+    manual_branch = source.index('if [[ "${bridge_route}" == "manual_v2" ]]')
+    authority = source.index("bridge_acquire_authority", manual_branch)
+    assert route_observation < authority
 
 
 def test_route_selects_manual_only_for_exact_loaded_program(monkeypatch) -> None:
