@@ -27,6 +27,7 @@ from step5d_autotune_v3.governance import (
     read_proc_starttime_ticks,
     resolve_governed_status,
 )
+from step5d_autotune_v3.public_state import project_status
 from step5d_bridge_authority import (
     BridgeAuthorityError,
     load_current as load_owner_authority,
@@ -292,7 +293,7 @@ def _apply_attempt_gate(
     return status
 
 
-def resolve_status(experiment_root: Path) -> dict[str, Any]:
+def _resolve_detailed_status(experiment_root: Path) -> dict[str, Any]:
     root = experiment_root.expanduser().resolve(strict=True)
     attempt, attempt_error = _load_attempt(root)
     if attempt_error is not None:
@@ -354,6 +355,12 @@ def resolve_status(experiment_root: Path) -> dict[str, Any]:
     return _apply_attempt_gate(status, attempt)
 
 
+def resolve_status(experiment_root: Path) -> dict[str, Any]:
+    """Expose six computed states and one-window detailed phase compatibility."""
+
+    return project_status(_resolve_detailed_status(experiment_root))
+
+
 def _require_readiness_state(
     status: Mapping[str, Any],
     required_state: str,
@@ -366,7 +373,7 @@ def _require_readiness_state(
     generated_at = status.get("generated_at_unix_ns")
     observed_now = time.time_ns() if now_ns is None else now_ns
     if (
-        status.get("state") != required_state
+        status.get("compatibility_phase", status.get("state")) != required_state
         or not isinstance(predicates, Mapping)
         or isinstance(generated_at, bool)
         or not isinstance(generated_at, int)

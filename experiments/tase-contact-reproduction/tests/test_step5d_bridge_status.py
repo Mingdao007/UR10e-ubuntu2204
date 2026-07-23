@@ -191,7 +191,8 @@ def test_route_neutral_status_uses_canonical_manual_attempt_without_capabilities
     status = bridge_status.resolve_status(tmp_path)
     assert status["schema"] == bridge_status.STATUS_SCHEMA
     assert status["route"] == "manual_v2"
-    assert status["state"] == "WAITING_FOR_PLAY"
+    assert status["state"] == "BENCH_READY"
+    assert status["compatibility_phase"] == "WAITING_FOR_PLAY"
     assert status["predicates"]["play_prompt_ready"] is True
     assert status["predicates"]["canonical_attempt_bound"] is True
     assert bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")["attempt_id"] == "attempt-1"
@@ -274,7 +275,8 @@ def test_failed_latest_attempt_hides_stale_route_status(tmp_path: Path) -> None:
     )
 
     status = bridge_status.resolve_status(tmp_path)
-    assert status["state"] is None
+    assert status["state"] == "TERMINAL"
+    assert status["compatibility_phase"] is None
     assert status["predicates"]["play_prompt_ready"] is False
     assert status["blocker"]["reason_codes"] == ["LAUNCH_ATTEMPT_FAILED"]
 
@@ -333,7 +335,8 @@ def test_status_without_canonical_attempt_never_reuses_stale_v3_state(
 
     status = bridge_status.resolve_status(tmp_path)
 
-    assert status["state"] is None
+    assert status["state"] == "UNPREPARED"
+    assert status["compatibility_phase"] is None
     assert status["predicates"]["play_prompt_ready"] is False
     assert status["blocker"]["reason_codes"] == ["NO_CANONICAL_LAUNCH_ATTEMPT"]
     assert status["next_action"] == "start_canonical_bridge"
@@ -373,7 +376,8 @@ def test_passed_phase_with_dead_owner_is_not_a_readiness_authority(
 
     status = bridge_status.resolve_status(tmp_path)
 
-    assert status["state"] is None
+    assert status["state"] == "UNPREPARED"
+    assert status["compatibility_phase"] is None
     assert status["blocker"]["reason_codes"] == ["LAUNCH_ATTEMPT_BINDING_INVALID"]
 
 
@@ -399,7 +403,8 @@ def test_route_snapshot_content_must_match_bound_route(tmp_path: Path) -> None:
 
     status = bridge_status.resolve_status(tmp_path)
 
-    assert status["state"] is None
+    assert status["state"] == "UNPREPARED"
+    assert status["compatibility_phase"] is None
     assert status["blocker"]["reason_codes"] == ["LAUNCH_ATTEMPT_BINDING_INVALID"]
 
 
@@ -602,7 +607,8 @@ def test_completed_attempt_preserves_outcome_but_cannot_claim_readiness(
 
     status = bridge_status.resolve_status(tmp_path)
 
-    assert status["state"] == "COMPLETE"
+    assert status["state"] == "TERMINAL"
+    assert status["compatibility_phase"] == "COMPLETE"
     assert status["predicates"]["play_prompt_ready"] is False
     assert status["predicates"]["canonical_attempt_bound"] is False
     with pytest.raises(ValueError, match="pre-Play"):

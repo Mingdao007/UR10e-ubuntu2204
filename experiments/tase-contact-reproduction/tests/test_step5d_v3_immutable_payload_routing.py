@@ -46,6 +46,10 @@ def _runtime_pointer() -> dict[str, object]:
                 "root": f"/runtime/{profile}",
                 "python_executable": f"/runtime/{profile}/bin/python",
                 "environment_id": ("c" if profile == "control" else "d") * 64,
+                "record_tree_sha256": ("e" if profile == "control" else "f")
+                * 64,
+                "profile_tree_sha256": ("1" if profile == "control" else "2")
+                * 64,
             }
             for profile in ("control", "optimizer")
         },

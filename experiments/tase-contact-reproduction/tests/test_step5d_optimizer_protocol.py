@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT.parents[1] / "src/ur10e_experiment_runtime"))
 from step5d_autotune_contract import ForceCandidate  # noqa: E402
 from step5d_autotune_r008_policy import PlannedOccurrence  # noqa: E402
 from step5d_autotune_v3 import optimizer_protocol as protocol  # noqa: E402
+from step5d_autotune_v3 import optimizer_payloads as payloads  # noqa: E402
 
 
 def _pointer() -> dict[str, object]:
@@ -27,10 +28,21 @@ def _pointer() -> dict[str, object]:
                 "root": f"/governed/{profile}",
                 "python_executable": f"/governed/{profile}/bin/python",
                 "environment_id": ("c" if profile == "control" else "d") * 64,
+                "record_tree_sha256": ("e" if profile == "control" else "f")
+                * 64,
+                "profile_tree_sha256": ("1" if profile == "control" else "2")
+                * 64,
             }
             for profile in ("control", "optimizer")
         },
     }
+
+
+def _deployment():
+    return protocol.deployment_certificate(
+        runtime_pointer=_pointer(),
+        gpu_attestation_digest="3" * 64,
+    )
 
 
 def _occurrences(sequence: int) -> tuple[PlannedOccurrence, ...]:
@@ -56,39 +68,31 @@ def _occurrences(sequence: int) -> tuple[PlannedOccurrence, ...]:
 
 def _response(
     request: dict[str, object],
-    *,
-    environment: dict[str, str],
 ) -> dict[str, object]:
     sequence = request["sequence"]
     assert isinstance(sequence, int)
+    catalog = tuple(
+        ForceCandidate.from_payload(value) for value in request["catalog"]
+    )
+    evidence = {
+        "seed": protocol.MODE_SEEDS[request["mode"]],
+        "optimizer": {"device": "cuda:0"},
+    }
     return {
         "schema": protocol.RESPONSE_SCHEMA,
         "ok": True,
         "request_sha256": hashlib.sha256(
             protocol.canonical_bytes(request)
         ).hexdigest(),
-        "runtime": request["runtime"],
-        "gpu": {
-            "visible_devices": environment["CUDA_VISIBLE_DEVICES"],
-            "mapped_device": "cuda:0",
-            "name": "governed-test-gpu",
-            "torch_version": "2.11.0+cu128",
-            "botorch_version": "0.16.1",
-            "gpytorch_version": "1.15.2",
-            "torch_cuda_version": "12.8",
-        },
-        "occurrences": [
-            protocol.occurrence_payload(value) for value in _occurrences(sequence)
-        ],
-        "evidence": {
-            "seed": protocol.MODE_SEEDS[request["mode"]],
-            "optimizer": {"device": "cuda:0"},
-        },
-        "module_closure": {
-            "sha256": "e" * 64,
-            "module_file_count": 42,
-            "violations": [],
-        },
+        "suggestions": payloads.encode_suggestions(
+            _occurrences(sequence),
+            catalog=catalog,
+            identity=request["optimizer_identity"],
+            seed=request["seed"],
+            history_digest=request["accepted_history_digest"],
+            evidence=evidence,
+        ),
+        "evidence": evidence,
     }
 
 
@@ -104,7 +108,7 @@ def test_exact_optimizer_client_uses_bound_interpreter_and_sanitized_gpu(
             environment=kwargs["env"],
             request=request,
         )
-        response = _response(request, environment=kwargs["env"])
+        response = _response(request)
         return subprocess.CompletedProcess(
             command,
             0,
@@ -115,7 +119,10 @@ def test_exact_optimizer_client_uses_bound_interpreter_and_sanitized_gpu(
     monkeypatch.setenv("PYTHONPATH", "/caller/private-sidecar")
     monkeypatch.setenv("CONDA_PREFIX", "/caller/conda")
     monkeypatch.setattr(protocol.subprocess, "run", fake_run)
-    client = protocol.ExactOptimizerClient(runtime_pointer=_pointer())
+    client = protocol.ExactOptimizerClient(
+        deployment=_deployment(),
+        runtime_pointer=_pointer(),
+    )
 
     rows, evidence = client.propose(
         mode="rolling_batch_a",
@@ -137,12 +144,16 @@ def test_exact_optimizer_client_uses_bound_interpreter_and_sanitized_gpu(
     assert "/caller/private-sidecar" not in environment["PYTHONPATH"]
     assert "CONDA_PREFIX" not in environment
     assert tuple(row.row_index for row in rows) == (1, 2, 3, 4, 5)
-    assert evidence["worker_gpu"]["mapped_device"] == "cuda:0"
+    assert evidence["optimizer_deployment_certificate_digest"] == _deployment().digest
+    request = observed["request"]
+    assert isinstance(request, dict)
+    assert "runtime" not in request
+    assert "gpu" not in request
 
 
 @pytest.mark.parametrize(
     "tamper",
-    ["request_sha", "gpu", "row_index", "module_closure", "seed"],
+    ["request_sha", "forbidden_attestation", "suggestion_id", "row_index", "seed"],
 )
 def test_optimizer_response_tamper_has_no_fallback(
     monkeypatch: pytest.MonkeyPatch,
@@ -150,15 +161,15 @@ def test_optimizer_response_tamper_has_no_fallback(
 ) -> None:
     def fake_run(command, **kwargs):
         request = json.loads(kwargs["input"])
-        response = _response(request, environment=kwargs["env"])
+        response = _response(request)
         if tamper == "request_sha":
             response["request_sha256"] = "0" * 64
-        elif tamper == "gpu":
-            response["gpu"]["mapped_device"] = "cpu"
+        elif tamper == "forbidden_attestation":
+            response["runtime"] = {"attestation_sha256": "0" * 64}
+        elif tamper == "suggestion_id":
+            response["suggestions"][0]["suggestion_id"] = "0" * 64
         elif tamper == "row_index":
-            response["occurrences"][1]["row_index"] = 1
-        elif tamper == "module_closure":
-            response["module_closure"]["violations"] = ["forbidden_module:cupy"]
+            response["suggestions"][1]["constraints"]["row_index"] = 1
         else:
             response["evidence"]["seed"] = 1
         return subprocess.CompletedProcess(
@@ -169,7 +180,10 @@ def test_optimizer_response_tamper_has_no_fallback(
         )
 
     monkeypatch.setattr(protocol.subprocess, "run", fake_run)
-    client = protocol.ExactOptimizerClient(runtime_pointer=_pointer())
+    client = protocol.ExactOptimizerClient(
+        deployment=_deployment(),
+        runtime_pointer=_pointer(),
+    )
     with pytest.raises(protocol.OptimizerProtocolError):
         client.propose(
             mode="rolling_batch_a",
@@ -192,7 +206,10 @@ def test_optimizer_worker_failure_does_not_return_a_candidate(
             stderr=b'{"reason_code":"OPTIMIZER_WORKER_FAILED"}\n',
         ),
     )
-    client = protocol.ExactOptimizerClient(runtime_pointer=_pointer())
+    client = protocol.ExactOptimizerClient(
+        deployment=_deployment(),
+        runtime_pointer=_pointer(),
+    )
     with pytest.raises(protocol.OptimizerProtocolError, match="worker failed"):
         client.propose(
             mode="rolling_batch_a",

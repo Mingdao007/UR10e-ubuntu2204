@@ -70,7 +70,7 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "e66c299f3b90224e7b6340cbe8e58f8e8ec0421eec26541b73c68ad5f6e8658f",
+    "config/step5d/v3_active_surface.json": "9b86da4d158b1eee2256c046a1102bbead01fbfca1a298ad070ce5d31bbfa1d6",
 }
 CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
