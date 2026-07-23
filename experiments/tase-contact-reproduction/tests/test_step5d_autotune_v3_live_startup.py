@@ -38,6 +38,10 @@ from ur10e_parallel import (  # noqa: E402
 )
 
 
+def test_arm_gate_refresh_cadence_has_watchdog_margin() -> None:
+    assert live.ARM_GATE_REFRESH_INTERVAL_S <= live.ARM_GRANT_MAX_AGE_S * 0.5
+
+
 def _row(*, runtime_state: int, state: int = 10) -> dict[str, str]:
     row = {
         "ur_output_int_register_26": str(state),
