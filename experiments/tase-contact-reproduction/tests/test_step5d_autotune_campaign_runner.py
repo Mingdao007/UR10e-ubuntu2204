@@ -23,6 +23,7 @@ from run_step5d_autotune_campaign import (  # noqa: E402
     _campaign_spec,
     _observe_pending_identity_commit,
     _publish_runner_ready,
+    _zero_identity_preplay_row,
     _v3_stop_requested,
     _wait_for_codex_candidate,
     closure_sample_from_bridge_row,
@@ -289,6 +290,27 @@ def test_bridge_row_maps_to_exact_tp_snapshot() -> None:
     assert snapshot.consumed_command_seq == 4
 
 
+def test_preplay_zero_state_is_explicit_and_cannot_impersonate_ready_home() -> None:
+    row = bridge_row()
+    for register in range(24, 35):
+        row[f"ur_output_int_register_{register}"] = "0"
+
+    assert _zero_identity_preplay_row(row) is True
+    with pytest.raises(RuntimeError, match="unknown TP state 0"):
+        tp_snapshot_from_bridge_row(row)
+
+
+def test_preplay_state_with_identity_echo_is_rejected() -> None:
+    row = bridge_row()
+    for register in range(24, 35):
+        row[f"ur_output_int_register_{register}"] = "0"
+    row["ur_output_int_register_27"] = "9"
+
+    assert _zero_identity_preplay_row(row) is False
+    with pytest.raises(RuntimeError, match="unknown TP state 0"):
+        tp_snapshot_from_bridge_row(row)
+
+
 def test_bridge_row_maps_to_safe_closure_input_shape() -> None:
     sample = closure_sample_from_bridge_row(bridge_row())
     assert sample["safety_mode"] == 1
@@ -313,22 +335,23 @@ def test_campaign_creates_its_own_runtime_mailbox_directory() -> None:
             ensure_mailbox_parent(Path(tmp) / "other" / "command.json", bridge_run)
 
 
-def test_runner_ready_requires_completed_durable_recovery() -> None:
+def test_runner_ready_distinguishes_preplay_from_durable_home() -> None:
     campaign = _campaign_spec(ROOT, "a" * 64, 9)
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         ready = root / "bridge" / "runtime" / "campaign_runner_ready.json"
-        with pytest.raises(RuntimeError, match="completed durable state recovery"):
-            _publish_runner_ready(
-                ready,
-                durable_state_ready=False,
-                bridge_run=root / "bridge",
-                campaign_root=root / "campaign",
-                campaign=campaign,
-                campaign_fingerprint=campaign.campaign_fingerprint,
-                selection_policy="codex_batches",
-            )
-        assert not ready.exists()
+        _publish_runner_ready(
+            ready,
+            durable_state_ready=False,
+            bridge_run=root / "bridge",
+            campaign_root=root / "campaign",
+            campaign=campaign,
+            campaign_fingerprint=campaign.campaign_fingerprint,
+            selection_policy="codex_batches",
+        )
+        payload = json.loads(ready.read_text(encoding="utf-8"))
+        assert payload["durable_state_ready"] is False
+        assert payload["state"] == "waiting_for_play"
 
         _publish_runner_ready(
             ready,

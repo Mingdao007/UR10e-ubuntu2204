@@ -207,6 +207,13 @@ def tp_snapshot_from_bridge_row(row: Mapping[str, str]) -> TpSnapshot:
     )
 
 
+def _zero_identity_preplay_row(row: Mapping[str, str]) -> bool:
+    return all(
+        _integer(row, f"ur_output_int_register_{register}") == 0
+        for register in range(24, 35)
+    )
+
+
 def _complete_rolling_at_home(
     *,
     campaign_root: Path,
@@ -724,8 +731,6 @@ def _publish_runner_ready(
     campaign_fingerprint: str,
     selection_policy: str,
 ) -> None:
-    if durable_state_ready is not True:
-        raise RuntimeError("runner ready requires completed durable state recovery")
     _atomic_json(
         path,
         {
@@ -737,8 +742,8 @@ def _publish_runner_ready(
             "campaign_epoch": campaign.campaign_epoch,
             "campaign_fingerprint": campaign_fingerprint,
             "selection_policy": selection_policy,
-            "state": "ready_home",
-            "durable_state_ready": True,
+            "state": "ready_home" if durable_state_ready else "waiting_for_play",
+            "durable_state_ready": durable_state_ready,
         },
     )
 
@@ -1354,7 +1359,12 @@ def run(args: argparse.Namespace) -> int:
         )
         controller_delivery_verified = True
     initial_row = _latest_complete_row(bridge_csv)
-    initial = tp_snapshot_from_bridge_row(initial_row)
+    preplay_zero_identity = _zero_identity_preplay_row(initial_row)
+    initial = (
+        None
+        if preplay_zero_identity
+        else tp_snapshot_from_bridge_row(initial_row)
+    )
     if _integer(initial_row, "ur_safety_mode") != 1:
         raise RuntimeError("bridge row does not report UR Safety NORMAL")
 
@@ -1435,18 +1445,49 @@ def run(args: argparse.Namespace) -> int:
     ready_states = {"READY_HOME", "READY_NEAR", "READY_HOME_CLOSED"}
     if rolling_release:
         ready_states.add("READY_HOME_NEXT")
-    if initial.state not in ready_states:
+    if preplay_zero_identity:
+        if (
+            not args.wait_for_home
+            or not args.wait_for_first_arm_gate
+            or args.runner_ready_file is None
+        ):
+            follower.close()
+            raise RuntimeError(
+                "pre-Play TP state requires zero identity and the governed "
+                "runner/ARM readiness gates"
+            )
+        preplay_ready_path = args.runner_ready_file.resolve()
+        if preplay_ready_path.parent != (bridge_run / "runtime").resolve():
+            follower.close()
+            raise RuntimeError("runner ready file must belong to bridge runtime")
+        _publish_runner_ready(
+            preplay_ready_path,
+            durable_state_ready=False,
+            bridge_run=bridge_run,
+            campaign_root=campaign_root,
+            campaign=campaign,
+            campaign_fingerprint=frozen.composite_fingerprint,
+            selection_policy=args.selection_policy,
+        )
+    if initial is None or initial.state not in ready_states:
         if not args.wait_for_home:
             follower.close()
-            raise RuntimeError(f"TP must start at READY_HOME, got {initial.state}")
+            state = "PRE_PLAY" if initial is None else initial.state
+            raise RuntimeError(f"TP must start at READY_HOME, got {state}")
         for row in follower.rows(timeout_s=args.home_timeout_s):
             if _integer(row, "ur_safety_mode") != 1:
                 follower.close()
                 raise RuntimeError("UR Safety left NORMAL while waiting for READY_HOME")
+            if _zero_identity_preplay_row(row):
+                continue
             candidate = tp_snapshot_from_bridge_row(row)
             if candidate.state in ready_states:
+                initial_row = row
                 initial = candidate
                 break
+    if initial is None or initial.state not in ready_states:
+        follower.close()
+        raise RuntimeError("TP did not reach READY_HOME before the governed timeout")
     if args.preflight_only:
         print(
             json.dumps(
