@@ -2252,7 +2252,11 @@ def runtime_binding(
     }
 
 
-def runtime_status(*, environ: Mapping[str, str] | None = None) -> dict[str, Any]:
+def runtime_status(
+    *,
+    environ: Mapping[str, str] | None = None,
+    full_integrity: bool = True,
+) -> dict[str, Any]:
     def blocked(
         reason_code: str,
         detail: str,
@@ -2285,7 +2289,11 @@ def runtime_status(*, environ: Mapping[str, str] | None = None) -> dict[str, Any
 
     try:
         required = runtime_bundle_id()
-        pointer = load_runtime_pointer_integrity(environ=environ)
+        pointer = (
+            load_runtime_pointer_integrity(environ=environ)
+            if full_integrity
+            else load_runtime_pointer_identity(environ=environ)
+        )
     except RuntimeInstallationError as exc:
         return blocked(
             exc.reason_code,

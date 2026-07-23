@@ -1061,7 +1061,7 @@ def _validate_trial_bundle(
     return bundle
 
 
-def validate_qualification_result(
+def validate_qualification_binding(
     payload: Mapping[str, Any],
     *,
     experiment_root: Path,
@@ -1140,6 +1140,33 @@ def validate_qualification_result(
     for name, expected_value in expected.items():
         if observed[name] != expected_value:
             raise QualificationError(f"qualification {name} differs")
+    return binding
+
+
+def validate_qualification_result(
+    payload: Mapping[str, Any],
+    *,
+    experiment_root: Path,
+    manifest_sha256: str,
+    source_fingerprint: str,
+    launcher_sha256: str,
+    release_identity: Any | None = None,
+) -> Mapping[str, Any]:
+    binding = validate_qualification_binding(
+        payload,
+        experiment_root=experiment_root,
+        manifest_sha256=manifest_sha256,
+        source_fingerprint=source_fingerprint,
+        launcher_sha256=launcher_sha256,
+        release_identity=release_identity,
+    )
+    started_at = _positive_integer(
+        payload["started_at_unix_ns"], "qualification start timestamp"
+    )
+    completed_at = _positive_integer(
+        payload["completed_at_unix_ns"], "qualification completion timestamp"
+    )
+    process_tree = binding["process_tree"]
 
     process_by_role = {
         process["role"]: process for process in process_tree["processes"]
@@ -3232,6 +3259,7 @@ __all__ = [
     "require_canonical_launcher",
     "run_endpoint_qualification",
     "validate_content_binding",
+    "validate_qualification_binding",
     "validate_qualification_result",
     "write_qualification_evidence",
 ]

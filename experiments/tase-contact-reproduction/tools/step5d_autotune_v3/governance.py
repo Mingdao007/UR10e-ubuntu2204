@@ -1753,9 +1753,9 @@ def _load_current_offline_proof(
         raise GovernanceError("qualification evidence SHA-256 differs")
     payload = _read_json(evidence_path, "qualification evidence")
     try:
-        from .qualification import validate_qualification_result
+        from .qualification import validate_qualification_binding
 
-        binding = validate_qualification_result(
+        binding = validate_qualification_binding(
             payload,
             experiment_root=experiment_root,
             manifest_sha256=release.manifest_sha256,
@@ -2495,17 +2495,14 @@ def _environment_status(
         load_gpu_functional_attestation,
     )
     from .runtime_installation import load_runtime_pointer_identity, runtime_status
-    from .source_closure import SourceClosureError, production_source_closure_report
 
-    observed = dict(runtime_status())
-    try:
-        production_source_closure_report(experiment_root)
-    except SourceClosureError as exc:
-        reason = "ACTIVE_SOURCE_CLOSURE_UNRESOLVED"
-        detail = exc.detail
-    else:
-        reason = observed.get("reason_code")
-        detail = observed.get("detail")
+    # Qualification and production startup perform the full package-tree gate.
+    # They also prove the active source closure. The live reducer consumes
+    # those content-addressed identities so a fresh one-second observation is
+    # not aged out by another package or source-closure scan.
+    observed = dict(runtime_status(full_integrity=False))
+    reason = observed.get("reason_code")
+    detail = observed.get("detail")
     gpu_reference: dict[str, str] | None = None
     gpu_functional_proven = False
     if reason is None:
