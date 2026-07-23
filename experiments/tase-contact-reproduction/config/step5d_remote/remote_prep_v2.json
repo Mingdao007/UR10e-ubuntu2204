@@ -1,0 +1,49 @@
+{
+  "base_commit": "1b59db540cc6cea854f133710c000f11d1db321f",
+  "control_mode": "strict_rnn_only",
+  "inputs": {
+    "control_contract": "config/step5/step5d_autotune_v3_control_contract.json",
+    "launch_profile": "config/step5/step5d_autotune_v3_launch_profile.json",
+    "solver_gate": "config/step5d_liveprep_solver_gate.json"
+  },
+  "live_authorized": false,
+  "offline_build_only": true,
+  "schema": "step5d.remote-control/release-v2",
+  "source_sha256": {
+    "experiments/tase-contact-reproduction/STEP5_FLOW.md": "27e3d2d0b4c949c2d5ee07486cc2f9c1b114b08f62da12cadfb28f71d39c9181",
+    "experiments/tase-contact-reproduction/config/step5/step5d_autotune_v3_control_contract.json": "16bd9fad02bd4691ee272908173ea278de50388662358e636176b4ac3eb447c4",
+    "experiments/tase-contact-reproduction/config/step5/step5d_autotune_v3_launch_profile.json": "e07828825f189a26d5bc994bef287b6a9fac53ba0034d3f7e7c10d63a02fd58b",
+    "experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555",
+    "experiments/tase-contact-reproduction/tools/run_step5d_remote_control.py": "c3a3838d7a0a021a9685fa51bd239dcfd889d2761f8bc7424c3d0df29e27d801",
+    "experiments/tase-contact-reproduction/tools/step5c_strict_rnn.py": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+    "experiments/tase-contact-reproduction/tools/step5d_autotune_contract.py": "ac595537770401e0a064a0a720277d05dc182ea098bf425c1b2f04dbd319c648",
+    "experiments/tase-contact-reproduction/tools/step5d_control_contract.py": "eed2782da7d44d617758f4ca5f848fd082e40c7b85a9a5e3ffdfa7f5f7ffecb2",
+    "experiments/tase-contact-reproduction/tools/step5d_remote_control/__init__.py": "00493108e944d9588981d127db956f8bbc33a217e7699e6a3407fd903aa0653c",
+    "experiments/tase-contact-reproduction/tools/step5d_remote_control/contracts.py": "56e6815668647a2889171beba7a4dc743638c1239902dcf5a5de605be50f3ed6",
+    "experiments/tase-contact-reproduction/tools/step5d_remote_control/runtime.py": "251ad8f7a2e9b84367aac1d37d07d831d9298d8db3dc714054354498d7672cb6",
+    "experiments/tase-contact-reproduction/tools/step5d_remote_control/seam.py": "58c0d657f9a79c7107ad6446b6e8764857245516b5418c882c3a7d2845d09da9",
+    "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/profile.py": "f87c003da5bfee7e193509f82d3ebdc034233ff8516353bfbd93818b24edccc7",
+    "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/release_identity.py": "55c0b156ef65a9447c263771cee3015c40cca2bd03bb3229706f0da5e5392849",
+    "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_calibration.py": "883cfc184f42f2246511ab335178b0254ef187b4fb06d7656de5c7ba5e3f4d98",
+    "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/runtime_profile.py": "d17e850631fb6a9b2894d9aa1ed5d1b6e8caf386e6291ddb350bd3bc56347788",
+    "src/ur10e_experiment_runtime/ur10e_experiment_runtime/candidate_identity.py": "a0d05c58187caad60f4e00fb688ba0db4434ccbefc5ff050e3899b6dcb228f19"
+  },
+  "stage_id": "step5d_strict_rnn_autotune_v3_remote_prep_v2",
+  "transport_id": "ros2_control_watchdog_velocity_v1",
+  "transport_invariants": {
+    "command_topic": "~/commands",
+    "controller_plugin": "ur10e_step5d_remote_watchdog/WatchdogController",
+    "controller_switching_allowed": false,
+    "invalid_command_policy": "latch_zero_until_lifecycle_reset",
+    "joint_names": [
+      "shoulder_pan_joint",
+      "shoulder_lift_joint",
+      "elbow_joint",
+      "wrist_1_joint",
+      "wrist_2_joint",
+      "wrist_3_joint"
+    ],
+    "stale_cycles": 5,
+    "status_topic": "~/status"
+  }
+}
