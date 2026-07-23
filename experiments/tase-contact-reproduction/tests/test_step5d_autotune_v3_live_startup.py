@@ -541,6 +541,7 @@ def test_source_rebind_runs_one_qualification_and_readback_only_transaction() ->
     assert "build_step5d_autotune_tp_v3.py" not in recovery
     assert "--force-upload-readback" not in recovery
     assert "ensure_exact_loaded_program" not in recovery
+    assert "bridge_begin_phase source_rebind_" not in recovery
 
 
 def test_canonical_shell_records_only_direct_live_phases() -> None:
@@ -802,6 +803,50 @@ def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
     assert len(live_calls) == 2
     assert "--preflight" in live_calls[-1]
     assert "step5d_autotune_v3.cli" not in live_calls[-1]
+
+
+def test_shell_source_rebind_uses_existing_governed_phases(
+    tmp_path: Path,
+) -> None:
+    shell, command_log, environment = _fake_governed_shell(
+        tmp_path,
+        fail_prepare=False,
+    )
+    experiment = shell.parent.parent
+    result = subprocess.run(
+        [
+            str(shell),
+            "bridge-live",
+            "--source-rebind",
+            "--output-root",
+            str(experiment / "runs/source-rebind"),
+            "--campaign-root",
+            str(tmp_path / "campaign"),
+        ],
+        cwd=experiment,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=10.0,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    commands = command_log.read_text(encoding="utf-8").splitlines()
+    assert sum(
+        "run_step5d_autotune_v3_qualification.py" in line for line in commands
+    ) == 1
+    transaction_calls = [
+        line
+        for line in commands
+        if "run_step5d_autotune_v3_tp_transaction.py" in line
+    ]
+    assert len(transaction_calls) == 1
+    assert "--readback-only-existing" in transaction_calls[0]
+    assert not any(
+        "_launch-attempt-phase source_rebind_" in line for line in commands
+    )
 
 
 def _run_shell_argv_gate(
