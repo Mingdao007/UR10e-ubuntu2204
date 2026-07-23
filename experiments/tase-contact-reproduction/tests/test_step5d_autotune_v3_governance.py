@@ -1001,7 +1001,7 @@ def _stub_governed_release(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         governance,
         "_load_current_offline_proof",
-        lambda _experiment, _campaign, _release: None,
+        lambda _experiment, _release: None,
     )
     monkeypatch.setattr(
         governance,

@@ -1725,12 +1725,16 @@ def _delivery_provenance_is_current(
 
 def _load_current_offline_proof(
     experiment_root: Path,
-    campaign_root: Path,
     release: CurrentReleaseSnapshot,
 ) -> Mapping[str, Any] | None:
     if not release.valid:
         return None
-    root = _campaign_root(campaign_root)
+    unresolved_root = (
+        experiment_root / "runs/step5d_autotune_v3/qualification-cache"
+    )
+    if unresolved_root.is_symlink() or not unresolved_root.is_dir():
+        return None
+    root = unresolved_root.resolve(strict=True)
     pointer_path = root / "qualification/current.json"
     if not pointer_path.exists():
         return None
@@ -2563,9 +2567,7 @@ def resolve_governed_status(
         evidence.append(_evidence_row(role, detail=detail))
     offline_proof: Mapping[str, Any] | None = None
     try:
-        offline_proof = _load_current_offline_proof(
-            experiment_root, campaign_root, release
-        )
+        offline_proof = _load_current_offline_proof(experiment_root, release)
     except GovernanceError as exc:
         reasons.append("OFFLINE_EVIDENCE_MISSING")
         evidence.append(

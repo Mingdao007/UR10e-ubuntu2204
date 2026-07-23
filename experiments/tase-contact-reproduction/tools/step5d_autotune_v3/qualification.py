@@ -41,6 +41,7 @@ from .runtime_functional_gates import (
 from .runtime_installation import (
     load_runtime_contract,
     load_runtime_pointer,
+    load_runtime_pointer_identity,
     runtime_binding,
 )
 
@@ -75,6 +76,7 @@ PROCESS_TREE_BINDING_INCOMPLETE = "PROCESS_TREE_BINDING_INCOMPLETE"
 QUALIFIED = "QUALIFIED"
 PRODUCTION_LIFECYCLE_FAILED = "PRODUCTION_LIFECYCLE_FAILED"
 QUALIFICATION_ENDPOINT_LEASE_BUSY = "QUALIFICATION_ENDPOINT_LEASE_BUSY"
+OFFLINE_EVIDENCE_MISSING = "OFFLINE_EVIDENCE_MISSING"
 
 QUALIFICATION_ENDPOINT_PORTS = {
     "dashboard": 29999,
@@ -97,7 +99,10 @@ _PROCESS_ROLE_PROFILES = {
     "campaign_runner": "optimizer",
 }
 _ENVIRONMENT_KEYS = tuple(
-    sorted({*PASSTHROUGH_KEYS, *DETERMINISTIC_VALUES})
+    sorted(
+        {*PASSTHROUGH_KEYS, *DETERMINISTIC_VALUES}
+        - {"STEP5D_V3_LAUNCH_ATTEMPT_ID"}
+    )
 )
 _WAITING_MARKERS = (
     "V3_QUALIFICATION_SIMULATED_PLAY_BARRIER",
@@ -382,9 +387,17 @@ def _source_binding(
     }
 
 
-def _environment_binding(environment: Mapping[str, str]) -> dict[str, Any]:
+def _environment_binding(
+    environment: Mapping[str, str],
+    *,
+    runtime_pointer: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     values = {key: environment.get(key, "") for key in _ENVIRONMENT_KEYS}
-    pointer = load_runtime_pointer(environ=environment)
+    pointer = (
+        load_runtime_pointer(environ=environment)
+        if runtime_pointer is None
+        else runtime_pointer
+    )
     contract = load_runtime_contract()
     control = pointer["profiles"]["control"]
     _gpu_payload, gpu_reference = load_gpu_functional_attestation(
@@ -625,6 +638,7 @@ def capture_content_binding(
     process_pids: Mapping[str, int] | None = None,
     environment: Mapping[str, str] | None = None,
     release_identity: Any | None = None,
+    runtime_pointer: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Capture immutable source/environment/launcher and optional live process bytes."""
 
@@ -634,7 +648,10 @@ def capture_content_binding(
     launcher = root / "scripts/step5d-autotune-v3.sh"
     if launcher.is_symlink() or not launcher.is_file():
         raise QualificationError("canonical launcher is missing")
-    environment_binding = _environment_binding(values)
+    environment_binding = _environment_binding(
+        values,
+        runtime_pointer=runtime_pointer,
+    )
     runtime_process_binding = environment_binding["values"]["runtime_binding"]
     processes: list[dict[str, Any]] = []
     complete = process_pids is not None
@@ -2767,12 +2784,83 @@ def _terminate_supervisor(process: subprocess.Popen[Any] | None) -> None:
             process.wait(timeout=5.0)
 
 
+def _qualification_release(
+    root: Path,
+    release_identity: Any | None,
+) -> tuple[Any, Any | None]:
+    from step5d_autotune_v3.release_identity import (
+        ReleaseIdentityError,
+        load_current_release,
+        load_release_manifest,
+    )
+
+    try:
+        if release_identity is None:
+            release = load_current_release(root)
+        else:
+            release = load_release_manifest(
+                root,
+                root / release_identity.manifest_path,
+                expected_manifest_sha256=release_identity.manifest_sha256,
+            )
+    except ReleaseIdentityError as exc:
+        role = "CURRENT_RELEASE_INVALID" if release_identity is None else "LOCAL_RELEASE_INVALID"
+        raise QualificationError(f"{role}: {exc}") from exc
+    return release, release if release_identity is not None else None
+
+
+def _read_cached_qualification(
+    output: Path,
+    *,
+    expected_cache_key: str | None,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    from step5d_autotune_v3.state import read_strict_json
+
+    current_path = output / "qualification/current.json"
+    if not current_path.is_file() or current_path.is_symlink():
+        return None
+    current = read_strict_json(current_path, role="qualification current pointer")
+    if (
+        not isinstance(current, Mapping)
+        or set(current) != {"schema", "cache_key", "path", "sha256"}
+        or current["schema"]
+        != "step5d.autotune-v3/qualification-current-pointer-v1"
+        or not isinstance(current["path"], str)
+        or (expected_cache_key is not None and current["cache_key"] != expected_cache_key)
+    ):
+        return None
+    _require_sha256(current["cache_key"], "qualification cache key")
+    evidence_sha256 = _require_sha256(
+        current["sha256"], "qualification evidence SHA-256"
+    )
+    cached_path = (output / current["path"]).resolve()
+    try:
+        cached_path.relative_to(output)
+    except ValueError:
+        return None
+    if (
+        not cached_path.is_file()
+        or cached_path.is_symlink()
+        or _sha256_file(cached_path) != evidence_sha256
+    ):
+        return None
+    cached = read_strict_json(cached_path, role="cached qualification")
+    if not isinstance(cached, dict):
+        return None
+    return cached, {
+        "schema": QUALIFICATION_EVIDENCE_SCHEMA,
+        "path": str(cached_path),
+        "sha256": evidence_sha256,
+    }
+
+
 def run_endpoint_qualification(
     experiment_root: Path,
     output_root: Path,
     *,
     environment: Mapping[str, str] | None = None,
     release_identity: Any | None = None,
+    reuse_only: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Run the production bridge/runtime tree against no-motion localhost endpoints."""
 
@@ -2785,27 +2873,10 @@ def run_endpoint_qualification(
         QUALIFICATION_MODE_ENV,
         QUALIFICATION_MODE_VALUE,
         QUALIFICATION_RELEASE_MANIFEST_ENV,
-        ReleaseIdentityError,
-        load_current_release,
-        load_release_manifest,
         release_payload_path,
     )
 
-    if release_identity is None:
-        try:
-            release = load_current_release(root)
-        except ReleaseIdentityError as exc:
-            raise QualificationError(f"CURRENT_RELEASE_INVALID: {exc}") from exc
-    else:
-        try:
-            release = load_release_manifest(
-                root,
-                root / release_identity.manifest_path,
-                expected_manifest_sha256=release_identity.manifest_sha256,
-            )
-        except ReleaseIdentityError as exc:
-            raise QualificationError(f"LOCAL_RELEASE_INVALID: {exc}") from exc
-    binding_release = release if release_identity is not None else None
+    release, binding_release = _qualification_release(root, release_identity)
     from step5d_autotune_v3.qualification_endpoints import (
         QualificationEndpointSimulator,
     )
@@ -2816,25 +2887,15 @@ def run_endpoint_qualification(
     if output.exists() and (output.is_symlink() or not output.is_dir()):
         raise QualificationError("qualification output root is unsafe")
     output.mkdir(parents=True, exist_ok=True)
-    # Reject a stale or incomplete release source closure before consulting
-    # any host-local runtime state.
-    _source_binding(
-        root,
-        release.manifest_sha256,
-        release_identity=binding_release,
-    )
     clean_environment = _qualification_environment(values)
-    runtime_pointer = load_runtime_pointer(environ=clean_environment)
-    try:
-        load_gpu_functional_attestation(runtime_pointer=runtime_pointer)
-    except RuntimeFunctionalGateError as exc:
-        raise QualificationError(f"GPU_FUNCTIONAL_GATE_MISSING: {exc}") from exc
+    runtime_pointer = load_runtime_pointer_identity(environ=clean_environment)
     runtime_environment = clean_environment
     prebinding = capture_content_binding(
         root,
         manifest_sha256=release.manifest_sha256,
         environment=clean_environment,
         release_identity=binding_release,
+        runtime_pointer=runtime_pointer,
     )
     process_fingerprint = qualification_process_tree_fingerprint(root)
     cache_key = _sha256_bytes(
@@ -2853,47 +2914,41 @@ def run_endpoint_qualification(
         )
     )
     current_path = output / "qualification/current.json"
-    if current_path.is_file() and not current_path.is_symlink():
-        from step5d_autotune_v3.state import read_strict_json
-
-        current = read_strict_json(current_path, role="qualification current pointer")
-        if (
-            isinstance(current, Mapping)
-            and set(current)
-            == {"schema", "cache_key", "path", "sha256"}
-            and current["schema"]
-            == "step5d.autotune-v3/qualification-current-pointer-v1"
-            and current["cache_key"] == cache_key
-            and isinstance(current["path"], str)
-        ):
-            cached_path = (output / current["path"]).resolve()
-            try:
-                cached_path.relative_to(output)
-            except ValueError:
-                cached_path = output / ".invalid-qualification-cache"
-            if (
-                cached_path.is_file()
-                and not cached_path.is_symlink()
-                and _sha256_file(cached_path) == current["sha256"]
-            ):
-                cached = read_strict_json(cached_path, role="cached qualification")
-                try:
-                    validate_qualification_result(
-                        cached,
-                        experiment_root=root,
-                        manifest_sha256=release.manifest_sha256,
-                        source_fingerprint=prebinding["source"]["fingerprint"],
-                        launcher_sha256=prebinding["launcher"]["sha256"],
-                        release_identity=binding_release,
-                    )
-                except QualificationError:
-                    pass
-                else:
-                    return dict(cached), {
-                        "schema": QUALIFICATION_EVIDENCE_SCHEMA,
-                        "path": str(cached_path),
-                        "sha256": current["sha256"],
-                    }
+    cached = _read_cached_qualification(output, expected_cache_key=cache_key)
+    if cached is not None:
+        payload, evidence = cached
+        try:
+            validate_qualification_result(
+                payload,
+                experiment_root=root,
+                manifest_sha256=release.manifest_sha256,
+                source_fingerprint=prebinding["source"]["fingerprint"],
+                launcher_sha256=prebinding["launcher"]["sha256"],
+                release_identity=binding_release,
+            )
+        except QualificationError:
+            pass
+        else:
+            return payload, evidence
+    if reuse_only:
+        raise QualificationBlocked(OFFLINE_EVIDENCE_MISSING)
+    runtime_pointer = load_runtime_pointer(environ=clean_environment)
+    try:
+        _gpu_payload, gpu_reference = load_gpu_functional_attestation(
+            runtime_pointer=runtime_pointer
+        )
+    except RuntimeFunctionalGateError as exc:
+        raise QualificationError(f"GPU_FUNCTIONAL_GATE_MISSING: {exc}") from exc
+    if (
+        runtime_binding(
+            environ=clean_environment,
+            runtime_pointer=runtime_pointer,
+        )
+        != prebinding["environment"]["values"]["runtime_binding"]
+        or gpu_reference
+        != prebinding["environment"]["values"]["gpu_functional_evidence"]
+    ):
+        raise QualificationError("qualification runtime binding changed during admission")
     run_root = output / "qualification" / "runs" / uuid.uuid4().hex
     run_root.mkdir(parents=True, exist_ok=False, mode=0o700)
     launch_profile = release_payload_path(root, release, LAUNCH_PROFILE_PATH)
@@ -3260,6 +3315,7 @@ __all__ = [
     "ENDPOINT_INJECTION_UNAVAILABLE",
     "FIRST_ARM_ACK_MISSING",
     "NEXT_ARM_ACK_MISSING",
+    "OFFLINE_EVIDENCE_MISSING",
     "PROCESS_TREE_BINDING_INCOMPLETE",
     "PRODUCTION_LIFECYCLE_FAILED",
     "QUALIFIED",

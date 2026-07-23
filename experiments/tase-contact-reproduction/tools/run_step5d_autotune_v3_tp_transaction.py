@@ -32,6 +32,7 @@ from step5d_autotune_v3.runtime_identity import (
 )
 from step5d_autotune_v3.runtime_installation import (
     RuntimeInstallationError,
+    load_runtime_pointer_identity,
     owner_dependency,
     require_runtime_profile,
 )
@@ -178,6 +179,7 @@ def _validate_candidate_and_qualification(
         root,
         manifest_sha256=release.manifest_sha256,
         release_identity=release,
+        runtime_pointer=load_runtime_pointer_identity(),
     )
     validate_qualification_result(
         payload,
