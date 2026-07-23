@@ -72,6 +72,7 @@ from step5d_autotune_v3.runtime_profile import (
     overlay_fingerprint,
 )
 from step5d_autotune_v3.runtime_gate import (
+    ARM_GRANT_MAX_AGE_S,
     CampaignLease,
     RuntimeGateError,
     loaded_program_paths,
@@ -106,6 +107,7 @@ RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
 LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
 QUALIFICATION_ENDPOINT_SCHEMA = "step5d.autotune-v3/qualification-endpoint-config-v1"
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
+ARM_GATE_REFRESH_INTERVAL_S = ARM_GRANT_MAX_AGE_S * 0.4
 ARM_ACKNOWLEDGED_STATES = frozenset(
     {
         TpLoopState.ARMED,
@@ -1562,7 +1564,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                                     delivery_observation=delivery_observation,
                                 )
                             raise
-                        next_gate_refresh = now + 0.2
+                        next_gate_refresh = now + ARM_GATE_REFRESH_INTERVAL_S
                     if publisher is not None and now >= next_observation:
                         governed_status = _publish_runtime_observation(
                             publisher,

@@ -297,6 +297,7 @@ def _source_binding(
     from .release_identity import ReleaseIdentityError, load_current_release
 
     current_fingerprint: str | None = None
+    immutable_source_root: Path | None = None
     if release_identity is None:
         from .governance import load_current_release_snapshot
 
@@ -319,11 +320,32 @@ def _source_binding(
         current_fingerprint = snapshot.source_fingerprint
     else:
         identity = release_identity
+        manifest_path = root / identity.manifest_path
+        if manifest_path.is_symlink() or not manifest_path.is_file():
+            raise QualificationError(
+                "qualification candidate manifest is missing or unsafe"
+            )
+        resolved_manifest = manifest_path.resolve(strict=True)
+        try:
+            resolved_manifest.relative_to(root)
+        except ValueError as exc:
+            raise QualificationError(
+                "qualification candidate manifest escapes experiment root"
+            ) from exc
+        immutable_source_root = resolved_manifest.parent
     if identity.manifest_sha256 != manifest_sha256:
         raise QualificationError("qualification release manifest binding differs")
     files: dict[str, str] = {}
     for relative, expected in sorted(identity.source_fingerprints.items()):
         path = root / relative
+        if immutable_source_root is not None:
+            immutable_path = immutable_source_root / relative
+            if immutable_path.is_symlink():
+                raise QualificationError(
+                    f"qualification candidate source is unsafe: {relative}"
+                )
+            if immutable_path.exists():
+                path = immutable_path
         if path.is_symlink() or not path.is_file():
             raise QualificationError(f"qualification source is missing: {relative}")
         files[relative] = _sha256_file(path)

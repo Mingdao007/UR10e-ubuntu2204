@@ -8,7 +8,6 @@ import json
 import os
 import shutil
 import subprocess
-from datetime import datetime, timezone
 from pathlib import Path
 import sys
 
@@ -28,7 +27,9 @@ from step5d_autotune_v3.qualification import (  # noqa: E402
     validate_qualification_result,
 )
 import step5d_autotune_v3.qualification as qualification  # noqa: E402
-from step5d_autotune_v3.release_identity import load_current_release  # noqa: E402
+from step5d_autotune_v3.release_identity import (  # noqa: E402
+    load_local_release_candidate,
+)
 from step5d_autotune_v3.runtime_functional_gates import (  # noqa: E402
     RuntimeFunctionalGateError,
 )
@@ -43,9 +44,7 @@ def _copy_file(source: Path, destination: Path) -> None:
     os.link(source, destination)
 
 
-def _qualified_release_fixture(
-    tmp_path: Path, *, restore_deployed_current: bool = False
-) -> tuple[Path, object]:
+def _qualified_release_fixture(tmp_path: Path) -> tuple[Path, object]:
     repository = tmp_path / "workspace"
     experiment = repository / "experiments/tase-contact-reproduction"
     shutil.copytree(
@@ -86,52 +85,30 @@ def _qualified_release_fixture(
         artifact_dir,
         builder.IMMUTABLE_RELEASE_STAMP,
     )
-    transaction_id = "c" * 32
-    receipt_dir = experiment / "runs/qualification-release/fresh-get"
-    receipt_dir.mkdir(parents=True)
-    triplet = generated["sha256"]
-    for extension in promotion.EXTENSIONS:
-        source = artifact_dir / f"{promotion.PROGRAM}{extension}"
-        (receipt_dir / source.name).write_bytes(source.read_bytes())
-    receipt = {
-        "status": "controller read-back verified",
-        "controller": "qualification@127.0.0.1",
-        "target_dir": promotion.TARGET_DIR,
-        "validation": {
-            "stamp": builder.IMMUTABLE_RELEASE_STAMP,
-            "program": promotion.PROGRAM,
-            "target_dir": promotion.TARGET_DIR,
-            "script_node_path": (
-                f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.script"
-            ),
-            "script_sha256": triplet[".script"],
-            "txt_sha256": triplet[".txt"],
-            "urp_sha256": triplet[".urp"],
-        },
-        "sha256": {
-            role: dict(triplet) for role in ("local", "controller", "readback")
-        },
-        "delivery_mode": "full_upload_readback",
-        "fresh_controller_sha_verified": True,
-        "fresh_controller_checked_at": datetime.now(timezone.utc).isoformat(),
-        "readback_source": "fresh_controller_get",
-        "upload_transaction_id": transaction_id,
-    }
-    receipt_path = receipt_dir / "manifest.json"
-    receipt_path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
-    receipt_sha256 = hashlib.sha256(receipt_path.read_bytes()).hexdigest()
     current_pointer = experiment / "config/step5d/current.json"
     deployed_current_bytes = current_pointer.read_bytes()
-    promotion.promote(
-        experiment,
-        receipt_path,
-        artifact_dir,
-        expected_transaction_id=transaction_id,
-        expected_manifest_sha256=receipt_sha256,
+    compatibility_paths = tuple(
+        experiment / relative for relative in promotion.STATIC_PROJECTIONS
     )
-    candidate = load_current_release(experiment)
-    if restore_deployed_current:
-        current_pointer.write_bytes(deployed_current_bytes)
+    deployed_compatibility_bytes = {
+        path: path.read_bytes() for path in compatibility_paths
+    }
+    descriptor = promotion.stage_local_candidate(experiment, artifact_dir)
+    descriptor_path = (
+        experiment / "runs/qualification-release/local-release-candidate.json"
+    )
+    descriptor_path.write_text(
+        json.dumps(descriptor, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    candidate, _descriptor = load_local_release_candidate(
+        experiment, descriptor_path
+    )
+    assert generated["program"] == promotion.PROGRAM
+    assert current_pointer.read_bytes() == deployed_current_bytes
+    assert all(
+        path.read_bytes() == deployed_compatibility_bytes[path]
+        for path in compatibility_paths
+    )
     return experiment, candidate
 
 
@@ -139,7 +116,7 @@ def test_endpoint_qualification_never_rebuilds_missing_gpu_authority(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    experiment, _candidate = _qualified_release_fixture(tmp_path)
+    experiment, candidate = _qualified_release_fixture(tmp_path)
     canonical = experiment / "scripts/step5d-autotune-v3.sh"
     environment = dict(os.environ)
     environment[CANONICAL_LAUNCH_ENV] = str(canonical)
@@ -156,11 +133,12 @@ def test_endpoint_qualification_never_rebuilds_missing_gpu_authority(
             experiment,
             experiment / "runs/qualification-output",
             environment=environment,
+            release_identity=candidate,
         )
 
 
 def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path) -> None:
-    experiment, _candidate = _qualified_release_fixture(tmp_path)
+    experiment, candidate = _qualified_release_fixture(tmp_path)
     canonical = experiment / "scripts/step5d-autotune-v3.sh"
     environment = dict(os.environ)
     environment[CANONICAL_LAUNCH_ENV] = str(canonical)
@@ -175,6 +153,7 @@ def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path
         experiment,
         experiment / "runs/qualification-output",
         environment=environment,
+        release_identity=candidate,
     )
 
     assert payload["ok"] is True
@@ -230,6 +209,7 @@ def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path
         manifest_sha256=binding["manifest_sha256"],
         source_fingerprint=binding["source"]["fingerprint"],
         launcher_sha256=binding["launcher"]["sha256"],
+        release_identity=candidate,
     )
 
     evidence_path = Path(evidence["path"])
@@ -245,13 +225,22 @@ def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path
 def test_candidate_qualification_does_not_mutate_or_require_deployed_current(
     tmp_path: Path,
 ) -> None:
-    experiment, candidate = _qualified_release_fixture(
-        tmp_path, restore_deployed_current=True
-    )
+    experiment, candidate = _qualified_release_fixture(tmp_path)
     current_path = experiment / "config/step5d/current.json"
     deployed_current_bytes = current_path.read_bytes()
     assert json.loads(deployed_current_bytes)["manifest_sha256"] != (
         candidate.manifest_sha256
+    )
+    contract_relative = "config/step5/step5d_autotune_v3_control_contract.json"
+    root_contract = experiment / contract_relative
+    candidate_contract = (
+        experiment / candidate.manifest_path
+    ).parent / contract_relative
+    assert hashlib.sha256(root_contract.read_bytes()).hexdigest() != (
+        candidate.source_fingerprints[contract_relative]
+    )
+    assert hashlib.sha256(candidate_contract.read_bytes()).hexdigest() == (
+        candidate.source_fingerprints[contract_relative]
     )
     canonical = experiment / "scripts/step5d-autotune-v3.sh"
     environment = dict(os.environ)

@@ -729,6 +729,22 @@ def _bound_file_sha256(root: Path, relative: str, role: str) -> str:
     return _sha256_file(resolved, role)
 
 
+def _bound_release_source_sha256(
+    root: Path,
+    immutable_root: Path | None,
+    relative: str,
+    role: str,
+) -> str:
+    content_root = root
+    if immutable_root is not None:
+        immutable_path = immutable_root / relative
+        if immutable_path.is_symlink():
+            raise RuntimeGateError(f"{role} must not be a symlink")
+        if immutable_path.exists():
+            content_root = immutable_root
+    return _bound_file_sha256(content_root, relative, role)
+
+
 def publish_arm_observation(
     path: Path,
     *,
@@ -984,6 +1000,11 @@ class ArmGateProvider:
         self._release_authority = _effective_release_authority(
             self.root, release.manifest_sha256
         )
+        self.immutable_source_root = (
+            (self.root / self.manifest_path).resolve(strict=True).parent
+            if self._release_authority.mode == "qualification"
+            else None
+        )
         if CANONICAL_LAUNCHER not in self.source_fingerprints:
             raise RuntimeGateError("canonical launcher is absent from release sources")
         verification = getattr(release, "verification", {})
@@ -1065,7 +1086,15 @@ class ArmGateProvider:
                 if relative == CANONICAL_LAUNCHER
                 else f"release source {relative}"
             )
-            if _bound_file_sha256(self.root, relative, role) != expected:
+            if (
+                _bound_release_source_sha256(
+                    self.root,
+                    self.immutable_source_root,
+                    relative,
+                    role,
+                )
+                != expected
+            ):
                 raise RuntimeGateError(f"{role} changed during campaign")
         for relative, expected in sorted(
             self.repository_source_fingerprints.items()
