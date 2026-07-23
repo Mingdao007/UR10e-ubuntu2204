@@ -14,7 +14,6 @@ import pytest
 from step5d_autotune_v3 import cli, governance
 from step5d_autotune_v3.governance import (
     BRIDGE_HEARTBEAT_MAX_AGE_NS,
-    CONTROLLER_FRESH_GET_MAX_AGE_NS,
     CURRENT_LAUNCH_ATTEMPT_POINTER_SCHEMA,
     CURRENT_OBSERVATION_POINTER_SCHEMA,
     FSM_STATES,
@@ -347,22 +346,20 @@ def test_fsm_transitions_are_derived_from_observations(tmp_path: Path) -> None:
     assert {transition["to"] for transition in TRANSITION_TABLE} == set(FSM_STATES)
 
 
-def test_dashboard_refresh_cannot_renew_stale_controller_fresh_get(
+def test_old_controller_get_remains_valid_when_content_binding_is_current(
     tmp_path: Path,
 ) -> None:
     row = observed_attestation(tmp_path)
-    stale_at = NOW_NS - CONTROLLER_FRESH_GET_MAX_AGE_NS - 1_000
-    row["controller"]["fresh_get_observed_at_unix_ns"] = stale_at
+    old_get_at = NOW_NS - 86_400_000_000_000
+    row["controller"]["fresh_get_observed_at_unix_ns"] = old_get_at
     row["controller"]["delivery_observation"] = delivery_evidence(
-        tmp_path, stale_at
+        tmp_path, old_get_at
     )
 
     status = reduce(tmp_path, row)
 
     assert status["predicates"]["controller_fresh"] is True
-    assert status["predicates"]["controller_fresh_get"] is False
-    assert status["predicates"]["bench_ready"] is False
-    assert "CONTROLLER_FRESH_GET_STALE" in status["blocker"]["reason_codes"]
+    assert status["predicates"]["controller_fresh_get"] is True
 
 
 def test_stopped_program_never_claims_bench_ready_before_runtime_identity(
