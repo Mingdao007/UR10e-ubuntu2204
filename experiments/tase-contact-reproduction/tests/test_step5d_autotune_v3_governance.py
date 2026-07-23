@@ -100,7 +100,7 @@ def release() -> CurrentReleaseSnapshot:
     return CurrentReleaseSnapshot(
         manifest_sha256=digest("manifest"),
         manifest_path=f"config/step5d/releases/{digest('manifest')}/manifest.json",
-        program_id="step5d_strict_rnn_autotune_v3_r010",
+        program_id="step5d_strict_rnn_autotune_v3_r011",
         release_stage_id="step5d_strict_rnn_autotune_v3",
         source_fingerprint=digest("source"),
         launcher_sha256=digest("launcher"),
@@ -112,7 +112,7 @@ def release() -> CurrentReleaseSnapshot:
         },
         expected_loaded_program=(
             "/programs/andyl/kunwei/step5/"
-            "step5d_strict_rnn_autotune_v3_r010.urp"
+            "step5d_strict_rnn_autotune_v3_r011.urp"
         ),
         expected_tp_runtime_identity={
             "protocol_version": 1,

@@ -168,6 +168,7 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
             "step5d_strict_rnn_autotune_v3_r008",
             "step5d_strict_rnn_autotune_v3_r009",
             "step5d_strict_rnn_autotune_v3_r010",
+            "step5d_strict_rnn_autotune_v3_r011",
         }
         or candidate_identity["mode"]
         not in {
@@ -217,6 +218,7 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
             "step5d_strict_rnn_autotune_v3_r008",
             "step5d_strict_rnn_autotune_v3_r009",
             "step5d_strict_rnn_autotune_v3_r010",
+            "step5d_strict_rnn_autotune_v3_r011",
         }
         or deployment["mode"]
         != "explicit_v3_identity_precontact_pose_frozen_v1_control"

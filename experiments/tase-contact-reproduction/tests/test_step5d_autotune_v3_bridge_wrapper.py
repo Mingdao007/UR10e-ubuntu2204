@@ -131,12 +131,12 @@ def _ticket_fixture(
     )
     launch.write_text('{"launch":"frozen"}\n', encoding="utf-8")
     expected_program = (
-        "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r010.urp"
+        "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r011.urp"
     )
     safety_sha = hashlib.sha256(control.read_bytes()).hexdigest()
     runtime_identity = {
         "schema": "step5d.autotune-v3/tp-runtime-identity-v1",
-        "program_id": "step5d_strict_rnn_autotune_v3_r010",
+        "program_id": "step5d_strict_rnn_autotune_v3_r011",
         "protocol_id": "v3_full_home_rolling_arm_v1",
         "protocol_version": 1,
         "digest_hi": 1234,
@@ -162,7 +162,7 @@ def _ticket_fixture(
     )
     manifest_sha = hashlib.sha256(manifest.read_bytes()).hexdigest()
     release = SimpleNamespace(
-        program_id="step5d_strict_rnn_autotune_v3_r010",
+        program_id="step5d_strict_rnn_autotune_v3_r011",
         release_stage_id="step5d_strict_rnn_autotune_v3",
         control_profile_id="step5d_strict_rnn_autotune_v1",
         protocol_id="v3_full_home_rolling_arm_v1",

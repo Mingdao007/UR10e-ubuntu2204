@@ -32,7 +32,7 @@ from step5d_autotune_v3.runtime_gate import (  # noqa: E402
 )
 
 
-STAMP = "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010"
+STAMP = "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011"
 
 
 def _increment_digest_hi(script: str) -> str:
@@ -43,7 +43,7 @@ def _increment_digest_hi(script: str) -> str:
     return script[: match.start()] + replacement + script[match.end() :]
 
 
-def test_r010_identity_round_trips_without_a_hash_fixed_point() -> None:
+def test_r011_identity_round_trips_without_a_hash_fixed_point() -> None:
     script = builder.build_package_script(STAMP)
     identity, payload = bind_final_script(
         script,
@@ -88,9 +88,10 @@ def test_runtime_identity_rejects_script_or_literal_tamper(mutation) -> None:
     [
         "step5d_strict_rnn_autotune_v3_r008",
         "step5d_strict_rnn_autotune_v3_r009",
+        "step5d_strict_rnn_autotune_v3_r010",
     ],
 )
-def test_r008_and_r009_cannot_impersonate_r010_runtime_identity(
+def test_prior_releases_cannot_impersonate_r011_runtime_identity(
     wrong_program: str,
 ) -> None:
     script = builder.build_package_script(STAMP)

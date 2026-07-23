@@ -34,9 +34,9 @@ from step5d_autotune_v3.runtime_identity import (
     runtime_identity_assignment_block,
 )
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r010"
+PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r011"
 IMMUTABLE_RELEASE_STAMP = (
-    "2026-07-21T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010"
+    "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011"
 )
 PROTOCOL_ID = ROLLING_PROTOCOL
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
@@ -255,12 +255,12 @@ end
         (
             "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050 rad/s;",
             "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050, 6=.100 rad/s;",
-            "r010 normal-rate profile documentation",
+            "r011 normal-rate profile documentation",
         ),
         (
             "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
             "return (normal_level >= 1 and normal_level <= 3 or normal_level == 5 or normal_level == 6) and host_slew_level >= 1 and host_slew_level <= 3 and tp_accel_level >= 1 and tp_accel_level <= 3",
-            "r010 normal-rate profile admission",
+            "r011 normal-rate profile admission",
         ),
         (
             "# HOST_TO_TP_INT: epoch=24 trial=25 command=26 token=27 profile=28 sequence=29",
@@ -769,7 +769,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
 
 def source_stamp(now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010")
+    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011")
 
 
 def build_package_script(stamp: str) -> str:

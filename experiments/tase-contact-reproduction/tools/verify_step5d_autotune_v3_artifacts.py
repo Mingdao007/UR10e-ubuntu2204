@@ -21,7 +21,7 @@ from step5d_autotune_v3.runtime_identity import (
 ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r010"
+TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r011"
 LOCAL_CANDIDATE_TP_PROGRAM_ID = TP_PROGRAM_ID
 HOST_PROTOCOL_ID = "v3_full_home_rolling_arm_v1"
 POSE_PRIOR_ID = "step5d_v3_physical_prior_contact_0p1_20260719"
