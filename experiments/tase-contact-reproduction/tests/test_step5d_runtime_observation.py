@@ -301,6 +301,13 @@ def test_process_observation_resolves_relative_shell_launcher_from_process_cwd(
         encoding="utf-8",
     )
     launcher.chmod(0o755)
+    foreign_scripts = tmp_path / "foreign/scripts"
+    foreign_scripts.mkdir(parents=True)
+    foreign_launcher = foreign_scripts / launcher.name
+    foreign_launcher.write_text(
+        launcher.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
     process = subprocess.Popen(
         ["scripts/step5d-autotune-v3.sh"],
         cwd=tmp_path,
@@ -321,6 +328,12 @@ def test_process_observation_resolves_relative_shell_launcher_from_process_cwd(
             "canonical_launcher",
             launcher,
         )
+        with pytest.raises(RuntimeObservationError, match="does not execute"):
+            REAL_PROC_OBSERVATION(
+                process.pid,
+                "canonical_launcher",
+                foreign_launcher,
+            )
     finally:
         process.terminate()
         process.wait(timeout=5.0)

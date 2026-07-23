@@ -36,6 +36,7 @@ from .governance import (
 from .qualification import (
     production_process_role_paths,
     production_process_tree_fingerprint,
+    resolve_process_argv_paths,
     validate_qualification_result,
 )
 from .runtime_gate import loaded_program_paths
@@ -429,22 +430,15 @@ def _proc_observation(pid: int, role: str, expected_script: Path) -> dict[str, A
             for item in (proc / "cmdline").read_bytes().split(b"\0")
             if item
         ]
-        cwd = (proc / "cwd").resolve(strict=True)
         executable = str((proc / "exe").resolve(strict=True))
+        resolved_arguments = {
+            path
+            for path in resolve_process_argv_paths(proc, argv)
+            if path is not None
+        }
     except (OSError, UnicodeError, IndexError, ValueError) as exc:
         raise RuntimeObservationError(f"cannot inspect {role} process {pid}: {exc}") from exc
     expected = str(expected_script.resolve(strict=True))
-    resolved_arguments = {
-        str(
-            (
-                Path(argument)
-                if Path(argument).is_absolute()
-                else cwd / argument
-            ).resolve(strict=False)
-        )
-        for argument in argv
-        if not argument.startswith("-")
-    }
     if expected not in argv and expected not in resolved_arguments:
         raise RuntimeObservationError(f"{role} does not execute {expected_script.name}")
     return {
@@ -501,25 +495,30 @@ def _discover_writer_processes(
             continue
 
         python_process = Path(argv[0]).name.startswith(("python", "pypy"))
-        cwd: Path | None = None
         matched: set[str] = set()
         resolved_argv0: str | None = None
-        for index, argument in enumerate(argv):
-            if not argument.endswith(".py"):
-                continue
-            candidate = Path(argument)
-            if not candidate.is_absolute():
-                if cwd is None:
-                    try:
-                        cwd = (proc / "cwd").resolve(strict=True)
-                    except FileNotFoundError:
-                        break
-                    except OSError as exc:
-                        raise RuntimeObservationError(
-                            f"cannot inspect process {pid} cwd during writer discovery: {exc}"
-                        ) from exc
-                candidate = cwd / candidate
-            resolved = str(candidate.resolve(strict=False))
+        script_arguments = [
+            (index, argument)
+            for index, argument in enumerate(argv)
+            if argument.endswith(".py")
+        ]
+        try:
+            resolved_scripts = resolve_process_argv_paths(
+                proc,
+                [argument for _, argument in script_arguments],
+            )
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise RuntimeObservationError(
+                f"cannot inspect process {pid} cwd during writer discovery: {exc}"
+            ) from exc
+        for (index, _argument), resolved in zip(
+            script_arguments,
+            resolved_scripts,
+            strict=True,
+        ):
+            assert resolved is not None
             if index == 0:
                 resolved_argv0 = resolved
             if resolved in expected:

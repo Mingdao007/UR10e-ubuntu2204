@@ -476,6 +476,27 @@ def _read_process_runtime_environment(proc: Path, role: str) -> dict[str, str]:
     return values
 
 
+def resolve_process_argv_paths(
+    proc: Path,
+    argv: Sequence[str],
+) -> tuple[str | None, ...]:
+    """Resolve path-like process arguments against that process's own cwd."""
+
+    cwd: Path | None = None
+    resolved: list[str | None] = []
+    for argument in argv:
+        if argument.startswith("-"):
+            resolved.append(None)
+            continue
+        candidate = Path(argument)
+        if not candidate.is_absolute():
+            if cwd is None:
+                cwd = (proc / "cwd").resolve(strict=True)
+            candidate = cwd / candidate
+        resolved.append(str(candidate.resolve(strict=False)))
+    return tuple(resolved)
+
+
 def _capture_process(
     pid: int,
     role: str,
@@ -495,14 +516,14 @@ def _capture_process(
         )
         status_lines = (proc / "status").read_text(encoding="ascii").splitlines()
         ppid = int(next(line for line in status_lines if line.startswith("PPid:")).split()[1])
+        resolved_argv = {
+            path
+            for path in resolve_process_argv_paths(proc, argv)
+            if path is not None
+        }
     except (OSError, UnicodeError, StopIteration, ValueError) as exc:
         raise QualificationError(f"cannot inspect {role} process: {exc}") from exc
     expected = str(expected_script.resolve(strict=True))
-    resolved_argv = {
-        str(Path(argument).resolve())
-        for argument in argv
-        if argument.startswith("/")
-    }
     if expected not in argv and expected not in resolved_argv:
         raise QualificationError(
             f"{role} process does not execute production script {expected}"
@@ -3252,6 +3273,7 @@ __all__ = [
     "production_process_tree_fingerprint",
     "production_process_role_paths",
     "read_process_starttime",
+    "resolve_process_argv_paths",
     "require_canonical_launcher",
     "run_endpoint_qualification",
     "validate_content_binding",
