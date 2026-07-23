@@ -28,7 +28,6 @@ from .release_identity import (
     qualification_runtime_environment,
 )
 
-from .delivery_observation import MAX_AGE_NS as CONTROLLER_FRESH_GET_MAX_AGE_NS
 from .runtime_installation import (
     RuntimeInstallationError,
     load_runtime_pointer_identity,
@@ -776,7 +775,6 @@ def publish_arm_observation(
         fresh_get_observed_at_unix_ns,
         "controller fresh-GET observation timestamp",
     )
-    fresh_get_age_ns = time.time_ns() - fresh_get_at
     if command_binding is None:
         if command_observed_at_unix_ns is not None:
             raise RuntimeGateError(
@@ -832,9 +830,6 @@ def publish_arm_observation(
             "bridge process",
         ),
         "bridge_csv_fresh": 0.0 <= csv_age_s <= 0.75,
-        "controller_fresh_get": (
-            0 <= fresh_get_age_ns <= CONTROLLER_FRESH_GET_MAX_AGE_NS
-        ),
     }
     reason_codes = sorted(name for name, ok in predicates.items() if not ok)
     bridge = {"pid": bridge_pid, "starttime": process_starttime(bridge_pid)}
@@ -1044,7 +1039,6 @@ class ArmGateProvider:
         self._cached_context: ValidatedArmContext | None = None
         self._cache_valid_until = float("-inf")
         self._cache_key: tuple[str, str | None, int | None] | None = None
-        self._cache_fresh_get_at_unix_ns: int | None = None
         self._last_monotonic: float | None = None
         self._last_rtde_controller_timestamp_s: float | None = None
         self._last_rtde_connection_epoch: int | None = None
@@ -1054,7 +1048,6 @@ class ArmGateProvider:
         self._cached_context = None
         self._cache_valid_until = float("-inf")
         self._cache_key = None
-        self._cache_fresh_get_at_unix_ns = None
 
     def _watchdog_release_bindings(self) -> None:
         lease = load_campaign_lease(
@@ -1208,22 +1201,11 @@ class ArmGateProvider:
             and self._cache_key == cache_key
             and now < self._cache_valid_until
         ):
-            if self._cached_context is None:
-                return None
-            fresh_get_at = self._cache_fresh_get_at_unix_ns
-            wall_now_ns = time.time_ns()
-            if (
-                fresh_get_at is not None
-                and fresh_get_at
-                <= wall_now_ns
-                <= fresh_get_at + CONTROLLER_FRESH_GET_MAX_AGE_NS
-            ):
-                return self._cached_context
-            self._invalidate_cache()
+            return self._cached_context
 
         self._invalidate_cache()
         try:
-            context, validity_s, fresh_get_at = self._refresh(
+            context, validity_s, _fresh_get_at = self._refresh(
                 expected_command,
                 expected_connection_epoch=connection_epoch,
             )
@@ -1233,7 +1215,6 @@ class ArmGateProvider:
             raise RuntimeGateError(f"ARM gate watchdog failed: {exc}") from exc
         self._cached_context = context
         self._cache_key = cache_key
-        self._cache_fresh_get_at_unix_ns = fresh_get_at
         self._cache_valid_until = now + min(
             ARM_GATE_WATCHDOG_INTERVAL_S, max(0.0, validity_s)
         )
@@ -1382,12 +1363,6 @@ class ArmGateProvider:
             controller["fresh_get_observed_at_unix_ns"],
             "ARM gate controller fresh-GET observation",
         )
-        fresh_get_age_ns = time.time_ns() - fresh_get_at
-        if not 0 <= fresh_get_age_ns <= CONTROLLER_FRESH_GET_MAX_AGE_NS:
-            raise RuntimeGateError("ARM gate controller fresh-GET evidence is stale")
-        fresh_get_remaining_s = (
-            CONTROLLER_FRESH_GET_MAX_AGE_NS - fresh_get_age_ns
-        ) / 1_000_000_000
         rtde = _exact(
             row["rtde"],
             {
@@ -1454,7 +1429,7 @@ class ArmGateProvider:
                 controller_timestamp_s=controller_timestamp_s,
                 connection_epoch=connection_epoch,
             ),
-            min(max_age_s - age_s, fresh_get_remaining_s),
+            max_age_s - age_s,
             fresh_get_at,
         )
 

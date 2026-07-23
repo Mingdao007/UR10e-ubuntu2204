@@ -15,7 +15,6 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .delivery_observation import (
     DeliveryObservationError,
-    MAX_AGE_NS as CONTROLLER_FRESH_GET_MAX_AGE_NS,
     fresh_get_provenance,
 )
 
@@ -133,7 +132,6 @@ REASON_ORDER = (
     "PROCESS_TREE_EVIDENCE_INVALID",
     "CONTROLLER_OBSERVATION_STALE",
     "CONTROLLER_FRESH_GET_BINDING_MISMATCH",
-    "CONTROLLER_FRESH_GET_STALE",
     "UPLOADED_TRIPLET_MISMATCH",
     "CONTROLLER_READBACK_MISMATCH",
     "DASHBOARD_LOADED_PROGRAM_MISMATCH",
@@ -2127,18 +2125,9 @@ def reduce_observed_attestation(
                 "fresh_get_observed_at_unix_ns"
             ],
         )
-        predicates["controller_fresh_get"] = (
-            delivery_provenance_current
-            and _age_fresh(
-                now_ns,
-                controller["fresh_get_observed_at_unix_ns"],
-                CONTROLLER_FRESH_GET_MAX_AGE_NS,
-            )
-        )
+        predicates["controller_fresh_get"] = delivery_provenance_current
         if not delivery_provenance_current:
             reasons.append("CONTROLLER_FRESH_GET_BINDING_MISMATCH")
-        elif not predicates["controller_fresh_get"]:
-            reasons.append("CONTROLLER_FRESH_GET_STALE")
         expected_triplet = release.expected_triplet_sha256
         uploaded = controller["uploaded_triplet_sha256"]
         readback = controller["readback_triplet_sha256"]
@@ -2748,7 +2737,6 @@ __all__ = [
     "BLOCKER_CLASSES",
     "BRIDGE_HEARTBEAT_MAX_AGE_NS",
     "CAMPAIGN_LEASE_SCHEMA",
-    "CONTROLLER_FRESH_GET_MAX_AGE_NS",
     "CONTROLLER_OBSERVATION_MAX_AGE_NS",
     "CURRENT_LAUNCH_ATTEMPT_POINTER_SCHEMA",
     "CURRENT_OBSERVATION_POINTER_SCHEMA",

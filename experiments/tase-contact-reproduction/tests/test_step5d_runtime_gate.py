@@ -642,15 +642,13 @@ def test_arm_grant_rejects_an_rtde_row_that_predates_the_request(tmp_path: Path)
         )
 
 
-def test_command_bound_arm_rejects_stale_controller_fresh_get(
+def test_command_bound_arm_accepts_old_content_bound_controller_get(
     tmp_path: Path,
 ) -> None:
     root, release, contract, lease, lease_path, gate_path = _fixture(tmp_path)
     binding = _arm_binding()
     requested_at = time.time_ns()
-    stale_at = (
-        requested_at - gate_module.CONTROLLER_FRESH_GET_MAX_AGE_NS - 1
-    )
+    old_get_at = requested_at - 86_400_000_000_000
 
     observed = publish_arm_observation(
         gate_path.absolute(),
@@ -661,7 +659,7 @@ def test_command_bound_arm_rejects_stale_controller_fresh_get(
         rtde_row=_row(),
         contract=contract,
         csv_age_s=0.01,
-        **_fresh_get_binding(observed_at_unix_ns=stale_at),
+        **_fresh_get_binding(observed_at_unix_ns=old_get_at),
         arm_command=binding,
         command_observed_at_unix_ns=requested_at,
         rtde_row_wall_ns=requested_at + 1,
@@ -676,14 +674,12 @@ def test_command_bound_arm_rejects_stale_controller_fresh_get(
     )
     _observe_provider(provider)
 
-    assert observed["arm_permitted"] is False
-    assert "controller_fresh_get" in observed["reason_codes"]
-    with pytest.raises(RuntimeGateError, match="not permitted"):
-        provider(binding, connection_epoch=0)
+    assert observed["arm_permitted"] is True
+    assert provider(binding, connection_epoch=0) is not None
 
 
 @pytest.mark.parametrize("command_bound", (False, True), ids=("readiness", "arm"))
-def test_arm_gate_cache_rechecks_wall_clock_fresh_get_expiry(
+def test_arm_gate_cache_ignores_controller_get_age(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     command_bound: bool,
@@ -692,12 +688,7 @@ def test_arm_gate_cache_rechecks_wall_clock_fresh_get_expiry(
     binding = _arm_binding() if command_bound else None
     wall_clock = [time.time_ns()]
     monotonic_clock = [500.0]
-    remaining_ns = 100_000_000
-    fresh_get_at = (
-        wall_clock[0]
-        - gate_module.CONTROLLER_FRESH_GET_MAX_AGE_NS
-        + remaining_ns
-    )
+    fresh_get_at = wall_clock[0] - 86_400_000_000_000
     monkeypatch.setattr(gate_module.time, "time_ns", lambda: wall_clock[0])
     monkeypatch.setattr(
         gate_module.time, "monotonic", lambda: monotonic_clock[0]
@@ -736,9 +727,8 @@ def test_arm_gate_cache_rechecks_wall_clock_fresh_get_expiry(
     else:
         lookup = lambda: provider(binding, connection_epoch=0)
     assert lookup() is not None
-    wall_clock[0] += remaining_ns + 1
-    with pytest.raises(RuntimeGateError, match="fresh-GET evidence is stale"):
-        lookup()
+    wall_clock[0] += 86_400_000_000_000
+    assert lookup() is not None
 
 
 @pytest.mark.parametrize(

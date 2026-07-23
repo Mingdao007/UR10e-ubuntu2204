@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
-import math
 from pathlib import Path, PurePosixPath
 import re
 import time
@@ -13,8 +12,6 @@ from typing import Any, Mapping
 
 
 SCHEMA = "step5d.autotune-v3/delivery-observation-v1"
-MAX_AGE_S = 600.0
-MAX_AGE_NS = int(MAX_AGE_S * 1_000_000_000)
 _TRANSACTION = re.compile(r"^[0-9a-f]{32}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _TRIPLET = frozenset({".script", ".txt", ".urp"})
@@ -184,17 +181,6 @@ def _receipt_identity(
     return readback, checked_text, checked
 
 
-def _age_limit(value: Any) -> float:
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not math.isfinite(float(value))
-        or float(value) <= 0.0
-    ):
-        raise DeliveryObservationError("delivery evidence max age is invalid")
-    return float(value)
-
-
 def build_delivery_observation(
     root: Path,
     *,
@@ -203,7 +189,6 @@ def build_delivery_observation(
     transaction_id: str,
     release: Any,
     now: datetime | None = None,
-    max_age_s: float = MAX_AGE_S,
 ) -> dict[str, Any]:
     experiment = root.resolve(strict=True)
     receipt = _load(receipt_path, "delivery receipt")
@@ -242,8 +227,6 @@ def build_delivery_observation(
         experiment,
         row,
         release=release,
-        now=observed_now,
-        max_age_s=max_age_s,
     )
 
 
@@ -252,10 +235,7 @@ def validate_delivery_observation(
     value: Mapping[str, Any],
     *,
     release: Any,
-    now: datetime | None = None,
-    max_age_s: float = MAX_AGE_S,
 ) -> dict[str, Any]:
-    max_age_s = _age_limit(max_age_s)
     required = {
         "schema",
         "recorded_at_unix_ns",
@@ -276,12 +256,8 @@ def validate_delivery_observation(
         or row["recorded_at_unix_ns"] <= 0
     ):
         raise DeliveryObservationError("delivery observation timestamp is invalid")
-    observed_now = now or datetime.now(timezone.utc)
-    if observed_now.tzinfo is None or observed_now.utcoffset() is None:
-        raise DeliveryObservationError("delivery observation clock lacks timezone")
-    observed_now = observed_now.astimezone(timezone.utc)
     try:
-        recorded = datetime.fromtimestamp(
+        datetime.fromtimestamp(
             row["recorded_at_unix_ns"] / 1_000_000_000,
             tz=timezone.utc,
         )
@@ -289,9 +265,6 @@ def validate_delivery_observation(
         raise DeliveryObservationError(
             "delivery observation timestamp is invalid"
         ) from exc
-    recorded_age = (observed_now - recorded).total_seconds()
-    if not -1.0 <= recorded_age <= max_age_s:
-        raise DeliveryObservationError("delivery observation evidence is stale")
     receipt_ref = row["receipt"]
     if not isinstance(receipt_ref, Mapping) or set(receipt_ref) != {"path", "sha256"}:
         raise DeliveryObservationError("delivery receipt reference differs")
@@ -332,12 +305,9 @@ def validate_delivery_observation(
         or _TRANSACTION.fullmatch(row["transaction_id"]) is None
     ):
         raise DeliveryObservationError("delivery observation release binding differs")
-    checked_text, checked = _timestamp(
+    checked_text, _checked = _timestamp(
         row["fresh_controller_checked_at"], "delivery fresh-GET"
     )
-    age = (observed_now - checked).total_seconds()
-    if not -1.0 <= age <= max_age_s:
-        raise DeliveryObservationError("delivery fresh-GET evidence is stale")
     receipt = _load(receipt_path, "delivery receipt")
     receipt_triplet, receipt_checked_text, _receipt_checked = _receipt_identity(
         receipt,
@@ -354,22 +324,16 @@ def load_delivery_observation(
     path: Path,
     *,
     release: Any,
-    now: datetime | None = None,
-    max_age_s: float = MAX_AGE_S,
 ) -> dict[str, Any]:
     return validate_delivery_observation(
         root,
         _load(path, "delivery observation"),
         release=release,
-        now=now,
-        max_age_s=max_age_s,
     )
 
 
 __all__ = [
     "DeliveryObservationError",
-    "MAX_AGE_NS",
-    "MAX_AGE_S",
     "SCHEMA",
     "build_delivery_observation",
     "fresh_get_provenance",
