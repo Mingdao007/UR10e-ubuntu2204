@@ -52,11 +52,8 @@ case "${STEP4E_VERSION}" in
     STEP4E_VERSION="step5b_v3"
     ;;
   5d|step5d|step5d-liveprep|step5d_liveprep)
-    STEP4E_VERSION="$(current_step5d_profile)"
-    if [[ -z "${STEP4E_VERSION}" ]]; then
-      echo "refusing Step5d alias: current_stage does not name a controller-readback-verified Step5d package"
-      exit 40
-    fi
+    echo "refusing: legacy Step5d TP bridge routes were removed; use step5d_remote_control.sh" >&2
+    exit 64
     ;;
   5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
     echo "refusing Step5c dry-run alias: DLS/Jacobian mapping is quarantined after wrong XY/Z live motion"
@@ -73,6 +70,10 @@ case "${STEP4E_VERSION}" in
     STEP4E_VERSION="step6b_v2"
     ;;
 esac
+if [[ "${STEP4E_VERSION}" == step5d_* ]]; then
+  echo "refusing: legacy Step5d TP bridge routes were removed; use step5d_remote_control.sh" >&2
+  exit 64
+fi
 STEP4E_ROUTE_VERSION=""
 STEP4E_ROUTE_PROGRAM_BASENAME=""
 STEP4E_ROUTE_LOCAL_DIR=""

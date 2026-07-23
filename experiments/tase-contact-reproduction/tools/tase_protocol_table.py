@@ -81,35 +81,6 @@ def _profile_value(profile: dict[str, Any], section: str, key: str) -> Any:
 
 
 def operator_env(operator_id: str, root: Path = EXPERIMENT_ROOT) -> dict[str, str]:
-    if operator_id == "step5d-liveprep":
-        profile = resolve_experiment_profile("Step5.step5d_rnn", root)
-        params = profile["parameters"]
-        limits = profile["safety_limits"]
-        experiment = profile["experiment"]
-        return {
-            "TASE_STEP5D_BRIDGE_DURATION_S": str(params["bridge_duration_s"]),
-            "TASE_STEP5D_TARGET_FORCE_N": str(params["target_force_n"]),
-            "TASE_STEP5D_NORMAL_FILTER_ALPHA": str(params["normal_filter_alpha"]),
-            "TASE_STEP5D_NORMAL_MIN_FORCE_N": str(params["normal_filter_min_force_n"]),
-            "TASE_STEP5D_REZERO_S": str(params["zero_hold_s"]),
-            "TASE_STEP5D_FORCE_P_GAIN": str(params["force_p_gain"]),
-            "TASE_STEP5D_FORCE_I_GAIN": str(params["force_i_gain"]),
-            "TASE_STEP5D_FORCE_DAMPING": str(params["force_damping"]),
-            "TASE_STEP5D_INTEGRAL_LIMIT_N_S": str(params["integral_limit_n_s"]),
-            "TASE_STEP5D_MAX_NORMAL_FORCE_N": str(limits["max_normal_force_n"]),
-            "TASE_STEP5D_MAX_FORCE_NORM_N": str(limits["force_norm_guard_n"]),
-            "TASE_STEP5D_MAX_TORQUE_NORM_NM": str(limits["max_torque_norm_nm"]),
-            "TASE_STEP5D_NORMAL_VELOCITY_LIMIT_M_S": str(limits["normal_velocity_limit_m_s"]),
-            "TASE_STEP5D_TOTAL_LINEAR_LIMIT_M_S": str(limits["total_linear_limit_m_s"]),
-            "TASE_STEP5D_ANGULAR_LIMIT_RAD_S": str(limits["angular_limit_rad_s"]),
-            "TASE_STEP5D_PRELOAD_FILTERED_MIN_N": str(limits["preload_filtered_min_n"]),
-            "TASE_STEP5D_PRELOAD_FILTERED_MAX_N": str(limits["preload_filtered_max_n"]),
-            "TASE_STEP5D_PRELOAD_RAW_MIN_N": str(limits["preload_raw_min_n"]),
-            "TASE_STEP5D_PRELOAD_RAW_MAX_N": str(limits["preload_raw_max_n"]),
-            "TASE_STEP5D_PRELOAD_FORCE_NORM_MAX_N": str(limits["preload_force_norm_max_n"]),
-            "TASE_STEP5D_PRELOAD_HOLD_S": str(limits["preload_hold_s"]),
-            "TASE_STEP5D_STAGE25_CONTROL_MODE_DEFAULT": str(experiment["stage25_default_control_mode"]),
-        }
     if operator_id == "step5b-contact":
         profile = resolve_experiment_profile("Step5.contact_cycloid", root)
         params = profile["parameters"]

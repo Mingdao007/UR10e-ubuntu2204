@@ -36,8 +36,6 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
 
     for profile_id in (
         "Step5.contact_cycloid",
-        "Step5.step5d_rnn",
-        "Step5.step5d_rnn_legacy_v27",
         "Step6.no_contact_eight",
         "Step6.contact_eight_v1",
         "Step6.contact_eight",
@@ -47,27 +45,23 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         except ProtocolTableError as exc:
             failures.append(str(exc))
 
-    try:
-        step5 = resolve_experiment_profile("Step5.step5d_rnn", root)
-        flow = step5["flow"]["steps"]
-        _require(step5["flow"]["zero_timing"] == "after_far_search_before_near_search", failures, "Step5 zero timing mismatch")
-        _require(flow.index("fast_search_down") < flow.index("zero_after_far_search") < flow.index("near_search_down"), failures, "Step5 zero step must be between far and near search")
-        _require(step5["parameters"]["zero_hold_s"] == 1.0, failures, "Step5 v32 zero hold mismatch")
-        _require(step5["parameters"]["normal_filter_alpha"] == 0.55, failures, "Step5 normal filter alpha mismatch")
-        _require(
-            step5["safety_limits"]["angular_limit_rad_s"] == 1.0,
-            failures,
-            "Step5 v32 permissive angular diagnostic limit mismatch",
-        )
-        legacy = resolve_experiment_profile("Step5.step5d_rnn_legacy_v27", root)
-        _require(legacy["parameters"]["zero_hold_s"] == 0.25, failures, "Step5 legacy zero hold mismatch")
-        _require(
-            legacy["safety_limits"]["angular_limit_rad_s"] == 0.015,
-            failures,
-            "Step5 legacy angular limit mismatch",
-        )
-    except Exception as exc:
-        failures.append(f"Step5 resolved profile validation failed: {exc}")
+    remote_profiles = table.get("external_runtime_profiles") or {}
+    remote = remote_profiles.get("Step5d.remote_r012") or {}
+    _require(
+        remote.get("entrypoint") == "step5d_remote_control.sh",
+        failures,
+        "Step5d Remote Control entrypoint mismatch",
+    )
+    _require(
+        remote.get("parameter_selector") == "config/step5d_remote/current.json",
+        failures,
+        "Step5d external parameter selector mismatch",
+    )
+    _require(
+        remote.get("duplicate_inline_parameters") is False,
+        failures,
+        "Step5d parameters must remain external",
+    )
 
     try:
         step6 = resolve_experiment_profile("Step6.contact_eight", root)
@@ -77,14 +71,6 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         failures.append(f"Step6 resolved profile validation failed: {exc}")
 
     try:
-        current = _load_json(root / "config" / "current_stage.json")
-        current_step5d_id = (
-            str(current.get("program") or current.get("current_stage_id"))
-            if str(current.get("program") or current.get("current_stage_id")).startswith(
-                "step5d_strict_rnn_ablation_"
-            )
-            else "step5d_strict_rnn_ablation_v27"
-        )
         step5_rows = _stage_by_id(_load_json(root / "config" / "step5_stage_table.json"))
         step6_rows = _stage_by_id(_load_json(root / "config" / "step6_stage_table.json"))
         _require(
@@ -93,9 +79,10 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             "Step5b ledger row missing canonical profile ref",
         )
         _require(
-            step5_rows[current_step5d_id].get("canonical_profile_ref") == "Step5.step5d_rnn",
+            step5_rows["step5d_remote_r012"].get("parameters")
+            == "config/step5d_remote/r012.yaml",
             failures,
-            f"Step5d {current_step5d_id.rsplit('_', 1)[-1]} ledger row missing canonical profile ref",
+            "Step5d Remote Control ledger row missing external parameters",
         )
         _require(
             step6_rows["step6a_eight_no_contact_v1"].get("canonical_profile_ref") == "Step6.no_contact_eight",

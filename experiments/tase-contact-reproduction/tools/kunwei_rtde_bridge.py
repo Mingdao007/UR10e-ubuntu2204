@@ -51,7 +51,7 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
     parse_frame,
     pop_frames,
 )
-from step5d_autotune_v3.rtde_client import RTDEClient, dashboard_exchange  # noqa: E402
+from ur_dashboard_rtde import RTDEClient, dashboard_exchange  # noqa: E402
 from contact_semantics import (  # noqa: E402
     semantic_boundary_is_consistent,
     twist_base_to_same_origin,
@@ -64,15 +64,6 @@ from step5c_strict_rnn import (  # noqa: E402
     StrictRnnCommandResult,
     StrictRnnConfig,
     StrictTaseRnnSolver,
-)
-from verify_step5d_current_binding import (  # noqa: E402
-    verify_binding as verify_step5d_binding,
-    verify_live_bridge_authorization as verify_step5d_live_bridge_authorization,
-    verify_v31_evidence_freeze,
-    verify_v32_evidence_freeze,
-    verify_v33_evidence_freeze,
-    verify_v34_evidence_freeze,
-    verify_v35_evidence_freeze,
 )
 from step5d_paper_outer_loop import (  # noqa: E402
     Step5dOuterLoopConfig,
@@ -184,12 +175,6 @@ from step5d_runtime_interface import (  # noqa: E402
     is_no_contact_p0_stage,
     uses_v30_control_contract,
 )
-from step5d_autotune_live_driver import (  # noqa: E402
-    BridgeMailboxRuntime,
-    BridgeTrialCsvRotator,
-    MailboxError as Step5dAutotuneMailboxError,
-    decode_execution_profile_id,
-)
 from step5d_production_csv import ProductionCsvWriter  # noqa: E402
 from step6_eight import (  # noqa: E402
     PATH_DURATION_S as STEP6_PATH_DURATION_S,
@@ -201,6 +186,38 @@ from step6_eight import (  # noqa: E402
     transform_local as step6_transform_local,
     transform_velocity as step6_transform_velocity,
 )
+
+
+class LegacyStep5dBridgeRemoved(RuntimeError):
+    """Raised if dead TP/autotune bridge code is reached."""
+
+
+def _legacy_step5d_removed(*_args: Any, **_kwargs: Any) -> Any:
+    raise LegacyStep5dBridgeRemoved(
+        "Legacy Step5d TP/autotune bridge support was removed; use "
+        "step5d_remote_control.sh."
+    )
+
+
+class BridgeMailboxRuntime:
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        _legacy_step5d_removed()
+
+
+class BridgeTrialCsvRotator:
+    def __init__(self, *_args: Any, **_kwargs: Any) -> None:
+        _legacy_step5d_removed()
+
+
+Step5dAutotuneMailboxError = LegacyStep5dBridgeRemoved
+decode_execution_profile_id = _legacy_step5d_removed
+verify_step5d_binding = _legacy_step5d_removed
+verify_step5d_live_bridge_authorization = _legacy_step5d_removed
+verify_v31_evidence_freeze = _legacy_step5d_removed
+verify_v32_evidence_freeze = _legacy_step5d_removed
+verify_v33_evidence_freeze = _legacy_step5d_removed
+verify_v34_evidence_freeze = _legacy_step5d_removed
+verify_v35_evidence_freeze = _legacy_step5d_removed
 
 
 STEP5_SAFE_FRAME = json.loads(
@@ -9296,6 +9313,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if key.startswith("step4e_"):
             setattr(args, f"bridge_{key.removeprefix('step4e_')}", value)
     args.bridge_profile = args.step4e_version
+    if args.bridge_profile.startswith("step5d_"):
+        raise SystemExit(
+            "Legacy Step5d TP/autotune bridge profiles were removed; use "
+            "step5d_remote_control.sh."
+        )
     if (
         args.bridge_profile in {STEP5C_DRYRUN_STAGE_ID, STEP5C_CONTACT_STAGE_ID}
         and args.step5c_joint_model is None

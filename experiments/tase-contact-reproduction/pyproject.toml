@@ -1,5 +1,5 @@
 [project]
-name = "step5d-v3-runtime"
+name = "step5d-remote-runtime"
 version = "0.0.0"
 requires-python = "==3.10.*"
 dependencies = []
@@ -13,14 +13,6 @@ control = [
   "nvidia-cuda-runtime-cu12==12.9.79",
   "pexpect==4.9.0",
   "pyyaml==6.0.3",
-]
-optimizer = [
-  "botorch==0.16.1",
-  "gpytorch==1.15.2",
-  "jsonschema==4.26.0",
-  "numpy==1.24.4",
-  "pyyaml==6.0.3",
-  "torch==2.11.0+cu128",
 ]
 test-hermetic = [
   "jsonschema==4.26.0",
@@ -38,19 +30,5 @@ analysis = [
 ]
 
 [tool.uv]
-conflicts = [
-  [
-    { group = "control" },
-    { group = "optimizer" },
-  ],
-]
 default-groups = []
 package = false
-
-[[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu128" }

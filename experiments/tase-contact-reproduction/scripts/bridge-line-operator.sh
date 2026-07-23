@@ -55,11 +55,8 @@ case "${BRIDGE_PROFILE}" in
     BRIDGE_PROFILE="step5b_v1"
     ;;
   5d|step5d|step5d-liveprep|step5d_liveprep)
-    BRIDGE_PROFILE="$(current_step5d_profile)"
-    if [[ -z "${BRIDGE_PROFILE}" ]]; then
-      echo "refusing Step5d alias: current_stage does not name a controller-readback-verified Step5d package"
-      exit 40
-    fi
+    echo "refusing: legacy Step5d bridge routes were removed; use step5d_remote_control.sh" >&2
+    exit 64
     ;;
   5c-dry|5c-dryrun|step5c-dryrun|step5c_speedj_dryrun_v1|speedj-dryrun|speedj_dryrun)
     echo "refusing Step5c dry-run alias: DLS/Jacobian mapping is quarantined after wrong XY/Z live motion"
@@ -76,8 +73,8 @@ case "${BRIDGE_PROFILE}" in
     BRIDGE_PROFILE="step6b_v2"
     ;;
 esac
-if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_autotune_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_autotune_v3" ]]; then
-  echo "refusing: generic Step5d autotune route is retired; use step5d-autotune-v3.sh bridge" >&2
+if [[ "${BRIDGE_PROFILE}" == step5d_* ]]; then
+  echo "refusing: legacy Step5d bridge routes were removed; use step5d_remote_control.sh" >&2
   exit 64
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then

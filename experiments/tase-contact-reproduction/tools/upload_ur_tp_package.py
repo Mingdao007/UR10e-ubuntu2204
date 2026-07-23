@@ -1613,20 +1613,10 @@ def controller_helper_snapshot(
 
 
 def _verified_owner_dependency(name: str) -> dict[str, str]:
-    try:
-        from step5d_autotune_v3.runtime_installation import (
-            RuntimeInstallationError,
-            owner_dependency,
-        )
-    except ImportError as exc:
-        die(f"controller owner dependency gate is unavailable: {exc}")
-    try:
-        return owner_dependency(name)
-    except RuntimeInstallationError as exc:
-        die(
-            "controller owner dependency gate failed: "
-            f"{exc.reason_code}: {exc.detail}"
-        )
+    die(
+        "runtime-attested TP delivery was removed with the legacy Step5d "
+        f"TP/autotune route; unavailable owner dependency: {name}"
+    )
 
 
 def resolve_live_controller_helper(
