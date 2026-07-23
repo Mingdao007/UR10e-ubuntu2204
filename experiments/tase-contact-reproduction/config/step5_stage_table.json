@@ -11164,6 +11164,33 @@
       "stage": "Step5d",
       "strict_rnn": true,
       "success_condition": "V3 remains the unique selected route; failures fail closed as V3 and never fall back to V1."
+    },
+    {
+      "active": false,
+      "amplitude_m": 0.015,
+      "archived": false,
+      "block_reason": "Inactive offline remote-prep candidate. No live bridge, no TP Play, and no robot command authority are enabled.",
+      "blocked": true,
+      "bridge": false,
+      "contact": false,
+      "duration_s": 60,
+      "frame": "config/step5_safe_frame.json",
+      "id": "step5d_strict_rnn_autotune_v3_remote_prep_v2",
+      "joint_space": true,
+      "owner": "ROS2 offline",
+      "shape": "cycloid",
+      "stage": "Step5d",
+      "strict_rnn": true,
+      "success_condition": "Offline-only remote preparation candidate for strict-RNN Step5d V3. Inactive; transport=ros2_control_watchdog_velocity_v1, offline_build_only=true, live_authorized=false.",
+      "source_binding": {
+        "transport_id": "ros2_control_watchdog_velocity_v1",
+        "offline_build_only": true,
+        "live_authorized": false
+      },
+      "current_binding": {
+        "is_current": false,
+        "live_authorized": false
+      }
     }
   ],
   "startup_gate_profiles": {
