@@ -2567,14 +2567,10 @@ def _validate_synthetic_delivery_observation(
         endpoint_content_sha256, "qualification endpoint content"
     )
     try:
-        checked_at = datetime.fromisoformat(
-            str(value.get("fresh_controller_checked_at"))
-        )
         observed = validate_delivery_observation(
             root,
             value,
             release=release,
-            now=checked_at,
         )
     except (DeliveryObservationError, TypeError, ValueError) as exc:
         raise QualificationError(
