@@ -1244,7 +1244,13 @@ def _v3_overlay_for_candidate(
 def run(args: argparse.Namespace) -> int:
     runtime_environment_guard: RuntimeEnvironmentBindingGuard | None = None
     if args.v3_runtime_root is not None:
-        runtime_pointer = require_runtime_profile("optimizer")
+        # The canonical supervisor completed the full runtime gate before it
+        # spawned this child. Reuse that immutable attestation at startup; the
+        # guard below still performs the byte-level integrity recheck before
+        # every ARM command.
+        runtime_pointer = require_runtime_profile(
+            "optimizer", full_integrity=False
+        )
         runtime_environment_guard = RuntimeEnvironmentBindingGuard.full(
             runtime_pointer=runtime_pointer
         )

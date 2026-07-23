@@ -879,7 +879,11 @@ def main(argv: list[str] | None = None) -> int:
         print("refusing: STEP5D_V3_RUNTIME_TICKET is required", file=sys.stderr)
         return 24
     try:
-        require_runtime_profile("control")
+        # The canonical supervisor completed the full runtime gate immediately
+        # before spawning this ticket-bound child. Revalidate its immutable
+        # pointer/attestation and exact interpreter binding without repeating
+        # the multi-gigabyte profile-tree hash inside the readiness window.
+        require_runtime_profile("control", full_integrity=False)
         release = load_runtime_release(ROOT)
         ticket = _strict_ticket(
             Path(ticket_text),
