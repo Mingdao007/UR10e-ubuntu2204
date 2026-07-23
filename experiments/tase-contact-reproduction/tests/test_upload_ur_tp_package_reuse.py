@@ -656,6 +656,61 @@ class UploadUrTpPackageReuseTest(unittest.TestCase):
                 "print('replaced')\n",
             )
 
+    def test_readback_only_existing_never_calls_deploy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            files = self._write_triplet(root, "demo_program", "same")
+            helper = root / "controller-helper.py"
+            helper.write_text("print('helper')\n", encoding="utf-8")
+            digest = upload.sha256(helper)
+            local_sha = upload.package_sha(files)
+            operations: list[str] = []
+
+            def fake_helper_call(command, *, dry_run, capture=False):
+                self.assertFalse(dry_run)
+                self.assertTrue(capture)
+                operation = command[2]
+                operations.append(operation)
+                self.assertEqual(operation, "readback")
+                output_dir = Path(command[command.index("--output-dir") + 1])
+                output_dir.mkdir(parents=True)
+                for source in files.values():
+                    (output_dir / source.name).write_bytes(source.read_bytes())
+                return json.dumps(
+                    {
+                        "ok": True,
+                        "operation": "readback",
+                        "files": [
+                            {
+                                "filename": files[ext].name,
+                                "sha256": local_sha[ext],
+                            }
+                            for ext in upload.EXTENSIONS
+                        ],
+                    }
+                ) + "\n"
+
+            with patch.object(upload, "run", side_effect=fake_helper_call):
+                result = upload.readback_only_existing(
+                    files,
+                    "demo_program",
+                    upload.DEFAULT_CONTROLLER,
+                    "/programs/andyl/kunwei/demo",
+                    root / "readback",
+                    helper=helper,
+                    helper_sha256=digest,
+                )
+
+            self.assertEqual(operations, ["readback"])
+            self.assertEqual(
+                result,
+                {
+                    "local": local_sha,
+                    "controller": local_sha,
+                    "readback": local_sha,
+                },
+            )
+
     def test_upload_derives_step5d_p0_target_from_table_without_target_dir(self) -> None:
         out = io.StringIO()
 

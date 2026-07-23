@@ -437,7 +437,11 @@ def validate_delivery(
     if any(
         (
             manifest.get("status") != "controller read-back verified",
-            manifest.get("delivery_mode") != "full_upload_readback",
+            manifest.get("delivery_mode")
+            not in {
+                "full_upload_readback",
+                "existing_program_fresh_readback",
+            },
             manifest.get("readback_source") != "fresh_controller_get",
             manifest.get("fresh_controller_sha_verified") is not True,
             manifest.get("target_dir") != TARGET_DIR,

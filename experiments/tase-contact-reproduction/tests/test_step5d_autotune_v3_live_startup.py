@@ -529,6 +529,20 @@ def test_canonical_shell_reuses_existing_qualification_and_delivery() -> None:
     assert '--delivery-observation "${delivery_observation}"' in production
 
 
+def test_source_rebind_runs_one_qualification_and_readback_only_transaction() -> None:
+    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+    start = source.index("if (( source_rebind == 1 )); then")
+    end = source.index("bridge_begin_phase route_resolve", start)
+    recovery = source[start:end]
+
+    assert recovery.count("run_step5d_autotune_v3_qualification.py") == 1
+    assert recovery.count("run_step5d_autotune_v3_tp_transaction.py") == 1
+    assert "--readback-only-existing" in recovery
+    assert "build_step5d_autotune_tp_v3.py" not in recovery
+    assert "--force-upload-readback" not in recovery
+    assert "ensure_exact_loaded_program" not in recovery
+
+
 def test_canonical_shell_records_only_direct_live_phases() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
@@ -837,6 +851,10 @@ def _run_shell_argv_gate(
         (["bridge", "--output-root="], "requires a value"),
         (["bridge", "--campaign-root", ""], "requires a value"),
         (["bridge-live"], "--delivery-observation is required"),
+        (
+            ["bridge", "--source-rebind"],
+            "--source-rebind is supported only by bridge-live",
+        ),
         (["bridge", "--prepare-only"], "internal worker option"),
         (
             ["bridge", "--qualification-endpoints=/tmp/endpoints.json"],

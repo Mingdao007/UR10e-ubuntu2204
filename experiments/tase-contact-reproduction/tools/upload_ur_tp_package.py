@@ -264,7 +264,11 @@ def promote_local_candidate_marker_after_readback(
             "controller_readback_manifest": manifest_ref,
             "delivery_mode": delivery_mode,
             "safety_boundary": [
-                "controller package upload and fresh read-back only",
+                (
+                    "existing controller package fresh read-back only"
+                    if delivery_mode == "existing_program_fresh_readback"
+                    else "controller package upload and fresh read-back only"
+                ),
                 "not current_stage",
                 "no live bridge or TP Play performed by delivery",
             ],
@@ -2084,6 +2088,86 @@ def upload_and_readback(
     return {"local": local_sha, "controller": controller_sha_by_ext, "readback": readback_sha}
 
 
+def readback_only_existing(
+    files: dict[str, Path],
+    program: str,
+    controller: str,
+    target_dir: str,
+    readback_dir: Path,
+    *,
+    helper: Path,
+    helper_sha256: str | None,
+) -> dict[str, dict[str, str]]:
+    """Fetch and verify an already-present exact triplet without deploying it."""
+
+    if controller != DEFAULT_CONTROLLER:
+        die(f"{Path(__file__).name} uses the bench helper for {DEFAULT_CONTROLLER}; got {controller!r}")
+    if helper_sha256 is None:
+        die("controller helper SHA-256 is required")
+
+    local_sha = package_sha(files)
+    manifest = {
+        "schema_version": 1,
+        "basename": program,
+        "controller_directory": target_dir,
+        "artifacts": [
+            {
+                "filename": files[ext].name,
+                "source": str(files[ext].resolve()),
+                "sha256": local_sha[ext],
+            }
+            for ext in EXTENSIONS
+        ],
+    }
+    with tempfile.TemporaryDirectory(prefix="ur10e-tp-readback-") as tmp:
+        manifest_path = Path(tmp) / "readback-manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        with controller_helper_snapshot(helper, helper_sha256) as snapshot:
+            readback_output = run(
+                helper_cmd(
+                    snapshot,
+                    "readback",
+                    "--manifest",
+                    str(manifest_path),
+                    "--output-dir",
+                    str(readback_dir),
+                    expected_sha256=helper_sha256,
+                ),
+                dry_run=False,
+                capture=True,
+            )
+        readback_result = json.loads(readback_output.strip().splitlines()[-1])
+        if (
+            readback_result.get("ok") is not True
+            or readback_result.get("operation") != "readback"
+        ):
+            die("controller helper did not verify fetched-back existing triplet")
+
+    readback_sha = {ext: sha256(readback_dir / path.name) for ext, path in files.items()}
+    controller_sha_by_name = {
+        item["filename"]: item["sha256"]
+        for item in readback_result.get("files", [])
+        if isinstance(item, dict)
+        and isinstance(item.get("filename"), str)
+        and isinstance(item.get("sha256"), str)
+    }
+    controller_sha_by_ext = {
+        ext: controller_sha_by_name.get(files[ext].name, "") for ext in EXTENSIONS
+    }
+    if not (
+        local_sha == controller_sha_by_ext == readback_sha
+    ):
+        die("existing local/controller/readback triplet SHA closure differs")
+    return {
+        "local": local_sha,
+        "controller": controller_sha_by_ext,
+        "readback": readback_sha,
+    }
+
+
 def write_manifest(
     readback_dir: Path,
     *,
@@ -2230,8 +2314,19 @@ def _main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="development-only optimization; controller_verified promotion still requires fresh put/get",
     )
+    parser.add_argument(
+        "--readback-only-existing",
+        action="store_true",
+        help="freshly GET and verify an already-present exact triplet without deploy/upload",
+    )
     args = parser.parse_args(argv)
 
+    if args.readback_only_existing and (
+        args.force_upload_readback or args.allow_readback_reuse or args.dry_run
+    ):
+        die(
+            "--readback-only-existing cannot be combined with upload, reuse, or dry-run modes"
+        )
     if (args.upload_transaction_id is None) != (args.manifest_path_output is None):
         die("--upload-transaction-id and --manifest-path-output must be supplied together")
     if args.dry_run and args.manifest_path_output is not None:
@@ -2310,7 +2405,11 @@ def _main(argv: list[str] | None = None) -> int:
     print(f"Read-back directory: {readback_dir}")
 
     reused_from_manifest: Path | None = None
-    delivery_mode = "full_upload_readback"
+    delivery_mode = (
+        "existing_program_fresh_readback"
+        if args.readback_only_existing
+        else "full_upload_readback"
+    )
     readback_source = "fresh_controller_get"
     reuse_result = None
     if args.allow_readback_reuse and not args.dry_run and not args.force_upload_readback:
@@ -2330,6 +2429,16 @@ def _main(argv: list[str] | None = None) -> int:
         delivery_mode = "content_addressed_reuse"
         readback_source = "prior_full_readback"
         print(f"Reused verified read-back bytes from: {reused_from_manifest}")
+    elif args.readback_only_existing:
+        shas = readback_only_existing(
+            files,
+            program,
+            args.controller,
+            target_dir,
+            readback_dir,
+            helper=helper,
+            helper_sha256=helper_sha256,
+        )
     else:
         shas = upload_and_readback(
             files,
