@@ -7,14 +7,18 @@ REPOSITORY_ROOT="$(cd -- "${EXPERIMENT_ROOT}/../.." && pwd)"
 
 bridge_usage() {
   cat <<'EOF'
-Usage: step5d-autotune-v3.sh bridge [OPTIONS]
+Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
 
-Canonical governed Step5d bridge launcher. Qualification, TP delivery,
-preflight, and campaign preparation are automatic.
+Canonical governed Step5d live bridge launcher. Reuses existing qualification
+and TP delivery evidence; campaign preparation and preflight are automatic.
 
 Options:
   --output-root PATH       Per-run evidence directory
   --campaign-root PATH     Campaign state directory
+  --delivery-observation PATH
+                           Existing governed TP delivery observation
+  --source-rebind          Qualify current r012 source once, fresh GET the
+                           existing triplet, and promote without upload or Load
   --launch-profile PATH    Compatibility-only canonical profile path
   --ready-timeout-s SEC    Positive bridge/runner readiness timeout
   --play-timeout-s SEC     Positive TP Play observation timeout
@@ -24,12 +28,13 @@ EOF
 
 usage() {
   cat <<'EOF'
-Usage: step5d-autotune-v3.sh bridge [OPTIONS]
+Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
+       step5d-autotune-v3.sh bridge [OPTIONS]
        step5d-autotune-v3.sh status [--json]
        step5d-autotune-v3.sh status --json --assert-state STATE
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
 
-Use "step5d-autotune-v3.sh bridge --help" for bridge options.
+Use "step5d-autotune-v3.sh bridge-live --help" for bridge options.
 EOF
 }
 
@@ -208,9 +213,12 @@ bridge_cancel_trap() {
 }
 
 bridge_mode=0
+bridge_live_mode=0
 arguments=()
 output_root=""
 campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
+delivery_observation=""
+source_rebind=0
 canonical_launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
 runner_args=()
 ready_timeout_s="20"
@@ -234,8 +242,11 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
-if [[ "${1:-}" == "bridge" ]]; then
+if [[ "${1:-}" == "bridge" || "${1:-}" == "bridge-live" ]]; then
   bridge_mode=1
+  if [[ "${1}" == "bridge-live" ]]; then
+    bridge_live_mode=1
+  fi
   shift
   arguments=("$@")
   for option in "${arguments[@]}"; do
@@ -247,6 +258,8 @@ if [[ "${1:-}" == "bridge" ]]; then
 
   seen_output_root=0
   seen_campaign_root=0
+  seen_delivery_observation=0
+  seen_source_rebind=0
   seen_launch_profile=0
   seen_ready_timeout=0
   seen_play_timeout=0
@@ -256,21 +269,25 @@ if [[ "${1:-}" == "bridge" ]]; then
     option_name="${option%%=*}"
     value=""
     case "${option}" in
-      --output-root|--campaign-root|--launch-profile|--ready-timeout-s|--play-timeout-s)
+      --output-root|--campaign-root|--delivery-observation|--launch-profile|--ready-timeout-s|--play-timeout-s)
         if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
           bridge_argv_error "${option} requires a value"
         fi
         value="${arguments[index + 1]}"
         ((index += 2))
         ;;
-      --output-root=*|--campaign-root=*|--launch-profile=*|--ready-timeout-s=*|--play-timeout-s=*)
+      --output-root=*|--campaign-root=*|--delivery-observation=*|--launch-profile=*|--ready-timeout-s=*|--play-timeout-s=*)
         value="${option#*=}"
         if [[ -z "${value}" ]]; then
           bridge_argv_error "${option_name} requires a value"
         fi
         ((index += 1))
         ;;
-      --preflight|--preflight=*|--delivery-observation|--delivery-observation=*|--prepare-only|--prepare-only=*|--qualification-endpoints|--qualification-endpoints=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--arm-gate|--arm-gate=*|--offline-release-gate|--offline-release-gate=*)
+      --source-rebind)
+        value="true"
+        ((index += 1))
+        ;;
+      --preflight|--preflight=*|--prepare-only|--prepare-only=*|--qualification-endpoints|--qualification-endpoints=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--arm-gate|--arm-gate=*|--offline-release-gate|--offline-release-gate=*)
         bridge_argv_error "${option_name} is an internal worker option"
         ;;
       *)
@@ -291,6 +308,16 @@ if [[ "${1:-}" == "bridge" ]]; then
         (( seen_campaign_root == 0 )) || bridge_argv_error "--campaign-root may appear only once"
         seen_campaign_root=1
         campaign_root="${value}"
+        ;;
+      --delivery-observation)
+        (( seen_delivery_observation == 0 )) || bridge_argv_error "--delivery-observation may appear only once"
+        seen_delivery_observation=1
+        delivery_observation="$(readlink -m -- "${value}")"
+        ;;
+      --source-rebind)
+        (( seen_source_rebind == 0 )) || bridge_argv_error "--source-rebind may appear only once"
+        seen_source_rebind=1
+        source_rebind=1
         ;;
       --launch-profile)
         (( seen_launch_profile == 0 )) || bridge_argv_error "--launch-profile may appear only once"
@@ -315,6 +342,17 @@ if [[ "${1:-}" == "bridge" ]]; then
         ;;
     esac
   done
+  if (( bridge_live_mode == 1 )) \
+    && [[ -z "${delivery_observation}" ]] \
+    && (( source_rebind == 0 )) \
+    && [[ -z "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]] \
+    && [[ -z "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]
+  then
+    bridge_argv_error "--delivery-observation is required"
+  fi
+  if (( source_rebind == 1 && bridge_live_mode == 0 )); then
+    bridge_argv_error "--source-rebind is supported only by bridge-live"
+  fi
 fi
 
 if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
@@ -497,6 +535,30 @@ if (( bridge_mode == 1 )); then
       exit 66
     fi
   else
+    if (( source_rebind == 1 )); then
+      bridge_begin_phase source_rebind_candidate
+      source_rebind_candidate="${output_root}/source-rebind-candidate.json"
+      "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py" \
+        --root "${EXPERIMENT_ROOT}" \
+        --artifact-dir "${EXPERIMENT_ROOT}/programs/step5/step5d" \
+        --stage-local-candidate >"${source_rebind_candidate}"
+      bridge_begin_phase source_rebind_qualification
+      source_rebind_qualification="${output_root}/source-rebind-qualification.json"
+      "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
+        --experiment-root "${EXPERIMENT_ROOT}" \
+        --output-root "${campaign_root}" \
+        --release-candidate "${source_rebind_candidate}" \
+        >"${source_rebind_qualification}"
+      bridge_begin_phase source_rebind_readback
+      delivery_observation="${output_root}/delivery-observation.json"
+      "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
+        --root "${EXPERIMENT_ROOT}" \
+        --artifact-dir "${EXPERIMENT_ROOT}/programs/step5/step5d" \
+        --release-candidate "${source_rebind_candidate}" \
+        --qualification-result "${source_rebind_qualification}" \
+        --evidence-output "${delivery_observation}" \
+        --readback-only-existing >"${output_root}/source-rebind-transaction.json"
+    fi
     bridge_begin_phase route_resolve
   fi
   route_snapshot="${output_root}/route-snapshot.json"
@@ -689,46 +751,10 @@ if (( bridge_mode == 1 )); then
     bridge_revoke_authority completed
     exit 0
   fi
-  bridge_begin_phase status_before
-  "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli \
-    --experiment-root "${EXPERIMENT_ROOT}" \
-    --campaign-root "${campaign_root}" \
-    status --json >"${output_root}/status-before.json"
-  delivery_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/delivery-$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  bridge_begin_phase tp_build
-  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/build_step5d_autotune_tp_v3.py" \
-    --output-dir "${delivery_root}" \
-    >"${output_root}/tp-build.json"
-  bridge_begin_phase release_candidate
-  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py" \
-    --root "${EXPERIMENT_ROOT}" \
-    --artifact-dir "${delivery_root}" \
-    --stage-local-candidate \
-    >"${output_root}/local-release-candidate.json"
-  bridge_begin_phase qualification
-  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
-    --experiment-root "${EXPERIMENT_ROOT}" \
-    --output-root "${campaign_root}" \
-    --release-candidate "${output_root}/local-release-candidate.json" \
-    >"${output_root}/qualification.json"
-  bridge_begin_phase tp_delivery
-  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
-    --root "${EXPERIMENT_ROOT}" \
-    --artifact-dir "${delivery_root}" \
-    --release-candidate "${output_root}/local-release-candidate.json" \
-    --qualification-result "${output_root}/qualification.json" \
-    --evidence-output "${output_root}/delivery-observation.json" \
-    >"${output_root}/tp-transaction.log"
-  launch_manifest_sha256="$(
-    "${CONTROL_PYTHON}" -c \
-      'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["release_manifest_sha256"])' \
-      "${output_root}/delivery-observation.json"
-  )"
-  bridge_begin_phase status_after_delivery
-  "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli \
-    --experiment-root "${EXPERIMENT_ROOT}" \
-    --campaign-root "${campaign_root}" \
-    status --json >"${output_root}/status-after-delivery.json"
+  if [[ -z "${delivery_observation}" ]]; then
+    bridge_runtime_fail 64 DELIVERY_OBSERVATION_REQUIRED \
+      "V3 bridge requires --delivery-observation from an existing governed TP delivery"
+  fi
   bridge_begin_phase campaign_prepare
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     --prepare-only \
@@ -740,7 +766,7 @@ if (( bridge_mode == 1 )); then
   bridge_begin_phase preflight
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/preflight_step5d_autotune_v3.py" \
     --mailbox "${output_root}/runtime/command.json" \
-    --delivery-observation "${output_root}/delivery-observation.json" \
+    --delivery-observation "${delivery_observation}" \
     --output "${preflight}" \
     --json
   bridge_begin_phase live_handoff
@@ -748,7 +774,7 @@ if (( bridge_mode == 1 )); then
     "${runner_args[@]}" --output-root "${output_root}" \
     --canonical-owner-pid "$$" \
     --canonical-owner-starttime "${launch_owner_starttime}" \
-    --delivery-observation "${output_root}/delivery-observation.json" \
+    --delivery-observation "${delivery_observation}" \
     --campaign-root "${campaign_root}" \
     --preflight "${preflight}"
   bridge_finish_phase

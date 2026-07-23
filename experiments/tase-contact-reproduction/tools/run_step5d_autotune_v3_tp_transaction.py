@@ -1,5 +1,5 @@
 #!/usr/bin/python3.10
-"""Run one manifest-bound TP upload/fresh-GET/atomic-promotion transaction."""
+"""Run one manifest-bound TP delivery/readback/atomic-promotion transaction."""
 
 from __future__ import annotations
 
@@ -274,6 +274,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--release-candidate", type=Path)
     parser.add_argument("--qualification-result", type=Path)
     parser.add_argument("--evidence-output", type=Path)
+    parser.add_argument(
+        "--readback-only-existing",
+        action="store_true",
+        help="freshly GET the existing exact triplet; do not upload or Load",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     root = args.root.resolve(strict=True)
@@ -295,9 +300,15 @@ def main(argv: list[str] | None = None) -> int:
         "--target-dir", promote.TARGET_DIR,
         "--override-table",
         "--override-reason",
-        f"manifest-driven {program_id} upload, fresh GET, and atomic promotion",
+        (
+            f"manifest-driven existing {program_id} fresh GET and atomic promotion"
+            if args.readback_only_existing
+            else f"manifest-driven {program_id} upload, fresh GET, and atomic promotion"
+        ),
     ]
     if args.dry_run:
+        if args.readback_only_existing:
+            raise RuntimeError("--readback-only-existing does not support dry-run")
         return upload._main([*upload_args, "--dry-run"])
     if args.evidence_output is None:
         raise RuntimeError("--evidence-output is required for a live delivery transaction")
@@ -334,6 +345,19 @@ def main(argv: list[str] | None = None) -> int:
         )
     except (QualificationError, ReleaseIdentityError, StateError) as exc:
         raise RuntimeError(f"candidate qualification gate failed: {exc}") from exc
+    if args.readback_only_existing:
+        existing_release = load_current_release(root)
+        if (
+            candidate_release.program_id != existing_release.program_id
+            or candidate_release.controller_target != existing_release.controller_target
+            or dict(candidate_release.artifact_sha256)
+            != dict(existing_release.artifact_sha256)
+            or dict(candidate_release.tp_runtime_identity)
+            != dict(existing_release.tp_runtime_identity)
+        ):
+            raise RuntimeError(
+                "readback-only candidate changed program, target, TP identity, or triplet SHA"
+            )
     try:
         controller_helper = owner_dependency("controller_helper")
     except RuntimeInstallationError as exc:
@@ -356,7 +380,11 @@ def main(argv: list[str] | None = None) -> int:
             rc = upload._main(
                 [
                     *upload_args,
-                    "--force-upload-readback",
+                    (
+                        "--readback-only-existing"
+                        if args.readback_only_existing
+                        else "--force-upload-readback"
+                    ),
                     "--upload-transaction-id", transaction_id,
                     "--manifest-path-output", str(result_path),
                 ]
@@ -392,14 +420,15 @@ def main(argv: list[str] | None = None) -> int:
                 or release.program_id != program_id
             ):
                 raise RuntimeError("promoted release pointer identity differs")
-            load_rc, program_load = _load_release_program(
-                root,
-                release,
-                program_load_evidence,
-            )
-            if load_rc != 0:
-                print(json.dumps(program_load, sort_keys=True), file=sys.stderr)
-                return load_rc
+            if not args.readback_only_existing:
+                load_rc, program_load = _load_release_program(
+                    root,
+                    release,
+                    program_load_evidence,
+                )
+                if load_rc != 0:
+                    print(json.dumps(program_load, sort_keys=True), file=sys.stderr)
+                    return load_rc
             observation = build_delivery_observation(
                 root,
                 receipt_path=manifest,
@@ -414,7 +443,11 @@ def main(argv: list[str] | None = None) -> int:
                         "ok": True,
                         "release_manifest_sha256": promotion["manifest_sha256"],
                         "delivery_observation": str(evidence_output),
-                        "program_load_observation": str(program_load_evidence),
+                        "program_load_observation": (
+                            None
+                            if args.readback_only_existing
+                            else str(program_load_evidence)
+                        ),
                     },
                     sort_keys=True,
                 )

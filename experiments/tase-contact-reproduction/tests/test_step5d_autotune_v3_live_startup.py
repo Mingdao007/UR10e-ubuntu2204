@@ -518,33 +518,35 @@ def test_production_play_prompt_fails_closed_when_claim_is_rejected(
     assert not (tmp_path / "readiness-claim.json").exists()
 
 
-def test_canonical_shell_qualifies_candidate_before_controller_delivery() -> None:
+def test_canonical_shell_reuses_existing_qualification_and_delivery() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
-    build = source.index("tools/build_step5d_autotune_tp_v3.py")
-    stage = source.index("tools/promote_step5d_r009_atomic_release.py", build)
-    qualify = source.index("tools/run_step5d_autotune_v3_qualification.py", stage)
-    deliver = source.index("tools/run_step5d_autotune_v3_tp_transaction.py", qualify)
-    rebind_manifest = source.index(
-        'json.load(open(sys.argv[1], encoding="utf-8"))["release_manifest_sha256"]',
-        deliver,
-    )
-    prepare = source.index("--prepare-only", deliver)
+    production = source[source.index('if [[ "${bridge_route}" == "manual_v2" ]]') :]
 
-    assert build < stage < qualify < deliver < rebind_manifest < prepare
-    assert '--release-candidate "${output_root}/local-release-candidate.json"' in source
-    assert '--qualification-result "${output_root}/qualification.json"' in source
+    assert "tools/build_step5d_autotune_tp_v3.py" not in production
+    assert "tools/promote_step5d_r009_atomic_release.py" not in production
+    assert "tools/run_step5d_autotune_v3_qualification.py" not in production
+    assert "tools/run_step5d_autotune_v3_tp_transaction.py" not in production
+    assert '--delivery-observation "${delivery_observation}"' in production
 
 
-def test_canonical_shell_records_each_pre_live_phase_without_a_second_entrypoint() -> None:
+def test_source_rebind_runs_one_qualification_and_readback_only_transaction() -> None:
+    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+    start = source.index("if (( source_rebind == 1 )); then")
+    end = source.index("bridge_begin_phase route_resolve", start)
+    recovery = source[start:end]
+
+    assert recovery.count("run_step5d_autotune_v3_qualification.py") == 1
+    assert recovery.count("run_step5d_autotune_v3_tp_transaction.py") == 1
+    assert "--readback-only-existing" in recovery
+    assert "build_step5d_autotune_tp_v3.py" not in recovery
+    assert "--force-upload-readback" not in recovery
+    assert "ensure_exact_loaded_program" not in recovery
+
+
+def test_canonical_shell_records_only_direct_live_phases() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     for phase in (
-        "status_before",
-        "tp_build",
-        "release_candidate",
-        "qualification",
-        "tp_delivery",
-        "status_after_delivery",
         "campaign_prepare",
         "preflight",
         "live_handoff",
@@ -569,7 +571,7 @@ def test_canonical_shell_records_each_pre_live_phase_without_a_second_entrypoint
 def _fake_governed_shell(
     tmp_path: Path,
     *,
-    fail_status: bool,
+    fail_prepare: bool,
 ) -> tuple[Path, Path, dict[str, str]]:
     repository = tmp_path / "repository"
     experiment = repository / "experiments/fake"
@@ -638,8 +640,8 @@ def _fake_governed_shell(
         "printf '\\n' >>\"${STEP5D_TEST_COMMAND_LOG:?}\"\n"
         "if [[ \"${1:-}\" == '-c' ]]; then printf '%032d\\n' 0; exit 0; fi\n"
         + (
-            "if [[ \" $* \" == *' status --json '* ]]; then exit 41; fi\n"
-            if fail_status
+            "if [[ \" $* \" == *' --prepare-only '* ]]; then exit 41; fi\n"
+            if fail_prepare
             else ""
         )
         + "printf '{}\\n'\n",
@@ -675,7 +677,7 @@ def test_shell_runtime_gate_failure_is_recorded_before_runtime_resolution(
 ) -> None:
     shell, _command_log, environment = _fake_governed_shell(
         tmp_path,
-        fail_status=False,
+        fail_prepare=False,
     )
     environment["STEP5D_TEST_RUNTIME_RESOLVER_FAIL"] = "1"
     output = tmp_path / "output"
@@ -687,6 +689,8 @@ def test_shell_runtime_gate_failure_is_recorded_before_runtime_resolution(
             str(output),
             "--campaign-root",
             str(tmp_path / "campaign"),
+            "--delivery-observation",
+            str(shell),
         ],
         cwd=shell.parent.parent,
         env=environment,
@@ -718,7 +722,7 @@ def test_shell_runtime_gate_failure_is_recorded_before_runtime_resolution(
 def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> None:
     shell, command_log, environment = _fake_governed_shell(
         tmp_path,
-        fail_status=True,
+        fail_prepare=True,
     )
     experiment = shell.parent.parent
     output = tmp_path / "output"
@@ -731,6 +735,8 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
             str(output),
             "--campaign-root",
             str(campaign),
+            "--delivery-observation",
+            str(shell),
         ],
         cwd=experiment,
         env=environment,
@@ -747,18 +753,18 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
         line
         for line in commands
         if "_launch-attempt-state STARTED" in line
-        and "_launch-attempt-phase status_before" in line
+        and "_launch-attempt-phase campaign_prepare" in line
     )
     failed = next(
         line
         for line in commands
         if "_launch-attempt-state FAILED" in line
-        and "_launch-attempt-phase status_before" in line
+        and "_launch-attempt-phase campaign_prepare" in line
     )
-    assert "_launch-attempt-phase status_before" in started
-    assert "_launch-attempt-phase status_before" in failed
+    assert "_launch-attempt-phase campaign_prepare" in started
+    assert "_launch-attempt-phase campaign_prepare" in failed
     assert "_launch-attempt-exit-code 41" in failed
-    assert not any("build_step5d_autotune_tp_v3.py" in line for line in commands)
+    assert not any("preflight_step5d_autotune_v3.py" in line for line in commands)
 
 
 def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
@@ -766,7 +772,7 @@ def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
 ) -> None:
     shell, command_log, environment = _fake_governed_shell(
         tmp_path,
-        fail_status=False,
+        fail_prepare=False,
     )
     result = subprocess.run(
         [
@@ -776,6 +782,8 @@ def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
             str(tmp_path / "output"),
             "--campaign-root",
             str(tmp_path / "campaign"),
+            "--delivery-observation",
+            str(shell),
         ],
         cwd=shell.parent.parent,
         env=environment,
@@ -842,6 +850,11 @@ def _run_shell_argv_gate(
         ),
         (["bridge", "--output-root="], "requires a value"),
         (["bridge", "--campaign-root", ""], "requires a value"),
+        (["bridge-live"], "--delivery-observation is required"),
+        (
+            ["bridge", "--source-rebind"],
+            "--source-rebind is supported only by bridge-live",
+        ),
         (["bridge", "--prepare-only"], "internal worker option"),
         (
             ["bridge", "--qualification-endpoints=/tmp/endpoints.json"],
@@ -891,6 +904,7 @@ def test_bridge_invalid_argv_cannot_create_requested_output_root(tmp_path: Path)
     [
         ["--help"],
         ["bridge", "--help"],
+        ["bridge-live", "--help"],
         ["bridge", "--unknown", "--help"],
     ],
 )

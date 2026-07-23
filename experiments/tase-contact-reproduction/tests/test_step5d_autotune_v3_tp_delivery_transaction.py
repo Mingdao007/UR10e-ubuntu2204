@@ -35,6 +35,7 @@ def _write_receipt(
     checked_at: str,
     stamp: str,
     controller: str = "root@192.168.1.18",
+    delivery_mode: str = "full_upload_readback",
 ) -> Path:
     readback = root / "runs" / f"controller_readback_{promotion.PROGRAM}_{suffix}"
     readback.mkdir(parents=True)
@@ -62,7 +63,7 @@ def _write_receipt(
         "sha256": {
             role: dict(hashes) for role in ("local", "controller", "readback")
         },
-        "delivery_mode": "full_upload_readback",
+        "delivery_mode": delivery_mode,
         "fresh_controller_sha_verified": True,
         "fresh_controller_checked_at": checked_at,
         "readback_source": "fresh_controller_get",
@@ -161,6 +162,66 @@ def test_delivery_manifest_drives_only_exact_fresh_triplet(tmp_path: Path) -> No
     manifest.write_text(json.dumps(payload) + "\n", encoding="utf-8")
     with pytest.raises(promotion.R009PromotionError, match="SHA closure"):
         promotion.validate_delivery(root, manifest, artifact_dir)
+
+
+def test_existing_program_fresh_readback_is_promotion_and_observation_eligible(
+    tmp_path: Path,
+) -> None:
+    root, receipt = _fixture_manifest(tmp_path)
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    payload["delivery_mode"] = "existing_program_fresh_readback"
+    now = datetime(2026, 7, 21, 3, 1, tzinfo=timezone.utc)
+    payload["fresh_controller_checked_at"] = now.isoformat()
+    receipt.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    validated, hashes = promotion.validate_delivery(
+        root,
+        receipt,
+        root / promotion.PACKAGE_DIR,
+        expected_transaction_id="a" * 32,
+        expected_manifest_sha256=hashlib.sha256(receipt.read_bytes()).hexdigest(),
+    )
+    assert validated["delivery_mode"] == "existing_program_fresh_readback"
+    release = _release_for_receipt(receipt)
+    observation = build_delivery_observation(
+        root,
+        receipt_path=receipt,
+        receipt_sha256=hashlib.sha256(receipt.read_bytes()).hexdigest(),
+        transaction_id="a" * 32,
+        release=release,
+        now=now,
+    )
+    assert observation["triplet_sha256"] == hashes
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("fresh_controller_sha_verified", False),
+        ("readback_source", "prior_full_readback"),
+        ("target_dir", "/programs/andyl/other"),
+    ],
+)
+def test_existing_program_readback_receipt_fails_closed_on_binding_drift(
+    tmp_path: Path,
+    field: str,
+    value: object,
+) -> None:
+    root, receipt = _fixture_manifest(tmp_path)
+    payload = json.loads(receipt.read_text(encoding="utf-8"))
+    payload["delivery_mode"] = "existing_program_fresh_readback"
+    payload[field] = value
+    receipt.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+
+    with pytest.raises(
+        promotion.R009PromotionError,
+        match="identity, target, or freshness",
+    ):
+        promotion.validate_delivery(
+            root,
+            receipt,
+            root / promotion.PACKAGE_DIR,
+        )
 
 
 def test_promoter_rejects_symlink_receipt_and_artifact_handoffs(
@@ -587,6 +648,202 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         "expected_manifest_sha256": hashlib.sha256(exact[0].read_bytes()).hexdigest(),
         "expected_candidate_manifest_sha256": release.manifest_sha256,
     }
+
+
+def test_readback_only_transaction_skips_upload_and_program_load(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "experiment"
+    artifact_dir = root / promotion.PACKAGE_DIR
+    artifact_dir.mkdir(parents=True)
+    builder.write_triplet(
+        artifact_dir,
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+    )
+    artifact_sha = {
+        extension: hashlib.sha256(
+            (artifact_dir / f"{promotion.PROGRAM}{extension}").read_bytes()
+        ).hexdigest()
+        for extension in promotion.EXTENSIONS
+    }
+    release = SimpleNamespace(
+        manifest_sha256="f" * 64,
+        program_id=promotion.PROGRAM,
+        controller_target=f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
+        artifact_sha256=artifact_sha,
+        tp_runtime_identity={"protocol_version": 1},
+    )
+    evidence_output = root / "runs/campaign/delivery-observation.json"
+    upload_arguments: list[str] = []
+
+    def fake_upload(arguments: list[str]) -> int:
+        upload_arguments.extend(arguments)
+        transaction_id = arguments[arguments.index("--upload-transaction-id") + 1]
+        result_path = Path(arguments[arguments.index("--manifest-path-output") + 1])
+        receipt = root / "runs/readback/manifest.json"
+        receipt.parent.mkdir(parents=True)
+        receipt.write_text(
+            json.dumps({"upload_transaction_id": transaction_id}) + "\n",
+            encoding="utf-8",
+        )
+        result_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "ur10e_upload_result_v1",
+                    "upload_transaction_id": transaction_id,
+                    "manifest_path": str(receipt),
+                    "manifest_sha256": hashlib.sha256(
+                        receipt.read_bytes()
+                    ).hexdigest(),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return 0
+
+    with (
+        mock.patch.object(transaction, "require_runtime_profile", return_value={}),
+        mock.patch.object(
+            transaction,
+            "load_gpu_functional_attestation",
+            return_value=({}, {}),
+        ),
+        mock.patch.object(
+            transaction,
+            "_validate_candidate_and_qualification",
+            return_value=release,
+        ),
+        mock.patch.object(
+            transaction,
+            "load_current_release",
+            return_value=release,
+        ),
+        mock.patch.object(transaction, "owner_dependency", return_value={
+            "path": "/verified/helper.py",
+            "sha256": "a" * 64,
+        }),
+        mock.patch.object(
+            transaction,
+            "acquire_controller_mutation_locks",
+            return_value=[object()],
+        ),
+        mock.patch.object(transaction.upload, "_main", side_effect=fake_upload),
+        mock.patch.object(
+            transaction.promote,
+            "promote",
+            return_value={"manifest_sha256": release.manifest_sha256},
+        ),
+        mock.patch.object(
+            transaction,
+            "_load_release_program",
+        ) as program_load,
+        mock.patch.object(
+            transaction,
+            "build_delivery_observation",
+            return_value={"schema": "fixture"},
+        ),
+        mock.patch.object(transaction, "atomic_json"),
+        mock.patch.object(transaction, "release_controller_mutation_locks"),
+    ):
+        assert transaction.main(
+            [
+                "--root",
+                str(root),
+                "--artifact-dir",
+                str(artifact_dir),
+                "--release-candidate",
+                str(root / "candidate.json"),
+                "--qualification-result",
+                str(root / "qualification.json"),
+                "--evidence-output",
+                str(evidence_output),
+                "--readback-only-existing",
+            ]
+        ) == 0
+
+    assert "--readback-only-existing" in upload_arguments
+    assert "--force-upload-readback" not in upload_arguments
+    program_load.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "drift",
+    ["program", "target", "triplet_sha", "tp_identity"],
+)
+def test_readback_only_transaction_rejects_identity_drift_before_lock(
+    tmp_path: Path,
+    drift: str,
+) -> None:
+    root = tmp_path / "experiment"
+    artifact_dir = root / promotion.PACKAGE_DIR
+    artifact_dir.mkdir(parents=True)
+    builder.write_triplet(
+        artifact_dir,
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+    )
+    common = {
+        "manifest_sha256": "f" * 64,
+        "program_id": promotion.PROGRAM,
+        "controller_target": f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
+        "artifact_sha256": {extension: "a" * 64 for extension in promotion.EXTENSIONS},
+    }
+    candidate_values = {**common, "tp_runtime_identity": {"protocol_version": 1}}
+    current_values = {
+        **common,
+        "artifact_sha256": dict(common["artifact_sha256"]),
+        "tp_runtime_identity": {"protocol_version": 1},
+    }
+    if drift == "program":
+        current_values["program_id"] = f"{promotion.PROGRAM}_other"
+    elif drift == "target":
+        current_values["controller_target"] = (
+            f"{promotion.TARGET_DIR}/{promotion.PROGRAM}_other.urp"
+        )
+    elif drift == "triplet_sha":
+        current_values["artifact_sha256"][".urp"] = "b" * 64
+    else:
+        current_values["tp_runtime_identity"]["protocol_version"] = 2
+    candidate = SimpleNamespace(**candidate_values)
+    current = SimpleNamespace(**current_values)
+
+    with (
+        mock.patch.object(transaction, "require_runtime_profile", return_value={}),
+        mock.patch.object(
+            transaction,
+            "load_gpu_functional_attestation",
+            return_value=({}, {}),
+        ),
+        mock.patch.object(
+            transaction,
+            "_validate_candidate_and_qualification",
+            return_value=candidate,
+        ),
+        mock.patch.object(
+            transaction,
+            "load_current_release",
+            return_value=current,
+        ),
+        mock.patch.object(transaction, "acquire_controller_mutation_locks") as lock,
+        pytest.raises(RuntimeError, match="changed program, target, TP identity"),
+    ):
+        transaction.main(
+            [
+                "--root",
+                str(root),
+                "--artifact-dir",
+                str(artifact_dir),
+                "--release-candidate",
+                str(root / "candidate.json"),
+                "--qualification-result",
+                str(root / "qualification.json"),
+                "--evidence-output",
+                str(root / "runs/campaign/delivery-observation.json"),
+                "--readback-only-existing",
+            ]
+        )
+
+    lock.assert_not_called()
 
 
 def test_program_load_failure_evidence_is_persisted_before_nonzero_return(

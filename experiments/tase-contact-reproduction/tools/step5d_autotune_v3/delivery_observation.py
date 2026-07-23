@@ -164,7 +164,11 @@ def _receipt_identity(
         or readback != release_triplet
         or validation_triplet != readback
         or receipt.get("status") != "controller read-back verified"
-        or receipt.get("delivery_mode") != "full_upload_readback"
+        or receipt.get("delivery_mode")
+        not in {
+            "full_upload_readback",
+            "existing_program_fresh_readback",
+        }
         or receipt.get("readback_source") != "fresh_controller_get"
         or receipt.get("fresh_controller_sha_verified") is not True
         or receipt.get("target_dir") != controller_target.parent.as_posix()
