@@ -312,6 +312,52 @@ def test_qualification_traverses_route_resolver_before_internal_exec() -> None:
     assert route < v3_internal
 
 
+def test_route_snapshot_parser_preserves_empty_recovery_manifest_sha(
+    tmp_path: Path,
+) -> None:
+    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+    assert r"IFS=$'\x1f' read -r bridge_route resolved_release_sha route_reason_code" in source
+    assert r'sep="\x1f"' in source
+
+    snapshot = tmp_path / "route.json"
+    snapshot.write_text(
+        json.dumps(
+            {
+                "route": "autotune_v3",
+                "manual_release_manifest_sha256": None,
+                "autotune_release_manifest_sha256": None,
+                "reason_code": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    completed = subprocess.run(
+        [
+            "bash",
+            "-c",
+            r"""
+IFS=$'\x1f' read -r bridge_route resolved_release_sha route_reason_code < <(
+  "${2}" -c \
+    'import json,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print(p["route"], p.get("manual_release_manifest_sha256") or p.get("autotune_release_manifest_sha256") or "", p.get("reason_code") or "LAUNCH_ATTEMPT_FAILED", sep="\x1f")' \
+    "${1}"
+)
+printf '%s\n%s\n%s\n' "${bridge_route}" "${resolved_release_sha}" "${route_reason_code}"
+""",
+            "bash",
+            str(snapshot),
+            sys.executable,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.stdout.splitlines() == [
+        "autotune_v3",
+        "",
+        "LAUNCH_ATTEMPT_FAILED",
+    ]
+
+
 def test_live_consumer_accepts_the_complete_production_preflight_schema(
     tmp_path: Path,
 ) -> None:
