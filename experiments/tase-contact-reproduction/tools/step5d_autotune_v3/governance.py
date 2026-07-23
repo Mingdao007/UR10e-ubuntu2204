@@ -2560,11 +2560,11 @@ def resolve_governed_status(
     proc_starttime_reader: Callable[[int], int | None] = read_proc_starttime_ticks,
     integrity_errors: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
+    observed_now = time.time_ns() if now_ns is None else now_ns
     environment, environment_reasons, environment_evidence = _environment_status(
         experiment_root
     )
     release = load_current_release_snapshot(experiment_root)
-    observed_now = time.time_ns() if now_ns is None else now_ns
     reasons: list[str] = list(environment_reasons)
     evidence: list[dict[str, Any]] = list(environment_evidence)
     for role, detail in sorted((integrity_errors or {}).items()):
