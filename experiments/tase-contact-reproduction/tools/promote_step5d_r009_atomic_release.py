@@ -1,5 +1,5 @@
 #!/usr/bin/python3.10
-"""Promote one fresh r010 GET into an immutable rolling-v1 release.
+"""Promote one fresh r011 GET into an immutable rolling-v1 release.
 
 This owner is filesystem-only.  The caller performs upload/readback first; this
 module never loads or starts a TP program, opens a bridge, sends ARM, or moves
@@ -47,11 +47,11 @@ PACKAGE_DIR = Path("programs/step5/step5d")
 EXTENSIONS = (".script", ".txt", ".urp")
 READBACK = Path("config/step5d_autotune_controller_readback_v3.json")
 RAW_READBACK = Path(
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r010/"
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r011/"
     "controller_readback.json"
 )
 LOCAL_CANDIDATE = Path(
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r010/"
+    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r011/"
     "local_candidate.json"
 )
 STATIC_PROJECTIONS = (
@@ -70,7 +70,7 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "8672ba913a185f133ca931b0d3844a59d0c34ebb1f2bc2ffe3954cb97fb44de5",
+    "config/step5d/v3_active_surface.json": "fdd0b20712ea7fbf491e9605684f0b06378a0365fbcad06b8dc36f3eba7175c2",
 }
 CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
@@ -178,7 +178,7 @@ def _render_current_stage(
             "delivery_manifest": READBACK.as_posix(),
             "local_triplet": local_triplet,
             "sha256": dict(triplet_sha256),
-            "status": "step5d_autotune_v3_r010_controller_readback_verified",
+            "status": "step5d_autotune_v3_r011_controller_readback_verified",
         }
     )
     evidence = _object(base.get("evidence"), "current-stage evidence")
@@ -857,5 +857,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except (OSError, R009PromotionError, ValueError) as exc:
-        print(f"r010 atomic promotion blocked: {exc}", file=__import__("sys").stderr)
+        print(f"r011 atomic promotion blocked: {exc}", file=__import__("sys").stderr)
         raise SystemExit(2)

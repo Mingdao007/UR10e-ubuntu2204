@@ -3,9 +3,10 @@
   "release_stage_id": "step5d_strict_rnn_autotune_v3",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "host_protocol": "v3_full_home_rolling_arm_v1",
-  "tp_program_id": "step5d_strict_rnn_autotune_v3_r010",
+  "tp_program_id": "step5d_strict_rnn_autotune_v3_r011",
   "recovery_loaded_program_ids": [
-    "step5d_strict_rnn_autotune_v3_r009"
+    "step5d_strict_rnn_autotune_v3_r009",
+    "step5d_strict_rnn_autotune_v3_r010"
   ],
   "tp_program_disposition": "immutable_identity_only_readiness_is_observed",
   "release_truth": {
@@ -146,9 +147,9 @@
     "tools/step5d_autotune_v3/state.py"
   ],
   "deployment_paths": [
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r010.script",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r010.txt",
-    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r010.urp"
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r011.script",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r011.txt",
+    "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r011.urp"
   ],
   "runtime_identity": {
     "protocol_output_integer_register": 35,
@@ -159,7 +160,8 @@
     "degraded_identity_allowed": false
   },
   "release_claims": {
-    "step5d_strict_rnn_autotune_v3_r010": "governed_identity_requires_atomic_current_manifest_and_fresh_observed_attestation",
+    "step5d_strict_rnn_autotune_v3_r011": "governed_identity_requires_atomic_current_manifest_and_fresh_observed_attestation",
+    "step5d_strict_rnn_autotune_v3_r010": "historical_superseded_with_runtime_identity_oracle",
     "step5d_strict_rnn_autotune_v3_r009": "historical_superseded_missing_runtime_identity_oracle",
     "step5d_strict_rnn_autotune_v3_r008": "historical_superseded_release",
     "step5d_strict_rnn_autotune_v3_r006": "historical_incompatible_release",

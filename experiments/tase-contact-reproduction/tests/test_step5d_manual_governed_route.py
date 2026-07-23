@@ -171,7 +171,7 @@ def test_route_blocks_every_unrecognized_loaded_program(monkeypatch) -> None:
 def test_route_selects_v3_only_for_exact_current_loaded_program(monkeypatch) -> None:
     expected = (
         "/programs/andyl/kunwei/step5/"
-        "step5d_strict_rnn_autotune_v3_r010.urp"
+        "step5d_strict_rnn_autotune_v3_r011.urp"
     )
     monkeypatch.setattr(
         route,
@@ -199,7 +199,8 @@ def test_route_selects_v3_only_for_exact_current_loaded_program(monkeypatch) -> 
 @pytest.mark.parametrize(
     ("program_id", "expected_mode"),
     (
-        ("step5d_strict_rnn_autotune_v3_r010", "active"),
+        ("step5d_strict_rnn_autotune_v3_r011", "active"),
+        ("step5d_strict_rnn_autotune_v3_r010", "recovery"),
         ("step5d_strict_rnn_autotune_v3_r009", "recovery"),
     ),
 )

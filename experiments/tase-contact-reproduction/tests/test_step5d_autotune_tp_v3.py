@@ -21,7 +21,7 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
     rendered = v3.render_script()
     v3.validate_rendered_script(rendered)
 
-    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r010"
+    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r011"
     assert "# CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1" in rendered
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
     assert "def codex_step5d_autotune_trial_v1(" in rendered
@@ -109,7 +109,7 @@ def test_r010_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None
         datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
     )
     result = v3.write_triplet(tmp_path, stamp)
-    basename = "step5d_strict_rnn_autotune_v3_r010"
+    basename = "step5d_strict_rnn_autotune_v3_r011"
 
     assert result["program"] == basename
     assert result["control_profile_id"] == "step5d_strict_rnn_autotune_v1"

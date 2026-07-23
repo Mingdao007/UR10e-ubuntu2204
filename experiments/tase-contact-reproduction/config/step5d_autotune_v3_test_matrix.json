@@ -2,7 +2,7 @@
   "schema_version": "step5d.autotune-v3/test-matrix-v3",
   "claim_boundary": "deterministic_live_entry_prerequisites",
   "authoritative_bridge_gate": {
-    "current_tp_program_id": "step5d_strict_rnn_autotune_v3_r010",
+    "current_tp_program_id": "step5d_strict_rnn_autotune_v3_r011",
     "canonical_launcher": "scripts/step5d-autotune-v3.sh bridge",
     "status_reanchor": "scripts/step5d-autotune-v3.sh status --json",
     "production_path_requirement": "canonical shell -> real supervisor -> internal bridge worker -> real mailbox lifecycle",
@@ -104,7 +104,7 @@
     },
     "active_legacy_filename_reasons": {
       "tests/test_step5d_r008_rolling_policy.py": "current rolling policy regression retained under its historical filename",
-      "tests/test_step5d_r009_release_core.py": "r010 release-manifest-v3 regression retained under its compatibility filename"
+      "tests/test_step5d_r009_release_core.py": "r011 release-manifest-v3 regression retained under its compatibility filename"
     },
     "acceptance_path": [
       "clean_environment_canonical_launch",

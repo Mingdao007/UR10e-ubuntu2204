@@ -79,7 +79,7 @@ def _fixture_manifest(tmp_path: Path) -> tuple[Path, Path]:
     local.mkdir(parents=True)
     builder.write_triplet(
         local,
-        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011",
     )
     return root, _write_receipt(
         root,
@@ -127,7 +127,7 @@ def _composition_fixture(tmp_path: Path) -> tuple[Path, Path]:
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011",
     )
     return root, artifact_dir
 
@@ -420,7 +420,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011",
     )
     events: list[str] = []
     exact: list[Path] = []
@@ -563,7 +563,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     ]
     assert upload_arguments[0] == builder.PROGRAM_NAME
     assert any(
-        value.startswith("manifest-driven step5d_strict_rnn_autotune_v3_r010")
+        value.startswith("manifest-driven step5d_strict_rnn_autotune_v3_r011")
         for value in upload_arguments
     )
     assert upload_arguments[
@@ -663,7 +663,7 @@ def test_transaction_rejects_evidence_output_outside_runs_before_lock(
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011",
     )
 
     with (
@@ -694,7 +694,7 @@ def test_transaction_qualification_failure_precedes_controller_lock_and_upload(
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011",
     )
     evidence_output = root / "runs/campaign/delivery-observation.json"
 
@@ -746,7 +746,7 @@ def test_transaction_rejects_symlink_artifacts_and_evidence_before_lock(
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011",
     )
     artifact_link = root / "artifact-link"
     artifact_link.symlink_to(artifact_dir, target_is_directory=True)
@@ -802,7 +802,7 @@ def test_transaction_rejects_legacy_deploy_schema_before_lock_or_upload(
     artifact_dir.mkdir(parents=True)
     generated = builder.write_triplet(
         artifact_dir,
-        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011",
     )
     deploy = Path(generated["deploy_manifest"])
     payload = json.loads(deploy.read_text(encoding="utf-8"))
@@ -830,7 +830,7 @@ def test_transaction_rejects_runtime_identity_tamper_before_upload(
     artifact_dir.mkdir(parents=True)
     generated = builder.write_triplet(
         artifact_dir,
-        "2026-07-21T1200HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R010",
+        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R011",
     )
     deploy = Path(generated["deploy_manifest"])
     payload = json.loads(deploy.read_text(encoding="utf-8"))

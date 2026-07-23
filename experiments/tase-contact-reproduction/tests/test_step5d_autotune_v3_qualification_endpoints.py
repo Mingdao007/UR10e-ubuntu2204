@@ -26,7 +26,7 @@ from step5d_autotune_v3.qualification_endpoints import (  # noqa: E402
     PRODUCTION_RTDE_INPUT_FIELDS,
     PRODUCTION_RTDE_OUTPUT_FIELDS,
     QualificationEndpointSimulator,
-    R010RuntimeIdentity,
+    R011RuntimeIdentity,
     READY_HOME,
     READY_HOME_NEXT,
     RUN,
@@ -34,13 +34,13 @@ from step5d_autotune_v3.qualification_endpoints import (  # noqa: E402
     STAGE25_PATH_ORIGIN_XY_M,
     STOP_STREAM,
     _TcpService,
-    default_r010_runtime_identity,
+    default_r011_runtime_identity,
     rtde_type_for_field,
     stage25_reference,
 )
 
 
-IDENTITY = R010RuntimeIdentity(protocol_version=1, digest_hi=1234, digest_lo=5678)
+IDENTITY = R011RuntimeIdentity(protocol_version=1, digest_hi=1234, digest_lo=5678)
 
 
 def _recvn(connection: socket.socket, count: int) -> bytes:
@@ -238,7 +238,7 @@ def test_defaults_are_content_bound_r010_and_loopback_only() -> None:
         "trial_duration_s"
     ].default
     assert default == 60.1
-    identity = default_r010_runtime_identity()
+    identity = default_r011_runtime_identity()
     assert identity.protocol_version == 1
     assert identity.digest_hi > 0 and identity.digest_lo > 0
     first = QualificationEndpointSimulator(runtime_identity=IDENTITY)
@@ -305,7 +305,7 @@ def test_dashboard_secondary_and_kunwei_are_real_local_tcp_endpoints() -> None:
         )
         assert observed["programState"] == "STOPPED"
         assert observed["get loaded program"].endswith(
-            "/step5d_strict_rnn_autotune_v3_r010.urp"
+            "/step5d_strict_rnn_autotune_v3_r011.urp"
         )
         simulator.simulate_play()
         assert dashboard_exchange(

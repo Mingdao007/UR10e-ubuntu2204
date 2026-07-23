@@ -20,7 +20,7 @@ from step5d_autotune_v3.dashboard import (  # noqa: E402
 
 
 EXPECTED_PROGRAM = (
-    "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r010.urp"
+    "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r011.urp"
 )
 
 

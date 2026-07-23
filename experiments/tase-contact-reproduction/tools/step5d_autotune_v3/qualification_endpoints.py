@@ -23,7 +23,7 @@ import time
 from typing import Any, Callable, Mapping, Sequence
 
 
-R010_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r010"
+R011_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r011"
 ROLLING_PROTOCOL_ID = "v3_full_home_rolling_arm_v1"
 ENDPOINT_CONTENT_SCHEMA = "step5d.autotune-v3/qualification-endpoint-content-v1"
 ENDPOINT_EVIDENCE_SCHEMA = "step5d.autotune-v3/qualification-endpoint-evidence-v1"
@@ -245,29 +245,29 @@ def _decode_rtde_values(type_names: Sequence[str], payload: bytes) -> list[Any]:
 
 
 @dataclass(frozen=True)
-class R010RuntimeIdentity:
+class R011RuntimeIdentity:
     protocol_version: int
     digest_hi: int
     digest_lo: int
-    program_id: str = R010_PROGRAM_ID
+    program_id: str = R011_PROGRAM_ID
     protocol_id: str = ROLLING_PROTOCOL_ID
 
     def __post_init__(self) -> None:
-        if self.program_id != R010_PROGRAM_ID or self.protocol_id != ROLLING_PROTOCOL_ID:
-            raise EndpointSimulatorError("TP runtime identity is not the r010 rolling release")
+        if self.program_id != R011_PROGRAM_ID or self.protocol_id != ROLLING_PROTOCOL_ID:
+            raise EndpointSimulatorError("TP runtime identity is not the r011 rolling release")
         if self.protocol_version != 1:
-            raise EndpointSimulatorError("r010 runtime protocol version must be 1")
+            raise EndpointSimulatorError("r011 runtime protocol version must be 1")
         for role, value in (("digest_hi", self.digest_hi), ("digest_lo", self.digest_lo)):
             if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**31:
                 raise EndpointSimulatorError(f"{role} must be an unsigned 31-bit integer")
 
     @classmethod
-    def from_mapping(cls, payload: Mapping[str, Any]) -> "R010RuntimeIdentity":
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "R011RuntimeIdentity":
         return cls(
             protocol_version=payload["protocol_version"],
             digest_hi=payload["digest_hi"],
             digest_lo=payload["digest_lo"],
-            program_id=payload.get("program_id", R010_PROGRAM_ID),
+            program_id=payload.get("program_id", R011_PROGRAM_ID),
             protocol_id=payload.get("protocol_id", ROLLING_PROTOCOL_ID),
         )
 
@@ -283,8 +283,8 @@ class R010RuntimeIdentity:
 
 
 @lru_cache(maxsize=1)
-def default_r010_runtime_identity() -> R010RuntimeIdentity:
-    """Derive the exact current r010 literals from the canonical TP generator."""
+def default_r011_runtime_identity() -> R011RuntimeIdentity:
+    """Derive the exact current r011 literals from the canonical TP generator."""
 
     import build_step5d_autotune_tp_v3 as builder  # noqa: PLC0415
     from step5d_autotune_v3.runtime_identity import bind_final_script  # noqa: PLC0415
@@ -294,7 +294,7 @@ def default_r010_runtime_identity() -> R010RuntimeIdentity:
         program_id=builder.PROGRAM_NAME,
         protocol_id=builder.PROTOCOL_ID,
     )
-    return R010RuntimeIdentity.from_mapping(payload)
+    return R011RuntimeIdentity.from_mapping(payload)
 
 
 class _TcpService:
@@ -412,11 +412,11 @@ class QualificationEndpointSimulator:
         secondary_port: int = 0,
         rtde_port: int = 0,
         kunwei_port: int = 0,
-        runtime_identity: R010RuntimeIdentity | Mapping[str, Any] | None = None,
-        expected_program_id: str = R010_PROGRAM_ID,
+        runtime_identity: R011RuntimeIdentity | Mapping[str, Any] | None = None,
+        expected_program_id: str = R011_PROGRAM_ID,
         loaded_program: str = (
             "/programs/andyl/kunwei/step5/"
-            "step5d_strict_rnn_autotune_v3_r010.urp"
+            "step5d_strict_rnn_autotune_v3_r011.urp"
         ),
         trial_duration_s: float = 60.1,
         rtde_frequency_limit_hz: float = 1000.0,
@@ -454,11 +454,11 @@ class QualificationEndpointSimulator:
             "kunwei": _port(kunwei_port, "Kunwei port"),
         }
         if runtime_identity is None:
-            self.runtime_identity = default_r010_runtime_identity()
-        elif isinstance(runtime_identity, R010RuntimeIdentity):
+            self.runtime_identity = default_r011_runtime_identity()
+        elif isinstance(runtime_identity, R011RuntimeIdentity):
             self.runtime_identity = runtime_identity
         else:
-            self.runtime_identity = R010RuntimeIdentity.from_mapping(runtime_identity)
+            self.runtime_identity = R011RuntimeIdentity.from_mapping(runtime_identity)
         if (
             not isinstance(expected_program_id, str)
             or not expected_program_id
@@ -1307,19 +1307,19 @@ __all__ = [
     "PRODUCTION_RTDE_OUTPUT_FIELDS",
     "PRECONTACT_TCP_POSE",
     "QualificationEndpointSimulator",
-    "R010RuntimeIdentity",
+    "R011RuntimeIdentity",
     "READY_HOME",
     "READY_HOME_CLOSED",
     "READY_HOME_NEXT",
     "ROLLING_PROTOCOL_ID",
-    "R010_PROGRAM_ID",
+    "R011_PROGRAM_ID",
     "RUN",
     "START_STREAM",
     "STAGE25_CONTACT_Z_M",
     "STAGE25_PATH_DURATION_S",
     "STAGE25_PATH_ORIGIN_XY_M",
     "STOP_STREAM",
-    "default_r010_runtime_identity",
+    "default_r011_runtime_identity",
     "rtde_type_for_field",
     "stage25_reference",
 ]
