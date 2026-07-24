@@ -419,11 +419,11 @@ def test_v3_derived_queue_hook_is_after_direct_commit() -> None:
     assert finalized < committed < queued
 
 
-def test_each_v3_arm_rechecks_full_runtime_binding_before_issue() -> None:
+def test_each_v3_arm_rechecks_identity_runtime_binding_before_issue() -> None:
     source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
         encoding="utf-8"
     )
-    guard = source.index("RuntimeEnvironmentBindingGuard.full(")
+    guard = source.index("RuntimeEnvironmentBindingGuard.identity(")
     next_sequence = source.index("next_arm_command_seq = (", guard)
     recheck = source.index(
         "runtime_environment_guard.recheck(next_arm_command_seq)",
@@ -450,14 +450,12 @@ def test_live_children_reuse_supervisor_attestation_before_arm_rechecks() -> Non
 
     assert 'args._runtime_pointer = require_runtime_profile("control")' in supervisor
     assert (
-        'require_runtime_profile("control", full_integrity=False)'
-        in bridge
+        'require_runtime_profile("control", full_integrity=False)' in bridge
     )
     assert (
-        'require_runtime_profile(\n            "optimizer", full_integrity=False\n        )'
-        in runner
+        'runtime_pointer = require_runtime_profile("optimizer")' in runner
     )
-    assert "RuntimeEnvironmentBindingGuard.full(" in runner
+    assert "RuntimeEnvironmentBindingGuard.identity(" in runner
     assert "runtime_environment_guard.recheck(next_arm_command_seq)" in runner
 
 

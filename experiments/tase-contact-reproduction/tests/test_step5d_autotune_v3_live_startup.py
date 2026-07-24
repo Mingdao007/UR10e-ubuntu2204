@@ -42,6 +42,48 @@ def test_arm_gate_refresh_cadence_has_watchdog_margin() -> None:
     assert live.ARM_GATE_REFRESH_INTERVAL_S <= live.ARM_GRANT_MAX_AGE_S * 0.5
 
 
+def test_live_owner_closes_optimizer_worker_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pointer = {
+        "profiles": {
+            "control": {"python_executable": "/runtime/control/python"},
+            "optimizer": {"python_executable": "/runtime/optimizer/python"},
+        }
+    }
+    events: list[str] = []
+
+    class Client:
+        def __init__(self, **_kwargs: Any) -> None:
+            events.append("open")
+
+        def close(self) -> None:
+            events.append("close")
+
+    monkeypatch.setattr(
+        live,
+        "load_gpu_functional_attestation",
+        lambda **_kwargs: ({}, {"sha256": "a" * 64}),
+    )
+    monkeypatch.setattr(
+        live,
+        "deployment_certificate",
+        lambda **_kwargs: {"schema": "fixture"},
+    )
+    monkeypatch.setattr(live, "ExactOptimizerClient", Client)
+
+    def fail(*_args: Any) -> dict[str, Any]:
+        events.append("run")
+        raise RuntimeError("fixture")
+
+    monkeypatch.setattr(live, "_run_live", fail)
+
+    with pytest.raises(RuntimeError, match="fixture"):
+        live.run(SimpleNamespace(_runtime_pointer=pointer))
+
+    assert events == ["open", "run", "close"]
+
+
 def _row(*, runtime_state: int, state: int = 10) -> dict[str, str]:
     row = {
         "ur_output_int_register_26": str(state),
@@ -300,16 +342,14 @@ def test_live_supervisor_fences_children_to_parent_lifetime() -> None:
     assert '--canonical-owner-starttime "${launch_owner_starttime}"' in shell
 
 
-def test_qualification_traverses_route_resolver_before_internal_exec() -> None:
+def test_release_contract_has_no_simulator_internal_route() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     route = source.index("resolve_step5d_bridge_route.py")
-    manual_internal = source.index(
-        "STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_PID"
-    )
-    v3_internal = source.index("STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_PID")
-    assert route < manual_internal
-    assert route < v3_internal
+    manual_contract = source.index("bridge_begin_phase manual_release_contract")
+    assert route < manual_contract
+    assert "INTERNAL_QUALIFICATION_SHELL_PID" not in source
+    assert "V3_QUALIFICATION_SIMULATED_PLAY_BARRIER" not in source
 
 
 def test_route_snapshot_parser_preserves_empty_recovery_manifest_sha(
@@ -387,7 +427,7 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
 
 
 def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
-    source = inspect.getsource(live.run)
+    source = inspect.getsource(live._run_live)
     writer_lease_acquired = source.index("writer_guard.__enter__()")
     bridge_start = source.index("bridge = subprocess.Popen(")
     runner_start = source.index("runner = subprocess.Popen(")
@@ -421,7 +461,8 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     mailbox_open = runner_source.index("mailbox = AtomicCommandMailbox", first_gate_wait)
     assert ready_publish < first_gate_wait < mailbox_open
     assert source.count("READY_FOR_ONE_PLAY_TO_MOVE") == 1
-    assert source.count("V3_QUALIFICATION_SIMULATED_PLAY_BARRIER") == 1
+    assert "V3_QUALIFICATION_SIMULATED_PLAY_BARRIER" not in source
+    assert "--offline-release-gate" not in runner_source
     assert 'READY_FOR_TP_PLAY_V3"' not in source
     assert "campaign_authorization.json" not in source
     assert '"--authorization-file"' not in source
@@ -522,7 +563,7 @@ def test_production_play_prompt_fails_closed_when_claim_is_rejected(
     assert not (tmp_path / "readiness-claim.json").exists()
 
 
-def test_canonical_shell_reuses_existing_qualification_and_delivery() -> None:
+def test_canonical_shell_reuses_existing_v3_contract_and_delivery() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
     production = source[source.index('if [[ "${bridge_route}" == "manual_v2" ]]') :]
 
@@ -540,9 +581,10 @@ def test_source_rebind_and_embedded_delivery_recovery_are_removed() -> None:
     assert "--source-rebind" not in source
     delivery = source.index("if (( tp_deliver_mode == 1 )); then")
     bridge = source.index("if (( bridge_mode == 1 )); then", delivery)
-    assert source.count("run_step5d_autotune_v3_tp_transaction.py") == 1
+    assert source.count("run_step5d_autotune_v3_tp_transaction.py") == 2
     assert "run_step5d_autotune_v3_tp_transaction.py" in source[delivery:bridge]
     assert "run_step5d_autotune_v3_tp_transaction.py" not in source[bridge:]
+    assert "--revalidate-current" in source
 
 
 def test_canonical_shell_records_only_direct_live_phases() -> None:
@@ -595,6 +637,7 @@ def _fake_governed_shell(
         "tools/step5d_autotune_v3/atomic_io.py",
         "tools/step5d_autotune_v3/governance.py",
         "tools/step5d_autotune_v3/delivery_observation.py",
+        "tools/step5d_autotune_v3/release_transition.py",
     ):
         source_path = ROOT / relative
         destination = tools / Path(relative).relative_to("tools")
@@ -851,7 +894,7 @@ def test_shell_action_required_creates_no_attempt_or_authority(
     assert "EXTERNAL_ACTION_REQUIRED" in result.stderr
     commands = command_log.read_text(encoding="utf-8").splitlines()
     assert any("check_step5d_autotune_v3_bridge_admission.py" in line for line in commands)
-    assert not any("run_step5d_autotune_v3_qualification.py" in line for line in commands)
+    assert not any("run_step5d_release_contract.py" in line for line in commands)
     assert not any("run_step5d_autotune_v3_tp_transaction.py" in line for line in commands)
     authority_root = experiment / "runs/step5d_bridge_authority"
     assert not authority_root.exists()
@@ -903,7 +946,7 @@ def test_shell_tp_deliver_is_independent_from_bridge_authority(
     assert not (experiment / "runs/step5d_bridge_authority").exists()
 
 
-def test_shell_release_certify_is_offline_and_independent_from_bridge_authority(
+def test_shell_release_contract_is_offline_and_independent_from_bridge_authority(
     tmp_path: Path,
 ) -> None:
     shell, command_log, environment = _fake_governed_shell(
@@ -914,7 +957,7 @@ def test_shell_release_certify_is_offline_and_independent_from_bridge_authority(
     result = subprocess.run(
         [
             str(shell),
-            "release-certify",
+            "release-contract-check",
             "--release-candidate",
             str(shell),
         ],
@@ -929,14 +972,14 @@ def test_shell_release_certify_is_offline_and_independent_from_bridge_authority(
 
     assert result.returncode == 0, result.stderr
     commands = command_log.read_text(encoding="utf-8").splitlines()
-    qualification_calls = [
+    contract_calls = [
         line
         for line in commands
-        if "run_step5d_autotune_v3_qualification.py" in line
+        if "run_step5d_release_contract.py" in line
     ]
-    assert len(qualification_calls) == 1
-    assert "--release-candidate" in qualification_calls[0]
-    assert "--output-root" in qualification_calls[0]
+    assert len(contract_calls) == 1
+    assert "--release-candidate" in contract_calls[0]
+    assert "--output-root" in contract_calls[0]
     assert not any(
         "run_step5d_autotune_v3_tp_transaction.py" in line for line in commands
     )
@@ -946,7 +989,7 @@ def test_shell_release_certify_is_offline_and_independent_from_bridge_authority(
     assert not (experiment / "runs/step5d_bridge_authority").exists()
 
 
-def test_shell_release_certify_stages_public_r012_candidate_when_omitted(
+def test_shell_release_contract_stages_public_r012_candidate_when_omitted(
     tmp_path: Path,
 ) -> None:
     shell, command_log, environment = _fake_governed_shell(
@@ -955,7 +998,7 @@ def test_shell_release_certify_stages_public_r012_candidate_when_omitted(
     )
     experiment = shell.parent.parent
     result = subprocess.run(
-        [str(shell), "release-certify"],
+        [str(shell), "release-contract-check"],
         cwd=experiment,
         env=environment,
         stdin=subprocess.DEVNULL,
@@ -966,12 +1009,13 @@ def test_shell_release_certify_stages_public_r012_candidate_when_omitted(
     )
 
     assert result.returncode == 0, result.stderr
+    assert result.stdout == "{}\n"
     commands = command_log.read_text(encoding="utf-8").splitlines()
     assert len(commands) == 2
     assert "promote_step5d_r009_atomic_release.py" in commands[0]
     assert "--stage-local-candidate" in commands[0]
     assert "--candidate-output" in commands[0]
-    assert "run_step5d_autotune_v3_qualification.py" in commands[1]
+    assert "run_step5d_release_contract.py" in commands[1]
     assert "--release-candidate" in commands[1]
     assert "runs/step5d_autotune_v3/release-candidates/" in commands[1]
     assert not (experiment / "runs/step5d_bridge_authority").exists()
@@ -1033,11 +1077,11 @@ def _run_shell_argv_gate(
             "--release-certificate is required",
         ),
         (["tp-deliver", "--unknown"], "unsupported option"),
-        (["release-certify", "--unknown"], "unsupported option"),
+        (["release-contract-check", "--unknown"], "unsupported option"),
         (["bridge-live", "--prepare-only"], "internal worker option"),
         (
             ["bridge-live", "--qualification-endpoints=/tmp/endpoints.json"],
-            "internal worker option",
+            "unsupported option",
         ),
         (["bridge-live", "--preflight", "/tmp/preflight.json"], "internal worker option"),
         (["bridge-live", "--ready-timeout-s", "nan"], "finite positive decimal"),
@@ -1528,7 +1572,7 @@ def test_campaign_authority_revoke_reports_both_failures(monkeypatch, tmp_path: 
 
 
 def test_post_play_loop_never_runs_producer_synchronously() -> None:
-    source = inspect.getsource(live.run)
+    source = inspect.getsource(live._run_live)
     post_play = source[source.index("V3_CAMPAIGN_RUNNING_ONE_PLAY_CONTINUOUS") :]
 
     assert "producer.poll_once(" not in post_play

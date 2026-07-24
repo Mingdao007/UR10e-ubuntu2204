@@ -22,11 +22,16 @@ from step5d_autotune_v3.governance import (  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _validated_manual_qualification(monkeypatch: pytest.MonkeyPatch) -> None:
+def _validated_manual_release_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         manual_status,
-        "validate_manual_qualification",
-        lambda *_args, **_kwargs: {"ok": True},
+        "manual_release_contract_scope",
+        lambda *_args, **_kwargs: {"release_manifest_sha256": "a" * 64},
+    )
+    monkeypatch.setattr(
+        manual_status,
+        "validate_release_contract_result",
+        lambda _payload, **kwargs: kwargs["expected_scope"],
     )
     monkeypatch.setattr(
         manual_status,
@@ -38,6 +43,16 @@ def _validated_manual_qualification(monkeypatch: pytest.MonkeyPatch) -> None:
             "task": "step5d-manual-no-arm-bridge",
             "acquired_at": "fixture",
         },
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "release_contract_reference",
+        lambda *_args, **_kwargs: {"ok": "contract"},
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_publication_lineage",
+        lambda *_args, **_kwargs: (Path("lineage.json"), {"ok": True}),
     )
 
 
@@ -95,14 +110,13 @@ def _route_snapshot(path: Path, route: str) -> None:
 
 
 def _manual_status(campaign: Path, *, attempt_id: str) -> None:
-    qualification = campaign / "manual-qualification.json"
-    qualification.write_text(
+    contract = campaign / "manual-release-contract.json"
+    contract.write_text(
         json.dumps(
             {
-                "schema": "step5d.manual-v2/production-startup-qualification-v1",
+                "schema": "step5d.autotune-v3/release-contract-result-v1",
                 "ok": True,
-                "state": "MANUAL_PRODUCTION_SECOND_GROUP_RUN_PROVEN",
-                "manual_release_manifest_sha256": "a" * 64,
+                "state": "RELEASE_CONTRACT_PROVEN",
             }
         ),
         encoding="utf-8",
@@ -154,9 +168,9 @@ def _manual_status(campaign: Path, *, attempt_id: str) -> None:
                         "step5d_strict_rnn_manual_tune_v2.urp"
                     ),
                 },
-                "offline_qualification": {
-                    "path": str(qualification),
-                    "sha256": hashlib.sha256(qualification.read_bytes()).hexdigest(),
+                "release_contract": {
+                    "path": str(contract),
+                    "sha256": hashlib.sha256(contract.read_bytes()).hexdigest(),
                 },
                 "blocker": None,
                 "next_action": "press Play once",
@@ -338,8 +352,8 @@ def test_status_without_canonical_attempt_never_reuses_stale_v3_state(
     assert status["state"] == "UNPREPARED"
     assert status["compatibility_phase"] is None
     assert status["predicates"]["play_prompt_ready"] is False
-    assert status["blocker"]["reason_codes"] == ["NO_CANONICAL_LAUNCH_ATTEMPT"]
-    assert status["next_action"] == "start_canonical_bridge"
+    assert status["blocker"]["reason_codes"] == ["CURRENT_RELEASE_INVALID"]
+    assert status["next_action"] == "repair_current_release_before_retry"
 
 
 def test_status_without_attempt_projects_delivery_receipt(
@@ -370,6 +384,26 @@ def test_status_without_attempt_projects_delivery_receipt(
     assert status["predicates"]["controller_fresh_get"] is True
     assert status["blocker"]["reason_codes"] == []
     assert status["launch_attempt"]["present"] is False
+
+
+def test_status_requires_runtime_revalidation_before_bridge(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = type("Release", (), {"manifest_sha256": "a" * 64})()
+    monkeypatch.setattr(bridge_status, "load_current_release", lambda _root: release)
+    monkeypatch.setattr(
+        bridge_status,
+        "release_contract_reference",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            FileNotFoundError("missing")
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["blocker"]["reason_codes"] == ["RELEASE_CERTIFICATE_MISSING"]
+    assert status["next_action"] == "run_revalidate_current"
 
 
 def test_status_without_attempt_projects_fresh_action_required(
@@ -502,7 +536,7 @@ def test_v3_campaign_lease_binds_the_canonical_attempt(
             "generated_at_unix_ns": time.time_ns(),
             "state": "WAITING_FOR_PLAY",
             "predicates": {
-                "offline_proven": True,
+                "release_contract_proven": True,
                 "lease_valid": True,
                 "play_prompt_ready": True,
             },
@@ -542,8 +576,7 @@ def test_readiness_claim_rejects_an_aged_status_snapshot(
         "predicates": {
             "play_prompt_ready": True,
             "canonical_attempt_bound": True,
-            "offline_proven": True,
-            "production_path_qualified": True,
+            "release_contract_proven": True,
         },
     }
     monkeypatch.setattr(bridge_status.time, "time_ns", lambda: observed_now)

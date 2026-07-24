@@ -21,7 +21,14 @@ BASE_IMAGE = (
 AUTHORITY = "HERMETIC_CI_PROVEN"
 SCHEMA = "step5d.autotune-v3/oci-cleanroom-attestation-v1"
 EXPERIMENT_ROOT = Path("/workspace/experiments/tase-contact-reproduction")
+REPOSITORY_ROOT = EXPERIMENT_ROOT.parents[1]
 LOCK_PATH = EXPERIMENT_ROOT / "uv.lock"
+REPOSITORY_PYTHONPATH = os.pathsep.join(
+    (
+        str(EXPERIMENT_ROOT / "tools"),
+        str(REPOSITORY_ROOT / "src/ur10e_experiment_runtime"),
+    )
+)
 
 
 class OciGateError(RuntimeError):
@@ -74,6 +81,7 @@ def _run(
             "HOME": "/tmp/step5d-home",
             "PYTHONDONTWRITEBYTECODE": "1",
             "PYTHONNOUSERSITE": "1",
+            "PYTHONPATH": REPOSITORY_PYTHONPATH,
         }
     )
     if extra_environment is not None:
@@ -92,8 +100,11 @@ def _run(
     )
     log.write_text(completed.stdout, encoding="utf-8")
     if completed.returncode != 0:
+        lines = completed.stdout.splitlines()
+        tail = "\n".join(lines[-80:])
         raise OciGateError(
             f"clean-room child failed ({completed.returncode}): {' '.join(command)}"
+            f"\n--- bounded child log tail ---\n{tail[-12_000:]}"
         )
     return {
         "command": list(command),
@@ -113,8 +124,7 @@ def _cpu_slice(output_root: Path) -> dict[str, Any]:
             "-p",
             "no:cacheprovider",
             "tests/test_step5d_v3_source_closure.py",
-            "tests/test_step5d_autotune_v3_qualification_endpoints.py::"
-            "test_rtde_repository_client_rejects_unknown_recipe_field",
+            "tests/test_step5d_release_contract.py",
         ],
         log=output_root / "cpu-slice.log",
     )
@@ -180,7 +190,7 @@ def run(slice_name: str, output: Path) -> dict[str, Any]:
     payload = {
         "schema": SCHEMA,
         "authority": AUTHORITY,
-        "offline_proven": False,
+        "release_contract_proven": False,
         "slice": slice_name,
         "base_image": BASE_IMAGE,
         "uv_version": "0.9.30",

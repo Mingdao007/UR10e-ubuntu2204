@@ -14,6 +14,11 @@ from .delivery_observation import (
     resolve_delivery_observation,
 )
 from .profile import ContractViolation, load_contract
+from .release_certificate import certificate_path, load_release_certificate
+from .release_contract import (
+    release_contract_scope_for_release,
+    validate_release_contract_result,
+)
 from .release_identity import (
     SAFETY_ENVELOPE_PATH,
     ReleaseIdentity,
@@ -24,6 +29,10 @@ from .runtime_gate import (
     RuntimeGateError,
     loaded_program_matches,
     release_runtime_contract,
+)
+from .release_transition import (
+    ReleaseTransitionError,
+    resolve_publication_lineage,
 )
 
 
@@ -39,8 +48,29 @@ class BridgeAdmissionError(RuntimeError):
 
 def _sha256(path: Path) -> str:
     if path.is_symlink() or not path.is_file():
-        raise BridgeAdmissionError("delivery observation is missing or unsafe")
+        raise BridgeAdmissionError("admission evidence is missing or unsafe")
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def release_contract_reference(
+    root: Path,
+    release: ReleaseIdentity,
+) -> dict[str, str]:
+    certificate_root = root.resolve(strict=True) / "runs/step5d_autotune_v3"
+    scope = release_contract_scope_for_release(root, release)
+    path = certificate_path(certificate_root, scope)
+    _certificate, evidence, payload = load_release_certificate(
+        certificate_root,
+        path,
+        expected_scope=scope,
+    )
+    validate_release_contract_result(payload, expected_scope=scope)
+    return {
+        "certificate_path": path.relative_to(root.resolve(strict=True)).as_posix(),
+        "certificate_sha256": _sha256(path),
+        "evidence_path": evidence.relative_to(root.resolve(strict=True)).as_posix(),
+        "evidence_sha256": _sha256(evidence),
+    }
 
 
 def _canonical_bytes(value: Mapping[str, Any]) -> bytes:
@@ -80,6 +110,8 @@ def validate_bridge_admission(
         "expected_loaded_program",
         "operator_action",
         "release",
+        "release_contract",
+        "publication_lineage",
         "delivery_observation",
         "dashboard",
         "authority_acquired",
@@ -113,6 +145,28 @@ def validate_bridge_admission(
         or set(delivery_ref) != {"path", "sha256", "transaction_id"}
     ):
         raise BridgeAdmissionError("bridge admission release binding differs")
+    if row.get("release_contract") != release_contract_reference(
+        root,
+        release,
+    ):
+        raise BridgeAdmissionError("bridge admission release contract differs")
+    try:
+        lineage_path, _lineage = resolve_publication_lineage(
+            root,
+            release=release,
+        )
+    except ReleaseTransitionError as exc:
+        raise BridgeAdmissionError(
+            f"bridge admission publication lineage differs: {exc}"
+        ) from exc
+    expected_lineage = {
+        "path": lineage_path.relative_to(root.resolve(strict=True)).as_posix(),
+        "sha256": _sha256(lineage_path),
+    }
+    if row.get("publication_lineage") != expected_lineage:
+        raise BridgeAdmissionError(
+            "bridge admission publication lineage differs"
+        )
     experiment = root.resolve(strict=True)
     relative_delivery = Path(str(delivery_ref["path"]))
     if (
@@ -284,6 +338,16 @@ def observe_bridge_admission(
     experiment = root.resolve(strict=True)
     release = load_runtime_release(experiment)
     runtime_contract = release_runtime_contract(experiment, release)
+    release_contract = release_contract_reference(experiment, release)
+    try:
+        lineage_path, _lineage = resolve_publication_lineage(
+            experiment,
+            release=release,
+        )
+    except ReleaseTransitionError as exc:
+        raise BridgeAdmissionError(
+            f"publication lineage gate failed: {exc}"
+        ) from exc
     delivery_path, delivery = resolve_delivery_observation(
         experiment,
         release=release,
@@ -316,6 +380,11 @@ def observe_bridge_admission(
             "manifest_sha256": release.manifest_sha256,
             "program_id": release.program_id,
         },
+        "release_contract": release_contract,
+        "publication_lineage": {
+            "path": lineage_path.relative_to(experiment).as_posix(),
+            "sha256": _sha256(lineage_path),
+        },
         "delivery_observation": {
             "path": delivery_path.relative_to(experiment).as_posix(),
             "sha256": _sha256(delivery_path),
@@ -338,6 +407,7 @@ __all__ = [
     "admission_index_path",
     "compute_program_admission",
     "observe_bridge_admission",
+    "release_contract_reference",
     "release_robot_host",
     "resolve_bridge_admission",
     "validate_bridge_admission",

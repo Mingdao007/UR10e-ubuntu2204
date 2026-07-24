@@ -36,19 +36,15 @@ The Manual TP payload and host runtime are independent identities.
   after atomic promotion; the initial route snapshot remains only the routing
   decision evidence.
 
-## Qualification boundary
+## Release-contract boundary
 
-Manual and V3 production qualification share one exclusive lease for the fixed
-production-shaped localhost endpoints. Qualification runs the canonical shell,
-real owner process, real bridge worker, production encoder/parser, and real
-mailbox order; only Dashboard, secondary, RTDE, Kunwei, and TP endpoints are
-substituted.
+`release-contract-check` is a pure, no-network, no-subprocess, no-trial state
+transition. Its immutable certificate binds the exact candidate, source,
+launcher, runtime, and safety scope. Any binding change requires a new
+certificate; it never simulates Play, ARM, a trial, or elapsed robot time.
 
-Manual qualification must demonstrate a persistent multi-heartbeat NO_ARM
-canary, an exact process tree, zero ARM acknowledgements, and a clean process
-group stop. Passing evidence is bound to the Manual payload, host binding,
-runtime bundle, exact interpreter, endpoint content, and source surface. Red
-endpoint and process evidence is retained on failure.
+Delivery separately requires exact TP bytes and a fresh controller GET. Neither
+the certificate nor delivery proves a live bridge or grants physical authority.
 
 ## Capability boundary
 
@@ -59,14 +55,14 @@ endpoint and process evidence is retained on failure.
 - V3 orchestration authority is the current fingerprint-bound campaign lease.
 - Zero and tare remain false unless a separate UR owner action explicitly
   authorizes them; neither is implied by readiness.
-- Qualification is always bridge-only and cannot publish a Play prompt.
+- A release contract grants no bridge, Play, ARM, motion, zero, or tare authority.
 
 ## Machine states and claims
 
 | State | Required evidence | Permitted claim |
 |---|---|---|
-| `BRIDGE_ALIVE_NO_ARM` | Current fenced owner, production-qualified path, live bridge heartbeat | Bridge exists; no Play/ARM/motion authority |
-| `WAITING_FOR_IDENTITY_PLAY` | Same-attempt owner, qualification, fresh live predicates, current capability/lease; TP has not yet written current runtime identity | User may perform the first physical Play; not `BENCH_READY` |
+| `RELEASE_CONTRACT_PROVEN` | Exact candidate certificate; no live process required | Offline release evidence only |
+| `WAITING_FOR_IDENTITY_PLAY` | Exact delivered release, same-attempt owner, fresh live predicates, current capability/lease; TP has not yet written current runtime identity | Bridge is ready for separately authorized physical Play; ARM remains closed |
 | `WAITING_FOR_PLAY` | All prior predicates plus current TP runtime identity | User may perform physical Play |
 | `PLAY_OBSERVED_IDENTITY_RECHECKED` | Play observed; fresh exact loaded-program and authorization rechecked | No Play prompt; ARM has not yet been acknowledged |
 | `ARM_PENDING` | Exact ARM command has been published; TP has not acknowledged its full identity | Campaign is not yet `RUNNING` |
@@ -93,13 +89,13 @@ fresh production CSV write; a living but stalled process cannot mint a claim.
 
 The following events immediately suppress `play_prompt_ready`: owner death or
 epoch change, route snapshot drift, terminal launch phase, release or host
-binding drift, runtime/environment drift, qualification drift, capability or
+binding drift, runtime/environment drift, release-contract drift, capability or
 lease expiry, heartbeat loss, controller/load/TP identity mismatch, single
 writer loss, mailbox contamination, or external observation expiry.
 
 After compaction or resume, the first observation is canonical `status --json`.
 An internal reproducible failure requires retained red evidence, the earliest
-regression, a fix, and full requalification. External or physical blockers
+regression, a fix, and deterministic revalidation. External or physical blockers
 require positive device/network evidence and never authorize speculative code
 changes.
 
@@ -110,8 +106,7 @@ true:
 
 1. Repository validator passes with an explicit behavior-changing declaration.
 2. Hermetic Small and Medium matrices pass in a clean environment.
-3. Manual production qualification and V3 production qualification use the
-   fixed endpoint lease and retain failure evidence.
+3. Release-contract purity, certificate binding, and delivery/readback tests pass.
 4. Host bindings are regenerated after the last governed source change.
 5. The change is committed and reviewed through a PR; the runtime checkout is
    updated only by post-merge fast-forward deployment.

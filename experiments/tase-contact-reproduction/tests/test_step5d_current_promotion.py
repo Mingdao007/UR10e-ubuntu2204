@@ -732,7 +732,7 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             self.assertEqual(current["evidence"]["v26_controller_target"], f"{TARGET_DIR}/step5d/{V26}.urp")
             self.assertEqual(current["evidence"]["v27_local_triplet"], f"programs/step5/{V27}")
 
-    def test_promote_v29_records_contact_strict_rnn_live_without_p0_gate(self) -> None:
+    def test_promote_v29_fails_before_mutating_current_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             v26_dir, manifest_path = _write_v26_fixture(root)
@@ -754,27 +754,18 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
             v29_dir = root / "candidate_v29"
             v29_sha = _write_triplet(v29_dir, V29, "v29")
             v29_manifest = _write_readback(root, V29, v29_dir, v29_sha)
+            table_before = table_path.read_bytes()
+            current_path = root / "config" / "current_stage.json"
+            current_before = current_path.read_bytes()
 
-            result = promote.promote(root, V29, TARGET_DIR, v29_dir, v29_manifest)
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "ARCHIVED_PROFILE.*step5d_strict_rnn_autotune_v3_r012",
+            ):
+                promote.promote(root, V29, TARGET_DIR, v29_dir, v29_manifest)
 
-            self.assertTrue(result["ok"])
-            table = json.loads(table_path.read_text(encoding="utf-8"))
-            rows = {row["id"]: row for row in table["stages"]}
-            v29_row = rows[V29]
-            self.assertEqual(v29_row["runtime_interface_ref"]["stage25_default_control_mode"], "speedj_rnn_live")
-            self.assertEqual(v29_row["contact_policy"]["default_stage25_control_mode"], "speedj_rnn_live")
-            self.assertIn("strict RNN qdot", v29_row["contact_policy"]["stage25_contact_policy"])
-            self.assertIn("_step5d_rnn_accepted", v29_row["guard"]["runtime_diagnostics"])
-            self.assertIn("_step5d_safe_hold_active", v29_row["guard"]["runtime_diagnostics"])
-            self.assertNotIn("no_contact_p0_expected_program", v29_row["operator_lifecycle"])
-            self.assertNotIn("strict_rnn_no_contact_p0", json.dumps(v29_row))
-
-            current = json.loads((root / "config" / "current_stage.json").read_text(encoding="utf-8"))
-            self.assertEqual(current["program"], V29)
-            self.assertEqual(current["bridge_profile"]["stage25_control_mode"], "speedj_rnn_live")
-            self.assertIn("strict RNN", current["bridge_profile"]["stage25_speedj_live_source"])
-            self.assertNotIn("no_contact_p0_capture", current["bridge_trigger"])
-            self.assertIn("v29 defaults to speedj_rnn_live", current["notes"][2])
+            self.assertEqual(table_path.read_bytes(), table_before)
+            self.assertEqual(current_path.read_bytes(), current_before)
 
 
 if __name__ == "__main__":

@@ -94,7 +94,9 @@ def test_runtime_binding_exposes_exact_dual_profile_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pointer = _runtime_pointer_fixture(tmp_path)
-    monkeypatch.setattr(runtime, "load_runtime_pointer", lambda **_kwargs: pointer)
+    monkeypatch.setattr(
+        runtime, "load_runtime_pointer_identity", lambda **_kwargs: pointer
+    )
 
     binding = runtime.runtime_binding()
 
@@ -112,7 +114,7 @@ def test_runtime_binding_exposes_exact_dual_profile_identity(
         }
 
 
-def test_runtime_status_uses_one_static_integrity_scan(
+def test_runtime_status_explicit_full_audit_uses_one_static_integrity_scan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -136,7 +138,10 @@ def test_runtime_status_uses_one_static_integrity_scan(
         lambda **_kwargs: pytest.fail("status must not import/smoke both profiles"),
     )
 
-    status = runtime.runtime_status(environ={"HOME": str(tmp_path)})
+    status = runtime.runtime_status(
+        environ={"HOME": str(tmp_path)},
+        full_integrity=True,
+    )
 
     assert status["reason_code"] is None
     assert calls == [{"HOME": str(tmp_path)}]
@@ -173,6 +178,31 @@ def test_runtime_status_identity_mode_does_not_repeat_package_tree_scan(
 
     assert status["reason_code"] is None
     assert calls == [{"HOME": str(tmp_path)}]
+
+
+def test_runtime_status_defaults_to_identity_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pointer = _runtime_pointer_fixture(tmp_path)
+    monkeypatch.setattr(runtime, "runtime_bundle_id", lambda: pointer["bundle_id"])
+    monkeypatch.setattr(
+        runtime,
+        "profile_environment_id",
+        lambda profile: pointer["profiles"][profile]["environment_id"],
+    )
+    monkeypatch.setattr(
+        runtime,
+        "load_runtime_pointer_integrity",
+        lambda **_kwargs: pytest.fail("default status repeated package-tree integrity"),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "load_runtime_pointer_identity",
+        lambda **_kwargs: pointer,
+    )
+
+    assert runtime.runtime_status()["reason_code"] is None
 
 
 def test_status_resolver_reuses_one_runtime_status_result(
@@ -253,7 +283,9 @@ def test_require_runtime_profile_rejects_cross_profile_interpreter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pointer = _runtime_pointer_fixture(tmp_path)
-    monkeypatch.setattr(runtime, "load_runtime_pointer", lambda **_kwargs: pointer)
+    monkeypatch.setattr(
+        runtime, "load_runtime_pointer_identity", lambda **_kwargs: pointer
+    )
     control_python = pointer["profiles"]["control"]["python_executable"]
     optimizer_python = pointer["profiles"]["optimizer"]["python_executable"]
 
@@ -276,7 +308,7 @@ def test_runtime_status_reports_exact_profile_bindings(
     required_profiles = {"control": "7" * 64, "optimizer": "8" * 64}
     monkeypatch.setattr(runtime, "runtime_bundle_id", lambda: pointer["bundle_id"])
     monkeypatch.setattr(
-        runtime, "load_runtime_pointer_integrity", lambda **_kwargs: pointer
+        runtime, "load_runtime_pointer_identity", lambda **_kwargs: pointer
     )
     monkeypatch.setattr(
         runtime,
@@ -306,6 +338,17 @@ def test_runtime_status_reports_exact_profile_bindings(
                 "profile_tree_sha256"
             ],
         }
+
+
+def test_runtime_epoch_is_stable_and_identity_sensitive(tmp_path: Path) -> None:
+    pointer = _runtime_pointer_fixture(tmp_path)
+    epoch = runtime.runtime_epoch(pointer)
+
+    assert len(epoch) == 64
+    assert runtime.runtime_epoch(pointer) == epoch
+    changed = json.loads(json.dumps(pointer))
+    changed["attestation_sha256"] = "9" * 64
+    assert runtime.runtime_epoch(changed) != epoch
 
 
 def _write_distribution(site: Path, name: str, version: str, payload: bytes) -> None:
@@ -745,7 +788,7 @@ def test_owner_dependency_comes_from_verified_attestation(
     monkeypatch.setattr(runtime, "load_runtime_contract", lambda: contract)
     monkeypatch.setattr(
         runtime,
-        "load_runtime_pointer",
+        "load_runtime_pointer_identity",
         lambda **_kwargs: {"attestation_path": str(attestation_path)},
     )
     monkeypatch.setattr(

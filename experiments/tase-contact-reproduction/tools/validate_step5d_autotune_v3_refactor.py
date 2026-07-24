@@ -59,9 +59,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_v3_public_state.py",
     "tests/test_step5d_autotune_v3_shared_contracts.py",
     "tests/test_step5d_optimizer_protocol.py",
-    "tests/test_step5d_autotune_v3_qualification.py",
-    "tests/test_step5d_autotune_v3_qualification_endpoints.py",
-    "tests/test_step5d_autotune_v3_qualification_production.py",
+    "tests/test_step5d_release_contract.py",
     "tests/test_step5d_autotune_v3_release_certificate.py",
     "tests/test_step5d_autotune_v3_refactor_gate.py",
     "tests/test_step5d_autotune_v3_test_matrix_runner.py",
@@ -114,7 +112,7 @@ AUTHORITATIVE_ACCEPTANCE_PATH = [
     "clean_environment_canonical_launch",
     "release_manifest_v3_verified",
     "tp_runtime_identity_verified",
-    "simulated_play_observed",
+    "physical_controller_play_observed",
     "post_play_identity_rechecked",
     "command_bound_first_arm_grant",
     "first_arm_acknowledged",
@@ -465,7 +463,7 @@ def matrix_issues(payload: Any, *, root: Path = ROOT) -> list[str]:
             "tests/test_step5d_autotune_runtime.py",
             "tests/test_step5d_autotune_live_driver.py",
             "tests/test_step5d_autotune_v3_bridge_wrapper.py",
-            "tests/test_step5d_autotune_v3_qualification_production.py",
+            "tests/test_step5d_release_contract.py",
             "tests/test_step5d_autotune_v3_installed_runtime.py",
             "tests/test_step5d_manual_bridge.py",
             "tests/test_step5d_no_contact_p0.py",
@@ -739,7 +737,7 @@ def _placeholder(value: str) -> bool:
         not stripped
         or plain in {"...", "-", "todo", "tbd", "describe", "replace"}
         or plain.startswith(("todo:", "tbd:", "describe this", "replace this", "replace with"))
-        or re.search(r"<(?:command|commit)(?:\b|>)", lowered) is not None
+        or re.search(r"<[^<>\r\n]+>", stripped) is not None
     )
 
 
@@ -778,7 +776,9 @@ def declaration_issues(text: str) -> list[str]:
     rollback = _code_commands(sections.get("rollback", ""))
     if not rollback:
         issues.append("declaration_rollback_command_missing")
-    tests = _code_commands(sections.get("validation commands", ""))
+    tests = _code_commands(
+        sections.get("validation commands", sections.get("validation", ""))
+    )
     if not tests:
         issues.append("declaration_test_command_missing")
     return issues

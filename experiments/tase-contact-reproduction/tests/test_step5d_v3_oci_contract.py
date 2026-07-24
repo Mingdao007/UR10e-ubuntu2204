@@ -31,10 +31,13 @@ def test_runner_can_issue_only_hermetic_ci_authority() -> None:
     source = path.read_text(encoding="utf-8")
     ast.parse(source, filename=str(path))
     assert 'AUTHORITY = "HERMETIC_CI_PROVEN"' in source
-    assert '"offline_proven": False' in source
+    assert '"release_contract_proven": False' in source
     assert 'AUTHORITY = "OFFLINE_PROVEN"' not in source
     assert 'STEP5D_OCI_NETWORK_MODE") != "none"' in source
     assert 'STEP5D_OCI_REPOSITORY_MODE") != "read_only"' in source
+    assert '"PYTHONPATH": REPOSITORY_PYTHONPATH' in source
+    assert 'EXPERIMENT_ROOT / "tools"' in source
+    assert 'REPOSITORY_ROOT / "src/ur10e_experiment_runtime"' in source
 
 
 def test_workflow_mounts_repo_read_only_and_disables_runtime_network() -> None:
@@ -47,3 +50,10 @@ def test_workflow_mounts_repo_read_only_and_disables_runtime_network() -> None:
     assert "dst=/output" in workflow
     assert "Dockerfile.cpu" in workflow
     assert "Dockerfile.cuda" not in workflow
+    assert "needs: hermetic-fast" not in workflow
+
+
+def test_runner_reports_a_bounded_child_log_tail() -> None:
+    source = (OCI / "run_oci_gate.py").read_text(encoding="utf-8")
+    assert "lines[-80:]" in source
+    assert "tail[-12_000:]" in source

@@ -27,47 +27,9 @@ import run_step5d_manual_bridge as wrapper  # noqa: E402
 import run_step5d_manual_bridge_live as live  # noqa: E402
 import run_step5d_manual_live_campaign as campaign  # noqa: E402
 import step5d_manual_bridge as bridge  # noqa: E402
-import step5d_manual_qualification as qualification  # noqa: E402
 import step5d_autotune_live_driver as mailbox_driver  # noqa: E402
 from step5d_autotune_state_machine import TpLoopState, TpPacket  # noqa: E402
 from step5d_manual_atomic_release import canonical_bytes  # noqa: E402
-
-
-def test_manual_qualification_preserves_exact_venv_interpreter_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    target = tmp_path / "python-target"
-    target.write_bytes(b"exact-runtime-python")
-    interpreter = tmp_path / "control/bin/python"
-    interpreter.parent.mkdir(parents=True)
-    interpreter.symlink_to(target)
-    context = tmp_path / "context.json"
-    preflight_path = tmp_path / "preflight.json"
-    endpoints = tmp_path / "endpoints.json"
-    for path in (context, preflight_path, endpoints):
-        path.write_text("{}\n", encoding="utf-8")
-
-    payload = qualification._contract_payload(
-        ROOT,
-        tmp_path,
-        live_root=tmp_path / "live",
-        context_path=context,
-        preflight_path=preflight_path,
-        endpoint_path=endpoints,
-        python_executable=str(interpreter),
-        ready_timeout_s=30.0,
-    )
-
-    assert payload["python"]["path"] == str(interpreter)
-    assert payload["python"]["path"] != str(target)
-    assert payload["python"]["sha256"] == hashlib.sha256(target.read_bytes()).hexdigest()
-
-    monkeypatch.setenv("STEP5D_V3_CONTROL_PYTHON", "/polluted/caller/python")
-    assert qualification._validate_contract(
-        ROOT,
-        payload,
-        environment={"STEP5D_V3_CONTROL_PYTHON": str(interpreter)},
-    ) == payload
 
 
 def test_manual_production_path_has_no_capability_authorization_gate() -> None:
@@ -102,12 +64,13 @@ def test_manual_runner_reaches_waiting_for_play_without_authorization_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     observed_states: list[str] = []
-    observed_roots: list[Path] = []
+    observed_contracts: list[Path] = []
     monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", "attempt-no-arm")
     monkeypatch.setattr(
         campaign,
-        "validate_manual_qualification",
-        lambda root, *_args, **_kwargs: observed_roots.append(root),
+        "_release_contract_reference",
+        lambda args: observed_contracts.append(args.release_contract_certificate)
+        or {"path": str(args.release_contract_certificate), "sha256": "a" * 64},
     )
     monkeypatch.setattr(campaign, "seed_initial_grid", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -150,8 +113,7 @@ def test_manual_runner_reaches_waiting_for_play_without_authorization_file(
     )
     args = SimpleNamespace(
         campaign_root=tmp_path / "campaign",
-        qualification_result=tmp_path / "qualification.json",
-        qualification_bootstrap=None,
+        release_contract_certificate=tmp_path / "release-contract.json",
         release_manifest_sha256="a" * 64,
         queue=tmp_path / "queue.json",
         launch_profile=campaign.DEFAULT_LAUNCH_PROFILE,
@@ -165,7 +127,7 @@ def test_manual_runner_reaches_waiting_for_play_without_authorization_file(
     with pytest.raises(campaign.ManualLiveError, match="test stop at Play barrier"):
         campaign.run(args)
 
-    assert observed_roots == [ROOT]
+    assert observed_contracts == [tmp_path / "release-contract.json"]
     assert observed_states == ["WAITING_FOR_PLAY"]
 
 
@@ -258,51 +220,6 @@ def test_manual_running_state_requires_exact_tp_arm_acknowledgement() -> None:
     assert campaign._arm_acknowledged({**observed, "consumed_command_seq": 3}, arm) is False
     assert campaign._arm_acknowledged(
         {**observed, "state": int(campaign.TpLoopState.READY_HOME)}, arm
-    ) is False
-
-
-def test_manual_qualification_completion_signal_binds_second_arm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    signal = tmp_path / "qualification-complete.json"
-    bootstrap = {"maximum_groups": 2, "completion_signal": str(signal)}
-    args = SimpleNamespace(
-        campaign_id="manual-qualification",
-        release_manifest_sha256="a" * 64,
-    )
-    arm = campaign.HostPacket(
-        campaign_epoch=1,
-        trial_id=2,
-        command=campaign.HostCommand.ARM,
-        candidate_token=3,
-        execution_profile_id=633,
-        command_seq=2,
-        logical_batch_sequence=2,
-    )
-    monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", "attempt-qualification")
-    assert campaign._qualification_completion_requested(
-        args, bootstrap, completed=1, arm=arm
-    ) is False
-    signal.write_text(
-        json.dumps(
-            {
-                "schema": qualification.COMPLETION_SIGNAL_SCHEMA,
-                "campaign_id": args.campaign_id,
-                "launch_attempt_id": "attempt-qualification",
-                "release_manifest_sha256": args.release_manifest_sha256,
-                "trial_id": arm.trial_id,
-                "command_seq": arm.command_seq,
-                "first_group_completed": True,
-                "second_group_state": "RUN",
-            }
-        ),
-        encoding="utf-8",
-    )
-    assert campaign._qualification_completion_requested(
-        args, bootstrap, completed=1, arm=arm
-    ) is True
-    assert campaign._qualification_completion_requested(
-        args, bootstrap, completed=0, arm=arm
     ) is False
 
 
@@ -414,27 +331,6 @@ def test_live_preflight_validation_is_no_arm_and_exact() -> None:
         live.strict_object = original
 
 
-def test_manual_qualification_endpoint_override_is_fixed_loopback_only(
-    tmp_path: Path,
-) -> None:
-    path = tmp_path / "endpoints.json"
-    payload = {
-        "schema": "step5d.autotune-v3/qualification-endpoint-config-v1",
-        "content_sha256": "a" * 64,
-        "addresses": {
-            role: {"host": "127.0.0.1", "port": port}
-            for role, port in live.QUALIFICATION_ENDPOINT_PORTS.items()
-        },
-        "motion_capable": False,
-    }
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    assert live._qualification_endpoints(path) == payload
-    payload["addresses"]["rtde"]["port"] = 31004
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(bridge.ManualBridgeError, match="production-shaped"):
-        live._qualification_endpoints(path)
-
-
 def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     context_path = tmp_path / "context.json"
     preflight_path = tmp_path / "preflight.json"
@@ -473,7 +369,6 @@ def test_runtime_ticket_binds_parent_argv_context_and_preflight(tmp_path: Path, 
             "path": str(preflight_path),
             "sha256": hashlib.sha256(preflight_path.read_bytes()).hexdigest(),
         },
-        "qualification_endpoints": None,
     }
     ticket_path = tmp_path / "ticket.json"
     ticket_path.write_text(json.dumps(ticket))

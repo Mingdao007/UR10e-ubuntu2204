@@ -11,10 +11,8 @@ from __future__ import annotations
 
 from dataclasses import InitVar, dataclass
 import hashlib
-import ipaddress
 import json
 import math
-import os
 from pathlib import Path, PurePosixPath
 import re
 from typing import Any, Mapping
@@ -41,10 +39,6 @@ CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 ACTIVE_TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r012"
 SAFETY_ENVELOPE_PATH = "config/step5/step5d_autotune_v3_control_contract.json"
 LAUNCH_PROFILE_PATH = "config/step5/step5d_autotune_v3_launch_profile.json"
-QUALIFICATION_RELEASE_MANIFEST_ENV = "STEP5D_V3_QUALIFICATION_RELEASE_MANIFEST"
-QUALIFICATION_ENDPOINT_CONFIG_ENV = "STEP5D_V3_QUALIFICATION_ENDPOINT_CONFIG"
-QUALIFICATION_MODE_ENV = "STEP5D_V3_QUALIFICATION_MODE"
-QUALIFICATION_MODE_VALUE = "endpoint-only-no-motion-v1"
 LOCAL_RELEASE_CANDIDATE_SCHEMA = "step5d.autotune-v3/local-release-candidate-v1"
 RELEASE_RUNTIME_ENVIRONMENT_SCHEMA = (
     "step5d.autotune-v3/release-runtime-environment-v1"
@@ -634,87 +628,12 @@ def load_local_release_candidate(
     return release, descriptor
 
 
-def qualification_runtime_environment(
-    environment: Mapping[str, str] | None = None,
-) -> dict[str, str]:
-    values = os.environ if environment is None else environment
-    names = (
-        QUALIFICATION_RELEASE_MANIFEST_ENV,
-        QUALIFICATION_ENDPOINT_CONFIG_ENV,
-        QUALIFICATION_MODE_ENV,
-    )
-    present = {name: values.get(name, "") for name in names}
-    if not any(present.values()):
-        return {}
-    if not all(present.values()):
-        raise ReleaseIdentityError("qualification release environment is incomplete")
-    return present
-
-
 def load_runtime_release(
     experiment_root: Path,
-    environment: Mapping[str, str] | None = None,
 ) -> ReleaseIdentity:
-    """Use an explicit release only inside the localhost no-motion qualification seam."""
+    """Load only the immutable release selected by the current pointer."""
 
-    root = experiment_root.expanduser().resolve(strict=True)
-    values = os.environ if environment is None else environment
-    qualification = qualification_runtime_environment(values)
-    if not qualification:
-        return load_current_release(root)
-    if qualification[QUALIFICATION_MODE_ENV] != QUALIFICATION_MODE_VALUE:
-        raise ReleaseIdentityError("qualification release mode differs")
-    if values.get("STEP5D_V3_CANONICAL_LAUNCHER") != str(
-        (root / "scripts/step5d-autotune-v3.sh").resolve()
-    ):
-        raise ReleaseIdentityError("qualification release lacks canonical launcher binding")
-    endpoint_path = Path(qualification[QUALIFICATION_ENDPOINT_CONFIG_ENV]).expanduser()
-    if endpoint_path.is_symlink() or not endpoint_path.is_file():
-        raise ReleaseIdentityError("qualification endpoint config is missing or unsafe")
-    endpoint = _strict_object(
-        endpoint_path.read_bytes(), "qualification endpoint config"
-    )
-    if set(endpoint) != {"schema", "content_sha256", "addresses", "motion_capable"}:
-        raise ReleaseIdentityError("qualification endpoint config fields differ")
-    if (
-        endpoint.get("schema")
-        != "step5d.autotune-v3/qualification-endpoint-config-v1"
-        or endpoint.get("motion_capable") is not False
-    ):
-        raise ReleaseIdentityError("qualification endpoint config is not no-motion")
-    _sha256_text(endpoint.get("content_sha256"), "qualification endpoint content SHA-256")
-    addresses = endpoint.get("addresses")
-    if not isinstance(addresses, Mapping) or set(addresses) != {
-        "dashboard",
-        "secondary",
-        "rtde",
-        "kunwei",
-    }:
-        raise ReleaseIdentityError("qualification endpoint address roles differ")
-    for role, address in addresses.items():
-        if not isinstance(address, Mapping) or set(address) != {"host", "port"}:
-            raise ReleaseIdentityError(f"qualification {role} address fields differ")
-        try:
-            host = ipaddress.ip_address(address.get("host"))
-        except ValueError as exc:
-            raise ReleaseIdentityError(
-                f"qualification {role} host is not a loopback literal"
-            ) from exc
-        port = address.get("port")
-        if (
-            host.version != 4
-            or not host.is_loopback
-            or isinstance(port, bool)
-            or not isinstance(port, int)
-            or not 1 <= port <= 65535
-        ):
-            raise ReleaseIdentityError(
-                f"qualification {role} endpoint is not loopback-only"
-            )
-    return load_release_manifest(
-        root,
-        Path(qualification[QUALIFICATION_RELEASE_MANIFEST_ENV]),
-    )
+    return load_current_release(experiment_root.expanduser().resolve(strict=True))
 
 
 def release_payload_path(
@@ -777,10 +696,6 @@ __all__ = [
     "CURRENT_POINTER_SCHEMA",
     "LAUNCH_PROFILE_PATH",
     "LOCAL_RELEASE_CANDIDATE_SCHEMA",
-    "QUALIFICATION_ENDPOINT_CONFIG_ENV",
-    "QUALIFICATION_MODE_ENV",
-    "QUALIFICATION_MODE_VALUE",
-    "QUALIFICATION_RELEASE_MANIFEST_ENV",
     "RELEASE_MANIFEST_SCHEMA",
     "RELEASE_PYTHON_ABI",
     "RELEASE_RUNTIME_ENVIRONMENT_SCHEMA",
@@ -799,7 +714,6 @@ __all__ = [
     "load_local_release_candidate",
     "load_release_manifest",
     "load_runtime_release",
-    "qualification_runtime_environment",
     "release_runtime_environment_binding",
     "release_payload_path",
 ]

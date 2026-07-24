@@ -256,7 +256,7 @@ def test_authoritative_gate_binds_the_production_vertical_slice() -> None:
 
     active = set(gate["classified_test_files"]["active"])
     assert {
-        "tests/test_step5d_autotune_v3_qualification_production.py",
+        "tests/test_step5d_release_contract.py",
         "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",
         "tests/test_step5d_runtime_environment.py",
         "tests/test_step5d_autotune_live_driver.py",

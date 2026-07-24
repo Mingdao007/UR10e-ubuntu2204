@@ -638,6 +638,40 @@ def test_compatible_readback_accepts_historical_source_coverage(
     )
 
 
+def test_candidate_defaults_to_current_immutable_artifacts(tmp_path: Path) -> None:
+    manifest_path = _release_fixture(tmp_path)
+
+    artifact_dir = promoter.current_release_artifact_dir(tmp_path)
+
+    assert artifact_dir == (
+        manifest_path.parent / "programs/step5"
+    )
+    assert {
+        path.name for path in artifact_dir.glob(f"{PROGRAM}*")
+    } >= {
+        f"{PROGRAM}.script",
+        f"{PROGRAM}.txt",
+        f"{PROGRAM}.urp",
+        f"{PROGRAM}.deploy-manifest.json",
+        f"{PROGRAM}.numeric-sanity.json",
+    }
+
+
+def test_candidate_prefers_canonical_repository_artifacts(tmp_path: Path) -> None:
+    canonical = tmp_path / promoter.PACKAGE_DIR
+    canonical.mkdir(parents=True)
+    for suffix in (
+        ".script",
+        ".txt",
+        ".urp",
+        ".deploy-manifest.json",
+        ".numeric-sanity.json",
+    ):
+        (canonical / f"{PROGRAM}{suffix}").write_text(suffix, encoding="utf-8")
+
+    assert promoter.default_release_artifact_dir(tmp_path) == canonical
+
+
 ATOMIC_RUNTIME_REGISTERS = {
     "protocol_version": 35,
     "digest_hi": 36,

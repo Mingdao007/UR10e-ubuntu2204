@@ -28,6 +28,7 @@ from pathlib import Path, PurePosixPath
 from typing import Iterator
 
 from resolve_step4e_route import load_routes as load_step4e_routes
+from step5d_runtime_interface import require_executable_step5d_profile
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -2188,6 +2189,7 @@ def write_manifest(
     program: str | None = None,
     inactive_candidate_delivery: dict | None = None,
     upload_transaction_id: str | None = None,
+    delivery_basis: dict[str, str] | None = None,
 ) -> Path | None:
     manifest = {
         "status": "dry-run" if dry_run else "controller read-back verified",
@@ -2231,6 +2233,8 @@ def write_manifest(
         }
     if upload_transaction_id is not None:
         manifest["upload_transaction_id"] = upload_transaction_id
+    if delivery_basis is not None:
+        manifest["delivery_basis"] = dict(delivery_basis)
     if not dry_run:
         manifest_path = readback_dir / "manifest.json"
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -2260,7 +2264,7 @@ def write_manifest_result(
     temporary.replace(output)
 
 
-def _main(argv: list[str] | None = None) -> int:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("program", help="program basename, for example step4e_seed_normal_loop_v29")
     parser.add_argument(
@@ -2303,6 +2307,16 @@ def _main(argv: list[str] | None = None) -> int:
         default=None,
         help="write an exact manifest-path handoff for the transaction coordinator",
     )
+    parser.add_argument(
+        "--delivery-basis-path",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--delivery-basis-sha256",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
     parser.add_argument("--dry-run", action="store_true", help="print SSH/SCP plan and validate local files only")
     parser.add_argument(
         "--force-upload-readback",
@@ -2319,7 +2333,17 @@ def _main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="freshly GET and verify an already-present exact triplet without deploy/upload",
     )
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
+
+
+def _main(
+    argv: list[str] | None = None,
+    *,
+    _args: argparse.Namespace | None = None,
+) -> int:
+    args = _args or _parse_args(argv)
+    program = normalize_program(args.program)
+    require_executable_step5d_profile(program)
 
     if args.readback_only_existing and (
         args.force_upload_readback or args.allow_readback_reuse or args.dry_run
@@ -2333,6 +2357,28 @@ def _main(argv: list[str] | None = None) -> int:
         die("dry-run cannot publish a controller read-back manifest path")
     if (args.controller_helper is None) != (args.controller_helper_sha256 is None):
         die("--controller-helper and --controller-helper-sha256 must be supplied together")
+    if (args.delivery_basis_path is None) != (
+        args.delivery_basis_sha256 is None
+    ):
+        die("--delivery-basis-path and --delivery-basis-sha256 must be supplied together")
+    delivery_basis = None
+    if args.delivery_basis_path is not None:
+        relative_basis = PurePosixPath(args.delivery_basis_path)
+        basis_sha256 = args.delivery_basis_sha256
+        if (
+            not args.readback_only_existing
+            or relative_basis.is_absolute()
+            or relative_basis.as_posix() != args.delivery_basis_path
+            or any(part in {"", ".", ".."} for part in relative_basis.parts)
+            or not isinstance(basis_sha256, str)
+            or len(basis_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in basis_sha256)
+        ):
+            die("delivery basis binding is invalid")
+        delivery_basis = {
+            "path": relative_basis.as_posix(),
+            "sha256": basis_sha256,
+        }
     if args.dry_run:
         helper = args.controller_helper or Path("<controller-helper>")
         helper_sha256 = args.controller_helper_sha256
@@ -2344,7 +2390,6 @@ def _main(argv: list[str] | None = None) -> int:
             args.controller_helper_sha256,
         )
 
-    program = normalize_program(args.program)
     inactive_delivery_policy = enforce_offline_candidate_delivery_block(program)
     table_resolution = (
         None
@@ -2469,6 +2514,7 @@ def _main(argv: list[str] | None = None) -> int:
             target_override_reason=target_override_reason,
             inactive_candidate_delivery=inactive_candidate_delivery,
             upload_transaction_id=args.upload_transaction_id,
+            delivery_basis=delivery_basis,
         )
         return 0
 
@@ -2498,6 +2544,7 @@ def _main(argv: list[str] | None = None) -> int:
         target_override_reason=target_override_reason,
         inactive_candidate_delivery=inactive_candidate_delivery,
         upload_transaction_id=args.upload_transaction_id,
+        delivery_basis=delivery_basis,
     )
     assert manifest_path is not None
     if args.manifest_path_output is not None:
@@ -2526,12 +2573,19 @@ def _main(argv: list[str] | None = None) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     values = list(argv) if argv is not None else list(sys.argv[1:])
-    if "--dry-run" in values:
-        return _main(values)
-    from ur10e_mutation_lock import acquire_controller_mutation_locks, release_controller_mutation_locks
+    args = _parse_args(values)
+    program = normalize_program(args.program)
+    require_executable_step5d_profile(program)
+    if args.dry_run:
+        return _main(_args=args)
+    from ur10e_mutation_lock import (
+        acquire_controller_mutation_locks,
+        release_controller_mutation_locks,
+    )
+
     handles = acquire_controller_mutation_locks()
     try:
-        return _main(values)
+        return _main(_args=args)
     finally:
         release_controller_mutation_locks(handles)
 

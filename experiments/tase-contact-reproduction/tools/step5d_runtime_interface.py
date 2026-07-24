@@ -7,6 +7,7 @@ import argparse
 import json
 import math
 import os
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
@@ -29,6 +30,9 @@ STEP5D_ABLATION_V26_STAGE_ID = "step5d_strict_rnn_ablation_v26"
 STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
 STEP5D_ABLATION_V29_STAGE_ID = "step5d_strict_rnn_ablation_v29"
+STEP5D_ARCHIVED_PROFILE_REASON = "ARCHIVED_PROFILE"
+STEP5D_ARCHIVED_PROFILE_REPLACEMENT = "step5d_strict_rnn_autotune_v3_r012"
+STEP5D_ARCHIVED_STAGE_IDS = frozenset({STEP5D_ABLATION_V29_STAGE_ID})
 STEP5D_ABLATION_V30_STAGE_ID = "step5d_strict_rnn_ablation_v30"
 STEP5D_ABLATION_V31_STAGE_ID = "step5d_strict_rnn_ablation_v31"
 STEP5D_ABLATION_V32_STAGE_ID = "step5d_strict_rnn_ablation_v32"
@@ -128,6 +132,18 @@ STEP5D_STAGE25_V28_RUNTIME_LIMIT_S = 65.0
 
 class StageEnvError(RuntimeError):
     pass
+
+
+class ArchivedProfileError(RuntimeError):
+    pass
+
+
+def require_executable_step5d_profile(program: str) -> None:
+    if program in STEP5D_ARCHIVED_STAGE_IDS:
+        raise ArchivedProfileError(
+            f"{STEP5D_ARCHIVED_PROFILE_REASON}: {program}; "
+            f"replacement={STEP5D_ARCHIVED_PROFILE_REPLACEMENT}"
+        )
 
 
 def _stage_finite_float(value: Any, label: str) -> float:
@@ -1209,6 +1225,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", choices=("live-ready", "interface-json"))
     args = parser.parse_args(argv)
 
+    try:
+        require_executable_step5d_profile(
+            args.program or current_step5d_program(args.root / "config" / "current_stage.json")
+        )
+    except ArchivedProfileError as exc:
+        print(str(exc), file=sys.stderr)
+        return 64
     interface = resolve_runtime_interface(program=args.program, root=args.root)
     readiness: dict[str, Any] | None = None
     if interface.program == STEP5D_ABLATION_V29_STAGE_ID:

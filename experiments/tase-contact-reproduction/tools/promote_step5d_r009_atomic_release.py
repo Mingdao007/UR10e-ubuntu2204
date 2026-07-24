@@ -32,7 +32,10 @@ from step5d_autotune_v3.release_identity import (
     ROLLING_NORMAL_MAX_RATE_RAD_S,
     ROLLING_PROTOCOL,
     SAFETY_ENVELOPE_PATH,
+    ReleaseIdentityError,
     load_current_release,
+    load_current_release_for_compatible_readback,
+    release_payload_path,
     release_runtime_environment_binding,
 )
 from step5d_autotune_v3.release_verifier import verify_release_manifest
@@ -71,7 +74,7 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "e8224db54b9f68b90cf393e1e42bd327a1419a9615aa44a0c0cd1cf6c4e4c44a",
+    "config/step5d/v3_active_surface.json": "a9946b39371530568af48189ca2f1a0190228f678c7c9cd010b94d525aacff6b",
 }
 CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
@@ -371,6 +374,57 @@ def _artifact_paths(artifact_dir: Path) -> dict[str, Path]:
     }
 
 
+def current_release_artifact_dir(root: Path) -> Path:
+    """Reuse manifest-bound TP bytes when compatibility mirrors are absent."""
+
+    root = root.resolve(strict=True)
+    try:
+        release = load_current_release_for_compatible_readback(root)
+        references = {
+            extension: release_payload_path(
+                root,
+                release,
+                str(release.artifacts[extension]["path"]),
+            )
+            for extension in EXTENSIONS
+        }
+        artifact_dir = next(iter(references.values())).parent
+        if any(path.parent != artifact_dir for path in references.values()):
+            raise R009PromotionError(
+                "current release TP artifacts do not share a directory"
+            )
+        for suffix in (".deploy-manifest.json", ".numeric-sanity.json"):
+            bundle_root = (root / release.manifest_path).parent
+            release_payload_path(
+                root,
+                release,
+                (
+                    artifact_dir.relative_to(bundle_root) / f"{PROGRAM}{suffix}"
+                ).as_posix(),
+            )
+    except (KeyError, ReleaseIdentityError) as exc:
+        raise R009PromotionError(
+            f"current immutable TP artifacts are unavailable: {exc}"
+        ) from exc
+    return artifact_dir
+
+
+def default_release_artifact_dir(root: Path) -> Path:
+    root = root.resolve(strict=True)
+    canonical = root / PACKAGE_DIR
+    required = (
+        *_artifact_paths(canonical).values(),
+        canonical / f"{PROGRAM}.deploy-manifest.json",
+        canonical / f"{PROGRAM}.numeric-sanity.json",
+    )
+    if all(
+        not path.is_symlink() and path.is_file()
+        for path in required
+    ):
+        return canonical
+    return current_release_artifact_dir(root)
+
+
 def validate_local_candidate(
     root: Path,
     artifact_dir: Path,
@@ -402,6 +456,7 @@ def validate_delivery(
     *,
     expected_transaction_id: str | None = None,
     expected_manifest_sha256: str | None = None,
+    expected_delivery_basis: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     root = root.resolve(strict=True)
     unresolved_manifest = manifest_path.expanduser()
@@ -464,6 +519,18 @@ def validate_delivery(
         == local_sha
     ):
         raise R009PromotionError("local/controller/readback triplet SHA closure differs")
+    if manifest.get("delivery_mode") == "existing_program_fresh_readback":
+        if (
+            expected_delivery_basis is None
+            or manifest.get("delivery_basis") != dict(expected_delivery_basis)
+        ):
+            raise R009PromotionError(
+                "existing-program delivery basis reference differs"
+            )
+    elif expected_delivery_basis is not None:
+        raise R009PromotionError(
+            "delivery basis is valid only for existing-program adoption"
+        )
     for extension, key in {
         ".script": "script_sha256",
         ".txt": "txt_sha256",
@@ -715,6 +782,7 @@ def compose_release(
     *,
     expected_transaction_id: str | None = None,
     expected_manifest_sha256: str | None = None,
+    expected_delivery_basis: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, bytes], dict[str, str]]:
     root = root.resolve(strict=True)
     _upload, delivered_triplet = validate_delivery(
@@ -723,6 +791,7 @@ def compose_release(
         artifact_dir,
         expected_transaction_id=expected_transaction_id,
         expected_manifest_sha256=expected_manifest_sha256,
+        expected_delivery_basis=expected_delivery_basis,
     )
     manifest, bundle_files, targets = compose_local_release(root, artifact_dir)
     composed_triplet = {
@@ -783,6 +852,7 @@ def promote(
     expected_transaction_id: str,
     expected_manifest_sha256: str,
     expected_candidate_manifest_sha256: str | None = None,
+    expected_delivery_basis: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     root = root.resolve(strict=True)
     manifest, bundle_files, targets = compose_release(
@@ -791,6 +861,7 @@ def promote(
         artifact_dir,
         expected_transaction_id=expected_transaction_id,
         expected_manifest_sha256=expected_manifest_sha256,
+        expected_delivery_basis=expected_delivery_basis,
     )
 
     composed_digest = _sha256_bytes(canonical_bytes(manifest))
@@ -831,12 +902,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--stage-local-candidate", action="store_true")
     parser.add_argument("--candidate-output", type=Path)
     args = parser.parse_args(argv)
-    if args.artifact_dir is None:
-        parser.error("--artifact-dir is required")
     if args.stage_local_candidate:
         if args.manifest is not None or args.compose_only:
             parser.error("local candidate staging cannot include a delivery manifest")
-        candidate = stage_local_candidate(args.root, args.artifact_dir)
+        artifact_dir = (
+            args.artifact_dir
+            if args.artifact_dir is not None
+            else default_release_artifact_dir(args.root)
+        )
+        candidate = stage_local_candidate(args.root, artifact_dir)
         if args.candidate_output is not None:
             output = args.candidate_output.expanduser().resolve(strict=False)
             evidence_root = (args.root / "runs").resolve()
@@ -851,6 +925,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.candidate_output is not None:
         parser.error("--candidate-output requires --stage-local-candidate")
+    if args.artifact_dir is None:
+        parser.error("--artifact-dir is required for receipt-bound composition")
     if args.manifest is None:
         parser.error("--manifest is required for receipt-bound composition")
     if args.compose_only:
@@ -871,7 +947,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     parser.error(
         "direct promotion is disabled; use scripts/step5d-autotune-v3.sh "
-        "release-certify followed by tp-deliver"
+        "release-contract-check followed by tp-deliver"
     )
 
 

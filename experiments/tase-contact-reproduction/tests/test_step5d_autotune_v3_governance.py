@@ -156,8 +156,8 @@ def observed_attestation(root: Path) -> dict[str, object]:
         "campaign_id": "campaign-1",
         "observed_at_unix_ns": NOW_NS,
         "bindings": bindings,
-        "offline": {
-            "evidence": evidence(root, "offline"),
+        "release_contract": {
+            "evidence": evidence(root, "release-contract"),
             "completed_at_unix_ns": NOW_NS - 1_000_000_000,
             "manifest_sha256": bindings["manifest_sha256"],
             "source_fingerprint": bindings["source_fingerprint"],
@@ -228,10 +228,10 @@ def reduce(root: Path, row: dict[str, object] | None, **kwargs: object) -> dict[
     )
 
 
-def offline_proof(root: Path) -> dict[str, object]:
+def contract_proof(root: Path) -> dict[str, object]:
     current = release()
     return {
-        "evidence": evidence(root, "qualification"),
+        "evidence": evidence(root, "release-contract"),
         "completed_at_unix_ns": NOW_NS - 1,
         "manifest_sha256": current.manifest_sha256,
         "source_fingerprint": current.source_fingerprint,
@@ -241,47 +241,48 @@ def offline_proof(root: Path) -> dict[str, object]:
     }
 
 
-def test_offline_proof_status_uses_content_binding_without_replaying_lifecycle(
+def test_contract_proof_loader_validates_the_small_contract(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from step5d_autotune_v3 import qualification, release_certificate
+    from step5d_autotune_v3 import release_contract, release_certificate
     from step5d_autotune_v3 import release_identity
 
     payload = {
-        "content": "already fully validated by qualification",
+        "state": release_contract.PROVEN,
         "completed_at_unix_ns": NOW_NS,
     }
-    evidence_path = tmp_path / "qualification/evidence/proof/qualification.json"
+    evidence_path = tmp_path / "release-contract/evidence/proof/contract.json"
     evidence_path.parent.mkdir(parents=True)
     evidence_path.write_text(json.dumps(payload), encoding="utf-8")
     evidence_sha = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
     scope = release_certificate.release_certificate_scope(
+        subject_kind="autotune_v3",
         release_manifest_sha256=release().manifest_sha256,
         source_fingerprint=release().source_fingerprint,
         source_files_fingerprint=digest("source-files"),
         launcher_sha256=release().launcher_sha256,
         control_environment_sha256=digest("control-environment"),
-        process_tree_fingerprint=digest("safety-process-tree"),
+        runtime_epoch=digest("runtime-epoch"),
+        contract_profile=release_contract.PROFILE,
     )
     certificate_path = release_certificate.certificate_path(tmp_path, scope)
     certificate_path.parent.mkdir(parents=True)
     certificate_path.write_text("{}\n", encoding="utf-8")
     calls: list[dict[str, object]] = []
 
-    def validate_binding(
+    def validate_contract(
         observed: dict[str, object],
-        **_kwargs: object,
+        *,
+        expected_scope: dict[str, object],
     ) -> dict[str, object]:
         calls.append(observed)
-        return {
-            "environment": {"fingerprint": digest("environment")},
-            "process_tree": {"fingerprint": digest("process-tree")},
-        }
+        assert expected_scope == scope
+        return expected_scope
 
     monkeypatch.setattr(
-        qualification,
-        "release_certificate_scope_for_release",
+        release_contract,
+        "release_contract_scope_for_release",
         lambda *_args, **_kwargs: scope,
     )
     monkeypatch.setattr(
@@ -299,19 +300,17 @@ def test_offline_proof_status_uses_content_binding_without_replaying_lifecycle(
         lambda *_args, **_kwargs: ({}, evidence_path, payload),
     )
     monkeypatch.setattr(
-        qualification,
-        "validate_qualification_binding",
-        validate_binding,
+        release_contract,
+        "validate_release_contract_result",
+        validate_contract,
     )
     monkeypatch.setattr(
-        qualification,
-        "validate_qualification_result",
-        lambda *_args, **_kwargs: pytest.fail(
-            "status replayed full qualification lifecycle"
-        ),
+        release_contract,
+        "production_process_tree_fingerprint",
+        lambda _root: digest("process-tree"),
     )
 
-    proof = governance._load_current_offline_proof(
+    proof = governance._load_current_contract_proof(
         ROOT,
         tmp_path,
         release(),
@@ -320,7 +319,7 @@ def test_offline_proof_status_uses_content_binding_without_replaying_lifecycle(
     assert calls == [payload]
     assert proof is not None
     assert proof["evidence"]["sha256"] == evidence_sha
-    assert proof["environment_sha256"] == digest("environment")
+    assert proof["environment_sha256"] == digest("control-environment")
     assert proof["process_tree_fingerprint"] == digest("process-tree")
 
 
@@ -338,7 +337,7 @@ def test_fsm_transitions_are_derived_from_observations(tmp_path: Path) -> None:
 
     dead = copy.deepcopy(row)
     dead_status = reduce(tmp_path, dead, proc_starttime_reader=lambda _pid: None)
-    assert dead_status["state"] == "OFFLINE_PROVEN"
+    assert dead_status["state"] == "RELEASE_CONTRACT_PROVEN"
 
     assert reduce(tmp_path, row)["state"] == "BENCH_READY"
 
@@ -402,27 +401,27 @@ def test_stopped_program_never_claims_bench_ready_before_runtime_identity(
     after_play = copy.deepcopy(waiting)
     after_play["events"]["play_observed_at_unix_ns"] = NOW_NS - 400_000_000
     after_play_status = reduce(tmp_path, after_play)
-    assert after_play_status["state"] == "OFFLINE_PROVEN"
+    assert after_play_status["state"] == "RELEASE_CONTRACT_PROVEN"
     assert after_play_status["predicates"]["bench_ready"] is False
     assert "TP_RUNTIME_IDENTITY_UNAVAILABLE" in after_play_status["blocker"]["reason_codes"]
 
 
-def test_offline_qualification_is_a_state_without_live_attestation(
+def test_release_contract_is_a_state_without_live_attestation(
     tmp_path: Path,
 ) -> None:
-    status = reduce(tmp_path, None, offline_proof=offline_proof(tmp_path))
+    status = reduce(tmp_path, None, contract_proof=contract_proof(tmp_path))
 
-    assert status["state"] == "OFFLINE_PROVEN"
-    assert status["predicates"]["offline_proven"] is True
+    assert status["state"] == "RELEASE_CONTRACT_PROVEN"
+    assert status["predicates"]["release_contract_proven"] is True
     assert status["blocker"]["class"] is None
     assert "CURRENT_OBSERVATION_MISSING" not in status["blocker"]["reason_codes"]
     assert status["next_action"] == "start_canonical_bridge"
 
-    drifted = offline_proof(tmp_path)
+    drifted = contract_proof(tmp_path)
     drifted["source_fingerprint"] = digest("drifted-source")
-    blocked = reduce(tmp_path, None, offline_proof=drifted)
-    assert blocked["predicates"]["offline_proven"] is False
-    assert "OFFLINE_BINDING_MISMATCH" in blocked["blocker"]["reason_codes"]
+    blocked = reduce(tmp_path, None, contract_proof=drifted)
+    assert blocked["predicates"]["release_contract_proven"] is False
+    assert "RELEASE_CONTRACT_BINDING_MISMATCH" in blocked["blocker"]["reason_codes"]
 
 
 def test_live_proven_is_only_an_outcome_pointer(tmp_path: Path) -> None:
@@ -462,7 +461,7 @@ def test_live_proven_is_only_an_outcome_pointer(tmp_path: Path) -> None:
     assert status["outcome"]["live_proven"] is True
     assert "live_proven" not in status["predicates"]
     assert "LIVE_PROVEN" not in FSM_STATES
-    assert status["state"] == "OFFLINE_PROVEN"
+    assert status["state"] == "RELEASE_CONTRACT_PROVEN"
 
 
 def test_completed_terminal_retains_outcome_without_reusing_live_readiness(
@@ -516,15 +515,15 @@ def test_completed_terminal_retains_outcome_without_reusing_live_readiness(
         "runner_exit_code": 0,
     }
     assert status["outcome"]["live_proven"] is True
-    assert status["state"] == "OFFLINE_PROVEN"
+    assert status["state"] == "RELEASE_CONTRACT_PROVEN"
     assert status["blocker"]["class"] is None
     assert status["blocker"]["reason_codes"] == []
     assert status["next_action"] == "campaign_complete"
-    assert status["predicates"]["offline_proven"] is True
+    assert status["predicates"]["release_contract_proven"] is True
     assert all(
         value is False
         for name, value in status["predicates"].items()
-        if name not in {"release_current", "offline_proven"}
+        if name not in {"release_current", "release_contract_proven"}
     )
 
 
@@ -673,7 +672,7 @@ def test_device_snapshot_freshness_still_fails_closed_after_window(
         ("manifest_sha256", digest("new-manifest"), "OBSERVATION_RELEASE_MISMATCH"),
         ("source_fingerprint", digest("new-source"), "SOURCE_BINDING_MISMATCH"),
         ("launcher_sha256", digest("new-launcher"), "LAUNCHER_BINDING_MISMATCH"),
-        ("environment_sha256", digest("new-environment"), "OFFLINE_BINDING_MISMATCH"),
+        ("environment_sha256", digest("new-environment"), "RELEASE_CONTRACT_BINDING_MISMATCH"),
         (
             "process_tree_fingerprint",
             digest("new-process-tree"),
@@ -681,14 +680,14 @@ def test_device_snapshot_freshness_still_fails_closed_after_window(
         ),
     ],
 )
-def test_content_binding_changes_invalidate_offline_proof(
+def test_content_binding_changes_invalidate_contract_proof(
     tmp_path: Path, field: str, new_value: str, reason: str
 ) -> None:
     row = observed_attestation(tmp_path)
     row["bindings"][field] = new_value
 
     status = reduce(tmp_path, row)
-    assert status["predicates"]["offline_proven"] is False
+    assert status["predicates"]["release_contract_proven"] is False
     assert status["predicates"]["bench_ready"] is False
     assert reason in status["blocker"]["reason_codes"]
 
@@ -750,7 +749,7 @@ def test_launch_attempt_pointer_is_content_addressed_and_phase_monotonic(
         tmp_path,
         attempt_id="attempt-1",
         state="STARTED",
-        phase="qualification",
+        phase="release_contract",
         manifest_sha256=release().manifest_sha256,
         observed_at_unix_ns=NOW_NS - 2,
     )
@@ -767,12 +766,12 @@ def test_launch_attempt_pointer_is_content_addressed_and_phase_monotonic(
         tmp_path,
         attempt_id="attempt-1",
         state="FAILED",
-        phase="qualification",
+        phase="release_contract",
         manifest_sha256=release().manifest_sha256,
         observed_at_unix_ns=NOW_NS - 1,
         exit_code=23,
         reason_code="LAUNCH_ATTEMPT_FAILED",
-        detail="qualification exited 23",
+        detail="release contract exited 23",
     )
     assert failed["attestation"]["sequence"] == 2
     assert load_current_launch_attempt(tmp_path)[0] == failed["attestation"]
@@ -800,7 +799,7 @@ def test_launch_attempt_admits_monotonic_manual_bridge_phases(tmp_path: Path) ->
     phases = (
         "runtime_gate",
         "route_resolve",
-        "manual_qualification",
+        "manual_release_contract",
         "manual_context",
         "manual_preflight",
         "manual_bridge_start",
@@ -1060,7 +1059,7 @@ def _stub_governed_release(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(governance, "load_current_release_snapshot", lambda _root: release())
     monkeypatch.setattr(
         governance,
-        "_load_current_offline_proof",
+        "_load_current_contract_proof",
         lambda _experiment, _certificate_root, _release: None,
     )
     monkeypatch.setattr(
@@ -1151,7 +1150,7 @@ def test_environment_blocker_invalidates_status_before_play(
     assert status["environment"]["gpu_functional_proven"] is False
     assert status["blocker"]["class"] == "INTERNAL"
     assert status["blocker"]["reason_codes"][0] == "RUNTIME_NOT_PROVISIONED"
-    assert status["predicates"]["offline_proven"] is False
+    assert status["predicates"]["release_contract_proven"] is False
     assert status["predicates"]["play_prompt_ready"] is False
     assert status["predicates"]["bench_ready"] is False
     assert status["state"] is None
@@ -1276,7 +1275,7 @@ def test_future_observation_cannot_advance_freshness_clock(
     assert status["state"] != "BENCH_READY"
 
 
-def test_live_status_consumes_attested_hotpath_without_requalification() -> None:
+def test_live_status_consumes_attested_hotpath_without_full_rescan() -> None:
     source = inspect.getsource(governance._environment_status)
 
     assert "runtime_status(full_integrity=False)" in source

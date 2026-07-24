@@ -190,7 +190,7 @@ def strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         "program", "protocol", "wire_protocol", "control_profile_id",
         "release_stage_id", "manual_release_manifest_sha256",
         "launch_attempt_id", "campaign_id",
-        "bridge_start_context", "preflight", "qualification_endpoints",
+        "bridge_start_context", "preflight",
     }
     if set(payload) != required:
         raise ManualBridgeError("manual runtime ticket fields differ")
@@ -223,22 +223,6 @@ def strict_ticket(path: Path, argv: Sequence[str]) -> dict[str, Any]:
         target = Path(str(reference["path"]))
         if not target.is_absolute() or sha256_path(target) != reference["sha256"]:
             raise ManualBridgeError(f"manual runtime ticket {role} digest differs")
-    qualification_ref = payload["qualification_endpoints"]
-    if qualification_ref is not None:
-        if not isinstance(qualification_ref, Mapping) or set(qualification_ref) != {
-            "path", "sha256"
-        }:
-            raise ManualBridgeError(
-                "manual runtime ticket qualification endpoint reference differs"
-            )
-        qualification_path = Path(str(qualification_ref["path"]))
-        if (
-            not qualification_path.is_absolute()
-            or sha256_path(qualification_path) != qualification_ref["sha256"]
-        ):
-            raise ManualBridgeError(
-                "manual runtime ticket qualification endpoint digest differs"
-            )
     context = load_context(ROOT, Path(context_ref["path"]))
     if payload["manual_release_manifest_sha256"] != context["manual_release_manifest_sha256"]:
         raise ManualBridgeError("manual runtime ticket release differs")
