@@ -31,7 +31,7 @@ CURRENT_LAUNCH_ATTEMPT_POINTER_SCHEMA = (
     "step5d.autotune-v3/current-launch-attempt-pointer-v1"
 )
 FSM_TRANSITION_ACTOR = "launcher_supervisor"
-_OFFLINE_REFERENCE_VERIFIED = object()
+_CONTRACT_REFERENCE_VERIFIED = object()
 
 LAUNCH_ATTEMPT_STATES = (
     "STARTED",
@@ -48,7 +48,7 @@ LAUNCH_ROUTE_BLOCKER_REASON_CODES = {
 LAUNCH_ATTEMPT_PHASES = (
     "runtime_gate",
     "route_resolve",
-    "manual_qualification",
+    "manual_release_contract",
     "manual_context",
     "manual_preflight",
     "manual_bridge_start",
@@ -56,7 +56,7 @@ LAUNCH_ATTEMPT_PHASES = (
     "status_before",
     "tp_build",
     "release_candidate",
-    "qualification",
+    "release_contract",
     "tp_delivery",
     "status_after_delivery",
     "campaign_prepare",
@@ -65,7 +65,7 @@ LAUNCH_ATTEMPT_PHASES = (
 )
 
 FSM_STATES = (
-    "OFFLINE_PROVEN",
+    "RELEASE_CONTRACT_PROVEN",
     "WAITING_FOR_IDENTITY_PLAY",
     "BENCH_READY",
     "WAITING_FOR_PLAY",
@@ -125,7 +125,7 @@ REASON_ORDER = (
     "PROCESS_TREE_BINDING_MISMATCH",
     "SAFETY_ENVELOPE_BINDING_MISMATCH",
     "RELEASE_CERTIFICATE_MISSING",
-    "OFFLINE_BINDING_MISMATCH",
+    "RELEASE_CONTRACT_BINDING_MISMATCH",
     "BRIDGE_PROCESS_DEAD",
     "BRIDGE_PID_REUSED",
     "BRIDGE_HEARTBEAT_STALE",
@@ -199,7 +199,7 @@ INTERNAL_REASON_CODES = {
     "PROCESS_TREE_BINDING_MISMATCH",
     "SAFETY_ENVELOPE_BINDING_MISMATCH",
     "RELEASE_CERTIFICATE_MISSING",
-    "OFFLINE_BINDING_MISMATCH",
+    "RELEASE_CONTRACT_BINDING_MISMATCH",
     "BRIDGE_PROCESS_DEAD",
     "BRIDGE_PID_REUSED",
     "BRIDGE_HEARTBEAT_STALE",
@@ -248,27 +248,27 @@ TERMINAL_VOLATILE_REASON_CODES = {
 }
 
 INVALIDATION_TABLE: Mapping[str, tuple[str, ...]] = {
-    "runtime_package_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
-    "runtime_lock_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
-    "host_contract_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
-    "gpu_identity_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
+    "runtime_package_changed": ("release_contract_proven", "play_prompt_ready", "bench_ready"),
+    "runtime_lock_changed": ("release_contract_proven", "play_prompt_ready", "bench_ready"),
+    "host_contract_changed": ("release_contract_proven", "play_prompt_ready", "bench_ready"),
+    "gpu_identity_changed": ("release_contract_proven", "play_prompt_ready", "bench_ready"),
     "gpu_functional_evidence_changed": (
-        "offline_proven",
+        "release_contract_proven",
         "play_prompt_ready",
         "bench_ready",
     ),
-    "owner_dependency_changed": ("offline_proven", "play_prompt_ready", "bench_ready"),
+    "owner_dependency_changed": ("release_contract_proven", "play_prompt_ready", "bench_ready"),
     "manifest_sha_changed": (
         "release_current",
-        "offline_proven",
+        "release_contract_proven",
         "lease_valid",
         "bench_ready",
     ),
-    "source_fingerprint_changed": ("offline_proven", "bench_ready"),
-    "launcher_changed": ("offline_proven", "bench_ready"),
-    "environment_changed": ("offline_proven", "bench_ready"),
+    "source_fingerprint_changed": ("release_contract_proven", "bench_ready"),
+    "launcher_changed": ("release_contract_proven", "bench_ready"),
+    "environment_changed": ("release_contract_proven", "bench_ready"),
     "process_tree_changed": (
-        "offline_proven",
+        "release_contract_proven",
         "bridge_process_alive",
         "bench_ready",
     ),
@@ -307,14 +307,14 @@ INVALIDATION_TABLE: Mapping[str, tuple[str, ...]] = {
 }
 
 TRANSITION_TABLE = (
-    {"from": None, "to": "OFFLINE_PROVEN", "requires": ("offline_proven",)},
+    {"from": None, "to": "RELEASE_CONTRACT_PROVEN", "requires": ("release_contract_proven",)},
     {
-        "from": "OFFLINE_PROVEN",
+        "from": "RELEASE_CONTRACT_PROVEN",
         "to": "WAITING_FOR_IDENTITY_PLAY",
         "requires": ("play_prompt_ready", "waiting_for_play_observed"),
     },
     {
-        "from": "OFFLINE_PROVEN",
+        "from": "RELEASE_CONTRACT_PROVEN",
         "to": "BENCH_READY",
         "requires": ("bench_ready",),
     },
@@ -781,7 +781,7 @@ def validate_observed_attestation(value: Any) -> dict[str, Any]:
             "campaign_id",
             "observed_at_unix_ns",
             "bindings",
-            "offline",
+            "release_contract",
             "process",
             "controller",
             "mailbox",
@@ -814,8 +814,8 @@ def validate_observed_attestation(value: Any) -> dict[str, Any]:
     for field in bindings:
         _sha256(bindings[field], f"attestation binding {field}")
 
-    offline = _exact(
-        row["offline"],
+    contract = _exact(
+        row["release_contract"],
         {
             "evidence",
             "completed_at_unix_ns",
@@ -825,11 +825,11 @@ def validate_observed_attestation(value: Any) -> dict[str, Any]:
             "environment_sha256",
             "process_tree_fingerprint",
         },
-        "offline qualification",
+        "release contract",
     )
-    _reference(offline["evidence"], "offline qualification")
+    _reference(contract["evidence"], "release contract")
     _validate_event_timestamp(
-        offline["completed_at_unix_ns"], "offline completion", observed_at
+        contract["completed_at_unix_ns"], "contract completion", observed_at
     )
     for field in (
         "manifest_sha256",
@@ -838,7 +838,7 @@ def validate_observed_attestation(value: Any) -> dict[str, Any]:
         "environment_sha256",
         "process_tree_fingerprint",
     ):
-        _sha256(offline[field], f"offline {field}")
+        _sha256(contract[field], f"contract {field}")
 
     process = _exact(
         row["process"],
@@ -1724,7 +1724,7 @@ def _delivery_provenance_is_current(
         return False
 
 
-def _load_current_offline_proof(
+def _load_current_contract_proof(
     experiment_root: Path,
     certificate_root: Path,
     release: CurrentReleaseSnapshot,
@@ -1736,9 +1736,10 @@ def _load_current_offline_proof(
         return None
     root = unresolved_root.resolve(strict=True)
     try:
-        from .qualification import (
-            release_certificate_scope_for_release,
-            validate_qualification_binding,
+        from .release_contract import (
+            production_process_tree_fingerprint,
+            release_contract_scope_for_release,
+            validate_release_contract_result,
         )
         from .release_certificate import (
             certificate_path,
@@ -1753,7 +1754,7 @@ def _load_current_offline_proof(
             or release.launcher_sha256 is None
         ):
             return None
-        scope = release_certificate_scope_for_release(
+        scope = release_contract_scope_for_release(
             experiment_root,
             identity,
         )
@@ -1765,37 +1766,34 @@ def _load_current_offline_proof(
             path,
             expected_scope=scope,
         )
-        binding = validate_qualification_binding(
+        validate_release_contract_result(
             payload,
-            experiment_root=experiment_root,
-            manifest_sha256=release.manifest_sha256,
-            source_fingerprint=release.source_fingerprint,
-            launcher_sha256=release.launcher_sha256,
+            expected_scope=scope,
         )
     except Exception as exc:
         raise GovernanceError(f"release certificate is invalid: {exc}") from exc
     try:
         relative_evidence = evidence_path.relative_to(root).as_posix()
     except ValueError as exc:
-        raise GovernanceError("qualification evidence escapes certificate root") from exc
+        raise GovernanceError("contract evidence escapes certificate root") from exc
     reference = {
-        "path": _relative_path(relative_evidence, "qualification evidence path"),
-        "sha256": _file_sha256(evidence_path, "qualification evidence"),
+        "path": _relative_path(relative_evidence, "contract evidence path"),
+        "sha256": _file_sha256(evidence_path, "contract evidence"),
     }
     return {
         "evidence": reference,
-        "_reference_verification": _OFFLINE_REFERENCE_VERIFIED,
+        "_reference_verification": _CONTRACT_REFERENCE_VERIFIED,
         "completed_at_unix_ns": _positive_int(
-            payload.get("completed_at_unix_ns"), "qualification completion"
+            payload.get("completed_at_unix_ns"), "contract completion"
         ),
         "manifest_sha256": release.manifest_sha256,
         "source_fingerprint": release.source_fingerprint,
         "launcher_sha256": release.launcher_sha256,
         "environment_sha256": _sha256(
-            binding["environment"]["fingerprint"], "qualification environment"
+            scope["control_environment_sha256"], "contract environment"
         ),
-        "process_tree_fingerprint": _sha256(
-            binding["process_tree"]["fingerprint"], "qualification process tree"
+        "process_tree_fingerprint": production_process_tree_fingerprint(
+            experiment_root
         ),
     }
 
@@ -1864,7 +1862,7 @@ def _next_action(state: str | None, reasons: Sequence[str], live_proven: bool) -
         return "wait_for_first_arm_ack"
     if blocker_class == "UNKNOWN":
         return "collect_read_only_evidence"
-    if state == "OFFLINE_PROVEN":
+    if state == "RELEASE_CONTRACT_PROVEN":
         return "start_canonical_bridge"
     if state == "BENCH_READY":
         return "publish_waiting_for_play"
@@ -1874,13 +1872,13 @@ def _next_action(state: str | None, reasons: Sequence[str], live_proven: bool) -
         return "monitor_until_next_arm_ack"
     if state == "RUNNING":
         return "continue_or_stop_campaign"
-    return "run_production_qualification"
+    return "run_release_contract_check"
 
 
 def _empty_predicates() -> dict[str, bool]:
     return {
         "release_current": False,
-        "offline_proven": False,
+        "release_contract_proven": False,
         "controller_fresh": False,
         "controller_fresh_get": False,
         "uploaded_identity_verified": False,
@@ -1912,7 +1910,7 @@ def reduce_observed_attestation(
     pointer: Mapping[str, Any] | None = None,
     initial_reasons: Sequence[str] = (),
     initial_evidence: Sequence[Mapping[str, Any]] = (),
-    offline_proof: Mapping[str, Any] | None = None,
+    contract_proof: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     root = _campaign_root(campaign_root)
     now_ns = _positive_int(now_ns, "status observation time")
@@ -1995,28 +1993,28 @@ def reduce_observed_attestation(
 
     state: str | None = None
     if attestation is None:
-        if offline_proof is not None:
-            offline_reference_current = (
-                offline_proof.get("_reference_verification")
-                is _OFFLINE_REFERENCE_VERIFIED
-                or _reference_is_current(root, offline_proof["evidence"])
+        if contract_proof is not None:
+            contract_reference_current = (
+                contract_proof.get("_reference_verification")
+                is _CONTRACT_REFERENCE_VERIFIED
+                or _reference_is_current(root, contract_proof["evidence"])
             )
-            offline_binding_matches = (
-                offline_proof["manifest_sha256"] == release.manifest_sha256
-                and offline_proof["source_fingerprint"] == release.source_fingerprint
-                and offline_proof["launcher_sha256"] == release.launcher_sha256
+            contract_binding_matches = (
+                contract_proof["manifest_sha256"] == release.manifest_sha256
+                and contract_proof["source_fingerprint"] == release.source_fingerprint
+                and contract_proof["launcher_sha256"] == release.launcher_sha256
             )
-            if not offline_reference_current:
+            if not contract_reference_current:
                 reasons.append("RELEASE_CERTIFICATE_MISSING")
-            if not offline_binding_matches:
-                reasons.append("OFFLINE_BINDING_MISMATCH")
-            predicates["offline_proven"] = all(
-                (release.valid, offline_reference_current, offline_binding_matches)
+            if not contract_binding_matches:
+                reasons.append("RELEASE_CONTRACT_BINDING_MISMATCH")
+            predicates["release_contract_proven"] = all(
+                (release.valid, contract_reference_current, contract_binding_matches)
             )
-            if predicates["offline_proven"]:
-                state = "OFFLINE_PROVEN"
+            if predicates["release_contract_proven"]:
+                state = "RELEASE_CONTRACT_PROVEN"
             evidence.append(
-                _evidence_row("offline_qualification", offline_proof["evidence"])
+                _evidence_row("release_contract", contract_proof["evidence"])
             )
         elif not {
             "CURRENT_OBSERVATION_MISSING",
@@ -2036,7 +2034,7 @@ def reduce_observed_attestation(
             }
         )
         bindings = row["bindings"]
-        offline = row["offline"]
+        contract = row["release_contract"]
         process = row["process"]
         controller = row["controller"]
         mailbox = row["mailbox"]
@@ -2059,28 +2057,30 @@ def reduce_observed_attestation(
         if not safety_matches:
             reasons.append("SAFETY_ENVELOPE_BINDING_MISMATCH")
 
-        offline_reference_current = _reference_is_current(root, offline["evidence"])
-        if not offline_reference_current:
+        contract_reference_current = _reference_is_current(
+            root, contract["evidence"]
+        )
+        if not contract_reference_current:
             reasons.append("RELEASE_CERTIFICATE_MISSING")
-        offline_binding_matches = (
-            offline["manifest_sha256"] == bindings["manifest_sha256"]
-            and offline["source_fingerprint"] == bindings["source_fingerprint"]
-            and offline["launcher_sha256"] == bindings["launcher_sha256"]
-            and offline["environment_sha256"] == bindings["environment_sha256"]
-            and offline["process_tree_fingerprint"]
+        contract_binding_matches = (
+            contract["manifest_sha256"] == bindings["manifest_sha256"]
+            and contract["source_fingerprint"] == bindings["source_fingerprint"]
+            and contract["launcher_sha256"] == bindings["launcher_sha256"]
+            and contract["environment_sha256"] == bindings["environment_sha256"]
+            and contract["process_tree_fingerprint"]
             == bindings["process_tree_fingerprint"]
         )
-        if not offline_binding_matches:
-            reasons.append("OFFLINE_BINDING_MISMATCH")
-        predicates["offline_proven"] = all(
+        if not contract_binding_matches:
+            reasons.append("RELEASE_CONTRACT_BINDING_MISMATCH")
+        predicates["release_contract_proven"] = all(
             (
                 release.valid,
                 manifest_matches,
                 source_matches,
                 launcher_matches,
                 safety_matches,
-                offline_reference_current,
-                offline_binding_matches,
+                contract_reference_current,
+                contract_binding_matches,
             )
         )
 
@@ -2342,7 +2342,7 @@ def reduce_observed_attestation(
             reasons.append("FIRST_ARM_ACK_MISSING")
 
         play_prompt_inputs = (
-            "offline_proven",
+            "release_contract_proven",
             "controller_fresh",
             "controller_fresh_get",
             "uploaded_identity_verified",
@@ -2369,8 +2369,8 @@ def reduce_observed_attestation(
             and process_binding_matches
             and all(predicates[name] for name in bench_inputs)
         )
-        if predicates["offline_proven"]:
-            state = "OFFLINE_PROVEN"
+        if predicates["release_contract_proven"]:
+            state = "RELEASE_CONTRACT_PROVEN"
         if (
             play is None
             and events["waiting_for_play_at_unix_ns"] is not None
@@ -2423,7 +2423,7 @@ def reduce_observed_attestation(
             terminal_integrity = all(
                 (
                     outcome["live_proven"],
-                    predicates["offline_proven"],
+                    predicates["release_contract_proven"],
                     process_evidence_current,
                     process_binding_matches,
                     process["writer_pids"] == [bridge_pid],
@@ -2450,13 +2450,13 @@ def reduce_observed_attestation(
                     if reason not in TERMINAL_VOLATILE_REASON_CODES
                 ]
                 for name in predicates:
-                    if name not in {"release_current", "offline_proven"}:
+                    if name not in {"release_current", "release_contract_proven"}:
                         predicates[name] = False
-                state = "OFFLINE_PROVEN" if predicates["offline_proven"] else None
+                state = "RELEASE_CONTRACT_PROVEN" if predicates["release_contract_proven"] else None
 
         evidence.extend(
             (
-                _evidence_row("offline_qualification", offline["evidence"]),
+                _evidence_row("release_contract", contract["evidence"]),
                 _evidence_row("process_tree", process["evidence"]),
                 _evidence_row("controller", controller["evidence"]),
                 _evidence_row("delivery", controller["delivery_observation"]),
@@ -2508,8 +2508,8 @@ def _environment_status(
     )
     from .runtime_installation import load_runtime_pointer_identity, runtime_status
 
-    # Qualification and production startup perform the full package-tree gate.
-    # They also prove the active source closure. The live reducer consumes
+    # Provisioning and explicit integrity checks perform the full package-tree gate.
+    # The live reducer consumes
     # those content-addressed identities so a fresh one-second observation is
     # not aged out by another package or source-closure scan.
     observed = dict(runtime_status(full_integrity=False))
@@ -2584,10 +2584,10 @@ def resolve_governed_status(
         }.get(role, "LEGACY_STATE_INTEGRITY_ERROR")
         reasons.append(reason)
         evidence.append(_evidence_row(role, detail=detail))
-    offline_proof: Mapping[str, Any] | None = None
+    contract_proof: Mapping[str, Any] | None = None
     certificate_root = experiment_root / "runs/step5d_autotune_v3"
     try:
-        offline_proof = _load_current_offline_proof(
+        contract_proof = _load_current_contract_proof(
             experiment_root,
             certificate_root,
             release,
@@ -2595,7 +2595,7 @@ def resolve_governed_status(
     except GovernanceError as exc:
         reasons.append("RELEASE_CERTIFICATE_MISSING")
         evidence.append(
-            _evidence_row("offline_qualification", detail=f"{type(exc).__name__}:{exc}")
+            _evidence_row("release_contract", detail=f"{type(exc).__name__}:{exc}")
         )
     attestation: Mapping[str, Any] | None = None
     pointer: Mapping[str, Any] | None = None
@@ -2752,17 +2752,17 @@ def resolve_governed_status(
         pointer=pointer,
         initial_reasons=reasons,
         initial_evidence=evidence,
-        offline_proof=offline_proof,
+        contract_proof=contract_proof,
     )
     status["generated_at_unix_ns"] = observed_now
     if environment_reasons:
-        status["predicates"]["offline_proven"] = False
+        status["predicates"]["release_contract_proven"] = False
         status["predicates"]["play_prompt_ready"] = False
         status["predicates"]["bench_ready"] = False
         status["state"] = None
         status["outcome"]["live_proven"] = False
-    elif offline_proof is not None:
-        environment["environment_attestation_sha256"] = offline_proof[
+    elif contract_proof is not None:
+        environment["environment_attestation_sha256"] = contract_proof[
             "evidence"
         ]["sha256"]
     status["environment"] = environment

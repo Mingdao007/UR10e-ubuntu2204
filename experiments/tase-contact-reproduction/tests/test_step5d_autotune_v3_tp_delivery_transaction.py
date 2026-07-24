@@ -591,7 +591,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     promotion_arguments: dict[str, Any] = {}
     evidence_output = root / "runs/campaign/delivery-observation.json"
     candidate_path = root / "candidate.json"
-    qualification_path = root / "qualification.json"
+    contract_path = root / "release-contract.json"
 
     def fake_upload(arguments: list[str]) -> int:
         events.append("upload")
@@ -699,7 +699,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
                 "--release-candidate",
                 str(candidate_path),
                 "--release-certificate",
-                str(qualification_path),
+                str(contract_path),
                 "--evidence-output",
                 str(evidence_output),
             ]
@@ -844,7 +844,7 @@ def test_readback_only_transaction_skips_upload_and_program_load(
                 "--release-candidate",
                 str(root / "candidate.json"),
                 "--release-certificate",
-                str(root / "qualification.json"),
+                str(root / "release-contract.json"),
                 "--evidence-output",
                 str(evidence_output),
                 "--readback-only-existing",
@@ -919,7 +919,7 @@ def test_readback_only_transaction_rejects_identity_drift_before_lock(
                 "--release-candidate",
                 str(root / "candidate.json"),
                 "--release-certificate",
-                str(root / "qualification.json"),
+                str(root / "release-contract.json"),
                 "--evidence-output",
                 str(root / "runs/campaign/delivery-observation.json"),
                 "--readback-only-existing",
@@ -960,7 +960,7 @@ def test_transaction_rejects_evidence_output_outside_runs_before_lock(
     upload.assert_not_called()
 
 
-def test_transaction_qualification_failure_precedes_controller_lock_and_upload(
+def test_transaction_contract_failure_precedes_controller_lock_and_upload(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "experiment"
@@ -996,7 +996,7 @@ def test_transaction_qualification_failure_precedes_controller_lock_and_upload(
                 "--release-candidate",
                 str(root / "candidate.json"),
                 "--release-certificate",
-                str(root / "qualification.json"),
+                str(root / "release-contract.json"),
                 "--evidence-output",
                 str(evidence_output),
             ]

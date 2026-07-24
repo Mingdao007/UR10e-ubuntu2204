@@ -207,7 +207,6 @@ def test_live_routes_both_configs_through_immutable_bundle(
     )
     monkeypatch.setattr(live, "load_runtime_release", lambda _root: release)
     monkeypatch.setattr(live, "load_delivery_observation", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(live, "_qualification_endpoints", lambda _path: None)
     monkeypatch.setattr(live, "load_contract", load_contract)
     monkeypatch.setattr(live, "load_launch_profile", load_profile)
     monkeypatch.setattr(
@@ -222,7 +221,6 @@ def test_live_routes_both_configs_through_immutable_bundle(
         delivery_observation=tmp_path / "delivery.json",
         campaign_root=tmp_path / "campaign",
         launch_profile=tmp_path / LAUNCH_PROFILE_PATH,
-        qualification_endpoints=None,
     )
     with pytest.raises(RoutingObserved):
         live.run(args)

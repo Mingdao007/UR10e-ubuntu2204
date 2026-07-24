@@ -2056,8 +2056,8 @@ def load_runtime_pointer_integrity(
 ) -> dict[str, Any]:
     """Rehash installed packages and host inputs without importing profiles.
 
-    Normal startup and qualification use this identity gate; explicit install
-    and manual audit paths retain ``load_runtime_pointer`` for byte rehashing.
+    Explicit startup integrity checks use this identity gate; install and
+    manual audit paths retain ``load_runtime_pointer`` for byte rehashing.
     This narrower full-byte gate is used between trials, where importing both
     CuPy and Torch runtimes again would consume the TP watchdog budget.  It
     verifies the same lock, manifest, RECORD/profile trees, duplicate metadata,

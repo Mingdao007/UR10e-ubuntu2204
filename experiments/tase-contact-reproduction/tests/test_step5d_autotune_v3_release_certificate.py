@@ -22,38 +22,35 @@ def digest(label: str) -> str:
 
 def scope(**overrides: object) -> dict[str, object]:
     values = {
+        "subject_kind": "autotune_v3",
         "release_manifest_sha256": digest("release"),
         "source_fingerprint": digest("source"),
         "source_files_fingerprint": digest("source-files"),
         "launcher_sha256": digest("launcher"),
         "control_environment_sha256": digest("control-environment"),
-        "process_tree_fingerprint": digest("safety-process-tree"),
         "runtime_epoch": digest("runtime-epoch"),
-        "endpoint_content_sha256": digest("endpoint-content"),
-        "qualification_profile": "formal_transition_v1",
-        "claim_class": "state_machine_contract",
-        "optimizer_exercised": False,
+        "contract_profile": "state_machine_contract_v1",
     }
     values.update(overrides)
     return release_certificate_scope(**values)
 
 
-def qualification_evidence(root: Path) -> tuple[Path, str]:
-    path = root / "qualification/evidence/result/qualification.json"
+def contract_evidence(root: Path) -> tuple[Path, str]:
+    path = root / "release-contract/evidence/result/contract.json"
     path.parent.mkdir(parents=True)
     path.write_text('{"ok":true}\n', encoding="utf-8")
     return path, hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_certificate_is_scope_addressed_and_round_trips(tmp_path: Path) -> None:
-    evidence, evidence_sha256 = qualification_evidence(tmp_path)
+    evidence, evidence_sha256 = contract_evidence(tmp_path)
     expected_scope = scope()
 
     payload, reference = write_release_certificate(
         tmp_path,
         scope=expected_scope,
-        qualification_evidence_path=evidence,
-        qualification_evidence_sha256=evidence_sha256,
+        contract_evidence_path=evidence,
+        contract_evidence_sha256=evidence_sha256,
         completed_at_unix_ns=123,
     )
 
@@ -67,25 +64,25 @@ def test_certificate_is_scope_addressed_and_round_trips(tmp_path: Path) -> None:
     )
     assert reference["schema"] == REFERENCE_SCHEMA
     assert Path(reference["path"]) == expected_path
-    observed, observed_evidence, observed_qualification = load_release_certificate(
+    observed, observed_evidence, observed_contract = load_release_certificate(
         tmp_path,
         expected_path,
         expected_scope=expected_scope,
     )
     assert observed == payload
     assert observed_evidence == evidence
-    assert observed_qualification == {"ok": True}
+    assert observed_contract == {"ok": True}
 
 
 def test_exact_certificate_rewrite_is_idempotent_but_conflict_is_refused(
     tmp_path: Path,
 ) -> None:
-    evidence, evidence_sha256 = qualification_evidence(tmp_path)
+    evidence, evidence_sha256 = contract_evidence(tmp_path)
     expected_scope = scope()
     arguments = {
         "scope": expected_scope,
-        "qualification_evidence_path": evidence,
-        "qualification_evidence_sha256": evidence_sha256,
+        "contract_evidence_path": evidence,
+        "contract_evidence_sha256": evidence_sha256,
         "completed_at_unix_ns": 123,
     }
 
@@ -106,13 +103,13 @@ def test_exact_certificate_rewrite_is_idempotent_but_conflict_is_refused(
 def test_certificate_rejects_scope_drift_and_evidence_tampering(
     tmp_path: Path,
 ) -> None:
-    evidence, evidence_sha256 = qualification_evidence(tmp_path)
+    evidence, evidence_sha256 = contract_evidence(tmp_path)
     expected_scope = scope()
     write_release_certificate(
         tmp_path,
         scope=expected_scope,
-        qualification_evidence_path=evidence,
-        qualification_evidence_sha256=evidence_sha256,
+        contract_evidence_path=evidence,
+        contract_evidence_sha256=evidence_sha256,
         completed_at_unix_ns=123,
     )
     path = certificate_path(tmp_path, expected_scope)
@@ -127,7 +124,7 @@ def test_certificate_rejects_scope_drift_and_evidence_tampering(
     evidence.write_text('{"ok":false}\n', encoding="utf-8")
     with pytest.raises(
         ReleaseCertificateError,
-        match="qualification evidence SHA-256 differs",
+        match="contract evidence SHA-256 differs",
     ):
         load_release_certificate(
             tmp_path,

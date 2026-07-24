@@ -1707,7 +1707,6 @@ def run(args: argparse.Namespace) -> int:
     completion_consumed = False
     stopped_after_current = False
     fail_closed_plan_timeout = False
-    offline_gate_arm2_observed = False
     current_plan: CandidateBatchPlan | None = None
     current_plan_row: RuntimePlanRow | None = None
     last_completed_arm: HostPacket | None = None
@@ -2082,26 +2081,6 @@ def run(args: argparse.Namespace) -> int:
             identity_commit_deadline_s: float | None = None
             for row in follower.rows(timeout_s=args.trial_timeout_s):
                 snapshot = tp_snapshot_from_bridge_row(row)
-                if (
-                    args.offline_release_gate
-                    and trial.trial_id == 2
-                    and snapshot.state == "RUN"
-                    and snapshot.campaign_epoch_echo
-                    == trial.campaign.campaign_epoch
-                    and snapshot.trial_id_echo == trial.trial_id
-                    and snapshot.candidate_token_echo == trial.candidate_token
-                    and snapshot.execution_profile_integer_id_echo
-                    == arm.execution_profile_id
-                    and snapshot.consumed_command_seq == arm.command_seq
-                ):
-                    offline_gate_arm2_observed = True
-                    _event(
-                        event_path,
-                        "offline_release_gate_arm2_entered_run",
-                        trial_uid=trial.trial_uid,
-                        command_seq=arm.command_seq,
-                    )
-                    break
                 expected_state = (
                     "READY_HOME_NEXT"
                     if rolling_release
@@ -2145,8 +2124,6 @@ def run(args: argparse.Namespace) -> int:
                 follower.mark_terminal_seen(
                     (bridge_run / "autotune_trials" / trial.trial_uid / "capture.csv")
                 )
-                break
-            if offline_gate_arm2_observed:
                 break
             if terminal_snapshot is None:
                 raise RuntimeError(
@@ -2337,7 +2314,6 @@ def run(args: argparse.Namespace) -> int:
         campaign_succeeded=campaign_succeeded,
         plan_closed=plan_closed,
         batch_completed=batch_completed,
-        offline_gate_arm2_observed=offline_gate_arm2_observed,
         fail_closed_plan_timeout=fail_closed_plan_timeout,
         bridge_csv_follower=asdict(follower.stats),
     )
@@ -2350,7 +2326,6 @@ def run(args: argparse.Namespace) -> int:
                     or plan_closed and not fail_closed_plan_timeout
                     or batch_completed
                     or stopped_after_current
-                    or offline_gate_arm2_observed
                 ),
                 "trial_completed": completed_trials > 0,
                 "campaign_succeeded": campaign_succeeded,
@@ -2360,7 +2335,6 @@ def run(args: argparse.Namespace) -> int:
                 "completion_consumed": completion_consumed,
                 "fail_closed_plan_timeout": fail_closed_plan_timeout,
                 "stopped_after_current": stopped_after_current,
-                "offline_gate_arm2_observed": offline_gate_arm2_observed,
                 "bridge_csv_follower": asdict(follower.stats),
                 "selection_policy": args.selection_policy,
                 "phase": supervisor.phase.value,
@@ -2375,7 +2349,6 @@ def run(args: argparse.Namespace) -> int:
         or plan_closed and not fail_closed_plan_timeout
         or batch_completed
         or stopped_after_current
-        or offline_gate_arm2_observed
     ) else 2
 
 
@@ -2421,11 +2394,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--v3-trial-overlays", type=Path)
     parser.add_argument("--v3-launch-profile", type=Path)
     parser.add_argument("--v3-runtime-root", type=Path)
-    parser.add_argument(
-        "--offline-release-gate",
-        action="store_true",
-        help="endpoint-only production qualification; exits after formal ARM2 enters RUN",
-    )
     return parser.parse_args()
 
 

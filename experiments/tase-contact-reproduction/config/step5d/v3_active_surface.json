@@ -24,7 +24,7 @@
   },
   "entrypoints": {
     "public_live": "scripts/step5d-autotune-v3.sh bridge-live",
-    "public_release_certification": "scripts/step5d-autotune-v3.sh release-certify",
+    "public_release_contract": "scripts/step5d-autotune-v3.sh release-contract-check",
     "public_tp_delivery": "scripts/step5d-autotune-v3.sh tp-deliver",
     "public_status": "scripts/step5d-autotune-v3.sh status --json",
     "compatibility_adapter": "scripts/step5d-autotune-live.sh bridge",
@@ -32,7 +32,7 @@
       "tools/run_step5d_autotune_v3_live.py",
       "tools/run_step5d_autotune_v3_bridge.py",
       "tools/run_step5d_autotune_campaign.py",
-      "tools/run_step5d_autotune_v3_qualification.py"
+      "tools/run_step5d_release_contract.py"
     ]
   },
   "compatibility_adapter": {
@@ -97,8 +97,8 @@
     "tools/run_step5d_autotune_campaign.py",
     "tools/run_step5d_autotune_v3_bridge.py",
     "tools/run_step5d_autotune_v3_live.py",
-    "tools/run_step5d_autotune_v3_qualification.py",
     "tools/run_step5d_autotune_v3_tp_transaction.py",
+    "tools/run_step5d_release_contract.py",
     "tools/resolve_step5d_bridge_route.py",
     "tools/step5d_bridge_authority.py",
     "tools/step5d_bridge_status.py",
@@ -143,9 +143,8 @@
     "tools/step5d_autotune_v3/preflight_support.py",
     "tools/step5d_autotune_v3/profile.py",
     "tools/step5d_autotune_v3/public_state.py",
-    "tools/step5d_autotune_v3/qualification.py",
-    "tools/step5d_autotune_v3/qualification_endpoints.py",
     "tools/step5d_autotune_v3/release_certificate.py",
+    "tools/step5d_autotune_v3/release_contract.py",
     "tools/step5d_autotune_v3/release_identity.py",
     "tools/step5d_autotune_v3/release_verifier.py",
     "tools/step5d_autotune_v3/rtde_client.py",

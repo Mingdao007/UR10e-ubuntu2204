@@ -17,15 +17,17 @@ from typing import Any
 
 from step5d_autotune_v3.runtime_gate import loaded_program_matches
 from step5d_autotune_v3.governance import read_proc_starttime_ticks
+from step5d_autotune_v3.release_contract import (
+    manual_release_contract_scope,
+    validate_release_contract_result,
+)
 from step5d_autotune_v3.state import atomic_json
 from step5d_manual_bridge import PROGRAM, ROOT
-from step5d_manual_qualification import validate_result as validate_manual_qualification
 from ur10e_parallel import ResourceProfile, writer_lease_owner
 
 
 POINTER_SCHEMA = "step5d.manual-v2/active-run-pointer-v1"
 STATUS_SCHEMA = "step5d.manual-v2/governed-status-v1"
-QUALIFICATION_SCHEMA = "step5d.manual-v2/production-startup-qualification-v1"
 EXPECTED_PROGRAM = f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
 BRIDGE_HEARTBEAT_MAX_AGE_NS = 2_000_000_000
 CONTROLLER_OBSERVATION_MAX_AGE_NS = 5_000_000_000
@@ -155,28 +157,34 @@ def read_run_status(campaign_root: Path) -> dict[str, Any]:
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or payload.get("schema") != STATUS_SCHEMA:
         raise ValueError("Manual V2 machine status schema differs")
-    qualification = payload.get("offline_qualification")
-    qualification_current = False
-    if isinstance(qualification, dict) and set(qualification) == {"path", "sha256"}:
-        qualification_path = Path(str(qualification["path"]))
+    release_contract = payload.get("release_contract")
+    release_contract_current = False
+    if (
+        isinstance(release_contract, dict)
+        and set(release_contract) == {"path", "sha256"}
+    ):
+        contract_path = Path(str(release_contract["path"]))
         if (
-            qualification_path.is_absolute()
-            and not qualification_path.is_symlink()
-            and qualification_path.is_file()
-            and hashlib.sha256(qualification_path.read_bytes()).hexdigest()
-            == qualification["sha256"]
+            contract_path.is_absolute()
+            and not contract_path.is_symlink()
+            and contract_path.is_file()
+            and hashlib.sha256(contract_path.read_bytes()).hexdigest()
+            == release_contract["sha256"]
         ):
             try:
-                validate_manual_qualification(
-                    ROOT,
-                    qualification_path,
-                    release_manifest_sha256=str(payload.get("release_sha", "")),
+                scope = manual_release_contract_scope(ROOT)
+                contract_payload = json.loads(contract_path.read_text(encoding="utf-8"))
+                validate_release_contract_result(
+                    contract_payload,
+                    expected_scope=scope,
                 )
+                if scope["release_manifest_sha256"] != payload.get("release_sha"):
+                    raise ValueError("Manual release contract manifest differs")
             except Exception:
-                qualification_current = False
+                release_contract_current = False
             else:
-                qualification_current = True
-    payload["offline_proven"] = qualification_current
+                release_contract_current = True
+    payload["release_contract_proven"] = release_contract_current
     controller = payload.get("controller_observation")
     controller_keys = set(controller) if isinstance(controller, dict) else set()
     required_controller_keys = {
@@ -217,11 +225,11 @@ def read_run_status(campaign_root: Path) -> dict[str, Any]:
         payload["blocker"] = "MANUAL_CONTROLLER_PREFLIGHT_INVALID"
         payload["play_prompt_ready"] = False
         payload["next_action"] = "restart through canonical bridge preflight"
-    if not qualification_current:
+    if not release_contract_current:
         payload["state"] = "BLOCKED"
-        payload["blocker"] = "MANUAL_PRODUCTION_QUALIFICATION_INVALID"
+        payload["blocker"] = "MANUAL_RELEASE_CONTRACT_INVALID"
         payload["play_prompt_ready"] = False
-        payload["next_action"] = "rerun canonical Manual production qualification"
+        payload["next_action"] = "rerun canonical release-contract-check"
     payload["bridge_heartbeat"] = _bridge_heartbeat(payload)
     if not payload["bridge_heartbeat"] and payload.get("state") not in {"COMPLETE", "BLOCKED"}:
         payload["state"] = "BLOCKED"

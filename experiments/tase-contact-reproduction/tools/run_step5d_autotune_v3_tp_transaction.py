@@ -34,10 +34,10 @@ from step5d_autotune_v3.runtime_installation import (
     owner_dependency,
     require_runtime_profile,
 )
-from step5d_autotune_v3.qualification import (
-    QualificationError,
-    release_certificate_scope_for_release,
-    validate_qualification_result,
+from step5d_autotune_v3.release_contract import (
+    ReleaseContractError,
+    release_contract_scope_for_release,
+    validate_release_contract_result,
 )
 from step5d_autotune_v3.release_certificate import (
     ReleaseCertificateError,
@@ -144,7 +144,7 @@ def _validate_candidate_and_certificate(
     if recomposed_sha256 != release.manifest_sha256:
         raise RuntimeError("local release candidate digest differs before delivery")
 
-    scope = release_certificate_scope_for_release(
+    scope = release_contract_scope_for_release(
         root,
         release,
     )
@@ -153,13 +153,9 @@ def _validate_candidate_and_certificate(
         certificate_path,
         expected_scope=scope,
     )
-    validate_qualification_result(
+    validate_release_contract_result(
         payload,
-        experiment_root=root,
-        manifest_sha256=release.manifest_sha256,
-        source_fingerprint=scope["source_fingerprint"],
-        launcher_sha256=scope["launcher_sha256"],
-        release_identity=release,
+        expected_scope=scope,
     )
     return release
 
@@ -237,7 +233,7 @@ def main(argv: list[str] | None = None) -> int:
             args.release_certificate,
         )
     except (
-        QualificationError,
+        ReleaseContractError,
         ReleaseCertificateError,
         ReleaseIdentityError,
         StateError,
