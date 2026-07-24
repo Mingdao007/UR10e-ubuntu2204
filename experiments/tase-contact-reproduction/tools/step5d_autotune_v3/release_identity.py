@@ -9,7 +9,7 @@ part of the active route.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 import hashlib
 import ipaddress
 import json
@@ -191,8 +191,11 @@ class ReleaseIdentity:
     source_fingerprints: Mapping[str, str]
     generated_files: Mapping[str, str]
     verification: Mapping[str, Any]
+    allow_historical_source_coverage: InitVar[bool] = False
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, allow_historical_source_coverage: bool) -> None:
+        if not isinstance(allow_historical_source_coverage, bool):
+            raise ReleaseIdentityError("historical source coverage policy differs")
         if re.fullmatch(r"step5d_strict_rnn_autotune_v3_r\d{3}", self.program_id) is None:
             raise ReleaseIdentityError("active release TP program identity differs")
         if self.release_stage_id != RELEASE_STAGE_ID:
@@ -238,7 +241,11 @@ class ReleaseIdentity:
             for name, digest in values.items():
                 _relative_path(name, role)
                 _sha256_text(digest, f"{role} SHA-256")
-        if set(self.source_fingerprints) != REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS:
+        if (
+            not allow_historical_source_coverage
+            and set(self.source_fingerprints)
+            != REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS
+        ):
             raise ReleaseIdentityError("experiment source fingerprint coverage differs")
         runtime = self.runtime_environment
         runtime_fields = {
@@ -334,7 +341,12 @@ class ReleaseIdentity:
         repository_depth = self.verification.get("repository_source_root_depth")
         if (
             not isinstance(repository_sources, Mapping)
-            or set(repository_sources) != REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS
+            or not repository_sources
+            or (
+                not allow_historical_source_coverage
+                and set(repository_sources)
+                != REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS
+            )
             or isinstance(repository_depth, bool)
             or not isinstance(repository_depth, int)
             or not 0 <= repository_depth <= 4
@@ -357,6 +369,7 @@ def identity_from_manifest(
     *,
     manifest_path: str,
     manifest_sha256: str,
+    allow_historical_source_coverage: bool = False,
 ) -> ReleaseIdentity:
     required = {
         "schema",
@@ -395,6 +408,7 @@ def identity_from_manifest(
         source_fingerprints=manifest["source_fingerprints"],
         generated_files=manifest["generated_files"],
         verification=manifest["verification"],
+        allow_historical_source_coverage=allow_historical_source_coverage,
     )
 
 
@@ -405,6 +419,7 @@ def _load_release_reference(
     *,
     role: str,
     verify_worktree_sources: bool = True,
+    allow_historical_source_coverage: bool = False,
 ) -> ReleaseIdentity:
     unresolved = root / relative
     resolved = unresolved.resolve()
@@ -425,6 +440,7 @@ def _load_release_reference(
         manifest,
         manifest_path=relative.as_posix(),
         manifest_sha256=actual_sha,
+        allow_historical_source_coverage=allow_historical_source_coverage,
     )
     for role, references in (
         ("artifact", release.artifacts),
@@ -559,6 +575,7 @@ def load_current_release_for_compatible_readback(
         expected_sha,
         role="compatible-readback current",
         verify_worktree_sources=False,
+        allow_historical_source_coverage=True,
     )
 
 

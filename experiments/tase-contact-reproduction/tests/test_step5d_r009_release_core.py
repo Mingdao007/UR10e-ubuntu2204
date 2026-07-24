@@ -602,6 +602,42 @@ def test_compatible_readback_loads_historical_identity_but_verifies_bundle(
         load_current_release_for_compatible_readback(tmp_path)
 
 
+def test_compatible_readback_accepts_historical_source_coverage(
+    tmp_path: Path,
+) -> None:
+    manifest_path = _release_fixture(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    historical_source = next(
+        relative
+        for relative in sorted(manifest["source_fingerprints"])
+        if relative.startswith("tools/step5d_autotune_v3/")
+    )
+    manifest["source_fingerprints"].pop(historical_source)
+    encoded = canonical_bytes(manifest)
+    digest = _sha(encoded)
+    historical_path = tmp_path / f"config/step5d/releases/{digest}/manifest.json"
+    shutil.copytree(manifest_path.parent, historical_path.parent)
+    historical_path.write_bytes(encoded)
+    pointer = {
+        "schema": CURRENT_POINTER_SCHEMA,
+        "manifest_path": historical_path.relative_to(tmp_path).as_posix(),
+        "manifest_sha256": digest,
+    }
+    (tmp_path / "config/step5d/current.json").write_bytes(canonical_bytes(pointer))
+
+    with pytest.raises(
+        ReleaseIdentityError,
+        match="experiment source fingerprint coverage differs",
+    ):
+        load_current_release(tmp_path)
+
+    historical = load_current_release_for_compatible_readback(tmp_path)
+    assert historical.manifest_sha256 == digest
+    assert set(historical.source_fingerprints) == set(
+        manifest["source_fingerprints"]
+    )
+
+
 ATOMIC_RUNTIME_REGISTERS = {
     "protocol_version": 35,
     "digest_hi": 36,
