@@ -145,10 +145,34 @@ def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
     assert status["next_action"] == "start_canonical_bridge"
 
 
+def test_status_entrypoint_bootstraps_repository_runtime_under_isolated_python() -> None:
+    environment = dict(os.environ)
+    environment.pop("PYTHONPATH", None)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            "-I",
+            str(ROOT / "tools/step5d_bridge_status.py"),
+            "--help",
+        ],
+        cwd=ROOT,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=20.0,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "Reduce the latest canonical Step5d attempt" in completed.stdout
+
+
 def test_canonical_shell_declares_ros_python_runtime_without_caller_pythonpath() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     assert '/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-binding' in source
+    assert '"${CONTROL_PYTHON}" -B -I' in source
     assert '"${EXPERIMENT_ROOT}/tools/step5d_bridge_status.py"' in source
     assert 'exec "${status_command[@]}"' in source
     assert '"${RUNTIME_RESOLVER}" --status-json' not in source

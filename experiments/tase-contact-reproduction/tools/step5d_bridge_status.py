@@ -12,7 +12,11 @@ import sys
 import time
 from typing import Any, Mapping
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+TOOLS = Path(__file__).resolve().parent
+REPOSITORY_ROOT = TOOLS.parents[2]
+RUNTIME_SOURCE = REPOSITORY_ROOT / "src" / "ur10e_experiment_runtime"
+sys.path.insert(0, str(RUNTIME_SOURCE))
+sys.path.insert(0, str(TOOLS))
 
 from step5d_autotune_v3.governance import (
     EXTERNAL_REASON_CODES,
