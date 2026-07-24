@@ -32,6 +32,34 @@ from step5d_autotune_v3.release_identity import load_local_release_candidate  # 
 from step5d_autotune_v3 import release_transition as transition  # noqa: E402
 
 
+def test_upload_runner_reports_bounded_child_failure_output() -> None:
+    failure = subprocess.CalledProcessError(
+        1,
+        ["controller-helper.py", "readback"],
+        output=("x" * 13_000) + "\nNo route to host\n",
+        stderr="readback failed\n",
+    )
+    with (
+        mock.patch.object(
+            transaction.upload.subprocess,
+            "run",
+            side_effect=failure,
+        ),
+        pytest.raises(RuntimeError) as raised,
+    ):
+        transaction.upload.run(
+            ["controller-helper.py", "readback"],
+            dry_run=False,
+            capture=True,
+        )
+
+    message = str(raised.value)
+    assert "bounded child output tail" in message
+    assert "No route to host" in message
+    assert "readback failed" in message
+    assert len(message) < 12_500
+
+
 def _write_receipt(
     root: Path,
     local: Path,
