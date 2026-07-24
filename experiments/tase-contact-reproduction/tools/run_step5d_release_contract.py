@@ -40,10 +40,14 @@ def main(argv: list[str] | None = None) -> int:
     started = time.monotonic()
     try:
         release = None
+        release_candidate = None
         if args.release_candidate is not None:
             release, _descriptor = load_local_release_candidate(
                 args.experiment_root,
                 args.release_candidate,
+            )
+            release_candidate = str(
+                args.release_candidate.expanduser().resolve(strict=True)
             )
         payload, certificate = run_release_contract_check(
             args.experiment_root,
@@ -72,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
                 "release_manifest_sha256": payload["scope"][
                     "release_manifest_sha256"
                 ],
+                "release_candidate": release_candidate,
                 "elapsed_s": elapsed,
                 "certificate": certificate,
             },

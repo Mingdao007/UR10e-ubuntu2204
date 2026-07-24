@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import time
 from types import SimpleNamespace
 
 import pytest
 
+import run_step5d_release_contract as command
 from step5d_autotune_v3 import release_contract
 from step5d_autotune_v3.release_certificate import (
     ReleaseCertificateError,
@@ -41,6 +43,48 @@ def _environment() -> dict[str, str]:
             ROOT / "scripts/step5d-autotune-v3.sh"
         )
     }
+
+
+def test_command_reports_exact_candidate_handoff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text("{}\n", encoding="utf-8")
+    identity = SimpleNamespace(manifest_sha256=digest("autotune_v3-release"))
+    monkeypatch.setattr(
+        command,
+        "load_local_release_candidate",
+        lambda *_args: (identity, {}),
+    )
+    monkeypatch.setattr(
+        command,
+        "run_release_contract_check",
+        lambda *_args, **_kwargs: (
+            {
+                "state": release_contract.PROVEN,
+                "scope": {
+                    "subject_kind": "autotune_v3",
+                    "release_manifest_sha256": identity.manifest_sha256,
+                },
+            },
+            {"path": str(tmp_path / "certificate.json")},
+        ),
+    )
+
+    assert command.main(
+        [
+            "--experiment-root",
+            str(ROOT),
+            "--output-root",
+            str(tmp_path),
+            "--release-candidate",
+            str(candidate),
+        ]
+    ) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["release_candidate"] == str(candidate.resolve())
 
 
 def test_contract_is_pure_fast_and_cacheable(

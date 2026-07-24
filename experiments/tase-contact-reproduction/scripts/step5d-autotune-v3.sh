@@ -34,11 +34,9 @@ a fresh controller GET, promotes the immutable release, and writes a delivery
 receipt. It never sends Dashboard Load or Play.
 
 Options:
-  --release-candidate PATH   Existing immutable local release candidate
-  --artifact-dir PATH        TP package directory used to stage a candidate
-                             when --release-candidate is omitted
+  --release-candidate PATH   Required immutable local release candidate
   --release-certificate PATH
-                             Immutable release-contract certificate bound to the candidate
+                             Required release-contract certificate bound to the candidate
 
 Optional:
   --artifact-dir PATH        TP package directory (default: canonical Step5d)
@@ -59,6 +57,9 @@ Options:
   --release-candidate PATH   Reuse an immutable local release candidate
   --artifact-dir PATH        TP package override when staging a candidate
                              (default: current immutable release artifacts)
+
+Output:
+  JSON includes the exact release_candidate path required by tp-deliver.
 
   -h, --help                 Show this help without starting any work
 EOF
