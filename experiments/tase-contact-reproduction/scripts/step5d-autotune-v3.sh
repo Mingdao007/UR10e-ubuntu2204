@@ -41,7 +41,8 @@ Options:
 Optional:
   --artifact-dir PATH        TP package directory (default: canonical Step5d)
   --evidence-output PATH     Receipt output under runs/ (default: generated)
-  --readback-only-existing   Compatibility-only fresh GET without upload
+  --readback-only-existing   Fresh GET and adopt the exact candidate after
+                             three-way SHA closure; no upload or Load
   -h, --help                 Show this help without starting any work
 EOF
 }

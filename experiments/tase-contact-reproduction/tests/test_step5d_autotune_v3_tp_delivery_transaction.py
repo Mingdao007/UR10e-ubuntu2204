@@ -739,7 +739,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     }
 
 
-def test_readback_only_transaction_skips_upload_and_program_load(
+def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load(
     tmp_path: Path,
 ) -> None:
     root = tmp_path / "experiment"
@@ -798,11 +798,6 @@ def test_readback_only_transaction_skips_upload_and_program_load(
             "_validate_candidate_and_certificate",
             return_value=release,
         ),
-        mock.patch.object(
-            transaction,
-            "load_current_release_for_compatible_readback",
-            return_value=release,
-        ),
         mock.patch.object(transaction, "load_current_release", return_value=release),
         mock.patch.object(transaction, "owner_dependency", return_value={
             "path": "/verified/helper.py",
@@ -853,15 +848,11 @@ def test_readback_only_transaction_skips_upload_and_program_load(
 
     assert "--readback-only-existing" in upload_arguments
     assert "--force-upload-readback" not in upload_arguments
+    assert not hasattr(transaction, "load_current_release_for_compatible_readback")
 
 
-@pytest.mark.parametrize(
-    "drift",
-    ["program", "target", "triplet_sha", "tp_identity"],
-)
-def test_readback_only_transaction_rejects_identity_drift_before_lock(
+def test_readback_only_get_failure_prevents_evidence_and_promotion(
     tmp_path: Path,
-    drift: str,
 ) -> None:
     root = tmp_path / "experiment"
     artifact_dir = root / promotion.PACKAGE_DIR
@@ -870,30 +861,15 @@ def test_readback_only_transaction_rejects_identity_drift_before_lock(
         artifact_dir,
         "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
     )
-    common = {
-        "manifest_sha256": "f" * 64,
-        "program_id": promotion.PROGRAM,
-        "controller_target": f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
-        "artifact_sha256": {extension: "a" * 64 for extension in promotion.EXTENSIONS},
-    }
-    candidate_values = {**common, "tp_runtime_identity": {"protocol_version": 1}}
-    current_values = {
-        **common,
-        "artifact_sha256": dict(common["artifact_sha256"]),
-        "tp_runtime_identity": {"protocol_version": 1},
-    }
-    if drift == "program":
-        current_values["program_id"] = f"{promotion.PROGRAM}_other"
-    elif drift == "target":
-        current_values["controller_target"] = (
-            f"{promotion.TARGET_DIR}/{promotion.PROGRAM}_other.urp"
-        )
-    elif drift == "triplet_sha":
-        current_values["artifact_sha256"][".urp"] = "b" * 64
-    else:
-        current_values["tp_runtime_identity"]["protocol_version"] = 2
-    candidate = SimpleNamespace(**candidate_values)
-    current = SimpleNamespace(**current_values)
+    candidate = SimpleNamespace(
+        manifest_sha256="f" * 64,
+        program_id=promotion.PROGRAM,
+        controller_target=f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
+        artifact_sha256={
+            extension: "a" * 64 for extension in promotion.EXTENSIONS
+        },
+        tp_runtime_identity={"protocol_version": 1},
+    )
 
     with (
         mock.patch.object(transaction, "require_runtime_profile", return_value={}),
@@ -904,11 +880,28 @@ def test_readback_only_transaction_rejects_identity_drift_before_lock(
         ),
         mock.patch.object(
             transaction,
-            "load_current_release_for_compatible_readback",
-            return_value=current,
+            "owner_dependency",
+            return_value={
+                "path": "/verified/helper.py",
+                "sha256": "a" * 64,
+            },
         ),
-        mock.patch.object(transaction, "acquire_controller_mutation_locks") as lock,
-        pytest.raises(RuntimeError, match="changed program, target, TP identity"),
+        mock.patch.object(
+            transaction,
+            "acquire_controller_mutation_locks",
+            return_value=[object()],
+        ),
+        mock.patch.object(
+            transaction.upload,
+            "_main",
+            side_effect=RuntimeError(
+                "existing local/controller/readback triplet SHA closure differs"
+            ),
+        ) as upload,
+        mock.patch.object(transaction, "atomic_json") as write_evidence,
+        mock.patch.object(transaction.promote, "promote") as promote_release,
+        mock.patch.object(transaction, "release_controller_mutation_locks") as unlock,
+        pytest.raises(RuntimeError, match="triplet SHA closure differs"),
     ):
         transaction.main(
             [
@@ -926,7 +919,10 @@ def test_readback_only_transaction_rejects_identity_drift_before_lock(
             ]
         )
 
-    lock.assert_not_called()
+    assert "--readback-only-existing" in upload.call_args.args[0]
+    write_evidence.assert_not_called()
+    promote_release.assert_not_called()
+    unlock.assert_called_once()
 
 
 def test_transaction_rejects_evidence_output_outside_runs_before_lock(

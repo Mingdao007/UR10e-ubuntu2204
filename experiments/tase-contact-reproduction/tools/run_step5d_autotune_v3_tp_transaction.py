@@ -22,7 +22,6 @@ from step5d_autotune_v3.release_identity import (
     ReleaseIdentity,
     ReleaseIdentityError,
     load_current_release,
-    load_current_release_for_compatible_readback,
     load_local_release_candidate,
 )
 from step5d_autotune_v3.runtime_identity import (
@@ -170,7 +169,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--readback-only-existing",
         action="store_true",
-        help="freshly GET the existing exact triplet; do not upload or Load",
+        help=(
+            "freshly GET and adopt the exact candidate only after triplet SHA "
+            "closure; do not upload or Load"
+        ),
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
@@ -239,19 +241,6 @@ def main(argv: list[str] | None = None) -> int:
         StateError,
     ) as exc:
         raise RuntimeError(f"candidate certificate gate failed: {exc}") from exc
-    if args.readback_only_existing:
-        existing_release = load_current_release_for_compatible_readback(root)
-        if (
-            candidate_release.program_id != existing_release.program_id
-            or candidate_release.controller_target != existing_release.controller_target
-            or dict(candidate_release.artifact_sha256)
-            != dict(existing_release.artifact_sha256)
-            or dict(candidate_release.tp_runtime_identity)
-            != dict(existing_release.tp_runtime_identity)
-        ):
-            raise RuntimeError(
-                "readback-only candidate changed program, target, TP identity, or triplet SHA"
-            )
     try:
         controller_helper = owner_dependency("controller_helper")
     except RuntimeInstallationError as exc:
