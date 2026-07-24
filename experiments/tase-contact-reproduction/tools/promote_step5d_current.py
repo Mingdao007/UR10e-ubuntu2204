@@ -13,6 +13,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from verify_step5d_current_binding import verify_v30_evidence_freeze
+from step5d_runtime_interface import require_executable_step5d_profile
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -1016,11 +1017,11 @@ def normalize_retained_stage_metadata(table: dict[str, Any], current_program: st
 
 
 def freeze_v29_fallback_for_v30(table: dict[str, Any]) -> None:
-    """Retire the current pointer without rewriting or relocating frozen v29 evidence."""
+    """Retire the current pointer without rewriting historical v29 evidence."""
 
     row = find_stage(table, STEP5D_ABLATION_V29)
     if row is None:
-        fail("v29 frozen fallback row is missing before v30 promotion")
+        fail("historical v29 row is missing before v30 promotion")
     row["active"] = False
     row["blocked"] = True
     row["complete"] = False
@@ -1734,6 +1735,7 @@ def update_current_stage(
 
 
 def promote(root: Path, program: str, target_dir: str, local_dir: Path, manifest_path: Path | None) -> dict[str, Any]:
+    require_executable_step5d_profile(program)
     if not program.startswith(STEP5D_PACKAGE_PREFIXES):
         fail(f"refusing non-Step5d TP package: {program}")
     manifest_path = manifest_path or latest_manifest(root, program)

@@ -5997,7 +5997,7 @@
         "latest_live_run_summary": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513/summary.json",
         "latest_stop_reason": "dashboard_program_stopped",
         "latest_terminal_stop_reason": "tp_normal_stop_reason_1",
-        "next_current_stage": "step5d_strict_rnn_ablation_v29",
+        "next_current_stage": "step5d_strict_rnn_autotune_v3_r012",
         "previous_failed_live_run_analysis": "runs/bridge_step5d_strict_rnn_ablation_v27_20260706_040900/step5d_bridge_analysis.json",
         "previous_retained_evidence_index": "current_stage.json#evidence"
       },
@@ -6955,7 +6955,7 @@
       },
       "notes": [
         "v28 was controller read-back verified but is retained as failed live-attempt evidence.",
-        "v28 is no longer current; open v29 from the Step5 root on the Teach Pendant.",
+        "v29 is archived and non-executable; the governed replacement is step5d_strict_rnn_autotune_v3_r012.",
         "v28 local triplet is archived under programs/step5/step5d."
       ],
       "operator_lifecycle": {
@@ -7088,41 +7088,42 @@
     },
     {
       "acceptance": {
-        "controller_readback_required": true,
+        "archived_profile": true,
+        "controller_readback_required": false,
         "controller_readback_verified": true,
-        "live_bridge_authorization_required": true,
+        "live_bridge_authorization_required": false,
         "local_package_validated": true,
         "not_a_completed_reproduction_claim": true,
-        "owner_audit_required_before_live": "liveprep_milestone_three_lane_review",
-        "package_generation_required": true,
+        "package_generation_required": false,
         "strict_rnn_no_contact_p0_archived_not_gate_for_v29": true,
         "strict_rnn_no_contact_p0_required_before_live": false
       },
       "active": false,
       "amplitude_m": 0.015,
-      "block_reason": "Current pointer remains on the last read-back-verified v29 package, but v29 is a frozen fallback. Any reactivation requires fresh readback/timing fingerprints, Review v3 1+1 (or valid degraded 1+0), and new live/contact authorization.",
+      "block_reason": "ARCHIVED_PROFILE: immutable non-executable evidence only; replacement=step5d_strict_rnn_autotune_v3_r012.",
       "blocked": true,
-      "bridge": true,
+      "bridge": false,
       "cadence": {
         "end_hold_s": 0.1,
-        "motion": "pending_live_60s_full_run",
+        "motion": "historical_profile_non_executable",
         "reference_clock": "bridge_path_time_freezes_during_cage_primary_active_reacquire_with_v20_action_load_speed_cap",
         "tp_hold_s": 0.002
       },
       "canonical_profile_ref": "Step5.step5d_rnn",
       "complete": false,
-      "completion_target": true,
+      "completion_target": false,
       "contact": true,
       "contact_policy": {
-        "bridge_required": true,
+        "bridge_required": false,
         "bridge_startup_policy_ref": "bridge_startup_policy",
-        "contact_search": true,
-        "controller_readback_status": "verified",
+        "contact_search": false,
+        "controller_readback_status": "verified_historical",
         "deadband_acquire_stage": "25.3",
         "default_stage25_control_mode": "speedj_rnn_live",
-        "force_control": true,
-        "live_authorization": "frozen_fallback_no_live_authorization",
-        "reference_owner": "bridge",
+        "force_control": false,
+        "historical_contact_profile": true,
+        "live_authorization": "ARCHIVED_PROFILE",
+        "reference_owner": "archive",
         "speedj_dls_oracle_policy": "feasibility-scaled xdot_c is converted through the DLS/Jacobian qdot oracle and sent to TP speedj for diagnostic comparison only",
         "speedj_rnn_live_policy": "strict RNN qdot from feasibility-scaled xdot_c is sent to TP speedj after solver lambda/theta_dot reset on Stage25 lifecycle boundaries; evidence rejection records diagnostics and uses bounded hold without clearing cmd_valid unless a hard safety or command-contract violation occurs",
         "speedl_cartesian_oracle_policy": "v29 keeps speedl_cartesian_oracle as an explicit fallback/debug path; default live source is strict RNN speedj",
@@ -7132,24 +7133,24 @@
           "speedj_dls_oracle",
           "speedj_rnn_live"
         ],
-        "timing_policy": "step5d_v29_contact_strict_rnn_live_stage25_speedj_candidate_with_v28_envelope",
-        "tp_package_status": "generated_uploaded_readback_verified_current",
-        "tp_role": "multimode_executor_and_guard_only",
+        "timing_policy": "historical_step5d_v29_contact_evidence",
+        "tp_package_status": "archived_historical_readback_evidence",
+        "tp_role": "historical_bytes_only",
         "virtual_clock_freeze": false
       },
       "current_binding": {
         "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948/manifest.json",
-        "controller_readback_status": "verified_current",
+        "controller_readback_status": "verified_historical",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
-        "flow_claim_status": "STEP5_FLOW_top_summary_must_match_current_stage_pointer",
+        "flow_claim_status": "archived_non_executable",
         "is_current": false,
         "program": "step5d_strict_rnn_ablation_v29",
-        "source": "config/current_stage.json",
+        "source": "programs/step5/step5d/archive/step5d_strict_rnn_ablation_v29.archive.json",
         "stage_id": "step5d_strict_rnn_ablation_v29"
       },
       "duration_s": 60.0,
       "evidence_refs": {
-        "local_candidate_marker": "programs/step5/step5d/.local_tp_candidate.json",
+        "local_candidate_marker": "programs/step5/step5d/archive/step5d_strict_rnn_ablation_v29.archive.json",
         "p0_v7_status": "archived_not_gate_for_v29",
         "previous_current_stage": "step5d_strict_rnn_ablation_v28"
       },
@@ -7327,10 +7328,10 @@
       "id": "step5d_strict_rnn_ablation_v29",
       "joint_space": true,
       "lifecycle": {
-        "claim_status": "controller_readback_verified_pending_60s_live_run_not_reproduction_claim",
-        "current_candidate": true,
-        "retained_evidence": false,
-        "state": "current_v29_controller_readback_verified_pending_60s_full_run",
+        "claim_status": "controller_readback_verified_historical_evidence",
+        "current_candidate": false,
+        "retained_evidence": true,
+        "state": "archived_profile_non_executable",
         "supersedes": "step5d_strict_rnn_ablation_v28"
       },
       "live_run_evidence": null,
@@ -7346,8 +7347,8 @@
       ],
       "liveprep_status": {
         "readiness_artifact": "runs/step5d_v29_liveprep_offline_20260710_0317/liveprep_readiness.json",
-        "readiness_source": "tools/step5d_liveprep_readiness.py",
-        "state": "blocked"
+        "readiness_source": "historical_only",
+        "state": "archived"
       },
       "local_analysis_evidence": {
         "source": "2026-07-02 v21 live-run register-layout root cause plus v22 qdot-clear implementation; 2026-07-03 v22 normal_force_guard, v23 active_reacquire cage-margin failure, and v24 low-load/tracking guard",
@@ -7462,8 +7463,8 @@
         "installation_relative_path": "../../../default",
         "local_controller_readback_sha_match": true,
         "local_package_validated": true,
-        "local_program_dir": "programs/step5/step5d",
-        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29.{script,txt,urp}",
+        "local_program_dir": "programs/step5/step5d/archive",
+        "local_triplet": "programs/step5/step5d/archive/step5d_strict_rnn_ablation_v29.{script,txt,urp}",
         "program_basename": "step5d_strict_rnn_ablation_v29",
         "promoted_from_local_candidate": {
           "marker_schema": "ur_tp_local_candidate_v1",
@@ -7478,70 +7479,27 @@
         "stamp": "2026-07-08T0700HKT_STEP5D_STRICT_RNN_ABLATION_V29"
       },
       "notes": [
-        "v29 is controller read-back verified and selected as the current Step5d TP/script diagnostic package.",
-        "v29 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
-        "v29 is an ablation package with layout-tagged speedl/speedj Stage25.0 modes.",
-        "v29 uses 50N raw-normal, 60N force-norm, 3Nm torque guard, and layout-tagged speedl/speedj Stage25.0.",
-        "This current row is not a completed Step5d reproduction claim; explicit 60 s live bridge evidence is still pending."
+        "ARCHIVED_PROFILE: v29 is immutable historical read-back evidence only.",
+        "v29 has no build, promotion, runtime, launcher, bridge, or live authority.",
+        "Replacement: step5d_strict_rnn_autotune_v3_r012."
       ],
       "operator_lifecycle": {
-        "autowatch_wait_for_play_s": 20,
-        "background_push_after_live": false,
-        "base_operator": "scripts/bridge-line-operator.sh",
-        "baseline_s": 5.0,
-        "confirm_env": "STEP5D_CONFIRM",
-        "confirm_token": "LIVE STEP5D STRICT RNN LIVEPREP",
-        "dashboard_program_watch_timeout_s": 45,
-        "entrypoint": "scripts/step5d-liveprep-operator.sh",
-        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
-        "fast_trigger_requires_long_check_cache": true,
-        "live_readiness_state": "controller_readback_verified_pending_explicit_60s_live_bridge_run",
-        "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
-        "long_check_ttl_s": 7200,
-        "mode": "line-bridge-fast",
-        "no_contact_p0_confirm_env": "STEP5D_P0_CONFIRM",
-        "no_contact_p0_confirm_token": "LIVE STEP5D STRICT RNN NO CONTACT P0",
-        "no_contact_p0_entrypoint": "scripts/step5d-strict-rnn-p0.sh capture-bridge",
-        "no_contact_p0_expected_program": "/programs/andyl/kunwei/step5/archive/step5d_strict_rnn_no_contact_p0_v7.urp",
-        "operator_boundaries": [
-          "wrapper never loads a program or presses Play",
-          "no zero_ftsensor",
-          "no Kunwei tare/zero/config",
-          "no TCP/payload write"
-        ],
-        "output_start_wait_s": 3.0,
-        "post_far_search_rezero_policy": "table policy: request Kunwei software-baseline epoch reset after Stage24.0 far search completes and before Stage24.2 near search; no zero_ftsensor or Kunwei tare/config write; current controller read-back package bytes remain unchanged until regeneration/upload/read-back",
-        "post_run_quiet_stop_check": true,
-        "post_run_stage_frequency_summary": true,
-        "rezero_s": 0.25,
-        "rtde_quick_probe_timeout_s": 1.0,
-        "stop_sequence": [
-          {
-            "signal": "SIGINT",
-            "wait_s": 2.0
-          },
-          {
-            "signal": "SIGTERM",
-            "wait_s": 2.0
-          },
-          {
-            "signal": "SIGKILL",
-            "wait_s": 0.0
-          }
-        ],
-        "tp_bridge_start_wait_timeout_s": 60,
-        "wait_for_play_s": 20
+        "executable": false,
+        "reason": "ARCHIVED_PROFILE",
+        "replacement": "step5d_strict_rnn_autotune_v3_r012"
       },
-      "owner": "frozen_fallback",
+      "owner": "archive",
       "package_delivery": {
+        "archive_reason": "ARCHIVED_PROFILE",
         "controller_dir": "/programs/andyl/kunwei/step5",
         "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v29_20260710_014948/manifest.json",
-        "controller_readback_status": "verified_current",
+        "controller_readback_status": "verified_historical",
         "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
-        "delivery_mode": "full_upload_readback",
-        "local_program_dir": "programs/step5/step5d",
-        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29.{script,txt,urp}",
+        "delivery_mode": "historical_full_upload_readback",
+        "local_program_dir": "programs/step5/step5d/archive",
+        "local_triplet": "programs/step5/step5d/archive/step5d_strict_rnn_ablation_v29.{script,txt,urp}",
         "program_basename": "step5d_strict_rnn_ablation_v29",
+        "replacement": "step5d_strict_rnn_autotune_v3_r012",
         "sha256": {
           ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
           ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
@@ -7588,29 +7546,27 @@
         "startup_gate_profile": "startup_gate_profiles.prepared_fast_bridge_v1"
       },
       "reproduction_status": {
-        "state": "incomplete"
+        "state": "archived_not_executable"
       },
       "review_v3": {
         "composite_fingerprint": null,
-        "evidence_frozen": false,
+        "evidence_frozen": true,
         "manifest": null,
         "milestone": "v29_contact_pre_live",
         "policy_id": "ur10e_review_policy_v3",
         "required_stack": "1+1",
-        "status": "not_due_until_future_reactivation"
+        "status": "not_applicable_archived"
       },
       "runtime_interface_ref": {
-        "interface_class": "tp_speedj_strict_rnn_liveprep_v1",
-        "path": "tools/step5d_runtime_interface.py",
-        "stage25_default_control_mode": "speedj_rnn_live",
-        "stage25_runtime_limit_s": 65.0,
-        "stage25_success_target_s": 60.0,
-        "tuning_bundle": "v24_startup_quarantine_rnn_tracking_guard"
+        "historical_only": true,
+        "reason": "ARCHIVED_PROFILE",
+        "selectable": false
       },
       "runtime_profile": {
         "backend": "cupy",
         "control_mode": "speedj_rnn_live",
         "epsilon": 0.01,
+        "historical_only": true,
         "inner_iterations": 1024,
         "joint_layout_code": 524.0,
         "qdot_cap_rad_s": 0.05,
@@ -7630,7 +7586,7 @@
       "shape": "cycloid",
       "stage": "Step5d",
       "strict_rnn": true,
-      "success_condition": "v29 remains frozen fallback evidence. Review v2 artifacts are immutable history only; any future live reactivation requires a fresh readback/timing fingerprint, one Review v3 contact gate, and explicit live/contact authorization."
+      "success_condition": "ARCHIVED_PROFILE: immutable non-executable evidence only; replacement=step5d_strict_rnn_autotune_v3_r012."
     },
     {
       "acceptance": {
