@@ -16,13 +16,13 @@ import os
 import re
 import secrets
 import stat
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 
+from .atomic_io import AtomicIOError, atomic_bytes
 from .identity_layers import (
     orchestration_fingerprint as _layered_orchestration_fingerprint,
     orchestration_manifest as _layered_orchestration_manifest,
@@ -94,32 +94,14 @@ def read_strict_json(path: Path, *, role: str) -> Any:
     return strict_json_bytes(path.read_bytes(), role=role)
 
 
-def _fsync_directory(path: Path) -> None:
-    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
-
-
 def atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if path.is_symlink() or path.parent.is_symlink():
-        raise StateError(f"refusing unsafe state path: {path}")
     encoded = (
         json.dumps(payload, allow_nan=False, indent=2, sort_keys=True) + "\n"
     ).encode("utf-8")
-    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    temporary_path = Path(temporary)
     try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(encoded)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary_path, path)
-        _fsync_directory(path.parent)
-    finally:
-        temporary_path.unlink(missing_ok=True)
+        atomic_bytes(path, encoded)
+    except AtomicIOError as exc:
+        raise StateError(str(exc)) from exc
 
 
 @dataclass(frozen=True)
