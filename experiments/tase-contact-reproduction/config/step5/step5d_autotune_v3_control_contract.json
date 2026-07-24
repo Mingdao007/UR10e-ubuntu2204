@@ -560,7 +560,7 @@
     "scripts/step5d-autotune-live.sh": "fb15b84df5c235d7944ab1c60b2a3a30b35e4e82de75ace907cb2452aeb6dd0e",
     "tools/build_step5d_autotune_tp_v3.py": "bdd51cb96cfe5b71a16edaa3e74207b70b1544517dbd417cadb842b5513d66e7",
     "tools/contact_semantics.py": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
-    "tools/kunwei_rtde_bridge.py": "7048a779a453d09dd6a67c51dfecf29737eb709974cd28ad584788ef437346d3",
+    "tools/kunwei_rtde_bridge.py": "04d8d35e9dda9e13f239a8f20135b08539a291e3650f7c34952eeefe17e05cf1",
     "tools/run_step5d_autotune_campaign.py": "4bd45b355077d71fd741ca436f56dd43da1975627a8694b24edcbf2bb8df5cfe",
     "tools/step5d_autotune_backend.py": "72a565593d703bf50c5825a3ac730074a90b3d91619c660e9673d1d2bba00597",
     "tools/step5d_autotune_batch_plan.py": "f56833222903cd2f9442c3aa5f9f1491e06dd04def7c9b78e942bc8b45e0c9f1",
