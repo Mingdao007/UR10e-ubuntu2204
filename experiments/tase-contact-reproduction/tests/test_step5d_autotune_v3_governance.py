@@ -19,7 +19,10 @@ from step5d_autotune_v3.governance import (
     FSM_STATES,
     GOVERNED_STATUS_SCHEMA,
     INVALIDATION_TABLE,
+    KUNWEI_OBSERVATION_MAX_AGE_NS,
     OBSERVED_ATTESTATION_SCHEMA,
+    RTDE_OBSERVATION_MAX_AGE_NS,
+    RUNTIME_OBSERVATION_INTERVAL_NS,
     TRANSITION_TABLE,
     CurrentReleaseSnapshot,
     GovernanceError,
@@ -624,6 +627,44 @@ def test_pid_reuse_and_stale_heartbeat_fail_closed(tmp_path: Path) -> None:
     stale_status = reduce(tmp_path, stale)
     assert stale_status["predicates"]["bridge_heartbeat_fresh"] is False
     assert stale_status["predicates"]["bench_ready"] is False
+
+
+def test_device_snapshot_freshness_allows_attestation_publication_jitter(
+    tmp_path: Path,
+) -> None:
+    row = observed_attestation(tmp_path)
+    assert RTDE_OBSERVATION_MAX_AGE_NS == KUNWEI_OBSERVATION_MAX_AGE_NS
+    assert RTDE_OBSERVATION_MAX_AGE_NS >= 5 * RUNTIME_OBSERVATION_INTERVAL_NS
+    row["controller"]["rtde_observed_at_unix_ns"] = (
+        NOW_NS - RTDE_OBSERVATION_MAX_AGE_NS + 1
+    )
+    row["controller"]["kunwei_observed_at_unix_ns"] = (
+        NOW_NS - KUNWEI_OBSERVATION_MAX_AGE_NS + 1
+    )
+
+    status = reduce(tmp_path, row)
+
+    assert status["predicates"]["rtde_fresh"] is True
+    assert status["predicates"]["kunwei_fresh"] is True
+
+
+def test_device_snapshot_freshness_still_fails_closed_after_window(
+    tmp_path: Path,
+) -> None:
+    row = observed_attestation(tmp_path)
+    row["controller"]["rtde_observed_at_unix_ns"] = (
+        NOW_NS - RTDE_OBSERVATION_MAX_AGE_NS - 1
+    )
+    row["controller"]["kunwei_observed_at_unix_ns"] = (
+        NOW_NS - KUNWEI_OBSERVATION_MAX_AGE_NS - 1
+    )
+
+    status = reduce(tmp_path, row)
+
+    assert status["predicates"]["rtde_fresh"] is False
+    assert status["predicates"]["kunwei_fresh"] is False
+    assert "RTDE_STALE" in status["blocker"]["reason_codes"]
+    assert "KUNWEI_STALE" in status["blocker"]["reason_codes"]
 
 
 @pytest.mark.parametrize(
