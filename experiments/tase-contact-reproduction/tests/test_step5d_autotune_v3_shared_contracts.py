@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from step5d_autotune_v3.shared_contracts import (
     CandidateSuggestion,
     MetricValue,
     OptimizerDeploymentCertificate,
+    SHARED_SCHEMA_DEFINITION,
+    SHARED_SCHEMA_DIGEST,
     SafetyObservation,
     SharedContractError,
     TerminalDisposition,
@@ -17,6 +20,7 @@ from step5d_autotune_v3.shared_contracts import (
     TrialSpec,
     UnitParameter,
     accept_terminal_result,
+    canonical_sha256,
 )
 
 
@@ -138,16 +142,33 @@ def test_trial_spec_round_trip_binds_units_bounds_and_digest() -> None:
 
 
 def test_one_trial_accepts_only_one_terminal_result() -> None:
+    spec = trial_spec()
     first = trial_result()
     assert TrialResult.from_payload(first.to_payload()) == first
-    assert accept_terminal_result(None, first) is first
-    assert accept_terminal_result(first, trial_result()) is first
+    assert accept_terminal_result(spec, None, first) is first
+    assert accept_terminal_result(spec, first, trial_result()) is first
 
     with pytest.raises(
         SharedContractError,
         match="different terminal result",
     ):
-        accept_terminal_result(first, trial_result(stop_reason="different"))
+        accept_terminal_result(
+            spec,
+            first,
+            trial_result(stop_reason="different"),
+        )
+
+    different_spec = TrialSpec(
+        **{
+            **spec.__dict__,
+            "trial_id": "trial-0002",
+        }
+    )
+    with pytest.raises(
+        SharedContractError,
+        match="TrialSpec binding differs",
+    ):
+        accept_terminal_result(different_spec, None, first)
 
 
 def test_optimizer_deployment_certificate_is_separate_from_trial_wire() -> None:
@@ -181,3 +202,10 @@ def test_shared_contract_source_has_no_side_effect_family_imports() -> None:
         "import socket",
     ):
         assert forbidden not in source
+
+
+def test_shared_schema_digest_binds_fields_types_and_constraints() -> None:
+    assert canonical_sha256(SHARED_SCHEMA_DEFINITION) == SHARED_SCHEMA_DIGEST
+    changed = copy.deepcopy(SHARED_SCHEMA_DEFINITION)
+    changed["trial_spec"]["fields"]["deadline_unix_ns"] = "non_negative_int"
+    assert canonical_sha256(changed) != SHARED_SCHEMA_DIGEST

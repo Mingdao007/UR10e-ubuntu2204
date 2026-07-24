@@ -62,7 +62,7 @@ from step5d_autotune_batch_plan import (  # noqa: E402
     RuntimePlanRow,
     SCHEMA_VERSION_ROLLING_V2,
 )
-from step5d_autotune_r008_policy import (  # noqa: E402
+from ur10e_experiment_runtime.candidate_identity import (  # noqa: E402
     ControlCandidateUid,
     OccurrenceUid,
     TransportCandidateUid,

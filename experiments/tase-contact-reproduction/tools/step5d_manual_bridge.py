@@ -41,11 +41,11 @@ def require_canonical_shell() -> None:
         launcher_path = Path(launcher).resolve(strict=True)
     except (OSError, TypeError, ValueError) as exc:
         raise ManualBridgeError(
-            "internal Manual V2 runner requires scripts/step5d-autotune-v3.sh bridge"
+            "internal Manual V2 runner requires scripts/step5d-autotune-v3.sh bridge-live"
         ) from exc
     if launcher_path != CANONICAL_SHELL.resolve(strict=True) or os.getppid() != shell_pid_value:
         raise ManualBridgeError(
-            "internal Manual V2 runner requires scripts/step5d-autotune-v3.sh bridge"
+            "internal Manual V2 runner requires scripts/step5d-autotune-v3.sh bridge-live"
         )
 
 

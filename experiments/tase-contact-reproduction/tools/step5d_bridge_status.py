@@ -28,6 +28,18 @@ from step5d_autotune_v3.governance import (
     resolve_governed_status,
 )
 from step5d_autotune_v3.public_state import project_status
+from step5d_autotune_v3.bridge_admission import (
+    BridgeAdmissionError,
+    resolve_bridge_admission,
+)
+from step5d_autotune_v3.delivery_observation import (
+    DeliveryObservationError,
+    resolve_delivery_observation,
+)
+from step5d_autotune_v3.release_identity import (
+    ReleaseIdentityError,
+    load_current_release,
+)
 from step5d_bridge_authority import (
     BridgeAuthorityError,
     load_current as load_owner_authority,
@@ -122,6 +134,44 @@ def _load_attempt(root: Path) -> tuple[dict[str, Any] | None, str | None]:
         if (authority / "governance/current-launch.json").exists():
             return None, "LAUNCH_ATTEMPT_POINTER_INVALID"
         return None, None
+
+
+def _resolve_pre_attempt_status(root: Path) -> dict[str, Any]:
+    try:
+        release = load_current_release(root)
+        delivery_path, delivery = resolve_delivery_observation(
+            root,
+            release=release,
+        )
+    except (OSError, ValueError, ReleaseIdentityError, DeliveryObservationError):
+        return _base_status("NO_CANONICAL_LAUNCH_ATTEMPT", attempt=None)
+    status = _base_status("NO_CANONICAL_LAUNCH_ATTEMPT", attempt=None)
+    status["predicates"]["controller_fresh_get"] = True
+    status["blocker"] = {"class": None, "reason_codes": [], "evidence": []}
+    status["next_action"] = "run_bridge_live"
+    try:
+        admission_path, admission = resolve_bridge_admission(
+            root,
+            release=release,
+        )
+    except BridgeAdmissionError:
+        return status
+    if admission["state"] == "ACTION_REQUIRED":
+        status["blocker"] = {
+            "class": "BLOCKED_EXTERNAL",
+            "reason_codes": ["EXTERNAL_ACTION_REQUIRED"],
+            "evidence": [
+                {
+                    "role": "bridge_admission",
+                    "path": admission_path.relative_to(root).as_posix(),
+                    "detail": admission["operator_action"],
+                    "delivery_observation": delivery_path.relative_to(root).as_posix(),
+                    "transaction_id": delivery["transaction_id"],
+                }
+            ],
+        }
+        status["next_action"] = "load_exact_program_on_tp_and_leave_stopped"
+    return status
 
 
 def _binding_valid(root: Path, attempt: Mapping[str, Any]) -> bool:
@@ -299,7 +349,7 @@ def _resolve_detailed_status(experiment_root: Path) -> dict[str, Any]:
     if attempt_error is not None:
         return _base_status(attempt_error, attempt=None)
     if attempt is None:
-        return _base_status("NO_CANONICAL_LAUNCH_ATTEMPT", attempt=None)
+        return _resolve_pre_attempt_status(root)
     if attempt["state"] in {"FAILED", "CANCELLED"}:
         return _apply_attempt_gate(
             _base_status(

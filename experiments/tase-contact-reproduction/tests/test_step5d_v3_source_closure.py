@@ -215,6 +215,15 @@ def test_production_report_classifies_every_active_provider() -> None:
     assert not any(
         "ur10e_nominal.xml" in path for path in report["repository_paths"]
     )
+    assert {
+        "tools/step5d_autotune_optimizer.py",
+        "tools/step5d_autotune_r008_policy.py",
+        "tools/step5d_autotune_v3/optimizer_worker.py",
+        "tools/step5d_autotune_v3/runtime_functional_gates.py",
+    }.isdisjoint(report["experiment_paths"])
+    assert "tools/step5d_autotune_v3/optimizer_policy.py" in report[
+        "experiment_paths"
+    ]
     encoded = json.dumps(report, sort_keys=True)
     assert str(ROOT) not in encoded
     assert "/home/andy" not in encoded

@@ -581,11 +581,12 @@ def test_production_provider_odd_revision_uses_supercycle_a(
     monkeypatch.setattr(provider, "_load_truth", lambda plan: truth)
     calls = []
 
-    def select_a(observed, catalog, *, sequence):
-        calls.append((observed, catalog, sequence))
+    def select_a(*, mode, observations, catalog, sequence):
+        assert mode == "rolling_batch_a"
+        calls.append((observations, catalog, sequence))
         return _batch_a_rows(sequence), {"selection": "focused-test-a"}
 
-    monkeypatch.setattr(batch_producer, "supercycle_batch_a", select_a)
+    provider.optimizer_client = SimpleNamespace(propose=select_a)
     proposal = provider(3)
     assert calls == [(observations, _catalog(), 3)]
     assert proposal.source == PRODUCTION_BATCH_A_SOURCE
@@ -656,13 +657,21 @@ def test_production_provider_even_revision_requires_real_batch_a_closure(
     monkeypatch.setattr(provider, "_load_truth", lambda plan: truth)
     received = []
 
-    def select_b(observed, catalog, *, sequence, batch_a_closure):
+    def select_b(
+        *,
+        mode,
+        observations,
+        catalog,
+        sequence,
+        batch_a_closure,
+    ):
+        assert mode == "rolling_batch_b"
+        assert observations == truth.observations
+        assert catalog == provider.catalog
         received.append(batch_a_closure)
         return recovery_batch(sequence), {"selection": "focused-test-b"}
 
-    monkeypatch.setattr(
-        batch_producer, "supercycle_batch_b_after_gp_update", select_b
-    )
+    provider.optimizer_client = SimpleNamespace(propose=select_b)
     proposal = provider(4)
     assert proposal.source == PRODUCTION_BATCH_B_SOURCE
     assert proposal.policy == "supercycle_batch_b_after_gp_update"

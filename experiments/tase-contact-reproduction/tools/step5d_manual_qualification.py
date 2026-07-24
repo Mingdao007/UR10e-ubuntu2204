@@ -24,7 +24,7 @@ from step5d_autotune_v3.qualification import (
 )
 from step5d_autotune_v3.qualification_endpoints import QualificationEndpointSimulator
 from step5d_autotune_v3.runtime_environment import production_runtime_environment
-from step5d_autotune_v3.runtime_functional_gates import load_gpu_functional_attestation
+from step5d_autotune_v3.optimizer_deployment import load_gpu_functional_attestation
 from step5d_autotune_v3.runtime_installation import load_runtime_pointer
 from step5d_autotune_v3.state import atomic_json
 from step5d_manual_bridge import (

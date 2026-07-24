@@ -28,6 +28,8 @@ STATUS_SCHEMA = "step5d.manual-v2/governed-status-v1"
 QUALIFICATION_SCHEMA = "step5d.manual-v2/production-startup-qualification-v1"
 EXPECTED_PROGRAM = f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
 BRIDGE_HEARTBEAT_MAX_AGE_NS = 2_000_000_000
+CONTROLLER_OBSERVATION_MAX_AGE_NS = 5_000_000_000
+CONTROLLER_OBSERVATION_FUTURE_SKEW_NS = 5_000_000
 
 
 def _process_identity_current(pid: Any, starttime_ticks: Any) -> bool:
@@ -186,11 +188,22 @@ def read_run_status(campaign_root: Path) -> dict[str, Any]:
         "safety_mode_normalized",
         "expected_loaded_program",
     }
+    observed_now = time.time_ns()
+    controller_observed_at = (
+        controller.get("observed_at_unix_ns")
+        if isinstance(controller, dict)
+        else None
+    )
     controller_preflight_valid = bool(
         isinstance(controller, dict)
         and controller_keys == required_controller_keys
-        and isinstance(controller.get("observed_at_unix_ns"), int)
-        and not isinstance(controller.get("observed_at_unix_ns"), bool)
+        and isinstance(controller_observed_at, int)
+        and not isinstance(controller_observed_at, bool)
+        and (
+            -CONTROLLER_OBSERVATION_FUTURE_SKEW_NS
+            <= observed_now - controller_observed_at
+            <= CONTROLLER_OBSERVATION_MAX_AGE_NS
+        )
         and controller.get("expected_loaded_program") == EXPECTED_PROGRAM
         and loaded_program_matches(
             str(controller.get("loaded_program_response", "")), EXPECTED_PROGRAM

@@ -342,6 +342,72 @@ def test_status_without_canonical_attempt_never_reuses_stale_v3_state(
     assert status["next_action"] == "start_canonical_bridge"
 
 
+def test_status_without_attempt_projects_delivery_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = type("Release", (), {"manifest_sha256": "a" * 64})()
+    delivery = tmp_path / "runs/delivery.json"
+    delivery.parent.mkdir()
+    delivery.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(bridge_status, "load_current_release", lambda _root: release)
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_delivery_observation",
+        lambda *_args, **_kwargs: (delivery, {"transaction_id": "b" * 32}),
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_bridge_admission",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            bridge_status.BridgeAdmissionError("not observed")
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "DELIVERED"
+    assert status["predicates"]["controller_fresh_get"] is True
+    assert status["blocker"]["reason_codes"] == []
+    assert status["launch_attempt"]["present"] is False
+
+
+def test_status_without_attempt_projects_fresh_action_required(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = type("Release", (), {"manifest_sha256": "a" * 64})()
+    delivery = tmp_path / "runs/delivery.json"
+    admission = tmp_path / "runs/admission.json"
+    delivery.parent.mkdir()
+    delivery.write_text("{}\n", encoding="utf-8")
+    admission.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(bridge_status, "load_current_release", lambda _root: release)
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_delivery_observation",
+        lambda *_args, **_kwargs: (delivery, {"transaction_id": "b" * 32}),
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_bridge_admission",
+        lambda *_args, **_kwargs: (
+            admission,
+            {
+                "state": "ACTION_REQUIRED",
+                "operator_action": "LOAD_EXACT_PROGRAM_ON_TP_AND_LEAVE_STOPPED",
+            },
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "ACTION_REQUIRED"
+    assert status["blocker"]["reason_codes"] == ["EXTERNAL_ACTION_REQUIRED"]
+    assert status["launch_attempt"]["present"] is False
+    assert not (tmp_path / bridge_status.AUTHORITY_RELATIVE).exists()
+
+
 def test_passed_phase_with_dead_owner_is_not_a_readiness_authority(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

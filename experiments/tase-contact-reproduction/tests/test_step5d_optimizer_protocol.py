@@ -122,6 +122,7 @@ def test_exact_optimizer_client_uses_bound_interpreter_and_sanitized_gpu(
     client = protocol.ExactOptimizerClient(
         deployment=_deployment(),
         runtime_pointer=_pointer(),
+        pointer_loader=_pointer,
     )
 
     rows, evidence = client.propose(
@@ -153,7 +154,14 @@ def test_exact_optimizer_client_uses_bound_interpreter_and_sanitized_gpu(
 
 @pytest.mark.parametrize(
     "tamper",
-    ["request_sha", "forbidden_attestation", "suggestion_id", "row_index", "seed"],
+    [
+        "request_sha",
+        "forbidden_attestation",
+        "suggestion_id",
+        "row_index",
+        "parameter_bounds",
+        "seed",
+    ],
 )
 def test_optimizer_response_tamper_has_no_fallback(
     monkeypatch: pytest.MonkeyPatch,
@@ -170,6 +178,10 @@ def test_optimizer_response_tamper_has_no_fallback(
             response["suggestions"][0]["suggestion_id"] = "0" * 64
         elif tamper == "row_index":
             response["suggestions"][1]["constraints"]["row_index"] = 1
+        elif tamper == "parameter_bounds":
+            response["suggestions"][0]["parameters"]["force_p_gain"]["bounds"][
+                "upper"
+            ] = 1.0
         else:
             response["evidence"]["seed"] = 1
         return subprocess.CompletedProcess(
@@ -183,6 +195,7 @@ def test_optimizer_response_tamper_has_no_fallback(
     client = protocol.ExactOptimizerClient(
         deployment=_deployment(),
         runtime_pointer=_pointer(),
+        pointer_loader=_pointer,
     )
     with pytest.raises(protocol.OptimizerProtocolError):
         client.propose(
@@ -209,6 +222,7 @@ def test_optimizer_worker_failure_does_not_return_a_candidate(
     client = protocol.ExactOptimizerClient(
         deployment=_deployment(),
         runtime_pointer=_pointer(),
+        pointer_loader=_pointer,
     )
     with pytest.raises(protocol.OptimizerProtocolError, match="worker failed"):
         client.propose(
@@ -217,6 +231,38 @@ def test_optimizer_worker_failure_does_not_return_a_candidate(
             catalog=tuple(value.candidate for value in _occurrences(3)),
             sequence=3,
         )
+
+
+def test_optimizer_pointer_rotation_after_admission_fails_before_child_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = False
+
+    def fake_run(command, **kwargs):
+        nonlocal started
+        started = True
+        raise AssertionError("optimizer child must not start after pointer rotation")
+
+    rotated = _pointer()
+    rotated["bundle_id"] = "9" * 64
+    monkeypatch.setattr(protocol.subprocess, "run", fake_run)
+    client = protocol.ExactOptimizerClient(
+        deployment=_deployment(),
+        runtime_pointer=_pointer(),
+        pointer_loader=lambda: rotated,
+    )
+
+    with pytest.raises(
+        protocol.OptimizerProtocolError,
+        match="changed after deployment admission",
+    ):
+        client.propose(
+            mode="rolling_batch_a",
+            observations=(),
+            catalog=tuple(value.candidate for value in _occurrences(3)),
+            sequence=3,
+        )
+    assert started is False
 
 
 @pytest.mark.parametrize(

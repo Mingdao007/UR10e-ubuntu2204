@@ -3,7 +3,7 @@
   "claim_boundary": "deterministic_live_entry_prerequisites",
   "authoritative_bridge_gate": {
     "current_tp_program_id": "step5d_strict_rnn_autotune_v3_r012",
-    "canonical_launcher": "scripts/step5d-autotune-v3.sh bridge",
+    "canonical_launcher": "scripts/step5d-autotune-v3.sh bridge-live",
     "status_reanchor": "scripts/step5d-autotune-v3.sh status --json",
     "production_path_requirement": "canonical shell -> real supervisor -> internal bridge worker -> real mailbox lifecycle",
     "unclassified_failure_policy": "block",

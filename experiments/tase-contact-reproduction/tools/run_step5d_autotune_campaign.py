@@ -34,9 +34,9 @@ def _require_v3_supervisor() -> None:
     canonical = (_EXPERIMENT_ROOT / "scripts/step5d-autotune-v3.sh").resolve()
     supervisor = (_EXPERIMENT_ROOT / "tools/run_step5d_autotune_v3_live.py").resolve()
     if os.environ.get(_CANONICAL_LAUNCHER_ENV) != str(canonical):
-        raise RuntimeError(f"use {canonical} bridge")
+        raise RuntimeError(f"use {canonical} bridge-live")
     if os.environ.get(_SUPERVISOR_PID_ENV) != str(os.getppid()):
-        raise RuntimeError(f"use {canonical} bridge")
+        raise RuntimeError(f"use {canonical} bridge-live")
     try:
         argv = {
             str(Path(value.decode("utf-8")).resolve())
@@ -46,7 +46,7 @@ def _require_v3_supervisor() -> None:
     except (OSError, UnicodeError):
         argv = set()
     if str(supervisor) not in argv:
-        raise RuntimeError(f"use {canonical} bridge")
+        raise RuntimeError(f"use {canonical} bridge-live")
 
 
 if __name__ == "__main__" and "--v3-runtime-root" in sys.argv:

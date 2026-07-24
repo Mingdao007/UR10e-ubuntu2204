@@ -34,10 +34,6 @@ from .runtime_environment import (
     PASSTHROUGH_KEYS,
     production_runtime_environment,
 )
-from .runtime_functional_gates import (
-    RuntimeFunctionalGateError,
-    load_gpu_functional_attestation,
-)
 from .runtime_installation import (
     load_runtime_contract,
     load_runtime_pointer,
@@ -297,7 +293,7 @@ def require_canonical_launcher(
     if observed != str(canonical):
         raise QualificationError(
             "internal qualification worker is not a public entrypoint; use "
-            f"{canonical} bridge"
+            f"{canonical} bridge-live"
         )
     return canonical
 
@@ -409,9 +405,6 @@ def _environment_binding(
     )
     contract = load_runtime_contract()
     control = pointer["profiles"]["control"]
-    _gpu_payload, gpu_reference = load_gpu_functional_attestation(
-        runtime_pointer=pointer
-    )
     values.update(
         {
             "python_executable": control["python_executable"],
@@ -420,7 +413,6 @@ def _environment_binding(
                 environ=environment,
                 runtime_pointer=pointer,
             ),
-            "gpu_functional_evidence": gpu_reference,
             "python_version": contract["python"]["version"],
         }
     )
@@ -2486,7 +2478,7 @@ def _validate_internal_shell_contract(
     requested_argv = payload["requested_argv"]
     expected_argv = [
         str((root / "scripts/step5d-autotune-v3.sh").resolve(strict=True)),
-        "bridge",
+        "bridge-live",
         "--output-root",
         str(output_root),
         "--campaign-root",
@@ -2524,7 +2516,7 @@ def _write_internal_shell_contract(
         raise QualificationError("qualification caller process is unavailable")
     requested_argv = [
         str(launcher),
-        "bridge",
+        "bridge-live",
         "--output-root",
         str(Path(output_root).resolve()),
         "--campaign-root",
@@ -3020,20 +3012,12 @@ def run_endpoint_qualification(
         runtime_pointer=runtime_pointer,
     )
     runtime_pointer = load_runtime_pointer(environ=clean_environment)
-    try:
-        _gpu_payload, gpu_reference = load_gpu_functional_attestation(
-            runtime_pointer=runtime_pointer
-        )
-    except RuntimeFunctionalGateError as exc:
-        raise QualificationError(f"GPU_FUNCTIONAL_GATE_MISSING: {exc}") from exc
     if (
         runtime_binding(
             environ=clean_environment,
             runtime_pointer=runtime_pointer,
         )
         != prebinding["environment"]["values"]["runtime_binding"]
-        or gpu_reference
-        != prebinding["environment"]["values"]["gpu_functional_evidence"]
     ):
         raise QualificationError("qualification runtime binding changed during admission")
     run_root = output / "qualification" / "runs" / uuid.uuid4().hex

@@ -59,7 +59,7 @@ def test_active_surface_has_one_public_live_entrypoint_and_internal_workers() ->
         "step5d.autotune-v3/release-manifest-v3"
     )
     assert active["entrypoints"]["public_live"] == (
-        "scripts/step5d-autotune-v3.sh bridge"
+        "scripts/step5d-autotune-v3.sh bridge-live"
     )
     assert active["entrypoints"]["public_release_certification"] == (
         "scripts/step5d-autotune-v3.sh release-certify"
@@ -164,7 +164,7 @@ def test_compatibility_adapter_preserves_bridge_argv_through_r010(
 
     assert result.returncode == 0, result.stderr
     assert argv_path.read_text(encoding="utf-8").splitlines() == [
-        "bridge",
+        "bridge-live",
         "--output-root",
         "/tmp/compat-output",
     ]
@@ -254,7 +254,7 @@ def test_internal_campaign_runner_refuses_direct_v3_execution() -> None:
     )
 
     assert result.returncode == 64
-    assert "step5d-autotune-v3.sh bridge" in result.stderr
+    assert "step5d-autotune-v3.sh bridge-live" in result.stderr
 
 
 def test_internal_tp_transaction_refuses_direct_execution() -> None:
@@ -293,7 +293,7 @@ def test_authoritative_matrix_classifies_stale_release_files() -> None:
 
     assert gate["current_tp_program_id"] == "step5d_strict_rnn_autotune_v3_r012"
     assert gate["unclassified_failure_policy"] == "block"
-    assert gate["canonical_launcher"] == "scripts/step5d-autotune-v3.sh bridge"
+    assert gate["canonical_launcher"] == "scripts/step5d-autotune-v3.sh bridge-live"
     assert set(gate["classified_test_files"]) == {"active", "obsolete", "unrelated"}
     obsolete = gate["classified_test_files"]["obsolete"]
     assert "tests/test_step5d_v3_r004_release_candidate.py" in obsolete

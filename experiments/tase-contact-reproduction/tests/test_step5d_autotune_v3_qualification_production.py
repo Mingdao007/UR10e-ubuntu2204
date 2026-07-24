@@ -22,16 +22,11 @@ sys.path.insert(0, str(RUNTIME_SOURCE))
 
 from step5d_autotune_v3.qualification import (  # noqa: E402
     CANONICAL_LAUNCH_ENV,
-    QualificationError,
     run_endpoint_qualification,
     validate_qualification_result,
 )
-import step5d_autotune_v3.qualification as qualification  # noqa: E402
 from step5d_autotune_v3.release_identity import (  # noqa: E402
     load_local_release_candidate,
-)
-from step5d_autotune_v3.runtime_functional_gates import (  # noqa: E402
-    RuntimeFunctionalGateError,
 )
 import build_step5d_autotune_tp_v3 as builder  # noqa: E402
 import promote_step5d_r009_atomic_release as promotion  # noqa: E402
@@ -112,29 +107,13 @@ def _qualified_release_fixture(tmp_path: Path) -> tuple[Path, object]:
     return experiment, candidate
 
 
-def test_endpoint_qualification_never_rebuilds_missing_gpu_authority(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    experiment, candidate = _qualified_release_fixture(tmp_path)
-    canonical = experiment / "scripts/step5d-autotune-v3.sh"
-    environment = dict(os.environ)
-    environment[CANONICAL_LAUNCH_ENV] = str(canonical)
+def test_endpoint_qualification_is_independent_from_optimizer_gpu_authority() -> None:
+    source = (
+        ROOT / "tools/step5d_autotune_v3/qualification.py"
+    ).read_text(encoding="utf-8")
 
-    def missing_gate(**_kwargs: object) -> None:
-        raise RuntimeFunctionalGateError("stale test evidence")
-
-    monkeypatch.setattr(qualification, "load_gpu_functional_attestation", missing_gate)
-    with pytest.raises(
-        QualificationError,
-        match="GPU_FUNCTIONAL_GATE_MISSING: stale test evidence",
-    ):
-        run_endpoint_qualification(
-            experiment,
-            experiment / "runs/qualification-output",
-            environment=environment,
-            release_identity=candidate,
-        )
+    assert "load_gpu_functional_attestation" not in source
+    assert "gpu_functional_evidence" not in source
 
 
 def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path) -> None:
@@ -193,7 +172,7 @@ def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path
     assert shell_result["pid"] == processes["canonical_launcher"]["pid"]
     assert processes["canonical_launcher"]["argv"][-10:] == [
         str(canonical),
-        "bridge",
+        "bridge-live",
         "--output-root",
         str(Path(shell_result["contract_ref"]["path"]).parent / "live"),
         "--campaign-root",
@@ -215,7 +194,16 @@ def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path
     evidence_path = Path(evidence["path"])
     assert evidence_path.is_file() and not evidence_path.is_symlink()
     assert hashlib.sha256(evidence_path.read_bytes()).hexdigest() == evidence["sha256"]
-    assert json.loads(evidence_path.read_text(encoding="utf-8"))["ok"] is True
+    certificate = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert certificate["schema"] == "step5d.autotune-v3/release-certificate-v1"
+    qualification_reference = certificate["qualification_evidence"]
+    qualification_path = (
+        experiment / "runs/qualification-output" / qualification_reference["path"]
+    )
+    assert hashlib.sha256(qualification_path.read_bytes()).hexdigest() == (
+        qualification_reference["sha256"]
+    )
+    assert json.loads(qualification_path.read_text(encoding="utf-8"))["ok"] is True
     endpoint_path = Path(payload["endpoint_evidence"]["path"])
     endpoint = json.loads(endpoint_path.read_text(encoding="utf-8"))
     assert endpoint["counters"]["rtde"]["trials_completed"] >= 1

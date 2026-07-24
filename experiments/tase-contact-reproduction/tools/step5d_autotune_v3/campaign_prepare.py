@@ -18,7 +18,7 @@ from step5d_autotune_batch_plan import (
     candidate_log2_payload,
     load_plan,
 )
-from step5d_autotune_r008_policy import initialization_batch
+from step5d_autotune_v3.control_policy import initialization_batch
 
 from .runtime_profile import (
     DEFAULT_OVERLAY,

@@ -77,7 +77,7 @@ case "${BRIDGE_PROFILE}" in
     ;;
 esac
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_autotune_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_autotune_v3" ]]; then
-  echo "refusing: generic Step5d autotune route is retired; use step5d-autotune-v3.sh bridge" >&2
+  echo "refusing: generic Step5d autotune route is retired; use step5d-autotune-v3.sh bridge-live" >&2
   exit 64
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then

@@ -78,6 +78,7 @@ CONTROLLER_OBSERVATION_MAX_AGE_NS = 1_000_000_000
 RTDE_OBSERVATION_MAX_AGE_NS = 250_000_000
 KUNWEI_OBSERVATION_MAX_AGE_NS = 250_000_000
 MAILBOX_OBSERVATION_MAX_AGE_NS = 1_000_000_000
+OBSERVED_ATTESTATION_FUTURE_SKEW_NS = 5_000_000
 
 TP_RUNTIME_IDENTITY_FIELDS = {
     "schema",
@@ -116,6 +117,7 @@ REASON_ORDER = (
     "LAUNCH_ATTEMPT_FAILED",
     "OBSERVATION_POINTER_INVALID",
     "OBSERVED_ATTESTATION_INVALID",
+    "OBSERVED_ATTESTATION_FUTURE",
     "OBSERVATION_RELEASE_MISMATCH",
     "SOURCE_BINDING_MISMATCH",
     "LAUNCHER_BINDING_MISMATCH",
@@ -189,6 +191,7 @@ INTERNAL_REASON_CODES = {
     "LAUNCH_ATTEMPT_ATTESTATION_INVALID",
     "OBSERVATION_POINTER_INVALID",
     "OBSERVED_ATTESTATION_INVALID",
+    "OBSERVED_ATTESTATION_FUTURE",
     "OBSERVATION_RELEASE_MISMATCH",
     "SOURCE_BINDING_MISMATCH",
     "LAUNCHER_BINDING_MISMATCH",
@@ -2499,7 +2502,7 @@ def reduce_observed_attestation(
 def _environment_status(
     experiment_root: Path,
 ) -> tuple[dict[str, Any], list[str], list[dict[str, Any]]]:
-    from .runtime_functional_gates import (
+    from .optimizer_deployment import (
         RuntimeFunctionalGateError,
         load_gpu_functional_attestation,
     )
@@ -2616,7 +2619,25 @@ def resolve_governed_status(
             isinstance(attestation_observed_at, int)
             and not isinstance(attestation_observed_at, bool)
         ):
-            freshness_now = max(freshness_now, attestation_observed_at)
+            validation_clock_now = (
+                time.time_ns() if now_ns is None else observed_now
+            )
+            if (
+                attestation_observed_at
+                > validation_clock_now + OBSERVED_ATTESTATION_FUTURE_SKEW_NS
+            ):
+                reasons.append("OBSERVED_ATTESTATION_FUTURE")
+                evidence.append(
+                    _evidence_row(
+                        "observed_attestation",
+                        detail=(
+                            "observed_at_unix_ns exceeds the validation clock "
+                            f"by {attestation_observed_at - validation_clock_now} ns"
+                        ),
+                    )
+                )
+            else:
+                freshness_now = max(freshness_now, attestation_observed_at)
 
     launch_attempt: Mapping[str, Any] | None = None
     launch_pointer: Mapping[str, Any] | None = None

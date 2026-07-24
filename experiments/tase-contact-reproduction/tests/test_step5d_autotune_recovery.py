@@ -41,6 +41,7 @@ from step5d_autotune_journal import (  # noqa: E402
     SupervisorJournal,
     TpSnapshot,
 )
+from step5d_autotune_optimizer import choose_candidate  # noqa: E402
 from step5d_autotune_live_driver import (  # noqa: E402
     AtomicCommandMailbox,
     BridgeTrialCsvRotator,
@@ -54,6 +55,10 @@ from step5d_autotune_state_machine import (  # noqa: E402
     HostCommand,
     SafeClosureEvidence,
     TpLoopState,
+)
+from step5d_autotune_v3.shared_contracts import (  # noqa: E402
+    TrialResult as SharedTrialResult,
+    TrialSpec as SharedTrialSpec,
 )
 from step5d_autotune_store import CampaignStore  # noqa: E402
 from step5d_autotune_supervisor import (  # noqa: E402
@@ -98,6 +103,7 @@ def supervisor(
         execution_profile=execution_profile or profile(),
         plant_epoch=plant_epoch,
         selection_policy=selection_policy,
+        optimizer_selector=choose_candidate,
     )
 
 
@@ -434,6 +440,27 @@ class RecoveryFixture(unittest.TestCase):
 
 
 class CommandIssuanceTest(RecoveryFixture):
+    def test_arm_admits_shared_spec_and_close_admits_one_bound_result(self) -> None:
+        trial, _arm = self.arm()
+        admission_paths = list(
+            (self.root / "store").rglob("shared_trial_admission.json")
+        )
+        self.assertEqual(len(admission_paths), 1)
+        admission = json.loads(admission_paths[0].read_text(encoding="ascii"))
+        shared_spec = SharedTrialSpec.from_payload(admission["trial_spec"])
+        self.assertEqual(shared_spec.trial_id, trial.trial_uid)
+        self.assertEqual(shared_spec.release_id, trial.source_fingerprint)
+        self.assertEqual(shared_spec.safety_id, trial.config_fingerprint)
+
+        self.close_and_ack(trial)
+        result_path = admission_paths[0].with_name("trial_result.json")
+        shared_result = SharedTrialResult.from_payload(
+            json.loads(result_path.read_text(encoding="ascii"))
+        )
+        self.assertEqual(shared_result.trial_id, trial.trial_uid)
+        self.assertEqual(shared_result.trial_spec_digest, shared_spec.digest)
+        self.assertEqual(len(shared_result.artifacts), 1)
+
     def test_codex_batch_reconcile_requires_durable_trial_brief(self) -> None:
         manager = supervisor(selection_policy="codex_batches")
         coordinator = CampaignCoordinator(

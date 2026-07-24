@@ -13,7 +13,7 @@ from collections.abc import Collection
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from step5d_autotune_contract import (
     CODEX_I_SCALE_MULTIPLIERS,
@@ -41,13 +41,14 @@ from step5d_autotune_governor import (
     assess_ab,
     propose_change_from_trigger,
 )
-from step5d_autotune_optimizer import (
-    Observation,
-    PRODUCTION_OPTIMIZER_SEED,
-    choose_candidate,
+from step5d_autotune_v3.optimizer_policy import (
     live_trust_region_step,
     success_confirmed,
     unlocked_tier,
+)
+from step5d_autotune_v3.optimizer_types import (
+    Observation,
+    PRODUCTION_OPTIMIZER_SEED,
 )
 from step5d_autotune_state_machine import (
     ClosureEvidence,
@@ -281,6 +282,7 @@ class CampaignSupervisor:
         plant_epoch: int = 1,
         selection_policy: str = "adaptive",
         completion_protocol: CompletionProtocol = CompletionProtocol.LEGACY_ACK_BUNDLE_V1,
+        optimizer_selector: Callable[..., tuple[ForceCandidate, dict[str, Any]]] | None = None,
     ) -> None:
         if plant_epoch < 1:
             raise ValueError("plant_epoch must be positive")
@@ -296,6 +298,7 @@ class CampaignSupervisor:
         self.plant_epoch = plant_epoch
         self.selection_policy = selection_policy
         self.completion_protocol = completion_protocol
+        self.optimizer_selector = optimizer_selector
         self.phase = CampaignPhase.HOME
         # ``outcome_timeline`` is authoritative for tier unlock, replay
         # attestation, and recovery. ``observations`` remains the legacy
@@ -677,7 +680,11 @@ class CampaignSupervisor:
                 "exact_incomplete_batch_retry": allow_exact_incomplete_batch_retry,
             }
         else:
-            candidate, selection = choose_candidate(
+            if self.optimizer_selector is None:
+                raise RuntimeError(
+                    "adaptive optimizer selection requires an isolated optimizer adapter"
+                )
+            candidate, selection = self.optimizer_selector(
                 self._all_outcomes(),
                 profile_id=self.execution_profile.profile_id,
                 plant_epoch=self.plant_epoch,

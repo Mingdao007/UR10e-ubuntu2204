@@ -339,7 +339,7 @@ def test_status_rejects_unterminated_partial_heartbeat_row(tmp_path: Path) -> No
     ) is False
 
 
-def test_status_keeps_one_bound_controller_preflight_without_age_expiry(
+def test_status_rejects_stale_bound_controller_preflight(
     tmp_path: Path,
 ) -> None:
     campaign = tmp_path / "campaign"
@@ -369,10 +369,10 @@ def test_status_keeps_one_bound_controller_preflight_without_age_expiry(
 
     observed = status.read_run_status(campaign)
 
-    assert observed["controller_preflight_valid"] is True
-    assert observed["state"] == "WAITING_FOR_PLAY"
-    assert observed["play_prompt_ready"] is True
-    assert observed["blocker"] is None
+    assert observed["controller_preflight_valid"] is False
+    assert observed["state"] == "BLOCKED"
+    assert observed["play_prompt_ready"] is False
+    assert observed["blocker"] == "MANUAL_CONTROLLER_PREFLIGHT_INVALID"
 
 
 def test_status_blocks_without_exact_controller_preflight(tmp_path: Path) -> None:

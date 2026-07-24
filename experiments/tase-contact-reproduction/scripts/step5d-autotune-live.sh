@@ -8,7 +8,7 @@ CANONICAL="${SCRIPT_DIR}/step5d-autotune-v3.sh"
 MAX_COMPAT_TP_REVISION=10
 
 refuse() {
-  echo "refusing: Step5d autotune V1 launcher is retired; use step5d-autotune-v3.sh bridge" >&2
+  echo "refusing: Step5d autotune V1 launcher is retired; use step5d-autotune-v3.sh bridge-live" >&2
   exit 64
 }
 
@@ -46,8 +46,8 @@ PY
   } 2>/dev/null)" || refuse
 
 if (( current_revision > MAX_COMPAT_TP_REVISION )); then
-  echo "refusing: Step5d compatibility adapter cutoff passed at r010; use step5d-autotune-v3.sh bridge" >&2
+  echo "refusing: Step5d compatibility adapter cutoff passed at r010; use step5d-autotune-v3.sh bridge-live" >&2
   exit 64
 fi
 
-exec "${CANONICAL}" "$@"
+exec "${CANONICAL}" bridge-live "${@:2}"

@@ -69,7 +69,7 @@ from step5d_autotune_v3.release_identity import (
     release_payload_path,
 )
 from step5d_autotune_v3.runtime_environment import production_runtime_environment
-from step5d_autotune_v3.runtime_functional_gates import load_gpu_functional_attestation
+from step5d_autotune_v3.optimizer_deployment import load_gpu_functional_attestation
 from step5d_autotune_v3.runtime_installation import require_runtime_profile
 from step5d_autotune_v3.runtime_profile import (
     CONTROL_PROFILE_ID,
@@ -1051,13 +1051,6 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     runtime_pointer = getattr(args, "_runtime_pointer", None)
     if not isinstance(runtime_pointer, Mapping):
         runtime_pointer = require_runtime_profile("control")
-    _gpu_attestation, gpu_reference = load_gpu_functional_attestation(
-        runtime_pointer=runtime_pointer
-    )
-    optimizer_deployment = deployment_certificate(
-        runtime_pointer=runtime_pointer,
-        gpu_attestation_digest=gpu_reference["sha256"],
-    )
     control_python = runtime_pointer["profiles"]["control"]["python_executable"]
     optimizer_python = runtime_pointer["profiles"]["optimizer"]["python_executable"]
     qualification = _qualification_endpoints(args.qualification_endpoints)
@@ -1065,6 +1058,19 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     if bool(qualification) != bool(qualification_environment):
         raise LiveLaunchError(
             "qualification endpoint and explicit release bindings must be paired"
+        )
+    optimizer_client = None
+    if qualification is None:
+        _gpu_attestation, gpu_reference = load_gpu_functional_attestation(
+            runtime_pointer=runtime_pointer
+        )
+        optimizer_deployment = deployment_certificate(
+            runtime_pointer=runtime_pointer,
+            gpu_attestation_digest=gpu_reference["sha256"],
+        )
+        optimizer_client = ExactOptimizerClient(
+            deployment=optimizer_deployment,
+            runtime_pointer=runtime_pointer,
         )
     if qualification is not None:
         configured = Path(
@@ -1180,10 +1186,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         campaign_root=args.campaign_root,
         campaign_id=str(prepared["campaign_id"]),
         catalog=production_candidate_catalog(),
-        optimizer_client=ExactOptimizerClient(
-            deployment=optimizer_deployment,
-            runtime_pointer=runtime_pointer,
-        ),
+        optimizer_client=optimizer_client,
     )
     try:
         producer_snapshot = producer.poll_once(proposal_provider=proposal_provider)
