@@ -21,7 +21,14 @@ BASE_IMAGE = (
 AUTHORITY = "HERMETIC_CI_PROVEN"
 SCHEMA = "step5d.autotune-v3/oci-cleanroom-attestation-v1"
 EXPERIMENT_ROOT = Path("/workspace/experiments/tase-contact-reproduction")
+REPOSITORY_ROOT = EXPERIMENT_ROOT.parents[1]
 LOCK_PATH = EXPERIMENT_ROOT / "uv.lock"
+REPOSITORY_PYTHONPATH = os.pathsep.join(
+    (
+        str(EXPERIMENT_ROOT / "tools"),
+        str(REPOSITORY_ROOT / "src/ur10e_experiment_runtime"),
+    )
+)
 
 
 class OciGateError(RuntimeError):
@@ -74,6 +81,7 @@ def _run(
             "HOME": "/tmp/step5d-home",
             "PYTHONDONTWRITEBYTECODE": "1",
             "PYTHONNOUSERSITE": "1",
+            "PYTHONPATH": REPOSITORY_PYTHONPATH,
         }
     )
     if extra_environment is not None:

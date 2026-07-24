@@ -35,6 +35,9 @@ def test_runner_can_issue_only_hermetic_ci_authority() -> None:
     assert 'AUTHORITY = "OFFLINE_PROVEN"' not in source
     assert 'STEP5D_OCI_NETWORK_MODE") != "none"' in source
     assert 'STEP5D_OCI_REPOSITORY_MODE") != "read_only"' in source
+    assert '"PYTHONPATH": REPOSITORY_PYTHONPATH' in source
+    assert 'EXPERIMENT_ROOT / "tools"' in source
+    assert 'REPOSITORY_ROOT / "src/ur10e_experiment_runtime"' in source
 
 
 def test_workflow_mounts_repo_read_only_and_disables_runtime_network() -> None:
