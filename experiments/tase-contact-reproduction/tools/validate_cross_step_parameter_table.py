@@ -507,23 +507,57 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
     v29_row = step5_rows.get(V29_PROGRAM) or {}
     v29_row_review = v29_row.get("historical_review_v2") or {}
     if (
-        v29_candidate.get("frozen_fallback") is not True
+        v29_candidate.get("archived") is not True
+        or v29_candidate.get("executable") is not False
+        or v29_candidate.get("frozen_fallback") is not False
+        or v29_candidate.get("reactivation_forbidden") is not True
+        or v29_candidate.get("archive_reason") != "ARCHIVED_PROFILE"
+        or v29_candidate.get("replacement") != "step5d_strict_rnn_autotune_v3_r012"
         or v29_baseline_review.get("required_stack") != "1+0"
     ):
-        failures.append("v29 frozen fallback / historical Review v2 binding is invalid")
-    expected_v29_local = f"programs/step5/step5d/{V29_PROGRAM}"
+        failures.append("v29 archive / historical Review v2 binding is invalid")
+    expected_v29_local = f"programs/step5/step5d/archive/{V29_PROGRAM}"
     if v29_candidate.get("local_triplet") != expected_v29_local or (
         current_program == V29_PROGRAM and current.get("local_triplet") != expected_v29_local
     ):
-        failures.append("v29 local triplet must use the canonical nested step5d path")
+        failures.append("v29 local triplet must use the canonical archive path")
     expected_v29_triplet = f"{expected_v29_local}.{{script,txt,urp}}"
     for binding_name in ("local_delivery_evidence", "package_delivery"):
         binding = v29_row.get(binding_name) or {}
         if (
-            binding.get("local_program_dir") != "programs/step5/step5d"
+            binding.get("local_program_dir") != "programs/step5/step5d/archive"
             or binding.get("local_triplet") != expected_v29_triplet
         ):
             failures.append(f"v29 {binding_name} local package path is inconsistent")
+    archive_marker = root / str(v29_candidate.get("local_candidate_marker") or "")
+    if not archive_marker.is_file():
+        failures.append("v29 archive marker is missing")
+    else:
+        marker = load_json(archive_marker)
+        marker_files = {
+            str(item.get("new_path")): item
+            for item in (marker.get("files") or [])
+            if isinstance(item, dict)
+        }
+        if (
+            marker.get("schema") != "step5d.profile-archive/v1"
+            or marker.get("profile") != V29_PROGRAM
+            or marker.get("reason") != "ARCHIVED_PROFILE"
+            or marker.get("replacement") != "step5d_strict_rnn_autotune_v3_r012"
+        ):
+            failures.append("v29 archive marker metadata is invalid")
+        for extension in PACKAGE_EXTENSIONS:
+            archived_path = f"{expected_v29_local}{extension}"
+            marker_file = marker_files.get(archived_path) or {}
+            expected_sha = v29_candidate.get("sha256", {}).get(extension)
+            path = root / archived_path
+            if (
+                not path.is_file()
+                or not is_sha256(expected_sha)
+                or file_sha256(path) != expected_sha
+                or marker_file.get("sha256") != expected_sha
+            ):
+                failures.append(f"v29 archived package sha mismatch for {extension}")
     expected_v29_review = {
         "policy_id": REVIEW_POLICY_ID,
         "milestone": "v29_baseline_re_review",

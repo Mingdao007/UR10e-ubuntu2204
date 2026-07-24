@@ -1104,7 +1104,7 @@
     "v29_controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
     "v29_delivery_status": "controller read-back verified",
     "v29_local_package_validated": true,
-    "v29_local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",
+    "v29_local_triplet": "programs/step5/step5d/archive/step5d_strict_rnn_ablation_v29",
     "v29_preload_gate": {
       "filtered_normal_load_max_n": 22.0,
       "filtered_normal_load_min_n": 5.0,
@@ -1195,11 +1195,7 @@
   },
   "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r009",
   "notes": [
-    "step5d_strict_rnn_ablation_v29 is controller read-back verified and remains the current pointer only as a frozen fallback.",
-    "v29 keeps Stage22/24 gravity-down [pi,0,0] pre-contact search posture.",
-    "v29 is an ablation package: v25/v26/v27/v28 default to speedl_cartesian_oracle; v29 defaults to speedj_rnn_live; preload is 5-22N filtered with 3-25N raw sanity.",
-    "v29 uses Stage25.95 register-clear barrier plus layout tag 523.0 for Cartesian speedl and 524.0 for joint speedj.",
-    "v29 cannot be reactivated without a fresh readback/timing fingerprint, one Review v3 1+1 gate (or valid degraded 1+0), and new live/contact authorization.",
+    "step5d_strict_rnn_ablation_v29 is ARCHIVED_PROFILE historical evidence and has no execution authority; replacement is step5d_strict_rnn_autotune_v3_r012.",
     "v30 is an inactive offline candidate. Its fresh source-bound RNN512 timing passes the bounded last-command-hold route under the 1.5 ms schedule-lateness gate; hard-real-time remains false. P0 canaries and live-runtime prewarm verification remain outstanding.",
     "No v23 post-RNN normal-direction guard is active for this package.",
     "This file is the single current pointer for UR/Kunwei package and bridge handoffs.",
@@ -1443,14 +1439,12 @@
   },
   "updated_at": "2026-07-21T13:19:06+08:00",
   "v29_contact_candidate": {
+    "archive_reason": "ARCHIVED_PROFILE",
+    "archived": true,
     "controller_readback_verified": true,
     "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v29.urp",
-    "frozen_fallback": true,
-    "future_reactivation_requires": [
-      "fresh controller readback and timing fingerprint",
-      "Review v3 1+1 contact pre-live gate or evidence-backed degraded 1+0",
-      "new explicit live/contact authorization"
-    ],
+    "executable": false,
+    "frozen_fallback": false,
     "historical_review_v2_baseline_rereview": {
       "evidence_frozen": true,
       "manifest_source": "config/step5d_review_index_v2.json",
@@ -1461,16 +1455,18 @@
       "status": "resolved_by_review_index"
     },
     "live_authorized": false,
-    "local_candidate_marker": "programs/step5/step5d/.local_tp_candidate.json",
-    "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v29",
+    "local_candidate_marker": "programs/step5/step5d/archive/step5d_strict_rnn_ablation_v29.archive.json",
+    "local_triplet": "programs/step5/step5d/archive/step5d_strict_rnn_ablation_v29",
     "p0_gate_required": false,
     "profile": "step5d_strict_rnn_ablation_v29",
+    "reactivation_forbidden": true,
+    "replacement": "step5d_strict_rnn_autotune_v3_r012",
     "sha256": {
       ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
       ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
       ".urp": "a0f26a974945f8de6b9ec21d96810b602746000a9aebc751cbdf380737a1ba0b"
     },
-    "stage25_default_control_mode": "speedj_rnn_live"
+    "stage25_default_control_mode": "historical_only"
   },
   "v30_candidate": {
     "blockers": [

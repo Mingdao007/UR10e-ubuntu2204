@@ -7,19 +7,21 @@ by `config/step5d/current.json` is the only immutable release truth, and
 `step5d-autotune-v3.sh status --json` recomputes runtime state from that manifest
 plus the current observed attestation. `config/current_stage.json`, the stage
 table, and this document are compatibility projections; they cannot establish
-`OFFLINE_PROVEN`, `WAITING_FOR_IDENTITY_PLAY`, `BENCH_READY`,
+`RELEASE_CONTRACT_PROVEN`, `WAITING_FOR_IDENTITY_PLAY`, `BENCH_READY`,
 `WAITING_FOR_PLAY`, or `RUNNING`; `LIVE_PROVEN` is an outcome pointer, not a
 reusable readiness state. A stopped TP program cannot
 prove registers 35--37 before it executes, so that pre-identity Play barrier
 is explicit and never aliases `BENCH_READY`; Play may start the TP program but
 ARM remains fail-closed until the runtime identity is observed and rechecked.
+This compatibility projection currently selects
+`step5d_strict_rnn_autotune_v3`; its governed TP identity revision is r012.
 
-The governed TP identity revision is r010. It adds protocol/digest identity on
+The governed TP identity revision is r012. It carries protocol/digest identity on
 output integer registers 35--37 and requires release-manifest v3 verification,
 fresh controller GET closure, exact Dashboard loaded-program identity, and the
-runtime register identity before ARM. r009 lacks that runtime identity oracle;
-r009, r008, r006, and r004 are historical-only and cannot be treated as the
-active release. Until the r010 atomic promotion and current observed predicates
+runtime register identity before ARM. r011 and r010 are superseded; r009 lacks
+that runtime identity oracle. All earlier revisions are historical-only and
+cannot be treated as the active release. Until the r012 atomic promotion and current observed predicates
 both verify, the route remains fail-closed and no `BENCH_READY` claim is valid.
 
 The only public live command is `step5d-autotune-v3.sh bridge-live`; the only resume
@@ -30,19 +32,15 @@ revision r010 and performs no write before `exec`; it fails with exit 64 after
 that cutoff. `step5d-liveprep-operator.sh` and `step5d-workflow.sh` are retired
 stubs and cannot start a bridge, upload, promote, load, Play, or ARM.
 
-The production qualification gate must launch the canonical shell and real
-supervisor/worker/mailbox lifecycle in a clean environment. It replaces only
-Dashboard, RTDE, Kunwei, and TP endpoints and must observe simulated Play, the
-post-Play identity recheck, command-bound first ARM acknowledgement, one
-completed trial, command-bound next ARM acknowledgement, and a still-live
-bridge process. Normal live completion additionally requires a zero-exit runner,
-terminal lease revocation, and a terminal attestation before bridge cleanup.
-Historical r004/r006/r008 fake-chain tests are classified as obsolete release
-acceptance, not evidence for this path.
+The only offline production gate is
+`step5d-autotune-v3.sh release-contract-check`. It is a no-network/no-trial
+state transition with an immutable certificate; it does not simulate endpoints,
+Play, ARM, a completed trial, or live readiness. Historical r004/r006/r008
+fake-chain tests are obsolete release acceptance, not evidence for this path.
 
 Bridge incidents follow the earliest evidenced failure layer. A reproducible
 internal defect must first fail on the old code, gain a regression at that
-layer, pass after the fix, and then requalify. A nondeterministic internal defect
+layer, pass after the fix, and then rerun the affected deterministic contract. A nondeterministic internal defect
 first gains instrumentation, fault injection, or an invariant test; an idealized
 fixture is not a fix. A physical-only failure preserves bench evidence and adds
 the earliest feasible HIL oracle. `BLOCKED_EXTERNAL` requires positive network,
@@ -114,33 +112,19 @@ miss, so they remain `diagnostic_failed_host_schedule`. The exact production
 the full-tick P99/deadline robustness gate was not accepted. Neither result is
 promoted by retrying until lucky; V3 remains `pre_live_blocked`.
 
-v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
+Historical v35 preserves the Step5b-equivalent outer, RNN512, `qdot<=0.5`, matched host/TP
 acceleration `0.1 rad/s²`, fresh-feedback drain, permissive ordinary guards,
 and gross 60 N / 100 N / 3 Nm protection. The scheduler-only delta keeps the
 control thread and every helper thread at `SCHED_OTHER/0`; it never writes the
-Linux RT quota. The single retained 60 s no-motion production-seam timing
+Linux RT quota. Its retained 60 s no-motion timing evidence
 completed 30,052 ticks with compute p99 `1.181 ms`, maximum row gap `4.011 ms`,
-zero gaps over 20 ms, and zero 45–60 ms gaps.
+zero gaps over 20 ms, and zero 45–60 ms gaps; it is not a current release gate.
 
-The retained `step5d_strict_rnn_autotune_v1` control profile was built from the exact
-frozen v35 source and controller read-back verified. It is historical provenance, not
-the selected controller. Its package stamp is
+The retained `step5d_strict_rnn_autotune_v1` control profile is immutable
+historical provenance, not the selected controller or a fallback. Its package stamp is
 `2026-07-15T0835HKT_STEP5D_STRICT_RNN_AUTOTUNE_V1`; local, controller, and
 fresh-readback SHA agree for the `.script/.txt/.urp` triplet. Package delivery
 was an automatic file transaction and did not itself load or run the program.
-The host accepts append-only Codex-managed batches of exactly five candidates.
-P and damping remain on the 0.25-octave `log2` lattice inside +/-1 octave. I
-uses a two-stage policy: first probe exact positive multipliers
-`[10,50,100,500,1000] * I0`, then refine around the best I scale with ordinary
-`log2 +/-0.25` steps. The force integral state remains clamped to `+/-1 N*s`,
-so the largest coarse I contribution is `0.01 m/s^2`; at the group-10 anchor,
-the P contribution at 12 N error is about `0.0202 m/s^2`. The current
-`qdot<=0.5 rad/s`, matched host/TP `0.5 rad/s^2` slew/acceleration, and gross
-force/torque guards are unchanged. Parameter-only batch updates live under the
-persistent campaign control directory and do not change the code fingerprint
-or require code tests. The TP/bridge stays at verified Home while waiting for
-the next five-point batch, so the next direction can be chosen from the
-preceding results without another Play.
 
 v34 is retained as immutable physical failure evidence. Its Stage25 feedback,
 XY, qd alignment, RNN consumption, Safety NORMAL, and gross guards passed, but
@@ -148,20 +132,11 @@ the FIFO control thread exhausted Linux's default 950 ms/s RT budget and was
 throttled for roughly 43–50 ms almost every second. v33c20 is also retained as
 earlier cadence failure evidence; neither package is current or authorized.
 
-That timing gate is not a generic post-edit check. Its freeze invalidates only
-when the timing-critical bridge, outer, RNN, control contract, operator, or
-timing harness changes; status/reporting-only edits use short deterministic
-tests and do not trigger another 60 s no-motion run.
+That retained 60 s artifact is historical only; it is neither an r012
+release-contract input nor a post-edit acceptance gate.
 
-The Codex/high Review v3 lane found four P1 defects in the first v35 freeze; all
-are deterministically closed. The final closure also binds the raw bridge to
-the exact v35 source/package/read-back/timing/review fingerprint before any
-RTDE write path may proceed.
-The required Fable5/high invocation returned an external session-limit error,
-not a verdict. The standing user rule records that lane as
-`skipped_unavailable` and automatically uses the owner-approved degraded `1+0`
-stack without another confirmation. A fresh explicit authorization is still
-required for the current v35 run.
+Historical v35 review closed four P1 defects and recorded one unavailable
+external review lane. That review record has no current execution authority.
 
 v32 fixed the v31 failure at Stage25.05. Register state is interpreted by
 TP stage: Stage25.05 passes latch-ready state `33`, Stage25.3 passes preload
@@ -506,7 +481,7 @@ instead of preserving the later 22 s TP v3 timing.
 | `step5d_strict_rnn_ablation_v26` | bridge+TP | true | true | speedl Cartesian oracle with strict RNN shadow diagnostics | `v31_filtered_live` | Retained read-back/live-attempt evidence: default `speedl_cartesian_oracle`, Stage25.3 Step5b/Step6b evidence tube filtered 7-18 N / raw 5-20 N, superseded by v27 wider tube and 35 N hard guards; not current. |
 | `step5d_strict_rnn_ablation_v27` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained successful 10 s fix-validation evidence from `runs/bridge_step5d_strict_rnn_ablation_v27_20260706_045513`; not current and not a 60 s reproduction claim. The earlier 040900 force overshoot remains retained failure evidence for the old paper-linear-live path. |
 | `step5d_strict_rnn_ablation_v28` | bridge+TP | true | true | Step5b speedl live / Step5d paper+RNN shadow | `v31_filtered_live` | Retained read-back verified diagnostic package, superseded by v29; not a completed reproduction claim. |
-| `step5d_strict_rnn_ablation_v29` | frozen fallback | true | false | strict TASE RNN speedj | `v31_filtered_live` | Superseded historical fallback. A future reactivation requires fresh readback/timing fingerprint and explicit live/contact authorization. |
+| `step5d_strict_rnn_ablation_v29` | archive | true | false | historical strict TASE RNN speedj | `v31_filtered_live` | `ARCHIVED_PROFILE`: immutable non-executable evidence only; replacement is `step5d_strict_rnn_autotune_v3_r012`. |
 | `step5d_strict_rnn_no_contact_p0_v8` | frozen failed P0 evidence | false | false | v30 strict-RNN contract | none | Retained 60 s failed canary and controller readback evidence. Its press-only target conflicts with the intended no-contact experiment and its TP package lacks the full command echo required for semantic qualification. It cannot be promoted and is superseded by P0 v9. |
 | `step5d_strict_rnn_no_contact_p0_v9` | permissive P0 guard v2 | false | false | strict-RNN layout-524 structural contract | none | Canonical free-space candidate: 60 s cycloid with `A=15 mm`, `theta=0..6`, about 94.19 mm along travel, 30 mm lateral peak, and smooth relative base `Z=+20 mm`; `qdot<=0.5 rad/s`; 2 s sensor stale, 1 s heartbeat stale, 75 s TP runtime. Force/torque, Cartesian/normal speed, approach-normal displacement, DLS, residual magnitude, and active bounds are diagnostic-only. Success requires 60 continuous consumed/accepted seconds, along endpoint >=90 mm, lateral peak >=25 mm, relative Z endpoint >=18 mm, and terminal TP stop acknowledgement. |
 | `step5d_strict_rnn_ablation_v30` | offline contact-control prep | true | false | strict TASE RNN speedj; DLS shadow-only | `v31_filtered_live` | Inactive contact candidate retaining the stricter 1%/20 ms bounded last-command-hold contract. Hard-real-time remains a distinct zero-miss claim; readiness still requires live-runtime integration, a passing successor no-contact canary, and frozen package/readback. Contact requires separate authorization. |
@@ -1172,8 +1147,8 @@ On a valid trigger:
 1. For governed Step5d V3, invoke `scripts/step5d-autotune-v3.sh bridge-live` once;
    do not ask for stage-by-stage authorization. The invocation is the typed
    campaign authorization bound to the release, campaign, and safety envelope.
-2. `release-certify` performs only offline/no-motion candidate staging and
-   release qualification. `tp-deliver` consumes that certificate, uploads,
+2. `release-contract-check` performs only the offline/no-motion/no-network
+   release-contract transition. `tp-deliver` consumes that certificate, uploads,
    performs a fresh controller GET, writes the immutable delivery receipt, and
    promotes the current-release pointer; it never sends Dashboard Load or Play.
    `bridge-live` consumes the promoted receipt and performs a read-only

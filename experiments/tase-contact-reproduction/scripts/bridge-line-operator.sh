@@ -80,6 +80,10 @@ if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_autotune_v1" || "${BRIDGE_PROFIL
   echo "refusing: generic Step5d autotune route is retired; use step5d-autotune-v3.sh bridge-live" >&2
   exit 64
 fi
+if [[ "${BRIDGE_OPERATOR_SOURCE_ONLY:-0}" != "1" && "${BRIDGE_PROFILE}" == "step5d_strict_rnn_ablation_v29" ]]; then
+  echo "ARCHIVED_PROFILE: ${BRIDGE_PROFILE}; replacement=step5d_strict_rnn_autotune_v3_r012" >&2
+  exit 64
+fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_no_contact_p0_v9" ]]; then
   STEP5D_NO_CONTACT_P0_PROFILE="${BRIDGE_PROFILE}"
 fi

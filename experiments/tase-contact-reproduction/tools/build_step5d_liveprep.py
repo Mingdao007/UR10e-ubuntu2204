@@ -44,6 +44,7 @@ from step5d_runtime_interface import (
     STEP5D_STAGE25_V28_FULL_RUN_TARGET_S,
     STEP5D_STAGE25_V28_RUNTIME_LIMIT_S,
     STEP5D_TUNING_BUNDLE,
+    require_executable_step5d_profile,
 )
 from tase_protocol_table import resolve_experiment_profile
 
@@ -2452,6 +2453,7 @@ def write_outputs(
     program: str | None = None,
 ) -> dict[str, object]:
     spec = spec_for(program)
+    require_executable_step5d_profile(spec.program_name)
     now = datetime.now(timezone(timedelta(hours=8)))
     target_dir = output_dir or (default_local_candidate_dir(now, spec) if local_only else local_program_dir_for(spec))
     reused = (

@@ -328,43 +328,24 @@ class Step5dV27AblationTest(unittest.TestCase):
         self.assertIn("speedl_cartesian_oracle", script_text + txt_text)
         self.assertNotIn("step5d_strict_rnn_ablation_v27", script_text + txt_text)
 
-    def test_v29_package_is_contact_strict_rnn_live_candidate_without_p0_gate(self) -> None:
+    def test_v29_build_selector_is_archived_before_writing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             local_dir = Path(tmp) / "v29"
-            liveprep.write_outputs(
-                "2026-07-08T0700HKT_STEP5D_STRICT_RNN_ABLATION_V29",
-                "2026-07-08T07:00:00+08:00",
-                output_dir=local_dir,
-                local_only=True,
-                program=V29,
-            )
-            files = {ext: local_dir / f"{V29}{ext}" for ext in upload.EXTENSIONS}
-            result = upload.validate_package(
-                files,
-                V29,
-                liveprep.CONTROLLER_DIR,
-                require_exact_cached_script=True,
-            )
-            script_text = files[".script"].read_text(encoding="utf-8")
-            txt_text = files[".txt"].read_text(encoding="utf-8")
+            with self.assertRaisesRegex(
+                iface.ArchivedProfileError,
+                "ARCHIVED_PROFILE.*step5d_strict_rnn_autotune_v3_r012",
+            ):
+                liveprep.write_outputs(
+                    "2026-07-08T0700HKT_STEP5D_STRICT_RNN_ABLATION_V29",
+                    "2026-07-08T07:00:00+08:00",
+                    output_dir=local_dir,
+                    local_only=True,
+                    program=V29,
+                )
+            self.assertFalse(local_dir.exists())
 
-        self.assertEqual(result["program"], V29)
+        # Historical spec parsing remains available, but it cannot select a build.
         self.assertEqual(liveprep.spec_for(V29).default_stage25_control_mode, "speedj_rnn_live")
-        self.assertIn("local line_success_progress_m = 60.000000000", script_text)
-        self.assertIn("local line_runtime_limit_s = 65.000", script_text)
-        self.assertIn("strict RNN live candidate", script_text + txt_text)
-        self.assertIn("# STAGE25_V29_SCAFFOLD: v28_envelope_strict_rnn_live_candidate_60s", script_text)
-        self.assertNotIn(
-            "# STAGE25_V29_SCAFFOLD: v29_minimal_fix_frame_aware_normal_contract_60s",
-            script_text,
-        )
-        self.assertIn("Stage25.0 default bridge mode: STEP5D_STAGE25_CONTROL_MODE=speedj_rnn_live", txt_text)
-        self.assertIn("speedl_cartesian_oracle remains an explicit fallback/debug mode for v29", txt_text)
-        self.assertIn("speedj_rnn_live on layout 524", txt_text)
-        self.assertIn("--target-force-n 12.0", txt_text)
-        self.assertNotIn("NO_CONTACT_P0_CAPTURE", script_text + txt_text)
-        self.assertNotIn("step5d_strict_rnn_no_contact_p0", script_text + txt_text)
-        self.assertNotIn("step5d_strict_rnn_ablation_v28", script_text + txt_text)
 
     def test_upload_validator_has_v29_allowlist_and_speedj_default(self) -> None:
         source = (ROOT / "tools" / "upload_ur_tp_package.py").read_text(encoding="utf-8")
@@ -1772,7 +1753,7 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
     def test_v29_dashboard_preflight_binds_loaded_program_identity(self) -> None:
         args = SimpleNamespace(bridge_profile=V29)
         good = {
-            "programState": f"STOPPED </programs/andyl/kunwei/step5/{V29}.urp>",
+            "get loaded program": f"Loaded program: /programs/andyl/kunwei/step5/{V29}.urp",
             "is in remote control": "Is in remote control: true",
             "safetymode": "Safetymode: NORMAL",
             "robotmode": "Robotmode: RUNNING",
@@ -1781,39 +1762,38 @@ class Step5dV29RawBridgeAuthorizationGateTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "program identity"):
             bridge.require_v29_dashboard_program_binding(
                 args,
-                {**good, "programState": f"STOPPED <{V28}.urp>"},
+                {**good, "get loaded program": f"Loaded program: {V28}.urp"},
             )
         tp_local = {**good, "is in remote control": "Is in remote control: false"}
-        with self.assertRaisesRegex(SystemExit, "remote-control"):
-            bridge.require_v29_dashboard_program_binding(args, tp_local)
+        self.assertIsNone(bridge.require_v29_dashboard_program_binding(args, tp_local))
 
-    def test_v29_tp_local_dashboard_state_is_always_rejected(self) -> None:
+    def test_v29_historical_dashboard_parser_has_no_remote_control_gate(self) -> None:
         args = raw_bridge_args(V29)
         tp_local = {
-            "programState": f"STOPPED </programs/{V29}.urp>",
+            "get loaded program": f"Loaded program: /programs/{V29}.urp",
             "is in remote control": "Is in remote control: false",
             "safetymode": "Safetymode: NORMAL",
             "robotmode": "Robotmode: RUNNING",
         }
-        with self.assertRaisesRegex(SystemExit, "remote-control"):
-            bridge.require_v29_dashboard_program_binding(args, tp_local)
+        self.assertIsNone(bridge.require_v29_dashboard_program_binding(args, tp_local))
 
     def test_v29_dashboard_preflight_rejects_fuzzy_or_ambiguous_states(self) -> None:
         args = SimpleNamespace(bridge_profile=V29)
         good = {
-            "programState": f"STOPPED </programs/{V29}.urp>",
+            "get loaded program": f"Loaded program: /programs/{V29}.urp",
             "is in remote control": "Is in remote control: true",
             "safetymode": "Safetymode: NORMAL",
             "robotmode": "Robotmode: RUNNING",
         }
         cases = {
-            "prefixed_basename": {"programState": f"STOPPED <prefix_{V29}.urp>"},
-            "backup_suffix": {"programState": f"STOPPED <{V29}.urp.bak>"},
-            "ambiguous": {"programState": f"STOPPED <{V29}.urp> <{V28}.urp>"},
-            "false_remote": {"is in remote control": "Is in remote control: NOT TRUE"},
+            "prefixed_basename": {"get loaded program": f"Loaded program: prefix_{V29}.urp"},
+            "backup_suffix": {"get loaded program": f"Loaded program: {V29}.urp.bak"},
+            "ambiguous": {
+                "get loaded program": f"Loaded program: {V29}.urp {V28}.urp"
+            },
             "false_safety": {"safetymode": "Safetymode: NOT_NORMAL"},
             "false_robot": {"robotmode": "Robotmode: NOT_RUNNING"},
-            "missing_program": {"programState": ""},
+            "missing_program": {"get loaded program": ""},
         }
         for name, mutation in cases.items():
             with self.subTest(name=name), self.assertRaises(SystemExit):

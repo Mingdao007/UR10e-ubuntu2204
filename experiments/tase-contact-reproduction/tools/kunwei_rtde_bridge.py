@@ -182,6 +182,7 @@ from step5d_runtime_interface import (  # noqa: E402
     STEP5D_V31_RNN_INNER_ITERATIONS,
     STEP5D_V31_SENSOR_STALE_S,
     is_no_contact_p0_stage,
+    require_executable_step5d_profile,
     uses_v30_control_contract,
 )
 from step5d_autotune_live_driver import (  # noqa: E402
@@ -10279,15 +10280,12 @@ def require_v29_dashboard_program_binding(
         return
     if not isinstance(dashboard, Mapping):
         raise SystemExit("v29 Dashboard preflight is missing")
-    remote_state = dashboard_state_value(dashboard.get("is in remote control"))
     safety_state = dashboard_state_value(dashboard.get("safetymode"))
     robot_state = dashboard_state_value(dashboard.get("robotmode"))
     if not step5d_dashboard_program_identity_matches(
         dashboard.get("get loaded program"), args.bridge_profile
     ):
         raise SystemExit("Step5d Dashboard program identity does not match the current package")
-    if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID and remote_state != "TRUE":
-        raise SystemExit("v29 Dashboard remote-control state is not true")
     if safety_state != "NORMAL":
         raise SystemExit("Step5d Dashboard safety state is not NORMAL")
     if robot_state != "RUNNING":
@@ -10296,6 +10294,11 @@ def require_v29_dashboard_program_binding(
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    try:
+        require_executable_step5d_profile(args.bridge_profile)
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 64
     if args.duration_s <= 0 or args.baseline_s < 0 or args.rtde_hz <= 0:
         raise SystemExit("duration, baseline, and RTDE rate must be positive")
     if args.bias_contact_normal_threshold_n < 0.0 or args.bias_contact_force_norm_threshold_n < 0.0:
