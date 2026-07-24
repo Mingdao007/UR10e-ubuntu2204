@@ -45,6 +45,7 @@ from step5d_autotune_v3.delivery_observation import (
     validate_delivery_observation,
 )
 from step5d_autotune_v3.governance import (
+    RUNTIME_OBSERVATION_INTERVAL_S,
     load_current_release_snapshot,
     resolve_governed_status,
 )
@@ -1441,7 +1442,9 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 else:
                     print("V3_QUALIFICATION_SIMULATED_PLAY_BARRIER", flush=True)
                 deadline = time.monotonic() + args.play_timeout_s
-                next_observation = time.monotonic() + 0.2
+                next_observation = (
+                    time.monotonic() + RUNTIME_OBSERVATION_INTERVAL_S
+                )
                 while time.monotonic() < deadline:
                     if bridge.poll() is not None:
                         raise LiveLaunchError("bridge exited while waiting for TP Play")
@@ -1481,7 +1484,9 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                             args.output_root,
                             governed_status["state"],
                         )
-                        next_observation = time.monotonic() + 0.2
+                        next_observation = (
+                            time.monotonic() + RUNTIME_OBSERVATION_INTERVAL_S
+                        )
                     time.sleep(0.025)
                 else:
                     raise LiveLaunchError("TP Play was not observed before timeout")
@@ -1599,7 +1604,7 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                             dashboard=dashboard_observation,
                             delivery_observation=delivery_observation,
                         )
-                        next_observation = now + 0.2
+                        next_observation = now + RUNTIME_OBSERVATION_INTERVAL_S
                     completed_snapshot = producer_poller.poll(now=now)
                     if completed_snapshot is not None:
                         producer_snapshot = completed_snapshot
