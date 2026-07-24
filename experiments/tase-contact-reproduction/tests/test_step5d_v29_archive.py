@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import kunwei_rtde_bridge as bridge  # noqa: E402
 import step5d_runtime_interface as runtime  # noqa: E402
+import upload_ur_tp_package as upload  # noqa: E402
 
 
 PROFILE = "step5d_strict_rnn_ablation_v29"
@@ -78,6 +79,22 @@ class Step5dV29ArchiveTest(unittest.TestCase):
             ),
             64,
         )
+
+    def test_uploader_refuses_before_lock_or_controller_helper(self) -> None:
+        with (
+            patch(
+                "ur10e_mutation_lock.acquire_controller_mutation_locks"
+            ) as acquire_lock,
+            patch.object(upload, "resolve_live_controller_helper") as helper,
+            self.assertRaisesRegex(
+                runtime.ArchivedProfileError,
+                "ARCHIVED_PROFILE.*step5d_strict_rnn_autotune_v3_r012",
+            ),
+        ):
+            upload.main([PROFILE])
+
+        acquire_lock.assert_not_called()
+        helper.assert_not_called()
 
     def test_operator_launcher_refuses_v29(self) -> None:
         completed = subprocess.run(
