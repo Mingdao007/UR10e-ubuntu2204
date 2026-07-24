@@ -32,6 +32,34 @@ from step5d_autotune_v3.release_identity import load_local_release_candidate  # 
 from step5d_autotune_v3 import release_transition as transition  # noqa: E402
 
 
+def test_upload_runner_reports_bounded_child_failure_output() -> None:
+    failure = subprocess.CalledProcessError(
+        1,
+        ["controller-helper.py", "readback"],
+        output=("x" * 13_000) + "\nNo route to host\n",
+        stderr="readback failed\n",
+    )
+    with (
+        mock.patch.object(
+            transaction.upload.subprocess,
+            "run",
+            side_effect=failure,
+        ),
+        pytest.raises(RuntimeError) as raised,
+    ):
+        transaction.upload.run(
+            ["controller-helper.py", "readback"],
+            dry_run=False,
+            capture=True,
+        )
+
+    message = str(raised.value)
+    assert "bounded child output tail" in message
+    assert "No route to host" in message
+    assert "readback failed" in message
+    assert len(message) < 12_500
+
+
 def _write_receipt(
     root: Path,
     local: Path,
@@ -980,7 +1008,11 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
             "_validate_candidate_and_certificate",
             return_value=release,
         ),
-        mock.patch.object(transaction, "load_current_release", return_value=release),
+        mock.patch.object(
+            transaction,
+            "load_current_release",
+            return_value=release,
+        ) as load_current,
         mock.patch.object(transaction, "owner_dependency", return_value={
             "path": "/verified/helper.py",
             "sha256": "a" * 64,
@@ -991,7 +1023,10 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
             return_value=[object()],
         ),
         mock.patch.object(transaction.upload, "_main", side_effect=fake_upload),
-        mock.patch.object(transaction, "create_delivery_basis"),
+        mock.patch.object(
+            transaction,
+            "create_delivery_basis",
+        ) as create_basis,
         mock.patch.object(
             transaction,
             "delivery_basis_reference",
@@ -1047,6 +1082,12 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
     assert upload_arguments[
         upload_arguments.index("--delivery-basis-sha256") + 1
     ] == "9" * 64
+    assert load_current.call_count == 1
+    assert create_basis.call_args.kwargs == {
+        "candidate_release": release,
+        "basis_release": release,
+        "prior_full_receipt": root / "prior-full-readback.json",
+    }
     assert not hasattr(transaction, "load_current_release_for_compatible_readback")
 
 
@@ -1081,7 +1122,7 @@ def test_readback_only_get_failure_prevents_evidence_and_promotion(
             transaction,
             "load_current_release",
             return_value=candidate,
-        ),
+        ) as load_current,
         mock.patch.object(transaction, "create_delivery_basis"),
         mock.patch.object(
             transaction,
@@ -1137,6 +1178,7 @@ def test_readback_only_get_failure_prevents_evidence_and_promotion(
     assert "--readback-only-existing" in upload.call_args.args[0]
     write_evidence.assert_not_called()
     promote_release.assert_not_called()
+    load_current.assert_not_called()
     unlock.assert_called_once()
 
 

@@ -1536,7 +1536,20 @@ def run(cmd: list[str], *, dry_run: bool, capture: bool = False) -> str:
             capture_output=capture,
         )
     except subprocess.CalledProcessError as exc:
-        die(f"command failed with exit {exc.returncode}: {printable}")
+        captured = "\n".join(
+            value
+            for value in (exc.stdout, exc.stderr)
+            if isinstance(value, str) and value
+        )
+        detail = (
+            f"\n--- bounded child output tail ---\n{captured[-12_000:]}"
+            if captured
+            else ""
+        )
+        die(
+            f"command failed with exit {exc.returncode}: {printable}"
+            f"{detail}"
+        )
     if capture:
         if completed.stderr:
             sys.stderr.write(completed.stderr)
