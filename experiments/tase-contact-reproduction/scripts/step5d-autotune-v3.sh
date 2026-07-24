@@ -591,21 +591,6 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
   )
 fi
 
-if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
-  status_command=(
-    /usr/bin/python3.10 -B -I
-    "${EXPERIMENT_ROOT}/tools/step5d_bridge_status.py"
-    --experiment-root "${EXPERIMENT_ROOT}"
-  )
-  if (( $# == 4 )) && [[ "${3}" == "--assert-state" ]]; then
-    status_command+=(--assert-state "${4}")
-  elif (( $# != 2 )); then
-    echo "status accepts only --json and optional --assert-state STATE" >&2
-    exit 64
-  fi
-  exec "${status_command[@]}"
-fi
-
 if (( bridge_mode == 1 )) \
   && [[ -z "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]] \
   && [[ -z "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]
@@ -717,6 +702,20 @@ export STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID="${OPTIMIZER_ENVIRONMENT_ID}"
 export STEP5D_V3_OPTIMIZER_PYTHON="${OPTIMIZER_PYTHON}"
 export STEP5D_V3_RUNTIME_ATTESTATION_SHA256="${RUNTIME_ATTESTATION_SHA256}"
 export STEP5D_V3_RUNTIME_BUNDLE_ID="${RUNTIME_BUNDLE_ID}"
+if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
+  status_command=(
+    "${CONTROL_PYTHON}" -B -I
+    "${EXPERIMENT_ROOT}/tools/step5d_bridge_status.py"
+    --experiment-root "${EXPERIMENT_ROOT}"
+  )
+  if (( $# == 4 )) && [[ "${3}" == "--assert-state" ]]; then
+    status_command+=(--assert-state "${4}")
+  elif (( $# != 2 )); then
+    echo "status accepts only --json and optional --assert-state STATE" >&2
+    exit 64
+  fi
+  exec "${status_command[@]}"
+fi
 if (( release_certify_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
