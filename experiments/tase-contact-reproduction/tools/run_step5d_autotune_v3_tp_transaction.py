@@ -16,8 +16,7 @@ import promote_step5d_r009_atomic_release as promote
 import upload_ur_tp_package as upload
 from step5d_autotune_v3.delivery_observation import (
     build_delivery_observation,
-    delivery_index_path,
-    load_delivery_observation,
+    write_indexed_delivery_observation,
 )
 from step5d_autotune_v3.release_identity import (
     ReleaseIdentity,
@@ -313,19 +312,11 @@ def main(argv: list[str] | None = None) -> int:
                 release=candidate_release,
             )
             atomic_json(evidence_output, observation)
-            indexed_observation = delivery_index_path(root, observation)
-            if indexed_observation.exists():
-                existing = load_delivery_observation(
-                    root,
-                    indexed_observation,
-                    release=candidate_release,
-                )
-                if existing != observation:
-                    raise RuntimeError(
-                        "content-addressed delivery observation differs"
-                    )
-            else:
-                atomic_json(indexed_observation, observation)
+            indexed_observation = write_indexed_delivery_observation(
+                root,
+                observation,
+                release=candidate_release,
+            )
 
             # Publishing current-release is the transaction commit point.  Once
             # that pointer changes, its immutable delivery receipt already

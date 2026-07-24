@@ -592,6 +592,7 @@ def _fake_governed_shell(
     for relative in (
         "tools/step5d_bridge_authority.py",
         "tools/step5d_autotune_v3/__init__.py",
+        "tools/step5d_autotune_v3/atomic_io.py",
         "tools/step5d_autotune_v3/governance.py",
         "tools/step5d_autotune_v3/delivery_observation.py",
     ):

@@ -120,6 +120,7 @@
     "tools/validate_step5d_layer_boundaries.py",
     "tools/step5d_autotune_v3/__init__.py",
     "tools/step5d_autotune_v3/admission.py",
+    "tools/step5d_autotune_v3/atomic_io.py",
     "tools/step5d_autotune_v3/atomic_release.py",
     "tools/step5d_autotune_v3/batch_producer.py",
     "tools/step5d_autotune_v3/bridge_admission.py",

@@ -24,6 +24,7 @@ from step5d_autotune_v3.delivery_observation import (  # noqa: E402
     delivery_index_path,
     resolve_delivery_observation,
     validate_delivery_observation,
+    write_indexed_delivery_observation,
 )
 from step5d_autotune_v3.release_identity import load_local_release_candidate  # noqa: E402
 
@@ -331,19 +332,12 @@ def test_current_release_resolves_latest_content_addressed_delivery_receipt(
         "recorded_at_unix_ns": first["recorded_at_unix_ns"] + 1,
     }
     for observation in (first, second):
-        path = delivery_index_path(root, observation)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(
-                observation,
-                allow_nan=False,
-                ensure_ascii=True,
-                separators=(",", ":"),
-                sort_keys=True,
-            )
-            + "\n",
-            encoding="ascii",
+        path = write_indexed_delivery_observation(
+            root,
+            observation,
+            release=release,
         )
+        assert path.stem == hashlib.sha256(path.read_bytes()).hexdigest()
     corrupt = delivery_index_path(root, first).parent / f"{'f' * 64}.json"
     corrupt.write_text('{"broken":true}\n', encoding="utf-8")
 
@@ -681,8 +675,12 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         ),
         mock.patch.object(
             transaction,
-            "delivery_index_path",
-            return_value=evidence_output.with_name("indexed-delivery.json"),
+            "write_indexed_delivery_observation",
+            side_effect=lambda *_args, **_kwargs: events.append(
+                "evidence:indexed-delivery.json"
+            )
+            or exact.append(evidence_output.with_name("indexed-delivery.json"))
+            or evidence_output.with_name("indexed-delivery.json"),
         ),
         mock.patch.object(
             transaction,
@@ -831,7 +829,7 @@ def test_readback_only_transaction_skips_upload_and_program_load(
         ),
         mock.patch.object(
             transaction,
-            "delivery_index_path",
+            "write_indexed_delivery_observation",
             return_value=evidence_output.with_name("indexed-delivery.json"),
         ),
         mock.patch.object(transaction, "atomic_json"),

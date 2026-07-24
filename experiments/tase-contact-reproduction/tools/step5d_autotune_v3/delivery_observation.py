@@ -10,6 +10,8 @@ import re
 import time
 from typing import Any, Mapping
 
+from .atomic_io import AtomicIOError, atomic_bytes
+
 
 SCHEMA = "step5d.autotune-v3/delivery-observation-v1"
 INDEX_ROOT = Path("runs/step5d_autotune_v3/delivery-receipts")
@@ -333,15 +335,9 @@ def load_delivery_observation(
     )
 
 
-def delivery_index_path(root: Path, value: Mapping[str, Any]) -> Path:
-    """Return the immutable content-addressed index path for one observation."""
-
-    release_sha256 = _sha256_text(
-        value.get("release_manifest_sha256"),
-        "delivery observation release SHA-256",
-    )
+def _canonical_bytes(value: Mapping[str, Any]) -> bytes:
     try:
-        encoded = (
+        return (
             json.dumps(
                 dict(value),
                 allow_nan=False,
@@ -355,6 +351,16 @@ def delivery_index_path(root: Path, value: Mapping[str, Any]) -> Path:
         raise DeliveryObservationError(
             f"delivery observation is not canonical JSON: {exc}"
         ) from exc
+
+
+def delivery_index_path(root: Path, value: Mapping[str, Any]) -> Path:
+    """Return the immutable content-addressed index path for one observation."""
+
+    release_sha256 = _sha256_text(
+        value.get("release_manifest_sha256"),
+        "delivery observation release SHA-256",
+    )
+    encoded = _canonical_bytes(value)
     digest = hashlib.sha256(encoded).hexdigest()
     return (
         root.resolve(strict=True)
@@ -362,6 +368,41 @@ def delivery_index_path(root: Path, value: Mapping[str, Any]) -> Path:
         / release_sha256
         / f"{digest}.json"
     )
+
+
+def write_indexed_delivery_observation(
+    root: Path,
+    value: Mapping[str, Any],
+    *,
+    release: Any,
+) -> Path:
+    """Atomically write the exact bytes used to name an immutable observation."""
+
+    experiment = root.resolve(strict=True)
+    observation = validate_delivery_observation(
+        experiment,
+        value,
+        release=release,
+    )
+    encoded = _canonical_bytes(observation)
+    path = delivery_index_path(experiment, observation)
+    if path.exists():
+        if path.is_symlink() or not path.is_file() or path.read_bytes() != encoded:
+            raise DeliveryObservationError(
+                "content-addressed delivery observation differs"
+            )
+    else:
+        try:
+            atomic_bytes(path, encoded)
+        except AtomicIOError as exc:
+            raise DeliveryObservationError(
+                f"cannot write indexed delivery observation: {exc}"
+            ) from exc
+    if path.stem != _sha256(path, "indexed delivery observation"):
+        raise DeliveryObservationError(
+            "indexed delivery observation digest differs"
+        )
+    return path
 
 
 def resolve_delivery_observation(
@@ -439,6 +480,9 @@ __all__ = [
     "SCHEMA",
     "build_delivery_observation",
     "fresh_get_provenance",
+    "delivery_index_path",
     "load_delivery_observation",
+    "resolve_delivery_observation",
     "validate_delivery_observation",
+    "write_indexed_delivery_observation",
 ]
