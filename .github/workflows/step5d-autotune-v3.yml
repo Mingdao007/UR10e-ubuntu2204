@@ -72,6 +72,7 @@ jobs:
       OPENBLAS_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
       NUMEXPR_NUM_THREADS: "1"
+      PYTHONPATH: ${{ github.workspace }}/experiments/tase-contact-reproduction/tools:${{ github.workspace }}/src/ur10e_experiment_runtime
       STEP5D_V3_PR_BODY: ${{ github.event.pull_request.body }}
     steps:
       - name: Checkout full baseline and tags
