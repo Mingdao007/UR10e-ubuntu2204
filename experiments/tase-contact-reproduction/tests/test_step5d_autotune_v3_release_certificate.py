@@ -20,7 +20,7 @@ def digest(label: str) -> str:
     return hashlib.sha256(label.encode("utf-8")).hexdigest()
 
 
-def scope(**overrides: str) -> dict[str, str]:
+def scope(**overrides: object) -> dict[str, object]:
     values = {
         "release_manifest_sha256": digest("release"),
         "source_fingerprint": digest("source"),
@@ -28,6 +28,11 @@ def scope(**overrides: str) -> dict[str, str]:
         "launcher_sha256": digest("launcher"),
         "control_environment_sha256": digest("control-environment"),
         "process_tree_fingerprint": digest("safety-process-tree"),
+        "runtime_epoch": digest("runtime-epoch"),
+        "endpoint_content_sha256": digest("endpoint-content"),
+        "qualification_profile": "formal_transition_v1",
+        "claim_class": "state_machine_contract",
+        "optimizer_exercised": False,
     }
     values.update(overrides)
     return release_certificate_scope(**values)
@@ -124,6 +129,23 @@ def test_certificate_rejects_scope_drift_and_evidence_tampering(
         ReleaseCertificateError,
         match="qualification evidence SHA-256 differs",
     ):
+        load_release_certificate(
+            tmp_path,
+            path,
+            expected_scope=expected_scope,
+        )
+
+
+def test_v1_certificate_is_not_accepted_as_v2(tmp_path: Path) -> None:
+    expected_scope = scope()
+    path = certificate_path(tmp_path, expected_scope)
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        '{"schema":"step5d.autotune-v3/release-certificate-v1"}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ReleaseCertificateError, match="fields differ"):
         load_release_certificate(
             tmp_path,
             path,

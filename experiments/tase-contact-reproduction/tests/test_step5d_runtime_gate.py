@@ -347,6 +347,33 @@ def test_lightweight_runtime_guard_reloads_pointer_identity_for_new_arm(
     assert binding_calls == identity_calls
 
 
+def test_identity_runtime_guard_reuses_startup_epoch_and_reloads_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _runtime_binding_payload()
+    startup_pointer = {"generation": 1}
+    reloaded_pointer = {"generation": 1}
+    binding_calls: list[object] = []
+
+    def bind(*, runtime_pointer=None):
+        binding_calls.append(runtime_pointer)
+        return expected
+
+    monkeypatch.setattr(gate_module, "runtime_binding", bind)
+    monkeypatch.setattr(
+        gate_module,
+        "load_runtime_pointer_identity",
+        lambda: reloaded_pointer,
+    )
+
+    guard = RuntimeEnvironmentBindingGuard.identity(
+        runtime_pointer=startup_pointer
+    )
+    guard.recheck(1)
+
+    assert binding_calls == [startup_pointer, reloaded_pointer]
+
+
 def test_fresh_identity_closed_observation_opens_the_actual_arm_gate(tmp_path: Path) -> None:
     root, release, contract, lease, lease_path, gate_path = _fixture(tmp_path)
     lease_sha = lease.sha256

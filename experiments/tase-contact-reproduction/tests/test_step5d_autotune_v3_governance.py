@@ -260,6 +260,11 @@ def test_offline_proof_status_uses_content_binding_without_replaying_lifecycle(
         launcher_sha256=release().launcher_sha256,
         control_environment_sha256=digest("control-environment"),
         process_tree_fingerprint=digest("safety-process-tree"),
+        runtime_epoch=digest("runtime-epoch"),
+        endpoint_content_sha256=digest("endpoint-content"),
+        qualification_profile="formal_transition_v1",
+        claim_class="state_machine_contract",
+        optimizer_exercised=False,
     )
     certificate_path = release_certificate.certificate_path(tmp_path, scope)
     certificate_path.parent.mkdir(parents=True)

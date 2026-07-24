@@ -52,8 +52,8 @@ release_certify_usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh release-certify [OPTIONS]
 
-Canonical offline/no-motion release qualification. Runs the governed localhost
-endpoint lifecycle and writes an immutable release-scoped certificate.
+Canonical offline/no-motion release qualification. Runs the zero-I/O formal
+state-machine transition and writes an immutable release-scoped certificate.
 
 Required options:
   --release-candidate PATH   Immutable local release candidate

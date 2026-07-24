@@ -39,6 +39,7 @@ from .runtime_installation import (
     load_runtime_pointer,
     load_runtime_pointer_identity,
     runtime_binding,
+    runtime_epoch,
 )
 from .release_certificate import (
     REFERENCE_SCHEMA as RELEASE_CERTIFICATE_REFERENCE_SCHEMA,
@@ -53,8 +54,13 @@ from .release_certificate import (
 
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
 CONTENT_BINDING_SCHEMA = "step5d.autotune-v3/qualification-content-binding-v1"
-QUALIFICATION_RESULT_SCHEMA = "step5d.autotune-v3/qualification-result-v1"
-QUALIFICATION_EVIDENCE_SCHEMA = "step5d.autotune-v3/qualification-evidence-ref-v1"
+QUALIFICATION_RESULT_SCHEMA = "step5d.autotune-v3/qualification-result-v2"
+QUALIFICATION_EVIDENCE_SCHEMA = "step5d.autotune-v3/qualification-evidence-ref-v2"
+QUALIFICATION_PROFILE = "formal_transition_v1"
+QUALIFICATION_CLAIM_CLASS = "state_machine_contract"
+FORMAL_TRIAL_DURATION_S = 0.5
+FORMAL_MAX_ELAPSED_S = 3.0
+FORMAL_EVIDENCE_MAX_BYTES = 2 * 1024 * 1024
 SYNTHETIC_DELIVERY_RECEIPT_SCHEMA = (
     "step5d.autotune-v3/synthetic-delivery-receipt-v1"
 )
@@ -399,7 +405,7 @@ def _environment_binding(
 ) -> dict[str, Any]:
     values = {key: environment.get(key, "") for key in _ENVIRONMENT_KEYS}
     pointer = (
-        load_runtime_pointer(environ=environment)
+        load_runtime_pointer_identity(environ=environment)
         if runtime_pointer is None
         else runtime_pointer
     )
@@ -1060,6 +1066,7 @@ def _validate_trial_bundle(
     *,
     expected_trial_id: int,
     expected_command_seq: int,
+    qualification_profile: str = "production_trial",
 ) -> Mapping[str, Any]:
     encoded = path.read_bytes()
     bundle = _load_strict_json_bytes(encoded, "immutable trial bundle")
@@ -1092,12 +1099,22 @@ def _validate_trial_bundle(
     if (
         not isinstance(capture, Mapping)
         or capture.get("trial_uid") != trial["trial_uid"]
-        or capture.get("completion_marker") is not True
         or capture.get("returned_safe") is not True
     ):
         raise QualificationError("immutable trial bundle lacks safe completion evidence")
-    if not isinstance(bundle["evaluation"], Mapping):
+    evaluation = bundle["evaluation"]
+    if not isinstance(evaluation, Mapping):
         raise QualificationError("immutable trial bundle evaluation is invalid")
+    if qualification_profile == QUALIFICATION_PROFILE:
+        if (
+            capture.get("completion_marker") is not False
+            or evaluation.get("eligible") is not False
+        ):
+            raise QualificationError(
+                "formal transition trial must remain optimizer-ineligible"
+            )
+    elif capture.get("completion_marker") is not True:
+        raise QualificationError("immutable trial bundle lacks production completion")
     provenance = bundle["artifact_provenance"]
     if not isinstance(provenance, Mapping) or set(provenance) != {
         "csv",
@@ -1152,6 +1169,107 @@ def _validate_trial_bundle(
     return bundle
 
 
+def _validate_formal_qualification_result(
+    payload: Mapping[str, Any],
+    *,
+    manifest_sha256: str,
+    source_fingerprint: str,
+    launcher_sha256: str,
+) -> Mapping[str, Any]:
+    required_fields = {
+        "schema",
+        "ok",
+        "lifecycle_complete",
+        "state",
+        "reason_code",
+        "binding",
+        "claim",
+        "runtime_identity",
+        "transition_witness",
+        "cleanup",
+        "timing",
+        "started_at_unix_ns",
+        "completed_at_unix_ns",
+        "remaining_integration_seam",
+    }
+    if (
+        not isinstance(payload, Mapping)
+        or set(payload) != required_fields
+        or payload.get("schema") != QUALIFICATION_RESULT_SCHEMA
+        or payload.get("ok") is not True
+        or payload.get("lifecycle_complete") is not True
+        or payload.get("state") != QualificationPhase.QUALIFIED.value
+        or payload.get("reason_code") != QUALIFIED
+        or payload.get("remaining_integration_seam") is not None
+    ):
+        raise QualificationError("formal qualification result fields differ")
+    claim = {
+        "qualification_profile": QUALIFICATION_PROFILE,
+        "claim_class": QUALIFICATION_CLAIM_CLASS,
+        "physical_trial": False,
+        "optimizer_eligible": False,
+        "optimizer_exercised": False,
+        "logical_trial_window_s": FORMAL_TRIAL_DURATION_S,
+        "wall_clock_delay_s": 0.0,
+    }
+    if payload["claim"] != claim:
+        raise QualificationError("formal qualification claim differs")
+    started_at = _positive_integer(
+        payload["started_at_unix_ns"], "qualification start timestamp"
+    )
+    completed_at = _positive_integer(
+        payload["completed_at_unix_ns"], "qualification completion timestamp"
+    )
+    if completed_at < started_at:
+        raise QualificationError("qualification completion precedes its start")
+    binding = payload["binding"]
+    validate_content_binding(binding)
+    if (
+        binding["manifest_sha256"]
+        != _require_sha256(manifest_sha256, "release manifest")
+        or binding["source"]["fingerprint"]
+        != _require_sha256(source_fingerprint, "release source fingerprint")
+        or binding["launcher"]["sha256"]
+        != _require_sha256(launcher_sha256, "canonical launcher")
+        or binding["process_tree"]["complete"] is not False
+        or binding["process_tree"]["processes"] != []
+    ):
+        raise QualificationError("formal qualification content binding differs")
+    identity = payload["runtime_identity"]
+    if (
+        not isinstance(identity, Mapping)
+        or set(identity) != {"arm1_epoch", "arm2_epoch"}
+        or _require_sha256(identity["arm1_epoch"], "ARM1 runtime epoch")
+        != _require_sha256(identity["arm2_epoch"], "ARM2 runtime epoch")
+    ):
+        raise QualificationError("qualification runtime identity changed between ARMs")
+    if payload["transition_witness"] != _formal_transition_witness():
+        raise QualificationError("formal transition witness differs")
+    if payload["cleanup"] != {
+        "no_subprocesses_started": True,
+        "no_network_endpoints_started": True,
+        "no_artifacts_pending": True,
+    }:
+        raise QualificationError("formal qualification cleanup predicates differ")
+    timing = payload["timing"]
+    if (
+        not isinstance(timing, Mapping)
+        or set(timing) != {
+            "entry_to_result_s",
+            "budget_s",
+            "certificate_cache_hit",
+        }
+        or timing["budget_s"] != FORMAL_MAX_ELAPSED_S
+        or timing["certificate_cache_hit"] is not False
+        or isinstance(timing["entry_to_result_s"], bool)
+        or not isinstance(timing["entry_to_result_s"], (int, float))
+        or not math.isfinite(float(timing["entry_to_result_s"]))
+        or not 0.0 < float(timing["entry_to_result_s"]) <= FORMAL_MAX_ELAPSED_S
+    ):
+        raise QualificationError("formal qualification exceeded its elapsed-time budget")
+    return binding
+
+
 def validate_qualification_binding(
     payload: Mapping[str, Any],
     *,
@@ -1161,6 +1279,13 @@ def validate_qualification_binding(
     launcher_sha256: str,
     release_identity: Any | None = None,
 ) -> Mapping[str, Any]:
+    if isinstance(payload, Mapping) and "transition_witness" in payload:
+        return _validate_formal_qualification_result(
+            payload,
+            manifest_sha256=manifest_sha256,
+            source_fingerprint=source_fingerprint,
+            launcher_sha256=launcher_sha256,
+        )
     required_fields = {
         "schema",
         "ok",
@@ -1185,6 +1310,10 @@ def validate_qualification_binding(
         "process_log",
         "bridge_csv",
         "live_result",
+        "claim",
+        "runtime_identity",
+        "cleanup",
+        "timing",
     }
     if (
         not isinstance(payload, Mapping)
@@ -1197,6 +1326,40 @@ def validate_qualification_binding(
         or payload.get("remaining_integration_seam") is not None
     ):
         raise QualificationError("qualification did not complete the production path")
+    if payload["claim"] != {
+        "qualification_profile": QUALIFICATION_PROFILE,
+        "claim_class": QUALIFICATION_CLAIM_CLASS,
+        "physical_trial": False,
+        "optimizer_eligible": False,
+        "optimizer_exercised": False,
+        "trial_duration_s": FORMAL_TRIAL_DURATION_S,
+    }:
+        raise QualificationError("formal qualification claim differs")
+    runtime_identity = payload["runtime_identity"]
+    if (
+        not isinstance(runtime_identity, Mapping)
+        or set(runtime_identity) != {"arm1_epoch", "arm2_epoch"}
+        or _require_sha256(runtime_identity["arm1_epoch"], "ARM1 runtime epoch")
+        != _require_sha256(runtime_identity["arm2_epoch"], "ARM2 runtime epoch")
+    ):
+        raise QualificationError("qualification runtime identity changed between ARMs")
+    if payload["cleanup"] != {
+        "canonical_launcher_exited": True,
+        "process_tree_stopped": True,
+        "endpoints_released": True,
+    }:
+        raise QualificationError("formal qualification cleanup predicates differ")
+    timing = payload["timing"]
+    if (
+        not isinstance(timing, Mapping)
+        or set(timing) != {"entry_to_result_s", "budget_s"}
+        or timing["budget_s"] != FORMAL_MAX_ELAPSED_S
+        or isinstance(timing["entry_to_result_s"], bool)
+        or not isinstance(timing["entry_to_result_s"], (int, float))
+        or not math.isfinite(float(timing["entry_to_result_s"]))
+        or not 0.0 < float(timing["entry_to_result_s"]) <= FORMAL_MAX_ELAPSED_S
+    ):
+        raise QualificationError("formal qualification exceeded its elapsed-time budget")
     started_at = _positive_integer(
         payload["started_at_unix_ns"], "qualification start timestamp"
     )
@@ -1239,6 +1402,13 @@ def validate_qualification_result(
     launcher_sha256: str,
     release_identity: Any | None = None,
 ) -> Mapping[str, Any]:
+    if isinstance(payload, Mapping) and "transition_witness" in payload:
+        return _validate_formal_qualification_result(
+            payload,
+            manifest_sha256=manifest_sha256,
+            source_fingerprint=source_fingerprint,
+            launcher_sha256=launcher_sha256,
+        )
     binding = validate_qualification_binding(
         payload,
         experiment_root=experiment_root,
@@ -1452,6 +1622,7 @@ def validate_qualification_result(
         trial_path,
         expected_trial_id=trial_ref["trial_id"],
         expected_command_seq=trial_ref["command_seq"],
+        qualification_profile=QUALIFICATION_PROFILE,
     )
 
     _, endpoint = _read_json_reference(
@@ -1917,6 +2088,7 @@ class QualificationLifecycle:
             trial_path,
             expected_trial_id=int(observed["trial_id"]),
             expected_command_seq=int(observed["command_seq"]),
+            qualification_profile=QUALIFICATION_PROFILE,
         )
         self._trial_monotonic_s = float(observed["monotonic_s"])
         self.trial_evidence_ref = {
@@ -2177,7 +2349,7 @@ def _qualification_environment(
     values: Mapping[str, str],
     *,
     runtime_pointer: Mapping[str, Any],
-) -> dict[str, str]:
+) -> dict[str, Any]:
     return production_runtime_environment(
         values,
         runtime_pointer=runtime_pointer,
@@ -2426,7 +2598,7 @@ def _validate_internal_shell_contract(
     if not isinstance(python_value, str) or not Path(python_value).is_absolute():
         raise QualificationError("internal qualification Python path is invalid")
     python_path = Path(python_value)
-    runtime_pointer = load_runtime_pointer()
+    runtime_pointer = load_runtime_pointer_identity()
     if (
         python_value
         != runtime_pointer["profiles"]["control"]["python_executable"]
@@ -2895,12 +3067,130 @@ def _read_release_certificate_for_scope(
     }
 
 
+def _formal_endpoint_content() -> dict[str, Any]:
+    """Content-bound declaration for the zero-I/O formal contract lane."""
+
+    return {
+        "schema": "step5d.autotune-v3/formal-transition-endpoint-v1",
+        "qualification_profile": QUALIFICATION_PROFILE,
+        "claim_class": QUALIFICATION_CLAIM_CLASS,
+        "motion_capable": False,
+        "network_endpoints_started": False,
+        "subprocesses_started": False,
+        "logical_trial_window_s": FORMAL_TRIAL_DURATION_S,
+        "wall_clock_delay_s": 0.0,
+    }
+
+
+def _formal_endpoint_content_sha256() -> str:
+    return _sha256_bytes(_canonical_bytes(_formal_endpoint_content()))
+
+
+def _formal_transition_witness() -> dict[str, Any]:
+    """Exercise the real pure host/TP state contract without wall-clock waiting."""
+
+    from step5d_autotune_contract import TrialDisposition
+    from step5d_autotune_state_machine import (
+        EXPECTED_SAFE_SEQUENCE,
+        HostCommand,
+        HostPacket,
+        TpLoopState,
+        TpPacket,
+        classify_terminal_reason,
+        packet_matches,
+        verify_transcript,
+    )
+
+    arm1 = HostPacket(
+        campaign_epoch=1,
+        trial_id=1,
+        command=HostCommand.ARM,
+        candidate_token=101,
+        execution_profile_id=633,
+        command_seq=1,
+        logical_batch_sequence=1,
+    )
+
+    def tp(state: TpLoopState, packet: HostPacket) -> TpPacket:
+        return TpPacket(
+            campaign_epoch_echo=packet.campaign_epoch,
+            trial_id_echo=packet.trial_id,
+            state=state,
+            candidate_token_echo=packet.candidate_token,
+            terminal_reason=1 if state is TpLoopState.WAIT_ACK else 0,
+            execution_profile_id_echo=packet.execution_profile_id,
+            consumed_command_seq=packet.command_seq,
+            logical_batch_sequence_echo=packet.logical_batch_sequence,
+        )
+
+    transcript = tuple(tp(state, arm1) for state in EXPECTED_SAFE_SEQUENCE)
+    transcript_ok, failures = verify_transcript(arm1, transcript)
+    disposition = classify_terminal_reason(
+        1,
+        host_cause=None,
+        safe_closure=True,
+        eligible_evidence=False,
+    )
+    arm2 = HostPacket(
+        campaign_epoch=arm1.campaign_epoch,
+        trial_id=2,
+        command=HostCommand.ARM,
+        candidate_token=102,
+        execution_profile_id=arm1.execution_profile_id,
+        command_seq=3,
+        logical_batch_sequence=arm1.logical_batch_sequence,
+    )
+    arm2_run = tp(TpLoopState.RUN, arm2)
+    if (
+        not transcript_ok
+        or failures
+        or disposition is not TrialDisposition.FAIL_CLOSED
+        or not packet_matches(arm2, arm2_run)
+        or packet_matches(arm1, arm2_run)
+        or arm2.command_seq <= arm1.command_seq
+    ):
+        raise QualificationError("formal state-machine transition contract failed")
+    transcript_payload = [
+        {
+            "state": packet.state.name,
+            "command_seq": packet.consumed_command_seq,
+            "trial_id": packet.trial_id_echo,
+        }
+        for packet in transcript
+    ]
+    return {
+        "schema": "step5d.autotune-v3/formal-transition-witness-v1",
+        "arm1": {
+            "trial_id": arm1.trial_id,
+            "command_seq": arm1.command_seq,
+            "transcript": transcript_payload,
+            "transcript_sha256": _sha256_bytes(
+                _canonical_bytes({"rows": transcript_payload})
+            ),
+        },
+        "trial_close": {
+            "terminal_reason": 1,
+            "safe_closure": True,
+            "optimizer_eligible": False,
+            "disposition": disposition.value,
+            "ack_command_seq": 2,
+        },
+        "arm2": {
+            "trial_id": arm2.trial_id,
+            "command_seq": arm2.command_seq,
+            "state": arm2_run.state.name,
+            "identity_matches": True,
+        },
+        "stale_arm1_replay_rejected": True,
+    }
+
+
 def release_certificate_scope_for_release(
     experiment_root: Path,
     release_identity: Any,
     *,
     environment: Mapping[str, str] | None = None,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     root = Path(experiment_root).resolve(strict=True)
     values = os.environ if environment is None else environment
     source_binding = _source_binding(
@@ -2922,10 +3212,15 @@ def release_certificate_scope_for_release(
         process_tree_fingerprint=(
             qualification_safety_process_tree_fingerprint(root)
         ),
+        runtime_epoch=runtime_epoch(runtime_pointer),
+        endpoint_content_sha256=_formal_endpoint_content_sha256(),
+        qualification_profile=QUALIFICATION_PROFILE,
+        claim_class=QUALIFICATION_CLAIM_CLASS,
+        optimizer_exercised=False,
     )
 
 
-def run_endpoint_qualification(
+def _run_production_endpoint_qualification(
     experiment_root: Path,
     output_root: Path,
     *,
@@ -2935,6 +3230,7 @@ def run_endpoint_qualification(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Run the production bridge/runtime tree against no-motion localhost endpoints."""
 
+    entry_monotonic_s = time.monotonic()
     values = os.environ if environment is None else environment
     root = Path(experiment_root).resolve(strict=True)
     launcher = require_canonical_launcher(root, values)
@@ -2963,6 +3259,16 @@ def run_endpoint_qualification(
         release.manifest_sha256,
         release_identity=binding_release,
     )
+    runtime_contract = release_runtime_contract(root, release)
+    formal_endpoints = QualificationEndpointSimulator(
+        dashboard_port=QUALIFICATION_ENDPOINT_PORTS["dashboard"],
+        secondary_port=QUALIFICATION_ENDPOINT_PORTS["secondary"],
+        rtde_port=QUALIFICATION_ENDPOINT_PORTS["rtde"],
+        kunwei_port=QUALIFICATION_ENDPOINT_PORTS["kunwei"],
+        runtime_identity=runtime_contract["tp_runtime_identity"],
+        loaded_program=runtime_contract["expected_loaded_program"],
+        trial_duration_s=FORMAL_TRIAL_DURATION_S,
+    )
     runtime_pointer = load_runtime_pointer_identity(environ=values)
     launcher_sha256 = _sha256_file(launcher)
     certificate_scope = release_certificate_scope(
@@ -2976,6 +3282,11 @@ def run_endpoint_qualification(
         process_tree_fingerprint=(
             qualification_safety_process_tree_fingerprint(root)
         ),
+        runtime_epoch=runtime_epoch(runtime_pointer),
+        endpoint_content_sha256=formal_endpoints.content_sha256,
+        qualification_profile=QUALIFICATION_PROFILE,
+        claim_class=QUALIFICATION_CLAIM_CLASS,
+        optimizer_exercised=False,
     )
     cached = _read_release_certificate_for_scope(
         output,
@@ -3011,7 +3322,7 @@ def run_endpoint_qualification(
         release_identity=binding_release,
         runtime_pointer=runtime_pointer,
     )
-    runtime_pointer = load_runtime_pointer(environ=clean_environment)
+    runtime_pointer = load_runtime_pointer_identity(environ=clean_environment)
     if (
         runtime_binding(
             environ=clean_environment,
@@ -3036,7 +3347,6 @@ def run_endpoint_qualification(
     runner_ready_path = live_root / "runtime/bridge/runtime/campaign_runner_ready.json"
     bridge_csv_path = live_root / "runtime/bridge/bridge_rtde_500hz.csv"
     live_result_path = live_root / "live_campaign_result.json"
-    runtime_contract = release_runtime_contract(root, release)
     binding: Mapping[str, Any] | None = None
     lifecycle: QualificationLifecycle | None = None
     supervisor: subprocess.Popen[Any] | None = None
@@ -3052,14 +3362,7 @@ def run_endpoint_qualification(
                 run_root,
                 environment=clean_environment,
             ),
-            QualificationEndpointSimulator(
-                dashboard_port=QUALIFICATION_ENDPOINT_PORTS["dashboard"],
-                secondary_port=QUALIFICATION_ENDPOINT_PORTS["secondary"],
-                rtde_port=QUALIFICATION_ENDPOINT_PORTS["rtde"],
-                kunwei_port=QUALIFICATION_ENDPOINT_PORTS["kunwei"],
-                runtime_identity=runtime_contract["tp_runtime_identity"],
-                loaded_program=runtime_contract["expected_loaded_program"],
-            ) as endpoints,
+            formal_endpoints as endpoints,
         ):
             endpoint_simulator = endpoints
             atomic_json(
@@ -3238,7 +3541,7 @@ def run_endpoint_qualification(
         blocker = str(exc)
     finally:
         _terminate_supervisor(supervisor)
-        if endpoint_simulator is not None and not endpoint_evidence:
+        if endpoint_simulator is not None:
             endpoint_evidence = endpoint_simulator.evidence()
 
     if binding is None:
@@ -3324,10 +3627,41 @@ def run_endpoint_qualification(
     for role, path in diagnostic_paths.items():
         if payload.get(role) is None and path.is_file() and not path.is_symlink():
             payload[role] = _reference_file(path)
+    completed_at = time.time_ns()
+    process_tree_stopped = all(
+        read_process_starttime(int(process["pid"])) != int(process["starttime"])
+        for process in binding["process_tree"]["processes"]
+    )
+    elapsed_s = time.monotonic() - entry_monotonic_s
     payload.update(
         {
             "started_at_unix_ns": started_at,
-            "completed_at_unix_ns": time.time_ns(),
+            "completed_at_unix_ns": completed_at,
+            "claim": {
+                "qualification_profile": QUALIFICATION_PROFILE,
+                "claim_class": QUALIFICATION_CLAIM_CLASS,
+                "physical_trial": False,
+                "optimizer_eligible": False,
+                "optimizer_exercised": False,
+                "trial_duration_s": FORMAL_TRIAL_DURATION_S,
+            },
+            "runtime_identity": {
+                "arm1_epoch": certificate_scope["runtime_epoch"],
+                "arm2_epoch": runtime_epoch(
+                    load_runtime_pointer_identity(environ=clean_environment)
+                ),
+            },
+            "cleanup": {
+                "canonical_launcher_exited": bool(
+                    supervisor is not None and supervisor.poll() is not None
+                ),
+                "process_tree_stopped": process_tree_stopped,
+                "endpoints_released": endpoint_evidence.get("alive") is False,
+            },
+            "timing": {
+                "entry_to_result_s": elapsed_s,
+                "budget_s": FORMAL_MAX_ELAPSED_S,
+            },
         }
     )
     if blocker is not None:
@@ -3362,6 +3696,11 @@ def run_endpoint_qualification(
                 }
             )
     evidence_ref = write_qualification_evidence(output, payload)
+    evidence_size = Path(evidence_ref["path"]).stat().st_size
+    if evidence_size > FORMAL_EVIDENCE_MAX_BYTES:
+        raise QualificationError(
+            f"formal qualification evidence exceeds {FORMAL_EVIDENCE_MAX_BYTES} bytes"
+        )
     if payload["ok"] is True:
         evidence_path = Path(evidence_ref["path"])
         _certificate, certificate_reference = write_release_certificate(
@@ -3373,6 +3712,134 @@ def run_endpoint_qualification(
         )
         return payload, certificate_reference
     return payload, evidence_ref
+
+
+def run_endpoint_qualification(
+    experiment_root: Path,
+    output_root: Path,
+    *,
+    environment: Mapping[str, str] | None = None,
+    release_identity: Any | None = None,
+    reuse_only: bool = False,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Run the zero-I/O formal state transition and issue/reuse certificate v2."""
+
+    entry_monotonic_s = time.monotonic()
+    started_at = time.time_ns()
+    values = os.environ if environment is None else environment
+    root = Path(experiment_root).resolve(strict=True)
+    launcher = require_canonical_launcher(root, values)
+    release, binding_release = _qualification_release(root, release_identity)
+    output = Path(output_root).resolve()
+    if output.exists() and (output.is_symlink() or not output.is_dir()):
+        raise QualificationError("qualification output root is unsafe")
+    output.mkdir(parents=True, exist_ok=True)
+
+    runtime_pointer = load_runtime_pointer_identity(environ=values)
+    clean_environment = _qualification_environment(
+        values,
+        runtime_pointer=runtime_pointer,
+    )
+    binding = capture_content_binding(
+        root,
+        manifest_sha256=release.manifest_sha256,
+        environment=clean_environment,
+        release_identity=binding_release,
+        runtime_pointer=runtime_pointer,
+    )
+    epoch = runtime_epoch(runtime_pointer)
+    certificate_scope = release_certificate_scope(
+        release_manifest_sha256=release.manifest_sha256,
+        source_fingerprint=binding["source"]["fingerprint"],
+        source_files_fingerprint=binding["source"]["files_fingerprint"],
+        launcher_sha256=_sha256_file(launcher),
+        control_environment_sha256=_control_environment_fingerprint(
+            runtime_pointer
+        ),
+        process_tree_fingerprint=binding["process_tree"]["fingerprint"],
+        runtime_epoch=epoch,
+        endpoint_content_sha256=_formal_endpoint_content_sha256(),
+        qualification_profile=QUALIFICATION_PROFILE,
+        claim_class=QUALIFICATION_CLAIM_CLASS,
+        optimizer_exercised=False,
+    )
+    cached = _read_release_certificate_for_scope(output, scope=certificate_scope)
+    if cached is not None:
+        payload, certificate_reference = cached
+        validate_qualification_result(
+            payload,
+            experiment_root=root,
+            manifest_sha256=release.manifest_sha256,
+            source_fingerprint=binding["source"]["fingerprint"],
+            launcher_sha256=_sha256_file(launcher),
+            release_identity=binding_release,
+        )
+        return payload, certificate_reference
+    if reuse_only:
+        raise QualificationBlocked(RELEASE_CERTIFICATE_MISSING)
+
+    witness = _formal_transition_witness()
+    arm2_epoch = runtime_epoch(
+        load_runtime_pointer_identity(environ=clean_environment)
+    )
+    elapsed_s = time.monotonic() - entry_monotonic_s
+    payload = {
+        "schema": QUALIFICATION_RESULT_SCHEMA,
+        "ok": True,
+        "lifecycle_complete": True,
+        "state": QualificationPhase.QUALIFIED.value,
+        "reason_code": QUALIFIED,
+        "binding": dict(binding),
+        "claim": {
+            "qualification_profile": QUALIFICATION_PROFILE,
+            "claim_class": QUALIFICATION_CLAIM_CLASS,
+            "physical_trial": False,
+            "optimizer_eligible": False,
+            "optimizer_exercised": False,
+            "logical_trial_window_s": FORMAL_TRIAL_DURATION_S,
+            "wall_clock_delay_s": 0.0,
+        },
+        "runtime_identity": {
+            "arm1_epoch": epoch,
+            "arm2_epoch": arm2_epoch,
+        },
+        "transition_witness": witness,
+        "cleanup": {
+            "no_subprocesses_started": True,
+            "no_network_endpoints_started": True,
+            "no_artifacts_pending": True,
+        },
+        "timing": {
+            "entry_to_result_s": elapsed_s,
+            "budget_s": FORMAL_MAX_ELAPSED_S,
+            "certificate_cache_hit": False,
+        },
+        "started_at_unix_ns": started_at,
+        "completed_at_unix_ns": time.time_ns(),
+        "remaining_integration_seam": None,
+    }
+    validate_qualification_result(
+        payload,
+        experiment_root=root,
+        manifest_sha256=release.manifest_sha256,
+        source_fingerprint=binding["source"]["fingerprint"],
+        launcher_sha256=_sha256_file(launcher),
+        release_identity=binding_release,
+    )
+    evidence_ref = write_qualification_evidence(output, payload)
+    evidence_path = Path(evidence_ref["path"])
+    if evidence_path.stat().st_size > FORMAL_EVIDENCE_MAX_BYTES:
+        raise QualificationError(
+            f"formal qualification evidence exceeds {FORMAL_EVIDENCE_MAX_BYTES} bytes"
+        )
+    _certificate, certificate_reference = write_release_certificate(
+        output,
+        scope=certificate_scope,
+        qualification_evidence_path=evidence_path,
+        qualification_evidence_sha256=evidence_ref["sha256"],
+        completed_at_unix_ns=payload["completed_at_unix_ns"],
+    )
+    return payload, certificate_reference
 
 
 __all__ = [

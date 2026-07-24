@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import struct
 import sys
 from typing import Any, Mapping
 
@@ -61,8 +62,19 @@ def _request(payload: Any) -> tuple[dict[str, Any], bytes]:
     return dict(payload), encoded
 
 
-def run(encoded: bytes) -> dict[str, Any]:
-    pointer = require_runtime_profile("optimizer", full_integrity=True)
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
+
+
+def run(
+    encoded: bytes,
+    *,
+    runtime_pointer: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    pointer = (
+        require_runtime_profile("optimizer")
+        if runtime_pointer is None
+        else runtime_pointer
+    )
     request, canonical = _request(strict_json(encoded, "optimizer request"))
     expected_identity = optimizer_identity(
         optimizer_digest=pointer["profiles"]["optimizer"]["record_tree_sha256"],
@@ -115,10 +127,47 @@ def run(encoded: bytes) -> dict[str, Any]:
     }
 
 
+def _read_exact(size: int) -> bytes:
+    chunks: list[bytes] = []
+    remaining = size
+    while remaining:
+        chunk = sys.stdin.buffer.read(remaining)
+        if not chunk:
+            raise EOFError("optimizer request frame ended early")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
+def serve() -> int:
+    """Keep CUDA/import state warm across length-prefixed requests."""
+
+    pointer = require_runtime_profile("optimizer")
+    while True:
+        header = sys.stdin.buffer.read(4)
+        if header == b"":
+            return 0
+        if len(header) != 4:
+            raise ValueError("optimizer request frame header ended early")
+        size = struct.unpack(">I", header)[0]
+        if size <= 0 or size > MAX_REQUEST_BYTES:
+            raise ValueError("optimizer request frame size differs")
+        response = canonical_bytes(
+            run(_read_exact(size), runtime_pointer=pointer)
+        )
+        sys.stdout.buffer.write(struct.pack(">I", len(response)))
+        sys.stdout.buffer.write(response)
+        sys.stdout.buffer.flush()
+
+
 def main() -> int:
     try:
-        encoded = sys.stdin.buffer.read(8 * 1024 * 1024 + 1)
-        if len(encoded) > 8 * 1024 * 1024:
+        if sys.argv[1:] == ["--serve"]:
+            return serve()
+        if sys.argv[1:]:
+            raise ValueError("optimizer worker argv differs")
+        encoded = sys.stdin.buffer.read(MAX_REQUEST_BYTES + 1)
+        if len(encoded) > MAX_REQUEST_BYTES:
             raise ValueError("optimizer request exceeds size limit")
         result = run(encoded)
     except Exception as exc:

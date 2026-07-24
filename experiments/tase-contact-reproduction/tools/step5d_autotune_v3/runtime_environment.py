@@ -9,7 +9,7 @@ from typing import Any, Mapping
 from .runtime_installation import (
     PROFILES,
     load_runtime_contract,
-    load_runtime_pointer,
+    load_runtime_pointer_identity,
     runtime_profile_cache_root,
 )
 
@@ -122,7 +122,7 @@ def production_runtime_environment(
     for name in ("XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"):
         _absolute_environment_path(source, name)
     pointer = (
-        load_runtime_pointer(environ=source)
+        load_runtime_pointer_identity(environ=source)
         if runtime_pointer is None
         else dict(runtime_pointer)
     )

@@ -146,6 +146,27 @@ class RuntimeEnvironmentBindingGuard:
             binding_loader=load_identity_binding,
         )
 
+    @classmethod
+    def identity(
+        cls,
+        *,
+        runtime_pointer: Mapping[str, Any],
+    ) -> "RuntimeEnvironmentBindingGuard":
+        """Bind a startup pointer and recheck immutable identity before each ARM."""
+
+        expected = _load_runtime_environment_binding(
+            lambda: runtime_binding(runtime_pointer=runtime_pointer),
+            role="startup identity runtime environment binding",
+        )
+
+        def load_identity_binding() -> Mapping[str, Any]:
+            return runtime_binding(runtime_pointer=load_runtime_pointer_identity())
+
+        return cls(
+            expected_binding=expected,
+            binding_loader=load_identity_binding,
+        )
+
     @property
     def binding_sha256(self) -> str:
         return _canonical_sha256(self._expected_binding)

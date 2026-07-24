@@ -10,9 +10,9 @@ from typing import Any, Mapping
 from .state import atomic_json, read_strict_json
 
 
-SCOPE_SCHEMA = "step5d.autotune-v3/release-certificate-scope-v1"
-CERTIFICATE_SCHEMA = "step5d.autotune-v3/release-certificate-v1"
-REFERENCE_SCHEMA = "step5d.autotune-v3/release-certificate-ref-v1"
+SCOPE_SCHEMA = "step5d.autotune-v3/release-certificate-scope-v2"
+CERTIFICATE_SCHEMA = "step5d.autotune-v3/release-certificate-v2"
+REFERENCE_SCHEMA = "step5d.autotune-v3/release-certificate-ref-v2"
 STORE = Path("release-certificates")
 _SHA256 = frozenset("0123456789abcdef")
 
@@ -66,7 +66,18 @@ def release_certificate_scope(
     launcher_sha256: str,
     control_environment_sha256: str,
     process_tree_fingerprint: str,
-) -> dict[str, str]:
+    runtime_epoch: str,
+    endpoint_content_sha256: str,
+    qualification_profile: str,
+    claim_class: str,
+    optimizer_exercised: bool,
+) -> dict[str, Any]:
+    if qualification_profile != "formal_transition_v1":
+        raise ReleaseCertificateError("qualification profile differs")
+    if claim_class != "state_machine_contract":
+        raise ReleaseCertificateError("qualification claim class differs")
+    if not isinstance(optimizer_exercised, bool):
+        raise ReleaseCertificateError("optimizer exercised must be boolean")
     return {
         "schema": SCOPE_SCHEMA,
         "release_manifest_sha256": require_sha256(
@@ -87,6 +98,13 @@ def release_certificate_scope(
         "process_tree_fingerprint": require_sha256(
             process_tree_fingerprint, "process tree fingerprint"
         ),
+        "runtime_epoch": require_sha256(runtime_epoch, "runtime epoch"),
+        "endpoint_content_sha256": require_sha256(
+            endpoint_content_sha256, "endpoint content SHA-256"
+        ),
+        "qualification_profile": qualification_profile,
+        "claim_class": claim_class,
+        "optimizer_exercised": optimizer_exercised,
     }
 
 
@@ -95,7 +113,7 @@ def scope_sha256(scope: Mapping[str, Any]) -> str:
     return sha256_bytes(canonical_bytes(validated))
 
 
-def validate_scope(value: Mapping[str, Any]) -> dict[str, str]:
+def validate_scope(value: Mapping[str, Any]) -> dict[str, Any]:
     required = {
         "schema",
         "release_manifest_sha256",
@@ -104,6 +122,11 @@ def validate_scope(value: Mapping[str, Any]) -> dict[str, str]:
         "launcher_sha256",
         "control_environment_sha256",
         "process_tree_fingerprint",
+        "runtime_epoch",
+        "endpoint_content_sha256",
+        "qualification_profile",
+        "claim_class",
+        "optimizer_exercised",
     }
     if not isinstance(value, Mapping) or set(value) != required:
         raise ReleaseCertificateError("release certificate scope fields differ")
@@ -116,6 +139,11 @@ def validate_scope(value: Mapping[str, Any]) -> dict[str, str]:
         launcher_sha256=value["launcher_sha256"],
         control_environment_sha256=value["control_environment_sha256"],
         process_tree_fingerprint=value["process_tree_fingerprint"],
+        runtime_epoch=value["runtime_epoch"],
+        endpoint_content_sha256=value["endpoint_content_sha256"],
+        qualification_profile=value["qualification_profile"],
+        claim_class=value["claim_class"],
+        optimizer_exercised=value["optimizer_exercised"],
     )
 
 

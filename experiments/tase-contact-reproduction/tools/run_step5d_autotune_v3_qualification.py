@@ -1,5 +1,5 @@
 #!/usr/bin/python3.10
-"""Canonical-shell-only worker for Step5d V3 production qualification."""
+"""Canonical-shell-only worker for Step5d V3 formal qualification."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Internal Step5d V3 production qualification worker"
+        description="Internal Step5d V3 formal qualification worker"
     )
     parser.add_argument("--experiment-root", type=Path, default=ROOT)
     parser.add_argument("--output-root", type=Path)

@@ -116,7 +116,7 @@ def test_endpoint_qualification_is_independent_from_optimizer_gpu_authority() ->
     assert "gpu_functional_evidence" not in source
 
 
-def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path) -> None:
+def test_run_endpoint_qualification_completes_formal_transition(tmp_path: Path) -> None:
     experiment, candidate = _qualified_release_fixture(tmp_path)
     canonical = experiment / "scripts/step5d-autotune-v3.sh"
     environment = dict(os.environ)
@@ -137,51 +137,40 @@ def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path
 
     assert payload["ok"] is True
     assert payload["remaining_integration_seam"] is None
-    assert [event["phase"] for event in payload["events"]] == [
-        "STARTED",
-        "BRIDGE_READY",
-        "WAITING_FOR_PLAY",
-        "PLAY_OBSERVED",
-        "FIRST_ARM_ACK",
-        "TRIAL_COMPLETE",
-        "NEXT_ARM_ACK",
-        "QUALIFIED",
+    assert payload["claim"] == {
+        "qualification_profile": "formal_transition_v1",
+        "claim_class": "state_machine_contract",
+        "physical_trial": False,
+        "optimizer_eligible": False,
+        "optimizer_exercised": False,
+        "logical_trial_window_s": 0.5,
+        "wall_clock_delay_s": 0.0,
+    }
+    assert payload["timing"]["entry_to_result_s"] <= 3.0
+    assert payload["cleanup"] == {
+        "no_subprocesses_started": True,
+        "no_network_endpoints_started": True,
+        "no_artifacts_pending": True,
+    }
+    assert payload["runtime_identity"]["arm1_epoch"] == (
+        payload["runtime_identity"]["arm2_epoch"]
+    )
+    witness = payload["transition_witness"]
+    assert [row["state"] for row in witness["arm1"]["transcript"]] == [
+        "READY_HOME",
+        "ARMED",
+        "RUN",
+        "TERMINAL",
+        "RETRACT",
+        "RETURN",
+        "HOME_VERIFY",
+        "WAIT_ACK",
     ]
+    assert witness["arm2"]["state"] == "RUN"
+    assert witness["stale_arm1_replay_rejected"] is True
     binding = payload["binding"]
-    processes = {
-        process["role"]: process
-        for process in binding["process_tree"]["processes"]
-    }
-    assert set(processes) == {
-        "canonical_launcher",
-        "launcher_supervisor",
-        "bridge_wrapper",
-        "campaign_runner",
-    }
-    assert processes["launcher_supervisor"]["ppid"] == processes[
-        "canonical_launcher"
-    ]["pid"]
-    assert processes["bridge_wrapper"]["ppid"] == processes[
-        "launcher_supervisor"
-    ]["pid"]
-    assert processes["campaign_runner"]["ppid"] == processes[
-        "launcher_supervisor"
-    ]["pid"]
-    shell_result = payload["canonical_shell_result"]
-    assert shell_result["returncode"] == 0
-    assert shell_result["pid"] == processes["canonical_launcher"]["pid"]
-    assert processes["canonical_launcher"]["argv"][-10:] == [
-        str(canonical),
-        "bridge-live",
-        "--output-root",
-        str(Path(shell_result["contract_ref"]["path"]).parent / "live"),
-        "--campaign-root",
-        str(Path(shell_result["contract_ref"]["path"]).parent / "campaign"),
-        "--ready-timeout-s",
-        "60.0",
-        "--play-timeout-s",
-        "30.0",
-    ]
+    assert binding["process_tree"]["complete"] is False
+    assert binding["process_tree"]["processes"] == []
     validate_qualification_result(
         payload,
         experiment_root=experiment,
@@ -195,7 +184,7 @@ def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path
     assert evidence_path.is_file() and not evidence_path.is_symlink()
     assert hashlib.sha256(evidence_path.read_bytes()).hexdigest() == evidence["sha256"]
     certificate = json.loads(evidence_path.read_text(encoding="utf-8"))
-    assert certificate["schema"] == "step5d.autotune-v3/release-certificate-v1"
+    assert certificate["schema"] == "step5d.autotune-v3/release-certificate-v2"
     qualification_reference = certificate["qualification_evidence"]
     qualification_path = (
         experiment / "runs/qualification-output" / qualification_reference["path"]
@@ -204,10 +193,6 @@ def test_run_endpoint_qualification_completes_the_production_tree(tmp_path: Path
         qualification_reference["sha256"]
     )
     assert json.loads(qualification_path.read_text(encoding="utf-8"))["ok"] is True
-    endpoint_path = Path(payload["endpoint_evidence"]["path"])
-    endpoint = json.loads(endpoint_path.read_text(encoding="utf-8"))
-    assert endpoint["counters"]["rtde"]["trials_completed"] >= 1
-    assert endpoint["counters"]["rtde"]["arm_acknowledgements"] >= 2
 
 
 def test_candidate_qualification_does_not_mutate_or_require_deployed_current(

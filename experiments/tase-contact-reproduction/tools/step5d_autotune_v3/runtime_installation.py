@@ -18,6 +18,7 @@ import sys
 import tempfile
 import time
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -42,6 +43,13 @@ class RuntimeInstallationError(RuntimeError):
         super().__init__(f"{reason_code}: {detail}")
         self.reason_code = reason_code
         self.detail = detail
+
+
+class RuntimeVerificationMode(str, Enum):
+    """Select the explicit trust tier used for one runtime admission."""
+
+    IDENTITY = "identity"
+    FULL_AUDIT = "full_audit"
 
 
 @dataclass(frozen=True)
@@ -2048,7 +2056,8 @@ def load_runtime_pointer_integrity(
 ) -> dict[str, Any]:
     """Rehash installed packages and host inputs without importing profiles.
 
-    Production startup and qualification still use ``load_runtime_pointer``.
+    Normal startup and qualification use this identity gate; explicit install
+    and manual audit paths retain ``load_runtime_pointer`` for byte rehashing.
     This narrower full-byte gate is used between trials, where importing both
     CuPy and Torch runtimes again would consume the TP watchdog budget.  It
     verifies the same lock, manifest, RECORD/profile trees, duplicate metadata,
@@ -2113,6 +2122,61 @@ def load_runtime_pointer_integrity(
     return payload
 
 
+def load_runtime_pointer_for_mode(
+    mode: RuntimeVerificationMode | str,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Load one runtime pointer through an explicit trust tier."""
+
+    try:
+        selected = RuntimeVerificationMode(mode)
+    except ValueError as exc:
+        raise RuntimeInstallationError(
+            "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+            f"unsupported runtime verification mode: {mode!r}",
+        ) from exc
+    if selected is RuntimeVerificationMode.FULL_AUDIT:
+        return load_runtime_pointer(environ=environ)
+    return load_runtime_pointer_identity(environ=environ)
+
+
+def runtime_epoch(
+    runtime_pointer: Mapping[str, Any],
+    *,
+    contract: Mapping[str, Any] | None = None,
+) -> str:
+    """Return the O(1) session epoch for one installed immutable runtime."""
+
+    try:
+        selected_contract = dict(contract or load_runtime_contract())
+        payload = {
+            "schema": "step5d.autotune-v3/runtime-epoch-v1",
+            "bundle_id": runtime_pointer["bundle_id"],
+            "attestation_sha256": runtime_pointer["attestation_sha256"],
+            "contract_sha256": runtime_pointer["contract_sha256"],
+            "lock_sha256": runtime_pointer["lock_sha256"],
+            "gpu_uuid": selected_contract["gpu"]["uuid"],
+            "profiles": {
+                profile: {
+                    "environment_id": runtime_pointer["profiles"][profile][
+                        "environment_id"
+                    ],
+                    "python_executable": runtime_pointer["profiles"][profile][
+                        "python_executable"
+                    ],
+                }
+                for profile in PROFILES
+            },
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeInstallationError(
+            "RUNTIME_PACKAGE_INTEGRITY_MISMATCH",
+            "runtime epoch inputs differ",
+        ) from exc
+    return _sha256_bytes(_canonical_bytes(payload))
+
+
 def owner_dependency(
     name: str,
     *,
@@ -2125,7 +2189,7 @@ def owner_dependency(
             "OWNER_DEPENDENCY_MISMATCH",
             f"owner dependency is not declared: {name}",
         )
-    pointer = load_runtime_pointer(environ=environ)
+    pointer = load_runtime_pointer_identity(environ=environ)
     attestation = _load_json(
         Path(pointer["attestation_path"]),
         role="runtime attestation",
@@ -2173,7 +2237,7 @@ def profile_python(
         raise RuntimeInstallationError(
             "RUNTIME_NOT_PROVISIONED", f"unknown runtime profile {profile!r}"
         )
-    pointer = load_runtime_pointer(environ=environ)
+    pointer = load_runtime_pointer_identity(environ=environ)
     python = Path(pointer["profiles"][profile]["python_executable"])
     if not python.is_file() or not os.access(python, os.X_OK):
         reason = "CONTROL_RUNTIME_INVALID" if profile == "control" else "OPTIMIZER_RUNTIME_INVALID"
@@ -2185,7 +2249,8 @@ def require_runtime_profile(
     profile: str,
     *,
     environ: Mapping[str, str] | None = None,
-    full_integrity: bool = True,
+    verification_mode: RuntimeVerificationMode | str = RuntimeVerificationMode.IDENTITY,
+    full_integrity: bool | None = None,
 ) -> dict[str, Any]:
     """Require this process to be running under the promoted exact interpreter."""
 
@@ -2193,11 +2258,14 @@ def require_runtime_profile(
         raise RuntimeInstallationError(
             "RUNTIME_NOT_PROVISIONED", f"unknown runtime profile {profile!r}"
         )
-    pointer = (
-        load_runtime_pointer(environ=environ)
-        if full_integrity
-        else load_runtime_pointer_identity(environ=environ)
+    selected_mode = (
+        RuntimeVerificationMode.FULL_AUDIT
+        if full_integrity is True
+        else RuntimeVerificationMode.IDENTITY
+        if full_integrity is False
+        else verification_mode
     )
+    pointer = load_runtime_pointer_for_mode(selected_mode, environ=environ)
     expected = pointer["profiles"][profile]["python_executable"]
     observed = os.path.abspath(sys.executable)
     expected_prefix = pointer["profiles"][profile]["root"]
@@ -2224,7 +2292,7 @@ def runtime_binding(
     """Return the immutable host-local binding used to launch production workers."""
 
     pointer = (
-        load_runtime_pointer(environ=environ)
+        load_runtime_pointer_identity(environ=environ)
         if runtime_pointer is None
         else dict(runtime_pointer)
     )
@@ -2255,7 +2323,7 @@ def runtime_binding(
 def runtime_status(
     *,
     environ: Mapping[str, str] | None = None,
-    full_integrity: bool = True,
+    full_integrity: bool = False,
 ) -> dict[str, Any]:
     def blocked(
         reason_code: str,
@@ -2347,9 +2415,11 @@ __all__ = [
     "POINTER_SCHEMA",
     "PROFILES",
     "RuntimeInstallationError",
+    "RuntimeVerificationMode",
     "current_pointer_path",
     "load_runtime_contract",
     "load_runtime_pointer",
+    "load_runtime_pointer_for_mode",
     "load_runtime_pointer_identity",
     "load_runtime_pointer_integrity",
     "lock_sha256",
@@ -2363,5 +2433,6 @@ __all__ = [
     "runtime_binding",
     "runtime_bundle_id",
     "runtime_contract_sha256",
+    "runtime_epoch",
     "runtime_status",
 ]

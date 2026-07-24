@@ -9,7 +9,7 @@ from typing import Any, Mapping
 
 from .runtime_installation import (
     RuntimeInstallationError,
-    load_runtime_pointer,
+    load_runtime_pointer_identity,
     runtime_cache_root,
 )
 
@@ -64,7 +64,7 @@ def load_gpu_functional_attestation(
 ) -> tuple[dict[str, Any], dict[str, str]]:
     try:
         pointer = (
-            load_runtime_pointer()
+            load_runtime_pointer_identity()
             if runtime_pointer is None
             else dict(runtime_pointer)
         )

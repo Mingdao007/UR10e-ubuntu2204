@@ -65,6 +65,9 @@ from step5d_autotune_v3.qualification import (  # noqa: E402
     validate_content_binding,
     write_qualification_evidence,
 )
+from step5d_autotune_v3.qualification_endpoints import (  # noqa: E402
+    default_r012_runtime_identity,
+)
 import step5d_autotune_v3.qualification as qualification  # noqa: E402
 import run_step5d_autotune_v3_qualification as worker  # noqa: E402
 
@@ -464,6 +467,11 @@ class Step5dQualificationTest(unittest.TestCase):
             },
             "launcher": {"sha256": SHA_C},
             "environment": {"fingerprint": SHA_A},
+            "process_tree": {
+                "complete": False,
+                "fingerprint": SHA_C,
+                "processes": [],
+            },
         }
         environment = {
             CANONICAL_LAUNCH_ENV: str(ROOT / "scripts/step5d-autotune-v3.sh")
@@ -496,6 +504,15 @@ class Step5dQualificationTest(unittest.TestCase):
             qualification,
             "_read_release_certificate_for_scope",
             return_value=None,
+        ), patch(
+            "step5d_autotune_v3.runtime_gate.release_runtime_contract",
+            return_value={
+                "tp_runtime_identity": default_r012_runtime_identity().as_dict(),
+                "expected_loaded_program": (
+                    "/programs/andyl/kunwei/step5/"
+                    "step5d_strict_rnn_autotune_v3_r012.urp"
+                ),
+            },
         ), patch.object(
             qualification,
             "load_runtime_pointer",
@@ -512,7 +529,7 @@ class Step5dQualificationTest(unittest.TestCase):
                     reuse_only=True,
                 )
         full_runtime.assert_not_called()
-        environment_builder.assert_not_called()
+        environment_builder.assert_called_once()
 
     def test_production_shaped_endpoint_ports_require_one_cross_process_lease(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -717,7 +734,9 @@ class Step5dQualificationTest(unittest.TestCase):
             self.assertEqual(observation["triplet_sha256"], release.artifact_sha256)
 
     def test_preflight_and_live_commands_share_delivery_observation(self) -> None:
-        source = inspect.getsource(run_endpoint_qualification)
+        source = inspect.getsource(
+            qualification._run_production_endpoint_qualification
+        )
         self.assertEqual(source.count('"--delivery-observation"'), 1)
         preflight_source = source[
             source.index("preflight_command = [") : source.index(
