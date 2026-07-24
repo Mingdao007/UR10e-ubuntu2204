@@ -27,12 +27,11 @@ from step5d_autotune_v3.governance import (
     reduce_observed_attestation,
     validate_observed_attestation,
 )
-from step5d_autotune_v3.qualification import (
-    CONTENT_BINDING_SCHEMA,
-    QUALIFICATION_RESULT_SCHEMA,
-    production_process_role_paths,
+from step5d_autotune_v3.release_contract import (
+    PROFILE,
+    PROVEN,
+    RESULT_SCHEMA,
     production_process_tree_fingerprint,
-    validate_content_binding,
 )
 from step5d_autotune_v3 import runtime_observation as observation
 from step5d_autotune_v3.runtime_observation import (
@@ -105,144 +104,43 @@ def release() -> CurrentReleaseSnapshot:
     )
 
 
-def qualification_processes() -> list[dict[str, Any]]:
-    role_paths = production_process_role_paths()
-    role_profiles = {
-        "canonical_launcher": None,
-        "launcher_supervisor": "control",
-        "bridge_wrapper": "control",
-        "campaign_runner": "optimizer",
-    }
-    processes = []
-    for role, relative in sorted(role_paths.items()):
-        script = (ROOT / relative).resolve(strict=True)
-        pid = PROCESS_PIDS[role]
-        ppid = (
-            1
-            if role == "canonical_launcher"
-            else CANONICAL_PID
-            if role == "launcher_supervisor"
-            else SUPERVISOR_PID
-        )
-        profile = role_profiles[role]
-        argv0 = (
-            "/usr/bin/bash"
-            if profile is None
-            else f"/runtime/{profile}/bin/python"
-        )
-        argv = [argv0, str(script), "--output-root", "/qualification/run"]
-        processes.append(
-            {
-                "role": role,
-                "pid": pid,
-                "ppid": ppid,
-                "starttime": pid + 1000,
-                "executable": argv0,
-                "argv": argv,
-                "argv0": argv0,
-                "argv_sha256": hashlib.sha256(canonical_bytes(argv)).hexdigest(),
-                "runtime_profile": profile,
-                "environment_id": (
-                    None if profile is None else digest(f"{profile}-environment")
-                ),
-                "script": str(script),
-                "script_sha256": file_sha256(script),
-            }
-        )
-    return processes
-
-
-def qualification_binding(current: CurrentReleaseSnapshot) -> dict[str, Any]:
-    files = {
-        "tools/run_step5d_autotune_v3_live.py": file_sha256(
-            ROOT / "tools/run_step5d_autotune_v3_live.py"
-        )
-    }
-    environment = {
-        "python_executable": "/usr/bin/python3",
-        "python_version": "3.test",
-        "runtime_binding": {
-            "schema": "step5d.autotune-v3/runtime-process-binding-v1",
-            "bundle_id": digest("runtime-bundle"),
-            "contract_sha256": digest("runtime-contract"),
-            "lock_sha256": digest("runtime-lock"),
-            "runtime_attestation_sha256": digest("runtime-attestation"),
-            "gpu_uuid": "GPU-runtime-observation-fixture",
-            "profiles": {
-                profile: {
-                    "environment_id": digest(f"{profile}-environment"),
-                    "python_executable": f"/runtime/{profile}/bin/python",
-                    "record_tree_sha256": digest(f"{profile}-record"),
-                    "profile_tree_sha256": digest(f"{profile}-tree"),
-                }
-                for profile in ("control", "optimizer")
-            },
-        },
-    }
+def release_contract_scope(
+    current: CurrentReleaseSnapshot,
+    *,
+    source_fingerprint: str | None = None,
+) -> dict[str, Any]:
     return {
-        "schema": CONTENT_BINDING_SCHEMA,
-        "manifest_sha256": current.manifest_sha256,
-        "source": {
-            "files": files,
-            "files_fingerprint": hashlib.sha256(canonical_bytes(files)).hexdigest(),
-            "fingerprint": current.source_fingerprint,
-        },
-        "environment": {
-            "values": environment,
-            "fingerprint": hashlib.sha256(canonical_bytes(environment)).hexdigest(),
-        },
-        "launcher": {
-            "path": str((ROOT / "scripts/step5d-autotune-v3.sh").resolve()),
-            "sha256": current.launcher_sha256,
-        },
-        "process_tree": {
-            "complete": True,
-            "processes": qualification_processes(),
-            "fingerprint": production_process_tree_fingerprint(ROOT),
-        },
-        "endpoint_substitution": {
-            "roles": ["dashboard", "kunwei", "rtde", "tp"],
-            "endpoint_only": True,
-            "motion_capable": False,
-            "production_processes_retained": True,
-            "ready_writer": "production_bridge",
-        },
+        "schema": "step5d.autotune-v3/release-contract-scope-v1",
+        "subject_kind": "autotune_v3",
+        "release_manifest_sha256": current.manifest_sha256,
+        "source_fingerprint": source_fingerprint or current.source_fingerprint,
+        "source_files_fingerprint": digest("source-files"),
+        "launcher_sha256": current.launcher_sha256,
+        "control_environment_sha256": digest("control-environment"),
+        "runtime_epoch": digest("runtime-epoch"),
+        "contract_profile": PROFILE,
     }
 
 
-def qualification_reference(
+def release_contract_reference(
     root: Path,
     current: CurrentReleaseSnapshot,
     *,
     ok: bool = True,
     source_fingerprint: str | None = None,
 ) -> dict[str, str]:
-    binding = qualification_binding(current)
-    if source_fingerprint is not None:
-        binding["source"]["fingerprint"] = source_fingerprint
-    validate_content_binding(binding)
+    scope = release_contract_scope(
+        current,
+        source_fingerprint=source_fingerprint,
+    )
     payload = {
-        "schema": QUALIFICATION_RESULT_SCHEMA,
+        "schema": RESULT_SCHEMA,
         "ok": ok,
-        "lifecycle_complete": ok,
-        "state": "QUALIFIED" if ok else "BLOCKED",
-        "reason_code": "QUALIFIED" if ok else "ENDPOINT_INJECTION_UNAVAILABLE",
-        "binding": binding,
-        "bridge": {"alive": ok},
-        "play_row_sha256": digest("play-row") if ok else None,
-        "first_arm_seq": 1 if ok else None,
-        "trial_evidence_ref": {"sha256": digest("trial")} if ok else None,
-        "next_arm_seq": 2 if ok else None,
-        "events": [
-            {
-                "phase": "QUALIFIED" if ok else "BLOCKED",
-                "observed_at_ns": NOW_NS - 10_000_000_000,
-                "details": {},
-            }
-        ],
-        "remaining_integration_seam": None if ok else "blocked",
+        "state": PROVEN if ok else "BLOCKED",
+        "scope": scope,
+        "completed_at_unix_ns": NOW_NS - 10_000_000_000,
     }
-    path = root / "qualification.json"
+    path = root / "release-contract.json"
     encoded = canonical_bytes(payload)
     path.write_bytes(encoded)
     return {"path": str(path), "sha256": hashlib.sha256(encoded).hexdigest()}
@@ -359,32 +257,20 @@ def fake_writer_processes(_experiment_root: Path) -> list[dict[str, Any]]:
     ]
 
 
-def fake_qualification_validator(
+def fake_release_contract_validator(
     payload: Mapping[str, Any],
     *,
-    experiment_root: Path,
-    manifest_sha256: str,
-    source_fingerprint: str,
-    launcher_sha256: str,
+    expected_scope: Mapping[str, Any],
 ) -> Mapping[str, Any]:
-    del experiment_root
-    if payload.get("ok") is not True or payload.get("lifecycle_complete") is not True:
-        raise ValueError("qualification did not complete the production path")
-    binding = payload["binding"]
-    observed = {
-        "manifest_sha256": binding["manifest_sha256"],
-        "source_fingerprint": binding["source"]["fingerprint"],
-        "launcher_sha256": binding["launcher"]["sha256"],
-    }
-    expected = {
-        "manifest_sha256": manifest_sha256,
-        "source_fingerprint": source_fingerprint,
-        "launcher_sha256": launcher_sha256,
-    }
-    for name, expected_value in expected.items():
-        if observed[name] != expected_value:
-            raise ValueError(f"qualification {name} differs")
-    return binding
+    if payload.get("ok") is not True or payload.get("state") != PROVEN:
+        raise ValueError("release contract was not proven")
+    observed = payload.get("scope")
+    if not isinstance(observed, Mapping):
+        raise ValueError("release contract scope differs")
+    for name, expected_value in expected_scope.items():
+        if observed.get(name) != expected_value:
+            raise ValueError(f"release contract {name} differs")
+    return observed
 
 
 @pytest.fixture(autouse=True)
@@ -393,10 +279,20 @@ def fake_proc(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         observation, "_discover_writer_processes", fake_writer_processes
     )
-    # Qualification's production-path contract has its own integration suite.
-    # These publisher unit tests retain only the binding boundary they consume.
     monkeypatch.setattr(
-        observation, "validate_qualification_result", fake_qualification_validator
+        observation,
+        "load_current_release",
+        lambda _root: release(),
+    )
+    monkeypatch.setattr(
+        observation,
+        "release_contract_scope_for_release",
+        lambda _root, current: release_contract_scope(current),
+    )
+    monkeypatch.setattr(
+        observation,
+        "validate_release_contract_result",
+        fake_release_contract_validator,
     )
 
 
@@ -409,7 +305,7 @@ def start_publisher(tmp_path: Path) -> tuple[RuntimeObservationPublisher, Curren
             campaign_root=campaign,
             run_id="run-1",
             release=current,
-            qualification_evidence=qualification_reference(tmp_path, current),
+            release_contract_evidence=release_contract_reference(tmp_path, current),
             lease=governance_lease(current),
         ),
         current,
@@ -504,7 +400,7 @@ def test_publish_materializes_strict_relative_evidence_and_no_readiness(
         production_process_tree_fingerprint(ROOT)
     )
     for reference in (
-        row["offline"]["evidence"],
+        row["release_contract"]["evidence"],
         row["process"]["evidence"],
         row["controller"]["evidence"],
         row["controller"]["delivery_observation"],
@@ -698,11 +594,11 @@ def test_lifecycle_updates_are_ordered_and_trial_evidence_is_imported(
 @pytest.mark.parametrize(
     ("ok", "source_fingerprint", "message"),
     [
-        (False, None, "did not complete"),
+        (False, None, "was not proven"),
         (True, digest("different-source"), "source_fingerprint differs"),
     ],
 )
-def test_start_rejects_unqualified_or_different_source_without_pointer(
+def test_start_rejects_unproven_or_different_source_without_pointer(
     tmp_path: Path,
     ok: bool,
     source_fingerprint: str | None,
@@ -710,7 +606,7 @@ def test_start_rejects_unqualified_or_different_source_without_pointer(
 ) -> None:
     current = release()
     campaign = tmp_path / "campaign"
-    reference = qualification_reference(
+    reference = release_contract_reference(
         tmp_path, current, ok=ok, source_fingerprint=source_fingerprint
     )
 
@@ -720,7 +616,7 @@ def test_start_rejects_unqualified_or_different_source_without_pointer(
             campaign_root=campaign,
             run_id="run-1",
             release=current,
-            qualification_evidence=reference,
+            release_contract_evidence=reference,
             lease=governance_lease(current),
         )
     assert not (campaign / "governance/current.json").exists()
@@ -972,7 +868,7 @@ def test_runtime_lease_is_converted_without_reusing_it_as_safety_boundary(
         campaign_root=tmp_path / "campaign",
         run_id="run-1",
         release=current,
-        qualification_evidence=qualification_reference(tmp_path, current),
+        release_contract_evidence=release_contract_reference(tmp_path, current),
         lease=runtime_lease,
         lease_expires_at_unix_ns=NOW_NS + 60_000_000_000,
     )

@@ -77,7 +77,7 @@ def test_projection_keeps_detail_phase_without_persisting_an_aggregate() -> None
         {
             "state": "WAITING_FOR_PLAY",
             "predicates": {
-                "offline_proven": True,
+                "release_contract_proven": True,
                 "play_prompt_ready": True,
                 "canonical_attempt_bound": True,
             },

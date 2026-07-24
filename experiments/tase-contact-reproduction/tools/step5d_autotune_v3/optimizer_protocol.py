@@ -5,7 +5,11 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+import select
+import struct
 import subprocess
+import threading
+import time
 from typing import Any, Callable, Mapping, Sequence
 
 from step5d_autotune_contract import ForceCandidate
@@ -29,7 +33,7 @@ from .optimizer_wire import (
     strict_json as _wire_strict_json,
 )
 from .runtime_environment import production_runtime_environment
-from .runtime_installation import load_runtime_pointer
+from .runtime_installation import load_runtime_pointer_identity
 from .shared_contracts import OptimizerDeploymentCertificate
 
 
@@ -90,14 +94,17 @@ class ExactOptimizerClient:
         *,
         deployment: OptimizerDeploymentCertificate,
         runtime_pointer: Mapping[str, Any] | None = None,
-        pointer_loader: Callable[[], Mapping[str, Any]] = load_runtime_pointer,
+        pointer_loader: Callable[
+            [], Mapping[str, Any]
+        ] = load_runtime_pointer_identity,
         timeout_s: float = 180.0,
+        persistent: bool = True,
     ) -> None:
         if timeout_s <= 0.0:
             raise ValueError("optimizer timeout must be positive")
         if not isinstance(deployment, OptimizerDeploymentCertificate):
             raise ValueError("optimizer deployment certificate is required")
-        self.pointer = dict(runtime_pointer or load_runtime_pointer())
+        self.pointer = dict(runtime_pointer or load_runtime_pointer_identity())
         self.pointer_loader = pointer_loader
         expected = _pointer_certificate_fields(self.pointer)
         if any(getattr(deployment, name) != value for name, value in expected.items()):
@@ -110,6 +117,128 @@ class ExactOptimizerClient:
             build_digest=deployment.build_digest,
         )
         self.timeout_s = float(timeout_s)
+        self.persistent = bool(persistent)
+        self._worker: subprocess.Popen[bytes] | None = None
+        self._worker_lock = threading.Lock()
+
+    def close(self) -> None:
+        worker = self._worker
+        self._worker = None
+        if worker is None:
+            return
+        if worker.stdin is not None:
+            try:
+                worker.stdin.close()
+            except OSError:
+                pass
+        try:
+            worker.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            worker.terminate()
+            try:
+                worker.wait(timeout=2.0)
+            except subprocess.TimeoutExpired:
+                worker.kill()
+                worker.wait(timeout=2.0)
+
+    def __enter__(self) -> "ExactOptimizerClient":
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
+    def _worker_environment(self) -> dict[str, str]:
+        return production_runtime_environment(
+            os.environ,
+            profile="optimizer",
+            runtime_pointer=self.pointer,
+        )
+
+    def _start_worker(self) -> subprocess.Popen[bytes]:
+        worker = self._worker
+        if worker is not None and worker.poll() is None:
+            return worker
+        optimizer_python = self.pointer["profiles"]["optimizer"]["python_executable"]
+        try:
+            worker = subprocess.Popen(
+                [optimizer_python, "-B", "-m", WORKER_MODULE, "--serve"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=Path(__file__).resolve().parents[2],
+                env=self._worker_environment(),
+                close_fds=True,
+            )
+        except OSError as exc:
+            raise OptimizerProtocolError(
+                f"optimizer worker could not start: {exc}"
+            ) from exc
+        self._worker = worker
+        return worker
+
+    def _read_exact(
+        self,
+        worker: subprocess.Popen[bytes],
+        size: int,
+        *,
+        deadline: float,
+    ) -> bytes:
+        if worker.stdout is None:
+            raise OptimizerProtocolError("optimizer worker stdout is unavailable")
+        chunks: list[bytes] = []
+        remaining = size
+        while remaining:
+            timeout = deadline - time.monotonic()
+            if timeout <= 0.0:
+                raise OptimizerProtocolError("optimizer worker response timed out")
+            readable, _, _ = select.select([worker.stdout], [], [], timeout)
+            if not readable:
+                raise OptimizerProtocolError("optimizer worker response timed out")
+            chunk = os.read(worker.stdout.fileno(), remaining)
+            if not chunk:
+                detail = ""
+                if worker.stderr is not None and worker.poll() is not None:
+                    detail = worker.stderr.read().decode(
+                        "utf-8", errors="replace"
+                    ).strip()
+                raise OptimizerProtocolError(
+                    f"optimizer worker exited before response: {detail}"
+                )
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+    def _persistent_request(self, encoded: bytes) -> bytes:
+        with self._worker_lock:
+            worker = self._start_worker()
+            if worker.stdin is None:
+                raise OptimizerProtocolError("optimizer worker stdin is unavailable")
+            try:
+                worker.stdin.write(struct.pack(">I", len(encoded)))
+                worker.stdin.write(encoded)
+                worker.stdin.flush()
+                deadline = time.monotonic() + self.timeout_s
+                response_size = struct.unpack(
+                    ">I", self._read_exact(worker, 4, deadline=deadline)
+                )[0]
+                if response_size <= 0 or response_size > MAX_RESPONSE_BYTES:
+                    raise OptimizerProtocolError(
+                        "optimizer worker response exceeds size limit"
+                    )
+                return self._read_exact(
+                    worker, response_size, deadline=deadline
+                )
+            except (BrokenPipeError, OSError) as exc:
+                self.close()
+                raise OptimizerProtocolError(
+                    f"optimizer worker transport failed: {exc}"
+                ) from exc
 
     def propose(
         self,
@@ -160,37 +289,38 @@ class ExactOptimizerClient:
         }
         encoded = canonical_bytes(request)
         request_sha256 = hashlib.sha256(encoded).hexdigest()
-        optimizer_python = self.pointer["profiles"]["optimizer"]["python_executable"]
-        environment = production_runtime_environment(
-            os.environ,
-            profile="optimizer",
-            runtime_pointer=self.pointer,
-        )
-        try:
-            completed = subprocess.run(
-                [optimizer_python, "-B", "-m", WORKER_MODULE],
-                input=encoded,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=Path(__file__).resolve().parents[2],
-                env=environment,
-                timeout=self.timeout_s,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise OptimizerProtocolError(
-                f"optimizer worker could not complete: {exc}"
-            ) from exc
-        if completed.returncode != 0:
-            detail = completed.stderr.decode("utf-8", errors="replace").strip()
-            raise OptimizerProtocolError(
-                f"optimizer worker failed ({completed.returncode}): {detail}"
-            )
-        if len(completed.stdout) > MAX_RESPONSE_BYTES:
+        if self.persistent:
+            response_bytes = self._persistent_request(encoded)
+        else:
+            optimizer_python = self.pointer["profiles"]["optimizer"][
+                "python_executable"
+            ]
+            try:
+                completed = subprocess.run(
+                    [optimizer_python, "-B", "-m", WORKER_MODULE],
+                    input=encoded,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=Path(__file__).resolve().parents[2],
+                    env=self._worker_environment(),
+                    timeout=self.timeout_s,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise OptimizerProtocolError(
+                    f"optimizer worker could not complete: {exc}"
+                ) from exc
+            if completed.returncode != 0:
+                detail = completed.stderr.decode("utf-8", errors="replace").strip()
+                raise OptimizerProtocolError(
+                    f"optimizer worker failed ({completed.returncode}): {detail}"
+                )
+            response_bytes = completed.stdout
+        if len(response_bytes) > MAX_RESPONSE_BYTES:
             raise OptimizerProtocolError(
                 "optimizer worker response exceeds size limit"
             )
-        response = strict_json(completed.stdout, "optimizer response")
+        response = strict_json(response_bytes, "optimizer response")
         fields = {
             "schema",
             "ok",

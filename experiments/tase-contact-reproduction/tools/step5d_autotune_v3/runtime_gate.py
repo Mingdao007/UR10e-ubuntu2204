@@ -22,10 +22,8 @@ import time
 from typing import Any, Callable, Mapping
 
 from .release_identity import (
-    QUALIFICATION_ENDPOINT_CONFIG_ENV,
     ReleaseIdentityError,
     load_runtime_release,
-    qualification_runtime_environment,
 )
 
 from .runtime_installation import (
@@ -141,6 +139,27 @@ class RuntimeEnvironmentBindingGuard:
             load_identity_binding,
             role="startup lightweight runtime environment binding",
         )
+        return cls(
+            expected_binding=expected,
+            binding_loader=load_identity_binding,
+        )
+
+    @classmethod
+    def identity(
+        cls,
+        *,
+        runtime_pointer: Mapping[str, Any],
+    ) -> "RuntimeEnvironmentBindingGuard":
+        """Bind a startup pointer and recheck immutable identity before each ARM."""
+
+        expected = _load_runtime_environment_binding(
+            lambda: runtime_binding(runtime_pointer=runtime_pointer),
+            role="startup identity runtime environment binding",
+        )
+
+        def load_identity_binding() -> Mapping[str, Any]:
+            return runtime_binding(runtime_pointer=load_runtime_pointer_identity())
+
         return cls(
             expected_binding=expected,
             binding_loader=load_identity_binding,
@@ -646,44 +665,6 @@ def _effective_release_authority(
     """Derive release authority from validated process state, never a caller bypass."""
 
     try:
-        qualification = qualification_runtime_environment()
-    except (OSError, ReleaseIdentityError) as exc:
-        raise RuntimeGateError(f"qualification release authority is invalid: {exc}") from exc
-    if qualification:
-        try:
-            effective = load_runtime_release(root)
-        except ReleaseIdentityError as exc:
-            raise RuntimeGateError(
-                f"qualification release authority is invalid: {exc}"
-            ) from exc
-        if effective.manifest_sha256 != expected_manifest_sha256:
-            raise RuntimeGateError("qualification release differs from campaign release")
-        launcher_name = "STEP5D_V3_CANONICAL_LAUNCHER"
-        frozen_environment = tuple(
-            sorted(
-                {
-                    **qualification,
-                    launcher_name: os.environ.get(launcher_name, ""),
-                }.items()
-            )
-        )
-        try:
-            endpoint_path = Path(
-                qualification[QUALIFICATION_ENDPOINT_CONFIG_ENV]
-            ).resolve(strict=True)
-        except OSError as exc:
-            raise RuntimeGateError(
-                f"qualification release authority is invalid: {exc}"
-            ) from exc
-        return _EffectiveReleaseAuthority(
-            mode="qualification",
-            manifest_sha256=expected_manifest_sha256,
-            environment=frozen_environment,
-            authority_path=endpoint_path,
-            authority_sha256=_sha256_file(endpoint_path, "qualification endpoint config"),
-        )
-
-    try:
         pointer_path = (root / "config/step5d/current.json").resolve(strict=True)
     except OSError as exc:
         raise RuntimeGateError(f"current release pointer is unavailable: {exc}") from exc
@@ -995,11 +976,7 @@ class ArmGateProvider:
         self._release_authority = _effective_release_authority(
             self.root, release.manifest_sha256
         )
-        self.immutable_source_root = (
-            (self.root / self.manifest_path).resolve(strict=True).parent
-            if self._release_authority.mode == "qualification"
-            else None
-        )
+        self.immutable_source_root = None
         if CANONICAL_LAUNCHER not in self.source_fingerprints:
             raise RuntimeGateError("canonical launcher is absent from release sources")
         verification = getattr(release, "verification", {})

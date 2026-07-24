@@ -98,11 +98,11 @@ jobs:
         working-directory: experiments/tase-contact-reproduction
         run: .venv/bin/python tools/validate_step5d_layer_boundaries.py
 
-      - name: Probe repository-owned RTDE parser against local endpoint
+      - name: Verify pure release contract
         working-directory: experiments/tase-contact-reproduction
         run: >-
           .venv/bin/python -m pytest -q
-          tests/test_step5d_autotune_v3_qualification_endpoints.py::test_rtde_repository_client_rejects_unknown_recipe_field
+          tests/test_step5d_release_contract.py
 
       - name: Run portable Small and Medium lanes
         working-directory: experiments/tase-contact-reproduction

@@ -62,7 +62,7 @@ def _blocked_status(environment: dict[str, object]) -> dict[str, object]:
         },
         "state": None,
         "predicates": {
-            "offline_proven": False,
+            "release_contract_proven": False,
             "bench_ready": False,
             "play_prompt_ready": False,
         },

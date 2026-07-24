@@ -22,11 +22,16 @@ from step5d_autotune_v3.governance import (  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def _validated_manual_qualification(monkeypatch: pytest.MonkeyPatch) -> None:
+def _validated_manual_release_contract(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         status,
-        "validate_manual_qualification",
-        lambda *_args, **_kwargs: {"ok": True},
+        "manual_release_contract_scope",
+        lambda *_args, **_kwargs: {"release_manifest_sha256": "a" * 64},
+    )
+    monkeypatch.setattr(
+        status,
+        "validate_release_contract_result",
+        lambda _payload, **kwargs: kwargs["expected_scope"],
     )
     monkeypatch.setattr(
         status,
@@ -52,15 +57,14 @@ def _bridge_process_fields() -> dict[str, object]:
     }
 
 
-def _qualification_ref(campaign: Path) -> dict[str, str]:
-    path = campaign / "manual-qualification.json"
+def _contract_ref(campaign: Path) -> dict[str, str]:
+    path = campaign / "manual-release-contract.json"
     path.write_text(
         json.dumps(
             {
-                "schema": status.QUALIFICATION_SCHEMA,
+                "schema": "step5d.autotune-v3/release-contract-result-v1",
                 "ok": True,
-                "state": "MANUAL_PRODUCTION_SECOND_GROUP_RUN_PROVEN",
-                "manual_release_manifest_sha256": "a" * 64,
+                "state": "RELEASE_CONTRACT_PROVEN",
             }
         ),
         encoding="utf-8",
@@ -107,7 +111,7 @@ def test_manual_shell_records_only_post_route_authority_phases() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
     phases = (
         "runtime_gate",
-        "manual_qualification",
+        "manual_release_contract",
         "manual_context",
         "manual_preflight",
         "manual_bridge_start",
@@ -275,7 +279,7 @@ def test_status_recomputes_bridge_heartbeat(tmp_path: Path) -> None:
         "play_prompt_ready": True,
         "canonical_attempt_bound": True,
         "controller_observation": _controller_observation(),
-        "offline_qualification": _qualification_ref(campaign),
+        "release_contract": _contract_ref(campaign),
         "blocker": None,
         "next_action": "press Play once",
     }
@@ -361,7 +365,7 @@ def test_status_rejects_stale_bound_controller_preflight(
         "play_prompt_ready": True,
         "canonical_attempt_bound": True,
         "controller_observation": controller,
-        "offline_qualification": _qualification_ref(campaign),
+        "release_contract": _contract_ref(campaign),
         "blocker": None,
         "next_action": "press Play once",
     }
@@ -393,7 +397,7 @@ def test_status_blocks_without_exact_controller_preflight(tmp_path: Path) -> Non
         "bridge_heartbeat": True,
         "play_prompt_ready": True,
         "canonical_attempt_bound": True,
-        "offline_qualification": _qualification_ref(campaign),
+        "release_contract": _contract_ref(campaign),
         "controller_observation": {
             **_controller_observation(),
             "program_state_normalized": "PLAYING",
@@ -427,7 +431,7 @@ def test_status_fails_closed_when_bridge_pid_is_dead(tmp_path: Path) -> None:
         "bridge_starttime_ticks": 1,
         "bridge_heartbeat": True,
         "play_prompt_ready": False,
-        "offline_qualification": _qualification_ref(campaign),
+        "release_contract": _contract_ref(campaign),
         "blocker": None,
         "next_action": "none",
     }
@@ -437,7 +441,7 @@ def test_status_fails_closed_when_bridge_pid_is_dead(tmp_path: Path) -> None:
     assert observed["blocker"] == "BRIDGE_HEARTBEAT_LOST"
 
 
-def test_status_invalidates_full_qualification_drift(
+def test_status_invalidates_release_contract_drift(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     campaign = tmp_path / "campaign"
@@ -457,19 +461,19 @@ def test_status_invalidates_full_qualification_drift(
         "bridge_heartbeat": True,
         "play_prompt_ready": True,
         "canonical_attempt_bound": True,
-        "offline_qualification": _qualification_ref(campaign),
+        "release_contract": _contract_ref(campaign),
         "blocker": None,
         "next_action": "press Play once",
     }
     (campaign / "manual_governed_status.json").write_text(json.dumps(machine))
     monkeypatch.setattr(
         status,
-        "validate_manual_qualification",
+        "validate_release_contract_result",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("host drift")),
     )
 
     observed = status.read_status(campaign)
 
-    assert observed["offline_proven"] is False
+    assert observed["release_contract_proven"] is False
     assert observed["state"] == "BLOCKED"
-    assert observed["blocker"] == "MANUAL_PRODUCTION_QUALIFICATION_INVALID"
+    assert observed["blocker"] == "MANUAL_RELEASE_CONTRACT_INVALID"

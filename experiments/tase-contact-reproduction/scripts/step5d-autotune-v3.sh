@@ -9,7 +9,7 @@ bridge_usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
 
-Canonical governed Step5d live bridge launcher. Reuses existing qualification
+Canonical governed Step5d live bridge launcher. Reuses existing release-contract
 and TP delivery evidence; campaign preparation and preflight are automatic.
 
 Options:
@@ -29,7 +29,7 @@ tp_deliver_usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh tp-deliver [OPTIONS]
 
-Canonical TP-local delivery transaction. Uploads the qualified triplet, performs
+Canonical TP-local delivery transaction. Uploads the contract-checked triplet, performs
 a fresh controller GET, promotes the immutable release, and writes a delivery
 receipt. It never sends Dashboard Load or Play.
 
@@ -38,7 +38,7 @@ Options:
   --artifact-dir PATH        TP package directory used to stage a candidate
                              when --release-candidate is omitted
   --release-certificate PATH
-                             Immutable offline certificate bound to the candidate
+                             Immutable release-contract certificate bound to the candidate
 
 Optional:
   --artifact-dir PATH        TP package directory (default: canonical Step5d)
@@ -48,15 +48,17 @@ Optional:
 EOF
 }
 
-release_certify_usage() {
+release_contract_check_usage() {
   cat <<'EOF'
-Usage: step5d-autotune-v3.sh release-certify [OPTIONS]
+Usage: step5d-autotune-v3.sh release-contract-check [OPTIONS]
 
-Canonical offline/no-motion release qualification. Runs the governed localhost
-endpoint lifecycle and writes an immutable release-scoped certificate.
+Canonical offline/no-motion release contract. Runs the no-network/no-trial
+state-machine transition and writes an immutable release-scoped certificate.
 
-Required options:
-  --release-candidate PATH   Immutable local release candidate
+Options:
+  --release-candidate PATH   Reuse an immutable local release candidate
+  --artifact-dir PATH        TP package override when staging a candidate
+                             (default: current immutable release artifacts)
 
   -h, --help                 Show this help without starting any work
 EOF
@@ -65,14 +67,14 @@ EOF
 usage() {
   cat <<'EOF'
 Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
-       step5d-autotune-v3.sh release-certify [OPTIONS]
+       step5d-autotune-v3.sh release-contract-check [OPTIONS]
        step5d-autotune-v3.sh tp-deliver [OPTIONS]
        step5d-autotune-v3.sh status [--json]
        step5d-autotune-v3.sh status --json --assert-state STATE
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
 
 Use "step5d-autotune-v3.sh bridge-live --help" for bridge options.
-Use "step5d-autotune-v3.sh release-certify --help" for certification options.
+Use "step5d-autotune-v3.sh release-contract-check --help" for contract options.
 Use "step5d-autotune-v3.sh tp-deliver --help" for delivery options.
 EOF
 }
@@ -89,9 +91,9 @@ tp_deliver_argv_error() {
   exit 64
 }
 
-release_certify_argv_error() {
-  echo "release-certify argv refused: $1" >&2
-  echo "use: step5d-autotune-v3.sh release-certify --help" >&2
+release_contract_check_argv_error() {
+  echo "release-contract-check argv refused: $1" >&2
+  echo "use: step5d-autotune-v3.sh release-contract-check --help" >&2
   exit 64
 }
 
@@ -304,7 +306,7 @@ bridge_cancel_trap() {
 }
 
 bridge_mode=0
-release_certify_mode=0
+release_contract_check_mode=0
 tp_deliver_mode=0
 tp_deliver_args=()
 release_candidate=""
@@ -377,7 +379,7 @@ if [[ "${1:-}" == "bridge-live" ]]; then
         fi
         ((index += 1))
         ;;
-      --preflight|--preflight=*|--prepare-only|--prepare-only=*|--qualification-endpoints|--qualification-endpoints=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--arm-gate|--arm-gate=*|--offline-release-gate|--offline-release-gate=*)
+      --preflight|--preflight=*|--prepare-only|--prepare-only=*|--experiment-root|--experiment-root=*|--campaign-binding|--campaign-binding=*|--campaign-lease|--campaign-lease=*|--arm-gate|--arm-gate=*)
         bridge_argv_error "${option_name} is an internal worker option"
         ;;
       *)
@@ -429,20 +431,20 @@ if [[ "${1:-}" == "bridge-live" ]]; then
   done
 fi
 
-if [[ "${1:-}" == "release-certify" ]]; then
-  release_certify_mode=1
+if [[ "${1:-}" == "release-contract-check" ]]; then
+  release_contract_check_mode=1
   shift
   arguments=("$@")
   for option in "${arguments[@]}"; do
     if [[ "${option}" == "-h" || "${option}" == "--help" ]]; then
-      release_certify_usage
+      release_contract_check_usage
       exit 0
     fi
   done
 
   seen_release_candidate=0
   seen_artifact_dir=0
-  artifact_dir="${EXPERIMENT_ROOT}/programs/step5/step5d"
+  artifact_dir=""
   index=0
   while (( index < ${#arguments[@]} )); do
     option="${arguments[index]}"
@@ -451,7 +453,7 @@ if [[ "${1:-}" == "release-certify" ]]; then
     case "${option}" in
       --release-candidate)
         if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
-          release_certify_argv_error "${option} requires a value"
+          release_contract_check_argv_error "${option} requires a value"
         fi
         value="${arguments[index + 1]}"
         ((index += 2))
@@ -459,18 +461,18 @@ if [[ "${1:-}" == "release-certify" ]]; then
       --release-candidate=*)
         value="${option#*=}"
         if [[ -z "${value}" ]]; then
-          release_certify_argv_error "${option_name} requires a value"
+          release_contract_check_argv_error "${option_name} requires a value"
         fi
         ((index += 1))
         ;;
       --artifact-dir)
         if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
-          release_certify_argv_error "${option} requires a value"
+          release_contract_check_argv_error "${option} requires a value"
         fi
         value="${arguments[index + 1]}"
         ((index += 2))
         (( seen_artifact_dir == 0 )) \
-          || release_certify_argv_error "--artifact-dir may appear only once"
+          || release_contract_check_argv_error "--artifact-dir may appear only once"
         seen_artifact_dir=1
         artifact_dir="$(readlink -m -- "${value}")"
         continue
@@ -478,21 +480,21 @@ if [[ "${1:-}" == "release-certify" ]]; then
       --artifact-dir=*)
         value="${option#*=}"
         if [[ -z "${value}" ]]; then
-          release_certify_argv_error "${option_name} requires a value"
+          release_contract_check_argv_error "${option_name} requires a value"
         fi
         ((index += 1))
         (( seen_artifact_dir == 0 )) \
-          || release_certify_argv_error "--artifact-dir may appear only once"
+          || release_contract_check_argv_error "--artifact-dir may appear only once"
         seen_artifact_dir=1
         artifact_dir="$(readlink -m -- "${value}")"
         continue
         ;;
       *)
-        release_certify_argv_error "unsupported option or positional argument: ${option}"
+        release_contract_check_argv_error "unsupported option or positional argument: ${option}"
         ;;
     esac
     (( seen_release_candidate == 0 )) \
-      || release_certify_argv_error "--release-candidate may appear only once"
+      || release_contract_check_argv_error "--release-candidate may appear only once"
     seen_release_candidate=1
     release_candidate="$(readlink -m -- "${value}")"
   done
@@ -591,10 +593,7 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
   )
 fi
 
-if (( bridge_mode == 1 )) \
-  && [[ -z "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]] \
-  && [[ -z "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]
-then
+if (( bridge_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
   if [[ -z "${output_root}" ]]; then
@@ -716,20 +715,25 @@ if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
   fi
   exec "${status_command[@]}"
 fi
-if (( release_certify_mode == 1 )); then
+if (( release_contract_check_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
   if [[ -z "${release_candidate}" ]]; then
     release_candidate="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/release-candidates/$(date -u +%Y%m%dT%H%M%SZ)-$$/candidate.json"
-    "${CONTROL_PYTHON}" \
-      "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py" \
-      --root "${EXPERIMENT_ROOT}" \
-      --artifact-dir "${artifact_dir}" \
-      --stage-local-candidate \
+    candidate_command=(
+      "${CONTROL_PYTHON}"
+      "${EXPERIMENT_ROOT}/tools/promote_step5d_r009_atomic_release.py"
+      --root "${EXPERIMENT_ROOT}"
+      --stage-local-candidate
       --candidate-output "${release_candidate}"
+    )
+    if [[ -n "${artifact_dir}" ]]; then
+      candidate_command+=(--artifact-dir "${artifact_dir}")
+    fi
+    "${candidate_command[@]}" >/dev/null
   fi
   "${CONTROL_PYTHON}" \
-    "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
+    "${EXPERIMENT_ROOT}/tools/run_step5d_release_contract.py" \
     --experiment-root "${EXPERIMENT_ROOT}" \
     --output-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
     --release-candidate "${release_candidate}"
@@ -753,16 +757,6 @@ if (( bridge_mode == 1 )); then
   campaign_root="$(readlink -m -- "${campaign_root}")"
   mkdir -p -- "${output_root}" "${campaign_root}"
   launch_runtime_bootstrap=0
-  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" || -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
-    shell_proc_stat="$(</proc/$$/stat)"
-    shell_proc_fields="${shell_proc_stat##*) }"
-    read -r -a shell_proc_values <<<"${shell_proc_fields}"
-    launch_owner_starttime="${shell_proc_values[19]:-}"
-    if [[ ! "${launch_owner_starttime}" =~ ^[1-9][0-9]*$ ]]; then
-      echo "qualification shell owner starttime is unavailable" >&2
-      exit 66
-    fi
-  fi
   route_snapshot="${output_root}/route-snapshot.json"
   launch_attempt_route_snapshot="${route_snapshot}"
   route_resolve_rc=0
@@ -770,9 +764,6 @@ if (( bridge_mode == 1 )); then
     --root "${EXPERIMENT_ROOT}"
     --output "${route_snapshot}"
   )
-  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" || -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
-    route_resolve_args+=(--robot-host 127.0.0.1)
-  fi
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/resolve_step5d_bridge_route.py" \
     "${route_resolve_args[@]}" \
     >"${output_root}/route-resolve.log" 2>&1 || route_resolve_rc=$?
@@ -792,75 +783,26 @@ if (( bridge_mode == 1 )); then
     echo "canonical route resolution stopped: ${route_reason_code}" >&2
     exit "${route_resolve_rc}"
   fi
-  if [[ -n "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
-    if [[ "${bridge_route}" != "manual_v2" ]]; then
-      echo "Manual qualification did not traverse the Manual production route" >&2
-      exit 2
-    fi
-    export STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_PID="$$"
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
-      --experiment-root "${EXPERIMENT_ROOT}" \
-      --_exec-live-from-shell-contract \
-      "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT}" &
-    qualification_manual_owner_pid=$!
-    # shellcheck disable=SC2329  # Invoked by the EXIT trap below.
-    qualification_manual_cleanup() {
-      if kill -0 "${qualification_manual_owner_pid}" 2>/dev/null; then
-        kill -INT "${qualification_manual_owner_pid}" 2>/dev/null || true
-        wait "${qualification_manual_owner_pid}" || true
-      fi
-    }
-    trap qualification_manual_cleanup EXIT
-    qualification_ready_limit_ticks="$("${CONTROL_PYTHON}" -c \
-      'import math,sys; print(math.ceil(float(sys.argv[1]) * 10.0) + 20)' \
-      "${ready_timeout_s}")"
-    qualification_ready_ticks=0
-    while [[ ! -f "${output_root}/bridge_launch.json" ]]; do
-      if ! kill -0 "${qualification_manual_owner_pid}" 2>/dev/null; then
-        qualification_owner_rc=0
-        wait "${qualification_manual_owner_pid}" || qualification_owner_rc=$?
-        echo "Manual qualification bridge owner exited before readiness rc=${qualification_owner_rc}" >&2
-        exit 2
-      fi
-      if (( qualification_ready_ticks >= qualification_ready_limit_ticks )); then
-        echo "Manual qualification bridge owner readiness timeout" >&2
-        exit 2
-      fi
-      sleep 0.1
-      ((qualification_ready_ticks += 1))
-    done
-    qualification_campaign_rc=0
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
-      --experiment-root "${EXPERIMENT_ROOT}" \
-      --_exec-campaign-from-shell-contract \
-      "${STEP5D_MANUAL_INTERNAL_QUALIFICATION_SHELL_CONTRACT}" \
-      || qualification_campaign_rc=$?
-    exit "${qualification_campaign_rc}"
-  fi
-  if [[ -n "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT:-}" ]]; then
-    if [[ "${bridge_route}" != "autotune_v3" ]]; then
-      echo "V3 qualification did not traverse the V3 production route" >&2
-      exit 2
-    fi
-    export STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_PID="$$"
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_qualification.py" \
-      --_exec-live-from-shell-contract \
-      "${STEP5D_V3_INTERNAL_QUALIFICATION_SHELL_CONTRACT}"
-    exit 0
-  fi
   if [[ "${bridge_route}" == "manual_v2" ]]; then
-    bridge_acquire_authority
     manual_release_sha="${resolved_release_sha}"
-    manual_campaign_id="manual-v2-${launch_attempt_id}"
     manual_context="${output_root}/manual-bridge-context.json"
     manual_preflight="${output_root}/manual-preflight.json"
     manual_queue="${campaign_root}/control/manual_queue.json"
     manual_state="${campaign_root}/control/manual_runtime_state.json"
-    bridge_begin_phase manual_qualification
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_qualification.py" \
+    manual_contract_command="${output_root}/manual-release-contract-command.json"
+    bridge_acquire_authority
+    manual_campaign_id="manual-v2-${launch_attempt_id}"
+    bridge_begin_phase manual_release_contract
+    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_release_contract.py" \
       --experiment-root "${EXPERIMENT_ROOT}" \
-      --output-root "${output_root}" \
-      >"${output_root}/manual-qualification-command.json"
+      --output-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
+      --manual \
+      >"${manual_contract_command}"
+    manual_contract_certificate="$(
+      "${CONTROL_PYTHON}" -c \
+        'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["certificate"]["path"])' \
+        "${manual_contract_command}"
+    )"
     bridge_begin_phase manual_context
     "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/build_step5d_manual_bridge_start_context.py" \
       --root "${EXPERIMENT_ROOT}" \
@@ -939,7 +881,7 @@ if (( bridge_mode == 1 )); then
       --state "${manual_state}" \
       --campaign-id "${manual_campaign_id}" \
       --release-manifest-sha256 "${manual_release_sha}" \
-      --qualification-result "${output_root}/manual-qualification-result.json" \
+      --release-contract-certificate "${manual_contract_certificate}" \
       --play-timeout-s "${play_timeout_s}"
     bridge_finish_phase
     bridge_revoke_authority completed

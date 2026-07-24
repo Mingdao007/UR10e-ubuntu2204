@@ -820,7 +820,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 text=(
                     f"state={payload['state']} "
                     f"release_sha={payload['release']['sha256']} "
-                    f"offline_proven={str(payload['predicates']['offline_proven']).lower()} "
+                    "release_contract_proven="
+                    f"{str(payload['predicates']['release_contract_proven']).lower()} "
                     f"bench_ready={str(payload['predicates']['bench_ready']).lower()} "
                     f"next_action={payload['next_action']}"
                 ),

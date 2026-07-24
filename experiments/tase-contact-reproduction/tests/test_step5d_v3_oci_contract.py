@@ -31,7 +31,7 @@ def test_runner_can_issue_only_hermetic_ci_authority() -> None:
     source = path.read_text(encoding="utf-8")
     ast.parse(source, filename=str(path))
     assert 'AUTHORITY = "HERMETIC_CI_PROVEN"' in source
-    assert '"offline_proven": False' in source
+    assert '"release_contract_proven": False' in source
     assert 'AUTHORITY = "OFFLINE_PROVEN"' not in source
     assert 'STEP5D_OCI_NETWORK_MODE") != "none"' in source
     assert 'STEP5D_OCI_REPOSITORY_MODE") != "read_only"' in source

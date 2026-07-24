@@ -90,7 +90,7 @@ def project_status(status: Mapping[str, Any]) -> dict[str, Any]:
         delivered=bool(
             predicates.get("controller_fresh_get") is True
             or predicates.get("uploaded_identity_verified") is True
-            or predicates.get("offline_proven") is True
+            or predicates.get("release_contract_proven") is True
         ),
         action_required=blocker_class in {"BLOCKED_EXTERNAL", "PHYSICAL"},
         bench_ready=bool(

@@ -33,12 +33,14 @@ from .governance import (
     validate_campaign_lease,
     validate_observed_attestation,
 )
-from .qualification import (
+from .release_contract import (
     production_process_role_paths,
     production_process_tree_fingerprint,
+    release_contract_scope_for_release,
     resolve_process_argv_paths,
-    validate_qualification_result,
+    validate_release_contract_result,
 )
+from .release_identity import load_current_release
 from .runtime_gate import loaded_program_paths
 
 
@@ -296,56 +298,42 @@ def _triplet(value: Any, role: str) -> dict[str, str] | None:
     }
 
 
-def _qualification_completed_at(payload: Mapping[str, Any]) -> int:
-    direct = payload.get("completed_at_unix_ns")
-    if direct is not None:
-        return _positive_int(direct, "qualification completion")
-    events = payload.get("events")
-    if not isinstance(events, list) or not events:
-        raise RuntimeObservationError("qualification has no completion event")
-    timestamps = []
-    for event in events:
-        if not isinstance(event, Mapping):
-            raise RuntimeObservationError("qualification event is invalid")
-        observed = event.get("observed_at_unix_ns", event.get("observed_at_ns"))
-        timestamps.append(_positive_int(observed, "qualification event timestamp"))
-    return max(timestamps)
-
-
-def _qualified_offline_binding(
+def _release_contract_binding(
     *,
     experiment_root: Path,
     campaign_root: Path,
     release: Mapping[str, Any],
-    qualification_evidence: Any,
+    release_contract_evidence: Any,
 ) -> tuple[dict[str, Any], str]:
     encoded, reference_sha = _reference_source(
-        campaign_root, qualification_evidence, "offline qualification"
+        campaign_root, release_contract_evidence, "release contract"
     )
-    payload = _strict_json(encoded, "offline qualification")
+    payload = _strict_json(encoded, "release contract")
     try:
-        binding = validate_qualification_result(
+        identity = load_current_release(experiment_root)
+        scope = release_contract_scope_for_release(experiment_root, identity)
+        validate_release_contract_result(
             payload,
-            experiment_root=experiment_root,
-            manifest_sha256=release["manifest_sha256"],
-            source_fingerprint=release["source_fingerprint"],
-            launcher_sha256=release["launcher_sha256"],
+            expected_scope=scope,
         )
     except Exception as exc:
-        raise RuntimeObservationError(f"offline qualification binding is invalid: {exc}") from exc
-    process_tree = binding["process_tree"]
+        raise RuntimeObservationError(f"release contract binding is invalid: {exc}") from exc
+    if scope["release_manifest_sha256"] != release["manifest_sha256"]:
+        raise RuntimeObservationError("release contract manifest differs")
     process_fingerprint = production_process_tree_fingerprint(experiment_root)
     environment_sha = _sha256(
-        binding["environment"].get("fingerprint"),
-        "offline qualification environment",
+        scope.get("control_environment_sha256"),
+        "release contract environment",
     )
     if hashlib.sha256(encoded).hexdigest() != reference_sha:
-        raise RuntimeObservationError("offline qualification reference changed during read")
-    reference = _evidence_bytes(campaign_root, "offline_qualification", encoded)
+        raise RuntimeObservationError("release contract reference changed during read")
+    reference = _evidence_bytes(campaign_root, "release_contract", encoded)
     return (
         {
             "evidence": reference,
-            "completed_at_unix_ns": _qualification_completed_at(payload),
+            "completed_at_unix_ns": _positive_int(
+                payload.get("completed_at_unix_ns"), "contract completion"
+            ),
             "manifest_sha256": release["manifest_sha256"],
             "source_fingerprint": release["source_fingerprint"],
             "launcher_sha256": release["launcher_sha256"],
@@ -748,7 +736,7 @@ class RuntimeObservationPublisher:
     campaign_root: Path
     run_id: str
     release: Mapping[str, Any]
-    offline: Mapping[str, Any]
+    release_contract: Mapping[str, Any]
     bindings: Mapping[str, str]
     lease: dict[str, Any]
     sequence: int
@@ -767,18 +755,18 @@ class RuntimeObservationPublisher:
         campaign_root: Path,
         run_id: str,
         release: CurrentReleaseSnapshot | Mapping[str, Any],
-        qualification_evidence: Any,
+        release_contract_evidence: Any,
         lease: Any,
         lease_expires_at_unix_ns: int | None = None,
     ) -> "RuntimeObservationPublisher":
         experiment = _root(experiment_root, "experiment root")
         campaign = _root(campaign_root, "campaign root", create=True)
         release_row = _validated_release(release)
-        offline, environment_sha = _qualified_offline_binding(
+        contract, environment_sha = _release_contract_binding(
             experiment_root=experiment,
             campaign_root=campaign,
             release=release_row,
-            qualification_evidence=qualification_evidence,
+            release_contract_evidence=release_contract_evidence,
         )
         lease_row = _attestation_lease(
             lease,
@@ -790,7 +778,7 @@ class RuntimeObservationPublisher:
             "source_fingerprint": release_row["source_fingerprint"],
             "launcher_sha256": release_row["launcher_sha256"],
             "environment_sha256": environment_sha,
-            "process_tree_fingerprint": offline["process_tree_fingerprint"],
+            "process_tree_fingerprint": contract["process_tree_fingerprint"],
             "safety_envelope_sha256": release_row["safety_envelope_sha256"],
             "campaign_fingerprint": lease_row["campaign_fingerprint"],
         }
@@ -799,7 +787,7 @@ class RuntimeObservationPublisher:
             campaign_root=campaign,
             run_id=_bounded_text(run_id, "run ID"),
             release=release_row,
-            offline=offline,
+            release_contract=contract,
             bindings=bindings,
             lease=lease_row,
             sequence=_next_sequence(campaign),
@@ -1120,7 +1108,7 @@ class RuntimeObservationPublisher:
             "campaign_id": self.lease["campaign_id"],
             "observed_at_unix_ns": observed_at,
             "bindings": dict(self.bindings),
-            "offline": dict(self.offline),
+            "release_contract": dict(self.release_contract),
             "process": {
                 "bridge_pid": bridge_pid,
                 "bridge_starttime_ticks": bridge_starttime,

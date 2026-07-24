@@ -362,7 +362,7 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             '"experiments/tase-contact-reproduction/tests/test_step5d_autotune*.py"',
             workflow,
         )
-        self.assertIn("test_rtde_repository_client_rejects_unknown_recipe_field", workflow)
+        self.assertIn("tests/test_step5d_release_contract.py", workflow)
         self.assertIn("docker run --rm --network none --read-only", workflow)
         self.assertIn("dst=/workspace,readonly", workflow)
         self.assertNotIn("STEP5D_V3_HERMETIC_PARSER_CI", workflow)
@@ -372,13 +372,12 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         self.assertNotIn("large_ursim", workflow)
         self.assertNotIn("hil_no_motion", workflow)
 
-    def test_repository_rtde_probe_needs_no_private_skill(self) -> None:
+    def test_repository_release_contract_probe_needs_no_private_skill(self) -> None:
         result = subprocess.run(
             [
                 sys.executable,
                 "-m", "pytest", "-q",
-                "tests/test_step5d_autotune_v3_qualification_endpoints.py::"
-                "test_rtde_repository_client_rejects_unknown_recipe_field",
+                "tests/test_step5d_release_contract.py",
             ],
             cwd=ROOT,
             env={
@@ -393,7 +392,7 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
             timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("1 passed", result.stdout)
+        self.assertIn("3 passed", result.stdout)
 
 
 if __name__ == "__main__":

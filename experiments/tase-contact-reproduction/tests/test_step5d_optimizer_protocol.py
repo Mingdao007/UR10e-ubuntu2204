@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
+import os
 from pathlib import Path
+import struct
 import subprocess
 import sys
 
@@ -123,6 +126,7 @@ def test_exact_optimizer_client_uses_bound_interpreter_and_sanitized_gpu(
         deployment=_deployment(),
         runtime_pointer=_pointer(),
         pointer_loader=_pointer,
+        persistent=False,
     )
 
     rows, evidence = client.propose(
@@ -196,6 +200,7 @@ def test_optimizer_response_tamper_has_no_fallback(
         deployment=_deployment(),
         runtime_pointer=_pointer(),
         pointer_loader=_pointer,
+        persistent=False,
     )
     with pytest.raises(protocol.OptimizerProtocolError):
         client.propose(
@@ -223,6 +228,7 @@ def test_optimizer_worker_failure_does_not_return_a_candidate(
         deployment=_deployment(),
         runtime_pointer=_pointer(),
         pointer_loader=_pointer,
+        persistent=False,
     )
     with pytest.raises(protocol.OptimizerProtocolError, match="worker failed"):
         client.propose(
@@ -250,6 +256,7 @@ def test_optimizer_pointer_rotation_after_admission_fails_before_child_start(
         deployment=_deployment(),
         runtime_pointer=_pointer(),
         pointer_loader=lambda: rotated,
+        persistent=False,
     )
 
     with pytest.raises(
@@ -263,6 +270,81 @@ def test_optimizer_pointer_rotation_after_admission_fails_before_child_start(
             sequence=3,
         )
     assert started is False
+
+
+def test_persistent_optimizer_reuses_one_framed_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    starts: list[list[str]] = []
+
+    class Sink:
+        def __init__(self, worker: "FakeWorker") -> None:
+            self.worker = worker
+            self.buffer = bytearray()
+
+        def write(self, encoded: bytes) -> int:
+            self.buffer.extend(encoded)
+            return len(encoded)
+
+        def flush(self) -> None:
+            size = struct.unpack(">I", self.buffer[:4])[0]
+            request = json.loads(bytes(self.buffer[4 : 4 + size]))
+            del self.buffer[: 4 + size]
+            response = protocol.canonical_bytes(_response(request))
+            os.write(
+                self.worker.write_fd,
+                struct.pack(">I", len(response)) + response,
+            )
+
+        def close(self) -> None:
+            if self.worker.write_fd >= 0:
+                os.close(self.worker.write_fd)
+                self.worker.write_fd = -1
+
+    class FakeWorker:
+        def __init__(self, command: list[str], **_kwargs: object) -> None:
+            starts.append(command)
+            read_fd, self.write_fd = os.pipe()
+            self.stdout = os.fdopen(read_fd, "rb", buffering=0)
+            self.stderr = io.BytesIO()
+            self.stdin = Sink(self)
+            self.pid = 4321
+            self.returncode: int | None = None
+
+        def poll(self) -> int | None:
+            return self.returncode
+
+        def wait(self, timeout: float | None = None) -> int:
+            del timeout
+            self.returncode = 0
+            return 0
+
+        def terminate(self) -> None:
+            self.returncode = -15
+
+        def kill(self) -> None:
+            self.returncode = -9
+
+    monkeypatch.setattr(protocol.subprocess, "Popen", FakeWorker)
+    client = protocol.ExactOptimizerClient(
+        deployment=_deployment(),
+        runtime_pointer=_pointer(),
+        pointer_loader=_pointer,
+    )
+    try:
+        for sequence in (3, 4):
+            rows, _evidence = client.propose(
+                mode="rolling_batch_a",
+                observations=(),
+                catalog=tuple(value.candidate for value in _occurrences(sequence)),
+                sequence=sequence,
+            )
+            assert len(rows) == 5
+        assert len(starts) == 1
+        assert starts[0][-1] == "--serve"
+        assert client._worker is not None and client._worker.pid == 4321
+    finally:
+        client.close()
 
 
 @pytest.mark.parametrize(

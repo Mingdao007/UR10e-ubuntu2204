@@ -55,7 +55,9 @@ from step5d_autotune_v3.optimizer_protocol import (
     deployment_certificate,
 )
 from step5d_autotune_v3.profile import load_contract
-from step5d_autotune_v3.qualification import release_certificate_scope_for_release
+from step5d_autotune_v3.release_contract import (
+    release_contract_scope_for_release,
+)
 from step5d_autotune_v3.release_certificate import (
     certificate_path,
     load_release_certificate,
@@ -66,7 +68,6 @@ from step5d_autotune_v3.release_identity import (
     ReleaseIdentity,
     load_current_release,
     load_runtime_release,
-    qualification_runtime_environment,
     release_payload_path,
 )
 from step5d_autotune_v3.runtime_environment import production_runtime_environment
@@ -114,7 +115,6 @@ WRAPPER = ROOT / "tools/run_step5d_autotune_v3_bridge.py"
 RUNNER = ROOT / "tools/run_step5d_autotune_campaign.py"
 RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
 LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
-QUALIFICATION_ENDPOINT_SCHEMA = "step5d.autotune-v3/qualification-endpoint-config-v1"
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
 ARM_GATE_REFRESH_INTERVAL_S = ARM_GRANT_MAX_AGE_S * 0.4
 ARM_ACKNOWLEDGED_STATES = frozenset(
@@ -320,53 +320,6 @@ def _sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _qualification_endpoints(path: Path | None) -> dict[str, Any] | None:
-    if path is None:
-        return None
-    payload = read_strict_json(path.resolve(), role="qualification endpoint config")
-    if not isinstance(payload, dict) or set(payload) != {
-        "schema",
-        "content_sha256",
-        "addresses",
-        "motion_capable",
-    }:
-        raise LiveLaunchError("qualification endpoint config fields differ")
-    if (
-        payload["schema"] != QUALIFICATION_ENDPOINT_SCHEMA
-        or payload["motion_capable"] is not False
-    ):
-        raise LiveLaunchError("qualification endpoint config is not no-motion")
-    digest = payload["content_sha256"]
-    if (
-        not isinstance(digest, str)
-        or len(digest) != 64
-        or any(character not in "0123456789abcdef" for character in digest)
-    ):
-        raise LiveLaunchError("qualification endpoint content digest differs")
-    addresses = payload["addresses"]
-    if not isinstance(addresses, dict) or set(addresses) != {
-        "dashboard",
-        "secondary",
-        "rtde",
-        "kunwei",
-    }:
-        raise LiveLaunchError("qualification endpoint roles differ")
-    expected_ports = {"dashboard": 29999, "secondary": 30002, "rtde": 30004}
-    for role, address in addresses.items():
-        if (
-            not isinstance(address, dict)
-            or set(address) != {"host", "port"}
-            or address["host"] != "127.0.0.1"
-            or isinstance(address["port"], bool)
-            or not isinstance(address["port"], int)
-            or not 1 <= address["port"] <= 65535
-        ):
-            raise LiveLaunchError(f"qualification {role} endpoint differs")
-        if role in expected_ports and address["port"] != expected_ports[role]:
-            raise LiveLaunchError(f"qualification {role} must use the production port")
-    return payload
-
-
 def _campaign_id_for_prepare(campaign_root: Path) -> str:
     paths = CampaignPaths(campaign_root)
     if paths.candidate_plan.is_file() and not paths.candidate_plan.is_symlink():
@@ -467,13 +420,13 @@ def _release_triplet(release: ReleaseIdentity) -> dict[str, str]:
     }
 
 
-def _qualification_evidence_reference(
+def _release_contract_evidence_reference(
     experiment_root: Path,
     release: ReleaseIdentity,
 ) -> dict[str, str]:
     certificate_root = experiment_root / "runs/step5d_autotune_v3"
-    scope = release_certificate_scope_for_release(experiment_root, release)
-    _certificate, evidence, _qualification = load_release_certificate(
+    scope = release_contract_scope_for_release(experiment_root, release)
+    _certificate, evidence, _contract = load_release_certificate(
         certificate_root,
         certificate_path(certificate_root, scope),
         expected_scope=scope,
@@ -1052,33 +1005,30 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     runtime_pointer = getattr(args, "_runtime_pointer", None)
     if not isinstance(runtime_pointer, Mapping):
         runtime_pointer = require_runtime_profile("control")
+    _gpu_attestation, gpu_reference = load_gpu_functional_attestation(
+        runtime_pointer=runtime_pointer
+    )
+    optimizer_deployment = deployment_certificate(
+        runtime_pointer=runtime_pointer,
+        gpu_attestation_digest=gpu_reference["sha256"],
+    )
+    optimizer_client = ExactOptimizerClient(
+        deployment=optimizer_deployment,
+        runtime_pointer=runtime_pointer,
+    )
+    try:
+        return _run_live(args, runtime_pointer, optimizer_client)
+    finally:
+        optimizer_client.close()
+
+
+def _run_live(
+    args: argparse.Namespace,
+    runtime_pointer: Mapping[str, Any],
+    optimizer_client: ExactOptimizerClient,
+) -> Mapping[str, Any]:
     control_python = runtime_pointer["profiles"]["control"]["python_executable"]
     optimizer_python = runtime_pointer["profiles"]["optimizer"]["python_executable"]
-    qualification = _qualification_endpoints(args.qualification_endpoints)
-    qualification_environment = qualification_runtime_environment()
-    if bool(qualification) != bool(qualification_environment):
-        raise LiveLaunchError(
-            "qualification endpoint and explicit release bindings must be paired"
-        )
-    optimizer_client = None
-    if qualification is None:
-        _gpu_attestation, gpu_reference = load_gpu_functional_attestation(
-            runtime_pointer=runtime_pointer
-        )
-        optimizer_deployment = deployment_certificate(
-            runtime_pointer=runtime_pointer,
-            gpu_attestation_digest=gpu_reference["sha256"],
-        )
-        optimizer_client = ExactOptimizerClient(
-            deployment=optimizer_deployment,
-            runtime_pointer=runtime_pointer,
-        )
-    if qualification is not None:
-        configured = Path(
-            qualification_environment["STEP5D_V3_QUALIFICATION_ENDPOINT_CONFIG"]
-        ).resolve()
-        if configured != args.qualification_endpoints.resolve():
-            raise LiveLaunchError("qualification endpoint config binding differs")
     release = load_runtime_release(ROOT)
     delivery_observation = load_delivery_observation(
         ROOT, args.delivery_observation, release=release
@@ -1111,29 +1061,11 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         )[2:],
     ]
     robot_host = str(check["effective_config"]["robot_host"])
-    if qualification is not None:
-        addresses = qualification["addresses"]
-        robot_host = addresses["dashboard"]["host"]
-        command.extend(
-            (
-                "--robot-host",
-                robot_host,
-                "--sensor-ip",
-                addresses["kunwei"]["host"],
-                "--sensor-port",
-                str(addresses["kunwei"]["port"]),
-            )
-        )
     preflight = _validate_preflight(
         args.preflight,
         release,
         launch_profile,
     )
-    if qualification is not None and preflight["controller_identity"].get(
-        "robot_host"
-    ) != robot_host:
-        raise LiveLaunchError("qualification preflight endpoint binding differs")
-
     campaign_binding = bridge_runtime / "campaign_binding.json"
     launch_plan_path = bridge_runtime / "campaign_launch_plan.json"
     prepared = prepare(
@@ -1255,7 +1187,6 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         os.environ,
         profile="control",
         additions={
-            **qualification_environment,
             "STEP5D_V3_RUNTIME_TICKET": str(ticket_path),
             "STEP5D_BRIDGE_LAUNCH_NONCE": uuid.uuid4().hex,
         },
@@ -1265,7 +1196,6 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         os.environ,
         profile="optimizer",
         additions={
-            **qualification_environment,
             "STEP5D_V3_SUPERVISOR_PID": str(os.getpid()),
         },
         runtime_pointer=runtime_pointer,
@@ -1372,8 +1302,6 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                 "--first-arm-gate-timeout-s",
                 str(args.play_timeout_s + 5.0),
             ]
-            if qualification is not None:
-                runner_command.append("--offline-release-gate")
             with runner_log_path.open("wb") as runner_log:
                 runner = subprocess.Popen(
                     runner_command,
@@ -1389,58 +1317,55 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
                     ),
                 )
                 _wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")
-                if qualification is None:
-                    release_snapshot = load_current_release_snapshot(ROOT)
-                    if not release_snapshot.valid:
-                        raise LiveLaunchError(
-                            f"current governance release is invalid: {release_snapshot.error}"
-                        )
-                    publisher = RuntimeObservationPublisher.start(
-                        experiment_root=ROOT,
-                        campaign_root=args.campaign_root,
-                        run_id=launch_id,
-                        release=release_snapshot,
-                        qualification_evidence=_qualification_evidence_reference(
-                            ROOT,
-                            release,
-                        ),
-                        lease=lease,
-                        lease_expires_at_unix_ns=time.time_ns()
-                        + 12 * 60 * 60 * 1_000_000_000,
+                release_snapshot = load_current_release_snapshot(ROOT)
+                if not release_snapshot.valid:
+                    raise LiveLaunchError(
+                        f"current governance release is invalid: {release_snapshot.error}"
                     )
-                    publisher.update_lifecycle(
-                        "waiting_for_play", observed_at_unix_ns=time.time_ns()
+                publisher = RuntimeObservationPublisher.start(
+                    experiment_root=ROOT,
+                    campaign_root=args.campaign_root,
+                    run_id=launch_id,
+                    release=release_snapshot,
+                    release_contract_evidence=_release_contract_evidence_reference(
+                        ROOT,
+                        release,
+                    ),
+                    lease=lease,
+                    lease_expires_at_unix_ns=time.time_ns()
+                    + 12 * 60 * 60 * 1_000_000_000,
+                )
+                publisher.update_lifecycle(
+                    "waiting_for_play", observed_at_unix_ns=time.time_ns()
+                )
+                governed_status = _publish_runtime_observation(
+                    publisher,
+                    release=release,
+                    bridge=bridge,
+                    runner=runner,
+                    bridge_csv=csv_follower,
+                    bridge_ready=bridge_ready,
+                    robot_host=robot_host,
+                    mailbox_reader=mailbox_reader,
+                    mailbox_tracker=mailbox_tracker,
+                    campaign_root=args.campaign_root,
+                    preexisting_bundles=preexisting_bundles,
+                    delivery_observation=delivery_observation,
+                )
+                if governed_status["state"] not in {
+                    "WAITING_FOR_IDENTITY_PLAY",
+                    "WAITING_FOR_PLAY",
+                }:
+                    raise LiveLaunchError(
+                        "machine state did not reach a governed Play barrier: "
+                        + ",".join(governed_status["blocker"]["reason_codes"])
                     )
-                    governed_status = _publish_runtime_observation(
-                        publisher,
-                        release=release,
-                        bridge=bridge,
-                        runner=runner,
-                        bridge_csv=csv_follower,
-                        bridge_ready=bridge_ready,
-                        robot_host=robot_host,
-                        mailbox_reader=mailbox_reader,
-                        mailbox_tracker=mailbox_tracker,
-                        campaign_root=args.campaign_root,
-                        preexisting_bundles=preexisting_bundles,
-                        delivery_observation=delivery_observation,
-                    )
-                    if governed_status["state"] not in {
-                        "WAITING_FOR_IDENTITY_PLAY",
-                        "WAITING_FOR_PLAY",
-                    }:
-                        raise LiveLaunchError(
-                            "machine state did not reach a governed Play barrier: "
-                            + ",".join(governed_status["blocker"]["reason_codes"])
-                        )
-                    _publish_canonical_readiness_claim(
-                        args.output_root,
-                        governed_status["state"],
-                    )
-                    print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
-                    print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
-                else:
-                    print("V3_QUALIFICATION_SIMULATED_PLAY_BARRIER", flush=True)
+                _publish_canonical_readiness_claim(
+                    args.output_root,
+                    governed_status["state"],
+                )
+                print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
+                print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
                 deadline = time.monotonic() + args.play_timeout_s
                 next_observation = (
                     time.monotonic() + RUNTIME_OBSERVATION_INTERVAL_S
@@ -1783,9 +1708,6 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
         "producer_stopped": producer_stopped,
         "producer_error": producer_error,
         "program_stop": cleanup,
-        "qualification_endpoint_content_sha256": (
-            None if qualification is None else qualification["content_sha256"]
-        ),
     }
     atomic_json(args.output_root / "live_campaign_result.json", result)
     if result["ok"] is not True:
@@ -1813,11 +1735,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--canonical-owner-pid", type=int, required=True)
     parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument(
-        "--qualification-endpoints",
-        type=Path,
-        help=argparse.SUPPRESS,
-    )
     return parser.parse_args(argv)
 
 
