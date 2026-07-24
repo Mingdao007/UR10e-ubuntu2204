@@ -298,9 +298,11 @@ def main(argv: list[str] | None = None) -> int:
         ) as exc:
             raise RuntimeError(f"candidate certificate gate failed: {exc}") from exc
         if args.readback_only_existing:
-            basis_release = load_current_release(root)
             prior_receipt = args.prior_full_readback_receipt
-            if prior_receipt is None:
+            if prior_receipt is not None:
+                basis_release = candidate_release
+            else:
+                basis_release = load_current_release(root)
                 _basis_path, prior_basis = load_delivery_basis(
                     root,
                     release=basis_release,
