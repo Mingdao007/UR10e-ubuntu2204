@@ -26,6 +26,7 @@
     "public_live": "scripts/step5d-autotune-v3.sh bridge-live",
     "public_release_contract": "scripts/step5d-autotune-v3.sh release-contract-check",
     "public_tp_delivery": "scripts/step5d-autotune-v3.sh tp-deliver",
+    "public_runtime_revalidation": "scripts/step5d-autotune-v3.sh revalidate-current",
     "public_status": "scripts/step5d-autotune-v3.sh status --json",
     "compatibility_adapter": "scripts/step5d-autotune-live.sh bridge",
     "internal_workers": [
@@ -146,6 +147,7 @@
     "tools/step5d_autotune_v3/release_certificate.py",
     "tools/step5d_autotune_v3/release_contract.py",
     "tools/step5d_autotune_v3/release_identity.py",
+    "tools/step5d_autotune_v3/release_transition.py",
     "tools/step5d_autotune_v3/release_verifier.py",
     "tools/step5d_autotune_v3/rtde_client.py",
     "tools/step5d_autotune_v3/runtime_calibration.py",

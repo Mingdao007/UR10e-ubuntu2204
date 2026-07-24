@@ -11,6 +11,10 @@ import time
 from typing import Any, Mapping
 
 from .atomic_io import AtomicIOError, atomic_bytes
+from .release_transition import (
+    ReleaseTransitionError,
+    require_receipt_delivery_basis,
+)
 
 
 SCHEMA = "step5d.autotune-v3/delivery-observation-v1"
@@ -127,6 +131,7 @@ def fresh_get_provenance(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _receipt_identity(
+    root: Path,
     receipt: Mapping[str, Any],
     *,
     transaction_id: str,
@@ -143,6 +148,17 @@ def _receipt_identity(
         or not isinstance(validation, Mapping)
     ):
         raise DeliveryObservationError("delivery receipt identity closure differs")
+    if receipt.get("delivery_mode") == "existing_program_fresh_readback":
+        try:
+            require_receipt_delivery_basis(
+                root,
+                receipt,
+                release=release,
+            )
+        except ReleaseTransitionError as exc:
+            raise DeliveryObservationError(
+                f"delivery receipt basis differs: {exc}"
+            ) from exc
     local = _triplet(hashes["local"], "delivery receipt local")
     controller = _triplet(hashes["controller"], "delivery receipt controller")
     readback = _triplet(hashes["readback"], "delivery receipt readback")
@@ -201,6 +217,7 @@ def build_delivery_observation(
     ):
         raise DeliveryObservationError("delivery receipt SHA-256 differs")
     triplet, checked_text, _checked = _receipt_identity(
+        experiment,
         receipt,
         transaction_id=transaction_id,
         release=release,
@@ -313,6 +330,7 @@ def validate_delivery_observation(
     )
     receipt = _load(receipt_path, "delivery receipt")
     receipt_triplet, receipt_checked_text, _receipt_checked = _receipt_identity(
+        experiment,
         receipt,
         transaction_id=row["transaction_id"],
         release=release,

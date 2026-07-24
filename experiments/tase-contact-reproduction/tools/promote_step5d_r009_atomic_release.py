@@ -74,7 +74,7 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "888af81565525b05a6f7d8e185ba2322c1dc0b68df2e11d13126fd19ebdc76d2",
+    "config/step5d/v3_active_surface.json": "a9946b39371530568af48189ca2f1a0190228f678c7c9cd010b94d525aacff6b",
 }
 CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
@@ -456,6 +456,7 @@ def validate_delivery(
     *,
     expected_transaction_id: str | None = None,
     expected_manifest_sha256: str | None = None,
+    expected_delivery_basis: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     root = root.resolve(strict=True)
     unresolved_manifest = manifest_path.expanduser()
@@ -518,6 +519,18 @@ def validate_delivery(
         == local_sha
     ):
         raise R009PromotionError("local/controller/readback triplet SHA closure differs")
+    if manifest.get("delivery_mode") == "existing_program_fresh_readback":
+        if (
+            expected_delivery_basis is None
+            or manifest.get("delivery_basis") != dict(expected_delivery_basis)
+        ):
+            raise R009PromotionError(
+                "existing-program delivery basis reference differs"
+            )
+    elif expected_delivery_basis is not None:
+        raise R009PromotionError(
+            "delivery basis is valid only for existing-program adoption"
+        )
     for extension, key in {
         ".script": "script_sha256",
         ".txt": "txt_sha256",
@@ -769,6 +782,7 @@ def compose_release(
     *,
     expected_transaction_id: str | None = None,
     expected_manifest_sha256: str | None = None,
+    expected_delivery_basis: Mapping[str, str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, bytes], dict[str, str]]:
     root = root.resolve(strict=True)
     _upload, delivered_triplet = validate_delivery(
@@ -777,6 +791,7 @@ def compose_release(
         artifact_dir,
         expected_transaction_id=expected_transaction_id,
         expected_manifest_sha256=expected_manifest_sha256,
+        expected_delivery_basis=expected_delivery_basis,
     )
     manifest, bundle_files, targets = compose_local_release(root, artifact_dir)
     composed_triplet = {
@@ -837,6 +852,7 @@ def promote(
     expected_transaction_id: str,
     expected_manifest_sha256: str,
     expected_candidate_manifest_sha256: str | None = None,
+    expected_delivery_basis: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     root = root.resolve(strict=True)
     manifest, bundle_files, targets = compose_release(
@@ -845,6 +861,7 @@ def promote(
         artifact_dir,
         expected_transaction_id=expected_transaction_id,
         expected_manifest_sha256=expected_manifest_sha256,
+        expected_delivery_basis=expected_delivery_basis,
     )
 
     composed_digest = _sha256_bytes(canonical_bytes(manifest))

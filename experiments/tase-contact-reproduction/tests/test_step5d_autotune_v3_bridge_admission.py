@@ -33,6 +33,8 @@ def _observation_fixture(
     delivery_path = root / "runs/delivery-observation.json"
     delivery_path.parent.mkdir()
     delivery_path.write_text('{"fixture":true}\n', encoding="utf-8")
+    lineage_path = root / "runs/publication-lineage.json"
+    lineage_path.write_text('{"fixture":"lineage"}\n', encoding="utf-8")
     release = SimpleNamespace(
         manifest_sha256="a" * 64,
         program_id="step5d_strict_rnn_autotune_v3_r012",
@@ -50,6 +52,21 @@ def _observation_fixture(
         lambda _root, _release: {
             "expected_loaded_program": EXPECTED_PROGRAM,
         },
+    )
+    monkeypatch.setattr(
+        bridge_admission,
+        "release_contract_reference",
+        lambda _root, _release: {
+            "certificate_path": "runs/certificate.json",
+            "certificate_sha256": "c" * 64,
+            "evidence_path": "runs/contract.json",
+            "evidence_sha256": "d" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        bridge_admission,
+        "resolve_publication_lineage",
+        lambda _root, **_kwargs: (lineage_path, {"ok": True}),
     )
     monkeypatch.setattr(
         bridge_admission,

@@ -24,6 +24,14 @@ from step5d_autotune_v3.release_identity import (
     load_current_release,
     load_local_release_candidate,
 )
+from step5d_autotune_v3.release_transition import (
+    ReleaseTransitionError,
+    create_delivery_basis,
+    delivery_basis_reference,
+    git_snapshot,
+    load_delivery_basis,
+    write_publication_lineage,
+)
 from step5d_autotune_v3.runtime_identity import (
     RuntimeIdentityError,
     identity_from_manifest,
@@ -166,6 +174,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--release-candidate", type=Path)
     parser.add_argument("--release-certificate", type=Path)
     parser.add_argument("--evidence-output", type=Path)
+    parser.add_argument("--prior-full-readback-receipt", type=Path)
+    parser.add_argument(
+        "--revalidate-current",
+        action="store_true",
+        help="freshly revalidate the merged current release without promotion",
+    )
     parser.add_argument(
         "--readback-only-existing",
         action="store_true",
@@ -176,6 +190,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
+    if args.revalidate_current and (
+        args.release_candidate is not None
+        or args.release_certificate is not None
+        or args.prior_full_readback_receipt is not None
+        or not args.readback_only_existing
+        or args.dry_run
+    ):
+        raise RuntimeError(
+            "--revalidate-current requires readback-only mode and no candidate, "
+            "certificate, prior receipt, or dry-run"
+        )
     root = args.root.resolve(strict=True)
     unresolved_local_dir = args.artifact_dir.expanduser()
     if unresolved_local_dir.is_symlink():
@@ -196,7 +221,12 @@ def main(argv: list[str] | None = None) -> int:
         "--override-table",
         "--override-reason",
         (
-            f"manifest-driven existing {program_id} fresh GET and atomic promotion"
+            f"manifest-driven existing {program_id} fresh GET and "
+            + (
+                "non-promoting runtime revalidation"
+                if args.revalidate_current
+                else "atomic promotion"
+            )
             if args.readback_only_existing
             else f"manifest-driven {program_id} upload, fresh GET, and atomic promotion"
         ),
@@ -219,7 +249,10 @@ def main(argv: list[str] | None = None) -> int:
         evidence_output.relative_to(evidence_root)
     except ValueError as exc:
         raise RuntimeError("delivery evidence output escapes runs evidence root") from exc
-    if args.release_candidate is None or args.release_certificate is None:
+    if (
+        not args.revalidate_current
+        and (args.release_candidate is None or args.release_certificate is None)
+    ):
         raise RuntimeError(
             "--release-candidate and --release-certificate are required before TP delivery"
         )
@@ -227,20 +260,64 @@ def main(argv: list[str] | None = None) -> int:
         require_runtime_profile("control")
     except RuntimeInstallationError as exc:
         raise RuntimeError(f"control environment gate failed: {exc}") from exc
-    try:
-        candidate_release = _validate_candidate_and_certificate(
+    delivery_basis: dict[str, str] | None = None
+    if args.revalidate_current:
+        git_snapshot(root)
+        candidate_release = load_current_release(root)
+        manifest, _bundle, _targets = promote.compose_local_release(
             root,
             local_dir,
-            args.release_candidate,
-            args.release_certificate,
         )
-    except (
-        ReleaseContractError,
-        ReleaseCertificateError,
-        ReleaseIdentityError,
-        StateError,
-    ) as exc:
-        raise RuntimeError(f"candidate certificate gate failed: {exc}") from exc
+        recomposed_sha256 = hashlib.sha256(
+            promote.canonical_bytes(manifest)
+        ).hexdigest()
+        if recomposed_sha256 != candidate_release.manifest_sha256:
+            raise RuntimeError(
+                "merged current release does not recompose from deployed sources"
+            )
+        load_delivery_basis(root, release=candidate_release)
+        delivery_basis = delivery_basis_reference(
+            root,
+            release=candidate_release,
+        )
+    else:
+        assert args.release_candidate is not None
+        assert args.release_certificate is not None
+        try:
+            candidate_release = _validate_candidate_and_certificate(
+                root,
+                local_dir,
+                args.release_candidate,
+                args.release_certificate,
+            )
+        except (
+            ReleaseContractError,
+            ReleaseCertificateError,
+            ReleaseIdentityError,
+            StateError,
+        ) as exc:
+            raise RuntimeError(f"candidate certificate gate failed: {exc}") from exc
+        if args.readback_only_existing:
+            basis_release = load_current_release(root)
+            prior_receipt = args.prior_full_readback_receipt
+            if prior_receipt is None:
+                _basis_path, prior_basis = load_delivery_basis(
+                    root,
+                    release=basis_release,
+                )
+                prior_receipt = root / prior_basis[
+                    "prior_full_readback_receipt"
+                ]["path"]
+            create_delivery_basis(
+                root,
+                candidate_release=candidate_release,
+                basis_release=basis_release,
+                prior_full_receipt=prior_receipt,
+            )
+            delivery_basis = delivery_basis_reference(
+                root,
+                release=candidate_release,
+            )
     try:
         controller_helper = owner_dependency("controller_helper")
     except RuntimeInstallationError as exc:
@@ -255,6 +332,15 @@ def main(argv: list[str] | None = None) -> int:
             controller_helper["sha256"],
         ]
     )
+    if delivery_basis is not None:
+        upload_args.extend(
+            [
+                "--delivery-basis-path",
+                delivery_basis["path"],
+                "--delivery-basis-sha256",
+                delivery_basis["sha256"],
+            ]
+        )
     handles = acquire_controller_mutation_locks()
     try:
         transaction_id = uuid.uuid4().hex
@@ -289,6 +375,13 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 raise RuntimeError("upload-result manifest handoff differs")
             receipt_sha256 = str(result["manifest_sha256"])
+            if not args.readback_only_existing:
+                create_delivery_basis(
+                    root,
+                    candidate_release=candidate_release,
+                    basis_release=candidate_release,
+                    prior_full_receipt=manifest,
+                )
             observation = build_delivery_observation(
                 root,
                 receipt_path=manifest,
@@ -306,22 +399,48 @@ def main(argv: list[str] | None = None) -> int:
             # Publishing current-release is the transaction commit point.  Once
             # that pointer changes, its immutable delivery receipt already
             # exists and can be resolved after any subsequent process crash.
-            promotion = promote.promote(
-                root,
-                manifest,
-                local_dir,
-                expected_transaction_id=transaction_id,
-                expected_manifest_sha256=receipt_sha256,
-                expected_candidate_manifest_sha256=candidate_release.manifest_sha256,
-            )
-            release = load_current_release(root)
-            if (
-                promotion.get("manifest_sha256") != release.manifest_sha256
-                or release.program_id != program_id
-                or release.manifest_sha256
-                != observation["release_manifest_sha256"]
-            ):
-                raise RuntimeError("promoted release pointer identity differs")
+            if args.revalidate_current:
+                release = load_current_release(root)
+                if (
+                    release.manifest_sha256 != candidate_release.manifest_sha256
+                    or release.program_id != program_id
+                    or release.manifest_sha256
+                    != observation["release_manifest_sha256"]
+                ):
+                    raise RuntimeError(
+                        "revalidated current release identity differs"
+                    )
+                lineage_path, _lineage = write_publication_lineage(
+                    root,
+                    release=release,
+                )
+                promotion = {
+                    "manifest_sha256": release.manifest_sha256,
+                    "promoted": False,
+                }
+            else:
+                promotion = promote.promote(
+                    root,
+                    manifest,
+                    local_dir,
+                    expected_transaction_id=transaction_id,
+                    expected_manifest_sha256=receipt_sha256,
+                    expected_candidate_manifest_sha256=candidate_release.manifest_sha256,
+                    expected_delivery_basis=(
+                        delivery_basis
+                        if args.readback_only_existing
+                        else None
+                    ),
+                )
+                release = load_current_release(root)
+                lineage_path = None
+                if (
+                    promotion.get("manifest_sha256") != release.manifest_sha256
+                    or release.program_id != program_id
+                    or release.manifest_sha256
+                    != observation["release_manifest_sha256"]
+                ):
+                    raise RuntimeError("promoted release pointer identity differs")
             print(
                 json.dumps(
                     {
@@ -329,6 +448,10 @@ def main(argv: list[str] | None = None) -> int:
                         "release_manifest_sha256": promotion["manifest_sha256"],
                         "delivery_observation": str(evidence_output),
                         "indexed_delivery_observation": str(indexed_observation),
+                        "publication_lineage": (
+                            None if lineage_path is None else str(lineage_path)
+                        ),
+                        "promoted": not args.revalidate_current,
                         "dashboard_load_attempted": False,
                     },
                     sort_keys=True,

@@ -34,6 +34,7 @@ from step5d_autotune_v3.governance import (
 from step5d_autotune_v3.public_state import project_status
 from step5d_autotune_v3.bridge_admission import (
     BridgeAdmissionError,
+    release_contract_reference,
     resolve_bridge_admission,
 )
 from step5d_autotune_v3.delivery_observation import (
@@ -43,6 +44,12 @@ from step5d_autotune_v3.delivery_observation import (
 from step5d_autotune_v3.release_identity import (
     ReleaseIdentityError,
     load_current_release,
+)
+from step5d_autotune_v3.release_certificate import ReleaseCertificateError
+from step5d_autotune_v3.release_contract import ReleaseContractError
+from step5d_autotune_v3.release_transition import (
+    ReleaseTransitionError,
+    resolve_publication_lineage,
 )
 from step5d_bridge_authority import (
     BridgeAuthorityError,
@@ -120,6 +127,9 @@ def _base_status(reason: str, *, attempt: Mapping[str, Any] | None) -> dict[str,
             "ROUTE_RUNTIME_NOT_OBSERVED": "wait_for_route_runtime_observation",
             "LAUNCH_ATTEMPT_BINDING_INVALID": "repair_launch_attempt_binding",
             "CURRENT_RELEASE_INVALID": "repair_current_release_before_retry",
+            "RELEASE_CERTIFICATE_MISSING": "run_revalidate_current",
+            "DELIVERY_REVALIDATION_REQUIRED": "run_revalidate_current",
+            "PUBLICATION_LINEAGE_MISSING": "run_revalidate_current",
             "LOADED_PROGRAM_UNSUPPORTED": "load_exact_supported_program_before_retry",
         }.get(reason, "repair_internal_governance_state"),
         "launch_attempt": _launch_view(attempt),
@@ -142,12 +152,28 @@ def _load_attempt(root: Path) -> tuple[dict[str, Any] | None, str | None]:
 def _resolve_pre_attempt_status(root: Path) -> dict[str, Any]:
     try:
         release = load_current_release(root)
+    except (OSError, ValueError, ReleaseIdentityError):
+        return _base_status("CURRENT_RELEASE_INVALID", attempt=None)
+    try:
+        release_contract_reference(root, release)
+    except (
+        OSError,
+        BridgeAdmissionError,
+        ReleaseCertificateError,
+        ReleaseContractError,
+    ):
+        return _base_status("RELEASE_CERTIFICATE_MISSING", attempt=None)
+    try:
         delivery_path, delivery = resolve_delivery_observation(
             root,
             release=release,
         )
-    except (OSError, ValueError, ReleaseIdentityError, DeliveryObservationError):
-        return _base_status("NO_CANONICAL_LAUNCH_ATTEMPT", attempt=None)
+    except (OSError, ValueError, DeliveryObservationError):
+        return _base_status("DELIVERY_REVALIDATION_REQUIRED", attempt=None)
+    try:
+        resolve_publication_lineage(root, release=release)
+    except ReleaseTransitionError:
+        return _base_status("PUBLICATION_LINEAGE_MISSING", attempt=None)
     status = _base_status("NO_CANONICAL_LAUNCH_ATTEMPT", attempt=None)
     status["predicates"]["controller_fresh_get"] = True
     status["blocker"] = {"class": None, "reason_codes": [], "evidence": []}

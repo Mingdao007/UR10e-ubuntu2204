@@ -41,9 +41,28 @@ Options:
 Optional:
   --artifact-dir PATH        TP package directory (default: canonical Step5d)
   --evidence-output PATH     Receipt output under runs/ (default: generated)
+  --prior-full-readback-receipt PATH
+                             Required migration basis for first no-upload adoption;
+                             later releases reuse the tracked current basis
   --readback-only-existing   Fresh GET and adopt the exact candidate after
                              three-way SHA closure; no upload or Load
   -h, --help                 Show this help without starting any work
+EOF
+}
+
+runtime_revalidate_usage() {
+  cat <<'EOF'
+Usage: step5d-autotune-v3.sh revalidate-current [OPTIONS]
+
+Non-promoting post-merge/runtime-FF gate. Recomputes the current release,
+runs the sub-3 s release contract, performs a fresh controller GET, and writes
+runtime-local delivery plus publication-lineage evidence. It never uploads,
+promotes, loads, starts, sends ARM, or moves the robot.
+
+Options:
+  --artifact-dir PATH        TP package directory (default: current Step5d)
+  --evidence-output PATH     Receipt output under runs/ (default: generated)
+  -h, --help                 Show this help without controller access
 EOF
 }
 
@@ -71,6 +90,7 @@ usage() {
 Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
        step5d-autotune-v3.sh release-contract-check [OPTIONS]
        step5d-autotune-v3.sh tp-deliver [OPTIONS]
+       step5d-autotune-v3.sh revalidate-current [OPTIONS]
        step5d-autotune-v3.sh status [--json]
        step5d-autotune-v3.sh status --json --assert-state STATE
        step5d-autotune-v3.sh [OPERATOR-CLI-ARGS]
@@ -78,6 +98,7 @@ Usage: step5d-autotune-v3.sh bridge-live [OPTIONS]
 Use "step5d-autotune-v3.sh bridge-live --help" for bridge options.
 Use "step5d-autotune-v3.sh release-contract-check --help" for contract options.
 Use "step5d-autotune-v3.sh tp-deliver --help" for delivery options.
+Use "step5d-autotune-v3.sh revalidate-current --help" for runtime revalidation.
 EOF
 }
 
@@ -310,6 +331,7 @@ bridge_cancel_trap() {
 bridge_mode=0
 release_contract_check_mode=0
 tp_deliver_mode=0
+runtime_revalidate_mode=0
 tp_deliver_args=()
 release_candidate=""
 arguments=()
@@ -520,6 +542,7 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
   seen_release_candidate=0
   seen_release_certificate=0
   seen_evidence_output=0
+  seen_prior_full_readback=0
   seen_readback_only=0
   index=0
   while (( index < ${#arguments[@]} )); do
@@ -527,14 +550,14 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
     option_name="${option%%=*}"
     value=""
     case "${option}" in
-      --artifact-dir|--release-candidate|--release-certificate|--evidence-output)
+      --artifact-dir|--release-candidate|--release-certificate|--evidence-output|--prior-full-readback-receipt)
         if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
           tp_deliver_argv_error "${option} requires a value"
         fi
         value="${arguments[index + 1]}"
         ((index += 2))
         ;;
-      --artifact-dir=*|--release-candidate=*|--release-certificate=*|--evidence-output=*)
+      --artifact-dir=*|--release-candidate=*|--release-certificate=*|--evidence-output=*|--prior-full-readback-receipt=*)
         value="${option#*=}"
         if [[ -z "${value}" ]]; then
           tp_deliver_argv_error "${option_name} requires a value"
@@ -574,6 +597,14 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
         seen_evidence_output=1
         delivery_evidence_output="$(readlink -m -- "${value}")"
         ;;
+      --prior-full-readback-receipt)
+        (( seen_prior_full_readback == 0 )) || tp_deliver_argv_error "--prior-full-readback-receipt may appear only once"
+        seen_prior_full_readback=1
+        tp_deliver_args+=(
+          --prior-full-readback-receipt
+          "$(readlink -m -- "${value}")"
+        )
+        ;;
     esac
   done
   if [[ -z "${release_candidate}" ]]; then
@@ -593,6 +624,58 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
     --evidence-output "${delivery_evidence_output}"
     "${tp_deliver_args[@]}"
   )
+fi
+
+if [[ "${1:-}" == "revalidate-current" ]]; then
+  runtime_revalidate_mode=1
+  shift
+  arguments=("$@")
+  artifact_dir="${EXPERIMENT_ROOT}/programs/step5/step5d"
+  delivery_evidence_output=""
+  seen_artifact_dir=0
+  seen_evidence_output=0
+  index=0
+  while (( index < ${#arguments[@]} )); do
+    option="${arguments[index]}"
+    option_name="${option%%=*}"
+    value=""
+    if [[ "${option}" == "-h" || "${option}" == "--help" ]]; then
+      runtime_revalidate_usage
+      exit 0
+    fi
+    case "${option}" in
+      --artifact-dir|--evidence-output)
+        if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
+          tp_deliver_argv_error "${option} requires a value"
+        fi
+        value="${arguments[index + 1]}"
+        ((index += 2))
+        ;;
+      --artifact-dir=*|--evidence-output=*)
+        value="${option#*=}"
+        [[ -n "${value}" ]] || tp_deliver_argv_error "${option_name} requires a value"
+        ((index += 1))
+        ;;
+      *)
+        tp_deliver_argv_error "unsupported revalidate-current option: ${option}"
+        ;;
+    esac
+    case "${option_name}" in
+      --artifact-dir)
+        (( seen_artifact_dir == 0 )) || tp_deliver_argv_error "--artifact-dir may appear only once"
+        seen_artifact_dir=1
+        artifact_dir="$(readlink -m -- "${value}")"
+        ;;
+      --evidence-output)
+        (( seen_evidence_output == 0 )) || tp_deliver_argv_error "--evidence-output may appear only once"
+        seen_evidence_output=1
+        delivery_evidence_output="$(readlink -m -- "${value}")"
+        ;;
+    esac
+  done
+  if [[ -z "${delivery_evidence_output}" ]]; then
+    delivery_evidence_output="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/revalidate-$(date -u +%Y%m%dT%H%M%SZ)-$$.json"
+  fi
 fi
 
 if (( bridge_mode == 1 )); then
@@ -747,6 +830,24 @@ if (( tp_deliver_mode == 1 )); then
   "${CONTROL_PYTHON}" \
     "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
     "${tp_deliver_args[@]}"
+  exit $?
+fi
+if (( runtime_revalidate_mode == 1 )); then
+  export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
+  export STEP5D_V3_SHELL_PID="$$"
+  mkdir -p -- "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
+  "${CONTROL_PYTHON}" \
+    "${EXPERIMENT_ROOT}/tools/run_step5d_release_contract.py" \
+    --experiment-root "${EXPERIMENT_ROOT}" \
+    --output-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
+    >"${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/revalidate-contract-$$.json"
+  "${CONTROL_PYTHON}" \
+    "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
+    --root "${EXPERIMENT_ROOT}" \
+    --artifact-dir "${artifact_dir}" \
+    --evidence-output "${delivery_evidence_output}" \
+    --readback-only-existing \
+    --revalidate-current
   exit $?
 fi
 if (( bridge_mode == 1 )); then

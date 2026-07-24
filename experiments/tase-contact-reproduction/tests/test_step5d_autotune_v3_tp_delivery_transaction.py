@@ -4,6 +4,7 @@ import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import subprocess
 import sys
 from types import SimpleNamespace
 from typing import Any
@@ -18,6 +19,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import build_step5d_autotune_tp_v3 as builder  # noqa: E402
 import promote_step5d_r009_atomic_release as promotion  # noqa: E402
 import run_step5d_autotune_v3_tp_transaction as transaction  # noqa: E402
+from step5d_autotune_v3 import delivery_observation as delivery_module  # noqa: E402
 from step5d_autotune_v3.delivery_observation import (  # noqa: E402
     DeliveryObservationError,
     build_delivery_observation,
@@ -27,6 +29,7 @@ from step5d_autotune_v3.delivery_observation import (  # noqa: E402
     write_indexed_delivery_observation,
 )
 from step5d_autotune_v3.release_identity import load_local_release_candidate  # noqa: E402
+from step5d_autotune_v3 import release_transition as transition  # noqa: E402
 
 
 def _write_receipt(
@@ -110,6 +113,171 @@ def _copy_file(source: Path, destination: Path) -> None:
     destination.write_bytes(source.read_bytes())
 
 
+def _git(repository: Path, *arguments: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repository), *arguments],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def _transition_fixture(
+    tmp_path: Path,
+) -> tuple[Path, SimpleNamespace, SimpleNamespace, Path]:
+    repository = tmp_path / "repository"
+    root = repository / "experiments/tase-contact-reproduction"
+    root.mkdir(parents=True)
+    _git(repository, "init", "-q")
+    _git(repository, "config", "user.email", "test@example.invalid")
+    _git(repository, "config", "user.name", "release transition test")
+    (root / ".gitignore").write_text("runs/\n", encoding="utf-8")
+    basis_manifest = root / "config/step5d/releases/basis/manifest.json"
+    basis_manifest.parent.mkdir(parents=True)
+    basis_manifest.write_text('{"basis":true}\n', encoding="utf-8")
+    basis_manifest_sha256 = hashlib.sha256(
+        basis_manifest.read_bytes()
+    ).hexdigest()
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-qm", "basis release")
+    triplet = {
+        ".script": "1" * 64,
+        ".txt": "2" * 64,
+        ".urp": "3" * 64,
+    }
+    target = f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp"
+    basis = SimpleNamespace(
+        manifest_path=basis_manifest.relative_to(root).as_posix(),
+        manifest_sha256=basis_manifest_sha256,
+        program_id=promotion.PROGRAM,
+        controller_target=target,
+        artifact_sha256=dict(triplet),
+    )
+    candidate = SimpleNamespace(
+        manifest_path="config/step5d/releases/candidate/manifest.json",
+        manifest_sha256="f" * 64,
+        program_id=promotion.PROGRAM,
+        controller_target=target,
+        artifact_sha256=dict(triplet),
+    )
+    receipt = tmp_path / "prior-full-readback.json"
+    receipt.write_text(
+        json.dumps(
+            {
+                "status": "controller read-back verified",
+                "target_dir": promotion.TARGET_DIR,
+                "validation": {
+                    "program": promotion.PROGRAM,
+                    "script_node_path": target.replace(".urp", ".script"),
+                    "script_sha256": triplet[".script"],
+                    "txt_sha256": triplet[".txt"],
+                    "urp_sha256": triplet[".urp"],
+                },
+                "sha256": {
+                    role: dict(triplet)
+                    for role in ("local", "controller", "readback")
+                },
+                "delivery_mode": "full_upload_readback",
+                "fresh_controller_sha_verified": True,
+                "fresh_controller_checked_at": "2026-07-24T13:30:31+08:00",
+                "readback_source": "fresh_controller_get",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return root, candidate, basis, receipt
+
+
+def test_tracked_basis_imports_exact_prior_full_readback(
+    tmp_path: Path,
+) -> None:
+    root, candidate, basis, receipt = _transition_fixture(tmp_path)
+
+    path, payload = transition.create_delivery_basis(
+        root,
+        candidate_release=candidate,
+        basis_release=basis,
+        prior_full_receipt=receipt,
+    )
+
+    assert path == transition.delivery_basis_path(root, candidate)
+    assert payload["candidate_release_manifest_sha256"] == "f" * 64
+    prior = payload["prior_full_readback_receipt"]
+    imported = root / prior["path"]
+    assert imported.name == f"{prior['sha256']}.json"
+    assert transition.delivery_basis_reference(
+        root,
+        release=candidate,
+    ) == {
+        "path": path.relative_to(root).as_posix(),
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+
+
+def test_existing_receipt_requires_exact_tracked_basis(
+    tmp_path: Path,
+) -> None:
+    root, candidate, basis, prior = _transition_fixture(tmp_path)
+    transition.create_delivery_basis(
+        root,
+        candidate_release=candidate,
+        basis_release=basis,
+        prior_full_receipt=prior,
+    )
+    reference = transition.delivery_basis_reference(root, release=candidate)
+
+    assert transition.require_receipt_delivery_basis(
+        root,
+        {"delivery_basis": reference},
+        release=candidate,
+    ) == reference
+    with pytest.raises(
+        transition.ReleaseTransitionError,
+        match="basis reference differs",
+    ):
+        transition.require_receipt_delivery_basis(
+            root,
+            {"delivery_basis": {**reference, "sha256": "0" * 64}},
+            release=candidate,
+        )
+
+
+def test_runtime_lineage_binds_clean_exact_head_and_tree(
+    tmp_path: Path,
+) -> None:
+    root, candidate, basis, prior = _transition_fixture(tmp_path)
+    transition.create_delivery_basis(
+        root,
+        candidate_release=candidate,
+        basis_release=basis,
+        prior_full_receipt=prior,
+    )
+    repository = root.parents[1]
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-qm", "publish candidate basis")
+
+    path, payload = transition.write_publication_lineage(
+        root,
+        release=candidate,
+    )
+
+    assert path.is_file()
+    assert payload["release_commit"] == _git(repository, "rev-parse", "HEAD")
+    assert payload["release_tree"] == _git(repository, "rev-parse", "HEAD^{tree}")
+    assert transition.resolve_publication_lineage(
+        root,
+        release=candidate,
+    )[1] == payload
+
+    (root / ".gitignore").write_text("runs/\nchanged\n", encoding="utf-8")
+    with pytest.raises(
+        transition.ReleaseTransitionError,
+        match="no valid publication lineage",
+    ):
+        transition.resolve_publication_lineage(root, release=candidate)
+
+
 def _composition_fixture(tmp_path: Path) -> tuple[Path, Path]:
     repository = tmp_path / "repository"
     root = repository / "experiments/tase-contact-reproduction"
@@ -169,10 +337,16 @@ def test_delivery_manifest_drives_only_exact_fresh_triplet(tmp_path: Path) -> No
 
 def test_existing_program_fresh_readback_is_promotion_and_observation_eligible(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root, receipt = _fixture_manifest(tmp_path)
     payload = json.loads(receipt.read_text(encoding="utf-8"))
     payload["delivery_mode"] = "existing_program_fresh_readback"
+    basis_reference = {
+        "path": "config/step5d/delivery-bases/fixture.json",
+        "sha256": "9" * 64,
+    }
+    payload["delivery_basis"] = basis_reference
     now = datetime(2026, 7, 21, 3, 1, tzinfo=timezone.utc)
     payload["fresh_controller_checked_at"] = now.isoformat()
     receipt.write_text(json.dumps(payload) + "\n", encoding="utf-8")
@@ -183,9 +357,15 @@ def test_existing_program_fresh_readback_is_promotion_and_observation_eligible(
         root / promotion.PACKAGE_DIR,
         expected_transaction_id="a" * 32,
         expected_manifest_sha256=hashlib.sha256(receipt.read_bytes()).hexdigest(),
+        expected_delivery_basis=basis_reference,
     )
     assert validated["delivery_mode"] == "existing_program_fresh_readback"
     release = _release_for_receipt(receipt)
+    monkeypatch.setattr(
+        delivery_module,
+        "require_receipt_delivery_basis",
+        lambda *_args, **_kwargs: basis_reference,
+    )
     observation = build_delivery_observation(
         root,
         receipt_path=receipt,
@@ -658,6 +838,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         ),
         mock.patch.object(transaction, "acquire_controller_mutation_locks", side_effect=lambda: events.append("lock") or [object()]),
         mock.patch.object(transaction.upload, "_main", side_effect=fake_upload),
+        mock.patch.object(transaction, "create_delivery_basis"),
         mock.patch.object(transaction.promote, "promote", side_effect=fake_promote),
         mock.patch.object(
             transaction,
@@ -736,6 +917,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         "expected_transaction_id": token,
         "expected_manifest_sha256": hashlib.sha256(exact[0].read_bytes()).hexdigest(),
         "expected_candidate_manifest_sha256": release.manifest_sha256,
+        "expected_delivery_basis": None,
     }
 
 
@@ -809,6 +991,15 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
             return_value=[object()],
         ),
         mock.patch.object(transaction.upload, "_main", side_effect=fake_upload),
+        mock.patch.object(transaction, "create_delivery_basis"),
+        mock.patch.object(
+            transaction,
+            "delivery_basis_reference",
+            return_value={
+                "path": "config/step5d/delivery-bases/fixture.json",
+                "sha256": "9" * 64,
+            },
+        ),
         mock.patch.object(
             transaction.promote,
             "promote",
@@ -843,11 +1034,19 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
                 "--evidence-output",
                 str(evidence_output),
                 "--readback-only-existing",
+                "--prior-full-readback-receipt",
+                str(root / "prior-full-readback.json"),
             ]
         ) == 0
 
     assert "--readback-only-existing" in upload_arguments
     assert "--force-upload-readback" not in upload_arguments
+    assert upload_arguments[
+        upload_arguments.index("--delivery-basis-path") + 1
+    ] == "config/step5d/delivery-bases/fixture.json"
+    assert upload_arguments[
+        upload_arguments.index("--delivery-basis-sha256") + 1
+    ] == "9" * 64
     assert not hasattr(transaction, "load_current_release_for_compatible_readback")
 
 
@@ -877,6 +1076,20 @@ def test_readback_only_get_failure_prevents_evidence_and_promotion(
             transaction,
             "_validate_candidate_and_certificate",
             return_value=candidate,
+        ),
+        mock.patch.object(
+            transaction,
+            "load_current_release",
+            return_value=candidate,
+        ),
+        mock.patch.object(transaction, "create_delivery_basis"),
+        mock.patch.object(
+            transaction,
+            "delivery_basis_reference",
+            return_value={
+                "path": "config/step5d/delivery-bases/fixture.json",
+                "sha256": "9" * 64,
+            },
         ),
         mock.patch.object(
             transaction,
@@ -916,6 +1129,8 @@ def test_readback_only_get_failure_prevents_evidence_and_promotion(
                 "--evidence-output",
                 str(root / "runs/campaign/delivery-observation.json"),
                 "--readback-only-existing",
+                "--prior-full-readback-receipt",
+                str(root / "prior-full-readback.json"),
             ]
         )
 

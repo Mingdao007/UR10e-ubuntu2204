@@ -44,6 +44,16 @@ def _validated_manual_release_contract(monkeypatch: pytest.MonkeyPatch) -> None:
             "acquired_at": "fixture",
         },
     )
+    monkeypatch.setattr(
+        bridge_status,
+        "release_contract_reference",
+        lambda *_args, **_kwargs: {"ok": "contract"},
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_publication_lineage",
+        lambda *_args, **_kwargs: (Path("lineage.json"), {"ok": True}),
+    )
 
 
 def _bindings(campaign: Path, output: Path, snapshot: Path) -> dict[str, object]:
@@ -342,8 +352,8 @@ def test_status_without_canonical_attempt_never_reuses_stale_v3_state(
     assert status["state"] == "UNPREPARED"
     assert status["compatibility_phase"] is None
     assert status["predicates"]["play_prompt_ready"] is False
-    assert status["blocker"]["reason_codes"] == ["NO_CANONICAL_LAUNCH_ATTEMPT"]
-    assert status["next_action"] == "start_canonical_bridge"
+    assert status["blocker"]["reason_codes"] == ["CURRENT_RELEASE_INVALID"]
+    assert status["next_action"] == "repair_current_release_before_retry"
 
 
 def test_status_without_attempt_projects_delivery_receipt(
@@ -374,6 +384,26 @@ def test_status_without_attempt_projects_delivery_receipt(
     assert status["predicates"]["controller_fresh_get"] is True
     assert status["blocker"]["reason_codes"] == []
     assert status["launch_attempt"]["present"] is False
+
+
+def test_status_requires_runtime_revalidation_before_bridge(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = type("Release", (), {"manifest_sha256": "a" * 64})()
+    monkeypatch.setattr(bridge_status, "load_current_release", lambda _root: release)
+    monkeypatch.setattr(
+        bridge_status,
+        "release_contract_reference",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            FileNotFoundError("missing")
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["blocker"]["reason_codes"] == ["RELEASE_CERTIFICATE_MISSING"]
+    assert status["next_action"] == "run_revalidate_current"
 
 
 def test_status_without_attempt_projects_fresh_action_required(

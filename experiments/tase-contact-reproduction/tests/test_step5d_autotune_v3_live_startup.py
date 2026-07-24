@@ -581,9 +581,10 @@ def test_source_rebind_and_embedded_delivery_recovery_are_removed() -> None:
     assert "--source-rebind" not in source
     delivery = source.index("if (( tp_deliver_mode == 1 )); then")
     bridge = source.index("if (( bridge_mode == 1 )); then", delivery)
-    assert source.count("run_step5d_autotune_v3_tp_transaction.py") == 1
+    assert source.count("run_step5d_autotune_v3_tp_transaction.py") == 2
     assert "run_step5d_autotune_v3_tp_transaction.py" in source[delivery:bridge]
     assert "run_step5d_autotune_v3_tp_transaction.py" not in source[bridge:]
+    assert "--revalidate-current" in source
 
 
 def test_canonical_shell_records_only_direct_live_phases() -> None:
@@ -636,6 +637,7 @@ def _fake_governed_shell(
         "tools/step5d_autotune_v3/atomic_io.py",
         "tools/step5d_autotune_v3/governance.py",
         "tools/step5d_autotune_v3/delivery_observation.py",
+        "tools/step5d_autotune_v3/release_transition.py",
     ):
         source_path = ROOT / relative
         destination = tools / Path(relative).relative_to("tools")
