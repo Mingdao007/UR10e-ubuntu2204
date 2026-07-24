@@ -100,8 +100,11 @@ def _run(
     )
     log.write_text(completed.stdout, encoding="utf-8")
     if completed.returncode != 0:
+        lines = completed.stdout.splitlines()
+        tail = "\n".join(lines[-80:])
         raise OciGateError(
             f"clean-room child failed ({completed.returncode}): {' '.join(command)}"
+            f"\n--- bounded child log tail ---\n{tail[-12_000:]}"
         )
     return {
         "command": list(command),

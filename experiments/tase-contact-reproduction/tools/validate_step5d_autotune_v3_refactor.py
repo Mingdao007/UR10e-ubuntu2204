@@ -737,7 +737,7 @@ def _placeholder(value: str) -> bool:
         not stripped
         or plain in {"...", "-", "todo", "tbd", "describe", "replace"}
         or plain.startswith(("todo:", "tbd:", "describe this", "replace this", "replace with"))
-        or re.search(r"<(?:command|commit)(?:\b|>)", lowered) is not None
+        or re.search(r"<[^<>\r\n]+>", stripped) is not None
     )
 
 
@@ -776,7 +776,9 @@ def declaration_issues(text: str) -> list[str]:
     rollback = _code_commands(sections.get("rollback", ""))
     if not rollback:
         issues.append("declaration_rollback_command_missing")
-    tests = _code_commands(sections.get("validation commands", ""))
+    tests = _code_commands(
+        sections.get("validation commands", sections.get("validation", ""))
+    )
     if not tests:
         issues.append("declaration_test_command_missing")
     return issues

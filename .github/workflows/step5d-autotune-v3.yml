@@ -14,6 +14,8 @@ on:
       - "experiments/tase-contact-reproduction/tools/step5d_autotune_v3/**"
       - "experiments/tase-contact-reproduction/tools/step5d_autotune_*.py"
       - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_*.py"
+      - "experiments/tase-contact-reproduction/tools/run_step5d_release_contract.py"
+      - "experiments/tase-contact-reproduction/tools/promote_step5d_r*_atomic_release.py"
       - "experiments/tase-contact-reproduction/tools/step5d_bridge_*.py"
       - "experiments/tase-contact-reproduction/tools/step5d_manual_*.py"
       - "experiments/tase-contact-reproduction/tools/run_step5d_manual_*.py"
@@ -28,9 +30,11 @@ on:
       - "experiments/tase-contact-reproduction/config/step5/**"
       - "experiments/tase-contact-reproduction/config/step5_stage_table.json"
       - "experiments/tase-contact-reproduction/config/systemd/step5d-autotune-v3.service"
-      - "experiments/tase-contact-reproduction/config/step5d_autotune_controller_readback_v2.json"
+      - "experiments/tase-contact-reproduction/config/step5d_autotune_controller_readback_v*.json"
       - "experiments/tase-contact-reproduction/tests/test_step5d_autotune_v3_*.py"
       - "experiments/tase-contact-reproduction/tests/test_step5d_autotune*.py"
+      - "experiments/tase-contact-reproduction/tests/test_step5d_release_contract.py"
+      - "experiments/tase-contact-reproduction/tests/test_step5d_r0*_release_core.py"
       - "experiments/tase-contact-reproduction/tests/test_step5d_v3_*.py"
       - "experiments/tase-contact-reproduction/tests/test_step5d_bridge_*.py"
       - "experiments/tase-contact-reproduction/tests/test_step5d_manual_*.py"
@@ -47,6 +51,7 @@ on:
       - "experiments/tase-contact-reproduction/tools/build_step5d_autotune_tp_v3.py"
       - "experiments/tase-contact-reproduction/scripts/step5d-autotune-v3-hil-hold.sh"
       - "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v3.*"
+      - "experiments/tase-contact-reproduction/programs/step5/step5d/step5d_strict_rnn_autotune_v3_r*.*"
       - "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py"
       - "experiments/tase-contact-reproduction/tools/step5d_autotune_contract.py"
       - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py"
@@ -113,7 +118,6 @@ jobs:
           --output runs/ci-step5d-autotune-v3-${{ github.run_id }}
 
   oci-cleanroom-cpu:
-    needs: hermetic-fast
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:

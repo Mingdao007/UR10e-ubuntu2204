@@ -50,3 +50,10 @@ def test_workflow_mounts_repo_read_only_and_disables_runtime_network() -> None:
     assert "dst=/output" in workflow
     assert "Dockerfile.cpu" in workflow
     assert "Dockerfile.cuda" not in workflow
+    assert "needs: hermetic-fast" not in workflow
+
+
+def test_runner_reports_a_bounded_child_log_tail() -> None:
+    source = (OCI / "run_oci_gate.py").read_text(encoding="utf-8")
+    assert "lines[-80:]" in source
+    assert "tail[-12_000:]" in source
