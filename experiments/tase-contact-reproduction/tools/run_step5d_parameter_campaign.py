@@ -397,6 +397,52 @@ def _wait_initial_home(
             continue
 
 
+def _wait_resume_home(
+    args: argparse.Namespace,
+    follower: BridgeCsvFollower,
+    *,
+    home_identity: Mapping[str, int],
+) -> dict[str, int]:
+    """Adopt only the exact durable terminal Home after a runner restart."""
+
+    expected = {
+        "campaign_epoch": int(home_identity["campaign_epoch"]),
+        "trial_id": int(home_identity["last_trial_id"]),
+        "consumed_command_seq": int(home_identity["last_command_seq"]),
+    }
+    _publish_status(args, state="WAITING_FOR_HOME", observation=None)
+    while True:
+        try:
+            for row in follower.rows(timeout_s=OBSERVATION_POLL_S):
+                observed = _tp_observation(row)
+                if observed["safety_mode"] != 1:
+                    raise HardwareRecoveryRequired("UR Safety is not NORMAL")
+                if (
+                    _integer(row, "ur_runtime_state") != UR_RUNTIME_PLAYING
+                    or observed["state"] != READY_HOME_NEXT
+                ):
+                    continue
+                if not _safe_home(observed):
+                    raise HardwareRecoveryRequired(
+                        "resume READY_HOME_NEXT is not a safe Home"
+                    )
+                actual = {
+                    key: observed[key]
+                    for key in (
+                        "campaign_epoch",
+                        "trial_id",
+                        "consumed_command_seq",
+                    )
+                }
+                if actual != expected:
+                    raise ParameterCampaignError(
+                        "resume READY_HOME_NEXT identity differs from durable Home"
+                    )
+                return observed
+        except BridgeCsvTimeout:
+            continue
+
+
 def _wait_next_dispatch(
     args: argparse.Namespace,
     follower: BridgeCsvFollower,
@@ -883,23 +929,38 @@ def run(args: argparse.Namespace) -> None:
             dispatch=dispatch,
         )
     else:
-        while True:
-            try:
-                observed = _wait_initial_home(args, follower)
-                break
-            except HardwareRecoveryRequired as exc:
-                observed = _recover_home(
-                    args,
-                    follower,
-                    observation=None,
-                    detail=str(exc),
-                )
-        bind_home(
-            args.receiver_root,
-            campaign_epoch=max(1, observed["campaign_epoch"]),
-            last_trial_id=observed["trial_id"],
-            last_command_seq=observed["consumed_command_seq"],
+        home_identity = queue_state["home_identity"]
+        resume_home = (
+            home_identity is not None
+            and (
+                int(home_identity["last_trial_id"]) > 0
+                or int(home_identity["last_command_seq"]) > 0
+            )
         )
+        if not resume_home:
+            while True:
+                try:
+                    observed = _wait_initial_home(args, follower)
+                    break
+                except HardwareRecoveryRequired as exc:
+                    observed = _recover_home(
+                        args,
+                        follower,
+                        observation=None,
+                        detail=str(exc),
+                    )
+            bind_home(
+                args.receiver_root,
+                campaign_epoch=max(1, observed["campaign_epoch"]),
+                last_trial_id=observed["trial_id"],
+                last_command_seq=observed["consumed_command_seq"],
+            )
+        else:
+            observed = _wait_resume_home(
+                args,
+                follower,
+                home_identity=home_identity,
+            )
     dispatch = None
     while True:
         try:

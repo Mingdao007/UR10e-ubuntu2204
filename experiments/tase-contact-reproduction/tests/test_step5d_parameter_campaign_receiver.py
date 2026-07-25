@@ -97,6 +97,45 @@ def test_terminal_wait_records_consumption_before_terminal_home():
     assert observed["state"] == 78
 
 
+def test_resume_home_accepts_only_exact_durable_state78(monkeypatch):
+    monkeypatch.setattr(runner, "_publish_status", lambda *args, **kwargs: None)
+    row = _observation(seq=1, trial=1, state=78, reason=1)
+    row["ur_runtime_state"] = runner.UR_RUNTIME_PLAYING
+
+    observed = runner._wait_resume_home(
+        SimpleNamespace(),
+        FakeFollower([row]),
+        home_identity={
+            "campaign_epoch": 1,
+            "last_trial_id": 1,
+            "last_command_seq": 1,
+        },
+    )
+
+    assert observed["state"] == runner.READY_HOME_NEXT
+    assert observed["consumed_command_seq"] == 1
+
+
+def test_resume_home_rejects_durable_identity_mismatch(monkeypatch):
+    monkeypatch.setattr(runner, "_publish_status", lambda *args, **kwargs: None)
+    row = _observation(seq=2, trial=2, state=78, reason=1)
+    row["ur_runtime_state"] = runner.UR_RUNTIME_PLAYING
+
+    with pytest.raises(
+        runner.ParameterCampaignError,
+        match="identity differs from durable Home",
+    ):
+        runner._wait_resume_home(
+            SimpleNamespace(),
+            FakeFollower([row]),
+            home_identity={
+                "campaign_epoch": 1,
+                "last_trial_id": 1,
+                "last_command_seq": 1,
+            },
+        )
+
+
 def test_same_sequence_identity_mismatch_is_typed_trial_outcome():
     arm = _arm(trial=2, seq=2, token=100, batch=2)
     with pytest.raises(runner.TrialOutcomeError) as caught:
