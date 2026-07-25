@@ -220,6 +220,15 @@ def parse_args() -> LaunchPreparationRequest:
         / "config/step5/step5d_autotune_v3_launch_profile.json",
     )
     parser.add_argument("--candidate-batch-size", type=int, choices=(5, 10), default=5)
+    # Coordinator identity is carried on the worker argv so the publication
+    # and preflight lanes have one visible basis.  Preparation itself remains
+    # the existing pure campaign binding operation; the coordinator validates
+    # these fields after the worker returns.
+    parser.add_argument("--campaign-fingerprint")
+    parser.add_argument("--launch-basis")
+    parser.add_argument("--launch-basis-sha256")
+    parser.add_argument("--owner-pid", type=int)
+    parser.add_argument("--owner-starttime", type=int)
     args = parser.parse_args()
     return LaunchPreparationRequest(
         experiment_root=args.experiment_root,

@@ -21,7 +21,6 @@ from step5d_autotune_v3.runtime_environment import (  # noqa: E402
 from step5d_autotune_v3.runtime_installation import (  # noqa: E402
     load_runtime_pointer_integrity,
 )
-from step5d_autotune_v3.release_identity import load_current_release  # noqa: E402
 
 
 def test_compact_runtime_calibration_matches_installed_robot_description() -> None:
@@ -193,19 +192,28 @@ def test_installed_manual_guard_contract_matches_production_bridge() -> None:
     manual.require_manual_guard_semantics(production)
 
 
-def test_installed_runtime_builds_context_for_current_release() -> None:
-    context = context_builder.build_context(
-        ROOT,
-        plant_epoch=1,
-        runtime_environment={
-            "capture_mode": "offline_no_arm_check",
-            "scheduler": {
-                "policy_name": "SCHED_OTHER",
-                "priority": 0,
-                "nice": 0,
-            },
-        },
+def test_installed_runtime_build_context_refactor_is_fail_closed_for_incompatible_current() -> None:
+    readiness_report = context_builder.resolve_release_readiness(ROOT)
+    blockers = readiness_report["blockers"]
+    assert any(
+        "canonical_active_release_verification_failed:experiment source fingerprint coverage differs"
+        in blocker
+        for blocker in blockers
     )
 
-    assert context.plant_epoch == 1
-    assert context.tp_program_id == load_current_release(ROOT).program_id
+    with pytest.raises(
+        context_builder.BridgeContextBuildError,
+        match="selected TP program is known_incompatible_do_not_retry",
+    ):
+        context_builder.build_context(
+            ROOT,
+            plant_epoch=1,
+            runtime_environment={
+                "capture_mode": "offline_no_arm_check",
+                "scheduler": {
+                    "policy_name": "SCHED_OTHER",
+                    "priority": 0,
+                    "nice": 0,
+                },
+            },
+        )

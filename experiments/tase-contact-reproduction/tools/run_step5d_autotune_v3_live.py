@@ -19,12 +19,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from prepare_step5d_autotune_launch import (
-    LaunchPreparationRequest,
-    prepare,
-    write_machine_campaign_binding,
-)
-from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
 from step5d_autotune_state_machine import TpLoopState
 from step5d_autotune_v3.dashboard import DashboardObservationError, dashboard_exchange
 from step5d_autotune_v3.delivery_observation import (
@@ -293,6 +287,23 @@ def _run_recoverable_sessions(
                 signal.signal(signum, handler)
             except (ValueError, OSError):
                 pass
+
+
+def dispatch_single_session(
+    session_callable: Callable[[], Mapping[str, Any] | None],
+    cleanup: Callable[[], None],
+) -> Mapping[str, Any] | None:
+    """Run exactly one owned session for deterministic offline tests.
+
+    This seam deliberately has no retry loop and creates no child process of
+    its own.  The session callback owns any children it starts; on failure the
+    supplied cleanup callback is invoked before the exception is propagated.
+    """
+    try:
+        return session_callable()
+    except BaseException:
+        cleanup()
+        raise
 
 
 def _write_session_lifecycle(
@@ -955,6 +966,30 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
     return process.returncode
 
 
+def _run_bridge_command_and_wait_for_readiness(
+    command: list[str],
+    *,
+    bridge_ready_path: Path,
+    timeout_s: float,
+    role: str,
+    **popen_kwargs: Any,
+) -> tuple[subprocess.Popen[Any], int, int]:
+    """Start one owned bridge child and require a bounded readiness artifact."""
+    launch_started_ns = time.perf_counter_ns()
+    process = subprocess.Popen(command, **popen_kwargs)
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise LiveLaunchError(
+                f"{role} process exited before readiness rc={process.returncode}"
+            )
+        if bridge_ready_path.is_file():
+            return process, launch_started_ns, time.perf_counter_ns()
+        time.sleep(0.05)
+    _terminate(process)
+    raise LiveLaunchError(f"{role} readiness timeout")
+
+
 def _parent_death_guard(
     expected_parent_pid: int,
     expected_parent_starttime: int,
@@ -1184,6 +1219,8 @@ def _run_live(
             },
         )
 
+    if getattr(args, "single_session", False):
+        return dispatch_single_session(session_callable, cleanup)
     return _run_recoverable_sessions(
         session_callable,
         cleanup=cleanup,
@@ -1196,6 +1233,13 @@ def _run_live_session(
     args: argparse.Namespace,
     runtime_pointer: Mapping[str, Any],
 ) -> Mapping[str, Any]:
+    from prepare_step5d_autotune_launch import (
+        LaunchPreparationRequest,
+        prepare,
+        write_machine_campaign_binding,
+    )
+    from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
+
     control_python = runtime_pointer["profiles"]["control"]["python_executable"]
     release = load_runtime_release(ROOT)
     delivery_observation = load_delivery_observation(
@@ -1389,21 +1433,26 @@ def _run_live_session(
         ) from exc
     try:
         with bridge_log_path.open("wb") as bridge_log:
-            bridge = subprocess.Popen(
-                command,
-                cwd=ROOT,
-                env=bridge_environment,
-                stdin=subprocess.DEVNULL,
-                stdout=bridge_log,
-                stderr=subprocess.STDOUT,
-                close_fds=True,
-                preexec_fn=lambda expected_pid=supervisor_pid, expected_start=supervisor_starttime: _parent_death_guard(
-                    expected_pid,
-                    expected_start,
-                ),
+            # The production session remains continuous after this barrier;
+            # only startup readiness is bounded and fail-fast.
+            bridge, _bridge_launch_started_ns, _bridge_ready_observed_ns = (
+                _run_bridge_command_and_wait_for_readiness(
+                    command,
+                    bridge_ready_path=bridge_run / "bridge_ready.json",
+                    timeout_s=float(getattr(args, "ready_timeout_s", 30.0)),
+                    role="bridge",
+                    cwd=ROOT,
+                    env=bridge_environment,
+                    stdin=subprocess.DEVNULL,
+                    stdout=bridge_log,
+                    stderr=subprocess.STDOUT,
+                    close_fds=True,
+                    preexec_fn=lambda expected_pid=supervisor_pid, expected_start=supervisor_starttime: _parent_death_guard(
+                        expected_pid, expected_start
+                    ),
+                )
             )
             lifecycle.bridge = bridge
-            _wait_file(bridge_run / "bridge_ready.json", bridge, "bridge")
             bridge_ready = read_strict_json(
                 bridge_run / "bridge_ready.json", role="bridge readiness"
             )
@@ -1959,6 +2008,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--preflight", type=Path)
     parser.add_argument("--delivery-observation", type=Path)
+    parser.add_argument("--admission", type=Path)
+    parser.add_argument("--authority-epoch", type=int)
+    parser.add_argument("--launch-basis", type=Path)
+    parser.add_argument("--launch-basis-sha256")
+    parser.add_argument("--campaign-prepare", type=Path)
+    parser.add_argument("--ready-timeout-s", type=float, default=30.0)
     parser.add_argument(
         "--campaign-root",
         type=Path,
@@ -1972,6 +2027,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--canonical-owner-pid", type=int, required=True)
     parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--single-session", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -1995,6 +2051,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         args._runtime_pointer = require_runtime_profile("control")
         if args.prepare_only:
+            from prepare_step5d_autotune_launch import LaunchPreparationRequest, prepare
+
             release = load_current_release(ROOT)
             contract_path = release_payload_path(
                 ROOT, release, SAFETY_ENVELOPE_PATH

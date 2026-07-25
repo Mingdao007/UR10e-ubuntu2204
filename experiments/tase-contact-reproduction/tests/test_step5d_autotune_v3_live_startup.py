@@ -587,13 +587,13 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
 def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     source = inspect.getsource(live._run_live_session)
     writer_lease_acquired = source.index("writer_guard.__enter__()")
-    bridge_start = source.index("bridge = subprocess.Popen(")
+    bridge_start = source.index("_run_bridge_command_and_wait_for_readiness(")
     runner_start = source.index("runner = subprocess.Popen(")
     runner_ready = source.index(
         '_wait_file(runner_ready, runner, "campaign runner")'
     )
     bridge_ready = source.index(
-        '_wait_file(bridge_run / "bridge_ready.json", bridge, "bridge")'
+        'bridge_ready = read_strict_json(\n                bridge_run / "bridge_ready.json"'
     )
     no_arm_ready = source.index('print("V3_BRIDGE_READY_NO_ARM"', bridge_ready)
     claim_gate = source.index("_publish_canonical_readiness_claim(", runner_ready)
@@ -749,6 +749,9 @@ def test_source_rebind_and_embedded_delivery_recovery_are_removed() -> None:
     assert source.count("run_step5d_autotune_v3_tp_transaction.py") == 2
     assert "run_step5d_autotune_v3_tp_transaction.py" in source[delivery:bridge]
     assert "run_step5d_autotune_v3_tp_transaction.py" not in source[bridge:]
+    assert "--publication-plan-output" in source
+    tp_execution = source[delivery:source.index("if (( runtime_revalidate_mode == 1 ));", delivery)]
+    assert "--revalidate-current" not in tp_execution
     assert "--revalidate-current" in source
 
 
@@ -801,7 +804,7 @@ def test_canonical_shell_records_only_direct_live_phases() -> None:
         '"${CONTROL_PYTHON}" '
         '"${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"'
     )
-    assert source.count(exact_live) == 2
+    assert source.count(exact_live) == 1
     assert f"exec {exact_live}" not in source
     assert 'python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"' not in source
 
@@ -826,6 +829,9 @@ def _fake_governed_shell(
         "tools/step5d_autotune_v3/governance.py",
         "tools/step5d_autotune_v3/delivery_observation.py",
         "tools/step5d_autotune_v3/release_transition.py",
+        "tools/step5d_autotune_v3/release_identity.py",
+        "tools/step5d_autotune_v3/runtime_identity.py",
+        "tools/step5d_autotune_v3/source_fingerprint_contract.py",
     ):
         source_path = ROOT / relative
         destination = tools / Path(relative).relative_to("tools")
@@ -895,7 +901,7 @@ def _fake_governed_shell(
         "fi\n"
         "if [[ \"${1:-}\" == '-c' ]]; then printf '%032d\\n' 0; exit 0; fi\n"
         + (
-            "if [[ \" $* \" == *' --prepare-only '* ]]; then exit 41; fi\n"
+            "if [[ \" $* \" == *'run_step5d_autotune_v3_coordinator.py'* ]]; then exit 41; fi\n"
             if fail_prepare
             else ""
         )
@@ -1043,9 +1049,9 @@ def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
     live_calls = [
         line for line in commands if "run_step5d_autotune_v3_live.py" in line
     ]
-    assert len(live_calls) == 2
-    assert "--preflight" in live_calls[-1]
-    assert "step5d_autotune_v3.cli" not in live_calls[-1]
+    assert len(live_calls) == 1
+    assert "--preflight" in live_calls[0]
+    assert "step5d_autotune_v3.cli" not in live_calls[0]
 
 
 def test_shell_action_required_creates_no_attempt_or_authority(
@@ -1130,8 +1136,49 @@ def test_shell_tp_deliver_is_independent_from_bridge_authority(
     assert "--release-candidate" in transaction_calls[0]
     assert "--release-certificate" in transaction_calls[0]
     assert "--evidence-output" in transaction_calls[0]
+    assert "--publication-plan-output" in transaction_calls[0]
+    assert "--publish-and-revalidate" not in transaction_calls[0]
     assert not any("check_step5d_autotune_v3_bridge_admission.py" in line for line in commands)
     assert not (experiment / "runs/step5d_bridge_authority").exists()
+
+
+def test_shell_tp_deliver_explicit_publication_flag_reaches_transaction(
+    tmp_path: Path,
+) -> None:
+    shell, command_log, environment = _fake_governed_shell(
+        tmp_path,
+        fail_prepare=False,
+    )
+    experiment = shell.parent.parent
+    result = subprocess.run(
+        [
+            str(shell),
+            "tp-deliver",
+            "--release-candidate",
+            str(shell),
+            "--publish-and-revalidate",
+            "--release-certificate",
+            str(shell),
+            "--evidence-output",
+            str(experiment / "runs/delivery-publication.json"),
+        ],
+        cwd=experiment,
+        env=environment,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=10.0,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    calls = [
+        line
+        for line in command_log.read_text(encoding="utf-8").splitlines()
+        if "run_step5d_autotune_v3_tp_transaction.py" in line
+    ]
+    assert len(calls) == 1
+    assert "--publish-and-revalidate" in calls[0]
 
 
 def test_shell_release_contract_is_offline_and_independent_from_bridge_authority(

@@ -31,7 +31,6 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
-import pinocchio as pin
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -58,7 +57,6 @@ from contact_semantics import (  # noqa: E402
     twist_same_origin_to_base,
 )
 from step_pose_contract import PRE_CONTACT_GRAVITY_DOWN_CONTRACT_ID, contract_target_axis_base  # noqa: E402
-import step5c_calibrated_kinematics_audit as step5d_kin  # noqa: E402
 from step5_table import step5_path_reference  # noqa: E402
 from step5c_strict_rnn import (  # noqa: E402
     StrictRnnCommandResult,
@@ -2006,11 +2004,29 @@ def skew3_np(vector: np.ndarray) -> np.ndarray:
     return np.array([[0.0, -z, y], [z, 0.0, -x], [-y, x, 0.0]], dtype=float)
 
 
+def _pinocchio_module() -> Any:
+    """Load the optional kinematics dependency only when motion code runs."""
+
+    try:
+        import pinocchio as pin
+    except ImportError as exc:
+        raise RuntimeError("pinocchio is required for the live kinematics path") from exc
+    return pin
+
+
+def _step5d_kinematics_module() -> Any:
+    """Load the calibrated model only when live preparation is entered."""
+    import step5c_calibrated_kinematics_audit as step5d_kin
+
+    return step5d_kin
+
+
 def step5d_tcp_jacobian_base(
     model_bundle: step5d_kin.CalibratedModel,
     q: np.ndarray,
     tcp_offset_tool0: np.ndarray,
 ) -> np.ndarray:
+    pin = _pinocchio_module()
     model = model_bundle.model
     data = model_bundle.data
     pin.forwardKinematics(model, data, q)
@@ -3937,6 +3953,7 @@ def ensure_step5d_liveprep_control_runtime(
 
 def ensure_step5d_liveprep_runtime(state: "BridgeState", args: argparse.Namespace) -> None:
     if state.step5d_model_bundle is None:
+        step5d_kin = _step5d_kinematics_module()
         state.step5d_model_bundle = step5d_kin.build_calibrated_model()
         audit_rows = step5d_kin.finite_run_rows(step5d_kin.DEFAULT_BRIDGE_CSV)
         state.step5d_tcp_offset_tool0 = step5d_kin.infer_tcp_offset(

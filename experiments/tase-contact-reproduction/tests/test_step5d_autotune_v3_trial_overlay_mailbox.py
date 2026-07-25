@@ -39,6 +39,7 @@ from step5d_autotune_v3.runtime_profile import (  # noqa: E402
 )
 from step5d_autotune_v3.profile import contract_sha256  # noqa: E402
 from step5d_autotune_batch_plan import initialize_rolling_plan, load_plan  # noqa: E402
+from step5d_autotune_v3.campaign_prepare import prepare_campaign
 from step5d_autotune_r008_policy import initialization_batch  # noqa: E402
 from step5d_autotune_runtime_lifecycle import next_runtime_plan_row  # noqa: E402
 import run_step5d_autotune_v3_bridge as bridge_wrapper  # noqa: E402
@@ -456,9 +457,10 @@ def test_initial_live_batch_uses_fresh_campaign_local_history(
         campaign_id="fresh-v3-plant-epoch",
     )
     launch_profile_path, launch_profile = _write_test_launch_profile(tmp_path)
-    live.prepare_campaign_state(
+    prepare_campaign(
         campaign_root,
-        launch_profile,
+        campaign_id="fresh-v3-plant-epoch",
+        launch_profile=launch_profile,
     )
     plan = load_plan(candidate_plan, campaign_id="fresh-v3-plant-epoch")
     overlays = json.loads(

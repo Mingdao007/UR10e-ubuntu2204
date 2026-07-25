@@ -901,6 +901,7 @@ class RollingBatchProducer:
         launch_profile: LaunchProfile,
         instance_id: str | None = None,
         crash_hook: CrashHook | None = None,
+        authority_guard: Callable[[], Any] | None = None,
     ) -> None:
         if not isinstance(campaign_id, str) or not campaign_id.strip():
             raise BatchProducerError("IDENTITY_INVALID", "campaign_id must be non-empty")
@@ -925,6 +926,11 @@ class RollingBatchProducer:
             )
         self.instance_id = instance_id
         self.crash_hook = crash_hook
+        self.authority_guard = authority_guard
+
+    def _assert_authority(self) -> None:
+        if self.authority_guard is not None:
+            self.authority_guard()
 
     @property
     def intent_path(self) -> Path:
@@ -1571,6 +1577,7 @@ class RollingBatchProducer:
             batches=[*overlay_plan["batches"], intent["overlay_batch"]],
         )
         try:
+            self._assert_authority()
             atomic_json(self.paths.trial_overlays, payload)
         except (OSError, StateError) as exc:
             raise BatchProducerError("OVERLAY_WRITE_FAILED", str(exc)) from exc
@@ -1612,12 +1619,14 @@ class RollingBatchProducer:
             "coherence_sha256": _json_sha256(coherence_material),
         }
         try:
+            self._assert_authority()
             atomic_json(self.evidence_path, payload)
         except (OSError, StateError) as exc:
             raise BatchProducerError("EVIDENCE_WRITE_FAILED", str(exc)) from exc
         return payload, _json_sha256(payload)
 
     def _clear_intent(self) -> None:
+        self._assert_authority()
         if self.intent_path.is_symlink() or not self.intent_path.is_file():
             raise BatchProducerError("INTENT_INVALID", "intent must be a real regular file")
         try:
@@ -1662,6 +1671,7 @@ class RollingBatchProducer:
             "evidence_sha256": evidence_sha256,
         }
         try:
+            self._assert_authority()
             atomic_json(self.heartbeat_path, payload)
         except (OSError, StateError) as exc:
             raise BatchProducerError("HEARTBEAT_WRITE_FAILED", str(exc)) from exc
@@ -1707,6 +1717,7 @@ class RollingBatchProducer:
         recovered = state != "before_both"
         if state == "before_both":
             try:
+                self._assert_authority()
                 plan = append_r008_batch(
                     self.paths.candidate_plan,
                     occurrences=self._intent_occurrences(intent),
@@ -1774,6 +1785,7 @@ class RollingBatchProducer:
                 "API_INVALID", "provide either proposal or proposal_provider, not both"
             )
         try:
+            self._assert_authority()
             with control_lock(self.paths):
                 self._validate_existing_evidence_binding()
                 intent = self._read_intent()
@@ -1846,6 +1858,7 @@ class RollingBatchProducer:
                     plan=plan, overlay_plan=overlay_plan, proposal=selected
                 )
                 try:
+                    self._assert_authority()
                     atomic_json(self.intent_path, intent)
                 except (OSError, StateError) as exc:
                     raise BatchProducerError("INTENT_WRITE_FAILED", str(exc)) from exc

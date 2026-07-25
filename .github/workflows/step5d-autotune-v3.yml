@@ -2,6 +2,7 @@ name: Step5d Autotune v3 hermetic gate
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     paths:
       - ".github/pull_request_template.md"
       - ".github/workflows/step5d-autotune-v3.yml"
@@ -22,6 +23,8 @@ on:
       - "experiments/tase-contact-reproduction/tools/preflight_step5d_manual_bridge.py"
       - "src/ur10e_experiment_runtime/**"
       - "experiments/tase-contact-reproduction/tools/validate_step5d_autotune_v3_refactor.py"
+      - "experiments/tase-contact-reproduction/tools/validate_step5d_retry_supervisor_tests.py"
+      - "experiments/tase-contact-reproduction/tools/prepare_step5d_pr_body.py"
       - "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v3_test_matrix.py"
       - "experiments/tase-contact-reproduction/scripts/step5d-autotune-v3.sh"
       - "experiments/tase-contact-reproduction/scripts/step5d-autotune-*.sh"
@@ -61,6 +64,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: step5d-autotune-v3-${{ github.event.pull_request.number }}
@@ -78,7 +82,6 @@ jobs:
       MKL_NUM_THREADS: "1"
       NUMEXPR_NUM_THREADS: "1"
       PYTHONPATH: ${{ github.workspace }}/experiments/tase-contact-reproduction/tools:${{ github.workspace }}/src/ur10e_experiment_runtime
-      STEP5D_V3_PR_BODY: ${{ github.event.pull_request.body }}
     steps:
       - name: Checkout full baseline and tags
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -94,11 +97,17 @@ jobs:
         working-directory: experiments/tase-contact-reproduction
         run: uv sync --frozen --only-group test-hermetic
 
+      - name: Read latest PR body
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr view "$PR_NUMBER" --json body --jq .body > "$RUNNER_TEMP/step5d-pr-body.md"
+
       - name: Validate declaration, frozen v1, budget, and matrix
         working-directory: experiments/tase-contact-reproduction
         run: >-
           .venv/bin/python tools/validate_step5d_autotune_v3_refactor.py
-          --root . --declaration-env STEP5D_V3_PR_BODY
+          --root . --declaration-file "$RUNNER_TEMP/step5d-pr-body.md"
 
       - name: Validate Step5d import and deployment boundaries
         working-directory: experiments/tase-contact-reproduction

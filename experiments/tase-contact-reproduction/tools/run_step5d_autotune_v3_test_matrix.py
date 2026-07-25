@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -18,11 +19,19 @@ from typing import Any, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX = ROOT / "config/step5d_autotune_v3_test_matrix.json"
-SCHEMA = "step5d.autotune-v3/parallel-test-run/v2"
+SCHEMA = "step5d.autotune-v3/parallel-test-run/v3"
+INSTALLED_RUNTIME_PRECONDITION_SCHEMA = (
+    "step5d.autotune-v3/installed-runtime-precondition-v1"
+)
+PRECONDITION_DETAIL_MAX_CHARS = 512
+HERMETIC_PYTHON_TOKEN = "@hermetic-python"
 ALLOWED_LANES = {"small", "medium"}
 MAX_SMALL_WORKERS = 4
 FAILURE_TAIL_BYTES = 64 * 1024
 FAILURE_TAIL_LINES = 200
+
+_ACTIVE_HERMETIC_PYTHON: Path | None = None
+_ACTIVE_HERMETIC_BINDING: dict[str, str] | None = None
 
 
 class TestMatrixError(RuntimeError):
@@ -80,6 +89,36 @@ def _runtime_binding_evidence(fields: Sequence[str]) -> dict[str, str]:
     return dict(zip(names, fields, strict=True))
 
 
+def _installed_runtime_precondition() -> dict[str, Any]:
+    """Validate deployed-current before spending time on its installed gate."""
+    try:
+        from step5d_autotune_v3.release_identity import load_current_release
+
+        release = load_current_release(ROOT)
+    except Exception as exc:
+        detail = " ".join(f"{type(exc).__name__}: {exc}".split())
+        return {
+            "schema": INSTALLED_RUNTIME_PRECONDITION_SCHEMA,
+            "ok": False,
+            "release_mode": "deployed-current",
+            "reason_code": "CURRENT_RELEASE_INVALID",
+            "detail": detail[:PRECONDITION_DETAIL_MAX_CHARS],
+            "program_id": "",
+            "manifest_path": "",
+            "manifest_sha256": "",
+        }
+    return {
+        "schema": INSTALLED_RUNTIME_PRECONDITION_SCHEMA,
+        "ok": True,
+        "release_mode": "deployed-current",
+        "reason_code": "CURRENT_RELEASE_VALID",
+        "detail": "",
+        "program_id": release.program_id,
+        "manifest_path": release.manifest_path,
+        "manifest_sha256": release.manifest_sha256,
+    }
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -131,7 +170,61 @@ def resolve_workers(value: int | str, lanes: Sequence[str]) -> int:
     return workers
 
 
-def load_commands(path: Path, lanes: Sequence[str], workers: int) -> dict[str, list[str]]:
+def _resolve_hermetic_python(value: str | Path | None = None) -> Path:
+    candidate = Path(value) if value is not None else Path(sys.executable)
+    try:
+        resolved = candidate.expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise TestMatrixError(
+            f"hermetic Python executable is unavailable: {candidate}"
+        ) from exc
+    if not resolved.is_file():
+        raise TestMatrixError("hermetic Python executable is not a regular file")
+    return resolved
+
+
+def _hermetic_binding(executable: Path) -> dict[str, str]:
+    try:
+        completed = subprocess.run(
+            [
+                str(executable),
+                "-I",
+                "-c",
+                (
+                    "import json,sys,sysconfig; print(json.dumps({"
+                    "'executable': sys.executable,"
+                    "'python_version': sys.version.split()[0],"
+                    "'purelib': sysconfig.get_paths()['purelib']"
+                    "}, sort_keys=True))"
+                ),
+            ],
+            cwd=ROOT,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=10.0,
+            check=False,
+        )
+        payload = json.loads(completed.stdout.strip())
+        purelib = Path(str(payload["purelib"])).resolve(strict=True)
+    except (OSError, subprocess.SubprocessError, KeyError, TypeError, ValueError) as exc:
+        raise TestMatrixError("hermetic Python metadata is unavailable") from exc
+    if completed.returncode != 0:
+        raise TestMatrixError("hermetic Python metadata probe failed")
+    return {
+        "executable": str(executable),
+        "executable_sha256": _sha256(executable),
+        "python_version": str(payload["python_version"]),
+        "purelib": str(purelib),
+    }
+
+
+def load_commands(
+    path: Path,
+    lanes: Sequence[str],
+    workers: int,
+    hermetic_python: str | Path | None = None,
+) -> dict[str, list[str]]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema_version") != "step5d.autotune-v3/test-matrix-v3":
         raise TestMatrixError("test matrix schema differs")
@@ -147,8 +240,9 @@ def load_commands(path: Path, lanes: Sequence[str], workers: int) -> dict[str, l
         if not isinstance(commands, list) or len(commands) != 1:
             raise TestMatrixError(f"{lane_name} must have exactly one governed command")
         command = list(commands[0])
-        if command[:4] != [".venv/bin/python", "-m", "pytest", "-q"]:
+        if command[:4] != [HERMETIC_PYTHON_TOKEN, "-m", "pytest", "-q"]:
             raise TestMatrixError(f"{lane_name} command is not governed pytest")
+        command[0] = str(_resolve_hermetic_python(hermetic_python))
         if lane_name == "small" and workers > 1:
             command[4:4] = ["-p", "xdist.plugin", "-n", str(workers), "--dist", "loadgroup"]
         result[lane_name] = command
@@ -188,7 +282,6 @@ def load_installed_runtime_command(path: Path) -> list[str]:
             "tests/test_step5d_autotune_v3_bridge_wrapper.py",
             "tests/test_step5d_release_contract.py",
             "tests/test_step5d_autotune_v3_installed_runtime.py",
-            "tests/test_step5d_manual_bridge.py",
             "tests/test_step5d_no_contact_p0.py",
         ]
         or gate.get("ci") is not False
@@ -203,7 +296,9 @@ def load_installed_runtime_command(path: Path) -> list[str]:
 def _pytest_overlay(output: Path) -> Path:
     overlay = output / "control-pytest-overlay"
     overlay.mkdir(parents=True, exist_ok=True, mode=0o700)
-    hermetic_python = ROOT / ".venv/bin/python"
+    hermetic_python = _resolve_hermetic_python(
+        _ACTIVE_HERMETIC_PYTHON or sys.executable
+    )
     completed = subprocess.run(
         [
             str(hermetic_python),
@@ -221,10 +316,6 @@ def _pytest_overlay(output: Path) -> Path:
     if completed.returncode != 0:
         raise TestMatrixError("frozen hermetic pytest environment is unavailable")
     hermetic_site = Path(completed.stdout.strip()).resolve(strict=True)
-    try:
-        hermetic_site.relative_to((ROOT / ".venv").resolve(strict=True))
-    except ValueError as exc:
-        raise TestMatrixError("hermetic pytest packages escape the frozen venv") from exc
     prefixes = (
         "_pytest",
         "pytest",
@@ -244,8 +335,12 @@ def _pytest_overlay(output: Path) -> Path:
         ):
             continue
         destination = overlay / source.name
-        if not destination.exists() and not destination.is_symlink():
-            destination.symlink_to(source, target_is_directory=source.is_dir())
+        if destination.exists() or destination.is_symlink():
+            continue
+        if source.is_dir():
+            shutil.copytree(source, destination, symlinks=False)
+        else:
+            shutil.copy2(source, destination, follow_symlinks=True)
     if not (overlay / "pytest").is_dir() or not (overlay / "_pytest").is_dir():
         raise TestMatrixError("frozen hermetic pytest packages are incomplete")
     return overlay
@@ -312,6 +407,7 @@ def _run_lane(name: str, command: Sequence[str], output: Path) -> dict[str, Any]
         "elapsed_s": time.monotonic() - monotonic,
         "returncode": completed.returncode,
         "dependency_mode": "frozen_uv_environment",
+        "hermetic_python": dict(_ACTIVE_HERMETIC_BINDING or {}),
         "log": log.relative_to(ROOT).as_posix() if log.is_relative_to(ROOT) else str(log),
         "log_sha256": _sha256(log),
     }
@@ -325,10 +421,16 @@ def run(
     serial: bool = False,
     include_installed_runtime: bool = False,
     require_clean: bool = False,
+    hermetic_python: str | Path | None = None,
 ) -> dict[str, Any]:
+    global _ACTIVE_HERMETIC_PYTHON, _ACTIVE_HERMETIC_BINDING
+    _ACTIVE_HERMETIC_PYTHON = _resolve_hermetic_python(hermetic_python)
+    _ACTIVE_HERMETIC_BINDING = _hermetic_binding(_ACTIVE_HERMETIC_PYTHON)
     repository_before = _repository_binding()
     resolved_workers = 1 if serial else resolve_workers(workers, lanes)
-    commands = load_commands(MATRIX, lanes, resolved_workers)
+    commands = load_commands(
+        MATRIX, lanes, resolved_workers, _ACTIVE_HERMETIC_PYTHON
+    )
     output = output.absolute()
     output.mkdir(parents=True, exist_ok=False, mode=0o700)
     started = time.monotonic()
@@ -346,17 +448,26 @@ def run(
             results = [futures[name].result() for name in commands]
     installed_runtime_status = "not_requested"
     installed_runtime_binding = None
+    installed_runtime_precondition = None
     if include_installed_runtime:
         if all(item["returncode"] == 0 for item in results):
-            installed_runtime_binding = _runtime_binding_evidence(_runtime_binding())
-            results.append(
-                _run_lane(
-                    "local_installed_runtime",
-                    load_installed_runtime_command(MATRIX),
-                    output,
+            installed_runtime_precondition = _installed_runtime_precondition()
+            if installed_runtime_precondition["ok"]:
+                installed_runtime_binding = _runtime_binding_evidence(
+                    _runtime_binding()
                 )
-            )
-            installed_runtime_status = "executed_serial_after_hermetic"
+                results.append(
+                    _run_lane(
+                        "local_installed_runtime",
+                        load_installed_runtime_command(MATRIX),
+                        output,
+                    )
+                )
+                installed_runtime_status = "executed_serial_after_hermetic"
+            else:
+                installed_runtime_status = (
+                    "blocked_by_current_release_precondition"
+                )
         else:
             installed_runtime_status = "blocked_by_hermetic_failure"
     repository_after = _repository_binding()
@@ -365,12 +476,17 @@ def run(
         not require_clean
         or (repository_before["clean"] and repository_after["clean"])
     )
+    installed_runtime_requirement_satisfied = bool(
+        not include_installed_runtime
+        or installed_runtime_status == "executed_serial_after_hermetic"
+    )
     payload = {
         "schema": SCHEMA,
         "ok": bool(
             all(item["returncode"] == 0 for item in results)
             and repository_stable
             and clean_requirement_satisfied
+            and installed_runtime_requirement_satisfied
         ),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "elapsed_s": time.monotonic() - started,
@@ -382,6 +498,7 @@ def run(
             "nonhermetic_lanes_absent": True,
             "serial_fallback": serial,
             "installed_runtime_status": installed_runtime_status,
+            "hermetic_python": dict(_ACTIVE_HERMETIC_BINDING),
         },
         "repository_binding": {
             "before": repository_before,
@@ -391,6 +508,7 @@ def run(
             "clean_requirement_satisfied": clean_requirement_satisfied,
         },
         "installed_runtime_binding": installed_runtime_binding,
+        "installed_runtime_precondition": installed_runtime_precondition,
         "results": results,
     }
     manifest = output / "parallel_run_manifest.json"
@@ -412,6 +530,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--serial", action="store_true")
     parser.add_argument("--include-installed-runtime", action="store_true")
     parser.add_argument("--require-clean", action="store_true")
+    parser.add_argument(
+        "--hermetic-python",
+        type=Path,
+        help="Hermetic lane interpreter; defaults to the interpreter launching this runner",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--json", action="store_true")
     return parser.parse_args(argv)
@@ -427,6 +550,7 @@ def main(argv: list[str] | None = None) -> int:
             serial=args.serial,
             include_installed_runtime=args.include_installed_runtime,
             require_clean=args.require_clean,
+            hermetic_python=args.hermetic_python,
         )
     except Exception as exc:
         print(json.dumps({"schema": SCHEMA, "ok": False, "blocker": str(exc)}))

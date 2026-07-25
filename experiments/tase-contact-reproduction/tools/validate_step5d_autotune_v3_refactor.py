@@ -61,6 +61,12 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_v3_release_certificate.py",
     "tests/test_step5d_autotune_v3_refactor_gate.py",
     "tests/test_step5d_autotune_v3_test_matrix_runner.py",
+    "tests/test_step5d_autotune_v3_coordinator.py",
+    "tests/test_step5d_autotune_v3_handoff_timing.py",
+    "tests/test_step5d_v3_import_boundaries.py",
+    "tests/test_step5d_v3_launch_basis.py",
+    "tests/test_step5d_v3_shell_source_fingerprint.py",
+    "tests/test_step5d_v3_supervisor_guard.py",
     "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",
     "tests/test_step5d_autotune_v3_bridge_wrapper.py",
     "tests/test_step5d_bridge_status.py",
@@ -138,6 +144,11 @@ REQUIRED_ACTIVE_RUNTIME_MODULES = {
     "tools/step5d_autotune_v3/rtde_client.py",
     "tools/step5d_autotune_v3/runtime_environment.py",
     "tools/step5d_autotune_v3/source_closure.py",
+    "tools/step5d_autotune_v3/campaign_basis.py",
+    "tools/step5d_autotune_v3/launch_basis.py",
+    "tools/step5d_autotune_v3/source_fingerprint_contract.py",
+    "tools/run_step5d_autotune_v3_coordinator.py",
+    "tools/measure_step5d_startup_timing.py",
 }
 
 # Keys are relative to the git root, not to this experiment root.
@@ -657,14 +668,32 @@ def content_governance_issues(root: Path, matrix: Mapping[str, Any]) -> list[str
         if len(encoded.splitlines()) > max_lines:
             issues.append(f"content_governance_json_lines_exceeded:{path.relative_to(root)}")
     lanes = matrix.get("lanes") or {}
-    test_paths: dict[str, str] = {}
-    for lane_name in ("small", "medium"):
-        for command in (lanes.get(lane_name) or {}).get("commands", []):
-            for token in command:
+    test_paths: dict[str, list[str]] = {}
+    for lane_name, lane in (lanes.items() if isinstance(lanes, Mapping) else ()):
+        commands = lane.get("commands", []) if isinstance(lane, Mapping) else []
+        for command_index, command in enumerate(commands):
+            for token_index, token in enumerate(command):
                 if isinstance(token, str) and token.startswith("tests/"):
-                    prior = test_paths.setdefault(token, lane_name)
-                    if prior != lane_name:
-                        issues.append(f"test_matrix_duplicate_test_path:{token}:{prior}:{lane_name}")
+                    location = f"{lane_name}[{command_index}][{token_index}]"
+                    test_paths.setdefault(token, []).append(location)
+    for path, locations in sorted(test_paths.items()):
+        if len(locations) > 1:
+            issues.append(f"test_matrix_duplicate_entry:{path}:{','.join(locations)}")
+    classified_files = (
+        (matrix.get("authoritative_bridge_gate") or {}).get("classified_test_files", {})
+        if isinstance(matrix.get("authoritative_bridge_gate"), Mapping)
+        else {}
+    )
+    classified = {
+        path
+        for values in classified_files.values()
+        if isinstance(values, list)
+        for path in values
+        if isinstance(path, str)
+    }
+    for path in sorted(test_paths):
+        if path not in classified:
+            issues.append(f"test_matrix_unclassified_entry:{path}")
     exception = governance.get("temporary_exception") or {}
     if exception.get("path") != "STEP5_FLOW.md" or not exception.get("reason"):
         issues.append("content_governance_markdown_exception_invalid")
@@ -820,6 +849,9 @@ def validate_repository(root: Path, matrix: Path = DEFAULT_MATRIX) -> dict[str, 
     governance_findings = content_governance_issues(
         root, matrix_payload if isinstance(matrix_payload, Mapping) else {}
     )
+    from validate_step5d_retry_supervisor_tests import validate as retry_supervisor_issues
+
+    retry_findings = retry_supervisor_issues(root)
     issues = [
         *baseline_issues(repo),
         *protected_source_issues(repo),
@@ -827,6 +859,7 @@ def validate_repository(root: Path, matrix: Path = DEFAULT_MATRIX) -> dict[str, 
         *active_surface_findings,
         *matrix_findings,
         *governance_findings,
+        *retry_findings,
         *pr_template_structure_issues(repo),
     ]
     return {

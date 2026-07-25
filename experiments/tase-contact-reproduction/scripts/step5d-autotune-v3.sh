@@ -43,6 +43,10 @@ Optional:
   --prior-full-readback-receipt PATH
                              Required migration basis for first no-upload adoption;
                              later releases reuse the tracked current basis
+  --publication-plan-output PATH
+                             Machine-readable post-promotion Git publication plan
+  --publish-and-revalidate  Consume the plan, commit its exact local allowlist,
+                             then invoke clean canonical revalidate-current
   --readback-only-existing   Fresh GET and adopt the exact candidate after
                              three-way SHA closure; no upload or Load
   -h, --help                 Show this help without starting any work
@@ -524,11 +528,14 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
   artifact_dir="${EXPERIMENT_ROOT}/programs/step5/step5d"
   release_certificate=""
   delivery_evidence_output=""
+  publication_plan_output=""
+  publish_and_revalidate=0
   seen_artifact_dir=0
   seen_release_candidate=0
   seen_release_certificate=0
   seen_evidence_output=0
   seen_prior_full_readback=0
+  seen_publication_plan_output=0
   seen_readback_only=0
   index=0
   while (( index < ${#arguments[@]} )); do
@@ -536,19 +543,21 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
     option_name="${option%%=*}"
     value=""
     case "${option}" in
-      --artifact-dir|--release-candidate|--release-certificate|--evidence-output|--prior-full-readback-receipt)
+      --artifact-dir|--release-candidate|--release-certificate|--evidence-output|--prior-full-readback-receipt|--publication-plan-output)
         if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
           tp_deliver_argv_error "${option} requires a value"
         fi
         value="${arguments[index + 1]}"
         ((index += 2))
         ;;
-      --artifact-dir=*|--release-candidate=*|--release-certificate=*|--evidence-output=*|--prior-full-readback-receipt=*)
+      --artifact-dir=*|--release-candidate=*|--release-certificate=*|--evidence-output=*|--prior-full-readback-receipt=*|--publication-plan-output=*)
         value="${option#*=}"
         if [[ -z "${value}" ]]; then
           tp_deliver_argv_error "${option_name} requires a value"
         fi
         ((index += 1))
+        ;;
+      --publish-and-revalidate)
         ;;
       --readback-only-existing)
         (( seen_readback_only == 0 )) || tp_deliver_argv_error "--readback-only-existing may appear only once"
@@ -591,6 +600,18 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
           "$(readlink -m -- "${value}")"
         )
         ;;
+      --publication-plan-output)
+        (( seen_publication_plan_output == 0 )) || tp_deliver_argv_error "--publication-plan-output may appear only once"
+        seen_publication_plan_output=1
+        publication_plan_output="$(readlink -m -- "${value}")"
+        ;;
+      --publish-and-revalidate)
+        (( publish_and_revalidate == 0 )) || tp_deliver_argv_error "--publish-and-revalidate may appear only once"
+        publish_and_revalidate=1
+        tp_deliver_args+=(--publish-and-revalidate)
+        ((index += 1))
+        continue
+        ;;
     esac
   done
   if [[ -z "${release_candidate}" ]]; then
@@ -602,12 +623,16 @@ if [[ "${1:-}" == "tp-deliver" ]]; then
   if [[ -z "${delivery_evidence_output}" ]]; then
     delivery_evidence_output="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/delivery-$(date -u +%Y%m%dT%H%M%SZ)-$$.json"
   fi
+  if [[ -z "${publication_plan_output}" ]]; then
+    publication_plan_output="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/post-promotion-publication-$(date -u +%Y%m%dT%H%M%SZ)-$$.json"
+  fi
   tp_deliver_args=(
     --root "${EXPERIMENT_ROOT}"
     --artifact-dir "${artifact_dir}"
     --release-candidate "${release_candidate}"
     --release-certificate "${release_certificate}"
     --evidence-output "${delivery_evidence_output}"
+    --publication-plan-output "${publication_plan_output}"
     "${tp_deliver_args[@]}"
   )
 fi
@@ -898,34 +923,50 @@ if (( bridge_mode == 1 )); then
     echo "bridge admission observation failed; see ${admission}" >&2
     exit "${admission_rc}"
   fi
+  admission="$(${CONTROL_PYTHON} -c '
+import json
+import pathlib
+import sys
+from step5d_autotune_v3.bridge_admission import admission_index_path
+root = pathlib.Path(sys.argv[2]).resolve()
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(admission_index_path(root, payload))
+' "${admission}" "${EXPERIMENT_ROOT}")"
   delivery_observation="$(
     "${CONTROL_PYTHON}" -c \
       'import json,pathlib,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print((pathlib.Path(sys.argv[2]) / p["delivery_observation"]["path"]).resolve())' \
       "${admission}" "${EXPERIMENT_ROOT}"
   )"
   bridge_acquire_authority
-  bridge_begin_phase campaign_prepare
-  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
-    --prepare-only \
-    --canonical-owner-pid "$$" \
-    --canonical-owner-starttime "${launch_owner_starttime}" \
-    --campaign-root "${campaign_root}" \
-    >"${output_root}/campaign-prepare.json"
   preflight="${output_root}/preflight.json"
-  bridge_begin_phase preflight
-  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/preflight_step5d_autotune_v3.py" \
-    --mailbox "${output_root}/runtime/command.json" \
+  bridge_begin_phase campaign_prepare
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_coordinator.py" \
+    --experiment-root "${EXPERIMENT_ROOT}" \
+    --admission "${admission}" \
+    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+    --attempt-id "${launch_attempt_id}" \
+    --authority-epoch "${launch_owner_authority_epoch}" \
+    --owner-pid "$$" \
+    --owner-starttime "${launch_owner_starttime}" \
+    --output-root "${output_root}" \
+    --campaign-root "${campaign_root}" \
     --delivery-observation "${delivery_observation}" \
-    --output "${preflight}" \
-    --json
+    --preflight "${preflight}" \
+    --launch-basis "${output_root}/launch-basis.json"
+  bridge_begin_phase preflight
   bridge_begin_phase live_handoff
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     --output-root "${output_root}" \
     --canonical-owner-pid "$$" \
     --canonical-owner-starttime "${launch_owner_starttime}" \
+    --authority-epoch "${launch_owner_authority_epoch}" \
     --delivery-observation "${delivery_observation}" \
     --campaign-root "${campaign_root}" \
-    --preflight "${preflight}"
+    --preflight "${preflight}" \
+    --admission "${admission}" \
+    --launch-basis "${output_root}/launch-basis.json" \
+    --launch-basis-sha256 "$(${CONTROL_PYTHON} -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["basis_sha256"])' "${output_root}/launch-basis.json")" \
+    --campaign-prepare "${output_root}/campaign-prepare.json"
   bridge_finish_phase
   bridge_revoke_authority completed
   exit 0

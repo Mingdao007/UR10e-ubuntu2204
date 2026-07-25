@@ -8,10 +8,9 @@ import json
 from pathlib import Path
 
 from step5d_autotune_v3.bridge_admission import (
-    BridgeAdmissionError,
     SCHEMA,
-    admission_index_path,
     observe_bridge_admission,
+    write_indexed_bridge_admission,
 )
 from step5d_autotune_v3.state import atomic_json
 
@@ -40,14 +39,7 @@ def main(argv: list[str] | None = None) -> int:
             robot_host=args.robot_host,
             timeout_s=args.timeout_s,
         )
-        indexed_output = admission_index_path(args.root, payload)
-        if indexed_output.exists():
-            if json.loads(indexed_output.read_text(encoding="utf-8")) != payload:
-                raise BridgeAdmissionError(
-                    "content-addressed bridge admission differs"
-                )
-        else:
-            atomic_json(indexed_output, payload)
+        write_indexed_bridge_admission(args.root, payload)
         return_code = 0 if payload["ok"] is True else ACTION_REQUIRED_EXIT
     except Exception as exc:
         payload = {

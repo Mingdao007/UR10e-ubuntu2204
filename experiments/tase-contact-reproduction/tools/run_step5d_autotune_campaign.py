@@ -72,6 +72,7 @@ from step5d_autotune_v3.runtime_gate import (
     release_runtime_contract,
 )
 from step5d_autotune_v3.runtime_installation import require_runtime_profile
+from step5d_bridge_authority import AuthorityFence
 from step5d_autotune_batch_plan import (
     CandidateBatchPlan,
     PlanLifecycle,
@@ -127,6 +128,12 @@ from step5d_autotune_runtime_lifecycle import (
 
 
 STATE_NAMES = {int(state): state.name for state in TpLoopState}
+_ACTIVE_AUTHORITY_FENCE: AuthorityFence | None = None
+
+
+def _assert_active_authority() -> None:
+    if _ACTIVE_AUTHORITY_FENCE is not None:
+        _ACTIVE_AUTHORITY_FENCE.assert_active()
 
 
 class StopAfterCurrentRequested(RuntimeError):
@@ -227,6 +234,7 @@ def _complete_rolling_at_home(
 ) -> bool:
     """Durably send the one legal terminal command from READY_HOME_NEXT."""
 
+    _assert_active_authority()
     completion = CompletionJournal(
         campaign_root / "control/pending_completion.json"
     )
@@ -244,6 +252,7 @@ def _complete_rolling_at_home(
     loaded = completion.load()
     if loaded is not None and loaded[1] == "consumed":
         return True
+    _assert_active_authority()
     mailbox.send_command(complete_packet, prepared_trial=prepared_trial)
     for completion_row in follower.rows(timeout_s=timeout_s):
         completion_snapshot = tp_snapshot_from_bridge_row(completion_row)
@@ -680,6 +689,7 @@ def _campaign_binding(
 
 
 def _event(path: Path, event: str, **payload: Any) -> None:
+    _assert_active_authority()
     row = {"event": event, "monotonic_s": time.monotonic(), **payload}
     encoded = json.dumps(row, sort_keys=True, allow_nan=False) + "\n"
     with path.open("a", encoding="utf-8") as handle:
@@ -711,6 +721,7 @@ def ensure_mailbox_parent(
 
 
 def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
+    _assert_active_authority()
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     encoded = json.dumps(dict(payload), indent=2, sort_keys=True, allow_nan=False) + "\n"
@@ -754,8 +765,10 @@ def _wait_for_first_arm_gate(
     timeout_s: float,
     stop_requested: Callable[[], bool],
 ) -> None:
+    _assert_active_authority()
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
+        _assert_active_authority()
         if stop_requested():
             raise RuntimeError("campaign stopped before the first ARM gate opened")
         try:
@@ -1255,6 +1268,18 @@ def _v3_overlay_for_candidate(
 
 
 def run(args: argparse.Namespace) -> int:
+    from step5d_autotune_v3.launch_basis import (
+        read_and_validate_launch_basis,
+        validate_delivery_observation_binding,
+        validate_strict_bridge_ready,
+    )
+
+    basis = read_and_validate_launch_basis(
+        args.launch_basis,
+        owner_pid=args.owner_pid,
+        owner_starttime=args.owner_starttime,
+        expected_basis_sha256=args.launch_basis_sha256,
+    )
     runtime_environment_guard: RuntimeEnvironmentBindingGuard | None = None
     if args.v3_runtime_root is not None:
         # Provisioning sealed the immutable runtime. Child startup and every ARM
@@ -1264,6 +1289,27 @@ def run(args: argparse.Namespace) -> int:
             runtime_pointer=runtime_pointer
         )
     root = args.experiment_root.resolve()
+    global _ACTIVE_AUTHORITY_FENCE
+    authority_fence: AuthorityFence | None = None
+    if args.v3_runtime_root is not None:
+        attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", basis["launch_nonce"])
+        if attempt_id != basis["launch_nonce"]:
+            raise RuntimeError("campaign launch attempt differs from launch basis")
+        authority_fence = AuthorityFence(
+            Path(os.environ.get("STEP5D_V3_AUTHORITY_ROOT", str(root / "runs/step5d_bridge_authority"))),
+            attempt_id=attempt_id,
+            sequence=int(basis["authority_epoch"]),
+            owner_pid=args.owner_pid,
+            owner_starttime_ticks=args.owner_starttime,
+        )
+        authority_fence.assert_active()
+        _ACTIVE_AUTHORITY_FENCE = authority_fence
+        if args.delivery_observation is not None:
+            validate_delivery_observation_binding(
+                args.delivery_observation.expanduser().absolute(),
+                basis=basis,
+                experiment_root=root,
+            )
     bridge_run = args.bridge_run.resolve()
     mailbox_path = args.mailbox.resolve()
     forced_values = (args.force_p, args.force_i, args.force_damping)
@@ -1282,7 +1328,29 @@ def run(args: argparse.Namespace) -> int:
     )
     bridge_csv = bridge_run / "bridge_rtde_500hz.csv"
     ready = json.loads((bridge_run / "bridge_ready.json").read_text(encoding="utf-8"))
-    if any(
+    if args.v3_runtime_root is not None:
+        ticket_payload: Mapping[str, Any] | None = None
+        ticket_json = os.environ.get("STEP5D_V3_RUNTIME_TICKET_JSON", "")
+        if ticket_json:
+            ticket_payload = json.loads(ticket_json)
+        else:
+            ticket_path = args.v3_runtime_root / "runtime_ticket.json"
+            if ticket_path.is_file() and not ticket_path.is_symlink():
+                ticket_payload = json.loads(ticket_path.read_text(encoding="utf-8"))
+        if not isinstance(ticket_payload, Mapping):
+            raise RuntimeError("campaign runtime ticket is missing")
+        release_for_ready = load_runtime_release(root)
+        validate_strict_bridge_ready(
+            ready,
+            bridge_pid=int(ready.get("pid", 0)),
+            bridge_starttime_ticks=process_starttime(int(ready.get("pid", 0))),
+            launch_nonce=str(basis["launch_nonce"]),
+            expected_profile=release_for_ready.control_profile_id,
+            ticket=ticket_payload,
+            basis=basis,
+            release=release_for_ready,
+        )
+    elif any(
         (
             ready.get("ok") is not True,
             ready.get("bridge_profile") != "step5d_strict_rnn_autotune_v1",
@@ -1292,6 +1360,7 @@ def run(args: argparse.Namespace) -> int:
         )
     ):
         raise RuntimeError("bridge readiness is not live-complete")
+    _assert_active_authority()
     ensure_mailbox_parent(
         mailbox_path,
         bridge_run,
@@ -1302,6 +1371,7 @@ def run(args: argparse.Namespace) -> int:
         raise RuntimeError("campaign root must be independent from the bridge run")
     if campaign_root.is_symlink():
         raise RuntimeError("campaign root must not be a symlink")
+    _assert_active_authority()
     campaign_root.mkdir(parents=True, exist_ok=True)
     stop_requested = lambda: _v3_stop_requested(
         args.v3_stop_latch,
@@ -1527,6 +1597,7 @@ def run(args: argparse.Namespace) -> int:
         launch_profile=v3_launch_profile if rolling_release else None,
     )
     if existing_layout is not None:
+        _assert_active_authority()
         store.initialize(dict(existing_layout.manifest))
     else:
         parent_epoch: dict[str, Any] | None = None
@@ -1541,6 +1612,7 @@ def run(args: argparse.Namespace) -> int:
                     prior_layout.store_root / "campaign.json"
                 ),
             }
+        _assert_active_authority()
         store.initialize({
             "schema_version": "step5d.autotune.campaign-run/v1",
             "campaign": asdict(campaign),
@@ -1635,6 +1707,7 @@ def run(args: argparse.Namespace) -> int:
                 initial.consumed_command_seq
             )
             coordinator = CampaignCoordinator(supervisor=supervisor, journal=journal)
+            _assert_active_authority()
             coordinator.persist_home()
             resumed = False
         else:
@@ -2072,6 +2145,7 @@ def run(args: argparse.Namespace) -> int:
                         batch_context.expected_row.control_candidate_uid
                     ),
                 )
+            _assert_active_authority()
             coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)
             if home is None:
                 home = _wait_for_campaign_home_reference(home_path)
@@ -2384,6 +2458,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mailbox", type=Path, required=True)
     parser.add_argument("--runner-ready-file", type=Path)
     parser.add_argument("--campaign-binding", type=Path)
+    parser.add_argument("--launch-basis", type=Path, required=True)
+    parser.add_argument("--launch-basis-sha256", required=True)
+    parser.add_argument("--owner-pid", type=int, required=True)
+    parser.add_argument("--owner-starttime", type=int, required=True)
     parser.add_argument("--campaign-lease", type=Path)
     parser.add_argument("--delivery-observation", type=Path)
     parser.add_argument("--campaign-epoch", type=int, default=1)
