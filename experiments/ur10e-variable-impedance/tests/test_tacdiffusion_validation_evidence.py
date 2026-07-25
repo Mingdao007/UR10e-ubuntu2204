@@ -54,7 +54,7 @@ class TacDiffusionValidationEvidenceTests(unittest.TestCase):
         self.assertFalse(evidence["promotion"]["shadow_artifacts_complete"])
         self.assertEqual(
             evidence["validation"]["cuda_bounded_training_and_sampler"]["selected_rate_hz"],
-            50,
+            100,
         )
         self.assertEqual(
             evidence["validation"]["virtual_campaign"]["continuous_episodes"],

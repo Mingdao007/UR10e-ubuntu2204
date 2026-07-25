@@ -19,12 +19,12 @@
   },
   "validation": {
     "full_variable_impedance_suite": {
-      "passed": 152,
+      "passed": 170,
       "skipped": 5,
       "subtests_passed": 15
     },
     "tase_step5d_mainline": {
-      "passed": 10
+      "passed": 11
     },
     "ursim_protocol_transport_parser_mainline": {
       "passed": 30,
@@ -47,7 +47,8 @@
     },
     "cuda_bounded_training_and_sampler": {
       "accepted_rates_hz": [
-        50
+        50,
+        100
       ],
       "checkpoint_schema": "ur10e_tacdiffusion_checkpoint/v3",
       "cuda_version": "12.8",
@@ -55,9 +56,11 @@
       "diffusion_steps": 50,
       "distinct_reverse_timesteps": 50,
       "finite_12d_sample": true,
-      "iterations": 8,
-      "p99_latency_s": 0.014401489999727346,
-      "selected_rate_hz": 50,
+      "iterations": 3,
+      "warmup_iterations": 2,
+      "warmup_excluded": true,
+      "p99_latency_s": 0.007007537999015767,
+      "selected_rate_hz": 100,
       "torch_version": "2.11.0+cu128",
       "torchscript_exported": true,
       "validation_loss": 0.07607713341712952
@@ -137,23 +140,23 @@
     },
     {
       "path": "ur10e_vic/tacdiffusion/mainline_dataset.py",
-      "sha256": "a38f157f2935f58b79d47d54ea6ea38bf1a6f74f9bfa57670882459ffc899981"
+      "sha256": "a15216e8cdf4bf7b77d3f904c29f21138fbc08faac7d3ad7949e753f3b509581"
     },
     {
       "path": "ur10e_vic/tacdiffusion/mainline_model.py",
-      "sha256": "8e3a1572fad8ac19ccd4423327183d94e105dcc12675ef83ce2ee1efda7f47e9"
+      "sha256": "b29a726b7df2c4444af6034ab7ac1d9109837575066194ce120cab9a3fa78362"
     },
     {
       "path": "ur10e_vic/tacdiffusion/direct_torque_receiver.py",
-      "sha256": "21048b8e072c383256f67441ab69f9a35adb095304463fef1f2915fe8198e718"
+      "sha256": "1bd3d97115711b4063d3cfbfc2726ea81600b162a6e23ccebf60cf43db348057"
     },
     {
       "path": "ur10e_vic/tacdiffusion/remote_headless.py",
-      "sha256": "5ee67d758cda4ab1928228bddd59a0f95765650f7ff892b27272f7cf4f1dfb22"
+      "sha256": "9309e100a9801c299a72a9c1b9ab019c6e1d9e823dddb0e49fc6ca22e07a1481"
     },
     {
       "path": "ur10e_vic/tacdiffusion/promotion.py",
-      "sha256": "1b7005641950071096f91902d63711704bc731d0c613d9875f3afec97cac9d1f"
+      "sha256": "ef3c744303455b6f8a609342bff00336bb44eaf86f34224e8035c4d2c3276d16"
     },
     {
       "path": "ur10e_vic/tacdiffusion/raw_artifact.py",
@@ -161,7 +164,7 @@
     },
     {
       "path": "tools/tacdiffusion_remote_headless.py",
-      "sha256": "e971e6c5d00c9393d53d32ddc976f3349c3a080d2a869904875b53c6c322389e"
+      "sha256": "880ab0faeaa53a3c97c340e221f380462d7dd7db0fb7610393c4beb63730f222"
     },
     {
       "path": "../tase-contact-reproduction/config/step5d_tacdiffusion_liveprep_v1.json",
@@ -173,7 +176,7 @@
     },
     {
       "path": "../tase-contact-reproduction/tools/step5d_tacdiffusion_direct_torque.py",
-      "sha256": "5a53f67a703b8b39f15ac59aa8f9bccfe16385760fa357060970619a294c672d"
+      "sha256": "8fb303e81d2b6d4023e42bc76f82e608cae5986b0102756696b838c9bb98879e"
     }
   ]
 }

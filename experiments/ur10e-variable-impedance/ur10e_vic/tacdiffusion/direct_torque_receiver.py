@@ -12,11 +12,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import math
+from pathlib import Path
 import re
 from typing import Mapping
 
 from .action import ActionProfile
 from .dynamic_filter import DynamicFilterProfile, RateInvariantForceFilter
+from .promotion import validate_live_authorization
 
 
 class ReceiverCommand(str, Enum):
@@ -41,14 +43,15 @@ def build_receiver_source(
     *,
     filter_profile: DynamicFilterProfile = DynamicFilterProfile(),
     action_profile: ActionProfile = ActionProfile(),
-    active_authorized: bool = False,
+    active_authorization_path: str | Path | None = None,
 ) -> str:
     """Build source only; deployment remains a separately gated owner action."""
 
     if filter_profile.rate_hz != 500 or action_profile.damping_ratio <= 0.0:
         raise ValueError("receiver requires 500 Hz and positive damping ratio")
-    if not isinstance(active_authorized, bool):
-        raise TypeError("active_authorized must be an explicit boolean authorization parameter")
+    if isinstance(active_authorization_path, bool):
+        raise TypeError("active authorization requires a validated path, not a boolean")
+    active_allowed = False if active_authorization_path is None else validate_live_authorization(active_authorization_path).active_allowed
     omega = filter_profile.natural_frequency_rad_s
     k_min = ", ".join(f"{value:.9g}" for value in action_profile.stiffness_min)
     k_max = ", ".join(f"{value:.9g}" for value in action_profile.stiffness_max)
@@ -206,7 +209,7 @@ def tacdiffusion_receiver():
   local model_disabled = 0
   local model_shadow = 1
   local model_active = 2
-  local model_active_allowed = {str(active_authorized)}
+  local model_active_allowed = {str(active_allowed)}
   local mode = 0
   local lease_id = 0
   local waiting_home_ack = 0
@@ -481,9 +484,11 @@ class ReceiverSemanticState:
     never calls controller, network, Dashboard, or motion APIs.
     """
 
-    def __init__(self, *, active_authorized: bool = False) -> None:
+    def __init__(self, *, active_authorization_path: str | Path | None = None) -> None:
         self.phase = "WAIT_FOREVER"
-        self.active_authorized = bool(active_authorized)
+        if isinstance(active_authorization_path, bool):
+            raise TypeError("active authorization requires a validated path, not a boolean")
+        self.active_allowed = False if active_authorization_path is None else validate_live_authorization(active_authorization_path).active_allowed
         self.filter = RateInvariantForceFilter(DynamicFilterProfile(0.05, 1.0, 500))
         self.last_sequence = 0
         self.last_model_sequence = 0
@@ -564,7 +569,7 @@ class ReceiverSemanticState:
         if model_mode == 0:
             coherent = coherent and model_sequence == 0 and model_period == 0 and timestamp == 0 and raw == (0.0,) * 6
         elif model_mode in {1, 2}:
-            coherent = coherent and model_period in {10_000, 20_000} and model_sequence > 0 and (model_mode != 2 or self.active_authorized)
+            coherent = coherent and model_period in {10_000, 20_000} and model_sequence > 0 and (model_mode != 2 or self.active_allowed)
             is_new = model_sequence == self.last_model_sequence + 1
             is_held = model_sequence == self.last_model_sequence
             coherent = coherent and (is_new or is_held)

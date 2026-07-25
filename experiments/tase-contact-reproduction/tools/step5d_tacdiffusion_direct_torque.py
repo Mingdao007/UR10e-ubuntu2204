@@ -9,8 +9,6 @@ no fixture value is reachable from the serialized controller command.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-import hashlib
-import json
 import math
 from pathlib import Path
 import struct
@@ -53,7 +51,7 @@ from ur10e_vic.tacdiffusion.expert import (  # noqa: E402
 )
 from ur10e_vic.tacdiffusion.mailbox import LatestModelMailbox  # noqa: E402
 from ur10e_vic.tacdiffusion.trajectory import EpisodeReference  # noqa: E402
-from ur10e_vic.tacdiffusion.checkpoint import validate_checkpoint_binding  # noqa: E402
+from ur10e_vic.tacdiffusion.promotion import validate_live_authorization  # noqa: E402
 
 
 CONTROL_HZ = 500
@@ -293,7 +291,7 @@ class Step5dDirectTorqueCore:
         self._model_mailbox = model_mailbox
         self._expert_input_provider = expert_input_provider
         self._episode_reference_provider = episode_reference_provider
-        self._active_authorized = self._validate_active_authorization(active_authorization_path)
+        self._active_allowed = self._validate_active_authorization(active_authorization_path)
         if self.mainline and self._action_provider is None and self._expert is None and self._model_mailbox is None:
             raise ValueError("mainline core requires DeterministicExpert or LatestModelMailbox")
         self._previous_action: TacDiffusionAction | None = None
@@ -406,41 +404,9 @@ class Step5dDirectTorqueCore:
     def _validate_active_authorization(path: str | Path | None) -> bool:
         if path is None:
             return False
-        artifact = Path(path)
-        if not artifact.is_file():
-            raise ValueError("active authorization artifact is missing")
-        payload = json.loads(artifact.read_text(encoding="utf-8"))
-        if payload.get("schema") != "ur10e_live_authorization/v2" or payload.get("explicit_live_authorization") is not True:
-            raise ValueError("separate explicit live authorization is required")
-        promotion_path = artifact.parent / str(payload.get("promotion_result_path", ""))
-        checkpoint_path = artifact.parent / str(payload.get("checkpoint_binding_path", ""))
-        if not promotion_path.is_file() or not checkpoint_path.is_file():
-            raise ValueError("promotion and checkpoint artifacts are required")
-        for key, target in (
-            ("promotion_result_sha256", promotion_path),
-            ("checkpoint_binding_sha256", checkpoint_path),
-        ):
-            supplied = payload.get(key)
-            if not isinstance(supplied, str) or hashlib.sha256(target.read_bytes()).hexdigest() != supplied:
-                raise ValueError(f"{key} mismatch")
-        promotion = json.loads(promotion_path.read_text(encoding="utf-8"))
-        try:
-            binding = validate_checkpoint_binding(checkpoint_path)
-        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-            raise ValueError("checkpoint binding content is invalid") from exc
-        if promotion.get("active_allowed") is not True or promotion.get("offline_replay_passed") is not True:
-            raise ValueError("hash-validated promotion result is not active-allowed")
-        if promotion.get("checkpoint_binding_sha256") != payload.get("checkpoint_binding_sha256"):
-            raise ValueError("promotion is not hash-linked to checkpoint binding")
-        if tuple(sorted(promotion.get("representative_traces", ()))) != ("smooth_low_curvature", "turning_high_curvature"):
-            raise ValueError("promotion representative shadow artifacts are incomplete")
-        for key in ("surface_calibration_sha256", "action_profile_sha256", "filter_profile_sha256", "normalization_sha256"):
-            value = payload.get(key)
-            if not isinstance(value, str) or len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
-                raise ValueError(f"missing checkpoint lineage binding: {key}")
-            if value != getattr(binding, key):
-                raise ValueError(f"authorization checkpoint binding mismatch: {key}")
-        return True
+        if isinstance(path, bool):
+            raise TypeError("active authorization requires a validated path, not a boolean")
+        return validate_live_authorization(path).active_allowed
 
     @staticmethod
     def _expert_input(sample: RuntimeSample, reference: Mapping[str, Any]) -> ExpertInput:
@@ -595,7 +561,7 @@ class Step5dDirectTorqueCore:
                         now_s=sample.elapsed_s, max_age_s=0.020
                     )
                     if mailbox_read.packet is not None:
-                        if mailbox_read.packet.mode == "active" and not self._active_authorized:
+                        if mailbox_read.packet.mode == "active" and not self._active_allowed:
                             raise RuntimeError("active_model_authorization_missing")
                         model_mode = 2 if mailbox_read.packet.mode == "active" else 1
                         if mailbox_read.packet.mode == "active":

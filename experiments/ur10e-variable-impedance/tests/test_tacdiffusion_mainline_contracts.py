@@ -1,6 +1,8 @@
 import math
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 import unittest
 
 from ur10e_vic.tacdiffusion.action import ActionProfile, TacDiffusionAction, derive_damping, guard_action
@@ -8,6 +10,7 @@ from ur10e_vic.tacdiffusion.dynamic_filter import DynamicFilterProfile, RateInva
 from ur10e_vic.tacdiffusion.expert import DeterministicExpert, ExpertFrameSemantics, ExpertInput, ExpertState
 from ur10e_vic.tacdiffusion.mailbox import LatestModelMailbox, ModelPacket
 from ur10e_vic.tacdiffusion.direct_torque_receiver import ReceiverSemanticState, build_receiver_source, parse_receiver_source
+import ur10e_vic.tacdiffusion.direct_torque_receiver as receiver_module
 from ur10e_vic.tacdiffusion.observation import (
     OBSERVATION_DIMENSION,
     ObservationLineage,
@@ -179,7 +182,14 @@ class ReceiverSemanticTests(unittest.TestCase):
         contract = parse_receiver_source(build_receiver_source())
         self.assertTrue(contract.direct_torque_required)
         self.assertIn("model_active_allowed = False", build_receiver_source())
-        self.assertIn("model_active_allowed = True", build_receiver_source(active_authorized=True))
+        with self.assertRaises(TypeError):
+            build_receiver_source(active_authorized=True)
+        # Explicit test mock only; no authorization or live evidence is created.
+        with patch.object(receiver_module, "validate_live_authorization", return_value=SimpleNamespace(active_allowed=True)):
+            self.assertIn("model_active_allowed = True", build_receiver_source(active_authorization_path="test-mock-live-authorization"))
+            self.assertTrue(ReceiverSemanticState(active_authorization_path="test-mock-live-authorization").active_allowed)
+        with self.assertRaises(TypeError):
+            ReceiverSemanticState(active_authorized=True)
         receiver = ReceiverSemanticState()
         disabled = self.packet(raw=(0.0,) * 6, model_sequence=0)
         disabled.update(model_mode=0, model_period_us=0, model_timestamp_us=0)

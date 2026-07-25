@@ -108,7 +108,7 @@ from .queue import (
 from .remote_headless import RemoteEvidence, RemoteLifecycleReport, RemoteStage, build_dry_run_command_plan, inspect_remote_headless, parse_dashboard_response, parse_load_response, parse_play_response
 from .direct_torque_receiver import ReceiverContract, ReceiverCommand, ReceiverSemanticState, build_receiver_source, parse_receiver_source, receiver_empty_wait
 from .mainline_dataset import validate_mainline_dataset, write_mainline_dataset, write_mainline_manifest
-from .mainline_model import ConditionalActionModel, DeterministicMainlinePredictor, MainlineModelConfig, benchmark_runtime, export_torchscript, train_mainline_model
+from .mainline_model import ConditionalActionModel, DeterministicMainlinePredictor, MainlineModelConfig, benchmark_runtime, export_torchscript, load_mainline_checkpoint, train_mainline_model
 from .raw_artifact import DurableRawFrameWriter, RawFrameRecord, derive_training_view, read_raw_frames
 from .environment import immutable_environment_fingerprint
 from .checkpoint import CheckpointBinding, validate_checkpoint_binding, write_checkpoint_binding
@@ -236,6 +236,7 @@ __all__ = [
     "ConditionalActionModel",
     "train_mainline_model",
     "benchmark_runtime",
+    "load_mainline_checkpoint",
     "export_torchscript",
     "DurableRawFrameWriter",
     "RawFrameRecord",

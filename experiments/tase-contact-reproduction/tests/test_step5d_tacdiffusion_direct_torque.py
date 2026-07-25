@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -13,6 +15,7 @@ from step5d_tacdiffusion_direct_torque import (
     SoftwareWrenchBaseline,
     Step5dDirectTorqueCore,
 )
+import step5d_tacdiffusion_direct_torque as core_module
 from ur10e_vic.tacdiffusion.expert import DeterministicExpert
 from ur10e_vic.tacdiffusion.action import ActionProfile, TacDiffusionAction
 from ur10e_vic.tacdiffusion.mailbox import LatestModelMailbox, ModelPacket
@@ -158,3 +161,16 @@ def test_shadow_model_is_diagnostic_only_and_serialization_matches_no_model() ->
     assert shadow_result.packet.model_mode == 1
     assert shadow_result.shadow_model_action is not None
     assert shadow_result.command_bytes == no_model_result.command_bytes
+
+
+def test_core_uses_v3_authorization_validator_with_explicit_test_mock_only() -> None:
+    # Test mock only; this does not create or claim live authorization evidence.
+    with patch.object(core_module, "validate_live_authorization", return_value=SimpleNamespace(active_allowed=True)):
+        core = Step5dDirectTorqueCore(
+            lease_id=100,
+            shadow=FixtureShadowRunner(None),
+            active_authorization_path="test-mock-live-authorization",
+        )
+    assert core._active_allowed is True
+    with pytest.raises(TypeError, match="validated path"):
+        Step5dDirectTorqueCore(lease_id=101, shadow=FixtureShadowRunner(None), active_authorization_path=True)

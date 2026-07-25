@@ -12,7 +12,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import math
+import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 import time
 from typing import Sequence
 
@@ -34,7 +36,7 @@ class MainlineModelConfig:
     def __post_init__(self) -> None:
         if self.observation_dimension != 84 or self.action_dimension != 12:
             raise ValueError("mainline model must use 84D observation and 12D action")
-        if self.model_update_rate_hz not in {50, 100, 200, 500} or self.diffusion_steps != 50:
+        if self.model_update_rate_hz not in {50, 100} or self.diffusion_steps != 50:
             raise ValueError("mainline model rate/denoising contract is incompatible")
         if not 0.0 < self.beta_start < self.beta_end < 1.0:
             raise ValueError("diffusion beta schedule is invalid")
@@ -234,6 +236,46 @@ def _normalized_arrays(observations: np.ndarray, actions: np.ndarray, train_idx:
     return x_mean, x_std, y_mean, y_std
 
 
+def _fsync_parent(path: Path) -> None:
+    directory_fd = os.open(path.parent, os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _atomic_numpy_checkpoint(path: Path, **arrays: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with NamedTemporaryFile("w+b", dir=path.parent, prefix=f".{path.name}.", delete=False) as handle:
+            temporary = Path(handle.name)
+            np.savez(handle, **arrays)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        _fsync_parent(path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
+def _atomic_torch_checkpoint(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with NamedTemporaryFile("w+b", dir=path.parent, prefix=f".{path.name}.", delete=False) as handle:
+            temporary = Path(handle.name)
+            torch.save(payload, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        _fsync_parent(path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
 def train_mainline_model(
     observations: np.ndarray,
     actions: np.ndarray,
@@ -249,6 +291,8 @@ def train_mainline_model(
 ) -> dict[str, object]:
     if observations.ndim != 2 or actions.ndim != 2 or observations.shape[1] != 84 or actions.shape[1] != 12 or len(splits) != observations.shape[0]:
         raise ValueError("train_mainline_model requires [N,84], [N,12], and matching splits")
+    if not np.isfinite(observations).all() or not np.isfinite(actions).all() or any(split not in {"train", "validation"} for split in splits):
+        raise ValueError("training data contains non-finite values or unsupported splits")
     train_idx = np.asarray([i for i, split in enumerate(splits) if split == "train"], dtype=np.int64)
     validation_idx = np.asarray([i for i, split in enumerate(splits) if split == "validation"], dtype=np.int64)
     if train_idx.size == 0 or validation_idx.size == 0:
@@ -264,8 +308,7 @@ def train_mainline_model(
         validation_prediction = model.sample((observations[validation_idx].astype(np.float32) - x_mean) / x_std, seed=seed)
         validation_target = (actions[validation_idx].astype(np.float32) - y_mean) / y_std
         validation_loss = float(np.mean((validation_prediction - validation_target) ** 2))
-        with checkpoint.open("wb") as handle:
-            np.savez(handle, schema="ur10e_tacdiffusion_checkpoint/v3", config=json.dumps(config.__dict__, sort_keys=True), w1=model.w1, b1=model.b1, w2=model.w2, b2=model.b2, observation_mean=x_mean, observation_std=x_std, action_mean=y_mean, action_std=y_std, train_indices=train_idx, validation_indices=validation_idx, losses=np.asarray(losses), validation_loss=validation_loss, checkpoint_binding=json.dumps(checkpoint_binding or {}, sort_keys=True))
+        _atomic_numpy_checkpoint(checkpoint, schema="ur10e_tacdiffusion_checkpoint/v3", config=json.dumps(config.__dict__, sort_keys=True), w1=model.w1, b1=model.b1, w2=model.w2, b2=model.b2, observation_mean=x_mean, observation_std=x_std, action_mean=y_mean, action_std=y_std, train_indices=train_idx, validation_indices=validation_idx, losses=np.asarray(losses), validation_loss=validation_loss, checkpoint_binding=json.dumps(checkpoint_binding or {}, sort_keys=True))
         return {"checkpoint_path": str(checkpoint), "training_loss": losses, "validation_loss": validation_loss, "train_count": int(train_idx.size), "validation_count": int(validation_idx.size), "model_schema": "ur10e_tacdiffusion_checkpoint/v3", "runtime": "numpy_cpu_fallback"}
 
     torch.manual_seed(seed)
@@ -315,16 +358,136 @@ def train_mainline_model(
         validation_prediction = model(validation_noisy, (x[validation_batch] - mean) / std, validation_timestep)
         validation_loss = float(torch.mean((validation_prediction - validation_noise) ** 2).detach().cpu())
     payload = {"schema": "ur10e_tacdiffusion_checkpoint/v3", "config": config.__dict__, "model_state_dict": model.state_dict(), "normalization": {"observation_mean": mean.detach().cpu(), "observation_std": std.detach().cpu(), "action_mean": action_mean.detach().cpu(), "action_std": action_std.detach().cpu()}, "train_indices": train_idx.tolist(), "validation_indices": validation_idx.tolist(), "losses": losses, "validation_loss": validation_loss, "checkpoint_binding": checkpoint_binding or {}}
-    torch.save(payload, checkpoint)
+    _atomic_torch_checkpoint(checkpoint, payload)
     return {"checkpoint_path": str(checkpoint), "training_loss": losses, "validation_loss": validation_loss, "train_count": int(train_idx.size), "validation_count": int(validation_idx.size), "model_schema": payload["schema"], "runtime": str(device), "diffusion_steps": config.diffusion_steps}
 
 
-def benchmark_runtime(model: "ConditionalActionModel", *, iterations: int = 8, seed: int = 42, diffusion_steps: int = 50) -> dict[str, object]:
+def load_mainline_checkpoint(checkpoint_path: str | Path, *, require_cuda: bool = False) -> dict[str, object]:
+    """Strictly load a v3 trained artifact and return its loaded model bundle."""
+
+    checkpoint = Path(checkpoint_path)
+    if not checkpoint.is_file():
+        raise ValueError("mainline checkpoint is missing")
+    expected_config_fields = set(MainlineModelConfig.__dataclass_fields__)
+    if require_cuda and (torch is None or not torch.cuda.is_available()):
+        raise RuntimeError("CUDA is required for this publication benchmark")
+
+    def validate_training_metadata(payload: dict[str, object]) -> None:
+        if not isinstance(payload["checkpoint_binding"], dict):
+            raise ValueError("mainline checkpoint binding metadata is invalid")
+        train_indices = payload["train_indices"]
+        validation_indices = payload["validation_indices"]
+        if not isinstance(train_indices, (list, tuple)) or not isinstance(validation_indices, (list, tuple)):
+            raise ValueError("mainline checkpoint split indices are invalid")
+        all_indices = (*train_indices, *validation_indices)
+        if not train_indices or not validation_indices or any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in all_indices):
+            raise ValueError("mainline checkpoint split indices are invalid")
+        if set(train_indices) & set(validation_indices):
+            raise ValueError("mainline checkpoint train/validation split overlaps")
+        if sorted(all_indices) != list(range(max(all_indices) + 1)):
+            raise ValueError("mainline checkpoint split indices are outside a coherent sample range")
+        losses = payload["losses"]
+        validation_loss = payload["validation_loss"]
+        if not isinstance(losses, (list, tuple)) or not losses or any(not isinstance(value, (int, float)) or not math.isfinite(float(value)) for value in losses):
+            raise ValueError("mainline checkpoint losses are invalid")
+        if not isinstance(validation_loss, (int, float)) or not math.isfinite(float(validation_loss)):
+            raise ValueError("mainline checkpoint validation loss is invalid")
+
+    if torch is not None:
+        try:
+            payload = torch.load(checkpoint, map_location="cuda" if require_cuda else "cpu", weights_only=False)
+        except Exception as exc:
+            raise ValueError("mainline torch checkpoint is invalid") from exc
+        if not isinstance(payload, dict) or set(payload) != {"schema", "config", "model_state_dict", "normalization", "train_indices", "validation_indices", "losses", "validation_loss", "checkpoint_binding"}:
+            raise ValueError("mainline checkpoint fields are missing or extra")
+        if payload["schema"] != "ur10e_tacdiffusion_checkpoint/v3" or not isinstance(payload["config"], dict) or set(payload["config"]) != expected_config_fields:
+            raise ValueError("mainline checkpoint schema/config is invalid")
+        try:
+            config = MainlineModelConfig(**payload["config"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("mainline checkpoint config is invalid") from exc
+        validate_training_metadata(payload)
+        device = torch.device("cuda" if require_cuda else "cpu")
+        model = ConditionalActionModel(config).to(device)
+        try:
+            state_dict = payload["model_state_dict"]
+            if not isinstance(state_dict, dict) or any(not isinstance(value, torch.Tensor) or not torch.isfinite(value).all() for value in state_dict.values()):
+                raise ValueError("mainline checkpoint model state is non-finite")
+            model.load_state_dict(state_dict, strict=True)
+        except (RuntimeError, TypeError, ValueError) as exc:
+            raise ValueError("mainline checkpoint model state is invalid") from exc
+        normalization = payload["normalization"]
+        if not isinstance(normalization, dict) or set(normalization) != {"observation_mean", "observation_std", "action_mean", "action_std"}:
+            raise ValueError("mainline checkpoint normalization is invalid")
+        for key, dimension in (("observation_mean", 84), ("observation_std", 84), ("action_mean", 12), ("action_std", 12)):
+            value = normalization[key]
+            if not isinstance(value, torch.Tensor) or tuple(value.shape) != (dimension,) or not torch.isfinite(value).all():
+                raise ValueError("mainline checkpoint normalization dimensions/values are invalid")
+            if key.endswith("_std") and not torch.all(value > 0):
+                raise ValueError("mainline checkpoint normalization std must be strictly positive")
+    else:
+        if require_cuda:
+            raise RuntimeError("CUDA is required for this publication benchmark")
+        try:
+            with np.load(checkpoint, allow_pickle=False) as payload:
+                if set(payload.files) != {"schema", "config", "w1", "b1", "w2", "b2", "observation_mean", "observation_std", "action_mean", "action_std", "train_indices", "validation_indices", "losses", "validation_loss", "checkpoint_binding"}:
+                    raise ValueError("mainline checkpoint fields are missing or extra")
+                if str(payload["schema"]) != "ur10e_tacdiffusion_checkpoint/v3":
+                    raise ValueError("mainline checkpoint schema is invalid")
+                config = MainlineModelConfig(**json.loads(str(payload["config"])))
+                model = ConditionalActionModel(config, seed=0)
+                model.w1 = np.asarray(payload["w1"], dtype=np.float32)
+                model.b1 = np.asarray(payload["b1"], dtype=np.float32)
+                model.w2 = np.asarray(payload["w2"], dtype=np.float32)
+                model.b2 = np.asarray(payload["b2"], dtype=np.float32)
+                normalization = {key: np.asarray(payload[key]) for key in ("observation_mean", "observation_std", "action_mean", "action_std")}
+                expected_shapes = {
+                    "w1": (84 + 12 + config.timestep_embedding_dimension, config.hidden_dimension),
+                    "b1": (config.hidden_dimension,),
+                    "w2": (config.hidden_dimension, 12),
+                    "b2": (12,),
+                }
+                for key, shape in expected_shapes.items():
+                    if getattr(model, key).shape != shape or not np.isfinite(getattr(model, key)).all():
+                        raise ValueError("mainline CPU checkpoint model state is invalid")
+                for key, dimension in (("observation_mean", 84), ("observation_std", 84), ("action_mean", 12), ("action_std", 12)):
+                    if normalization[key].shape != (dimension,) or not np.isfinite(normalization[key]).all():
+                        raise ValueError("mainline CPU checkpoint normalization is invalid")
+                    if key.endswith("_std") and not np.all(normalization[key] > 0):
+                        raise ValueError("mainline CPU checkpoint normalization std must be strictly positive")
+                parsed_metadata = {
+                    "checkpoint_binding": json.loads(str(payload["checkpoint_binding"])),
+                    "train_indices": np.asarray(payload["train_indices"]).tolist(),
+                    "validation_indices": np.asarray(payload["validation_indices"]).tolist(),
+                    "losses": np.asarray(payload["losses"]).tolist(),
+                    "validation_loss": float(payload["validation_loss"]),
+                }
+                validate_training_metadata(parsed_metadata)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            if isinstance(exc, ValueError):
+                raise
+            raise ValueError("mainline CPU checkpoint is invalid") from exc
+        device = "cpu"
+    model._mainline_checkpoint_loaded = True
+    if torch is not None:
+        model.eval()
+    return {"model": model, "config": config, "normalization": normalization, "schema": "ur10e_tacdiffusion_checkpoint/v3", "device": str(device), "checkpoint_path": str(checkpoint)}
+
+
+def benchmark_runtime(model: "ConditionalActionModel", *, iterations: int = 8, warmup_iterations: int = 2, seed: int = 42, diffusion_steps: int = 50, require_cuda: bool = False) -> dict[str, object]:
     if model is None or diffusion_steps != 50:
         raise ValueError("runtime benchmark requires a model and exactly 50 denoising steps")
+    if not getattr(model, "_mainline_checkpoint_loaded", False):
+        raise ValueError("runtime benchmark requires a trained loaded checkpoint")
+    if iterations <= 0 or warmup_iterations < 0:
+        raise ValueError("benchmark iterations are invalid")
     if torch is None:
+        if require_cuda:
+            raise RuntimeError("CUDA is required for this publication benchmark")
         observation = np.zeros((1, 84), dtype=np.float32)
         timings = []
+        for index in range(warmup_iterations):
+            model.sample(observation, seed=seed + index, return_trace=True)
         for _ in range(iterations):
             start = time.perf_counter()
             _, trace = model.sample(observation, seed=seed, return_trace=True)
@@ -332,10 +495,16 @@ def benchmark_runtime(model: "ConditionalActionModel", *, iterations: int = 8, s
         runtime = "numpy_cpu_fallback"
     else:
         device = next(model.parameters()).device
+        if require_cuda and (device.type != "cuda" or not torch.cuda.is_available()):
+            raise RuntimeError("CUDA is required for this publication benchmark")
         observation = torch.zeros((1, 84), dtype=torch.float32, device=device)
         timings = []
         model.eval()
         with torch.no_grad():
+            for index in range(warmup_iterations):
+                model.sample(observation, seed=seed + index, return_trace=True)
+            if device.type == "cuda":
+                torch.cuda.synchronize(device)
             for _ in range(iterations):
                 if device.type == "cuda":
                     torch.cuda.synchronize(device)
@@ -350,7 +519,7 @@ def benchmark_runtime(model: "ConditionalActionModel", *, iterations: int = 8, s
     timings.sort()
     p99 = timings[min(len(timings) - 1, int(0.99 * len(timings)))]
     accepted = {rate: p99 <= 0.8 / rate for rate in (50, 100)}
-    return {"iterations": iterations, "diffusion_steps": len(trace), "distinct_timesteps": len(set(trace)), "p99_latency_s": p99, "accepted_rates_hz": [rate for rate, ok in accepted.items() if ok], "selected_rate_hz": 100 if accepted[100] else 50 if accepted[50] else None, "sleep_calls": 0, "runtime": runtime}
+    return {"iterations": iterations, "warmup_iterations": warmup_iterations, "warmup_excluded": True, "diffusion_steps": len(trace), "distinct_timesteps": len(set(trace)), "p99_latency_s": p99, "accepted_rates_hz": [rate for rate, ok in accepted.items() if ok], "selected_rate_hz": 100 if accepted[100] else 50 if accepted[50] else None, "sleep_calls": 0, "runtime": runtime, "cuda_required": require_cuda}
 
 
 def export_torchscript(checkpoint_path: str | Path, output_path: str | Path) -> str:
