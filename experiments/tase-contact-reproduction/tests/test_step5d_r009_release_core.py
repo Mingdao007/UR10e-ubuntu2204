@@ -577,6 +577,29 @@ def test_promotion_outputs_contain_identity_without_cached_live_state() -> None:
         assert stale_field not in source
 
 
+def test_active_surface_recovery_ids_roll_from_program_revision() -> None:
+    source = json.loads(
+        (ROOT / "config/step5d/v3_active_surface.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    rendered = promoter._render_active_surface(
+        source,
+        program_id="step5d_strict_rnn_autotune_v3_r014",
+    )
+
+    assert rendered["recovery_loaded_program_ids"] == [
+        "step5d_strict_rnn_autotune_v3_r011",
+        "step5d_strict_rnn_autotune_v3_r012",
+        "step5d_strict_rnn_autotune_v3_r013",
+    ]
+    assert all(
+        rendered["release_claims"][program].startswith("historical_")
+        for program in rendered["recovery_loaded_program_ids"]
+    )
+
+
 def test_active_release_source_fingerprint_drift_fails_closed(
     tmp_path: Path,
 ) -> None:

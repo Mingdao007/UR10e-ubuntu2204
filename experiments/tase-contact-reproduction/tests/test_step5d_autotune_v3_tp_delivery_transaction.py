@@ -683,11 +683,19 @@ def test_manifest_v3_and_bundle_ignore_receipt_time_and_transaction(
     assert first_receipt_sha != second_receipt_sha
 
     local = promotion.compose_local_release(root, artifact_dir)
-    for relative in (
-        Path("config/tase_protocol_table.json"),
-        Path("config/step5d/v3_active_surface.json"),
-    ):
-        assert local[1][relative.as_posix()] == (root / relative).read_bytes()
+    protocol = Path("config/tase_protocol_table.json")
+    assert local[1][protocol.as_posix()] == (root / protocol).read_bytes()
+    active_surface = Path("config/step5d/v3_active_surface.json")
+    assert json.loads(local[1][active_surface.as_posix()]) == (
+        promotion._render_active_surface(
+            json.loads((root / active_surface).read_text(encoding="utf-8")),
+            program_id=json.loads(
+                local[1][
+                    "config/step5/step5d_autotune_v3_launch_profile.json"
+                ]
+            )["tp_program_id"],
+        )
+    )
     rendered_contract = json.loads(
         local[1][
             "config/step5/step5d_autotune_v3_control_contract.json"

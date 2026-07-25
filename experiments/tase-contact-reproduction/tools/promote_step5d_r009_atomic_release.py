@@ -66,7 +66,6 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "102782fc45ca6f6c5176e3cccd276c8a44d5a31ebe0e4da47ed33e0aff5e6dd6",
 }
 CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
@@ -373,6 +372,31 @@ def _render_launch_profile(
         "tp_program_id": tp_program_id,
         "control_contract_sha256": contract_sha256,
     }
+
+
+def _render_active_surface(
+    source: Mapping[str, Any],
+    *,
+    program_id: str,
+) -> dict[str, Any]:
+    match = re.fullmatch(r"step5d_strict_rnn_autotune_v3_r(\d{3})", program_id)
+    if match is None or source.get("schema") != (
+        "step5d.autotune-v3/active-surface-v3"
+    ):
+        raise R009PromotionError("active-surface release identity differs")
+    revision = int(match.group(1))
+    recovery = [
+        f"step5d_strict_rnn_autotune_v3_r{prior:03d}"
+        for prior in range(max(1, revision - 3), revision)
+    ]
+    rendered = json.loads(json.dumps(source, allow_nan=False))
+    rendered["recovery_loaded_program_ids"] = recovery
+    claims = rendered.get("release_claims")
+    if not isinstance(claims, dict):
+        raise R009PromotionError("active-surface release claims differ")
+    for prior in recovery:
+        claims.setdefault(prior, "historical_superseded_release")
+    return rendered
 
 
 def _pending_release(program_id: str) -> PendingRelease:
@@ -745,6 +769,11 @@ def _compose_local_release(
                     deploy_manifest_sha256=deploy_sha,
                     numeric_sanity_sha256=numeric_sha,
                     readback_sha256=readback_sha,
+                )
+            elif relative == Path("config/step5d/v3_active_surface.json"):
+                projection = _render_active_surface(
+                    _load(root / relative),
+                    program_id=program_id,
                 )
             else:
                 _static_projection(root, relative)
