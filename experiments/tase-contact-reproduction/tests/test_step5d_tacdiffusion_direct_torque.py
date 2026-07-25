@@ -13,6 +13,9 @@ from step5d_tacdiffusion_direct_torque import (
     SoftwareWrenchBaseline,
     Step5dDirectTorqueCore,
 )
+from ur10e_vic.tacdiffusion.expert import DeterministicExpert
+from ur10e_vic.tacdiffusion.action import ActionProfile, TacDiffusionAction
+from ur10e_vic.tacdiffusion.mailbox import LatestModelMailbox, ModelPacket
 
 
 def sample(tick: int, *, wrench=(0.0,) * 6, qd=(0.0,) * 6, tau=(0.0,) * 6):
@@ -108,3 +111,50 @@ def test_equilibrium_slew_is_bounded_and_packets_are_contiguous() -> None:
         assert orientation <= 0.05 * 0.002 + 1e-12
         assert current.packet.sequence_after == previous.packet.sequence_after + 1
 
+
+def test_mainline_requires_injected_surface_trajectory_reference_and_emits_12_int_packet() -> None:
+    reference = {
+        "desired_pose_base": (0.487795411149049, 0.12932679270060748, 0.02, 3.14, 0.0, 0.0),
+        "desired_twist_base": (0.0,) * 6,
+        "desired_acceleration_base": (0.0,) * 6,
+        "progress_s": 0.0,
+        "duration_s": 8.0,
+        "target_load_n": 5.0,
+        "preload_n": 0.5,
+        "reaction_normal_base": (0.0, 0.0, 1.0),
+    }
+    first = sample(0)
+    mainline_sample = RuntimeSample(**{**first.__dict__, "episode_reference": reference})
+    core = Step5dDirectTorqueCore(lease_id=9, shadow=FixtureShadowRunner(None), mainline=True, expert=DeterministicExpert())
+    result = core.tick(mainline_sample)
+    assert result.packet.model_period_us == 10_000
+    assert len(result.command_bytes) == 12 * 4 + 24 * 8
+    assert result.packet.raw_feedforward_wrench != (0.0,) * 6
+    missing = Step5dDirectTorqueCore(lease_id=10, shadow=FixtureShadowRunner(None), mainline=True, expert=DeterministicExpert())
+    with pytest.raises(RuntimeError, match="reference"):
+        missing.tick(sample(0))
+
+
+def test_shadow_model_is_diagnostic_only_and_serialization_matches_no_model() -> None:
+    reference = {
+        "desired_pose_base": (0.487795411149049, 0.12932679270060748, 0.02, 3.14, 0.0, 0.0),
+        "desired_twist_base": (0.0,) * 6,
+        "desired_acceleration_base": (0.0,) * 6,
+        "progress_s": 0.0,
+        "duration_s": 8.0,
+        "target_load_n": 5.0,
+        "preload_n": 0.5,
+        "reaction_normal_base": (0.0, 0.0, 1.0),
+    }
+    base = sample(0)
+    current = RuntimeSample(**{**base.__dict__, "episode_reference": reference})
+    profile = ActionProfile()
+    mailbox = LatestModelMailbox()
+    mailbox.publish(ModelPacket(1, 0.0, TacDiffusionAction((19.0,) * 6, profile.stiffness_max), profile, 0.001, mode="shadow"))
+    no_model = Step5dDirectTorqueCore(lease_id=99, shadow=FixtureShadowRunner(None), mainline=True, expert=DeterministicExpert())
+    shadow = Step5dDirectTorqueCore(lease_id=99, shadow=FixtureShadowRunner(None), mainline=True, expert=DeterministicExpert(), model_mailbox=mailbox)
+    no_model_result = no_model.tick(current)
+    shadow_result = shadow.tick(current)
+    assert shadow_result.packet.model_mode == 1
+    assert shadow_result.shadow_model_action is not None
+    assert shadow_result.command_bytes == no_model_result.command_bytes

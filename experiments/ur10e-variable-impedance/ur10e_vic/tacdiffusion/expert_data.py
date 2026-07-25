@@ -215,6 +215,13 @@ def deterministic_expert_f_ff(
     ee_twist_tcp: Sequence[float],
     definition: ExpertForceDefinitionArtifact,
 ) -> tuple[float, ...]:
+    """Legacy non-authoritative reference only.
+
+    This helper remains for pipeline compatibility and old fixture validation.
+    It is explicitly not the TacDiffusion mainline imitation-label policy;
+    formal labels come from ``DeterministicExpert`` and its guarded
+    pre-filter command.
+    """
     """Compute the pre-filter expert label: ZFT - K*error + D*twist."""
 
     target = _vector(task_zft_wrench_tcp_si, 6, "task_zft_wrench_tcp_si")

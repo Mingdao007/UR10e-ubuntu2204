@@ -27,7 +27,12 @@ from .expert_data import ExpertTraceManifestV2, validate_episode_manifest_artifa
 
 
 DATASET_SCHEMA_VERSION = 2
-ACTION_DIMENSION = 6
+# Mainline is exclusively the 84D -> 12D F_df+K contract.  The six-force
+# value is named as legacy so old replay fixtures cannot be mistaken for a
+# trainable mainline artifact.
+ACTION_DIMENSION = 12
+LEGACY_ACTION_DIMENSION = 6
+MAINLINE_DATASET_SCHEMA = "ur10e_tacdiffusion_dataset/v2"
 FORMAL_SOURCE_KIND = "ur10e_expert_demonstration"
 LEGACY_PIPELINE_SOURCE_KINDS = frozenset(
     {"legacy_v27_replay", "legacy_v29_replay"}
@@ -45,6 +50,25 @@ def sha256_file(path: str | Path) -> str:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def write_mainline_dataset(*args, **kwargs):
+    """Authoritative 84D/12D writer, exposed from the package seam.
+
+    The legacy writer below remains only for replay compatibility and always
+    validates six-dimensional labels.  Mainline callers therefore cannot
+    silently serialize a six-dimensional dataset under the v2 name.
+    """
+
+    from .mainline_dataset import write_mainline_dataset as _write
+
+    return _write(*args, **kwargs)
+
+
+def validate_mainline_dataset(*args, **kwargs):
+    from .mainline_dataset import validate_mainline_dataset as _validate
+
+    return _validate(*args, **kwargs)
 
 
 def _canonical_sha256(payload: Mapping[str, object]) -> str:
@@ -156,8 +180,8 @@ def _validate_arrays(
     actions = np.asarray(expert_f_ff, dtype=np.float32)
     if conditions.ndim != 2 or conditions.shape[1] != CONDITION_DIMENSION:
         raise ValueError("condition must have shape [N, 36]")
-    if actions.shape != (conditions.shape[0], ACTION_DIMENSION):
-        raise ValueError("expert_f_ff must have shape [N, 6]")
+    if actions.shape != (conditions.shape[0], LEGACY_ACTION_DIMENSION):
+        raise ValueError("legacy expert_f_ff must have shape [N, 6]; 12D mainline uses write_mainline_dataset")
     if conditions.shape[0] == 0:
         raise ValueError("dataset must contain at least one sample")
     if not np.isfinite(conditions).all() or not np.isfinite(actions).all():
@@ -460,7 +484,7 @@ def build_dataset_manifest(
         "sample_count": dataset.sample_count,
         "episode_count": dataset.episode_count,
         "condition_shape": [dataset.sample_count, CONDITION_DIMENSION],
-        "action_shape": [dataset.sample_count, ACTION_DIMENSION],
+        "action_shape": [dataset.sample_count, LEGACY_ACTION_DIMENSION],
         "condition_order": CONDITION_ORDER,
         "source_kind": dataset.source_kind,
         "canonical_frame_id": dataset.canonical_frame_id,

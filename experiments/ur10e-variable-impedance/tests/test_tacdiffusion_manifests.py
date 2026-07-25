@@ -32,18 +32,25 @@ class TacDiffusionManifestTests(unittest.TestCase):
         self.assertEqual(lock["reference_model_configuration"]["mlp_hidden_width"], 512)
         self.assertFalse(lock["active_control_enabled"])
 
-    def test_experiment_contract_is_force_only_and_has_real_label_boundary(self) -> None:
+    def test_experiment_contract_is_84d_force_conditioned_and_has_real_label_boundary(self) -> None:
         plan = load("tacdiffusion_experiment_plan.json")
         self.assertEqual(plan["claim"], CLAIM)
         self.assertFalse(plan["task"]["vision_enabled"])
-        dimensions = plan["observation_contract"]["per_time_slice"]
-        self.assertEqual(2 * sum(dimensions.values()), 36)
-        self.assertTrue(plan["observation_contract"]["internal_wrench_must_not_copy_external_wrench"])
+        observation = plan["observation_contract"]
+        dimensions = observation["per_time_slice"]
+        self.assertEqual(sum(dimensions.values()), observation["slice_dimension"])
+        self.assertEqual(
+            observation["time_slices"] * observation["slice_dimension"],
+            observation["dimension"],
+        )
+        self.assertEqual(observation["dimension"], 84)
+        self.assertEqual(plan["proposal_contract"]["action_dimension"], 12)
+        self.assertTrue(observation["internal_wrench_must_not_copy_external_wrench"])
         self.assertFalse(plan["offline_replay"]["formal_label_source"])
         self.assertTrue(plan["offline_replay"]["shadow_must_preserve_active_command_bit_for_bit"])
         self.assertEqual(
             set(plan["model_configuration"]["candidate_model_rates_hz"]),
-            {50, 100, 200, 500},
+            {50, 100},
         )
         self.assertEqual(
             [stage["episodes"] for stage in plan["dataset_stages"]],

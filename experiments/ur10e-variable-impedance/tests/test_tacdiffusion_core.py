@@ -239,17 +239,20 @@ class TacDiffusionSignalTests(unittest.TestCase):
 
 
 class TacDiffusionFilterAndTimingTests(unittest.TestCase):
-    def test_paper_second_order_filter_discretization_is_pinned(self) -> None:
+    def test_rate_invariant_filter_settling_and_legacy_parameters_are_pinned(self) -> None:
         filter_ = DynamicForceFilter()
-        state = filter_.step((1, 0, 0, 0, 0, 0))
-        expected_acceleration = 0.9 * 0.3
-        expected_velocity = (1.0 / 500.0) * expected_acceleration
-        expected_position = (1.0 / 500.0) * expected_velocity
-        self.assertAlmostEqual(state.filtered_f_ff_velocity[0], expected_velocity)
-        self.assertAlmostEqual(state.filtered_f_ff[0], expected_position)
+        samples = [
+            filter_.step((1, 0, 0, 0, 0, 0)).filtered_f_ff[0]
+            for _ in range(25)
+        ]
+        self.assertTrue(all(0.0 <= value <= 1.0 for value in samples))
+        self.assertTrue(all(left <= right for left, right in zip(samples, samples[1:])))
+        self.assertAlmostEqual(1.0 - samples[-1], 0.02, places=12)
         self.assertEqual(filter_.reset().filtered_f_ff, (0.0,) * 6)
         with self.assertRaisesRegex(ValueError, "alpha is pinned"):
             DynamicForceFilter(alpha=1.0)
+        with self.assertRaisesRegex(ValueError, "beta is pinned"):
+            DynamicForceFilter(beta=0.3)
         with self.assertRaisesRegex(ValueError, "six finite"):
             filter_.step((math.inf, 0, 0, 0, 0, 0))
 

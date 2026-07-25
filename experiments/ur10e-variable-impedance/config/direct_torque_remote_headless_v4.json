@@ -1,0 +1,67 @@
+{
+  "schema": "ur10e_tacdiffusion_remote_headless/v4",
+  "contract_status": "offline_contract_only",
+  "mainline_receiver": {
+    "python_module": "ur10e_vic.tacdiffusion.direct_torque_receiver",
+    "builder_symbol": "build_receiver_source",
+    "parser_symbol": "parse_receiver_source",
+    "emitted_receiver_schema": "ur10e_direct_torque_receiver/v3",
+    "v3_is_immutable": true,
+    "source_only": true
+  },
+  "packet": {
+    "input_integer_registers": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35],
+    "input_integer_count": 12,
+    "input_double_registers": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47],
+    "input_double_count": 24,
+    "integer_fields": {
+      "command": 24,
+      "sequence": 25,
+      "heartbeat": 26,
+      "lease": 27,
+      "model_sequence": 28,
+      "model_period_us": 29,
+      "model_mode": 30,
+      "frame_token": 31,
+      "model_timestamp_us": 32,
+      "home_ack_identity": 33,
+      "home_consume_identity": 34,
+      "episode_identity": 35
+    },
+    "double_fields": {
+      "equilibrium_pose": [24, 25, 26, 27, 28, 29],
+      "stiffness_k": [30, 31, 32, 33, 34, 35],
+      "damping_echo_only": [36, 37, 38, 39, 40, 41],
+      "raw_f_df": [42, 43, 44, 45, 46, 47]
+    },
+    "timestamp_semantics": {
+      "frame_token_register": 31,
+      "model_timestamp_register": 32,
+      "model_timestamp_unit": "microseconds_since_episode_start",
+      "sequence_policy": "coherent_before_after_and_monotonic"
+    }
+  },
+  "controller": {
+    "control_rate_hz": 500,
+    "filter": "exact_zoh_second_order_rate_invariant",
+    "settling_time_s": 0.05,
+    "damping_ratio": 1.0,
+    "damping": "derived_on_controller_from_virtual_mass_stiffness_and_damping_ratio",
+    "model_update_rate_hz_candidates": [50, 100],
+    "model_period_us_candidates": [10000, 20000],
+    "k_slew_and_bounds_guarded": true
+  },
+  "authorization": {
+    "active_allowed_default": false,
+    "active_requires": ["validated_checkpoint_binding", "hash_linked_promotion", "explicit_live_authorization"],
+    "shadow_is_diagnostic_only": true
+  },
+  "campaign": {
+    "empty_queue": "WAIT_FOREVER",
+    "terminal_commands": ["END", "DRAIN"],
+    "home_ack_required": true,
+    "home_consume_required": true
+  },
+  "no_motion": true,
+  "forbidden_in_this_contract": ["Dashboard", "Load", "Play", "bridge", "ARM", "RTDE_writer", "motion"]
+}

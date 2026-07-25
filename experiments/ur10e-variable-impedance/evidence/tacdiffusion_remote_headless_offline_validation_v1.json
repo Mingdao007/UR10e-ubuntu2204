@@ -1,0 +1,175 @@
+{
+  "schema": "ur10e_tacdiffusion_remote_headless_offline_validation/v1",
+  "captured_date": "2026-07-26",
+  "baseline_commit": "c737959aa91f376c307f6920e0bf958fb5f9fd1a",
+  "topic_branch": "codex/tacdiffusion-remote-headless-20260726",
+  "highest_stage": "offline_ursim_protocol_no_motion_tested",
+  "boundaries": {
+    "active_allowed": false,
+    "arm_authorized": false,
+    "bridge_started": false,
+    "controller_verified": false,
+    "dashboard_connected": false,
+    "hardware_run": false,
+    "live_motion_authorized": false,
+    "load_sent": false,
+    "play_sent": false,
+    "rtde_writer_started": false,
+    "ursim_runtime_started": false
+  },
+  "validation": {
+    "full_variable_impedance_suite": {
+      "passed": 147,
+      "skipped": 5,
+      "subtests_passed": 15
+    },
+    "tase_step5d_mainline": {
+      "passed": 10
+    },
+    "ursim_protocol_transport_parser_mainline": {
+      "passed": 30,
+      "skipped": 1,
+      "runtime_kind": "fake_transport_and_static_parser"
+    },
+    "virtual_campaign": {
+      "continuous_episodes": 50,
+      "isolated_recovery_cycles": 100,
+      "mandatory_resets_per_continuous_episode": 2,
+      "passed": true
+    },
+    "semantic_gate": {
+      "historical_csv_rows_checked": 80,
+      "failure_contrast_passed": true,
+      "max_orientation_diff": 0.0,
+      "min_reference_z_dot": 0.9900000000000001,
+      "overall_passed": true,
+      "source_csv_read_only": "experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_liveprep_v4_20260614_234951/bridge_rtde_500hz.csv"
+    },
+    "cuda_bounded_training_and_sampler": {
+      "accepted_rates_hz": [
+        50
+      ],
+      "checkpoint_schema": "ur10e_tacdiffusion_checkpoint/v3",
+      "cuda_version": "12.8",
+      "device": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+      "diffusion_steps": 50,
+      "distinct_reverse_timesteps": 50,
+      "finite_12d_sample": true,
+      "iterations": 8,
+      "p99_latency_s": 0.014401489999727346,
+      "selected_rate_hz": 50,
+      "torch_version": "2.11.0+cu128",
+      "torchscript_exported": true,
+      "validation_loss": 0.07607713341712952
+    },
+    "operator_cli": {
+      "dry_run_plan_only": true,
+      "physical_io_enabled": false,
+      "receiver_schema": "ur10e_direct_torque_receiver/v3"
+    }
+  },
+  "promotion": {
+    "active_allowed": false,
+    "offline_replay_validated": true,
+    "shadow_artifacts_complete": false,
+    "required_next_stage": "two_live_shadow_trajectories_with_90_seconds_total_evidence"
+  },
+  "source_bindings": [
+    {
+      "path": "config/direct_torque_rtde_layout.json",
+      "sha256": "b5077a2f6856cd9b1b2f7c4fc599fb9f6f5cc239da93dd9f4666b5128c70866d"
+    },
+    {
+      "path": "config/direct_torque_remote_headless_v4.json",
+      "sha256": "8c0fcd4a15c4399232cb2a565f8925c5aba26fda9ad182503d76a5b63fc5c198"
+    },
+    {
+      "path": "config/tacdiffusion_experiment_plan.json",
+      "sha256": "76a34f67b33f5af6518f38ce80e48862d99bbbd23f539777a84a22805d0ed4a3"
+    },
+    {
+      "path": "config/ursim_5_26_protocol.json",
+      "sha256": "1e21bc0536291080aca8a2a47b125f5e942f3601f15c8ad70e775a32f1b52361"
+    },
+    {
+      "path": "config/ursim_remote_headless_no_motion_protocol.json",
+      "sha256": "8e590af333d695a2177e58745b620bbe4bbee23b196f57158bdd795b2550732e"
+    },
+    {
+      "path": "ur10e_vic/backends.py",
+      "sha256": "7ec9c02c6eed52186b3fd3d46c30e07124df4db8a71f2eaa5164672dcde2d57d"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/observation.py",
+      "sha256": "b2f354e203cb6f95c5417fce959e1e0010be335217a59769dd9bf10851018e34"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/action.py",
+      "sha256": "eae6b38c43a3a6e84c80808b4153cd2ff8c2aa4b2ab703eef3658281e5eb271b"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/surface.py",
+      "sha256": "598a98109ac783212a9ab11a083d2636c37d04377a15965f32eb67c66fb3c7db"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/trajectory.py",
+      "sha256": "7777179da57b2d38511008df5b3679155ea8fa4efe7210f7a8ecd37a4cd21979"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/expert.py",
+      "sha256": "b88ce42a982914d2264e9b8e5bfa0f0c2fc60a95192a20be7382d9749de442df"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/dynamic_filter.py",
+      "sha256": "8c0a07722a7030aae179ebda58a4f47655e24227c7a5b4b05bc28ec7776b7419"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/mailbox.py",
+      "sha256": "32d0d5947d1a388ceac84dc6e0f5d4cb58d4a093a023a563c97e2176ea3a76ee"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/queue.py",
+      "sha256": "7f65504adcf1b8924ff5bb68e50cab71dd57d5d0c8749fe36ce5acc7cd2099ce"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/mainline_dataset.py",
+      "sha256": "a38f157f2935f58b79d47d54ea6ea38bf1a6f74f9bfa57670882459ffc899981"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/mainline_model.py",
+      "sha256": "8e3a1572fad8ac19ccd4423327183d94e105dcc12675ef83ce2ee1efda7f47e9"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/direct_torque_receiver.py",
+      "sha256": "21048b8e072c383256f67441ab69f9a35adb095304463fef1f2915fe8198e718"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/remote_headless.py",
+      "sha256": "5ee67d758cda4ab1928228bddd59a0f95765650f7ff892b27272f7cf4f1dfb22"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/promotion.py",
+      "sha256": "1b7005641950071096f91902d63711704bc731d0c613d9875f3afec97cac9d1f"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/raw_artifact.py",
+      "sha256": "5ae77b1b1728967ca6c19d1298cbf1b50057d5ea91c5597edd2e5ae8c662f6fa"
+    },
+    {
+      "path": "tools/tacdiffusion_remote_headless.py",
+      "sha256": "e971e6c5d00c9393d53d32ddc976f3349c3a080d2a869904875b53c6c322389e"
+    },
+    {
+      "path": "../tase-contact-reproduction/config/step5d_tacdiffusion_liveprep_v1.json",
+      "sha256": "a1ff94e951eb066bab007601a8be16b9aef149fccb74d19ce05488b6bb43e1cd"
+    },
+    {
+      "path": "../tase-contact-reproduction/tools/run_step5d_tacdiffusion_bridge.py",
+      "sha256": "afa562cc5edf299873ae17d220ff1e20e11cd5c485e100573d52fea486fb5fdf"
+    },
+    {
+      "path": "../tase-contact-reproduction/tools/step5d_tacdiffusion_direct_torque.py",
+      "sha256": "5a53f67a703b8b39f15ac59aa8f9bccfe16385760fa357060970619a294c672d"
+    }
+  ]
+}

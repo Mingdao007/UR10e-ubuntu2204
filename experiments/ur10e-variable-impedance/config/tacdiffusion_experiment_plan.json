@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "experiment": "ur10e_step5_tacdiffusion",
   "status": "offline_preparation",
   "controller_verified": false,
@@ -29,12 +29,30 @@
   },
   "observation_contract": {
     "name": "ForceDiffusionObservation",
-    "dimension": 36,
+    "dimension": 84,
     "time_slices": 2,
+    "slice_dimension": 42,
+    "slice_order": ["current", "previous"],
+    "slice_fields": [
+      {"name": "external_wrench", "dimension": 6, "frame": "tool0_tcp", "units": "N,Nm"},
+      {"name": "internal_wrench", "dimension": 6, "frame": "tool0_tcp", "units": "N,Nm"},
+      {"name": "actual_ee_twist", "dimension": 6, "frame": "tool0_tcp", "units": "m/s,rad/s"},
+      {"name": "desired_pose", "dimension": 6, "frame": "base", "units": "m,rad"},
+      {"name": "desired_twist", "dimension": 6, "frame": "base", "units": "m/s,rad/s"},
+      {"name": "desired_acceleration", "dimension": 6, "frame": "base", "units": "m/s^2,rad/s^2"},
+      {"name": "tracking_error", "dimension": 6, "frame": "base", "units": "m,rad"}
+    ],
+    "timestamp_fields": ["frame_timestamp_s", "external_sample_timestamp_s"],
+    "frame_lineage_required": ["sensor_frame_id", "canonical_frame_id", "calibration_hash", "normalization_hash"],
+    "normalization": "train_split_only_hash_bound",
     "per_time_slice": {
       "external_wrench": 6,
       "internal_wrench": 6,
-      "end_effector_twist": 6
+      "actual_ee_twist": 6,
+      "desired_pose": 6,
+      "desired_twist": 6,
+      "desired_acceleration": 6,
+      "tracking_error": 6
     },
     "required_lineage": [
       "timestamp",
@@ -51,8 +69,14 @@
   },
   "proposal_contract": {
     "name": "ForceDiffusionProposal",
-    "raw_action": "F_df",
-    "action_dimension": 6,
+    "raw_action": "F_df_6D_plus_stiffness_K_6D",
+    "action_dimension": 12,
+    "action_units": {
+      "F_df": "N,Nm",
+      "K": "N/m,Nm/rad",
+      "D": "N s/m,Nm s/rad"
+    },
+    "damping_semantics": "D is derived from K, virtual_mass, and damping_ratio on the controller; D is not an independent model output",
     "required_metadata": [
       "model_hash",
       "sequence",
@@ -126,10 +150,20 @@
     "scheduler": "CosineAnnealingLR",
     "normalization_scope": "train_split_only",
     "resume_state": ["optimizer", "scheduler", "torch_rng", "permutation_rng"],
-    "dynamic_filter_alpha": 0.9,
-    "dynamic_filter_beta": 0.3,
-    "candidate_model_rates_hz": [50, 100, 200, 500],
-    "rate_selection_rule": "choose the highest rate with a 60-second run, zero deadline misses, zero nonfinite output, and p99 latency no greater than 80 percent of the model period",
+    "dynamic_filter": {
+      "settling_time_s": 0.05,
+      "damping_ratio": 1.0,
+      "rate_invariant_discretization": "exact_zoh_second_order",
+      "state": ["filtered_F_ff_6D", "filter_velocity_6D"]
+    },
+    "candidate_model_rates_hz": [50, 100],
+    "rate_selection_rule": "select 50 or 100 Hz only from the measured exact 50-step sampler benchmark; require finite output, zero deadline misses in the benchmark, and p99 latency no greater than 80 percent of the selected model period",
+    "benchmark_selection": {
+      "measures": "actual_50_step_sampler_path",
+      "cuda_synchronize_when_available": true,
+      "fixed_wall_clock_sleep": false,
+      "fixed_60_second_qualification": false
+    },
     "all_rates_failure_policy": "shadow_only"
   },
   "fail_closed_conditions": [
@@ -149,7 +183,7 @@
   },
   "hardware_progression": [
     "fixed impedance no-contact shadow",
-    "direct_torque fixed baseline no-contact canary for 2, 10, and 60 seconds",
+    "direct_torque fixed baseline no-contact canary for 2 and 10 seconds; longer traces are evidence-only and never a qualification rule",
     "low-risk contact runs using the deterministic expert",
     "collect the 50-episode and 200-episode expert F_ff datasets",
     "TacDiffusion shadow",

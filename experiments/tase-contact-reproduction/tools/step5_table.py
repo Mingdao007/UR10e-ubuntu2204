@@ -143,6 +143,7 @@ def step5_path_reference(
     return {
         "stage_id": stage_id,
         "progress": local["progress"],
+        "duration_s": float(stage["duration_s"]),
         "path_time_s": local["path_time_s"],
         "phase_rad": local["phase_rad"],
         "desired_xy": desired_xy,

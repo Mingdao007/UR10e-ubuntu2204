@@ -42,6 +42,16 @@ DIRECT_TORQUE_MODEL_MODES = (0, 1, 2)
 DIRECT_TORQUE_MODEL_ACTIVE_ALLOWED = False
 DIRECT_TORQUE_FRAME_TOKEN = 5_252_001
 DIRECT_TORQUE_ORIENTATION_SLEW_RAD_S = 0.05
+# The keys below are retained under the legacy packet oracle only.  Mainline
+# packet construction uses the 12D action contract and validates all six K
+# components dynamically; orientation K is not fixed there.
+MAINLINE_DIRECT_TORQUE_CONTRACT = {
+    "action_dimension": 12,
+    "stiffness_components": 6,
+    "stiffness_units": "N/m,Nm/rad",
+    "damping_units": "N s/m,Nm s/rad",
+    "orientation_stiffness_policy": "dynamic_bounded_slew",
+}
 DIRECT_TORQUE_FILTER_ALPHA = 0.9
 DIRECT_TORQUE_FILTER_BETA = 0.3
 DIRECT_TORQUE_MANIFEST_LIMITS = {
@@ -77,6 +87,18 @@ DIRECT_TORQUE_MANIFEST_LIMITS = {
     "torque_norm_abs_max_nm": 3.0,
     "virtual_mass": list(DIRECT_TORQUE_VIRTUAL_MASS),
 }
+
+
+def validate_mainline_stiffness(stiffness: Sequence[float]) -> tuple[float, ...]:
+    """Validate the production six-axis K vector without a fixed orientation."""
+
+    values = tuple(float(value) for value in stiffness)
+    if len(values) != 6 or not all(math.isfinite(value) for value in values):
+        raise ValueError("mainline stiffness must contain six finite values")
+    for index, value in enumerate(values):
+        if not DIRECT_TORQUE_K_MIN[index] <= value <= DIRECT_TORQUE_K_MAX[index]:
+            raise ValueError("mainline stiffness out of bounds")
+    return values
 
 
 @dataclass(frozen=True)
@@ -117,7 +139,11 @@ class DirectTorquePacket:
     model_sequence_before: int = 0
     model_sequence_after: int = 0
     model_period_us: int = 0
+    model_timestamp_us: int = 0
     model_mode: int = 0
+    home_ack_identity: int = 0
+    home_consume_identity: int = 0
+    episode_identity: int = 0
     wrench_frame_token: int = 0
 
     def __post_init__(self) -> None:
@@ -130,6 +156,12 @@ class DirectTorquePacket:
         if len(feedforward) != 6:
             raise ValueError("raw feed-forward wrench must contain six values")
         object.__setattr__(self, "raw_feedforward_wrench", feedforward)
+        if self.model_timestamp_us < 0:
+            raise ValueError("model timestamp must be non-negative")
+        if self.home_ack_identity < 0 or self.home_consume_identity < 0:
+            raise ValueError("home identity values must be non-negative")
+        if self.episode_identity < 0:
+            raise ValueError("episode identity must be non-negative")
 
 
 @dataclass(frozen=True)
@@ -141,6 +173,7 @@ class DirectTorqueGuardState:
     last_stiffness: tuple[float, ...] | None = None
     last_model_sequence: int = 0
     last_model_period_us: int = 0
+    last_model_timestamp_us: int = 0
     last_model_mode: int = 0
     model_age_ticks: int = 0
     last_raw_feedforward_wrench: tuple[float, ...] = (0.0,) * 6
@@ -294,6 +327,7 @@ def validate_direct_torque_packet(
             packet.model_sequence_before != 0
             or packet.model_sequence_after != 0
             or packet.model_period_us != 0
+            or packet.model_timestamp_us != 0
             or not all(
                 math.isfinite(value) and abs(value) <= 1e-12
                 for value in raw_feedforward
@@ -302,6 +336,7 @@ def validate_direct_torque_packet(
             return reject("disabled_model_packet_not_zero")
         next_model_sequence = 0
         next_model_period_us = 0
+        next_model_timestamp_us = 0
         next_model_mode = 0
         next_model_age_ticks = 0
         next_raw_feedforward = (0.0,) * 6
@@ -346,6 +381,7 @@ def validate_direct_torque_packet(
             if (
                 packet.model_period_us != state.last_model_period_us
                 or packet.model_mode != state.last_model_mode
+                or packet.model_timestamp_us != state.last_model_timestamp_us
                 or any(
                     abs(
                         raw_feedforward[index]
@@ -354,11 +390,15 @@ def validate_direct_torque_packet(
                     > 1e-12
                     for index in range(6)
                 )
+                or state.last_stiffness is None
+                or any(abs(packet.stiffness[index] - state.last_stiffness[index]) > 1e-12 for index in range(6))
             ):
                 return reject("model_payload_changed_without_sequence_commit")
             next_model_age_ticks = state.model_age_ticks + 1
         else:
             next_model_age_ticks = 0
+            if packet.model_timestamp_us < state.last_model_timestamp_us:
+                return reject("model_timestamp_regression")
         if (
             next_model_age_ticks * DIRECT_TORQUE_CONTROL_PERIOD_US
             > DIRECT_TORQUE_MODEL_STALE_PERIODS * packet.model_period_us
@@ -375,6 +415,7 @@ def validate_direct_torque_packet(
         )
         next_model_sequence = model_sequence
         next_model_period_us = packet.model_period_us
+        next_model_timestamp_us = packet.model_timestamp_us
         next_model_mode = packet.model_mode
         next_raw_feedforward = raw_feedforward
     for index, (stiffness, damping) in enumerate(
@@ -436,6 +477,7 @@ def validate_direct_torque_packet(
         last_stiffness=tuple(packet.stiffness),
         last_model_sequence=next_model_sequence,
         last_model_period_us=next_model_period_us,
+        last_model_timestamp_us=next_model_timestamp_us,
         last_model_mode=next_model_mode,
         model_age_ticks=next_model_age_ticks,
         last_raw_feedforward_wrench=next_raw_feedforward,
@@ -804,7 +846,7 @@ def load_direct_torque_bundle(layout_path: Path, template_path: Path) -> dict[st
     """Validate that the offline template is exactly bound to its RTDE layout."""
 
     payload = json.loads(layout_path.read_text(encoding="utf-8"))
-    if payload.get("schema_version") != 3:
+    if payload.get("schema_version") not in {3, 4}:
         raise ValueError("unsupported direct-torque layout schema")
     if payload.get("default_mode") != "disabled" or payload.get("upload_authorized"):
         raise ValueError("offline direct-torque bundle must default to disabled/no-upload")

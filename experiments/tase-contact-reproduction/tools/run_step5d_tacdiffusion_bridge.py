@@ -42,6 +42,12 @@ from step5d_tacdiffusion_direct_torque import (  # noqa: E402
     SoftwareWrenchBaseline,
     Step5dDirectTorqueCore,
 )
+from ur10e_vic.tacdiffusion.expert import DeterministicExpert  # noqa: E402
+from ur10e_vic.tacdiffusion.queue import (  # noqa: E402
+    EpisodeRequest,
+    PersistentRollingQueue,
+    QueueDecision,
+)
 
 
 PROGRAM = "step5d_tacdiffusion_direct_torque_fixture_shadow_v1"
@@ -56,6 +62,8 @@ RUNTIME_PLAYING = 2
 DOUBLE_INPUT_FIELDS = [f"input_double_register_{index}" for index in range(24, 48)]
 INTEGER_INPUT_FIELDS = [f"input_int_register_{index}" for index in range(24, 32)]
 INPUT_FIELDS = DOUBLE_INPUT_FIELDS + INTEGER_INPUT_FIELDS
+MAINLINE_INTEGER_INPUT_FIELDS = [f"input_int_register_{index}" for index in range(24, 36)]
+MAINLINE_INPUT_FIELDS = DOUBLE_INPUT_FIELDS + MAINLINE_INTEGER_INPUT_FIELDS
 OUTPUT_FIELDS = [
     "timestamp",
     "actual_TCP_pose",
@@ -436,7 +444,29 @@ def precontact_doubles(
     return values
 
 
-def packet_values(packet: Any) -> list[Any]:
+def run_offline_campaign(
+    queue: PersistentRollingQueue,
+    requests: Sequence[EpisodeRequest],
+    dispatch: Any,
+) -> tuple[str, ...]:
+    """Drain a queue with an injected fake transport and no wall-clock exit."""
+
+    for request in requests:
+        queue.append(request)
+    queue.request_drain()
+    results: list[str] = []
+    while True:
+        read = queue.next()
+        if read.decision == QueueDecision.COMPLETE:
+            return tuple(results)
+        if read.decision != QueueDecision.ITEM or read.item is None:
+            raise RuntimeError(f"offline campaign cannot progress: {read.decision.value}")
+        result_identity = str(dispatch(read.item))
+        queue.complete(result_identity=result_identity)
+        results.append(read.item.dispatch_id)
+
+
+def packet_values(packet: Any, *, mainline: bool = False) -> list[Any]:
     doubles = [
         *packet.equilibrium_pose,
         *packet.stiffness,
@@ -453,6 +483,8 @@ def packet_values(packet: Any) -> list[Any]:
         packet.model_mode,
         packet.wrench_frame_token,
     ]
+    if mainline:
+        integers.extend((packet.model_timestamp_us, packet.home_ack_identity, packet.home_consume_identity, packet.episode_identity))
     return doubles + integers
 
 
@@ -500,6 +532,23 @@ def run_live(args: argparse.Namespace) -> int:
         local_package_sha256=package,
     )
     matrix = calibration["wrench_transform_sensor_to_tcp_6x6"]
+    if args.episode_reference is None:
+        raise RuntimeError("mainline_episode_reference_injection_required")
+    reference_payload = load_json(args.episode_reference, "episode_reference")
+    if isinstance(reference_payload, dict) and isinstance(reference_payload.get("references"), list):
+        reference_rows = reference_payload["references"]
+    elif isinstance(reference_payload, list):
+        reference_rows = reference_payload
+    else:
+        raise RuntimeError("episode_reference_rows_missing")
+    if not reference_rows or not all(isinstance(row, dict) for row in reference_rows):
+        raise RuntimeError("episode_reference_rows_invalid")
+
+    def episode_reference_provider(sample: RuntimeSample) -> dict[str, Any]:
+        if sample.tick >= len(reference_rows):
+            raise RuntimeError("episode_reference_exhausted")
+        return reference_rows[sample.tick]
+
     normal_axis = {"fx": 0, "fy": 1, "fz": 2}[calibration["normal_force_axis"]]
     normal_sign = float(calibration["normal_force_sign"])
     baseline = SoftwareWrenchBaseline()
@@ -511,6 +560,9 @@ def run_live(args: argparse.Namespace) -> int:
     direct_core = Step5dDirectTorqueCore(
         lease_id=int(time.time()) & 0x7FFFFFFF or 1,
         shadow=FixtureShadowRunner(lambda sample: (sample.elapsed_s, *sample.wrench_tcp_si[:5])),
+        mainline=True,
+        expert=DeterministicExpert(),
+        episode_reference_provider=episode_reference_provider,
     )
     last_packet = None
     rebaseline_requested = False
@@ -519,7 +571,7 @@ def run_live(args: argparse.Namespace) -> int:
         with BridgeRTDE(args.robot_host, timeout=args.connect_timeout_s) as rtde:
             rtde.negotiate()
             output_recipe, output_types = rtde.setup_outputs(500.0, OUTPUT_FIELDS)
-            input_recipe, input_types = rtde.setup_inputs(INPUT_FIELDS)
+            input_recipe, input_types = rtde.setup_inputs(MAINLINE_INPUT_FIELDS)
             rtde.start()
             next_release = time.monotonic()
             while True:
@@ -583,12 +635,20 @@ def run_live(args: argparse.Namespace) -> int:
                         stage=stage,
                         sensor_ok=baseline.ready,
                     )
-                    rtde.send_inputs(input_recipe, input_types, doubles + [0] * 8)
+                    # Mainline recipe includes timestamp, home ACK/consume,
+                    # and episode identity: disabled precontact is exactly 12
+                    # integer fields, not the legacy 8-field packet.
+                    rtde.send_inputs(input_recipe, input_types, doubles + [0] * 12)
                     continue
                 if last_packet is None:
                     direct_started = now
-                elapsed = now - direct_started
-                if elapsed >= 60.0 and last_packet is not None:
+                current_reference = reference_rows[direct_tick] if direct_tick < len(reference_rows) else None
+                if not isinstance(current_reference, dict) or "reaction_normal_base" not in current_reference:
+                    raise RuntimeError("episode_reference_reaction_normal_missing")
+                # Completion is an explicit campaign END, never a fixed
+                # duration outcome.  The live owner may set this flag only
+                # after its queue/lifecycle has issued END.
+                if getattr(args, "end_campaign", False) and last_packet is not None:
                     completion = replace(
                         last_packet,
                         sequence_before=last_packet.sequence_after + 1,
@@ -596,23 +656,23 @@ def run_live(args: argparse.Namespace) -> int:
                         heartbeat=last_packet.sequence_after + 1,
                         mode=2,
                     )
-                    rtde.send_inputs(input_recipe, input_types, packet_values(completion))
+                    rtde.send_inputs(input_recipe, input_types, packet_values(completion, mainline=True))
                     return 0
                 sample = RuntimeSample(
                     tick=direct_tick,
-                    elapsed_s=elapsed,
+                    elapsed_s=direct_tick * 0.002,
                     tcp_pose_base=output["actual_TCP_pose"],
                     tcp_speed_base=output["actual_TCP_speed"],
                     joint_position_rad=output["actual_q"],
                     joint_speed_rad_s=output["actual_qd"],
                     joint_torque_nm=output["target_moment"],
                     wrench_tcp_si=wrench_tcp,
-                    control_reaction_normal_base=(0.0, 0.0, -1.0),
+                    control_reaction_normal_base=tuple(current_reference["reaction_normal_base"]),
                 )
                 result = direct_core.tick(sample)
                 last_packet = result.packet
                 direct_tick += 1
-                rtde.send_inputs(input_recipe, input_types, packet_values(result.packet))
+                rtde.send_inputs(input_recipe, input_types, packet_values(result.packet, mainline=True))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -628,6 +688,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--live", action="store_true")
     parser.add_argument("--allow-kunwei-stream-command", action="store_true")
     parser.add_argument("--write-rtde-inputs", action="store_true")
+    parser.add_argument("--end-campaign", action="store_true", help="explicit END; never implied by elapsed time")
+    parser.add_argument("--episode-reference", type=Path, help="precomputed SurfaceCalibration/BoundedTrajectory reference rows")
     args = parser.parse_args(argv)
     if args.command == "status":
         print(json.dumps(status(args.calibration, args.readiness), indent=2, sort_keys=True))

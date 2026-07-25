@@ -1,0 +1,32 @@
+{
+  "schema": "ur10e_tacdiffusion_remote_headless_no_motion_protocol/v1",
+  "status": "offline_parser_and_semantic_validation_only",
+  "contract": "config/direct_torque_remote_headless_v4.json",
+  "receiver_builder": "ur10e_vic.tacdiffusion.direct_torque_receiver:build_receiver_source",
+  "validation": {
+    "parser_validation": true,
+    "semantic_validation": true,
+    "source_only": true,
+    "network_executed": false,
+    "robot_io_executed": false,
+    "motion_executed": false
+  },
+  "runtime_boundary": {
+    "locally_available_ursim_image": "5.25.2",
+    "locally_available_ursim_image_claimed_as_runtime": false,
+    "polyscope_5_26_ursim_runtime_installed": false,
+    "polyscope_5_26_ursim_runtime_claimed": false,
+    "version_only_or_protocol_text_is_not_runtime_evidence": true
+  },
+  "forbidden_operations": [
+    "Dashboard",
+    "Load",
+    "Play",
+    "bridge",
+    "ARM",
+    "RTDE_writer",
+    "motion"
+  ],
+  "empty_queue": "WAIT_FOREVER",
+  "terminal_handoffs": ["END", "DRAIN"]
+}

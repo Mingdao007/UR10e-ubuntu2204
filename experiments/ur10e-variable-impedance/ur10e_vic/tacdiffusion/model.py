@@ -20,11 +20,16 @@ import numpy as np
 
 from .contracts import CONDITION_DIMENSION, PERMITTED_PROGRAM_CLAIM
 from .dataset import (
-    ACTION_DIMENSION,
+    LEGACY_ACTION_DIMENSION,
     load_expert_dataset_npz,
     sha256_file,
     validate_dataset_manifest,
 )
+
+# This module is the retained v2 six-force replay implementation.  It is not
+# the mainline trainer; importing its dimension explicitly prevents accidental
+# 6D promotion after the dataset contract moved to 12D.
+ACTION_DIMENSION = LEGACY_ACTION_DIMENSION
 
 
 try:  # Optional: lineage/dataset validation works without PyTorch.

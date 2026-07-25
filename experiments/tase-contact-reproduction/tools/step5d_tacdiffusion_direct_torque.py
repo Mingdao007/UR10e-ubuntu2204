@@ -8,12 +8,14 @@ no fixture value is reachable from the serialized controller command.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+import hashlib
+import json
 import math
 from pathlib import Path
 import struct
 import sys
-from typing import Callable, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +34,26 @@ from step5d_paper_outer_loop import (  # noqa: E402
 from ur10e_vic.backends import (  # noqa: E402
     DIRECT_TORQUE_FRAME_TOKEN,
     DirectTorquePacket,
+    validate_mainline_stiffness,
 )
+from ur10e_vic.tacdiffusion.action import (  # noqa: E402
+    ActionProfile,
+    TacDiffusionAction,
+    derive_damping,
+    guard_action,
+)
+from ur10e_vic.tacdiffusion.dynamic_filter import (  # noqa: E402
+    DynamicFilterProfile,
+    RateInvariantForceFilter,
+)
+from ur10e_vic.tacdiffusion.expert import (  # noqa: E402
+    DeterministicExpert,
+    ExpertFrameSemantics,
+    ExpertInput,
+)
+from ur10e_vic.tacdiffusion.mailbox import LatestModelMailbox  # noqa: E402
+from ur10e_vic.tacdiffusion.trajectory import EpisodeReference  # noqa: E402
+from ur10e_vic.tacdiffusion.checkpoint import validate_checkpoint_binding  # noqa: E402
 
 
 CONTROL_HZ = 500
@@ -61,6 +82,10 @@ ORIENTATION_SLEW_LIMIT_RAD_S = 0.05
 TCP_CAGE_MIN_M = (0.3, 0.0, -0.02)
 TCP_CAGE_MAX_M = (0.55, 0.24, 0.12)
 SOFTWARE_BASELINE_SAMPLES = 1000
+MODEL_MODE_MAINLINE = 1
+MODEL_RATE_HZ = 100
+MODEL_PERIOD_US = int(1_000_000 / MODEL_RATE_HZ)
+LEGACY_ZERO_WRENCH = tuple(0.0 for _ in range(6))
 
 OUTER_CONFIG = Step5dOuterLoopConfig(
     kp=4.0,
@@ -105,6 +130,9 @@ class RuntimeSample:
     joint_torque_nm: tuple[float, ...] | Sequence[float]
     wrench_tcp_si: tuple[float, ...] | Sequence[float]
     control_reaction_normal_base: tuple[float, ...] | Sequence[float]
+    trajectory_progress_s: float | None = None
+    trajectory_duration_s: float | None = None
+    episode_reference: Mapping[str, Any] | EpisodeReference | None = None
 
     def __post_init__(self) -> None:
         if self.tick < 0:
@@ -121,6 +149,11 @@ class RuntimeSample:
             ("control_reaction_normal_base", 3),
         ):
             object.__setattr__(self, name, _vector(getattr(self, name), length, name))
+        if (self.trajectory_progress_s is None) != (self.trajectory_duration_s is None):
+            raise ValueError("trajectory progress and duration must be supplied together")
+        if self.trajectory_progress_s is not None:
+            if not math.isfinite(self.trajectory_progress_s) or not math.isfinite(self.trajectory_duration_s) or self.trajectory_progress_s < 0.0 or self.trajectory_duration_s <= 0.0:
+                raise ValueError("trajectory progress/duration must be finite and bounded")
 
 
 @dataclass(frozen=True)
@@ -138,6 +171,11 @@ class CommandResult:
     equilibrium_pose: tuple[float, ...]
     outer_state: Step5dOuterLoopState
     shadow: FixtureShadowDiagnostic
+    model_sequence: int = 0
+    model_mode: int = 0
+    episode_failed: bool = False
+    failure_reason: str = ""
+    shadow_model_action: tuple[float, ...] | None = None
 
 
 class SoftwareWrenchBaseline:
@@ -212,6 +250,10 @@ def encode_controller_packet(packet: DirectTorquePacket) -> bytes:
         packet.model_period_us,
         packet.model_mode,
         packet.wrench_frame_token,
+        packet.model_timestamp_us,
+        packet.home_ack_identity,
+        packet.home_consume_identity,
+        packet.episode_identity,
     )
     doubles = (
         *packet.equilibrium_pose,
@@ -219,18 +261,232 @@ def encode_controller_packet(packet: DirectTorquePacket) -> bytes:
         *packet.damping,
         *packet.raw_feedforward_wrench,
     )
-    return struct.pack("!8i24d", *integers, *doubles)
+    return struct.pack("!12i24d", *integers, *doubles)
 
 
 class Step5dDirectTorqueCore:
-    def __init__(self, *, lease_id: int, shadow: FixtureShadowRunner) -> None:
+    def __init__(
+        self,
+        *,
+        lease_id: int,
+        shadow: FixtureShadowRunner,
+        mainline: bool = False,
+        action_provider: Callable[[RuntimeSample], TacDiffusionAction] | None = None,
+        expert: DeterministicExpert | None = None,
+        model_mailbox: LatestModelMailbox | None = None,
+        expert_input_provider: Callable[[RuntimeSample, Mapping[str, Any]], ExpertInput] | None = None,
+        episode_reference_provider: Callable[[RuntimeSample], Mapping[str, Any] | EpisodeReference] | None = None,
+        active_authorization_path: str | Path | None = None,
+    ) -> None:
         if lease_id <= 0:
             raise ValueError("lease_id must be positive")
         self.lease_id = lease_id
+        self._episode_identity = lease_id
         self.shadow = shadow
         self._last_tick = -1
         self._equilibrium_pose: tuple[float, ...] | None = None
         self._outer_state = Step5dOuterLoopState()
+        self.mainline = bool(mainline)
+        self.action_profile = ActionProfile()
+        self._action_provider = action_provider
+        self._expert = expert
+        self._model_mailbox = model_mailbox
+        self._expert_input_provider = expert_input_provider
+        self._episode_reference_provider = episode_reference_provider
+        self._active_authorized = self._validate_active_authorization(active_authorization_path)
+        if self.mainline and self._action_provider is None and self._expert is None and self._model_mailbox is None:
+            raise ValueError("mainline core requires DeterministicExpert or LatestModelMailbox")
+        self._previous_action: TacDiffusionAction | None = None
+        self._last_model_sequence = 0
+        self._last_model_input: tuple[float, ...] | None = None
+        self._last_model_guarded: TacDiffusionAction | None = None
+        self._force_filter = RateInvariantForceFilter(
+            DynamicFilterProfile(settling_time_s=0.05, damping_ratio=1.0, rate_hz=500)
+        )
+        self.episode_failed = False
+        self.failure_reason = ""
+
+    def reset_episode(self, *, episode_identity: int | None = None) -> None:
+        """Reset episode-local state without changing the exclusive lease."""
+
+        self._last_tick = -1
+        if episode_identity is not None:
+            if int(episode_identity) <= 0:
+                raise ValueError("episode_identity must be positive")
+            self._episode_identity = int(episode_identity)
+        self._equilibrium_pose = None
+        self._outer_state = Step5dOuterLoopState()
+        self._previous_action = None
+        self._last_model_sequence = 0
+        self._last_model_input = None
+        self._last_model_guarded = None
+        self._force_filter.reset()
+        if self._expert is not None:
+            self._expert.reset()
+        self.episode_failed = False
+        self.failure_reason = ""
+
+    @staticmethod
+    def _episode_reference(
+        sample: RuntimeSample,
+        provider: Callable[[RuntimeSample], Mapping[str, Any] | EpisodeReference] | None,
+    ) -> Mapping[str, Any]:
+        supplied = provider(sample) if provider is not None else sample.episode_reference
+        if supplied is None:
+            raise RuntimeError("mainline_episode_reference_not_injected")
+        if isinstance(supplied, EpisodeReference):
+            reference: Mapping[str, Any] = supplied.as_mapping()
+        elif isinstance(supplied, Mapping):
+            reference = dict(supplied)
+        else:
+            raise TypeError("episode reference must be EpisodeReference or mapping")
+        required = (
+            "desired_pose_base",
+            "desired_twist_base",
+            "desired_acceleration_base",
+            "progress_s",
+            "duration_s",
+            "target_load_n",
+            "preload_n",
+            "reaction_normal_base",
+        )
+        for key in required:
+            if key not in reference:
+                raise ValueError(f"episode reference missing {key}")
+        for key in ("desired_pose_base", "desired_twist_base", "desired_acceleration_base"):
+            reference[key] = _vector(reference[key], 6, key)
+        for key in ("progress_s", "duration_s", "target_load_n", "preload_n"):
+            value = float(reference[key])
+            if not math.isfinite(value):
+                raise ValueError(f"episode reference {key} must be finite")
+            reference[key] = value
+        if reference["progress_s"] < 0.0 or reference["duration_s"] <= 0.0:
+            raise ValueError("episode reference progress/duration is invalid")
+        if reference["target_load_n"] < 0.0 or reference["preload_n"] < 0.0:
+            raise ValueError("episode reference loads must be non-negative")
+        reaction = _vector(reference["reaction_normal_base"], 3, "reaction_normal_base")
+        if abs(_norm(reaction) - 1.0) > 1e-6:
+            raise ValueError("episode reference reaction normal must be unit length")
+        reference["reaction_normal_base"] = reaction
+        reference.setdefault("desired_xy", tuple(reference["desired_pose_base"][:2]))
+        reference.setdefault("desired_velocity_xy", tuple(reference["desired_twist_base"][:2]))
+        if len(tuple(reference["desired_xy"])) != 2 or len(tuple(reference["desired_velocity_xy"])) != 2:
+            raise ValueError("episode reference xy fields must contain two values")
+        if not all(math.isfinite(float(value)) for value in tuple(reference["desired_xy"]) + tuple(reference["desired_velocity_xy"])):
+            raise ValueError("episode reference xy fields must be finite")
+        return reference
+
+    @staticmethod
+    def _rotation_base_tcp(rotvec: Sequence[float]) -> tuple[tuple[float, ...], ...]:
+        vector = _vector(rotvec, 3, "tcp rotation vector")
+        angle = _norm(vector)
+        if angle <= 1e-12:
+            return ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+        x, y, z = (value / angle for value in vector)
+        c, s = math.cos(angle), math.sin(angle)
+        v = 1.0 - c
+        return (
+            (c + x * x * v, x * y * v - z * s, x * z * v + y * s),
+            (y * x * v + z * s, c + y * y * v, y * z * v - x * s),
+            (z * x * v - y * s, z * y * v + x * s, c + z * z * v),
+        )
+
+    @staticmethod
+    def _rotate6(rotation: Sequence[Sequence[float]], vector: Sequence[float]) -> tuple[float, ...]:
+        values = _vector(vector, 6, "twist/wrench")
+        return tuple(
+            sum(rotation[row][column] * values[column] for column in range(3))
+            for row in range(3)
+        ) + tuple(
+            sum(rotation[row][column] * values[column + 3] for column in range(3))
+            for row in range(3)
+        )
+
+    @staticmethod
+    def _validate_active_authorization(path: str | Path | None) -> bool:
+        if path is None:
+            return False
+        artifact = Path(path)
+        if not artifact.is_file():
+            raise ValueError("active authorization artifact is missing")
+        payload = json.loads(artifact.read_text(encoding="utf-8"))
+        if payload.get("schema") != "ur10e_live_authorization/v2" or payload.get("explicit_live_authorization") is not True:
+            raise ValueError("separate explicit live authorization is required")
+        promotion_path = artifact.parent / str(payload.get("promotion_result_path", ""))
+        checkpoint_path = artifact.parent / str(payload.get("checkpoint_binding_path", ""))
+        if not promotion_path.is_file() or not checkpoint_path.is_file():
+            raise ValueError("promotion and checkpoint artifacts are required")
+        for key, target in (
+            ("promotion_result_sha256", promotion_path),
+            ("checkpoint_binding_sha256", checkpoint_path),
+        ):
+            supplied = payload.get(key)
+            if not isinstance(supplied, str) or hashlib.sha256(target.read_bytes()).hexdigest() != supplied:
+                raise ValueError(f"{key} mismatch")
+        promotion = json.loads(promotion_path.read_text(encoding="utf-8"))
+        try:
+            binding = validate_checkpoint_binding(checkpoint_path)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            raise ValueError("checkpoint binding content is invalid") from exc
+        if promotion.get("active_allowed") is not True or promotion.get("offline_replay_passed") is not True:
+            raise ValueError("hash-validated promotion result is not active-allowed")
+        if promotion.get("checkpoint_binding_sha256") != payload.get("checkpoint_binding_sha256"):
+            raise ValueError("promotion is not hash-linked to checkpoint binding")
+        if tuple(sorted(promotion.get("representative_traces", ()))) != ("smooth_low_curvature", "turning_high_curvature"):
+            raise ValueError("promotion representative shadow artifacts are incomplete")
+        for key in ("surface_calibration_sha256", "action_profile_sha256", "filter_profile_sha256", "normalization_sha256"):
+            value = payload.get(key)
+            if not isinstance(value, str) or len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+                raise ValueError(f"missing checkpoint lineage binding: {key}")
+            if value != getattr(binding, key):
+                raise ValueError(f"authorization checkpoint binding mismatch: {key}")
+        return True
+
+    @staticmethod
+    def _expert_input(sample: RuntimeSample, reference: Mapping[str, Any]) -> ExpertInput:
+        reaction_base = tuple(float(value) for value in reference["reaction_normal_base"])
+        if len(reaction_base) != 3 or not all(math.isfinite(value) for value in reaction_base):
+            raise ValueError("expert reaction normal is non-finite")
+        norm = _norm(reaction_base)
+        if not math.isclose(norm, 1.0, rel_tol=0.0, abs_tol=1e-6):
+            raise ValueError("expert reaction/approach normal must be unit length")
+        approach_base = tuple(-value for value in reaction_base)
+        r_base_tcp = Step5dDirectTorqueCore._rotation_base_tcp(sample.tcp_pose_base[3:6])
+        r_tcp_base = tuple(tuple(r_base_tcp[column][row] for column in range(3)) for row in range(3))
+        reaction_tcp = tuple(sum(r_tcp_base[row][column] * reaction_base[column] for column in range(3)) for row in range(3))
+        approach_tcp = tuple(-value for value in reaction_tcp)
+        semantics = ExpertFrameSemantics(
+            reaction_normal_base=reaction_base,
+            approach_normal_base=approach_base,
+            base_to_tcp_rotation=r_tcp_base,
+        )
+        normal_load = sum(sample.wrench_tcp_si[index] * reaction_tcp[index] for index in range(3))
+        pose_error_base = (
+            *tuple(reference["desired_pose_base"])[:3],
+            *tuple(reference["desired_pose_base"])[3:],
+        )
+        pose_error_base = tuple(
+            desired - actual for desired, actual in zip(pose_error_base, sample.tcp_pose_base)
+        )
+        desired_twist_base = tuple(reference["desired_twist_base"])
+        twist_tcp = Step5dDirectTorqueCore._rotate6(r_tcp_base, sample.tcp_speed_base)
+        desired_twist = Step5dDirectTorqueCore._rotate6(r_tcp_base, desired_twist_base)
+        pose_error = Step5dDirectTorqueCore._rotate6(r_tcp_base, pose_error_base)
+        desired_acceleration = Step5dDirectTorqueCore._rotate6(
+            r_tcp_base, tuple(reference["desired_acceleration_base"])
+        )
+        tangential_speed = math.sqrt(twist_tcp[0] ** 2 + twist_tcp[1] ** 2)
+        return ExpertInput(
+            normal_load_n=normal_load,
+            target_load_n=float(reference["target_load_n"]),
+            pose_error=pose_error,
+            twist=twist_tcp,
+            path_progress=min(1.0, max(0.0, float(reference["progress_s"]) / float(reference["duration_s"]))),
+            tangential_speed_m_s=tangential_speed,
+            desired_twist=desired_twist,
+            desired_acceleration=desired_acceleration,
+            frame_semantics=semantics,
+        )
 
     @staticmethod
     def assert_runtime_guards(sample: RuntimeSample) -> None:
@@ -256,13 +512,31 @@ class Step5dDirectTorqueCore:
         if sample.tick != self._last_tick + 1:
             raise RuntimeError("non_contiguous_control_tick")
         self.assert_runtime_guards(sample)
-        reference = step5_path_reference(
-            STAGE_ID,
-            (sample.tcp_pose_base[0], sample.tcp_pose_base[1]),
-            sample.elapsed_s,
-        )
+        if self.mainline:
+            # Mainline references are injected from SurfaceCalibration /
+            # BoundedTrajectory.  The frozen cycloid is legacy-only and must
+            # never become a hidden progress or pose source here.
+            reference = self._episode_reference(sample, self._episode_reference_provider)
+        else:
+            reference = step5_path_reference(
+                STAGE_ID,
+                (sample.tcp_pose_base[0], sample.tcp_pose_base[1]),
+                sample.elapsed_s,
+            )
+            reference = dict(reference)
+            reference.setdefault("desired_pose_base", (*reference["desired_xy"], sample.tcp_pose_base[2], 0.0, 0.0, 0.0))
+            reference.setdefault("desired_twist_base", (*reference["desired_velocity_xy"], 0.0, 0.0, 0.0, 0.0))
+            reference.setdefault("desired_acceleration_base", (0.0,) * 6)
+            reference.setdefault("progress_s", float(reference.get("progress", sample.elapsed_s)))
+            reference.setdefault("duration_s", float(reference.get("duration_s", 1.0)))
+            reference.setdefault("target_load_n", OUTER_CONFIG.force_target_n)
+            reference.setdefault("preload_n", 0.0)
+            reference.setdefault("reaction_normal_base", sample.control_reaction_normal_base)
+        outer_config = OUTER_CONFIG
+        if self.mainline:
+            outer_config = replace(OUTER_CONFIG, force_target_n=float(reference["target_load_n"]))
         outer = compute_step5d_outer_loop(
-            OUTER_CONFIG,
+            outer_config,
             self._outer_state,
             Step5dOuterLoopInputs(
                 tcp_pose_base=sample.tcp_pose_base,
@@ -280,7 +554,7 @@ class Step5dDirectTorqueCore:
                 ),
                 dt_s=CONTROL_DT_S,
                 cmd_valid=True,
-                control_reaction_normal_base=sample.control_reaction_normal_base,
+                control_reaction_normal_base=reference["reaction_normal_base"],
             ),
             include_diagnostics=False,
         )
@@ -301,6 +575,107 @@ class Step5dDirectTorqueCore:
             raise RuntimeError("equilibrium_tcp_cage_guard")
         sequence = sample.tick + 1
         model_sequence = sample.tick // SHADOW_PERIOD_TICKS + 1
+        model_mode = 1
+        model_timestamp_us = 0
+        model_period_us = 0
+        episode_failed = False
+        failure_reason = ""
+        shadow_model_action: tuple[float, ...] | None = None
+        if self.mainline:
+            try:
+                model_timestamp_us = int(round(sample.elapsed_s * 1_000_000.0))
+                # An authorization artifact alone never makes an expert
+                # command ACTIVE.  ACTIVE is selected only for a fresh,
+                # packet-mode=active mailbox row after full validation.
+                model_mode = 1
+                model_sequence = sample.tick + 1
+                model_period_us = MODEL_PERIOD_US
+                if self._model_mailbox is not None:
+                    mailbox_read = self._model_mailbox.read(
+                        now_s=sample.elapsed_s, max_age_s=0.020
+                    )
+                    if mailbox_read.packet is not None:
+                        if mailbox_read.packet.mode == "active" and not self._active_authorized:
+                            raise RuntimeError("active_model_authorization_missing")
+                        model_mode = 2 if mailbox_read.packet.mode == "active" else 1
+                        if mailbox_read.packet.mode == "active":
+                            proposed = mailbox_read.packet.action
+                            model_sequence = mailbox_read.packet.sequence
+                        else:
+                            # Shadow model output is retained as diagnostics;
+                            # the deterministic expert/action provider remains
+                            # the sole serialized authority.
+                            shadow_model_action = tuple(mailbox_read.packet.action.vector12)
+                            proposed = None
+                        model_period_us = MODEL_PERIOD_US
+                        if model_mode == 2:
+                            model_timestamp_us = int(round(mailbox_read.packet.timestamp_s * 1_000_000.0))
+                        if model_mode == 2 and model_sequence == self._last_model_sequence:
+                            if self._last_model_input is None or tuple(proposed.vector12) != self._last_model_input:
+                                raise RuntimeError("held_model_payload_changed")
+                            proposed = self._last_model_guarded
+                        elif model_mode == 2 and self._last_model_sequence and model_sequence != self._last_model_sequence + 1:
+                            raise RuntimeError("model_sequence_gap")
+                    elif self._model_mailbox.latest_mode == "active":
+                        raise RuntimeError(f"active_model_{mailbox_read.reason}")
+                    elif self._expert is None and self._action_provider is None:
+                        raise RuntimeError(f"model_{mailbox_read.reason}")
+                    else:
+                        proposed = None
+                else:
+                    proposed = None
+                if proposed is None and self._action_provider is not None:
+                    proposed = self._action_provider(sample)
+                if proposed is None and self._expert is not None:
+                    expert_input = (
+                        self._expert_input_provider(sample, reference)
+                        if self._expert_input_provider is not None
+                        else self._expert_input(sample, reference)
+                    )
+                    proposed = self._expert.step(expert_input, dt_s=CONTROL_DT_S).action
+                if proposed is None:
+                    raise RuntimeError("mainline_action_source_empty")
+                if not isinstance(proposed, TacDiffusionAction):
+                    proposed = TacDiffusionAction(
+                        tuple(proposed[:6]), tuple(proposed[6:12])
+                    )
+                guarded = guard_action(
+                    proposed,
+                    previous=self._previous_action,
+                    dt_s=CONTROL_DT_S,
+                    profile=self.action_profile,
+                )
+                self._force_filter.step(guarded.raw_f_df, dt_s=CONTROL_DT_S)
+                self._previous_action = guarded
+                self._last_model_sequence = model_sequence
+                self._last_model_input = tuple(proposed.vector12)
+                self._last_model_guarded = guarded
+                raw_feedforward = guarded.raw_f_df
+                stiffness = guarded.stiffness
+                validate_mainline_stiffness(stiffness)
+                damping = derive_damping(stiffness, self.action_profile)
+            except (TypeError, ValueError, IndexError, RuntimeError) as exc:
+                # A stale/nonfinite provider fails only this episode and the
+                # explicit filter transition smooths the force command to zero.
+                self.episode_failed = True
+                self.failure_reason = f"model_action:{type(exc).__name__}"
+                episode_failed = True
+                failure_reason = self.failure_reason
+                self._force_filter.smooth_to_zero(dt_s=CONTROL_DT_S)
+                raw_feedforward = LEGACY_ZERO_WRENCH
+                stiffness = self._previous_action.stiffness if self._previous_action else self.action_profile.stiffness_baseline
+                damping = derive_damping(stiffness, self.action_profile)
+                model_timestamp_us = int(round(sample.elapsed_s * 1_000_000.0))
+                model_sequence = sample.tick + 1
+                model_period_us = MODEL_PERIOD_US
+                model_mode = 1
+        else:
+            # Legacy fixture path is retained solely for the old packet oracle;
+            # run_live constructs this core with mainline=True.
+            stiffness = FIXED_STIFFNESS
+            damping = FIXED_DAMPING
+            raw_feedforward = LEGACY_ZERO_WRENCH
+            model_mode = MODEL_MODE_MAINLINE
         packet = DirectTorquePacket(
             sequence_before=sequence,
             sequence_after=sequence,
@@ -308,13 +683,15 @@ class Step5dDirectTorqueCore:
             lease_id=self.lease_id,
             mode=1,
             equilibrium_pose=equilibrium,
-            stiffness=FIXED_STIFFNESS,
-            damping=FIXED_DAMPING,
-            raw_feedforward_wrench=(0.0,) * 6,
+            stiffness=stiffness,
+            damping=damping,
+            raw_feedforward_wrench=raw_feedforward,
             model_sequence_before=model_sequence,
             model_sequence_after=model_sequence,
-            model_period_us=20_000,
-            model_mode=1,
+            model_period_us=model_period_us,
+            model_timestamp_us=model_timestamp_us,
+            model_mode=model_mode,
+            episode_identity=self._episode_identity,
             wrench_frame_token=DIRECT_TORQUE_FRAME_TOKEN,
         )
         diagnostic = self.shadow.tick(sample)
@@ -324,6 +701,11 @@ class Step5dDirectTorqueCore:
             equilibrium_pose=equilibrium,
             outer_state=outer.next_state,
             shadow=diagnostic,
+            model_sequence=model_sequence,
+            model_mode=model_mode,
+            episode_failed=episode_failed,
+            failure_reason=failure_reason,
+            shadow_model_action=shadow_model_action,
         )
         self._last_tick = sample.tick
         self._equilibrium_pose = equilibrium

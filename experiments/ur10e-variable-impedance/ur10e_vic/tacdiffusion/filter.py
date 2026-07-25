@@ -1,4 +1,10 @@
-"""Pinned discretization of TacDiffusion's dynamic force filter."""
+"""Compatibility facade for the rate-invariant mainline force filter.
+
+The old paper ``alpha/beta`` discretization is not a production option.  The
+class name remains for callers of the historical package API, but every
+normal instance delegates to :class:`RateInvariantForceFilter`, whose profile
+is explicit in seconds, damping ratio, and sample rate.
+"""
 
 from __future__ import annotations
 
@@ -6,17 +12,13 @@ from dataclasses import dataclass
 import math
 from typing import Sequence
 
+from .dynamic_filter import (
+    DynamicFilterProfile,
+    RateInvariantForceFilter,
+)
 
-PAPER_ALPHA = 0.9
-PAPER_BETA = 0.3
+
 FILTER_RATE_HZ = 500
-
-
-def _six(values: Sequence[float], name: str) -> tuple[float, ...]:
-    result = tuple(float(value) for value in values)
-    if len(result) != 6 or not all(math.isfinite(value) for value in result):
-        raise ValueError(f"{name} must contain six finite values")
-    return result
 
 
 @dataclass(frozen=True)
@@ -26,60 +28,43 @@ class DynamicForceFilterState:
 
 
 class DynamicForceFilter:
-    """Semi-implicit Euler implementation of the paper's second-order filter.
-
-    The continuous equation is ``F_ff_ddot = alpha * (beta * (F_df -
-    F_ff) - F_ff_dot)``.  This implementation pins one deterministic 500 Hz
-    discretization: update velocity from acceleration, then position from the
-    new velocity.  Both states initialize to zero, as specified in the paper.
-    """
+    """Backward-compatible state naming over the calibrated filter."""
 
     def __init__(
         self,
         *,
-        alpha: float = PAPER_ALPHA,
-        beta: float = PAPER_BETA,
         rate_hz: int = FILTER_RATE_HZ,
+        settling_time_s: float = 0.05,
+        damping_ratio: float = 1.0,
+        alpha: float | None = None,
+        beta: float | None = None,
     ) -> None:
-        if not math.isclose(alpha, PAPER_ALPHA, rel_tol=0.0, abs_tol=1e-15):
-            raise ValueError("TacDiffusion alpha is pinned to 0.9")
-        if not math.isclose(beta, PAPER_BETA, rel_tol=0.0, abs_tol=1e-15):
-            raise ValueError("TacDiffusion beta is pinned to 0.3")
-        if rate_hz != FILTER_RATE_HZ:
-            raise ValueError("UR10e TacDiffusion filter rate is pinned to 500 Hz")
-        self.alpha = float(alpha)
-        self.beta = float(beta)
-        self.rate_hz = int(rate_hz)
-        self.dt_s = 1.0 / self.rate_hz
-        self._position = (0.0,) * 6
-        self._velocity = (0.0,) * 6
+        # Accepting the names lets old callers fail closed instead of silently
+        # reviving the obsolete equation.
+        if alpha is not None:
+            raise ValueError("alpha is pinned out of the mainline filter")
+        if beta is not None:
+            raise ValueError("beta is pinned out of the mainline filter")
+        self._delegate = RateInvariantForceFilter(
+            DynamicFilterProfile(
+                settling_time_s=settling_time_s,
+                damping_ratio=damping_ratio,
+                rate_hz=rate_hz,
+            )
+        )
+
+    @property
+    def rate_hz(self) -> int:
+        return self._delegate.profile.rate_hz
 
     @property
     def state(self) -> DynamicForceFilterState:
-        return DynamicForceFilterState(self._position, self._velocity)
-
+        state = self._delegate.state
+        return DynamicForceFilterState(state.filtered_f_ff, state.filter_velocity)
     def reset(self) -> DynamicForceFilterState:
-        self._position = (0.0,) * 6
-        self._velocity = (0.0,) * 6
+        self._delegate.reset()
         return self.state
 
     def step(self, raw_f_df: Sequence[float]) -> DynamicForceFilterState:
-        target = _six(raw_f_df, "raw_f_df")
-        acceleration = tuple(
-            self.alpha
-            * (self.beta * (target[index] - self._position[index]) - self._velocity[index])
-            for index in range(6)
-        )
-        velocity = tuple(
-            self._velocity[index] + self.dt_s * acceleration[index]
-            for index in range(6)
-        )
-        position = tuple(
-            self._position[index] + self.dt_s * velocity[index]
-            for index in range(6)
-        )
-        if not all(math.isfinite(value) for value in position + velocity):
-            raise ValueError("dynamic force filter produced non-finite state")
-        self._position = position
-        self._velocity = velocity
-        return self.state
+        state = self._delegate.step(raw_f_df)
+        return DynamicForceFilterState(state.filtered_f_ff, state.filter_velocity)
