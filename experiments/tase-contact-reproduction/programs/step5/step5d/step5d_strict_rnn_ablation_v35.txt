@@ -1,7 +1,7 @@
 Step5d strict RNN ablation v35 12N diagnostic TP package
 
 Open on Teach Pendant after controller read-back is verified:
-  /programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v35.urp
+  /programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_ablation_v35.urp
 
 Version:
   2026-07-15T0204HKT_STEP5D_STRICT_RNN_ABLATION_V35_QUOTA_SAFE_SCHED_OTHER_ACCEL_0P1
