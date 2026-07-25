@@ -93,6 +93,134 @@ def test_shell_rebinds_copied_admission_to_content_addressed_index() -> None:
     assert '"${admission}" "${EXPERIMENT_ROOT}"' in source
 
 
+def test_coordinator_runtime_root_composes_with_live_bridge_setup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import run_step5d_autotune_v3_live as live
+
+    experiment_root = tmp_path / "experiment"
+    experiment_root.mkdir()
+    output_root = tmp_path / "output"
+    output_root.mkdir()
+    admission_path = tmp_path / "admission.json"
+    admission_path.write_text("{}\n", encoding="utf-8")
+    delivery_path = experiment_root / "delivery.json"
+    delivery_path.write_text("delivery\n", encoding="utf-8")
+    args = SimpleNamespace(
+        experiment_root=experiment_root,
+        admission=admission_path,
+        authority_root=tmp_path / "authority",
+        attempt_id="attempt",
+        authority_epoch=7,
+        owner_pid=123,
+        owner_starttime=456,
+        output_root=output_root,
+        campaign_root=tmp_path / "campaign",
+        delivery_observation=delivery_path,
+        preflight=output_root / "preflight.json",
+        launch_basis=output_root / "launch-basis.json",
+        basis_ttl_s=60,
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+        launch_basis_sha256=None,
+        campaign_prepare=output_root / "campaign-prepare.json",
+    )
+    release = SimpleNamespace(manifest_sha256="a" * 64, program_id="program")
+    monkeypatch.setattr(coordinator, "load_runtime_release", lambda _root: release)
+    monkeypatch.setattr(
+        coordinator,
+        "resolve_bridge_admission",
+        lambda _root, release: (
+            admission_path,
+            {
+                "campaign_fingerprint": "c" * 64,
+                "delivery_observation": {"path": "delivery.json"},
+            },
+        ),
+    )
+    monkeypatch.setattr(
+        coordinator.authority,
+        "load_current",
+        lambda _root: {
+            "state": "ACTIVE",
+            "attempt_id": "attempt",
+            "sequence": 7,
+            "owner": {"pid": 123, "starttime_ticks": 456},
+        },
+    )
+    monkeypatch.setattr(coordinator, "release_payload_path", lambda *_args: tmp_path / "payload.json")
+    monkeypatch.setattr(coordinator, "load_contract", lambda _path: {})
+    monkeypatch.setattr(coordinator, "load_launch_profile", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(
+        coordinator,
+        "check_effective_config",
+        lambda **_kwargs: {"effective_config": {"runtime_root": "unused"}},
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "release_runtime_contract",
+        lambda *_args: {"tp_runtime_identity": {"protocol_version": 1}},
+    )
+
+    basis = coordinator._basis(args)
+    assert basis["basis_sha256"]
+    attempt_args = SimpleNamespace(**vars(args))
+    attempt_args.output_root = tmp_path / "output" / "attempt-0001"
+    attempt_args.output_root.mkdir()
+    attempt_args._coordinator_output_root = output_root
+    admission = {"campaign_fingerprint": basis["campaign_fingerprint"]}
+    monkeypatch.setattr(live, "validate_bridge_admission", lambda *_args, **_kwargs: admission)
+    monkeypatch.setattr(
+        live,
+        "read_strict_json",
+        lambda _path, *, role: admission if role == "bridge admission" else {"result": {}},
+    )
+    monkeypatch.setattr(live, "validate_delivery_observation_binding", lambda *_args, **_kwargs: basis["delivery_observation_sha256"])
+    monkeypatch.setattr(
+        coordinator,
+        "_validate_campaign_prepare",
+        lambda payload, _basis: payload,
+    )
+    attempt_args.launch_basis_sha256 = basis["basis_sha256"]
+    checked_basis, checked_admission, campaign = live._validate_active_launch_identity(
+        attempt_args, release
+    )
+    assert checked_basis["basis_sha256"] == basis["basis_sha256"]
+    assert checked_admission == admission
+    assert campaign == {"result": {}}
+    runtime_root = live._validate_coordinator_runtime_root(attempt_args)
+    bridge_run, bridge_runtime = live._create_bridge_runtime(runtime_root)
+    assert bridge_run.is_dir()
+    assert bridge_runtime.is_dir()
+    with pytest.raises(live.LiveLaunchError, match="unexpected session state"):
+        live._validate_coordinator_runtime_root(attempt_args)
+
+
+@pytest.mark.parametrize("state", ["prepopulated", "symlink"])
+def test_coordinator_runtime_root_rejects_reuse_or_unsafe_state(
+    tmp_path: Path, state: str
+) -> None:
+    output_root = tmp_path / "output"
+    output_root.mkdir()
+    runtime_root = output_root / "runtime"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if state == "prepopulated":
+        runtime_root.mkdir()
+        (runtime_root / "bridge").mkdir()
+    else:
+        runtime_root.symlink_to(outside, target_is_directory=True)
+    args = SimpleNamespace(
+        output_root=output_root,
+        owner_pid=123,
+        owner_starttime=456,
+        attempt_id="attempt",
+        authority_epoch=7,
+    )
+    with pytest.raises(RuntimeError, match="already exists|unsafe"):
+        coordinator._create_coordinator_runtime_root(args)
+
+
 @pytest.mark.parametrize("field", ["ok", "fresh", "launch_basis_sha256"])
 def test_campaign_prepare_rejects_false_stale_or_wrong_basis(field: str) -> None:
     now = 1_000_000_000_000

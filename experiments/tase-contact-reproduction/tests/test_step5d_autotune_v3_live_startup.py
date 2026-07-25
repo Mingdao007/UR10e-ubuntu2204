@@ -1410,6 +1410,59 @@ def test_internal_live_worker_refuses_direct_execution(tmp_path: Path) -> None:
     assert "step5d-autotune-v3.sh" in result.stdout
 
 
+def test_live_parser_rejects_missing_identity_but_prepare_only_remains_compatible(
+    tmp_path: Path,
+) -> None:
+    base = [
+        "--output-root", str(tmp_path / "output"),
+        "--preflight", str(tmp_path / "preflight.json"),
+        "--delivery-observation", str(tmp_path / "delivery.json"),
+        "--admission", str(tmp_path / "admission.json"),
+        "--authority-epoch", "7",
+        "--launch-basis", str(tmp_path / "basis.json"),
+        "--launch-basis-sha256", "a" * 64,
+        "--campaign-prepare", str(tmp_path / "campaign-prepare.json"),
+        "--canonical-owner-pid", "123",
+        "--canonical-owner-starttime", "456",
+    ]
+    for flag in (
+        "--launch-basis",
+        "--launch-basis-sha256",
+        "--admission",
+        "--authority-epoch",
+        "--delivery-observation",
+    ):
+        index = base.index(flag)
+        with pytest.raises(SystemExit):
+            live.parse_args(base[:index] + base[index + 2:])
+
+    prepared = live.parse_args(
+        [
+            "--prepare-only",
+            "--campaign-prepare", str(tmp_path / "campaign-prepare.json"),
+            "--canonical-owner-pid", "123",
+            "--canonical-owner-starttime", "456",
+        ]
+    )
+    assert prepared.prepare_only is True
+
+
+def test_live_runtime_missing_identity_fails_before_output_creation(tmp_path: Path) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=None,
+        admission=None,
+        authority_epoch=None,
+        launch_basis=None,
+        launch_basis_sha256=None,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+    )
+    with pytest.raises(live.LiveLaunchError, match="admission|authority-epoch"):
+        live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
+    assert not args.output_root.exists()
+
+
 def test_parameter_receiver_binds_observed_home_before_first_dispatch() -> None:
     source = (ROOT / "tools/run_step5d_parameter_campaign.py").read_text(
         encoding="utf-8"

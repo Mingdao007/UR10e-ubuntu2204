@@ -118,6 +118,18 @@ class LiveLaunchError(RuntimeError):
     pass
 
 
+LIVE_REQUIRED_IDENTITY_ARGS = (
+    "output_root",
+    "preflight",
+    "delivery_observation",
+    "admission",
+    "authority_epoch",
+    "launch_basis",
+    "launch_basis_sha256",
+    "campaign_prepare",
+)
+
+
 class LiveSessionState(str, Enum):
     RUNNING = "RUNNING"
     WAITING_FOR_PARAMETERS = "WAITING_FOR_PARAMETERS"
@@ -429,6 +441,57 @@ def _sha256_path(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _missing_live_identity_args(args: argparse.Namespace) -> list[str]:
+    missing = [
+        name
+        for name in LIVE_REQUIRED_IDENTITY_ARGS
+        if getattr(args, name, None) is None
+    ]
+    if getattr(args, "launch_basis_sha256", None) == "":
+        missing.append("launch_basis_sha256")
+    return sorted(set(missing))
+
+
+def _require_live_identity_args(args: argparse.Namespace) -> None:
+    missing = _missing_live_identity_args(args)
+    if missing:
+        raise LiveLaunchError(
+            "live worker requires "
+            + ", ".join(f"--{name.replace('_', '-')}" for name in missing)
+        )
+
+
+def _validate_coordinator_runtime_root(args: argparse.Namespace) -> Path:
+    from run_step5d_autotune_v3_coordinator import validate_coordinator_runtime_root
+
+    try:
+        return validate_coordinator_runtime_root(args)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise LiveLaunchError(f"coordinator runtime root validation failed: {exc}") from exc
+
+
+def _create_bridge_runtime(runtime_root: Path) -> tuple[Path, Path]:
+    """Create the still-empty bridge subtree after identity validation."""
+
+    bridge_run = runtime_root / "bridge"
+    bridge_runtime = bridge_run / "runtime"
+    if bridge_run.exists() or bridge_run.is_symlink():
+        raise LiveLaunchError("bridge session state already exists")
+    try:
+        bridge_run.mkdir(mode=0o700, exist_ok=False)
+        bridge_runtime.mkdir(mode=0o700, exist_ok=False)
+    except OSError as exc:
+        raise LiveLaunchError(f"bridge runtime could not be created: {exc}") from exc
+    if (
+        bridge_run.is_symlink()
+        or not bridge_run.is_dir()
+        or bridge_runtime.is_symlink()
+        or not bridge_runtime.is_dir()
+    ):
+        raise LiveLaunchError("bridge runtime is not a real directory")
+    return bridge_run, bridge_runtime
 
 
 def _integer_row(row: Mapping[str, Any] | None, name: str) -> int:
@@ -1149,6 +1212,8 @@ def _validate_active_launch_identity(
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Consume the coordinator artifacts before any live child is spawned."""
     try:
+        _require_live_identity_args(args)
+        _validate_coordinator_runtime_root(args)
         if args.campaign_prepare is None:
             raise LiveLaunchError("coordinator campaign preparation artifact is required")
         basis = read_and_validate_launch_basis(
@@ -1198,6 +1263,7 @@ def _run_live(
 ) -> Mapping[str, Any] | None:
     """Own the durable receiver and re-enter isolated live session attempts."""
 
+    _require_live_identity_args(args)
     output_root = args.output_root.expanduser().absolute()
     output_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     lifecycle = LiveSessionLifecycle()
@@ -1209,6 +1275,7 @@ def _run_live(
         attempt_root = output_root / f"attempt-{attempt_number:04d}"
         attempt_root.mkdir(parents=False, exist_ok=False, mode=0o700)
         attempt_args = argparse.Namespace(**vars(args))
+        attempt_args._coordinator_output_root = output_root
         attempt_args.output_root = attempt_root
         atomic_json(
             output_root / "recoverable_session_status.json",
@@ -1290,11 +1357,9 @@ def _run_live_session(
         ROOT, args.delivery_observation, release=release
     )
     legacy_preflight = None
-    runtime_root = args.output_root.expanduser().absolute() / "runtime"
-    runtime_root.mkdir(parents=True, exist_ok=False, mode=0o700)
-    bridge_run = runtime_root / "bridge"
-    bridge_runtime = bridge_run / "runtime"
-    bridge_runtime.mkdir(parents=True, exist_ok=False, mode=0o700)
+    runtime_root = _validate_coordinator_runtime_root(args)
+    basis, admission, campaign_prepare = _validate_active_launch_identity(args, release)
+    bridge_run, bridge_runtime = _create_bridge_runtime(runtime_root)
     contract_path = release_payload_path(ROOT, release, SAFETY_ENVELOPE_PATH)
     launch_profile_path = release_payload_path(ROOT, release, LAUNCH_PROFILE_PATH)
     contract = load_contract(contract_path)
@@ -1326,7 +1391,6 @@ def _run_live_session(
         release,
         launch_profile,
     )
-    basis, admission, campaign_prepare = _validate_active_launch_identity(args, release)
     campaign_binding = bridge_runtime / "campaign_binding.json"
     launch_plan_path = bridge_runtime / "campaign_launch_plan.json"
     prepared = dict(campaign_prepare["result"])
@@ -2100,7 +2164,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--single-session", action="store_true", help=argparse.SUPPRESS)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if not args.prepare_only:
+        missing = _missing_live_identity_args(args)
+        if missing:
+            parser.error(
+                "live mode requires "
+                + ", ".join(f"--{name.replace('_', '-')}" for name in missing)
+            )
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2163,6 +2235,7 @@ def main(argv: list[str] | None = None) -> int:
                 "live worker requires --output-root, --preflight, and "
                 "--delivery-observation"
             )
+        _require_live_identity_args(args)
         result = run(args)
     except Exception as exc:
         result = {"schema": RESULT_SCHEMA, "ok": False, "blocker": str(exc)}

@@ -45,6 +45,11 @@ PREFLIGHT_REQUIRED_FIELDS = {
     "controller_identity_sha256", "predicates", "observations", "probe_reuse",
     "safety_boundary", "launch_basis_sha256",
 }
+RUNTIME_ROOT_CONTRACT_SCHEMA = "step5d.autotune-v3/coordinator-runtime-root-v1"
+RUNTIME_ROOT_CONTRACT_FILE = "coordinator-runtime-root.json"
+RUNTIME_ROOT_CONTRACT_FIELDS = frozenset(
+    {"schema", "runtime_root", "owner_pid", "owner_starttime", "attempt_id", "authority_epoch"}
+)
 CAMPAIGN_RESULT_FIELDS = {
     "ok", "campaign_id", "campaign_epoch", "campaign_fingerprint", "campaign_root",
     "campaign_binding_file", "launch_profile_path", "launch_profile_sha256",
@@ -62,6 +67,88 @@ def _strict_json(path: Path, *, role: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise RuntimeError(f"{role} must be a JSON object")
     return value
+
+
+def _checked_output_root(args: argparse.Namespace) -> Path:
+    requested_root = getattr(args, "_coordinator_output_root", args.output_root)
+    output_root = requested_root.expanduser().absolute()
+    if output_root.is_symlink() or not output_root.is_dir():
+        raise RuntimeError("coordinator output root must be a real directory")
+    try:
+        if output_root.resolve(strict=True) != output_root:
+            raise RuntimeError("coordinator output root path is unsafe")
+    except OSError as exc:
+        raise RuntimeError("coordinator output root path is unsafe") from exc
+    return output_root
+
+
+def _create_coordinator_runtime_root(args: argparse.Namespace) -> Path:
+    """Create the one-shot runtime root owned by the coordinator."""
+
+    output_root = _checked_output_root(args)
+    runtime_root = output_root / "runtime"
+    if runtime_root.exists() or runtime_root.is_symlink():
+        raise RuntimeError("coordinator runtime root already exists or is unsafe")
+    try:
+        runtime_root.mkdir(mode=0o700, exist_ok=False)
+    except OSError as exc:
+        raise RuntimeError(f"coordinator runtime root could not be created: {exc}") from exc
+    if runtime_root.is_symlink() or not runtime_root.is_dir():
+        raise RuntimeError("coordinator runtime root is not a real directory")
+    try:
+        if runtime_root.resolve(strict=True) != runtime_root:
+            raise RuntimeError("coordinator runtime root path is unsafe")
+    except OSError as exc:
+        raise RuntimeError("coordinator runtime root path is unsafe") from exc
+    atomic_json(
+        runtime_root / RUNTIME_ROOT_CONTRACT_FILE,
+        {
+            "schema": RUNTIME_ROOT_CONTRACT_SCHEMA,
+            "runtime_root": str(runtime_root),
+            "owner_pid": args.owner_pid,
+            "owner_starttime": args.owner_starttime,
+            "attempt_id": args.attempt_id,
+            "authority_epoch": args.authority_epoch,
+        },
+    )
+    return runtime_root
+
+
+def validate_coordinator_runtime_root(args: argparse.Namespace) -> Path:
+    """Validate the coordinator-owned root before any live session state exists."""
+
+    output_root = _checked_output_root(args)
+    runtime_root = output_root / "runtime"
+    if runtime_root.is_symlink() or not runtime_root.is_dir():
+        raise RuntimeError("coordinator runtime root is missing or unsafe")
+    try:
+        if runtime_root.resolve(strict=True) != runtime_root:
+            raise RuntimeError("coordinator runtime root path is unsafe")
+        entries = list(runtime_root.iterdir())
+    except OSError as exc:
+        raise RuntimeError("coordinator runtime root is unsafe") from exc
+    contract_path = runtime_root / RUNTIME_ROOT_CONTRACT_FILE
+    if (
+        len(entries) != 1
+        or entries[0] != contract_path
+        or contract_path.is_symlink()
+        or not contract_path.is_file()
+    ):
+        raise RuntimeError("coordinator runtime root contains unexpected session state")
+    contract = _strict_json(contract_path, role="coordinator runtime root contract")
+    if set(contract) != RUNTIME_ROOT_CONTRACT_FIELDS:
+        raise RuntimeError("coordinator runtime root contract fields differ")
+    expected = {
+        "schema": RUNTIME_ROOT_CONTRACT_SCHEMA,
+        "runtime_root": str(runtime_root),
+        "owner_pid": args.owner_pid,
+        "owner_starttime": args.owner_starttime,
+        "attempt_id": args.attempt_id,
+        "authority_epoch": args.authority_epoch,
+    }
+    if contract != expected:
+        raise RuntimeError("coordinator runtime root ownership differs")
+    return runtime_root
 
 
 def _fresh_timestamp(payload: Mapping[str, Any], basis: Mapping[str, Any], now_ns: int) -> int:
@@ -273,8 +360,7 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
     profile = load_launch_profile(
         profile_path, contract=contract, expected_tp_program_id=release.program_id
     )
-    runtime_root = args.output_root / "runtime"
-    runtime_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    runtime_root = _create_coordinator_runtime_root(args)
     effective = check_effective_config(
         runtime_root=runtime_root,
         contract_path=contract_path,

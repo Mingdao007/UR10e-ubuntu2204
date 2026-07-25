@@ -79,6 +79,15 @@ def test_launch_basis_rejects_wrong_expected_digest(tmp_path: Path) -> None:
         )
 
 
+def test_launch_basis_none_path_fails_closed() -> None:
+    with pytest.raises(LaunchBasisError, match="missing or unsafe"):
+        read_and_validate_launch_basis(
+            None,
+            owner_pid=123,
+            owner_starttime=456,
+        )
+
+
 def test_consumers_hash_actual_delivery_and_admission_identity(tmp_path: Path) -> None:
     now = time.time_ns()
     delivery = tmp_path / "delivery.json"

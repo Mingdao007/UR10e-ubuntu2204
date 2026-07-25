@@ -63,7 +63,7 @@ def write_launch_basis(path: Path, payload: Mapping[str, Any]) -> dict[str, Any]
 
 
 def read_and_validate_launch_basis(path: Path, *, owner_pid: int, owner_starttime: int, now_unix_ns: int | None = None, expected_basis_sha256: str | None = None) -> dict[str, Any]:
-    if path.is_symlink() or not path.is_file():
+    if not isinstance(path, Path) or path.is_symlink() or not path.is_file():
         raise LaunchBasisError("launch basis is missing or unsafe")
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -99,7 +99,7 @@ def validate_delivery_observation_binding(
 ) -> str:
     """Hash the actual delivery observation at every downstream consumer."""
 
-    if path.is_symlink() or not path.is_file():
+    if not isinstance(path, Path) or path.is_symlink() or not path.is_file():
         raise LaunchBasisError("delivery observation is missing or unsafe")
     observed = hashlib.sha256(path.read_bytes()).hexdigest()
     expected = basis.get("delivery_observation_sha256")
