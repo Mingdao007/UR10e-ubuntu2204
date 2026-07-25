@@ -49,6 +49,7 @@ from step5d_production_csv import BridgeCsvFollower, BridgeCsvTimeout
 STATUS_SCHEMA = "step5d.parameter-receiver/live-status-v1"
 READY_HOME = int(TpLoopState.READY_HOME)
 READY_HOME_NEXT = int(TpLoopState.READY_HOME_NEXT)
+UR_RUNTIME_PLAYING = 2
 RUNNER_STATES = frozenset(
     {
         "RUNNING",
@@ -376,7 +377,10 @@ def _wait_initial_home(
                 observed = _tp_observation(row)
                 if observed["safety_mode"] != 1:
                     raise HardwareRecoveryRequired("UR Safety is not NORMAL")
-                if observed["state"] == READY_HOME:
+                if (
+                    _integer(row, "ur_runtime_state") == UR_RUNTIME_PLAYING
+                    and observed["state"] == READY_HOME
+                ):
                     zero_fields = (
                         observed["campaign_epoch"],
                         observed["trial_id"],
