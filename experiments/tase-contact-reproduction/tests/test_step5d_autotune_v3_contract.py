@@ -41,6 +41,7 @@ from step5d_autotune_v3.profile import (  # noqa: E402
     load_contract,
     normalize_candidate,
 )
+from step5d_autotune_v3.release_identity import load_current_release  # noqa: E402
 
 
 CONTRACT = load_contract()
@@ -233,22 +234,26 @@ def _replace_flag_value(argv: list[str], flag: str, value: str) -> list[str]:
 
 def test_real_parser_round_trip_classifies_every_effective_field() -> None:
     report = check_effective_config(environ={})
+    current_release = load_current_release(ROOT)
+    readback = json.loads(
+        (ROOT / "config/step5d_autotune_controller_readback_v3.json").read_text(
+            encoding="utf-8"
+        )
+    )
     assert report["ok"] is True
     assert report["no_motion"] is True
     assert report["frozen_baseline"]["commit"] == (
         "6f9ef0912842ac003545eb1906b38d13c7552218"
     )
     assert report["deployment_tp_identity"] == {
-        "program": "step5d_strict_rnn_autotune_v3_r009",
+        "program": current_release.program_id,
         "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
         "artifact_dir": "programs/step5/step5d",
         "readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
         "readback_manifest_sha256": hashlib.sha256(
             (ROOT / "config/step5d_autotune_controller_readback_v3.json").read_bytes()
         ).hexdigest(),
-        "tp_fingerprint": (
-            "057eafb728ee1000ff938f111351eec22f449f89a623d0a04b354271cb832058"
-        ),
+        "tp_fingerprint": readback["tp_fingerprint"],
     }
     assert report["execution_profile_id"] == "nf100-slew050-a050"
     categories = report["field_categories"]
