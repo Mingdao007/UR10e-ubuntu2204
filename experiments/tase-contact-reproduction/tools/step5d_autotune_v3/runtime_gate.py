@@ -803,7 +803,6 @@ def publish_arm_observation(
         "dashboard_loaded_identity": loaded_program_matches(
             loaded, str(contract["expected_loaded_program"])
         ),
-        "dashboard_playing": program_state.strip().upper().startswith("PLAYING"),
         "dashboard_safety_normal": safety_text.strip().upper().endswith("NORMAL"),
         "rtde_playing_normal": runtime_state == 2 and safety_mode == 1,
         "tp_runtime_identity": True,

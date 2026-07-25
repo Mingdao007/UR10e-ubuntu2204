@@ -395,7 +395,7 @@ def test_fresh_identity_closed_observation_opens_the_actual_arm_gate(tmp_path: P
         lease=lease,
         lease_sha256=lease_sha,
         bridge_pid=os.getpid(),
-        dashboard=_dashboard(),
+        dashboard={**_dashboard(), "programState": "STOPPED"},
         rtde_row=_row(),
         contract=contract,
         csv_age_s=0.01,
@@ -422,6 +422,8 @@ def test_fresh_identity_closed_observation_opens_the_actual_arm_gate(tmp_path: P
     context = provider()
 
     assert observed["arm_permitted"] is True
+    assert observed["controller"]["program_state"] == "STOPPED"
+    assert "dashboard_playing" not in observed["predicates"]
     assert context is not None
     assert context.campaign_id == "campaign-a"
 
@@ -594,7 +596,7 @@ def test_exact_command_bound_grant_authorizes_only_its_arm(tmp_path: Path) -> No
         lease=lease,
         lease_sha256=lease.sha256,
         bridge_pid=os.getpid(),
-        dashboard=_dashboard(),
+        dashboard={**_dashboard(), "programState": "STOPPED"},
         rtde_row=_row(),
         contract=contract,
         csv_age_s=0.01,
@@ -909,6 +911,7 @@ def test_arm_gate_cache_ignores_controller_get_age(
     ("dashboard", "row", "reason"),
     (
         (_dashboard("/programs/andyl/kunwei/step5/old_r009.urp"), _row(), "dashboard_loaded_identity"),
+        ({**_dashboard(), "safetymode": "Safetymode: REDUCED"}, _row(), "dashboard_safety_normal"),
         (_dashboard(), _row(ur_output_int_register_36=999), "TP runtime identity mismatch"),
     ),
 )

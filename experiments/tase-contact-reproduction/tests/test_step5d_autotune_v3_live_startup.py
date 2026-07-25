@@ -166,6 +166,7 @@ def test_arm_gate_refresh_binds_post_request_dashboard_and_rtde_row(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     lease, contract, dashboard = _arm_gate_fixture(tmp_path)
+    dashboard = {**dashboard, "programState": "STOPPED"}
     binding = _arm_binding(digest="d" * 64, trial_id=1, command_seq=1)
     command = SimpleNamespace(
         sha256=binding["mailbox_sha256"],
@@ -236,6 +237,7 @@ def test_arm_gate_refresh_binds_post_request_dashboard_and_rtde_row(
     )
 
     assert observed["gate_kind"] == "arm_grant"
+    assert observed["arm_permitted"] is True
     assert observed["arm_command"] == binding
     assert events == ["mailbox", "dashboard", "rtde", "mailbox"]
 
@@ -318,6 +320,89 @@ def test_arm_gate_refresh_retries_if_mailbox_changes_during_observation(
 
     assert observed["arm_command"] == binding2
     assert observed["arm_command"] != binding1
+
+
+def test_arm_gate_refresh_uses_rtde_authority_across_dashboard_flip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lease, contract, dashboard = _arm_gate_fixture(tmp_path)
+    fixed_ns = time.time_ns()
+    csv_path = tmp_path / "bridge.csv"
+    csv_path.write_text("fresh\n", encoding="utf-8")
+    dashboards = iter(
+        (
+            {**dashboard, "programState": "STOPPED"},
+            {**dashboard, "programState": "PLAYING fake_r010.urp"},
+            {**dashboard, "programState": "STOPPED"},
+        )
+    )
+    rows = iter(
+        (
+            {"ur_timestamp": "100.0", "ur_runtime_state": "2", "ur_safety_mode": "1", "ur_output_int_register_26": "10", "ur_output_int_register_35": "1", "ur_output_int_register_36": "1234", "ur_output_int_register_37": "5678"},
+            {"ur_timestamp": "101.0", "ur_runtime_state": "2", "ur_safety_mode": "1", "ur_output_int_register_26": "10", "ur_output_int_register_35": "1", "ur_output_int_register_36": "1234", "ur_output_int_register_37": "5678"},
+            {"ur_timestamp": "102.0", "ur_runtime_state": "1", "ur_safety_mode": "1", "ur_output_int_register_26": "10", "ur_output_int_register_35": "1", "ur_output_int_register_36": "1234", "ur_output_int_register_37": "5678"},
+        )
+    )
+
+    class Mailbox:
+        @staticmethod
+        def read_latest() -> None:
+            return None
+
+    class Follower:
+        path = csv_path
+
+        @staticmethod
+        def poll() -> dict[str, str]:
+            return next(rows)
+
+    class Bridge:
+        pid = os.getpid()
+        returncode = None
+
+        @staticmethod
+        def poll() -> None:
+            return None
+
+    monkeypatch.setattr(live.time, "time_ns", lambda: fixed_ns)
+    monkeypatch.setattr(
+        live, "dashboard_exchange", lambda *_args, **_kwargs: next(dashboards)
+    )
+    delivery = _delivery_observation((fixed_ns // 1_000) * 1_000)
+    monkeypatch.setattr(
+        live,
+        "validate_delivery_observation",
+        lambda *_args, **_kwargs: delivery,
+    )
+
+    for _ in range(2):
+        observed, _ = live._refresh_arm_gate(
+            (tmp_path / "arm_gate.json").absolute(),
+            lease=lease,
+            lease_sha256=lease.sha256,
+            bridge=Bridge(),
+            csv_follower=Follower(),
+            robot_host="127.0.0.1",
+            runtime_contract=contract,
+            mailbox_reader=Mailbox(),
+            delivery_observation=delivery,
+            release=SimpleNamespace(),
+        )
+        assert observed["arm_permitted"] is True
+
+    with pytest.raises(live.LiveLaunchError, match="rtde_playing_normal"):
+        live._refresh_arm_gate(
+            (tmp_path / "arm_gate.json").absolute(),
+            lease=lease,
+            lease_sha256=lease.sha256,
+            bridge=Bridge(),
+            csv_follower=Follower(),
+            robot_host="127.0.0.1",
+            runtime_contract=contract,
+            mailbox_reader=Mailbox(),
+            delivery_observation=delivery,
+            release=SimpleNamespace(),
+        )
 
 
 def test_preplay_does_not_wait_for_stale_stopped_tp_output_registers() -> None:
