@@ -59,7 +59,7 @@ RUNNER_STATES = frozenset(
     }
 )
 RECOVERY_BACKOFF_S = (0.1, 0.25, 0.5, 1.0)
-TERMINAL_CAPTURE_WAIT_S = 0.25
+OBSERVATION_POLL_S = 0.5
 INFLIGHT_OBSERVATION_POLL_S = 0.5
 INFLIGHT_RECOVERY_SLEEP_S = 0.1
 EXTERNAL_HARDWARE_TERMINAL_REASONS = frozenset({2, 3, 17})
@@ -345,19 +345,13 @@ def _send(
 
 def _capture_health(
     path: Path,
-    *,
-    clock=time.monotonic,
-    sleep=time.sleep,
-    wait_s: float = TERMINAL_CAPTURE_WAIT_S,
 ) -> tuple[str, str | None]:
-    deadline = clock() + min(max(float(wait_s), 0.0), TERMINAL_CAPTURE_WAIT_S)
-    while not path.is_symlink() and not path.is_file():
-        now = clock()
-        if now >= deadline:
-            return "DATA_ISSUE", "capture missing after terminal Home"
-        sleep(min(0.01, deadline - now))
-    if path.is_symlink() or not path.is_file():
-        return "DATA_ISSUE", "capture missing after terminal Home"
+    """Inspect already-sealed data without delaying the next physical trial."""
+
+    if path.is_symlink():
+        return "DATA_ISSUE", "capture path is a symlink"
+    if not path.is_file():
+        return "PENDING", "capture seal pending asynchronous outbox validation"
     try:
         with path.open(newline="", encoding="utf-8") as stream:
             reader = csv.reader(stream)
@@ -377,7 +371,7 @@ def _wait_initial_home(
     _publish_status(args, state="WAITING_FOR_HOME", observation=None)
     while True:
         try:
-            for row in follower.rows(timeout_s=1.0):
+            for row in follower.rows(timeout_s=OBSERVATION_POLL_S):
                 observed = _tp_observation(row)
                 if observed["safety_mode"] != 1:
                     raise HardwareRecoveryRequired("UR Safety is not NORMAL")
@@ -394,8 +388,8 @@ def _wait_initial_home(
                             "initial READY_HOME identity is not zero"
                         )
                     return observed
-        except BridgeCsvTimeout as exc:
-            raise HardwareRecoveryRequired("bridge stopped publishing") from exc
+        except BridgeCsvTimeout:
+            continue
 
 
 def _wait_next_dispatch(
@@ -415,22 +409,22 @@ def _wait_next_dispatch(
             observation=observation,
         )
         try:
-            for row in follower.rows(timeout_s=0.5):
+            for row in follower.rows(timeout_s=OBSERVATION_POLL_S):
                 current = _tp_observation(row)
                 if not _safe_home(current):
                     raise HardwareRecoveryRequired("TP left safe Home")
                 dispatch = prepare_next_dispatch(args.receiver_root)
                 if dispatch is not None:
                     return dispatch
-        except BridgeCsvTimeout as exc:
-            raise HardwareRecoveryRequired("bridge stopped publishing") from exc
+        except BridgeCsvTimeout:
+            continue
 
 
 def _wait_terminal(
     follower: BridgeCsvFollower,
     *,
     arm: HostPacket,
-    timeout_s: float,
+    poll_s: float = OBSERVATION_POLL_S,
 ) -> tuple[dict[str, int], dict[str, str]]:
     expected = {
         "campaign_epoch": arm.campaign_epoch,
@@ -442,34 +436,36 @@ def _wait_terminal(
         "batch_row_index": 1,
     }
     identity_failure: str | None = None
-    try:
-        for row in follower.rows(timeout_s=timeout_s):
-            observed = _tp_observation(row)
-            if observed["safety_mode"] != 1:
-                raise HardwareRecoveryRequired("UR Safety is not NORMAL")
-            sequence = observed["consumed_command_seq"]
-            if sequence < arm.command_seq:
-                continue
-            if sequence > arm.command_seq:
-                identity_failure = (
-                    "observation consumed a command newer than this trial"
-                )
-            elif any(observed[key] != value for key, value in expected.items()):
-                identity_failure = (
-                    "same-sequence observation identity differs from dispatched ARM"
-                )
-            if observed["state"] != READY_HOME_NEXT:
-                continue
-            if identity_failure is not None:
-                raise TrialOutcomeError(
-                    "IDENTITY",
-                    identity_failure,
-                    observed=observed,
-                )
-            return observed, row
-    except BridgeCsvTimeout as exc:
-        raise HardwareRecoveryRequired("bridge stopped before terminal Home") from exc
-    raise HardwareRecoveryRequired("bridge stopped before terminal Home")
+    while True:
+        try:
+            for row in follower.rows(timeout_s=poll_s):
+                observed = _tp_observation(row)
+                if observed["safety_mode"] != 1:
+                    raise HardwareRecoveryRequired("UR Safety is not NORMAL")
+                sequence = observed["consumed_command_seq"]
+                if sequence < arm.command_seq:
+                    continue
+                if sequence > arm.command_seq:
+                    identity_failure = (
+                        "observation consumed a command newer than this trial"
+                    )
+                elif any(observed[key] != value for key, value in expected.items()):
+                    identity_failure = (
+                        "same-sequence observation identity differs from dispatched ARM"
+                    )
+                if observed["state"] != READY_HOME_NEXT:
+                    continue
+                if identity_failure is not None:
+                    raise TrialOutcomeError(
+                        "IDENTITY",
+                        identity_failure,
+                        observed=observed,
+                    )
+                return observed, row
+        except BridgeCsvTimeout:
+            # A follower timeout is only a poll boundary.  It never completes,
+            # fails, clears, or replays the inflight physical trial.
+            continue
 
 
 def _inflight_identity_matches(
@@ -572,13 +568,9 @@ def _finish_adopted_terminal(
 
     failure_class = _terminal_failure_class(observed["terminal_reason"])
     if failure_class is None:
-        capture_status, capture_detail = _capture_health(
-            capture,
-            clock=getattr(args, "clock", time.monotonic),
-            sleep=getattr(args, "sleep", time.sleep),
-        )
-        status = "SUCCEEDED" if capture_status == "COMPLETE" else "FAILED"
-        failure_class = None if status == "SUCCEEDED" else "DATA_QUALITY"
+        capture_status, capture_detail = _capture_health(capture)
+        status = "FAILED" if capture_status == "DATA_ISSUE" else "SUCCEEDED"
+        failure_class = "DATA_QUALITY" if status == "FAILED" else None
         detail = capture_detail
     else:
         status = "FAILED"
@@ -775,7 +767,6 @@ def _run_trial(
             terminal, _row = _wait_terminal(
                 follower,
                 arm=arm,
-                timeout_s=args.trial_timeout_s,
             )
             break
         except HardwareRecoveryRequired as exc:
@@ -807,13 +798,9 @@ def _run_trial(
     )
     failure_class = _terminal_failure_class(terminal["terminal_reason"])
     if failure_class is None:
-        capture_status, detail = _capture_health(
-            capture,
-            clock=getattr(args, "clock", time.monotonic),
-            sleep=getattr(args, "sleep", time.sleep),
-        )
-        status = "SUCCEEDED" if capture_status == "COMPLETE" else "FAILED"
-        failure_class = None if status == "SUCCEEDED" else "DATA_QUALITY"
+        capture_status, detail = _capture_health(capture)
+        status = "FAILED" if capture_status == "DATA_ISSUE" else "SUCCEEDED"
+        failure_class = "DATA_QUALITY" if status == "FAILED" else None
     else:
         status = "FAILED"
         detail = (
@@ -928,7 +915,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--v3-launch-profile", type=Path, required=True)
     parser.add_argument("--v3-program-id", required=True)
     parser.add_argument("--initial-manifest", type=Path, required=True)
-    parser.add_argument("--trial-timeout-s", type=float, default=180.0)
     return parser.parse_args()
 
 

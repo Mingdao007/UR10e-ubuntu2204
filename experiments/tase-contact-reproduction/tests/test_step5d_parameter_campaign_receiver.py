@@ -21,6 +21,7 @@ from step5d_parameter_queue import (  # noqa: E402
     status as receiver_status,
     submit,
 )
+from step5d_production_csv import BridgeCsvFollowerStats, BridgeCsvTimeout  # noqa: E402
 
 
 def _observation(*, seq: int, trial: int, state: int = 20, reason: int = 0):
@@ -69,7 +70,7 @@ def test_terminal_wait_ignores_stale_state78_before_next_trial():
         ]
     )
 
-    observed, _ = runner._wait_terminal(follower, arm=arm, timeout_s=0.0)
+    observed, _ = runner._wait_terminal(follower, arm=arm, poll_s=0.0)
 
     assert observed["trial_id"] == 2
 
@@ -85,7 +86,7 @@ def test_same_sequence_identity_mismatch_is_typed_trial_outcome():
                 ]
             ),
             arm=arm,
-            timeout_s=0.0,
+            poll_s=0.0,
         )
     assert caught.value.failure_class == "IDENTITY"
     assert caught.value.observed["state"] == 78
@@ -102,7 +103,7 @@ def test_overshoot_latches_until_authoritative_terminal_home():
                 ]
             ),
             arm=arm,
-            timeout_s=0.0,
+            poll_s=0.0,
         )
     assert caught.value.failure_class == "IDENTITY"
     assert caught.value.observed["state"] == 78
@@ -370,14 +371,14 @@ def test_safety_state_is_hardware_recovery_not_a_fake_terminal():
         runner._wait_terminal(
             FakeFollower([unsafe]),
             arm=arm,
-            timeout_s=0.0,
+            poll_s=0.0,
         )
 
 
 def test_ten_dispatches_continue_after_per_trial_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    args = SimpleNamespace(trial_timeout_s=0.0, bridge_run=tmp_path)
+    args = SimpleNamespace(bridge_run=tmp_path)
     prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial"))
     finished = []
     failure_classes = []
@@ -458,7 +459,6 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
         v3_launch_profile=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
         v3_program_id="step5d_strict_rnn_autotune_v3",
         initial_manifest=tmp_path / "initial.json",
-        trial_timeout_s=0.0,
     )
     binding = {
         "campaign_id": "campaign-test",
@@ -575,28 +575,60 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
     assert receiver_status(receiver_root)["inflight"] is None
 
 
-def test_capture_health_uses_bounded_virtual_clock_wait(tmp_path: Path):
-    now = [0.0]
-    sleeps = []
+def test_capture_health_never_waits_for_async_seal(tmp_path: Path):
+    status, detail = runner._capture_health(tmp_path / "capture.csv")
 
-    def clock():
-        return now[0]
+    assert status == "PENDING"
+    assert detail == "capture seal pending asynchronous outbox validation"
 
-    def sleep(delay):
-        sleeps.append(delay)
-        now[0] += delay
 
-    status, detail = runner._capture_health(
-        tmp_path / "capture.csv",
-        clock=clock,
-        sleep=sleep,
-        wait_s=10.0,
+def test_async_capture_seal_does_not_block_next_trial(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    finished = []
+    monkeypatch.setattr(
+        runner,
+        "_finish_trial",
+        lambda *args, **kwargs: finished.append(kwargs),
     )
 
-    assert status == "DATA_ISSUE"
-    assert detail == "capture missing after terminal Home"
-    assert now[0] <= runner.TERMINAL_CAPTURE_WAIT_S
-    assert sleeps
+    observed = runner._run_trial(
+        SimpleNamespace(bridge_run=tmp_path),
+        FakeFollower([_observation(seq=1, trial=1, state=78, reason=1)]),
+        dispatch={"dispatch_sequence": 1, "request": {"request_uid": "request-1"}},
+        arm=_arm(trial=1, seq=1, token=99, batch=1),
+        prepared=SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-1")),
+        observation={},
+    )
+
+    assert observed["state"] == 78
+    assert finished[0]["status"] == "SUCCEEDED"
+    assert finished[0]["failure_class"] is None
+    assert "pending asynchronous outbox" in finished[0]["detail"]
+
+
+def test_terminal_poll_boundary_never_becomes_trial_outcome():
+    arm = _arm(trial=1, seq=1, token=99, batch=1)
+
+    class PollBoundaryThenTerminal:
+        calls = 0
+
+        def rows(self, *, timeout_s):
+            assert timeout_s == runner.OBSERVATION_POLL_S
+            self.calls += 1
+            if self.calls == 1:
+                raise BridgeCsvTimeout(
+                    "no_fresh_rows",
+                    stats=BridgeCsvFollowerStats(),
+                )
+            yield _observation(seq=1, trial=1, state=78, reason=1)
+
+    follower = PollBoundaryThenTerminal()
+    observed, _ = runner._wait_terminal(follower, arm=arm)
+
+    assert follower.calls == 2
+    assert observed["state"] == 78
 
 
 def test_unexpected_main_error_publishes_recovering_and_accepting(
