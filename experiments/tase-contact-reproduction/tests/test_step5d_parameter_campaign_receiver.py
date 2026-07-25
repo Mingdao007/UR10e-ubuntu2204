@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import json
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
 
 import pytest
@@ -13,15 +14,21 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_parameter_campaign as runner  # noqa: E402
 from step5d_autotune_state_machine import HostCommand, HostPacket  # noqa: E402
+from step5d_autotune_live_driver import AtomicCommandMailbox  # noqa: E402
 from step5d_parameter_outbox import enqueue_postprocess_task  # noqa: E402
 from step5d_parameter_queue import (  # noqa: E402
+    adopt_selected_legacy_binding,
     bind_home,
+    finish_dispatch,
     initialize,
     prepare_next_dispatch,
+    reconcile_not_consumed,
+    rebind_transport_home,
     status as receiver_status,
     submit,
 )
 from step5d_production_csv import BridgeCsvFollowerStats, BridgeCsvTimeout  # noqa: E402
+from step5d_autotune_v3.runtime_profile import load_launch_profile  # noqa: E402
 
 
 def _observation(*, seq: int, trial: int, state: int = 20, reason: int = 0):
@@ -134,6 +141,148 @@ def test_resume_home_rejects_durable_identity_mismatch(monkeypatch):
                 "last_command_seq": 1,
             },
         )
+
+
+def test_migrated_not_consumed_p05_rebinds_zero_home_then_advances_p06(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    for index in range(3):
+        submit(
+            receiver_root,
+            launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+            force_p=0.0008408964152537145 * (2 ** (index / 4)),
+            force_i=0.00001,
+            force_damping=4.949747468305833,
+            source=f"P{index + 4:02d}",
+        )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    p04 = prepare_next_dispatch(receiver_root)
+    assert p04 is not None
+    packet = p04["packet"]
+    finish_dispatch(
+        receiver_root,
+        status="SUCCEEDED",
+        observed={
+            "campaign_epoch": packet["campaign_epoch"],
+            "trial_id": packet["trial_id"],
+            "state": 78,
+            "candidate_token": packet["candidate_token"],
+            "execution_profile_id": packet["execution_profile_id"],
+            "consumed_command_seq": packet["command_seq"],
+            "logical_batch_sequence": packet["logical_batch_sequence"],
+            "batch_row_index": 1,
+        },
+    )
+    p05_old = prepare_next_dispatch(receiver_root)
+    assert p05_old is not None
+    reconcile_not_consumed(
+        receiver_root,
+        detail="legacy TP session ended before P05 ARM",
+        observed_command_seq=1,
+    )
+    state_path = receiver_root / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.update(
+        schema="step5d.parameter-receiver/state-v1",
+        release_manifest_sha256="447110" + "0" * 58,
+        launch_profile_sha256="1" * 64,
+    )
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    legacy = tmp_path / "legacy-447110"
+    shutil.copytree(receiver_root, legacy)
+    stable = tmp_path / "stable"
+    adopt_selected_legacy_binding(
+        stable,
+        legacy_root=legacy,
+        campaign_id="campaign-test",
+    )
+    monkeypatch.setattr(runner, "_publish_status", lambda *args, **kwargs: None)
+    zero = _observation(seq=0, trial=0, state=10)
+    zero["ur_runtime_state"] = runner.UR_RUNTIME_PLAYING
+    zero["ur_output_int_register_24"] = 0
+    zero["ur_output_int_register_27"] = 0
+    zero["ur_output_int_register_34"] = 0
+    observed = runner._wait_resume_home(
+        SimpleNamespace(),
+        FakeFollower([zero]),
+        home_identity={
+            "campaign_epoch": 1,
+            "last_trial_id": 1,
+            "last_command_seq": 1,
+        },
+        allow_zero_session_rebind=True,
+    )
+    assert observed["state"] == runner.READY_HOME
+    rebind_transport_home(
+        stable,
+        campaign_epoch=1,
+        last_trial_id=0,
+        last_command_seq=0,
+    )
+    p05 = prepare_next_dispatch(stable)
+    assert p05 is not None
+    assert p05["request"]["source"] == "P05"
+    assert p05["dispatch_sequence"] == 3
+    assert p05["dispatch_identity"] != p05_old["dispatch_identity"]
+    assert p05["packet"]["campaign_epoch"] == 1
+    assert p05["packet"]["trial_id"] == 1
+    assert p05["packet"]["command_seq"] == 1
+    mailbox_path = tmp_path / "mailbox/command.json"
+    mailbox_path.parent.mkdir()
+    arm, prepared = runner._prepared(
+        SimpleNamespace(
+            experiment_root=ROOT,
+            v3_launch_profile=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+            v3_program_id="step5d_strict_rnn_autotune_v3_r021",
+            release_manifest_sha256="a" * 64,
+        ),
+        binding={
+            "campaign_id": "campaign-test",
+            "campaign_epoch": 1,
+            "campaign_fingerprint": "c" * 64,
+        },
+        dispatch=p05,
+    )
+    mailbox = AtomicCommandMailbox(
+        mailbox_path,
+        network_mode=True,
+        launch_profile=load_launch_profile(
+            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+            expected_tp_program_id="step5d_strict_rnn_autotune_v3_r021",
+        ),
+    )
+    mailbox.send_command(arm, prepared_trial=prepared)
+    decoded = mailbox.read_latest()
+    assert decoded is not None
+    assert decoded.packet == arm
+    assert arm.campaign_epoch == 1
+    assert arm.command_seq == 1
+    packet = p05["packet"]
+    finish_dispatch(
+        stable,
+        status="SUCCEEDED",
+        observed={
+            "campaign_epoch": packet["campaign_epoch"],
+            "trial_id": packet["trial_id"],
+            "state": 78,
+            "candidate_token": packet["candidate_token"],
+            "execution_profile_id": packet["execution_profile_id"],
+            "consumed_command_seq": packet["command_seq"],
+            "logical_batch_sequence": packet["logical_batch_sequence"],
+            "batch_row_index": 1,
+        },
+    )
+    p06 = prepare_next_dispatch(stable)
+    assert p06 is not None
+    assert p06["request"]["source"] == "P06"
 
 
 def test_same_sequence_identity_mismatch_is_typed_trial_outcome():
@@ -528,7 +677,6 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
     }
     monkeypatch.setattr(runner, "_strict_object", lambda path, role: binding)
     monkeypatch.setattr(runner, "_validate_authority", lambda args, binding: None)
-    monkeypatch.setattr(runner, "seed_initial_manifest", lambda *args, **kwargs: ())
     monkeypatch.setattr(runner, "BridgeCsvFollower", lambda path: object())
     monkeypatch.setattr(
         runner,
@@ -742,6 +890,157 @@ def test_outbox_task_is_durable_and_optimizer_is_optional(tmp_path: Path):
         capture_path=tmp_path / "capture.csv",
         result_path=tmp_path / "result.json",
     ) == path
+
+
+def test_terminal_artifact_recovery_skips_legacy_and_recovers_missing_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    receiver_root = tmp_path / "receiver"
+    profile = ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=profile,
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=profile,
+        force_p=0.0008408964152537145,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+    packet = dispatch["packet"]
+    finish_dispatch(
+        receiver_root,
+        status="SUCCEEDED",
+        observed={
+            "campaign_epoch": packet["campaign_epoch"],
+            "trial_id": packet["trial_id"],
+            "state": 78,
+            "candidate_token": packet["candidate_token"],
+            "execution_profile_id": packet["execution_profile_id"],
+            "consumed_command_seq": packet["command_seq"],
+            "logical_batch_sequence": packet["logical_batch_sequence"],
+            "batch_row_index": 1,
+        },
+    )
+    dispatch_path = receiver_root / "dispatches/000000000001.json"
+    legacy_dispatch = json.loads(dispatch_path.read_text(encoding="utf-8"))
+    legacy_dispatch.pop("dispatch_identity")
+    dispatch_path.write_text(json.dumps(legacy_dispatch), encoding="utf-8")
+    campaign_root = tmp_path / "campaign"
+    bridge_run = tmp_path / "bridge"
+    legacy_result = campaign_root / "parameter_results/000000000001.json"
+    legacy_result.parent.mkdir(parents=True)
+    legacy_result.write_text(json.dumps({"legacy": True}), encoding="utf-8")
+    args = SimpleNamespace(
+        receiver_root=receiver_root,
+        campaign_root=campaign_root,
+        bridge_run=bridge_run,
+    )
+    monkeypatch.setattr(
+        runner,
+        "_prepared",
+        lambda *args, **kwargs: pytest.fail("legacy result must not be rewritten"),
+    )
+    runner._recover_terminal_artifacts(args, binding={})
+    assert json.loads(legacy_result.read_text(encoding="utf-8")) == {"legacy": True}
+    assert not (campaign_root / "parameter_outbox/tasks").exists()
+
+    legacy_result.unlink()
+    monkeypatch.setattr(
+        runner,
+        "_prepared",
+        lambda *args, **kwargs: SimpleNamespace(
+            trial=SimpleNamespace(trial_uid="trial-recovered")
+        ),
+    )
+    runner._recover_terminal_artifacts(args, binding={})
+    identity_results = tuple((campaign_root / "parameter_results").glob("*.json"))
+    tasks = tuple((campaign_root / "parameter_outbox/tasks").glob("*.json"))
+    assert len(identity_results) == 1
+    assert identity_results[0].name != "000000000001.json"
+    assert len(tasks) == 1
+    runner._recover_terminal_artifacts(args, binding={})
+    assert tuple((campaign_root / "parameter_outbox/tasks").glob("*.json")) == tasks
+
+
+def test_receipt_artifact_failures_are_best_effort_and_retryable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    args = SimpleNamespace(campaign_root=tmp_path / "campaign")
+    dispatch = {
+        "dispatch_sequence": 1,
+        "dispatch_identity": "dispatch:best-effort",
+        "request": {"request_uid": "request:best-effort"},
+    }
+    prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-best-effort"))
+    receipt = {"status": "SUCCEEDED", "failure_class": None, "detail": None}
+    monkeypatch.setattr(
+        runner,
+        "enqueue_postprocess_task",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("outbox unavailable")),
+    )
+    runner._persist_trial_artifacts(
+        args,
+        dispatch=dispatch,
+        prepared=prepared,
+        receipt=receipt,
+        capture=tmp_path / "capture.csv",
+    )
+    assert not (args.campaign_root / "parameter_results").exists()
+
+    monkeypatch.setattr(
+        runner,
+        "enqueue_postprocess_task",
+        lambda *args, **kwargs: tmp_path / "task.json",
+    )
+    monkeypatch.setattr(
+        runner,
+        "_write_immutable_result",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("result unavailable")),
+    )
+    runner._persist_trial_artifacts(
+        args,
+        dispatch=dispatch,
+        prepared=prepared,
+        receipt=receipt,
+        capture=tmp_path / "capture.csv",
+    )
+
+
+def test_outbox_dispatch_identity_prevents_sequence_collision(tmp_path: Path):
+    first = enqueue_postprocess_task(
+        tmp_path / "outbox",
+        dispatch_sequence=7,
+        dispatch_identity="dispatch:first",
+        trial_uid="trial-first",
+        capture_path=tmp_path / "first.csv",
+        result_path=tmp_path / "first.json",
+    )
+    second = enqueue_postprocess_task(
+        tmp_path / "outbox",
+        dispatch_sequence=7,
+        dispatch_identity="dispatch:second",
+        trial_uid="trial-second",
+        capture_path=tmp_path / "second.csv",
+        result_path=tmp_path / "second.json",
+    )
+    assert first != second
+    assert enqueue_postprocess_task(
+        tmp_path / "outbox",
+        dispatch_sequence=7,
+        dispatch_identity="dispatch:first",
+        trial_uid="trial-first",
+        capture_path=tmp_path / "first.csv",
+        result_path=tmp_path / "first.json",
+    ) == first
 
 
 def test_allowed_runner_states_exclude_legacy_intermediate_states():

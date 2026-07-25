@@ -1277,7 +1277,6 @@ def _run_live_session(
     }
     atomic_json(launch_plan_path, prepared)
     receiver_root = Path(str(prepared["receiver_root"]))
-    initial_manifest = Path(str(prepared["initial_manifest"]))
     inherited_launch_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID")
     if inherited_launch_id is not None and (
         len(inherited_launch_id) != 32
@@ -1436,8 +1435,6 @@ def _run_live_session(
                 str(launch_profile_path),
                 "--v3-program-id",
                 release.program_id,
-                "--initial-manifest",
-                str(initial_manifest),
             ]
             with runner_log_path.open("wb") as runner_log:
                 runner = subprocess.Popen(

@@ -609,7 +609,7 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     assert no_arm_ready < runner_start < runner_ready
     assert runner_ready < claim_gate < campaign_ready < play_signal < play_observed < gate_refresh
     assert '"--receiver-root"' in source
-    assert '"--initial-manifest"' in source
+    assert '"--initial-manifest"' not in source
     assert "while True:" in source[source.index("READY_FOR_ONE_PLAY_TO_MOVE") :]
     assert "TP Play was not observed before timeout" not in source
     assert "readiness timeout" not in inspect.getsource(live._wait_file)

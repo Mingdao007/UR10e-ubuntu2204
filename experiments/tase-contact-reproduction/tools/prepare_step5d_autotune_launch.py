@@ -163,15 +163,15 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
         epoch,
         campaign_id=campaign_id,
     )
-    binding_root = (
+    legacy_binding_root = (
         campaign_root
         / "control"
         / "parameter_receiver_bindings"
         / release.manifest_sha256
     )
-    plan_path = binding_root / "plan.json"
-    source_path = binding_root / "source.json"
-    receiver_root = binding_root / "queue"
+    plan_path = legacy_binding_root / "plan.json"
+    source_path = legacy_binding_root / "source.json"
+    receiver_root = campaign_root / "control" / "parameter_receiver"
     plan, source = _receiver_documents(
         campaign_id=campaign.campaign_id,
         release_manifest_sha256=release.manifest_sha256,
