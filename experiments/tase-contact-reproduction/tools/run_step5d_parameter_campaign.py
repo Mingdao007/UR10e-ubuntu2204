@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import csv
 from datetime import datetime, timezone
-import hashlib
 import json
 import math
 import os
@@ -14,7 +13,6 @@ from pathlib import Path
 import time
 from typing import Any, Mapping
 
-from prepare_step5d_autotune_launch import _sha256_path
 from step5d_campaign_identity import campaign_spec
 from step5d_autotune_contract import (
     ForceCandidate,
@@ -34,6 +32,7 @@ from step5d_autotune_v3.runtime_profile import (
 )
 from step5d_autotune_v3.state import atomic_json
 from step5d_parameter_manifest import seed_initial_manifest
+from step5d_parameter_outbox import enqueue_postprocess_task
 from step5d_parameter_queue import (
     bind_home,
     finish_dispatch,
@@ -47,11 +46,41 @@ from step5d_production_csv import BridgeCsvFollower, BridgeCsvTimeout
 STATUS_SCHEMA = "step5d.parameter-receiver/live-status-v1"
 READY_HOME = int(TpLoopState.READY_HOME)
 READY_HOME_NEXT = int(TpLoopState.READY_HOME_NEXT)
-TERMINAL_CAPTURE_WAIT_S = 3.0
+RUNNER_STATES = frozenset(
+    {
+        "RUNNING",
+        "WAITING_FOR_PARAMETERS",
+        "WAITING_FOR_HOME",
+        "WAITING_FOR_HARDWARE",
+        "RECOVERING",
+        "SHUTDOWN",
+    }
+)
+RECOVERY_BACKOFF_S = (0.1, 0.25, 0.5, 1.0)
 
 
 class ParameterCampaignError(RuntimeError):
     pass
+
+
+class HardwareRecoveryRequired(ParameterCampaignError):
+    """The receiver lost the evidence needed to continue a live trial."""
+
+
+class TrialOutcomeError(ParameterCampaignError):
+    status = "FAILED"
+
+    def __init__(
+        self,
+        failure_class: str,
+        detail: str,
+        *,
+        observed: Mapping[str, int] | None = None,
+    ) -> None:
+        self.failure_class = failure_class
+        self.detail = detail
+        self.observed = None if observed is None else dict(observed)
+        super().__init__(detail)
 
 
 def _strict_object(path: Path, role: str) -> dict[str, Any]:
@@ -123,6 +152,8 @@ def _publish_status(
     observation: Mapping[str, int] | None,
     blocker: str | None = None,
 ) -> dict[str, Any]:
+    if state not in RUNNER_STATES:
+        raise ParameterCampaignError(f"invalid receiver state: {state}")
     queue = receiver_status(args.receiver_root)
     payload = {
         "schema": STATUS_SCHEMA,
@@ -145,10 +176,10 @@ def _publish_status(
         "tp_observation": None if observation is None else dict(observation),
         "blocker": blocker,
         "next_action": (
-            "press Play once"
-            if state == "WAITING_FOR_PLAY"
-            else "submit another parameter; TP remains stationary at Home"
+            "submit another parameter; TP remains stationary at Home"
             if state == "WAITING_FOR_PARAMETERS"
+            else "wait for safe Home and bridge recovery"
+            if state in {"WAITING_FOR_HOME", "WAITING_FOR_HARDWARE", "RECOVERING"}
             else "wait"
         ),
     }
@@ -278,19 +309,17 @@ def _send(
             expected_tp_program_id=args.v3_program_id,
         ),
     )
-    mailbox.send_command(arm, prepared_trial=prepared)
-    decoded = mailbox.read_latest()
+    try:
+        mailbox.send_command(arm, prepared_trial=prepared)
+        decoded = mailbox.read_latest()
+    except (ConnectionError, OSError, TimeoutError, RuntimeError) as exc:
+        raise HardwareRecoveryRequired("ARM mailbox or bridge is unavailable") from exc
     if decoded is None or decoded.packet != arm:
-        raise ParameterCampaignError("receiver ARM mailbox readback differs")
+        raise HardwareRecoveryRequired("receiver ARM mailbox readback differs")
     return arm, prepared
 
 
 def _capture_health(path: Path) -> tuple[str, str | None]:
-    deadline = time.monotonic() + TERMINAL_CAPTURE_WAIT_S
-    while time.monotonic() < deadline:
-        if path.is_file() and not path.is_symlink():
-            break
-        time.sleep(0.01)
     if path.is_symlink() or not path.is_file():
         return "DATA_ISSUE", "capture missing after terminal Home"
     try:
@@ -309,13 +338,13 @@ def _wait_initial_home(
     args: argparse.Namespace,
     follower: BridgeCsvFollower,
 ) -> dict[str, int]:
-    _publish_status(args, state="WAITING_FOR_PLAY", observation=None)
+    _publish_status(args, state="WAITING_FOR_HOME", observation=None)
     while True:
         try:
             for row in follower.rows(timeout_s=1.0):
                 observed = _tp_observation(row)
                 if observed["safety_mode"] != 1:
-                    raise ParameterCampaignError("UR Safety left NORMAL before Play")
+                    raise HardwareRecoveryRequired("UR Safety is not NORMAL")
                 if observed["state"] == READY_HOME:
                     zero_fields = (
                         observed["campaign_epoch"],
@@ -330,8 +359,7 @@ def _wait_initial_home(
                         )
                     return observed
         except BridgeCsvTimeout as exc:
-            if exc.code == "no_fresh_rows":
-                raise ParameterCampaignError("bridge stopped publishing before Play") from exc
+            raise HardwareRecoveryRequired("bridge stopped publishing") from exc
 
 
 def _wait_next_dispatch(
@@ -339,6 +367,8 @@ def _wait_next_dispatch(
     follower: BridgeCsvFollower,
     observation: Mapping[str, int],
 ) -> dict[str, Any]:
+    if not _safe_home(observation):
+        raise HardwareRecoveryRequired("safe Home is not currently proven")
     while True:
         dispatch = prepare_next_dispatch(args.receiver_root)
         if dispatch is not None:
@@ -352,17 +382,12 @@ def _wait_next_dispatch(
             for row in follower.rows(timeout_s=0.5):
                 current = _tp_observation(row)
                 if not _safe_home(current):
-                    raise ParameterCampaignError(
-                        "TP left safe Home while receiver queue was empty"
-                    )
+                    raise HardwareRecoveryRequired("TP left safe Home")
                 dispatch = prepare_next_dispatch(args.receiver_root)
                 if dispatch is not None:
                     return dispatch
         except BridgeCsvTimeout as exc:
-            if exc.code == "no_fresh_rows":
-                raise ParameterCampaignError(
-                    "bridge stopped publishing while receiver queue was empty"
-                ) from exc
+            raise HardwareRecoveryRequired("bridge stopped publishing") from exc
 
 
 def _wait_terminal(
@@ -371,28 +396,197 @@ def _wait_terminal(
     arm: HostPacket,
     timeout_s: float,
 ) -> tuple[dict[str, int], dict[str, str]]:
-    for row in follower.rows(timeout_s=timeout_s):
-        observed = _tp_observation(row)
-        if observed["safety_mode"] != 1:
-            raise ParameterCampaignError("UR Safety left NORMAL during trial")
-        if observed["state"] != READY_HOME_NEXT:
-            continue
-        expected = {
-            "campaign_epoch": arm.campaign_epoch,
-            "trial_id": arm.trial_id,
-            "state": READY_HOME_NEXT,
-            "candidate_token": arm.candidate_token,
-            "execution_profile_id": arm.execution_profile_id,
-            "consumed_command_seq": arm.command_seq,
-            "logical_batch_sequence": arm.logical_batch_sequence,
-            "batch_row_index": 1,
-        }
-        if _terminal_identity(observed) != expected:
-            raise ParameterCampaignError(
-                "terminal Home identity differs from dispatched ARM"
+    expected = {
+        "campaign_epoch": arm.campaign_epoch,
+        "trial_id": arm.trial_id,
+        "candidate_token": arm.candidate_token,
+        "execution_profile_id": arm.execution_profile_id,
+        "consumed_command_seq": arm.command_seq,
+        "logical_batch_sequence": arm.logical_batch_sequence,
+        "batch_row_index": 1,
+    }
+    try:
+        for row in follower.rows(timeout_s=timeout_s):
+            observed = _tp_observation(row)
+            if observed["safety_mode"] != 1:
+                raise HardwareRecoveryRequired("UR Safety is not NORMAL")
+            sequence = observed["consumed_command_seq"]
+            if sequence < arm.command_seq:
+                continue
+            if sequence > arm.command_seq:
+                raise TrialOutcomeError(
+                    "IDENTITY",
+                    "observation consumed a command newer than this trial",
+                    observed=observed,
+                )
+            if any(observed[key] != value for key, value in expected.items()):
+                raise TrialOutcomeError(
+                    "IDENTITY",
+                    "same-sequence observation identity differs from dispatched ARM",
+                    observed=observed,
+                )
+            if observed["state"] != READY_HOME_NEXT:
+                continue
+            return observed, row
+    except BridgeCsvTimeout as exc:
+        raise HardwareRecoveryRequired("bridge stopped before terminal Home") from exc
+    raise HardwareRecoveryRequired("bridge stopped before terminal Home")
+
+
+def _sleep(args: argparse.Namespace, delay_s: float) -> None:
+    getattr(args, "sleep", time.sleep)(delay_s)
+
+
+def _recover_home(
+    args: argparse.Namespace,
+    follower: BridgeCsvFollower,
+    *,
+    observation: Mapping[str, int] | None,
+    detail: str,
+) -> dict[str, int]:
+    _publish_status(
+        args,
+        state="WAITING_FOR_HARDWARE",
+        observation=observation,
+        blocker=detail,
+    )
+    while True:
+        for delay_s in RECOVERY_BACKOFF_S:
+            _publish_status(
+                args,
+                state="RECOVERING",
+                observation=observation,
+                blocker=detail,
             )
-        return observed, row
-    raise AssertionError("unreachable")
+            try:
+                for row in follower.rows(timeout_s=0.5):
+                    current = _tp_observation(row)
+                    if _safe_home(current):
+                        return current
+                    observation = current
+            except (BridgeCsvTimeout, OSError, RuntimeError, ValueError) as exc:
+                detail = f"recovery: {type(exc).__name__}:{exc}"
+            _sleep(args, delay_s)
+        # Backoff is bounded; waiting for fresh evidence is not.
+
+
+def _finish_trial(
+    args: argparse.Namespace,
+    *,
+    dispatch: Mapping[str, Any],
+    prepared: Any,
+    observed: Mapping[str, int],
+    status: str,
+    failure_class: str | None,
+    detail: str | None,
+    capture: Path,
+) -> None:
+    receipt = finish_dispatch(
+        args.receiver_root,
+        status=status,
+        failure_class=failure_class,
+        observed=dict(observed),
+        detail=detail,
+    )
+    result_path = (
+        args.campaign_root
+        / "parameter_results"
+        / f"{dispatch['dispatch_sequence']:012d}.json"
+    )
+    outbox_path = None
+    if status == "SUCCEEDED":
+        outbox_path = enqueue_postprocess_task(
+            args.campaign_root / "parameter_outbox",
+            dispatch_sequence=int(dispatch["dispatch_sequence"]),
+            trial_uid=prepared.trial.trial_uid,
+            capture_path=capture,
+            result_path=result_path,
+        )
+    result = {
+        "schema": "step5d.parameter-receiver/trial-result-v2",
+        "request_uid": dispatch["request"]["request_uid"],
+        "dispatch_sequence": dispatch["dispatch_sequence"],
+        "trial_uid": prepared.trial.trial_uid,
+        "capture": str(capture),
+        "capture_sha256": None,
+        "status": status,
+        "failure_class": failure_class,
+        "detail": detail,
+        "outbox_task": None if outbox_path is None else str(outbox_path),
+        "receipt": receipt,
+    }
+    encoded = canonical_json_bytes(result)
+    result_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if result_path.exists() or result_path.is_symlink():
+        if result_path.is_symlink() or result_path.read_bytes() != encoded:
+            raise ParameterCampaignError("immutable parameter result differs")
+    else:
+        result_path.write_bytes(encoded)
+
+
+def _run_trial(
+    args: argparse.Namespace,
+    follower: BridgeCsvFollower,
+    *,
+    dispatch: Mapping[str, Any],
+    arm: HostPacket,
+    prepared: Any,
+    observation: Mapping[str, int],
+) -> dict[str, int]:
+    while True:
+        try:
+            terminal, _row = _wait_terminal(
+                follower,
+                arm=arm,
+                timeout_s=args.trial_timeout_s,
+            )
+            break
+        except HardwareRecoveryRequired as exc:
+            observation = _recover_home(
+                args,
+                follower,
+                observation=observation,
+                detail=str(exc),
+            )
+        except TrialOutcomeError as exc:
+            observed = exc.observed or dict(observation)
+            _finish_trial(
+                args,
+                dispatch=dispatch,
+                prepared=prepared,
+                observed=observed,
+                status=exc.status,
+                failure_class=exc.failure_class,
+                detail=exc.detail,
+                capture=args.bridge_run / "autotune_trials" / prepared.trial.trial_uid / "capture.csv",
+            )
+            return observed
+
+    capture = (
+        args.bridge_run
+        / "autotune_trials"
+        / prepared.trial.trial_uid
+        / "capture.csv"
+    )
+    if terminal["terminal_reason"] == 1:
+        capture_status, detail = _capture_health(capture)
+        status = "SUCCEEDED" if capture_status == "COMPLETE" else "FAILED"
+        failure_class = None if status == "SUCCEEDED" else "DATA_QUALITY"
+    else:
+        status = "FAILED"
+        failure_class = "PARAMETER_GUARD"
+        detail = f"software terminal guard reason={terminal['terminal_reason']}"
+    _finish_trial(
+        args,
+        dispatch=dispatch,
+        prepared=prepared,
+        observed=terminal,
+        status=status,
+        failure_class=failure_class,
+        detail=detail,
+        capture=capture,
+    )
+    return terminal
 
 
 def run(args: argparse.Namespace) -> None:
@@ -422,58 +616,46 @@ def run(args: argparse.Namespace) -> None:
     }
     atomic_json(args.runner_ready_file, ready)
     follower = BridgeCsvFollower(args.bridge_run / "bridge_rtde_500hz.csv")
-    observed = _wait_initial_home(args, follower)
+    while True:
+        try:
+            observed = _wait_initial_home(args, follower)
+            break
+        except HardwareRecoveryRequired as exc:
+            observed = _recover_home(
+                args,
+                follower,
+                observation=None,
+                detail=str(exc),
+            )
     bind_home(
         args.receiver_root,
         campaign_epoch=max(1, observed["campaign_epoch"]),
         last_trial_id=observed["trial_id"],
         last_command_seq=observed["consumed_command_seq"],
     )
+    dispatch = None
     while True:
-        dispatch = _wait_next_dispatch(args, follower, observed)
-        arm, prepared = _send(args, binding=binding, dispatch=dispatch)
-        _publish_status(args, state="ARM_PENDING", observation=observed)
-        observed, _row = _wait_terminal(
-            follower,
-            arm=arm,
-            timeout_s=args.trial_timeout_s,
-        )
-        capture = (
-            args.bridge_run
-            / "autotune_trials"
-            / prepared.trial.trial_uid
-            / "capture.csv"
-        )
-        result_status, detail = _capture_health(capture)
-        receipt = finish_dispatch(
-            args.receiver_root,
-            status=result_status,
-            observed=_terminal_identity(observed),
-            detail=detail,
-        )
-        result = {
-            "schema": "step5d.parameter-receiver/trial-result-v1",
-            "request_uid": dispatch["request"]["request_uid"],
-            "dispatch_sequence": dispatch["dispatch_sequence"],
-            "trial_uid": prepared.trial.trial_uid,
-            "capture": str(capture),
-            "capture_sha256": (
-                _sha256_path(capture) if result_status == "COMPLETE" else None
-            ),
-            "receipt": receipt,
-        }
-        encoded = canonical_json_bytes(result)
-        result_path = (
-            args.campaign_root
-            / "parameter_results"
-            / f"{dispatch['dispatch_sequence']:012d}.json"
-        )
-        result_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        if result_path.exists() or result_path.is_symlink():
-            if result_path.is_symlink() or result_path.read_bytes() != encoded:
-                raise ParameterCampaignError("immutable parameter result differs")
-        else:
-            result_path.write_bytes(encoded)
+        try:
+            if dispatch is None:
+                dispatch = _wait_next_dispatch(args, follower, observed)
+            arm, prepared = _send(args, binding=binding, dispatch=dispatch)
+            _publish_status(args, state="RUNNING", observation=observed)
+            observed = _run_trial(
+                args,
+                follower,
+                dispatch=dispatch,
+                arm=arm,
+                prepared=prepared,
+                observation=observed,
+            )
+            dispatch = None
+        except HardwareRecoveryRequired as exc:
+            observed = _recover_home(
+                args,
+                follower,
+                observation=observed,
+                detail=str(exc),
+            )
 
 
 def parse_args() -> argparse.Namespace:
@@ -503,13 +685,13 @@ def main() -> int:
             if (args.receiver_root / "state.json").is_file():
                 _publish_status(
                     args,
-                    state="BLOCKED",
+                    state="SHUTDOWN",
                     observation=None,
                     blocker=f"{type(exc).__name__}:{exc}",
                 )
         except Exception:
             pass
-        print(f"parameter campaign blocked: {type(exc).__name__}:{exc}", file=__import__("sys").stderr)
+        print(f"parameter campaign shutdown: {type(exc).__name__}:{exc}", file=__import__("sys").stderr)
         return 2
     return 0
 
