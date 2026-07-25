@@ -23,6 +23,7 @@ from step5d_parameter_queue import (  # noqa: E402
     list_requests,
     list_pending,
     prepare_next_dispatch,
+    record_dispatch_consumed,
     reconcile_not_consumed,
     status,
     submit,
@@ -134,6 +135,60 @@ def test_dispatch_identity_is_separate_and_failed_outcome_never_retries(
     assert receipt["automatic_retry_allowed"] is False
     assert receipt["failure_class"] == "DATA_QUALITY"
     assert status(root)["attempted_count"] == 1
+    assert prepare_next_dispatch(root) is None
+
+
+def test_consumed_arm_is_durable_before_terminal_home(tmp_path: Path) -> None:
+    root = (
+        tmp_path
+        / "runs/step5d_autotune_v3/parameter-campaign/control/"
+        "parameter_receiver_bindings/release-v1/queue"
+    )
+    initialize(
+        root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=PROFILE,
+    )
+    request = submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001189207115002721,
+        force_i=0.00001,
+        force_damping=5.886274906776001,
+    )
+    bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(root)
+    assert dispatch is not None
+    packet = dispatch["packet"]
+
+    ledger = record_dispatch_consumed(
+        root,
+        observed={
+            "campaign_epoch": packet["campaign_epoch"],
+            "trial_id": packet["trial_id"],
+            "state": 20,
+            "candidate_token": packet["candidate_token"],
+            "execution_profile_id": packet["execution_profile_id"],
+            "consumed_command_seq": packet["command_seq"],
+            "logical_batch_sequence": packet["logical_batch_sequence"],
+            "batch_row_index": 1,
+        },
+    )
+
+    assert ledger["physical_attempted"] is True
+    assert ledger["control_candidate_uid"] == request["control_candidate_uid"]
+    assert status(root)["inflight"] is not None
+    imported = import_physical_attempt_uids(
+        tmp_path,
+        launch_profile_path=PROFILE,
+    )
+    assert request["control_candidate_uid"] in imported
+    reconcile_not_consumed(
+        root,
+        detail="a lagging observer still saw the preceding Home row",
+        observed_command_seq=0,
+    )
     assert prepare_next_dispatch(root) is None
 
 
@@ -301,7 +356,8 @@ def test_not_consumed_is_immutable_non_attempt_and_request_remains_pending(
     redispatched = prepare_next_dispatch(root)
     assert redispatched is not None
     assert redispatched["request"]["request_uid"] == request["request_uid"]
-    assert redispatched["dispatch_sequence"] == 2
+    assert redispatched["dispatch_sequence"] == 1
+    assert redispatched["dispatch_sha256"] == dispatch["dispatch_sha256"]
 
 
 def test_crash_restart_preserves_inflight_dispatch_and_v1_complete_imports(

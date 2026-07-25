@@ -26,6 +26,7 @@ def _readiness(
     return {
         "deployment_ready": deployment_ready,
         "tp_program_start_allowed": tp_program_start_allowed,
+        "tp_program_id": "step5d_strict_rnn_autotune_v3_r017",
         "controller_readback_sha256": "d" * 64,
         "identity": {
             "tick_semantics_fingerprint": "1" * 64,

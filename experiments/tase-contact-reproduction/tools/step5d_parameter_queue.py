@@ -35,7 +35,7 @@ DISPATCH_SCHEMA = "step5d.parameter-receiver/dispatch-v1"
 RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v2"
 LEGACY_RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v1"
 RECONCILIATION_SCHEMA = "step5d.parameter-receiver/reconciliation-v1"
-PHYSICAL_ATTEMPT_SCHEMA = "step5d.parameter-receiver/physical-attempt-v1"
+PHYSICAL_ATTEMPT_SCHEMA = "step5d.parameter-receiver/physical-attempt-v2"
 PROTOCOL = "v3_full_home_parameter_receiver_v1"
 PROFILE_INTEGER_ID = 633
 MAX_JSON_BYTES = 16 * 1024
@@ -203,6 +203,18 @@ def _reconciliation_path(root: Path, dispatch_sequence: int) -> Path:
 
 def _physical_attempt_path(root: Path, control_candidate_uid: str) -> Path:
     return root / "physical_attempts" / f"{_sha256_bytes(control_candidate_uid.encode('utf-8'))}.json"
+
+
+def _physical_attempt_document(dispatch: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "schema": PHYSICAL_ATTEMPT_SCHEMA,
+        "request_uid": dispatch["request"]["request_uid"],
+        "control_candidate_uid": dispatch["request"]["control_candidate_uid"],
+        "dispatch_sequence": dispatch["dispatch_sequence"],
+        "dispatch_sha256": dispatch["dispatch_sha256"],
+        "consumed_command_seq": dispatch["packet"]["command_seq"],
+        "physical_attempted": True,
+    }
 
 
 def _is_physical_receipt(payload: Mapping[str, Any]) -> bool:
@@ -477,6 +489,9 @@ def _pending(
         for row in _visible_requests(root, state)
         if row["request_uid"] != inflight_uid
         and not _receipt_path(root, str(row["request_uid"])).exists()
+        and not _physical_attempt_path(
+            root, str(row["control_candidate_uid"])
+        ).exists()
     ]
     rows.sort(
         key=lambda row: (
@@ -531,6 +546,28 @@ def prepare_next_dispatch(root: Path) -> dict[str, Any] | None:
         if not pending:
             return None
         request = pending[0]
+        for prior_sequence in range(int(state["dispatch_sequence"]), 0, -1):
+            prior_path = _dispatch_path(root, prior_sequence)
+            reconciliation_path = _reconciliation_path(root, prior_sequence)
+            if not prior_path.is_file() or not reconciliation_path.is_file():
+                continue
+            prior = _strict_json(prior_path, "parameter dispatch")
+            reconciliation = _strict_json(
+                reconciliation_path,
+                "parameter reconciliation",
+            )
+            if (
+                prior["request"]["request_uid"] == request["request_uid"]
+                and reconciliation.get("status") == "NOT_CONSUMED"
+                and reconciliation.get("dispatch_sha256")
+                == prior["dispatch_sha256"]
+            ):
+                state["inflight"] = {
+                    "dispatch_sequence": prior_sequence,
+                    "request_uid": request["request_uid"],
+                }
+                _atomic_json(_state_path(root), state)
+                return prior
         dispatch_sequence = int(state["dispatch_sequence"]) + 1
         control = ControlCandidateUid.parse(str(request["control_candidate_uid"]))
         occurrence = OccurrenceUid.from_control(
@@ -671,16 +708,7 @@ def finish_dispatch(
             "failure_class": failure_class,
             "terminal_observation": dict(observed),
         }
-        ledger = {
-            "schema": PHYSICAL_ATTEMPT_SCHEMA,
-            "request_uid": dispatch["request"]["request_uid"],
-            "control_candidate_uid": dispatch["request"]["control_candidate_uid"],
-            "dispatch_sequence": dispatch["dispatch_sequence"],
-            "dispatch_sha256": dispatch["dispatch_sha256"],
-            "status": status,
-            "physical_attempted": True,
-            "terminal_observation": dict(observed),
-        }
+        ledger = _physical_attempt_document(dispatch)
         _write_once(
             _physical_attempt_path(
                 root, str(dispatch["request"]["control_candidate_uid"])
@@ -695,6 +723,54 @@ def finish_dispatch(
         state["inflight"] = None
         _atomic_json(_state_path(root), state)
         return receipt
+
+
+def record_dispatch_consumed(
+    root: Path,
+    *,
+    observed: Mapping[str, Any],
+    dispatch_sequence: int | None = None,
+) -> dict[str, Any]:
+    """Persist the physical-attempt fact before terminal Home is available."""
+
+    with _lock(root):
+        state = load_state(root)
+        if dispatch_sequence is None:
+            if state["inflight"] is None:
+                raise ParameterQueueError("no parameter dispatch is inflight")
+            dispatch_sequence = int(state["inflight"]["dispatch_sequence"])
+        elif (
+            isinstance(dispatch_sequence, bool)
+            or not isinstance(dispatch_sequence, int)
+            or dispatch_sequence <= 0
+        ):
+            raise ParameterQueueError("dispatch_sequence must be a positive integer")
+        dispatch = _strict_json(
+            _dispatch_path(root, dispatch_sequence),
+            "parameter dispatch",
+        )
+        packet = dispatch["packet"]
+        expected = {
+            "campaign_epoch": packet["campaign_epoch"],
+            "trial_id": packet["trial_id"],
+            "candidate_token": packet["candidate_token"],
+            "execution_profile_id": packet["execution_profile_id"],
+            "consumed_command_seq": packet["command_seq"],
+            "logical_batch_sequence": packet["logical_batch_sequence"],
+            "batch_row_index": 1,
+        }
+        if any(observed.get(key) != value for key, value in expected.items()):
+            raise ParameterQueueError(
+                "consumed ARM identity differs from inflight dispatch"
+            )
+        ledger = _physical_attempt_document(dispatch)
+        _write_once(
+            _physical_attempt_path(
+                root, str(dispatch["request"]["control_candidate_uid"])
+            ),
+            ledger,
+        )
+        return ledger
 
 
 def reconcile_not_consumed(

@@ -1312,7 +1312,6 @@ class ArmGateProvider:
                 )
             ):
                 raise RuntimeGateError("readiness gate carries ARM grant fields")
-            max_age_s = ARM_GATE_MAX_AGE_S
         else:
             if gate_kind == "readiness" and row["arm_command"] is None:
                 return None, ARM_GATE_PENDING_INTERVAL_S, None
@@ -1325,11 +1324,11 @@ class ArmGateProvider:
                 raise RuntimeGateError("ARM grant is newer than the pending command")
             if actual_command != expected_command:
                 raise RuntimeGateError("ARM grant command binding differs")
-            max_age_s = ARM_GRANT_MAX_AGE_S
+        # This timestamp proves provenance and command ordering below.  It is
+        # deliberately not a deadline: elapsed wall time cannot invalidate an
+        # exact immutable/command-bound grant while live RTDE and process
+        # ownership continue to pass the watchdog.
         observed = _timestamp(row["observed_at"], "ARM gate observed_at")
-        age_s = (datetime.now(timezone.utc) - observed).total_seconds()
-        if not -0.1 <= age_s <= max_age_s:
-            raise RuntimeGateError("ARM gate observation heartbeat is stale")
         campaign = _exact(
             row["campaign"],
             {"campaign_id", "campaign_epoch", "campaign_fingerprint"},
@@ -1459,7 +1458,7 @@ class ArmGateProvider:
                 controller_timestamp_s=controller_timestamp_s,
                 connection_epoch=connection_epoch,
             ),
-            max_age_s - age_s,
+            ARM_GATE_WATCHDOG_INTERVAL_S,
             fresh_get_at,
         )
 

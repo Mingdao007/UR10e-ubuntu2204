@@ -100,7 +100,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     )
     _write(root / "config/step5/step5d_autotune_v3_control_contract.json", {})
     readback = _write(
-        root / "config/readback.json",
+        root / "config/step5d_autotune_controller_readback_v3.json",
         {
             "schema": "step5d.autotune.controller-readback/v3",
             "verified": True,
@@ -114,7 +114,9 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         protocol_id="v3_full_home_rolling_arm_v1",
         manifest_path="config/step5d/releases/fixture/manifest.json",
         manifest_sha256="f" * 64,
-        controller_readback={"path": "config/readback.json"},
+        controller_readback={
+            "path": "config/step5d_autotune_controller_readback_v3.json"
+        },
     )
     monkeypatch.setattr(readiness, "load_current_release", lambda *_args: release)
     monkeypatch.setattr(
@@ -151,6 +153,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         plant_epoch=7,
         deployment_readback_sha256=_sha256(readback),
         runtime_environment_manifest=runtime_manifest,
+        tp_program_id=R009,
     )
     bridge_path = _write(root / "runtime/bridge-start.json", bridge.document())
     return root, identity, bridge, bridge_path

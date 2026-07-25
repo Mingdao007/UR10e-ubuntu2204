@@ -75,6 +75,28 @@ def test_terminal_wait_ignores_stale_state78_before_next_trial():
     assert observed["trial_id"] == 2
 
 
+def test_terminal_wait_records_consumption_before_terminal_home():
+    arm = _arm(trial=1, seq=1, token=99, batch=1)
+    consumed = []
+
+    class ActiveThenTerminal:
+        def rows(self, *, timeout_s):
+            del timeout_s
+            yield _observation(seq=1, trial=1, state=20)
+            assert len(consumed) == 1
+            yield _observation(seq=1, trial=1, state=78, reason=1)
+
+    observed, _ = runner._wait_terminal(
+        ActiveThenTerminal(),
+        arm=arm,
+        poll_s=0.0,
+        on_consumed=lambda row: consumed.append(dict(row)),
+    )
+
+    assert consumed[0]["state"] == 20
+    assert observed["state"] == 78
+
+
 def test_same_sequence_identity_mismatch_is_typed_trial_outcome():
     arm = _arm(trial=2, seq=2, token=100, batch=2)
     with pytest.raises(runner.TrialOutcomeError) as caught:

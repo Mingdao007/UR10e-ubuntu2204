@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 import signal
 import time
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 from step5d_campaign_identity import campaign_spec
 from step5d_autotune_contract import (
@@ -39,6 +39,7 @@ from step5d_parameter_queue import (
     finish_dispatch,
     load_state,
     prepare_next_dispatch,
+    record_dispatch_consumed,
     reconcile_not_consumed,
     status as receiver_status,
 )
@@ -425,6 +426,7 @@ def _wait_terminal(
     *,
     arm: HostPacket,
     poll_s: float = OBSERVATION_POLL_S,
+    on_consumed: Callable[[Mapping[str, int]], None] | None = None,
 ) -> tuple[dict[str, int], dict[str, str]]:
     expected = {
         "campaign_epoch": arm.campaign_epoch,
@@ -436,6 +438,7 @@ def _wait_terminal(
         "batch_row_index": 1,
     }
     identity_failure: str | None = None
+    attempt_recorded = False
     while True:
         try:
             for row in follower.rows(timeout_s=poll_s):
@@ -453,6 +456,9 @@ def _wait_terminal(
                     identity_failure = (
                         "same-sequence observation identity differs from dispatched ARM"
                     )
+                elif not attempt_recorded and on_consumed is not None:
+                    on_consumed(observed)
+                    attempt_recorded = True
                 if observed["state"] != READY_HOME_NEXT:
                     continue
                 if identity_failure is not None:
@@ -615,6 +621,11 @@ def _adopt_inflight(
                     dispatch, observed
                 )
                 if decision == "WAITING_FOR_HARDWARE":
+                    if _inflight_identity_matches(dispatch, observed):
+                        record_dispatch_consumed(
+                            args.receiver_root,
+                            observed=observed,
+                        )
                     detail = evidence_detail
                     _publish_status(
                         args,
@@ -764,9 +775,18 @@ def _run_trial(
 ) -> dict[str, int]:
     while True:
         try:
+            on_consumed = (
+                None
+                if not hasattr(args, "receiver_root")
+                else lambda observed: record_dispatch_consumed(
+                    args.receiver_root,
+                    observed=observed,
+                )
+            )
             terminal, _row = _wait_terminal(
                 follower,
                 arm=arm,
+                on_consumed=on_consumed,
             )
             break
         except HardwareRecoveryRequired as exc:

@@ -854,6 +854,53 @@ def test_command_bound_arm_accepts_old_content_bound_controller_get(
     assert provider(binding, connection_epoch=0) is not None
 
 
+def test_elapsed_time_does_not_invalidate_exact_arm_grant(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, release, contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    binding = _arm_binding()
+    monotonic_clock = [500.0]
+    monkeypatch.setattr(
+        gate_module.time, "monotonic", lambda: monotonic_clock[0]
+    )
+    requested_at = time.time_ns() - 86_400_000_000_000
+    granted_at = requested_at + 1_000_000
+    publish_arm_observation(
+        gate_path.absolute(),
+        lease=lease,
+        lease_sha256=lease.sha256,
+        bridge_pid=os.getpid(),
+        dashboard=_dashboard(),
+        rtde_row=_row(),
+        contract=contract,
+        csv_age_s=0.01,
+        **_fresh_get_binding(),
+        arm_command=binding,
+        command_observed_at_unix_ns=requested_at,
+        rtde_row_wall_ns=granted_at,
+        connection_epoch=0,
+    )
+    payload = json.loads(gate_path.read_text(encoding="utf-8"))
+    payload["observed_at"] = datetime.fromtimestamp(
+        granted_at / 1_000_000_000,
+        tz=timezone.utc,
+    ).isoformat()
+    atomic_json(gate_path, payload)
+    provider = ArmGateProvider(
+        root=root,
+        gate_path=gate_path.absolute(),
+        lease_path=lease_path.absolute(),
+        lease_sha256=lease.sha256,
+        release=release,
+    )
+    _observe_provider(provider)
+
+    assert provider(binding, connection_epoch=0) is not None
+    monotonic_clock[0] += ARM_GATE_WATCHDOG_INTERVAL_S + 0.01
+    assert provider(binding, connection_epoch=0) is not None
+
+
 @pytest.mark.parametrize("command_bound", (False, True), ids=("readiness", "arm"))
 def test_arm_gate_cache_ignores_controller_get_age(
     tmp_path: Path,
@@ -951,7 +998,7 @@ def test_wrong_loaded_or_runtime_identity_never_opens_arm(
         assert reason in observed["reason_codes"]
 
 
-def test_program_switch_after_preflight_and_stale_heartbeat_fail_closed(tmp_path: Path) -> None:
+def test_elapsed_time_does_not_invalidate_exact_arm_gate_evidence(tmp_path: Path) -> None:
     root, release, contract, lease, lease_path, gate_path = _fixture(tmp_path)
     publish_arm_observation(
         gate_path.absolute(),
@@ -977,8 +1024,9 @@ def test_program_switch_after_preflight_and_stale_heartbeat_fail_closed(tmp_path
     ).isoformat()
     atomic_json(gate_path, payload)
 
-    with pytest.raises(RuntimeGateError, match="heartbeat is stale"):
-        provider()
+    context = provider()
+    assert context is not None
+    assert context.gate_kind == "readiness"
 
 
 def test_revoke_blocks_repeated_arm_without_reinterpreting_authority(tmp_path: Path) -> None:
