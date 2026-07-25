@@ -519,7 +519,7 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
 
 
 def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
-    source = inspect.getsource(live._run_live)
+    source = inspect.getsource(live._run_live_session)
     writer_lease_acquired = source.index("writer_guard.__enter__()")
     bridge_start = source.index("bridge = subprocess.Popen(")
     runner_start = source.index("runner = subprocess.Popen(")
@@ -1611,7 +1611,7 @@ def test_campaign_authority_revoke_reports_both_failures(monkeypatch, tmp_path: 
 
 
 def test_post_play_loop_never_runs_an_optimizer_or_producer() -> None:
-    source = inspect.getsource(live._run_live)
+    source = inspect.getsource(live._run_live_session)
     post_play = source[source.index("V3_CAMPAIGN_RUNNING_ONE_PLAY_CONTINUOUS") :]
 
     assert "producer.poll_once(" not in post_play

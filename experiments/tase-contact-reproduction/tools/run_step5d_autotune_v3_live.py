@@ -14,6 +14,8 @@ import subprocess
 import sys
 import time
 import uuid
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -78,6 +80,7 @@ from step5d_autotune_v3.runtime_observation import (
     RuntimeObservationPublisher,
 )
 from step5d_autotune_v3.state import atomic_json, read_strict_json
+from step5d_parameter_queue import status as parameter_queue_status
 from step5d_autotune_live_driver import AtomicCommandMailbox
 from ur10e_parallel import ResourceProfile, writer_lease, writer_lease_owner
 from step5d_bridge_status import (
@@ -94,6 +97,7 @@ RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
 LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
 ARM_GATE_REFRESH_INTERVAL_S = ARM_GRANT_MAX_AGE_S * 0.4
+RECOVERY_BACKOFF_S = 1.0
 ARM_ACKNOWLEDGED_STATES = frozenset(
     {
         TpLoopState.ARMED,
@@ -111,6 +115,203 @@ ARM_ACKNOWLEDGED_STATES = frozenset(
 )
 class LiveLaunchError(RuntimeError):
     pass
+
+
+class LiveSessionState(str, Enum):
+    RUNNING = "RUNNING"
+    WAITING_FOR_PARAMETERS = "WAITING_FOR_PARAMETERS"
+    WAITING_FOR_HOME = "WAITING_FOR_HOME"
+    WAITING_FOR_HARDWARE = "WAITING_FOR_HARDWARE"
+    RECOVERING = "RECOVERING"
+    SHUTDOWN = "SHUTDOWN"
+
+
+@dataclass
+class LiveSessionLifecycle:
+    """Own the receiver independently from any one bridge/runner session."""
+
+    state: LiveSessionState = LiveSessionState.WAITING_FOR_PARAMETERS
+    session_status: str = "WAITING_FOR_PARAMETERS"
+    receiver_accepting: bool = True
+    parameters_available: bool = False
+    authoritative_home: bool = False
+    safety_normal: bool = False
+    bridge: Any | None = None
+    runner: Any | None = None
+    last_error: str | None = None
+    transitions: list[str] = field(default_factory=list)
+    explicit_shutdown: bool = False
+
+    def _set_state(self, state: LiveSessionState, *, status: str | None = None) -> None:
+        self.state = state
+        self.session_status = status or state.value
+        self.transitions.append(state.value)
+
+    def _derive_ready_state(self) -> None:
+        if not self.receiver_accepting:
+            self._set_state(LiveSessionState.SHUTDOWN)
+        elif not self.safety_normal:
+            self._set_state(LiveSessionState.WAITING_FOR_HARDWARE)
+        elif not self.authoritative_home:
+            self._set_state(LiveSessionState.WAITING_FOR_HOME)
+        elif not self.parameters_available:
+            self._set_state(LiveSessionState.WAITING_FOR_PARAMETERS)
+        else:
+            self._set_state(LiveSessionState.RUNNING)
+
+    def start_session(
+        self,
+        *,
+        bridge: Any | None,
+        runner: Any | None,
+    ) -> None:
+        self.bridge = bridge
+        self.runner = runner
+        self.last_error = None
+        self.parameters_available = True
+        self._set_state(LiveSessionState.WAITING_FOR_HOME)
+
+    def observe(
+        self,
+        *,
+        parameters_available: bool | None = None,
+        authoritative_home: bool | None = None,
+        safety_normal: bool | None = None,
+        runner_exit: int | None = None,
+        bridge_exit: int | None = None,
+        error: BaseException | str | None = None,
+    ) -> LiveSessionState:
+        """Reduce one observation without stopping the persistent receiver."""
+
+        if parameters_available is not None:
+            self.parameters_available = parameters_available
+        if authoritative_home is not None:
+            self.authoritative_home = authoritative_home
+        if safety_normal is not None:
+            self.safety_normal = safety_normal
+        runner_failed = runner_exit is not None and runner_exit != 0
+        if error is not None or runner_failed or bridge_exit is not None:
+            detail = error if error is not None else (
+                f"runner exited rc={runner_exit}"
+                if runner_exit is not None
+                else f"bridge exited rc={bridge_exit}"
+            )
+            self.last_error = str(detail)
+            if not self.safety_normal:
+                self._set_state(LiveSessionState.WAITING_FOR_HARDWARE, status="DEGRADED")
+            else:
+                self._set_state(LiveSessionState.RECOVERING, status="DEGRADED")
+            return self.state
+        self._derive_ready_state()
+        return self.state
+
+    def request_shutdown(self) -> None:
+        self.explicit_shutdown = True
+        self.receiver_accepting = False
+        self._set_state(LiveSessionState.SHUTDOWN)
+
+    def cleanup_targets(
+        self,
+        *,
+        explicit_shutdown: bool = False,
+        failed_session: bool = False,
+    ) -> tuple[Any | None, Any | None]:
+        """Return this supervisor's session children, never the receiver."""
+
+        if explicit_shutdown:
+            self.request_shutdown()
+        if not (self.explicit_shutdown or failed_session):
+            return None, None
+        return self.runner, self.bridge
+
+
+def _run_recoverable_sessions(
+    session_callable: Callable[[], Mapping[str, Any] | None],
+    cleanup: Callable[[], None],
+    backoff: Callable[[], None],
+    *,
+    lifecycle: LiveSessionLifecycle | None = None,
+) -> Mapping[str, Any] | None:
+    """Run sessions while keeping the durable receiver alive across failures.
+
+    A normal return of ``None`` means that the durable queue is currently
+    empty; it is therefore a wait condition, not supervisor shutdown.  A
+    failed session is retried only after its owned children are cleaned up and
+    a bounded backoff.  The next isolated session performs its own canonical
+    preflight and fresh bridge/RTDE Home + safety gates before ARM.  The
+    injectable callbacks keep this control flow directly testable without
+    starting live children.
+    """
+
+    lifecycle = lifecycle or LiveSessionLifecycle()
+    previous_handlers: dict[int, Any] = {}
+
+    def request_signal_shutdown(signum: int, frame: Any) -> None:
+        del signum, frame
+        raise KeyboardInterrupt
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        try:
+            previous_handlers[signum] = signal.getsignal(signum)
+            signal.signal(signum, request_signal_shutdown)
+        except (ValueError, OSError):
+            # A non-main-thread unit test cannot install Python signal
+            # handlers; KeyboardInterrupt remains the shutdown path there.
+            continue
+
+    try:
+        while True:
+            try:
+                result = session_callable()
+            except KeyboardInterrupt:
+                raise
+            except Exception as exc:
+                cleanup()
+                lifecycle.observe(error=exc)
+                if lifecycle.state is not LiveSessionState.WAITING_FOR_HARDWARE:
+                    lifecycle._set_state(LiveSessionState.RECOVERING, status="DEGRADED")
+                lifecycle._set_state(LiveSessionState.WAITING_FOR_HARDWARE)
+                backoff()
+                continue
+
+            if result is None:
+                # The queue's durable records remain accepting/pending/inflight;
+                # an empty queue must not turn into a receiver shutdown.
+                lifecycle.parameters_available = False
+                lifecycle._set_state(LiveSessionState.WAITING_FOR_PARAMETERS)
+                backoff()
+                continue
+            return result
+    except KeyboardInterrupt:
+        lifecycle.request_shutdown()
+        cleanup()
+        raise
+    finally:
+        for signum, handler in previous_handlers.items():
+            try:
+                signal.signal(signum, handler)
+            except (ValueError, OSError):
+                pass
+
+
+def _write_session_lifecycle(
+    output_root: Path,
+    lifecycle: LiveSessionLifecycle,
+    *,
+    reason: str,
+) -> None:
+    atomic_json(
+        output_root / "session_lifecycle.json",
+        {
+            "schema": "step5d.autotune-v3/live-session-lifecycle-v1",
+            "state": lifecycle.state.value,
+            "session_status": lifecycle.session_status,
+            "receiver_accepting": lifecycle.receiver_accepting,
+            "reason": reason,
+            "last_error": lifecycle.last_error,
+            "transitions": list(lifecycle.transitions),
+        },
+    )
 
 
 def _publish_canonical_readiness_claim(
@@ -736,6 +937,14 @@ def _program_stopped(result: Mapping[str, Any]) -> bool:
     return "STOPPED" in state
 
 
+def _should_request_program_stop(
+    *, campaign_completed: bool, explicit_shutdown: bool
+) -> bool:
+    """Allow TP Stop only for terminal completion or explicit user shutdown."""
+
+    return campaign_completed or explicit_shutdown
+
+
 def _stop_v3_program(
     robot_host: str,
     *,
@@ -864,6 +1073,89 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
 
 
 def _run_live(
+    args: argparse.Namespace,
+    runtime_pointer: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    """Own the durable receiver and re-enter isolated live session attempts."""
+
+    output_root = args.output_root.expanduser().absolute()
+    output_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lifecycle = LiveSessionLifecycle()
+    attempt_number = 0
+
+    def session_callable() -> Mapping[str, Any] | None:
+        nonlocal attempt_number
+        attempt_number += 1
+        attempt_root = output_root / f"attempt-{attempt_number:04d}"
+        attempt_root.mkdir(parents=False, exist_ok=False, mode=0o700)
+        attempt_args = argparse.Namespace(**vars(args))
+        attempt_args.output_root = attempt_root
+        atomic_json(
+            output_root / "recoverable_session_status.json",
+            {
+                "schema": "step5d.autotune-v3/recoverable-session-status-v1",
+                "attempt": attempt_number,
+                "state": "RUNNING",
+                "attempt_root": str(attempt_root),
+            },
+        )
+        try:
+            result = _run_live_session(attempt_args, runtime_pointer)
+        except BaseException as exc:
+            atomic_json(
+                output_root / "recoverable_session_status.json",
+                {
+                    "schema": "step5d.autotune-v3/recoverable-session-status-v1",
+                    "attempt": attempt_number,
+                    "state": (
+                        "SHUTDOWN"
+                        if isinstance(exc, KeyboardInterrupt)
+                        else "RECOVERING"
+                    ),
+                    "attempt_root": str(attempt_root),
+                    "error": f"{type(exc).__name__}:{exc}",
+                },
+            )
+            raise
+        atomic_json(
+            output_root / "recoverable_session_status.json",
+            {
+                "schema": "step5d.autotune-v3/recoverable-session-status-v1",
+                "attempt": attempt_number,
+                "state": "COMPLETED",
+                "attempt_root": str(attempt_root),
+            },
+        )
+        return result
+
+    def cleanup() -> None:
+        # _run_live_session owns and terminates its runner + bridge in its
+        # finally block.  This injectable hook records that the durable
+        # receiver remains alive while the wrapper backs off before creating
+        # the next isolated session.  Readiness belongs to that new session.
+        atomic_json(
+            output_root / "recoverable_session_status.json",
+            {
+                "schema": "step5d.autotune-v3/recoverable-session-status-v1",
+                "attempt": attempt_number,
+                "state": (
+                    "SHUTDOWN"
+                    if lifecycle.explicit_shutdown
+                    else "WAITING_FOR_HARDWARE"
+                ),
+                "receiver_accepting": lifecycle.receiver_accepting,
+            },
+        )
+
+    return _run_recoverable_sessions(
+        session_callable,
+        cleanup=cleanup,
+        backoff=lambda: time.sleep(RECOVERY_BACKOFF_S),
+        lifecycle=lifecycle,
+    )
+
+
+def _run_live_session(
     args: argparse.Namespace,
     runtime_pointer: Mapping[str, Any],
 ) -> Mapping[str, Any]:
@@ -1038,6 +1330,7 @@ def _run_live(
     authority_revocation_errors: list[str] = []
     campaign_completed = False
     publisher_terminalization_started = False
+    lifecycle = LiveSessionLifecycle()
     mailbox_reader = AtomicCommandMailbox(
         runtime_root / "command.json",
         network_mode=True,
@@ -1073,6 +1366,7 @@ def _run_live(
                     expected_start,
                 ),
             )
+            lifecycle.bridge = bridge
             _wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")
             bridge_ready = read_strict_json(
                 bridge_run / "bridge_ready.json", role="bridge readiness"
@@ -1119,10 +1413,20 @@ def _run_live(
                     close_fds=True,
                     preexec_fn=lambda expected_pid=supervisor_pid, expected_start=supervisor_starttime: _parent_death_guard(
                         expected_pid,
-                        expected_start,
-                    ),
-                )
+                    expected_start,
+                ),
+            )
+                lifecycle.runner = runner
                 _wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")
+                lifecycle.start_session(
+                    bridge=bridge,
+                    runner=runner,
+                )
+                _write_session_lifecycle(
+                    args.output_root,
+                    lifecycle,
+                    reason="session_started_waiting_for_home",
+                )
                 release_snapshot = load_current_release_snapshot(ROOT)
                 if not release_snapshot.valid:
                     raise LiveLaunchError(
@@ -1177,13 +1481,41 @@ def _run_live(
                 )
                 while True:
                     if bridge.poll() is not None:
+                        lifecycle.observe(
+                            bridge_exit=bridge.returncode,
+                            error="bridge exited while waiting for TP Play",
+                        )
+                        _write_session_lifecycle(
+                            args.output_root,
+                            lifecycle,
+                            reason="bridge_session_ended",
+                        )
                         raise LiveLaunchError("bridge exited while waiting for TP Play")
                     if runner.poll() is not None:
+                        lifecycle.observe(
+                            runner_exit=runner.returncode,
+                            error="campaign runner exited while waiting for TP Play",
+                        )
+                        _write_session_lifecycle(
+                            args.output_root,
+                            lifecycle,
+                            reason="runner_session_ended",
+                        )
                         raise LiveLaunchError(
                             "campaign runner exited while waiting for TP Play"
                         )
                     if _runtime_playing_normal(csv_follower.poll()):
                         play_observed = True
+                        lifecycle.observe(
+                            parameters_available=True,
+                            authoritative_home=True,
+                            safety_normal=True,
+                        )
+                        _write_session_lifecycle(
+                            args.output_root,
+                            lifecycle,
+                            reason="hardware_authority_observed",
+                        )
                         break
                     if publisher is not None and time.monotonic() >= next_observation:
                         governed_status = _publish_runtime_observation(
@@ -1334,6 +1666,27 @@ def _run_live(
                         )
                         next_observation = now + RUNTIME_OBSERVATION_INTERVAL_S
                     time.sleep(0.025)
+                if bridge.poll() is not None or runner.poll() is not None:
+                    session_error = (
+                        "live session process exited"
+                        if bridge.poll() is not None
+                        or (runner.poll() is not None and runner.returncode != 0)
+                        else None
+                    )
+                    lifecycle.observe(
+                        bridge_exit=bridge.returncode
+                        if bridge.poll() is not None
+                        else None,
+                        runner_exit=runner.returncode
+                        if runner.poll() is not None
+                        else None,
+                        error=session_error,
+                    )
+                    _write_session_lifecycle(
+                        args.output_root,
+                        lifecycle,
+                        reason="live_session_degraded",
+                    )
                 if bridge.poll() is not None and runner.poll() is None:
                     deadline = time.monotonic() + 3.0
                     while runner.poll() is None and time.monotonic() < deadline:
@@ -1363,6 +1716,22 @@ def _run_live(
                         if not bool(
                             governed_status.get("outcome", {}).get("live_proven")
                         ):
+                            queue_state = parameter_queue_status(receiver_root)
+                            if (
+                                queue_state.get("pending_count") == 0
+                                and queue_state.get("inflight") is None
+                            ):
+                                lifecycle.observe(
+                                    parameters_available=False,
+                                    authoritative_home=True,
+                                    safety_normal=True,
+                                )
+                                _write_session_lifecycle(
+                                    args.output_root,
+                                    lifecycle,
+                                    reason="durable_queue_empty_waiting",
+                                )
+                                return None
                             raise LiveLaunchError(
                                 "campaign ended before LIVE_PROVEN machine evidence"
                             )
@@ -1403,9 +1772,50 @@ def _run_live(
                                 "campaign terminal attestation did not close"
                             )
                     campaign_completed = True
+                    lifecycle.observe(
+                        parameters_available=False,
+                        authoritative_home=True,
+                        safety_normal=True,
+                    )
                     print("V3_CAMPAIGN_RUNNER_STOPPED_BRIDGE_STILL_ALIVE", flush=True)
+    except KeyboardInterrupt:
+        lifecycle.request_shutdown()
+        _write_session_lifecycle(
+            args.output_root,
+            lifecycle,
+            reason="explicit_user_shutdown",
+        )
+        raise
+    except Exception as exc:
+        lifecycle.observe(error=exc)
+        try:
+            _write_session_lifecycle(
+                args.output_root,
+                lifecycle,
+                reason="session_degraded",
+            )
+        except Exception:
+            pass
+        raise
     finally:
         try:
+            request_program_stop = _should_request_program_stop(
+                campaign_completed=campaign_completed,
+                explicit_shutdown=lifecycle.explicit_shutdown,
+            )
+            if campaign_completed:
+                # Campaign completion is an authorized safe cleanup, but it is
+                # not a lifecycle SHUTDOWN transition.
+                cleanup_targets = lifecycle.cleanup_targets(
+                    failed_session=True
+                )
+            else:
+                # A failed runner/bridge session must leave the durable
+                # receiver queue accepting while both session children stop.
+                cleanup_targets = lifecycle.cleanup_targets(
+                    explicit_shutdown=lifecycle.explicit_shutdown,
+                    failed_session=True,
+                )
             try:
                 authority_revocation_errors.extend(
                     _revoke_campaign_authority(
@@ -1427,18 +1837,31 @@ def _run_live(
                     f"authority_revoke:{type(exc).__name__}:{exc}"
                 )
             try:
-                runner_rc = _terminate(runner)
+                runner_target, bridge_target = cleanup_targets
+                runner_rc = (
+                    _terminate(runner_target)
+                    if runner_target is not None
+                    else (None if runner is None else runner.poll())
+                )
             except Exception as exc:
                 authority_revocation_errors.append(
                     f"runner_terminate:{type(exc).__name__}:{exc}"
                 )
             try:
-                bridge_rc = _terminate(bridge)
+                bridge_rc = (
+                    _terminate(bridge_target)
+                    if bridge_target is not None
+                    else (None if bridge is None else bridge.poll())
+                )
             except Exception as exc:
                 authority_revocation_errors.append(
                     f"bridge_terminate:{type(exc).__name__}:{exc}"
                 )
-            if bridge is not None:
+            if (
+                bridge is not None
+                and cleanup_targets != (None, None)
+                and request_program_stop
+            ):
                 if play_observed:
                     try:
                         _announce_stop_if_playing(robot_host)
@@ -1460,7 +1883,8 @@ def _run_live(
                         "bridge_exit_code": bridge_rc,
                         "program_stop": cleanup,
                         "authority_revocation_errors": authority_revocation_errors,
-                        "parameter_receiver_stopped": True,
+                        "parameter_receiver_stopped": not lifecycle.receiver_accepting,
+                        "session_state": lifecycle.state.value,
                     },
                 )
             except Exception as exc:
