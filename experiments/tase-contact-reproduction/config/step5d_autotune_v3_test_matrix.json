@@ -23,6 +23,7 @@
         "tests/test_step5d_autotune_v3_governance.py",
         "tests/test_step5d_r008_rolling_policy.py",
         "tests/test_step5d_autotune_v3_live_startup.py",
+        "tests/test_step5d_live_session_lifecycle.py",
         "tests/test_step5d_autotune_v3_public_state.py",
         "tests/test_step5d_autotune_v3_shared_contracts.py",
         "tests/test_step5d_autotune_v3_bridge_wrapper.py",
@@ -48,7 +49,8 @@
         "tests/test_step5d_layer_boundaries.py",
         "tests/test_step5d_v3_immutable_payload_routing.py",
         "tests/test_step5d_autotune_v3_installed_runtime.py",
-        "tests/test_step5d_parameter_queue.py"
+        "tests/test_step5d_parameter_queue.py",
+        "tests/test_step5d_parameter_campaign_receiver.py"
       ],
       "obsolete": [
         "tests/test_cross_step_parameter_table.py",
@@ -230,6 +232,8 @@
           "-q",
           "tests/test_step5d_autotune_production_second_lap.py",
           "tests/test_step5d_autotune_v3_live_startup.py",
+          "tests/test_step5d_live_session_lifecycle.py",
+          "tests/test_step5d_parameter_campaign_receiver.py",
           "tests/test_step5d_release_contract.py",
           "tests/test_step5d_runtime_observation.py"
         ]

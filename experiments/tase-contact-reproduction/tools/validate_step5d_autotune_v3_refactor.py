@@ -37,6 +37,7 @@ STEP5D_V3_TEST_MARKERS = (
 )
 AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_parameter_queue.py",
+    "tests/test_step5d_parameter_campaign_receiver.py",
     "tests/test_step5d_autotune_live_driver.py",
     "tests/test_step5d_autotune_production_second_lap.py",
     "tests/test_step5d_autotune_runtime.py",
@@ -51,6 +52,7 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_v3_identity_layers.py",
     "tests/test_step5d_autotune_v3_installed_runtime.py",
     "tests/test_step5d_autotune_v3_live_startup.py",
+    "tests/test_step5d_live_session_lifecycle.py",
     "tests/test_step5d_autotune_v3_public_state.py",
     "tests/test_step5d_autotune_v3_shared_contracts.py",
     "tests/test_step5d_optimizer_protocol.py",
