@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
 STEP5B_BRIDGE_VERSION="step5b_v3"
-EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v3.urp"
+EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5b/step5b_contact_cycloid_baseline_v3.urp"
 TASE_PROTOCOL_DEFAULTS="$(python3 "${ROOT}/tools/tase_protocol_table.py" operator-env step5b-contact)"
 eval "${TASE_PROTOCOL_DEFAULTS}"
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction"
 BASE_OPERATOR="${ROOT}/scripts/step4e-line-v1-operator.sh"
-EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp"
+EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5c/archive/step5c_joint_rnn_cycloid_v1.urp"
 
 usage() {
   cat <<EOF

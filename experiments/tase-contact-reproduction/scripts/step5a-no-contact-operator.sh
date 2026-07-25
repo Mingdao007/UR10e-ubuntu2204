@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5a_cycloid_no_contact_v3.urp"
+EXPECTED_PROGRAM="/programs/andyl/kunwei/step5/step5a/step5a_cycloid_no_contact_v3.urp"
 
 cat <<EOF
 Step5a no-contact cycloid handoff

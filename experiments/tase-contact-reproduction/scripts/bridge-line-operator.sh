@@ -367,13 +367,13 @@ if [[ "${BRIDGE_PROFILE}" == "step4g_v1" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4g_eight_seed_normal_v1.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5b_v1" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v1.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5b/archive/step5b_contact_cycloid_baseline_v1.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5c_speedj_dryrun_v1" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c_speedj_dryrun_v1.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c/archive/step5c_speedj_dryrun_v1.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5c_joint_rnn_cycloid_v1" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c/archive/step5c_joint_rnn_cycloid_v1.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v1" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v2" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v3" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v4" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v5" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v6" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v7" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v8" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v9" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"
@@ -382,16 +382,16 @@ if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v10" || "${BRIDGE_PROFI
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "${STEP5D_NO_CONTACT_P0_PROFILE}" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/archive/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v12" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v13" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v14" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v15a" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v16" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v17" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v18" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v19" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v20" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v21" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v22" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v23" || "${BRIDGE_PROFILE}" == "step5d_strict_rnn_liveprep_v24" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == step5d_strict_rnn_ablation_v* ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "${STEP5D_AUTOTUNE_PROFILE}" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/archive/${BRIDGE_PROFILE}.urp"
 fi
 if [[ "${BRIDGE_PROFILE}" == "step6b_v1" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v1.urp"
@@ -575,8 +575,8 @@ Teach Pendant programs:
   failed/archive v21/v22/v23/v24/v25/v26/v27 line packages live under /programs/andyl/kunwei/step4/step4e/
   failed/archive v28 line package lives under /programs/andyl/kunwei/step4/; it failed from the old bridge profile mismatch, not motion parameters.
   Step4f/Step4g current packages live under /programs/andyl/kunwei/step4/
-  Step5b current contact package lives under /programs/andyl/kunwei/step5/
-  Step5c current joint-space packages live under /programs/andyl/kunwei/step5/
+  Step5b current contact package lives under /programs/andyl/kunwei/step5/step5b/
+  Step5c quarantined joint-space packages live under /programs/andyl/kunwei/step5/step5c/archive/
   Step6b current contact package lives under /programs/andyl/kunwei/step6/
   canonical Step4e/TASE flow table: ${ROOT}/STEP4E_FLOW.md
   canonical Step5 flow table: ${ROOT}/STEP5_FLOW.md

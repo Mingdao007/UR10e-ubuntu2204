@@ -1,0 +1,58 @@
+{
+  "schema": "step5.tp-layout/controller-receipt-v1",
+  "observed_at": "2026-07-25T23:04:25+08:00",
+  "controller_root": "/programs/andyl/kunwei/step5",
+  "layout_manifest": "config/step5/step5_tp_layout.json",
+  "layout_manifest_sha256": "551d3b8e5c085e127bade50e6625d4f9a624f39ed213664c178de08790e8ef02",
+  "result": {
+    "state": "complete",
+    "deployed_and_fresh_readback_validated_triplets": 66,
+    "removed_sha_bound_source_triplets": 66,
+    "structurally_incoherent_controller_triplets_deleted": [
+      "step5d_strict_rnn_ablation_v25"
+    ],
+    "final_inventory_exact_match": true,
+    "protected_release_sha_unchanged": true
+  },
+  "final_triplet_counts": {
+    "/programs/andyl/kunwei/step5": 3,
+    "/programs/andyl/kunwei/step5/archive": 0,
+    "/programs/andyl/kunwei/step5/step5a": 1,
+    "/programs/andyl/kunwei/step5/step5a/archive": 2,
+    "/programs/andyl/kunwei/step5/step5b": 1,
+    "/programs/andyl/kunwei/step5/step5b/archive": 2,
+    "/programs/andyl/kunwei/step5/step5c/archive": 2,
+    "/programs/andyl/kunwei/step5/step5d": 2,
+    "/programs/andyl/kunwei/step5/step5d/archive": 56
+  },
+  "protected_root_releases": {
+    "step5d_strict_rnn_autotune_v3_r018": {
+      ".script": "7f078f94dbba578b350f648feb3f10cfbd6104be1fe94eb50b2fe250f1f4ac2e",
+      ".txt": "0b6d3c5538a9cc8144a25220f1bb3a247b4acd1d25fd3199224197fad3840785",
+      ".urp": "cc4ddbacb01fca1e7af8167adcec0b210deb354f63d9e7929e1287e4f6003772"
+    },
+    "step5d_strict_rnn_autotune_v3_r019": {
+      ".script": "39cee949db30c54ed5f7a761b321dc23f8cd8b0b670c773893ffa4cb2491eb4e",
+      ".txt": "ed55087b0226caf54479676eeaa66dd3197e7c4547d64dd6608e070291997062",
+      ".urp": "b189438d94490adfd816bd379e91d81350c4ce7579b4a1934edf964042e2242a"
+    },
+    "step5d_strict_rnn_autotune_v3_r020": {
+      ".script": "981c918e6bc5e4be5558d2fdeaa6a2b6567027256c718bb422ed522bf8e46b83",
+      ".txt": "8a13213301964353d814c8be692fe2173f52e8e30b0e88eac6280d73f5903a18",
+      ".urp": "f8ce06aa6054cb3e9b98a392877eb0c1c6de86987ccd5d05c3b69594677e0558"
+    }
+  },
+  "transaction_evidence_sha256": {
+    "controller_migration_summary": "065b9d685f6936e2841d7d0750d28bfaab604ea7e1b60f57e6af382c73190ee6",
+    "controller_transaction_jsonl": "9efc086673c2d2a7b2cefd4c42ac68e3833400e48cceae61e3b0f04bd8b25b1f"
+  },
+  "action_boundary": {
+    "controller_file_maintenance": true,
+    "load": false,
+    "play": false,
+    "bridge": false,
+    "arm": false,
+    "motion": false,
+    "force_sensor_zero_or_tare": false
+  }
+}
