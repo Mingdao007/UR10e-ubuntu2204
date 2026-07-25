@@ -245,7 +245,7 @@ def test_live_routes_both_configs_through_immutable_bundle(
         launch_profile=tmp_path / LAUNCH_PROFILE_PATH,
     )
     with pytest.raises(RoutingObserved):
-        live.run(args)
+        live._run_live_session(args, _runtime_pointer())
 
     assert observed["contract_path"] == paths[SAFETY_ENVELOPE_PATH].resolve()
     assert observed["launch_path"] == paths[LAUNCH_PROFILE_PATH].resolve()
