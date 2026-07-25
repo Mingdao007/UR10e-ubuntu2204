@@ -9689,12 +9689,21 @@ def step5d_dashboard_watch_metadata(
         "enabled": (
             bridge_profile in STEP5D_LIVEPREP_STAGE_IDS
             and not p0_profile
+            and bridge_profile != STEP5D_AUTOTUNE_STAGE_ID
             and not skip_dashboard_preflight
             and not disable_dashboard_program_watch
         ),
         "timeout_s": timeout_s,
         "scope": "Step5d live-prep bridge exits after TP program stop or Play timeout",
-        "mode": "preflight_only_for_no_contact_p0" if p0_profile else "runtime_dashboard_watch",
+        "mode": (
+            "preflight_only_for_no_contact_p0"
+            if p0_profile
+            else (
+                "rtde_runtime_watch"
+                if bridge_profile == STEP5D_AUTOTUNE_STAGE_ID
+                else "runtime_dashboard_watch"
+            )
+        ),
     }
 
 
@@ -10957,6 +10966,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     dashboard_watch_enabled = bool(dashboard_watch["enabled"])
     dashboard_watch_saw_running = False
+    rtde_watch_saw_playing = False
     next_dashboard_watch = start_mono
     metadata["step5d_liveprep_runtime_prewarm"] = step5d_runtime_prewarm
     metadata["dashboard_program_watch"].update(dashboard_watch)
@@ -11518,6 +11528,21 @@ def main(argv: list[str] | None = None) -> int:
                         previous_kinematics_output = sample
                         previous_kinematics_time = rtde_output_time
                         latest_output = sample
+                        if args.bridge_profile == STEP5D_AUTOTUNE_STAGE_ID:
+                            try:
+                                runtime_state = int(sample["runtime_state"])
+                                safety_mode = int(sample["safety_mode"])
+                            except (KeyError, TypeError, ValueError):
+                                stop_reason = "rtde_runtime_observation_invalid"
+                                break
+                            if safety_mode != 1:
+                                stop_reason = "rtde_safety_not_normal"
+                                break
+                            if runtime_state == 2:
+                                rtde_watch_saw_playing = True
+                            elif rtde_watch_saw_playing:
+                                stop_reason = "rtde_program_stopped"
+                                break
                         if p0_canary_stop_sent_at is not None:
                             try:
                                 p0_stop_echo = float(
