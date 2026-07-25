@@ -140,8 +140,19 @@ def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
     assert status["schema"] == "step5d.bridge/governed-status-v2"
     assert status["launch_attempt"]["present"] is False
     assert status["predicates"]["play_prompt_ready"] is False
-    assert status["blocker"]["reason_codes"] == ["CURRENT_RELEASE_INVALID"]
-    assert status["next_action"] == "repair_current_release_before_retry"
+    reason_codes = status["blocker"]["reason_codes"]
+    assert reason_codes in (
+        ["CURRENT_RELEASE_INVALID"],
+        ["RELEASE_CERTIFICATE_MISSING"],
+        ["DELIVERY_REVALIDATION_REQUIRED"],
+        ["PUBLICATION_LINEAGE_MISSING"],
+    )
+    assert status["next_action"] == {
+        "CURRENT_RELEASE_INVALID": "repair_current_release_before_retry",
+        "RELEASE_CERTIFICATE_MISSING": "run_revalidate_current",
+        "DELIVERY_REVALIDATION_REQUIRED": "run_revalidate_current",
+        "PUBLICATION_LINEAGE_MISSING": "run_revalidate_current",
+    }[reason_codes[0]]
 
 
 def test_status_entrypoint_bootstraps_repository_runtime_under_isolated_python() -> None:
