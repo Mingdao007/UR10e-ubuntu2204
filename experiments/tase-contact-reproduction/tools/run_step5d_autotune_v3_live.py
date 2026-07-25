@@ -2148,7 +2148,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--authority-epoch", type=int)
     parser.add_argument("--launch-basis", type=Path)
     parser.add_argument("--launch-basis-sha256")
-    parser.add_argument("--campaign-prepare", type=Path, required=True)
+    parser.add_argument("--campaign-prepare", type=Path)
     parser.add_argument("--ready-timeout-s", type=float, default=30.0)
     parser.add_argument(
         "--campaign-root",

@@ -192,6 +192,8 @@ def test_live_routes_both_configs_through_immutable_bundle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import run_step5d_autotune_v3_coordinator as coordinator
+
     release, paths, contents = _release_bundle(tmp_path)
     observed: dict[str, Any] = {}
 
@@ -227,24 +229,64 @@ def test_live_routes_both_configs_through_immutable_bundle(
         "build_bridge_argv",
         lambda *_args, **_kwargs: ["python", "bridge"],
     )
-    monkeypatch.setattr(
-        live,
-        "_validate_preflight",
-        lambda *_args, **_kwargs: {"controller_identity_sha256": "e" * 64},
-    )
-    monkeypatch.setattr(
-        launch_preparer,
-        "prepare",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RoutingObserved()),
-    )
-
+    output_root = tmp_path / "run"
+    output_root.mkdir()
+    plan_path = tmp_path / "campaign-plan.json"
+    overlay_path = tmp_path / "trial-overlay-plan.json"
+    plan_path.write_text('{"revision":1}\n', encoding="utf-8")
+    overlay_path.write_text('{"revision":1}\n', encoding="utf-8")
+    basis_path = tmp_path / "launch-basis.json"
+    delivery_path = tmp_path / "delivery.json"
+    admission_path = tmp_path / "admission.json"
+    campaign_prepare_path = tmp_path / "campaign-prepare.json"
+    for path in (basis_path, delivery_path, admission_path, campaign_prepare_path):
+        path.write_text("{}\n", encoding="utf-8")
     args = SimpleNamespace(
-        output_root=tmp_path / "run",
+        output_root=output_root,
         preflight=tmp_path / "preflight.json",
-        delivery_observation=tmp_path / "delivery.json",
+        delivery_observation=delivery_path,
+        admission=admission_path,
+        authority_epoch=7,
+        launch_basis=basis_path,
+        launch_basis_sha256="b" * 64,
+        campaign_prepare=campaign_prepare_path,
         campaign_root=tmp_path / "campaign",
         launch_profile=tmp_path / LAUNCH_PROFILE_PATH,
+        owner_pid=1,
+        owner_starttime=2,
+        attempt_id="attempt-immutable-routing",
+        canonical_owner_pid=1,
+        canonical_owner_starttime=2,
     )
+    coordinator._create_coordinator_runtime_root(args)
+    monkeypatch.setattr(
+        live,
+        "_validate_active_launch_identity",
+        lambda *_args, **_kwargs: (
+            {
+                "launch_nonce": "launch-immutable-routing",
+                "basis_sha256": "b" * 64,
+                "delivery_observation_sha256": "d" * 64,
+                "authority_epoch": 7,
+            },
+            {"campaign_fingerprint": "c" * 64},
+            {
+                "result": {
+                    "candidate_plan": str(plan_path),
+                    "trial_overlay_plan": str(overlay_path),
+                    "campaign_id": "campaign-immutable-routing",
+                    "campaign_epoch": 1,
+                    "campaign_fingerprint": "c" * 64,
+                    "receiver_root": str(tmp_path / "receiver"),
+                }
+            },
+        ),
+    )
+
+    def stop_after_config_routing(*_args: Any, **_kwargs: Any) -> dict[str, str]:
+        raise RoutingObserved
+
+    monkeypatch.setattr(live, "_validate_preflight", stop_after_config_routing)
     with pytest.raises(RoutingObserved):
         live._run_live_session(args, _runtime_pointer())
 
