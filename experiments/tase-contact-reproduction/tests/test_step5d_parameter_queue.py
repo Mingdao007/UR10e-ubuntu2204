@@ -177,6 +177,94 @@ def test_succeeded_requires_no_failure_class_and_failed_class_is_strict(
     assert len(tuple((root / "physical_attempts").glob("*.json"))) == 1
 
 
+def test_identity_failure_accepts_safe_terminal_home_and_advances_observed_identity(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001189207115002721,
+        force_i=0.00001,
+        force_damping=5.886274906776001,
+    )
+    submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.0014142135623730952,
+        force_i=0.00001,
+        force_damping=5.886274906776001,
+    )
+    bind_home(root, campaign_epoch=2, last_trial_id=7, last_command_seq=9)
+    dispatch = prepare_next_dispatch(root)
+    assert dispatch is not None
+    observed = {
+        "campaign_epoch": 4,
+        "trial_id": 21,
+        "state": 78,
+        "candidate_token": dispatch["packet"]["candidate_token"] + 1,
+        "execution_profile_id": 999,
+        "consumed_command_seq": 12,
+        "logical_batch_sequence": 99,
+        "batch_row_index": 4,
+        "safety_mode": 1,
+        "controller_state": 0,
+    }
+
+    receipt = finish_dispatch(
+        root,
+        status="FAILED",
+        observed=observed,
+        detail="terminal identity drift",
+        failure_class="IDENTITY",
+    )
+
+    assert receipt["physical_attempted"] is True
+    assert receipt["terminal_observation"] == observed
+    state = json.loads((root / "state.json").read_text(encoding="utf-8"))
+    assert state["home_identity"] == {
+        "campaign_epoch": 4,
+        "last_trial_id": 21,
+        "last_command_seq": 12,
+    }
+    next_dispatch = prepare_next_dispatch(root)
+    assert next_dispatch is not None
+    assert next_dispatch["packet"]["campaign_epoch"] == 4
+    assert next_dispatch["packet"]["trial_id"] == 22
+    assert next_dispatch["packet"]["command_seq"] == 13
+
+
+def test_identity_failure_rejects_nonterminal_or_unconfirmed_safety(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001189207115002721,
+        force_i=0.00001,
+        force_damping=5.886274906776001,
+    )
+    bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(root)
+    assert dispatch is not None
+    observed = {
+        "campaign_epoch": 1,
+        "trial_id": 1,
+        "state": 20,
+        "consumed_command_seq": 1,
+        "safety_mode": 1,
+    }
+    with pytest.raises(ParameterQueueError, match="safe terminal Home"):
+        finish_dispatch(
+            root,
+            status="FAILED",
+            observed=observed,
+            failure_class="IDENTITY",
+        )
+    assert status(root)["inflight"] is not None
+
+
 def test_not_consumed_is_immutable_non_attempt_and_request_remains_pending(
     tmp_path: Path,
 ) -> None:

@@ -620,8 +620,45 @@ def finish_dispatch(
             "logical_batch_sequence": packet["logical_batch_sequence"],
             "batch_row_index": 1,
         }
-        if dict(observed) != expected:
-            raise ParameterQueueError("READY_HOME_NEXT identity differs from dispatch")
+        if failure_class == "IDENTITY":
+            positive_identity = (
+                "campaign_epoch",
+                "trial_id",
+                "consumed_command_seq",
+            )
+            if (
+                isinstance(observed.get("state"), bool)
+                or not isinstance(observed.get("state"), int)
+                or observed["state"] != 78
+                or isinstance(observed.get("safety_mode"), bool)
+                or not isinstance(observed.get("safety_mode"), int)
+                or observed["safety_mode"] != 1
+                or any(
+                    isinstance(observed.get(key), bool)
+                    or not isinstance(observed.get(key), int)
+                    or observed[key] <= 0
+                    for key in positive_identity
+                )
+                or observed["consumed_command_seq"] < int(packet["command_seq"])
+            ):
+                raise ParameterQueueError(
+                    "IDENTITY failure requires a safe terminal Home observation"
+                )
+            home_identity = {
+                "campaign_epoch": observed["campaign_epoch"],
+                "last_trial_id": observed["trial_id"],
+                "last_command_seq": observed["consumed_command_seq"],
+            }
+        else:
+            if dict(observed) != expected:
+                raise ParameterQueueError(
+                    "READY_HOME_NEXT identity differs from dispatch"
+                )
+            home_identity = {
+                "campaign_epoch": packet["campaign_epoch"],
+                "last_trial_id": packet["trial_id"],
+                "last_command_seq": packet["command_seq"],
+            }
         receipt = {
             "schema": RECEIPT_SCHEMA,
             "request_uid": dispatch["request"]["request_uid"],
@@ -654,11 +691,7 @@ def finish_dispatch(
             _receipt_path(root, str(receipt["request_uid"])),
             receipt,
         )
-        state["home_identity"] = {
-            "campaign_epoch": packet["campaign_epoch"],
-            "last_trial_id": packet["trial_id"],
-            "last_command_seq": packet["command_seq"],
-        }
+        state["home_identity"] = home_identity
         state["inflight"] = None
         _atomic_json(_state_path(root), state)
         return receipt

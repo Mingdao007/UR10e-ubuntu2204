@@ -10,6 +10,7 @@ import json
 import math
 import os
 from pathlib import Path
+import signal
 import time
 from typing import Any, Mapping
 
@@ -57,6 +58,7 @@ RUNNER_STATES = frozenset(
     }
 )
 RECOVERY_BACKOFF_S = (0.1, 0.25, 0.5, 1.0)
+TERMINAL_CAPTURE_WAIT_S = 0.25
 
 
 class ParameterCampaignError(RuntimeError):
@@ -65,6 +67,10 @@ class ParameterCampaignError(RuntimeError):
 
 class HardwareRecoveryRequired(ParameterCampaignError):
     """The receiver lost the evidence needed to continue a live trial."""
+
+
+class ExplicitShutdown(ParameterCampaignError):
+    """The operator explicitly interrupted the receiver."""
 
 
 class TrialOutcomeError(ParameterCampaignError):
@@ -160,6 +166,7 @@ def _publish_status(
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "route": "autotune_v3_parameter_receiver",
         "state": state,
+        "receiver_accepting": state != "SHUTDOWN",
         "campaign_root": str(args.campaign_root.resolve()),
         "receiver_root": str(args.receiver_root.resolve()),
         "bridge_run": str(args.bridge_run.resolve()),
@@ -319,7 +326,19 @@ def _send(
     return arm, prepared
 
 
-def _capture_health(path: Path) -> tuple[str, str | None]:
+def _capture_health(
+    path: Path,
+    *,
+    clock=time.monotonic,
+    sleep=time.sleep,
+    wait_s: float = TERMINAL_CAPTURE_WAIT_S,
+) -> tuple[str, str | None]:
+    deadline = clock() + min(max(float(wait_s), 0.0), TERMINAL_CAPTURE_WAIT_S)
+    while not path.is_symlink() and not path.is_file():
+        now = clock()
+        if now >= deadline:
+            return "DATA_ISSUE", "capture missing after terminal Home"
+        sleep(min(0.01, deadline - now))
     if path.is_symlink() or not path.is_file():
         return "DATA_ISSUE", "capture missing after terminal Home"
     try:
@@ -405,6 +424,7 @@ def _wait_terminal(
         "logical_batch_sequence": arm.logical_batch_sequence,
         "batch_row_index": 1,
     }
+    identity_failure: str | None = None
     try:
         for row in follower.rows(timeout_s=timeout_s):
             observed = _tp_observation(row)
@@ -414,19 +434,21 @@ def _wait_terminal(
             if sequence < arm.command_seq:
                 continue
             if sequence > arm.command_seq:
-                raise TrialOutcomeError(
-                    "IDENTITY",
-                    "observation consumed a command newer than this trial",
-                    observed=observed,
+                identity_failure = (
+                    "observation consumed a command newer than this trial"
                 )
-            if any(observed[key] != value for key, value in expected.items()):
-                raise TrialOutcomeError(
-                    "IDENTITY",
-                    "same-sequence observation identity differs from dispatched ARM",
-                    observed=observed,
+            elif any(observed[key] != value for key, value in expected.items()):
+                identity_failure = (
+                    "same-sequence observation identity differs from dispatched ARM"
                 )
             if observed["state"] != READY_HOME_NEXT:
                 continue
+            if identity_failure is not None:
+                raise TrialOutcomeError(
+                    "IDENTITY",
+                    identity_failure,
+                    observed=observed,
+                )
             return observed, row
     except BridgeCsvTimeout as exc:
         raise HardwareRecoveryRequired("bridge stopped before terminal Home") from exc
@@ -481,11 +503,16 @@ def _finish_trial(
     detail: str | None,
     capture: Path,
 ) -> None:
+    queue_observed = (
+        dict(observed)
+        if failure_class == "IDENTITY"
+        else _terminal_identity(observed)
+    )
     receipt = finish_dispatch(
         args.receiver_root,
         status=status,
         failure_class=failure_class,
-        observed=dict(observed),
+        observed=queue_observed,
         detail=detail,
     )
     result_path = (
@@ -569,7 +596,11 @@ def _run_trial(
         / "capture.csv"
     )
     if terminal["terminal_reason"] == 1:
-        capture_status, detail = _capture_health(capture)
+        capture_status, detail = _capture_health(
+            capture,
+            clock=getattr(args, "clock", time.monotonic),
+            sleep=getattr(args, "sleep", time.sleep),
+        )
         status = "SUCCEEDED" if capture_status == "COMPLETE" else "FAILED"
         failure_class = None if status == "SUCCEEDED" else "DATA_QUALITY"
     else:
@@ -678,9 +709,19 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    previous_handlers = {
+        signum: signal.getsignal(signum)
+        for signum in (signal.SIGINT, signal.SIGTERM)
+    }
+
+    def request_shutdown(signum, _frame):
+        raise ExplicitShutdown(f"received signal {signum}")
+
+    for signum in previous_handlers:
+        signal.signal(signum, request_shutdown)
     try:
         run(args)
-    except Exception as exc:
+    except (KeyboardInterrupt, ExplicitShutdown) as exc:
         try:
             if (args.receiver_root / "state.json").is_file():
                 _publish_status(
@@ -691,8 +732,30 @@ def main() -> int:
                 )
         except Exception:
             pass
-        print(f"parameter campaign shutdown: {type(exc).__name__}:{exc}", file=__import__("sys").stderr)
+        print(
+            f"parameter campaign shutdown: {type(exc).__name__}:{exc}",
+            file=__import__("sys").stderr,
+        )
         return 2
+    except Exception as exc:
+        try:
+            if (args.receiver_root / "state.json").is_file():
+                _publish_status(
+                    args,
+                    state="RECOVERING",
+                    observation=None,
+                    blocker=f"{type(exc).__name__}:{exc}",
+                )
+        except Exception:
+            pass
+        print(
+            f"parameter campaign recovering: {type(exc).__name__}:{exc}",
+            file=__import__("sys").stderr,
+        )
+        return 2
+    finally:
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
     return 0
 
 
