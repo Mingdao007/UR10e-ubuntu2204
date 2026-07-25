@@ -32,12 +32,19 @@ from step5d_autotune_v3.runtime_profile import (
 STATE_SCHEMA = "step5d.parameter-receiver/state-v1"
 REQUEST_SCHEMA = "step5d.parameter-receiver/request-v1"
 DISPATCH_SCHEMA = "step5d.parameter-receiver/dispatch-v1"
-RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v1"
+RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v2"
+LEGACY_RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v1"
+RECONCILIATION_SCHEMA = "step5d.parameter-receiver/reconciliation-v1"
+PHYSICAL_ATTEMPT_SCHEMA = "step5d.parameter-receiver/physical-attempt-v1"
 PROTOCOL = "v3_full_home_parameter_receiver_v1"
 PROFILE_INTEGER_ID = 633
 MAX_JSON_BYTES = 16 * 1024
 POSITIONS = frozenset({"tail", "next"})
-TERMINAL_STATUSES = frozenset({"COMPLETE", "DATA_ISSUE"})
+RECEIPT_STATUSES = frozenset({"SUCCEEDED", "FAILED"})
+FAILURE_CLASSES = frozenset(
+    {"PARAMETER_GUARD", "IDENTITY", "SOFTWARE", "DATA_QUALITY", "EXTERNAL_HARDWARE"}
+)
+LEGACY_RECEIPT_STATUSES = frozenset({"COMPLETE", "DATA_ISSUE"})
 
 
 class ParameterQueueError(RuntimeError):
@@ -188,6 +195,26 @@ def _dispatch_path(root: Path, dispatch_sequence: int) -> Path:
 
 def _receipt_path(root: Path, request_uid: str) -> Path:
     return root / "receipts" / f"{request_uid.rsplit(':', 1)[-1]}.json"
+
+
+def _reconciliation_path(root: Path, dispatch_sequence: int) -> Path:
+    return root / "reconciliations" / f"{dispatch_sequence:012d}.json"
+
+
+def _physical_attempt_path(root: Path, control_candidate_uid: str) -> Path:
+    return root / "physical_attempts" / f"{_sha256_bytes(control_candidate_uid.encode('utf-8'))}.json"
+
+
+def _is_physical_receipt(payload: Mapping[str, Any]) -> bool:
+    schema = payload.get("schema")
+    status = payload.get("status")
+    if schema == RECEIPT_SCHEMA:
+        return status in RECEIPT_STATUSES and payload.get("physical_attempted") is True
+    if schema == LEGACY_RECEIPT_SCHEMA:
+        return status in LEGACY_RECEIPT_STATUSES and payload.get(
+            "physical_attempted", True
+        ) is True
+    return False
 
 
 def _initial_state(
@@ -563,9 +590,17 @@ def finish_dispatch(
     status: str,
     observed: Mapping[str, Any],
     detail: str | None = None,
+    failure_class: str | None = None,
 ) -> dict[str, Any]:
-    if status not in TERMINAL_STATUSES:
-        raise ParameterQueueError("dispatch status must be COMPLETE or DATA_ISSUE")
+    if status not in RECEIPT_STATUSES:
+        raise ParameterQueueError("dispatch status must be SUCCEEDED or FAILED")
+    if status == "FAILED":
+        if failure_class not in FAILURE_CLASSES:
+            raise ParameterQueueError(
+                "FAILED dispatch requires a valid failure_class"
+            )
+    elif failure_class is not None:
+        raise ParameterQueueError("SUCCEEDED dispatch must not have failure_class")
     with _lock(root):
         state = load_state(root)
         if state["inflight"] is None:
@@ -596,8 +631,25 @@ def finish_dispatch(
             "physical_attempted": True,
             "automatic_retry_allowed": False,
             "detail": detail,
+            "failure_class": failure_class,
             "terminal_observation": dict(observed),
         }
+        ledger = {
+            "schema": PHYSICAL_ATTEMPT_SCHEMA,
+            "request_uid": dispatch["request"]["request_uid"],
+            "control_candidate_uid": dispatch["request"]["control_candidate_uid"],
+            "dispatch_sequence": dispatch["dispatch_sequence"],
+            "dispatch_sha256": dispatch["dispatch_sha256"],
+            "status": status,
+            "physical_attempted": True,
+            "terminal_observation": dict(observed),
+        }
+        _write_once(
+            _physical_attempt_path(
+                root, str(dispatch["request"]["control_candidate_uid"])
+            ),
+            ledger,
+        )
         _write_once(
             _receipt_path(root, str(receipt["request_uid"])),
             receipt,
@@ -612,10 +664,61 @@ def finish_dispatch(
         return receipt
 
 
+def reconcile_not_consumed(
+    root: Path,
+    detail: str,
+    observed_command_seq: int,
+) -> dict[str, Any]:
+    if not isinstance(detail, str) or not detail:
+        raise ParameterQueueError("reconciliation detail must be non-empty")
+    if (
+        isinstance(observed_command_seq, bool)
+        or not isinstance(observed_command_seq, int)
+        or observed_command_seq < 0
+    ):
+        raise ParameterQueueError("observed_command_seq must be a non-negative integer")
+    with _lock(root):
+        state = load_state(root)
+        if state["inflight"] is None:
+            raise ParameterQueueError("no parameter dispatch is inflight")
+        dispatch = _strict_json(
+            _dispatch_path(root, int(state["inflight"]["dispatch_sequence"])),
+            "parameter dispatch",
+        )
+        packet = dispatch["packet"]
+        if observed_command_seq >= int(packet["command_seq"]):
+            raise ParameterQueueError("observed command sequence consumed the dispatch")
+        reconciliation = {
+            "schema": RECONCILIATION_SCHEMA,
+            "request_uid": dispatch["request"]["request_uid"],
+            "dispatch_sequence": dispatch["dispatch_sequence"],
+            "dispatch_sha256": dispatch["dispatch_sha256"],
+            "status": "NOT_CONSUMED",
+            "physical_attempted": False,
+            "detail": detail,
+            "observed_command_seq": observed_command_seq,
+            "dispatched_command_seq": packet["command_seq"],
+        }
+        _write_once(
+            _reconciliation_path(root, int(dispatch["dispatch_sequence"])),
+            reconciliation,
+        )
+        state["inflight"] = None
+        _atomic_json(_state_path(root), state)
+        return reconciliation
+
+
 def status(root: Path) -> dict[str, Any]:
     state = load_state(root)
     pending = list_pending(root)
-    receipts = tuple((root / "receipts").glob("*.json")) if (root / "receipts").is_dir() else ()
+    receipts = ()
+    if (root / "receipts").is_dir():
+        receipts = tuple(
+            path
+            for path in (root / "receipts").glob("*.json")
+            if not path.is_symlink() and path.is_file()
+            and _is_physical_receipt(_strict_json(path, "parameter receipt"))
+        )
     return {
         "schema": STATE_SCHEMA,
         "campaign_id": state["campaign_id"],

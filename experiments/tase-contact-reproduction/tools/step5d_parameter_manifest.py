@@ -16,7 +16,9 @@ from step5d_autotune_v3.runtime_profile import (
     normalize_trial_overlay,
 )
 from step5d_parameter_queue import (
+    LEGACY_RECEIPT_SCHEMA,
     ParameterQueueError,
+    RECEIPT_SCHEMA,
     initialize,
     list_requests,
     load_state,
@@ -105,26 +107,138 @@ def import_physical_attempt_uids(
     *,
     launch_profile_path: Path,
 ) -> frozenset[str]:
-    """Import authoritative legacy rows and captures that physically ran."""
+    """Import physical attempts from the bounded Step5d evidence roots."""
 
     result: set[str] = set()
-    ledger = experiment_root / "config/step5/step5d_autotune_v3_attempt_ledger.json"
-    if ledger.is_file() and not ledger.is_symlink():
-        payload = _load(ledger, "frozen physical attempt ledger")
-        for entry in payload.get("entries", ()):
-            if not isinstance(entry, Mapping):
-                continue
-            parameters = entry.get("parameters")
-            if isinstance(parameters, Mapping):
-                result.add(
-                    _candidate_uid(parameters, launch_profile_path=launch_profile_path)
-                )
 
-    runs = experiment_root / "runs"
+    def add_entry(entry: Mapping[str, Any]) -> None:
+        direct = entry.get("control_candidate_uid") or entry.get("candidate_uid")
+        if isinstance(direct, str) and direct:
+            result.add(direct)
+            return
+        parameters = entry.get("parameters")
+        if isinstance(parameters, Mapping):
+            result.add(
+                _candidate_uid(parameters, launch_profile_path=launch_profile_path)
+            )
+
+    def read_json(path: Path, role: str) -> dict[str, Any] | None:
+        try:
+            return _load(path, role)
+        except (OSError, ParameterManifestError, ValueError):
+            return None
+
+    if not experiment_root.is_dir() or experiment_root.is_symlink():
+        return frozenset()
+
+    def json_files(root: Path) -> tuple[Path, ...]:
+        if root.is_symlink() or not root.is_dir():
+            return ()
+        return tuple(
+            sorted(
+                path
+                for path in root.glob("*.json")
+                if not path.is_symlink() and path.is_file()
+            )
+        )
+
+    # A queue dispatch carries the candidate identity; a receipt carries the
+    # authoritative physical outcome.  Reconciled dispatches are therefore
+    # intentionally ignored here.  Release bindings are enumerable at this
+    # fixed root; never walk the experiment tree to find them.
+    binding_root = (
+        experiment_root
+        / "runs/step5d_autotune_v3/parameter-campaign/control/parameter_receiver_bindings"
+    )
+    queue_roots = (
+        tuple(
+            sorted(
+                path
+                for path in binding_root.glob("*/queue")
+                if not path.is_symlink() and path.is_dir()
+            )
+        )
+        if not binding_root.is_symlink() and binding_root.is_dir()
+        else ()
+    )
+    dispatches: dict[str, dict[str, Any]] = {}
+    for queue_root in queue_roots:
+        for path in json_files(queue_root / "dispatches"):
+            payload = read_json(path, "parameter dispatch")
+            if payload is None:
+                continue
+            request = payload.get("request")
+            if isinstance(request, Mapping) and isinstance(request.get("request_uid"), str):
+                dispatches[str(request["request_uid"])] = payload
+    for queue_root in queue_roots:
+        for path in json_files(queue_root / "receipts"):
+            payload = read_json(path, "parameter receipt")
+            if payload is None:
+                continue
+            schema = payload.get("schema")
+            legacy = schema == LEGACY_RECEIPT_SCHEMA
+            physical = payload.get("physical_attempted", True) if legacy else payload.get(
+                "physical_attempted"
+            )
+            if schema not in {RECEIPT_SCHEMA, LEGACY_RECEIPT_SCHEMA} or physical is not True:
+                continue
+            if payload.get("status") not in {"SUCCEEDED", "FAILED", "COMPLETE", "DATA_ISSUE"}:
+                continue
+            dispatch = dispatches.get(str(payload.get("request_uid")))
+            if dispatch is None:
+                continue
+            request = dispatch.get("request")
+            if isinstance(request, Mapping):
+                add_entry(request)
+
+    for queue_root in queue_roots:
+        for path in json_files(queue_root / "physical_attempts"):
+            payload = read_json(path, "physical attempt ledger")
+            if payload is not None and payload.get("physical_attempted") is True:
+                add_entry(payload)
+
+    # Read only the explicit frozen config ledger and the two exact runtime
+    # ledger paths; immutable releases are deliberately outside this list.
+    ledger_paths = (
+        experiment_root / "config/step5/step5d_autotune_v3_attempt_ledger.json",
+        experiment_root / "runs/step5d_autotune_v3/physical_attempt_ledger.jsonl",
+        experiment_root / "runs/step5d_autotune_v3/physical_attempt_ledger.json",
+    )
+    for ledger in ledger_paths:
+        if ledger.is_symlink() or not ledger.is_file():
+            continue
+        if ledger.suffix == ".jsonl":
+            try:
+                lines = ledger.read_text(encoding="utf-8").splitlines()
+            except (OSError, UnicodeError):
+                continue
+            for line in lines:
+                try:
+                    entry = json.loads(line)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                if isinstance(entry, Mapping):
+                    add_entry(entry)
+            continue
+        payload = read_json(ledger, "physical attempt ledger")
+        if payload is None:
+            continue
+        entries = payload.get("entries")
+        if isinstance(entries, list):
+            for entry in entries:
+                if isinstance(entry, Mapping):
+                    add_entry(entry)
+        elif payload.get("physical_attempted") is True:
+            add_entry(payload)
+
+    # Retain legacy trial evidence only in the known v3 campaign layouts.
+    runs = experiment_root / "runs/step5d_autotune_v3"
     if not runs.is_dir() or runs.is_symlink():
         return frozenset(result)
-    evidence_paths = list(runs.glob("**/trial_briefs/*.trial-brief.json"))
-    evidence_paths.extend(runs.glob("**/autotune_trials/*/metadata.json"))
+    evidence_paths = list(runs.glob("trial_briefs/*.trial-brief.json"))
+    evidence_paths.extend(runs.glob("autotune_trials/*/metadata.json"))
+    evidence_paths.extend(runs.glob("*/trial_briefs/*.trial-brief.json"))
+    evidence_paths.extend(runs.glob("*/autotune_trials/*/metadata.json"))
     for path in sorted(set(evidence_paths)):
         relative = path.relative_to(runs).as_posix().lower()
         if any(token in relative for token in EXCLUDED_PATH_TOKENS):
