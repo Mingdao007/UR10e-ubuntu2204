@@ -50,17 +50,22 @@ shadow artifacts (`smooth_low_curvature` and `turning_high_curvature`) each
 pass the roughly 45-second hardware-shadow gate; synthetic fixtures never
 count.
 
-URSim is a read-only image/protocol boundary. No PolyScope 5.26 URSim runtime
-is installed or claimed; image inspection does not pull, create, start, exec,
-or connect to a container. Dashboard, Load, Play, bridge, ARM, RTDE writer,
+URSim is a read-only image/protocol boundary. The locally inspected image is
+`universalrobots/ursim_e-series:5.25.2`; no PolyScope 5.26 URSim runtime is
+available or run. Image inspection does not pull, create, start, exec, or
+connect to a container. Dashboard, Load, Play, bridge, ARM, RTDE writer,
 contact, and motion remain forbidden in this lane.
 
 Validation command:
 
 ```bash
 PYTHONPATH=experiments/ur10e-variable-impedance \
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
-  experiments/ur10e-variable-impedance/tests/test_tacdiffusion_*.py
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /usr/bin/python3 -m pytest -q \
+  experiments/ur10e-variable-impedance/tests
+
+PYTHONPATH=experiments/ur10e-variable-impedance:experiments/tase-contact-reproduction/tools \
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /usr/bin/python3 -m pytest -q \
+  experiments/tase-contact-reproduction/tests/test_step5d_tacdiffusion_direct_torque.py
 ```
 
 Live acceptance remains unproven. The next user-owned actions are Remote mode,

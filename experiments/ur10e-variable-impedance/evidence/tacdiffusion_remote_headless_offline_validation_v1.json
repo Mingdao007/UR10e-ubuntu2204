@@ -21,7 +21,10 @@
     "full_variable_impedance_suite": {
       "passed": 170,
       "skipped": 5,
-      "subtests_passed": 15
+      "failed": 0,
+      "subtests_passed": 15,
+      "command": "/usr/bin/python3 -m pytest -q experiments/ur10e-variable-impedance/tests",
+      "pycache_prefix_isolated": true
     },
     "final_isolated_acceptance": {
       "passed": 112,
@@ -32,7 +35,12 @@
       "live_actions": false
     },
     "tase_step5d_mainline": {
-      "passed": 11
+      "passed": 11,
+      "skipped": 0,
+      "failed": 0,
+      "test_file": "experiments/tase-contact-reproduction/tests/test_step5d_tacdiffusion_direct_torque.py",
+      "command": "PYTHONPATH=experiments/ur10e-variable-impedance:experiments/tase-contact-reproduction/tools PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /usr/bin/python3 -m pytest -q experiments/tase-contact-reproduction/tests/test_step5d_tacdiffusion_direct_torque.py",
+      "pycache_prefix_isolated": true
     },
     "ursim_protocol_transport_parser_mainline": {
       "passed": 30,
@@ -95,20 +103,28 @@
       },
       "deterministic_plan_episodes": 50,
       "trajectory_family_count": 7,
-      "dry_run_plan_only": true,
-      "physical_io_enabled": false,
+      "offline_only": true,
+      "live_io": false,
       "receiver_schema": "ur10e_direct_torque_receiver/v3"
     },
     "ursim_image_inspection": {
-      "image": "universalrobots/ursim-e-series:5.25.2",
+      "image": "universalrobots/ursim_e-series:5.25.2",
       "inspect_only": true,
-      "local_image_present": false,
-      "docker_inspect_result": "No such image",
+      "local_image_present": true,
+      "image_id": "sha256:b002fdfa81e3ecdb95246ab78b6991fc065a622b890af45a27e10b088aef98c3",
+      "repo_digest": "universalrobots/ursim_e-series@sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",
+      "build_label": "5.25.2",
+      "docker_inspect_result": "present",
+      "running_container_count": 0,
+      "ancestor_filter_matches": [],
       "pull_attempted": false,
       "container_created": false,
       "container_started": false,
       "container_exec": false,
       "network_connected": false,
+      "polyscope_5_26_available": false,
+      "polyscope_5_26_run": false,
+      "polyscope_5_26_status": "unavailable_unrun",
       "polyscope_5_26_runtime_installed": false,
       "polyscope_5_26_runtime_claimed": false
     }
@@ -126,7 +142,7 @@
     },
     {
       "path": "config/direct_torque_remote_headless_v4.json",
-      "sha256": "0a4faae29966024b0606aaa638cfb69dcf8ef68d00926ab55689010ebc0be054"
+      "sha256": "5a3870f327977948ae5be348d1d3ba1f7ff0956f383d29cf6b20643f4a46d7d8"
     },
     {
       "path": "config/tacdiffusion_experiment_plan.json",
@@ -210,7 +226,7 @@
     },
     {
       "path": "docs/TACDIFFUSION_REMOTE_HEADLESS_IMPLEMENTATION.md",
-      "sha256": "cf84ed01f245c01c5a858f47e31adda248b620d0514a709ae0bac63d1e31d2fb"
+      "sha256": "1e637e55db9b9fa67886986367b805447413944c358cc78b933e6f0e5ea1a82b"
     },
     {
       "path": "../tase-contact-reproduction/config/step5d_tacdiffusion_liveprep_v1.json",

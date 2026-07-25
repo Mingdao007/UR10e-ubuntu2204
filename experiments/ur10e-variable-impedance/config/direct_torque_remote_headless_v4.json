@@ -90,9 +90,9 @@
     "active_allowed": false,
     "required_live_shadow_names": ["smooth_low_curvature", "turning_high_curvature"],
     "required_live_shadow_count": 2,
-    "required_total_virtual_duration_s": 90.0,
+    "required_total_live_shadow_duration_s": 90.0,
     "synthetic_shadows_are_ineligible": true
   },
   "no_motion": true,
-  "forbidden_in_this_contract": ["Dashboard", "Load", "Play", "bridge", "ARM", "RTDE_writer", "motion"]
+  "forbidden_in_this_contract": ["Dashboard", "Load", "Play", "bridge", "ARM", "RTDE_writer", "contact", "motion"]
 }
