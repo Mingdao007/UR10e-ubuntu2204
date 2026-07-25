@@ -454,27 +454,29 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
 def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     source = inspect.getsource(live._run_live)
     writer_lease_acquired = source.index("writer_guard.__enter__()")
-    bridge_start = source.index("bridge = subprocess.Popen(")
+    bridge_start = source.index("_run_bridge_command_and_wait_for_readiness(")
     runner_start = source.index("runner = subprocess.Popen(")
     runner_ready = source.index(
         '_wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")'
     )
-    bridge_ready = source.index(
-        '_wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")'
+    no_arm_ready = source.index(
+        'print("V3_BRIDGE_READY_NO_ARM"',
     )
-    no_arm_ready = source.index('print("V3_BRIDGE_READY_NO_ARM"', bridge_ready)
     claim_gate = source.index("_publish_canonical_readiness_claim(", runner_ready)
     campaign_ready = source.index('print("V3_CAMPAIGN_READY_FOR_TP_PLAY"', claim_gate)
-    play_signal = source.index('print("READY_FOR_ONE_PLAY_TO_MOVE"')
-    play_observed = source.index("if _runtime_playing_normal", play_signal)
+    ready_for_play = source.index('print("READY_FOR_ONE_PLAY_TO_MOVE"', campaign_ready)
     gate_refresh = source.index(
         "play_gate_observation, play_dashboard = _refresh_arm_gate(",
-        play_observed,
+        ready_for_play,
     )
 
-    assert writer_lease_acquired < bridge_start < bridge_ready < no_arm_ready
+    assert bridge_start < no_arm_ready < writer_lease_acquired
+    assert no_arm_ready < source.index("write_machine_campaign_binding(", no_arm_ready)
+    assert no_arm_ready < source.index("producer.poll_once(", no_arm_ready)
+    assert "atomic_json(ticket_path" not in source
+    assert "STEP5D_V3_RUNTIME_TICKET_JSON" in source
     assert no_arm_ready < runner_start < runner_ready
-    assert runner_ready < claim_gate < campaign_ready < play_signal < play_observed < gate_refresh
+    assert runner_ready < claim_gate < campaign_ready < ready_for_play < gate_refresh
     assert '"--wait-for-first-arm-gate"' in source
     assert '"--home-timeout-s"' in source
     assert source.count("str(args.play_timeout_s + 5.0)") == 2
@@ -485,7 +487,8 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     first_gate_wait = runner_source.index("_wait_for_first_arm_gate(", ready_publish)
     mailbox_open = runner_source.index("mailbox = AtomicCommandMailbox", first_gate_wait)
     assert ready_publish < first_gate_wait < mailbox_open
-    assert source.count("READY_FOR_ONE_PLAY_TO_MOVE") == 1
+    assert "READY_FOR_ONE_PLAY_TO_MOVE" in source
+    assert "if _runtime_playing_normal" in source
     assert "V3_QUALIFICATION_SIMULATED_PLAY_BARRIER" not in source
     assert "--offline-release-gate" not in runner_source
     assert 'READY_FOR_TP_PLAY_V3"' not in source
@@ -616,8 +619,7 @@ def test_canonical_shell_records_only_direct_live_phases() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     for phase in (
-        "campaign_prepare",
-        "preflight",
+        "coordinator",
         "live_handoff",
     ):
         assert f"bridge_begin_phase {phase}" in source
@@ -638,7 +640,7 @@ def test_canonical_shell_records_only_direct_live_phases() -> None:
         '"${CONTROL_PYTHON}" '
         '"${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"'
     )
-    assert source.count(exact_live) == 2
+    assert source.count(exact_live) == 1
     assert f"exec {exact_live}" not in source
     assert 'python3 "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"' not in source
 
@@ -730,12 +732,11 @@ def _fake_governed_shell(
         "  printf '{}\\n'\n"
         "  exit 0\n"
         "fi\n"
+        "if [[ \" $* \" == *'run_step5d_autotune_v3_coordinator.py'* ]]; then\n"
+        "  if [[ \"${STEP5D_TEST_FAIL_COORDINATOR:-0}\" == '1' ]]; then exit 41; fi\n"
+        "fi\n"
         "if [[ \"${1:-}\" == '-c' ]]; then printf '%032d\\n' 0; exit 0; fi\n"
-        + (
-            "if [[ \" $* \" == *' --prepare-only '* ]]; then exit 41; fi\n"
-            if fail_prepare
-            else ""
-        )
+        + ""
         + "printf '{}\\n'\n",
         encoding="utf-8",
     )
@@ -805,6 +806,7 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
         tmp_path,
         fail_prepare=True,
     )
+    environment["STEP5D_TEST_FAIL_COORDINATOR"] = "1"
     experiment = shell.parent.parent
     output = tmp_path / "output"
     campaign = tmp_path / "campaign"
@@ -834,16 +836,16 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
         line
         for line in commands
         if "_launch-attempt-state STARTED" in line
-        and "_launch-attempt-phase campaign_prepare" in line
+        and "_launch-attempt-phase coordinator" in line
     )
     failed = next(
         line
         for line in commands
         if "_launch-attempt-state FAILED" in line
-        and "_launch-attempt-phase campaign_prepare" in line
+        and "_launch-attempt-phase coordinator" in line
     )
-    assert "_launch-attempt-phase campaign_prepare" in started
-    assert "_launch-attempt-phase campaign_prepare" in failed
+    assert "_launch-attempt-phase coordinator" in started
+    assert "_launch-attempt-phase coordinator" in failed
     assert "_launch-attempt-exit-code 41" in failed
     assert not any("preflight_step5d_autotune_v3.py" in line for line in commands)
 
@@ -880,7 +882,7 @@ def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
     live_calls = [
         line for line in commands if "run_step5d_autotune_v3_live.py" in line
     ]
-    assert len(live_calls) == 2
+    assert len(live_calls) == 1
     assert "--preflight" in live_calls[-1]
     assert "step5d_autotune_v3.cli" not in live_calls[-1]
 

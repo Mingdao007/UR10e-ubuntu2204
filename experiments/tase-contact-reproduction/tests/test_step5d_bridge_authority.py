@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import sys
 
 import pytest
@@ -156,3 +157,43 @@ def test_runtime_recorder_rejects_non_owner_child(
             owner_starttime_ticks=owner_starttime,
             state="STARTED",
         )
+
+
+def test_live_fence_rereads_active_tuple_and_cleanup_requires_revoked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner_pid = 42
+    owner_starttime = 700
+    monkeypatch.setattr(authority.os, "getppid", lambda: owner_pid)
+    monkeypatch.setattr(authority, "read_proc_starttime_ticks", lambda _pid: owner_starttime)
+    active = authority.begin(
+        tmp_path,
+        attempt_id="attempt-fence",
+        owner_pid=owner_pid,
+        owner_starttime_ticks=owner_starttime,
+    )
+    fence = authority.AuthorityFence(
+        tmp_path,
+        attempt_id="attempt-fence",
+        sequence=active["sequence"],
+        owner_pid=owner_pid,
+        owner_starttime_ticks=owner_starttime,
+    )
+    assert fence.assert_active()["state"] == "ACTIVE"
+    current_path = tmp_path / authority.STATE_FILE
+    payload = json.loads(current_path.read_text(encoding="utf-8"))
+    payload["attempt_id"] = "stale-attempt"
+    current_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(authority.BridgeAuthorityError, match="ACTIVE"):
+        fence.assert_active()
+
+    payload["attempt_id"] = "attempt-fence"
+    current_path.write_text(json.dumps(payload), encoding="utf-8")
+    revoked = authority.revoke(
+        tmp_path,
+        attempt_id="attempt-fence",
+        owner_pid=owner_pid,
+        owner_starttime_ticks=owner_starttime,
+        reason="failed",
+    )
+    assert fence.assert_revoked() == revoked

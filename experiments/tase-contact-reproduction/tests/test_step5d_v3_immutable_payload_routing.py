@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -198,22 +199,71 @@ def test_live_routes_both_configs_through_immutable_bundle(
         return SimpleNamespace(fingerprint="immutable-profile")
 
     monkeypatch.setattr(live, "ROOT", tmp_path)
-    monkeypatch.setattr(
-        live, "require_runtime_profile", lambda _profile: _runtime_pointer()
-    )
-    monkeypatch.setattr(
-        live,
-        "load_gpu_functional_attestation",
-        lambda **_kwargs: ({}, {"path": "/gpu.json", "sha256": "e" * 64}),
-    )
     monkeypatch.setattr(live, "load_runtime_release", lambda _root: release)
     monkeypatch.setattr(live, "load_delivery_observation", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(live, "load_contract", load_contract)
     monkeypatch.setattr(live, "load_launch_profile", load_profile)
+    def stop_after_config_routing(*_args: Any, **kwargs: Any) -> list[str]:
+        observed["bridge_contract"] = kwargs.get("contract")
+        observed["bridge_profile"] = kwargs.get("launch_profile")
+        raise RoutingObserved
+
+    monkeypatch.setattr(live, "_build_bridge_launch_command", stop_after_config_routing)
     monkeypatch.setattr(
         live,
-        "prepare_campaign_state",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RoutingObserved()),
+        "_validate_preflight",
+        lambda *_args, **_kwargs: {"schema": live.LIVE_PREFLIGHT_SCHEMA},
+    )
+    monkeypatch.setattr(
+        live,
+        "check_effective_config",
+        lambda *_args, **_kwargs: {"effective_config": {"robot_host": "127.0.0.1"}},
+    )
+    campaign_prepare = {
+        "ok": True,
+        "campaign_id": "fresh-v3-plant-epoch",
+        "campaign_epoch": 1,
+        "campaign_fingerprint": "b" * 64,
+    }
+    campaign_prepare_path = tmp_path / "campaign-prepare.json"
+    campaign_prepare_path.write_text(
+        json.dumps(campaign_prepare, sort_keys=True), encoding="utf-8"
+    )
+    launch_basis = {
+        "authority_epoch": 17,
+        "campaign_fingerprint": campaign_prepare["campaign_fingerprint"],
+        "launch_nonce": "a" * 32,
+    }
+    launch_basis_path = tmp_path / "launch-basis.json"
+    launch_basis_path.write_text(
+        json.dumps(launch_basis, sort_keys=True), encoding="utf-8"
+    )
+    launch_basis_sha256 = _sha256(launch_basis_path.read_bytes())
+    admission_path = tmp_path / "admission.json"
+    admission_path.write_text("{}", encoding="utf-8")
+    (tmp_path / "delivery.json").write_text("{}", encoding="utf-8")
+    from step5d_autotune_v3 import launch_basis as canonical_launch_basis
+
+    monkeypatch.setattr(
+        canonical_launch_basis,
+        "read_and_validate_launch_basis",
+        lambda *_args, **_kwargs: launch_basis,
+    )
+    monkeypatch.setattr(
+        canonical_launch_basis,
+        "validate_delivery_observation_binding",
+        lambda *_args, **_kwargs: None,
+    )
+    fake_authority_fence = SimpleNamespace(
+        root=tmp_path / "runs/step5d_bridge_authority",
+        sequence=17,
+        attempt_id=launch_basis["launch_nonce"],
+        assert_active=lambda: None,
+    )
+    monkeypatch.setattr(
+        live,
+        "_authority_fence_for_basis",
+        lambda *_args, **_kwargs: fake_authority_fence,
     )
 
     args = SimpleNamespace(
@@ -222,67 +272,60 @@ def test_live_routes_both_configs_through_immutable_bundle(
         delivery_observation=tmp_path / "delivery.json",
         campaign_root=tmp_path / "campaign",
         launch_profile=tmp_path / LAUNCH_PROFILE_PATH,
+        canonical_owner_pid=777,
+        canonical_owner_starttime=123,
+        authority_epoch=17,
+        admission=admission_path,
+        launch_basis=launch_basis_path,
+        launch_basis_sha256=launch_basis_sha256,
+        campaign_prepare=campaign_prepare_path,
     )
+    runtime_pointer = {"profiles": _runtime_pointer()["profiles"]}
+    optimizer_client = SimpleNamespace(close=lambda: None)
     with pytest.raises(RoutingObserved):
-        live.run(args)
+        live._run_live(args, runtime_pointer, optimizer_client)
 
     assert observed["contract_path"] == paths[SAFETY_ENVELOPE_PATH].resolve()
     assert observed["launch_path"] == paths[LAUNCH_PROFILE_PATH].resolve()
     assert observed["contract_bytes"] == contents[SAFETY_ENVELOPE_PATH]
     assert observed["launch_bytes"] == contents[LAUNCH_PROFILE_PATH]
     assert observed["profile_contract"] is observed
+    assert observed["bridge_contract"] is observed
+    assert observed["bridge_profile"].fingerprint == "immutable-profile"
 
 
 def test_live_prepare_only_ignores_mutable_launch_override(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    release, paths, contents = _release_bundle(tmp_path)
-    observed: dict[str, Any] = {}
-
-    def load_contract(path: Path) -> object:
-        observed["contract_path"] = path
-        observed["contract_bytes"] = path.read_bytes()
-        return observed
-
-    def load_profile(path: Path, *, contract: object | None = None, expected_tp_program_id: str | None = None) -> Any:
-        observed["launch_path"] = path
-        observed["launch_bytes"] = path.read_bytes()
-        observed["profile_contract"] = contract
-        return SimpleNamespace(fingerprint="immutable-profile")
-
-    monkeypatch.setattr(live, "ROOT", tmp_path)
-    monkeypatch.setattr(live, "_require_canonical_launcher", lambda: None)
-    monkeypatch.setattr(live, "_parent_death_guard", lambda *_args: None)
-    monkeypatch.setattr(
-        live, "require_runtime_profile", lambda _profile: _runtime_pointer()
+    with pytest.raises(SystemExit) as exc:
+        live.parse_args(
+            [
+                "--output-root",
+                str(tmp_path / "output"),
+                "--preflight",
+                str(tmp_path / "preflight.json"),
+                "--delivery-observation",
+                str(tmp_path / "delivery.json"),
+                "--canonical-owner-pid",
+                "1",
+                "--canonical-owner-starttime",
+                "1",
+                "--authority-epoch",
+                "1",
+                "--admission",
+                str(tmp_path / "admission.json"),
+                "--launch-basis",
+                str(tmp_path / "launch-basis.json"),
+                "--launch-basis-sha256",
+                "a" * 64,
+                "--campaign-prepare",
+                str(tmp_path / "campaign-prepare.json"),
+                "--prepare-only",
+            ]
+        )
+    assert exc.value.code == 2
+    assert (
+        "unrecognized arguments: --prepare-only"
+        in capsys.readouterr().err
     )
-    monkeypatch.setattr(live, "load_current_release", lambda _root: release)
-    monkeypatch.setattr(live, "load_contract", load_contract)
-    monkeypatch.setattr(live, "load_launch_profile", load_profile)
-    monkeypatch.setattr(
-        live,
-        "prepare_campaign_state",
-        lambda *_args, **_kwargs: {"ok": True},
-    )
-
-    result = live.main(
-        [
-            "--prepare-only",
-            "--campaign-root",
-            str(tmp_path / "campaign"),
-            "--launch-profile",
-            str(tmp_path / LAUNCH_PROFILE_PATH),
-            "--canonical-owner-pid",
-            "1",
-            "--canonical-owner-starttime",
-            "1",
-        ]
-    )
-
-    assert result == 0
-    assert observed["contract_path"] == paths[SAFETY_ENVELOPE_PATH].resolve()
-    assert observed["launch_path"] == paths[LAUNCH_PROFILE_PATH].resolve()
-    assert observed["contract_bytes"] == contents[SAFETY_ENVELOPE_PATH]
-    assert observed["launch_bytes"] == contents[LAUNCH_PROFILE_PATH]
-    assert observed["profile_contract"] is observed

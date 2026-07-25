@@ -1013,34 +1013,49 @@ if (( bridge_mode == 1 )); then
     echo "bridge admission observation failed; see ${admission}" >&2
     exit "${admission_rc}"
   fi
+  admission="$(${CONTROL_PYTHON} -c '
+import json
+import pathlib
+import sys
+from step5d_autotune_v3.bridge_admission import admission_index_path
+root = pathlib.Path(sys.argv[2]).resolve()
+payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(admission_index_path(root, payload))
+' "${admission}" "${EXPERIMENT_ROOT}")"
   delivery_observation="$(
     "${CONTROL_PYTHON}" -c \
       'import json,pathlib,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print((pathlib.Path(sys.argv[2]) / p["delivery_observation"]["path"]).resolve())' \
       "${admission}" "${EXPERIMENT_ROOT}"
   )"
   bridge_acquire_authority
-  bridge_begin_phase campaign_prepare
-  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
-    --prepare-only \
-    --canonical-owner-pid "$$" \
-    --canonical-owner-starttime "${launch_owner_starttime}" \
-    --campaign-root "${campaign_root}" \
-    >"${output_root}/campaign-prepare.json"
   preflight="${output_root}/preflight.json"
-  bridge_begin_phase preflight
-  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/preflight_step5d_autotune_v3.py" \
-    --mailbox "${output_root}/runtime/command.json" \
+  bridge_begin_phase coordinator
+  "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_coordinator.py" \
+    --experiment-root "${EXPERIMENT_ROOT}" \
+    --admission "${admission}" \
+    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+    --attempt-id "${launch_attempt_id}" \
+    --authority-epoch "${launch_owner_authority_epoch}" \
+    --owner-pid "$$" \
+    --owner-starttime "${launch_owner_starttime}" \
+    --output-root "${output_root}" \
+    --campaign-root "${campaign_root}" \
     --delivery-observation "${delivery_observation}" \
-    --output "${preflight}" \
-    --json
+    --preflight "${preflight}" \
+    --launch-basis "${output_root}/launch-basis.json"
   bridge_begin_phase live_handoff
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
     "${runner_args[@]}" --output-root "${output_root}" \
     --canonical-owner-pid "$$" \
     --canonical-owner-starttime "${launch_owner_starttime}" \
+    --authority-epoch "${launch_owner_authority_epoch}" \
     --delivery-observation "${delivery_observation}" \
     --campaign-root "${campaign_root}" \
-    --preflight "${preflight}"
+    --preflight "${preflight}" \
+    --admission "${admission}" \
+    --launch-basis "${output_root}/launch-basis.json" \
+    --launch-basis-sha256 "$(${CONTROL_PYTHON} -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["basis_sha256"])' "${output_root}/launch-basis.json")" \
+    --campaign-prepare "${output_root}/campaign-prepare.json"
   bridge_finish_phase
   bridge_revoke_authority completed
   exit 0

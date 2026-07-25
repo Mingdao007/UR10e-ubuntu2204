@@ -18,25 +18,31 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from prepare_step5d_autotune_launch import (
-    LaunchPreparationRequest,
-    prepare,
-    write_machine_campaign_binding,
-)
-from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
-from run_step5d_autotune_campaign import discover_campaign_epochs
-from step5d_autotune_batch_plan import load_plan
+
+# Refuse direct execution before importing the runtime graph.  Besides keeping
+# the internal worker private, this preserves a cheap fail-closed boundary when
+# the host has not installed the experiment runtime PYTHONPATH.
+_EARLY_ROOT = Path(__file__).resolve().parents[1]
+_EARLY_CANONICAL_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
+if __name__ == "__main__" and os.environ.get(_EARLY_CANONICAL_ENV) != str(
+    (_EARLY_ROOT / "scripts/step5d-autotune-v3.sh").resolve()
+):
+    print(
+        json.dumps(
+            {
+                "schema": "step5d.autotune-v3/live-campaign-launch-result-v1",
+                "ok": False,
+                "blocker": (
+                    "internal live worker is not a public entrypoint; use "
+                    f"{_EARLY_ROOT / 'scripts/step5d-autotune-v3.sh'} bridge-live"
+                ),
+            },
+            sort_keys=True,
+        )
+    )
+    raise SystemExit(2)
+
 from step5d_autotune_state_machine import TpLoopState
-from step5d_autotune_v3.batch_producer import (
-    BatchProducerError,
-    ProductionProposalProvider,
-    RollingBatchProducer,
-    production_candidate_catalog,
-)
-from step5d_autotune_v3.campaign_prepare import (
-    CampaignPrepareError,
-    prepare_campaign,
-)
 from step5d_autotune_v3.dashboard import DashboardObservationError, dashboard_exchange
 from step5d_autotune_v3.delivery_observation import (
     DeliveryObservationError,
@@ -50,10 +56,6 @@ from step5d_autotune_v3.governance import (
     resolve_governed_status,
 )
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
-from step5d_autotune_v3.optimizer_protocol import (
-    ExactOptimizerClient,
-    deployment_certificate,
-)
 from step5d_autotune_v3.profile import load_contract
 from step5d_autotune_v3.release_contract import (
     release_contract_scope_for_release,
@@ -71,7 +73,6 @@ from step5d_autotune_v3.release_identity import (
     release_payload_path,
 )
 from step5d_autotune_v3.runtime_environment import production_runtime_environment
-from step5d_autotune_v3.optimizer_deployment import load_gpu_functional_attestation
 from step5d_autotune_v3.runtime_installation import require_runtime_profile
 from step5d_autotune_v3.runtime_profile import (
     CONTROL_PROFILE_ID,
@@ -91,6 +92,7 @@ from step5d_autotune_v3.runtime_gate import (
     revoke_arm_observation,
     write_campaign_lease,
 )
+from step5d_bridge_authority import AuthorityFence
 from step5d_autotune_v3.runtime_observation import (
     RuntimeObservationError,
     RuntimeObservationPublisher,
@@ -107,6 +109,31 @@ from step5d_bridge_status import (
     resolve_status as resolve_bridge_status,
     verify_readiness_claim,
 )
+
+
+class BatchProducerError(RuntimeError):
+    """Compatibility error surface; the producer implementation loads lazily."""
+
+
+class ExactOptimizerClient:
+    """Lazy proxy preserving the testable owner surface without eager imports."""
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> Any:
+        from step5d_autotune_v3.optimizer_protocol import ExactOptimizerClient as implementation
+
+        return implementation(*args, **kwargs)
+
+
+def deployment_certificate(*args: Any, **kwargs: Any) -> Any:
+    from step5d_autotune_v3.optimizer_protocol import deployment_certificate as implementation
+
+    return implementation(*args, **kwargs)
+
+
+def load_gpu_functional_attestation(*args: Any, **kwargs: Any) -> Any:
+    from step5d_autotune_v3.optimizer_deployment import load_gpu_functional_attestation as implementation
+
+    return implementation(*args, **kwargs)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,11 +163,18 @@ class LiveLaunchError(RuntimeError):
 
 
 _NO_PRODUCER_RESULT = object()
+_ACTIVE_AUTHORITY_FENCE: AuthorityFence | None = None
+
+
+def _assert_active_authority() -> None:
+    if _ACTIVE_AUTHORITY_FENCE is not None:
+        _ACTIVE_AUTHORITY_FENCE.assert_active()
 
 
 def _publish_canonical_readiness_claim(
     output_root: Path, required_state: str
 ) -> dict[str, Any]:
+    _assert_active_authority()
     try:
         status = resolve_bridge_status(ROOT)
         claim = readiness_claim(status, required_state)
@@ -319,27 +353,27 @@ def _sha256_path(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _campaign_id_for_prepare(campaign_root: Path) -> str:
-    paths = CampaignPaths(campaign_root)
-    if paths.candidate_plan.is_file() and not paths.candidate_plan.is_symlink():
-        payload = read_strict_json(paths.candidate_plan, role="candidate plan")
-        campaign_id = payload.get("campaign_id") if isinstance(payload, Mapping) else None
-        if not isinstance(campaign_id, str) or not campaign_id:
-            raise LiveLaunchError("candidate plan campaign identity is missing")
-        return campaign_id
-    chain = discover_campaign_epochs(campaign_root)
-    return chain[-1].campaign.campaign_id if chain else "step5d-native-1"
-
-
-def prepare_campaign_state(campaign_root: Path, launch_profile: Any) -> Mapping[str, Any]:
-    try:
-        return prepare_campaign(
-            campaign_root,
-            campaign_id=_campaign_id_for_prepare(campaign_root),
-            launch_profile=launch_profile,
+def _authority_fence_for_basis(
+    basis: Mapping[str, Any], args: argparse.Namespace
+) -> AuthorityFence:
+    attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID")
+    if attempt_id is None:
+        attempt_id = str(basis["launch_nonce"])
+    if attempt_id != basis["launch_nonce"]:
+        raise LiveLaunchError("launch attempt identity differs from launch basis")
+    root = Path(
+        os.environ.get(
+            "STEP5D_V3_AUTHORITY_ROOT",
+            str(ROOT / "runs/step5d_bridge_authority"),
         )
-    except CampaignPrepareError as exc:
-        raise LiveLaunchError(f"campaign preparation failed closed: {exc}") from exc
+    )
+    return AuthorityFence(
+        root,
+        attempt_id=attempt_id,
+        sequence=int(basis["authority_epoch"]),
+        owner_pid=args.canonical_owner_pid,
+        owner_starttime_ticks=args.canonical_owner_starttime,
+    )
 
 
 def _integer_row(row: Mapping[str, Any] | None, name: str) -> int:
@@ -389,6 +423,7 @@ def _revoke_campaign_authority(
     publisher: RuntimeObservationPublisher | None,
     reason: str,
 ) -> list[str]:
+    _assert_active_authority()
     if reason not in {"campaign_terminal", "supervisor_exit"}:
         raise ValueError("campaign authority revocation reason differs")
     errors: list[str] = []
@@ -455,6 +490,7 @@ def _dashboard_external_blocker(
     campaign_root: Path,
     error: BaseException,
 ) -> dict[str, Any]:
+    _assert_active_authority()
     observed_at = time.time_ns()
     evidence = (
         campaign_root
@@ -581,6 +617,7 @@ def _publish_runtime_observation(
     delivery_observation: Mapping[str, Any],
     runner_exit_code: int | None = None,
 ) -> dict[str, Any]:
+    _assert_active_authority()
     shell_pid_text = os.environ.get("STEP5D_V3_SHELL_PID")
     try:
         canonical_shell_pid = int(shell_pid_text or "")
@@ -691,8 +728,26 @@ def _refresh_arm_gate(
     delivery_observation: Mapping[str, Any],
     release: ReleaseIdentity,
 ) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+    _assert_active_authority()
     try:
         for _attempt in range(3):
+            # The caller's worker fence is rechecked before every ARM gate
+            # observation/publication boundary.
+            authority_root = Path(
+                os.environ.get(
+                    "STEP5D_V3_AUTHORITY_ROOT",
+                    str(ROOT / "runs/step5d_bridge_authority"),
+                )
+            )
+            attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", "")
+            if attempt_id:
+                from step5d_bridge_authority import require_active
+
+                require_active(
+                    authority_root,
+                    attempt_id=attempt_id,
+                    sequence=int(os.environ.get("STEP5D_V3_AUTHORITY_EPOCH", "0")),
+                )
             validated_delivery = validate_delivery_observation(
                 ROOT, delivery_observation, release=release
             )
@@ -770,6 +825,12 @@ def _refresh_arm_gate(
                         "ARM gate RTDE row wall timestamp is invalid"
                     ) from exc
             csv_age_s = max(0.0, time.time() - csv_follower.path.stat().st_mtime)
+            if attempt_id:
+                require_active(
+                    authority_root,
+                    attempt_id=attempt_id,
+                    sequence=int(os.environ.get("STEP5D_V3_AUTHORITY_EPOCH", "0")),
+                )
             observed = publish_arm_observation(
                 gate_path,
                 lease=lease,
@@ -845,6 +906,22 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
                 process.kill()
                 process.wait(timeout=5.0)
     return process.returncode
+
+
+def _run_bridge_command_and_wait_for_readiness(
+    command: list[str],
+    *,
+    bridge_ready_path: Path,
+    timeout_s: float,
+    role: str,
+    **popen_kwargs: Any,
+) -> tuple[subprocess.Popen[Any], int, int]:
+    """Start a subprocess and wait for the readiness artifact."""
+    launch_started_ns = time.perf_counter_ns()
+    process = subprocess.Popen(command, **popen_kwargs)
+    _wait_file(bridge_ready_path, process, timeout_s, role)
+    ready_observed_ns = time.perf_counter_ns()
+    return process, launch_started_ns, ready_observed_ns
 
 
 def _parent_death_guard(
@@ -986,6 +1063,25 @@ def _validate_preflight(
     return payload
 
 
+def _build_bridge_launch_command(
+    *,
+    control_python: str,
+    runtime_root: Path,
+    launch_profile: Any,
+    contract: Mapping[str, Any] | None = None,
+) -> list[str]:
+    return [
+        control_python,
+        str(WRAPPER),
+        *build_bridge_argv(
+            runtime_root,
+            contract=contract,
+            launch_profile=launch_profile,
+            trial_overlay=DEFAULT_OVERLAY,
+        )[2:],
+    ]
+
+
 def run(args: argparse.Namespace) -> Mapping[str, Any]:
     runtime_pointer = getattr(args, "_runtime_pointer", None)
     if not isinstance(runtime_pointer, Mapping):
@@ -1012,8 +1108,63 @@ def _run_live(
     runtime_pointer: Mapping[str, Any],
     optimizer_client: ExactOptimizerClient,
 ) -> Mapping[str, Any]:
+    from prepare_step5d_autotune_launch import (
+        write_machine_campaign_binding,
+    )
+    from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
+    from step5d_autotune_batch_plan import load_plan
+    from step5d_autotune_v3.batch_producer import (
+        BatchProducerError,
+        ProductionProposalProvider,
+        RollingBatchProducer,
+        production_candidate_catalog,
+    )
+    from step5d_autotune_v3.launch_basis import (
+        read_and_validate_launch_basis,
+        validate_delivery_observation_binding,
+        validate_strict_bridge_ready,
+    )
+
     control_python = runtime_pointer["profiles"]["control"]["python_executable"]
     optimizer_python = runtime_pointer["profiles"]["optimizer"]["python_executable"]
+    launch_basis = read_and_validate_launch_basis(
+        args.launch_basis,
+        owner_pid=args.canonical_owner_pid,
+        owner_starttime=args.canonical_owner_starttime,
+        expected_basis_sha256=args.launch_basis_sha256,
+    )
+    if launch_basis["authority_epoch"] != args.authority_epoch:
+        raise LiveLaunchError("launch basis authority epoch differs from the active authority")
+    authority_fence = _authority_fence_for_basis(launch_basis, args)
+    os.environ["STEP5D_V3_AUTHORITY_ROOT"] = str(authority_fence.root)
+    os.environ["STEP5D_V3_AUTHORITY_EPOCH"] = str(authority_fence.sequence)
+    try:
+        authority_fence.assert_active()
+    except Exception as exc:
+        raise LiveLaunchError(f"launch authority is not active: {exc}") from exc
+    global _ACTIVE_AUTHORITY_FENCE
+    _ACTIVE_AUTHORITY_FENCE = authority_fence
+    if not args.admission.is_file() or args.admission.is_symlink():
+        raise LiveLaunchError("validated admission artifact is missing or unsafe")
+    admission = read_strict_json(args.admission, role="bridge admission")
+    campaign_preparation = read_strict_json(
+        args.campaign_prepare, role="campaign preparation result"
+    )
+    try:
+        validate_delivery_observation_binding(
+            args.delivery_observation,
+            basis=launch_basis,
+            admission=admission,
+            experiment_root=ROOT,
+        )
+    except Exception as exc:
+        raise LiveLaunchError(f"delivery observation is not basis-bound: {exc}") from exc
+    if (
+        campaign_preparation.get("ok") is not True
+        or campaign_preparation.get("campaign_fingerprint")
+        != launch_basis["campaign_fingerprint"]
+    ):
+        raise LiveLaunchError("campaign preparation is not bound to the launch basis")
     release = load_runtime_release(ROOT)
     delivery_observation = load_delivery_observation(
         ROOT, args.delivery_observation, release=release
@@ -1032,7 +1183,6 @@ def _run_live(
         contract=contract,
         expected_tp_program_id=release.program_id,
     )
-    campaign_preparation = prepare_campaign_state(args.campaign_root, launch_profile)
     check = check_effective_config(
         runtime_root=runtime_root,
         contract_path=contract_path,
@@ -1040,16 +1190,12 @@ def _run_live(
         expected_tp_program_id=release.program_id,
         trial_overlay=DEFAULT_OVERLAY,
     )
-    command = [
-        control_python,
-        str(WRAPPER),
-        *build_bridge_argv(
-            runtime_root,
-            contract=contract,
-            launch_profile=launch_profile,
-            trial_overlay=DEFAULT_OVERLAY,
-        )[2:],
-    ]
+    command = _build_bridge_launch_command(
+        control_python=control_python,
+        runtime_root=runtime_root,
+        contract=contract,
+        launch_profile=launch_profile,
+    )
     robot_host = str(check["effective_config"]["robot_host"])
     preflight = _validate_preflight(
         args.preflight,
@@ -1058,35 +1204,10 @@ def _run_live(
     )
     campaign_binding = bridge_runtime / "campaign_binding.json"
     launch_plan_path = bridge_runtime / "campaign_launch_plan.json"
-    prepared = prepare(
-        LaunchPreparationRequest(
-            experiment_root=ROOT,
-            campaign_root=args.campaign_root,
-            binding_file=campaign_binding,
-            binding_source="canonical_v3_live_entrypoint",
-            launch_profile_path=launch_profile_path,
-            candidate_batch_size=5,
-            rolling_plan=True,
-        )
-    )
+    prepared = campaign_preparation
     paths = CampaignPaths(args.campaign_root)
     plan = load_plan(paths.candidate_plan, campaign_id=str(prepared["campaign_id"]))
     overlay_plan = read_strict_json(paths.trial_overlays, role="V3 trial-overlay plan")
-    machine_binding = write_machine_campaign_binding(
-        campaign_binding,
-        campaign_id=str(prepared["campaign_id"]),
-        campaign_epoch=int(prepared["campaign_epoch"]),
-        campaign_fingerprint=str(prepared["campaign_fingerprint"]),
-        candidate_plan_path=paths.candidate_plan,
-        trial_overlay_plan_path=paths.trial_overlays,
-        binding_source="canonical_v3_live_entrypoint",
-    )
-    prepared = {
-        **prepared,
-        "machine_binding_status": "finalized_exact_candidate_and_overlay_plans",
-        "machine_binding_sha256": _sha256_path(campaign_binding),
-    }
-    atomic_json(launch_plan_path, prepared)
     producer_binding = _sha256_json(
         {
             "schema": "step5d.autotune-v3/producer-binding-v1",
@@ -1104,6 +1225,7 @@ def _run_live(
         campaign_id=str(prepared["campaign_id"]),
         binding_fingerprint=producer_binding,
         launch_profile=launch_profile,
+        authority_guard=authority_fence.assert_active,
     )
     proposal_provider = ProductionProposalProvider(
         campaign_root=args.campaign_root,
@@ -1111,18 +1233,12 @@ def _run_live(
         catalog=production_candidate_catalog(),
         optimizer_client=optimizer_client,
     )
-    try:
-        producer_snapshot = producer.poll_once(proposal_provider=proposal_provider)
-    except BatchProducerError as exc:
-        raise LiveLaunchError(f"rolling batch producer failed closed: {exc}") from exc
+    producer_snapshot: Any = None
     producer_poller = _AsyncProducerPoller(producer, proposal_provider)
     inherited_launch_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID")
-    if inherited_launch_id is not None and (
-        len(inherited_launch_id) != 32
-        or any(character not in "0123456789abcdef" for character in inherited_launch_id)
-    ):
-        raise LiveLaunchError("canonical launch-attempt ID is invalid")
-    launch_id = inherited_launch_id or uuid.uuid4().hex
+    launch_id = str(launch_basis["launch_nonce"])
+    if inherited_launch_id is not None and inherited_launch_id != launch_id:
+        raise LiveLaunchError("canonical launch-attempt ID differs from launch basis")
     runtime_contract = release_runtime_contract(ROOT, release)
     lease = CampaignLease.issue(
         lease_id=uuid.uuid4().hex,
@@ -1137,7 +1253,7 @@ def _run_live(
         safety_envelope_sha256=runtime_contract["safety_envelope_sha256"],
     )
     lease_path = bridge_runtime / "campaign_lease.json"
-    lease_sha256 = write_campaign_lease(lease_path, lease)
+    lease_sha256 = lease.sha256
     arm_gate_path = bridge_runtime / "arm_gate.json"
     ticket = {
         "schema": TICKET_SCHEMA,
@@ -1163,22 +1279,41 @@ def _run_live(
             "candidate_plan_revision": plan.revision,
             "candidate_plan_sha256": _sha256_path(paths.candidate_plan),
             "trial_overlay_plan_sha256": _sha256_path(paths.trial_overlays),
-            "machine_binding_sha256": _sha256_path(campaign_binding),
+            "machine_binding_sha256": _sha256_json(
+                {
+                    "campaign_id": prepared["campaign_id"],
+                    "campaign_epoch": prepared["campaign_epoch"],
+                    "campaign_fingerprint": prepared["campaign_fingerprint"],
+                }
+            ),
         },
         "campaign_lease": {
             "path": str(lease_path),
             "sha256": lease_sha256,
+            "document": lease.document,
         },
         "arm_gate_path": str(arm_gate_path),
+        "launch_basis": {
+            "path": str(args.launch_basis),
+            "sha256": launch_basis["basis_sha256"],
+        },
+        "delivery_observation": {
+            "path": str(args.delivery_observation),
+            "sha256": launch_basis["delivery_observation_sha256"],
+        },
+        "authority": {
+            "root": str(authority_fence.root),
+            "attempt_id": authority_fence.attempt_id,
+            "sequence": authority_fence.sequence,
+        },
     }
-    ticket_path = runtime_root / "runtime_ticket.json"
-    atomic_json(ticket_path, ticket)
+    ticket_json = json.dumps(ticket, sort_keys=True, separators=(",", ":"))
     bridge_environment = production_runtime_environment(
         os.environ,
         profile="control",
         additions={
-            "STEP5D_V3_RUNTIME_TICKET": str(ticket_path),
-            "STEP5D_BRIDGE_LAUNCH_NONCE": uuid.uuid4().hex,
+            "STEP5D_V3_RUNTIME_TICKET_JSON": ticket_json,
+            "STEP5D_BRIDGE_LAUNCH_NONCE": launch_id,
         },
         runtime_pointer=runtime_pointer,
     )
@@ -1187,6 +1322,7 @@ def _run_live(
         profile="optimizer",
         additions={
             "STEP5D_V3_SUPERVISOR_PID": str(os.getpid()),
+            "STEP5D_V3_RUNTIME_TICKET_JSON": ticket_json,
         },
         runtime_pointer=runtime_pointer,
     )
@@ -1216,20 +1352,10 @@ def _run_live(
     preexisting_bundles = _immutable_trial_bundles(args.campaign_root)
     supervisor_pid = os.getpid()
     supervisor_starttime = process_starttime(supervisor_pid)
-    try:
-        writer_guard = writer_lease(
-            ResourceProfile.from_env(),
-            "step5d-autotune-v3-production-bridge",
-            blocking=False,
-        )
-        writer_guard.__enter__()
-    except (OSError, TimeoutError) as exc:
-        raise LiveLaunchError(
-            f"exclusive production writer lease is unavailable: {exc}"
-        ) from exc
+    writer_guard: Any | None = None
     try:
         with bridge_log_path.open("wb") as bridge_log:
-            bridge = subprocess.Popen(
+            bridge, _bridge_launch_started_ns, _bridge_ready_observed_ns = _run_bridge_command_and_wait_for_readiness(
                 command,
                 cwd=ROOT,
                 env=bridge_environment,
@@ -1241,14 +1367,69 @@ def _run_live(
                     expected_pid,
                     expected_start,
                 ),
+                bridge_ready_path=bridge_run / "bridge_ready.json",
+                timeout_s=args.ready_timeout_s,
+                role="bridge",
             )
-            _wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")
             bridge_ready = read_strict_json(
                 bridge_run / "bridge_ready.json", role="bridge readiness"
             )
+            try:
+                validate_strict_bridge_ready(
+                    bridge_ready,
+                    bridge_pid=bridge.pid,
+                    bridge_starttime_ticks=process_starttime(bridge.pid),
+                    launch_nonce=launch_id,
+                    expected_profile=release.control_profile_id,
+                    ticket=ticket,
+                    basis=launch_basis,
+                    release=release,
+                    admission=admission,
+                )
+                authority_fence.assert_active()
+            except Exception as exc:
+                raise LiveLaunchError(f"strict bridge readiness rejected: {exc}") from exc
+            print("V3_BRIDGE_READY_NO_ARM", flush=True)
+            try:
+                writer_guard = writer_lease(
+                    ResourceProfile.from_env(),
+                    "step5d-autotune-v3-production-bridge",
+                    blocking=False,
+                )
+                writer_guard.__enter__()
+            except (OSError, TimeoutError) as exc:
+                raise LiveLaunchError(
+                    f"exclusive production writer lease is unavailable: {exc}"
+                ) from exc
+            # No campaign/lease/producer artifacts are published until the
+            # bridge has emitted a strict, health-bound ready observation.
+            authority_fence.assert_active()
+            write_campaign_lease(lease_path, lease)
+            authority_fence.assert_active()
+            try:
+                producer_snapshot = producer.poll_once(proposal_provider=proposal_provider)
+            except BatchProducerError as exc:
+                raise LiveLaunchError(f"rolling batch producer failed closed: {exc}") from exc
+            authority_fence.assert_active()
+            write_machine_campaign_binding(
+                campaign_binding,
+                campaign_id=str(prepared["campaign_id"]),
+                campaign_epoch=int(prepared["campaign_epoch"]),
+                campaign_fingerprint=str(prepared["campaign_fingerprint"]),
+                candidate_plan_path=paths.candidate_plan,
+                trial_overlay_plan_path=paths.trial_overlays,
+                binding_source="canonical_v3_live_entrypoint",
+            )
+            authority_fence.assert_active()
+            prepared = {
+                **prepared,
+                "machine_binding_status": "finalized_exact_candidate_and_overlay_plans",
+                "machine_binding_sha256": _sha256_path(campaign_binding),
+            }
+            authority_fence.assert_active()
+            atomic_json(launch_plan_path, prepared)
             csv_path = bridge_run / "bridge_rtde_500hz.csv"
             csv_follower = _LatestCsvFollower(csv_path)
-            print("V3_BRIDGE_READY_NO_ARM", flush=True)
             runner_command = [
                 optimizer_python,
                 str(RUNNER),
@@ -1266,6 +1447,14 @@ def _run_live(
                 str(campaign_binding),
                 "--campaign-lease",
                 str(lease_path),
+                "--launch-basis",
+                str(args.launch_basis),
+                "--launch-basis-sha256",
+                str(args.launch_basis_sha256),
+                "--owner-pid",
+                str(args.canonical_owner_pid),
+                "--owner-starttime",
+                str(args.canonical_owner_starttime),
                 "--delivery-observation",
                 str(args.delivery_observation),
                 "--campaign-epoch",
@@ -1309,6 +1498,16 @@ def _run_live(
                     ),
                 )
                 _wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")
+                atomic_json(
+                    runtime_root / "campaign_ready.json",
+                    {
+                        "schema": "step5d.autotune-v3/campaign-ready-v1",
+                        "launch_basis_sha256": launch_basis["basis_sha256"],
+                        "bridge_ready": bridge_ready.get("ok") is True,
+                        "bridge_ready_sha256": _sha256_path(bridge_run / "bridge_ready.json"),
+                        "runner_ready": True,
+                    },
+                )
                 release_snapshot = load_current_release_snapshot(ROOT)
                 if not release_snapshot.valid:
                     raise LiveLaunchError(
@@ -1344,112 +1543,197 @@ def _run_live(
                     preexisting_bundles=preexisting_bundles,
                     delivery_observation=delivery_observation,
                 )
-                if governed_status["state"] not in {
-                    "WAITING_FOR_IDENTITY_PLAY",
-                    "WAITING_FOR_PLAY",
-                }:
+            if governed_status["state"] not in {
+                "WAITING_FOR_IDENTITY_PLAY",
+                "WAITING_FOR_PLAY",
+            }:
+                raise LiveLaunchError(
+                    "machine state did not reach a governed Play barrier: "
+                    + ",".join(governed_status["blocker"]["reason_codes"])
+                )
+            _publish_canonical_readiness_claim(
+                args.output_root,
+                governed_status["state"],
+            )
+            print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
+            print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
+            play_barrier_deadline = time.monotonic() + (args.play_timeout_s + 5.0)
+            while True:
+                if time.monotonic() > play_barrier_deadline:
                     raise LiveLaunchError(
-                        "machine state did not reach a governed Play barrier: "
-                        + ",".join(governed_status["blocker"]["reason_codes"])
+                        "TP did not reach PLAYING state before the first ARM gate timeout"
                     )
-                _publish_canonical_readiness_claim(
-                    args.output_root,
-                    governed_status["state"],
-                )
-                print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
-                print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
-                deadline = time.monotonic() + args.play_timeout_s
-                next_observation = (
-                    time.monotonic() + RUNTIME_OBSERVATION_INTERVAL_S
-                )
-                while time.monotonic() < deadline:
-                    if bridge.poll() is not None:
-                        raise LiveLaunchError("bridge exited while waiting for TP Play")
-                    if runner.poll() is not None:
-                        raise LiveLaunchError(
-                            "campaign runner exited while waiting for TP Play"
-                        )
-                    if _runtime_playing_normal(csv_follower.poll()):
-                        play_observed = True
-                        break
-                    if publisher is not None and time.monotonic() >= next_observation:
-                        governed_status = _publish_runtime_observation(
-                            publisher,
-                            release=release,
-                            bridge=bridge,
-                            runner=runner,
-                            bridge_csv=csv_follower,
-                            bridge_ready=bridge_ready,
-                            robot_host=robot_host,
-                            mailbox_reader=mailbox_reader,
-                            mailbox_tracker=mailbox_tracker,
-                            campaign_root=args.campaign_root,
-                            preexisting_bundles=preexisting_bundles,
-                            delivery_observation=delivery_observation,
-                        )
-                        if governed_status["state"] not in {
-                            "WAITING_FOR_IDENTITY_PLAY",
-                            "WAITING_FOR_PLAY",
-                        }:
-                            raise LiveLaunchError(
-                                "governed Play barrier invalidated: "
-                                + ",".join(
-                                    governed_status["blocker"]["reason_codes"]
-                                )
-                            )
-                        _publish_canonical_readiness_claim(
-                            args.output_root,
-                            governed_status["state"],
-                        )
-                        next_observation = (
-                            time.monotonic() + RUNTIME_OBSERVATION_INTERVAL_S
-                        )
-                    time.sleep(0.025)
-                else:
-                    raise LiveLaunchError("TP Play was not observed before timeout")
-                try:
-                    play_gate_observation, play_dashboard = _refresh_arm_gate(
-                        arm_gate_path,
-                        lease=lease,
-                        lease_sha256=lease_sha256,
-                        bridge=bridge,
-                        csv_follower=csv_follower,
-                        robot_host=robot_host,
-                        runtime_contract=runtime_contract,
-                        mailbox_reader=mailbox_reader,
-                        delivery_observation=delivery_observation,
-                        release=release,
+                play_row = csv_follower.poll()
+                if _runtime_playing_normal(play_row):
+                    break
+                if bridge.poll() is not None:
+                    raise LiveLaunchError(
+                        f"bridge exited before the first ARM gate rc={bridge.returncode}"
                     )
-                except LiveLaunchError:
-                    if publisher is not None:
-                        _publish_runtime_observation(
-                            publisher,
-                            release=release,
-                            bridge=bridge,
-                            runner=runner,
-                            bridge_csv=csv_follower,
-                            bridge_ready=bridge_ready,
-                            robot_host=robot_host,
-                            mailbox_reader=mailbox_reader,
-                            mailbox_tracker=mailbox_tracker,
-                            campaign_root=args.campaign_root,
-                            preexisting_bundles=preexisting_bundles,
-                            delivery_observation=delivery_observation,
-                        )
-                    raise
+                time.sleep(0.05)
+            try:
+                play_gate_observation, play_dashboard = _refresh_arm_gate(
+                    arm_gate_path,
+                    lease=lease,
+                    lease_sha256=lease_sha256,
+                    bridge=bridge,
+                    csv_follower=csv_follower,
+                    robot_host=robot_host,
+                    runtime_contract=runtime_contract,
+                    mailbox_reader=mailbox_reader,
+                    delivery_observation=delivery_observation,
+                    release=release,
+                )
+            except LiveLaunchError:
                 if publisher is not None:
-                    play_at = time.time_ns()
-                    play_recheck = _play_identity_recheck_observation(
-                        play_gate_observation,
-                        delivery_observation,
+                    _publish_runtime_observation(
+                        publisher,
+                        release=release,
+                        bridge=bridge,
+                        runner=runner,
+                        bridge_csv=csv_follower,
+                        bridge_ready=bridge_ready,
+                        robot_host=robot_host,
+                        mailbox_reader=mailbox_reader,
+                        mailbox_tracker=mailbox_tracker,
+                        campaign_root=args.campaign_root,
+                        preexisting_bundles=preexisting_bundles,
+                        delivery_observation=delivery_observation,
                     )
-                    publisher.update_lifecycle(
-                        "play_observed", observed_at_unix_ns=play_at
+                raise
+            play_observed = True
+            if publisher is not None:
+                play_at = time.time_ns()
+                play_recheck = _play_identity_recheck_observation(
+                    play_gate_observation,
+                    delivery_observation,
+                )
+                publisher.update_lifecycle(
+                    "play_observed", observed_at_unix_ns=play_at
+                )
+                publisher.update_lifecycle(
+                    "play_identity_recheck",
+                    observed_at_unix_ns=max(time.time_ns(), play_at + 1),
+                    **play_recheck,
+                )
+                governed_status = _publish_runtime_observation(
+                    publisher,
+                    release=release,
+                    bridge=bridge,
+                    runner=runner,
+                    bridge_csv=csv_follower,
+                    bridge_ready=bridge_ready,
+                    robot_host=robot_host,
+                    mailbox_reader=mailbox_reader,
+                    mailbox_tracker=mailbox_tracker,
+                    campaign_root=args.campaign_root,
+                    preexisting_bundles=preexisting_bundles,
+                    dashboard=play_dashboard,
+                    delivery_observation=delivery_observation,
+                )
+            print("V3_POST_PLAY_IDENTITY_REVERIFIED_ARM_GATE_OPEN", flush=True)
+            print("V3_CAMPAIGN_RUNNING_ONE_PLAY_CONTINUOUS", flush=True)
+            next_gate_refresh = time.monotonic()
+            next_observation = time.monotonic()
+            while bridge.poll() is None and runner.poll() is None:
+                now = time.monotonic()
+                dashboard_observation: Mapping[str, Any] | None = None
+                if now >= next_gate_refresh:
+                    try:
+                        _, dashboard_observation = _refresh_arm_gate(
+                            arm_gate_path,
+                            lease=lease,
+                            lease_sha256=lease_sha256,
+                            bridge=bridge,
+                            csv_follower=csv_follower,
+                            robot_host=robot_host,
+                            runtime_contract=runtime_contract,
+                            mailbox_reader=mailbox_reader,
+                            delivery_observation=delivery_observation,
+                            release=release,
+                        )
+                    except LiveLaunchError:
+                        if publisher is not None:
+                            _publish_runtime_observation(
+                                publisher,
+                                release=release,
+                                bridge=bridge,
+                                runner=runner,
+                                bridge_csv=csv_follower,
+                                bridge_ready=bridge_ready,
+                                robot_host=robot_host,
+                                mailbox_reader=mailbox_reader,
+                                mailbox_tracker=mailbox_tracker,
+                                campaign_root=args.campaign_root,
+                                preexisting_bundles=preexisting_bundles,
+                                delivery_observation=delivery_observation,
+                            )
+                        raise
+                    next_gate_refresh = now + ARM_GATE_REFRESH_INTERVAL_S
+                if publisher is not None and now >= next_observation:
+                    governed_status = _publish_runtime_observation(
+                        publisher,
+                        release=release,
+                        bridge=bridge,
+                        runner=runner,
+                        bridge_csv=csv_follower,
+                        bridge_ready=bridge_ready,
+                        robot_host=robot_host,
+                        mailbox_reader=mailbox_reader,
+                        mailbox_tracker=mailbox_tracker,
+                        campaign_root=args.campaign_root,
+                        preexisting_bundles=preexisting_bundles,
+                        dashboard=dashboard_observation,
+                        delivery_observation=delivery_observation,
                     )
+                    next_observation = now + RUNTIME_OBSERVATION_INTERVAL_S
+                completed_snapshot = producer_poller.poll(now=now)
+                if completed_snapshot is not None:
+                    producer_snapshot = completed_snapshot
+                time.sleep(0.025)
+            if bridge.poll() is not None and runner.poll() is None:
+                deadline = time.monotonic() + 3.0
+                while runner.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                if runner.poll() is None or runner.returncode != 0:
+                    raise LiveLaunchError(
+                        f"bridge exited before campaign completion rc={bridge.returncode}"
+                    )
+            if runner.poll() is not None and runner.returncode == 0:
+                bridge_alive_at_campaign_outcome = bridge.poll() is None
+                if publisher is not None:
+                    governed_status = _publish_runtime_observation(
+                        publisher,
+                        release=release,
+                        bridge=bridge,
+                        runner=runner,
+                        bridge_csv=csv_follower,
+                        bridge_ready=bridge_ready,
+                        robot_host=robot_host,
+                        mailbox_reader=mailbox_reader,
+                        mailbox_tracker=mailbox_tracker,
+                        campaign_root=args.campaign_root,
+                        preexisting_bundles=preexisting_bundles,
+                        delivery_observation=delivery_observation,
+                        runner_exit_code=0,
+                    )
+                    if not bool(
+                        governed_status.get("outcome", {}).get("live_proven")
+                    ):
+                        raise LiveLaunchError(
+                            "campaign ended before LIVE_PROVEN machine evidence"
+                        )
+                    terminal_revoked_at = time.time_ns()
+                    publisher.revoke_lease(
+                        observed_at_unix_ns=terminal_revoked_at,
+                        reason="campaign_terminal",
+                    )
+                    publisher_terminalization_started = True
                     publisher.update_lifecycle(
-                        "play_identity_recheck",
-                        observed_at_unix_ns=max(time.time_ns(), play_at + 1),
-                        **play_recheck,
+                        "campaign_terminal",
+                        observed_at_unix_ns=terminal_revoked_at + 1,
+                        reason="campaign_complete",
+                        runner_exit_code=0,
                     )
                     governed_status = _publish_runtime_observation(
                         publisher,
@@ -1463,139 +1747,20 @@ def _run_live(
                         mailbox_tracker=mailbox_tracker,
                         campaign_root=args.campaign_root,
                         preexisting_bundles=preexisting_bundles,
-                        dashboard=play_dashboard,
                         delivery_observation=delivery_observation,
+                        runner_exit_code=0,
                     )
-                print("V3_POST_PLAY_IDENTITY_REVERIFIED_ARM_GATE_OPEN", flush=True)
-                print("V3_CAMPAIGN_RUNNING_ONE_PLAY_CONTINUOUS", flush=True)
-                next_gate_refresh = time.monotonic()
-                next_observation = time.monotonic()
-                while bridge.poll() is None and runner.poll() is None:
-                    now = time.monotonic()
-                    dashboard_observation: Mapping[str, Any] | None = None
-                    if now >= next_gate_refresh:
-                        try:
-                            _, dashboard_observation = _refresh_arm_gate(
-                                arm_gate_path,
-                                lease=lease,
-                                lease_sha256=lease_sha256,
-                                bridge=bridge,
-                                csv_follower=csv_follower,
-                                robot_host=robot_host,
-                                runtime_contract=runtime_contract,
-                                mailbox_reader=mailbox_reader,
-                                delivery_observation=delivery_observation,
-                                release=release,
-                            )
-                        except LiveLaunchError:
-                            if publisher is not None:
-                                _publish_runtime_observation(
-                                    publisher,
-                                    release=release,
-                                    bridge=bridge,
-                                    runner=runner,
-                                    bridge_csv=csv_follower,
-                                    bridge_ready=bridge_ready,
-                                    robot_host=robot_host,
-                                    mailbox_reader=mailbox_reader,
-                                    mailbox_tracker=mailbox_tracker,
-                                    campaign_root=args.campaign_root,
-                                    preexisting_bundles=preexisting_bundles,
-                                    delivery_observation=delivery_observation,
-                                )
-                            raise
-                        next_gate_refresh = now + ARM_GATE_REFRESH_INTERVAL_S
-                    if publisher is not None and now >= next_observation:
-                        governed_status = _publish_runtime_observation(
-                            publisher,
-                            release=release,
-                            bridge=bridge,
-                            runner=runner,
-                            bridge_csv=csv_follower,
-                            bridge_ready=bridge_ready,
-                            robot_host=robot_host,
-                            mailbox_reader=mailbox_reader,
-                            mailbox_tracker=mailbox_tracker,
-                            campaign_root=args.campaign_root,
-                            preexisting_bundles=preexisting_bundles,
-                            dashboard=dashboard_observation,
-                            delivery_observation=delivery_observation,
-                        )
-                        next_observation = now + RUNTIME_OBSERVATION_INTERVAL_S
-                    completed_snapshot = producer_poller.poll(now=now)
-                    if completed_snapshot is not None:
-                        producer_snapshot = completed_snapshot
-                    time.sleep(0.025)
-                if bridge.poll() is not None and runner.poll() is None:
-                    deadline = time.monotonic() + 3.0
-                    while runner.poll() is None and time.monotonic() < deadline:
-                        time.sleep(0.05)
-                    if runner.poll() is None or runner.returncode != 0:
+                    if (
+                        governed_status.get("terminal", {}).get("completed")
+                        is not True
+                        or governed_status.get("next_action")
+                        != "campaign_complete"
+                    ):
                         raise LiveLaunchError(
-                            f"bridge exited before campaign completion rc={bridge.returncode}"
+                            "campaign terminal attestation did not close"
                         )
-                if runner.poll() is not None and runner.returncode == 0:
-                    bridge_alive_at_campaign_outcome = bridge.poll() is None
-                    if publisher is not None:
-                        governed_status = _publish_runtime_observation(
-                            publisher,
-                            release=release,
-                            bridge=bridge,
-                            runner=runner,
-                            bridge_csv=csv_follower,
-                            bridge_ready=bridge_ready,
-                            robot_host=robot_host,
-                            mailbox_reader=mailbox_reader,
-                            mailbox_tracker=mailbox_tracker,
-                            campaign_root=args.campaign_root,
-                            preexisting_bundles=preexisting_bundles,
-                            delivery_observation=delivery_observation,
-                            runner_exit_code=0,
-                        )
-                        if not bool(
-                            governed_status.get("outcome", {}).get("live_proven")
-                        ):
-                            raise LiveLaunchError(
-                                "campaign ended before LIVE_PROVEN machine evidence"
-                            )
-                        terminal_revoked_at = time.time_ns()
-                        publisher.revoke_lease(
-                            observed_at_unix_ns=terminal_revoked_at,
-                            reason="campaign_terminal",
-                        )
-                        publisher_terminalization_started = True
-                        publisher.update_lifecycle(
-                            "campaign_terminal",
-                            observed_at_unix_ns=terminal_revoked_at + 1,
-                            reason="campaign_complete",
-                            runner_exit_code=0,
-                        )
-                        governed_status = _publish_runtime_observation(
-                            publisher,
-                            release=release,
-                            bridge=bridge,
-                            runner=runner,
-                            bridge_csv=csv_follower,
-                            bridge_ready=bridge_ready,
-                            robot_host=robot_host,
-                            mailbox_reader=mailbox_reader,
-                            mailbox_tracker=mailbox_tracker,
-                            campaign_root=args.campaign_root,
-                            preexisting_bundles=preexisting_bundles,
-                            delivery_observation=delivery_observation,
-                            runner_exit_code=0,
-                        )
-                        if (
-                            governed_status.get("terminal", {}).get("completed")
-                            is not True
-                            or governed_status.get("next_action")
-                            != "campaign_complete"
-                        ):
-                            raise LiveLaunchError(
-                                "campaign terminal attestation did not close"
-                            )
-                    campaign_completed = True
-                    print("V3_CAMPAIGN_RUNNER_STOPPED_BRIDGE_STILL_ALIVE", flush=True)
+                campaign_completed = True
+                print("V3_CAMPAIGN_RUNNER_STOPPED_BRIDGE_STILL_ALIVE", flush=True)
     finally:
         try:
             try:
@@ -1672,7 +1837,8 @@ def _run_live(
                     file=sys.stderr,
                 )
         finally:
-            writer_guard.__exit__(None, None, None)
+            if writer_guard is not None:
+                writer_guard.__exit__(None, None, None)
     result = {
         "schema": RESULT_SCHEMA,
         "ok": (
@@ -1686,7 +1852,7 @@ def _run_live(
         "launch_id": launch_id,
         "campaign_id": prepared["campaign_id"],
         "campaign_epoch": prepared["campaign_epoch"],
-        "campaign_prepare_fingerprint": campaign_preparation["fingerprint"],
+        "campaign_prepare_fingerprint": prepared["campaign_fingerprint"],
         "legacy_preflight": legacy_preflight,
         "candidate_plan_revision": plan.revision,
         "producer_plan_revision": producer_snapshot.plan_revision,
@@ -1726,7 +1892,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--play-timeout-s", type=float, default=120.0)
     parser.add_argument("--canonical-owner-pid", type=int, required=True)
     parser.add_argument("--canonical-owner-starttime", type=int, required=True)
-    parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--authority-epoch", type=int, required=True)
+    parser.add_argument("--admission", type=Path, required=True)
+    parser.add_argument("--launch-basis", type=Path, required=True)
+    parser.add_argument("--launch-basis-sha256", required=True)
+    parser.add_argument("--campaign-prepare", type=Path, required=True)
     return parser.parse_args(argv)
 
 
@@ -1749,24 +1919,6 @@ def main(argv: list[str] | None = None) -> int:
             args.canonical_owner_starttime,
         )
         args._runtime_pointer = require_runtime_profile("control")
-        if args.prepare_only:
-            release = load_current_release(ROOT)
-            contract_path = release_payload_path(
-                ROOT, release, SAFETY_ENVELOPE_PATH
-            )
-            launch_profile_path = release_payload_path(
-                ROOT, release, LAUNCH_PROFILE_PATH
-            )
-            result = prepare_campaign_state(
-                args.campaign_root,
-                load_launch_profile(
-                    launch_profile_path,
-                    contract=load_contract(contract_path),
-                    expected_tp_program_id=release.program_id,
-                ),
-            )
-            print(json.dumps(result, indent=2, sort_keys=True))
-            return 0
         if (
             args.output_root is None
             or args.preflight is None

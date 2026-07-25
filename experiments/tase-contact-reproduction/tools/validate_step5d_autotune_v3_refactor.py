@@ -82,6 +82,11 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_v3_oci_contract.py",
     "tests/test_step5d_v3_runtime_installation.py",
     "tests/test_step5d_v3_source_closure.py",
+    "tests/test_step5d_autotune_v3_coordinator.py",
+    "tests/test_step5d_v3_shell_source_fingerprint.py",
+    "tests/test_step5d_v3_launch_basis.py",
+    "tests/test_step5d_v3_import_boundaries.py",
+    "tests/test_step5d_autotune_v3_handoff_timing.py",
     "tests/test_step5d_layer_boundaries.py",
 }
 AUTHORITATIVE_OBSOLETE_TESTS = {

@@ -99,16 +99,15 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         },
     )
     _write(root / "config/step5/step5d_autotune_v3_control_contract.json", {})
-    readback = _write(
-        root / "config/readback.json",
-        {
-            "schema": "step5d.autotune.controller-readback/v3",
-            "verified": True,
-            "program": R009,
-            "control_profile_id": V1,
-            "triplet_sha256": triplet,
-        },
-    )
+    readback_payload = {
+        "schema": "step5d.autotune.controller-readback/v3",
+        "verified": True,
+        "program": R009,
+        "control_profile_id": V1,
+        "triplet_sha256": triplet,
+    }
+    readback = _write(root / "config/readback.json", readback_payload)
+    _write(root / "config/step5d_autotune_controller_readback_v3.json", readback_payload)
     release = SimpleNamespace(
         program_id=R009,
         protocol_id="v3_full_home_rolling_arm_v1",
@@ -116,13 +115,14 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         manifest_sha256="f" * 64,
         controller_readback={"path": "config/readback.json"},
     )
+    contract = {"deployment_tp_identity": {"program": R009}}
     monkeypatch.setattr(readiness, "load_current_release", lambda *_args: release)
     monkeypatch.setattr(
         readiness,
         "verify_release_manifest",
         lambda *_args, **_kwargs: {"ok": True},
     )
-    monkeypatch.setattr(readiness, "load_contract", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(readiness, "load_contract", lambda *_args, **_kwargs: contract)
     monkeypatch.setattr(
         readiness,
         "active_identity_snapshot",
@@ -148,6 +148,7 @@ def _fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     bridge = BridgeStartContext(
         **bridge_identity,
         local_triplet_sha256=triplet,
+        tp_program_id=contract["deployment_tp_identity"]["program"],
         plant_epoch=7,
         deployment_readback_sha256=_sha256(readback),
         runtime_environment_manifest=runtime_manifest,

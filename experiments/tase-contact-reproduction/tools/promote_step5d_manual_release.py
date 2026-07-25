@@ -15,7 +15,10 @@ from typing import Any, Mapping
 import build_step5d_manual_tp_v1 as builder
 from step5d_manual_atomic_release import ManualAtomicReleasePublisher, canonical_bytes
 from step5d_autotune_v3.release_identity import load_current_release
-from step5d_autotune_v3.source_closure import production_source_closure_report
+from step5d_autotune_v3.source_closure import (
+    production_source_closure,
+    production_source_closure_report,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -69,6 +72,9 @@ def _pretty(payload: Mapping[str, Any]) -> bytes:
 
 def _source_fingerprints(root: Path) -> dict[str, str]:
     repository = root.parents[1]
+    closure_experiment, closure_repository = production_source_closure(root)
+    if not closure_experiment or not closure_repository:
+        raise ManualPromotionError("Manual production source closure is empty")
     report = production_source_closure_report(root)
     rows = report["classifications"]["repository"]
     fingerprints: dict[str, str] = {}

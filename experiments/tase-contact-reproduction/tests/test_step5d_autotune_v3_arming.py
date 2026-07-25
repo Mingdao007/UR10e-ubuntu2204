@@ -27,7 +27,10 @@ from step5d_autotune_v3.identity_layers import (  # noqa: E402
     release_fingerprint,
     runtime_environment_fingerprint,
 )
-from step5d_autotune_v3.profile import active_identity_snapshot  # noqa: E402
+from step5d_autotune_v3.profile import (  # noqa: E402
+    active_identity_snapshot,
+    load_contract,
+)
 from ur10e_experiment_runtime.authorization import (  # noqa: E402
     CERTIFICATION_PROCEDURES,
     CampaignAuthorization,
@@ -58,6 +61,8 @@ def _file_sha256(path: Path) -> str:
 
 def _bridge_context(*, plant_epoch: int = 11) -> tuple[BridgeStartContext, dict[str, object]]:
     identity = active_identity_snapshot()
+    contract = load_contract()
+    tp_program_id = contract["deployment_tp_identity"]["program"]
     runtime_manifest = {
         "schema": "step5d.autotune-v3/runtime-environment-identity-v1",
         "environment": {"fixture": "arming"},
@@ -86,6 +91,7 @@ def _bridge_context(*, plant_epoch: int = 11) -> tuple[BridgeStartContext, dict[
             plant_epoch=plant_epoch,
             deployment_readback_sha256=_file_sha256(readback_path),
             runtime_environment_manifest=runtime_manifest,
+            tp_program_id=tp_program_id,
         ),
         identity,
     )

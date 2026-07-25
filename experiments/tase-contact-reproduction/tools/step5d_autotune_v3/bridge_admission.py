@@ -8,6 +8,7 @@ from pathlib import Path
 import time
 from typing import Any, Callable, Mapping
 
+from .atomic_io import AtomicIOError, atomic_bytes
 from .dashboard import dashboard_exchange
 from .delivery_observation import (
     load_delivery_observation,
@@ -40,6 +41,7 @@ SCHEMA = "step5d.autotune-v3/bridge-admission-v1"
 INDEX_ROOT = Path("runs/step5d_autotune_v3/bridge-admissions")
 ADMISSION_MAX_AGE_NS = 5_000_000_000
 ADMISSION_FUTURE_SKEW_NS = 5_000_000
+ADMISSION_MAX_JSON_BYTES = 32 * 1024
 
 
 class BridgeAdmissionError(RuntimeError):
@@ -75,7 +77,7 @@ def release_contract_reference(
 
 def _canonical_bytes(value: Mapping[str, Any]) -> bytes:
     try:
-        return (
+        encoded = (
             json.dumps(
                 dict(value),
                 allow_nan=False,
@@ -89,6 +91,11 @@ def _canonical_bytes(value: Mapping[str, Any]) -> bytes:
         raise BridgeAdmissionError(
             f"bridge admission is not canonical JSON: {exc}"
         ) from exc
+    if len(encoded) > ADMISSION_MAX_JSON_BYTES:
+        raise BridgeAdmissionError(
+            f"bridge admission JSON exceeds {ADMISSION_MAX_JSON_BYTES} bytes"
+        )
+    return encoded
 
 
 def validate_bridge_admission(
@@ -116,6 +123,7 @@ def validate_bridge_admission(
         "dashboard",
         "authority_acquired",
         "attempt_created",
+        "campaign_fingerprint",
     }
     row = dict(value)
     observed_at = row.get("observed_at_unix_ns")
@@ -145,6 +153,16 @@ def validate_bridge_admission(
         or set(delivery_ref) != {"path", "sha256", "transaction_id"}
     ):
         raise BridgeAdmissionError("bridge admission release binding differs")
+    campaign_fingerprint = row.get("campaign_fingerprint")
+    if row.get("ok") is True:
+        if (
+            not isinstance(campaign_fingerprint, str)
+            or len(campaign_fingerprint) != 64
+            or any(character not in "0123456789abcdef" for character in campaign_fingerprint)
+        ):
+            raise BridgeAdmissionError("bridge admission campaign fingerprint differs")
+    elif campaign_fingerprint is not None:
+        raise BridgeAdmissionError("action-required admission must not carry a campaign fingerprint")
     if row.get("release_contract") != release_contract_reference(
         root,
         release,
@@ -231,6 +249,44 @@ def admission_index_path(root: Path, value: Mapping[str, Any]) -> Path:
         raise BridgeAdmissionError("bridge admission release digest differs")
     digest = hashlib.sha256(_canonical_bytes(value)).hexdigest()
     return root.resolve(strict=True) / INDEX_ROOT / release_sha256 / f"{digest}.json"
+
+
+def write_indexed_bridge_admission(
+    root: Path,
+    value: Mapping[str, Any],
+) -> Path:
+    encoded = _canonical_bytes(value)
+    indexed_output = admission_index_path(root, value)
+    if indexed_output.exists() or indexed_output.is_symlink():
+        if (
+            indexed_output.is_symlink()
+            or not indexed_output.is_file()
+            or indexed_output.read_bytes() != encoded
+        ):
+            raise BridgeAdmissionError(
+                "content-addressed bridge admission differs"
+            )
+        return indexed_output
+    try:
+        atomic_bytes(indexed_output, encoded)
+    except (AtomicIOError, OSError) as exc:
+        raise BridgeAdmissionError(
+            f"cannot write indexed bridge admission: {exc}"
+        ) from exc
+    try:
+        if (
+            indexed_output.is_symlink()
+            or not indexed_output.is_file()
+            or indexed_output.read_bytes() != encoded
+        ):
+            raise BridgeAdmissionError(
+                "indexed bridge admission write is not idempotent"
+            )
+    except OSError as exc:
+        raise BridgeAdmissionError(
+            f"cannot verify indexed bridge admission: {exc}"
+        ) from exc
+    return indexed_output
 
 
 def resolve_bridge_admission(
@@ -370,6 +426,16 @@ def observe_bridge_admission(
         dashboard,
         expected_program=str(runtime_contract["expected_loaded_program"]),
     )
+    campaign_fingerprint = None
+    if computed["ok"] is True:
+        from step5d_autotune_backend import Step5dV35Backend
+
+        try:
+            campaign_fingerprint = Step5dV35Backend(experiment).freeze_fingerprint().composite_fingerprint
+        except Exception as exc:
+            raise BridgeAdmissionError(
+                f"verified campaign fingerprint unavailable: {type(exc).__name__}:{exc}"
+            ) from exc
     return validate_bridge_admission(
         experiment,
         {
@@ -396,6 +462,7 @@ def observe_bridge_admission(
         },
         "authority_acquired": False,
         "attempt_created": False,
+        "campaign_fingerprint": campaign_fingerprint,
         },
         release=release,
     )
@@ -411,4 +478,5 @@ __all__ = [
     "release_robot_host",
     "resolve_bridge_admission",
     "validate_bridge_admission",
+    "write_indexed_bridge_admission",
 ]

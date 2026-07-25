@@ -30,6 +30,13 @@ class BridgeAuthorityError(RuntimeError):
     pass
 
 
+def _authority_root(path: Path) -> Path:
+    root = path.expanduser().absolute()
+    if root.is_symlink() or root.parent.is_symlink():
+        raise BridgeAuthorityError("bridge authority root is unsafe")
+    return root
+
+
 def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     if path.is_symlink() or path.parent.is_symlink():
@@ -103,7 +110,92 @@ def _load(path: Path) -> dict[str, Any] | None:
 
 
 def load_current(authority_root: Path) -> dict[str, Any] | None:
-    return _load(authority_root.expanduser().absolute() / STATE_FILE)
+    return _load(_authority_root(authority_root) / STATE_FILE)
+
+
+def require_active(
+    authority_root: Path,
+    *,
+    attempt_id: str,
+    sequence: int,
+    owner_pid: int | None = None,
+    owner_starttime_ticks: int | None = None,
+) -> dict[str, Any]:
+    """Re-read and fence the complete live owner tuple at a boundary."""
+
+    current = load_current(authority_root)
+    if (
+        not isinstance(current, dict)
+        or current.get("state") != "ACTIVE"
+        or current.get("attempt_id") != attempt_id
+        or current.get("sequence") != sequence
+    ):
+        raise BridgeAuthorityError(
+            "bridge authority is not the expected ACTIVE root/attempt/sequence"
+        )
+    if owner_pid is not None or owner_starttime_ticks is not None:
+        if current.get("owner") != {
+            "pid": owner_pid,
+            "starttime_ticks": owner_starttime_ticks,
+        }:
+            raise BridgeAuthorityError("bridge authority owner binding differs")
+    return current
+
+
+def require_revoked(
+    authority_root: Path,
+    *,
+    attempt_id: str,
+    minimum_sequence: int,
+) -> dict[str, Any]:
+    """Verify cleanup observed the same attempt fenced to REVOKED."""
+
+    current = load_current(authority_root)
+    if (
+        not isinstance(current, dict)
+        or current.get("state") != "REVOKED"
+        or current.get("attempt_id") != attempt_id
+        or current.get("sequence", 0) < minimum_sequence
+    ):
+        raise BridgeAuthorityError(
+            "bridge authority cleanup did not observe the expected REVOKED tuple"
+        )
+    return current
+
+
+class AuthorityFence:
+    """Small callable fence used immediately before worker boundaries."""
+
+    def __init__(
+        self,
+        authority_root: Path,
+        *,
+        attempt_id: str,
+        sequence: int,
+        owner_pid: int | None = None,
+        owner_starttime_ticks: int | None = None,
+    ) -> None:
+        self.root = _authority_root(authority_root)
+        self.attempt_id = attempt_id
+        self.sequence = sequence
+        self.owner_pid = owner_pid
+        self.owner_starttime_ticks = owner_starttime_ticks
+
+    def assert_active(self) -> dict[str, Any]:
+        return require_active(
+            self.root,
+            attempt_id=self.attempt_id,
+            sequence=self.sequence,
+            owner_pid=self.owner_pid,
+            owner_starttime_ticks=self.owner_starttime_ticks,
+        )
+
+    def assert_revoked(self) -> dict[str, Any]:
+        return require_revoked(
+            self.root,
+            attempt_id=self.attempt_id,
+            minimum_sequence=self.sequence + 1,
+        )
 
 
 def _caller_owner(pid: int, starttime_ticks: int) -> None:

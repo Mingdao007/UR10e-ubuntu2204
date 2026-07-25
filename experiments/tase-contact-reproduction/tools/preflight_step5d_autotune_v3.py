@@ -38,6 +38,7 @@ from step5d_autotune_v3.runtime_profile import load_launch_profile
 from step5d_autotune_v3.runtime_calibration import dependency_observation
 from step5d_autotune_v3.runtime_installation import require_runtime_profile
 from step5d_autotune_v3.state import atomic_json
+from step5d_autotune_v3.launch_basis import read_and_validate_launch_basis
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -422,6 +423,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--launch-basis", type=Path, required=True)
+    parser.add_argument("--launch-basis-sha256", required=True)
+    parser.add_argument("--owner-pid", type=int, required=True)
+    parser.add_argument("--owner-starttime", type=int, required=True)
     parser.add_argument("--json", action="store_true")
     return parser.parse_args(argv)
 
@@ -429,8 +434,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
+        basis = read_and_validate_launch_basis(
+            args.launch_basis,
+            owner_pid=args.owner_pid,
+            owner_starttime=args.owner_starttime,
+            expected_basis_sha256=args.launch_basis_sha256,
+        )
         require_runtime_profile("control")
         payload = run_preflight(args)
+        payload["launch_basis_sha256"] = basis["basis_sha256"]
+        atomic_json(args.output, payload)
     except Exception as exc:
         payload = {"schema": SCHEMA, "ok": False, "fresh": False, "blocker": str(exc)}
     print(json.dumps(payload, indent=2, sort_keys=True))

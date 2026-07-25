@@ -21,7 +21,10 @@ from .runtime_identity import (
     RuntimeIdentityError,
     identity_from_manifest as tp_identity_from_manifest,
 )
-from .source_closure import production_source_closure
+from .source_fingerprint_contract import (
+    REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
+    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
+)
 
 
 CURRENT_POINTER_SCHEMA = "step5d.autotune-v3/current-release-pointer-v1"
@@ -30,10 +33,6 @@ ROLLING_PROTOCOL = "v3_full_home_rolling_arm_v1"
 ROLLING_NORMAL_MAX_RATE_RAD_S = 0.1
 ROLLING_EXECUTION_PROFILE_ID = "nf100-slew050-a050"
 ROLLING_EXECUTION_PROFILE_INTEGER_ID = 633
-(
-    REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS,
-    REQUIRED_REPOSITORY_SOURCE_FINGERPRINTS,
-) = production_source_closure(Path(__file__).resolve().parents[2])
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 SAFETY_ENVELOPE_PATH = "config/step5/step5d_autotune_v3_control_contract.json"

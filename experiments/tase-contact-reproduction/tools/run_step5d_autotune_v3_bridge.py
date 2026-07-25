@@ -36,20 +36,37 @@ from step5d_autotune_v3.release_identity import (
 )
 from step5d_autotune_v3.runtime_gate import (
     ArmGateProvider,
+    CampaignLease,
     RuntimeGateError,
     load_campaign_lease,
     loaded_program_matches,
     release_runtime_contract,
 )
+from step5d_bridge_authority import require_active
 from step5d_autotune_v3.runtime_installation import require_runtime_profile
 
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
+TICKET_JSON_ENV = "STEP5D_V3_RUNTIME_TICKET_JSON"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v6"
 TICKET_SCOPE = "campaign_lease_no_arm_until_observed"
 
 
 class BridgeTicketError(RuntimeError):
     pass
+
+
+def _fence_ticket_authority(ticket: Mapping[str, Any]) -> None:
+    authority = ticket.get("authority")
+    if not isinstance(authority, Mapping):
+        return
+    try:
+        require_active(
+            Path(str(authority["root"])),
+            attempt_id=str(authority["attempt_id"]),
+            sequence=int(authority["sequence"]),
+        )
+    except Exception as exc:
+        raise BridgeTicketError(f"bridge authority fence rejected worker boundary: {exc}") from exc
 
 
 _V3_COMPACT_EXACT_FIELDS = frozenset(
@@ -371,7 +388,7 @@ def _apply_v3_arm_runtime(
 
 
 def _strict_ticket(
-    path: Path,
+    path: Path | Mapping[str, Any],
     argv: Sequence[str],
     *,
     release_identity: ReleaseIdentity | None = None,
@@ -381,12 +398,15 @@ def _strict_ticket(
         release = release_identity or load_runtime_release(root)
     except ReleaseIdentityError as exc:
         raise BridgeTicketError(f"active release manifest is invalid: {exc}") from exc
-    if not path.is_absolute() or path.is_symlink() or not path.is_file():
-        raise BridgeTicketError("V3 runtime ticket must be an absolute regular file")
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise BridgeTicketError(f"V3 runtime ticket is unreadable: {exc}") from exc
+    if isinstance(path, Mapping):
+        payload = dict(path)
+    else:
+        if not path.is_absolute() or path.is_symlink() or not path.is_file():
+            raise BridgeTicketError("V3 runtime ticket must be an absolute regular file")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise BridgeTicketError(f"V3 runtime ticket is unreadable: {exc}") from exc
     required = {
         "schema",
         "parent_pid",
@@ -405,7 +425,8 @@ def _strict_ticket(
         "campaign_lease",
         "arm_gate_path",
     }
-    if not isinstance(payload, dict) or set(payload) != required:
+    optional = {"launch_basis", "delivery_observation", "authority"}
+    if not isinstance(payload, dict) or not set(payload).issubset(required | optional) or not required.issubset(payload):
         raise BridgeTicketError("V3 runtime ticket fields differ")
     if payload["schema"] != TICKET_SCHEMA or payload["parent_pid"] != os.getppid():
         raise BridgeTicketError("V3 runtime ticket process binding differs")
@@ -511,19 +532,55 @@ def _strict_ticket(
         raise BridgeTicketError(f"release runtime contract differs: {exc}") from exc
     if payload["safety_envelope_sha256"] != contract["safety_envelope_sha256"]:
         raise BridgeTicketError("runtime ticket safety envelope differs")
+    for name in ("launch_basis", "delivery_observation"):
+        reference = payload.get(name)
+        if reference is not None and (
+            not isinstance(reference, Mapping)
+            or set(reference) != {"path", "sha256"}
+            or not isinstance(reference["path"], str)
+            or not isinstance(reference["sha256"], str)
+            or len(reference["sha256"]) != 64
+        ):
+            raise BridgeTicketError(f"runtime ticket {name} reference differs")
+        if reference is not None:
+            reference_path = Path(reference["path"])
+            if (
+                not reference_path.is_absolute()
+                or reference_path.is_symlink()
+                or not reference_path.is_file()
+                or hashlib.sha256(reference_path.read_bytes()).hexdigest()
+                != reference["sha256"]
+            ):
+                raise BridgeTicketError(f"runtime ticket {name} content differs")
+    authority = payload.get("authority")
+    if authority is not None and (
+        not isinstance(authority, Mapping)
+        or set(authority) != {"root", "attempt_id", "sequence"}
+        or not isinstance(authority["root"], str)
+        or not isinstance(authority["attempt_id"], str)
+        or isinstance(authority["sequence"], bool)
+        or not isinstance(authority["sequence"], int)
+    ):
+        raise BridgeTicketError("runtime ticket authority reference differs")
     lease_reference = payload["campaign_lease"]
     if (
         not isinstance(lease_reference, Mapping)
-        or set(lease_reference) != {"path", "sha256"}
+        or not set(lease_reference).issubset({"path", "sha256", "document"})
+        or not {"path", "sha256"}.issubset(lease_reference)
         or not isinstance(lease_reference["path"], str)
     ):
         raise BridgeTicketError("runtime ticket campaign lease reference differs")
     lease_path = Path(lease_reference["path"])
     try:
-        lease = load_campaign_lease(
-            lease_path,
-            expected_sha256=lease_reference["sha256"],
-        )
+        if "document" in lease_reference and not lease_path.exists():
+            lease = CampaignLease.from_document(lease_reference["document"])
+            if lease.sha256 != lease_reference["sha256"]:
+                raise RuntimeGateError("inline campaign lease digest differs")
+        else:
+            lease = load_campaign_lease(
+                lease_path,
+                expected_sha256=lease_reference["sha256"],
+            )
     except RuntimeGateError as exc:
         raise BridgeTicketError(f"runtime ticket campaign lease differs: {exc}") from exc
     if (
@@ -777,6 +834,7 @@ def install_v3_seams(
         binding: Any,
         arming_context: Any | None = None,
     ) -> None:
+        _fence_ticket_authority(ticket or {})
         if immutable_launch_profile is None:
             raise BridgeTicketError("V3 runtime launch profile is unavailable")
         _apply_v3_arm_runtime(
@@ -876,8 +934,9 @@ def check_v3_runtime_prewarm(bridge_argv: Sequence[str]) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     bridge_argv = list(sys.argv[1:] if argv is None else argv)
     ticket_text = os.environ.get(TICKET_ENV, "")
-    if not ticket_text:
-        print("refusing: STEP5D_V3_RUNTIME_TICKET is required", file=sys.stderr)
+    ticket_json = os.environ.get(TICKET_JSON_ENV, "")
+    if not ticket_text and not ticket_json:
+        print("refusing: STEP5D_V3_RUNTIME_TICKET(_JSON) is required", file=sys.stderr)
         return 24
     try:
         # The canonical supervisor completed the full runtime gate immediately
@@ -886,11 +945,19 @@ def main(argv: list[str] | None = None) -> int:
         # the multi-gigabyte profile-tree hash inside the readiness window.
         require_runtime_profile("control", full_integrity=False)
         release = load_runtime_release(ROOT)
-        ticket = _strict_ticket(
-            Path(ticket_text),
-            bridge_argv,
-            release_identity=release,
-        )
+        if ticket_json:
+            try:
+                inline_ticket = json.loads(ticket_json)
+            except (UnicodeError, json.JSONDecodeError) as exc:
+                raise BridgeTicketError(f"inline V3 runtime ticket is unreadable: {exc}") from exc
+            ticket = _strict_ticket(inline_ticket, bridge_argv, release_identity=release)
+        else:
+            ticket = _strict_ticket(
+                Path(ticket_text),
+                bridge_argv,
+                release_identity=release,
+            )
+        _fence_ticket_authority(ticket)
         bridge = install_v3_seams(
             ticket,
             release_identity=release,
