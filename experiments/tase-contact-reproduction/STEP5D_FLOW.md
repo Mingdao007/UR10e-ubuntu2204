@@ -3,7 +3,7 @@
 ## Current stage
 
 - Stage: `step5d_strict_rnn_autotune_v3`.
-- Controller target: `step5d_strict_rnn_autotune_v3_r012.urp`.
+- Controller target: `step5d_strict_rnn_autotune_v3_r013.urp`.
 - Canonical launcher: `scripts/step5d-autotune-v3.sh bridge-live`.
 - Current immutable release: `config/step5d/current.json`.
 
@@ -20,7 +20,7 @@
 
 ## Guards and timing
 
-- TP r012 bytes, safety envelope, register contract, force limits, and motion
+- TP r013 bytes, safety envelope, register contract, force limits, and motion
   limits are unchanged.
 - The 1.0 s identity value is a maximum deadline, not a fixed wait.
 - State verification is event-driven; no formal 60 s qualification is used.
