@@ -966,6 +966,7 @@ def promote(
         **result,
         "program": release.program_id,
         "protocol": release.protocol_id,
+        "compatibility_targets": dict(sorted(targets.items())),
         "verification": verification,
     }
 

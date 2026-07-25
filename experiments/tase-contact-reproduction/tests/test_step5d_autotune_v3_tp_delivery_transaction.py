@@ -3,8 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 from types import SimpleNamespace
 from typing import Any
@@ -19,6 +21,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import build_step5d_autotune_tp_v3 as builder  # noqa: E402
 import promote_step5d_r009_atomic_release as promotion  # noqa: E402
 import run_step5d_autotune_v3_tp_transaction as transaction  # noqa: E402
+import finalize_step5d_autotune_v3_publication as publication_consumer  # noqa: E402
 from step5d_autotune_v3 import delivery_observation as delivery_module  # noqa: E402
 from step5d_autotune_v3.delivery_observation import (  # noqa: E402
     DeliveryObservationError,
@@ -307,6 +310,662 @@ def test_runtime_lineage_binds_clean_exact_head_and_tree(
         match="no valid publication lineage",
     ):
         transition.resolve_publication_lineage(root, release=candidate)
+
+
+def _publication_plan_fixture(
+    tmp_path: Path,
+) -> tuple[Path, dict[str, Any], dict[str, Any]]:
+    repository = tmp_path / "publication-repository"
+    root = repository / "experiments/tase-contact-reproduction"
+    root.mkdir(parents=True)
+    _git(repository, "init", "-q")
+    _git(repository, "config", "user.email", "test@example.invalid")
+    _git(repository, "config", "user.name", "publication plan test")
+    (root / ".gitignore").write_text("runs/\n", encoding="utf-8")
+    canonical_shell = root / "scripts/step5d-autotune-v3.sh"
+    canonical_shell.parent.mkdir(parents=True, exist_ok=True)
+    canonical_shell.write_text(
+        "#!/bin/sh\n"
+        "if [ -n \"${FAKE_REVALIDATE_LOG:-}\" ]; then printf 'revalidate\\n' >> \"$FAKE_REVALIDATE_LOG\"; fi\n"
+        "exit \"${FAKE_REVALIDATE_RC:-0}\"\n",
+        encoding="utf-8",
+    )
+    canonical_shell.chmod(0o755)
+    tracked_mirror = root / "config/current_stage.json"
+    tracked_mirror.parent.mkdir(parents=True, exist_ok=True)
+    tracked_mirror.write_text('{"selected":"old"}\n', encoding="utf-8")
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-qm", "clean publication baseline")
+    baseline = transition.git_snapshot(root)
+
+    manifest_bytes = (
+        json.dumps(
+            {"identity": {"program_id": PROGRAM}},
+            sort_keys=True,
+        )
+        + "\n"
+    ).encode("utf-8")
+    digest = hashlib.sha256(manifest_bytes).hexdigest()
+    bundle = root / "config/step5d/releases" / digest
+    bundle.mkdir(parents=True)
+    (bundle / "manifest.json").write_bytes(manifest_bytes)
+    (bundle / "config/current_stage.json").parent.mkdir(parents=True)
+    (bundle / "config/current_stage.json").write_text(
+        '{"selected":"step5d_strict_rnn_autotune_v3_r999"}\n',
+        encoding="utf-8",
+    )
+    pointer = root / "config/step5d/current.json"
+    pointer.parent.mkdir(parents=True, exist_ok=True)
+    pointer.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.autotune-v3/current-release-pointer-v1",
+                "manifest_path": f"config/step5d/releases/{digest}/manifest.json",
+                "manifest_sha256": digest,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    mirror = tracked_mirror
+    mirror.write_bytes((bundle / "config/current_stage.json").read_bytes())
+    basis = root / "config/step5d/delivery-bases" / f"{digest}.json"
+    basis.parent.mkdir(parents=True, exist_ok=True)
+    basis.write_text('{"basis":"fixture"}\n', encoding="utf-8")
+    plan = transition.build_post_promotion_publication_plan(
+        root,
+        release_manifest_sha256=digest,
+        program_id=PROGRAM,
+        transaction_id="a" * 32,
+        baseline=baseline,
+        compatibility_targets={
+            "config/current_stage.json": "config/current_stage.json",
+        },
+        additional_outputs={
+            basis.relative_to(root).as_posix(): basis,
+        },
+    )
+    return root, plan, baseline
+
+
+def test_post_promotion_plan_removes_dirty_revalidate_and_agent_roundtrip(
+    tmp_path: Path,
+) -> None:
+    root, plan, _baseline = _publication_plan_fixture(tmp_path)
+
+    assert plan["schema"] == transition.PUBLICATION_PLAN_SCHEMA
+    assert plan["trace"]["observed_stages"] == ["promotion_success"]
+    assert plan["trace"]["timing_scope"].endswith("controller_timing_unmeasured")
+    encoded = transition._canonical_bytes(plan)
+    assert len(encoded) <= transition.PUBLICATION_PLAN_MAX_BYTES
+    transition.validate_post_promotion_publication_plan(root, plan)
+    with pytest.raises(
+        transition.ReleaseTransitionError,
+        match="tracked repository state is not clean",
+    ):
+        transition.validate_post_promotion_publication_plan(
+            root,
+            plan,
+            require_clean=True,
+        )
+
+
+def test_post_promotion_plan_binds_allowlist_and_clean_publication(
+    tmp_path: Path,
+) -> None:
+    root, plan, _baseline = _publication_plan_fixture(tmp_path)
+    output = root / "runs/post-promotion-plan.json"
+    written = transition.write_post_promotion_publication_plan(root, output, plan)
+    assert written == output
+    assert len(written.read_bytes()) <= transition.PUBLICATION_PLAN_MAX_BYTES
+
+    repository = root.parents[1]
+    for relative in plan["publication"]["allowlist"]:
+        _git(repository, "add", str(root / relative))
+    _git(repository, "commit", "-qm", plan["publication"]["commit_message"])
+    validated = transition.validate_post_promotion_publication_plan(
+        root,
+        plan,
+        require_clean=True,
+        require_publication=True,
+    )
+    assert validated == plan
+
+
+def test_post_promotion_plan_binds_preexisting_bundle_and_new_dirty_output(
+    tmp_path: Path,
+) -> None:
+    root, original_plan, _ = _publication_plan_fixture(tmp_path)
+    repository = root.parents[1]
+    for relative in original_plan["publication"]["allowlist"]:
+        _git(repository, "add", str(root / relative))
+    _git(repository, "commit", "-qm", "preexisting immutable release bundle")
+    baseline = transition.git_publication_snapshot(root)
+    post_basis = root / "config/step5d/delivery-bases/post-promotion.json"
+    post_basis.write_text('{"basis":"post"}\n', encoding="utf-8")
+    plan = transition.build_post_promotion_publication_plan(
+        root,
+        release_manifest_sha256=original_plan["release"]["manifest_sha256"],
+        program_id=PROGRAM,
+        transaction_id="b" * 32,
+        baseline=baseline,
+        compatibility_targets={
+            "config/current_stage.json": "config/current_stage.json",
+        },
+        additional_outputs={
+            post_basis.relative_to(root).as_posix(): post_basis,
+        },
+    )
+
+    assert plan["publication"]["allowlist"] == [
+        "config/step5d/delivery-bases/post-promotion.json"
+    ]
+    assert plan["publication"]["changed_paths"] == plan["publication"]["allowlist"]
+    assert set(plan["publication"]["sha256"]) >= set(
+        plan["publication"]["allowlist"]
+    )
+    assert len(transition._canonical_bytes(plan)) <= transition.PUBLICATION_PLAN_MAX_BYTES
+
+
+def test_post_promotion_plan_fails_closed_on_unallowlisted_or_mutated_output(
+    tmp_path: Path,
+) -> None:
+    root, plan, _baseline = _publication_plan_fixture(tmp_path)
+    unrelated = root / "config/unrelated-publication.txt"
+    unrelated.parent.mkdir(parents=True, exist_ok=True)
+    unrelated.write_text("must fail closed\n", encoding="utf-8")
+    with pytest.raises(
+        transition.ReleaseTransitionError,
+        match="exceed allowlist",
+    ):
+        transition.build_post_promotion_publication_plan(
+            root,
+            release_manifest_sha256=plan["release"]["manifest_sha256"],
+            program_id=PROGRAM,
+            transaction_id="a" * 32,
+            baseline=plan["baseline"] | {"tracked_clean": True},
+            compatibility_targets={
+                "config/current_stage.json": "config/current_stage.json",
+            },
+        )
+
+    unrelated.unlink()
+    (root / "config/current_stage.json").write_text(
+        '{"selected":"tampered"}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(
+        transition.ReleaseTransitionError,
+        match="SHA-256 differs",
+    ):
+        transition.validate_post_promotion_publication_plan(root, plan)
+
+
+def _write_fake_revalidate(path: Path, *, returncode: int) -> Path:
+    path.write_text(
+        "#!/bin/sh\n"
+        "printf 'revalidate\n' >> \"$FAKE_REVALIDATE_LOG\"\n"
+        f"exit {returncode}\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+    return path
+
+
+def _prepare_consumer_fixture(tmp_path: Path) -> tuple[Path, dict[str, Any], Path, Path]:
+    root, plan, _baseline = _publication_plan_fixture(tmp_path)
+    plan_path = root / "runs/post-promotion-publication.json"
+    transition.write_post_promotion_publication_plan(root, plan_path, plan)
+    return root, plan, plan_path, root / "scripts/step5d-autotune-v3.sh"
+
+
+def _plan_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_publication_consumer_end_to_end_commits_then_cleanly_revalidates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, plan, plan_path, canonical_shell = _prepare_consumer_fixture(tmp_path)
+    log = tmp_path / "revalidate.log"
+    monkeypatch.setenv("FAKE_REVALIDATE_LOG", str(log))
+    real_git = shutil.which("git")
+    assert real_git is not None
+    git_log = tmp_path / "git.log"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"$*\" >> {git_log}\n"
+        "case \" $* \" in *' push '*) exit 99;; esac\n"
+        f"exec {real_git} \"$@\"\n",
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake_bin}:{os.environ['PATH']}")
+
+    rc, payload = publication_consumer.finalize(
+        root, plan_path, canonical_shell, _plan_sha256(plan_path)
+    )
+
+    assert rc == 0
+    assert payload["schema"] == publication_consumer.FINAL_SCHEMA
+    assert payload["status"] == "ok"
+    assert payload["observed_stages"][-1] == "clean_revalidate"
+    assert payload["commit"]["parent"] == plan["baseline"]["head"]
+    assert payload["push"] is False
+    assert all(" push " not in f" {line} " for line in git_log.read_text(encoding="utf-8").splitlines())
+    assert log.read_text(encoding="utf-8").splitlines() == ["revalidate"]
+    assert _git(root.parents[1], "status", "--porcelain=v2", "-z") == ""
+    assert _git(root.parents[1], "rev-parse", "HEAD^") == plan["baseline"]["head"]
+
+
+def test_publication_consumer_preserves_exact_commit_when_revalidate_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, plan, plan_path, canonical_shell = _prepare_consumer_fixture(tmp_path)
+    log = tmp_path / "revalidate-fails.log"
+    monkeypatch.setenv("FAKE_REVALIDATE_LOG", str(log))
+    monkeypatch.setenv("FAKE_REVALIDATE_RC", "23")
+
+    expected_sha256 = _plan_sha256(plan_path)
+    rc, payload = publication_consumer.finalize(
+        root, plan_path, canonical_shell, expected_sha256
+    )
+
+    assert rc == 1
+    assert payload["status"] == "revalidate_failed"
+    assert payload["observed_stages"][-1] == "revalidate_failed_clean_commit_preserved"
+    assert "no automatic retry" in payload["recovery"]
+    assert log.read_text(encoding="utf-8").splitlines() == ["revalidate"]
+    assert _git(root.parents[1], "status", "--porcelain=v2", "-z") == ""
+    assert _git(root.parents[1], "rev-parse", "HEAD^") == plan["baseline"]["head"]
+    monkeypatch.setenv("FAKE_REVALIDATE_RC", "0")
+    rc2, payload2 = publication_consumer.finalize(
+        root, plan_path, canonical_shell, expected_sha256
+    )
+
+    assert rc2 == 0
+    assert payload2["status"] == "existing_commit_revalidated"
+    assert payload2["recovery"] == "existing_exact_direct_child_reused; no second commit"
+    assert payload2["observed_stages"][2] == "existing_exact_direct_child"
+    assert payload2["observed_stages"][-1] == "clean_revalidate"
+    assert log.read_text(encoding="utf-8").splitlines() == ["revalidate", "revalidate"]
+    assert _git(root.parents[1], "rev-list", "--count", "HEAD") == "2"
+    assert _git(root.parents[1], "status", "--porcelain=v2", "-z") == ""
+
+
+def test_publication_consumer_rejects_external_or_symlink_canonical_shell(
+    tmp_path: Path,
+) -> None:
+    root, _plan, plan_path, canonical_shell = _prepare_consumer_fixture(tmp_path)
+    external = _write_fake_revalidate(tmp_path / "external.sh", returncode=0)
+    with pytest.raises(
+        transition.ReleaseTransitionError,
+        match="not the experiment canonical shell",
+    ):
+        publication_consumer.finalize(
+            root, plan_path, external, _plan_sha256(plan_path)
+        )
+
+    symlink = root / "scripts/alternate-shell.sh"
+    symlink.symlink_to(canonical_shell.name)
+    with pytest.raises(
+        transition.ReleaseTransitionError,
+        match="must not be a symlink",
+    ):
+        publication_consumer.finalize(
+            root, plan_path, symlink, _plan_sha256(plan_path)
+        )
+
+
+@pytest.mark.parametrize("mutation", ["baseline_head", "tree", "index", "extra", "missing", "hash", "rename", "special"])
+def test_publication_consumer_fail_closed_matrix(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    root, plan, plan_path, fake = _prepare_consumer_fixture(tmp_path)
+    target = root / "config/current_stage.json"
+    if mutation == "baseline_head":
+        plan["baseline"]["head"] = "0" * 40
+        plan_path.write_bytes(transition._canonical_bytes(plan))
+    elif mutation == "tree":
+        plan["baseline"]["tree"] = "0" * 40
+        plan_path.write_bytes(transition._canonical_bytes(plan))
+    elif mutation == "index":
+        extra = root / "config/index-pollution.txt"
+        extra.write_text("pollution\n", encoding="utf-8")
+        _git(root.parents[1], "add", str(extra))
+    elif mutation == "extra":
+        (root / "config/extra.txt").write_text("extra\n", encoding="utf-8")
+    elif mutation == "missing":
+        target.unlink()
+    elif mutation == "hash":
+        target.write_text("mutated\n", encoding="utf-8")
+    elif mutation == "rename":
+        _git(root.parents[1], "mv", str(target), str(root / "config/renamed-stage.json"))
+    elif mutation == "special":
+        import os
+
+        os.mkfifo(root / "config/special.fifo")
+    with pytest.raises((publication_consumer.transition.ReleaseTransitionError, RuntimeError)):
+        publication_consumer.finalize(
+            root, plan_path, fake, _plan_sha256(plan_path)
+        )
+
+
+def test_publication_plan_rejects_over_32k_fixed_json(tmp_path: Path) -> None:
+    root, plan, _baseline = _publication_plan_fixture(tmp_path)
+    plan["publication"]["commit_message"] = "x" * (32 * 1024)
+    with pytest.raises(transition.ReleaseTransitionError, match="32KiB"):
+        transition.write_post_promotion_publication_plan(
+            root,
+            root / "runs/oversize-plan.json",
+            plan,
+        )
+
+
+def test_publication_plan_raw_json_is_ascii_safe_and_bounded(tmp_path: Path) -> None:
+    root, plan, _baseline = _publication_plan_fixture(tmp_path)
+    plan["publication"]["commit_message"] = "发布 Step5d ✓"
+    output = root / "runs/non-ascii-plan.json"
+    written = transition.write_post_promotion_publication_plan(root, output, plan)
+    raw = written.read_bytes()
+
+    assert len(raw) <= transition.PUBLICATION_PLAN_MAX_BYTES
+    assert raw.decode("ascii")
+    assert json.loads(raw) == plan
+
+
+def test_publication_consumer_rejects_oversized_raw_plan_before_git_or_revalidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, plan, plan_path, canonical_shell = _prepare_consumer_fixture(tmp_path)
+    canonical = transition._canonical_bytes(plan)
+    oversized = b" " + canonical + b" " * (
+        transition.PUBLICATION_PLAN_MAX_BYTES - len(canonical)
+    )
+    assert len(oversized) == transition.PUBLICATION_PLAN_MAX_BYTES + 1
+    assert json.loads(oversized) == plan
+    plan_path.write_bytes(oversized)
+    before_head = _git(root.parents[1], "rev-parse", "HEAD")
+    before_status = _git(root.parents[1], "status", "--porcelain=v2", "-z")
+    log = tmp_path / "oversized-revalidate.log"
+    monkeypatch.setenv("FAKE_REVALIDATE_LOG", str(log))
+
+    with pytest.raises(transition.ReleaseTransitionError, match="32KiB"):
+        publication_consumer.finalize(
+            root, plan_path, canonical_shell, _plan_sha256(plan_path)
+        )
+
+    assert _git(root.parents[1], "rev-parse", "HEAD") == before_head
+    assert _git(root.parents[1], "status", "--porcelain=v2", "-z") == before_status
+    assert not log.exists()
+
+
+def test_publication_consumer_accepts_exact_32k_raw_plan_boundary(
+    tmp_path: Path,
+) -> None:
+    root, plan, plan_path, _canonical_shell = _prepare_consumer_fixture(tmp_path)
+    canonical = transition._canonical_bytes(plan)
+    exact = b" " + canonical + b" " * (
+        transition.PUBLICATION_PLAN_MAX_BYTES - len(canonical) - 1
+    )
+    assert len(exact) == transition.PUBLICATION_PLAN_MAX_BYTES
+    assert publication_consumer._load_plan_bounded(
+        plan_path, _plan_sha256(plan_path)
+    ) == plan
+    plan_path.write_bytes(exact)
+    assert publication_consumer._load_plan_bounded(
+        plan_path, _plan_sha256(plan_path)
+    ) == plan
+
+
+def test_publication_consumer_rejects_replaced_plan_before_git_or_revalidate(
+    tmp_path: Path,
+) -> None:
+    root, plan, plan_path, canonical_shell = _prepare_consumer_fixture(tmp_path)
+    expected_sha256 = _plan_sha256(plan_path)
+    replaced = json.loads(plan_path.read_text(encoding="utf-8"))
+    replaced["publication"]["commit_message"] = "attacker-controlled message"
+    plan_path.write_bytes(transition._canonical_bytes(replaced))
+    before_head = _git(root.parents[1], "rev-parse", "HEAD")
+    before_status = _git(root.parents[1], "status", "--porcelain=v2", "-z")
+    before_log = _git(root.parents[1], "log", "-1", "--format=%H:%s")
+
+    with (
+        mock.patch.object(publication_consumer, "_git") as git,
+        mock.patch.object(publication_consumer, "_run_revalidate") as revalidate,
+        pytest.raises(
+            transition.ReleaseTransitionError,
+            match="SHA-256 differs from the producer binding",
+        ),
+    ):
+        publication_consumer.finalize(
+            root, plan_path, canonical_shell, expected_sha256
+        )
+
+    git.assert_not_called()
+    revalidate.assert_not_called()
+    assert _git(root.parents[1], "rev-parse", "HEAD") == before_head
+    assert _git(root.parents[1], "status", "--porcelain=v2", "-z") == before_status
+    assert _git(root.parents[1], "log", "-1", "--format=%H:%s") == before_log
+
+
+def test_publication_consumer_rejects_parent_symlink_escape_before_git_or_revalidate(
+    tmp_path: Path,
+) -> None:
+    root, plan, plan_path, canonical_shell = _prepare_consumer_fixture(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    outside_plan = outside / "plan.json"
+    outside_plan.write_bytes(plan_path.read_bytes())
+    (root / "runs/parent-link").symlink_to(outside, target_is_directory=True)
+    before_head = _git(root.parents[1], "rev-parse", "HEAD")
+    before_status = _git(root.parents[1], "status", "--porcelain=v2", "-z")
+
+    with (
+        mock.patch.object(publication_consumer, "_git") as git,
+        mock.patch.object(publication_consumer, "_run_revalidate") as revalidate,
+        pytest.raises(
+            transition.ReleaseTransitionError,
+            match="symlink or escapes the resolved runs root",
+        ),
+    ):
+        publication_consumer.finalize(
+            root,
+            root / "runs/parent-link/plan.json",
+            canonical_shell,
+            _plan_sha256(outside_plan),
+        )
+
+    git.assert_not_called()
+    revalidate.assert_not_called()
+    assert _git(root.parents[1], "rev-parse", "HEAD") == before_head
+    assert _git(root.parents[1], "status", "--porcelain=v2", "-z") == before_status
+
+
+@pytest.mark.parametrize("expected_sha256", ["A" * 64, "0" * 63, "not-a-sha"])
+def test_publication_consumer_rejects_malformed_plan_sha_before_git(
+    tmp_path: Path,
+    expected_sha256: str,
+) -> None:
+    root, _plan, plan_path, canonical_shell = _prepare_consumer_fixture(tmp_path)
+    with (
+        mock.patch.object(publication_consumer, "_git") as git,
+        pytest.raises(
+            transition.ReleaseTransitionError,
+            match="lowercase SHA-256",
+        ),
+    ):
+        publication_consumer.finalize(
+            root, plan_path, canonical_shell, expected_sha256
+        )
+    git.assert_not_called()
+
+
+@pytest.mark.parametrize("precommitted_bundle", [False, True])
+def test_real_basis_promotion_plan_covers_imported_receipt_and_one_publication_child(
+    tmp_path: Path,
+    precommitted_bundle: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root, artifact_dir = _composition_fixture(tmp_path)
+    repository = root.parents[1]
+    (root / ".gitignore").write_text("runs/\n", encoding="utf-8")
+    shell = root / "scripts/step5d-autotune-v3.sh"
+    shell.chmod(0o755)
+    _git(repository, "init", "-q")
+    _git(repository, "config", "user.email", "test@example.invalid")
+    _git(repository, "config", "user.name", "real publication lifecycle test")
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-qm", "offline lifecycle source baseline")
+
+    manifest, _bundle, _targets = promotion.compose_local_release(root, artifact_dir)
+    manifest_bytes = promotion.canonical_bytes(manifest)
+    candidate_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    program_id = manifest["identity"]["program_id"]
+    artifact_sha256 = {
+        extension: reference["sha256"]
+        for extension, reference in manifest["artifacts"].items()
+    }
+    candidate = SimpleNamespace(
+        manifest_path=(
+            Path("config/step5d/releases") / candidate_sha256 / "manifest.json"
+        ).as_posix(),
+        manifest_sha256=candidate_sha256,
+        program_id=program_id,
+        controller_target=manifest["controller_target"],
+        artifact_sha256=artifact_sha256,
+    )
+    basis_manifest = root / "config/step5d/releases/basis/manifest.json"
+    basis_manifest.parent.mkdir(parents=True, exist_ok=True)
+    basis_manifest.write_bytes(manifest_bytes)
+    basis = SimpleNamespace(
+        manifest_path=basis_manifest.relative_to(root).as_posix(),
+        manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest(),
+        program_id=program_id,
+        controller_target=manifest["controller_target"],
+        artifact_sha256=artifact_sha256,
+    )
+    _git(repository, "add", str(basis_manifest))
+    _git(repository, "commit", "-qm", "offline basis manifest")
+
+    if precommitted_bundle:
+        first_receipt = _write_receipt(
+            root,
+            artifact_dir,
+            suffix="preexisting",
+            transaction_id="1" * 32,
+            checked_at="2026-07-21T11:00:33+08:00",
+            stamp="preexisting",
+            controller="root@controller-a",
+        )
+        promotion.promote(
+            root,
+            first_receipt,
+            artifact_dir,
+            expected_transaction_id="1" * 32,
+            expected_manifest_sha256=hashlib.sha256(first_receipt.read_bytes()).hexdigest(),
+            expected_candidate_manifest_sha256=candidate_sha256,
+        )
+        _git(repository, "add", ".")
+        _git(repository, "commit", "-qm", "precommitted immutable bundle")
+
+    baseline = transition.git_publication_snapshot(root)
+    receipt = _write_receipt(
+        root,
+        artifact_dir,
+        suffix="publication",
+        transaction_id="2" * 32,
+        checked_at="2026-07-21T11:07:45+08:00",
+        stamp="publication",
+        controller="root@controller-b",
+    )
+    basis_path, basis_payload = transition.create_delivery_basis(
+        root,
+        candidate_release=candidate,
+        basis_release=candidate if precommitted_bundle else basis,
+        prior_full_receipt=receipt,
+    )
+    additional: dict[str, Path] = {}
+    transaction._add_delivery_basis_outputs(
+        root,
+        candidate,
+        basis_path,
+        basis_payload,
+        additional,
+    )
+    promotion_result = promotion.promote(
+        root,
+        receipt,
+        artifact_dir,
+        expected_transaction_id="2" * 32,
+        expected_manifest_sha256=hashlib.sha256(receipt.read_bytes()).hexdigest(),
+        expected_candidate_manifest_sha256=candidate_sha256,
+    )
+    plan = transition.build_post_promotion_publication_plan(
+        root,
+        release_manifest_sha256=candidate_sha256,
+        program_id=program_id,
+        transaction_id="3" * 32,
+        baseline=baseline,
+        compatibility_targets=promotion_result["compatibility_targets"],
+        additional_outputs=additional,
+    )
+    plan_path = root / "runs/post-promotion-publication.json"
+    transition.write_post_promotion_publication_plan(root, plan_path, plan)
+    before_publication_count = int(_git(repository, "rev-list", "--count", "HEAD"))
+    revalidate_calls: list[Path] = []
+    with mock.patch.object(
+        publication_consumer,
+        "_run_revalidate",
+        side_effect=lambda _root, _plan, canonical: revalidate_calls.append(canonical) or 0,
+    ):
+        rc, payload = publication_consumer.finalize(
+            root, plan_path, shell, _plan_sha256(plan_path)
+        )
+
+    assert rc == 0
+    assert payload["status"] == "ok"
+    assert plan["publication"]["changed_paths"] == plan["publication"]["allowlist"]
+    assert revalidate_calls == [shell]
+    assert (root / "config/step5d/delivery-bases" / f"{candidate_sha256}.json").is_file()
+    basis_relative = basis_path.relative_to(root).as_posix()
+    prior_relative = basis_payload["prior_full_readback_receipt"]["path"]
+    assert {basis_relative, prior_relative} <= set(plan["publication"]["allowlist"])
+    bundle_paths = {
+        path
+        for path in plan["publication"]["sha256"]
+        if path.startswith("config/step5d/releases/")
+    }
+    if precommitted_bundle:
+        assert bundle_paths.isdisjoint(plan["publication"]["allowlist"])
+    else:
+        assert bundle_paths <= set(plan["publication"]["allowlist"])
+    assert _git(repository, "rev-parse", "HEAD^") == baseline["head"]
+    assert int(_git(repository, "rev-list", "--count", "HEAD")) == before_publication_count + 1
+    assert _git(repository, "status", "--porcelain=v2", "-z") == ""
+
+
+def test_publish_and_revalidate_rejects_dry_run_before_environment_or_io(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(RuntimeError, match="cannot be used with --dry-run"):
+        transaction.main(
+            [
+                "--root",
+                str(tmp_path),
+                "--artifact-dir",
+                str(tmp_path),
+                "--dry-run",
+                "--publish-and-revalidate",
+            ]
+        )
 
 
 def _composition_fixture(tmp_path: Path) -> tuple[Path, Path]:
@@ -804,7 +1463,10 @@ def test_manifest_v3_and_bundle_ignore_receipt_time_and_transaction(
     assert first_tree == second_tree
 
 
-def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path) -> None:
+def test_transaction_passes_exact_uploader_manifest_to_promotion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     root = tmp_path / "experiment"
     root.mkdir()
     artifact_dir = root / promotion.PACKAGE_DIR
@@ -820,6 +1482,27 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     evidence_output = root / "runs/campaign/delivery-observation.json"
     candidate_path = root / "candidate.json"
     contract_path = root / "release-contract.json"
+    consumer = root / "tools/finalize_step5d_autotune_v3_publication.py"
+    consumer.parent.mkdir(parents=True)
+    consumer.write_text("# consumer fixture\n", encoding="utf-8")
+    launcher = root / "scripts/step5d-autotune-v3.sh"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setenv(transaction.CANONICAL_LAUNCH_ENV, str(launcher))
+    replaced_plan_bytes = b'{"fixture":"replaced"}\n'
+    consumer_result = subprocess.CompletedProcess(
+        args=["consumer"],
+        returncode=0,
+        stdout=json.dumps({"schema": "fixture"}),
+        stderr="",
+    )
+
+    def fake_plan_write(*_args: Any, **_kwargs: Any) -> Path:
+        events.append("plan-write")
+        plan_path = root / "runs/plan.json"
+        plan_path.parent.mkdir(parents=True, exist_ok=True)
+        plan_path.write_bytes(replaced_plan_bytes)
+        return plan_path
 
     def fake_upload(arguments: list[str]) -> int:
         events.append("upload")
@@ -856,7 +1539,12 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         events.append("promote")
         exact.extend((manifest, artifact_dir))
         promotion_arguments.update(kwargs)
-        return {"manifest_sha256": "f" * 64}
+        return {
+            "manifest_sha256": "f" * 64,
+            "compatibility_targets": {
+                "config/current_stage.json": "config/current_stage.json",
+            },
+        }
 
     release = SimpleNamespace(
         manifest_sha256="f" * 64,
@@ -886,7 +1574,17 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         ),
         mock.patch.object(transaction, "acquire_controller_mutation_locks", side_effect=lambda: events.append("lock") or [object()]),
         mock.patch.object(transaction.upload, "_main", side_effect=fake_upload),
-        mock.patch.object(transaction, "create_delivery_basis"),
+        mock.patch.object(
+            transaction,
+            "create_delivery_basis",
+            return_value=(root / "config/step5d/delivery-bases/fixture.json", {}),
+        ),
+        mock.patch.object(transaction, "_add_delivery_basis_outputs"),
+        mock.patch.object(
+            transaction,
+            "git_snapshot",
+            return_value={"head": "a" * 40, "tree": "b" * 40, "tracked_clean": True},
+        ),
         mock.patch.object(transaction.promote, "promote", side_effect=fake_promote),
         mock.patch.object(
             transaction,
@@ -917,6 +1615,21 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
             side_effect=lambda path, value: events.append(f"evidence:{path.name}")
             or exact.append(path),
         ),
+        mock.patch.object(
+            transaction,
+            "build_post_promotion_publication_plan",
+            side_effect=lambda *args, **kwargs: events.append("plan") or {"fixture": True},
+        ),
+        mock.patch.object(
+            transaction,
+            "write_post_promotion_publication_plan",
+            side_effect=fake_plan_write,
+        ) as plan_writer,
+        mock.patch.object(
+            transaction.subprocess,
+            "run",
+            return_value=consumer_result,
+        ) as consumer_run,
         mock.patch.object(transaction, "release_controller_mutation_locks", side_effect=lambda _handles: events.append("release")),
     ):
         assert transaction.main(
@@ -931,6 +1644,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
                 str(contract_path),
                 "--evidence-output",
                 str(evidence_output),
+                "--publish-and-revalidate",
             ]
         ) == 0
 
@@ -943,6 +1657,8 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         "evidence:indexed-delivery.json",
         "promote",
         "load",
+        "plan",
+        "plan-write",
         "release",
     ]
     assert upload_arguments[0] == PROGRAM
@@ -967,6 +1683,12 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         "expected_candidate_manifest_sha256": release.manifest_sha256,
         "expected_delivery_basis": None,
     }
+    consumer_argv = consumer_run.call_args.args[0]
+    expected_plan_sha256 = transition.publication_plan_sha256({"fixture": True})
+    assert consumer_argv[consumer_argv.index("--plan-sha256") + 1] == expected_plan_sha256
+    assert expected_plan_sha256 != hashlib.sha256(replaced_plan_bytes).hexdigest()
+    assert plan_writer.call_args.kwargs["expected_sha256"] == expected_plan_sha256
+    assert consumer_run.call_args.kwargs["cwd"] == str(root)
 
 
 def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load(
@@ -1046,7 +1768,14 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
         mock.patch.object(
             transaction,
             "create_delivery_basis",
+            return_value=(root / "config/step5d/delivery-bases/fixture.json", {}),
         ) as create_basis,
+        mock.patch.object(transaction, "_add_delivery_basis_outputs"),
+        mock.patch.object(
+            transaction,
+            "git_snapshot",
+            return_value={"head": "a" * 40, "tree": "b" * 40, "tracked_clean": True},
+        ),
         mock.patch.object(
             transaction,
             "delivery_basis_reference",
@@ -1058,7 +1787,22 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
         mock.patch.object(
             transaction.promote,
             "promote",
-            return_value={"manifest_sha256": release.manifest_sha256},
+            return_value={
+                "manifest_sha256": release.manifest_sha256,
+                "compatibility_targets": {
+                    "config/current_stage.json": "config/current_stage.json",
+                },
+            },
+        ),
+        mock.patch.object(
+            transaction,
+            "build_post_promotion_publication_plan",
+            return_value={"fixture": True},
+        ),
+        mock.patch.object(
+            transaction,
+            "write_post_promotion_publication_plan",
+            return_value=root / "runs/plan.json",
         ),
         mock.patch.object(
             transaction,
@@ -1143,7 +1887,17 @@ def test_readback_only_get_failure_prevents_evidence_and_promotion(
             "load_current_release",
             return_value=candidate,
         ) as load_current,
-        mock.patch.object(transaction, "create_delivery_basis"),
+        mock.patch.object(
+            transaction,
+            "create_delivery_basis",
+            return_value=(root / "config/step5d/delivery-bases/fixture.json", {}),
+        ),
+        mock.patch.object(transaction, "_add_delivery_basis_outputs"),
+        mock.patch.object(
+            transaction,
+            "git_snapshot",
+            return_value={"head": "a" * 40, "tree": "b" * 40, "tracked_clean": True},
+        ),
         mock.patch.object(
             transaction,
             "delivery_basis_reference",
@@ -1229,6 +1983,26 @@ def test_transaction_rejects_evidence_output_outside_runs_before_lock(
             ]
         )
 
+    lock.assert_not_called()
+    upload.assert_not_called()
+
+    with (
+        mock.patch.object(transaction, "acquire_controller_mutation_locks") as lock,
+        mock.patch.object(transaction.upload, "_main") as upload,
+        pytest.raises(RuntimeError, match="publication plan output escapes runs evidence root"),
+    ):
+        transaction.main(
+            [
+                "--root",
+                str(root),
+                "--artifact-dir",
+                str(artifact_dir),
+                "--evidence-output",
+                str(root / "runs/observation.json"),
+                "--publication-plan-output",
+                str(root / "outside-plan.json"),
+            ]
+        )
     lock.assert_not_called()
     upload.assert_not_called()
 

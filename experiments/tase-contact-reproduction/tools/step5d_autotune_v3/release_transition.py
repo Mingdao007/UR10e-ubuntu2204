@@ -5,23 +5,28 @@ from __future__ import annotations
 from datetime import datetime
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
 import subprocess
 import time
 from typing import Any, Mapping
 
 from .atomic_io import AtomicIOError, atomic_bytes
-
+from .release_identity import CURRENT_POINTER_SCHEMA
 
 BASIS_SCHEMA = "step5d.autotune-v3/delivery-basis-v1"
 LINEAGE_SCHEMA = "step5d.autotune-v3/release-publication-lineage-v1"
+PUBLICATION_PLAN_SCHEMA = "step5d.autotune-v3/post-promotion-publication-plan-v1"
+PUBLICATION_PLAN_MAX_BYTES = 32 * 1024
 BASIS_ROOT = Path("config/step5d/delivery-bases")
 PRIOR_RECEIPT_ROOT = BASIS_ROOT / "prior-full-readbacks"
 LINEAGE_ROOT = Path("runs/step5d_autotune_v3/release-publication-lineage")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _TRIPLET = frozenset({".script", ".txt", ".urp"})
+_TRANSACTION = re.compile(r"^[0-9a-f]{32}$")
 
 
 class ReleaseTransitionError(RuntimeError):
@@ -169,8 +174,121 @@ def _git(root: Path, *arguments: str, check: bool = True) -> subprocess.Complete
     return completed
 
 
+def _git_bytes(
+    root: Path,
+    *arguments: str,
+    check: bool = True,
+) -> subprocess.CompletedProcess[bytes]:
+    repository = root.resolve(strict=True).parents[1]
+    completed = subprocess.run(
+        ["git", "-C", str(repository), *arguments],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=False,
+        check=False,
+    )
+    if check and completed.returncode != 0:
+        detail = os.fsdecode(completed.stderr).strip()
+        raise ReleaseTransitionError(
+            f"Git {' '.join(arguments)} failed: {detail}"
+        )
+    return completed
+
+
+def _decode_git_path(value: bytes, role: str) -> str:
+    try:
+        decoded = value.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ReleaseTransitionError(f"{role} is not valid UTF-8") from exc
+    if not decoded or "\x00" in decoded:
+        raise ReleaseTransitionError(f"{role} is invalid")
+    return decoded
+
+
+def _repository_relative_path(root: Path, raw: bytes, role: str) -> str:
+    experiment = root.resolve(strict=True)
+    repository = experiment.parents[1]
+    experiment_prefix = experiment.relative_to(repository).as_posix().encode()
+    if raw == experiment_prefix:
+        raise ReleaseTransitionError(f"{role} names the experiment directory")
+    prefix = experiment_prefix + b"/"
+    if not raw.startswith(prefix):
+        raise ReleaseTransitionError(f"{role} is outside the experiment root")
+    relative = _decode_git_path(raw[len(prefix):], role)
+    return _plan_relative(relative, role)
+
+
+def _status_paths_nul(root: Path) -> tuple[str, ...]:
+    """Return every non-ignored worktree path using NUL-safe porcelain v2."""
+
+    raw = _git_bytes(
+        root,
+        "status",
+        "--porcelain=v2",
+        "-z",
+        "--untracked-files=all",
+        "--ignored=no",
+    ).stdout
+    paths: list[str] = []
+    records = raw.split(b"\0")
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if not record:
+            continue
+        if record.startswith(b"1 "):
+            fields = record.split(b" ", 8)
+            if len(fields) != 9:
+                raise ReleaseTransitionError("Git status ordinary record is malformed")
+            paths.append(_repository_relative_path(root, fields[8], "Git status path"))
+        elif record.startswith(b"? "):
+            paths.append(_repository_relative_path(root, record[2:], "Git untracked path"))
+        elif record.startswith((b"2 ", b"u ")):
+            raise ReleaseTransitionError(
+                "Git status contains rename, copy, or unmerged path"
+            )
+        elif record.startswith(b"! "):
+            continue
+        else:
+            raise ReleaseTransitionError("Git status contains an unsafe path record")
+    if len(paths) != len(set(paths)):
+        raise ReleaseTransitionError("Git status contains duplicate paths")
+    experiment = root.resolve(strict=True)
+    for path in experiment.rglob("*"):
+        if path.is_symlink():
+            continue
+        try:
+            mode = path.lstat().st_mode
+        except OSError as exc:
+            raise ReleaseTransitionError("cannot inspect worktree path") from exc
+        if stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode) or stat.S_ISCHR(mode) or stat.S_ISBLK(mode):
+            raise ReleaseTransitionError(
+                f"Git worktree contains a special path: {path.relative_to(experiment).as_posix()}"
+            )
+    return tuple(sorted(paths))
+
+
+def _name_paths_nul(root: Path, raw: bytes, role: str) -> tuple[str, ...]:
+    paths = [
+        _repository_relative_path(root, item, role)
+        for item in raw.split(b"\0")
+        if item
+    ]
+    if len(paths) != len(set(paths)):
+        raise ReleaseTransitionError(f"{role} contains duplicate paths")
+    return tuple(sorted(paths))
+
+
 def git_snapshot(root: Path, *, require_clean: bool = True) -> dict[str, Any]:
-    status = _git(root, "status", "--porcelain=v1", "--untracked-files=no").stdout
+    status = _git_bytes(
+        root,
+        "status",
+        "--porcelain=v2",
+        "-z",
+        "--untracked-files=no",
+    ).stdout
     if require_clean and status:
         raise ReleaseTransitionError("tracked repository state is not clean")
     head = _commit_text(
@@ -181,7 +299,330 @@ def git_snapshot(root: Path, *, require_clean: bool = True) -> dict[str, Any]:
         _git(root, "rev-parse", "--verify", "HEAD^{tree}").stdout.strip(),
         "repository tree",
     )
+    index_tree = _git(root, "write-tree").stdout.strip()
+    if require_clean and index_tree != tree:
+        raise ReleaseTransitionError("tracked repository index tree differs from HEAD tree")
     return {"head": head, "tree": tree, "tracked_clean": not bool(status)}
+
+
+def git_publication_snapshot(root: Path, *, require_clean: bool = True) -> dict[str, Any]:
+    """Strict snapshot for publication boundaries, including non-ignored untracked paths."""
+
+    status_paths = _status_paths_nul(root)
+    if require_clean and status_paths:
+        raise ReleaseTransitionError("tracked repository state is not clean")
+    head = _commit_text(
+        _git(root, "rev-parse", "--verify", "HEAD").stdout.strip(),
+        "publication repository HEAD",
+    )
+    tree = _commit_text(
+        _git(root, "rev-parse", "--verify", "HEAD^{tree}").stdout.strip(),
+        "publication repository tree",
+    )
+    index_tree = _git(root, "write-tree").stdout.strip()
+    if require_clean and index_tree != tree:
+        raise ReleaseTransitionError("publication repository index tree differs from HEAD tree")
+    return {"head": head, "tree": tree, "tracked_clean": not bool(status_paths)}
+
+
+def _git_status_paths(root: Path) -> tuple[str, ...]:
+    return _status_paths_nul(root)
+
+
+def _plan_relative(value: Any, role: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ReleaseTransitionError(f"{role} path is invalid")
+    relative = PurePosixPath(value)
+    if (
+        relative.is_absolute()
+        or relative.as_posix() != value
+        or any(part in {"", ".", ".."} for part in relative.parts)
+    ):
+        raise ReleaseTransitionError(f"{role} path is unsafe")
+    return value
+
+
+def _plan_sha256(value: Any, role: str) -> str:
+    return _sha256_text(value, role)
+
+
+def publication_plan_sha256(value: Mapping[str, Any]) -> str:
+    encoded = _canonical_bytes(value)
+    if len(encoded) > PUBLICATION_PLAN_MAX_BYTES:
+        raise ReleaseTransitionError("post-promotion publication plan exceeds 32KiB")
+    return _sha256_bytes(encoded)
+
+
+def _plan_file_sha256(root: Path, relative: str, role: str) -> str:
+    return _sha256(root / Path(*PurePosixPath(relative).parts), role)
+
+
+def _validate_current_pointer(root: Path, release_sha256: str) -> None:
+    pointer = _load(root / "config/step5d/current.json", "current release pointer")
+    expected = {
+        "schema": CURRENT_POINTER_SCHEMA,
+        "manifest_path": (
+            Path("config/step5d/releases") / release_sha256 / "manifest.json"
+        ).as_posix(),
+        "manifest_sha256": release_sha256,
+    }
+    if pointer != expected:
+        raise ReleaseTransitionError("post-promotion current pointer binding differs")
+
+
+def build_post_promotion_publication_plan(
+    root: Path,
+    *,
+    release_manifest_sha256: str,
+    program_id: str,
+    transaction_id: str,
+    baseline: Mapping[str, Any],
+    compatibility_targets: Mapping[str, str],
+    additional_outputs: Mapping[str, Path] | None = None,
+) -> dict[str, Any]:
+    """Bind promotion outputs before the explicit Git publication boundary."""
+
+    experiment = root.resolve(strict=True)
+    release_sha256 = _sha256_text(
+        release_manifest_sha256,
+        "post-promotion release manifest",
+    )
+    if (
+        not isinstance(program_id, str)
+        or re.fullmatch(r"step5d_strict_rnn_autotune_v3_r\d{3}", program_id)
+        is None
+    ):
+        raise ReleaseTransitionError("post-promotion program identity differs")
+    if not isinstance(transaction_id, str) or _TRANSACTION.fullmatch(transaction_id) is None:
+        raise ReleaseTransitionError("post-promotion transaction ID is invalid")
+    if set(baseline) != {"head", "tree", "tracked_clean"} or baseline.get("tracked_clean") is not True:
+        raise ReleaseTransitionError("publication baseline must be a clean Git snapshot")
+    head = _commit_text(baseline["head"], "publication baseline HEAD")
+    tree = _commit_text(baseline["tree"], "publication baseline tree")
+
+    bundle_root = experiment / Path("config/step5d/releases") / release_sha256
+    if bundle_root.is_symlink() or not bundle_root.is_dir():
+        raise ReleaseTransitionError("post-promotion immutable bundle is missing or unsafe")
+    manifest_path = bundle_root / "manifest.json"
+    manifest = _load(manifest_path, "post-promotion release manifest")
+    identity = manifest.get("identity")
+    if not isinstance(identity, Mapping) or identity.get("program_id") != program_id:
+        raise ReleaseTransitionError("post-promotion release identity binding differs")
+    if _sha256(manifest_path, "post-promotion release manifest") != release_sha256:
+        raise ReleaseTransitionError("post-promotion release manifest SHA-256 differs")
+    _validate_current_pointer(experiment, release_sha256)
+    outputs: dict[str, str] = {}
+    for path in sorted(bundle_root.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        relative = path.relative_to(experiment).as_posix()
+        outputs[_plan_relative(relative, "immutable bundle output")] = _sha256(
+            path,
+            "immutable bundle output",
+        )
+    pointer = "config/step5d/current.json"
+    outputs[pointer] = _plan_file_sha256(experiment, pointer, "current release pointer")
+    if not isinstance(compatibility_targets, Mapping) or not compatibility_targets:
+        raise ReleaseTransitionError("promotion compatibility output binding is missing")
+    for target, source in sorted(compatibility_targets.items()):
+        target = _plan_relative(target, "compatibility target")
+        source = _plan_relative(source, "compatibility source")
+        source_path = bundle_root / Path(*PurePosixPath(source).parts)
+        if source_path.is_symlink() or not source_path.is_file():
+            raise ReleaseTransitionError("promotion compatibility source is missing")
+        expected = _sha256(source_path, "compatibility source")
+        observed = _plan_file_sha256(experiment, target, "compatibility target")
+        if observed != expected:
+            raise ReleaseTransitionError("promotion compatibility target bytes differ")
+        prior = outputs.setdefault(target, expected)
+        if prior != expected:
+            raise ReleaseTransitionError("promotion output binding has conflicting bytes")
+
+    for relative, path in sorted((additional_outputs or {}).items()):
+        relative = _plan_relative(relative, "additional publication output")
+        resolved = path.expanduser().resolve(strict=True)
+        try:
+            resolved.relative_to(experiment)
+        except ValueError as exc:
+            raise ReleaseTransitionError("additional publication output escapes experiment root") from exc
+        if resolved.is_symlink() or not resolved.is_file():
+            raise ReleaseTransitionError("additional publication output is unsafe")
+        digest = _sha256(resolved, "additional publication output")
+        prior = outputs.setdefault(relative, digest)
+        if prior != digest:
+            raise ReleaseTransitionError("additional publication output binding conflicts")
+
+    dirty = _git_status_paths(experiment)
+    unexpected = sorted(set(dirty) - set(outputs))
+    if unexpected:
+        raise ReleaseTransitionError(
+            f"post-promotion Git outputs exceed allowlist: {unexpected}"
+        )
+    plan = {
+        "schema": PUBLICATION_PLAN_SCHEMA,
+        "release": {
+            "manifest_sha256": release_sha256,
+            "program": program_id,
+            "transaction_id": transaction_id,
+        },
+        "baseline": {"head": head, "tree": tree},
+        "publication": {
+            "mode": "explicit_git_boundary",
+            "push_authorized_by_transaction": False,
+            "allowlist": sorted(dirty),
+            "changed_paths": sorted(dirty),
+            "sha256": dict(sorted(outputs.items())),
+            "commit_message": f"promote Step5d {program_id} release {release_sha256[:12]}",
+        },
+        "next": {
+            "revalidate": "scripts/step5d-autotune-v3.sh revalidate-current",
+            "requires_clean_worktree": True,
+        },
+        "trace": {
+            "schema": "step5d.autotune-v3/publication-orchestration-trace-v1",
+            "observed_stages": ["promotion_success"],
+            "timing_scope": "offline_orchestration_trace_only_controller_timing_unmeasured",
+        },
+    }
+    encoded = _canonical_bytes(plan)
+    if len(encoded) > PUBLICATION_PLAN_MAX_BYTES:
+        raise ReleaseTransitionError("post-promotion publication plan exceeds 32KiB")
+    return plan
+
+
+def validate_post_promotion_publication_plan(
+    root: Path,
+    value: Mapping[str, Any],
+    *,
+    require_clean: bool = False,
+    require_publication: bool = False,
+) -> dict[str, Any]:
+    """Validate the allowlist before or after the explicit Git publication."""
+
+    required = {"schema", "release", "baseline", "publication", "next", "trace"}
+    if not isinstance(value, Mapping) or set(value) != required or value.get("schema") != PUBLICATION_PLAN_SCHEMA:
+        raise ReleaseTransitionError("publication plan fields or schema differ")
+    release = value["release"]
+    baseline = value["baseline"]
+    publication = value["publication"]
+    next_step = value["next"]
+    trace = value["trace"]
+    if (
+        not isinstance(release, Mapping)
+        or set(release) != {"manifest_sha256", "program", "transaction_id"}
+        or not isinstance(baseline, Mapping)
+        or set(baseline) != {"head", "tree"}
+        or not isinstance(publication, Mapping)
+        or set(publication) != {"mode", "push_authorized_by_transaction", "allowlist", "changed_paths", "sha256", "commit_message"}
+        or not isinstance(next_step, Mapping)
+        or set(next_step) != {"revalidate", "requires_clean_worktree"}
+        or not isinstance(trace, Mapping)
+        or set(trace) != {"schema", "observed_stages", "timing_scope"}
+    ):
+        raise ReleaseTransitionError("publication plan fields are not fixed")
+    release_sha256 = _sha256_text(release["manifest_sha256"], "publication plan release")
+    program_id = release["program"]
+    transaction_id = release["transaction_id"]
+    if (
+        not isinstance(program_id, str)
+        or re.fullmatch(r"step5d_strict_rnn_autotune_v3_r\d{3}", program_id) is None
+        or not isinstance(transaction_id, str)
+        or _TRANSACTION.fullmatch(transaction_id) is None
+        or not isinstance(publication["commit_message"], str)
+        or publication["mode"] != "explicit_git_boundary"
+        or publication["push_authorized_by_transaction"] is not False
+        or next_step["revalidate"] != "scripts/step5d-autotune-v3.sh revalidate-current"
+        or next_step["requires_clean_worktree"] is not True
+        or trace["schema"] != "step5d.autotune-v3/publication-orchestration-trace-v1"
+        or trace["observed_stages"] != ["promotion_success"]
+        or trace["timing_scope"] != "offline_orchestration_trace_only_controller_timing_unmeasured"
+    ):
+        raise ReleaseTransitionError("publication plan orchestration binding differs")
+    baseline_head = _commit_text(baseline["head"], "publication plan baseline HEAD")
+    _commit_text(baseline["tree"], "publication plan baseline tree")
+    allowlist = publication["allowlist"]
+    changed_paths = publication["changed_paths"]
+    expected = publication["sha256"]
+    if (
+        not isinstance(allowlist, list)
+        or any(not isinstance(relative, str) for relative in allowlist)
+        or allowlist != sorted(set(allowlist))
+        or not isinstance(changed_paths, list)
+        or changed_paths != allowlist
+        or not isinstance(expected, Mapping)
+        or any(not isinstance(relative, str) for relative in expected)
+        or not set(allowlist).issubset(set(expected))
+        or not allowlist
+    ):
+        raise ReleaseTransitionError("publication plan allowlist is invalid")
+    experiment = root.resolve(strict=True)
+    for relative in expected:
+        _plan_relative(relative, "publication plan output")
+        _plan_sha256(expected[relative], f"publication plan {relative}")
+        if _plan_file_sha256(experiment, relative, "publication plan output") != expected[relative]:
+            raise ReleaseTransitionError(f"publication output SHA-256 differs: {relative}")
+    _validate_current_pointer(experiment, release_sha256)
+    snapshot = git_publication_snapshot(experiment, require_clean=require_clean)
+    if require_publication and snapshot["head"] == baseline["head"]:
+        raise ReleaseTransitionError("explicit Git publication boundary was not observed")
+    if require_publication:
+        published_paths = _name_paths_nul(
+            experiment,
+            _git_bytes(
+                experiment,
+                "diff",
+                "--name-only",
+                "--no-renames",
+                "-z",
+                f"{baseline_head}..HEAD",
+            ).stdout,
+            "Git publication delta",
+        )
+        if published_paths != tuple(allowlist):
+            raise ReleaseTransitionError(
+                "Git publication delta differs from publication plan allowlist"
+            )
+    if not require_clean:
+        unexpected = sorted(set(_git_status_paths(experiment)) - set(allowlist))
+        if unexpected:
+            raise ReleaseTransitionError(
+                f"Git outputs exceed publication plan allowlist: {unexpected}"
+            )
+    return dict(value)
+
+
+def write_post_promotion_publication_plan(
+    root: Path,
+    output: Path,
+    value: Mapping[str, Any],
+    *,
+    expected_sha256: str | None = None,
+) -> Path:
+    experiment = root.resolve(strict=True)
+    output = output.expanduser()
+    if output.is_symlink():
+        raise ReleaseTransitionError("publication plan output is unsafe")
+    output = output.resolve(strict=False)
+    try:
+        output.relative_to(experiment / "runs")
+    except ValueError as exc:
+        raise ReleaseTransitionError("publication plan output must be under runs/") from exc
+    validate_post_promotion_publication_plan(experiment, value)
+    encoded = _canonical_bytes(value)
+    if len(encoded) > PUBLICATION_PLAN_MAX_BYTES:
+        raise ReleaseTransitionError("post-promotion publication plan exceeds 32KiB")
+    if expected_sha256 is not None:
+        expected_sha256 = _sha256_text(
+            expected_sha256,
+            "expected post-promotion publication plan",
+        )
+        observed_sha256 = _sha256_bytes(encoded)
+        if observed_sha256 != expected_sha256:
+            raise ReleaseTransitionError(
+                "expected post-promotion publication plan SHA-256 differs"
+            )
+    _write_immutable(output, encoded, "post-promotion publication plan")
+    return output
 
 
 def _validate_prior_full_receipt(
@@ -587,14 +1028,21 @@ def resolve_publication_lineage(
 __all__ = [
     "BASIS_SCHEMA",
     "LINEAGE_SCHEMA",
+    "PUBLICATION_PLAN_MAX_BYTES",
+    "PUBLICATION_PLAN_SCHEMA",
     "ReleaseTransitionError",
+    "build_post_promotion_publication_plan",
     "create_delivery_basis",
     "delivery_basis_reference",
     "git_snapshot",
+    "git_publication_snapshot",
     "load_delivery_basis",
+    "publication_plan_sha256",
     "require_receipt_delivery_basis",
     "resolve_publication_lineage",
     "validate_delivery_basis",
+    "validate_post_promotion_publication_plan",
     "validate_publication_lineage",
+    "write_post_promotion_publication_plan",
     "write_publication_lineage",
 ]
