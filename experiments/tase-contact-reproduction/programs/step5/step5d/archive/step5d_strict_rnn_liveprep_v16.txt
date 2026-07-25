@@ -1,0 +1,51 @@
+Step5d strict RNN v16 12N no-lift live-prep TP package
+
+Open on Teach Pendant after controller read-back is verified:
+  /programs/andyl/kunwei/step5/step5d/archive/step5d_strict_rnn_liveprep_v16.urp
+
+Version:
+  2026-07-02T1234HKT_STEP5D_STRICT_RNN_LIVEPREP_V16
+
+Boundary:
+  Contact-capable v16 live-prep package; not a completed reproduction claim.
+  Reuses the Step5b v3 contact-search/latch/25.3 scaffold.
+  After first-contact latch, it does not run the 20 mm lift, 25.2 attitude
+  correction, or 24.3/24.4 second contact search.
+  no lift and no second contact search are deliberate v16 requirements.
+  Stage 25.3 is deadband contact acquire: bridge filters normal_load and
+  commands only locked-normal Cartesian vx/vy/vz in registers 37..39. It may
+  actively recover while raw normal_load is between 0.0 N and 40.0 N,
+  with force_norm <= 25.0 N.
+  TP enters 25.0 only after filtered normal_load is between 5.0 N
+  and 20.0 N, with force_norm <= 25.0 N,
+  and bridge cmd_valid is true for 0.150 s.
+  Stage 25.0 is different from Step5b: it consumes 37..42 as qd0..qd5 rad/s
+  and executes speedj, not Cartesian speedl. v16 bridge must compute online
+  broad AABB TCP cage distance/braking margin from Step5b/Step6b success traces,
+  use online-cage bounded-recovery, and
+  log _step5d_tcp_cage_* fields, keep cmd_valid=1 with zero qdot during bounded
+  recoverable predicted-speed/contact uncertainty, freeze path_time_s, and set
+  stop_request with zero qdot for cage margin exhaustion, semantic failure,
+  hard force/torque/joint/sensor gates, actual speed dwell, repeated hold
+  exhaustion, hold duty/event/consecutive exhaustion, or timeout.
+
+Bridge profile:
+  --step4e-version step5d_strict_rnn_liveprep_v16 --step4e-path-shape cycloid
+  --target-force-n 12.0
+  --step4e-normal-follow-mode filtered_live
+  --step4e-normal-filter-alpha 0.55
+  --step4e-normal-min-force-n 2.0
+
+Safety:
+  qdot cap: 0.050 rad/s
+  speedj acceleration: 0.050 rad/s^2
+  Raw normal guard: 50 N. Force norm guard: 60 N. Torque guard: 3.0 Nm.
+  50 N is the raw-normal hard guard; force norm hard guard is 60 N.
+  No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
+  This package is not a bridge-start or TP-Play authorization.
+
+Reference:
+  STEP5_FLOW.md
+  config/step5_stage_table.json stage step5d_strict_rnn_liveprep_v16
+  UR_FORCE_FRAME_CONTRACT.md
+  config/step5d_liveprep_solver_gate.json

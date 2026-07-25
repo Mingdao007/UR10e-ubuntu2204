@@ -1,0 +1,41 @@
+Step5d strict RNN live-prep TP package
+
+Open on Teach Pendant after controller read-back is verified:
+  /programs/andyl/kunwei/step5/step5d/archive/step5d_strict_rnn_liveprep_v5.urp
+
+Version:
+  2026-06-15T0150HKT_STEP5D_STRICT_RNN_LIVEPREP_V5
+
+Boundary:
+  Contact-capable live-prep package; not a completed reproduction claim.
+  Reuses the Step5b contact-search/latch/25.3 scaffold.
+  If first-contact orientation error is <= 0.069813 rad,
+  it skips the 20 mm lift and 25.2 attitude correction.
+  Otherwise it keeps the original lift + 25.2 attitude correction path.
+  Stage 25.3 is a tolerant contact-window entry gate: bridge may command small
+  linear unload/load speed only, and TP enters 25.0 only after normal_load is
+  between 2.0 N and 15.0 N,
+  with force_norm <= 25.0 N, for 0.050 s.
+  Stage 25.0 is different from Step5b: it consumes 37..42 as qd0..qd5 rad/s
+  and executes speedj, not Cartesian speedl.
+
+Bridge profile:
+  --step4e-version step5d_strict_rnn_liveprep_v5 --step4e-path-shape cycloid
+  --target-force-n 5.0
+  --step4e-normal-follow-mode filtered_live
+  --step4e-normal-filter-alpha 0.35
+  --step4e-normal-min-force-n 2.0
+
+Safety:
+  qdot cap: 0.300 rad/s
+  speedj acceleration: 0.300 rad/s^2
+  Raw normal guard: 100 N. Force norm guard: 100 N. Torque guard: 3.0 Nm.
+  50 N is retained as a warning-analysis threshold only, not the hard guard.
+  No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
+  This package is not a bridge-start or TP-Play authorization.
+
+Reference:
+  STEP5_FLOW.md
+  config/step5_stage_table.json stage step5d_strict_rnn_liveprep_v5
+  UR_FORCE_FRAME_CONTRACT.md
+  config/step5d_liveprep_solver_gate.json

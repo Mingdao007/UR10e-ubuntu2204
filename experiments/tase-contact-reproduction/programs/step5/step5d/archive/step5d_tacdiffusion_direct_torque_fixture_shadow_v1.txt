@@ -1,0 +1,17 @@
+Step5d TacDiffusion Direct Torque fixture-shadow v1
+
+Open on Teach Pendant only after controller read-back is verified:
+  /programs/andyl/kunwei/step5/step5d/archive/step5d_tacdiffusion_direct_torque_fixture_shadow_v1.urp
+
+Version:
+  2026-07-20T1500HKT_STEP5D_TACDIFFUSION_DIRECT_TORQUE_FIXTURE_SHADOW_V1
+
+One-Play contract:
+  Start the separately gated bridge, then the operator presses Play once.
+  The frozen V3 approach/search/preload runs before Direct Torque Stage25.
+  Only normal 60 s completion may use the guarded retract/home route.
+  Packet, sensor, runtime, or safety faults stop and latch without auto-home.
+
+TacDiffusion authority:
+  fixture_shadow at 50 Hz; diagnostic_only; command_invariant; model_active=false.
+  No hardware tare and no zero_ftsensor; the bridge uses 1000 software samples.

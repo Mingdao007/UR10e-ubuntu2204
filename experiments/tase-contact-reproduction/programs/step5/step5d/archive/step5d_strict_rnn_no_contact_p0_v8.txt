@@ -1,7 +1,7 @@
 Step5d strict RNN no-contact P0 capture TP package
 
 Open on Teach Pendant only after the no-contact P0 capture package is explicitly delivered:
-  /programs/andyl/kunwei/step5/archive/step5d_strict_rnn_no_contact_p0_v8.urp
+  /programs/andyl/kunwei/step5/step5d/archive/step5d_strict_rnn_no_contact_p0_v8.urp
 
 Version:
   2026-07-14T0335HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8

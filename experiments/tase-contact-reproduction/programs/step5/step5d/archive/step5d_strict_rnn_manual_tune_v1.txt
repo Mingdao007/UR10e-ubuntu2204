@@ -1,0 +1,21 @@
+Step5d manual-hold TP package
+
+Controller target:
+  /programs/andyl/kunwei/step5/step5d/archive/step5d_strict_rnn_manual_tune_v1.urp
+
+Version:
+  2026-07-21T1524HKT_STEP5D_MANUAL_HOLD_V1
+
+Protocol:
+  v3_full_home_manual_hold_v1; parent r009 commit bf6eb59d9530cf7f170f29c68c8812f00613b381
+
+Frozen execution envelope:
+  target force 12 N; orientation_ko 0.4; qdot cap 0.5 rad/s;
+  nf100-slew050-a050 / integer profile 633; Stage25 success target 60 s.
+  Each logical batch contains exactly one request and returns to campaign Home.
+  Home wait has no elapsed-time limit while float-register 26 heartbeat is fresh.
+  Heartbeat loss halts stationary with typed reason 20; an
+  inexact next ARM halts stationary with typed reason 21.
+
+Safety boundary:
+  Upload/read-back does not Load or Play. It does not start a bridge or authorize motion.

@@ -1,0 +1,19 @@
+Step5a no-contact cycloid TP package
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step5/step5a/archive/step5a_cycloid_no_contact_v2.urp
+
+Version:
+  2026-06-12T0726HKT_STEP5A_CYCLOID_NO_CONTACT_V2
+
+Motion boundary:
+  No-contact motion only.
+  Fixed base Z: 0.029423891 m.
+  Duration: 15.0 s.
+  No force control, no contact search, no Kunwei bridge, no zero_ftsensor(), no TCP/payload write.
+
+Path:
+  x=0.015(0.4t-sin(0.4t)), y=0.015(1-cos(0.4t))
+  no-scale ratio: 1.000000000
+  max base X: 0.4877954111 m
+  X guard: 0.4888784335 m

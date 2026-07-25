@@ -1,7 +1,7 @@
 Step5d Autotune V3 TP package
 
 Controller target:
-  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r002.urp
+  /programs/andyl/kunwei/step5/step5d/archive/step5d_strict_rnn_autotune_v3_r002.urp
 
 Version:
   2026-07-20T1830HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R002
