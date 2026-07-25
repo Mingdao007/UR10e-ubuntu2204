@@ -48,7 +48,7 @@ PREFLIGHT_REQUIRED_FIELDS = {
 CAMPAIGN_RESULT_FIELDS = {
     "ok", "campaign_id", "campaign_epoch", "campaign_fingerprint", "campaign_root",
     "campaign_binding_file", "launch_profile_path", "launch_profile_sha256",
-    "machine_binding_status", "candidate_plan",
+    "machine_binding_status", "candidate_plan", "trial_overlay_plan", "receiver_root",
 }
 
 

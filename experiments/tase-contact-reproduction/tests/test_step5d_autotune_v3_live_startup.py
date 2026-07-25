@@ -633,6 +633,13 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     assert "campaign_authorization.json" not in source
     assert '"--authorization-file"' not in source
     assert '"--campaign-binding"' in source
+    assert 'validate_strict_bridge_ready(' in source
+    assert '_validate_active_launch_identity(' in source
+    assert 'read_and_validate_launch_basis(' in inspect.getsource(
+        live._validate_active_launch_identity
+    )
+    assert '"STEP5D_BRIDGE_LAUNCH_NONCE": launch_id' in source
+    assert "prepare(\n" not in source
     assert '"--campaign-arming-context"' not in source
     assert "legacy_campaign_root" not in source
     assert "--close-after-plan-revision" not in source

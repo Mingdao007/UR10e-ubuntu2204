@@ -29,6 +29,12 @@ from step5d_autotune_runtime_contract import PreparedFingerprint, PreparedTrial
 from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
 from step5d_autotune_v3.profile import canonical_json_bytes
 from step5d_autotune_v3.runtime_gate import load_campaign_lease, process_starttime
+from step5d_autotune_v3.release_identity import load_runtime_release
+from step5d_autotune_v3.bridge_admission import validate_bridge_admission
+from step5d_autotune_v3.launch_basis import (
+    read_and_validate_launch_basis,
+    validate_delivery_observation_binding,
+)
 from step5d_autotune_v3.runtime_profile import (
     load_launch_profile,
     normalized_overlay_sha256,
@@ -234,6 +240,50 @@ def _validate_authority(
         )
     ):
         raise ParameterCampaignError("campaign lease differs from receiver runner")
+
+
+def _validate_launch_identity(args: argparse.Namespace, binding: Mapping[str, Any]) -> None:
+    """Validate coordinator identity before publishing readiness or touching the mailbox."""
+    try:
+        release = load_runtime_release(args.experiment_root.resolve())
+        basis = read_and_validate_launch_basis(
+            args.launch_basis,
+            owner_pid=args.canonical_owner_pid,
+            owner_starttime=args.canonical_owner_starttime,
+            expected_basis_sha256=args.launch_basis_sha256,
+        )
+        if basis["authority_epoch"] != args.authority_epoch:
+            raise ParameterCampaignError("receiver launch basis authority epoch differs")
+        if release.manifest_sha256 != basis["release_manifest_sha256"]:
+            raise ParameterCampaignError("receiver release identity differs from launch basis")
+        admission = validate_bridge_admission(
+            args.experiment_root.resolve(),
+            _strict_object(args.admission, "bridge admission"),
+            release=release,
+        )
+        validate_delivery_observation_binding(
+            args.delivery_observation,
+            basis=basis,
+            admission=admission,
+            experiment_root=args.experiment_root.resolve(),
+        )
+        from run_step5d_autotune_v3_coordinator import _validate_campaign_prepare
+
+        campaign = _validate_campaign_prepare(
+            _strict_object(args.campaign_prepare, "campaign preparation"),
+            basis,
+        )["result"]
+        if any(
+            binding.get(key) != campaign.get(key)
+            for key in ("campaign_id", "campaign_epoch", "campaign_fingerprint")
+        ):
+            raise ParameterCampaignError("receiver campaign binding differs from preparation")
+        if binding.get("release_manifest_sha256") not in (None, basis["release_manifest_sha256"]):
+            raise ParameterCampaignError("receiver release identity differs from launch basis")
+    except ParameterCampaignError:
+        raise
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        raise ParameterCampaignError(f"receiver launch identity validation failed: {exc}") from exc
 
 
 def _prepared(
@@ -1062,6 +1112,7 @@ def _run_trial(
 def run(args: argparse.Namespace) -> None:
     binding = _strict_object(args.campaign_binding, "campaign binding")
     _validate_authority(args, binding)
+    _validate_launch_identity(args, binding)
     queue_state = load_state(args.receiver_root)
     _recover_terminal_artifacts(args, binding=binding)
     ready = {
@@ -1182,6 +1233,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--release-manifest-sha256", required=True)
     parser.add_argument("--v3-launch-profile", type=Path, required=True)
     parser.add_argument("--v3-program-id", required=True)
+    parser.add_argument("--launch-basis", type=Path, required=True)
+    parser.add_argument("--launch-basis-sha256", required=True)
+    parser.add_argument("--delivery-observation", type=Path, required=True)
+    parser.add_argument("--campaign-prepare", type=Path, required=True)
+    parser.add_argument("--admission", type=Path, required=True)
+    parser.add_argument("--canonical-owner-pid", type=int, required=True)
+    parser.add_argument("--canonical-owner-starttime", type=int, required=True)
+    parser.add_argument("--authority-epoch", type=int, required=True)
     return parser.parse_args()
 
 

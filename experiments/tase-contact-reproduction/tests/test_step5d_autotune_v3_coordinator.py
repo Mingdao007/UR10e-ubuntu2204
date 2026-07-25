@@ -48,6 +48,8 @@ def _campaign_payload(basis: dict[str, Any], created_at: int) -> dict[str, Any]:
         "launch_profile_sha256": "1" * 64,
         "machine_binding_status": "pending_exact_candidate_and_overlay_plans",
         "candidate_plan": "/tmp/candidate-plan.json",
+        "trial_overlay_plan": "/tmp/trial-overlay-plan.json",
+        "receiver_root": "/tmp/receiver",
     }
     return {
         **result,

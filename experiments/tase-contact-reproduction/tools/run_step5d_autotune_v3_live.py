@@ -27,6 +27,12 @@ from step5d_autotune_v3.delivery_observation import (
     load_delivery_observation,
     validate_delivery_observation,
 )
+from step5d_autotune_v3.bridge_admission import validate_bridge_admission
+from step5d_autotune_v3.launch_basis import (
+    read_and_validate_launch_basis,
+    validate_delivery_observation_binding,
+    validate_strict_bridge_ready,
+)
 from step5d_autotune_v3.governance import (
     RUNTIME_OBSERVATION_INTERVAL_S,
     load_current_release_snapshot,
@@ -1137,6 +1143,48 @@ def _validate_preflight(
     return payload
 
 
+def _validate_active_launch_identity(
+    args: argparse.Namespace,
+    release: ReleaseIdentity,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Consume the coordinator artifacts before any live child is spawned."""
+    try:
+        if args.campaign_prepare is None:
+            raise LiveLaunchError("coordinator campaign preparation artifact is required")
+        basis = read_and_validate_launch_basis(
+            args.launch_basis,
+            owner_pid=args.canonical_owner_pid,
+            owner_starttime=args.canonical_owner_starttime,
+            expected_basis_sha256=args.launch_basis_sha256,
+        )
+        if basis["authority_epoch"] != args.authority_epoch:
+            raise LiveLaunchError("launch basis authority epoch differs")
+        admission = validate_bridge_admission(
+            ROOT,
+            read_strict_json(args.admission, role="bridge admission"),
+            release=release,
+        )
+        if admission.get("campaign_fingerprint") != basis["campaign_fingerprint"]:
+            raise LiveLaunchError("bridge admission campaign identity differs")
+        validate_delivery_observation_binding(
+            args.delivery_observation,
+            basis=basis,
+            admission=admission,
+            experiment_root=ROOT,
+        )
+        from run_step5d_autotune_v3_coordinator import _validate_campaign_prepare
+
+        campaign = _validate_campaign_prepare(
+            read_strict_json(args.campaign_prepare, role="campaign preparation"),
+            basis,
+        )
+        return basis, admission, campaign
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        if isinstance(exc, LiveLaunchError):
+            raise
+        raise LiveLaunchError(f"active launch identity validation failed: {exc}") from exc
+
+
 def run(args: argparse.Namespace) -> Mapping[str, Any]:
     runtime_pointer = getattr(args, "_runtime_pointer", None)
     if not isinstance(runtime_pointer, Mapping):
@@ -1233,11 +1281,7 @@ def _run_live_session(
     args: argparse.Namespace,
     runtime_pointer: Mapping[str, Any],
 ) -> Mapping[str, Any]:
-    from prepare_step5d_autotune_launch import (
-        LaunchPreparationRequest,
-        prepare,
-        write_machine_campaign_binding,
-    )
+    from prepare_step5d_autotune_launch import write_machine_campaign_binding
     from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
 
     control_python = runtime_pointer["profiles"]["control"]["python_executable"]
@@ -1282,19 +1326,10 @@ def _run_live_session(
         release,
         launch_profile,
     )
+    basis, admission, campaign_prepare = _validate_active_launch_identity(args, release)
     campaign_binding = bridge_runtime / "campaign_binding.json"
     launch_plan_path = bridge_runtime / "campaign_launch_plan.json"
-    prepared = prepare(
-        LaunchPreparationRequest(
-            experiment_root=ROOT,
-            campaign_root=args.campaign_root,
-            binding_file=campaign_binding,
-            binding_source="canonical_v3_live_entrypoint",
-            launch_profile_path=launch_profile_path,
-            candidate_batch_size=5,
-            rolling_plan=True,
-        )
-    )
+    prepared = dict(campaign_prepare["result"])
     plan_path = Path(str(prepared["candidate_plan"]))
     source_path = Path(str(prepared["trial_overlay_plan"]))
     plan = read_strict_json(plan_path, role="parameter receiver plan")
@@ -1322,12 +1357,9 @@ def _run_live_session(
     atomic_json(launch_plan_path, prepared)
     receiver_root = Path(str(prepared["receiver_root"]))
     inherited_launch_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID")
-    if inherited_launch_id is not None and (
-        len(inherited_launch_id) != 32
-        or any(character not in "0123456789abcdef" for character in inherited_launch_id)
-    ):
-        raise LiveLaunchError("canonical launch-attempt ID is invalid")
-    launch_id = inherited_launch_id or uuid.uuid4().hex
+    if inherited_launch_id is not None and inherited_launch_id != basis["launch_nonce"]:
+        raise LiveLaunchError("canonical launch-attempt ID differs from launch basis")
+    launch_id = str(basis["launch_nonce"])
     runtime_contract = release_runtime_contract(ROOT, release)
     lease = CampaignLease.issue(
         lease_id=uuid.uuid4().hex,
@@ -1361,6 +1393,19 @@ def _run_live_session(
         "tp_program_id": release.program_id,
         "manifest_sha256": release.manifest_sha256,
         "safety_envelope_sha256": runtime_contract["safety_envelope_sha256"],
+        "launch_basis": {
+            "path": str(args.launch_basis),
+            "sha256": basis["basis_sha256"],
+        },
+        "delivery_observation": {
+            "path": str(args.delivery_observation),
+            "sha256": basis["delivery_observation_sha256"],
+        },
+        "authority_epoch": basis["authority_epoch"],
+        "campaign_prepare": {
+            "path": str(args.campaign_prepare),
+            "sha256": _sha256_path(args.campaign_prepare),
+        },
         "campaign_binding": {
             "campaign_id": prepared["campaign_id"],
             "campaign_epoch": prepared["campaign_epoch"],
@@ -1383,7 +1428,7 @@ def _run_live_session(
         profile="control",
         additions={
             "STEP5D_V3_RUNTIME_TICKET": str(ticket_path),
-            "STEP5D_BRIDGE_LAUNCH_NONCE": uuid.uuid4().hex,
+            "STEP5D_BRIDGE_LAUNCH_NONCE": launch_id,
         },
         runtime_pointer=runtime_pointer,
     )
@@ -1456,6 +1501,17 @@ def _run_live_session(
             bridge_ready = read_strict_json(
                 bridge_run / "bridge_ready.json", role="bridge readiness"
             )
+            validate_strict_bridge_ready(
+                bridge_ready,
+                bridge_pid=bridge.pid,
+                bridge_starttime_ticks=process_starttime(bridge.pid),
+                launch_nonce=launch_id,
+                expected_profile=release.control_profile_id,
+                ticket=ticket,
+                basis=basis,
+                release=release,
+                admission=admission,
+            )
             csv_path = bridge_run / "bridge_rtde_500hz.csv"
             csv_follower = _LatestCsvFollower(csv_path)
             print("V3_BRIDGE_READY_NO_ARM", flush=True)
@@ -1484,6 +1540,22 @@ def _run_live_session(
                 str(launch_profile_path),
                 "--v3-program-id",
                 release.program_id,
+                "--launch-basis",
+                str(args.launch_basis),
+                "--launch-basis-sha256",
+                basis["basis_sha256"],
+                "--delivery-observation",
+                str(args.delivery_observation),
+                "--campaign-prepare",
+                str(args.campaign_prepare),
+                "--admission",
+                str(args.admission),
+                "--canonical-owner-pid",
+                str(args.canonical_owner_pid),
+                "--canonical-owner-starttime",
+                str(args.canonical_owner_starttime),
+                "--authority-epoch",
+                str(args.authority_epoch),
             ]
             with runner_log_path.open("wb") as runner_log:
                 runner = subprocess.Popen(
@@ -2012,7 +2084,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--authority-epoch", type=int)
     parser.add_argument("--launch-basis", type=Path)
     parser.add_argument("--launch-basis-sha256")
-    parser.add_argument("--campaign-prepare", type=Path)
+    parser.add_argument("--campaign-prepare", type=Path, required=True)
     parser.add_argument("--ready-timeout-s", type=float, default=30.0)
     parser.add_argument(
         "--campaign-root",
