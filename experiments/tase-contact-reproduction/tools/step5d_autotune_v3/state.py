@@ -22,6 +22,8 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterator, Mapping, Sequence
 
+from ur10e_experiment_runtime.identity import canonical_sha256
+
 from .atomic_io import AtomicIOError, atomic_bytes
 from .identity_layers import (
     orchestration_fingerprint as _layered_orchestration_fingerprint,
@@ -351,16 +353,41 @@ def orchestration_source_sha256(experiment_root: Path) -> dict[str, str]:
     return manifest
 
 
-def active_orchestration_manifest(experiment_root: Path) -> dict[str, Any]:
+def active_orchestration_manifest(
+    experiment_root: Path,
+    *,
+    tp_program_id: str | None = None,
+) -> dict[str, Any]:
     """Return the non-recursive current orchestration identity document."""
 
-    return _layered_orchestration_manifest(experiment_root.parents[1])
+    if tp_program_id is None:
+        from .profile import load_contract
+
+        tp_program_id = str(
+            load_contract(
+                experiment_root
+                / "config/step5/step5d_autotune_v3_control_contract.json"
+            )["deployment_tp_identity"]["program"]
+        )
+    return _layered_orchestration_manifest(
+        experiment_root.parents[1],
+        tp_program_id=tp_program_id,
+    )
 
 
-def active_orchestration_fingerprint(experiment_root: Path) -> str:
+def active_orchestration_fingerprint(
+    experiment_root: Path,
+    *,
+    tp_program_id: str | None = None,
+) -> str:
     """Hash current lifecycle/authorization semantics, excluding evidence code."""
 
-    return _layered_orchestration_fingerprint(experiment_root.parents[1])
+    return canonical_sha256(
+        active_orchestration_manifest(
+            experiment_root,
+            tp_program_id=tp_program_id,
+        )
+    )
 
 
 @dataclass(frozen=True)

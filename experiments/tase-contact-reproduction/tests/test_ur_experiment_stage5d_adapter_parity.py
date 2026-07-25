@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -208,7 +209,12 @@ def test_exact_ack_requires_current_identity_bundle_and_safe_closure() -> None:
 
 def test_batch_identity_binds_the_exact_current_five_rolling_rows() -> None:
     spec = load_experiment_spec(SPEC)
-    profile = load_launch_profile()
+    program_id = json.loads(
+        (
+            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+        ).read_text(encoding="utf-8")
+    )["tp_program_id"]
+    profile = load_launch_profile(expected_tp_program_id=program_id)
     overlays = _initial_control_overlays(profile)
     occurrences = tuple(
         occurrence.bind_control_candidate_uid(overlay["control_candidate_uid"])

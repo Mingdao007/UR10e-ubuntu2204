@@ -50,9 +50,12 @@ def _overlay_for_first_row(
     plan: Any,
     selected: Any,
     launch_profile_path: Path,
+    tp_program_id: str,
 ) -> tuple[dict[str, Any], str]:
     payload = read_strict_json(paths.trial_overlays, role="first-row overlay plan")
-    profile = load_launch_profile(launch_profile_path)
+    profile = load_launch_profile(
+        launch_profile_path, expected_tp_program_id=tp_program_id
+    )
     if (
         not isinstance(payload, Mapping)
         or payload.get("schema") != "step5d.autotune-v3/trial-overlay-plan-v2"
@@ -180,6 +183,7 @@ def verify_first_row_admission(
         plan=plan,
         selected=selected,
         launch_profile_path=launch_profile_path,
+        tp_program_id=release.program_id,
     )
     script_path = root / str(release.artifacts[".script"]["path"])
     write_order = _state_write_order(script_path.read_text(encoding="utf-8"))

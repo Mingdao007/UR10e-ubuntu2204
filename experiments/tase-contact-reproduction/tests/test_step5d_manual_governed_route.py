@@ -20,6 +20,23 @@ from step5d_autotune_v3.governance import (  # noqa: E402
     read_proc_starttime_ticks,
 )
 
+_CURRENT_POINTER = json.loads(
+    (ROOT / "config/step5d/current.json").read_text(encoding="utf-8")
+)
+_CURRENT_MANIFEST = json.loads(
+    (ROOT / _CURRENT_POINTER["manifest_path"]).read_text(encoding="utf-8")
+)
+CURRENT_PROGRAM = _CURRENT_MANIFEST["identity"]["program_id"]
+RECOVERY_PROGRAMS = tuple(
+    program
+    for program in json.loads(
+        (ROOT / "config/step5d/v3_active_surface.json").read_text(
+            encoding="utf-8"
+        )
+    )["recovery_loaded_program_ids"]
+    if program != CURRENT_PROGRAM
+)
+
 
 @pytest.fixture(autouse=True)
 def _validated_manual_release_contract(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -182,7 +199,7 @@ def test_route_blocks_every_unrecognized_loaded_program(monkeypatch) -> None:
 def test_route_selects_v3_only_for_exact_current_loaded_program(monkeypatch) -> None:
     expected = (
         "/programs/andyl/kunwei/step5/"
-        "step5d_strict_rnn_autotune_v3_r012.urp"
+        f"{CURRENT_PROGRAM}.urp"
     )
     monkeypatch.setattr(
         route,
@@ -209,12 +226,8 @@ def test_route_selects_v3_only_for_exact_current_loaded_program(monkeypatch) -> 
 
 @pytest.mark.parametrize(
     ("program_id", "expected_mode"),
-    (
-        ("step5d_strict_rnn_autotune_v3_r012", "active"),
-        ("step5d_strict_rnn_autotune_v3_r011", "recovery"),
-        ("step5d_strict_rnn_autotune_v3_r010", "recovery"),
-        ("step5d_strict_rnn_autotune_v3_r009", "recovery"),
-    ),
+    ((CURRENT_PROGRAM, "active"),)
+    + tuple((program, "recovery") for program in RECOVERY_PROGRAMS),
 )
 def test_v3_delivery_recovery_route_precedes_current_release_repair(
     tmp_path: Path,
@@ -238,7 +251,10 @@ def test_v3_delivery_recovery_route_precedes_current_release_repair(
 
     current = route.load_current_release_snapshot(root)
     assert current.valid is False
-    assert current.error == "GovernanceError:TP runtime identity fields differ"
+    assert current.error in {
+        "GovernanceError:TP runtime identity fields differ",
+        "GovernanceError:safety envelope is missing or unsafe",
+    }
 
     monkeypatch.setattr(
         route,

@@ -31,6 +31,9 @@ from step5d_autotune_v3.delivery_observation import (  # noqa: E402
 from step5d_autotune_v3.release_identity import load_local_release_candidate  # noqa: E402
 from step5d_autotune_v3 import release_transition as transition  # noqa: E402
 
+PROGRAM = "step5d_strict_rnn_autotune_v3_r999"
+TEST_STAMP = "2026-07-23T0000HKT_" + PROGRAM.upper()
+
 
 def test_upload_runner_reports_bounded_child_failure_output() -> None:
     failure = subprocess.CalledProcessError(
@@ -71,11 +74,11 @@ def _write_receipt(
     controller: str = "root@192.168.1.18",
     delivery_mode: str = "full_upload_readback",
 ) -> Path:
-    readback = root / "runs" / f"controller_readback_{promotion.PROGRAM}_{suffix}"
+    readback = root / "runs" / f"controller_readback_{PROGRAM}_{suffix}"
     readback.mkdir(parents=True)
     hashes: dict[str, str] = {}
     for extension in promotion.EXTENSIONS:
-        source = local / f"{promotion.PROGRAM}{extension}"
+        source = local / f"{PROGRAM}{extension}"
         data = source.read_bytes()
         (readback / source.name).write_bytes(data)
         hashes[extension] = hashlib.sha256(data).hexdigest()
@@ -85,10 +88,10 @@ def _write_receipt(
         "target_dir": promotion.TARGET_DIR,
         "validation": {
             "stamp": stamp,
-            "program": promotion.PROGRAM,
+            "program": PROGRAM,
             "target_dir": promotion.TARGET_DIR,
             "script_node_path": (
-                f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.script"
+                f"{promotion.TARGET_DIR}/{PROGRAM}.script"
             ),
             "script_sha256": hashes[".script"],
             "txt_sha256": hashes[".txt"],
@@ -114,7 +117,7 @@ def _fixture_manifest(tmp_path: Path) -> tuple[Path, Path]:
     local.mkdir(parents=True)
     builder.write_triplet(
         local,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
     return root, _write_receipt(
         root,
@@ -130,8 +133,8 @@ def _release_for_receipt(path: Path) -> SimpleNamespace:
     receipt = json.loads(path.read_text(encoding="utf-8"))
     return SimpleNamespace(
         manifest_sha256="f" * 64,
-        program_id=promotion.PROGRAM,
-        controller_target=f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
+        program_id=PROGRAM,
+        controller_target=f"{promotion.TARGET_DIR}/{PROGRAM}.urp",
         artifact_sha256=dict(receipt["sha256"]["readback"]),
     )
 
@@ -173,18 +176,18 @@ def _transition_fixture(
         ".txt": "2" * 64,
         ".urp": "3" * 64,
     }
-    target = f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp"
+    target = f"{promotion.TARGET_DIR}/{PROGRAM}.urp"
     basis = SimpleNamespace(
         manifest_path=basis_manifest.relative_to(root).as_posix(),
         manifest_sha256=basis_manifest_sha256,
-        program_id=promotion.PROGRAM,
+        program_id=PROGRAM,
         controller_target=target,
         artifact_sha256=dict(triplet),
     )
     candidate = SimpleNamespace(
         manifest_path="config/step5d/releases/candidate/manifest.json",
         manifest_sha256="f" * 64,
-        program_id=promotion.PROGRAM,
+        program_id=PROGRAM,
         controller_target=target,
         artifact_sha256=dict(triplet),
     )
@@ -195,7 +198,7 @@ def _transition_fixture(
                 "status": "controller read-back verified",
                 "target_dir": promotion.TARGET_DIR,
                 "validation": {
-                    "program": promotion.PROGRAM,
+                    "program": PROGRAM,
                     "script_node_path": target.replace(".urp", ".script"),
                     "script_sha256": triplet[".script"],
                     "txt_sha256": triplet[".txt"],
@@ -327,7 +330,7 @@ def _composition_fixture(tmp_path: Path) -> tuple[Path, Path]:
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
     return root, artifact_dir
 
@@ -685,6 +688,23 @@ def test_manifest_v3_and_bundle_ignore_receipt_time_and_transaction(
         Path("config/step5d/v3_active_surface.json"),
     ):
         assert local[1][relative.as_posix()] == (root / relative).read_bytes()
+    rendered_contract = json.loads(
+        local[1][
+            "config/step5/step5d_autotune_v3_control_contract.json"
+        ]
+    )
+    rendered_manual_profile = json.loads(
+        local[1][promotion.MANUAL_LAUNCH_PROFILE.as_posix()]
+    )
+    assert rendered_manual_profile["control_contract_sha256"] == (
+        promotion.contract_sha256(rendered_contract)
+    )
+    source_manual_profile = json.loads(
+        (root / promotion.MANUAL_LAUNCH_PROFILE).read_text(encoding="utf-8")
+    )
+    assert rendered_manual_profile["tp_program_id"] == source_manual_profile[
+        "tp_program_id"
+    ]
     first = promotion.compose_release(
         root,
         first_receipt,
@@ -791,7 +811,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
     events: list[str] = []
     exact: list[Path] = []
@@ -806,7 +826,7 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         upload_arguments.extend(arguments)
         token = arguments[arguments.index("--upload-transaction-id") + 1]
         result_path = Path(arguments[arguments.index("--manifest-path-output") + 1])
-        manifest = root / "runs" / f"controller_readback_{promotion.PROGRAM}_exact" / "manifest.json"
+        manifest = root / "runs" / f"controller_readback_{PROGRAM}_exact" / "manifest.json"
         manifest.parent.mkdir(parents=True)
         manifest.write_text(json.dumps({"upload_transaction_id": token}) + "\n")
         result_path.write_text(
@@ -840,8 +860,8 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
 
     release = SimpleNamespace(
         manifest_sha256="f" * 64,
-        program_id=promotion.PROGRAM,
-        controller_target=f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
+        program_id=PROGRAM,
+        controller_target=f"{promotion.TARGET_DIR}/{PROGRAM}.urp",
     )
 
     with (
@@ -925,9 +945,9 @@ def test_transaction_passes_exact_uploader_manifest_to_promotion(tmp_path: Path)
         "load",
         "release",
     ]
-    assert upload_arguments[0] == builder.PROGRAM_NAME
+    assert upload_arguments[0] == PROGRAM
     assert any(
-        value.startswith("manifest-driven step5d_strict_rnn_autotune_v3_r012")
+        value.startswith(f"manifest-driven {PROGRAM}")
         for value in upload_arguments
     )
     assert upload_arguments[
@@ -957,18 +977,18 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
     artifact_sha = {
         extension: hashlib.sha256(
-            (artifact_dir / f"{promotion.PROGRAM}{extension}").read_bytes()
+            (artifact_dir / f"{PROGRAM}{extension}").read_bytes()
         ).hexdigest()
         for extension in promotion.EXTENSIONS
     }
     release = SimpleNamespace(
         manifest_sha256="f" * 64,
-        program_id=promotion.PROGRAM,
-        controller_target=f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
+        program_id=PROGRAM,
+        controller_target=f"{promotion.TARGET_DIR}/{PROGRAM}.urp",
         artifact_sha256=artifact_sha,
         tp_runtime_identity={"protocol_version": 1},
     )
@@ -1099,12 +1119,12 @@ def test_readback_only_get_failure_prevents_evidence_and_promotion(
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
     candidate = SimpleNamespace(
         manifest_sha256="f" * 64,
-        program_id=promotion.PROGRAM,
-        controller_target=f"{promotion.TARGET_DIR}/{promotion.PROGRAM}.urp",
+        program_id=PROGRAM,
+        controller_target=f"{promotion.TARGET_DIR}/{PROGRAM}.urp",
         artifact_sha256={
             extension: "a" * 64 for extension in promotion.EXTENSIONS
         },
@@ -1190,7 +1210,7 @@ def test_transaction_rejects_evidence_output_outside_runs_before_lock(
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
 
     with (
@@ -1221,7 +1241,7 @@ def test_transaction_contract_failure_precedes_controller_lock_and_upload(
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
     evidence_output = root / "runs/campaign/delivery-observation.json"
 
@@ -1268,7 +1288,7 @@ def test_transaction_rejects_symlink_artifacts_and_evidence_before_lock(
     artifact_dir.mkdir(parents=True)
     builder.write_triplet(
         artifact_dir,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
     artifact_link = root / "artifact-link"
     artifact_link.symlink_to(artifact_dir, target_is_directory=True)
@@ -1324,7 +1344,7 @@ def test_transaction_rejects_legacy_deploy_schema_before_lock_or_upload(
     artifact_dir.mkdir(parents=True)
     generated = builder.write_triplet(
         artifact_dir,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
     deploy = Path(generated["deploy_manifest"])
     payload = json.loads(deploy.read_text(encoding="utf-8"))
@@ -1352,7 +1372,7 @@ def test_transaction_rejects_runtime_identity_tamper_before_upload(
     artifact_dir.mkdir(parents=True)
     generated = builder.write_triplet(
         artifact_dir,
-        "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012",
+        TEST_STAMP, program_id=PROGRAM
     )
     deploy = Path(generated["deploy_manifest"])
     payload = json.loads(deploy.read_text(encoding="utf-8"))

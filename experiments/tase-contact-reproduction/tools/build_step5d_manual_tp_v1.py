@@ -10,18 +10,85 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-import build_step5d_autotune_tp_v3 as r009
+import build_step5d_autotune_tp as v1
+import build_step5d_autotune_tp_v3 as rolling_builder
 
 
 PROGRAM_NAME = "step5d_strict_rnn_manual_tune_v2"
 PROTOCOL = "v3_full_home_manual_hold_v1"
-PARENT_R009_COMMIT = "bf6eb59d9530cf7f170f29c68c8812f00613b381"
-PARENT_PROGRAM = r009.PROGRAM_NAME
 HEARTBEAT_STALE_S = 1.0
 HEARTBEAT_LOSS_REASON = 20
 MANUAL_IDENTITY_REASON = 21
-CONTROLLER_DIR = r009.CONTROLLER_DIR
-LOCAL_PROGRAM_DIR = r009.LOCAL_PROGRAM_DIR
+CONTROLLER_DIR = v1.CONTROLLER_DIR
+LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _manual_parent() -> tuple[dict[str, Any], Path, str]:
+    pointer = json.loads(
+        (ROOT / "config/step5d/manual/current.json").read_text(encoding="utf-8")
+    )
+    manual_manifest_path = ROOT / str(pointer["manifest_path"])
+    manual_manifest = json.loads(manual_manifest_path.read_text(encoding="utf-8"))
+    identity = manual_manifest["identity"]
+    manifest_sha256 = str(identity["parent_r009_release_manifest_sha256"])
+    manifest_path = (
+        ROOT
+        / "config/step5d/releases"
+        / manifest_sha256
+        / "manifest.json"
+    )
+    if (
+        manifest_path.is_symlink()
+        or not manifest_path.is_file()
+        or _sha256(manifest_path) != manifest_sha256
+    ):
+        raise RuntimeError("manual parent release manifest binding differs")
+    release = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return release, manifest_path.parent, str(identity["parent_r009_commit"])
+
+
+PARENT_RELEASE, PARENT_BUNDLE, PARENT_R009_COMMIT = _manual_parent()
+PARENT_PROGRAM = str(PARENT_RELEASE["identity"]["program_id"])
+
+
+def _parent_payload(relative: str, expected_sha256: str) -> Path:
+    unresolved = PARENT_BUNDLE / relative
+    resolved = unresolved.resolve(strict=True)
+    if (
+        unresolved.is_symlink()
+        or not resolved.is_relative_to(PARENT_BUNDLE)
+        or _sha256(resolved) != expected_sha256
+    ):
+        raise RuntimeError("manual parent release payload binding differs")
+    return resolved
+
+
+def _parent_script() -> str:
+    reference = PARENT_RELEASE["artifacts"][".script"]
+    return _parent_payload(
+        str(reference["path"]), str(reference["sha256"])
+    ).read_text(encoding="utf-8")
+
+
+def _parent_numeric_sanity() -> dict[str, Any]:
+    matches = [
+        relative
+        for relative in PARENT_RELEASE["generated_files"]
+        if relative.endswith(f"/{PARENT_PROGRAM}.numeric-sanity.json")
+    ]
+    if len(matches) != 1:
+        raise RuntimeError("manual parent numeric-sanity binding differs")
+    return json.loads(
+        _parent_payload(
+            matches[0],
+            str(PARENT_RELEASE["generated_files"][matches[0]]),
+        ).read_text(encoding="utf-8")
+    )
 
 
 def _replace_once(source: str, old: str, new: str, *, role: str) -> str:
@@ -31,7 +98,11 @@ def _replace_once(source: str, old: str, new: str, *, role: str) -> str:
 
 
 def _parent_wait_block() -> str:
-    matches = [new for _old, new, role in r009._direct_arm_replacements() if role == "bounded terminal halt"]
+    matches = [
+        new
+        for _old, new, role in rolling_builder._direct_arm_replacements()
+        if role == "bounded terminal halt"
+    ]
     if len(matches) != 1:
         raise RuntimeError("r009 bounded wait replacement differs")
     return matches[0]
@@ -116,7 +187,7 @@ end'''
 
 
 def render_script() -> str:
-    parent = r009.render_script()
+    parent = _parent_script()
     parent_sha = hashlib.sha256(parent.encode("utf-8")).hexdigest()
     result = parent
     result = _replace_once(
@@ -208,7 +279,7 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         raise ValueError(f"manual TP script lacks required markers: {missing}")
     if "while waiting_s < 30.000" not in script:
         raise ValueError("manual TP no longer embeds the unchanged r009 watchdog helper")
-    original = r009.render_script() if parent is None else parent
+    original = _parent_script() if parent is None else parent
     normalized = "\n".join(script.splitlines()[3:]) + "\n"
     normalized = _replace_once(
         normalized,
@@ -282,7 +353,7 @@ Safety boundary:
 
 def numeric_sanity(script: str) -> dict[str, Any]:
     validate_rendered_script(script.split("\n", 1)[1] if script.startswith("# VERSION:") else script)
-    sanity = dict(r009.numeric_sanity(r009.render_script()))
+    sanity = _parent_numeric_sanity()
     sanity.update(
         schema="step5d.manual-hold/tp-numeric-sanity-v2",
         program=PROGRAM_NAME,
@@ -336,7 +407,7 @@ def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> dict[str,
 def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
     script = build_package_script(stamp)
     txt = build_txt(stamp)
-    urp = r009.v1.build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
+    urp = v1.build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
     checks = validate_triplet(script, txt, urp, stamp)
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = {

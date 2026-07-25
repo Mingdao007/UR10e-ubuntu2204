@@ -34,6 +34,8 @@ from ur10e_experiment_runtime.physical_prior import (  # noqa: E402
     STEP5D_V3_PHYSICAL_PRIOR,
 )
 
+V3_TEST_PROGRAM = "step5d_strict_rnn_autotune_v3_r999"
+
 
 AUTOTUNE = runtime.STEP5D_AUTOTUNE_STAGE_ID
 V35 = runtime.STEP5D_ABLATION_V35_STAGE_ID
@@ -463,7 +465,7 @@ class Step5dAutotuneRuntimeTest(unittest.TestCase):
         )
 
     def test_runtime_handshake_matches_rendered_tp_wrapper(self) -> None:
-        wrapper = tp_builder_v3.render_script()
+        wrapper = tp_builder_v3.render_script(V3_TEST_PROGRAM)
         for name, register in state_machine.HOST_TO_TP_INTEGER_REGISTERS.items():
             self.assertIn(
                 f"{name} = read_input_integer_register({register})",

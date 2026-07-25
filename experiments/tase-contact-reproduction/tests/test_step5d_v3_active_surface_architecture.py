@@ -14,6 +14,13 @@ REPOSITORY_ROOT = ROOT.parents[1]
 RUNTIME_SOURCE = REPOSITORY_ROOT / "src/ur10e_experiment_runtime"
 ACTIVE = ROOT / "config/step5d/v3_active_surface.json"
 MATRIX = ROOT / "config/step5d_autotune_v3_test_matrix.json"
+ROLLING_IDENTITY_OWNERS = (
+    ROOT / "tools/build_step5d_autotune_tp_v3.py",
+    ROOT / "tools/promote_step5d_r009_atomic_release.py",
+    ROOT / "tools/run_step5d_autotune_v3_tp_transaction.py",
+    ROOT / "tools/step5d_autotune_v3/identity_layers.py",
+    ROOT / "tools/step5d_autotune_v3/release_identity.py",
+)
 
 
 def _compatibility_fixture(tmp_path: Path, *, revision: int) -> tuple[Path, Path]:
@@ -54,7 +61,8 @@ def test_active_surface_has_one_public_live_entrypoint_and_internal_workers() ->
     active = json.loads(ACTIVE.read_text(encoding="utf-8"))
 
     assert active["schema"] == "step5d.autotune-v3/active-surface-v3"
-    assert active["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r012"
+    assert "tp_program_id" not in active
+    assert active["current_release_pointer"] == "config/step5d/current.json"
     assert active["release_truth"]["manifest_schema"] == (
         "step5d.autotune-v3/release-manifest-v3"
     )
@@ -81,6 +89,18 @@ def test_active_surface_has_one_public_live_entrypoint_and_internal_workers() ->
         for name, value in active["entrypoints"].items()
         if name != "internal_workers"
     )
+
+
+def test_rolling_identity_owners_do_not_pin_a_release_revision() -> None:
+    forbidden = (
+        "step5d_strict_rnn_autotune_v3_r012",
+        "ACTIVE_TP_PROGRAM_ID",
+        "IMMUTABLE_RELEASE_STAMP",
+    )
+
+    for path in ROLLING_IDENTITY_OWNERS:
+        source = path.read_text(encoding="utf-8")
+        assert not any(token in source for token in forbidden), path
 
 
 def test_active_surface_contains_no_cached_dynamic_readiness() -> None:
@@ -121,12 +141,15 @@ def test_stale_release_claims_are_historical_not_active() -> None:
     active = json.loads(ACTIVE.read_text(encoding="utf-8"))
     claims = active["release_claims"]
 
-    assert claims["step5d_strict_rnn_autotune_v3_r012"].startswith("governed_identity")
+    assert all(value.startswith("historical_") for value in claims.values())
     for revision in (4, 6, 8, 9, 10, 11):
         assert claims[
             f"step5d_strict_rnn_autotune_v3_r{revision:03d}"
         ].startswith("historical_")
-    assert all("r012" in path for path in active["deployment_paths"])
+    assert "deployment_paths" not in active
+    assert active["deployment_source"] == (
+        "current release manifest artifact references"
+    )
 
 
 def test_only_one_compatibility_adapter_and_retired_stubs_have_no_live_path() -> None:
@@ -291,7 +314,7 @@ def test_authoritative_matrix_classifies_stale_release_files() -> None:
     matrix = json.loads(MATRIX.read_text(encoding="utf-8"))
     gate = matrix["authoritative_bridge_gate"]
 
-    assert gate["current_tp_program_id"] == "step5d_strict_rnn_autotune_v3_r012"
+    assert gate["current_release_pointer"] == "config/step5d/current.json"
     assert gate["unclassified_failure_policy"] == "block"
     assert gate["canonical_launcher"] == "scripts/step5d-autotune-v3.sh bridge-live"
     assert set(gate["classified_test_files"]) == {"active", "obsolete", "unrelated"}
@@ -304,7 +327,7 @@ def test_authoritative_matrix_classifies_stale_release_files() -> None:
             "current rolling policy regression retained under its historical filename"
         ),
         "tests/test_step5d_r009_release_core.py": (
-            "r012 release-manifest-v3 regression retained under its compatibility filename"
+            "rolling release-manifest regression retained under its historical filename"
         ),
     }
 

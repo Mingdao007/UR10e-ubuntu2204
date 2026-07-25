@@ -36,7 +36,6 @@ from ur10e_experiment_runtime.return_route import RETURN_ROUTE_EVIDENCE_SCHEMA
 from .identity_layers import (
     CONTROL_PROFILE_ID,
     RELEASE_STAGE_ID,
-    TP_PROGRAM_ID,
     release_basis_fingerprint,
     release_fingerprint,
     runtime_environment_fingerprint,
@@ -162,6 +161,7 @@ class BridgeStartContext:
     plant_epoch: int
     deployment_readback_sha256: str
     runtime_environment_manifest: Mapping[str, Any]
+    tp_program_id: str
 
     def __post_init__(self) -> None:
         for name in (
@@ -176,6 +176,13 @@ class BridgeStartContext:
             _sha256_value(name, getattr(self, name))
         _triplet(self.local_triplet_sha256, "local_triplet_sha256")
         _positive_int("plant_epoch", self.plant_epoch)
+        if (
+            not isinstance(self.tp_program_id, str)
+            or not self.tp_program_id.startswith(
+                "step5d_strict_rnn_autotune_v3_r"
+            )
+        ):
+            raise ArmingError("bridge-start TP program identity differs")
         runtime_manifest = _exact(
             self.runtime_environment_manifest,
             {"schema", "environment"},
@@ -229,7 +236,7 @@ class BridgeStartContext:
             ),
             "selected_release": RELEASE_STAGE_ID,
             "control_profile_provenance": CONTROL_PROFILE_ID,
-            "tp_program_id": TP_PROGRAM_ID,
+            "tp_program_id": self.tp_program_id,
             "bridge_start_ready": True,
             "motion_authorized": False,
             "campaign_authorized": False,
@@ -265,7 +272,7 @@ class BridgeStartContext:
             or document["stage_identity"] != STEP5D_V3_STAGE_IDENTITY.document()
             or document["selected_release"] != RELEASE_STAGE_ID
             or document["control_profile_provenance"] != CONTROL_PROFILE_ID
-            or document["tp_program_id"] != TP_PROGRAM_ID
+            or not isinstance(document["tp_program_id"], str)
             or document["bridge_start_ready"] is not True
             or document["motion_authorized"] is not False
             or document["campaign_authorized"] is not False
@@ -291,6 +298,7 @@ class BridgeStartContext:
             plant_epoch=document["plant_epoch"],
             deployment_readback_sha256=document["deployment_readback_sha256"],
             runtime_environment_manifest=document["runtime_environment_manifest"],
+            tp_program_id=document["tp_program_id"],
         )
 
 

@@ -75,7 +75,7 @@ state-machine transition and writes an immutable release-scoped certificate.
 
 Options:
   --release-candidate PATH   Reuse an immutable local release candidate
-  --artifact-dir PATH        TP package override when staging a candidate
+  --artifact-dir PATH        Required TP package when staging a candidate
                              (default: current immutable release artifacts)
 
 Output:
@@ -804,6 +804,10 @@ if (( release_contract_check_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
   if [[ -z "${release_candidate}" ]]; then
+    if [[ -z "${artifact_dir}" ]]; then
+      release_contract_check_argv_error \
+        "--artifact-dir is required when --release-candidate is omitted"
+    fi
     release_candidate="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/release-candidates/$(date -u +%Y%m%dT%H%M%SZ)-$$/candidate.json"
     candidate_command=(
       "${CONTROL_PYTHON}"
@@ -812,9 +816,7 @@ if (( release_contract_check_mode == 1 )); then
       --stage-local-candidate
       --candidate-output "${release_candidate}"
     )
-    if [[ -n "${artifact_dir}" ]]; then
-      candidate_command+=(--artifact-dir "${artifact_dir}")
-    fi
+    candidate_command+=(--artifact-dir "${artifact_dir}")
     "${candidate_command[@]}" >/dev/null
   fi
   "${CONTROL_PYTHON}" \

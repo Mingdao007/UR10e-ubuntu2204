@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Mapping
@@ -163,14 +164,12 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     }:
         raise ContractViolation("candidate_tp_identity schema differs")
     if (
-        candidate_identity["program"]
-        not in {
-            "step5d_strict_rnn_autotune_v3_r008",
-            "step5d_strict_rnn_autotune_v3_r009",
-            "step5d_strict_rnn_autotune_v3_r010",
-            "step5d_strict_rnn_autotune_v3_r011",
-            "step5d_strict_rnn_autotune_v3_r012",
-        }
+        not isinstance(candidate_identity["program"], str)
+        or re.fullmatch(
+            r"step5d_strict_rnn_autotune_v3_r\d{3}",
+            candidate_identity["program"],
+        )
+        is None
         or candidate_identity["mode"]
         not in {
             "local_only_requires_attended_controller_readback",
@@ -212,16 +211,12 @@ def _validate_contract_document(payload: Any) -> dict[str, Any]:
     }:
         raise ContractViolation("deployment_tp_identity schema differs")
     if (
-        deployment["program"]
-        not in {
-            "step5d_strict_rnn_autotune_v3_r005",
-            "step5d_strict_rnn_autotune_v3_r006",
-            "step5d_strict_rnn_autotune_v3_r008",
-            "step5d_strict_rnn_autotune_v3_r009",
-            "step5d_strict_rnn_autotune_v3_r010",
-            "step5d_strict_rnn_autotune_v3_r011",
-            "step5d_strict_rnn_autotune_v3_r012",
-        }
+        not isinstance(deployment["program"], str)
+        or re.fullmatch(
+            r"step5d_strict_rnn_autotune_v3_r\d{3}",
+            deployment["program"],
+        )
+        is None
         or deployment["mode"]
         != "explicit_v3_identity_precontact_pose_frozen_v1_control"
     ):
@@ -660,6 +655,7 @@ def active_tick_semantics_manifest(
     }
     return _layered_tick_semantics_manifest(
         repository_root,
+        tp_program_id=str(launch_profile["tp_program_id"]),
         semantic_inputs=semantic_inputs,
         external_inputs=external_inputs,
     )
@@ -757,7 +753,8 @@ def active_identity_snapshot(
             tp_program_id=program,
         ),
         "orchestration_fingerprint": active_orchestration_fingerprint(
-            experiment_root
+            experiment_root,
+            tp_program_id=program,
         ),
         "release_basis_fingerprint": None,
         "release_fingerprint": None,

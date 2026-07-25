@@ -253,7 +253,11 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
     contract_path = release_payload_path(ROOT, release, SAFETY_ENVELOPE_PATH)
     launch_path = release_payload_path(ROOT, release, LAUNCH_PROFILE_PATH)
     contract = load_contract(contract_path)
-    launch = load_launch_profile(launch_path, contract=contract)
+    launch = load_launch_profile(
+        launch_path,
+        contract=contract,
+        expected_tp_program_id=release.program_id,
+    )
     governed_argv = build_bridge_argv(
         args.mailbox.parent,
         contract=contract,

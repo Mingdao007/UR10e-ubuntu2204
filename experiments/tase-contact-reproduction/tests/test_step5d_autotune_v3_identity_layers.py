@@ -17,6 +17,8 @@ RUNTIME_SRC = REPOSITORY_ROOT / "src/ur10e_experiment_runtime"
 sys.path.insert(0, str(RUNTIME_SRC))
 sys.path.insert(0, str(ROOT / "tools"))
 
+TEST_PROGRAM = "step5d_strict_rnn_autotune_v3_r999"
+
 from step5d_autotune_v3.identity_layers import (  # noqa: E402
     BOUNDED_HOLD_TIMING_CONTRACT,
     EVIDENCE_VERIFIER_PATHS,
@@ -152,6 +154,7 @@ def test_selector_and_operational_metadata_do_not_change_tick_subject(
     _write(repository, "config/current_stage.json", '{"current":"v1"}\n')
     first = tick_semantics_fingerprint(
         repository,
+        tp_program_id=TEST_PROGRAM,
         source_paths=("src/tick.py",),
         semantic_inputs={
             "gain": 1.0,
@@ -171,6 +174,7 @@ def test_selector_and_operational_metadata_do_not_change_tick_subject(
     _write(repository, "config/current_stage.json", '{"current":"v3"}\n')
     second = tick_semantics_fingerprint(
         repository,
+        tp_program_id=TEST_PROGRAM,
         source_paths=("src/tick.py",),
         semantic_inputs={
             "gain": 1.0,
@@ -192,6 +196,7 @@ def test_selector_and_operational_metadata_do_not_change_tick_subject(
     _write(repository, "src/tick.py", "GAIN = 1.1\n")
     changed = tick_semantics_fingerprint(
         repository,
+        tp_program_id=TEST_PROGRAM,
         source_paths=("src/tick.py",),
         semantic_inputs={"gain": 1.0},
     )
@@ -204,6 +209,7 @@ def test_external_inputs_use_roles_not_absolute_paths(tmp_path: Path) -> None:
     _write(repository, "src/tick.py", "VALUE = 1\n")
     manifest = tick_semantics_manifest(
         repository,
+        tp_program_id=TEST_PROGRAM,
         source_paths=("src/tick.py",),
         external_inputs={"ur_description_xacro_sha256": "a" * 64},
     )
@@ -213,6 +219,7 @@ def test_external_inputs_use_roles_not_absolute_paths(tmp_path: Path) -> None:
     with pytest.raises(IdentityLayerError, match="external input role"):
         tick_semantics_manifest(
             repository,
+            tp_program_id=TEST_PROGRAM,
             source_paths=("src/tick.py",),
             external_inputs={"/opt/ros/model.xacro": "a" * 64},
         )
@@ -247,16 +254,19 @@ def test_verifier_change_does_not_change_orchestration_subject(
     _write(repository, "tools/verifier.py", "CHECK = 1\n")
     baseline = orchestration_fingerprint(
         repository,
+        tp_program_id=TEST_PROGRAM,
         source_paths=("tools/orchestrator.py",),
     )
     _write(repository, "tools/verifier.py", "CHECK = 2\n")
     assert orchestration_fingerprint(
         repository,
+        tp_program_id=TEST_PROGRAM,
         source_paths=("tools/orchestrator.py",),
     ) == baseline
     _write(repository, "tools/orchestrator.py", "STATE = 2\n")
     assert orchestration_fingerprint(
         repository,
+        tp_program_id=TEST_PROGRAM,
         source_paths=("tools/orchestrator.py",),
     ) != baseline
 
@@ -422,6 +432,7 @@ def test_release_basis_and_final_release_are_non_recursive(tmp_path: Path) -> No
 def test_default_manifests_are_buildable_without_importing_live_code() -> None:
     tick = tick_semantics_manifest(
         REPOSITORY_ROOT,
+        tp_program_id=TEST_PROGRAM,
         external_inputs={"ur_description_xacro_sha256": "a" * 64},
     )
     verifier = evidence_verifier_manifest(REPOSITORY_ROOT)

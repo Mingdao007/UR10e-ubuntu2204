@@ -31,9 +31,12 @@ from step5d_autotune_v3.runtime_profile import (  # noqa: E402
     overlay_fingerprint,
 )
 
+PROFILE_PATH = ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+PROGRAM = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))["tp_program_id"]
+
 
 def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() -> None:
-    profile = load_launch_profile()
+    profile = load_launch_profile(expected_tp_program_id=PROGRAM)
     contract = json.loads(
         (ROOT / "config/step5/step5d_autotune_v3_control_contract.json").read_text()
     )
@@ -42,11 +45,11 @@ def test_default_profile_exposes_broad_launch_surface_and_exact_trial_overlay() 
     assert tuple(overlay) == OVERLAY_FIELDS
     assert len(overlay) == 13
     assert profile.document["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
-    assert profile.document["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r012"
+    assert profile.document["tp_program_id"] == PROGRAM
 
 
 def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
-    profile = load_launch_profile()
+    profile = load_launch_profile(expected_tp_program_id=PROGRAM)
     overlay = dict(DEFAULT_OVERLAY)
     overlay["force_i_gain"] = 0.00002
     overlay.pop("control_candidate_uid")
@@ -77,7 +80,7 @@ def test_overlay_applies_atomically_to_one_argv_snapshot() -> None:
     ],
 )
 def test_overlay_unknown_out_of_envelope_and_offline_profile_fail_closed(mutation: dict) -> None:
-    profile = load_launch_profile()
+    profile = load_launch_profile(expected_tp_program_id=PROGRAM)
     overlay = dict(DEFAULT_OVERLAY)
     overlay.update(mutation)
     with pytest.raises(ContractViolation):
@@ -85,7 +88,9 @@ def test_overlay_unknown_out_of_envelope_and_offline_profile_fail_closed(mutatio
 
 
 def test_launch_profile_rejects_contract_bound_and_over_ceiling_override(tmp_path: Path) -> None:
-    payload = dict(load_launch_profile().document)
+    payload = dict(
+        load_launch_profile(expected_tp_program_id=PROGRAM).document
+    )
     contract = json.loads(
         (ROOT / "config/step5/step5d_autotune_v3_control_contract.json").read_text()
     )
@@ -93,11 +98,15 @@ def test_launch_profile_rejects_contract_bound_and_over_ceiling_override(tmp_pat
     path = tmp_path / "profile.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ContractViolation, match="non-launch-mutable"):
-        load_launch_profile(path, contract=contract)
+        load_launch_profile(
+            path, contract=contract, expected_tp_program_id=PROGRAM
+        )
     payload["launch_overrides"] = {"--max-normal-force-n": 61}
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ContractViolation, match="hard ceiling"):
-        load_launch_profile(path, contract=contract)
+        load_launch_profile(
+            path, contract=contract, expected_tp_program_id=PROGRAM
+        )
 
 
 def test_identity_cached_mailbox_skips_decode_until_atomic_identity_changes(

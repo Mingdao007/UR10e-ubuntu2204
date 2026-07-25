@@ -31,6 +31,9 @@ from run_step5d_autotune_campaign import _profile  # noqa: E402
 PLAN_FIXTURE = ROOT / "tests/fixtures/step5d_r005_exact_candidate_plan.json"
 PLAN_SHA256 = "bed54b7482fa596fcc6bf34fa4c4aabbeecfe9c86903b123aa68f4edeaec5935"
 LAUNCH_PROFILE = ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+PROGRAM = json.loads(LAUNCH_PROFILE.read_text(encoding="utf-8"))[
+    "tp_program_id"
+]
 
 
 def _atomic_json(path: Path, payload: object) -> None:
@@ -44,7 +47,9 @@ def _atomic_json(path: Path, payload: object) -> None:
 def _overlay_plan(candidate_plan: Path, path: Path) -> dict[str, object]:
     plan = load_plan(candidate_plan, campaign_id="step5d-native-1")
     profile = _profile(ROOT)
-    launch = load_launch_profile(LAUNCH_PROFILE)
+    launch = load_launch_profile(
+        LAUNCH_PROFILE, expected_tp_program_id=PROGRAM
+    )
     batches = []
     if any(plan.occurrences):
         for batch_id, occurrences in enumerate(plan.occurrences, start=1):

@@ -31,7 +31,7 @@ STEP5D_ABLATION_V27_STAGE_ID = "step5d_strict_rnn_ablation_v27"
 STEP5D_ABLATION_V28_STAGE_ID = "step5d_strict_rnn_ablation_v28"
 STEP5D_ABLATION_V29_STAGE_ID = "step5d_strict_rnn_ablation_v29"
 STEP5D_ARCHIVED_PROFILE_REASON = "ARCHIVED_PROFILE"
-STEP5D_ARCHIVED_PROFILE_REPLACEMENT = "step5d_strict_rnn_autotune_v3_r012"
+STEP5D_ARCHIVED_PROFILE_REPLACEMENT_SOURCE = "config/step5d/current.json"
 STEP5D_ARCHIVED_STAGE_IDS = frozenset({STEP5D_ABLATION_V29_STAGE_ID})
 STEP5D_ABLATION_V30_STAGE_ID = "step5d_strict_rnn_ablation_v30"
 STEP5D_ABLATION_V31_STAGE_ID = "step5d_strict_rnn_ablation_v31"
@@ -142,7 +142,7 @@ def require_executable_step5d_profile(program: str) -> None:
     if program in STEP5D_ARCHIVED_STAGE_IDS:
         raise ArchivedProfileError(
             f"{STEP5D_ARCHIVED_PROFILE_REASON}: {program}; "
-            f"replacement={STEP5D_ARCHIVED_PROFILE_REPLACEMENT}"
+            f"replacement_source={STEP5D_ARCHIVED_PROFILE_REPLACEMENT_SOURCE}"
         )
 
 

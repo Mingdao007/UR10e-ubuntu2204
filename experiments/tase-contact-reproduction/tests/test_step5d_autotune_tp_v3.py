@@ -16,12 +16,15 @@ sys.path.insert(0, str(ROOT / "tools"))
 import build_step5d_autotune_tp as v1  # noqa: E402
 import build_step5d_autotune_tp_v3 as v3  # noqa: E402
 
+TEST_PROGRAM = "step5d_strict_rnn_autotune_v3_r999"
+TEST_STAMP = "2026-07-20T1325HKT_" + TEST_PROGRAM.upper()
+
 
 def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
-    rendered = v3.render_script()
-    v3.validate_rendered_script(rendered)
+    rendered = v3.render_script(TEST_PROGRAM)
+    v3.validate_rendered_script(rendered, program_id=TEST_PROGRAM)
 
-    assert v3.PROGRAM_NAME == "step5d_strict_rnn_autotune_v3_r012"
+    assert f"# TP_PROGRAM_ID: {TEST_PROGRAM}" in rendered
     assert "# CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1" in rendered
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
     assert "def codex_step5d_autotune_trial_v1(" in rendered
@@ -106,10 +109,11 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
 
 def test_r010_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
     stamp = v3.source_stamp(
+        TEST_PROGRAM,
         datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
     )
-    result = v3.write_triplet(tmp_path, stamp)
-    basename = "step5d_strict_rnn_autotune_v3_r012"
+    result = v3.write_triplet(tmp_path, stamp, program_id=TEST_PROGRAM)
+    basename = TEST_PROGRAM
 
     assert result["program"] == basename
     assert result["control_profile_id"] == "step5d_strict_rnn_autotune_v1"
@@ -134,27 +138,31 @@ def test_r010_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None
     assert sanity["execution_profile_integer_id"] == 633
 
     with pytest.raises(FileExistsError, match="increment rNNN"):
-        v3.write_triplet(tmp_path, stamp)
+        v3.write_triplet(tmp_path, stamp, program_id=TEST_PROGRAM)
 
 
 def test_r010_generator_check_recomputes_every_output_byte(tmp_path: Path) -> None:
     stamp = v3.source_stamp(
+        TEST_PROGRAM,
         datetime(2026, 7, 20, 13, 25, tzinfo=timezone(timedelta(hours=8)))
     )
-    v3.write_triplet(tmp_path, stamp)
-    assert v3.check_triplet(tmp_path, stamp)["ok"] is True
-    sanity = tmp_path / f"{v3.PROGRAM_NAME}.numeric-sanity.json"
+    v3.write_triplet(tmp_path, stamp, program_id=TEST_PROGRAM)
+    assert v3.check_triplet(
+        tmp_path, stamp, program_id=TEST_PROGRAM
+    )["ok"] is True
+    sanity = tmp_path / f"{TEST_PROGRAM}.numeric-sanity.json"
     sanity.write_bytes(sanity.read_bytes().replace(b'"return_segment_count": 3', b'"return_segment_count": 4'))
     with pytest.raises(ValueError, match="numeric-sanity.json:byte_drift"):
-        v3.check_triplet(tmp_path, stamp)
+        v3.check_triplet(tmp_path, stamp, program_id=TEST_PROGRAM)
 
 
 def test_r010_default_build_is_byte_stable(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     first = tmp_path / "first"
     second = tmp_path / "second"
-    assert v3.main(["--output-dir", str(first)]) == 0
+    identity_args = ["--program-id", TEST_PROGRAM, "--stamp", TEST_STAMP]
+    assert v3.main(["--output-dir", str(first), *identity_args]) == 0
     capsys.readouterr()
-    assert v3.main(["--output-dir", str(second)]) == 0
+    assert v3.main(["--output-dir", str(second), *identity_args]) == 0
     capsys.readouterr()
 
     first_bytes = {
@@ -164,6 +172,4 @@ def test_r010_default_build_is_byte_stable(tmp_path: Path, capsys: pytest.Captur
         path.name: path.read_bytes() for path in sorted(second.iterdir())
     }
     assert first_bytes == second_bytes
-    assert v3.IMMUTABLE_RELEASE_STAMP.encode() in first_bytes[
-        f"{v3.PROGRAM_NAME}.script"
-    ]
+    assert TEST_STAMP.encode() in first_bytes[f"{TEST_PROGRAM}.script"]

@@ -281,6 +281,7 @@ def check_effective_config(
     contract_path: Path = DEFAULT_CONTRACT_PATH,
     verify_sources: bool = True,
     launch_profile_path: Path | None = None,
+    expected_tp_program_id: str | None = None,
     trial_overlay: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a JSON-safe attestation; fail before any process or device action."""
@@ -293,7 +294,15 @@ def check_effective_config(
     if launch_profile_path is not None:
         from .runtime_profile import load_launch_profile, normalize_trial_overlay
 
-        launch_profile = load_launch_profile(launch_profile_path, contract=contract)
+        if expected_tp_program_id is None:
+            raise ContractViolation(
+                "launch profile requires explicit TP program identity"
+            )
+        launch_profile = load_launch_profile(
+            launch_profile_path,
+            contract=contract,
+            expected_tp_program_id=expected_tp_program_id,
+        )
         normalized_overlay = normalize_trial_overlay(
             trial_overlay,
             profile=launch_profile,

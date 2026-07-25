@@ -32,7 +32,8 @@ from step5d_autotune_v3.runtime_gate import (  # noqa: E402
 )
 
 
-STAMP = "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012"
+PROGRAM = "step5d_strict_rnn_autotune_v3_r999"
+STAMP = "2026-07-23T0000HKT_" + PROGRAM.upper()
 
 
 def _increment_digest_hi(script: str) -> str:
@@ -44,10 +45,10 @@ def _increment_digest_hi(script: str) -> str:
 
 
 def test_r012_identity_round_trips_without_a_hash_fixed_point() -> None:
-    script = builder.build_package_script(STAMP)
+    script = builder.build_package_script(STAMP, program_id=PROGRAM)
     identity, payload = bind_final_script(
         script,
-        program_id=builder.PROGRAM_NAME,
+        program_id=PROGRAM,
         protocol_id=builder.PROTOCOL_ID,
     )
     basis, observed = canonicalize_script_identity(script)
@@ -74,11 +75,11 @@ def test_r012_identity_round_trips_without_a_hash_fixed_point() -> None:
     ],
 )
 def test_runtime_identity_rejects_script_or_literal_tamper(mutation) -> None:
-    script = builder.build_package_script(STAMP)
+    script = builder.build_package_script(STAMP, program_id=PROGRAM)
     with pytest.raises(RuntimeIdentityError):
         bind_final_script(
             mutation(script),
-            program_id=builder.PROGRAM_NAME,
+            program_id=PROGRAM,
             protocol_id=builder.PROTOCOL_ID,
         )
 
@@ -94,7 +95,7 @@ def test_runtime_identity_rejects_script_or_literal_tamper(mutation) -> None:
 def test_prior_releases_cannot_impersonate_r012_runtime_identity(
     wrong_program: str,
 ) -> None:
-    script = builder.build_package_script(STAMP)
+    script = builder.build_package_script(STAMP, program_id=PROGRAM)
     with pytest.raises(RuntimeIdentityError, match="literals differ"):
         bind_final_script(
             script,
@@ -121,10 +122,10 @@ def test_rtde_recipe_proves_cardinality_and_int32_capability() -> None:
 
 
 def test_ordered_identity_register_publication_is_fail_closed_until_complete() -> None:
-    script = builder.build_package_script(STAMP)
+    script = builder.build_package_script(STAMP, program_id=PROGRAM)
     identity, manifest_identity = bind_final_script(
         script,
-        program_id=builder.PROGRAM_NAME,
+        program_id=PROGRAM,
         protocol_id=builder.PROTOCOL_ID,
     )
     start = script.index("def codex_step5d_publish_runtime_identity():")
@@ -157,7 +158,7 @@ def test_ordered_identity_register_publication_is_fail_closed_until_complete() -
 
 
 def test_host_network_profile_domain_exactly_matches_tp_acceptance_domain() -> None:
-    script = builder.build_package_script(STAMP)
+    script = builder.build_package_script(STAMP, program_id=PROGRAM)
     start = script.index("def codex_autotune_network_profile_valid(")
     end = script.index("\nend", start) + len("\nend")
     tp_predicate = script[start:end]

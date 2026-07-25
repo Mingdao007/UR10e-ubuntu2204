@@ -28,7 +28,6 @@ from .release_identity import (
 
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r012"
 
 EXPERIMENT_REPO_PREFIX = "experiments/tase-contact-reproduction"
 
@@ -138,7 +137,6 @@ BOUNDED_HOLD_TIMING_CONTRACT: Mapping[str, Any] = {
 DEFAULT_TICK_SEMANTICS: Mapping[str, Any] = {
     "release_stage_id": RELEASE_STAGE_ID,
     "control_profile_id": CONTROL_PROFILE_ID,
-    "tp_program_id": TP_PROGRAM_ID,
     "control_hz": 500.0,
     "moving_sphere": {
         "active_stage": 25,
@@ -159,7 +157,6 @@ DEFAULT_TICK_SEMANTICS: Mapping[str, Any] = {
 DEFAULT_ORCHESTRATION_SEMANTICS: Mapping[str, Any] = {
     "release_stage_id": RELEASE_STAGE_ID,
     "control_profile_id": CONTROL_PROFILE_ID,
-    "tp_program_id": TP_PROGRAM_ID,
     "batch_fates": ["unattempted", "attempted_incomplete", "ack_completed"],
     "resume_policy": "resume_only_non_ack_completed_rows",
     "authorization_types": [
@@ -332,6 +329,7 @@ def _merge_semantics(base: Mapping[str, Any], extra: Mapping[str, Any] | None) -
 def tick_semantics_manifest(
     repository_root: Path,
     *,
+    tp_program_id: str,
     source_paths: Sequence[str] = TICK_SEMANTICS_PATHS,
     semantic_inputs: Mapping[str, Any] | None = None,
     external_inputs: Mapping[str, str] | None = None,
@@ -340,7 +338,10 @@ def tick_semantics_manifest(
         "schema": "step5d.autotune-v3/tick-semantics-identity-v1",
         "sources": source_sha256_manifest(repository_root, source_paths),
         "external_inputs": _external_input_manifest(external_inputs),
-        "semantics": _merge_semantics(DEFAULT_TICK_SEMANTICS, semantic_inputs),
+        "semantics": _merge_semantics(
+            {**DEFAULT_TICK_SEMANTICS, "tp_program_id": tp_program_id},
+            semantic_inputs,
+        ),
     }
 
 
@@ -389,7 +390,7 @@ def deployment_manifest(
     triplet_sha256: Mapping[str, str],
     controller_readback_identity: Mapping[str, Any],
     release_stage_id: str = RELEASE_STAGE_ID,
-    tp_program_id: str = TP_PROGRAM_ID,
+    tp_program_id: str,
 ) -> dict[str, Any]:
     if set(triplet_sha256) != {".script", ".txt", ".urp"}:
         raise IdentityLayerError("deployment triplet digest fields differ")
@@ -471,6 +472,7 @@ def deployment_fingerprint(**kwargs: Any) -> str:
 def orchestration_manifest(
     repository_root: Path,
     *,
+    tp_program_id: str,
     source_paths: Sequence[str] = ORCHESTRATION_PATHS,
     semantic_inputs: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -478,7 +480,10 @@ def orchestration_manifest(
         "schema": "step5d.autotune-v3/orchestration-identity-v1",
         "sources": source_sha256_manifest(repository_root, source_paths),
         "semantics": _merge_semantics(
-            DEFAULT_ORCHESTRATION_SEMANTICS,
+            {
+                **DEFAULT_ORCHESTRATION_SEMANTICS,
+                "tp_program_id": tp_program_id,
+            },
             semantic_inputs,
         ),
     }
@@ -585,7 +590,6 @@ __all__ = [
     "SELECTOR_AND_DOCUMENT_PATHS",
     "TICK_SEMANTICS_PATHS",
     "TIMING_MEASUREMENT_PATHS",
-    "TP_PROGRAM_ID",
     "canonical_repo_relative_path",
     "deployment_fingerprint",
     "deployment_manifest",

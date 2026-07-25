@@ -164,7 +164,13 @@ def test_r006_exact_plans_materialize_machine_binding_before_runner(
     live_runner.prepare_campaign_state(
         campaign_root,
         live_runner.load_launch_profile(
-            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+            expected_tp_program_id=json.loads(
+                (
+                    ROOT
+                    / "config/step5/step5d_autotune_v3_launch_profile.json"
+                ).read_text(encoding="utf-8")
+            )["tp_program_id"],
         ),
     )
     paths = live_runner.CampaignPaths(campaign_root)
