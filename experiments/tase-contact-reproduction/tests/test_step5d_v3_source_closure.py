@@ -163,7 +163,11 @@ def test_production_report_classifies_every_active_provider() -> None:
     }
     assert uv["cupy"] == "cupy-cuda12x"
     assert uv["pexpect"] == "pexpect"
-    assert {"torch", "botorch", "gpytorch", "cupy_backends"}.isdisjoint(uv)
+    assert {
+        "torch": "torch",
+        "cupy_backends": "cupy-cuda12x",
+    } == {name: uv[name] for name in ("torch", "cupy_backends")}
+    assert {"botorch", "gpytorch"}.isdisjoint(uv)
     host_imports = {
         row["name"]: row["provider"]
         for row in report["classifications"]["host_contract"]
@@ -220,10 +224,11 @@ def test_production_report_classifies_every_active_provider() -> None:
         "tools/step5d_autotune_v3/optimizer_worker.py",
         "tools/step5d_autotune_v3/runtime_functional_gates.py",
     }.isdisjoint(report["experiment_paths"])
-    assert not any(
-        "manual" in path or "optimizer" in path
-        for path in report["experiment_paths"]
-    )
+    assert {
+        "tools/step5d_autotune_v3/optimizer_policy.py",
+        "tools/step5d_autotune_v3/optimizer_types.py",
+    } <= set(report["experiment_paths"])
+    assert not any("manual" in path for path in report["experiment_paths"])
     encoded = json.dumps(report, sort_keys=True)
     assert str(ROOT) not in encoded
     assert "/home/andy" not in encoded

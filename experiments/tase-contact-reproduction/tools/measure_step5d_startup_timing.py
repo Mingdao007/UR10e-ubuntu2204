@@ -217,6 +217,8 @@ def _make_fixture(index: int) -> dict[str, Any]:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(encoded)
         generated_files[relative] = _sha256(path)
+        if relative in source_fingerprints:
+            source_fingerprints[relative] = _sha256(path)
     controller_target = f"/programs/andyl/kunwei/step5/{program}.urp"
     manifest = {
         "schema": RELEASE_MANIFEST_SCHEMA,

@@ -24,6 +24,7 @@ if (
     install_parser_ci_stubs()
 
 import preflight_step5d_autotune_v3 as preflight  # noqa: E402
+import prepare_step5d_autotune_launch as launch_preparer  # noqa: E402
 import run_step5d_autotune_v3_live as live  # noqa: E402
 from step5d_autotune_v3.release_identity import (  # noqa: E402
     LAUNCH_PROFILE_PATH,
@@ -232,7 +233,7 @@ def test_live_routes_both_configs_through_immutable_bundle(
         lambda *_args, **_kwargs: {"controller_identity_sha256": "e" * 64},
     )
     monkeypatch.setattr(
-        live,
+        launch_preparer,
         "prepare",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RoutingObserved()),
     )
@@ -282,7 +283,7 @@ def test_live_prepare_only_ignores_mutable_launch_override(
     monkeypatch.setattr(live, "load_contract", load_contract)
     monkeypatch.setattr(live, "load_launch_profile", load_profile)
     monkeypatch.setattr(
-        live,
+        launch_preparer,
         "prepare",
         lambda *_args, **_kwargs: {"ok": True},
     )
