@@ -387,6 +387,7 @@ def codex_autotune_wait_for_external_home(campaign_epoch, trial_id, state, candi
     codex_autotune_write_state(campaign_epoch, trial_id, 75, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
     if codex_autotune_typed_target_verified(campaign_home_pose, campaign_home_q, True):
       return True
+    end
     local next_command = read_input_integer_register(26)
     local next_sequence = read_input_integer_register(29)
     if next_command == 3 and next_sequence > consumed_command_seq:
@@ -638,6 +639,27 @@ def _render_script_body(
     return rendered
 
 
+def _validate_urscript_block_balance(script: str) -> None:
+    starters = re.compile(r"^(def|thread|if|while|for|sec)\b.*:$")
+    stack: list[tuple[str, int]] = []
+    for line_number, line in enumerate(script.splitlines(), start=1):
+        stripped = line.strip()
+        match = starters.match(stripped)
+        if match:
+            stack.append((match.group(1), line_number))
+        elif stripped == "end":
+            if not stack:
+                raise ValueError(
+                    f"V3 TP URScript has unmatched end at line {line_number}"
+                )
+            stack.pop()
+    if stack:
+        kind, line_number = stack[-1]
+        raise ValueError(
+            f"V3 TP URScript has unclosed {kind} block from line {line_number}"
+        )
+
+
 def render_script(program_id: str) -> str:
     parent = v1.render_script()
     identity_basis = _render_script_body(
@@ -666,6 +688,7 @@ def validate_rendered_script(
     program_id: str,
     parent: str | None = None,
 ) -> None:
+    _validate_urscript_block_balance(script)
     original = v1.render_script() if parent is None else parent
     try:
         runtime_identity, _ = bind_final_script(

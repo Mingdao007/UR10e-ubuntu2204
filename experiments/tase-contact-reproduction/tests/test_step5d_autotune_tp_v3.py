@@ -20,6 +20,22 @@ TEST_PROGRAM = "step5d_strict_rnn_autotune_v3_r999"
 TEST_STAMP = "2026-07-20T1325HKT_" + TEST_PROGRAM.upper()
 
 
+def test_urscript_block_balance_rejects_missing_inner_end() -> None:
+    rendered = v3.render_script(TEST_PROGRAM)
+    needle = """    if codex_autotune_typed_target_verified(campaign_home_pose, campaign_home_q, True):
+      return True
+    end
+    local next_command = read_input_integer_register(26)"""
+    assert needle in rendered
+    broken = rendered.replace(
+        needle,
+        needle.replace("      return True\n    end\n", "      return True\n"),
+        1,
+    )
+    with pytest.raises(ValueError, match="unclosed def block"):
+        v3.validate_rendered_script(broken, program_id=TEST_PROGRAM)
+
+
 def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() -> None:
     rendered = v3.render_script(TEST_PROGRAM)
     v3.validate_rendered_script(rendered, program_id=TEST_PROGRAM)
