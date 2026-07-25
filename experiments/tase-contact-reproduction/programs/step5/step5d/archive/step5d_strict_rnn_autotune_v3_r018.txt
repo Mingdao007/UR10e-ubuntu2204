@@ -1,15 +1,15 @@
 Step5d Autotune V3 TP package
 
 Controller target:
-  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r020.urp
+  /programs/andyl/kunwei/step5/step5d/archive/step5d_strict_rnn_autotune_v3_r018.urp
 
 Version:
-  2026-07-25T14:56:00Z
+  2026-07-25T14:01:03Z
 
 Identity:
-  release_stage_id=step5d_strict_rnn_autotune_v3_r020
+  release_stage_id=step5d_strict_rnn_autotune_v3_r018
   control_profile_id=step5d_strict_rnn_autotune_v1
-  tp_program_id=step5d_strict_rnn_autotune_v3_r020
+  tp_program_id=step5d_strict_rnn_autotune_v3_r018
 
 Motion class:
   Contact motion package. Upload/read-back does not Load or Play it.

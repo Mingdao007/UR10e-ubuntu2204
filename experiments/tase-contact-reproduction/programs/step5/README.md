@@ -11,9 +11,10 @@ The controller root is `/programs/andyl/kunwei/step5`.
 - `step5d/broken/` is local-only recovery storage. The v25 controller triplet
   was removed from the TP layout because its `.urp` cachedContents did not match
   its same-basename `.script`; it is not deployable or runnable evidence.
-- `step5d_strict_rnn_autotune_v3_r018` and every future `rNNN` with
-  `NNN >= 018` remain at the Step5 root. Layout maintenance must not relocate,
-  rewrite, archive, or remove them.
+- `step5d/archive/` contains the archived autotune releases r018, r019, and
+  r020. `step5d_strict_rnn_autotune_v3_r021` remains the protected/current
+  autotune release at the Step5 root; future releases must not displace it
+  without an explicit layout update.
 
 Visibility is not live authorization. Existing package lifecycle, contact,
 bridge, Load, Play, and ARM gates remain unchanged.

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "controller_root": "/programs/andyl/kunwei/step5",
-  "protected_autotune_release_min": 18,
-  "protected_root_basename": "step5d_strict_rnn_autotune_v3_r018",
+  "protected_autotune_release_min": 21,
+  "protected_root_basename": "step5d_strict_rnn_autotune_v3_r021",
   "packages": [
     {
       "basename": "step5a_cycloid_no_contact_v1",
@@ -216,6 +216,27 @@
     },
     {
       "basename": "step5d_strict_rnn_autotune_v3_r017",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r018",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r019",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r020",
       "controller_present": true,
       "source_controller_directory": "/programs/andyl/kunwei/step5",
       "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",

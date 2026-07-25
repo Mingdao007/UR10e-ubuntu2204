@@ -22,8 +22,8 @@ class PrepareStep5TpLayoutTest(unittest.TestCase):
                 {
                     "schema_version": 1,
                     "controller_root": "/programs/andyl/kunwei/step5",
-                    "protected_autotune_release_min": 18,
-                    "protected_root_basename": "step5d_strict_rnn_autotune_v3_r018",
+                    "protected_autotune_release_min": 21,
+                    "protected_root_basename": "step5d_strict_rnn_autotune_v3_r021",
                     "packages": [
                         {
                             "basename": basename,
@@ -90,12 +90,20 @@ class PrepareStep5TpLayoutTest(unittest.TestCase):
                 (root / "manifests" / f"deploy-{basename}.json").is_file()
             )
 
-    def test_rejects_protected_r018_and_future_releases(self) -> None:
+    def test_accepts_r018_r019_r020_but_rejects_protected_r021_and_future(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             for basename in (
                 "step5d_strict_rnn_autotune_v3_r018",
                 "step5d_strict_rnn_autotune_v3_r019",
+                "step5d_strict_rnn_autotune_v3_r020",
+            ):
+                with self.subTest(basename=basename):
+                    parsed = load_plan(self.write_plan(root, basename))
+                    self.assertEqual(parsed["packages"][0]["basename"], basename)
+            for basename in (
+                "step5d_strict_rnn_autotune_v3_r021",
+                "step5d_strict_rnn_autotune_v3_r022",
             ):
                 with self.subTest(basename=basename):
                     with self.assertRaisesRegex(ValueError, "protected"):

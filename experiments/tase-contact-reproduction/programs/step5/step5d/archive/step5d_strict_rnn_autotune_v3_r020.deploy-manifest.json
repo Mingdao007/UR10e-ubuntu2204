@@ -7,17 +7,17 @@
     },
     {
       "filename": "step5d_strict_rnn_autotune_v3_r020.txt",
-      "sha256": "8a13213301964353d814c8be692fe2173f52e8e30b0e88eac6280d73f5903a18",
+      "sha256": "db9b6debfd57567d4f91df51029f2f66863ff4d46f2b9d7a978215dd53315f95",
       "source": "step5d_strict_rnn_autotune_v3_r020.txt"
     },
     {
       "filename": "step5d_strict_rnn_autotune_v3_r020.urp",
-      "sha256": "f8ce06aa6054cb3e9b98a392877eb0c1c6de86987ccd5d05c3b69594677e0558",
+      "sha256": "1335e02cbd677f774bd18e0a92ab8e2636cc425c36e49304d564c4c3ba727d6e",
       "source": "step5d_strict_rnn_autotune_v3_r020.urp"
     }
   ],
   "basename": "step5d_strict_rnn_autotune_v3_r020",
-  "controller_directory": "/programs/andyl/kunwei/step5",
+  "controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
   "schema_version": 2,
   "tp_runtime_identity": {
     "digest_hi": 1289185189,
