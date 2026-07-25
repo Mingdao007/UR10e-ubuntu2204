@@ -33,6 +33,9 @@ from step5d_autotune_v3.release_identity import (  # noqa: E402
 )
 
 
+INITIAL_MANIFEST_PATH = "config/step5d/parameter_receiver_initial.json"
+
+
 def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
@@ -70,6 +73,7 @@ def _release_bundle(root: Path) -> tuple[Any, dict[str, Path], dict[str, bytes]]
     contents = {
         LAUNCH_PROFILE_PATH: b'{"source":"immutable-launch"}\n',
         SAFETY_ENVELOPE_PATH: b'{"source":"immutable-contract"}\n',
+        INITIAL_MANIFEST_PATH: b'{"source":"immutable-initial-ten"}\n',
     }
     paths = {
         relative: manifest_path.parent / relative for relative in contents
@@ -81,7 +85,10 @@ def _release_bundle(root: Path) -> tuple[Any, dict[str, Path], dict[str, bytes]]
     release = SimpleNamespace(
         manifest_path=manifest_path.relative_to(root).as_posix(),
         manifest_sha256=manifest_sha,
-        generated_files={LAUNCH_PROFILE_PATH: _sha256(contents[LAUNCH_PROFILE_PATH])},
+        generated_files={
+            LAUNCH_PROFILE_PATH: _sha256(contents[LAUNCH_PROFILE_PATH]),
+            INITIAL_MANIFEST_PATH: _sha256(contents[INITIAL_MANIFEST_PATH]),
+        },
         safety_envelope={
             "path": SAFETY_ENVELOPE_PATH,
             "sha256": _sha256(contents[SAFETY_ENVELOPE_PATH]),
@@ -97,7 +104,11 @@ def test_release_payload_uses_bundle_when_mutable_mirrors_are_tampered(
 ) -> None:
     release, paths, contents = _release_bundle(tmp_path)
 
-    for relative in (LAUNCH_PROFILE_PATH, SAFETY_ENVELOPE_PATH):
+    for relative in (
+        LAUNCH_PROFILE_PATH,
+        SAFETY_ENVELOPE_PATH,
+        INITIAL_MANIFEST_PATH,
+    ):
         resolved = release_payload_path(tmp_path, release, relative)
         assert resolved == paths[relative].resolve()
         assert resolved.read_bytes() == contents[relative]

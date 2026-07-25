@@ -50,6 +50,7 @@ TARGET_DIR = "/programs/andyl/kunwei/step5"
 PACKAGE_DIR = Path("programs/step5/step5d")
 EXTENSIONS = (".script", ".txt", ".urp")
 READBACK = Path("config/step5d_autotune_controller_readback_v3.json")
+PARAMETER_RECEIVER_INITIAL = Path("config/step5d/parameter_receiver_initial.json")
 STATIC_PROJECTIONS = (
     Path("config/current_stage.json"),
     Path("config/step5_stage_table.json"),
@@ -724,6 +725,9 @@ def _compose_local_release(
     bundle_files[numeric.as_posix()] = numeric_source.read_bytes()
     bundle_files[READBACK.as_posix()] = canonical_readback
     bundle_files[local_candidate_path.as_posix()] = local_candidate
+    bundle_files[PARAMETER_RECEIVER_INITIAL.as_posix()] = (
+        root / PARAMETER_RECEIVER_INITIAL
+    ).read_bytes()
     contract_relative = Path("config/step5/step5d_autotune_v3_control_contract.json")
     launch_relative = Path("config/step5/step5d_autotune_v3_launch_profile.json")
     contract_document = _render_contract(
@@ -788,6 +792,7 @@ def _compose_local_release(
             numeric.as_posix(),
             local_candidate_path.as_posix(),
             launch_relative.as_posix(),
+            PARAMETER_RECEIVER_INITIAL.as_posix(),
         )
     }
     source_fingerprints = {
