@@ -18,7 +18,11 @@ from typing import Any, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 MATRIX = ROOT / "config/step5d_autotune_v3_test_matrix.json"
-SCHEMA = "step5d.autotune-v3/parallel-test-run/v2"
+SCHEMA = "step5d.autotune-v3/parallel-test-run/v3"
+INSTALLED_RUNTIME_PRECONDITION_SCHEMA = (
+    "step5d.autotune-v3/installed-runtime-precondition-v1"
+)
+PRECONDITION_DETAIL_MAX_CHARS = 512
 ALLOWED_LANES = {"small", "medium"}
 MAX_SMALL_WORKERS = 4
 FAILURE_TAIL_BYTES = 64 * 1024
@@ -78,6 +82,36 @@ def _runtime_binding_evidence(fields: Sequence[str]) -> dict[str, str]:
     if len(fields) != len(names):
         raise TestMatrixError("installed runtime binding fields differ")
     return dict(zip(names, fields, strict=True))
+
+
+def _installed_runtime_precondition() -> dict[str, Any]:
+    """Validate deployed-current before spending time on its installed gate."""
+    try:
+        from step5d_autotune_v3.release_identity import load_current_release
+
+        release = load_current_release(ROOT)
+    except Exception as exc:
+        detail = " ".join(f"{type(exc).__name__}: {exc}".split())
+        return {
+            "schema": INSTALLED_RUNTIME_PRECONDITION_SCHEMA,
+            "ok": False,
+            "release_mode": "deployed-current",
+            "reason_code": "CURRENT_RELEASE_INVALID",
+            "detail": detail[:PRECONDITION_DETAIL_MAX_CHARS],
+            "program_id": "",
+            "manifest_path": "",
+            "manifest_sha256": "",
+        }
+    return {
+        "schema": INSTALLED_RUNTIME_PRECONDITION_SCHEMA,
+        "ok": True,
+        "release_mode": "deployed-current",
+        "reason_code": "CURRENT_RELEASE_VALID",
+        "detail": "",
+        "program_id": release.program_id,
+        "manifest_path": release.manifest_path,
+        "manifest_sha256": release.manifest_sha256,
+    }
 
 
 def _sha256(path: Path) -> str:
@@ -346,17 +380,26 @@ def run(
             results = [futures[name].result() for name in commands]
     installed_runtime_status = "not_requested"
     installed_runtime_binding = None
+    installed_runtime_precondition = None
     if include_installed_runtime:
         if all(item["returncode"] == 0 for item in results):
-            installed_runtime_binding = _runtime_binding_evidence(_runtime_binding())
-            results.append(
-                _run_lane(
-                    "local_installed_runtime",
-                    load_installed_runtime_command(MATRIX),
-                    output,
+            installed_runtime_precondition = _installed_runtime_precondition()
+            if installed_runtime_precondition["ok"]:
+                installed_runtime_binding = _runtime_binding_evidence(
+                    _runtime_binding()
                 )
-            )
-            installed_runtime_status = "executed_serial_after_hermetic"
+                results.append(
+                    _run_lane(
+                        "local_installed_runtime",
+                        load_installed_runtime_command(MATRIX),
+                        output,
+                    )
+                )
+                installed_runtime_status = "executed_serial_after_hermetic"
+            else:
+                installed_runtime_status = (
+                    "blocked_by_current_release_precondition"
+                )
         else:
             installed_runtime_status = "blocked_by_hermetic_failure"
     repository_after = _repository_binding()
@@ -365,12 +408,17 @@ def run(
         not require_clean
         or (repository_before["clean"] and repository_after["clean"])
     )
+    installed_runtime_requirement_satisfied = bool(
+        not include_installed_runtime
+        or installed_runtime_status == "executed_serial_after_hermetic"
+    )
     payload = {
         "schema": SCHEMA,
         "ok": bool(
             all(item["returncode"] == 0 for item in results)
             and repository_stable
             and clean_requirement_satisfied
+            and installed_runtime_requirement_satisfied
         ),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "elapsed_s": time.monotonic() - started,
@@ -391,6 +439,7 @@ def run(
             "clean_requirement_satisfied": clean_requirement_satisfied,
         },
         "installed_runtime_binding": installed_runtime_binding,
+        "installed_runtime_precondition": installed_runtime_precondition,
         "results": results,
     }
     manifest = output / "parallel_run_manifest.json"
