@@ -36,6 +36,7 @@ STEP5D_V3_TEST_MARKERS = (
     "STEP5D_V3",
 )
 AUTHORITATIVE_ACTIVE_TESTS = {
+    "tests/test_current_stage_readback_gate.py",
     "tests/test_step5d_parameter_queue.py",
     "tests/test_step5d_parameter_campaign_receiver.py",
     "tests/test_step5d_autotune_live_driver.py",

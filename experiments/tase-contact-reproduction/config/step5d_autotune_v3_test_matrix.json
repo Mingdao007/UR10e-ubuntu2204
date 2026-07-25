@@ -206,7 +206,6 @@
           "tests/test_current_stage_readback_gate.py",
           "tests/test_step5d_v3_immutable_payload_routing.py",
           "tests/test_step5d_parameter_queue.py",
-          "tests/test_step5d_parameter_campaign_receiver.py",
           "tests/test_step5d_autotune_v3_refactor_gate.py",
           "tests/test_step5d_autotune_v3_test_matrix_runner.py"
         ]
