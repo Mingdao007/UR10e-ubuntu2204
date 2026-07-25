@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import inspect
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -11,6 +13,45 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT.parents[1] / "src" / "ur10e_experiment_runtime"))
 
 import measure_step5d_startup_timing as measure
+
+
+def test_persistent_worker_campaign_prepare_uses_canonical_request(
+    tmp_path: Path, monkeypatch
+) -> None:
+    fixture_root = tmp_path / "harness"
+    monkeypatch.setattr(measure.tempfile, "mkdtemp", lambda **_: str(fixture_root))
+    fixture = measure._make_fixture(0)
+    worker = subprocess.Popen(
+        [sys.executable, str(measure.SCRIPT), "--persistent-worker"],
+        cwd=measure.ROOT,
+        env=measure._python_env(),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
+    try:
+        assert worker.stdin is not None and worker.stdout is not None
+        worker.stdin.write(
+            json.dumps(
+                {
+                    "operation": "campaign_prepare",
+                    "fixture": fixture["experiment_root"],
+                }
+            )
+            + "\n"
+        )
+        worker.stdin.flush()
+        response = json.loads(worker.stdout.readline())
+        assert response["ok"] is True, response
+        assert response["result"]["ok"] is True
+        assert response["result"]["campaign_fingerprint"] == fixture["campaign_fingerprint"]
+    finally:
+        if worker.stdin is not None:
+            worker.stdin.close()
+        worker.wait(timeout=10.0)
+        shutil.rmtree(fixture["root"], ignore_errors=True)
 
 
 def test_formal_finding_9_requires_production_path_proof_and_offline_compact_result(

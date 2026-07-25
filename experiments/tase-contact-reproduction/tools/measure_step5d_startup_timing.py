@@ -557,11 +557,6 @@ def _run_campaign_function(fixture: Mapping[str, Any]) -> dict[str, Any]:
             launch_profile_path=Path(str(fixture["launch_profile"])),
             candidate_batch_size=5,
             rolling_plan=False,
-            campaign_fingerprint=str(fixture["campaign_fingerprint"]),
-            launch_basis_path=Path(str(fixture["basis"])),
-            expected_basis_sha256=str(fixture["basis_sha256"]),
-            owner_pid=int(fixture["owner_pid"]),
-            owner_starttime=int(fixture["owner_starttime"]),
         )
     )
     return {"ok": result.get("ok") is True, "campaign_fingerprint": result.get("campaign_fingerprint")}
