@@ -149,6 +149,14 @@ def verify_binding(root: Path, program: str | None = None, target_dir: str | Non
             )
 
     stage_entry = _stage_table_entry(root, current, selected)
+    stage_table = {
+        "path": current.get("stage_table_path") or "config/step5_stage_table.json",
+        "id": stage_entry.get("id"),
+        "active": stage_entry.get("active"),
+    }
+    if stage_entry.get("blocked") is True:
+        stage_table["warning"] = "static stage table row is blocked; retained as historical metadata"
+        stage_table["historical_metadata"] = {"blocked": True}
 
     return {
         "ok": True,
@@ -158,12 +166,7 @@ def verify_binding(root: Path, program: str | None = None, target_dir: str | Non
         "manifest": readback["manifest"],
         "delivery_mode": readback["delivery_mode"],
         "runtime_interface": asdict(interface),
-        "stage_table": {
-            "path": current.get("stage_table_path") or "config/step5_stage_table.json",
-            "id": stage_entry.get("id"),
-            "active": stage_entry.get("active"),
-            "blocked": stage_entry.get("blocked"),
-        },
+        "stage_table": stage_table,
         "local_triplet": [_relative(root, path) for path in local_triplet],
     }
 

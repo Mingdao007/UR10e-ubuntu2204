@@ -750,7 +750,9 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
             result = gate.verify_binding(root, PROGRAM)
 
         self.assertTrue(result["ok"])
-        self.assertTrue(result["stage_table"]["blocked"])
+        self.assertNotIn("blocked", result["stage_table"])
+        self.assertEqual(result["stage_table"]["historical_metadata"], {"blocked": True})
+        self.assertIn("warning", result["stage_table"])
 
     def test_current_blocked_v29_artifact_cannot_authorize_live_bridge(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
