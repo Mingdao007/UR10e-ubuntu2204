@@ -17,6 +17,9 @@ REGISTERED_SUPERVISORS = frozenset(
         ("run_step5d_autotune_campaign", "main"),
     }
 )
+SUBPROCESS_CLEANUP_METHODS = frozenset(
+    {"wait", "communicate", "terminate", "kill", "_terminate"}
+)
 
 
 def _module_names(tree: ast.AST) -> dict[str, tuple[str, str | None]]:
@@ -33,6 +36,89 @@ def _module_names(tree: ast.AST) -> dict[str, tuple[str, str | None]]:
     return names
 
 
+def _subprocess_names(tree: ast.AST) -> tuple[set[str], set[str]]:
+    modules: set[str] = set()
+    popen_symbols: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "subprocess":
+                    modules.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module == "subprocess":
+            for alias in node.names:
+                if alias.name == "Popen":
+                    popen_symbols.add(alias.asname or alias.name)
+    return modules, popen_symbols
+
+
+def _is_popen_call(
+    node: ast.AST, subprocess_modules: set[str], popen_symbols: set[str]
+) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if isinstance(node.func, ast.Attribute):
+        return (
+            isinstance(node.func.value, ast.Name)
+            and node.func.value.id in subprocess_modules
+            and node.func.attr == "Popen"
+        )
+    return isinstance(node.func, ast.Name) and node.func.id in popen_symbols
+
+
+def _assigned_popen_objects(tree: ast.AST) -> dict[str, ast.Call]:
+    subprocess_modules, popen_symbols = _subprocess_names(tree)
+    bindings: dict[str, ast.Call] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        if not _is_popen_call(node.value, subprocess_modules, popen_symbols):
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                bindings[target.id] = node.value
+    return bindings
+
+
+def _call_has_deadline(node: ast.Call) -> bool:
+    return any(
+        keyword.arg in {"deadline", "timeout", "timeout_s"}
+        for keyword in node.keywords
+    )
+
+
+def _object_lifecycle_calls(tree: ast.AST, object_name: str) -> list[ast.Call]:
+    calls: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Attribute):
+            if (
+                node.func.attr in SUBPROCESS_CLEANUP_METHODS
+                and (
+                    (
+                        isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == object_name
+                    )
+                    or any(
+                        isinstance(argument, ast.Name) and argument.id == object_name
+                        for argument in node.args
+                    )
+                )
+            ):
+                calls.append(node)
+        elif isinstance(node.func, ast.Name) and node.func.id in SUBPROCESS_CLEANUP_METHODS:
+            if any(
+                isinstance(argument, ast.Name) and argument.id == object_name
+                for argument in node.args
+            ):
+                calls.append(node)
+    return calls
+
+
 def _has_deadline_lifecycle(tree: ast.AST) -> bool:
     source_calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
     has_subprocess = any(
@@ -41,7 +127,7 @@ def _has_deadline_lifecycle(tree: ast.AST) -> bool:
         for node in ast.walk(tree)
     )
     has_deadline = any(
-        keyword.arg in {"timeout", "timeout_s"}
+        keyword.arg in {"deadline", "timeout", "timeout_s"}
         for node in source_calls
         for keyword in node.keywords
     ) or any(
@@ -61,7 +147,6 @@ def issues_for_file(path: Path) -> list[str]:
     except (OSError, UnicodeError, SyntaxError) as exc:
         return [f"{path}:parse:{exc}"]
     aliases = _module_names(tree)
-    guarded = _has_deadline_lifecycle(tree)
     issues: list[str] = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -80,22 +165,21 @@ def issues_for_file(path: Path) -> list[str]:
             and argument.value == "--prepare-only"
             for argument in ast.walk(node)
         )
-        if target in REGISTERED_SUPERVISORS and not guarded and not finite_prepare_only:
+        if target in REGISTERED_SUPERVISORS and not finite_prepare_only:
             issues.append(
                 f"{path}:{_line(node)}:direct_retry_supervisor_without_deadline:{target[0]}.{target[1]}"
             )
-    if guarded:
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-                if node.func.attr == "Popen" and not any(
-                    isinstance(child, ast.Call)
-                    and isinstance(child.func, ast.Attribute)
-                    and child.func.attr in {
-                        "wait", "communicate", "terminate", "kill", "_terminate"
-                    }
-                    for child in ast.walk(tree)
-                ):
-                    issues.append(f"{path}:{_line(node)}:subprocess_lifecycle_has_no_cleanup")
+    if _has_deadline_lifecycle(tree):
+        for object_name, popen_call in _assigned_popen_objects(tree).items():
+            lifecycle_calls = _object_lifecycle_calls(tree, object_name)
+            if not lifecycle_calls:
+                issues.append(
+                    f"{path}:{_line(popen_call)}:subprocess_lifecycle_has_no_cleanup:{object_name}"
+                )
+            elif not any(_call_has_deadline(call) for call in lifecycle_calls):
+                issues.append(
+                    f"{path}:{_line(popen_call)}:subprocess_lifecycle_has_no_deadline:{object_name}"
+                )
     return issues
 
 
