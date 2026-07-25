@@ -336,7 +336,7 @@ tp_deliver_args=()
 release_candidate=""
 arguments=()
 output_root=""
-campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
+campaign_root=""
 delivery_observation=""
 canonical_launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
 runner_args=()
@@ -630,7 +630,7 @@ if [[ "${1:-}" == "revalidate-current" ]]; then
   runtime_revalidate_mode=1
   shift
   arguments=("$@")
-  artifact_dir="${EXPERIMENT_ROOT}/programs/step5/step5d"
+  artifact_dir=""
   delivery_evidence_output=""
   seen_artifact_dir=0
   seen_evidence_output=0
@@ -681,8 +681,12 @@ fi
 if (( bridge_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
+  attempt_suffix="$(date -u +%Y%m%dT%H%M%SZ)-$$"
   if [[ -z "${output_root}" ]]; then
-    output_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/bridge-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+    output_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/bridge-${attempt_suffix}"
+  fi
+  if [[ -z "${campaign_root}" ]]; then
+    campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/campaign-${attempt_suffix}"
   fi
   output_root="$(readlink -m -- "${output_root}")"
   campaign_root="$(readlink -m -- "${campaign_root}")"
@@ -843,13 +847,18 @@ if (( runtime_revalidate_mode == 1 )); then
     --experiment-root "${EXPERIMENT_ROOT}" \
     --output-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
     >"${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/revalidate-contract-$$.json"
-  "${CONTROL_PYTHON}" \
-    "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py" \
-    --root "${EXPERIMENT_ROOT}" \
-    --artifact-dir "${artifact_dir}" \
-    --evidence-output "${delivery_evidence_output}" \
-    --readback-only-existing \
+  revalidate_command=(
+    "${CONTROL_PYTHON}"
+    "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_tp_transaction.py"
+    --root "${EXPERIMENT_ROOT}"
+    --evidence-output "${delivery_evidence_output}"
+    --readback-only-existing
     --revalidate-current
+  )
+  if [[ -n "${artifact_dir}" ]]; then
+    revalidate_command+=(--artifact-dir "${artifact_dir}")
+  fi
+  "${revalidate_command[@]}"
   exit $?
 fi
 if (( bridge_mode == 1 )); then

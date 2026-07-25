@@ -1111,6 +1111,33 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
     assert not hasattr(transaction, "load_current_release_for_compatible_readback")
 
 
+def test_current_revalidation_derives_manifest_bound_artifact_directory(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "experiment"
+    artifact_dir = root / "config/step5d/releases/current/programs/step5/step5d"
+    artifact_dir.mkdir(parents=True)
+    release = SimpleNamespace(
+        artifacts={
+            ".script": {"path": "programs/step5/step5d/program.script"},
+            ".txt": {"path": "programs/step5/step5d/program.txt"},
+            ".urp": {"path": "programs/step5/step5d/program.urp"},
+        }
+    )
+
+    with (
+        mock.patch.object(transaction, "load_current_release", return_value=release),
+        mock.patch.object(
+            transaction,
+            "release_payload_path",
+            side_effect=lambda _root, _release, relative: (
+                artifact_dir / Path(relative).name
+            ),
+        ),
+    ):
+        assert transaction._current_release_artifact_dir(root) == artifact_dir
+
+
 def test_readback_only_get_failure_prevents_evidence_and_promotion(
     tmp_path: Path,
 ) -> None:

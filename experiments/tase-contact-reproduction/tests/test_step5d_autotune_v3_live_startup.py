@@ -612,6 +612,29 @@ def test_source_rebind_and_embedded_delivery_recovery_are_removed() -> None:
     assert "--revalidate-current" in source
 
 
+def test_shell_defaults_bind_current_release_and_unique_campaign_root() -> None:
+    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+
+    assert 'campaign_root=""' in source
+    assert "campaign-${attempt_suffix}" in source
+    assert 'campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"' not in source
+    revalidate = source[source.index('if [[ "${1:-}" == "revalidate-current"') :]
+    assert 'artifact_dir=""' in revalidate
+    assert 'revalidate_command+=(--artifact-dir "${artifact_dir}")' in revalidate
+
+
+def test_bridge_wrapper_skips_parent_mailbox_while_identity_is_pending() -> None:
+    source = (ROOT / "tools/run_step5d_autotune_v3_bridge.py").read_text(
+        encoding="utf-8"
+    )
+    observe = source.index("identity_ready = self._v3_arm_gate.observe_rtde(")
+    pending = source.index("if not identity_ready:", observe)
+    parent = source.index("return super().poll(", pending)
+
+    assert observe < pending < parent
+    assert "return False" in source[pending:parent]
+
+
 def test_canonical_shell_records_only_direct_live_phases() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 

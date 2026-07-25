@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT.parents[1] / "src/ur10e_experiment_runtime"))
 from step5d_autotune_v3 import runtime_gate as gate_module  # noqa: E402
 from step5d_autotune_v3.runtime_gate import (  # noqa: E402
     ARM_GATE_WATCHDOG_INTERVAL_S,
+    TP_RUNTIME_IDENTITY_ESTABLISH_TIMEOUT_S,
     ArmGateProvider,
     CampaignLease,
     RuntimeEnvironmentBindingGuard,
@@ -242,16 +243,28 @@ def _observe_provider(
     connection_epoch: int = 0,
 ) -> None:
     provider.observe_rtde(
-        {
-            "timestamp": timestamp,
-            "runtime_state": 2,
-            "safety_mode": 1,
-            "output_int_register_35": 1,
-            "output_int_register_36": 1234,
-            "output_int_register_37": 5678,
-        },
+        _rtde_observation(timestamp=timestamp),
         connection_epoch=connection_epoch,
     )
+
+
+def _rtde_observation(
+    *,
+    timestamp: float,
+    runtime_state: int = 2,
+    safety_mode: int = 1,
+    protocol_version: int = 1,
+    digest_hi: int = 1234,
+    digest_lo: int = 5678,
+) -> dict[str, float | int]:
+    return {
+        "timestamp": timestamp,
+        "runtime_state": runtime_state,
+        "safety_mode": safety_mode,
+        "output_int_register_35": protocol_version,
+        "output_int_register_36": digest_hi,
+        "output_int_register_37": digest_lo,
+    }
 
 
 def test_campaign_lease_binds_supervisor_starttime(tmp_path: Path) -> None:
@@ -411,6 +424,140 @@ def test_fresh_identity_closed_observation_opens_the_actual_arm_gate(tmp_path: P
     assert observed["arm_permitted"] is True
     assert context is not None
     assert context.campaign_id == "campaign-a"
+
+
+def test_play_identity_establishes_without_processing_partial_rows(
+    tmp_path: Path,
+) -> None:
+    root, release, _contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    provider = ArmGateProvider(
+        root=root,
+        gate_path=gate_path.absolute(),
+        lease_path=lease_path.absolute(),
+        lease_sha256=lease.sha256,
+        release=release,
+    )
+
+    assert provider.observe_rtde(
+        _rtde_observation(
+            timestamp=100.0,
+            protocol_version=0,
+            digest_hi=0,
+            digest_lo=0,
+        )
+    ) is False
+    assert provider.observe_rtde(
+        _rtde_observation(timestamp=100.002, digest_lo=0)
+    ) is False
+    assert provider.observe_rtde(_rtde_observation(timestamp=100.004)) is True
+
+    with pytest.raises(RuntimeGateError, match="TP runtime identity mismatch"):
+        provider.observe_rtde(
+            _rtde_observation(timestamp=100.006, digest_lo=0)
+        )
+
+
+def test_play_identity_deadline_is_controller_time_and_resets_by_epoch(
+    tmp_path: Path,
+) -> None:
+    root, release, _contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    provider = ArmGateProvider(
+        root=root,
+        gate_path=gate_path.absolute(),
+        lease_path=lease_path.absolute(),
+        lease_sha256=lease.sha256,
+        release=release,
+    )
+    pending = _rtde_observation(
+        timestamp=200.0,
+        protocol_version=0,
+        digest_hi=0,
+        digest_lo=0,
+    )
+
+    assert provider.observe_rtde(pending, connection_epoch=0) is False
+    pending["timestamp"] = 200.999
+    assert provider.observe_rtde(pending, connection_epoch=0) is False
+    pending["timestamp"] = 201.0
+    with pytest.raises(
+        RuntimeGateError,
+        match="identity establishment timed out after 1.000 s",
+    ):
+        provider.observe_rtde(pending, connection_epoch=0)
+
+    pending["timestamp"] = 10.0
+    assert provider.observe_rtde(pending, connection_epoch=1) is False
+    pending["timestamp"] = 10.999
+    assert provider.observe_rtde(pending, connection_epoch=1) is False
+    assert provider.observe_rtde(
+        _rtde_observation(timestamp=11.0),
+        connection_epoch=1,
+    ) is True
+
+
+def test_play_identity_pending_resets_when_program_stops(
+    tmp_path: Path,
+) -> None:
+    root, release, _contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    provider = ArmGateProvider(
+        root=root,
+        gate_path=gate_path.absolute(),
+        lease_path=lease_path.absolute(),
+        lease_sha256=lease.sha256,
+        release=release,
+    )
+    mismatch = _rtde_observation(timestamp=300.0, digest_hi=0)
+
+    assert provider.observe_rtde(mismatch) is False
+    assert provider.observe_rtde(
+        _rtde_observation(timestamp=300.1, runtime_state=1)
+    ) is True
+    mismatch["timestamp"] = 301.5
+    assert provider.observe_rtde(mismatch) is False
+    mismatch["timestamp"] = 302.4
+    assert provider.observe_rtde(mismatch) is False
+
+
+def test_play_identity_pending_keeps_safety_and_timestamp_failures_immediate(
+    tmp_path: Path,
+) -> None:
+    root, release, _contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    provider = ArmGateProvider(
+        root=root,
+        gate_path=gate_path.absolute(),
+        lease_path=lease_path.absolute(),
+        lease_sha256=lease.sha256,
+        release=release,
+    )
+
+    with pytest.raises(RuntimeGateError, match="safety left NORMAL"):
+        provider.observe_rtde(
+            _rtde_observation(timestamp=400.0, safety_mode=0, digest_hi=0)
+        )
+    assert provider.observe_rtde(
+        _rtde_observation(timestamp=400.0, digest_hi=0)
+    ) is False
+    with pytest.raises(RuntimeGateError, match="timestamp regressed"):
+        provider.observe_rtde(
+            _rtde_observation(timestamp=399.999, digest_hi=0)
+        )
+
+
+def test_play_identity_timeout_is_injectable_but_cannot_exceed_one_second(
+    tmp_path: Path,
+) -> None:
+    root, release, _contract, lease, lease_path, gate_path = _fixture(tmp_path)
+    assert TP_RUNTIME_IDENTITY_ESTABLISH_TIMEOUT_S == 1.0
+
+    with pytest.raises(RuntimeGateError, match=r"must be in \(0, 1.0\]"):
+        ArmGateProvider(
+            root=root,
+            gate_path=gate_path.absolute(),
+            lease_path=lease_path.absolute(),
+            lease_sha256=lease.sha256,
+            release=release,
+            identity_establish_timeout_s=1.001,
+        )
 
 
 def test_readiness_observation_cannot_authorize_a_pending_arm(tmp_path: Path) -> None:
