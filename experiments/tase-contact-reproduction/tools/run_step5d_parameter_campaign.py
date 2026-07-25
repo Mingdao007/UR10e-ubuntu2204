@@ -390,8 +390,11 @@ def _wait_initial_home(
                         observed["campaign_epoch"],
                         observed["trial_id"],
                         observed["candidate_token"],
+                        observed["terminal_reason"],
+                        observed["execution_profile_id"],
                         observed["consumed_command_seq"],
                         observed["logical_batch_sequence"],
+                        observed["batch_row_index"],
                     )
                     if any(zero_fields):
                         raise ParameterCampaignError(
@@ -436,8 +439,11 @@ def _wait_resume_home(
                         observed["campaign_epoch"],
                         observed["trial_id"],
                         observed["candidate_token"],
+                        observed["terminal_reason"],
+                        observed["execution_profile_id"],
                         observed["consumed_command_seq"],
                         observed["logical_batch_sequence"],
+                        observed["batch_row_index"],
                     )
                     if any(zero_fields):
                         raise ParameterCampaignError(

@@ -205,10 +205,28 @@ def test_migrated_not_consumed_p05_rebinds_zero_home_then_advances_p06(
         campaign_id="campaign-test",
     )
     monkeypatch.setattr(runner, "_publish_status", lambda *args, **kwargs: None)
+    stale_profile = _observation(seq=0, trial=0, state=10)
+    stale_profile["ur_runtime_state"] = runner.UR_RUNTIME_PLAYING
+    stale_profile["ur_output_int_register_24"] = 0
+    stale_profile["ur_output_int_register_27"] = 0
+    stale_profile["ur_output_int_register_34"] = 0
+    with pytest.raises(runner.ParameterCampaignError, match="identity is not zero"):
+        runner._wait_resume_home(
+            SimpleNamespace(),
+            FakeFollower([stale_profile]),
+            home_identity={
+                "campaign_epoch": 1,
+                "last_trial_id": 1,
+                "last_command_seq": 1,
+            },
+            allow_zero_session_rebind=True,
+        )
     zero = _observation(seq=0, trial=0, state=10)
     zero["ur_runtime_state"] = runner.UR_RUNTIME_PLAYING
     zero["ur_output_int_register_24"] = 0
     zero["ur_output_int_register_27"] = 0
+    zero["ur_output_int_register_29"] = 0
+    zero["ur_output_int_register_31"] = 0
     zero["ur_output_int_register_34"] = 0
     observed = runner._wait_resume_home(
         SimpleNamespace(),
