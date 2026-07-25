@@ -99,6 +99,18 @@ def test_ast_guard_accepts_prepare_only_seam(tmp_path: Path) -> None:
     assert issues_for_file(path) == []
 
 
+def test_ast_guard_accepts_explicit_single_session_seam(tmp_path: Path) -> None:
+    path = tmp_path / "test_single_session.py"
+    path.write_text(
+        "from types import SimpleNamespace\n"
+        "import run_step5d_autotune_v3_live as live\n"
+        "def test_single_session():\n"
+        "    live.run(SimpleNamespace(single_session=True))\n",
+        encoding="utf-8",
+    )
+    assert issues_for_file(path) == []
+
+
 def test_single_session_dispatch_does_not_retry_or_leave_owned_work() -> None:
     calls: list[str] = []
 

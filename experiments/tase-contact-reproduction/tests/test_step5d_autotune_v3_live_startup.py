@@ -57,7 +57,9 @@ def test_live_owner_never_constructs_an_optimizer_worker(
 
     monkeypatch.setattr(live, "_run_live", receive)
 
-    assert live.run(SimpleNamespace(_runtime_pointer=pointer)) == {
+    assert live.run(
+        SimpleNamespace(_runtime_pointer=pointer, single_session=True)
+    ) == {
         "optimizer_required": False
     }
     source = inspect.getsource(live.run)

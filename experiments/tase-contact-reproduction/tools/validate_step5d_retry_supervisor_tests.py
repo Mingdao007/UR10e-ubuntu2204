@@ -141,6 +141,19 @@ def _line(node: ast.AST) -> int:
     return int(getattr(node, "lineno", 0))
 
 
+def _explicit_single_session(node: ast.Call) -> bool:
+    return any(
+        isinstance(child, ast.Call)
+        and any(
+            keyword.arg == "single_session"
+            and isinstance(keyword.value, ast.Constant)
+            and keyword.value.value is True
+            for keyword in child.keywords
+        )
+        for child in ast.walk(node)
+    )
+
+
 def issues_for_file(path: Path) -> list[str]:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -165,7 +178,12 @@ def issues_for_file(path: Path) -> list[str]:
             and argument.value == "--prepare-only"
             for argument in ast.walk(node)
         )
-        if target in REGISTERED_SUPERVISORS and not finite_prepare_only:
+        finite_single_session = _explicit_single_session(node)
+        if (
+            target in REGISTERED_SUPERVISORS
+            and not finite_prepare_only
+            and not finite_single_session
+        ):
             issues.append(
                 f"{path}:{_line(node)}:direct_retry_supervisor_without_deadline:{target[0]}.{target[1]}"
             )

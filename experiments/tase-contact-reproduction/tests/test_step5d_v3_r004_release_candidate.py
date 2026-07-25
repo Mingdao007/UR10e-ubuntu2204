@@ -136,6 +136,7 @@ def test_live_runner_uses_the_current_bridge_readiness_owner(
             SimpleNamespace(
                 output_root=tmp_path,
                 bridge_start_context=context_path,
+                single_session=True,
             )
         )
 
