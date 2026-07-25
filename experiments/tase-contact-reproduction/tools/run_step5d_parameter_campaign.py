@@ -39,6 +39,7 @@ from step5d_parameter_queue import (
     finish_dispatch,
     load_state,
     prepare_next_dispatch,
+    reconcile_not_consumed,
     status as receiver_status,
 )
 from step5d_production_csv import BridgeCsvFollower, BridgeCsvTimeout
@@ -59,6 +60,10 @@ RUNNER_STATES = frozenset(
 )
 RECOVERY_BACKOFF_S = (0.1, 0.25, 0.5, 1.0)
 TERMINAL_CAPTURE_WAIT_S = 0.25
+INFLIGHT_OBSERVATION_POLL_S = 0.5
+INFLIGHT_RECOVERY_SLEEP_S = 0.1
+EXTERNAL_HARDWARE_TERMINAL_REASONS = frozenset({2, 3, 17})
+PARAMETER_GUARD_TERMINAL_REASONS = frozenset({4, 5, 6, 7, 8, 10, 12, 14})
 
 
 class ParameterCampaignError(RuntimeError):
@@ -149,6 +154,18 @@ def _safe_home(observation: Mapping[str, int]) -> bool:
         and observation["safety_mode"] == 1
         and observation["controller_state"] == 0
     )
+
+
+def _terminal_failure_class(terminal_reason: int) -> str | None:
+    """Classify only explicit terminal reasons; unknown reasons stay software."""
+
+    if terminal_reason == 1:
+        return None
+    if terminal_reason in EXTERNAL_HARDWARE_TERMINAL_REASONS:
+        return "EXTERNAL_HARDWARE"
+    if terminal_reason in PARAMETER_GUARD_TERMINAL_REASONS:
+        return "PARAMETER_GUARD"
+    return "SOFTWARE"
 
 
 def _publish_status(
@@ -455,6 +472,199 @@ def _wait_terminal(
     raise HardwareRecoveryRequired("bridge stopped before terminal Home")
 
 
+def _inflight_identity_matches(
+    dispatch: Mapping[str, Any], observation: Mapping[str, int]
+) -> bool:
+    packet = dispatch["packet"]
+    expected = {
+        "campaign_epoch": packet["campaign_epoch"],
+        "trial_id": packet["trial_id"],
+        "candidate_token": packet["candidate_token"],
+        "execution_profile_id": packet["execution_profile_id"],
+        "consumed_command_seq": packet["command_seq"],
+        "logical_batch_sequence": packet["logical_batch_sequence"],
+        "batch_row_index": 1,
+    }
+    return all(observation.get(key) == value for key, value in expected.items())
+
+
+def _classify_inflight_observation(
+    dispatch: Mapping[str, Any], observation: Mapping[str, int]
+) -> tuple[str, str]:
+    """Classify fresh evidence without inferring an ARM or trial outcome.
+
+    The command sequence is the only evidence that can prove a command was not
+    consumed.  A terminal Home row is required before any consumed dispatch is
+    durably classified.  All other observations remain a hardware wait.
+    """
+
+    target_sequence = int(dispatch["packet"]["command_seq"])
+    observed_sequence = int(observation["consumed_command_seq"])
+    terminal_home = bool(
+        observation["state"] == READY_HOME_NEXT and _safe_home(observation)
+    )
+    if observed_sequence < target_sequence:
+        if _safe_home(observation):
+            return (
+                "NOT_CONSUMED",
+                "fresh safe Home proves the inflight ARM was not consumed",
+            )
+        return (
+            "WAITING_FOR_HARDWARE",
+            "consumed sequence is behind dispatch but safe Home is not proven",
+        )
+    if observed_sequence == target_sequence:
+        if not terminal_home:
+            return (
+                "WAITING_FOR_HARDWARE",
+                "inflight ARM was consumed; waiting for terminal Home evidence",
+            )
+        if _inflight_identity_matches(dispatch, observation):
+            return (
+                "TERMINAL",
+                "fresh terminal Home matches the inflight dispatch",
+            )
+        return (
+            "IDENTITY",
+            "fresh terminal Home consumed the dispatch with mismatched identity",
+        )
+    if terminal_home:
+        return (
+            "IDENTITY",
+            "fresh terminal Home consumed a newer command than the inflight dispatch",
+        )
+    return (
+        "WAITING_FOR_HARDWARE",
+        "consumed sequence does not match and no terminal identity is proven",
+    )
+
+
+def _finish_adopted_terminal(
+    args: argparse.Namespace,
+    *,
+    binding: Mapping[str, Any],
+    dispatch: Mapping[str, Any],
+    observed: Mapping[str, int],
+    decision: str,
+    detail: str,
+) -> None:
+    """Persist an already-consumed dispatch without sending a new ARM."""
+
+    _arm, prepared = _prepared(args, binding=binding, dispatch=dispatch)
+    capture = (
+        args.bridge_run
+        / "autotune_trials"
+        / prepared.trial.trial_uid
+        / "capture.csv"
+    )
+    if decision == "IDENTITY":
+        _finish_trial(
+            args,
+            dispatch=dispatch,
+            prepared=prepared,
+            observed=observed,
+            status="FAILED",
+            failure_class="IDENTITY",
+            detail=detail,
+            capture=capture,
+        )
+        return
+
+    failure_class = _terminal_failure_class(observed["terminal_reason"])
+    if failure_class is None:
+        capture_status, capture_detail = _capture_health(
+            capture,
+            clock=getattr(args, "clock", time.monotonic),
+            sleep=getattr(args, "sleep", time.sleep),
+        )
+        status = "SUCCEEDED" if capture_status == "COMPLETE" else "FAILED"
+        failure_class = None if status == "SUCCEEDED" else "DATA_QUALITY"
+        detail = capture_detail
+    else:
+        status = "FAILED"
+        detail = (
+            f"terminal reason={observed['terminal_reason']}"
+            f" classified={failure_class}"
+        )
+    _finish_trial(
+        args,
+        dispatch=dispatch,
+        prepared=prepared,
+        observed=observed,
+        status=status,
+        failure_class=failure_class,
+        detail=detail,
+        capture=capture,
+    )
+
+
+def _adopt_inflight(
+    args: argparse.Namespace,
+    *,
+    binding: Mapping[str, Any],
+    follower: BridgeCsvFollower,
+    dispatch: Mapping[str, Any],
+) -> dict[str, int]:
+    """Observe a durable inflight dispatch; never replay its ARM command."""
+
+    detail = "runner restart is adopting durable inflight dispatch by observation"
+    while True:
+        _publish_status(
+            args,
+            state="WAITING_FOR_HARDWARE",
+            observation=None,
+            blocker=detail,
+        )
+        adopted: tuple[str, str, dict[str, int]] | None = None
+        try:
+            for row in follower.rows(timeout_s=INFLIGHT_OBSERVATION_POLL_S):
+                observed = _tp_observation(row)
+                decision, evidence_detail = _classify_inflight_observation(
+                    dispatch, observed
+                )
+                if decision == "WAITING_FOR_HARDWARE":
+                    detail = evidence_detail
+                    _publish_status(
+                        args,
+                        state="WAITING_FOR_HARDWARE",
+                        observation=observed,
+                        blocker=detail,
+                    )
+                    continue
+                adopted = (decision, evidence_detail, observed)
+                break
+        except (BridgeCsvTimeout, OSError, RuntimeError, ValueError) as exc:
+            detail = (
+                "inflight adoption evidence unavailable: "
+                f"{type(exc).__name__}:{exc}"
+            )
+            _publish_status(
+                args,
+                state="WAITING_FOR_HARDWARE",
+                observation=None,
+                blocker=detail,
+            )
+        if adopted is not None:
+            decision, evidence_detail, observed = adopted
+            if decision == "NOT_CONSUMED":
+                reconcile_not_consumed(
+                    args.receiver_root,
+                    detail=evidence_detail,
+                    observed_command_seq=observed["consumed_command_seq"],
+                )
+                return observed
+            _finish_adopted_terminal(
+                args,
+                binding=binding,
+                dispatch=dispatch,
+                observed=observed,
+                decision=decision,
+                detail=evidence_detail,
+            )
+            return observed
+        _sleep(args, INFLIGHT_RECOVERY_SLEEP_S)
+
+
 def _sleep(args: argparse.Namespace, delay_s: float) -> None:
     getattr(args, "sleep", time.sleep)(delay_s)
 
@@ -595,7 +805,8 @@ def _run_trial(
         / prepared.trial.trial_uid
         / "capture.csv"
     )
-    if terminal["terminal_reason"] == 1:
+    failure_class = _terminal_failure_class(terminal["terminal_reason"])
+    if failure_class is None:
         capture_status, detail = _capture_health(
             capture,
             clock=getattr(args, "clock", time.monotonic),
@@ -605,8 +816,10 @@ def _run_trial(
         failure_class = None if status == "SUCCEEDED" else "DATA_QUALITY"
     else:
         status = "FAILED"
-        failure_class = "PARAMETER_GUARD"
-        detail = f"software terminal guard reason={terminal['terminal_reason']}"
+        detail = (
+            f"terminal reason={terminal['terminal_reason']}"
+            f" classified={failure_class}"
+        )
     _finish_trial(
         args,
         dispatch=dispatch,
@@ -632,10 +845,6 @@ def run(args: argparse.Namespace) -> None:
         experiment_root=args.experiment_root,
     )
     queue_state = load_state(args.receiver_root)
-    if queue_state["inflight"] is not None:
-        raise ParameterCampaignError(
-            "unresolved inflight dispatch; automatic physical replay is forbidden"
-        )
     ready = {
         "schema": "step5d.parameter-receiver/runner-ready-v1",
         "campaign_id": binding["campaign_id"],
@@ -647,23 +856,39 @@ def run(args: argparse.Namespace) -> None:
     }
     atomic_json(args.runner_ready_file, ready)
     follower = BridgeCsvFollower(args.bridge_run / "bridge_rtde_500hz.csv")
-    while True:
-        try:
-            observed = _wait_initial_home(args, follower)
-            break
-        except HardwareRecoveryRequired as exc:
-            observed = _recover_home(
-                args,
-                follower,
-                observation=None,
-                detail=str(exc),
+    if queue_state["inflight"] is not None:
+        dispatch = prepare_next_dispatch(args.receiver_root)
+        if dispatch is None:
+            raise ParameterCampaignError(
+                "queue inflight identity has no durable dispatch record"
             )
-    bind_home(
-        args.receiver_root,
-        campaign_epoch=max(1, observed["campaign_epoch"]),
-        last_trial_id=observed["trial_id"],
-        last_command_seq=observed["consumed_command_seq"],
-    )
+        # Adoption consumes only fresh TP/RTDE observations.  It may reconcile
+        # a provably unconsumed command or close an already-consumed terminal
+        # outcome, but it never calls _send for the recovered dispatch.
+        observed = _adopt_inflight(
+            args,
+            binding=binding,
+            follower=follower,
+            dispatch=dispatch,
+        )
+    else:
+        while True:
+            try:
+                observed = _wait_initial_home(args, follower)
+                break
+            except HardwareRecoveryRequired as exc:
+                observed = _recover_home(
+                    args,
+                    follower,
+                    observation=None,
+                    detail=str(exc),
+                )
+        bind_home(
+            args.receiver_root,
+            campaign_epoch=max(1, observed["campaign_epoch"]),
+            last_trial_id=observed["trial_id"],
+            last_command_seq=observed["consumed_command_seq"],
+        )
     dispatch = None
     while True:
         try:

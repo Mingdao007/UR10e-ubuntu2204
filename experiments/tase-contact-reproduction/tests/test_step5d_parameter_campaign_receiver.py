@@ -109,6 +109,258 @@ def test_overshoot_latches_until_authoritative_terminal_home():
     assert caught.value.observed["consumed_command_seq"] == 3
 
 
+def test_inflight_observation_decisions_are_conservative():
+    dispatch = {
+        "packet": {
+            "campaign_epoch": 1,
+            "trial_id": 1,
+            "candidate_token": 99,
+            "execution_profile_id": 633,
+            "command_seq": 1,
+            "logical_batch_sequence": 1,
+            "batch_row_index": 1,
+        }
+    }
+
+    not_consumed, _ = runner._classify_inflight_observation(
+        dispatch,
+        runner._tp_observation(_observation(seq=0, trial=0, state=10)),
+    )
+    consumed_nonterminal, _ = runner._classify_inflight_observation(
+        dispatch,
+        runner._tp_observation(_observation(seq=1, trial=1, state=20)),
+    )
+    consumed_terminal, _ = runner._classify_inflight_observation(
+        dispatch,
+        runner._tp_observation(_observation(seq=1, trial=1, state=78, reason=1)),
+    )
+    mismatch_terminal, _ = runner._classify_inflight_observation(
+        dispatch,
+        runner._tp_observation(_observation(seq=2, trial=2, state=78)),
+    )
+
+    assert not_consumed == "NOT_CONSUMED"
+    assert consumed_nonterminal == "WAITING_FOR_HARDWARE"
+    assert consumed_terminal == "TERMINAL"
+    assert mismatch_terminal == "IDENTITY"
+
+
+@pytest.mark.parametrize(
+    ("terminal_reason", "failure_class"),
+    [
+        (1, None),
+        (2, "EXTERNAL_HARDWARE"),
+        (3, "EXTERNAL_HARDWARE"),
+        (17, "EXTERNAL_HARDWARE"),
+        (4, "PARAMETER_GUARD"),
+        (14, "PARAMETER_GUARD"),
+        (13, "SOFTWARE"),
+        (9, "SOFTWARE"),
+        (999, "SOFTWARE"),
+    ],
+)
+def test_terminal_reason_classification_is_narrow_and_shared(
+    terminal_reason: int, failure_class: str | None
+):
+    assert runner._terminal_failure_class(terminal_reason) == failure_class
+
+
+def test_restart_adopts_not_consumed_without_sending_arm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        force_p=0.001,
+        force_i=0.00001,
+        force_damping=7.0,
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+    statuses = []
+    monkeypatch.setattr(
+        runner,
+        "_publish_status",
+        lambda args, **kwargs: statuses.append(kwargs),
+    )
+
+    args = SimpleNamespace(
+        receiver_root=receiver_root,
+        sleep=lambda _delay: pytest.fail("not-consumed evidence should return immediately"),
+    )
+    observed = runner._adopt_inflight(
+        args,
+        binding={},
+        follower=FakeFollower([_observation(seq=0, trial=0, state=10)]),
+        dispatch=dispatch,
+    )
+
+    assert observed["consumed_command_seq"] == 0
+    assert receiver_status(receiver_root)["inflight"] is None
+    assert receiver_status(receiver_root)["attempted_count"] == 0
+    assert statuses[0]["state"] == "WAITING_FOR_HARDWARE"
+
+
+@pytest.mark.parametrize(
+    ("reason", "expected_status", "expected_failure_class"),
+    [
+        (1, "SUCCEEDED", None),
+        (2, "FAILED", "EXTERNAL_HARDWARE"),
+        (999, "FAILED", "SOFTWARE"),
+    ],
+)
+def test_restart_adopts_terminal_outcome_without_resending_arm(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reason: int,
+    expected_status: str,
+    expected_failure_class: str | None,
+):
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        force_p=0.001,
+        force_i=0.00001,
+        force_damping=7.0,
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+    campaign_root = tmp_path / "campaign"
+    bridge_run = tmp_path / "bridge"
+    campaign_root.mkdir()
+    bridge_run.mkdir()
+    prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-1"))
+    capture = bridge_run / "autotune_trials/trial-1/capture.csv"
+    capture.parent.mkdir(parents=True)
+    capture.write_text("time,value\n0,0\n", encoding="utf-8")
+    monkeypatch.setattr(
+        runner,
+        "_prepared",
+        lambda args, *, binding, dispatch: (
+            _arm(
+                trial=dispatch["packet"]["trial_id"],
+                seq=dispatch["packet"]["command_seq"],
+                token=dispatch["packet"]["candidate_token"],
+                batch=dispatch["packet"]["logical_batch_sequence"],
+            ),
+            prepared,
+        ),
+    )
+    monkeypatch.setattr(
+        runner,
+        "_publish_status",
+        lambda args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        runner,
+        "_send",
+        lambda *args, **kwargs: pytest.fail("inflight adoption must not replay ARM"),
+    )
+
+    args = SimpleNamespace(
+        receiver_root=receiver_root,
+        campaign_root=campaign_root,
+        bridge_run=bridge_run,
+        release_manifest_sha256="a" * 64,
+        sleep=lambda _delay: pytest.fail("terminal evidence should return immediately"),
+    )
+    terminal_row = _observation(seq=1, trial=1, state=78, reason=reason)
+    terminal_row["ur_output_int_register_27"] = dispatch["packet"]["candidate_token"]
+    observed = runner._adopt_inflight(
+        args,
+        binding={},
+        follower=FakeFollower([terminal_row]),
+        dispatch=dispatch,
+    )
+
+    assert observed["state"] == 78
+    assert receiver_status(receiver_root)["inflight"] is None
+    assert receiver_status(receiver_root)["attempted_count"] == 1
+    receipt = next((receiver_root / "receipts").glob("*.json"))
+    payload = json.loads(receipt.read_text())
+    assert payload["schema"].endswith("receipt-v2")
+    assert payload["status"] == expected_status
+    assert payload["failure_class"] == expected_failure_class
+
+
+def test_inflight_adoption_keeps_waiting_through_hardware_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        force_p=0.001,
+        force_i=0.00001,
+        force_damping=7.0,
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+
+    class TimeoutThenFreshHome:
+        calls = 0
+        timeouts = []
+
+        def rows(self, *, timeout_s):
+            self.timeouts.append(timeout_s)
+            self.calls += 1
+            if self.calls == 1:
+                raise TimeoutError("bridge unavailable")
+            yield _observation(seq=0, trial=0, state=10)
+
+    statuses = []
+    inflight_snapshots = []
+    monkeypatch.setattr(
+        runner,
+        "_publish_status",
+        lambda args, **kwargs: (
+            statuses.append(kwargs),
+            inflight_snapshots.append(receiver_status(args.receiver_root)["inflight"]),
+        ),
+    )
+    sleeps = []
+    follower = TimeoutThenFreshHome()
+    args = SimpleNamespace(
+        receiver_root=receiver_root,
+        sleep=sleeps.append,
+    )
+    runner._adopt_inflight(
+        args,
+        binding={},
+        follower=follower,
+        dispatch=dispatch,
+    )
+
+    assert sleeps == [runner.INFLIGHT_RECOVERY_SLEEP_S]
+    assert follower.timeouts == [runner.INFLIGHT_OBSERVATION_POLL_S] * 2
+    assert all(item["state"] == "WAITING_FOR_HARDWARE" for item in statuses)
+    assert inflight_snapshots[1] is not None
+    assert receiver_status(receiver_root)["attempted_count"] == 0
+
+
 def test_safety_state_is_hardware_recovery_not_a_fake_terminal():
     arm = _arm(trial=1, seq=1, token=99, batch=1)
     unsafe = _observation(seq=1, trial=1, state=78)
@@ -128,10 +380,12 @@ def test_ten_dispatches_continue_after_per_trial_failures(
     args = SimpleNamespace(trial_timeout_s=0.0, bridge_run=tmp_path)
     prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial"))
     finished = []
+    failure_classes = []
 
     def fake_finish(*args, **kwargs):
         del args
         finished.append(kwargs["status"])
+        failure_classes.append(kwargs["failure_class"])
 
     monkeypatch.setattr(runner, "_finish_trial", fake_finish)
     for number in range(1, 11):
@@ -161,6 +415,7 @@ def test_ten_dispatches_continue_after_per_trial_failures(
 
     assert len(finished) == 10
     assert finished.count("FAILED") == 3
+    assert failure_classes.count("EXTERNAL_HARDWARE") == 3
 
 
 def test_runner_continuous_loop_finishes_ten_queue_dispatches(
