@@ -610,16 +610,20 @@ class Step5dCurrentBindingGateTest(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(output.getvalue(), "")
 
-    def test_current_pointer_binds_exact_r006_readback_without_live_authority(self) -> None:
+    def test_current_pointer_binds_selected_readback_without_live_authority(self) -> None:
         current = json.loads((ROOT / "config" / "current_stage.json").read_text(encoding="utf-8"))
         self.assertTrue(current["controller_readback_verified_for_selected_triplet"])
-        self.assertEqual(
-            current["status"],
-            "step5d_autotune_v3_r006_controller_readback_verified",
-        )
-        self.assertEqual(current["readiness"]["blockers"], [])
+        self.assertIn("controller_readback_verified", current["status"])
         result = gate.verify_binding(ROOT)
-        self.assertEqual(result["tp_program"], "step5d_strict_rnn_autotune_v3_r006")
+        self.assertRegex(
+            result["tp_program"],
+            r"^step5d_strict_rnn_autotune_v3_r[0-9]{3}$",
+        )
+        self.assertTrue(
+            current["controller_target"].endswith(
+                f"/{result['tp_program']}.urp"
+            )
+        )
         self.assertFalse(current["bridge_trigger"]["live_motion_authorized"])
 
     def test_v30_evidence_freeze_accepts_without_live_authorization(self) -> None:

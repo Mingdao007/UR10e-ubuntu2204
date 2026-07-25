@@ -9,6 +9,14 @@ import json
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from step5d_autotune_v3.release_identity import (
+    ReleaseIdentityError,
+    load_current_release_for_compatible_readback,
+)
+from step5d_autotune_v3.release_transition import (
+    ReleaseTransitionError,
+    load_delivery_basis,
+)
 from step5d_workflow_state import WorkflowStateError, verify_current
 
 
@@ -18,6 +26,7 @@ ALLOWED_DELIVERY_MODES = {
     "full_upload_readback",
     "content_addressed_reuse",
 }
+RELEASE_MANIFEST_SCHEMA = "step5d.autotune-v3/release-manifest-v3"
 
 
 def fail(message: str) -> None:
@@ -31,6 +40,29 @@ def load_json(path: Path) -> dict[str, Any]:
         fail(f"missing JSON file: {path}")
     except json.JSONDecodeError as exc:
         fail(f"invalid JSON file {path}: {exc}")
+
+
+def rooted_file(root: Path, value: Any, role: str) -> Path:
+    """Resolve one immutable, non-symlinked file below the experiment root."""
+
+    if not isinstance(value, str) or not value:
+        fail(f"{role} path is invalid")
+    relative = PurePosixPath(value)
+    if (
+        relative.is_absolute()
+        or relative.as_posix() != value
+        or any(part in {"", ".", ".."} for part in relative.parts)
+    ):
+        fail(f"{role} path is unsafe")
+    unresolved = root.resolve() / Path(*relative.parts)
+    try:
+        resolved = unresolved.resolve(strict=True)
+        resolved.relative_to(root.resolve())
+    except (OSError, ValueError):
+        fail(f"{role} is missing or escapes the experiment root")
+    if unresolved.is_symlink() or not resolved.is_file():
+        fail(f"{role} is missing or unsafe")
+    return resolved
 
 
 def expected_installation_relative_path(target_dir: str) -> str:
@@ -70,6 +102,31 @@ def selected_tp_program(root: Path, current: dict[str, Any], release: str) -> st
         return release
     compatibility = load_json(compatibility_path)
     if (
+        compatibility.get("schema")
+        == "step5d.autotune-v3/current-release-pointer-v1"
+    ):
+        manifest_relative = compatibility.get("manifest_path")
+        manifest_sha256 = compatibility.get("manifest_sha256")
+        resolved_manifest = rooted_file(root, manifest_relative, "release pointer manifest")
+        if not isinstance(manifest_sha256, str) or not manifest_sha256:
+            fail("Step5d release pointer has no manifest SHA-256")
+        actual_sha256 = hashlib.sha256(resolved_manifest.read_bytes()).hexdigest()
+        if actual_sha256 != manifest_sha256:
+            fail("Step5d release pointer manifest SHA-256 differs")
+        manifest = load_json(resolved_manifest)
+        if manifest.get("schema") != RELEASE_MANIFEST_SCHEMA:
+            fail("Step5d release manifest schema differs")
+        identity = manifest.get("identity")
+        if (
+            not isinstance(identity, dict)
+            or identity.get("release_stage_id") != release
+        ):
+            fail("Step5d release manifest does not bind the selected release")
+        tp_program = identity.get("program_id")
+        if not isinstance(tp_program, str) or not tp_program:
+            fail("Step5d release manifest has no valid program_id")
+        return tp_program
+    if (
         compatibility.get("selection_state") != "current"
         or compatibility.get("program") != release
         or compatibility.get("release_stage_id", release) != release
@@ -97,6 +154,117 @@ def retained_manifest_path(root: Path, program: str) -> Path:
     if not path.is_file():
         fail(f"canonical retained controller read-back is missing: {path}")
     return path
+
+
+def delivery_manifest_from_current_basis(
+    root: Path,
+    *,
+    tp_program: str,
+    expected_urp: str,
+    expected_sha: dict[str, str],
+) -> dict[str, Any]:
+    """Resolve the durable controller receipt for the selected V3 release."""
+
+    try:
+        release = load_current_release_for_compatible_readback(root)
+        _basis_path, basis = load_delivery_basis(root, release=release)
+    except (ReleaseIdentityError, ReleaseTransitionError) as exc:
+        fail(f"current delivery basis is invalid: {exc}")
+    if (
+        release.program_id != tp_program
+        or release.controller_target != expected_urp
+        or dict(release.artifact_sha256) != expected_sha
+    ):
+        fail("current delivery basis release identity differs")
+    prior = basis.get("prior_full_readback_receipt")
+    if (
+        not isinstance(prior, dict)
+        or not isinstance(prior.get("path"), str)
+        or not isinstance(prior.get("sha256"), str)
+    ):
+        fail("current delivery basis has no prior full-readback receipt")
+    prior_path = rooted_file(root, prior["path"], "prior full-readback receipt")
+    actual_sha256 = hashlib.sha256(prior_path.read_bytes()).hexdigest()
+    if actual_sha256 != prior["sha256"]:
+        fail("prior full-readback receipt SHA-256 differs")
+    return load_json(prior_path)
+
+
+def verify_delivery_manifest(
+    delivery_manifest: dict[str, Any],
+    *,
+    tp_program: str,
+    expected_target_dir: str,
+    expected_script: str,
+    expected_sha: dict[str, str],
+    require_fresh_get: bool = False,
+) -> str | None:
+    """Independently close the receipt identity used by the current pointer."""
+
+    if delivery_manifest.get("status") != "controller read-back verified":
+        fail(f"fresh controller read-back status differs: {delivery_manifest.get('status')}")
+
+    delivery_mode = delivery_manifest.get("delivery_mode")
+    if delivery_mode not in ALLOWED_DELIVERY_MODES:
+        fail(f"manifest delivery_mode is not recognized: {delivery_mode}")
+    if require_fresh_get:
+        if delivery_mode != "full_upload_readback":
+            fail("basis receipt is not a full upload/read-back receipt")
+        if delivery_manifest.get("readback_source") != "fresh_controller_get":
+            fail("basis receipt is not backed by a fresh controller GET")
+        if delivery_manifest.get("fresh_controller_sha_verified") is not True:
+            fail("basis receipt lacks fresh_controller_sha_verified=true")
+        if not delivery_manifest.get("fresh_controller_checked_at"):
+            fail("basis receipt lacks fresh_controller_checked_at")
+
+    validation = delivery_manifest.get("validation")
+    if not isinstance(validation, dict):
+        fail("manifest validation identity is missing")
+    if validation.get("program") != tp_program:
+        fail(f"manifest program is {validation.get('program')}, expected {tp_program}")
+    if validation.get("target_dir") != expected_target_dir:
+        fail(
+            f"manifest target_dir is {validation.get('target_dir')}, "
+            f"expected {expected_target_dir}"
+        )
+    if validation.get("script_node_path") != expected_script:
+        fail(f"manifest script_node_path is {validation.get('script_node_path')}")
+    if delivery_manifest.get("program") not in (None, tp_program):
+        fail("manifest top-level program differs")
+    if delivery_manifest.get("controller_target") not in (
+        None,
+        f"{expected_target_dir}/{tp_program}.urp",
+    ):
+        fail("manifest top-level controller target differs")
+    if delivery_manifest.get("triplet_sha256") not in (None, expected_sha):
+        fail("manifest top-level triplet differs")
+
+    expected_install = expected_installation_relative_path(expected_target_dir)
+    if validation.get("installation_relative_path") not in (None, expected_install):
+        fail(
+            "manifest installation_relative_path is "
+            f"{validation.get('installation_relative_path')}, expected {expected_install}"
+        )
+
+    manifest_sha = delivery_manifest.get("sha256")
+    if not isinstance(manifest_sha, dict):
+        fail("manifest sha256 closure is missing")
+    validation_keys = {
+        ".script": "script_sha256",
+        ".txt": "txt_sha256",
+        ".urp": "urp_sha256",
+    }
+    for ext, validation_key in validation_keys.items():
+        expected = expected_sha.get(ext) or validation.get(validation_key)
+        if not expected:
+            fail(f"expected sha256 for {ext} is missing")
+        if validation.get(validation_key) != expected:
+            fail(f"manifest validation {validation_key} does not match expected sha256")
+        for section in ("local", "controller", "readback"):
+            section_sha = manifest_sha.get(section)
+            if not isinstance(section_sha, dict) or section_sha.get(ext) != expected:
+                fail(f"manifest sha256 {section} {ext} does not match expected sha256")
+    return delivery_mode
 
 
 def verify(
@@ -162,26 +330,31 @@ def verify(
         ):
             fail("canonical controller read-back identity differs")
         raw_relative = manifest.get("fresh_readback_source")
-        raw_expected_sha = manifest.get("fresh_readback_manifest_sha256")
-        if not isinstance(raw_relative, str) or not raw_relative:
-            fail("canonical controller read-back lacks fresh source")
-        raw_path = root / raw_relative
-        if raw_path.is_symlink() or not raw_path.is_file():
-            fail("canonical controller read-back fresh source is missing")
-        try:
-            raw_path.resolve().relative_to(root.resolve())
-        except ValueError:
-            fail("canonical controller read-back fresh source escapes root")
-        raw_actual_sha = hashlib.sha256(raw_path.read_bytes()).hexdigest()
-        if raw_actual_sha != raw_expected_sha:
-            fail("canonical controller read-back fresh source digest differs")
-        delivery_manifest = load_json(raw_path)
-        if delivery_manifest.get("status") != "controller read-back verified":
-            fail("fresh controller read-back status differs")
-
-    delivery_mode = delivery_manifest.get("delivery_mode")
-    if delivery_mode not in ALLOWED_DELIVERY_MODES:
-        fail(f"manifest delivery_mode is not recognized: {delivery_mode}")
+        if isinstance(raw_relative, str) and raw_relative:
+            raw_expected_sha = manifest.get("fresh_readback_manifest_sha256")
+            raw_path = rooted_file(root, raw_relative, "canonical fresh read-back source")
+            raw_actual_sha = hashlib.sha256(raw_path.read_bytes()).hexdigest()
+            if raw_actual_sha != raw_expected_sha:
+                fail("canonical controller read-back fresh source digest differs")
+            delivery_manifest = load_json(raw_path)
+        elif manifest.get("fresh_get_evidence") == "per_campaign_delivery_observation":
+            delivery_manifest = delivery_manifest_from_current_basis(
+                root,
+                tp_program=tp_program,
+                expected_urp=expected_urp,
+                expected_sha=current_sha(current),
+            )
+        else:
+            fail("canonical controller read-back lacks recognized fresh evidence")
+    delivery_mode = verify_delivery_manifest(
+        delivery_manifest,
+        tp_program=tp_program,
+        expected_target_dir=expected_target_dir,
+        expected_script=expected_script,
+        expected_sha=current_sha(current),
+        require_fresh_get=manifest.get("fresh_get_evidence")
+        == "per_campaign_delivery_observation",
+    )
     if delivery_mode == "content_addressed_reuse":
         if delivery_manifest.get("fresh_controller_sha_verified") is not True:
             fail("content_addressed_reuse manifest lacks fresh_controller_sha_verified=true")
@@ -191,37 +364,6 @@ def verify(
             fail("content_addressed_reuse manifest lacks skip_basis_manifest")
         if delivery_manifest.get("readback_source") != "prior_full_readback":
             fail("content_addressed_reuse manifest must use readback_source=prior_full_readback")
-
-    validation = delivery_manifest.get("validation", {})
-    if validation.get("program") != tp_program:
-        fail(f"manifest program is {validation.get('program')}, expected {tp_program}")
-    if validation.get("target_dir") != expected_target_dir:
-        fail(f"manifest target_dir is {validation.get('target_dir')}, expected {expected_target_dir}")
-    if validation.get("script_node_path") != expected_script:
-        fail(f"manifest script_node_path is {validation.get('script_node_path')}")
-    expected_install = expected_installation_relative_path(expected_target_dir)
-    if validation.get("installation_relative_path") not in (None, expected_install):
-        fail(
-            "manifest installation_relative_path is "
-            f"{validation.get('installation_relative_path')}, expected {expected_install}"
-        )
-
-    expected_sha = current_sha(current)
-    manifest_sha = delivery_manifest.get("sha256", {})
-    validation_keys = {
-        ".script": "script_sha256",
-        ".txt": "txt_sha256",
-        ".urp": "urp_sha256",
-    }
-    for ext, validation_key in validation_keys.items():
-        expected = expected_sha.get(ext) or validation.get(validation_key)
-        if not expected:
-            fail(f"expected sha256 for {ext} is missing")
-        if validation.get(validation_key) != expected:
-            fail(f"manifest validation {validation_key} does not match expected sha256")
-        for section in ("local", "controller", "readback"):
-            if manifest_sha.get(section, {}).get(ext) != expected:
-                fail(f"manifest sha256 {section} {ext} does not match expected sha256")
 
     return {
         "ok": True,

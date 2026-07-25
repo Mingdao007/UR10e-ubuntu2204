@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,7 +19,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 import verify_current_stage_readback as gate  # noqa: E402
 
 
-PROGRAM = "step5d_strict_rnn_liveprep_v19"
+PROGRAM = "step5d_strict_rnn_liveprep_v123"
 TARGET_DIR = "/programs/andyl/kunwei/step5"
 SHA = {
     ".script": "1" * 64,
@@ -37,8 +40,8 @@ def write_case(root: Path, *, delivery_mode: str | None = None, include_fresh: b
         "controller_script": f"{TARGET_DIR}/{PROGRAM}.script",
         "status": f"{PROGRAM}_controller_readback_verified_pending_live_bridge_run",
         "evidence": {
-            "v19_controller_readback_verified": True,
-            "v19_controller_readback_manifest": manifest_rel,
+            "v123_controller_readback_verified": True,
+            "v123_controller_readback_manifest": manifest_rel,
             "sha256": SHA,
         },
     }
@@ -81,6 +84,191 @@ def write_case_with_manifest_status(root: Path, status: str) -> None:
 
 
 class CurrentStageReadbackGateTest(unittest.TestCase):
+    def test_immutable_release_pointer_resolves_tp_program_from_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            release = "step5d_strict_rnn_autotune_v3"
+            tp_program = f"{release}_r123"
+            manifest = {
+                "schema": "step5d.autotune-v3/release-manifest-v3",
+                "identity": {
+                    "release_stage_id": release,
+                    "program_id": tp_program,
+                },
+            }
+            encoded = json.dumps(
+                manifest,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            manifest_path = root / "config/step5d/releases/fixture/manifest.json"
+            manifest_path.parent.mkdir(parents=True)
+            manifest_path.write_bytes(encoded)
+            pointer = {
+                "schema": "step5d.autotune-v3/current-release-pointer-v1",
+                "manifest_path": str(manifest_path.relative_to(root)),
+                "manifest_sha256": hashlib.sha256(encoded).hexdigest(),
+            }
+            (root / "config/step5d/current.json").write_text(
+                json.dumps(pointer),
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                gate.selected_tp_program(root, {}, release),
+                tp_program,
+            )
+
+    def test_immutable_release_pointer_rejects_manifest_sha_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest_path = root / "config/step5d/releases/fixture/manifest.json"
+            manifest_path.parent.mkdir(parents=True)
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "identity": {
+                            "release_stage_id": "step5d_strict_rnn_autotune_v3",
+                            "program_id": "step5d_strict_rnn_autotune_v3_r123",
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (root / "config/step5d/current.json").write_text(
+                json.dumps(
+                    {
+                        "schema": "step5d.autotune-v3/current-release-pointer-v1",
+                        "manifest_path": str(manifest_path.relative_to(root)),
+                        "manifest_sha256": "0" * 64,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "SHA-256 differs"):
+                gate.selected_tp_program(
+                    root,
+                    {},
+                    "step5d_strict_rnn_autotune_v3",
+                )
+
+    def test_per_campaign_readback_resolves_durable_delivery_basis(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_case(root)
+            current = json.loads(
+                (root / "config/current_stage.json").read_text(encoding="utf-8")
+            )
+            source = root / current["evidence"]["v123_controller_readback_manifest"]
+            receipt = json.loads(source.read_text(encoding="utf-8"))
+            prior = root / "config/step5d/delivery-bases/prior.json"
+            prior.parent.mkdir(parents=True)
+            receipt.update(
+                {
+                    "delivery_mode": "full_upload_readback",
+                    "readback_source": "fresh_controller_get",
+                    "fresh_controller_sha_verified": True,
+                    "fresh_controller_checked_at": "2026-07-02T17:28:39+08:00",
+                }
+            )
+            prior.write_text(json.dumps(receipt), encoding="utf-8")
+            source.write_text(
+                json.dumps(
+                    {
+                        "schema": "step5d.autotune.controller-readback/v3",
+                        "status": "controller read-back verified",
+                        "verified": True,
+                        "program": PROGRAM,
+                        "controller_target": f"{TARGET_DIR}/{PROGRAM}.urp",
+                        "triplet_sha256": SHA,
+                        "fresh_get_evidence": "per_campaign_delivery_observation",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            release = SimpleNamespace(
+                program_id=PROGRAM,
+                controller_target=f"{TARGET_DIR}/{PROGRAM}.urp",
+                artifact_sha256=SHA,
+            )
+            basis = {
+                "prior_full_readback_receipt": {
+                    "path": str(prior.relative_to(root)),
+                    "sha256": hashlib.sha256(prior.read_bytes()).hexdigest(),
+                }
+            }
+            with mock.patch.object(
+                gate,
+                "load_current_release_for_compatible_readback",
+                return_value=release,
+            ), mock.patch.object(
+                gate,
+                "load_delivery_basis",
+                return_value=(root / "config/step5d/delivery-bases/basis.json", basis),
+            ):
+                result = gate.verify(root, PROGRAM)
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["delivery_mode"], "full_upload_readback")
+
+    def test_per_campaign_readback_rejects_stale_prior_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_case(root)
+            current = json.loads(
+                (root / "config/current_stage.json").read_text(encoding="utf-8")
+            )
+            source = root / current["evidence"]["v123_controller_readback_manifest"]
+            prior = root / "config/step5d/delivery-bases/prior.json"
+            prior.parent.mkdir(parents=True)
+            receipt = json.loads(source.read_text(encoding="utf-8"))
+            receipt.update(
+                {
+                    "delivery_mode": "full_upload_readback",
+                    "readback_source": "retained_snapshot",
+                    "fresh_controller_sha_verified": True,
+                    "fresh_controller_checked_at": "2026-07-02T17:28:39+08:00",
+                }
+            )
+            prior.write_text(json.dumps(receipt), encoding="utf-8")
+            source.write_text(
+                json.dumps(
+                    {
+                        "schema": "step5d.autotune.controller-readback/v3",
+                        "status": "controller read-back verified",
+                        "verified": True,
+                        "program": PROGRAM,
+                        "controller_target": f"{TARGET_DIR}/{PROGRAM}.urp",
+                        "triplet_sha256": SHA,
+                        "fresh_get_evidence": "per_campaign_delivery_observation",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            basis = {
+                "prior_full_readback_receipt": {
+                    "path": str(prior.relative_to(root)),
+                    "sha256": hashlib.sha256(prior.read_bytes()).hexdigest(),
+                }
+            }
+            release = SimpleNamespace(
+                program_id=PROGRAM,
+                controller_target=f"{TARGET_DIR}/{PROGRAM}.urp",
+                artifact_sha256=SHA,
+            )
+            with mock.patch.object(
+                gate,
+                "load_current_release_for_compatible_readback",
+                return_value=release,
+            ), mock.patch.object(
+                gate,
+                "load_delivery_basis",
+                return_value=(root / "config/step5d/delivery-bases/basis.json", basis),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "fresh controller GET"):
+                    gate.verify(root, PROGRAM)
+
     def test_legacy_manifest_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
