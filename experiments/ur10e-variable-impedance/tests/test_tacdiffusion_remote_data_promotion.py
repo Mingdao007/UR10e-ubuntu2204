@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 import tempfile
 import unittest
 from pathlib import Path
@@ -155,7 +156,7 @@ class RemoteAndDataTests(unittest.TestCase):
             source.write_text("immutable\n", encoding="utf-8")
             fingerprint = immutable_environment_fingerprint([source], cache_path=root / "env.json")
             self.assertEqual(fingerprint, immutable_environment_fingerprint([source], cache_path=root / "env.json"))
-            binding = CheckpointBinding("ur10e_tacdiffusion_checkpoint/v2", "a" * 64, "b" * 64, "c" * 64, "d" * 64, "e" * 64, ("f" * 64,), "1" * 64, {"observation_dimension": 84, "action_dimension": 12}, fingerprint, "2" * 64)
+            binding = CheckpointBinding("ur10e_tacdiffusion_checkpoint/v3", "a" * 64, "b" * 64, "c" * 64, "d" * 64, "e" * 64, ("f" * 64,), "1" * 64, {"observation_dimension": 84, "action_dimension": 12, "diffusion_steps": 50, "model_update_rate_hz": 100}, fingerprint, "2" * 64)
             write_checkpoint_binding(root / "checkpoint.json", binding)
             self.assertEqual(validate_checkpoint_binding(root / "checkpoint.json"), binding)
 
@@ -206,6 +207,64 @@ class RemoteAndDataTests(unittest.TestCase):
             self.assertEqual(benchmark["diffusion_steps"], 50)
             self.assertEqual(benchmark["distinct_timesteps"], 50)
             self.assertIn("selected_rate_hz", benchmark)
+
+
+class CheckpointBindingTests(unittest.TestCase):
+    @staticmethod
+    def binding(rate_hz=100):
+        return CheckpointBinding(
+            "ur10e_tacdiffusion_checkpoint/v3",
+            "a" * 64,
+            "b" * 64,
+            "c" * 64,
+            "d" * 64,
+            "e" * 64,
+            ("f" * 64, "0" * 64),
+            "1" * 64,
+            {"observation_dimension": 84, "action_dimension": 12, "diffusion_steps": 50, "model_update_rate_hz": rate_hz},
+            "2" * 64,
+            "3" * 64,
+        )
+
+    def test_v3_round_trip_is_deterministic_and_crash_safe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "checkpoint-binding.json"
+            binding = self.binding()
+            write_checkpoint_binding(path, binding)
+            first = path.read_bytes()
+            write_checkpoint_binding(path, binding)
+            self.assertEqual(first, path.read_bytes())
+            self.assertEqual(validate_checkpoint_binding(path), binding)
+            self.assertEqual(json.loads(first)["schema_version"], "ur10e_tacdiffusion_checkpoint/v3")
+
+    def test_tampered_source_hash_and_extra_or_missing_lineage_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "checkpoint-binding.json"
+            binding = self.binding()
+            write_checkpoint_binding(path, binding)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["source_hashes"][0] = "g" * 64
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "source_hashes"):
+                validate_checkpoint_binding(path)
+            payload = binding.payload()
+            payload.pop("dataset_sha256")
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "lineage"):
+                validate_checkpoint_binding(path)
+            payload = binding.payload()
+            payload["unexpected_lineage"] = "x"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "lineage"):
+                validate_checkpoint_binding(path)
+
+    def test_v2_and_invalid_model_rates_are_rejected_without_torch(self):
+        binding = self.binding()
+        with self.assertRaisesRegex(ValueError, "unsupported checkpoint schema"):
+            replace(binding, schema_version="ur10e_tacdiffusion_checkpoint/v2")
+        for rate_hz in (200, 500):
+            with self.assertRaisesRegex(ValueError, "50 or 100"):
+                replace(binding, model_config={**binding.model_config, "model_update_rate_hz": rate_hz})
 
 
 if __name__ == "__main__":
