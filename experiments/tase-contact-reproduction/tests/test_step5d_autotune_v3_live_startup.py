@@ -303,6 +303,72 @@ def test_arm_gate_refresh_retries_if_mailbox_changes_during_observation(
     assert observed["arm_command"] != binding1
 
 
+def test_arm_gate_waits_for_explicit_rtde_event_without_deadline(
+    tmp_path: Path,
+) -> None:
+    row = {"t_wall_ns": "101"}
+    polls = iter((None, None, row))
+    sleeps: list[float] = []
+
+    bridge = SimpleNamespace(poll=lambda: None, returncode=None)
+    follower = SimpleNamespace(poll=lambda: next(polls))
+
+    observed = live._wait_arm_rtde_row(
+        bridge,
+        csv_follower=follower,
+        not_before_unix_ns=100,
+        poll_interval_s=0.001,
+        sleep=sleeps.append,
+    )
+
+    assert observed is row
+    assert sleeps == [0.001, 0.001]
+
+
+def test_dashboard_attempt_timeout_only_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = iter((OSError("unavailable"), {"programState": "PLAYING"}))
+    sleeps: list[float] = []
+
+    def exchange(*_args: Any, **_kwargs: Any) -> dict[str, str]:
+        result = next(attempts)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    observed = live._wait_dashboard_observation(
+        SimpleNamespace(poll=lambda: None, returncode=None),
+        robot_host="robot",
+        poll_interval_s=0.01,
+        exchange=exchange,
+        sleep=sleeps.append,
+    )
+
+    assert observed["programState"] == "PLAYING"
+    assert sleeps == [0.01]
+
+
+def test_readiness_wait_has_no_elapsed_time_failure(tmp_path: Path) -> None:
+    ready = tmp_path / "ready.json"
+    sleeps: list[float] = []
+
+    def sleep(delay: float) -> None:
+        sleeps.append(delay)
+        if len(sleeps) == 3:
+            ready.write_text("{}", encoding="utf-8")
+
+    live._wait_file(
+        ready,
+        SimpleNamespace(poll=lambda: None, returncode=None),
+        "runner",
+        poll_interval_s=0.01,
+        sleep=sleep,
+    )
+
+    assert sleeps == [0.01, 0.01, 0.01]
+
+
 def test_arm_gate_refresh_uses_rtde_authority_across_dashboard_flip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -524,10 +590,10 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     bridge_start = source.index("bridge = subprocess.Popen(")
     runner_start = source.index("runner = subprocess.Popen(")
     runner_ready = source.index(
-        '_wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")'
+        '_wait_file(runner_ready, runner, "campaign runner")'
     )
     bridge_ready = source.index(
-        '_wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")'
+        '_wait_file(bridge_run / "bridge_ready.json", bridge, "bridge")'
     )
     no_arm_ready = source.index('print("V3_BRIDGE_READY_NO_ARM"', bridge_ready)
     claim_gate = source.index("_publish_canonical_readiness_claim(", runner_ready)
@@ -546,6 +612,8 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     assert '"--initial-manifest"' in source
     assert "while True:" in source[source.index("READY_FOR_ONE_PLAY_TO_MOVE") :]
     assert "TP Play was not observed before timeout" not in source
+    assert "readiness timeout" not in inspect.getsource(live._wait_file)
+    assert "deadline" not in inspect.getsource(live._wait_arm_rtde_row)
     runner_source = (ROOT / "tools/run_step5d_parameter_campaign.py").read_text(
         encoding="utf-8"
     )

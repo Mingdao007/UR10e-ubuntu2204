@@ -19,7 +19,7 @@ Options:
                            Compatibility-only explicit governed TP delivery
                            observation; current release resolves it by default
   --launch-profile PATH    Compatibility-only canonical profile path
-  --ready-timeout-s SEC    Positive bridge/runner readiness timeout
+  --ready-timeout-s SEC    Compatibility-only; readiness is event-driven
   -h, --help               Show this help without starting any work
 EOF
 }
@@ -338,8 +338,6 @@ output_root=""
 campaign_root=""
 delivery_observation=""
 canonical_launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
-runner_args=()
-ready_timeout_s="20"
 launch_attempt_id=""
 launch_attempt_phase=""
 launch_attempt_enabled=0
@@ -438,8 +436,6 @@ if [[ "${1:-}" == "bridge-live" ]]; then
         (( seen_ready_timeout == 0 )) || bridge_argv_error "--ready-timeout-s may appear only once"
         seen_ready_timeout=1
         bridge_require_positive_seconds "${option_name}" "${value}"
-        ready_timeout_s="${value}"
-        runner_args+=("${option_name}" "${value}")
         ;;
     esac
   done
@@ -924,7 +920,7 @@ if (( bridge_mode == 1 )); then
     --json
   bridge_begin_phase live_handoff
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
-    "${runner_args[@]}" --output-root "${output_root}" \
+    --output-root "${output_root}" \
     --canonical-owner-pid "$$" \
     --canonical-owner-starttime "${launch_owner_starttime}" \
     --delivery-observation "${delivery_observation}" \

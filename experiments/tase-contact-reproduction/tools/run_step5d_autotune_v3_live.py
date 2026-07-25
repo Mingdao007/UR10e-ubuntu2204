@@ -763,7 +763,7 @@ def _refresh_arm_gate(
     release: ReleaseIdentity,
 ) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
     try:
-        for _attempt in range(3):
+        while True:
             validated_delivery = validate_delivery_observation(
                 ROOT, delivery_observation, release=release
             )
@@ -785,44 +785,21 @@ def _refresh_arm_gate(
             command_observed_at_unix_ns = (
                 time.time_ns() if arm_command is not None else None
             )
-            dashboard = dashboard_exchange(
-                robot_host,
-                ["programState", "safetymode", "get loaded program"],
-                timeout=2.0,
+            dashboard = _wait_dashboard_observation(
+                bridge,
+                robot_host=robot_host,
             )
-            if arm_command is None:
-                row = csv_follower.poll()
-                if row is None:
-                    raise LiveLaunchError("ARM gate lacks a complete bridge RTDE row")
-            else:
-                deadline = time.monotonic() + 0.5
-                row = None
-                while time.monotonic() < deadline:
-                    if bridge.poll() is not None:
-                        raise LiveLaunchError(
-                            "bridge exited while awaiting a post-request RTDE row"
-                        )
-                    candidate = csv_follower.poll()
-                    if candidate is not None:
-                        try:
-                            row_wall_ns = int(candidate["t_wall_ns"])
-                        except (KeyError, TypeError, ValueError) as exc:
-                            raise LiveLaunchError(
-                                "ARM gate RTDE row lacks an integer wall timestamp"
-                            ) from exc
-                        if row_wall_ns >= command_observed_at_unix_ns:
-                            row = candidate
-                            break
-                    time.sleep(0.005)
-                if row is None:
-                    raise LiveLaunchError(
-                        "ARM gate lacks a post-request bridge RTDE row"
-                    )
+            row = _wait_arm_rtde_row(
+                bridge,
+                csv_follower=csv_follower,
+                not_before_unix_ns=command_observed_at_unix_ns,
+            )
             command_after = mailbox_reader.read_latest()
             command_sha_after = (
                 None if command_after is None else command_after.sha256
             )
             if command_sha_after != command_sha_before:
+                time.sleep(0.005)
                 continue
             try:
                 connection_epoch = int(row.get("rtde_reconnects", 0))
@@ -860,10 +837,6 @@ def _refresh_arm_gate(
                 connection_epoch=connection_epoch,
             )
             break
-        else:
-            raise LiveLaunchError(
-                "ARM mailbox changed across three fresh observation attempts"
-            )
     except (
         DeliveryObservationError,
         OSError,
@@ -879,6 +852,62 @@ def _refresh_arm_gate(
     return observed, dashboard
 
 
+def _wait_dashboard_observation(
+    bridge: subprocess.Popen[Any],
+    *,
+    robot_host: str,
+    poll_interval_s: float = 0.05,
+    exchange: Callable[..., Mapping[str, Any]] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Mapping[str, Any]:
+    """Retry bounded socket attempts until evidence or process exit."""
+
+    observe = dashboard_exchange if exchange is None else exchange
+    while True:
+        if bridge.poll() is not None:
+            raise LiveLaunchError(
+                f"bridge exited before Dashboard observation rc={bridge.returncode}"
+            )
+        try:
+            return observe(
+                robot_host,
+                ["programState", "safetymode", "get loaded program"],
+                timeout=2.0,
+            )
+        except (DashboardObservationError, OSError):
+            sleep(poll_interval_s)
+
+
+def _wait_arm_rtde_row(
+    bridge: subprocess.Popen[Any],
+    *,
+    csv_follower: _LatestCsvFollower,
+    not_before_unix_ns: int | None,
+    poll_interval_s: float = 0.005,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Mapping[str, str]:
+    """Wait for explicit fresh RTDE evidence; elapsed time is never an outcome."""
+
+    while True:
+        if bridge.poll() is not None:
+            raise LiveLaunchError(
+                "bridge exited while awaiting an ARM-gate RTDE row"
+            )
+        candidate = csv_follower.poll()
+        if candidate is not None:
+            if not_before_unix_ns is None:
+                return candidate
+            try:
+                row_wall_ns = int(candidate["t_wall_ns"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise LiveLaunchError(
+                    "ARM gate RTDE row lacks an integer wall timestamp"
+                ) from exc
+            if row_wall_ns >= not_before_unix_ns:
+                return candidate
+        sleep(poll_interval_s)
+
+
 def _announce_stop_if_playing(robot_host: str) -> bool:
     try:
         state = dashboard_exchange(robot_host, ["programState"], timeout=2.0)
@@ -890,15 +919,22 @@ def _announce_stop_if_playing(robot_host: str) -> bool:
     return False
 
 
-def _wait_file(path: Path, process: subprocess.Popen[Any], timeout_s: float, role: str) -> None:
-    deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
+def _wait_file(
+    path: Path,
+    process: subprocess.Popen[Any],
+    role: str,
+    *,
+    poll_interval_s: float = 0.05,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Wait for readiness or explicit process exit, without a wall-clock deadline."""
+
+    while True:
         if process.poll() is not None:
             raise LiveLaunchError(f"{role} process exited before readiness rc={process.returncode}")
         if path.is_file():
             return
-        time.sleep(0.05)
-    raise LiveLaunchError(f"{role} readiness timeout")
+        sleep(poll_interval_s)
 
 
 def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
@@ -907,14 +943,14 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
     if process.poll() is None:
         process.send_signal(signal.SIGINT)
         try:
-            process.wait(timeout=8.0)
+            process.wait(timeout=0.5)
         except subprocess.TimeoutExpired:
             process.terminate()
             try:
-                process.wait(timeout=5.0)
+                process.wait(timeout=0.25)
             except subprocess.TimeoutExpired:
                 process.kill()
-                process.wait(timeout=5.0)
+                process.wait(timeout=0.25)
     return process.returncode
 
 
@@ -1367,7 +1403,7 @@ def _run_live_session(
                 ),
             )
             lifecycle.bridge = bridge
-            _wait_file(bridge_run / "bridge_ready.json", bridge, args.ready_timeout_s, "bridge")
+            _wait_file(bridge_run / "bridge_ready.json", bridge, "bridge")
             bridge_ready = read_strict_json(
                 bridge_run / "bridge_ready.json", role="bridge readiness"
             )
@@ -1417,7 +1453,7 @@ def _run_live_session(
                 ),
             )
                 lifecycle.runner = runner
-                _wait_file(runner_ready, runner, args.ready_timeout_s, "campaign runner")
+                _wait_file(runner_ready, runner, "campaign runner")
                 lifecycle.start_session(
                     bridge=bridge,
                     runner=runner,
@@ -1688,13 +1724,9 @@ def _run_live_session(
                         reason="live_session_degraded",
                     )
                 if bridge.poll() is not None and runner.poll() is None:
-                    deadline = time.monotonic() + 3.0
-                    while runner.poll() is None and time.monotonic() < deadline:
-                        time.sleep(0.05)
-                    if runner.poll() is None or runner.returncode != 0:
-                        raise LiveLaunchError(
-                            f"bridge exited before campaign completion rc={bridge.returncode}"
-                        )
+                    raise LiveLaunchError(
+                        f"bridge exited before campaign completion rc={bridge.returncode}"
+                    )
                 if runner.poll() is not None and runner.returncode == 0:
                     bridge_alive_at_campaign_outcome = bridge.poll() is None
                     if publisher is not None:
@@ -1939,7 +1971,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
     )
-    parser.add_argument("--ready-timeout-s", type=float, default=45.0)
     parser.add_argument("--canonical-owner-pid", type=int, required=True)
     parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
