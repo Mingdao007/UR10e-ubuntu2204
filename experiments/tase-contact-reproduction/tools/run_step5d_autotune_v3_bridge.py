@@ -716,10 +716,12 @@ def install_v3_seams(
             connection_epoch: int = 0,
         ) -> bool:
             try:
-                self._v3_arm_gate.observe_rtde(
+                identity_ready = self._v3_arm_gate.observe_rtde(
                     output,
                     connection_epoch=connection_epoch,
                 )
+                if not identity_ready:
+                    return False
                 return super().poll(
                     args,
                     output,

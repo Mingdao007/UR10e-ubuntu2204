@@ -42,6 +42,7 @@ ARM_GATE_MAX_AGE_S = 1.0
 ARM_GRANT_MAX_AGE_S = 0.25
 ARM_GATE_WATCHDOG_INTERVAL_S = 0.25
 ARM_GATE_PENDING_INTERVAL_S = 0.025
+TP_RUNTIME_IDENTITY_ESTABLISH_TIMEOUT_S = 1.0
 CURRENT_POINTER_SCHEMA = "step5d.autotune-v3/current-release-pointer-v1"
 CANONICAL_LAUNCHER = "scripts/step5d-autotune-v3.sh"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -958,6 +959,9 @@ class ArmGateProvider:
         lease_sha256: str,
         release: Any,
         runtime_environment_guard: RuntimeEnvironmentBindingGuard | None = None,
+        identity_establish_timeout_s: float = (
+            TP_RUNTIME_IDENTITY_ESTABLISH_TIMEOUT_S
+        ),
     ) -> None:
         if not gate_path.is_absolute() or gate_path.is_symlink():
             raise RuntimeGateError("ARM gate path must be absolute and non-symlink")
@@ -1012,6 +1016,22 @@ class ArmGateProvider:
             self._runtime_environment_guard, RuntimeEnvironmentBindingGuard
         ):
             raise RuntimeGateError("ARM gate runtime environment guard is invalid")
+        try:
+            identity_establish_timeout_s = float(identity_establish_timeout_s)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeGateError(
+                "TP runtime identity establishment timeout is invalid"
+            ) from exc
+        if (
+            not math.isfinite(identity_establish_timeout_s)
+            or identity_establish_timeout_s <= 0.0
+            or identity_establish_timeout_s
+            > TP_RUNTIME_IDENTITY_ESTABLISH_TIMEOUT_S
+        ):
+            raise RuntimeGateError(
+                "TP runtime identity establishment timeout must be in (0, 1.0]"
+            )
+        self.identity_establish_timeout_s = identity_establish_timeout_s
         self._cache_initialized = False
         self._cached_context: ValidatedArmContext | None = None
         self._cache_valid_until = float("-inf")
@@ -1019,12 +1039,18 @@ class ArmGateProvider:
         self._last_monotonic: float | None = None
         self._last_rtde_controller_timestamp_s: float | None = None
         self._last_rtde_connection_epoch: int | None = None
+        self._play_identity_pending_since_s: float | None = None
+        self._play_identity_verified = False
 
     def _invalidate_cache(self) -> None:
         self._cache_initialized = False
         self._cached_context = None
         self._cache_valid_until = float("-inf")
         self._cache_key = None
+
+    def _reset_play_identity(self) -> None:
+        self._play_identity_pending_since_s = None
+        self._play_identity_verified = False
 
     def _watchdog_release_bindings(self) -> None:
         lease = load_campaign_lease(
@@ -1090,9 +1116,9 @@ class ArmGateProvider:
         output: Mapping[str, Any] | None,
         *,
         connection_epoch: int = 0,
-    ) -> None:
+    ) -> bool:
         if output is None:
-            return
+            return True
         try:
             connection_epoch = _nonnegative_int(
                 connection_epoch, "bridge RTDE connection epoch"
@@ -1104,27 +1130,55 @@ class ArmGateProvider:
             if connection_changed:
                 self._invalidate_cache()
                 self._last_rtde_controller_timestamp_s = None
+                self._reset_play_identity()
             self._last_rtde_connection_epoch = connection_epoch
             runtime_state = _number(output, "runtime_state")
-            if runtime_state == 2:
-                if _number(output, "safety_mode") != 1:
-                    raise RuntimeGateError(
-                        "UR safety left NORMAL while program is PLAYING"
-                    )
+            if runtime_state != 2:
+                if (
+                    self._play_identity_pending_since_s is not None
+                    or self._play_identity_verified
+                ):
+                    self._invalidate_cache()
+                    self._reset_play_identity()
+                return True
+            if _number(output, "safety_mode") != 1:
+                raise RuntimeGateError(
+                    "UR safety left NORMAL while program is PLAYING"
+                )
+            controller_timestamp_s = _finite_number(output, "timestamp")
+            if (
+                self._last_rtde_controller_timestamp_s is not None
+                and controller_timestamp_s
+                < self._last_rtde_controller_timestamp_s
+                and not connection_changed
+            ):
+                raise RuntimeGateError(
+                    "RTDE controller timestamp regressed within one connection"
+                )
+            self._last_rtde_controller_timestamp_s = controller_timestamp_s
+            try:
                 validate_tp_runtime_identity(
                     output, self.contract["tp_runtime_identity"]
                 )
-                controller_timestamp_s = _finite_number(output, "timestamp")
-                if (
-                    self._last_rtde_controller_timestamp_s is not None
-                    and controller_timestamp_s
-                    < self._last_rtde_controller_timestamp_s
-                    and not connection_changed
-                ):
+            except RuntimeGateError as exc:
+                if self._play_identity_verified:
+                    raise
+                self._invalidate_cache()
+                if self._play_identity_pending_since_s is None:
+                    self._play_identity_pending_since_s = controller_timestamp_s
+                elapsed_s = (
+                    controller_timestamp_s
+                    - self._play_identity_pending_since_s
+                )
+                if elapsed_s >= self.identity_establish_timeout_s:
                     raise RuntimeGateError(
-                        "RTDE controller timestamp regressed within one connection"
-                    )
-                self._last_rtde_controller_timestamp_s = controller_timestamp_s
+                        "TP runtime identity establishment timed out after "
+                        f"{self.identity_establish_timeout_s:.3f} s: {exc}"
+                    ) from exc
+                return False
+            self._play_identity_pending_since_s = None
+            self._play_identity_verified = True
+            return True
         except RuntimeGateError:
             self._invalidate_cache()
             raise
@@ -1423,6 +1477,7 @@ __all__ = [
     "OBSERVATION_SCHEMA",
     "RuntimeGateError",
     "RuntimeEnvironmentBindingGuard",
+    "TP_RUNTIME_IDENTITY_ESTABLISH_TIMEOUT_S",
     "ValidatedArmContext",
     "load_campaign_lease",
     "loaded_program_matches",

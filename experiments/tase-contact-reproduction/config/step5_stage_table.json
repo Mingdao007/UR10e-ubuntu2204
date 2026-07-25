@@ -11027,6 +11027,11 @@
           "mode": "fixed_campaign_anchor_plus_per_trial_diagnostic"
         },
         "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
+        "play_startup_identity_gate": {
+          "deadline_s": 1.0,
+          "pending_behavior": "zero_command_no_mailbox_no_arm",
+          "time_source": "rtde_controller_timestamp"
+        },
         "service": "config/systemd/step5d-autotune-v3.service",
         "service_restart": "no",
         "stop_after_current": "durable-safe-home-latch"

@@ -24,6 +24,7 @@ from step5d_autotune_v3.release_identity import (
     discover_candidate_artifact_identity,
     load_current_release,
     load_local_release_candidate,
+    release_payload_path,
 )
 from step5d_autotune_v3.release_transition import (
     ReleaseTransitionError,
@@ -106,10 +107,23 @@ def _validate_candidate_and_certificate(
     return release
 
 
+def _current_release_artifact_dir(root: Path) -> Path:
+    release = load_current_release(root)
+    directories = {
+        release_payload_path(root, release, reference["path"]).parent
+        for reference in release.artifacts.values()
+    }
+    if len(directories) != 1:
+        raise RuntimeError(
+            "current immutable release TP artifacts do not share one directory"
+        )
+    return directories.pop()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
-    parser.add_argument("--artifact-dir", type=Path, required=True)
+    parser.add_argument("--artifact-dir", type=Path)
     parser.add_argument("--release-candidate", type=Path)
     parser.add_argument("--release-certificate", type=Path)
     parser.add_argument("--evidence-output", type=Path)
@@ -141,10 +155,15 @@ def main(argv: list[str] | None = None) -> int:
             "certificate, prior receipt, or dry-run"
         )
     root = args.root.resolve(strict=True)
-    unresolved_local_dir = args.artifact_dir.expanduser()
-    if unresolved_local_dir.is_symlink():
-        raise RuntimeError("pending artifact directory is unsafe")
-    local_dir = unresolved_local_dir.resolve(strict=True)
+    if args.artifact_dir is None:
+        if not args.revalidate_current:
+            raise RuntimeError("--artifact-dir is required before TP delivery")
+        local_dir = _current_release_artifact_dir(root)
+    else:
+        unresolved_local_dir = args.artifact_dir.expanduser()
+        if unresolved_local_dir.is_symlink():
+            raise RuntimeError("pending artifact directory is unsafe")
+        local_dir = unresolved_local_dir.resolve(strict=True)
     try:
         local_dir.relative_to(root)
     except ValueError as exc:
