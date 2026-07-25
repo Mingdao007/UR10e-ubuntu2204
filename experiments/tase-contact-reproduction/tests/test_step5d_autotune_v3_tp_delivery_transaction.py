@@ -685,6 +685,20 @@ def test_manifest_v3_and_bundle_ignore_receipt_time_and_transaction(
         Path("config/step5d/v3_active_surface.json"),
     ):
         assert local[1][relative.as_posix()] == (root / relative).read_bytes()
+    rendered_contract = json.loads(
+        local[1][
+            "config/step5/step5d_autotune_v3_control_contract.json"
+        ]
+    )
+    rendered_manual_profile = json.loads(
+        local[1][promotion.MANUAL_LAUNCH_PROFILE.as_posix()]
+    )
+    assert rendered_manual_profile["control_contract_sha256"] == (
+        promotion.contract_sha256(rendered_contract)
+    )
+    assert rendered_manual_profile["tp_program_id"] == (
+        promotion.MANUAL_PROFILE_TP_PROGRAM
+    )
     first = promotion.compose_release(
         root,
         first_receipt,

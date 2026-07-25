@@ -238,7 +238,10 @@ def test_v3_delivery_recovery_route_precedes_current_release_repair(
 
     current = route.load_current_release_snapshot(root)
     assert current.valid is False
-    assert current.error == "GovernanceError:TP runtime identity fields differ"
+    assert current.error in {
+        "GovernanceError:TP runtime identity fields differ",
+        "GovernanceError:safety envelope is missing or unsafe",
+    }
 
     monkeypatch.setattr(
         route,

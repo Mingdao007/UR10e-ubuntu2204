@@ -58,6 +58,8 @@ LOCAL_CANDIDATE = Path(
     "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r012/"
     "local_candidate.json"
 )
+MANUAL_LAUNCH_PROFILE = Path("config/step5d/manual/launch_profile.json")
+MANUAL_PROFILE_TP_PROGRAM = "step5d_strict_rnn_autotune_v3_r009"
 STATIC_PROJECTIONS = (
     Path("config/current_stage.json"),
     Path("config/step5_stage_table.json"),
@@ -65,6 +67,7 @@ STATIC_PROJECTIONS = (
     Path("config/step5d/v3_active_surface.json"),
     Path("config/step5/step5d_autotune_v3_control_contract.json"),
     Path("config/step5/step5d_autotune_v3_launch_profile.json"),
+    MANUAL_LAUNCH_PROFILE,
 )
 SOURCE_INPUTS = tuple(
     Path(relative) for relative in sorted(REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS)
@@ -347,6 +350,7 @@ def _render_launch_profile(
     source: Mapping[str, Any],
     *,
     contract_sha256: str,
+    tp_program_id: str = PROGRAM,
 ) -> dict[str, Any]:
     base = json.loads(json.dumps(source, allow_nan=False))
     dynamic_fields = {
@@ -362,7 +366,7 @@ def _render_launch_profile(
         **static,
         "release_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "tp_program_id": PROGRAM,
+        "tp_program_id": tp_program_id,
         "control_contract_sha256": contract_sha256,
     }
 
@@ -668,14 +672,26 @@ def _compose_local_release(
     contract = _pretty(contract_document)
     contract_digest = _sha256_bytes(contract)
     bundle_files[contract_relative.as_posix()] = contract
+    rendered_contract_sha256 = contract_sha256(contract_document)
     bundle_files[launch_relative.as_posix()] = _pretty(
         _render_launch_profile(
             _load(root / launch_relative),
-            contract_sha256=contract_sha256(contract_document),
+            contract_sha256=rendered_contract_sha256,
+        )
+    )
+    bundle_files[MANUAL_LAUNCH_PROFILE.as_posix()] = _pretty(
+        _render_launch_profile(
+            _load(root / MANUAL_LAUNCH_PROFILE),
+            contract_sha256=rendered_contract_sha256,
+            tp_program_id=MANUAL_PROFILE_TP_PROGRAM,
         )
     )
     for relative in STATIC_PROJECTIONS:
-        if relative not in {contract_relative, launch_relative}:
+        if relative not in {
+            contract_relative,
+            launch_relative,
+            MANUAL_LAUNCH_PROFILE,
+        }:
             if relative == Path("config/current_stage.json"):
                 projection = _render_current_stage(
                     _load(root / relative),
@@ -705,6 +721,7 @@ def _compose_local_release(
             numeric.as_posix(),
             LOCAL_CANDIDATE.as_posix(),
             launch_relative.as_posix(),
+            MANUAL_LAUNCH_PROFILE.as_posix(),
         )
     }
     source_fingerprints = {

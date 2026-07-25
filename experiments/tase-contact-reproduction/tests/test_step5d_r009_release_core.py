@@ -543,6 +543,17 @@ def test_promotion_rewrites_selected_release_mirrors_to_r012() -> None:
         contract_sha256="7" * 64,
     )
     assert launch["tp_program_id"] == PROGRAM
+    manual_launch = promoter._render_launch_profile(
+        json.loads(
+            (
+                ROOT / "config/step5d/manual/launch_profile.json"
+            ).read_text(encoding="utf-8")
+        ),
+        contract_sha256="7" * 64,
+        tp_program_id=promoter.MANUAL_PROFILE_TP_PROGRAM,
+    )
+    assert manual_launch["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r009"
+    assert manual_launch["control_contract_sha256"] == "7" * 64
 
 
 def test_promotion_outputs_contain_identity_without_cached_live_state() -> None:
