@@ -1,0 +1,58 @@
+{
+  "schema": "step5.tp-layout/controller-archive-receipt-v1",
+  "observed_at": "2026-07-25T23:29:02+08:00",
+  "controller_root": "/programs/andyl/kunwei/step5",
+  "archive_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+  "layout_manifest": "config/step5/step5_tp_layout.json",
+  "layout_manifest_sha256": "115fa2cb1a952c58ef1484b7361cb54b85cc13a13004f7f969f69b10f938952a",
+  "result": {
+    "state": "complete",
+    "archived_releases": [
+      "step5d_strict_rnn_autotune_v3_r018",
+      "step5d_strict_rnn_autotune_v3_r019",
+      "step5d_strict_rnn_autotune_v3_r020"
+    ],
+    "deployed_and_fresh_readback_validated_triplets": 3,
+    "removed_sha_bound_source_triplets": 3,
+    "controller_root_triplets": 1,
+    "archive_triplets": 59,
+    "protected_release_sha_unchanged": true
+  },
+  "archived_release_sha256": {
+    "step5d_strict_rnn_autotune_v3_r018": {
+      ".script": "7f078f94dbba578b350f648feb3f10cfbd6104be1fe94eb50b2fe250f1f4ac2e",
+      ".txt": "2617beb4eefa6509a7dec6b200ecb1e8deea00821f203118a0080c50d7453e12",
+      ".urp": "d4127ce4a22a491b7253bd39d5a8e420eba1dd05b4ae1001e4c6f2614178929b"
+    },
+    "step5d_strict_rnn_autotune_v3_r019": {
+      ".script": "39cee949db30c54ed5f7a761b321dc23f8cd8b0b670c773893ffa4cb2491eb4e",
+      ".txt": "b998400ea627337da2429e59f5c7c72af73c2f74ece741ae2f4990ec616c71cd",
+      ".urp": "fa2497ad25224b19b5a86c149693c1abc15c2b7ec0ff05681a7842a68f2463b4"
+    },
+    "step5d_strict_rnn_autotune_v3_r020": {
+      ".script": "981c918e6bc5e4be5558d2fdeaa6a2b6567027256c718bb422ed522bf8e46b83",
+      ".txt": "db9b6debfd57567d4f91df51029f2f66863ff4d46f2b9d7a978215dd53315f95",
+      ".urp": "1335e02cbd677f774bd18e0a92ab8e2636cc425c36e49304d564c4c3ba727d6e"
+    }
+  },
+  "protected_root_release": {
+    "basename": "step5d_strict_rnn_autotune_v3_r021",
+    "dashboard_state": "PLAYING",
+    "safety_mode": "NORMAL",
+    "sha256": {
+      ".script": "9c045b483000ad774d46280927ecaf87bb66c54945654fff32c39d63e20f55c7",
+      ".txt": "bd03f3e2d0c0a00c0d91cd4ea4386b5544d5534919368491e4dff428dac5fa67",
+      ".urp": "10789871d7f2134a6ffd533410af6aaff46f7a6d7e880d7e9c752fe3a511f697"
+    }
+  },
+  "action_boundary": {
+    "controller_file_maintenance": true,
+    "load": false,
+    "play": false,
+    "stop": false,
+    "bridge": false,
+    "arm": false,
+    "motion": false,
+    "force_sensor_zero_or_tare": false
+  }
+}
