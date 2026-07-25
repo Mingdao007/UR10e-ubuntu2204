@@ -211,7 +211,9 @@ end
           codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         end'''
     new_return = '''        if not codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, campaign_home_q):
-          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, 17, execution_profile_id, last_consumed_command_seq)
+          # A failed return has no Home proof.  Remain stationary and wait for
+          # external/controller recovery before exposing READY_HOME_NEXT.
+          codex_autotune_wait_for_external_home(campaign_epoch, trial_id, 75, candidate_token, 17, execution_profile_id, last_consumed_command_seq, campaign_home_pose, campaign_home_q)
         end
         codex_autotune_write_state(campaign_epoch, trial_id, 50, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         codex_autotune_write_state(campaign_epoch, trial_id, 60, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)'''
@@ -344,13 +346,12 @@ def _direct_arm_replacements() -> tuple[tuple[str, str, str], ...]:
   return 90
 end'''
     direct_terminal_state = '''def codex_autotune_direct_terminal_state(stop_reason, batch_row_index):
-  if stop_reason == 1:
-    return 78
-  elif stop_reason == 4 or stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
-    return 75
-  end
-  return 90
+  # Every local software guard is trial-local.  The controller owns hardware
+  # safety stops; TP publishes READY_HOME_NEXT and waits for a fresh ARM.
+  return 78
 end'''
+    legacy_initial_stop = '''      codex_autotune_fault_forever(0, 0, 0, 4, 0, last_consumed_command_seq)'''
+    direct_initial_stop = '''      codex_autotune_publish_fault_and_halt(0, 0, 0, 4, 0, last_consumed_command_seq)'''
     legacy_fault = '''def codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
   while True:
     codex_autotune_write_state(campaign_epoch, trial_id, 90, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
@@ -372,7 +373,27 @@ def codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_to
 end
 
 def codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
-  codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+  while True:
+    codex_autotune_write_state(campaign_epoch, trial_id, 75, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+    sync()
+  end
+end
+
+def codex_autotune_wait_for_external_home(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq, campaign_home_pose, campaign_home_q):
+  # state 75 is WAITING_FOR_HARDWARE / WAIT_INFRA_READY.  This loop is
+  # deliberately no-motion: only typed pose, Home-q, TCP-speed, and qdot
+  # verification may release it to READY_HOME_NEXT.
+  while True:
+    codex_autotune_write_state(campaign_epoch, trial_id, 75, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
+    if codex_autotune_typed_target_verified(campaign_home_pose, campaign_home_q, True):
+      return True
+    local next_command = read_input_integer_register(26)
+    local next_sequence = read_input_integer_register(29)
+    if next_command == 3 and next_sequence > consumed_command_seq:
+      codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 4, execution_profile_id, next_sequence)
+    end
+    sync()
+  end
 end
 
 def codex_autotune_wait_for_arm(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
@@ -381,13 +402,19 @@ def codex_autotune_wait_for_arm(campaign_epoch, trial_id, state, candidate_token
     local next_command = read_input_integer_register(26)
     local next_sequence = read_input_integer_register(29)
     if next_command == 1 and next_sequence > consumed_command_seq:
-      return True
+      if state == 78 and (read_input_integer_register(24) <= 0 or read_input_integer_register(25) <= 0 or read_input_integer_register(27) <= 0 or read_input_integer_register(28) <= 0 or read_input_integer_register(30) < 1 or read_input_integer_register(30) > 5 or read_input_integer_register(31) <= 0 or not codex_autotune_network_profile_valid(read_input_integer_register(28))):
+        codex_autotune_write_state(campaign_epoch, trial_id, 78, candidate_token, 13, execution_profile_id, consumed_command_seq)
+      else:
+        return True
+      end
     elif state == 78 and next_command == 4 and next_sequence > consumed_command_seq and read_input_integer_register(24) == campaign_epoch and read_input_integer_register(25) == trial_id and read_input_integer_register(27) == candidate_token and read_input_integer_register(28) == execution_profile_id and read_input_integer_register(30) == codex_autotune_batch_row_echo and read_input_integer_register(31) == codex_autotune_logical_batch_sequence_echo:
       codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 77, candidate_token, terminal_reason, execution_profile_id, next_sequence)
     elif next_command == 3 and next_sequence > consumed_command_seq:
       codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 4, execution_profile_id, next_sequence)
     elif trial_id > 0 and next_command == 2 and next_sequence > consumed_command_seq:
-      codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 13, execution_profile_id, consumed_command_seq)
+      # A stale/invalid local command is also trial-local; leave the TP
+      # stationary in READY_HOME_NEXT until the next fresh ARM arrives.
+      codex_autotune_write_state(campaign_epoch, trial_id, 78, candidate_token, 13, execution_profile_id, consumed_command_seq)
     end
     sync()
   end
@@ -421,27 +448,60 @@ end'''
         else:
           codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
         end'''
-    direct_ready = '''        # rolling-v1 full-home protocol: every sealed return waits at campaign home.
-        if stop_reason == 1:
-          codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
-        elif stop_reason == 4 or stop_reason == 8 or stop_reason == 10 or stop_reason == 12 or stop_reason == 14:
-          codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 75, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
-        else:
-          codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
-        end'''
+    direct_ready = '''        # Every local software guard is trial-local.  The single-owner return
+        # has already brought the robot home; publish READY_HOME_NEXT and wait
+        # indefinitely for the next fresh ARM.  STOP/COMPLETE remain explicit
+        # stationary shutdown commands handled by codex_autotune_wait_for_arm.
+        codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)'''
     initial_ready = '''  codex_autotune_write_state(0, 0, 10, 0, 0, 0, 0)
 
   while True:'''
     initial_wait = '''  codex_autotune_wait_for_arm(0, 0, 10, 0, 0, 0, 0)
 
   while True:'''
+    legacy_transport_guard = '''        # Transport/sensor/unsafe-entry stops have no automatic return proof.
+        codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)'''
+    direct_transport_guard = '''        # Transport/sensor/unsafe-entry reasons 2, 3, and 17 have no
+        # return proof.  The no-return path never moves and never terminates
+        # on its own.
+        codex_autotune_wait_for_external_home(campaign_epoch, trial_id, 75, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq, campaign_home_pose, campaign_home_q)
+        codex_autotune_write_state(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)'''
+    legacy_unknown_guard = '''      else:
+        codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+      end'''
+    direct_unknown_guard = '''      else:
+        # Unknown outcomes have no return proof: remain resident until an
+        # external no-motion Home proof, then accept the next fresh ARM.
+        codex_autotune_wait_for_external_home(campaign_epoch, trial_id, 75, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq, campaign_home_pose, campaign_home_q)
+        codex_autotune_write_state(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+        codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
+      end'''
+    legacy_arm_validation = '''      if campaign_epoch <= 0 or trial_id <= 0 or candidate_token <= 0 or execution_profile_id <= 0 or batch_row_index < 1 or batch_row_index > 5 or logical_batch_sequence <= 0 or not codex_autotune_network_profile_valid(execution_profile_id) or tp_speedj_accel_rad_s2 < 0.0:
+        codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, 13, execution_profile_id, last_consumed_command_seq)
+      end'''
+    direct_arm_validation = '''      if campaign_epoch <= 0 or trial_id <= 0 or candidate_token <= 0 or execution_profile_id <= 0 or batch_row_index < 1 or batch_row_index > 5 or logical_batch_sequence <= 0 or not codex_autotune_network_profile_valid(execution_profile_id) or tp_speedj_accel_rad_s2 < 0.0:
+        codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78, candidate_token, 13, execution_profile_id, last_consumed_command_seq)
+        campaign_epoch = read_input_integer_register(24)
+        trial_id = read_input_integer_register(25)
+        candidate_token = read_input_integer_register(27)
+        execution_profile_id = read_input_integer_register(28)
+        batch_row_index = read_input_integer_register(30)
+        logical_batch_sequence = read_input_integer_register(31)
+        tp_speedj_accel_rad_s2 = codex_autotune_speedj_accel(execution_profile_id)
+        last_consumed_command_seq = read_input_integer_register(29)
+      end'''
     return (
         (legacy_header, direct_header, "direct ARM protocol header"),
         (legacy_stop_contract, direct_stop_contract, "stationary STOP contract"),
         (legacy_post_ack_state, direct_terminal_state, "direct terminal state map"),
+        (legacy_initial_stop, direct_initial_stop, "explicit initial STOP halt"),
         (legacy_fault, bounded_fault, "bounded terminal halt"),
         (legacy_ack, direct_ready, "direct ARM ready lifecycle"),
         (initial_ready, initial_wait, "bounded initial ARM wait"),
+        (legacy_transport_guard, direct_transport_guard, "trial-local transport guard return"),
+        (legacy_unknown_guard, direct_unknown_guard, "resident unknown-outcome wait"),
+        (legacy_arm_validation, direct_arm_validation, "trial-local ARM parameter guard"),
     )
 
 
@@ -512,7 +572,7 @@ def _render_script_body(
     rendered = _replace_once(
         rendered,
         "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:",
-        "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17:",
+        "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:",
         role="bridge-loss no-return policy",
     )
     rendered = _replace_once(
@@ -645,8 +705,11 @@ def validate_rendered_script(
         "write_output_float_register(39, 3.0)",
         "codex_autotune_latch_return_telemetry()",
         "codex_autotune_single_owner_return(batch_row_index, campaign_home_pose, campaign_home_q)",
-        "if stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17:",
+        "if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:",
         "codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78",
+        "def codex_autotune_wait_for_external_home(",
+        "WAITING_FOR_HARDWARE / WAIT_INFRA_READY",
+        "codex_autotune_typed_target_verified(campaign_home_pose, campaign_home_q, True)",
         "next_command == 4",
         "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 77",
         "read_input_integer_register(31)",
@@ -717,7 +780,7 @@ def validate_rendered_script(
     )
     normalized = _replace_once(
         normalized,
-        "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17:",
+        "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:",
         "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:",
         role="normalized bridge-loss no-return policy",
     )

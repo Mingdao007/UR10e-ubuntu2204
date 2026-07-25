@@ -59,7 +59,7 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
     assert "WAIT_ACK" not in rendered
     assert "codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78" in rendered
     assert "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 77" in rendered
-    assert "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 75" in rendered
+    assert "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 75" not in rendered
     assert "next_command == 2" in rendered
     assert "candidate_token, 19, execution_profile_id" not in rendered
     assert "while waiting_s < 30.000" not in rendered
@@ -99,7 +99,7 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
         assert forbidden_motion not in observer
     for output_register in range(35, 45):
         assert f"write_output_float_register({output_register}," not in observer
-    assert "stop_reason == 2 or stop_reason == 3 or stop_reason == 14 or stop_reason == 17" in rendered
+    assert "stop_reason == 2 or stop_reason == 3 or stop_reason == 17" in rendered
     for forbidden in (
         "def codex_autotune_certification_stop(",
         "def codex_autotune_certification_return(",
@@ -108,6 +108,105 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
         "codex_autotune_bounded_return_segment",
     ):
         assert forbidden not in rendered
+
+
+def test_r016_local_guard_outcomes_are_trial_local_and_rearmable() -> None:
+    rendered = v3.render_script(TEST_PROGRAM)
+
+    auto_home = rendered.split("def codex_should_auto_home(", 1)[1].split(
+        "\nend", 1
+    )[0]
+    for marker in (
+        "if stop_reason == 1.0:\n    return True",
+        "elif stop_reason == 4.0:\n    return True",
+        "elif stop_reason == 5.0:\n    return True",
+        "elif stop_reason == 6.0:\n    return True",
+        "elif stop_reason == 7.0:\n    return True",
+        "elif stop_reason == 8.0:\n    return True",
+        "elif stop_reason == 9.0:\n    return True",
+        "elif stop_reason == 10.0:\n    return True",
+        "elif stop_reason == 12.0:\n    return True",
+        "elif stop_reason == 13.0:\n    return True",
+        "elif stop_reason == 14.0:\n    return True",
+    ):
+        assert marker in auto_home
+    for marker in (
+        "elif stop_reason == 2.0:\n    # Transport/heartbeat loss may follow a protective stop; never auto-home.\n    return False",
+        "elif stop_reason == 17.0:\n    # Reserved unsafe-entry/safety interruption reason; never auto-home.\n    return False",
+    ):
+        assert marker in auto_home
+
+    direct_terminal = rendered.split(
+        "def codex_autotune_direct_terminal_state(", 1
+    )[1].split("\nend", 1)[0]
+    assert "return 78" in direct_terminal
+    assert "return 90" not in direct_terminal
+
+    main_start = rendered.index("def codex_step5d_strict_rnn_autotune_v3():")
+    main_end = rendered.index("\n  end\nend\n", main_start)
+    main = rendered[main_start:main_end]
+    auto_home_path = main.split(
+        "      elif codex_should_auto_home(stop_reason):", 1
+    )[1].split("\n      else:", 1)[0]
+    assert "codex_autotune_single_owner_return" in auto_home_path
+    assert "codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78" in auto_home_path
+    assert "codex_autotune_write_state(campaign_epoch, trial_id, 60" in auto_home_path
+
+    no_return_path = main.split(
+        "      if stop_reason == 2 or stop_reason == 3 or stop_reason == 17:",
+        1,
+    )[1].split("\n      elif codex_should_auto_home", 1)[0]
+    assert "codex_autotune_wait_for_external_home" in no_return_path
+    assert "codex_autotune_single_owner_return" not in no_return_path
+    assert "codex_autotune_publish_fault_and_halt" not in no_return_path
+    assert "\n  halt" not in no_return_path
+    assert "codex_autotune_write_state(campaign_epoch, trial_id, 78" in no_return_path
+    assert no_return_path.index("codex_autotune_wait_for_external_home") < no_return_path.index(
+        "codex_autotune_write_state(campaign_epoch, trial_id, 78"
+    ) < no_return_path.index("codex_autotune_wait_for_arm")
+    for forbidden_motion in ("movel(", "movej(", "speedl(", "speedj(", "servoj("):
+        assert forbidden_motion not in no_return_path
+
+    unknown_path = main.rsplit("\n      else:\n", 1)[1]
+    assert "codex_autotune_wait_for_external_home" in unknown_path
+    assert "codex_autotune_publish_fault_and_halt" not in unknown_path
+    assert "\n  halt" not in unknown_path
+    assert "codex_autotune_write_state(campaign_epoch, trial_id, 78" in unknown_path
+    for forbidden_motion in ("movel(", "movej(", "speedl(", "speedj(", "servoj("):
+        assert forbidden_motion not in unknown_path
+
+    external_home = rendered.split(
+        "def codex_autotune_wait_for_external_home(", 1
+    )[1].split("\nend\n", 1)[0]
+    assert "codex_autotune_write_state(campaign_epoch, trial_id, 75" in external_home
+    assert "WAITING_FOR_HARDWARE / WAIT_INFRA_READY" in external_home
+    proof = "codex_autotune_typed_target_verified(campaign_home_pose, campaign_home_q, True)"
+    assert external_home.index(proof) < external_home.index("next_command =")
+    assert "next_command == 3" in external_home
+    assert "codex_autotune_publish_fault_and_halt" in external_home
+    for forbidden_motion in ("movel(", "movej(", "speedl(", "speedj(", "servoj("):
+        assert forbidden_motion not in external_home
+
+    invalid_arm = main.split(
+        "if campaign_epoch <= 0 or", 1
+    )[1].split("\n      end", 1)[0]
+    assert "codex_autotune_wait_for_arm(campaign_epoch, trial_id, 78" in invalid_arm
+    assert "codex_autotune_publish_fault_and_halt" not in invalid_arm
+
+    wait_for_arm = rendered.split(
+        "def codex_autotune_wait_for_arm(", 1
+    )[1].split("\nend\n", 1)[0]
+    assert "while True:" in wait_for_arm
+    assert "next_command == 1 and next_sequence > consumed_command_seq" in wait_for_arm
+    assert "next_command == 4" in wait_for_arm
+    assert "next_command == 3" in wait_for_arm
+    assert "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 77" in wait_for_arm
+    assert "halt" in rendered.split(
+        "def codex_autotune_publish_state_and_halt(", 1
+    )[1].split("\nend\n", 1)[0]
+    assert "codex_autotune_publish_fault_and_halt(0, 0, 0, 4" in main
+    assert "sleep(60" not in rendered
+    assert "time.sleep(" not in rendered
 
 
 def test_r010_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None:
