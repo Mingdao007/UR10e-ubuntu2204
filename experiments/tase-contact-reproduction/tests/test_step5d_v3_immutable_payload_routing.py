@@ -87,6 +87,7 @@ def _release_bundle(root: Path) -> tuple[Any, dict[str, Path], dict[str, bytes]]
             "sha256": _sha256(contents[SAFETY_ENVELOPE_PATH]),
         },
         artifacts={},
+        program_id="step5d_strict_rnn_autotune_v3_r999",
     )
     return release, paths, contents
 
@@ -138,7 +139,7 @@ def test_preflight_routes_both_configs_through_immutable_bundle(
         observed["contract_bytes"] = path.read_bytes()
         return observed
 
-    def load_profile(path: Path, *, contract: object | None = None) -> Any:
+    def load_profile(path: Path, *, contract: object | None = None, expected_tp_program_id: str | None = None) -> Any:
         observed["launch_path"] = path
         observed["launch_bytes"] = path.read_bytes()
         observed["profile_contract"] = contract
@@ -190,7 +191,7 @@ def test_live_routes_both_configs_through_immutable_bundle(
         observed["contract_bytes"] = path.read_bytes()
         return observed
 
-    def load_profile(path: Path, *, contract: object | None = None) -> Any:
+    def load_profile(path: Path, *, contract: object | None = None, expected_tp_program_id: str | None = None) -> Any:
         observed["launch_path"] = path
         observed["launch_bytes"] = path.read_bytes()
         observed["profile_contract"] = contract
@@ -244,7 +245,7 @@ def test_live_prepare_only_ignores_mutable_launch_override(
         observed["contract_bytes"] = path.read_bytes()
         return observed
 
-    def load_profile(path: Path, *, contract: object | None = None) -> Any:
+    def load_profile(path: Path, *, contract: object | None = None, expected_tp_program_id: str | None = None) -> Any:
         observed["launch_path"] = path
         observed["launch_bytes"] = path.read_bytes()
         observed["profile_contract"] = contract

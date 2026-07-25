@@ -229,6 +229,7 @@ def build_context(
         plant_epoch=plant_epoch,
         deployment_readback_sha256=report["controller_readback_sha256"],
         runtime_environment_manifest=environment_manifest,
+        tp_program_id=report["tp_program_id"],
     )
 
 

@@ -36,7 +36,6 @@ ROLLING_EXECUTION_PROFILE_INTEGER_ID = 633
 ) = production_source_closure(Path(__file__).resolve().parents[2])
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-ACTIVE_TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r012"
 SAFETY_ENVELOPE_PATH = "config/step5/step5d_autotune_v3_control_contract.json"
 LAUNCH_PROFILE_PATH = "config/step5/step5d_autotune_v3_launch_profile.json"
 LOCAL_RELEASE_CANDIDATE_SCHEMA = "step5d.autotune-v3/local-release-candidate-v1"
@@ -164,6 +163,130 @@ def release_runtime_environment_binding(
             for profile in ("control", "optimizer")
         },
     }
+
+
+@dataclass(frozen=True)
+class CandidateArtifactIdentity:
+    program_id: str
+    artifact_dir: Path
+    artifact_sha256: Mapping[str, str]
+    deploy_manifest_sha256: str
+    numeric_sanity_sha256: str
+    controller_directory: str
+    tp_runtime_identity: Mapping[str, Any]
+
+
+def discover_candidate_artifact_identity(
+    experiment_root: Path,
+    artifact_dir: Path,
+) -> CandidateArtifactIdentity:
+    """Derive one candidate identity from an isolated, self-bound TP package."""
+
+    root = experiment_root.expanduser().resolve(strict=True)
+    unresolved = artifact_dir.expanduser()
+    if unresolved.is_symlink():
+        raise ReleaseIdentityError("candidate artifact directory is unsafe")
+    resolved = unresolved.resolve(strict=True)
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ReleaseIdentityError(
+            "candidate artifact directory escapes the experiment root"
+        ) from exc
+    if resolved.is_symlink() or not resolved.is_dir():
+        raise ReleaseIdentityError("candidate artifact directory is missing or unsafe")
+
+    deploy_manifests = [
+        path
+        for path in resolved.glob("*.deploy-manifest.json")
+        if path.is_file() and not path.is_symlink()
+    ]
+    if len(deploy_manifests) != 1:
+        raise ReleaseIdentityError(
+            "candidate artifact directory must contain exactly one deploy manifest"
+        )
+    deploy_path = deploy_manifests[0]
+    deploy_suffix = ".deploy-manifest.json"
+    program_id = deploy_path.name.removesuffix(deploy_suffix)
+    if (
+        deploy_path.name != f"{program_id}{deploy_suffix}"
+        or re.fullmatch(
+            r"step5d_strict_rnn_autotune_v3_r\d{3}",
+            program_id,
+        )
+        is None
+    ):
+        raise ReleaseIdentityError("candidate TP program identity differs")
+
+    artifact_paths = {
+        extension: resolved / f"{program_id}{extension}"
+        for extension in (".script", ".txt", ".urp")
+    }
+    numeric_path = resolved / f"{program_id}.numeric-sanity.json"
+    if any(
+        path.is_symlink() or not path.is_file()
+        for path in (*artifact_paths.values(), numeric_path)
+    ):
+        raise ReleaseIdentityError("candidate TP package is incomplete or unsafe")
+    artifact_sha256 = {
+        extension: _sha256_bytes(path.read_bytes())
+        for extension, path in artifact_paths.items()
+    }
+
+    deploy = _strict_object(deploy_path.read_bytes(), "candidate deploy manifest")
+    expected_artifacts = [
+        {
+            "filename": f"{program_id}{extension}",
+            "source": f"{program_id}{extension}",
+            "sha256": artifact_sha256[extension],
+        }
+        for extension in (".script", ".txt", ".urp")
+    ]
+    runtime_identity = deploy.get("tp_runtime_identity")
+    try:
+        parsed_runtime, script_sha256 = tp_identity_from_manifest(runtime_identity)
+    except RuntimeIdentityError as exc:
+        raise ReleaseIdentityError(str(exc)) from exc
+    if deploy.get("schema_version") != 2:
+        raise ReleaseIdentityError("candidate requires exactly one schema-v2 deploy manifest")
+    if parsed_runtime.program_id != program_id:
+        raise ReleaseIdentityError(
+            "candidate basename and runtime identity program differ"
+        )
+    if (
+        deploy.get("basename") != program_id
+        or deploy.get("artifacts") != expected_artifacts
+        or not isinstance(deploy.get("controller_directory"), str)
+        or not str(deploy["controller_directory"]).startswith("/")
+        or parsed_runtime.protocol_id != ROLLING_PROTOCOL
+        or script_sha256 != artifact_sha256[".script"]
+    ):
+        raise ReleaseIdentityError("candidate deploy manifest identity binding differs")
+
+    numeric = _strict_object(
+        numeric_path.read_bytes(),
+        "candidate numeric sanity",
+    )
+    if (
+        numeric.get("schema") != "step5d.autotune-v3/tp-numeric-sanity-v1"
+        or numeric.get("program") != program_id
+        or numeric.get("host_protocol") != ROLLING_PROTOCOL
+        or numeric.get("control_profile_id") != CONTROL_PROFILE_ID
+        or numeric.get("execution_profile_id") != ROLLING_EXECUTION_PROFILE_ID
+        or numeric.get("execution_profile_integer_id")
+        != ROLLING_EXECUTION_PROFILE_INTEGER_ID
+    ):
+        raise ReleaseIdentityError("candidate numeric-sanity identity binding differs")
+
+    return CandidateArtifactIdentity(
+        program_id=program_id,
+        artifact_dir=resolved,
+        artifact_sha256=artifact_sha256,
+        deploy_manifest_sha256=_sha256_bytes(deploy_path.read_bytes()),
+        numeric_sanity_sha256=_sha256_bytes(numeric_path.read_bytes()),
+        controller_directory=str(deploy["controller_directory"]),
+        tp_runtime_identity=dict(runtime_identity),
+    )
 
 
 @dataclass(frozen=True)
@@ -600,7 +723,11 @@ def load_local_release_candidate(
     if (
         descriptor.get("schema") != LOCAL_RELEASE_CANDIDATE_SCHEMA
         or descriptor.get("ok") is not True
-        or descriptor.get("program") != ACTIVE_TP_PROGRAM_ID
+        or re.fullmatch(
+            r"step5d_strict_rnn_autotune_v3_r\d{3}",
+            str(descriptor.get("program") or ""),
+        )
+        is None
         or descriptor.get("pointer") is not None
         or descriptor.get("current_pointer_changed") is not False
         or descriptor.get("compatibility_mirrors_changed") is not False
@@ -691,7 +818,7 @@ def release_payload_path(
 
 
 __all__ = [
-    "ACTIVE_TP_PROGRAM_ID",
+    "CandidateArtifactIdentity",
     "CONTROL_PROFILE_ID",
     "CURRENT_POINTER_SCHEMA",
     "LAUNCH_PROFILE_PATH",
@@ -709,6 +836,7 @@ __all__ = [
     "SAFETY_ENVELOPE_PATH",
     "ReleaseIdentity",
     "ReleaseIdentityError",
+    "discover_candidate_artifact_identity",
     "identity_from_manifest",
     "load_current_release",
     "load_local_release_candidate",

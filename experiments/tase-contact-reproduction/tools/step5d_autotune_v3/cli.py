@@ -147,6 +147,7 @@ def _validate_candidates(
     ledger_path: Path | None = None,
     attempt_ledger: AttemptLedger | None = None,
     launch_profile_path: Path,
+    tp_program_id: str,
 ) -> tuple[list[Any], list[dict[str, Any]], str, str, str]:
     from .launcher import check_effective_config
     from step5d_autotune_contract import ForceCandidate
@@ -173,7 +174,9 @@ def _validate_candidates(
         normalize_trial_overlay,
     )
 
-    launch_profile = load_launch_profile(launch_profile_path)
+    launch_profile = load_launch_profile(
+        launch_profile_path, expected_tp_program_id=tp_program_id
+    )
     legacy_comparison = comparison_profile_fingerprint(launch_profile, DEFAULT_OVERLAY)
     for raw_candidate in candidates:
         candidate = _candidate_mapping(raw_candidate)
@@ -186,6 +189,7 @@ def _validate_candidates(
             check_effective_config(
                 candidate=candidate,
                 launch_profile_path=launch_profile_path,
+                expected_tp_program_id=tp_program_id,
                 trial_overlay=overlay,
             )
         )
@@ -244,6 +248,7 @@ def _append_overlay_batch(
     candidates: Sequence[Any],
     overlays: Sequence[Mapping[str, Any]],
     launch_profile_fingerprint: str,
+    tp_program_id: str,
 ) -> dict[str, Any]:
     if len(candidates) != len(overlays):
         raise CliError("candidate and overlay counts differ")
@@ -276,7 +281,9 @@ def _append_overlay_batch(
         raise CliError("rolling occurrence and overlay counts differ")
     from .runtime_profile import load_launch_profile, normalized_overlay_sha256
 
-    overlay_profile = load_launch_profile()
+    overlay_profile = load_launch_profile(
+        expected_tp_program_id=tp_program_id
+    )
     if overlay_profile.fingerprint != launch_profile_fingerprint:
         raise CliError("overlay writer launch-profile identity differs")
 
@@ -828,11 +835,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         if args.command == "enqueue":
+            from .release_identity import load_runtime_release
+
+            release = load_runtime_release(experiment_root)
             campaign_id, source, raw_candidates = _load_batch(args.batch)
             candidates, overlays, control_fp, profile_id, launch_fp = _validate_candidates(
                 raw_candidates,
                 ledger_path=ledger_path,
                 launch_profile_path=launch_profile_path,
+                tp_program_id=release.program_id,
             )
             plan = _append_batch(
                 paths,
@@ -847,6 +858,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 candidates=candidates,
                 overlays=overlays,
                 launch_profile_fingerprint=launch_fp,
+                tp_program_id=release.program_id,
             )
             payload = {
                 "ok": True,

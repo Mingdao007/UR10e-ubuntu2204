@@ -1159,13 +1159,18 @@ def _v3_overlay_for_candidate(
     profile: ExecutionProfile,
     plan_revision: int | None,
     launch_profile_path: Path | None,
+    tp_program_id: str | None,
     runtime_plan_row: RuntimePlanRow | None = None,
 ) -> Mapping[str, Any] | None:
     """Resolve one append-only V3 overlay immediately before READY_HOME ARM."""
 
     if path is None:
         return None
-    if plan_revision is None or launch_profile_path is None:
+    if (
+        plan_revision is None
+        or launch_profile_path is None
+        or tp_program_id is None
+    ):
         raise RuntimeError("V3 overlays require a candidate-plan revision and launch profile")
     from step5d_autotune_v3.runtime_profile import (
         load_launch_profile,
@@ -1176,7 +1181,10 @@ def _v3_overlay_for_candidate(
 
     overlay_path = path.expanduser().absolute()
     payload = read_strict_json(overlay_path, role="v3 trial overlay plan")
-    launch_profile = load_launch_profile(launch_profile_path.expanduser().absolute())
+    launch_profile = load_launch_profile(
+        launch_profile_path.expanduser().absolute(),
+        expected_tp_program_id=tp_program_id,
+    )
     if (
         not isinstance(payload, Mapping)
         or payload.get("schema")
@@ -1323,12 +1331,16 @@ def run(args: argparse.Namespace) -> int:
             raise RuntimeError("candidate plan must use campaign_root/control/candidate_plan.json")
         rolling_release = any(load_plan(plan_path).occurrences)
         if rolling_release:
-            if args.v3_launch_profile is None:
-                raise RuntimeError("rolling release requires its immutable launch profile")
+            if args.v3_launch_profile is None or args.v3_program_id is None:
+                raise RuntimeError(
+                    "rolling release requires its immutable launch profile "
+                    "and explicit TP program identity"
+                )
             from step5d_autotune_v3.runtime_profile import load_launch_profile
 
             v3_launch_profile = load_launch_profile(
-                args.v3_launch_profile.expanduser().absolute()
+                args.v3_launch_profile.expanduser().absolute(),
+                expected_tp_program_id=args.v3_program_id,
             )
         if rolling_release and not (0.0 < args.plan_wait_timeout_s <= 25.0):
             raise RuntimeError(
@@ -1895,7 +1907,8 @@ def run(args: argparse.Namespace) -> int:
                 from step5d_autotune_v3.runtime_profile import load_launch_profile
 
                 launch_profile = load_launch_profile(
-                    args.v3_launch_profile.expanduser().absolute()
+                    args.v3_launch_profile.expanduser().absolute(),
+                    expected_tp_program_id=args.v3_program_id,
                 )
 
                 def overlay_for(selection: Any) -> Mapping[str, Any]:
@@ -1907,6 +1920,7 @@ def run(args: argparse.Namespace) -> int:
                         profile=supervisor.execution_profile,
                         plan_revision=plan_revision,
                         launch_profile_path=args.v3_launch_profile,
+                        tp_program_id=args.v3_program_id,
                         runtime_plan_row=row,
                     )
                     if overlay is None:
@@ -2013,6 +2027,7 @@ def run(args: argparse.Namespace) -> int:
                 profile=trial.execution_profile,
                 plan_revision=plan_revision,
                 launch_profile_path=args.v3_launch_profile,
+                tp_program_id=args.v3_program_id,
                 runtime_plan_row=current_plan_row,
             )
             forced_candidate = None
@@ -2043,7 +2058,10 @@ def run(args: argparse.Namespace) -> int:
                 prepared = replace(
                     prepared,
                     trial_overlay_sha256=normalized_overlay_sha256(
-                        load_launch_profile(args.v3_launch_profile),
+                        load_launch_profile(
+                            args.v3_launch_profile,
+                            expected_tp_program_id=args.v3_program_id,
+                        ),
                         trial_overlay,
                     ),
                     occurrence_uid=str(batch_context.expected_row.occurrence_uid),
@@ -2393,6 +2411,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--v3-derived-postprocess-root", type=Path)
     parser.add_argument("--v3-trial-overlays", type=Path)
     parser.add_argument("--v3-launch-profile", type=Path)
+    parser.add_argument("--v3-program-id")
     parser.add_argument("--v3-runtime-root", type=Path)
     return parser.parse_args()
 

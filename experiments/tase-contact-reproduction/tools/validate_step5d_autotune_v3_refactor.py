@@ -399,7 +399,7 @@ def matrix_issues(payload: Any, *, root: Path = ROOT) -> list[str]:
         issues.append("test_matrix_authoritative_bridge_gate_missing")
     else:
         expected_fields = {
-            "current_tp_program_id": "step5d_strict_rnn_autotune_v3_r012",
+            "current_release_pointer": "config/step5d/current.json",
             "canonical_launcher": "scripts/step5d-autotune-v3.sh bridge-live",
             "status_reanchor": "scripts/step5d-autotune-v3.sh status --json",
             "production_path_requirement": (

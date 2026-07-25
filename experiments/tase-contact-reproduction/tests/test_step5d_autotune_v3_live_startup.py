@@ -400,14 +400,39 @@ printf '%s\n%s\n%s\n' "${bridge_route}" "${resolved_release_sha}" "${route_reaso
 
 def test_live_consumer_accepts_the_complete_production_preflight_schema(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    program_id = "step5d_strict_rnn_autotune_v3_r999"
+    runtime_identity = {"protocol_version": 1}
+    release = SimpleNamespace(
+        release_stage_id=live.RELEASE_STAGE_ID,
+        control_profile_id=live.CONTROL_PROFILE_ID,
+        program_id=program_id,
+        manifest_sha256="a" * 64,
+        generated_files={live.LAUNCH_PROFILE_PATH: "b" * 64},
+    )
+    monkeypatch.setattr(
+        live,
+        "release_runtime_contract",
+        lambda *_args: {
+            "expected_loaded_program": f"/programs/{program_id}.urp",
+            "tp_runtime_identity": runtime_identity,
+        },
+    )
     payload = {
         "schema": preflight.SCHEMA,
         "ok": True,
         "fresh": True,
         "candidate_stage_id": live.RELEASE_STAGE_ID,
         "control_profile_id": live.CONTROL_PROFILE_ID,
-        "tp_program_id": live.TP_PROGRAM_ID,
+        "tp_program_id": program_id,
+        "release_manifest_sha256": release.manifest_sha256,
+        "expected_loaded_program": f"/programs/{program_id}.urp",
+        "tp_runtime_identity": runtime_identity,
+        "launch_profile": {
+            "path": live.LAUNCH_PROFILE_PATH,
+            "sha256": "b" * 64,
+        },
         "predicates": {
             name: {"ok": True} for name in preflight.PREDICATE_NAMES
         },
@@ -415,7 +440,7 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
     path = tmp_path / "live_preflight.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
 
-    observed = live._validate_preflight(path)
+    observed = live._validate_preflight(path, release)
 
     assert observed == payload
     assert "prealign_start_clearance" in observed["predicates"]
@@ -423,7 +448,7 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
     del payload["predicates"]["prealign_start_clearance"]
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(live.LiveLaunchError, match="predicates are incomplete"):
-        live._validate_preflight(path)
+        live._validate_preflight(path, release)
 
 
 def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
@@ -989,7 +1014,7 @@ def test_shell_release_contract_is_offline_and_independent_from_bridge_authority
     assert not (experiment / "runs/step5d_bridge_authority").exists()
 
 
-def test_shell_release_contract_stages_public_r012_candidate_when_omitted(
+def test_shell_release_contract_requires_explicit_artifact_when_candidate_omitted(
     tmp_path: Path,
 ) -> None:
     shell, command_log, environment = _fake_governed_shell(
@@ -1008,16 +1033,9 @@ def test_shell_release_contract_stages_public_r012_candidate_when_omitted(
         check=False,
     )
 
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == "{}\n"
-    commands = command_log.read_text(encoding="utf-8").splitlines()
-    assert len(commands) == 2
-    assert "promote_step5d_r009_atomic_release.py" in commands[0]
-    assert "--stage-local-candidate" in commands[0]
-    assert "--candidate-output" in commands[0]
-    assert "run_step5d_release_contract.py" in commands[1]
-    assert "--release-candidate" in commands[1]
-    assert "runs/step5d_autotune_v3/release-candidates/" in commands[1]
+    assert result.returncode == 64
+    assert "--artifact-dir is required" in result.stderr
+    assert not command_log.exists()
     assert not (experiment / "runs/step5d_bridge_authority").exists()
 
 

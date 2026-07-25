@@ -77,7 +77,6 @@ from step5d_autotune_v3.runtime_profile import (
     CONTROL_PROFILE_ID,
     DEFAULT_OVERLAY,
     RELEASE_STAGE_ID,
-    TP_PROGRAM_ID,
     load_launch_profile,
     overlay_fingerprint,
 )
@@ -929,7 +928,7 @@ def _stop_v3_program(
 
 def _validate_preflight(
     path: Path,
-    release_identity: ReleaseIdentity | None = None,
+    release_identity: ReleaseIdentity,
     launch_profile: Any | None = None,
 ) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
@@ -942,41 +941,27 @@ def _validate_preflight(
         raise LiveLaunchError("V3 live preflight schema differs")
     if payload.get("ok") is not True or payload.get("fresh") is not True:
         raise LiveLaunchError("V3 live preflight did not pass freshly")
-    release_stage_id = (
-        RELEASE_STAGE_ID
-        if release_identity is None
-        else release_identity.release_stage_id
-    )
-    control_profile_id = (
-        CONTROL_PROFILE_ID
-        if release_identity is None
-        else release_identity.control_profile_id
-    )
-    tp_program_id = (
-        TP_PROGRAM_ID if release_identity is None else release_identity.program_id
-    )
     expected: dict[str, Any] = {
-        "candidate_stage_id": release_stage_id,
-        "control_profile_id": control_profile_id,
-        "tp_program_id": tp_program_id,
+        "candidate_stage_id": release_identity.release_stage_id,
+        "control_profile_id": release_identity.control_profile_id,
+        "tp_program_id": release_identity.program_id,
     }
-    if release_identity is not None:
-        runtime_contract = release_runtime_contract(ROOT, release_identity)
-        expected.update(
-            {
-                "release_manifest_sha256": release_identity.manifest_sha256,
-                "expected_loaded_program": runtime_contract[
-                    "expected_loaded_program"
+    runtime_contract = release_runtime_contract(ROOT, release_identity)
+    expected.update(
+        {
+            "release_manifest_sha256": release_identity.manifest_sha256,
+            "expected_loaded_program": runtime_contract[
+                "expected_loaded_program"
+            ],
+            "tp_runtime_identity": runtime_contract["tp_runtime_identity"],
+            "launch_profile": {
+                "path": LAUNCH_PROFILE_PATH,
+                "sha256": release_identity.generated_files[
+                    LAUNCH_PROFILE_PATH
                 ],
-                "tp_runtime_identity": runtime_contract["tp_runtime_identity"],
-                "launch_profile": {
-                    "path": LAUNCH_PROFILE_PATH,
-                    "sha256": release_identity.generated_files[
-                        LAUNCH_PROFILE_PATH
-                    ],
-                },
-            }
-        )
+            },
+        }
+    )
     if launch_profile is not None:
         expected["launch_profile_fingerprint"] = launch_profile.fingerprint
     for key, value in expected.items():
@@ -1042,12 +1027,17 @@ def _run_live(
     contract_path = release_payload_path(ROOT, release, SAFETY_ENVELOPE_PATH)
     launch_profile_path = release_payload_path(ROOT, release, LAUNCH_PROFILE_PATH)
     contract = load_contract(contract_path)
-    launch_profile = load_launch_profile(launch_profile_path, contract=contract)
+    launch_profile = load_launch_profile(
+        launch_profile_path,
+        contract=contract,
+        expected_tp_program_id=release.program_id,
+    )
     campaign_preparation = prepare_campaign_state(args.campaign_root, launch_profile)
     check = check_effective_config(
         runtime_root=runtime_root,
         contract_path=contract_path,
         launch_profile_path=launch_profile_path,
+        expected_tp_program_id=release.program_id,
         trial_overlay=DEFAULT_OVERLAY,
     )
     command = [
@@ -1296,6 +1286,8 @@ def _run_live(
                 str(paths.trial_overlays),
                 "--v3-launch-profile",
                 str(launch_profile_path),
+                "--v3-program-id",
+                release.program_id,
                 "--v3-runtime-root",
                 str(runtime_root),
                 "--wait-for-first-arm-gate",
@@ -1770,6 +1762,7 @@ def main(argv: list[str] | None = None) -> int:
                 load_launch_profile(
                     launch_profile_path,
                     contract=load_contract(contract_path),
+                    expected_tp_program_id=release.program_id,
                 ),
             )
             print(json.dumps(result, indent=2, sort_keys=True))

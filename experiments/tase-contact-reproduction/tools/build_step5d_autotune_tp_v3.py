@@ -34,10 +34,6 @@ from step5d_autotune_v3.runtime_identity import (
     runtime_identity_assignment_block,
 )
 
-PROGRAM_NAME = "step5d_strict_rnn_autotune_v3_r012"
-IMMUTABLE_RELEASE_STAMP = (
-    "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012"
-)
 PROTOCOL_ID = ROLLING_PROTOCOL
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
 PRECONTACT_POSE_PRIOR_ID = STEP5D_V3_PHYSICAL_PRIOR.prior_id
@@ -490,6 +486,8 @@ def _runtime_identity_header(identity: TpRuntimeIdentity | None) -> str:
 def _render_script_body(
     parent: str,
     runtime_identity: TpRuntimeIdentity | None,
+    *,
+    program_id: str,
 ) -> str:
     parent_sha = hashlib.sha256(parent.encode("utf-8")).hexdigest()
     rendered = _replace_once(
@@ -574,9 +572,9 @@ def _render_script_body(
     rendered = _apply_batch_lifecycle(rendered)
     rendered = _apply_direct_arm_protocol(rendered)
     identity = (
-        f"# RELEASE_STAGE_ID: {PROGRAM_NAME}\n"
+        f"# RELEASE_STAGE_ID: {program_id}\n"
         f"# CONTROL_PROFILE_ID: {CONTROL_PROFILE_ID}\n"
-        f"# TP_PROGRAM_ID: {PROGRAM_NAME}\n"
+        f"# TP_PROGRAM_ID: {program_id}\n"
         f"# PHYSICAL_PRIOR_SHA256: {PRECONTACT_POSE_PRIOR_SHA256}\n"
         f"# PARENT_AUTOTUNE_V1_RENDERED_SHA256: {parent_sha}\n"
         f"{_runtime_identity_header(runtime_identity)}"
@@ -585,38 +583,47 @@ def _render_script_body(
     return rendered
 
 
-def render_script() -> str:
+def render_script(program_id: str) -> str:
     parent = v1.render_script()
-    identity_basis = _render_script_body(parent, None).encode("utf-8")
+    identity_basis = _render_script_body(
+        parent, None, program_id=program_id
+    ).encode("utf-8")
     runtime_identity = derive_runtime_identity(
-        program_id=PROGRAM_NAME,
+        program_id=program_id,
         protocol_id=PROTOCOL_ID,
         script_identity_basis=identity_basis,
     )
-    rendered = _render_script_body(parent, runtime_identity)
+    rendered = _render_script_body(
+        parent, runtime_identity, program_id=program_id
+    )
     bind_final_script(
         rendered,
-        program_id=PROGRAM_NAME,
+        program_id=program_id,
         protocol_id=PROTOCOL_ID,
     )
-    validate_rendered_script(rendered, parent=parent)
+    validate_rendered_script(rendered, program_id=program_id, parent=parent)
     return rendered
 
 
-def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
+def validate_rendered_script(
+    script: str,
+    *,
+    program_id: str,
+    parent: str | None = None,
+) -> None:
     original = v1.render_script() if parent is None else parent
     try:
         runtime_identity, _ = bind_final_script(
             script,
-            program_id=PROGRAM_NAME,
+            program_id=program_id,
             protocol_id=PROTOCOL_ID,
         )
     except RuntimeIdentityError as exc:
         raise ValueError(f"V3 TP runtime identity differs: {exc}") from exc
     required = (
-        f"# RELEASE_STAGE_ID: {PROGRAM_NAME}",
+        f"# RELEASE_STAGE_ID: {program_id}",
         f"# CONTROL_PROFILE_ID: {CONTROL_PROFILE_ID}",
-        f"# TP_PROGRAM_ID: {PROGRAM_NAME}",
+        f"# TP_PROGRAM_ID: {program_id}",
         "# STEP5_STAGE_ID: step5d_strict_rnn_autotune_v3",
         "def codex_step5d_strict_rnn_autotune_v3():",
         "codex_step5d_autotune_trial_v1(campaign_home_pose, tp_speedj_accel_rad_s2, batch_row_index)",
@@ -767,40 +774,46 @@ def validate_rendered_script(script: str, *, parent: str | None = None) -> None:
         raise ValueError("V3 TP differs from frozen V1 outside identity/precontact pose")
 
 
-def source_stamp(now: datetime | None = None) -> str:
+def source_stamp(program_id: str, now: datetime | None = None) -> str:
     value = now or datetime.now(timezone(timedelta(hours=8)))
-    return value.strftime("%Y-%m-%dT%H%MHKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012")
+    return value.strftime("%Y-%m-%dT%H%MHKT_") + program_id.upper()
 
 
-def build_package_script(stamp: str) -> str:
+def build_package_script(stamp: str, *, program_id: str) -> str:
     if not stamp or "\n" in stamp:
         raise ValueError("source stamp must be one non-empty line")
     version = f"# VERSION: {stamp}\n"
     parent = v1.render_script()
-    identity_basis = (version + _render_script_body(parent, None)).encode("utf-8")
+    identity_basis = (
+        version + _render_script_body(parent, None, program_id=program_id)
+    ).encode("utf-8")
     runtime_identity = derive_runtime_identity(
-        program_id=PROGRAM_NAME,
+        program_id=program_id,
         protocol_id=PROTOCOL_ID,
         script_identity_basis=identity_basis,
     )
-    rendered = version + _render_script_body(parent, runtime_identity)
-    validate_rendered_script(rendered, parent=parent)
+    rendered = version + _render_script_body(
+        parent, runtime_identity, program_id=program_id
+    )
+    validate_rendered_script(
+        rendered, program_id=program_id, parent=parent
+    )
     return rendered
 
 
-def build_txt(stamp: str) -> str:
+def build_txt(stamp: str, *, program_id: str) -> str:
     return f"""Step5d Autotune V3 TP package
 
 Controller target:
-  {CONTROLLER_DIR}/{PROGRAM_NAME}.urp
+  {CONTROLLER_DIR}/{program_id}.urp
 
 Version:
   {stamp}
 
 Identity:
-  release_stage_id={PROGRAM_NAME}
+  release_stage_id={program_id}
   control_profile_id={CONTROL_PROFILE_ID}
-  tp_program_id={PROGRAM_NAME}
+  tp_program_id={program_id}
 
 Motion class:
   Contact motion package. Upload/read-back does not Load or Play it.
@@ -866,16 +879,16 @@ def simulate_return_telemetry(
     }
 
 
-def numeric_sanity(script: str) -> dict[str, Any]:
-    validate_rendered_script(script)
+def numeric_sanity(script: str, *, program_id: str) -> dict[str, Any]:
+    validate_rendered_script(script, program_id=program_id)
     _, runtime_identity = bind_final_script(
         script,
-        program_id=PROGRAM_NAME,
+        program_id=program_id,
         protocol_id=PROTOCOL_ID,
     )
     return {
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
-        "program": PROGRAM_NAME,
+        "program": program_id,
         "control_profile_id": CONTROL_PROFILE_ID,
         "delta_class": "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_read_only_telemetry_v5",
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
@@ -906,7 +919,14 @@ def numeric_sanity(script: str) -> dict[str, Any]:
     }
 
 
-def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> dict[str, Any]:
+def validate_triplet(
+    script: str,
+    txt: str,
+    urp: bytes,
+    stamp: str,
+    *,
+    program_id: str,
+) -> dict[str, Any]:
     root = ET.fromstring(gzip.decompress(urp).decode("utf-8"))
     cached = ""
     script_file = ""
@@ -921,9 +941,9 @@ def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> dict[str,
     checks = {
         "script stamp": stamp in script,
         "txt stamp": stamp in txt,
-        "program name": root.attrib.get("name") == PROGRAM_NAME,
+        "program name": root.attrib.get("name") == program_id,
         "controller directory": root.attrib.get("directory") == CONTROLLER_DIR,
-        "script node": script_file == f"{CONTROLLER_DIR}/{PROGRAM_NAME}.script",
+        "script node": script_file == f"{CONTROLLER_DIR}/{program_id}.script",
         "cached script": cached == script,
         "installation path": bool(installation),
         "main entrypoint": script.rstrip().endswith(
@@ -933,27 +953,32 @@ def validate_triplet(script: str, txt: str, urp: bytes, stamp: str) -> dict[str,
     failed = [name for name, passed in checks.items() if not passed]
     if failed:
         raise ValueError(f"V3 TP triplet validation failed: {failed}")
-    validate_rendered_script(script)
+    validate_rendered_script(script, program_id=program_id)
     return checks
 
 
-def _deploy_manifest(script: str, digests: Mapping[str, str]) -> dict[str, Any]:
+def _deploy_manifest(
+    script: str,
+    digests: Mapping[str, str],
+    *,
+    program_id: str,
+) -> dict[str, Any]:
     _, runtime_identity = bind_final_script(
         script,
-        program_id=PROGRAM_NAME,
+        program_id=program_id,
         protocol_id=PROTOCOL_ID,
     )
     if runtime_identity["script_artifact_sha256"] != digests[".script"]:
         raise ValueError("TP runtime identity final script SHA-256 differs")
     return {
         "schema_version": 2,
-        "basename": PROGRAM_NAME,
+        "basename": program_id,
         "controller_directory": CONTROLLER_DIR,
         "tp_runtime_identity": runtime_identity,
         "artifacts": [
             {
-                "filename": f"{PROGRAM_NAME}{suffix}",
-                "source": f"{PROGRAM_NAME}{suffix}",
+                "filename": f"{program_id}{suffix}",
+                "source": f"{program_id}{suffix}",
                 "sha256": digests[suffix],
             }
             for suffix in (".script", ".txt", ".urp")
@@ -961,19 +986,26 @@ def _deploy_manifest(script: str, digests: Mapping[str, str]) -> dict[str, Any]:
     }
 
 
-def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
-    script = build_package_script(stamp)
-    txt = build_txt(stamp)
-    urp = v1.build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
-    checks = validate_triplet(script, txt, urp, stamp)
+def write_triplet(
+    output_dir: Path,
+    stamp: str,
+    *,
+    program_id: str,
+) -> dict[str, Any]:
+    script = build_package_script(stamp, program_id=program_id)
+    txt = build_txt(stamp, program_id=program_id)
+    urp = v1.build_urp(script, program_id, CONTROLLER_DIR)
+    checks = validate_triplet(
+        script, txt, urp, stamp, program_id=program_id
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     paths = {
-        ".script": output_dir / f"{PROGRAM_NAME}.script",
-        ".txt": output_dir / f"{PROGRAM_NAME}.txt",
-        ".urp": output_dir / f"{PROGRAM_NAME}.urp",
+        ".script": output_dir / f"{program_id}.script",
+        ".txt": output_dir / f"{program_id}.txt",
+        ".urp": output_dir / f"{program_id}.urp",
     }
-    manifest_path = output_dir / f"{PROGRAM_NAME}.deploy-manifest.json"
-    sanity_path = output_dir / f"{PROGRAM_NAME}.numeric-sanity.json"
+    manifest_path = output_dir / f"{program_id}.deploy-manifest.json"
+    sanity_path = output_dir / f"{program_id}.numeric-sanity.json"
     revision_outputs = (*paths.values(), manifest_path, sanity_path)
     collisions = [str(path) for path in revision_outputs if path.exists()]
     if collisions:
@@ -991,14 +1023,14 @@ def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
         suffix: hashlib.sha256(path.read_bytes()).hexdigest()
         for suffix, path in paths.items()
     }
-    manifest = _deploy_manifest(script, digests)
+    manifest = _deploy_manifest(script, digests, program_id=program_id)
     with manifest_path.open("x", encoding="utf-8") as handle:
         handle.write(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
-    sanity = numeric_sanity(script)
+    sanity = numeric_sanity(script, program_id=program_id)
     with sanity_path.open("x", encoding="utf-8") as handle:
         handle.write(json.dumps(sanity, indent=2, sort_keys=True) + "\n")
     return {
-        "program": PROGRAM_NAME,
+        "program": program_id,
         "control_profile_id": CONTROL_PROFILE_ID,
         "controller_dir": CONTROLLER_DIR,
         "stamp": stamp,
@@ -1010,13 +1042,20 @@ def write_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
     }
 
 
-def check_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
+def check_triplet(
+    output_dir: Path,
+    stamp: str,
+    *,
+    program_id: str,
+) -> dict[str, Any]:
     """Re-render canonical bytes and fail if an immutable output differs."""
 
-    script = build_package_script(stamp)
-    txt = build_txt(stamp)
-    urp = v1.build_urp(script, PROGRAM_NAME, CONTROLLER_DIR)
-    checks = validate_triplet(script, txt, urp, stamp)
+    script = build_package_script(stamp, program_id=program_id)
+    txt = build_txt(stamp, program_id=program_id)
+    urp = v1.build_urp(script, program_id, CONTROLLER_DIR)
+    checks = validate_triplet(
+        script, txt, urp, stamp, program_id=program_id
+    )
     triplet = {
         ".script": script.encode("utf-8"),
         ".txt": txt.encode("utf-8"),
@@ -1026,17 +1065,22 @@ def check_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
         suffix: hashlib.sha256(encoded).hexdigest()
         for suffix, encoded in triplet.items()
     }
-    manifest = _deploy_manifest(script, digests)
+    manifest = _deploy_manifest(script, digests, program_id=program_id)
     expected = {
         **{
-            f"{PROGRAM_NAME}{suffix}": encoded
+            f"{program_id}{suffix}": encoded
             for suffix, encoded in triplet.items()
         },
-        f"{PROGRAM_NAME}.deploy-manifest.json": (
+        f"{program_id}.deploy-manifest.json": (
             json.dumps(manifest, indent=2, sort_keys=True) + "\n"
         ).encode("utf-8"),
-        f"{PROGRAM_NAME}.numeric-sanity.json": (
-            json.dumps(numeric_sanity(script), indent=2, sort_keys=True) + "\n"
+        f"{program_id}.numeric-sanity.json": (
+            json.dumps(
+                numeric_sanity(script, program_id=program_id),
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
         ).encode("utf-8"),
     }
     failures: list[str] = []
@@ -1050,7 +1094,7 @@ def check_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
         raise ValueError("V3 TP generator --check failed: " + ", ".join(failures))
     return {
         "ok": True,
-        "program": PROGRAM_NAME,
+        "program": program_id,
         "stamp": stamp,
         "output_dir": str(output_dir),
         "sha256": digests,
@@ -1062,15 +1106,18 @@ def check_triplet(output_dir: Path, stamp: str) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, default=LOCAL_PROGRAM_DIR)
-    parser.add_argument("--stamp", default=None)
+    parser.add_argument("--program-id", required=True)
+    parser.add_argument("--stamp", required=True)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args(argv)
-    if args.check and args.stamp is None:
-        parser.error("--check requires the immutable --stamp input")
     operation = check_triplet if args.check else write_triplet
     print(
         json.dumps(
-            operation(args.output_dir, args.stamp or IMMUTABLE_RELEASE_STAMP),
+            operation(
+                args.output_dir,
+                args.stamp,
+                program_id=args.program_id,
+            ),
             indent=2,
             sort_keys=True,
         )

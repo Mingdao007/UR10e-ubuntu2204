@@ -34,7 +34,6 @@ from step5d_autotune_state_machine import (  # noqa: E402
 from step5d_autotune_v3.runtime_profile import (  # noqa: E402
     DEFAULT_OVERLAY,
     LaunchProfile,
-    TP_PROGRAM_ID,
     load_launch_profile,
     normalize_trial_overlay,
 )
@@ -50,6 +49,12 @@ from run_step5d_autotune_v3_bridge import (  # noqa: E402
     _apply_v3_arm_runtime,
 )
 import run_step5d_autotune_v3_live as live  # noqa: E402
+
+PROGRAM = json.loads(
+    (
+        ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+    ).read_text(encoding="utf-8")
+)["tp_program_id"]
 
 
 def _initial_control_overlays(profile) -> tuple[dict, ...]:
@@ -93,11 +98,13 @@ def _write_test_launch_profile(tmp_path: Path) -> tuple[Path, LaunchProfile]:
             encoding="utf-8"
         )
     )
-    payload["tp_program_id"] = TP_PROGRAM_ID
+    payload["tp_program_id"] = PROGRAM
     payload["control_contract_sha256"] = contract_sha256(contract)
     contract_path.write_text(json.dumps(contract) + "\n", encoding="utf-8")
     profile_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
-    return profile_path, load_launch_profile(profile_path)
+    return profile_path, load_launch_profile(
+        profile_path, expected_tp_program_id=PROGRAM
+    )
 
 
 def _prepared(overlay: dict) -> PreparedTrial:
@@ -474,6 +481,7 @@ def test_initial_live_batch_uses_fresh_campaign_local_history(
         profile=ExecutionProfile("nf100-slew050-a050", 0.1, 0.5, 0.5),
         plan_revision=plan.revision,
         launch_profile_path=launch_profile_path,
+        tp_program_id=PROGRAM,
         runtime_plan_row=selected,
     )
     assert resolved is not None

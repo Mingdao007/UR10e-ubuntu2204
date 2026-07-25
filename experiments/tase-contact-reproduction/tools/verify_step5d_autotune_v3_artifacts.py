@@ -21,8 +21,6 @@ from step5d_autotune_v3.runtime_identity import (
 ROOT = Path(__file__).resolve().parents[1]
 V3_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 V1_STAGE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r012"
-LOCAL_CANDIDATE_TP_PROGRAM_ID = TP_PROGRAM_ID
 HOST_PROTOCOL_ID = "v3_full_home_rolling_arm_v1"
 POSE_PRIOR_ID = "step5d_v3_physical_prior_contact_0p1_20260719"
 EXPECTED_ROTVEC = [3.120752062, 0.0, 0.068626833]
@@ -38,7 +36,7 @@ EXPECTED_CONTACT_PLUS_0P1S_POSE = [
     0.0,
 ]
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-BOUND_PATHS = {
+STATIC_BOUND_PATHS = {
     "config/current_stage.json",
     "config/step5_stage_table.json",
     "config/step5/step5d_autotune_v3_control_contract.json",
@@ -46,16 +44,6 @@ BOUND_PATHS = {
     "config/step5/step5d_autotune_v3_attempt_ledger.json",
     "config/step5d_autotune_controller_readback_v3.json",
     "evidence/step5d_autotune_v3/start_pose_prior_20260719.json",
-    f"programs/step5/step5d/{TP_PROGRAM_ID}.deploy-manifest.json",
-    f"programs/step5/step5d/{TP_PROGRAM_ID}.numeric-sanity.json",
-    f"programs/step5/step5d/{TP_PROGRAM_ID}.script",
-    f"programs/step5/step5d/{TP_PROGRAM_ID}.txt",
-    f"programs/step5/step5d/{TP_PROGRAM_ID}.urp",
-    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.deploy-manifest.json",
-    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.numeric-sanity.json",
-    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.script",
-    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.txt",
-    f"programs/step5/step5d/{LOCAL_CANDIDATE_TP_PROGRAM_ID}.urp",
 }
 
 
@@ -127,7 +115,13 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     basename = package.get("program_basename")
     prefix = package.get("local_triplet")
     triplet = package.get("sha256") or {}
-    if basename != TP_PROGRAM_ID or not isinstance(prefix, str):
+    if (
+        not isinstance(basename, str)
+        or re.fullmatch(r"step5d_strict_rnn_autotune_v3_r\d{3}", basename)
+        is None
+        or not isinstance(prefix, str)
+        or not prefix.endswith(f"/{basename}")
+    ):
         raise ArtifactVerificationError("V3 package identity differs")
     if set(triplet) != {".script", ".txt", ".urp"}:
         raise ArtifactVerificationError("V3 package triplet fields differ")
@@ -213,7 +207,7 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
     numeric = _load_json(root / f"{prefix}.numeric-sanity.json", role="TP numeric sanity")
     for key, expected in (
         ("schema", "step5d.autotune-v3/tp-numeric-sanity-v1"),
-        ("program", TP_PROGRAM_ID),
+        ("program", basename),
         (
             "delta_class",
             "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_read_only_telemetry_v5",
@@ -278,9 +272,20 @@ def verify(root: Path = ROOT) -> dict[str, Any]:
         raise ArtifactVerificationError("attempt ledger path is missing")
     _require(_sha256(root / ledger_relative), ledger_sha, "attempt ledger digest")
 
+    package_paths = {
+        f"{prefix}{suffix}"
+        for suffix in (
+            ".deploy-manifest.json",
+            ".numeric-sanity.json",
+            ".script",
+            ".txt",
+            ".urp",
+        )
+    }
     verified_paths = sorted(
-        set(BOUND_PATHS)
-        | {prior_relative, readback_relative, f"{prefix}.numeric-sanity.json"}
+        STATIC_BOUND_PATHS
+        | package_paths
+        | {prior_relative, readback_relative}
     )
     fingerprint_input = json.dumps(
         {relative: _sha256(root / relative) for relative in verified_paths},

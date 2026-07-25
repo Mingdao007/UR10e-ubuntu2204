@@ -43,12 +43,14 @@ ACTIVE_REPO_RELATIVES = {
     path for path in ACTIVE_IDENTITY_PATHS if not path.startswith(EXPERIMENT_PREFIX)
 }
 ORCHESTRATION_INPUTS = set(ORCHESTRATION_RELATIVE_PATHS)
+PROGRAM = "step5d_strict_rnn_autotune_v3_r999"
+TEST_STAMP = "2026-07-23T0000HKT_" + PROGRAM.upper()
 
 
 def _fixture_root(tmp_path: Path) -> Path:
     fixture = tmp_path / "workspace/experiments/tase-contact-reproduction"
     generated_r010 = {
-        f"programs/step5/step5d/{artifacts.TP_PROGRAM_ID}{suffix}"
+        f"programs/step5/step5d/{PROGRAM}{suffix}"
         for suffix in (
             ".script",
             ".txt",
@@ -58,7 +60,7 @@ def _fixture_root(tmp_path: Path) -> Path:
         )
     }
     relatives = (
-        set(artifacts.BOUND_PATHS) - generated_r010
+        set(artifacts.STATIC_BOUND_PATHS) - generated_r010
         | ORCHESTRATION_INPUTS
         | ACTIVE_EXPERIMENT_RELATIVES
         | {
@@ -80,14 +82,17 @@ def _fixture_root(tmp_path: Path) -> Path:
         shutil.copyfile(source, target)
 
     package_dir = fixture / "programs/step5/step5d"
-    generated = tp_v3.write_triplet(package_dir, tp_v3.IMMUTABLE_RELEASE_STAMP)
+    generated = tp_v3.write_triplet(
+        package_dir, TEST_STAMP, program_id=PROGRAM
+    )
     triplet = generated["sha256"]
-    deploy_path = package_dir / f"{artifacts.TP_PROGRAM_ID}.deploy-manifest.json"
-    numeric_path = package_dir / f"{artifacts.TP_PROGRAM_ID}.numeric-sanity.json"
+    deploy_path = package_dir / f"{PROGRAM}.deploy-manifest.json"
+    numeric_path = package_dir / f"{PROGRAM}.numeric-sanity.json"
     deploy_sha = hashlib.sha256(deploy_path.read_bytes()).hexdigest()
     numeric_sha = hashlib.sha256(numeric_path.read_bytes()).hexdigest()
     readback_path = fixture / "config/step5d_autotune_controller_readback_v3.json"
     readback = promoter._canonical_readback(
+        program_id=PROGRAM,
         triplet_sha256=triplet,
         tp_fingerprint=deploy_sha,
     )
@@ -97,6 +102,7 @@ def _fixture_root(tmp_path: Path) -> Path:
     stage_table_path = fixture / "config/step5_stage_table.json"
     stage_table = promoter._render_stage_table(
         json.loads((ROOT / "config/step5_stage_table.json").read_text(encoding="utf-8")),
+        program_id=PROGRAM,
         triplet_sha256=triplet,
         deploy_manifest_sha256=deploy_sha,
         numeric_sanity_sha256=numeric_sha,
@@ -111,6 +117,7 @@ def _fixture_root(tmp_path: Path) -> Path:
                 encoding="utf-8"
             )
         ),
+        program_id=PROGRAM,
         triplet_sha256=triplet,
         deploy_manifest_sha256=deploy_sha,
         numeric_sanity_sha256=numeric_sha,
@@ -126,7 +133,7 @@ def test_generated_r010_immutable_artifact_bundle_passes(tmp_path: Path) -> None
     assert report["scope"] == "immutable_release_identity_and_artifact_integrity"
     assert report["current_stage_id"] == artifacts.V3_STAGE_ID
     assert report["v3_active"] is True
-    assert report["tp_program_id"] == artifacts.TP_PROGRAM_ID
+    assert report["tp_program_id"] == PROGRAM
     assert report["tp_protocol_id"] == artifacts.HOST_PROTOCOL_ID
     assert len(report["artifact_set_fingerprint"]) == 64
     assert {
@@ -143,12 +150,12 @@ def test_artifact_verifier_has_no_cached_readiness_dependency() -> None:
     source = Path(artifacts.__file__).read_text(encoding="utf-8")
     assert "verify_step5d_autotune_v3_execution_readiness" not in source
     assert "READINESS_EVIDENCE_RELATIVE_PATHS" not in source
-    assert not any("live_promotion" in path for path in artifacts.BOUND_PATHS)
+    assert not any("live_promotion" in path for path in artifacts.STATIC_BOUND_PATHS)
 
 
 def test_triplet_byte_mutation_fails_closed(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
-    target = fixture / f"programs/step5/step5d/{artifacts.TP_PROGRAM_ID}.script"
+    target = fixture / f"programs/step5/step5d/{PROGRAM}.script"
     target.write_bytes(target.read_bytes() + b"\n# drift\n")
     with pytest.raises(artifacts.ArtifactVerificationError, match=r"V3 \.script digest"):
         artifacts.verify(fixture)
@@ -176,7 +183,7 @@ def test_legacy_deploy_schema_cannot_satisfy_r010_artifact_gate(
     fixture = _fixture_root(tmp_path)
     deploy_path = (
         fixture
-        / f"programs/step5/step5d/{artifacts.TP_PROGRAM_ID}.deploy-manifest.json"
+        / f"programs/step5/step5d/{PROGRAM}.deploy-manifest.json"
     )
     deploy = json.loads(deploy_path.read_text(encoding="utf-8"))
     deploy["schema_version"] = 1
@@ -191,7 +198,7 @@ def test_deploy_runtime_identity_tamper_fails_closed(tmp_path: Path) -> None:
     fixture = _fixture_root(tmp_path)
     deploy_path = (
         fixture
-        / f"programs/step5/step5d/{artifacts.TP_PROGRAM_ID}.deploy-manifest.json"
+        / f"programs/step5/step5d/{PROGRAM}.deploy-manifest.json"
     )
     deploy = json.loads(deploy_path.read_text(encoding="utf-8"))
     deploy["tp_runtime_identity"]["digest_hi"] ^= 1

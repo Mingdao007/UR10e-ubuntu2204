@@ -503,6 +503,7 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
                     failures.append("current v29 awaiting state requires a matching readiness sha")
 
     v29_candidate = current.get("v29_contact_candidate") or {}
+    active_v3_program = (current.get("local_candidate") or {}).get("program")
     v29_baseline_review = v29_candidate.get("historical_review_v2_baseline_rereview") or {}
     v29_row = step5_rows.get(V29_PROGRAM) or {}
     v29_row_review = v29_row.get("historical_review_v2") or {}
@@ -512,7 +513,12 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
         or v29_candidate.get("frozen_fallback") is not False
         or v29_candidate.get("reactivation_forbidden") is not True
         or v29_candidate.get("archive_reason") != "ARCHIVED_PROFILE"
-        or v29_candidate.get("replacement") != "step5d_strict_rnn_autotune_v3_r012"
+        or re.fullmatch(
+            r"step5d_strict_rnn_autotune_v3_r\d{3}",
+            str(active_v3_program or ""),
+        )
+        is None
+        or v29_candidate.get("replacement") != active_v3_program
         or v29_baseline_review.get("required_stack") != "1+0"
     ):
         failures.append("v29 archive / historical Review v2 binding is invalid")
@@ -543,7 +549,11 @@ def validate(root: Path = EXPERIMENT_ROOT) -> list[str]:
             marker.get("schema") != "step5d.profile-archive/v1"
             or marker.get("profile") != V29_PROGRAM
             or marker.get("reason") != "ARCHIVED_PROFILE"
-            or marker.get("replacement") != "step5d_strict_rnn_autotune_v3_r012"
+            or re.fullmatch(
+                r"step5d_strict_rnn_autotune_v3_r\d{3}",
+                str(marker.get("replacement") or ""),
+            )
+            is None
         ):
             failures.append("v29 archive marker metadata is invalid")
         for extension in PACKAGE_EXTENSIONS:

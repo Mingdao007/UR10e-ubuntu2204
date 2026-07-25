@@ -21,7 +21,7 @@ from step5d_autotune_v3.atomic_release import (
     canonical_bytes,
 )
 from step5d_autotune_v3.release_identity import (
-    ACTIVE_TP_PROGRAM_ID,
+    CandidateArtifactIdentity,
     CONTROL_PROFILE_ID,
     RELEASE_MANIFEST_SCHEMA,
     RELEASE_STAGE_ID,
@@ -33,6 +33,7 @@ from step5d_autotune_v3.release_identity import (
     ROLLING_PROTOCOL,
     SAFETY_ENVELOPE_PATH,
     ReleaseIdentityError,
+    discover_candidate_artifact_identity,
     load_current_release,
     load_current_release_for_compatible_readback,
     release_payload_path,
@@ -45,21 +46,11 @@ from step5d_autotune_v3.state import atomic_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PROGRAM = ACTIVE_TP_PROGRAM_ID
 TARGET_DIR = "/programs/andyl/kunwei/step5"
 PACKAGE_DIR = Path("programs/step5/step5d")
 EXTENSIONS = (".script", ".txt", ".urp")
 READBACK = Path("config/step5d_autotune_controller_readback_v3.json")
-RAW_READBACK = Path(
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r012/"
-    "controller_readback.json"
-)
-LOCAL_CANDIDATE = Path(
-    "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r012/"
-    "local_candidate.json"
-)
 MANUAL_LAUNCH_PROFILE = Path("config/step5d/manual/launch_profile.json")
-MANUAL_PROFILE_TP_PROGRAM = "step5d_strict_rnn_autotune_v3_r009"
 STATIC_PROJECTIONS = (
     Path("config/current_stage.json"),
     Path("config/step5_stage_table.json"),
@@ -77,17 +68,10 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "a9946b39371530568af48189ca2f1a0190228f678c7c9cd010b94d525aacff6b",
+    "config/step5d/v3_active_surface.json": "36b3c6e77ec3f255d897dc7dbaad3b82b79f5aea41060ce024d77b15fa024e9f",
 }
 CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
-PENDING = PendingRelease(
-    program_id=PROGRAM,
-    protocol_id=ROLLING_PROTOCOL,
-    normal_max_rate_rad_s=ROLLING_NORMAL_MAX_RATE_RAD_S,
-    execution_profile_id=ROLLING_EXECUTION_PROFILE_ID,
-    execution_profile_integer_id=ROLLING_EXECUTION_PROFILE_INTEGER_ID,
-)
 _TRANSACTION = re.compile(r"^[0-9a-f]{32}$")
 
 
@@ -144,9 +128,28 @@ def _require_keys(value: Mapping[str, Any], required: set[str], role: str) -> No
         raise R009PromotionError(f"canonical {role} fields are missing: {missing}")
 
 
+def _rewrite_replacement_selectors(value: Any, program_id: str) -> None:
+    if isinstance(value, dict):
+        replacement = value.get("replacement")
+        if (
+            isinstance(replacement, str)
+            and re.fullmatch(
+                r"step5d_strict_rnn_autotune_v3_r\d{3}", replacement
+            )
+        ):
+            value["replacement"] = program_id
+        for child in value.values():
+            _rewrite_replacement_selectors(child, program_id)
+    elif isinstance(value, list):
+        for child in value:
+            _rewrite_replacement_selectors(child, program_id)
+
+
 def _render_current_stage(
     source: Mapping[str, Any],
     *,
+    program_id: str,
+    local_candidate_path: Path,
     triplet_sha256: Mapping[str, str],
     deploy_manifest_sha256: str,
     numeric_sanity_sha256: str,
@@ -155,6 +158,7 @@ def _render_current_stage(
     """Rewrite only selected-release truth; retained historical evidence stays frozen."""
 
     base = json.loads(json.dumps(source, allow_nan=False))
+    _rewrite_replacement_selectors(base, program_id)
     _require_keys(
         base,
         {
@@ -172,9 +176,9 @@ def _render_current_stage(
         },
         "current-stage selected release",
     )
-    local_triplet = (PACKAGE_DIR / PROGRAM).as_posix()
-    controller_target = str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.urp")
-    controller_script = str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.script")
+    local_triplet = (PACKAGE_DIR / program_id).as_posix()
+    controller_target = str(PurePosixPath(TARGET_DIR) / f"{program_id}.urp")
+    controller_script = str(PurePosixPath(TARGET_DIR) / f"{program_id}.script")
     base.update(
         {
             "controller_readback_manifest": READBACK.as_posix(),
@@ -185,7 +189,7 @@ def _render_current_stage(
             "delivery_manifest": READBACK.as_posix(),
             "local_triplet": local_triplet,
             "sha256": dict(triplet_sha256),
-            "status": "step5d_autotune_v3_r012_controller_readback_verified",
+            "status": f"{program_id}_controller_readback_verified",
         }
     )
     evidence = _object(base.get("evidence"), "current-stage evidence")
@@ -199,14 +203,13 @@ def _render_current_stage(
             "controller_uploaded": True,
             "disposition": "controller_readback_verified_promoted_current",
             "deploy_manifest_sha256": deploy_manifest_sha256,
-            "manifest": LOCAL_CANDIDATE.as_posix(),
+            "manifest": local_candidate_path.as_posix(),
             "numeric_sanity_sha256": numeric_sanity_sha256,
-            "program": PROGRAM,
+            "program": program_id,
             "triplet_sha256": dict(triplet_sha256),
         }
     )
     for field in (
-        "bridge_trigger",
         "execution_state",
         "live_run_status",
         "liveprep_status",
@@ -219,12 +222,14 @@ def _render_current_stage(
 def _render_stage_table(
     source: Mapping[str, Any],
     *,
+    program_id: str,
     triplet_sha256: Mapping[str, str],
     deploy_manifest_sha256: str,
     numeric_sanity_sha256: str,
     readback_sha256: str,
 ) -> dict[str, Any]:
     base = json.loads(json.dumps(source, allow_nan=False))
+    _rewrite_replacement_selectors(base, program_id)
     stages = base.get("stages")
     if not isinstance(stages, list):
         raise R009PromotionError("canonical stage-table rows are missing")
@@ -242,8 +247,8 @@ def _render_stage_table(
         "selected stage-table row",
     )
     row.pop("execution_readiness", None)
-    local_triplet = (PACKAGE_DIR / PROGRAM).as_posix()
-    controller_target = str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.urp")
+    local_triplet = (PACKAGE_DIR / program_id).as_posix()
+    controller_target = str(PurePosixPath(TARGET_DIR) / f"{program_id}.urp")
     current_binding = _object(row.get("current_binding"), "stage current binding")
     current_binding["controller_target"] = controller_target
     current_binding.pop("live_authorized", None)
@@ -273,7 +278,7 @@ def _render_stage_table(
             "controller_target": controller_target,
             "fresh_controller_sha_at": None,
             "local_triplet": local_triplet,
-            "program_basename": PROGRAM,
+            "program_basename": program_id,
             "sha256": dict(triplet_sha256),
             "status": "controller_readback_verified",
             "tp_fingerprint": deploy_manifest_sha256,
@@ -289,7 +294,7 @@ def _render_stage_table(
             "deploy_manifest_sha256": deploy_manifest_sha256,
             "local_triplet": local_triplet,
             "numeric_sanity_sha256": numeric_sanity_sha256,
-            "program_basename": PROGRAM,
+            "program_basename": program_id,
             "sha256": dict(triplet_sha256),
             "status": "controller_readback_verified",
         }
@@ -301,6 +306,7 @@ def _render_contract(
     root: Path,
     source: Mapping[str, Any],
     *,
+    program_id: str,
     triplet_sha256: Mapping[str, str],
     deploy_manifest_sha256: str,
     numeric_sanity_sha256: str,
@@ -328,14 +334,14 @@ def _render_contract(
         "candidate_tp_artifact_sha256": dict(triplet_sha256),
         "tp_artifact_sha256": dict(triplet_sha256),
         "candidate_tp_identity": {
-            "program": PROGRAM,
+            "program": program_id,
             "mode": "controller_readback_verified_promoted_current",
             "artifact_dir": PACKAGE_DIR.as_posix(),
             "deploy_manifest_sha256": deploy_manifest_sha256,
             "numeric_sanity_sha256": numeric_sanity_sha256,
         },
         "deployment_tp_identity": {
-            "program": PROGRAM,
+            "program": program_id,
             "mode": "explicit_v3_identity_precontact_pose_frozen_v1_control",
             "artifact_dir": PACKAGE_DIR.as_posix(),
             "readback_manifest": READBACK.as_posix(),
@@ -350,7 +356,7 @@ def _render_launch_profile(
     source: Mapping[str, Any],
     *,
     contract_sha256: str,
-    tp_program_id: str = PROGRAM,
+    tp_program_id: str,
 ) -> dict[str, Any]:
     base = json.loads(json.dumps(source, allow_nan=False))
     dynamic_fields = {
@@ -371,9 +377,30 @@ def _render_launch_profile(
     }
 
 
-def _artifact_paths(artifact_dir: Path) -> dict[str, Path]:
+def _pending_release(program_id: str) -> PendingRelease:
+    return PendingRelease(
+        program_id=program_id,
+        protocol_id=ROLLING_PROTOCOL,
+        normal_max_rate_rad_s=ROLLING_NORMAL_MAX_RATE_RAD_S,
+        execution_profile_id=ROLLING_EXECUTION_PROFILE_ID,
+        execution_profile_integer_id=ROLLING_EXECUTION_PROFILE_INTEGER_ID,
+    )
+
+
+def _local_candidate_path(program_id: str) -> Path:
+    return (
+        Path("config/step5d/manifests")
+        / program_id
+        / "local_candidate.json"
+    )
+
+
+def _artifact_paths(
+    artifact_dir: Path,
+    program_id: str,
+) -> dict[str, Path]:
     return {
-        extension: artifact_dir / f"{PROGRAM}{extension}"
+        extension: artifact_dir / f"{program_id}{extension}"
         for extension in EXTENSIONS
     }
 
@@ -403,7 +430,8 @@ def current_release_artifact_dir(root: Path) -> Path:
                 root,
                 release,
                 (
-                    artifact_dir.relative_to(bundle_root) / f"{PROGRAM}{suffix}"
+                    artifact_dir.relative_to(bundle_root)
+                    / f"{release.program_id}{suffix}"
                 ).as_posix(),
             )
     except (KeyError, ReleaseIdentityError) as exc:
@@ -416,23 +444,20 @@ def current_release_artifact_dir(root: Path) -> Path:
 def default_release_artifact_dir(root: Path) -> Path:
     root = root.resolve(strict=True)
     canonical = root / PACKAGE_DIR
-    required = (
-        *_artifact_paths(canonical).values(),
-        canonical / f"{PROGRAM}.deploy-manifest.json",
-        canonical / f"{PROGRAM}.numeric-sanity.json",
-    )
-    if all(
-        not path.is_symlink() and path.is_file()
-        for path in required
-    ):
-        return canonical
-    return current_release_artifact_dir(root)
+    try:
+        discover_candidate_artifact_identity(root, canonical)
+    except ReleaseIdentityError as exc:
+        raise R009PromotionError(
+            "an isolated --artifact-dir is required for candidate discovery: "
+            f"{exc}"
+        ) from exc
+    return canonical
 
 
 def validate_local_candidate(
     root: Path,
     artifact_dir: Path,
-) -> tuple[Path, dict[str, str]]:
+) -> CandidateArtifactIdentity:
     """Validate local candidate bytes without asserting controller delivery."""
 
     root = root.resolve(strict=True)
@@ -446,11 +471,16 @@ def validate_local_candidate(
         raise R009PromotionError("pending artifact directory escapes experiment root") from exc
     if resolved_artifacts.is_symlink() or not resolved_artifacts.is_dir():
         raise R009PromotionError("pending artifact directory is unsafe")
-    local_sha = {
-        extension: _sha256(path)
-        for extension, path in _artifact_paths(resolved_artifacts).items()
-    }
-    return resolved_artifacts, local_sha
+    try:
+        candidate = discover_candidate_artifact_identity(
+            root,
+            resolved_artifacts,
+        )
+    except ReleaseIdentityError as exc:
+        raise R009PromotionError(str(exc)) from exc
+    if candidate.controller_directory != TARGET_DIR:
+        raise R009PromotionError("candidate controller directory differs")
+    return candidate
 
 
 def validate_delivery(
@@ -487,8 +517,9 @@ def validate_delivery(
         raise R009PromotionError("pending artifact directory escapes experiment root") from exc
     if artifact_dir.is_symlink() or not artifact_dir.is_dir():
         raise R009PromotionError("pending artifact directory is unsafe")
-    files = _artifact_paths(artifact_dir)
-    local_sha = {extension: _sha256(path) for extension, path in files.items()}
+    candidate = validate_local_candidate(root, artifact_dir)
+    program_id = candidate.program_id
+    local_sha = dict(candidate.artifact_sha256)
     validation = manifest.get("validation")
     hashes = manifest.get("sha256")
     transaction = manifest.get("upload_transaction_id")
@@ -505,10 +536,10 @@ def validate_delivery(
             manifest.get("readback_source") != "fresh_controller_get",
             manifest.get("fresh_controller_sha_verified") is not True,
             manifest.get("target_dir") != TARGET_DIR,
-            validation.get("program") != PROGRAM,
+            validation.get("program") != program_id,
             validation.get("target_dir") != TARGET_DIR,
             validation.get("script_node_path")
-            != str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.script"),
+            != str(PurePosixPath(TARGET_DIR) / f"{program_id}.script"),
             not isinstance(transaction, str),
             _TRANSACTION.fullmatch(transaction or "") is None,
             expected_transaction_id is not None
@@ -542,7 +573,7 @@ def validate_delivery(
     }.items():
         if validation.get(key) != local_sha[extension]:
             raise R009PromotionError(f"delivery validation SHA differs: {extension}")
-        fetched = manifest_path.parent / f"{PROGRAM}{extension}"
+        fetched = manifest_path.parent / f"{program_id}{extension}"
         if _sha256(fetched) != local_sha[extension]:
             raise R009PromotionError(f"fresh GET bytes differ: {extension}")
     return manifest, local_sha
@@ -550,6 +581,7 @@ def validate_delivery(
 
 def _canonical_readback(
     *,
+    program_id: str,
     triplet_sha256: Mapping[str, str],
     tp_fingerprint: str,
 ) -> dict[str, Any]:
@@ -557,9 +589,11 @@ def _canonical_readback(
         "schema": "step5d.autotune.controller-readback/v3",
         "status": "controller read-back verified",
         "verified": True,
-        "program": PROGRAM,
+        "program": program_id,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "controller_target": str(PurePosixPath(TARGET_DIR) / f"{PROGRAM}.urp"),
+        "controller_target": str(
+            PurePosixPath(TARGET_DIR) / f"{program_id}.urp"
+        ),
         "triplet_sha256": dict(triplet_sha256),
         "tp_fingerprint": tp_fingerprint,
         "fresh_get_evidence": "per_campaign_delivery_observation",
@@ -573,20 +607,22 @@ def _canonical_readback(
 
 def _local_candidate(
     *,
+    program_id: str,
     triplet_sha256: Mapping[str, str],
     deploy_manifest_sha256: str,
     numeric_sanity_sha256: str,
     readback_sha256: str,
 ) -> dict[str, Any]:
+    pending = _pending_release(program_id)
     return {
         "schema": "step5d.autotune-v3/local-tp-candidate-v2",
-        "program": PROGRAM,
+        "program": program_id,
         "release_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "protocol": PENDING.protocol_id,
-        "normal_max_rate_rad_s": PENDING.normal_max_rate_rad_s,
-        "execution_profile_id": PENDING.execution_profile_id,
-        "execution_profile_integer_id": PENDING.execution_profile_integer_id,
+        "protocol": pending.protocol_id,
+        "normal_max_rate_rad_s": pending.normal_max_rate_rad_s,
+        "execution_profile_id": pending.execution_profile_id,
+        "execution_profile_integer_id": pending.execution_profile_integer_id,
         "disposition": "controller_readback_verified_pending_atomic_pointer",
         "controller_uploaded": True,
         "controller_readback_verified": True,
@@ -599,21 +635,24 @@ def _local_candidate(
 
 def _compose_local_release(
     root: Path,
-    artifact_dir: Path,
-    triplet_sha: Mapping[str, str],
+    candidate: CandidateArtifactIdentity,
 ) -> tuple[dict[str, Any], dict[str, bytes], dict[str, str]]:
     root = root.resolve(strict=True)
-    artifact_dir = artifact_dir.expanduser().resolve(strict=True)
-    deploy = PACKAGE_DIR / f"{PROGRAM}.deploy-manifest.json"
-    numeric = PACKAGE_DIR / f"{PROGRAM}.numeric-sanity.json"
-    deploy_source = artifact_dir / f"{PROGRAM}.deploy-manifest.json"
-    numeric_source = artifact_dir / f"{PROGRAM}.numeric-sanity.json"
+    artifact_dir = candidate.artifact_dir
+    program_id = candidate.program_id
+    triplet_sha = candidate.artifact_sha256
+    pending = _pending_release(program_id)
+    local_candidate_path = _local_candidate_path(program_id)
+    deploy = PACKAGE_DIR / f"{program_id}.deploy-manifest.json"
+    numeric = PACKAGE_DIR / f"{program_id}.numeric-sanity.json"
+    deploy_source = artifact_dir / f"{program_id}.deploy-manifest.json"
+    numeric_source = artifact_dir / f"{program_id}.numeric-sanity.json"
     deploy_sha = _sha256(deploy_source)
     numeric_sha = _sha256(numeric_source)
     try:
         _, tp_runtime_identity = bind_final_script(
-            (artifact_dir / f"{PROGRAM}.script").read_text(encoding="utf-8"),
-            program_id=PROGRAM,
+            (artifact_dir / f"{program_id}.script").read_text(encoding="utf-8"),
+            program_id=program_id,
             protocol_id=ROLLING_PROTOCOL,
         )
     except (OSError, UnicodeError, RuntimeIdentityError) as exc:
@@ -621,15 +660,15 @@ def _compose_local_release(
     deploy_document = _load(deploy_source)
     expected_deploy_artifacts = [
         {
-            "filename": f"{PROGRAM}{extension}",
-            "source": f"{PROGRAM}{extension}",
+            "filename": f"{program_id}{extension}",
+            "source": f"{program_id}{extension}",
             "sha256": triplet_sha[extension],
         }
         for extension in EXTENSIONS
     ]
     if (
         deploy_document.get("schema_version") != 2
-        or deploy_document.get("basename") != PROGRAM
+        or deploy_document.get("basename") != program_id
         or deploy_document.get("controller_directory") != TARGET_DIR
         or deploy_document.get("artifacts") != expected_deploy_artifacts
         or deploy_document.get("tp_runtime_identity") != tp_runtime_identity
@@ -638,6 +677,7 @@ def _compose_local_release(
         raise R009PromotionError("deploy manifest TP runtime identity binding differs")
     canonical_readback = _pretty(
         _canonical_readback(
+            program_id=program_id,
             triplet_sha256=triplet_sha,
             tp_fingerprint=deploy_sha,
         )
@@ -645,6 +685,7 @@ def _compose_local_release(
     readback_sha = _sha256_bytes(canonical_readback)
     local_candidate = _pretty(
         _local_candidate(
+            program_id=program_id,
             triplet_sha256=triplet_sha,
             deploy_manifest_sha256=deploy_sha,
             numeric_sanity_sha256=numeric_sha,
@@ -653,17 +694,20 @@ def _compose_local_release(
     )
 
     bundle_files: dict[str, bytes] = {}
-    for extension, path in _artifact_paths(artifact_dir).items():
-        bundle_files[(PACKAGE_DIR / f"{PROGRAM}{extension}").as_posix()] = path.read_bytes()
+    for extension, path in _artifact_paths(artifact_dir, program_id).items():
+        bundle_files[
+            (PACKAGE_DIR / f"{program_id}{extension}").as_posix()
+        ] = path.read_bytes()
     bundle_files[deploy.as_posix()] = deploy_source.read_bytes()
     bundle_files[numeric.as_posix()] = numeric_source.read_bytes()
     bundle_files[READBACK.as_posix()] = canonical_readback
-    bundle_files[LOCAL_CANDIDATE.as_posix()] = local_candidate
+    bundle_files[local_candidate_path.as_posix()] = local_candidate
     contract_relative = Path("config/step5/step5d_autotune_v3_control_contract.json")
     launch_relative = Path("config/step5/step5d_autotune_v3_launch_profile.json")
     contract_document = _render_contract(
         root,
         _load(root / contract_relative),
+        program_id=program_id,
         triplet_sha256=triplet_sha,
         deploy_manifest_sha256=deploy_sha,
         numeric_sanity_sha256=numeric_sha,
@@ -677,13 +721,25 @@ def _compose_local_release(
         _render_launch_profile(
             _load(root / launch_relative),
             contract_sha256=rendered_contract_sha256,
+            tp_program_id=program_id,
         )
     )
+    manual_launch_source = _load(root / MANUAL_LAUNCH_PROFILE)
+    manual_program_id = manual_launch_source.get("tp_program_id")
+    if (
+        not isinstance(manual_program_id, str)
+        or re.fullmatch(
+            r"step5d_strict_rnn_autotune_v3_r\d{3}",
+            manual_program_id,
+        )
+        is None
+    ):
+        raise R009PromotionError("manual launch-profile parent identity differs")
     bundle_files[MANUAL_LAUNCH_PROFILE.as_posix()] = _pretty(
         _render_launch_profile(
-            _load(root / MANUAL_LAUNCH_PROFILE),
+            manual_launch_source,
             contract_sha256=rendered_contract_sha256,
-            tp_program_id=MANUAL_PROFILE_TP_PROGRAM,
+            tp_program_id=manual_program_id,
         )
     )
     for relative in STATIC_PROJECTIONS:
@@ -695,6 +751,8 @@ def _compose_local_release(
             if relative == Path("config/current_stage.json"):
                 projection = _render_current_stage(
                     _load(root / relative),
+                    program_id=program_id,
+                    local_candidate_path=local_candidate_path,
                     triplet_sha256=triplet_sha,
                     deploy_manifest_sha256=deploy_sha,
                     numeric_sanity_sha256=numeric_sha,
@@ -703,6 +761,7 @@ def _compose_local_release(
             elif relative == Path("config/step5_stage_table.json"):
                 projection = _render_stage_table(
                     _load(root / relative),
+                    program_id=program_id,
                     triplet_sha256=triplet_sha,
                     deploy_manifest_sha256=deploy_sha,
                     numeric_sanity_sha256=numeric_sha,
@@ -719,7 +778,7 @@ def _compose_local_release(
         for relative in (
             deploy.as_posix(),
             numeric.as_posix(),
-            LOCAL_CANDIDATE.as_posix(),
+            local_candidate_path.as_posix(),
             launch_relative.as_posix(),
             MANUAL_LAUNCH_PROFILE.as_posix(),
         )
@@ -734,7 +793,7 @@ def _compose_local_release(
     }
     artifacts = {
         extension: {
-            "path": (PACKAGE_DIR / f"{PROGRAM}{extension}").as_posix(),
+            "path": (PACKAGE_DIR / f"{program_id}{extension}").as_posix(),
             "sha256": digest,
         }
         for extension, digest in triplet_sha.items()
@@ -742,17 +801,17 @@ def _compose_local_release(
     manifest: dict[str, Any] = {
         "schema": RELEASE_MANIFEST_SCHEMA,
         "identity": {
-            "program_id": PENDING.program_id,
+            "program_id": pending.program_id,
             "release_stage_id": RELEASE_STAGE_ID,
             "control_profile_id": CONTROL_PROFILE_ID,
-            "protocol_id": PENDING.protocol_id,
-            "normal_max_rate_rad_s": PENDING.normal_max_rate_rad_s,
-            "execution_profile_id": PENDING.execution_profile_id,
-            "execution_profile_integer_id": PENDING.execution_profile_integer_id,
+            "protocol_id": pending.protocol_id,
+            "normal_max_rate_rad_s": pending.normal_max_rate_rad_s,
+            "execution_profile_id": pending.execution_profile_id,
+            "execution_profile_integer_id": pending.execution_profile_integer_id,
         },
         "artifacts": artifacts,
         "controller_target": str(
-            PurePosixPath(TARGET_DIR) / f"{PROGRAM}.urp"
+            PurePosixPath(TARGET_DIR) / f"{program_id}.urp"
         ),
         "tp_runtime_identity": tp_runtime_identity,
         "safety_envelope": {
@@ -788,8 +847,8 @@ def compose_local_release(
     artifact_dir: Path,
 ) -> tuple[dict[str, Any], dict[str, bytes], dict[str, str]]:
     root = root.resolve(strict=True)
-    resolved_artifacts, triplet_sha = validate_local_candidate(root, artifact_dir)
-    return _compose_local_release(root, resolved_artifacts, triplet_sha)
+    candidate = validate_local_candidate(root, artifact_dir)
+    return _compose_local_release(root, candidate)
 
 
 def compose_release(
@@ -842,7 +901,8 @@ def stage_local_candidate(root: Path, artifact_dir: Path) -> dict[str, Any]:
     """Stage a verified candidate without publishing current or legacy mirrors."""
 
     root = root.resolve(strict=True)
-    manifest, bundle_files, targets = compose_local_release(root, artifact_dir)
+    candidate = validate_local_candidate(root, artifact_dir)
+    manifest, bundle_files, targets = _compose_local_release(root, candidate)
     result = AtomicReleasePublisher(root).stage_candidate(
         manifest=manifest,
         bundle_files=bundle_files,
@@ -856,7 +916,7 @@ def stage_local_candidate(root: Path, artifact_dir: Path) -> dict[str, Any]:
     return {
         **result,
         "schema": "step5d.autotune-v3/local-release-candidate-v1",
-        "program": PROGRAM,
+        "program": candidate.program_id,
         "verification": verification,
     }
 

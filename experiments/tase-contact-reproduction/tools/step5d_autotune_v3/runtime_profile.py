@@ -24,7 +24,6 @@ LAUNCH_SCHEMA = "step5d.autotune-v3/launch-profile-v1"
 OVERLAY_SCHEMA = "step5d.autotune-v3/trial-overlay-v2"
 RELEASE_STAGE_ID = "step5d_strict_rnn_autotune_v3"
 CONTROL_PROFILE_ID = "step5d_strict_rnn_autotune_v1"
-TP_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r012"
 DEFAULT_LAUNCH_PROFILE = (
     Path(__file__).resolve().parents[2]
     / "config/step5/step5d_autotune_v3_launch_profile.json"
@@ -209,8 +208,8 @@ class LaunchProfile:
 def load_launch_profile(
     path: Path = DEFAULT_LAUNCH_PROFILE,
     *,
+    expected_tp_program_id: str,
     contract: Mapping[str, Any] | None = None,
-    expected_tp_program_id: str | None = None,
 ) -> LaunchProfile:
     payload_contract = dict(
         contract
@@ -244,7 +243,7 @@ def load_launch_profile(
         "schema": LAUNCH_SCHEMA,
         "release_stage_id": RELEASE_STAGE_ID,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "tp_program_id": expected_tp_program_id or TP_PROGRAM_ID,
+        "tp_program_id": expected_tp_program_id,
     }
     for key, expected in expected_identity.items():
         if payload[key] != expected:

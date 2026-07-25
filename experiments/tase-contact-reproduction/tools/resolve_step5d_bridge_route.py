@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -25,16 +26,25 @@ def _v3_program_paths(root: Path) -> tuple[str, frozenset[str]]:
     if path.is_symlink() or not path.is_file():
         raise ValueError("V3 active surface is unavailable")
     payload = json.loads(path.read_text(encoding="utf-8"))
-    active = payload.get("tp_program_id") if isinstance(payload, dict) else None
+    pointer_path = root / "config/step5d/current.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    manifest_path = root / str(pointer.get("manifest_path") or "")
+    manifest_bytes = manifest_path.read_bytes()
+    if hashlib.sha256(manifest_bytes).hexdigest() != pointer.get(
+        "manifest_sha256"
+    ):
+        raise ValueError("V3 current release pointer identity differs")
+    manifest = json.loads(manifest_bytes)
+    active = (manifest.get("identity") or {}).get("program_id")
     recovery = payload.get("recovery_loaded_program_ids") if isinstance(payload, dict) else None
     if (
         not isinstance(active, str)
         or not active
         or not isinstance(recovery, list)
         or any(not isinstance(value, str) or not value for value in recovery)
-        or active in recovery
     ):
         raise ValueError("V3 active/recovery program identity differs")
+    recovery = [program for program in recovery if program != active]
     prefix = "/programs/andyl/kunwei/step5/"
     return (
         f"{prefix}{active}.urp",

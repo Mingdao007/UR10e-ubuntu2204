@@ -231,7 +231,7 @@ def test_authoritative_gate_runs_every_active_file_and_no_obsolete_file() -> Non
     )
     classified = set().union(*map(set, classifications.values()))
 
-    assert gate["current_tp_program_id"] == "step5d_strict_rnn_autotune_v3_r012"
+    assert gate["current_release_pointer"] == "config/step5d/current.json"
     assert gate["unclassified_failure_policy"] == "block"
     assert set(classifications["active"]).issubset(commanded)
     assert set(classifications["obsolete"]).isdisjoint(commanded)

@@ -47,7 +47,7 @@ from step5d_autotune_v3.runtime_identity import (  # noqa: E402
 )
 
 
-PROGRAM = "step5d_strict_rnn_autotune_v3_r012"
+PROGRAM = "step5d_strict_rnn_autotune_v3_r999"
 
 
 def _sha(encoded: bytes) -> str:
@@ -72,8 +72,8 @@ def _release_fixture(
     bad_registers: bool = False,
     bad_write_order: bool = False,
 ) -> Path:
-    stamp = "2026-07-23T0000HKT_STEP5D_STRICT_RNN_AUTOTUNE_V3_R012"
-    script = builder.build_package_script(stamp)
+    stamp = "2026-07-23T0000HKT_" + PROGRAM.upper()
+    script = builder.build_package_script(stamp, program_id=PROGRAM)
     numeric = {
         "input_integer_registers": list(range(24, 32)),
         "output_integer_registers": list(range(24, 38)),
@@ -94,7 +94,7 @@ def _release_fixture(
         )
     if bad_registers or bad_write_order:
         script = _rebind_script(script)
-    txt = builder.build_txt(stamp).encode()
+    txt = builder.build_txt(stamp, program_id=PROGRAM).encode()
     script_bytes = script.encode()
     urp = builder.v1.build_urp(script, PROGRAM, builder.CONTROLLER_DIR)
     artifact_bytes = {".script": script_bytes, ".txt": txt, ".urp": urp}
@@ -433,7 +433,9 @@ def test_exact_first_row_admission_closes_plan_overlay_wrapper_and_tp_commit(
     prepare_campaign(
         campaign_root,
         campaign_id="admission-campaign",
-        launch_profile=load_launch_profile(launch_profile_path),
+        launch_profile=load_launch_profile(
+            launch_profile_path, expected_tp_program_id=PROGRAM
+        ),
     )
     report = verify_first_row_admission(
         tmp_path,
@@ -486,6 +488,8 @@ def test_promotion_rewrites_selected_release_mirrors_to_r012() -> None:
     triplet = {".script": "1" * 64, ".txt": "2" * 64, ".urp": "3" * 64}
     current = promoter._render_current_stage(
         json.loads((ROOT / "config/current_stage.json").read_text(encoding="utf-8")),
+        program_id=PROGRAM,
+        local_candidate_path=promoter._local_candidate_path(PROGRAM),
         triplet_sha256=triplet,
         deploy_manifest_sha256="4" * 64,
         numeric_sanity_sha256="5" * 64,
@@ -493,9 +497,9 @@ def test_promotion_rewrites_selected_release_mirrors_to_r012() -> None:
     )
     assert current["local_candidate"]["program"] == PROGRAM
     assert current["evidence"]["sha256"] == triplet
-    assert current["status"] == "step5d_autotune_v3_r012_controller_readback_verified"
+    assert current["status"] == f"{PROGRAM}_controller_readback_verified"
+    assert "bridge_trigger" in current
     assert {
-        "bridge_trigger",
         "execution_state",
         "live_run_status",
         "liveprep_status",
@@ -506,6 +510,7 @@ def test_promotion_rewrites_selected_release_mirrors_to_r012() -> None:
         json.loads(
             (ROOT / "config/step5_stage_table.json").read_text(encoding="utf-8")
         ),
+        program_id=PROGRAM,
         triplet_sha256=triplet,
         deploy_manifest_sha256="4" * 64,
         numeric_sanity_sha256="5" * 64,
@@ -527,6 +532,7 @@ def test_promotion_rewrites_selected_release_mirrors_to_r012() -> None:
                 ROOT / "config/step5/step5d_autotune_v3_control_contract.json"
             ).read_text(encoding="utf-8")
         ),
+        program_id=PROGRAM,
         triplet_sha256=triplet,
         deploy_manifest_sha256="4" * 64,
         numeric_sanity_sha256="5" * 64,
@@ -541,16 +547,18 @@ def test_promotion_rewrites_selected_release_mirrors_to_r012() -> None:
             ).read_text(encoding="utf-8")
         ),
         contract_sha256="7" * 64,
+        tp_program_id=PROGRAM,
     )
     assert launch["tp_program_id"] == PROGRAM
+    manual_source = json.loads(
+        (ROOT / "config/step5d/manual/launch_profile.json").read_text(
+            encoding="utf-8"
+        )
+    )
     manual_launch = promoter._render_launch_profile(
-        json.loads(
-            (
-                ROOT / "config/step5d/manual/launch_profile.json"
-            ).read_text(encoding="utf-8")
-        ),
+        manual_source,
         contract_sha256="7" * 64,
-        tp_program_id=promoter.MANUAL_PROFILE_TP_PROGRAM,
+        tp_program_id=str(manual_source["tp_program_id"]),
     )
     assert manual_launch["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r009"
     assert manual_launch["control_contract_sha256"] == "7" * 64
@@ -558,6 +566,7 @@ def test_promotion_rewrites_selected_release_mirrors_to_r012() -> None:
 
 def test_promotion_outputs_contain_identity_without_cached_live_state() -> None:
     candidate = promoter._local_candidate(
+        program_id=PROGRAM,
         triplet_sha256={
             ".script": "1" * 64,
             ".txt": "2" * 64,
@@ -671,14 +680,11 @@ def test_candidate_defaults_to_current_immutable_artifacts(tmp_path: Path) -> No
 def test_candidate_prefers_canonical_repository_artifacts(tmp_path: Path) -> None:
     canonical = tmp_path / promoter.PACKAGE_DIR
     canonical.mkdir(parents=True)
-    for suffix in (
-        ".script",
-        ".txt",
-        ".urp",
-        ".deploy-manifest.json",
-        ".numeric-sanity.json",
-    ):
-        (canonical / f"{PROGRAM}{suffix}").write_text(suffix, encoding="utf-8")
+    builder.write_triplet(
+        canonical,
+        "2026-07-23T0000HKT_" + PROGRAM.upper(),
+        program_id=PROGRAM,
+    )
 
     assert promoter.default_release_artifact_dir(tmp_path) == canonical
 

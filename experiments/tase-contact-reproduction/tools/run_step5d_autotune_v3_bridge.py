@@ -631,7 +631,8 @@ def install_v3_seams(
         from step5d_autotune_v3.runtime_profile import load_launch_profile
 
         immutable_launch_profile = load_launch_profile(
-            Path(ticket["launch_profile"]["path"])
+            Path(ticket["launch_profile"]["path"]),
+            expected_tp_program_id=release.program_id,
         )
         if (
             immutable_launch_profile.fingerprint
