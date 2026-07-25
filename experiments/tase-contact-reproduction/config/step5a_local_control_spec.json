@@ -6,31 +6,31 @@
     "active_baseline": {
       "id": "step5a_cycloid_no_contact_v3",
       "status": "active_local_control_baseline",
-      "path": "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v3.script",
-      "controller_target": "/programs/andyl/kunwei/step5/step5a_cycloid_no_contact_v3.urp",
+      "path": "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v3.script",
+      "controller_target": "/programs/andyl/kunwei/step5/step5a/step5a_cycloid_no_contact_v3.urp",
       "version_stamp": "2026-06-17T1856HKT_STEP5A_CYCLOID_NO_CONTACT_V3"
     },
     "retired_provenance": [
       {
         "id": "step5a_cycloid_no_contact_v1",
         "status": "retired_provenance",
-        "path": "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v1.script",
-        "controller_target": "/programs/andyl/kunwei/step5/step5a_cycloid_no_contact_v1.urp",
+        "path": "experiments/tase-contact-reproduction/programs/step5/step5a/archive/step5a_cycloid_no_contact_v1.script",
+        "controller_target": "/programs/andyl/kunwei/step5/step5a/archive/step5a_cycloid_no_contact_v1.urp",
         "version_stamp": "2026-06-12T0701HKT_STEP5A_CYCLOID_NO_CONTACT_V1",
         "notes": "60 s no-scale safe-frame rotation lineage."
       },
       {
         "id": "step5a_cycloid_no_contact_v2",
         "status": "retired_provenance",
-        "path": "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v2.script",
-        "controller_target": "/programs/andyl/kunwei/step5/step5a_cycloid_no_contact_v2.urp",
+        "path": "experiments/tase-contact-reproduction/programs/step5/step5a/archive/step5a_cycloid_no_contact_v2.script",
+        "controller_target": "/programs/andyl/kunwei/step5/step5a/archive/step5a_cycloid_no_contact_v2.urp",
         "version_stamp": "2026-06-12T0726HKT_STEP5A_CYCLOID_NO_CONTACT_V2",
         "notes": "15 s timing lineage with the same no-scale cycloid geometry."
       }
     ]
   },
   "required_preimplementation_sources": [
-    "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v3.script",
+    "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v3.script",
     "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
     "experiments/tase-contact-reproduction/config/step5_stage_table.json",
     "experiments/tase-contact-reproduction/config/step5a_local_control_spec.json",

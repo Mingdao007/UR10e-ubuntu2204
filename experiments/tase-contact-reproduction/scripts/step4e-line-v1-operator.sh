@@ -236,19 +236,19 @@ if [[ "${STEP4E_VERSION}" == "step4g_v1" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step4/step4g_eight_seed_normal_v1.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "step5b_v1" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v1.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5b/archive/step5b_contact_cycloid_baseline_v1.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "step5b_v2" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v2.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5b/archive/step5b_contact_cycloid_baseline_v2.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "step5b_v3" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v3.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5b/step5b_contact_cycloid_baseline_v3.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "step5c_speedj_dryrun_v1" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c_speedj_dryrun_v1.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c/archive/step5c_speedj_dryrun_v1.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "step5c_joint_rnn_cycloid_v1" ]]; then
-  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c_joint_rnn_cycloid_v1.urp"
+  PROGRAM_LINE="/programs/andyl/kunwei/step5/step5c/archive/step5c_joint_rnn_cycloid_v1.urp"
 fi
 if [[ "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v1" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v2" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v3" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v4" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v5" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v6" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v7" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v8" || "${STEP4E_VERSION}" == "step5d_strict_rnn_liveprep_v9" ]]; then
   PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${STEP4E_VERSION}.urp"

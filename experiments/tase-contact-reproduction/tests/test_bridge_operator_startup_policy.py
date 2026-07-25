@@ -528,10 +528,31 @@ test "$BRIDGE_EARLY_EXIT_RC" -eq 77
         script = read_script("bridge-line-operator.sh")
 
         self.assertIn("step5d_strict_rnn_no_contact_p0_v7", script)
-        self.assertIn('PROGRAM_LINE="/programs/andyl/kunwei/step5/${BRIDGE_PROFILE}.urp"', script)
+        self.assertIn(
+            'PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/archive/${BRIDGE_PROFILE}.urp"',
+            script,
+        )
         self.assertIn("step5d_no_contact_p0_capture_authorized", script)
         self.assertIn("BRIDGE_ALLOW_NO_CONTACT_P0_CAPTURE", script)
         self.assertIn("step5d_live_bridge_authorized", script)
+
+    def test_step5_folder_routes_use_stage_subdirectories(self) -> None:
+        script = read_script("bridge-line-operator.sh")
+
+        self.assertIn(
+            "/programs/andyl/kunwei/step5/step5b/archive/"
+            "step5b_contact_cycloid_baseline_v1.urp",
+            script,
+        )
+        self.assertIn(
+            "/programs/andyl/kunwei/step5/step5c/archive/"
+            "step5c_speedj_dryrun_v1.urp",
+            script,
+        )
+        self.assertIn(
+            'PROGRAM_LINE="/programs/andyl/kunwei/step5/step5d/${BRIDGE_PROFILE}.urp"',
+            script,
+        )
 
     def test_no_contact_p0_wrapper_prints_table_preflight(self) -> None:
         script = read_script("step5d-strict-rnn-p0.sh")

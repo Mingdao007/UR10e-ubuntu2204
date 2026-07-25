@@ -1,0 +1,477 @@
+{
+  "schema_version": 1,
+  "controller_root": "/programs/andyl/kunwei/step5",
+  "protected_autotune_release_min": 18,
+  "protected_root_basename": "step5d_strict_rnn_autotune_v3_r018",
+  "packages": [
+    {
+      "basename": "step5a_cycloid_no_contact_v1",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5a",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5a/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5a_cycloid_no_contact_v2",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5a",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5a/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5a_cycloid_no_contact_v3",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5a",
+      "disposition": "visible"
+    },
+    {
+      "basename": "step5b_contact_cycloid_baseline_v1",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5b/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5b_contact_cycloid_baseline_v2",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5b/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5b_contact_cycloid_baseline_v3",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5b",
+      "disposition": "visible"
+    },
+    {
+      "basename": "step5c_joint_rnn_cycloid_v1",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5c/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5c_speedj_dryrun_v1",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5c/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_ablation_v25",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": null,
+      "disposition": "delete"
+    },
+    {
+      "basename": "step5d_strict_rnn_ablation_v26",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_ablation_v34",
+      "controller_present": false,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "disposition": "visible"
+    },
+    {
+      "basename": "step5d_strict_rnn_ablation_v35",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "disposition": "visible"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v1",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v2",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r001",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r002",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r003",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r004",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r005",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r006",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r008",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r009",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r010",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r011",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r012",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r013",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r014",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r015",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r016",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_autotune_v3_r017",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v1",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v2",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v3",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v4",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v5",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v6",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v7",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v8",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v9",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v10",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v11",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v12",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v13",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v14",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v15",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v15a",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v16",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v17",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v18",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v19",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v20",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v21",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v22",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v23",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_liveprep_v24",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/step5d",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_manual_tune_v1",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_manual_tune_v2",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v1",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v2",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v3",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v4",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v6",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v7",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v8",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5/archive",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_strict_rnn_no_contact_p0_v9",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    },
+    {
+      "basename": "step5d_tacdiffusion_direct_torque_fixture_shadow_v1",
+      "controller_present": true,
+      "source_controller_directory": "/programs/andyl/kunwei/step5",
+      "destination_controller_directory": "/programs/andyl/kunwei/step5/step5d/archive",
+      "disposition": "archive"
+    }
+  ]
+}

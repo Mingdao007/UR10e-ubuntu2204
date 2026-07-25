@@ -40,16 +40,16 @@
       "specific_spec_path": "experiments/tase-contact-reproduction/config/step5a_local_control_spec.json",
       "source_scripts": {
         "active_baseline": {
-          "path": "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v3.script",
+          "path": "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v3.script",
           "version_stamp": "STEP5A_CYCLOID_NO_CONTACT_V3"
         },
         "retired_provenance": [
           {
-            "path": "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v1.script",
+            "path": "experiments/tase-contact-reproduction/programs/step5/step5a/archive/step5a_cycloid_no_contact_v1.script",
             "status": "retired_provenance"
           },
           {
-            "path": "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v2.script",
+            "path": "experiments/tase-contact-reproduction/programs/step5/step5a/archive/step5a_cycloid_no_contact_v2.script",
             "status": "retired_provenance"
           }
         ]
@@ -82,7 +82,7 @@
       "required_textbook_sources": [
         "experiments/tase-contact-reproduction/config/local_control_textbook_spec.json",
         "experiments/tase-contact-reproduction/config/step5a_local_control_spec.json",
-        "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v3.script",
+        "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v3.script",
         "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
         "experiments/tase-contact-reproduction/config/step5_stage_table.json",
         "/home/andy/codex_handoffs/"
@@ -95,9 +95,9 @@
       "bridge": true,
       "source_scripts": {
         "active_baseline": {
-          "path": "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.script",
-          "package_text_path": "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.txt",
-          "controller_path": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v1.urp",
+          "path": "experiments/tase-contact-reproduction/programs/step5/step5b/archive/step5b_contact_cycloid_baseline_v1.script",
+          "package_text_path": "experiments/tase-contact-reproduction/programs/step5/step5b/archive/step5b_contact_cycloid_baseline_v1.txt",
+          "controller_path": "/programs/andyl/kunwei/step5/step5b/archive/step5b_contact_cycloid_baseline_v1.urp",
           "version_stamp": "2026-06-30T0417HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V1"
         }
       },
@@ -163,8 +163,8 @@
       },
       "required_textbook_sources": [
         "experiments/tase-contact-reproduction/config/local_control_textbook_spec.json",
-        "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.script",
-        "experiments/tase-contact-reproduction/programs/step5/step5b_contact_cycloid_baseline_v1.txt",
+        "experiments/tase-contact-reproduction/programs/step5/step5b/archive/step5b_contact_cycloid_baseline_v1.script",
+        "experiments/tase-contact-reproduction/programs/step5/step5b/archive/step5b_contact_cycloid_baseline_v1.txt",
         "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
         "experiments/tase-contact-reproduction/config/step5_stage_table.json",
         "/home/andy/codex_handoffs/"

@@ -1,4 +1,5 @@
 {
+  "tp_layout_manifest": "config/step5/step5_tp_layout.json",
   "bridge_startup_policy": {
     "applies_to": [
       "Step5b bridge contact packages",
@@ -382,7 +383,7 @@
         "confirm_token": "LIVE STEP5B CONTACT RUN",
         "dashboard_program_watch_timeout_s": 45,
         "entrypoint": "scripts/step5b-contact-operator.sh",
-        "expected_program": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v3.urp",
+        "expected_program": "/programs/andyl/kunwei/step5/step5b/step5b_contact_cycloid_baseline_v3.urp",
         "fast_trigger_requires_long_check_cache": false,
         "long_check_cache_path": "runs/.bridge_long_checks_cache.json",
         "long_check_ttl_s": 7200,
@@ -402,18 +403,18 @@
       },
       "owner": "bridge+TP",
       "package_delivery": {
-        "controller_dir": "/programs/andyl/kunwei/step5",
+        "controller_dir": "/programs/andyl/kunwei/step5/step5b",
         "controller_readback_manifest": "runs/controller_readback_step5b_contact_cycloid_baseline_v3_20260702_113338/manifest.json",
         "controller_readback_status": "verified_retained",
-        "controller_target": "/programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v3.urp",
+        "controller_target": "/programs/andyl/kunwei/step5/step5b/step5b_contact_cycloid_baseline_v3.urp",
         "delivery_mode": "full_upload_readback",
-        "local_program_dir": "programs/step5",
-        "local_triplet": "programs/step5/step5b_contact_cycloid_baseline_v3.{script,txt,urp}",
+        "local_program_dir": "programs/step5/step5b",
+        "local_triplet": "programs/step5/step5b/step5b_contact_cycloid_baseline_v3.{script,txt,urp}",
         "program_basename": "step5b_contact_cycloid_baseline_v3",
         "sha256": {
           ".script": "b834e1de72a0ea2d4b75f2c4f0072f4d847021abad6d2495c3899719a4eb3c5a",
-          ".txt": "47d778f28d50fb3fa7e08c466cde55057b2ad450bf8a2c0b7b418f373d4849d2",
-          ".urp": "196eb21da397e26b27187a4925975fe274b8bc060de7d012dc76ae5ff0bb6c87"
+          ".txt": "c59c04446edc814f01aa423860d096cabf03002f9eb329c906621ec01c6b3e11",
+          ".urp": "c6341b68ae5b4f44a5f139dc70e1583e62c6cedabd9b4a056dda63a2d2c71455"
         },
         "variant_of": "step5_contact_cycloid_baseline_v1"
       },
@@ -5199,8 +5200,8 @@
       },
       "active": false,
       "amplitude_m": 0.015,
-      "block_reason": "Retained v25 live-attempt evidence. Controller read-back was verified, but the live attempt did not complete successfully; superseded by v26.",
-      "blocked": false,
+      "block_reason": "Fresh 2026-07-25 controller snapshot proved that the v25 .urp cachedContents does not match its companion .script. The structurally incoherent controller triplet was removed; only a local recovery copy is retained under programs/step5/step5d/broken.",
+      "blocked": true,
       "bridge": true,
       "cadence": {
         "end_hold_s": 0.1,
@@ -5216,7 +5217,7 @@
         "bridge_startup_policy_ref": "bridge_startup_policy",
         "calibrated_kinematics_backend": "Pinocchio calibrated base->tool0+active-TCP FK/J(q)",
         "contact_search": true,
-        "controller_readback_status": "verified_retained",
+        "controller_readback_status": "historical_verified_then_fresh_mismatch_removed",
         "deadband_acquire_stage": "25.3",
         "dls_fallback_allowed": false,
         "force_control": true,
@@ -5226,15 +5227,16 @@
         "reference_owner": "strict_rnn_bridge",
         "stage25_contact_policy": "Online broad AABB TCP cage remains a hard diagnostic boundary; Stage25.3 uses target-centric preload parameters (10.5-12.8N filtered, 9.5-13.5N raw sanity), Stage25.95 waits for bridge-cleared registers 37..47, and Stage25.0 selects Cartesian speedl or joint speedj from layout tag 47. v25/v26 default to speedl_cartesian_oracle with strict RNN/J(q) shadow diagnostics; speedj_rnn_live remains an explicit follow-up with joint-feasibility-scaled xdot_c.",
         "timing_policy": "step5b_v3_no_lift_no_25_2_no_second_search_with_v20_gravity_down_search_and_action_load_reacquire_speed_cap",
-        "tp_package_status": "retained_controller_readback_verified",
+        "tp_package_status": "removed_structurally_incoherent",
         "tp_role": "joint_executor_and_guard_only",
         "virtual_clock_freeze": true
       },
       "current_binding": {
         "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
-        "controller_readback_status": "verified_retained",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_ablation_v25.urp",
-        "flow_claim_status": "retained_evidence_route",
+        "controller_present": false,
+        "controller_readback_status": "historical_verified_then_fresh_mismatch_removed",
+        "controller_target": null,
+        "flow_claim_status": "retained_evidence_only_package_removed",
         "is_current": false,
         "program": "step5d_strict_rnn_ablation_v25",
         "source": "config/current_stage.json",
@@ -5430,27 +5432,28 @@
         "archived_to_step5d_dir": true,
         "controller_dir": "/programs/andyl/kunwei/step5",
         "controller_readback": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
-        "controller_readback_verified": true,
-        "controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_ablation_v25.urp",
-        "delivery_mode": "full_upload_readback",
-        "fetched_back_urp_internal_gate_pass": true,
+        "controller_readback_verified": false,
+        "controller_present": false,
+        "controller_target": null,
+        "delivery_mode": "deleted_after_fresh_snapshot_mismatch",
+        "fetched_back_urp_internal_gate_pass": false,
         "installation_relative_path": "../../../default",
-        "local_controller_readback_sha_match": true,
-        "local_package_validated": true,
-        "local_program_dir": "programs/step5/step5d",
-        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v25.{script,txt,urp}",
+        "local_controller_readback_sha_match": false,
+        "local_package_validated": false,
+        "local_program_dir": "programs/step5/step5d/broken",
+        "local_triplet": "programs/step5/step5d/broken/step5d_strict_rnn_ablation_v25.{script,txt,urp}",
         "program_basename": "step5d_strict_rnn_ablation_v25",
         "sha256": {
-          ".script": "8ab25653a87ccd5426e5bb46562e390d965288d48d2c7717e0209c68dca9789e",
+          ".script": "b5428a732e1daccfee0cde8dd732aca8a15f9983733c6b823f44f92d8ac3fc2b",
           ".txt": "b03f47a2b95d0c8a1c94382b2aaddf48859fecb338f016c093b3e4d71ebb919b",
           ".urp": "aa39b5b2c3075950fc38377750370eac1ccd1747f5863ef462c7fbacf5cac014"
         },
         "stamp": "2026-07-03T2258HKT_STEP5D_STRICT_RNN_ABLATION_V25"
       },
       "notes": [
-        "v25 was controller read-back verified but is retained as failed live-attempt evidence.",
-        "v25 is no longer current; open v26 from the Step5 root on the Teach Pendant.",
-        "v25 local triplet is archived under programs/step5/step5d."
+        "Historical v25 evidence is retained, but a fresh 2026-07-25 snapshot found .urp cachedContents and companion .script divergence.",
+        "The structurally incoherent controller triplet was deleted and is not runnable.",
+        "A recovery-only source snapshot is retained under programs/step5/step5d/broken."
       ],
       "operator_lifecycle": {
         "autowatch_wait_for_play_s": 10,
@@ -5496,14 +5499,15 @@
       "package_delivery": {
         "controller_dir": "/programs/andyl/kunwei/step5",
         "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v25_20260703_225843/manifest.json",
-        "controller_readback_status": "verified_retained",
-        "controller_target": "/programs/andyl/kunwei/step5/step5d/step5d_strict_rnn_ablation_v25.urp",
-        "delivery_mode": "full_upload_readback",
-        "local_program_dir": "programs/step5/step5d",
-        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_ablation_v25.{script,txt,urp}",
+        "controller_present": false,
+        "controller_readback_status": "historical_verified_then_fresh_mismatch_removed",
+        "controller_target": null,
+        "delivery_mode": "deleted_after_fresh_snapshot_mismatch",
+        "local_program_dir": "programs/step5/step5d/broken",
+        "local_triplet": "programs/step5/step5d/broken/step5d_strict_rnn_ablation_v25.{script,txt,urp}",
         "program_basename": "step5d_strict_rnn_ablation_v25",
         "sha256": {
-          ".script": "8ab25653a87ccd5426e5bb46562e390d965288d48d2c7717e0209c68dca9789e",
+          ".script": "b5428a732e1daccfee0cde8dd732aca8a15f9983733c6b823f44f92d8ac3fc2b",
           ".txt": "b03f47a2b95d0c8a1c94382b2aaddf48859fecb338f016c093b3e4d71ebb919b",
           ".urp": "aa39b5b2c3075950fc38377750370eac1ccd1747f5863ef462c7fbacf5cac014"
         }
