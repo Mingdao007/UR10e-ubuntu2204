@@ -53,14 +53,45 @@
   },
   "authorization": {
     "active_allowed_default": false,
+    "schemas": {
+      "dataset": "ur10e_tacdiffusion_dataset/v3",
+      "checkpoint": "ur10e_tacdiffusion_checkpoint/v3",
+      "live_authorization": "ur10e_live_authorization/v3"
+    },
     "active_requires": ["validated_checkpoint_binding", "hash_linked_promotion", "explicit_live_authorization"],
     "shadow_is_diagnostic_only": true
+  },
+  "operator": {
+    "entrypoint": "tools/tacdiffusion_remote_headless.py",
+    "json_only": true,
+    "network_or_hardware_implementation": false,
+    "deterministic_campaign_plan": {
+      "episode_count": 50,
+      "source": "ur10e_vic.tacdiffusion.trajectory:episode_plan",
+      "trajectory_family_count": 7,
+      "profile_fields": ["speed_scale", "normal_force_target_n", "preload_n"]
+    },
+    "queue_commands": ["init", "append", "status", "next", "end", "drain", "reconcile"],
+    "artifact_commands": ["validate-dataset", "benchmark-checkpoint", "promotion validate", "promotion write-blocked", "receiver-report"],
+    "lifecycle_command": "lifecycle-no-motion",
+    "campaign_command": "run-offline-campaign"
   },
   "campaign": {
     "empty_queue": "WAIT_FOREVER",
     "terminal_commands": ["END", "DRAIN"],
     "home_ack_required": true,
-    "home_consume_required": true
+    "home_consume_required": true,
+    "runner": "ur10e_vic.tacdiffusion.queue:CampaignRunner",
+    "queue": "ur10e_vic.tacdiffusion.queue:PersistentRollingQueue",
+    "episode_executor": "injected_synthetic_fixture_only",
+    "failure_continuation": true
+  },
+  "promotion_boundary": {
+    "active_allowed": false,
+    "required_live_shadow_names": ["smooth_low_curvature", "turning_high_curvature"],
+    "required_live_shadow_count": 2,
+    "required_total_virtual_duration_s": 90.0,
+    "synthetic_shadows_are_ineligible": true
   },
   "no_motion": true,
   "forbidden_in_this_contract": ["Dashboard", "Load", "Play", "bridge", "ARM", "RTDE_writer", "motion"]

@@ -23,6 +23,14 @@
       "skipped": 5,
       "subtests_passed": 15
     },
+    "final_isolated_acceptance": {
+      "passed": 112,
+      "skipped": 3,
+      "failed": 0,
+      "cache_isolated": true,
+      "pycache_prefix_isolated": true,
+      "live_actions": false
+    },
     "tase_step5d_mainline": {
       "passed": 11
     },
@@ -51,6 +59,7 @@
         100
       ],
       "checkpoint_schema": "ur10e_tacdiffusion_checkpoint/v3",
+      "cuda_required": true,
       "cuda_version": "12.8",
       "device": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
       "diffusion_steps": 50,
@@ -59,16 +68,49 @@
       "iterations": 3,
       "warmup_iterations": 2,
       "warmup_excluded": true,
-      "p99_latency_s": 0.007007537999015767,
+      "p99_latency_s": 0.007227321002574172,
       "selected_rate_hz": 100,
       "torch_version": "2.11.0+cu128",
       "torchscript_exported": true,
-      "validation_loss": 0.07607713341712952
+      "training_loss": 1.2053393125534058,
+      "validation_loss": 0.011596987955272198
     },
     "operator_cli": {
+      "campaign": {
+        "episodes_requested": 50,
+        "executions": 50,
+        "episodes_failed": 8,
+        "failure_continuation": true,
+        "expert_reset_count": 50,
+        "filter_reset_count": 50,
+        "retract_count": 50,
+        "home_ack_count": 50,
+        "home_consume_count": 50,
+        "wait_forever_decision": "WAITING_FOR_EPISODE",
+        "terminal_request": "DRAIN",
+        "terminal_decision": "COMPLETE",
+        "queue_mode": "COMPLETE",
+        "fixture_only": true,
+        "sleep_calls": 0
+      },
+      "deterministic_plan_episodes": 50,
+      "trajectory_family_count": 7,
       "dry_run_plan_only": true,
       "physical_io_enabled": false,
       "receiver_schema": "ur10e_direct_torque_receiver/v3"
+    },
+    "ursim_image_inspection": {
+      "image": "universalrobots/ursim-e-series:5.25.2",
+      "inspect_only": true,
+      "local_image_present": false,
+      "docker_inspect_result": "No such image",
+      "pull_attempted": false,
+      "container_created": false,
+      "container_started": false,
+      "container_exec": false,
+      "network_connected": false,
+      "polyscope_5_26_runtime_installed": false,
+      "polyscope_5_26_runtime_claimed": false
     }
   },
   "promotion": {
@@ -84,7 +126,7 @@
     },
     {
       "path": "config/direct_torque_remote_headless_v4.json",
-      "sha256": "8c0fcd4a15c4399232cb2a565f8925c5aba26fda9ad182503d76a5b63fc5c198"
+      "sha256": "0a4faae29966024b0606aaa638cfb69dcf8ef68d00926ab55689010ebc0be054"
     },
     {
       "path": "config/tacdiffusion_experiment_plan.json",
@@ -165,6 +207,10 @@
     {
       "path": "tools/tacdiffusion_remote_headless.py",
       "sha256": "880ab0faeaa53a3c97c340e221f380462d7dd7db0fb7610393c4beb63730f222"
+    },
+    {
+      "path": "docs/TACDIFFUSION_REMOTE_HEADLESS_IMPLEMENTATION.md",
+      "sha256": "cf84ed01f245c01c5a858f47e31adda248b620d0514a709ae0bac63d1e31d2fb"
     },
     {
       "path": "../tase-contact-reproduction/config/step5d_tacdiffusion_liveprep_v1.json",
