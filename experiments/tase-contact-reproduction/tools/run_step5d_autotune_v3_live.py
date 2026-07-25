@@ -98,6 +98,7 @@ LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
 ARM_GATE_REFRESH_INTERVAL_S = ARM_GRANT_MAX_AGE_S * 0.4
 RECOVERY_BACKOFF_S = 1.0
+TERMINAL_STOP_OBSERVATION_BUDGET_S = 1.0
 ARM_ACKNOWLEDGED_STATES = frozenset(
     {
         TpLoopState.ARMED,
@@ -984,13 +985,13 @@ def _should_request_program_stop(
 def _stop_v3_program(
     robot_host: str,
     *,
-    timeout_s: float = 5.0,
+    timeout_s: float = TERMINAL_STOP_OBSERVATION_BUDGET_S,
     poll_interval_s: float = 0.1,
     exchange: Callable[..., Mapping[str, Any]] = dashboard_exchange,
     monotonic: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
-    """Observe operator-owned TP Stop; never send Dashboard stop."""
+    """Observe terminal operator-owned TP Stop; never affect an active campaign."""
 
     if timeout_s <= 0.0 or poll_interval_s <= 0.0:
         raise ValueError("program-stop timeout and poll interval must be positive")

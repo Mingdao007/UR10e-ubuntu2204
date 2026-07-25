@@ -46,6 +46,7 @@ from step5d_autotune_v3.runtime_installation import require_runtime_profile
 TICKET_ENV = "STEP5D_V3_RUNTIME_TICKET"
 TICKET_SCHEMA = "step5d.autotune-v3/runtime-ticket-v6"
 TICKET_SCOPE = "campaign_lease_no_arm_until_observed"
+CAPTURE_WORKER_CLOSE_BUDGET_S = 1.0
 
 
 class BridgeTicketError(RuntimeError):
@@ -308,7 +309,7 @@ class V3AsyncBridgeTrialCsvRotator:
     def close(self) -> None:
         if self._worker.exitcode is None:
             self._enqueue(("close",))
-            self._worker.join(timeout=5.0)
+            self._worker.join(timeout=CAPTURE_WORKER_CLOSE_BUDGET_S)
         self._check_worker()
         if self._worker.is_alive():
             raise BridgeTicketError("V3 capture worker did not close")
