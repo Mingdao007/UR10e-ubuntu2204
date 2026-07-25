@@ -41,7 +41,7 @@ from step5d_autotune_contract import (
     TypedSafeClosureEvidence,
     TrialSpec,
 )
-from step5d_autotune_backend import PreparedTrial
+from step5d_autotune_runtime_contract import PreparedTrial
 from step5d_autotune_state_machine import (
     FULL_HOME_ROLLING_PROTOCOL,
     HostCommand,
@@ -2137,7 +2137,7 @@ class TrialArtifactProducer:
             STAGE25_SUCCESS_MIN_CONSUMPTION_RATIO,
             stage25_control_attribution,
         )
-        from step5d_autotune_replay import (  # noqa: PLC0415
+        from step5d_runtime_codec import (  # noqa: PLC0415
             CadenceEvidence,
             cadence_eligible,
         )

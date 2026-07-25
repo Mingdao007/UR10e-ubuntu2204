@@ -437,14 +437,14 @@ def test_each_v3_arm_rechecks_identity_runtime_binding_before_issue() -> None:
     assert guard < next_sequence < recheck < issue < identity_check
 
 
-def test_live_children_reuse_supervisor_attestation_before_arm_rechecks() -> None:
+def test_live_control_path_is_independent_from_optimizer_runtime() -> None:
     supervisor = (ROOT / "tools" / "run_step5d_autotune_v3_live.py").read_text(
         encoding="utf-8"
     )
     bridge = (ROOT / "tools" / "run_step5d_autotune_v3_bridge.py").read_text(
         encoding="utf-8"
     )
-    runner = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
+    runner = (ROOT / "tools" / "run_step5d_parameter_campaign.py").read_text(
         encoding="utf-8"
     )
 
@@ -452,11 +452,10 @@ def test_live_children_reuse_supervisor_attestation_before_arm_rechecks() -> Non
     assert (
         'require_runtime_profile("control", full_integrity=False)' in bridge
     )
-    assert (
-        'runtime_pointer = require_runtime_profile("optimizer")' in runner
-    )
-    assert "RuntimeEnvironmentBindingGuard.identity(" in runner
-    assert "runtime_environment_guard.recheck(next_arm_command_seq)" in runner
+    assert 'require_runtime_profile("optimizer")' not in runner
+    assert "optimizer_deployment" not in runner
+    assert "optimizer_worker" not in runner
+    assert "prepare_next_dispatch" in runner
 
 
 def test_campaign_runner_has_no_implicit_plot_or_network_publisher() -> None:

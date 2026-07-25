@@ -54,7 +54,6 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
     assert "if stale_s2 > 0.020:" not in rendered
     assert v3.STAGE25_STALE_COMMAND_HOLD_S == 1.000
     assert 0.060 < v3.STAGE25_STALE_COMMAND_HOLD_S
-    assert v3.READY_ARM_TIMEOUT_S == 30.0
     assert "waiting_for_ack" not in rendered
     assert "ACK_BUNDLE" not in rendered
     assert "WAIT_ACK" not in rendered
@@ -62,7 +61,11 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
     assert "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 77" in rendered
     assert "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 75" in rendered
     assert "next_command == 2" in rendered
-    assert "candidate_token, 19, execution_profile_id" in rendered
+    assert "candidate_token, 19, execution_profile_id" not in rendered
+    assert "while waiting_s < 30.000" not in rendered
+    assert "while waiting_s <" not in rendered
+    assert "while True" in rendered
+    assert rendered.count("def codex_autotune_wait_for_arm") == 1
     assert "halt" in rendered
     state_body = rendered.split("def codex_autotune_write_state(", 1)[1].split(
         "\nend", 1
@@ -126,7 +129,7 @@ def test_r010_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None
     assert sanity["return_segment_count"] == 3
     assert sanity["batch_row_policy"] == "five_row_logical_batches_every_row_campaign_home"
     assert sanity["host_protocol"] == "v3_full_home_rolling_arm_v1"
-    assert sanity["ready_arm_timeout_s"] == 30.0
+    assert sanity["ready_arm_timeout_s"] is None
     assert sanity["input_integer_registers"] == list(range(24, 32))
     assert sanity["output_integer_registers"] == list(range(24, 38))
     assert sanity["tp_runtime_identity"]["registers"] == {

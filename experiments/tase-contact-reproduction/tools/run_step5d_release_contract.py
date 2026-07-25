@@ -28,15 +28,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--experiment-root", type=Path, default=ROOT)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--release-candidate", type=Path)
-    parser.add_argument("--manual", action="store_true")
     parser.add_argument("--reuse-only", action="store_true")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.manual and args.release_candidate is not None:
-        _parser().error("--manual cannot combine with --release-candidate")
     started = time.monotonic()
     try:
         release = None
@@ -53,7 +50,6 @@ def main(argv: list[str] | None = None) -> int:
             args.experiment_root,
             args.output_root,
             release_identity=release,
-            subject_kind="manual_v2" if args.manual else "autotune_v3",
             reuse_only=args.reuse_only,
         )
     except ReleaseContractBlocked as exc:

@@ -24,7 +24,20 @@
   limits are unchanged.
 - The 1.0 s identity value is a maximum deadline, not a fixed wait.
 - State verification is event-driven; no formal 60 s qualification is used.
-- Each default bridge attempt receives a unique campaign root.
+- TP and host wait indefinitely for Play or the next parameter while stationary
+  at Home; an empty queue is not a fault.
+
+## Parameter receiver
+
+- The approved initial ten parameters are seeded once and run before any
+  optional optimizer output.
+- The receiver is an unbounded file queue with one inflight parameter.
+- `next` requests may jump ahead of normal FIFO requests.
+- A physically attempted parameter is never dispatched again. Data failures are
+  terminal records for that attempt and the receiver continues.
+- The optimizer is only an optional sender; it is not a bridge, runtime,
+  release, or experiment dependency.
+- Manual V2 has no active launcher or status route and is historical-only.
 
 ## Success condition
 

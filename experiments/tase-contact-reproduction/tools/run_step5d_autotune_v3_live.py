@@ -12,7 +12,6 @@ import os
 import signal
 import subprocess
 import sys
-import threading
 import time
 import uuid
 from pathlib import Path
@@ -24,19 +23,7 @@ from prepare_step5d_autotune_launch import (
     write_machine_campaign_binding,
 )
 from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
-from run_step5d_autotune_campaign import discover_campaign_epochs
-from step5d_autotune_batch_plan import load_plan
 from step5d_autotune_state_machine import TpLoopState
-from step5d_autotune_v3.batch_producer import (
-    BatchProducerError,
-    ProductionProposalProvider,
-    RollingBatchProducer,
-    production_candidate_catalog,
-)
-from step5d_autotune_v3.campaign_prepare import (
-    CampaignPrepareError,
-    prepare_campaign,
-)
 from step5d_autotune_v3.dashboard import DashboardObservationError, dashboard_exchange
 from step5d_autotune_v3.delivery_observation import (
     DeliveryObservationError,
@@ -50,10 +37,6 @@ from step5d_autotune_v3.governance import (
     resolve_governed_status,
 )
 from step5d_autotune_v3.launcher import build_bridge_argv, check_effective_config
-from step5d_autotune_v3.optimizer_protocol import (
-    ExactOptimizerClient,
-    deployment_certificate,
-)
 from step5d_autotune_v3.profile import load_contract
 from step5d_autotune_v3.release_contract import (
     release_contract_scope_for_release,
@@ -71,7 +54,6 @@ from step5d_autotune_v3.release_identity import (
     release_payload_path,
 )
 from step5d_autotune_v3.runtime_environment import production_runtime_environment
-from step5d_autotune_v3.optimizer_deployment import load_gpu_functional_attestation
 from step5d_autotune_v3.runtime_installation import require_runtime_profile
 from step5d_autotune_v3.runtime_profile import (
     CONTROL_PROFILE_ID,
@@ -95,11 +77,7 @@ from step5d_autotune_v3.runtime_observation import (
     RuntimeObservationError,
     RuntimeObservationPublisher,
 )
-from step5d_autotune_v3.state import (
-    CampaignPaths,
-    atomic_json,
-    read_strict_json,
-)
+from step5d_autotune_v3.state import atomic_json, read_strict_json
 from step5d_autotune_live_driver import AtomicCommandMailbox
 from ur10e_parallel import ResourceProfile, writer_lease, writer_lease_owner
 from step5d_bridge_status import (
@@ -111,7 +89,7 @@ from step5d_bridge_status import (
 
 ROOT = Path(__file__).resolve().parents[1]
 WRAPPER = ROOT / "tools/run_step5d_autotune_v3_bridge.py"
-RUNNER = ROOT / "tools/run_step5d_autotune_campaign.py"
+RUNNER = ROOT / "tools/run_step5d_parameter_campaign.py"
 RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
 LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
@@ -133,9 +111,6 @@ ARM_ACKNOWLEDGED_STATES = frozenset(
 )
 class LiveLaunchError(RuntimeError):
     pass
-
-
-_NO_PRODUCER_RESULT = object()
 
 
 def _publish_canonical_readiness_claim(
@@ -211,88 +186,6 @@ class _LatestCsvFollower:
         return self.latest_row
 
 
-class _AsyncProducerPoller:
-    def __init__(
-        self,
-        producer: RollingBatchProducer,
-        proposal_provider: ProductionProposalProvider,
-        *,
-        interval_s: float = 0.2,
-        monotonic: Callable[[], float] = time.monotonic,
-    ) -> None:
-        if interval_s <= 0.0:
-            raise ValueError("producer polling interval must be positive")
-        self._producer = producer
-        self._proposal_provider = proposal_provider
-        self._interval_s = interval_s
-        self._monotonic = monotonic
-        self._lock = threading.Lock()
-        self._thread: threading.Thread | None = None
-        self._in_flight = False
-        self._closed = False
-        self._next_due = 0.0
-        self._result: Any = _NO_PRODUCER_RESULT
-        self._error: Exception | None = None
-
-    def _run_once(self) -> None:
-        try:
-            result = self._producer.poll_once(
-                proposal_provider=self._proposal_provider
-            )
-            error = None
-        except Exception as exc:
-            result = _NO_PRODUCER_RESULT
-            error = exc
-        with self._lock:
-            self._result = result
-            self._error = error
-            self._next_due = self._monotonic() + self._interval_s
-            self._in_flight = False
-
-    def poll(self, *, now: float | None = None) -> Any | None:
-        current = self._monotonic() if now is None else now
-        start_thread = False
-        result: Any = _NO_PRODUCER_RESULT
-        with self._lock:
-            if self._error is not None:
-                error = self._error
-                raise LiveLaunchError(
-                    "rolling batch producer failed closed: "
-                    f"{type(error).__name__}: {error}"
-                ) from error
-            if self._result is not _NO_PRODUCER_RESULT:
-                result = self._result
-                self._result = _NO_PRODUCER_RESULT
-            elif (
-                not self._closed
-                and not self._in_flight
-                and current >= self._next_due
-            ):
-                self._in_flight = True
-                start_thread = True
-        if start_thread:
-            thread = threading.Thread(
-                target=self._run_once,
-                name="step5d-rolling-batch-producer",
-                daemon=True,
-            )
-            with self._lock:
-                self._thread = thread
-            thread.start()
-        return None if result is _NO_PRODUCER_RESULT else result
-
-    def close(self, *, timeout_s: float = 0.5) -> tuple[bool, Exception | None]:
-        if timeout_s < 0.0:
-            raise ValueError("producer close timeout must be non-negative")
-        with self._lock:
-            self._closed = True
-            thread = self._thread
-        if thread is not None:
-            thread.join(timeout=timeout_s)
-        with self._lock:
-            return not self._in_flight, self._error
-
-
 def _require_canonical_launcher(environment: Mapping[str, str] | None = None) -> Path:
     values = os.environ if environment is None else environment
     expected = (ROOT / "scripts/step5d-autotune-v3.sh").resolve()
@@ -317,29 +210,6 @@ def _sha256_path(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _campaign_id_for_prepare(campaign_root: Path) -> str:
-    paths = CampaignPaths(campaign_root)
-    if paths.candidate_plan.is_file() and not paths.candidate_plan.is_symlink():
-        payload = read_strict_json(paths.candidate_plan, role="candidate plan")
-        campaign_id = payload.get("campaign_id") if isinstance(payload, Mapping) else None
-        if not isinstance(campaign_id, str) or not campaign_id:
-            raise LiveLaunchError("candidate plan campaign identity is missing")
-        return campaign_id
-    chain = discover_campaign_epochs(campaign_root)
-    return chain[-1].campaign.campaign_id if chain else "step5d-native-1"
-
-
-def prepare_campaign_state(campaign_root: Path, launch_profile: Any) -> Mapping[str, Any]:
-    try:
-        return prepare_campaign(
-            campaign_root,
-            campaign_id=_campaign_id_for_prepare(campaign_root),
-            launch_profile=launch_profile,
-        )
-    except CampaignPrepareError as exc:
-        raise LiveLaunchError(f"campaign preparation failed closed: {exc}") from exc
 
 
 def _integer_row(row: Mapping[str, Any] | None, name: str) -> int:
@@ -990,30 +860,14 @@ def run(args: argparse.Namespace) -> Mapping[str, Any]:
     runtime_pointer = getattr(args, "_runtime_pointer", None)
     if not isinstance(runtime_pointer, Mapping):
         runtime_pointer = require_runtime_profile("control")
-    _gpu_attestation, gpu_reference = load_gpu_functional_attestation(
-        runtime_pointer=runtime_pointer
-    )
-    optimizer_deployment = deployment_certificate(
-        runtime_pointer=runtime_pointer,
-        gpu_attestation_digest=gpu_reference["sha256"],
-    )
-    optimizer_client = ExactOptimizerClient(
-        deployment=optimizer_deployment,
-        runtime_pointer=runtime_pointer,
-    )
-    try:
-        return _run_live(args, runtime_pointer, optimizer_client)
-    finally:
-        optimizer_client.close()
+    return _run_live(args, runtime_pointer)
 
 
 def _run_live(
     args: argparse.Namespace,
     runtime_pointer: Mapping[str, Any],
-    optimizer_client: ExactOptimizerClient,
 ) -> Mapping[str, Any]:
     control_python = runtime_pointer["profiles"]["control"]["python_executable"]
-    optimizer_python = runtime_pointer["profiles"]["optimizer"]["python_executable"]
     release = load_runtime_release(ROOT)
     delivery_observation = load_delivery_observation(
         ROOT, args.delivery_observation, release=release
@@ -1032,7 +886,6 @@ def _run_live(
         contract=contract,
         expected_tp_program_id=release.program_id,
     )
-    campaign_preparation = prepare_campaign_state(args.campaign_root, launch_profile)
     check = check_effective_config(
         runtime_root=runtime_root,
         contract_path=contract_path,
@@ -1069,53 +922,33 @@ def _run_live(
             rolling_plan=True,
         )
     )
-    paths = CampaignPaths(args.campaign_root)
-    plan = load_plan(paths.candidate_plan, campaign_id=str(prepared["campaign_id"]))
-    overlay_plan = read_strict_json(paths.trial_overlays, role="V3 trial-overlay plan")
+    plan_path = Path(str(prepared["candidate_plan"]))
+    source_path = Path(str(prepared["trial_overlay_plan"]))
+    plan = read_strict_json(plan_path, role="parameter receiver plan")
+    plan_revision = plan.get("revision") if isinstance(plan, Mapping) else None
+    if (
+        isinstance(plan_revision, bool)
+        or not isinstance(plan_revision, int)
+        or plan_revision < 1
+    ):
+        raise LiveLaunchError("parameter receiver plan revision is invalid")
     machine_binding = write_machine_campaign_binding(
         campaign_binding,
         campaign_id=str(prepared["campaign_id"]),
         campaign_epoch=int(prepared["campaign_epoch"]),
         campaign_fingerprint=str(prepared["campaign_fingerprint"]),
-        candidate_plan_path=paths.candidate_plan,
-        trial_overlay_plan_path=paths.trial_overlays,
+        candidate_plan_path=plan_path,
+        trial_overlay_plan_path=source_path,
         binding_source="canonical_v3_live_entrypoint",
     )
     prepared = {
         **prepared,
-        "machine_binding_status": "finalized_exact_candidate_and_overlay_plans",
+        "machine_binding_status": "finalized_parameter_receiver",
         "machine_binding_sha256": _sha256_path(campaign_binding),
     }
     atomic_json(launch_plan_path, prepared)
-    producer_binding = _sha256_json(
-        {
-            "schema": "step5d.autotune-v3/producer-binding-v1",
-            "manifest_sha256": release.manifest_sha256,
-            "campaign_id": prepared["campaign_id"],
-            "campaign_fingerprint": prepared["campaign_fingerprint"],
-            "safety_envelope_sha256": release_runtime_contract(ROOT, release)[
-                "safety_envelope_sha256"
-            ],
-            "launch_profile_fingerprint": launch_profile.fingerprint,
-        }
-    )
-    producer = RollingBatchProducer(
-        campaign_root=args.campaign_root,
-        campaign_id=str(prepared["campaign_id"]),
-        binding_fingerprint=producer_binding,
-        launch_profile=launch_profile,
-    )
-    proposal_provider = ProductionProposalProvider(
-        campaign_root=args.campaign_root,
-        campaign_id=str(prepared["campaign_id"]),
-        catalog=production_candidate_catalog(),
-        optimizer_client=optimizer_client,
-    )
-    try:
-        producer_snapshot = producer.poll_once(proposal_provider=proposal_provider)
-    except BatchProducerError as exc:
-        raise LiveLaunchError(f"rolling batch producer failed closed: {exc}") from exc
-    producer_poller = _AsyncProducerPoller(producer, proposal_provider)
+    receiver_root = Path(str(prepared["receiver_root"]))
+    initial_manifest = Path(str(prepared["initial_manifest"]))
     inherited_launch_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID")
     if inherited_launch_id is not None and (
         len(inherited_launch_id) != 32
@@ -1160,9 +993,9 @@ def _run_live(
             "campaign_id": prepared["campaign_id"],
             "campaign_epoch": prepared["campaign_epoch"],
             "campaign_fingerprint": prepared["campaign_fingerprint"],
-            "candidate_plan_revision": plan.revision,
-            "candidate_plan_sha256": _sha256_path(paths.candidate_plan),
-            "trial_overlay_plan_sha256": _sha256_path(paths.trial_overlays),
+            "candidate_plan_revision": plan_revision,
+            "candidate_plan_sha256": _sha256_path(plan_path),
+            "trial_overlay_plan_sha256": _sha256_path(source_path),
             "machine_binding_sha256": _sha256_path(campaign_binding),
         },
         "campaign_lease": {
@@ -1184,7 +1017,7 @@ def _run_live(
     )
     runner_environment = production_runtime_environment(
         os.environ,
-        profile="optimizer",
+        profile="control",
         additions={
             "STEP5D_V3_SUPERVISOR_PID": str(os.getpid()),
         },
@@ -1205,8 +1038,6 @@ def _run_live(
     authority_revocation_errors: list[str] = []
     campaign_completed = False
     publisher_terminalization_started = False
-    producer_stopped = True
-    producer_error: str | None = None
     mailbox_reader = AtomicCommandMailbox(
         runtime_root / "command.json",
         network_mode=True,
@@ -1250,7 +1081,7 @@ def _run_live(
             csv_follower = _LatestCsvFollower(csv_path)
             print("V3_BRIDGE_READY_NO_ARM", flush=True)
             runner_command = [
-                optimizer_python,
+                control_python,
                 str(RUNNER),
                 "--experiment-root",
                 str(ROOT),
@@ -1258,6 +1089,8 @@ def _run_live(
                 str(bridge_run),
                 "--campaign-root",
                 str(args.campaign_root),
+                "--receiver-root",
+                str(receiver_root),
                 "--mailbox",
                 str(runtime_root / "command.json"),
                 "--runner-ready-file",
@@ -1266,33 +1099,14 @@ def _run_live(
                 str(campaign_binding),
                 "--campaign-lease",
                 str(lease_path),
-                "--delivery-observation",
-                str(args.delivery_observation),
-                "--campaign-epoch",
-                str(prepared["campaign_epoch"]),
-                "--selection-policy",
-                "codex_batches",
-                "--candidate-plan",
-                str(paths.candidate_plan),
-                "--wait-for-home",
-                "--home-timeout-s",
-                str(args.play_timeout_s + 5.0),
-                "--recover-infra-aborted-active",
-                "--v3-stop-latch",
-                str(paths.stop_latch),
-                "--v3-derived-postprocess-root",
-                str(paths.postprocess),
-                "--v3-trial-overlays",
-                str(paths.trial_overlays),
+                "--release-manifest-sha256",
+                release.manifest_sha256,
                 "--v3-launch-profile",
                 str(launch_profile_path),
                 "--v3-program-id",
                 release.program_id,
-                "--v3-runtime-root",
-                str(runtime_root),
-                "--wait-for-first-arm-gate",
-                "--first-arm-gate-timeout-s",
-                str(args.play_timeout_s + 5.0),
+                "--initial-manifest",
+                str(initial_manifest),
             ]
             with runner_log_path.open("wb") as runner_log:
                 runner = subprocess.Popen(
@@ -1358,11 +1172,10 @@ def _run_live(
                 )
                 print("V3_CAMPAIGN_READY_FOR_TP_PLAY", flush=True)
                 print("READY_FOR_ONE_PLAY_TO_MOVE", flush=True)
-                deadline = time.monotonic() + args.play_timeout_s
                 next_observation = (
                     time.monotonic() + RUNTIME_OBSERVATION_INTERVAL_S
                 )
-                while time.monotonic() < deadline:
+                while True:
                     if bridge.poll() is not None:
                         raise LiveLaunchError("bridge exited while waiting for TP Play")
                     if runner.poll() is not None:
@@ -1405,8 +1218,6 @@ def _run_live(
                             time.monotonic() + RUNTIME_OBSERVATION_INTERVAL_S
                         )
                     time.sleep(0.025)
-                else:
-                    raise LiveLaunchError("TP Play was not observed before timeout")
                 try:
                     play_gate_observation, play_dashboard = _refresh_arm_gate(
                         arm_gate_path,
@@ -1522,9 +1333,6 @@ def _run_live(
                             delivery_observation=delivery_observation,
                         )
                         next_observation = now + RUNTIME_OBSERVATION_INTERVAL_S
-                    completed_snapshot = producer_poller.poll(now=now)
-                    if completed_snapshot is not None:
-                        producer_snapshot = completed_snapshot
                     time.sleep(0.025)
                 if bridge.poll() is not None and runner.poll() is None:
                     deadline = time.monotonic() + 3.0
@@ -1619,16 +1427,6 @@ def _run_live(
                     f"authority_revoke:{type(exc).__name__}:{exc}"
                 )
             try:
-                producer_stopped, producer_exception = producer_poller.close()
-            except Exception as exc:
-                producer_stopped = False
-                producer_error = f"producer_close:{type(exc).__name__}:{exc}"
-            else:
-                if producer_exception is not None:
-                    producer_error = (
-                        f"{type(producer_exception).__name__}:{producer_exception}"
-                    )
-            try:
                 runner_rc = _terminate(runner)
             except Exception as exc:
                 authority_revocation_errors.append(
@@ -1662,8 +1460,7 @@ def _run_live(
                         "bridge_exit_code": bridge_rc,
                         "program_stop": cleanup,
                         "authority_revocation_errors": authority_revocation_errors,
-                        "producer_stopped": producer_stopped,
-                        "producer_error": producer_error,
+                        "parameter_receiver_stopped": True,
                     },
                 )
             except Exception as exc:
@@ -1680,25 +1477,21 @@ def _run_live(
             and runner.returncode == 0
             and bridge_alive_at_campaign_outcome
             and not authority_revocation_errors
-            and producer_stopped
-            and producer_error is None
         ),
         "launch_id": launch_id,
         "campaign_id": prepared["campaign_id"],
         "campaign_epoch": prepared["campaign_epoch"],
-        "campaign_prepare_fingerprint": campaign_preparation["fingerprint"],
+        "campaign_prepare_fingerprint": prepared["campaign_fingerprint"],
         "legacy_preflight": legacy_preflight,
-        "candidate_plan_revision": plan.revision,
-        "producer_plan_revision": producer_snapshot.plan_revision,
-        "producer_phase": producer_snapshot.phase,
+        "candidate_plan_revision": plan_revision,
+        "parameter_receiver": str(receiver_root),
+        "optimizer_required": False,
         "bridge_run": str(bridge_run),
         "preflight_controller_identity_sha256": preflight["controller_identity_sha256"],
         "release_manifest_sha256": release.manifest_sha256,
         "campaign_lease_sha256": lease_sha256,
         "bridge_alive_at_campaign_outcome": bridge_alive_at_campaign_outcome,
         "authority_revocation_errors": authority_revocation_errors,
-        "producer_stopped": producer_stopped,
-        "producer_error": producer_error,
         "program_stop": cleanup,
     }
     atomic_json(args.output_root / "live_campaign_result.json", result)
@@ -1723,7 +1516,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
     )
     parser.add_argument("--ready-timeout-s", type=float, default=45.0)
-    parser.add_argument("--play-timeout-s", type=float, default=120.0)
     parser.add_argument("--canonical-owner-pid", type=int, required=True)
     parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
@@ -1757,13 +1549,25 @@ def main(argv: list[str] | None = None) -> int:
             launch_profile_path = release_payload_path(
                 ROOT, release, LAUNCH_PROFILE_PATH
             )
-            result = prepare_campaign_state(
-                args.campaign_root,
-                load_launch_profile(
-                    launch_profile_path,
-                    contract=load_contract(contract_path),
-                    expected_tp_program_id=release.program_id,
-                ),
+            load_launch_profile(
+                launch_profile_path,
+                contract=load_contract(contract_path),
+                expected_tp_program_id=release.program_id,
+            )
+            result = prepare(
+                LaunchPreparationRequest(
+                    experiment_root=ROOT,
+                    campaign_root=args.campaign_root,
+                    binding_file=(
+                        args.campaign_root
+                        / "control"
+                        / "prepare_only_campaign_binding.json"
+                    ),
+                    binding_source="canonical_v3_prepare_only",
+                    launch_profile_path=launch_profile_path,
+                    candidate_batch_size=5,
+                    rolling_plan=True,
+                )
             )
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0

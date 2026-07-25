@@ -95,11 +95,9 @@ def test_control_runtime_environment_is_sanitized_and_pointer_bound(
     assert environment["STEP5D_V3_RUNTIME_PROFILE"] == "control"
     assert environment["STEP5D_V3_RUNTIME_BUNDLE_ID"] == pointer["bundle_id"]
     assert environment["STEP5D_V3_CONTROL_ENVIRONMENT_ID"] == "1" * 64
-    assert environment["STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID"] == "2" * 64
+    assert "STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID" not in environment
     assert environment["STEP5D_V3_CONTROL_PYTHON"].endswith("/control/bin/python")
-    assert environment["STEP5D_V3_OPTIMIZER_PYTHON"].endswith(
-        "/optimizer/bin/python"
-    )
+    assert "STEP5D_V3_OPTIMIZER_PYTHON" not in environment
     assert environment["CUDA_VISIBLE_DEVICES"].startswith("GPU-")
     assert environment["UR10E_RNN_GPU_DEVICE"] == "cuda:0"
     assert environment["AMENT_PREFIX_PATH"] == str(ros_prefix)

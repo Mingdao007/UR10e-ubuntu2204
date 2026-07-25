@@ -137,13 +137,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         fields = (
             pointer["profiles"]["control"]["python_executable"],
-            pointer["profiles"]["optimizer"]["python_executable"],
             pointer["bundle_id"],
             pointer["attestation_sha256"],
             pointer["contract_sha256"],
             pointer["lock_sha256"],
             pointer["profiles"]["control"]["environment_id"],
-            pointer["profiles"]["optimizer"]["environment_id"],
             contract["gpu"]["uuid"],
             control_environment["LD_LIBRARY_PATH"],
             control_environment["CUPY_CACHE_DIR"],

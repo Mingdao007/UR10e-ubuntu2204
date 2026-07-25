@@ -131,6 +131,7 @@ def _base_status(reason: str, *, attempt: Mapping[str, Any] | None) -> dict[str,
             "DELIVERY_REVALIDATION_REQUIRED": "run_revalidate_current",
             "PUBLICATION_LINEAGE_MISSING": "run_revalidate_current",
             "LOADED_PROGRAM_UNSUPPORTED": "load_exact_supported_program_before_retry",
+            "MANUAL_V2_ARCHIVED": "load_current_autotune_v3_program",
         }.get(reason, "repair_internal_governance_state"),
         "launch_attempt": _launch_view(attempt),
     }
@@ -329,14 +330,8 @@ def _apply_attempt_gate(
     status["launch_attempt"] = _launch_view(attempt)
     status.setdefault("predicates", {})
     attempt_bound = bool(
-        (
-            attempt.get("route") == "manual_v2"
-            and status.get("predicates", {}).get("canonical_attempt_bound") is True
-        )
-        or (
-            attempt.get("route") == "autotune_v3"
-            and status.get("predicates", {}).get("lease_valid") is True
-        )
+        attempt.get("route") == "autotune_v3"
+        and status.get("predicates", {}).get("lease_valid") is True
     )
     status["predicates"]["canonical_attempt_bound"] = attempt_bound
     terminal = attempt["state"] in {"FAILED", "CANCELLED"}
@@ -393,39 +388,7 @@ def _resolve_detailed_status(experiment_root: Path) -> dict[str, Any]:
         return _base_status("ROUTE_NOT_RESOLVED", attempt=attempt)
     campaign_root = Path(attempt["bindings"]["campaign_root"])
     if route == "manual_v2":
-        try:
-            from step5d_manual_status import read_run_status
-
-            manual = read_run_status(campaign_root)
-        except (ImportError, OSError, ValueError, json.JSONDecodeError):
-            return _base_status("ROUTE_RUNTIME_NOT_OBSERVED", attempt=attempt)
-        if manual.get("launch_attempt_id") != attempt.get("attempt_id"):
-            return _base_status("LAUNCH_ATTEMPT_BINDING_INVALID", attempt=attempt)
-        status = {
-            "schema": STATUS_SCHEMA,
-            "route": "manual_v2",
-            "generated_at_unix_ns": time.time_ns(),
-            "state": manual.get("state"),
-            "predicates": {
-                "release_contract_proven": (
-                    manual.get("release_contract_proven") is True
-                ),
-                "bridge_process_alive": manual.get("bridge_heartbeat") is True,
-                "bridge_heartbeat_fresh": manual.get("bridge_heartbeat") is True,
-                "controller_preflight_valid": manual.get("controller_preflight_valid")
-                is True,
-                "canonical_attempt_bound": manual.get("canonical_attempt_bound") is True,
-                "play_prompt_ready": manual.get("play_prompt_ready") is True,
-            },
-            "blocker": {
-                "class": None if manual.get("blocker") is None else "INTERNAL",
-                "reason_codes": [] if manual.get("blocker") is None else [manual["blocker"]],
-                "evidence": [],
-            },
-            "next_action": manual.get("next_action"),
-            "manual": manual,
-        }
-        return _apply_attempt_gate(status, attempt)
+        return _base_status("MANUAL_V2_ARCHIVED", attempt=attempt)
     status = resolve_governed_status(root, campaign_root)
     if not _v3_attempt_binding_valid(attempt, campaign_root, status):
         return _base_status("LAUNCH_ATTEMPT_BINDING_INVALID", attempt=attempt)
@@ -458,10 +421,6 @@ def _require_readiness_state(
         or predicates.get("play_prompt_ready") is not True
         or predicates.get("canonical_attempt_bound") is not True
         or predicates.get("release_contract_proven") is not True
-        or (
-            status.get("route") == "manual_v2"
-            and predicates.get("controller_preflight_valid") is not True
-        )
     ):
         raise ValueError("machine status does not authorize the requested readiness claim")
 

@@ -152,17 +152,21 @@ def test_contract_certificate_detects_evidence_tampering(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    expected_scope = scope("manual_v2")
+    expected_scope = scope("autotune_v3")
     monkeypatch.setattr(
         release_contract,
-        "manual_release_contract_scope",
+        "_v3_release",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        release_contract,
+        "release_contract_scope_for_release",
         lambda *_args, **_kwargs: expected_scope,
     )
     _payload, certificate = release_contract.run_release_contract_check(
         ROOT,
         tmp_path,
         environment=_environment(),
-        subject_kind="manual_v2",
     )
     _certificate, evidence_path, _evidence = load_release_certificate(
         tmp_path,

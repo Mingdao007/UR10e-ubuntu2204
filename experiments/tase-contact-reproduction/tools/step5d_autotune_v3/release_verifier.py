@@ -257,8 +257,13 @@ def verify_release_manifest(
         "codex_autotune_publish_state_and_halt(campaign_epoch, trial_id, 77",
         "movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)",
         "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)",
-        "while waiting_s < 30.000",
+        "def codex_autotune_wait_for_arm(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):",
+        "  while True:",
     )
+    if "while waiting_s <" in script:
+        raise ReleaseVerificationError("script still contains bounded READY wait loop")
+    if "candidate_token, 19, execution_profile_id" in script:
+        raise ReleaseVerificationError("script still contains terminal reason 19")
     missing = [marker for marker in required_markers if marker not in script]
     if missing:
         raise ReleaseVerificationError(f"script rolling semantics are incomplete: {missing}")
@@ -290,7 +295,7 @@ def verify_release_manifest(
         raise ReleaseVerificationError("URP script node differs from release program")
 
     from step5d_autotune_contract import ExecutionProfile
-    from step5d_autotune_supervisor import execution_profile_integer_id
+    from step5d_runtime_codec import execution_profile_integer_id
 
     profile = ExecutionProfile(
         release.execution_profile_id,

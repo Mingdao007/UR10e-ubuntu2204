@@ -162,9 +162,8 @@ def test_production_report_classifies_every_active_provider() -> None:
         for row in report["classifications"]["uv_lock"]
     }
     assert uv["cupy"] == "cupy-cuda12x"
-    assert uv["cupy_backends"] == "cupy-cuda12x"
     assert uv["pexpect"] == "pexpect"
-    assert uv["torch"] == "torch"
+    assert {"torch", "botorch", "gpytorch", "cupy_backends"}.isdisjoint(uv)
     host_imports = {
         row["name"]: row["provider"]
         for row in report["classifications"]["host_contract"]
@@ -177,7 +176,7 @@ def test_production_report_classifies_every_active_provider() -> None:
     assert any(
         row["kind"] == "dynamic_import_seam"
         and row["name"] == "runtime_profile_probe"
-        and row["contract_key"] == "profiles.*.required_imports"
+        and row["contract_key"] == "profiles.control.required_imports"
         for row in report["classifications"]["host_contract"]
     )
     assert report["classifications"]["sha_bound_owner"] == [
@@ -221,9 +220,10 @@ def test_production_report_classifies_every_active_provider() -> None:
         "tools/step5d_autotune_v3/optimizer_worker.py",
         "tools/step5d_autotune_v3/runtime_functional_gates.py",
     }.isdisjoint(report["experiment_paths"])
-    assert "tools/step5d_autotune_v3/optimizer_policy.py" in report[
-        "experiment_paths"
-    ]
+    assert not any(
+        "manual" in path or "optimizer" in path
+        for path in report["experiment_paths"]
+    )
     encoded = json.dumps(report, sort_keys=True)
     assert str(ROOT) not in encoded
     assert "/home/andy" not in encoded

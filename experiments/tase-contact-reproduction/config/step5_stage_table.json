@@ -10998,11 +10998,11 @@
       "offline_validation": {
         "acceptance_scope": "offline_pre_live_only",
         "diagnostic_bundle_replay": "pass",
-        "exact_ten_row_lifecycle": "r008_rolling_rows_1_to_5_every_row_home_state78_arm11_q4_q5",
+        "exact_ten_row_lifecycle": "approved_initial_ten_seeded_once_then_unbounded_receiver",
         "formal_500hz_timing": "not_required_by_user",
         "hardware_promotion": "controller_readback_verified",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
-        "production_second_lap": "pass_formal_runner_growing_csv_seal_cold_read_trialbrief_arm2_run",
+        "production_second_lap": "superseded_by_parameter_receiver_queue_contract",
         "report": "config/step5/step5d_autotune_v3_offline_validation.json",
         "report_sha256": "caf3f90bca353e86159c5d6b89fb2e82024ae157fd0bebcd4eae9b68339d4481",
         "retained_live_incident": "r005_ack_consumed_arm2_not_sent_post_ack_csv_schema_timeout",
@@ -11026,7 +11026,17 @@
           "later_window_policy": "record_quality_and_drift_never_overwrite_anchor",
           "mode": "fixed_campaign_anchor_plus_per_trial_diagnostic"
         },
-        "mode": "single-owner-one-play-real-motion-ten-trial-v3-overlay",
+        "manual_v2_route": "archived_historical_only",
+        "mode": "single-owner-one-play-unbounded-parameter-receiver",
+        "parameter_receiver": {
+          "capacity": null,
+          "data_failure_policy": "record_terminal_and_continue",
+          "empty_queue_behavior": "safe_home_infinite_wait",
+          "inflight_limit": 1,
+          "optimizer_required": false,
+          "priority": "next_then_fifo",
+          "physical_replay_allowed": false
+        },
         "play_startup_identity_gate": {
           "deadline_s": 1.0,
           "pending_behavior": "zero_command_no_mailbox_no_arm",
@@ -11034,7 +11044,7 @@
         },
         "service": "config/systemd/step5d-autotune-v3.service",
         "service_restart": "no",
-        "stop_after_current": "durable-safe-home-latch"
+        "stop_after_current": "explicit_operator_stop_only"
       },
       "owner": "contact_control_current",
       "package_delivery": {

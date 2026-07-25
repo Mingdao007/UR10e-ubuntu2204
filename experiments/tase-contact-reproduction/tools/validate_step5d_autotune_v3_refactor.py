@@ -36,12 +36,7 @@ STEP5D_V3_TEST_MARKERS = (
     "STEP5D_V3",
 )
 AUTHORITATIVE_ACTIVE_TESTS = {
-    "tests/test_step5d_manual_bridge.py",
-    "tests/test_step5d_manual_campaign_plan.py",
-    "tests/test_step5d_manual_governed_route.py",
-    "tests/test_step5d_manual_queue.py",
-    "tests/test_step5d_manual_release.py",
-    "tests/test_step5d_manual_tp_v1.py",
+    "tests/test_step5d_parameter_queue.py",
     "tests/test_step5d_autotune_live_driver.py",
     "tests/test_step5d_autotune_production_second_lap.py",
     "tests/test_step5d_autotune_runtime.py",
@@ -64,7 +59,6 @@ AUTHORITATIVE_ACTIVE_TESTS = {
     "tests/test_step5d_autotune_v3_refactor_gate.py",
     "tests/test_step5d_autotune_v3_test_matrix_runner.py",
     "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",
-    "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
     "tests/test_step5d_autotune_v3_bridge_wrapper.py",
     "tests/test_step5d_bridge_status.py",
     "tests/test_step5d_bridge_authority.py",
@@ -86,6 +80,12 @@ AUTHORITATIVE_ACTIVE_TESTS = {
 }
 AUTHORITATIVE_OBSOLETE_TESTS = {
     "tests/test_cross_step_parameter_table.py",
+    "tests/test_step5d_manual_bridge.py",
+    "tests/test_step5d_manual_campaign_plan.py",
+    "tests/test_step5d_manual_governed_route.py",
+    "tests/test_step5d_manual_queue.py",
+    "tests/test_step5d_manual_release.py",
+    "tests/test_step5d_manual_tp_v1.py",
     "tests/test_step5d_autotune_v3_arming.py",
     "tests/test_step5d_autotune_v3_bridge_start_context_builder.py",
     "tests/test_step5d_autotune_v3_certification.py",
@@ -98,6 +98,7 @@ AUTHORITATIVE_OBSOLETE_TESTS = {
     "tests/test_step5d_autotune_v3_return_route_promotion.py",
     "tests/test_step5d_autotune_v3_stopping_bound_evidence.py",
     "tests/test_step5d_autotune_v3_stopping_bound_promotion.py",
+    "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
     "tests/test_step5d_autotune_v3_ursim_hold.py",
     "tests/test_step5d_current_binding_gate.py",
     "tests/test_step5d_r006_production_chain.py",
@@ -123,20 +124,17 @@ AUTHORITATIVE_ACCEPTANCE_PATH = [
     "campaign_terminal_attested_before_bridge_cleanup",
 ]
 REQUIRED_ACTIVE_RUNTIME_MODULES = {
-    "tools/step5d_autotune_v3/control_policy.py",
+    "tools/step5d_autotune_v3/bridge_admission.py",
     "tools/step5d_autotune_v3/delivery_observation.py",
-    "tools/step5d_autotune_v3/optimizer_deployment.py",
-    "tools/step5d_autotune_v3/optimizer_payloads.py",
-    "tools/step5d_autotune_v3/optimizer_policy.py",
-    "tools/step5d_autotune_v3/optimizer_types.py",
-    "tools/step5d_autotune_v3/optimizer_wire.py",
+    "tools/step5d_autotune_v3/governance.py",
+    "tools/step5d_autotune_v3/launcher.py",
     "tools/step5d_autotune_v3/preflight_support.py",
     "tools/step5d_autotune_v3/public_state.py",
+    "tools/step5d_autotune_v3/release_contract.py",
+    "tools/step5d_autotune_v3/release_identity.py",
     "tools/step5d_autotune_v3/rtde_client.py",
     "tools/step5d_autotune_v3/runtime_environment.py",
-    "tools/step5d_autotune_v3/shared_contracts.py",
     "tools/step5d_autotune_v3/source_closure.py",
-    "tools/step5d_autotune_v3/trial_contract_admission.py",
 }
 
 # Keys are relative to the git root, not to this experiment root.
@@ -465,7 +463,6 @@ def matrix_issues(payload: Any, *, root: Path = ROOT) -> list[str]:
             "tests/test_step5d_autotune_v3_bridge_wrapper.py",
             "tests/test_step5d_release_contract.py",
             "tests/test_step5d_autotune_v3_installed_runtime.py",
-            "tests/test_step5d_manual_bridge.py",
             "tests/test_step5d_no_contact_p0.py",
         ],
         "activation": "explicit_local_authoritative_after_hermetic_small_medium",

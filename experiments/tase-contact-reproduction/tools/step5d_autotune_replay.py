@@ -29,6 +29,7 @@ from step5d_autotune_contract import (
     canonical_json_bytes,
 )
 from step5d_autotune_v3.optimizer_policy import live_trust_region_step
+from step5d_runtime_codec import CadenceEvidence, cadence_eligible
 from step5d_autotune_state_machine import (
     HostPacket,
     TpLoopState,
@@ -42,15 +43,6 @@ from ur10e_artifact_store import (
     resolve_artifact,
     sha256,
 )
-
-
-@dataclass(frozen=True)
-class CadenceEvidence:
-    profile_id: str
-    sent_packets: int
-    consumed_packets: int | None
-    fresh_feedback_packets: int
-    row_gap_over_20ms_count: int
 
 
 @dataclass(frozen=True)
@@ -70,21 +62,6 @@ class OrientationReplay:
     entry_p95_error_rad: float
     direction_reversal_count: int
     qualified: bool
-
-
-def cadence_eligible(evidence: CadenceEvidence) -> tuple[bool, tuple[str, ...]]:
-    failures: list[str] = []
-    if evidence.sent_packets <= 0:
-        failures.append("no_sent_packets")
-    if evidence.consumed_packets is None:
-        failures.append("missing_tp_consumption_echo")
-    elif evidence.consumed_packets / max(evidence.sent_packets, 1) < 0.98:
-        failures.append("tp_consumption_ratio_below_0p98")
-    if evidence.fresh_feedback_packets / max(evidence.sent_packets, 1) < 0.98:
-        failures.append("fresh_feedback_ratio_below_0p98")
-    if evidence.row_gap_over_20ms_count != 0:
-        failures.append("row_gap_over_20ms")
-    return not failures, tuple(failures)
 
 
 def v34_replay_cadence_evidence() -> CadenceEvidence:

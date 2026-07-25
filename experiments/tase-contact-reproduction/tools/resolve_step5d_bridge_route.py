@@ -13,12 +13,12 @@ from step5d_autotune_v3.dashboard import dashboard_exchange
 from step5d_autotune_v3.governance import load_current_release_snapshot
 from step5d_autotune_v3.runtime_gate import loaded_program_matches
 from step5d_autotune_v3.state import atomic_json
-from step5d_manual_bridge import PROGRAM, ROOT
-from promote_step5d_manual_release import load_manual_release
 
 
-MANUAL_PATH = f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
-ROUTES = frozenset({"manual_v2", "autotune_v3", "BLOCKED"})
+ROOT = Path(__file__).resolve().parents[1]
+ARCHIVED_MANUAL_PROGRAM = "step5d_strict_rnn_manual_tune_v2"
+MANUAL_PATH = f"/programs/andyl/kunwei/step5/{ARCHIVED_MANUAL_PROGRAM}.urp"
+ROUTES = frozenset({"autotune_v3", "BLOCKED"})
 
 
 def _v3_program_paths(root: Path) -> tuple[str, frozenset[str]]:
@@ -61,17 +61,18 @@ def resolve(*, root: Path, robot_host: str, timeout_s: float) -> dict[str, objec
     loaded = dashboard["get loaded program"]
     manual = loaded_program_matches(loaded, MANUAL_PATH)
     active_v3_path, recovery_v3_paths = _v3_program_paths(root)
-    manual_release = load_manual_release(root) if manual else None
     autotune_release = None if manual else load_current_release_snapshot(root)
     active_v3 = loaded_program_matches(loaded, active_v3_path)
     recovery_v3 = any(
         loaded_program_matches(loaded, path) for path in recovery_v3_paths
     )
     autotune = not manual and (active_v3 or recovery_v3)
-    route = "manual_v2" if manual else "autotune_v3" if autotune else "BLOCKED"
+    route = "autotune_v3" if autotune else "BLOCKED"
     reason_code = None
     if route == "BLOCKED":
-        reason_code = "LOADED_PROGRAM_UNSUPPORTED"
+        reason_code = (
+            "MANUAL_V2_ARCHIVED" if manual else "LOADED_PROGRAM_UNSUPPORTED"
+        )
     return {
         "schema": "step5d.bridge-route/v2",
         "route": route,
@@ -88,7 +89,7 @@ def resolve(*, root: Path, robot_host: str, timeout_s: float) -> dict[str, objec
         "program_state": dashboard["programState"],
         "safety_mode": dashboard["safetymode"],
         "manual_release_manifest_sha256": (
-            None if manual_release is None else manual_release["manifest_sha256"]
+            None
         ),
         "autotune_release_manifest_sha256": (
             None

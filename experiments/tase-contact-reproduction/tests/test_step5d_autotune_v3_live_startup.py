@@ -42,46 +42,27 @@ def test_arm_gate_refresh_cadence_has_watchdog_margin() -> None:
     assert live.ARM_GATE_REFRESH_INTERVAL_S <= live.ARM_GRANT_MAX_AGE_S * 0.5
 
 
-def test_live_owner_closes_optimizer_worker_on_failure(
+def test_live_owner_never_constructs_an_optimizer_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pointer = {
         "profiles": {
             "control": {"python_executable": "/runtime/control/python"},
-            "optimizer": {"python_executable": "/runtime/optimizer/python"},
         }
     }
-    events: list[str] = []
 
-    class Client:
-        def __init__(self, **_kwargs: Any) -> None:
-            events.append("open")
+    def receive(_args: Any, observed: Mapping[str, Any]) -> dict[str, Any]:
+        assert observed is pointer
+        return {"optimizer_required": False}
 
-        def close(self) -> None:
-            events.append("close")
+    monkeypatch.setattr(live, "_run_live", receive)
 
-    monkeypatch.setattr(
-        live,
-        "load_gpu_functional_attestation",
-        lambda **_kwargs: ({}, {"sha256": "a" * 64}),
-    )
-    monkeypatch.setattr(
-        live,
-        "deployment_certificate",
-        lambda **_kwargs: {"schema": "fixture"},
-    )
-    monkeypatch.setattr(live, "ExactOptimizerClient", Client)
-
-    def fail(*_args: Any) -> dict[str, Any]:
-        events.append("run")
-        raise RuntimeError("fixture")
-
-    monkeypatch.setattr(live, "_run_live", fail)
-
-    with pytest.raises(RuntimeError, match="fixture"):
-        live.run(SimpleNamespace(_runtime_pointer=pointer))
-
-    assert events == ["open", "run", "close"]
+    assert live.run(SimpleNamespace(_runtime_pointer=pointer)) == {
+        "optimizer_required": False
+    }
+    source = inspect.getsource(live.run)
+    assert "optimizer" not in source
+    assert "gpu" not in source
 
 
 def _row(*, runtime_state: int, state: int = 10) -> dict[str, str]:
@@ -431,8 +412,9 @@ def test_release_contract_has_no_simulator_internal_route() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     route = source.index("resolve_step5d_bridge_route.py")
-    manual_contract = source.index("bridge_begin_phase manual_release_contract")
-    assert route < manual_contract
+    v3_contract = source.index("check_step5d_autotune_v3_bridge_admission.py")
+    assert route < v3_contract
+    assert "manual_release_contract" not in source
     assert "INTERNAL_QUALIFICATION_SHELL_PID" not in source
     assert "V3_QUALIFICATION_SIMULATED_PLAY_BARRIER" not in source
 
@@ -560,16 +542,20 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     assert writer_lease_acquired < bridge_start < bridge_ready < no_arm_ready
     assert no_arm_ready < runner_start < runner_ready
     assert runner_ready < claim_gate < campaign_ready < play_signal < play_observed < gate_refresh
-    assert '"--wait-for-first-arm-gate"' in source
-    assert '"--home-timeout-s"' in source
-    assert source.count("str(args.play_timeout_s + 5.0)") == 2
-    runner_source = (ROOT / "tools/run_step5d_autotune_campaign.py").read_text(
+    assert '"--receiver-root"' in source
+    assert '"--initial-manifest"' in source
+    assert "while True:" in source[source.index("READY_FOR_ONE_PLAY_TO_MOVE") :]
+    assert "TP Play was not observed before timeout" not in source
+    runner_source = (ROOT / "tools/run_step5d_parameter_campaign.py").read_text(
         encoding="utf-8"
     )
-    ready_publish = runner_source.index("_publish_runner_ready(")
-    first_gate_wait = runner_source.index("_wait_for_first_arm_gate(", ready_publish)
-    mailbox_open = runner_source.index("mailbox = AtomicCommandMailbox", first_gate_wait)
-    assert ready_publish < first_gate_wait < mailbox_open
+    ready_publish = runner_source.index("atomic_json(args.runner_ready_file, ready)")
+    home_wait = runner_source.index("_wait_initial_home(args, follower)", ready_publish)
+    first_send = runner_source.index(
+        "arm, prepared = _send(args, binding=binding, dispatch=dispatch)",
+        home_wait,
+    )
+    assert ready_publish < home_wait < first_send
     assert source.count("READY_FOR_ONE_PLAY_TO_MOVE") == 1
     assert "V3_QUALIFICATION_SIMULATED_PLAY_BARRIER" not in source
     assert "--offline-release-gate" not in runner_source
@@ -603,7 +589,7 @@ def test_production_writer_lease_has_exact_live_owner_and_excludes_overlap(
     assert writer_lease_owner(profile) is None
 
 
-def test_canonical_shell_bridge_route_has_one_explicit_manual_v2_branch() -> None:
+def test_canonical_shell_bridge_route_has_only_autotune_v3() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     assert '"${1:-}" == "bridge-live"' in source
@@ -612,8 +598,9 @@ def test_canonical_shell_bridge_route_has_one_explicit_manual_v2_branch() -> Non
     assert '"${1:-}" == "live"' not in source
     assert source.count("resolve_step5d_bridge_route.py") == 1
     assert 'route_snapshot="${output_root}/route-snapshot.json"' in source
-    assert source.count("run_step5d_manual_bridge_live.py") == 1
-    assert source.count("run_step5d_manual_live_campaign.py") == 1
+    assert "run_step5d_manual_bridge_live.py" not in source
+    assert "run_step5d_manual_live_campaign.py" not in source
+    assert "manual_v2" not in source
     assert "manual_v1" not in source
     assert "--campaign-arming-context" not in source
     assert "run_step5d_autotune_v3_live.py" in source
@@ -675,7 +662,7 @@ def test_production_play_prompt_fails_closed_when_claim_is_rejected(
 
 def test_canonical_shell_reuses_existing_v3_contract_and_delivery() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
-    production = source[source.index('if [[ "${bridge_route}" == "manual_v2" ]]') :]
+    production = source[source.index("resolve_step5d_bridge_route.py") :]
 
     assert "tools/build_step5d_autotune_tp_v3.py" not in production
     assert "tools/promote_step5d_r009_atomic_release.py" not in production
@@ -697,11 +684,11 @@ def test_source_rebind_and_embedded_delivery_recovery_are_removed() -> None:
     assert "--revalidate-current" in source
 
 
-def test_shell_defaults_bind_current_release_and_unique_campaign_root() -> None:
+def test_shell_defaults_bind_current_release_and_durable_parameter_campaign() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
 
     assert 'campaign_root=""' in source
-    assert "campaign-${attempt_suffix}" in source
+    assert "parameter-campaign" in source
     assert 'campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"' not in source
     revalidate = source[source.index('if [[ "${1:-}" == "revalidate-current"') :]
     assert 'artifact_dir=""' in revalidate
@@ -860,7 +847,7 @@ def _fake_governed_shell(
         "gpu = 'GPU-93d64fd3-924c-9c86-6c3d-b4781ed2133a'\n"
         "ld_library_path = '/runtime/control/nvidia'\n"
         "cupy_cache_dir = '/runtime/cache/cupy'\n"
-        "print('\\t'.join((python, python, digest, digest, digest, digest, digest, digest, gpu, ld_library_path, cupy_cache_dir)))\n",
+        "print('\\t'.join((python, digest, digest, digest, digest, digest, gpu, ld_library_path, cupy_cache_dir)))\n",
         encoding="utf-8",
     )
     environment = {
@@ -1211,7 +1198,7 @@ def _run_shell_argv_gate(
         ),
         (["bridge-live", "--preflight", "/tmp/preflight.json"], "internal worker option"),
         (["bridge-live", "--ready-timeout-s", "nan"], "finite positive decimal"),
-        (["bridge-live", "--play-timeout-s", "0"], "finite positive decimal"),
+        (["bridge-live", "--play-timeout-s", "0"], "unsupported option"),
         (
             [
                 "bridge-live",
@@ -1299,17 +1286,17 @@ def test_internal_live_worker_refuses_direct_execution(tmp_path: Path) -> None:
     assert "step5d-autotune-v3.sh" in result.stdout
 
 
-def test_first_campaign_home_is_loaded_only_after_arm_dispatch() -> None:
-    source = (ROOT / "tools/run_step5d_autotune_campaign.py").read_text(
+def test_parameter_receiver_binds_observed_home_before_first_dispatch() -> None:
+    source = (ROOT / "tools/run_step5d_parameter_campaign.py").read_text(
         encoding="utf-8"
     )
-    loop = source.index("while supervisor.phase is CampaignPhase.HOME")
-    dispatch = source.index(
-        "coordinator.dispatch(arm, prepared_trial=prepared, sink=mailbox)", loop
-    )
-    wait_home = source.index("_wait_for_campaign_home_reference(home_path)", dispatch)
+    run = source.index("def run(args:")
+    wait_home = source.index("_wait_initial_home(args, follower)", run)
+    bind_home = source.index("bind_home(", wait_home)
+    dispatch = source.index("_wait_next_dispatch(", bind_home)
+    arm = source.index("_send(args, binding=binding, dispatch=dispatch)", dispatch)
 
-    assert dispatch < wait_home
+    assert wait_home < bind_home < dispatch < arm
 
 
 def test_fake_bridge_cannot_replace_the_production_bridge() -> None:
@@ -1505,88 +1492,14 @@ def test_bridge_csv_follower_reads_only_appended_complete_rows(tmp_path: Path) -
     assert follower.bytes_read == initial_bytes + 3
 
 
-def test_producer_polling_is_single_flight_and_nonblocking() -> None:
-    started = threading.Event()
-    release = threading.Event()
-    finished = threading.Event()
-    snapshot = SimpleNamespace(plan_revision=2, phase="open")
-
-    class Producer:
-        calls = 0
-
-        def poll_once(self, *, proposal_provider):
-            assert proposal_provider == "provider"
-            self.calls += 1
-            started.set()
-            assert release.wait(timeout=1.0)
-            finished.set()
-            return snapshot
-
-    producer = Producer()
-    poller = live._AsyncProducerPoller(
-        producer,
-        "provider",
-        interval_s=1.0,
+def test_live_owner_has_no_optimizer_or_batch_producer_dependency() -> None:
+    source = (ROOT / "tools/run_step5d_autotune_v3_live.py").read_text(
+        encoding="utf-8"
     )
-
-    assert poller.poll(now=0.0) is None
-    assert started.wait(timeout=1.0)
-    assert poller.poll(now=0.0) is None
-    assert producer.calls == 1
-
-    release.set()
-    assert finished.wait(timeout=1.0)
-    deadline = time.monotonic() + 1.0
-    observed = None
-    while observed is None and time.monotonic() < deadline:
-        observed = poller.poll(now=0.0)
-        time.sleep(0.001)
-    assert observed is snapshot
-    assert poller.close(timeout_s=1.0) == (True, None)
-
-
-def test_producer_poller_close_is_bounded_and_errors_fail_closed() -> None:
-    started = threading.Event()
-    release = threading.Event()
-
-    class BlockingProducer:
-        def poll_once(self, *, proposal_provider):
-            started.set()
-            release.wait(timeout=1.0)
-            return SimpleNamespace(plan_revision=2, phase="open")
-
-    poller = live._AsyncProducerPoller(BlockingProducer(), object())
-    assert poller.poll(now=0.0) is None
-    assert started.wait(timeout=1.0)
-    assert poller.close(timeout_s=0.001) == (False, None)
-    release.set()
-    assert poller.close(timeout_s=1.0) == (True, None)
-
-    failed = threading.Event()
-
-    class FailedProducer:
-        def poll_once(self, *, proposal_provider):
-            try:
-                raise live.BatchProducerError("OPTIMIZER_FAILED", "optimizer failed")
-            finally:
-                failed.set()
-
-    failed_poller = live._AsyncProducerPoller(FailedProducer(), object())
-    assert failed_poller.poll(now=0.0) is None
-    assert failed.wait(timeout=1.0)
-    deadline = time.monotonic() + 1.0
-    while True:
-        try:
-            failed_poller.poll(now=0.0)
-        except live.LiveLaunchError as exc:
-            assert "optimizer failed" in str(exc)
-            break
-        if time.monotonic() >= deadline:
-            pytest.fail("producer failure was not surfaced")
-        time.sleep(0.001)
-    stopped, error = failed_poller.close(timeout_s=1.0)
-    assert stopped is True
-    assert isinstance(error, live.BatchProducerError)
+    assert "ExactOptimizerClient" not in source
+    assert "RollingBatchProducer" not in source
+    assert "_AsyncProducerPoller" not in source
+    assert 'profile="optimizer"' not in source
 
 
 def test_play_identity_recheck_uses_actual_gate_observation() -> None:
@@ -1697,9 +1610,11 @@ def test_campaign_authority_revoke_reports_both_failures(monkeypatch, tmp_path: 
     ]
 
 
-def test_post_play_loop_never_runs_producer_synchronously() -> None:
+def test_post_play_loop_never_runs_an_optimizer_or_producer() -> None:
     source = inspect.getsource(live._run_live)
     post_play = source[source.index("V3_CAMPAIGN_RUNNING_ONE_PLAY_CONTINUOUS") :]
 
     assert "producer.poll_once(" not in post_play
-    assert "producer_poller.poll(now=now)" in post_play
+    assert "producer_poller" not in post_play
+    assert "ExactOptimizerClient" not in post_play
+    assert 'profile="optimizer"' not in post_play

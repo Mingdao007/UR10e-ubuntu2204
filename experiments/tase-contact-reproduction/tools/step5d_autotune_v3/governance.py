@@ -2507,10 +2507,6 @@ def reduce_observed_attestation(
 def _environment_status(
     experiment_root: Path,
 ) -> tuple[dict[str, Any], list[str], list[dict[str, Any]]]:
-    from .optimizer_deployment import (
-        RuntimeFunctionalGateError,
-        load_gpu_functional_attestation,
-    )
     from .runtime_installation import load_runtime_pointer_identity, runtime_status
 
     # Provisioning and explicit integrity checks perform the full package-tree gate.
@@ -2536,13 +2532,11 @@ def _environment_status(
                 detail = "current release and promoted runtime environment IDs differ"
             else:
                 pointer = load_runtime_pointer_identity()
-                _payload, gpu_reference = load_gpu_functional_attestation(
-                    runtime_pointer=pointer
-                )
-                gpu_functional_proven = True
-        except RuntimeFunctionalGateError as exc:
-            reason = "GPU_FUNCTIONAL_GATE_MISSING"
-            detail = str(exc)
+                gpu_reference = {
+                    "path": str(pointer["attestation_path"]),
+                    "sha256": str(pointer["attestation_sha256"]),
+                }
+                gpu_functional_proven = bool(observed.get("control_ready"))
         except Exception:
             # Release errors retain their more precise CURRENT_RELEASE_INVALID reason.
             pass

@@ -50,7 +50,6 @@ TARGET_DIR = "/programs/andyl/kunwei/step5"
 PACKAGE_DIR = Path("programs/step5/step5d")
 EXTENSIONS = (".script", ".txt", ".urp")
 READBACK = Path("config/step5d_autotune_controller_readback_v3.json")
-MANUAL_LAUNCH_PROFILE = Path("config/step5d/manual/launch_profile.json")
 STATIC_PROJECTIONS = (
     Path("config/current_stage.json"),
     Path("config/step5_stage_table.json"),
@@ -58,7 +57,6 @@ STATIC_PROJECTIONS = (
     Path("config/step5d/v3_active_surface.json"),
     Path("config/step5/step5d_autotune_v3_control_contract.json"),
     Path("config/step5/step5d_autotune_v3_launch_profile.json"),
-    MANUAL_LAUNCH_PROFILE,
 )
 SOURCE_INPUTS = tuple(
     Path(relative) for relative in sorted(REQUIRED_EXPERIMENT_SOURCE_FINGERPRINTS)
@@ -68,7 +66,7 @@ REPOSITORY_SOURCE_INPUTS = tuple(
 )
 STATIC_PROJECTION_SHA256 = {
     "config/tase_protocol_table.json": "26552485d5260bdabe2264628d3be0815a7f686c2165850c87bb68194ac354bb",
-    "config/step5d/v3_active_surface.json": "36b3c6e77ec3f255d897dc7dbaad3b82b79f5aea41060ce024d77b15fa024e9f",
+    "config/step5d/v3_active_surface.json": "102782fc45ca6f6c5176e3cccd276c8a44d5a31ebe0e4da47ed33e0aff5e6dd6",
 }
 CONTRACT_STATIC_SHA256 = "5bbc7fa620a1f945f72ca6742a0b8fdc4cd4149c278e959e0760cffe167d2088"
 LAUNCH_STATIC_SHA256 = "d094cedd3813b938ff310e85c0f4f0d0dbc82f2c1ed831713648f3c1ece80202"
@@ -724,29 +722,10 @@ def _compose_local_release(
             tp_program_id=program_id,
         )
     )
-    manual_launch_source = _load(root / MANUAL_LAUNCH_PROFILE)
-    manual_program_id = manual_launch_source.get("tp_program_id")
-    if (
-        not isinstance(manual_program_id, str)
-        or re.fullmatch(
-            r"step5d_strict_rnn_autotune_v3_r\d{3}",
-            manual_program_id,
-        )
-        is None
-    ):
-        raise R009PromotionError("manual launch-profile parent identity differs")
-    bundle_files[MANUAL_LAUNCH_PROFILE.as_posix()] = _pretty(
-        _render_launch_profile(
-            manual_launch_source,
-            contract_sha256=rendered_contract_sha256,
-            tp_program_id=manual_program_id,
-        )
-    )
     for relative in STATIC_PROJECTIONS:
         if relative not in {
             contract_relative,
             launch_relative,
-            MANUAL_LAUNCH_PROFILE,
         }:
             if relative == Path("config/current_stage.json"):
                 projection = _render_current_stage(
@@ -780,7 +759,6 @@ def _compose_local_release(
             numeric.as_posix(),
             local_candidate_path.as_posix(),
             launch_relative.as_posix(),
-            MANUAL_LAUNCH_PROFILE.as_posix(),
         )
     }
     source_fingerprints = {

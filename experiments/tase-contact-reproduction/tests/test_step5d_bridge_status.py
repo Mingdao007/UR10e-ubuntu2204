@@ -180,7 +180,7 @@ def _manual_status(campaign: Path, *, attempt_id: str) -> None:
     )
 
 
-def test_route_neutral_status_uses_canonical_manual_attempt_without_capabilities(
+def test_status_hard_archives_canonical_manual_attempt(
     tmp_path: Path,
 ) -> None:
     campaign = tmp_path / "campaign"
@@ -205,14 +205,15 @@ def test_route_neutral_status_uses_canonical_manual_attempt_without_capabilities
     status = bridge_status.resolve_status(tmp_path)
     assert status["schema"] == bridge_status.STATUS_SCHEMA
     assert status["route"] == "manual_v2"
-    assert status["state"] == "BENCH_READY"
-    assert status["compatibility_phase"] == "WAITING_FOR_PLAY"
-    assert status["predicates"]["play_prompt_ready"] is True
-    assert status["predicates"]["canonical_attempt_bound"] is True
-    assert bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")["attempt_id"] == "attempt-1"
+    assert status["state"] == "UNPREPARED"
+    assert status["blocker"]["reason_codes"] == ["MANUAL_V2_ARCHIVED"]
+    assert status["predicates"]["play_prompt_ready"] is False
+    assert status["predicates"]["canonical_attempt_bound"] is False
+    with pytest.raises(ValueError, match="does not authorize"):
+        bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
 
 
-def test_readiness_claim_requires_same_attempt_machine_scope(tmp_path: Path) -> None:
+def test_archived_manual_attempt_cannot_issue_readiness_claim(tmp_path: Path) -> None:
     campaign = tmp_path / "campaign"
     output = tmp_path / "output"
     authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
@@ -233,27 +234,8 @@ def test_readiness_claim_requires_same_attempt_machine_scope(tmp_path: Path) -> 
     )
 
     status = bridge_status.resolve_status(tmp_path)
-    claim = bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
-    assert claim["schema"] == bridge_status.CLAIM_SCHEMA
-    assert claim["attempt_id"] == "attempt-2"
-    assert claim["expires_at_unix_ns"] > claim["issued_at_unix_ns"]
-    assert bridge_status.verify_readiness_claim(
-        status,
-        claim,
-        now_ns=claim["issued_at_unix_ns"],
-    ) == claim
-    with pytest.raises(ValueError, match="stale or bound"):
-        bridge_status.verify_readiness_claim(
-            status,
-            claim,
-            now_ns=claim["expires_at_unix_ns"],
-        )
-    with pytest.raises(ValueError, match="stale or bound"):
-        bridge_status.verify_readiness_claim(
-            {**status, "next_action": "different"},
-            claim,
-            now_ns=claim["issued_at_unix_ns"],
-        )
+    with pytest.raises(ValueError, match="does not authorize"):
+        bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
 
 
 def test_failed_latest_attempt_hides_stale_route_status(tmp_path: Path) -> None:
@@ -707,7 +689,7 @@ def test_completed_attempt_preserves_outcome_but_cannot_claim_readiness(
     status = bridge_status.resolve_status(tmp_path)
 
     assert status["state"] == "TERMINAL"
-    assert status["compatibility_phase"] == "COMPLETE"
+    assert status["compatibility_phase"] is None
     assert status["predicates"]["play_prompt_ready"] is False
     assert status["predicates"]["canonical_attempt_bound"] is False
     with pytest.raises(ValueError, match="pre-Play"):

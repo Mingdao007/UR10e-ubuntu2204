@@ -1,4 +1,4 @@
-"""Fast, no-network/no-trial release contract checks for V3 and Manual V2."""
+"""Fast, no-network/no-trial release contract checks for active V3."""
 
 from __future__ import annotations
 
@@ -35,13 +35,13 @@ _PROCESS_ROLE_PATHS = {
     "canonical_launcher": "scripts/step5d-autotune-v3.sh",
     "launcher_supervisor": "tools/run_step5d_autotune_v3_live.py",
     "bridge_wrapper": "tools/run_step5d_autotune_v3_bridge.py",
-    "campaign_runner": "tools/run_step5d_autotune_campaign.py",
+    "campaign_runner": "tools/run_step5d_parameter_campaign.py",
 }
 _PROCESS_ROLE_PROFILES = {
     "canonical_launcher": None,
     "launcher_supervisor": "control",
     "bridge_wrapper": "control",
-    "campaign_runner": "optimizer",
+    "campaign_runner": "control",
 }
 
 
@@ -214,39 +214,6 @@ def release_contract_scope_for_release(
         release_manifest_sha256=release.manifest_sha256,
         source_fingerprint=source["source_fingerprint"],
         source_files_fingerprint=source["source_files_fingerprint"],
-        launcher_sha256=_sha256_file(
-            root / "scripts/step5d-autotune-v3.sh", "canonical launcher"
-        ),
-        control_environment_sha256=_control_environment_sha256(pointer),
-        runtime_epoch=runtime_epoch(pointer),
-        contract_profile=PROFILE,
-    )
-
-
-def manual_release_contract_scope(
-    experiment_root: Path,
-    *,
-    environment: Mapping[str, str] | None = None,
-) -> dict[str, Any]:
-    from promote_step5d_manual_release import load_manual_release
-
-    root = Path(experiment_root).resolve(strict=True)
-    values = os.environ if environment is None else environment
-    try:
-        release = load_manual_release(root)
-    except Exception as exc:
-        raise ReleaseContractError(f"Manual release identity is invalid: {exc}") from exc
-    source = _require_sha256(
-        release.get("source_surface_sha256"), "Manual source surface"
-    )
-    pointer = load_runtime_pointer_identity(environ=values)
-    return release_certificate_scope(
-        subject_kind="manual_v2",
-        release_manifest_sha256=_require_sha256(
-            release.get("manifest_sha256"), "Manual release manifest"
-        ),
-        source_fingerprint=source,
-        source_files_fingerprint=source,
         launcher_sha256=_sha256_file(
             root / "scripts/step5d-autotune-v3.sh", "canonical launcher"
         ),
@@ -459,19 +426,14 @@ def run_release_contract_check(
     root = Path(experiment_root).resolve(strict=True)
     values = os.environ if environment is None else environment
     require_canonical_launcher(root, values)
-    if subject_kind == "autotune_v3":
-        release = _v3_release(root, release_identity)
-        scope = release_contract_scope_for_release(
-            root,
-            release,
-            environment=values,
-        )
-    elif subject_kind == "manual_v2":
-        if release_identity is not None:
-            raise ReleaseContractError("Manual contract does not accept a V3 release")
-        scope = manual_release_contract_scope(root, environment=values)
-    else:
+    if subject_kind != "autotune_v3":
         raise ReleaseContractError(f"unknown release contract subject: {subject_kind}")
+    release = _v3_release(root, release_identity)
+    scope = release_contract_scope_for_release(
+        root,
+        release,
+        environment=values,
+    )
     output = Path(output_root).resolve()
     if output.exists() and (output.is_symlink() or not output.is_dir()):
         raise ReleaseContractError("release contract output root is unsafe")
@@ -568,7 +530,6 @@ __all__ = [
     "RESULT_SCHEMA",
     "ReleaseContractBlocked",
     "ReleaseContractError",
-    "manual_release_contract_scope",
     "production_process_role_paths",
     "production_process_tree_fingerprint",
     "release_contract_scope_for_release",

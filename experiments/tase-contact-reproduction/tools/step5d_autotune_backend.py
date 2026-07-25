@@ -25,6 +25,7 @@ from step5d_autotune_contract import (
     TrialSpec,
     sha256_json,
 )
+from step5d_autotune_runtime_contract import PreparedFingerprint, PreparedTrial
 from step5d_autotune_evaluator import evaluate_csv
 from step5d_autotune_replay import (
     build_candidate_bound_search_attestation,
@@ -64,15 +65,6 @@ class FrozenFingerprint:
 
 
 @dataclass(frozen=True)
-class PreparedFingerprint:
-    """Fingerprint subset consumed by the production mailbox boundary."""
-
-    source_fingerprint: str
-    config_fingerprint: str
-    composite_fingerprint: str
-
-
-@dataclass(frozen=True)
 class BackendPreflight:
     ok: bool
     offline_only: bool
@@ -83,24 +75,6 @@ class BackendPreflight:
     live_authorized: bool
     blockers: tuple[str, ...]
     evidence: Mapping[str, Any]
-
-
-@dataclass(frozen=True)
-class PreparedTrial:
-    trial: TrialSpec
-    frozen: FrozenFingerprint | PreparedFingerprint
-    environment: Mapping[str, str]
-    runner_arguments: tuple[str, ...]
-    # V3 may bind the complete validated per-trial overlay at READY_HOME.
-    # V1 callers leave this unset and retain the frozen legacy mailbox schema.
-    trial_overlay: Mapping[str, Any] | None = None
-    # Hash of the exact normalized overlay selected from the rolling plan.
-    trial_overlay_sha256: str | None = None
-    # Exact V3 BatchIdentity row; transport-only and never inferred from trial_id.
-    batch_row_index: int | None = None
-    occurrence_uid: str | None = None
-    transport_candidate_uid: str | None = None
-    control_candidate_uid: str | None = None
 
 
 @dataclass(frozen=True)

@@ -550,20 +550,6 @@ def test_promotion_rewrites_selected_release_mirrors_to_r012() -> None:
         tp_program_id=PROGRAM,
     )
     assert launch["tp_program_id"] == PROGRAM
-    manual_source = json.loads(
-        (ROOT / "config/step5d/manual/launch_profile.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    manual_launch = promoter._render_launch_profile(
-        manual_source,
-        contract_sha256="7" * 64,
-        tp_program_id=str(manual_source["tp_program_id"]),
-    )
-    assert manual_launch["tp_program_id"] == "step5d_strict_rnn_autotune_v3_r009"
-    assert manual_launch["control_contract_sha256"] == "7" * 64
-
-
 def test_promotion_outputs_contain_identity_without_cached_live_state() -> None:
     candidate = promoter._local_candidate(
         program_id=PROGRAM,
@@ -595,9 +581,9 @@ def test_active_release_source_fingerprint_drift_fails_closed(
     tmp_path: Path,
 ) -> None:
     _release_fixture(tmp_path)
-    relative = "tools/step5d_autotune_coordinator.py"
+    relative = "tools/run_step5d_parameter_campaign.py"
     source = tmp_path / relative
-    source.write_text("# drifted coordinator source\n", encoding="utf-8")
+    source.write_text("# drifted receiver source\n", encoding="utf-8")
 
     with pytest.raises(ReleaseIdentityError, match="source file fingerprint drifted"):
         load_current_release(tmp_path)

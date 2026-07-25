@@ -201,18 +201,28 @@ def test_live_routes_both_configs_through_immutable_bundle(
     monkeypatch.setattr(
         live, "require_runtime_profile", lambda _profile: _runtime_pointer()
     )
-    monkeypatch.setattr(
-        live,
-        "load_gpu_functional_attestation",
-        lambda **_kwargs: ({}, {"path": "/gpu.json", "sha256": "e" * 64}),
-    )
     monkeypatch.setattr(live, "load_runtime_release", lambda _root: release)
     monkeypatch.setattr(live, "load_delivery_observation", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(live, "load_contract", load_contract)
     monkeypatch.setattr(live, "load_launch_profile", load_profile)
     monkeypatch.setattr(
         live,
-        "prepare_campaign_state",
+        "check_effective_config",
+        lambda **_kwargs: {"effective_config": {"robot_host": "192.0.2.1"}},
+    )
+    monkeypatch.setattr(
+        live,
+        "build_bridge_argv",
+        lambda *_args, **_kwargs: ["python", "bridge"],
+    )
+    monkeypatch.setattr(
+        live,
+        "_validate_preflight",
+        lambda *_args, **_kwargs: {"controller_identity_sha256": "e" * 64},
+    )
+    monkeypatch.setattr(
+        live,
+        "prepare",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RoutingObserved()),
     )
 
@@ -262,7 +272,7 @@ def test_live_prepare_only_ignores_mutable_launch_override(
     monkeypatch.setattr(live, "load_launch_profile", load_profile)
     monkeypatch.setattr(
         live,
-        "prepare_campaign_state",
+        "prepare",
         lambda *_args, **_kwargs: {"ok": True},
     )
 

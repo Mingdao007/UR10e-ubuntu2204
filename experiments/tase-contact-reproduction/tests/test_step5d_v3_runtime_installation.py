@@ -268,10 +268,8 @@ def test_shell_binding_uses_identity_pointer_before_command_full_gate(
     assert resolver.main(["--shell-binding"]) == 0
     fields = capsys.readouterr().out.strip().split("\t")
     assert calls == ["identity"]
-    assert fields[:2] == [
-        pointer["profiles"]["control"]["python_executable"],
-        pointer["profiles"]["optimizer"]["python_executable"],
-    ]
+    assert fields[0] == pointer["profiles"]["control"]["python_executable"]
+    assert pointer["profiles"]["optimizer"]["python_executable"] not in fields
     assert fields[-2:] == [
         "/runtime/control/nvidia",
         "/runtime/cache/cupy",

@@ -261,7 +261,7 @@ def test_authoritative_gate_binds_the_production_vertical_slice() -> None:
         "tests/test_step5d_runtime_environment.py",
         "tests/test_step5d_autotune_live_driver.py",
         "tests/test_step5d_autotune_v3_bridge_wrapper.py",
-        "tests/test_step5d_autotune_v3_trial_overlay_mailbox.py",
+        "tests/test_step5d_parameter_queue.py",
     } <= active
 
 
@@ -279,7 +279,7 @@ def test_historical_incident_regressions_are_authoritative_and_resolvable() -> N
         "r005_typed_closure_v2_independent_cold_read",
         "r005_post_ack_prefixed_csv_schema",
         "r005_batch_bootstrap_null_source_reaches_arm2",
-        "r009_plan_overlay_control_uid_composition",
+        "initial_parameters_seed_once_without_physical_replay",
         "p0_v7_outer_output_requires_cmd_valid",
         "r010_manual_required_launch_fields",
         "r010_release_manifest_path_required",

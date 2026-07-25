@@ -1,1 +1,183 @@
-{"schema":"step5d.autotune-v3/active-surface-v3","release_stage_id":"step5d_strict_rnn_autotune_v3","control_profile_id":"step5d_strict_rnn_autotune_v1","host_protocol":"v3_full_home_rolling_arm_v1","recovery_loaded_program_ids":["step5d_strict_rnn_autotune_v3_r009","step5d_strict_rnn_autotune_v3_r010","step5d_strict_rnn_autotune_v3_r011"],"tp_program_disposition":"immutable_identity_only_readiness_is_observed","release_truth":{"current_pointer":"config/step5d/current.json","manifest_schema":"step5d.autotune-v3/release-manifest-v3","observed_attestation_location":"campaign_root/governance/evidence","dynamic_readiness_fields_forbidden":["bridge_start_ready","bench_ready","loaded","playing","running"]},"entrypoints":{"public_live":"scripts/step5d-autotune-v3.sh bridge-live","public_release_contract":"scripts/step5d-autotune-v3.sh release-contract-check","public_tp_delivery":"scripts/step5d-autotune-v3.sh tp-deliver","public_runtime_revalidation":"scripts/step5d-autotune-v3.sh revalidate-current","public_status":"scripts/step5d-autotune-v3.sh status --json","compatibility_adapter":"scripts/step5d-autotune-live.sh bridge","internal_workers":["tools/run_step5d_autotune_v3_live.py","tools/run_step5d_autotune_v3_bridge.py","tools/run_step5d_autotune_campaign.py","tools/run_step5d_release_contract.py"]},"compatibility_adapter":{"path":"scripts/step5d-autotune-live.sh","delegates_to":"scripts/step5d-autotune-v3.sh","allowed_subcommands":["bridge"],"last_supported_tp_revision":10,"after_cutoff":"deterministic_exit_64","writes_before_exec":false},"retired_entrypoints":["scripts/step5d-liveprep-operator.sh","scripts/step5d-workflow.sh"],"control_oracle":{"commit":"6f9ef0912842ac003545eb1906b38d13c7552218","tag":"archive/step5d-autotune-v1-20260715"},"active_tick_semantics":{"controller":"frozen_v1_stage25_control","forbidden":["moving_sphere","certification_commands","custom_speedl_return","motion_owning_return_observer"],"safety":["frozen_v1_guards","stage23_prealign_xyz_3mm_and_orientation_2deg","stage24_search_orientation_2deg","stage25_heartbeat_stale_1s"],"v3_deltas":["physical_prior_load_gated_initialization","two_movel_precontact","ten_row_batch_lifecycle","typed_single_owner_three_movel_return","read_only_return_telemetry_observer","direct_terminal_commit_then_next_arm_without_ack"]},"excluded_identity_inputs":["absolute_paths","timestamps","process_ids","hostnames","output_roots","current_or_latest_pointers","selector_documentation","artifact_self_hash"],"active_orchestration_paths":["scripts/step5d-autotune-v3.sh","tools/build_step5d_autotune_tp_v3.py","tools/check_step5d_autotune_v3_bridge_admission.py","tools/kunwei_rtde_bridge.py","tools/preflight_step5d_autotune_v3.py","tools/prepare_step5d_autotune_launch.py","tools/promote_step5d_r009_atomic_release.py","tools/run_step5d_autotune_campaign.py","tools/run_step5d_autotune_v3_bridge.py","tools/run_step5d_autotune_v3_live.py","tools/run_step5d_autotune_v3_tp_transaction.py","tools/run_step5d_release_contract.py","tools/resolve_step5d_bridge_route.py","tools/step5d_bridge_authority.py","tools/step5d_bridge_status.py","tools/step5d_autotune_backend.py","tools/step5d_autotune_batch_plan.py","tools/step5d_autotune_contract.py","tools/step5d_autotune_coordinator.py","tools/step5d_autotune_journal.py","tools/step5d_autotune_live_driver.py","tools/step5d_autotune_optimizer.py","tools/step5d_autotune_r008_policy.py","tools/step5d_autotune_runtime_lifecycle.py","tools/step5d_autotune_state_machine.py","tools/step5d_autotune_store.py","tools/step5d_autotune_supervisor.py","tools/step5d_production_csv.py","tools/step5d_r008_completion.py","tools/step5d_runtime_interface.py","tools/validate_step5d_layer_boundaries.py","tools/step5d_autotune_v3/__init__.py","tools/step5d_autotune_v3/admission.py","tools/step5d_autotune_v3/atomic_io.py","tools/step5d_autotune_v3/atomic_release.py","tools/step5d_autotune_v3/batch_producer.py","tools/step5d_autotune_v3/bridge_admission.py","tools/step5d_autotune_v3/campaign_prepare.py","tools/step5d_autotune_v3/cli.py","tools/step5d_autotune_v3/control_policy.py","tools/step5d_autotune_v3/dashboard.py","tools/step5d_autotune_v3/delivery_observation.py","tools/step5d_autotune_v3/governance.py","tools/step5d_autotune_v3/identity_layers.py","tools/step5d_autotune_v3/launcher.py","tools/step5d_autotune_v3/optimizer_deployment.py","tools/step5d_autotune_v3/optimizer_payloads.py","tools/step5d_autotune_v3/optimizer_policy.py","tools/step5d_autotune_v3/optimizer_protocol.py","tools/step5d_autotune_v3/optimizer_types.py","tools/step5d_autotune_v3/optimizer_wire.py","tools/step5d_autotune_v3/optimizer_worker.py","tools/step5d_autotune_v3/postprocess.py","tools/step5d_autotune_v3/preflight_support.py","tools/step5d_autotune_v3/profile.py","tools/step5d_autotune_v3/public_state.py","tools/step5d_autotune_v3/release_certificate.py","tools/step5d_autotune_v3/release_contract.py","tools/step5d_autotune_v3/release_identity.py","tools/step5d_autotune_v3/release_transition.py","tools/step5d_autotune_v3/release_verifier.py","tools/step5d_autotune_v3/rtde_client.py","tools/step5d_autotune_v3/runtime_calibration.py","tools/step5d_autotune_v3/runtime_environment.py","tools/step5d_autotune_v3/runtime_functional_gates.py","tools/step5d_autotune_v3/runtime_gate.py","tools/step5d_autotune_v3/runtime_identity.py","tools/step5d_autotune_v3/runtime_installation.py","tools/step5d_autotune_v3/runtime_observation.py","tools/step5d_autotune_v3/runtime_profile.py","tools/step5d_autotune_v3/service.py","tools/step5d_autotune_v3/shared_contracts.py","tools/step5d_autotune_v3/source_closure.py","tools/step5d_autotune_v3/state.py","tools/step5d_autotune_v3/trial_contract_admission.py"],"runtime_identity":{"protocol_output_integer_register":35,"digest_output_integer_registers":[36,37],"degraded_identity_allowed":false},"release_claims":{"step5d_strict_rnn_autotune_v3_r011":"historical_superseded_with_runtime_identity_oracle","step5d_strict_rnn_autotune_v3_r010":"historical_superseded_with_runtime_identity_oracle","step5d_strict_rnn_autotune_v3_r009":"historical_superseded_missing_runtime_identity_oracle","step5d_strict_rnn_autotune_v3_r008":"historical_superseded_release","step5d_strict_rnn_autotune_v3_r006":"historical_incompatible_release","step5d_strict_rnn_autotune_v3_r004":"historical_incompatible_release"},"historical_only":["programs/step5/step5d/step5d_strict_rnn_autotune_v3_r004.script","programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.script","programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.txt","programs/step5/step5d/step5d_strict_rnn_autotune_v3_r005.urp","programs/step5/step5d/step5d_strict_rnn_autotune_v3_r006.script","programs/step5/step5d/step5d_strict_rnn_autotune_v3_r008.script","programs/step5/step5d/step5d_strict_rnn_autotune_v3_r009.script","tests/test_step5d_v3_r004_release_candidate.py","tests/test_step5d_r006_production_chain.py","tests/test_step5d_r008_production_chain.py","tools/promote_step5d_autotune_v3_delivery.py","tools/build_step5d_autotune_v3_bridge_start_context.py","tools/verify_step5d_autotune_v3_execution_readiness.py","tools/step5d_autotune_v3/arming.py","tools/step5d_autotune_v3/readiness.py","tools/step5d_workflow_state.py","tools/step5d_autotune_v3/certification.py","tools/issue_step5d_autotune_v3_certification_authorization.py","tools/finalize_step5d_autotune_v3_certification.py","../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/moving_sphere.py","../../src/ur10e_experiment_runtime/ur10e_experiment_runtime/authorization.py"],"tp_commands":{"arm":1,"operator_stop_request":3,"active_allowed":[1,3,4],"legacy_replay_only_ack":2,"retired":[5,6]},"current_release_pointer":"config/step5d/current.json","deployment_source":"current release manifest artifact references"}
+{
+  "schema": "step5d.autotune-v3/active-surface-v3",
+  "release_stage_id": "step5d_strict_rnn_autotune_v3",
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "host_protocol": "v3_full_home_rolling_arm_v1",
+  "current_release_pointer": "config/step5d/current.json",
+  "deployment_source": "current release manifest artifact references",
+  "tp_program_disposition": "immutable_identity_only_readiness_is_observed",
+  "recovery_loaded_program_ids": [
+    "step5d_strict_rnn_autotune_v3_r009",
+    "step5d_strict_rnn_autotune_v3_r010",
+    "step5d_strict_rnn_autotune_v3_r011"
+  ],
+  "release_truth": {
+    "current_pointer": "config/step5d/current.json",
+    "manifest_schema": "step5d.autotune-v3/release-manifest-v3",
+    "observed_attestation_location": "campaign_root/governance/evidence",
+    "dynamic_readiness_fields_forbidden": [
+      "bridge_start_ready",
+      "bench_ready",
+      "loaded",
+      "playing",
+      "running"
+    ]
+  },
+  "entrypoints": {
+    "public_live": "scripts/step5d-autotune-v3.sh bridge-live",
+    "public_release_contract": "scripts/step5d-autotune-v3.sh release-contract-check",
+    "public_tp_delivery": "scripts/step5d-autotune-v3.sh tp-deliver",
+    "public_runtime_revalidation": "scripts/step5d-autotune-v3.sh revalidate-current",
+    "public_status": "scripts/step5d-autotune-v3.sh status --json",
+    "compatibility_adapter": "scripts/step5d-autotune-live.sh bridge",
+    "internal_workers": [
+      "tools/run_step5d_autotune_v3_live.py",
+      "tools/run_step5d_autotune_v3_bridge.py",
+      "tools/run_step5d_parameter_campaign.py",
+      "tools/run_step5d_release_contract.py"
+    ]
+  },
+  "parameter_flow": {
+    "receiver": "unbounded_file_queue",
+    "inflight_limit": 1,
+    "priority": "next_then_fifo",
+    "initial_source": "config/step5d/parameter_receiver_initial.json",
+    "optimizer_role": "optional_external_sender",
+    "optimizer_required_for_experiment": false,
+    "physical_replay_allowed": false,
+    "data_failure_policy": "record_terminal_and_continue"
+  },
+  "idle_policy": {
+    "tp_no_command_timeout_s": null,
+    "host_wait_for_play_timeout_s": null
+  },
+  "archived_routes": {
+    "manual_v2": "historical_only_no_runtime_entrypoint"
+  },
+  "compatibility_adapter": {
+    "path": "scripts/step5d-autotune-live.sh",
+    "delegates_to": "scripts/step5d-autotune-v3.sh",
+    "allowed_subcommands": [
+      "bridge"
+    ],
+    "last_supported_tp_revision": 10,
+    "after_cutoff": "deterministic_exit_64",
+    "writes_before_exec": false
+  },
+  "retired_entrypoints": [
+    "scripts/step5d-liveprep-operator.sh",
+    "scripts/step5d-workflow.sh"
+  ],
+  "active_orchestration_paths": [
+    "scripts/step5d-autotune-v3.sh",
+    "tools/build_step5d_autotune_tp_v3.py",
+    "tools/check_step5d_autotune_v3_bridge_admission.py",
+    "tools/kunwei_rtde_bridge.py",
+    "tools/preflight_step5d_autotune_v3.py",
+    "tools/prepare_step5d_autotune_launch.py",
+    "tools/promote_step5d_r009_atomic_release.py",
+    "tools/resolve_step5d_autotune_v3_runtime.py",
+    "tools/resolve_step5d_bridge_route.py",
+    "tools/run_step5d_autotune_v3_bridge.py",
+    "tools/run_step5d_autotune_v3_live.py",
+    "tools/run_step5d_autotune_v3_tp_transaction.py",
+    "tools/run_step5d_parameter_campaign.py",
+    "tools/run_step5d_release_contract.py",
+    "tools/step5d_autotune_live_driver.py",
+    "tools/step5d_autotune_runtime_contract.py",
+    "tools/step5d_bridge_authority.py",
+    "tools/step5d_bridge_status.py",
+    "tools/step5d_campaign_identity.py",
+    "tools/step5d_parameter_manifest.py",
+    "tools/step5d_parameter_queue.py",
+    "tools/step5d_runtime_codec.py",
+    "tools/step5d_autotune_v3/__init__.py",
+    "tools/step5d_autotune_v3/atomic_io.py",
+    "tools/step5d_autotune_v3/atomic_release.py",
+    "tools/step5d_autotune_v3/bridge_admission.py",
+    "tools/step5d_autotune_v3/cli.py",
+    "tools/step5d_autotune_v3/dashboard.py",
+    "tools/step5d_autotune_v3/delivery_observation.py",
+    "tools/step5d_autotune_v3/governance.py",
+    "tools/step5d_autotune_v3/identity_layers.py",
+    "tools/step5d_autotune_v3/launcher.py",
+    "tools/step5d_autotune_v3/postprocess.py",
+    "tools/step5d_autotune_v3/preflight_support.py",
+    "tools/step5d_autotune_v3/profile.py",
+    "tools/step5d_autotune_v3/public_state.py",
+    "tools/step5d_autotune_v3/release_certificate.py",
+    "tools/step5d_autotune_v3/release_contract.py",
+    "tools/step5d_autotune_v3/release_identity.py",
+    "tools/step5d_autotune_v3/release_transition.py",
+    "tools/step5d_autotune_v3/release_verifier.py",
+    "tools/step5d_autotune_v3/rtde_client.py",
+    "tools/step5d_autotune_v3/runtime_calibration.py",
+    "tools/step5d_autotune_v3/runtime_environment.py",
+    "tools/step5d_autotune_v3/runtime_gate.py",
+    "tools/step5d_autotune_v3/runtime_identity.py",
+    "tools/step5d_autotune_v3/runtime_installation.py",
+    "tools/step5d_autotune_v3/runtime_observation.py",
+    "tools/step5d_autotune_v3/runtime_profile.py",
+    "tools/step5d_autotune_v3/service.py",
+    "tools/step5d_autotune_v3/source_closure.py",
+    "tools/step5d_autotune_v3/state.py"
+  ],
+  "historical_only": [
+    "tools/run_step5d_autotune_campaign.py",
+    "tools/promote_step5d_manual_release.py",
+    "tools/run_step5d_manual_bridge.py",
+    "tools/run_step5d_manual_bridge_live.py",
+    "tools/run_step5d_manual_live_campaign.py",
+    "tools/step5d_manual_bridge.py",
+    "tools/step5d_manual_release_contract.py",
+    "tools/step5d_manual_status.py",
+    "tools/step5d_autotune_v3/admission.py",
+    "tools/step5d_autotune_v3/arming.py",
+    "tools/step5d_autotune_v3/batch_producer.py",
+    "tools/step5d_autotune_v3/campaign_prepare.py",
+    "tools/step5d_autotune_v3/certification.py",
+    "tools/step5d_autotune_v3/control_policy.py",
+    "tools/step5d_autotune_v3/optimizer_deployment.py",
+    "tools/step5d_autotune_v3/optimizer_payloads.py",
+    "tools/step5d_autotune_v3/optimizer_policy.py",
+    "tools/step5d_autotune_v3/optimizer_protocol.py",
+    "tools/step5d_autotune_v3/optimizer_types.py",
+    "tools/step5d_autotune_v3/optimizer_wire.py",
+    "tools/step5d_autotune_v3/optimizer_worker.py",
+    "tools/step5d_autotune_v3/readiness.py",
+    "tools/step5d_autotune_v3/runtime_functional_gates.py",
+    "tools/step5d_autotune_v3/shared_contracts.py",
+    "tools/step5d_autotune_v3/trial_contract_admission.py",
+    "programs/step5/step5d/step5d_strict_rnn_manual_tune_v2.urp"
+  ],
+  "release_claims": {
+    "step5d_strict_rnn_autotune_v3_r011": "historical_superseded_with_runtime_identity_oracle",
+    "step5d_strict_rnn_autotune_v3_r010": "historical_superseded_with_runtime_identity_oracle",
+    "step5d_strict_rnn_autotune_v3_r009": "historical_superseded_missing_runtime_identity_oracle",
+    "step5d_strict_rnn_autotune_v3_r008": "historical_superseded_release",
+    "step5d_strict_rnn_autotune_v3_r006": "historical_incompatible_release",
+    "step5d_strict_rnn_autotune_v3_r004": "historical_incompatible_release"
+  },
+  "runtime_identity": {
+    "protocol_output_integer_register": 35,
+    "digest_output_integer_registers": [
+      36,
+      37
+    ],
+    "degraded_identity_allowed": false
+  },
+  "tp_commands": {
+    "arm": 1,
+    "operator_stop_request": 3,
+    "active_allowed": [
+      1,
+      3,
+      4
+    ],
+    "legacy_replay_only_ack": 2,
+    "retired": [
+      5,
+      6
+    ]
+  }
+}

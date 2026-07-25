@@ -152,12 +152,6 @@ def production_runtime_environment(
                 "python_executable"
             ],
             "STEP5D_V3_GPU_UUID": contract["gpu"]["uuid"],
-            "STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID": pointer["profiles"]["optimizer"][
-                "environment_id"
-            ],
-            "STEP5D_V3_OPTIMIZER_PYTHON": pointer["profiles"]["optimizer"][
-                "python_executable"
-            ],
             "STEP5D_V3_RUNTIME_ATTESTATION_SHA256": pointer[
                 "attestation_sha256"
             ],
@@ -182,6 +176,16 @@ def production_runtime_environment(
             }
         )
     else:
+        environment.update(
+            {
+                "STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID": pointer["profiles"][
+                    "optimizer"
+                ]["environment_id"],
+                "STEP5D_V3_OPTIMIZER_PYTHON": pointer["profiles"]["optimizer"][
+                    "python_executable"
+                ],
+            }
+        )
         environment["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     if additions is not None:
         if any(

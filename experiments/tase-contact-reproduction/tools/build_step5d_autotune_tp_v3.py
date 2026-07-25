@@ -47,7 +47,6 @@ MINIMUM_START_ABOVE_ENTRY_M = 0.01
 # shorter TP timeout would turn ordinary host scheduling jitter into a false
 # transport-loss stop and would no longer be V1 control-kernel parity.
 STAGE25_STALE_COMMAND_HOLD_S = 1.000
-READY_ARM_TIMEOUT_S = 30.000
 CONTROLLER_DIR = v1.CONTROLLER_DIR
 LOCAL_PROGRAM_DIR = v1.LOCAL_PROGRAM_DIR
 
@@ -377,8 +376,7 @@ def codex_autotune_fault_forever(campaign_epoch, trial_id, candidate_token, term
 end
 
 def codex_autotune_wait_for_arm(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):
-  local waiting_s = 0.0
-  while waiting_s < {READY_ARM_TIMEOUT_S:.3f}:
+  while True:
     codex_autotune_write_state(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq)
     local next_command = read_input_integer_register(26)
     local next_sequence = read_input_integer_register(29)
@@ -392,10 +390,7 @@ def codex_autotune_wait_for_arm(campaign_epoch, trial_id, state, candidate_token
       codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 13, execution_profile_id, consumed_command_seq)
     end
     sync()
-    waiting_s = waiting_s + get_steptime()
   end
-  codex_autotune_publish_fault_and_halt(campaign_epoch, trial_id, candidate_token, 19, execution_profile_id, consumed_command_seq)
-  return False
 end'''
     legacy_ack = '''        # Host may ACK only after immutable bundle + host 0.5 s safe closure.
         codex_autotune_write_state(campaign_epoch, trial_id, 70, candidate_token, stop_reason, execution_profile_id, last_consumed_command_seq)
@@ -660,10 +655,15 @@ def validate_rendered_script(
         "write_output_integer_register(36, codex_step5d_runtime_digest_hi)",
         "write_output_integer_register(37, codex_step5d_runtime_digest_lo)",
         "codex_step5d_publish_runtime_identity()",
-        f"while waiting_s < {READY_ARM_TIMEOUT_S:.3f}",
+        "def codex_autotune_wait_for_arm(campaign_epoch, trial_id, state, candidate_token, terminal_reason, execution_profile_id, consumed_command_seq):",
+        "  while True:",
         "codex_autotune_wait_for_arm(0, 0, 10, 0, 0, 0, 0)",
         "codex_autotune_publish_fault_and_halt",
     )
+    if "while waiting_s <" in script:
+        raise ValueError("V3 TP still contains bounded ready-home wait loop")
+    if "candidate_token, 19, execution_profile_id" in script:
+        raise ValueError("V3 TP still contains terminal reason 19")
     missing = [marker for marker in required if marker not in script]
     if missing:
         raise ValueError(f"V3 TP script lacks required markers: {missing}")
@@ -831,7 +831,7 @@ Frozen control contract:
   Five-trial logical batches roll without imposing a physical stop at row 5 or 10.
   ACK_BUNDLE and WAIT_ACK are not active. A fresh next ARM is accepted only after
   the host has durably committed and cold-read the previous trial bundle.
-  READY_HOME_NEXT waits at most {READY_ARM_TIMEOUT_S:.0f} s without motion.
+  READY_HOME_NEXT waits indefinitely for ARM/STOP/COMPLETE while stationary.
 """
 
 
@@ -902,7 +902,7 @@ def numeric_sanity(script: str, *, program_id: str) -> dict[str, Any]:
         "precontact_z_policy": "contact_plus_0p1s_robust_z_plus_0p005m_clearance",
         "qdot_cap_rad_s": 0.5,
         "stage25_stale_command_hold_s": STAGE25_STALE_COMMAND_HOLD_S,
-        "ready_arm_timeout_s": READY_ARM_TIMEOUT_S,
+        "ready_arm_timeout_s": None,
         "precontact_entry_accel_m_s2": 0.135,
         "precontact_entry_speed_m_s": 0.09,
         "far_search_speed_m_s": 0.03375,

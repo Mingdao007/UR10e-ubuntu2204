@@ -17,10 +17,8 @@ from typing import Any
 
 from step5d_autotune_v3.runtime_gate import loaded_program_matches
 from step5d_autotune_v3.governance import read_proc_starttime_ticks
-from step5d_autotune_v3.release_contract import (
-    manual_release_contract_scope,
-    validate_release_contract_result,
-)
+from step5d_autotune_v3.release_contract import validate_release_contract_result
+from step5d_manual_release_contract import manual_release_contract_scope
 from step5d_autotune_v3.state import atomic_json
 from step5d_manual_bridge import PROGRAM, ROOT
 from ur10e_parallel import ResourceProfile, writer_lease_owner

@@ -20,7 +20,6 @@ Options:
                            observation; current release resolves it by default
   --launch-profile PATH    Compatibility-only canonical profile path
   --ready-timeout-s SEC    Positive bridge/runner readiness timeout
-  --play-timeout-s SEC     Positive TP Play observation timeout
   -h, --help               Show this help without starting any work
 EOF
 }
@@ -341,7 +340,6 @@ delivery_observation=""
 canonical_launch_profile="${EXPERIMENT_ROOT}/config/step5/step5d_autotune_v3_launch_profile.json"
 runner_args=()
 ready_timeout_s="20"
-play_timeout_s="900"
 launch_attempt_id=""
 launch_attempt_phase=""
 launch_attempt_enabled=0
@@ -382,21 +380,20 @@ if [[ "${1:-}" == "bridge-live" ]]; then
   seen_delivery_observation=0
   seen_launch_profile=0
   seen_ready_timeout=0
-  seen_play_timeout=0
   index=0
   while (( index < ${#arguments[@]} )); do
     option="${arguments[index]}"
     option_name="${option%%=*}"
     value=""
     case "${option}" in
-      --output-root|--campaign-root|--delivery-observation|--launch-profile|--ready-timeout-s|--play-timeout-s)
+      --output-root|--campaign-root|--delivery-observation|--launch-profile|--ready-timeout-s)
         if (( index + 1 >= ${#arguments[@]} )) || [[ "${arguments[index + 1]}" == -* ]]; then
           bridge_argv_error "${option} requires a value"
         fi
         value="${arguments[index + 1]}"
         ((index += 2))
         ;;
-      --output-root=*|--campaign-root=*|--delivery-observation=*|--launch-profile=*|--ready-timeout-s=*|--play-timeout-s=*)
+      --output-root=*|--campaign-root=*|--delivery-observation=*|--launch-profile=*|--ready-timeout-s=*)
         value="${option#*=}"
         if [[ -z "${value}" ]]; then
           bridge_argv_error "${option_name} requires a value"
@@ -442,13 +439,6 @@ if [[ "${1:-}" == "bridge-live" ]]; then
         seen_ready_timeout=1
         bridge_require_positive_seconds "${option_name}" "${value}"
         ready_timeout_s="${value}"
-        runner_args+=("${option_name}" "${value}")
-        ;;
-      --play-timeout-s)
-        (( seen_play_timeout == 0 )) || bridge_argv_error "--play-timeout-s may appear only once"
-        seen_play_timeout=1
-        bridge_require_positive_seconds "${option_name}" "${value}"
-        play_timeout_s="${value}"
         runner_args+=("${option_name}" "${value}")
         ;;
     esac
@@ -686,7 +676,7 @@ if (( bridge_mode == 1 )); then
     output_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/bridge-${attempt_suffix}"
   fi
   if [[ -z "${campaign_root}" ]]; then
-    campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/campaign-${attempt_suffix}"
+    campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/parameter-campaign"
   fi
   output_root="$(readlink -m -- "${output_root}")"
   campaign_root="$(readlink -m -- "${campaign_root}")"
@@ -710,30 +700,26 @@ if ! runtime_binding="$(/usr/bin/python3.10 -B -I "${RUNTIME_RESOLVER}" --shell-
 fi
 IFS=$'\t' read -r \
   CONTROL_PYTHON \
-  OPTIMIZER_PYTHON \
   RUNTIME_BUNDLE_ID \
   RUNTIME_ATTESTATION_SHA256 \
   RUNTIME_CONTRACT_SHA256 \
   RUNTIME_LOCK_SHA256 \
   CONTROL_ENVIRONMENT_ID \
-  OPTIMIZER_ENVIRONMENT_ID \
   GOVERNED_GPU_UUID \
   CONTROL_LD_LIBRARY_PATH \
   CONTROL_CUPY_CACHE_DIR <<<"${runtime_binding}"
 runtime_fields=(
   "${CONTROL_PYTHON:-}"
-  "${OPTIMIZER_PYTHON:-}"
   "${RUNTIME_BUNDLE_ID:-}"
   "${RUNTIME_ATTESTATION_SHA256:-}"
   "${RUNTIME_CONTRACT_SHA256:-}"
   "${RUNTIME_LOCK_SHA256:-}"
   "${CONTROL_ENVIRONMENT_ID:-}"
-  "${OPTIMIZER_ENVIRONMENT_ID:-}"
   "${GOVERNED_GPU_UUID:-}"
   "${CONTROL_LD_LIBRARY_PATH:-}"
   "${CONTROL_CUPY_CACHE_DIR:-}"
 )
-if (( ${#runtime_fields[@]} != 11 )); then
+if (( ${#runtime_fields[@]} != 9 )); then
   bridge_runtime_fail 78 CONTROL_RUNTIME_INVALID \
     "governed runtime resolver returned an invalid field count"
 fi
@@ -743,7 +729,7 @@ for field in "${runtime_fields[@]}"; do
       "governed runtime resolver returned an unsafe field"
   fi
 done
-if [[ ! -x "${CONTROL_PYTHON}" || ! -x "${OPTIMIZER_PYTHON}" ]]; then
+if [[ ! -x "${CONTROL_PYTHON}" ]]; then
   bridge_runtime_fail 78 CONTROL_RUNTIME_INVALID \
     "governed runtime interpreter is unavailable"
 fi
@@ -786,8 +772,6 @@ export PYTHONNOUSERSITE=1
 export STEP5D_V3_CONTROL_ENVIRONMENT_ID="${CONTROL_ENVIRONMENT_ID}"
 export STEP5D_V3_CONTROL_PYTHON="${CONTROL_PYTHON}"
 export STEP5D_V3_GPU_UUID="${GOVERNED_GPU_UUID}"
-export STEP5D_V3_OPTIMIZER_ENVIRONMENT_ID="${OPTIMIZER_ENVIRONMENT_ID}"
-export STEP5D_V3_OPTIMIZER_PYTHON="${OPTIMIZER_PYTHON}"
 export STEP5D_V3_RUNTIME_ATTESTATION_SHA256="${RUNTIME_ATTESTATION_SHA256}"
 export STEP5D_V3_RUNTIME_BUNDLE_ID="${RUNTIME_BUNDLE_ID}"
 if [[ "${1:-}" == "status" && "${2:-}" == "--json" ]]; then
@@ -896,110 +880,6 @@ if (( bridge_mode == 1 )); then
   if (( route_resolve_rc != 0 )); then
     echo "canonical route resolution stopped: ${route_reason_code}" >&2
     exit "${route_resolve_rc}"
-  fi
-  if [[ "${bridge_route}" == "manual_v2" ]]; then
-    manual_release_sha="${resolved_release_sha}"
-    manual_context="${output_root}/manual-bridge-context.json"
-    manual_preflight="${output_root}/manual-preflight.json"
-    manual_queue="${campaign_root}/control/manual_queue.json"
-    manual_state="${campaign_root}/control/manual_runtime_state.json"
-    manual_contract_command="${output_root}/manual-release-contract-command.json"
-    bridge_acquire_authority
-    manual_campaign_id="manual-v2-${launch_attempt_id}"
-    bridge_begin_phase manual_release_contract
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_release_contract.py" \
-      --experiment-root "${EXPERIMENT_ROOT}" \
-      --output-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
-      --manual \
-      >"${manual_contract_command}"
-    manual_contract_certificate="$(
-      "${CONTROL_PYTHON}" -c \
-        'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["certificate"]["path"])' \
-        "${manual_contract_command}"
-    )"
-    bridge_begin_phase manual_context
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/build_step5d_manual_bridge_start_context.py" \
-      --root "${EXPERIMENT_ROOT}" \
-      --plant-epoch 1 \
-      --output "${manual_context}" \
-      >"${output_root}/manual-context-result.json"
-    bridge_begin_phase manual_preflight
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/preflight_step5d_manual_bridge.py" \
-      --mailbox "${output_root}/runtime/command.json" \
-      --bridge-start-context "${manual_context}" \
-      --output "${manual_preflight}" \
-      >"${output_root}/manual-preflight.log"
-    bridge_begin_phase manual_bridge_start
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_manual_bridge_live.py" \
-      --output-root "${output_root}" \
-      --bridge-start-context "${manual_context}" \
-      --preflight "${manual_preflight}" \
-      --launch-attempt-id "${launch_attempt_id}" \
-      --campaign-id "${manual_campaign_id}" \
-      --canonical-owner-pid "$$" \
-      --canonical-owner-starttime "${launch_owner_starttime}" \
-      --ready-timeout-s "${ready_timeout_s}" \
-      >"${output_root}/manual-bridge-owner.log" 2>&1 &
-    manual_bridge_owner_pid=$!
-    # shellcheck disable=SC2329  # Invoked by the EXIT trap below.
-    manual_bridge_cleanup() {
-      if kill -0 "${manual_bridge_owner_pid}" 2>/dev/null; then
-        kill -INT "${manual_bridge_owner_pid}" 2>/dev/null || true
-        wait "${manual_bridge_owner_pid}" || true
-      fi
-      bridge_revoke_authority failed || true
-    }
-    trap manual_bridge_cleanup EXIT
-    manual_ready_limit_ticks="$("${CONTROL_PYTHON}" -c \
-      'import math,sys; print(math.ceil(float(sys.argv[1]) * 10.0) + 20)' \
-      "${ready_timeout_s}")"
-    manual_ready_ticks=0
-    while [[ ! -f "${output_root}/bridge_launch.json" ]]; do
-      if ! kill -0 "${manual_bridge_owner_pid}" 2>/dev/null; then
-        manual_owner_rc=0
-        wait "${manual_bridge_owner_pid}" || manual_owner_rc=$?
-        if (( manual_owner_rc == 0 )); then
-          manual_owner_rc=2
-        fi
-        bridge_record_launch_attempt \
-          FAILED \
-          "${launch_attempt_phase}" \
-          "${manual_owner_rc}" \
-          "manual bridge owner exited before the persistent readiness barrier"
-        bridge_revoke_authority failed
-        exit "${manual_owner_rc}"
-      fi
-      if (( manual_ready_ticks >= manual_ready_limit_ticks )); then
-        echo "manual bridge owner readiness timeout" >&2
-        bridge_record_launch_attempt \
-          FAILED \
-          "${launch_attempt_phase}" \
-          2 \
-          "manual bridge owner did not sustain the readiness barrier before timeout"
-        bridge_revoke_authority failed
-        exit 2
-      fi
-      sleep 0.1
-      ((manual_ready_ticks += 1))
-    done
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/step5d_manual_status.py" activate \
-      --campaign-root "${campaign_root}" \
-      --output-root "${output_root}" \
-      --pointer-root "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3" \
-      >"${output_root}/manual-active-run.json"
-    bridge_begin_phase manual_campaign
-    "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_manual_live_campaign.py" \
-      --bridge-output-root "${output_root}" \
-      --campaign-root "${campaign_root}" \
-      --queue "${manual_queue}" \
-      --state "${manual_state}" \
-      --campaign-id "${manual_campaign_id}" \
-      --release-manifest-sha256 "${manual_release_sha}" \
-      --release-contract-certificate "${manual_contract_certificate}" \
-      --play-timeout-s "${play_timeout_s}"
-    bridge_finish_phase
-    bridge_revoke_authority completed
-    exit 0
   fi
   admission="${output_root}/bridge-admission.json"
   admission_args=(

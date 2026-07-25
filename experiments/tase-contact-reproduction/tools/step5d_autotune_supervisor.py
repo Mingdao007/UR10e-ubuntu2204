@@ -56,6 +56,7 @@ from step5d_autotune_state_machine import (
     HostPacket,
     classify_terminal_reason,
 )
+from step5d_runtime_codec import execution_profile_integer_id
 
 
 class CampaignPhase(str, Enum):
@@ -245,27 +246,6 @@ class SupervisorRecoverySnapshot:
     pending_advance: PendingAdvance | None
     cooldown_remaining: int
     governor_probe: GovernorProbeState | None
-
-
-def execution_profile_integer_id(profile: ExecutionProfile) -> int:
-    """Encode normal/slew/TP-accel levels for the TP ones-digit contract."""
-
-    normal_levels = {
-        0.010: 1,
-        0.015: 2,
-        0.020: 3,
-        0.030: 4,
-        0.050: 5,
-        0.100: 6,
-    }
-    actuator_levels = {0.1: 1, 0.2: 2, 0.5: 3}
-    try:
-        normal = normal_levels[profile.normal_max_rate_rad_s]
-        host_slew = actuator_levels[profile.host_qdot_slew_rad_s2]
-        tp_accel = actuator_levels[profile.tp_speedj_accel_rad_s2]
-    except KeyError as exc:  # ExecutionProfile should already reject this.
-        raise ValueError("execution profile is outside the frozen profile lattice") from exc
-    return 100 * normal + 10 * host_slew + tp_accel
 
 
 class CampaignSupervisor:

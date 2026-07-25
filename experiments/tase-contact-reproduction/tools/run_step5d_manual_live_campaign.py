@@ -36,10 +36,7 @@ from step5d_autotune_v3.dashboard import dashboard_exchange
 from step5d_autotune_v3.runtime_gate import loaded_program_matches
 from step5d_autotune_v3.governance import read_proc_starttime_ticks
 from step5d_autotune_v3.release_certificate import load_release_certificate
-from step5d_autotune_v3.release_contract import (
-    manual_release_contract_scope,
-    validate_release_contract_result,
-)
+from step5d_autotune_v3.release_contract import validate_release_contract_result
 from step5d_autotune_v3.state import atomic_json
 from step5d_autotune_v3.profile import canonical_json_bytes
 from step5d_autotune_v3.runtime_profile import (
@@ -58,6 +55,7 @@ from step5d_manual_bridge import (
     require_canonical_shell,
     strict_object,
 )
+from step5d_manual_release_contract import manual_release_contract_scope
 from step5d_manual_campaign_plan import (
     INITIAL_GROUPS,
     TrialScore,

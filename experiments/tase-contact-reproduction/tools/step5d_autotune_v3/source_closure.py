@@ -25,21 +25,19 @@ PRODUCTION_EXPERIMENT_SEEDS = frozenset(
     {
         "scripts/step5d-autotune-v3.sh",
         "tools/build_step5d_autotune_tp_v3.py",
-        "tools/preflight_step5d_manual_bridge.py",
         "tools/preflight_step5d_autotune_v3.py",
         "tools/resolve_step5d_autotune_v3_runtime.py",
         "tools/resolve_step5d_bridge_route.py",
-        "tools/run_step5d_autotune_campaign.py",
         "tools/run_step5d_autotune_v3_bridge.py",
         "tools/run_step5d_autotune_v3_live.py",
         "tools/run_step5d_autotune_v3_tp_transaction.py",
         "tools/run_step5d_release_contract.py",
-        "tools/run_step5d_manual_bridge.py",
-        "tools/run_step5d_manual_bridge_live.py",
-        "tools/run_step5d_manual_live_campaign.py",
+        "tools/run_step5d_parameter_campaign.py",
+        "tools/step5d_campaign_identity.py",
+        "tools/step5d_parameter_manifest.py",
+        "tools/step5d_parameter_queue.py",
         "tools/step5d_bridge_authority.py",
         "tools/step5d_bridge_status.py",
-        "tools/step5d_manual_status.py",
         "tools/step5d_autotune_v3/cli.py",
     }
 )
@@ -53,8 +51,7 @@ PRODUCTION_EXPERIMENT_DATA = frozenset(
         "config/step5/step5d_v3_runtime_contract.json",
         "config/step5/step5d_autotune_v3_control_contract.json",
         "config/step5_safe_frame.json",
-        "config/step5d/manual/launch_profile.json",
-        "config/step5d/manual/stage_table.json",
+        "config/step5d/parameter_receiver_initial.json",
         "config/step5d/artifact_locators/step5d_v35_retained_inputs.json",
         "config/step5d/manifests/step5d_strict_rnn_ablation_v35/"
         "controller_readback_receipt.json",
@@ -375,22 +372,18 @@ class _Resolver:
                 "runtime _PROFILE_PROBE dynamic import is not contract-governed"
             )
         profiles = self.contract.get("profiles")
-        if not isinstance(profiles, Mapping) or not profiles:
-            raise SourceClosureError("runtime contract profiles are missing")
-        for profile, row in profiles.items():
-            if not isinstance(row, Mapping):
-                raise SourceClosureError(f"runtime contract profile {profile!r} is invalid")
-            imports = row.get("required_imports")
-            if not isinstance(imports, list) or not imports:
+        control = profiles.get("control") if isinstance(profiles, Mapping) else None
+        imports = control.get("required_imports") if isinstance(control, Mapping) else None
+        if not isinstance(imports, list) or not imports:
+            raise SourceClosureError(
+                "runtime contract control required_imports differ"
+            )
+        for module in imports:
+            if not isinstance(module, str) or not module:
                 raise SourceClosureError(
-                    f"runtime contract profile {profile!r} required_imports differ"
+                    "runtime contract control has invalid import"
                 )
-            for module in imports:
-                if not isinstance(module, str) or not module:
-                    raise SourceClosureError(
-                        f"runtime contract profile {profile!r} has invalid import"
-                    )
-                self._record_external(module, source)
+            self._record_external(module, source)
         self.profile_probe_seen = True
 
     def _visit_python(self, path: Path) -> None:
@@ -572,17 +565,21 @@ def production_source_closure_report(experiment_root: Path) -> dict[str, Any]:
     profiles = contract.get("profiles")
     if not isinstance(profiles, Mapping):
         raise SourceClosureError("runtime contract profiles are missing")
-    for profile, row in profiles.items():
-        distributions = row.get("required_distributions") if isinstance(row, Mapping) else None
-        if not isinstance(distributions, Mapping) or not distributions:
-            raise SourceClosureError(
-                f"runtime contract profile {profile!r} distributions differ"
-            )
-        if any(not isinstance(name, str) or not name for name in distributions):
-            raise SourceClosureError(
-                f"runtime contract profile {profile!r} has invalid distribution"
-            )
-        required_distributions.update(distributions)
+    control = profiles.get("control")
+    distributions = (
+        control.get("required_distributions")
+        if isinstance(control, Mapping)
+        else None
+    )
+    if not isinstance(distributions, Mapping) or not distributions:
+        raise SourceClosureError(
+            "runtime contract control distributions differ"
+        )
+    if any(not isinstance(name, str) or not name for name in distributions):
+        raise SourceClosureError(
+            "runtime contract control has invalid distribution"
+        )
+    required_distributions.update(distributions)
     absent = sorted(required_distributions - lock_packages)
     if absent:
         raise SourceClosureError(f"runtime contract distributions absent from uv.lock: {absent}")
@@ -651,7 +648,7 @@ def production_source_closure_report(experiment_root: Path) -> dict[str, Any]:
                 "experiments/tase-contact-reproduction/" + _PROFILE_PROBE_SOURCE
             ),
             "symbol": _PROFILE_PROBE_SYMBOL,
-            "contract_key": "profiles.*.required_imports",
+            "contract_key": "profiles.control.required_imports",
         }
     )
     host_rows.sort(key=lambda row: (str(row["kind"]), str(row["name"])))

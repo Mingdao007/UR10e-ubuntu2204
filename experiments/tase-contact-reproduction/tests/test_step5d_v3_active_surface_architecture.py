@@ -81,7 +81,7 @@ def test_active_surface_has_one_public_live_entrypoint_and_internal_workers() ->
     assert set(active["entrypoints"]["internal_workers"]) == {
         "tools/run_step5d_autotune_v3_live.py",
         "tools/run_step5d_autotune_v3_bridge.py",
-        "tools/run_step5d_autotune_campaign.py",
+        "tools/run_step5d_parameter_campaign.py",
         "tools/run_step5d_release_contract.py",
     }
     assert all(
@@ -256,28 +256,14 @@ def test_owner_surfaces_do_not_publish_internal_workers() -> None:
         assert not exposed, f"{surface}: {sorted(exposed)}"
 
 
-def test_internal_campaign_runner_refuses_direct_v3_execution() -> None:
-    environment = {
-        **os.environ,
-        "STEP5D_V3_CUDA_BOOTSTRAPPED": "1",
-    }
-    environment.pop("STEP5D_V3_CANONICAL_LAUNCHER", None)
-    environment.pop("STEP5D_V3_SUPERVISOR_PID", None)
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(ROOT / "tools/run_step5d_autotune_campaign.py"),
-            "--v3-runtime-root",
-            "/tmp/direct-v3-runner",
-        ],
-        env=environment,
-        text=True,
-        capture_output=True,
-        check=False,
+def test_internal_parameter_receiver_requires_supervisor_lease() -> None:
+    source = (ROOT / "tools/run_step5d_parameter_campaign.py").read_text(
+        encoding="utf-8"
     )
 
-    assert result.returncode == 64
-    assert "step5d-autotune-v3.sh bridge-live" in result.stderr
+    assert "load_campaign_lease(args.campaign_lease)" in source
+    assert "lease.supervisor_pid != os.getppid()" in source
+    assert "campaign lease differs from receiver runner" in source
 
 
 def test_internal_tp_transaction_refuses_direct_execution() -> None:

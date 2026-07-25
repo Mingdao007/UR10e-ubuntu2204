@@ -10,17 +10,17 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from run_step5d_autotune_campaign import (
-    _atomic_json,
-    _campaign_spec,
-    discover_campaign_epochs,
+from step5d_autotune_v3.state import atomic_json
+from step5d_autotune_v3.release_identity import (
+    load_current_release,
+    release_payload_path,
 )
-from step5d_autotune_backend import Step5dV35Backend
-from step5d_autotune_batch_plan import (
-    initialize_plan,
-    initialize_rolling_plan,
-    load_plan,
-)
+from step5d_campaign_identity import campaign_spec, discover_campaign_epochs
+
+
+INITIAL_MANIFEST_PATH = "config/step5d/parameter_receiver_initial.json"
+RECEIVER_PLAN_SCHEMA = "step5d.parameter-receiver/launch-plan-v1"
+RECEIVER_SOURCE_SCHEMA = "step5d.parameter-receiver/source-binding-v1"
 
 
 @dataclass(frozen=True)
@@ -38,6 +38,48 @@ def _sha256_path(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _campaign_fingerprint(
+    *,
+    release_manifest_sha256: str,
+    launch_profile_sha256: str,
+) -> str:
+    encoded = json.dumps(
+        {
+            "schema": "step5d.parameter-receiver/campaign-fingerprint-v1",
+            "release_manifest_sha256": release_manifest_sha256,
+            "launch_profile_sha256": launch_profile_sha256,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _receiver_documents(
+    *,
+    campaign_id: str,
+    release_manifest_sha256: str,
+    launch_profile_path: Path,
+    initial_manifest_path: Path,
+) -> tuple[dict[str, object], dict[str, object]]:
+    plan = {
+        "schema": RECEIVER_PLAN_SCHEMA,
+        "campaign_id": campaign_id,
+        "revision": 1,
+        "protocol": "v3_full_home_parameter_receiver_v1",
+        "unbounded": True,
+        "one_inflight": True,
+        "optimizer_required": False,
+    }
+    source = {
+        "schema": RECEIVER_SOURCE_SCHEMA,
+        "release_manifest_sha256": release_manifest_sha256,
+        "launch_profile_sha256": _sha256_path(launch_profile_path),
+        "initial_manifest_sha256": _sha256_path(initial_manifest_path),
+    }
+    return plan, source
+
+
 def write_machine_campaign_binding(
     path: Path,
     *,
@@ -48,21 +90,33 @@ def write_machine_campaign_binding(
     trial_overlay_plan_path: Path,
     binding_source: str,
 ) -> dict[str, object]:
-    plan = load_plan(candidate_plan_path, campaign_id=campaign_id)
-    if plan.revision < 1 or not trial_overlay_plan_path.is_file():
-        raise RuntimeError("machine campaign binding requires finalized exact plans")
+    if candidate_plan_path.is_symlink() or not candidate_plan_path.is_file():
+        raise RuntimeError("parameter receiver plan must be a real file")
+    plan = json.loads(candidate_plan_path.read_text(encoding="utf-8"))
+    revision = plan.get("revision") if isinstance(plan, dict) else None
+    if (
+        not isinstance(plan, dict)
+        or plan.get("schema") != RECEIVER_PLAN_SCHEMA
+        or plan.get("campaign_id") != campaign_id
+        or isinstance(revision, bool)
+        or not isinstance(revision, int)
+        or revision < 1
+        or trial_overlay_plan_path.is_symlink()
+        or not trial_overlay_plan_path.is_file()
+    ):
+        raise RuntimeError("machine campaign binding requires exact receiver plans")
     payload = {
         "schema_version": "step5d_autotune_campaign_binding_v3",
         "campaign_id": campaign_id,
         "campaign_epoch": campaign_epoch,
         "campaign_fingerprint": campaign_fingerprint,
-        "candidate_plan_revision": plan.revision,
+        "candidate_plan_revision": revision,
         "candidate_plan_sha256": _sha256_path(candidate_plan_path),
         "trial_overlay_plan_sha256": _sha256_path(trial_overlay_plan_path),
         "binding_source": binding_source,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
     }
-    _atomic_json(path, payload)
+    atomic_json(path, payload)
     return payload
 
 
@@ -78,8 +132,16 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
     if not args.binding_source.strip():
         raise RuntimeError("launch preparation requires a nonempty binding source")
     campaign_root.mkdir(parents=True, exist_ok=True)
-    backend = Step5dV35Backend(root)
-    frozen = backend.freeze_fingerprint()
+    release = load_current_release(root)
+    initial_manifest_path = release_payload_path(
+        root,
+        release,
+        INITIAL_MANIFEST_PATH,
+    )
+    fingerprint = _campaign_fingerprint(
+        release_manifest_sha256=release.manifest_sha256,
+        launch_profile_sha256=_sha256_path(launch_profile_path),
+    )
     chain = discover_campaign_epochs(campaign_root)
     if chain:
         latest = chain[-1]
@@ -88,31 +150,42 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
             raise RuntimeError("latest campaign epoch lacks frozen fingerprint")
         epoch = (
             latest.epoch
-            if retained.get("composite_fingerprint") == frozen.composite_fingerprint
+            if retained.get("composite_fingerprint") == fingerprint
             else latest.epoch + 1
         )
         campaign_id = latest.campaign.campaign_id
     else:
         epoch = 1
         campaign_id = None
-    campaign = _campaign_spec(
+    campaign = campaign_spec(
         root,
-        frozen.composite_fingerprint,
+        fingerprint,
         epoch,
         campaign_id=campaign_id,
     )
-    plan_path = campaign_root / "control" / "candidate_plan.json"
-    if plan_path.exists():
-        load_plan(plan_path, campaign_id=campaign.campaign_id)
-    else:
-        if args.rolling_plan:
-            initialize_rolling_plan(plan_path, campaign_id=campaign.campaign_id)
+    binding_root = (
+        campaign_root
+        / "control"
+        / "parameter_receiver_bindings"
+        / release.manifest_sha256
+    )
+    plan_path = binding_root / "plan.json"
+    source_path = binding_root / "source.json"
+    receiver_root = binding_root / "queue"
+    plan, source = _receiver_documents(
+        campaign_id=campaign.campaign_id,
+        release_manifest_sha256=release.manifest_sha256,
+        launch_profile_path=launch_profile_path,
+        initial_manifest_path=initial_manifest_path,
+    )
+    for path, payload in ((plan_path, plan), (source_path, source)):
+        if path.exists() or path.is_symlink():
+            if path.is_symlink() or json.loads(
+                path.read_text(encoding="utf-8")
+            ) != payload:
+                raise RuntimeError(f"existing receiver binding differs: {path.name}")
         else:
-            initialize_plan(
-                plan_path,
-                campaign_id=campaign.campaign_id,
-                batch_size=args.candidate_batch_size,
-            )
+            atomic_json(path, payload)
     return {
         "ok": True,
         "campaign_id": campaign.campaign_id,
@@ -122,8 +195,11 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
         "campaign_binding_file": str(binding_file),
         "launch_profile_path": str(launch_profile_path),
         "launch_profile_sha256": _sha256_path(launch_profile_path),
-        "machine_binding_status": "pending_exact_candidate_and_overlay_plans",
+        "machine_binding_status": "ready_parameter_receiver",
         "candidate_plan": str(plan_path),
+        "trial_overlay_plan": str(source_path),
+        "initial_manifest": str(initial_manifest_path),
+        "receiver_root": str(receiver_root),
     }
 
 

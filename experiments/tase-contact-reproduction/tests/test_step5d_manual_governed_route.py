@@ -124,34 +124,21 @@ def _write_bridge_heartbeat(output: Path) -> None:
     )
 
 
-def test_manual_shell_records_only_post_route_authority_phases() -> None:
+def test_manual_shell_route_is_hard_archived() -> None:
     source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
-    phases = (
-        "runtime_gate",
-        "manual_release_contract",
-        "manual_context",
-        "manual_preflight",
-        "manual_bridge_start",
-        "manual_campaign",
-    )
-    for phase in phases:
-        assert phase in LAUNCH_ATTEMPT_PHASES
-        if phase == "runtime_gate":
-            assert 'launch_attempt_phase="runtime_gate"' in source
-            assert "bridge_record_launch_attempt STARTED runtime_gate" in source
-        else:
-            assert f"bridge_begin_phase {phase}" in source
+    assert 'launch_attempt_phase="runtime_gate"' in source
+    assert "bridge_record_launch_attempt STARTED runtime_gate" in source
+    assert "bridge_begin_phase manual_" not in source
+    assert "run_step5d_manual_bridge_live.py" not in source
+    assert "run_step5d_manual_live_campaign.py" not in source
     assert "route_resolve" in LAUNCH_ATTEMPT_PHASES
     assert "bridge_begin_phase route_resolve" not in source
-    route_observation = source.index(
-        '"${EXPERIMENT_ROOT}/tools/resolve_step5d_bridge_route.py"'
+    assert source.index("resolve_step5d_bridge_route.py") < source.index(
+        "bridge_acquire_authority", source.index("resolve_step5d_bridge_route.py")
     )
-    manual_branch = source.index('if [[ "${bridge_route}" == "manual_v2" ]]')
-    authority = source.index("bridge_acquire_authority", manual_branch)
-    assert route_observation < authority
 
 
-def test_route_selects_manual_only_for_exact_loaded_program(monkeypatch) -> None:
+def test_route_blocks_exact_archived_manual_program(monkeypatch) -> None:
     monkeypatch.setattr(
         route,
         "dashboard_exchange",
@@ -161,14 +148,10 @@ def test_route_selects_manual_only_for_exact_loaded_program(monkeypatch) -> None
             "get loaded program": f"Loaded program: {route.MANUAL_PATH}",
         },
     )
-    monkeypatch.setattr(
-        route,
-        "load_manual_release",
-        lambda _root: {"manifest_sha256": "a" * 64},
-    )
     result = route.resolve(root=ROOT, robot_host="192.0.2.1", timeout_s=0.1)
-    assert result["route"] == "manual_v2"
-    assert result["manual_release_manifest_sha256"] == "a" * 64
+    assert result["route"] == "BLOCKED"
+    assert result["reason_code"] == "MANUAL_V2_ARCHIVED"
+    assert result["manual_release_manifest_sha256"] is None
 
 
 def test_route_blocks_every_unrecognized_loaded_program(monkeypatch) -> None:

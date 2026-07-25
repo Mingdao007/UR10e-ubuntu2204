@@ -693,18 +693,7 @@ def test_manifest_v3_and_bundle_ignore_receipt_time_and_transaction(
             "config/step5/step5d_autotune_v3_control_contract.json"
         ]
     )
-    rendered_manual_profile = json.loads(
-        local[1][promotion.MANUAL_LAUNCH_PROFILE.as_posix()]
-    )
-    assert rendered_manual_profile["control_contract_sha256"] == (
-        promotion.contract_sha256(rendered_contract)
-    )
-    source_manual_profile = json.loads(
-        (root / promotion.MANUAL_LAUNCH_PROFILE).read_text(encoding="utf-8")
-    )
-    assert rendered_manual_profile["tp_program_id"] == source_manual_profile[
-        "tp_program_id"
-    ]
+    assert all("manual" not in relative for relative in local[1])
     first = promotion.compose_release(
         root,
         first_receipt,
