@@ -27,6 +27,7 @@ from step5d_autotune_v3.release_identity import (
     ReleaseIdentityError,
     discover_candidate_artifact_identity,
     load_current_release,
+    load_current_release_for_compatible_readback,
     load_local_release_candidate,
 )
 from step5d_autotune_v3.release_transition import (
@@ -328,7 +329,7 @@ def main(argv: list[str] | None = None) -> int:
             if prior_receipt is not None:
                 basis_release = candidate_release
             else:
-                basis_release = load_current_release(root)
+                basis_release = load_current_release_for_compatible_readback(root)
                 _basis_path, prior_basis = load_delivery_basis(
                     root,
                     release=basis_release,

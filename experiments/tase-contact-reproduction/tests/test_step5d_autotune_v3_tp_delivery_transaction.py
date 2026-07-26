@@ -1722,6 +1722,13 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
         artifact_sha256=artifact_sha,
         tp_runtime_identity={"protocol_version": 1},
     )
+    basis_release = SimpleNamespace(
+        manifest_sha256="e" * 64,
+        program_id=PROGRAM,
+        controller_target=f"{promotion.TARGET_DIR}/{PROGRAM}.urp",
+        artifact_sha256=artifact_sha,
+        tp_runtime_identity={"protocol_version": 1},
+    )
     evidence_output = root / "runs/campaign/delivery-observation.json"
     upload_arguments: list[str] = []
 
@@ -1763,6 +1770,23 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
             "load_current_release",
             return_value=release,
         ) as load_current,
+        mock.patch.object(
+            transaction,
+            "load_current_release_for_compatible_readback",
+            return_value=basis_release,
+        ) as load_compatible_current,
+        mock.patch.object(
+            transaction,
+            "load_delivery_basis",
+            return_value=(
+                root / "config/step5d/delivery-bases/prior.json",
+                {
+                    "prior_full_readback_receipt": {
+                        "path": "runs/prior-full-readback.json",
+                    },
+                },
+            ),
+        ) as load_basis,
         mock.patch.object(transaction, "owner_dependency", return_value={
             "path": "/verified/helper.py",
             "sha256": "a" * 64,
@@ -1841,8 +1865,6 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
                 "--evidence-output",
                 str(evidence_output),
                 "--readback-only-existing",
-                "--prior-full-readback-receipt",
-                str(root / "prior-full-readback.json"),
             ]
         ) == 0
 
@@ -1855,12 +1877,13 @@ def test_readback_only_transaction_adopts_exact_candidate_without_upload_or_load
         upload_arguments.index("--delivery-basis-sha256") + 1
     ] == "9" * 64
     assert load_current.call_count == 1
+    load_compatible_current.assert_called_once_with(root)
+    load_basis.assert_called_once_with(root, release=basis_release)
     assert create_basis.call_args.kwargs == {
         "candidate_release": release,
-        "basis_release": release,
-        "prior_full_receipt": root / "prior-full-readback.json",
+        "basis_release": basis_release,
+        "prior_full_receipt": root / "runs/prior-full-readback.json",
     }
-    assert not hasattr(transaction, "load_current_release_for_compatible_readback")
 
 
 def test_readback_only_get_failure_prevents_evidence_and_promotion(
