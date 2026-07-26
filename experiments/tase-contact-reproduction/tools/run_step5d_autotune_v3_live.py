@@ -1614,22 +1614,6 @@ def _run_live_session(
                 str(launch_profile_path),
                 "--v3-program-id",
                 release.program_id,
-                "--launch-basis",
-                str(args.launch_basis),
-                "--launch-basis-sha256",
-                basis["basis_sha256"],
-                "--delivery-observation",
-                str(args.delivery_observation),
-                "--campaign-prepare",
-                str(args.campaign_prepare),
-                "--admission",
-                str(args.admission),
-                "--canonical-owner-pid",
-                str(args.canonical_owner_pid),
-                "--canonical-owner-starttime",
-                str(args.canonical_owner_starttime),
-                "--authority-epoch",
-                str(args.authority_epoch),
             ]
             with runner_log_path.open("wb") as runner_log:
                 runner = subprocess.Popen(

@@ -635,6 +635,17 @@ def test_runner_is_observable_but_first_arm_waits_for_post_play_gate() -> None:
     assert '"--campaign-binding"' in source
     assert 'validate_strict_bridge_ready(' in source
     assert '_validate_active_launch_identity(' in source
+    for duplicate_flag in (
+        '"--launch-basis"',
+        '"--launch-basis-sha256"',
+        '"--delivery-observation"',
+        '"--campaign-prepare"',
+        '"--admission"',
+        '"--canonical-owner-pid"',
+        '"--canonical-owner-starttime"',
+        '"--authority-epoch"',
+    ):
+        assert duplicate_flag not in source[source.index("runner = subprocess.Popen("):]
     assert 'read_and_validate_launch_basis(' in inspect.getsource(
         live._validate_active_launch_identity
     )
@@ -1467,6 +1478,18 @@ def test_parameter_receiver_binds_observed_home_before_first_dispatch() -> None:
     source = (ROOT / "tools/run_step5d_parameter_campaign.py").read_text(
         encoding="utf-8"
     )
+    assert "def _validate_launch_identity" not in source
+    for duplicate_flag in (
+        '"--launch-basis"',
+        '"--launch-basis-sha256"',
+        '"--delivery-observation"',
+        '"--campaign-prepare"',
+        '"--admission"',
+        '"--canonical-owner-pid"',
+        '"--canonical-owner-starttime"',
+        '"--authority-epoch"',
+    ):
+        assert duplicate_flag not in source
     run = source.index("def run(args:")
     wait_home = source.index("_wait_initial_home(args, follower)", run)
     bind_home = source.index("bind_home(", wait_home)

@@ -699,7 +699,6 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
     }
     monkeypatch.setattr(runner, "_strict_object", lambda path, role: binding)
     monkeypatch.setattr(runner, "_validate_authority", lambda args, binding: None)
-    monkeypatch.setattr(runner, "_validate_launch_identity", lambda args, binding: None)
     monkeypatch.setattr(runner, "BridgeCsvFollower", lambda path: object())
     monkeypatch.setattr(
         runner,
