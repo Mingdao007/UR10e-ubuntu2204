@@ -27,7 +27,11 @@ from step5d_autotune_v3.delivery_observation import (
     load_delivery_observation,
     validate_delivery_observation,
 )
-from step5d_autotune_v3.bridge_admission import validate_bridge_admission
+from step5d_autotune_v3.bridge_admission import (
+    observe_bridge_admission,
+    validate_bridge_admission,
+    write_indexed_bridge_admission,
+)
 from step5d_autotune_v3.launch_basis import (
     read_and_validate_launch_basis,
     validate_delivery_observation_binding,
@@ -498,6 +502,9 @@ def _validate_coordinator_runtime_root(
     expected_args = args
     if basis is not None:
         expected_args = argparse.Namespace(**vars(args))
+        requested_root = getattr(args, "_coordinator_output_root", args.output_root)
+        expected_args.output_root = requested_root
+        expected_args._coordinator_output_root = requested_root
         expected_args.owner_pid = args.canonical_owner_pid
         expected_args.owner_starttime = args.canonical_owner_starttime
         expected_args.attempt_id = basis["launch_nonce"]
@@ -507,18 +514,77 @@ def _validate_coordinator_runtime_root(
         raise LiveLaunchError(f"coordinator runtime root validation failed: {exc}") from exc
 
 
-def _build_coordinator_runtime_args(
-    args: argparse.Namespace, attempt_id: str
-) -> argparse.Namespace:
-    output_root = getattr(args, "_coordinator_output_root", args.output_root)
-    return argparse.Namespace(
-        _coordinator_output_root=output_root,
-        output_root=output_root,
-        owner_pid=args.canonical_owner_pid,
-        owner_starttime=args.canonical_owner_starttime,
-        attempt_id=attempt_id,
-        authority_epoch=args.authority_epoch,
-    )
+def _refresh_live_bridge_admission(
+    root: Path,
+    *,
+    basis: Mapping[str, Any],
+    reference_admission: Mapping[str, Any],
+    release: ReleaseIdentity,
+    compatibility_delivery_observation: Path,
+    robot_host: str | None = None,
+    now_ns: int | None = None,
+    observe: Callable[..., Mapping[str, Any]] = observe_bridge_admission,
+    validate: Callable[
+        [Path, Mapping[str, Any], ReleaseIdentity],
+        Mapping[str, Any],
+    ] = validate_bridge_admission,
+    write_indexed: Callable[
+        [Path, Mapping[str, Any]],
+        Path,
+    ] = write_indexed_bridge_admission,
+) -> Path:
+    try:
+        observed = observe(
+            root,
+            compatibility_delivery_observation=compatibility_delivery_observation,
+            robot_host=robot_host,
+        )
+    except Exception as exc:
+        raise LiveLaunchError(f"fresh bridge admission observation failed: {exc}") from exc
+    try:
+        current = validate(
+            root,
+            observed,
+            release=release,
+            now_ns=now_ns,
+        )
+    except Exception as exc:
+        raise LiveLaunchError(f"fresh bridge admission validation failed: {exc}") from exc
+    expected_fingerprint = basis.get("campaign_fingerprint")
+    if not isinstance(expected_fingerprint, str):
+        raise LiveLaunchError("basis campaign fingerprint is not set")
+    if current.get("campaign_fingerprint") != expected_fingerprint:
+        raise LiveLaunchError("bridge admission campaign identity differs")
+    if current.get("campaign_fingerprint") != reference_admission.get("campaign_fingerprint"):
+        raise LiveLaunchError("fresh bridge admission campaign identity differs")
+    reference_release = reference_admission.get("release")
+    if not isinstance(reference_release, Mapping):
+        raise LiveLaunchError("reference bridge release identity is not a mapping")
+    if current.get("release") != reference_release:
+        raise LiveLaunchError("bridge admission release binding differs")
+    reference_delivery = reference_admission.get("delivery_observation")
+    if not isinstance(reference_delivery, Mapping):
+        raise LiveLaunchError("reference bridge delivery observation is not a mapping")
+    if current.get("delivery_observation") != reference_delivery:
+        raise LiveLaunchError("bridge admission delivery binding differs")
+    if current.get("expected_loaded_program") != reference_admission.get(
+        "expected_loaded_program"
+    ):
+        raise LiveLaunchError("fresh bridge admission expected loaded program differs")
+    if current.get("loaded_program") != reference_admission.get("loaded_program"):
+        raise LiveLaunchError("fresh bridge admission loaded program differs")
+    if current.get("state") != "BENCH_READY":
+        raise LiveLaunchError("fresh bridge admission is not BENCH_READY")
+    if current.get("ok") is not True:
+        raise LiveLaunchError("fresh bridge admission is not successful")
+    if "STOPPED" not in str(current.get("program_state", "")):
+        raise LiveLaunchError("fresh bridge admission program state is not STOPPED")
+    if current.get("program_state") != reference_admission.get("program_state"):
+        raise LiveLaunchError("fresh bridge admission program state differs")
+    try:
+        return write_indexed(root, current)
+    except Exception as exc:
+        raise LiveLaunchError(f"fresh bridge admission cannot be indexed: {exc}") from exc
 
 
 def _create_bridge_runtime(runtime_root: Path) -> tuple[Path, Path]:
@@ -1271,19 +1337,12 @@ def _validate_active_launch_identity(
             expected_basis_sha256=args.launch_basis_sha256,
         )
         _validate_coordinator_runtime_root(args, basis=basis)
-        if basis["authority_epoch"] != args.authority_epoch:
-            raise LiveLaunchError("launch basis authority epoch differs")
-        coordinator_args = _build_coordinator_runtime_args(
-            args,
-            str(basis["launch_nonce"]),
-        )
-        _validate_coordinator_runtime_root(coordinator_args)
         admission = validate_bridge_admission(
             ROOT,
             read_strict_json(args.admission, role="bridge admission"),
             release=release,
         )
-        if admission.get("campaign_fingerprint") != basis["campaign_fingerprint"]:
+        if admission["campaign_fingerprint"] != basis["campaign_fingerprint"]:
             raise LiveLaunchError("bridge admission campaign identity differs")
         validate_delivery_observation_binding(
             args.delivery_observation,
@@ -1291,6 +1350,8 @@ def _validate_active_launch_identity(
             admission=admission,
             experiment_root=ROOT,
         )
+        if basis["authority_epoch"] != args.authority_epoch:
+            raise LiveLaunchError("launch basis authority epoch differs")
         from run_step5d_autotune_v3_coordinator import _validate_campaign_prepare
 
         campaign = _validate_campaign_prepare(
@@ -1653,6 +1714,14 @@ def _run_live_session(
                 release=release,
                 admission=admission,
             )
+            fresh_admission = _refresh_live_bridge_admission(
+                ROOT,
+                basis=basis,
+                reference_admission=admission,
+                release=release,
+                compatibility_delivery_observation=args.delivery_observation,
+                robot_host=robot_host,
+            )
             csv_path = bridge_run / "bridge_rtde_500hz.csv"
             csv_follower = _LatestCsvFollower(csv_path)
             print("V3_BRIDGE_READY_NO_ARM", flush=True)
@@ -1690,7 +1759,7 @@ def _run_live_session(
                 "--campaign-prepare",
                 str(args.campaign_prepare),
                 "--admission",
-                str(args.admission),
+                str(fresh_admission),
                 "--canonical-owner-pid",
                 str(args.canonical_owner_pid),
                 "--canonical-owner-starttime",

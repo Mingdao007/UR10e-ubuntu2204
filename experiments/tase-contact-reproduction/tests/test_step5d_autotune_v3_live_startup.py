@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 import json
 import inspect
@@ -1677,6 +1678,194 @@ def test_run_recoverable_live_session_retries_once_for_recoverable_session_failu
     assert status_before_backoff == ["WAITING_FOR_HARDWARE"]
 
 
+def test_refresh_live_bridge_admission_prefers_fresh_observation_when_reference_is_stale(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path
+    basis = {
+        "launch_nonce": "stale-observation-test",
+        "campaign_fingerprint": "c" * 64,
+    }
+    reference_admission = {
+        "schema": "step5d.autotune-v3/bridge-admission-v1",
+        "campaign_fingerprint": "c" * 64,
+        "observed_at_unix_ns": 100_000_000_0,
+        "state": "BENCH_READY",
+        "ok": True,
+        "reason_code": "PROGRAM_LOADED_STOPPED",
+        "checks": {},
+        "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+        "loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+        "expected_loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+        "operator_action": None,
+        "authority_acquired": False,
+        "attempt_created": False,
+        "release_contract": {
+            "certificate_path": "runs/contract.json",
+            "certificate_sha256": "a" * 64,
+            "evidence_path": "runs/contract-evidence.json",
+            "evidence_sha256": "b" * 64,
+        },
+        "publication_lineage": {
+            "path": "runs/publication-lineage.json",
+            "sha256": "c" * 64,
+        },
+        "dashboard": {
+            "programState": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+            "get loaded program": "/programs/step5d_strict_rnn_autotune_v3_r999.urp",
+        },
+        "release": {
+            "manifest_sha256": "e" * 64,
+            "program_id": "step5d_strict_rnn_autotune_v3_r999",
+        },
+        "delivery_observation": {
+            "path": "runs/delivery-observation.json",
+            "sha256": "d" * 64,
+            "transaction_id": "f" * 32,
+        },
+    }
+    fresh_observation = dict(reference_admission)
+    fresh_observation["observed_at_unix_ns"] = 10_000_000_000
+
+    observed: list[str] = []
+
+    def observe(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        observed.append("observe")
+        return dict(fresh_observation)
+
+    def validate(
+        *_args: Any,
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        observed.append("validate")
+        return dict(fresh_observation)
+
+    indexed = root / "runs/step5d_autotune_v3/bridge-admissions/e" / "cafebabe.json"
+
+    def write_indexed(*_args: Any, **_kwargs: Any) -> Path:
+        observed.append("write")
+        return indexed
+
+    release = SimpleNamespace(manifest_sha256="e" * 64, program_id="step5d_strict_rnn_autotune_v3_r999")
+    result = live._refresh_live_bridge_admission(
+        root,
+        basis=basis,
+        reference_admission=reference_admission,
+        release=release,
+        compatibility_delivery_observation=tmp_path / "runs/delivery-observation.json",
+        observe=observe,
+        validate=validate,
+        write_indexed=write_indexed,
+        now_ns=10_000_000_005,
+    )
+
+    assert result == indexed
+    assert observed == ["observe", "validate", "write"]
+    assert fresh_observation["campaign_fingerprint"] == basis["campaign_fingerprint"]
+
+
+@pytest.mark.parametrize(
+    "mutate, fragment",
+    [
+        ("campaign", "campaign identity"),
+        ("release", "release binding"),
+        ("delivery", "delivery binding"),
+        ("stopped", "program state is not STOPPED"),
+    ],
+)
+def test_refresh_live_bridge_admission_rejects_drift_before_runner_spawn(
+    tmp_path: Path,
+    mutate: str,
+    fragment: str,
+) -> None:
+    basis = {
+        "launch_nonce": "drift-observation-test",
+        "campaign_fingerprint": "c" * 64,
+    }
+    release = SimpleNamespace(manifest_sha256="e" * 64, program_id="step5d_strict_rnn_autotune_v3_r999")
+    reference_admission = {
+        "schema": "step5d.autotune-v3/bridge-admission-v1",
+        "campaign_fingerprint": "c" * 64,
+        "state": "BENCH_READY",
+        "ok": True,
+        "reason_code": "PROGRAM_LOADED_STOPPED",
+        "checks": {},
+        "observed_at_unix_ns": 100_000_000_0,
+        "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+        "loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+        "expected_loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+        "operator_action": None,
+        "authority_acquired": False,
+        "attempt_created": False,
+        "release_contract": {
+            "certificate_path": "runs/contract.json",
+            "certificate_sha256": "a" * 64,
+            "evidence_path": "runs/contract-evidence.json",
+            "evidence_sha256": "b" * 64,
+        },
+        "publication_lineage": {
+            "path": "runs/publication-lineage.json",
+            "sha256": "c" * 64,
+        },
+        "dashboard": {
+            "programState": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+            "get loaded program": "/programs/step5d_strict_rnn_autotune_v3_r999.urp",
+        },
+        "release": {
+            "manifest_sha256": "e" * 64,
+            "program_id": "step5d_strict_rnn_autotune_v3_r999",
+        },
+        "delivery_observation": {
+            "path": "runs/delivery-observation.json",
+            "sha256": "d" * 64,
+            "transaction_id": "f" * 32,
+        },
+        "observed_at_unix_ns": 1,
+    }
+    fresh = deepcopy(reference_admission)
+    fresh.update(
+        {
+            "observed_at_unix_ns": 2,
+            "ok": True,
+            "state": "BENCH_READY",
+            "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+        }
+    )
+    if mutate == "campaign":
+        fresh["campaign_fingerprint"] = "d" * 64
+    elif mutate == "release":
+        fresh["release"] = {"manifest_sha256": "d" * 64, "program_id": "other"}
+    elif mutate == "delivery":
+        fresh["delivery_observation"]["transaction_id"] = "e" * 32
+    elif mutate == "stopped":
+        fresh["program_state"] = "RUNNING step5d_strict_rnn_autotune_v3_r999"
+
+    def observe(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return dict(fresh)
+
+    def validate(
+        *_args: Any,
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        return dict(fresh)
+
+    def write_indexed(*_args: Any, **_kwargs: Any) -> Path:
+        return tmp_path / "should-not-exist"
+
+    with pytest.raises(live.LiveLaunchError, match=fragment):
+        live._refresh_live_bridge_admission(
+            tmp_path,
+            basis=basis,
+            reference_admission=reference_admission,
+            release=release,
+            compatibility_delivery_observation=tmp_path / "runs/delivery-observation.json",
+            observe=observe,
+            validate=validate,
+            write_indexed=write_indexed,
+            now_ns=10_000_000_005,
+        )
+
+
 def test_run_live_single_session_keyboard_interrupt_preserves_shutdown(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1734,6 +1923,40 @@ def test_validate_active_launch_identity_maps_live_cli_shape_to_coordinator_name
             {
                 "schema": "step5d.autotune-v3/bridge-admission-v1",
                 "campaign_fingerprint": "c" * 64,
+                "observed_at_unix_ns": 10_000_000_000,
+                "state": "BENCH_READY",
+                "ok": True,
+                "reason_code": "PROGRAM_LOADED_STOPPED",
+                "checks": {},
+                "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+                "loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+                "expected_loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+                "operator_action": None,
+                "authority_acquired": False,
+                "attempt_created": False,
+                "release_contract": {
+                    "certificate_path": "runs/contract.json",
+                    "certificate_sha256": "a" * 64,
+                    "evidence_path": "runs/contract-evidence.json",
+                    "evidence_sha256": "b" * 64,
+                },
+                "publication_lineage": {
+                    "path": "runs/publication-lineage.json",
+                    "sha256": "c" * 64,
+                },
+                "dashboard": {
+                    "programState": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+                    "get loaded program": "/programs/step5d_strict_rnn_autotune_v3_r999.urp",
+                },
+                "release": {
+                    "manifest_sha256": "e" * 64,
+                    "program_id": "step5d_strict_rnn_autotune_v3_r999",
+                },
+                "delivery_observation": {
+                    "path": "runs/delivery-observation.json",
+                    "sha256": "d" * 64,
+                    "transaction_id": "f" * 32,
+                },
             }
         ),
         encoding="utf-8",
@@ -1794,16 +2017,52 @@ def test_validate_active_launch_identity_maps_live_cli_shape_to_coordinator_name
     def fake_read_and_validate_launch_basis(*_args: Any, **_kwargs: Any) -> dict[str, object]:
         return basis
 
-    def fake_validate_bridge_admission(*_args: Any, **_kwargs: Any) -> dict[str, object]:
-        return {
-            "schema": "step5d.autotune-v3/bridge-admission-v1",
-            "campaign_fingerprint": basis["campaign_fingerprint"],
-        }
-
     def fake_validate_delivery_observation_binding(
         *_args: Any, **_kwargs: Any
     ) -> None:
         pass
+
+    def fake_validate_bridge_admission(
+        *_args: Any, **_kwargs: Any
+    ) -> dict[str, Any]:
+        return {
+            "schema": "step5d.autotune-v3/bridge-admission-v1",
+            "observed_at_unix_ns": 10_000_000_000,
+            "state": "BENCH_READY",
+            "ok": True,
+            "reason_code": "PROGRAM_LOADED_STOPPED",
+            "checks": {},
+            "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+            "loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+            "expected_loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+            "operator_action": None,
+            "authority_acquired": False,
+            "attempt_created": False,
+            "release_contract": {
+                "certificate_path": "runs/contract.json",
+                "certificate_sha256": "a" * 64,
+                "evidence_path": "runs/contract-evidence.json",
+                "evidence_sha256": "b" * 64,
+            },
+            "publication_lineage": {
+                "path": "runs/publication-lineage.json",
+                "sha256": "c" * 64,
+            },
+            "dashboard": {
+                "programState": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+                "get loaded program": "/programs/step5d_strict_rnn_autotune_v3_r999.urp",
+            },
+            "campaign_fingerprint": basis["campaign_fingerprint"],
+            "release": {
+                "manifest_sha256": basis["release_manifest_sha256"],
+                "program_id": "step5d_strict_rnn_autotune_v3_r999",
+            },
+            "delivery_observation": {
+                "path": "runs/delivery-observation.json",
+                "sha256": "d" * 64,
+                "transaction_id": "f" * 32,
+            },
+        }
 
     def fake_validate_campaign_prepare(
         payload: Any, basis_payload: Mapping[str, Any]
@@ -1815,8 +2074,8 @@ def test_validate_active_launch_identity_maps_live_cli_shape_to_coordinator_name
         return SimpleNamespace(program_id="step5d_strict_rnn_autotune_v3_r999")
 
     monkeypatch.setattr(live, "read_and_validate_launch_basis", fake_read_and_validate_launch_basis)
-    monkeypatch.setattr(live, "validate_bridge_admission", fake_validate_bridge_admission)
     monkeypatch.setattr(live, "validate_delivery_observation_binding", fake_validate_delivery_observation_binding)
+    monkeypatch.setattr(live, "validate_bridge_admission", fake_validate_bridge_admission)
     monkeypatch.setattr(coordinator, "_validate_campaign_prepare", fake_validate_campaign_prepare)
 
     args.launch_basis = tmp_path / "basis.json"
@@ -1835,7 +2094,41 @@ def test_validate_active_launch_identity_maps_live_cli_shape_to_coordinator_name
     assert checked_basis == basis
     assert checked_admission == {
         "schema": "step5d.autotune-v3/bridge-admission-v1",
+        "observed_at_unix_ns": 10_000_000_000,
+        "state": "BENCH_READY",
+        "ok": True,
+        "reason_code": "PROGRAM_LOADED_STOPPED",
+        "checks": {},
+        "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+        "loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+        "expected_loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+        "operator_action": None,
+        "authority_acquired": False,
+        "attempt_created": False,
+        "release_contract": {
+            "certificate_path": "runs/contract.json",
+            "certificate_sha256": "a" * 64,
+            "evidence_path": "runs/contract-evidence.json",
+            "evidence_sha256": "b" * 64,
+        },
+        "publication_lineage": {
+            "path": "runs/publication-lineage.json",
+            "sha256": "c" * 64,
+        },
+        "dashboard": {
+            "programState": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+            "get loaded program": "/programs/step5d_strict_rnn_autotune_v3_r999.urp",
+        },
         "campaign_fingerprint": basis["campaign_fingerprint"],
+        "release": {
+            "manifest_sha256": "e" * 64,
+            "program_id": "step5d_strict_rnn_autotune_v3_r999",
+        },
+        "delivery_observation": {
+            "path": "runs/delivery-observation.json",
+            "sha256": "d" * 64,
+            "transaction_id": "f" * 32,
+        },
     }
     assert checked_campaign == campaign_prepare
 
@@ -1890,7 +2183,23 @@ def test_run_live_session_uses_basis_launch_nonce_not_mutable_env(monkeypatch: p
     monkeypatch.setattr(
         live,
         "_validate_active_launch_identity",
-        lambda *_args: (basis, {"campaign_fingerprint": "c" * 64}, {}),
+        lambda *_args: (
+            basis,
+            {
+                "schema": "step5d.autotune-v3/bridge-admission-v1",
+                "campaign_fingerprint": basis["campaign_fingerprint"],
+                "release": {
+                    "manifest_sha256": basis["release_manifest_sha256"],
+                    "program_id": "step5d_strict_rnn_autotune_v3_r999",
+                },
+                "delivery_observation": {
+                    "path": "runs/delivery-observation.json",
+                    "sha256": "d" * 64,
+                    "transaction_id": "f" * 32,
+                },
+            },
+            {},
+        ),
     )
     monkeypatch.setattr(
         live,
@@ -1911,8 +2220,13 @@ def test_run_live_session_uses_basis_launch_nonce_not_mutable_env(monkeypatch: p
     monkeypatch.setattr(
         live,
         "_validate_coordinator_runtime_root",
-        lambda ns: (
-            observed.__setitem__("attempt_id", ns.attempt_id),
+        lambda *args, **kwargs: (
+            observed.__setitem__(
+                "attempt_id",
+                kwargs.get("basis", {}).get("launch_nonce")
+                if isinstance(kwargs.get("basis"), Mapping)
+                else None,
+            ),
             tmp_path / "runtime-root",
         )[1],
     )
@@ -1929,6 +2243,298 @@ def test_run_live_session_uses_basis_launch_nonce_not_mutable_env(monkeypatch: p
         )
 
     assert observed["attempt_id"] == basis["launch_nonce"]
+
+
+def test_run_live_session_refreshes_fresh_bridge_admission_before_runner_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class _DummyWriterLease:
+        def __enter__(self) -> None:
+            return None
+
+        def __exit__(self, *_args: Any) -> None:
+            return None
+
+    class _FakeProcess:
+        def __init__(self, *, returncode: int | None = None, pid: int = 1234) -> None:
+            self.returncode = returncode
+            self.pid = pid
+
+        def send_signal(self, *_args: Any) -> None:
+            if self.returncode is None:
+                self.returncode = 0
+
+        def terminate(self) -> None:
+            self.returncode = 0
+
+        def kill(self) -> None:
+            self.returncode = 0
+
+        def wait(self, *_args: Any, **_kwargs: Any) -> int | None:
+            return self.returncode
+
+        def poll(self) -> int | None:
+            return self.returncode
+
+    class _DummyPublisher:
+        def update_lifecycle(self, *args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def revoke_lease(self, *args: Any, **_kwargs: Any) -> None:
+            return None
+
+    output_root = tmp_path / "attempt-0001"
+    output_root.mkdir(parents=True)
+    args = SimpleNamespace(
+        output_root=output_root,
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=111,
+        canonical_owner_starttime=222,
+    )
+    args.output_root.mkdir(parents=True, exist_ok=True)
+    args.campaign_root.mkdir(parents=True, exist_ok=True)
+    args.preflight.write_text("{}", encoding="utf-8")
+    args.delivery_observation.write_text("{}", encoding="utf-8")
+    args.admission.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.autotune-v3/bridge-admission-v1",
+                "campaign_fingerprint": "c" * 64,
+                "release": {
+                    "manifest_sha256": "e" * 64,
+                    "program_id": "step5d_strict_rnn_autotune_v3_r999",
+                },
+                "delivery_observation": {
+                    "path": "runs/delivery-observation.json",
+                    "sha256": "d" * 64,
+                    "transaction_id": "f" * 32,
+                },
+            },
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+    args.launch_basis.write_text(json.dumps({"campaign_fingerprint": "c" * 64}, separators=(",", ":")), encoding="utf-8")
+
+    runtime_root = tmp_path / "coordinator-runtime"
+    bridge_runtime = runtime_root / "bridge" / "runtime"
+    bridge_run = runtime_root / "bridge"
+    bridge_runtime.mkdir(parents=True, exist_ok=True)
+    control_runtime_root = tmp_path / "control-runtime-root"
+    control_runtime_root.mkdir(parents=True, exist_ok=True)
+    basis = {
+        "launch_nonce": "b" * 32,
+        "basis_sha256": "b" * 64,
+        "campaign_fingerprint": "c" * 64,
+        "delivery_observation_sha256": "d" * 64,
+        "release_manifest_sha256": "e" * 64,
+        "runtime_identity_sha256": "f" * 64,
+        "authority_epoch": 7,
+        "issued_at_unix_ns": 1,
+        "expires_at_unix_ns": 10,
+    }
+    plan_path = tmp_path / "candidate-plan.json"
+    trial_plan_path = tmp_path / "trial-overlay-plan.json"
+    plan_path.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.parameter-receiver/launch-plan-v1",
+                "campaign_id": "campaign-order-check",
+                "revision": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    trial_plan_path.write_text('{"revision":1}\n', encoding="utf-8")
+    campaign_prepare = {
+        "schema": coordinator.CAMPAIGN_PREPARE_SCHEMA,
+        "ok": True,
+        "fresh": True,
+        "created_at_unix_ns": 2,
+        "launch_basis_sha256": basis["basis_sha256"],
+        "identity": {
+            "campaign_id": "campaign-order-check",
+            "campaign_epoch": 1,
+            "campaign_fingerprint": basis["campaign_fingerprint"],
+            "release_manifest_sha256": basis["release_manifest_sha256"],
+            "runtime_identity_sha256": basis["runtime_identity_sha256"],
+        },
+        "result": {
+            "ok": True,
+            "campaign_id": "campaign-order-check",
+            "campaign_epoch": 1,
+            "campaign_fingerprint": basis["campaign_fingerprint"],
+            "campaign_root": str(tmp_path / "campaign"),
+            "campaign_binding_file": str(tmp_path / "campaign-binding.json"),
+            "launch_profile_path": str(tmp_path / "launch-profile.json"),
+            "launch_profile_sha256": "a" * 64,
+            "machine_binding_status": "pending_exact_candidate_and_overlay_plans",
+            "candidate_plan": str(plan_path),
+            "trial_overlay_plan": str(trial_plan_path),
+            "receiver_root": str(tmp_path / "receiver"),
+        },
+    }
+    args.campaign_prepare.write_text(json.dumps(campaign_prepare, separators=(",", ":")), encoding="utf-8")
+
+    order: list[str] = []
+    indexed_admission = tmp_path / "runs/step5d_autotune_v3/bridge-admissions/e" / "fresh.json"
+    command_seen: dict[str, list[str] | None] = {"runner": None}
+
+    def validate_active(*_args: Any, **_kwargs: Any) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        return basis, {
+            "schema": "step5d.autotune-v3/bridge-admission-v1",
+            "campaign_fingerprint": basis["campaign_fingerprint"],
+            "release": {
+                "manifest_sha256": basis["release_manifest_sha256"],
+                "program_id": "step5d_strict_rnn_autotune_v3_r999",
+            },
+            "delivery_observation": {
+                "path": "runs/delivery-observation.json",
+                "sha256": "d" * 64,
+                "transaction_id": "f" * 32,
+            },
+        }, campaign_prepare
+
+    def validate_ready(*_args: Any, **_kwargs: Any) -> None:
+        order.append("bridge_ready")
+
+    def refresh_admission(*_args: Any, **_kwargs: Any) -> Path:
+        order.append("fresh_admission")
+        return indexed_admission
+
+    def bridge_command(*_args: Any, **_kwargs: Any) -> tuple[subprocess.Popen[Any], int, int]:
+        order.append("bridge_launch")
+        return _FakeProcess(), 0, 0
+
+    def runner_process(command: list[str], *args: Any, **kwargs: Any) -> _FakeProcess:
+        order.append("runner_spawn")
+        command_seen["runner"] = list(command)
+        return _FakeProcess(pid=4321, returncode=None)
+
+    def fake_wait_file(*_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def fake_read_json(path: Path, *, role: str) -> dict[str, Any]:
+        if role == "parameter receiver plan":
+            return {"revision": 1}
+        if role == "bridge readiness":
+            return {
+                "schema": "step5d.autotune-v3/bridge-ready-v1",
+            }
+        return {"result": {}}
+
+    monkeypatch.setattr(live, "writer_lease", lambda *_args, **_kwargs: _DummyWriterLease())
+    monkeypatch.setattr(live, "_validate_active_launch_identity", validate_active)
+    monkeypatch.setattr(
+        live,
+        "load_runtime_release",
+        lambda _root: SimpleNamespace(
+            release_stage_id=live.RELEASE_STAGE_ID,
+            control_profile_id=live.CONTROL_PROFILE_ID,
+            protocol_id="v3_full_home_rolling_arm_v1",
+            program_id="step5d_strict_rnn_autotune_v3_r999",
+            manifest_sha256=basis["release_manifest_sha256"],
+            generated_files={live.LAUNCH_PROFILE_PATH: "a" * 64},
+        ),
+    )
+    monkeypatch.setattr(
+        live,
+        "load_delivery_observation",
+        lambda *_args, **_kwargs: {"transaction_id": "f" * 32},
+    )
+    monkeypatch.setattr(live, "_validate_coordinator_runtime_root", lambda *_args, **_kwargs: runtime_root)
+    monkeypatch.setattr(live, "_create_bridge_runtime", lambda *_args: (bridge_run, bridge_runtime))
+    monkeypatch.setattr(live, "_run_bridge_command_and_wait_for_readiness", bridge_command)
+    monkeypatch.setattr(live, "validate_strict_bridge_ready", validate_ready)
+    monkeypatch.setattr(live, "_refresh_live_bridge_admission", refresh_admission)
+    monkeypatch.setattr(live, "_wait_file", fake_wait_file)
+    monkeypatch.setattr(live, "release_payload_path", lambda *_args, **_kwargs: tmp_path / "payload.json")
+    monkeypatch.setattr(live, "load_contract", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        live,
+        "load_launch_profile",
+        lambda *_args, **_kwargs: SimpleNamespace(fingerprint="a" * 64),
+    )
+    monkeypatch.setattr(
+        live,
+        "check_effective_config",
+        lambda **_kwargs: {"effective_config": {"robot_host": "192.0.2.1"}},
+    )
+    monkeypatch.setattr(
+        live,
+        "release_runtime_contract",
+        lambda *_args, **_kwargs: {
+            "expected_loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+            "safety_envelope_sha256": "a" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        live,
+        "build_bridge_argv",
+        lambda *_args, **_kwargs: ["python", str(live.WRAPPER), "bridge"],
+    )
+    monkeypatch.setattr(
+        live,
+        "overlay_fingerprint",
+        lambda *_args, **_kwargs: "a" * 64,
+    )
+    monkeypatch.setattr(live, "_validate_preflight", lambda *_args, **_kwargs: {"controller_identity_sha256": "a" * 64})
+    monkeypatch.setattr(
+        live,
+        "RuntimeObservationPublisher",
+        SimpleNamespace(start=lambda **_kwargs: _DummyPublisher()),
+    )
+    monkeypatch.setattr(
+        live,
+        "production_runtime_environment",
+        lambda *_args, **_kwargs: {
+            "PATH": "/bin",
+            "PYTHONPATH": "",
+            "HOME": "/tmp",
+        },
+    )
+    monkeypatch.setattr(live, "_release_contract_evidence_reference", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(live, "load_current_release_snapshot", lambda _root: SimpleNamespace(valid=True))
+    monkeypatch.setattr(live, "_publish_runtime_observation", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("runner observation stop")))
+    monkeypatch.setattr(live, "_revoke_campaign_authority", lambda *_args, **_kwargs: ["ok"])
+    monkeypatch.setattr(live, "read_strict_json", fake_read_json)
+    monkeypatch.setattr(live.subprocess, "Popen", runner_process)
+
+    with pytest.raises(RuntimeError, match="runner observation stop"):
+        live._run_live_session(
+            args,
+            {
+                "profiles": {
+                    "control": {
+                        "root": str(control_runtime_root),
+                        "python_executable": sys.executable,
+                        "environment_id": "control-env-id",
+                    },
+                },
+                "attestation_sha256": "attestation-id",
+                "bundle_id": "bundle-id",
+            },
+        )
+
+    assert order == [
+        "bridge_launch",
+        "bridge_ready",
+        "fresh_admission",
+        "runner_spawn",
+    ]
+    runner_command = command_seen["runner"]
+    assert runner_command is not None
+    assert "--admission" in runner_command
+    admission_idx = runner_command.index("--admission") + 1
+    assert runner_command[admission_idx] == str(indexed_admission)
 
 
 def test_run_recoverable_live_session_retries_once_for_recoverable_session_failure(

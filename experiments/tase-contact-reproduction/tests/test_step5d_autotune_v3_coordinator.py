@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -143,8 +145,49 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
     experiment_root.mkdir()
     output_root = tmp_path / "output"
     output_root.mkdir()
+    complete_admission = {
+        "schema": "step5d.autotune-v3/bridge-admission-v1",
+        "observed_at_unix_ns": time.time_ns(),
+        "state": "BENCH_READY",
+        "ok": True,
+        "reason_code": "PROGRAM_LOADED_STOPPED",
+        "checks": {},
+        "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+        "loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+        "expected_loaded_program": "step5d_strict_rnn_autotune_v3_r999",
+        "operator_action": None,
+        "authority_acquired": False,
+        "attempt_created": False,
+        "campaign_fingerprint": "c" * 64,
+        "release": {
+            "manifest_sha256": "a" * 64,
+            "program_id": "program",
+        },
+        "release_contract": {
+            "certificate_path": "runs/contract.json",
+            "certificate_sha256": "a" * 64,
+            "evidence_path": "runs/contract-evidence.json",
+            "evidence_sha256": "b" * 64,
+        },
+        "publication_lineage": {
+            "path": "runs/publication-lineage.json",
+            "sha256": "c" * 64,
+        },
+        "dashboard": {
+            "programState": "STOPPED step5d_strict_rnn_autotune_v3_r999",
+            "get loaded program": "/programs/step5d_strict_rnn_autotune_v3_r999.urp",
+        },
+        "delivery_observation": {
+            "path": "delivery.json",
+            "sha256": "d" * 64,
+            "transaction_id": "f" * 32,
+        },
+    }
     admission_path = tmp_path / "admission.json"
-    admission_path.write_text("{}\n", encoding="utf-8")
+    admission_path.write_text(
+        json.dumps(complete_admission, separators=(",", ":")),
+        encoding="utf-8",
+    )
     delivery_path = experiment_root / "delivery.json"
     delivery_path.write_text("delivery\n", encoding="utf-8")
     args = SimpleNamespace(
@@ -212,12 +255,19 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
     del attempt_args.owner_pid
     del attempt_args.owner_starttime
     del attempt_args.attempt_id
-    admission = {"campaign_fingerprint": basis["campaign_fingerprint"]}
-    monkeypatch.setattr(live, "validate_bridge_admission", lambda *_args, **_kwargs: admission)
+    admission = {
+        **complete_admission,
+        "campaign_fingerprint": basis["campaign_fingerprint"],
+    }
     monkeypatch.setattr(
         live,
         "read_strict_json",
         lambda _path, *, role: admission if role == "bridge admission" else {"result": {}},
+    )
+    monkeypatch.setattr(
+        live,
+        "validate_bridge_admission",
+        lambda _root, *_args, **_kwargs: dict(admission),
     )
     monkeypatch.setattr(live, "validate_delivery_observation_binding", lambda *_args, **_kwargs: basis["delivery_observation_sha256"])
     monkeypatch.setattr(
