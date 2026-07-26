@@ -59,10 +59,9 @@
   },
   "blockers": [
     "requires_official_polyscope_5_26_controller_identity_and_direct_torque_proof",
-    "requires_frozen_fingerprint_formal_1_plus_1_review_before_no_contact_torque",
     "requires_fresh_no_contact_motion_authorization",
     "requires_no_contact_2s_10s_60s_acceptance_before_contact",
-    "requires_formal_2_plus_1_review_before_contact",
+    "requires_final_frozen_fingerprint_2_plus_1_review_before_expert_data_collection_contact",
     "requires_fresh_contact_motion_authorization"
   ],
   "live_ready": false,

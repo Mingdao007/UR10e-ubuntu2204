@@ -1,0 +1,21 @@
+{
+  "schema": "ur10e_tacdiffusion_review_policy/v3",
+  "effective": true,
+  "supersedes": [
+    "config/tacdiffusion_experiment_plan.json#review_policy_v2",
+    "config/validation_ledger.json#review_policy_v2",
+    "evidence/tacdiffusion_offline_validation.json#review_policy"
+  ],
+  "historical_artifacts_are_not_rewritten": true,
+  "ordinary_offline_coding": "0+0 deterministic validation",
+  "before_first_no_contact_torque_canary": {
+    "review": "0+0 deterministic validation",
+    "fresh_no_contact_authorization_required": true
+  },
+  "before_first_expert_data_collection_contact_or_tacdiffusion_active_run": {
+    "review": "2+1",
+    "timing": "once after the final composite fingerprint is frozen",
+    "fresh_contact_authorization_required": true
+  },
+  "finding_recheck": "targeted closer only unless the composite fingerprint changes"
+}

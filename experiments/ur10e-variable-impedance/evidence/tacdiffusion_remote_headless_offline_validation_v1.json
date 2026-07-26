@@ -137,6 +137,18 @@
   },
   "source_bindings": [
     {
+      "path": "config/tacdiffusion_review_policy_v3.json",
+      "sha256": "ac924c0a49aeb08135913de731948c433186fd54ca909adf4f9efbe98e4d72df"
+    },
+    {
+      "path": "config/tacdiffusion_surface_input_20260726.json",
+      "sha256": "686275f1be7e705265fd358556d4337c184cc30308dd90ec1681827d94c093b3"
+    },
+    {
+      "path": "docs/TACDIFFUSION_UNKNOWN_SURFACE_DATA_COLLECTION.md",
+      "sha256": "697a1e44601b65ec64cf80c5feb19b02a33aedc301bd6c6f1d181afdf3d4fbf6"
+    },
+    {
       "path": "config/direct_torque_rtde_layout.json",
       "sha256": "b5077a2f6856cd9b1b2f7c4fc599fb9f6f5cc239da93dd9f4666b5128c70866d"
     },
@@ -230,7 +242,7 @@
     },
     {
       "path": "../tase-contact-reproduction/config/step5d_tacdiffusion_liveprep_v1.json",
-      "sha256": "a1ff94e951eb066bab007601a8be16b9aef149fccb74d19ce05488b6bb43e1cd"
+      "sha256": "a6ed35ba6da3d052619c9d7b583603555d1b67f0b0424f7ab067c32c49667079"
     },
     {
       "path": "../tase-contact-reproduction/tools/run_step5d_tacdiffusion_bridge.py",

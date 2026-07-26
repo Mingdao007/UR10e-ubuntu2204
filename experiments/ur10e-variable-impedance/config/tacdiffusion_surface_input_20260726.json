@@ -161,11 +161,12 @@
       "orientation_tolerance_rad": 0.08726646259971647,
       "safe_inset_m": 0.003
     },
-    "required_before_trajectory_generation": [
-      "consume the hashed v11 outer-top model binding and its recorded base-frame rigid fit",
-      "integrate the curved model parameterization into a TacDiffusion trajectory/model backend",
+    "unknown_surface_data_collection_contract": [
+      "generate bounded nominal in-plane references from the taught footprint",
+      "keep CAD height and CAD surface normals out of the live reference path",
+      "follow unknown height online through measured-load feedback rather than model Z feed-forward",
       "bind contact-tip/TCP and sensor-origin lever arm for the selected frame",
-      "verify normal sign and surface correspondence without live motion"
+      "verify the nominal task loading-axis sign without claiming the local surface normal is known"
     ]
   },
   "status": {
@@ -180,11 +181,14 @@
     "planar_surface_ready": false,
     "cad_to_base_transform_validated": true,
     "curved_trajectory_backend_ready": false,
+    "curved_trajectory_backend_required_for_data_collection": false,
+    "unknown_surface_episode_reference_backend_ready": false,
+    "durable_expert_episode_recorder_ready": false,
     "model_active_allowed": false,
     "live_or_contact_ready": false,
     "blockers": [
-      "existing TacDiffusion trajectory backend remains planar-only; curved model integration is still required",
-      "rigid fit residuals are millimetre-scale and constant probe offset is absorbed rather than independently identified",
+      "unknown-surface nominal in-plane episode references are not yet bound to online measured-load following",
+      "the live bridge does not yet persist the hash-bound 84D observation and 12D expert-action episode record",
       "no live/controller/TP/bridge action is part of this offline preparation"
     ]
   }

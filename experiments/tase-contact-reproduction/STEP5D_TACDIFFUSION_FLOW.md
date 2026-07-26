@@ -5,6 +5,12 @@ outer loop, and 60 s cycloid. Stage25 uses the PolyScope 5.26 Direct Torque
 backend with fixed K/D/Dq. TacDiffusion is a deterministic 50 Hz fixture
 shadow only; it has no command or fallback authority and `model_active=false`.
 
+This fixture-shadow route is not the expert-data collection route. Its TP
+package requires zero feed-forward wrench, and the bridge does not persist the
+84D observation plus 12D expert-action episode record required by the
+TacDiffusion dataset. Starting this bridge alone therefore does not mean data
+collection has started.
+
 ## Current state
 
 - Local `.script/.txt/.urp` package generated and exact cachedContents checked.
@@ -25,6 +31,20 @@ shadow only; it has no command or fallback authority and `model_active=false`.
   The only controller mutation was the scoped TP triplet upload plus fresh
   readback.
 
+## Unknown-surface and controller-simulation boundaries
+
+- The physical curved surface remains unknown to the controller. The live
+  reference is nominal in-plane path plus target load; it must not inject the
+  registered v11 CAD height or CAD local normals.
+- The PolyScope Simulation button may run the exact 5.26 TP program without
+  moving the robot. A hash-bound Simulation Mode trace can verify parser/API
+  availability, RTDE register roundtrip, Stage25 entry, and controlled stop.
+  This is controller-runtime no-motion evidence, not physical torque/contact
+  acceptance.
+- The complete `controller_verified` claim still separately needs controller
+  and robot identity plus installation, safety, TCP/payload, URCap,
+  calibration, and API evidence.
+
 ## Operator sequence after all gates pass
 
 1. Open `/programs/andyl/kunwei/step5/step5d_tacdiffusion_direct_torque_fixture_shadow_v1.urp` on the TP. Do not press Play yet.
@@ -34,5 +54,6 @@ shadow only; it has no command or fallback authority and `model_active=false`.
 5. Only normal 60 s completion may use the frozen guarded retract/home route. Packet, sensor, runtime, or safety faults exit torque and latch without auto-home.
 
 No-contact acceptance is 2 s, then 10 s, then 60 s with a fresh authorization
-for each tranche. Contact uses the same progression only after its separate
-2+1 review and fresh authorization.
+for each tranche and deterministic `0+0` validation. One final frozen-
+fingerprint `2+1` review is deferred until immediately before expert-data
+collection contact, which also requires fresh contact authorization.
