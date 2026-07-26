@@ -1627,6 +1627,7 @@ def test_hidden_cli_is_fenced_to_active_authority_owner(
     import step5d_bridge_authority as bridge_authority
 
     campaign = tmp_path / "campaign"
+    authority_root = tmp_path / "authority"
     output = tmp_path / "output"
     owner_pid = 42
     owner_starttime = 700
@@ -1641,8 +1642,9 @@ def test_hidden_cli_is_fenced_to_active_authority_owner(
         "read_proc_starttime_ticks",
         lambda pid: owner_starttime if pid == owner_pid else None,
     )
+    monkeypatch.setenv("STEP5D_V3_AUTHORITY_ROOT", str(authority_root))
     bridge_authority.begin(
-        campaign,
+        authority_root,
         attempt_id="shell-attempt-bound",
         owner_pid=owner_pid,
         owner_starttime_ticks=owner_starttime,
