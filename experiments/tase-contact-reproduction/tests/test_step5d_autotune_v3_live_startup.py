@@ -1580,6 +1580,137 @@ def test_run_recoverable_live_session_stops_retry_on_raw_session_exception(
     assert attempts == [1]
 
 
+def test_run_live_single_session_nonrecoverable_failure_preserves_recovering_and_invokes_cleanup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+        single_session=True,
+    )
+    attempt_root = args.output_root / "attempt-0001"
+    dispatch_calls: list[str] = []
+    original_dispatch = live.dispatch_single_session
+
+    def dispatch_spy(session_callable: Any, cleanup: Any) -> Any:
+        dispatch_calls.append("dispatch")
+
+        def wrapped_cleanup() -> None:
+            dispatch_calls.append("cleanup")
+            cleanup()
+
+        return original_dispatch(session_callable, wrapped_cleanup)
+
+    monkeypatch.setattr(live, "dispatch_single_session", dispatch_spy)
+    monkeypatch.setattr(
+        live,
+        "_run_live_session",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            live.LiveSessionAttemptError(RuntimeError("single session hard failure"), recoverable=False)
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="single session hard failure"):
+        live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
+
+    assert dispatch_calls == ["dispatch", "cleanup"]
+    status = live.read_strict_json(
+        args.output_root / "recoverable_session_status.json",
+        role="recoverable session status",
+    )
+    assert status["state"] == "RECOVERING"
+    assert status["attempt"] == 1
+    assert status["attempt_root"] == str(attempt_root)
+    assert "single session hard failure" in status["error"]
+
+
+def test_run_recoverable_live_session_retries_once_for_recoverable_session_failure_waiting_before_backoff(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+    )
+    attempts: list[int] = []
+    status_before_backoff: list[str] = []
+
+    def recoverable_then_success(*_args: Any, **_kwargs: Any) -> dict[str, bool]:
+        attempts.append(len(attempts) + 1)
+        if len(attempts) == 1:
+            raise live.LiveSessionAttemptError(
+                RuntimeError("temporary hardware fault"), recoverable=True
+            )
+        return {"ok": True}
+
+    def record_waiting_before_backoff(_seconds: float = live.RECOVERY_BACKOFF_S) -> None:
+        status = live.read_strict_json(
+            args.output_root / "recoverable_session_status.json",
+            role="recoverable session status",
+        )
+        status_before_backoff.append(status["state"])
+
+    monkeypatch.setattr(live, "_run_live_session", recoverable_then_success)
+    monkeypatch.setattr(live.time, "sleep", record_waiting_before_backoff)
+
+    result = live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
+
+    assert result["ok"] is True
+    assert attempts == [1, 2]
+    assert status_before_backoff == ["WAITING_FOR_HARDWARE"]
+
+
+def test_run_live_single_session_keyboard_interrupt_preserves_shutdown(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+        single_session=True,
+    )
+
+    monkeypatch.setattr(
+        live,
+        "_run_live_session",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(KeyboardInterrupt),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
+
+    status = live.read_strict_json(
+        args.output_root / "recoverable_session_status.json",
+        role="recoverable session status",
+    )
+    assert status["state"] == "SHUTDOWN"
+
+
 def test_validate_active_launch_identity_maps_live_cli_shape_to_coordinator_namespace(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

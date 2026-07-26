@@ -305,9 +305,9 @@ def _run_recoverable_sessions(
             except Exception as exc:
                 if not _should_retry_session_error(exc):
                     raise
-                cleanup()
                 lifecycle._set_state(LiveSessionState.RECOVERING, status="DEGRADED")
                 lifecycle._set_state(LiveSessionState.WAITING_FOR_HARDWARE)
+                cleanup()
                 backoff()
                 continue
 
@@ -344,10 +344,8 @@ def dispatch_single_session(
     """
     try:
         return session_callable()
-    except KeyboardInterrupt:
-        cleanup()
-        raise
     except BaseException:
+        cleanup()
         raise
 
 
@@ -1368,7 +1366,14 @@ def _run_live(
             return False
         if not isinstance(status, dict) or status.get("attempt") != attempt_number:
             return False
-        return status.get("state") == "SHUTDOWN"
+        if status.get("state") == "SHUTDOWN":
+            return True
+        if (
+            status.get("state") == "RECOVERING"
+            and lifecycle.state != LiveSessionState.WAITING_FOR_HARDWARE
+        ):
+            return True
+        return False
 
     def cleanup() -> None:
         # _run_live_session owns and terminates its runner + bridge in its

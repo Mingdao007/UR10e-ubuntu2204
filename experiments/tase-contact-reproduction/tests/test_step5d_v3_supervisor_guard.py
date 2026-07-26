@@ -190,3 +190,15 @@ def test_single_session_dispatch_cleans_up_failed_finite_test() -> None:
     with pytest.raises(RuntimeError, match="finite failure"):
         dispatch_single_session(session, lambda: calls.append("cleanup"))
     assert calls == ["session", "cleanup"]
+
+
+def test_single_session_dispatch_cleanup_is_always_invoked_on_keyboard_interrupt() -> None:
+    calls: list[str] = []
+
+    def session() -> None:
+        calls.append("session")
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        dispatch_single_session(session, lambda: calls.append("cleanup"))
+    assert calls == ["session", "cleanup"]
