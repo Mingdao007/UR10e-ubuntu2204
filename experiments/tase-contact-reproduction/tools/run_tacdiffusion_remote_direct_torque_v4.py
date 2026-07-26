@@ -892,9 +892,7 @@ def _wait_for_fresh_receiver_waiting(
         )
         if not batch:
             continue
-        if samples_out is not None:
-            samples_out.extend(batch)
-        for sample in batch:
+        for index, sample in enumerate(batch):
             state = int(sample["output_int_register_24"])
             runtime_state = int(sample["runtime_state"])
             protocol = int(sample["output_int_register_32"])
@@ -913,6 +911,9 @@ def _wait_for_fresh_receiver_waiting(
                 continue
             if int(sample["output_int_register_31"]) != episode_identity:
                 continue
+            if samples_out is not None:
+                samples_out.clear()
+                samples_out.extend(dict(value) for value in batch[index:])
             return time.monotonic(), sample
     if waiting_stale:
         raise RuntimeError("receiver_waiting_stale_after_send")

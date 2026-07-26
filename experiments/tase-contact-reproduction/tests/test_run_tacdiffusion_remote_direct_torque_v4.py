@@ -991,6 +991,7 @@ def test_wait_for_handshake_accepts_playing_marker_with_matching_protocol(monkey
             return self.now
 
     clock = FakeClock()
+    accepted_samples: list[dict[str, Any]] = []
     with patch("run_tacdiffusion_remote_direct_torque_v4.time.monotonic", clock):
         start, sample = _wait_for_fresh_receiver_waiting(
             FakeRTDE(samples),
@@ -1000,9 +1001,11 @@ def test_wait_for_handshake_accepts_playing_marker_with_matching_protocol(monkey
             receiver_wait_s=1.0,
             lease_id=111,
             episode_identity=222,
+            samples_out=accepted_samples,
         )
     assert start > 0.04
     assert sample["runtime_state"] == RUNTIME_PLAYING
+    assert accepted_samples == [sample]
 
 
 def test_run_live_rejects_partial_cli_gates_before_authorization_or_connect(tmp_path: Path) -> None:
