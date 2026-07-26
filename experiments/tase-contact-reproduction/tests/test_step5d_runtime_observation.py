@@ -207,7 +207,7 @@ def test_process_observation_resolves_relative_shell_launcher_from_process_cwd(
         encoding="utf-8",
     )
     process = subprocess.Popen(
-        ["scripts/step5d-autotune-v3.sh"],
+        ["/bin/bash", "scripts/step5d-autotune-v3.sh"],
         cwd=tmp_path,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,

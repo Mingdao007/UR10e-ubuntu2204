@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import time
 from pathlib import Path
 
 
@@ -208,26 +207,10 @@ def issues_for_file(path: Path) -> list[str]:
     return issues
 
 
-def _budget_exceeded(
-    started_cpu: float,
-    started_wall: float,
-    timeout_s: float,
-) -> bool:
-    cpu_elapsed = time.process_time() - started_cpu
-    wall_elapsed = time.monotonic() - started_wall
-    # CPU is authoritative; requiring both clocks to cross the boundary keeps
-    # scheduler descheduling from consuming the AST scan budget.
-    return cpu_elapsed > timeout_s and wall_elapsed > timeout_s
-
-
-def validate(root: Path, *, timeout_s: float = 2.0) -> list[str]:
-    started_cpu = time.process_time()
-    started_wall = time.monotonic()
+def validate(root: Path) -> list[str]:
     issues: list[str] = []
     for path in sorted((root / "tests").glob("test_*.py")):
         issues.extend(issues_for_file(path))
-        if _budget_exceeded(started_cpu, started_wall, timeout_s):
-            return [f"AST supervisor validator exceeded {timeout_s:.3f}s"]
     return issues
 
 

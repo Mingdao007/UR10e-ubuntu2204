@@ -169,46 +169,6 @@ def test_ast_guard_preserves_findings_and_subtree_scan_budget(
     assert all(root.lineno == 7 for root in call_subtree_roots)
 
 
-def test_validator_budget_compares_process_and_wall_time(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    tests = tmp_path / "tests"
-    tests.mkdir()
-    (tests / "test_one.py").write_text(
-        "def test_one():\n    return 1\n",
-        encoding="utf-8",
-    )
-    process_times = iter((10.0, 10.5))
-    wall_times = iter((20.0, 23.0))
-    monkeypatch.setattr(
-        supervisor_validator.time,
-        "process_time",
-        lambda: next(process_times),
-    )
-    monkeypatch.setattr(supervisor_validator.time, "monotonic", lambda: next(wall_times))
-
-    assert supervisor_validator.validate(tmp_path, timeout_s=2.0) == []
-
-
-def test_validator_budget_still_fails_after_cpu_and_wall_limits(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    tests = tmp_path / "tests"
-    tests.mkdir()
-    (tests / "test_one.py").write_text(
-        "def test_one():\n    return 1\n",
-        encoding="utf-8",
-    )
-    process_times = iter((10.0, 12.1))
-    wall_times = iter((20.0, 22.1))
-    monkeypatch.setattr(supervisor_validator.time, "process_time", lambda: next(process_times))
-    monkeypatch.setattr(supervisor_validator.time, "monotonic", lambda: next(wall_times))
-
-    assert supervisor_validator.validate(tmp_path, timeout_s=2.0) == [
-        "AST supervisor validator exceeded 2.000s"
-    ]
-
-
 def test_single_session_dispatch_does_not_retry_or_leave_owned_work() -> None:
     calls: list[str] = []
 

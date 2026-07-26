@@ -74,6 +74,8 @@ def test_persistent_worker_campaign_prepare_uses_canonical_request(
 def test_formal_finding_9_requires_production_path_proof_and_offline_compact_result(
     tmp_path: Path, monkeypatch
 ) -> None:
+    import step5d_autotune_v3.profile as profile
+
     source = inspect.getsource(measure)
     assert not re.search(r"coordinator\._basis\s*=", source)
     assert not re.search(r"coordinator\._lane_commands\s*=", source)
@@ -82,6 +84,20 @@ def test_formal_finding_9_requires_production_path_proof_and_offline_compact_res
     )
     assert "--coordinator-lane" not in source
 
+    identity_fixture = (
+        ROOT / "tests/fixtures/hermetic_ur_description/ur.urdf.xacro"
+    )
+    identity_file_sha256 = profile._identity_file_sha256
+
+    def fixture_identity_file_sha256(path: Path, *, role: str) -> str:
+        selected = identity_fixture if role == "UR description xacro" else path
+        return identity_file_sha256(selected, role=role)
+
+    monkeypatch.setattr(
+        profile,
+        "_identity_file_sha256",
+        fixture_identity_file_sha256,
+    )
     fixture_root = tmp_path / "harness"
     monkeypatch.setattr(measure.tempfile, "mkdtemp", lambda **_: str(fixture_root))
     fixture = measure._make_fixture(0)
