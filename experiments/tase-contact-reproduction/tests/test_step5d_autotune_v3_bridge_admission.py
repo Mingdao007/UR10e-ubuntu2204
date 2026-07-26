@@ -34,7 +34,7 @@ def _seed_git_reference(source_root: Path, fixture_root: Path) -> None:
         target = Path(raw[0][len("gitdir:") :].strip())
         if not target.is_absolute():
             target = source.parent / target
-        content = f"gitdir: {target.resolve() if not target.is_absolute() else target}\n"
+        content = f"gitdir: {target.resolve()}\n"
     elif source.is_dir():
         content = f"gitdir: {source.resolve(strict=True)}\n"
     else:
