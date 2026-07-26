@@ -110,6 +110,18 @@ from .direct_torque_receiver import ReceiverContract, ReceiverCommand, ReceiverS
 from .mainline_dataset import validate_mainline_dataset, write_mainline_dataset, write_mainline_manifest
 from .mainline_model import ConditionalActionModel, DeterministicMainlinePredictor, MainlineModelConfig, benchmark_runtime, export_torchscript, load_mainline_checkpoint, train_mainline_model
 from .raw_artifact import DurableRawFrameWriter, RawFrameRecord, derive_training_view, read_raw_frames
+from .expert_episode_artifact import (
+    DurableExpertEpisodeWriter,
+    ExpertEpisodeBindings,
+    ExpertEpisodeFrame,
+    read_expert_episode,
+    validate_expert_episode_manifest,
+)
+from .unknown_surface_episode import (
+    UnknownSurfaceTube,
+    generate_unknown_surface_references,
+    load_unknown_surface_tube,
+)
 from .environment import immutable_environment_fingerprint
 from .checkpoint import CheckpointBinding, validate_checkpoint_binding, write_checkpoint_binding
 from .promotion import OfflineReplayMetrics, ShadowGateResult, ShadowTrace, evaluate_offline_replay, load_shadow_artifact, run_offline_shadow_artifact_gate, run_offline_shadow_gate
@@ -242,6 +254,14 @@ __all__ = [
     "RawFrameRecord",
     "derive_training_view",
     "read_raw_frames",
+    "DurableExpertEpisodeWriter",
+    "ExpertEpisodeBindings",
+    "ExpertEpisodeFrame",
+    "read_expert_episode",
+    "validate_expert_episode_manifest",
+    "UnknownSurfaceTube",
+    "generate_unknown_surface_references",
+    "load_unknown_surface_tube",
     "immutable_environment_fingerprint",
     "CheckpointBinding",
     "validate_checkpoint_binding",

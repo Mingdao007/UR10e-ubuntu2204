@@ -19,12 +19,22 @@
   },
   "validation": {
     "full_variable_impedance_suite": {
-      "passed": 170,
+      "passed": 187,
       "skipped": 5,
       "failed": 0,
       "subtests_passed": 15,
-      "command": "/usr/bin/python3 -m pytest -q experiments/ur10e-variable-impedance/tests",
-      "pycache_prefix_isolated": true
+      "command": "PYTHONPATH=experiments/ur10e-variable-impedance PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /usr/bin/python3 -m pytest -q experiments/ur10e-variable-impedance/tests",
+      "pycache_prefix_isolated": false
+    },
+    "unknown_surface_data_path_acceptance": {
+      "passed": 83,
+      "skipped": 1,
+      "failed": 0,
+      "command": "PYTHONPATH=experiments/ur10e-variable-impedance:experiments/tase-contact-reproduction/tools PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /usr/bin/python3 -m pytest -q experiments/ur10e-variable-impedance/tests/test_tacdiffusion_unknown_surface_episode.py experiments/ur10e-variable-impedance/tests/test_tacdiffusion_current_data_collection_policy.py experiments/ur10e-variable-impedance/tests/test_tacdiffusion_surface_input_manifest.py experiments/ur10e-variable-impedance/tests/test_tacdiffusion_validation_evidence.py experiments/ur10e-variable-impedance/tests/test_tacdiffusion_surface_trajectory.py experiments/ur10e-variable-impedance/tests/test_tacdiffusion_remote_data_promotion.py experiments/ur10e-variable-impedance/tests/test_tacdiffusion_mainline_contracts.py experiments/tase-contact-reproduction/tests/test_step5d_tacdiffusion_direct_torque.py",
+      "live_actions": false,
+      "unknown_surface_reference_rows": 1001,
+      "durable_episode_artifact_tested": true,
+      "actual_and_desired_tube_guard_tested": true
     },
     "final_isolated_acceptance": {
       "passed": 112,
@@ -142,11 +152,11 @@
     },
     {
       "path": "config/tacdiffusion_surface_input_20260726.json",
-      "sha256": "686275f1be7e705265fd358556d4337c184cc30308dd90ec1681827d94c093b3"
+      "sha256": "2258a214e470669ff4f524479c70cda7d8d541a64cba185f62d92f91f440b21b"
     },
     {
       "path": "docs/TACDIFFUSION_UNKNOWN_SURFACE_DATA_COLLECTION.md",
-      "sha256": "697a1e44601b65ec64cf80c5feb19b02a33aedc301bd6c6f1d181afdf3d4fbf6"
+      "sha256": "9d76cb1a2bd88527e1d1003d1c5b26cd5f674928aacbcf9dbd6aa526cff0091b"
     },
     {
       "path": "config/direct_torque_rtde_layout.json",
@@ -233,8 +243,36 @@
       "sha256": "5370f4077cecc5408566f0b2538b5c69d01a86a8b5b05ad3e8db84c58a27475b"
     },
     {
+      "path": "ur10e_vic/tacdiffusion/__init__.py",
+      "sha256": "d85e0d833587cab25f2db348d846462ad71df2d59eae8bd1288cbb506f7d0620"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/unknown_surface_episode.py",
+      "sha256": "429ac6ae36a190e6f7e42369726b7a67f97d4a69f9a1de769f3cb1ecced3024e"
+    },
+    {
+      "path": "ur10e_vic/tacdiffusion/expert_episode_artifact.py",
+      "sha256": "63eb7dc4828d9e80727cb0409a23451209bad6f261aa9802377a66ae7f954e27"
+    },
+    {
       "path": "tools/tacdiffusion_remote_headless.py",
       "sha256": "880ab0faeaa53a3c97c340e221f380462d7dd7db0fb7610393c4beb63730f222"
+    },
+    {
+      "path": "tools/build_tacdiffusion_unknown_surface_episode.py",
+      "sha256": "e41e415ded0f4366e6be7126de873ee0dfaace6b43bea78b74b2aebb48c0871b"
+    },
+    {
+      "path": "tests/test_tacdiffusion_unknown_surface_episode.py",
+      "sha256": "9b1f8150f626c86ef4f882c4d57ef66507273005b90324bdb3ac903e56619b96"
+    },
+    {
+      "path": "tests/test_tacdiffusion_current_data_collection_policy.py",
+      "sha256": "02fa56bbd04b2b4f36792cd2fa70c21ca74405c19eaf865859095ad2dcedc8f4"
+    },
+    {
+      "path": "tests/test_tacdiffusion_surface_input_manifest.py",
+      "sha256": "6ab1e82a0a0b80fc9f85c221b2c2843c9205b5bf336ecdb6bf96a46b6c92765a"
     },
     {
       "path": "docs/TACDIFFUSION_REMOTE_HEADLESS_IMPLEMENTATION.md",

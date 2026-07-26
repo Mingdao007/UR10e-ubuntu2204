@@ -182,13 +182,18 @@
     "cad_to_base_transform_validated": true,
     "curved_trajectory_backend_ready": false,
     "curved_trajectory_backend_required_for_data_collection": false,
-    "unknown_surface_episode_reference_backend_ready": false,
+    "unknown_surface_episode_reference_backend_ready": true,
+    "unknown_surface_reference_height_source": "fresh_episode_anchor_constant_z",
+    "unknown_surface_reference_builder": "tools/build_tacdiffusion_unknown_surface_episode.py",
+    "hard_tcp_tube_guard_ready": true,
+    "durable_expert_episode_artifact_writer_ready": true,
     "durable_expert_episode_recorder_ready": false,
+    "live_bridge_recorder_integration_ready": false,
     "model_active_allowed": false,
     "live_or_contact_ready": false,
     "blockers": [
-      "unknown-surface nominal in-plane episode references are not yet bound to online measured-load following",
-      "the live bridge does not yet persist the hash-bound 84D observation and 12D expert-action episode record",
+      "unknown-surface constant-Z nominal references and the hard tube guard are offline-validated but not yet admitted by the current live controller binding",
+      "the durable 84D observation and 12D expert-action artifact writer is ready, but the live bridge has not yet integrated controller telemetry and causal 1 kHz rows",
       "no live/controller/TP/bridge action is part of this offline preparation"
     ]
   }

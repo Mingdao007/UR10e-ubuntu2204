@@ -36,6 +36,20 @@ Data collection starts only when all of the following are true:
 5. The final frozen composite fingerprint passes one deferred `2+1` review
    and receives fresh contact authorization.
 
+## Current implementation boundary
+
+The constant-Z unknown-surface reference builder now consumes the taught XY
+footprint, binds Z and orientation to a fresh episode-start TCP pose, and
+checks both desired and actual TCP poses against a hard tube. The dedicated
+expert-episode artifact writer durably validates full 84D observation and 12D
+expert/applied-action rows with causal external-source lineage.
+
+These components are offline/tooling accepted only. The current live bridge
+still lacks the controller-telemetry and 1 kHz recorder integration needed to
+produce training-eligible rows. A no-contact shadow artifact must set
+`training_eligible=false`; equality of expert and applied action is mandatory
+for a training-eligible artifact.
+
 ## PolyScope Simulation Mode
 
 The physical controller's PolyScope Simulation button can run the exact TP

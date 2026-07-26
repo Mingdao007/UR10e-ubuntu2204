@@ -32,8 +32,11 @@ def test_unknown_surface_contract_does_not_require_cad_trajectory_feedforward() 
     )
     status = surface["status"]
     assert status["curved_trajectory_backend_required_for_data_collection"] is False
-    assert status["unknown_surface_episode_reference_backend_ready"] is False
+    assert status["unknown_surface_episode_reference_backend_ready"] is True
+    assert status["hard_tcp_tube_guard_ready"] is True
+    assert status["durable_expert_episode_artifact_writer_ready"] is True
     assert status["durable_expert_episode_recorder_ready"] is False
+    assert status["live_bridge_recorder_integration_ready"] is False
     contract = " ".join(
         surface["preprocessing_and_gates"][
             "unknown_surface_data_collection_contract"
