@@ -264,7 +264,7 @@ def test_live_routes_both_configs_through_immutable_bundle(
         "_validate_active_launch_identity",
         lambda *_args, **_kwargs: (
             {
-                "launch_nonce": "launch-immutable-routing",
+                "launch_nonce": "attempt-immutable-routing",
                 "basis_sha256": "b" * 64,
                 "delivery_observation_sha256": "d" * 64,
                 "authority_epoch": 7,
