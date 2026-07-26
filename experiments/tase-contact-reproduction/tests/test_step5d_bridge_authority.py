@@ -58,6 +58,8 @@ def test_default_global_registry_is_shared_across_worktrees_and_xdg(tmp_path: Pa
         launch_basis_sha256=basis_sha_a,
     )
     assert payload_a["state"] == "ACTIVE"
+    assert payload_a["launch_basis_path"] is None
+    assert payload_a["launch_basis_sha256"] is None
     assert payload_a["worktree_root"] == wt_a
     assert registry == authority.DEFAULT_AUTHORITY_ROOT / authority.DEFAULT_RESOURCE_ID
     assert (registry / authority.STATE_FILE).exists()
@@ -272,13 +274,22 @@ def test_runtime_gateway_records_attestation_and_checks_owner_binding(
     monkeypatch.setattr(authority.os, "getppid", lambda: owner)
     monkeypatch.setattr(authority, "read_proc_starttime_ticks", lambda _pid: owner_start)
     wt, head, basis, basis_sha = _attempt_ctx(tmp_path, "runtime")
-    authority.begin(
+    payload = authority.begin(
         None,
         attempt_id="attempt-runtime",
         owner_pid=owner,
         owner_starttime_ticks=owner_start,
         worktree_root=wt,
         repository_head=head,
+        launch_basis_path=basis,
+        launch_basis_sha256=basis_sha,
+    )
+    authority.bind_basis(
+        None,
+        attempt_id="attempt-runtime",
+        owner_pid=owner,
+        owner_starttime_ticks=owner_start,
+        sequence=payload["sequence"],
         launch_basis_path=basis,
         launch_basis_sha256=basis_sha,
     )
@@ -429,6 +440,151 @@ def test_authority_fence_assert_revoked_uses_next_sequence(
     )
     with pytest.raises(authority.BridgeAuthorityError):
         stale_fence.assert_revoked()
+
+
+def test_authority_fence_requires_bound_basis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    authority_dir = tmp_path / "run-user"
+    monkeypatch.setattr(authority, "DEFAULT_AUTHORITY_ROOT", authority_dir)
+    owner = 1001
+    monkeypatch.setattr(authority.os, "getppid", lambda: owner)
+    monkeypatch.setattr(authority, "read_proc_starttime_ticks", lambda _pid: 2000)
+    wt, head, basis, basis_sha = _attempt_ctx(tmp_path, "fence")
+    payload = authority.begin(
+        None,
+        attempt_id="attempt-fence-prebind",
+        owner_pid=owner,
+        owner_starttime_ticks=2000,
+        worktree_root=wt,
+        repository_head=head,
+        launch_basis_path=basis,
+        launch_basis_sha256=basis_sha,
+    )
+
+    prebind_fence = authority.AuthorityFence(
+        authority_dir / authority.DEFAULT_RESOURCE_ID,
+        attempt_id="attempt-fence-prebind",
+        sequence=payload["sequence"],
+        owner_pid=owner,
+        owner_starttime_ticks=2000,
+    )
+    with pytest.raises(authority.BridgeAuthorityError, match="launch basis is not bound"):
+        prebind_fence.assert_active()
+
+    authority.bind_basis(
+        None,
+        attempt_id="attempt-fence-prebind",
+        owner_pid=owner,
+        owner_starttime_ticks=2000,
+        sequence=payload["sequence"],
+        launch_basis_path=basis,
+        launch_basis_sha256=basis_sha,
+    )
+    assert (
+        prebind_fence.assert_active()["launch_basis_path"] == basis
+    )
+
+
+def test_authority_bind_basis_is_idempotent_and_rejects_conflict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority_dir = tmp_path / "run-user"
+    monkeypatch.setattr(authority, "DEFAULT_AUTHORITY_ROOT", authority_dir)
+    owner = 1002
+    monkeypatch.setattr(authority.os, "getppid", lambda: owner)
+    monkeypatch.setattr(authority, "read_proc_starttime_ticks", lambda _pid: 2100)
+    wt, head, basis, basis_sha = _attempt_ctx(tmp_path, "bind-idem")
+    payload = authority.begin(
+        None,
+        attempt_id="attempt-bind-idem",
+        owner_pid=owner,
+        owner_starttime_ticks=2100,
+        worktree_root=wt,
+        repository_head=head,
+        launch_basis_path=basis,
+        launch_basis_sha256=basis_sha,
+    )
+
+    bound_first = authority.bind_basis(
+        None,
+        attempt_id="attempt-bind-idem",
+        owner_pid=owner,
+        owner_starttime_ticks=2100,
+        sequence=payload["sequence"],
+        launch_basis_path=basis,
+        launch_basis_sha256=basis_sha,
+    )
+    bound_second = authority.bind_basis(
+        None,
+        attempt_id="attempt-bind-idem",
+        owner_pid=owner,
+        owner_starttime_ticks=2100,
+        sequence=payload["sequence"],
+        launch_basis_path=basis,
+        launch_basis_sha256=basis_sha,
+    )
+    assert bound_first["sequence"] == bound_second["sequence"] == payload["sequence"]
+
+    other_basis, other_basis_sha = _write_basis(tmp_path, "other-basis.py")
+    with pytest.raises(
+        authority.BridgeAuthorityError, match="launch basis is already bound"
+    ):
+        authority.bind_basis(
+            None,
+            attempt_id="attempt-bind-idem",
+            owner_pid=owner,
+            owner_starttime_ticks=2100,
+            sequence=payload["sequence"],
+            launch_basis_path=other_basis,
+            launch_basis_sha256=other_basis_sha,
+        )
+
+
+def test_authority_bind_basis_and_two_worktree_xdg_contention(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority_dir = tmp_path / "run-user"
+    registry = authority_dir / authority.DEFAULT_RESOURCE_ID
+    monkeypatch.setattr(authority, "DEFAULT_AUTHORITY_ROOT", authority_dir)
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "xdg-one"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home-one"))
+
+    owner_a = 3001
+    owner_b = 3002
+    monkeypatch.setattr(authority.os, "getppid", lambda: owner_a)
+    monkeypatch.setattr(
+        authority,
+        "read_proc_starttime_ticks",
+        lambda pid: {owner_a: 3100, owner_b: 3200}.get(pid),
+    )
+
+    wt_a, head_a, basis_a, basis_sha_a = _attempt_ctx(tmp_path, "wt-xdg-a")
+    authority.begin(
+        None,
+        attempt_id="attempt-xdg-a",
+        owner_pid=owner_a,
+        owner_starttime_ticks=3100,
+        worktree_root=wt_a,
+        repository_head=head_a,
+        launch_basis_path=basis_a,
+        launch_basis_sha256=basis_sha_a,
+    )
+
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "xdg-two"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home-two"))
+    monkeypatch.setattr(authority.os, "getppid", lambda: owner_b)
+    wt_b, head_b, basis_b, basis_sha_b = _attempt_ctx(tmp_path, "wt-xdg-b")
+    with pytest.raises(authority.BridgeAuthorityError, match="already active|another canonical"):
+        authority.begin(
+            None,
+            attempt_id="attempt-xdg-b",
+            owner_pid=owner_b,
+            owner_starttime_ticks=3200,
+            worktree_root=wt_b,
+            repository_head=head_b,
+            launch_basis_path=basis_b,
+            launch_basis_sha256=basis_sha_b,
+        )
+    assert (registry / authority.STATE_FILE).exists()
 
 
 def test_state_file_symlink_is_unsafe(
@@ -596,13 +752,22 @@ def test_runtime_attempt_recorded_under_authority_root(
     monkeypatch.setattr(authority.os, "getppid", lambda: owner)
     monkeypatch.setattr(authority, "read_proc_starttime_ticks", lambda _pid: 2200)
     wt, head, basis, basis_sha = _attempt_ctx(tmp_path, "runtime-root")
-    authority.begin(
+    payload = authority.begin(
         None,
         attempt_id="attempt-runtime-root",
         owner_pid=owner,
         owner_starttime_ticks=2200,
         worktree_root=wt,
         repository_head=head,
+        launch_basis_path=basis,
+        launch_basis_sha256=basis_sha,
+    )
+    authority.bind_basis(
+        None,
+        attempt_id="attempt-runtime-root",
+        owner_pid=owner,
+        owner_starttime_ticks=2200,
+        sequence=payload["sequence"],
         launch_basis_path=basis,
         launch_basis_sha256=basis_sha,
     )
@@ -665,6 +830,26 @@ def test_cli_prints_only_integer_payloads(
 
     authority.main(
         [
+            "bind-basis",
+            "--attempt-id",
+            "attempt-cli",
+            "--owner-pid",
+            str(owner),
+            "--owner-starttime",
+            "2300",
+            "--sequence",
+            "1",
+            "--launch-basis-path",
+            basis,
+            "--launch-basis-sha256",
+            basis_sha,
+        ]
+    )
+    out = capsys.readouterr().out.strip()
+    assert out == "1"
+
+    authority.main(
+        [
             "revoke",
             "--attempt-id",
             "attempt-cli",
@@ -692,6 +877,26 @@ def test_cli_prints_only_integer_payloads(
             wt,
             "--repository-head",
             head,
+            "--launch-basis-path",
+            basis,
+            "--launch-basis-sha256",
+            basis_sha,
+        ]
+    )
+    out = capsys.readouterr().out.strip()
+    assert out == "3"
+
+    authority.main(
+        [
+            "bind-basis",
+            "--attempt-id",
+            "attempt-runtime-cli",
+            "--owner-pid",
+            str(owner),
+            "--owner-starttime",
+            "2300",
+            "--sequence",
+            "3",
             "--launch-basis-path",
             basis,
             "--launch-basis-sha256",

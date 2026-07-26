@@ -180,6 +180,12 @@ def _normalize_attempt_value(value: object) -> str:
     return value
 
 
+def _normalize_sequence_value(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise BridgeAuthorityError("bridge authority sequence is invalid")
+    return value
+
+
 def _normalize_owner(owner_pid: int | None, owner_starttime_ticks: int | None) -> dict[str, int]:
     if owner_pid is None or owner_starttime_ticks is None:
         raise BridgeAuthorityError("bridge authority owner is required")
@@ -263,9 +269,16 @@ def _load(path: Path) -> dict[str, Any] | None:
         or not payload["worktree_root"]
         or not isinstance(payload.get("repository_head"), str)
         or not payload.get("repository_head")
-        or not isinstance(payload.get("launch_basis_path"), str)
-        or not payload.get("launch_basis_path")
-        or not isinstance(payload.get("launch_basis_sha256"), str)
+    ):
+        raise BridgeAuthorityError("bridge owner authority fields differ")
+    if payload.get("launch_basis_path") is None and payload.get("launch_basis_sha256") is None:
+        pass
+    elif (
+        payload.get("launch_basis_path") is None
+        or payload.get("launch_basis_sha256") is None
+        or not isinstance(payload["launch_basis_path"], str)
+        or not payload["launch_basis_path"]
+        or not isinstance(payload["launch_basis_sha256"], str)
         or not _validate_required_hex(payload["launch_basis_sha256"], length=64)
     ):
         raise BridgeAuthorityError("bridge owner authority fields differ")
@@ -313,13 +326,10 @@ def _resolve_authority_root(authority_root: Path | None, resource_id: str | None
     return _safe_root(authority_root, resource_id)
 
 
-def _resolve_launch_context(
-    authority_root: Path | None,
+def _resolve_worktree_and_head(
     worktree_root: str | None,
     repository_head: str | None,
-    launch_basis_path: str | None,
-    launch_basis_sha256: str | None,
-) -> tuple[str, str, str, str]:
+) -> tuple[str, str]:
     if worktree_root is None:
         worktree_root_path = Path.cwd()
     else:
@@ -328,27 +338,62 @@ def _resolve_launch_context(
     repository = repository_head or _read_worktree_head(worktree_root_path)
     if not repository:
         raise BridgeAuthorityError("repository head is unavailable")
+    return str(worktree_root_path), repository
 
+
+def _resolve_launch_context(
+    authority_root: Path | None,
+    worktree_root: str | None,
+    repository_head: str | None,
+    launch_basis_path: str | None,
+    launch_basis_sha256: str | None,
+) -> tuple[str, str, str, str]:
+    worktree_root_path, repository = _resolve_worktree_and_head(
+        worktree_root, repository_head
+    )
     if launch_basis_path is None and launch_basis_sha256 is None:
         if authority_root is None:
-            raise BridgeAuthorityError(
-                "launch-basis path and sha256 are required for the default registry"
-            )
+            raise BridgeAuthorityError("launch-basis path and sha256 are required")
         return (
-            str(worktree_root_path),
+            worktree_root_path,
             repository,
             * _read_launch_basis(Path(__file__)),
         )
-
     if launch_basis_path is None or launch_basis_sha256 is None:
         raise BridgeAuthorityError(
             "launch-basis path and sha256 must be provided together"
         )
-
     resolved_path, resolved_sha = _read_launch_basis(Path(launch_basis_path))
     if launch_basis_sha256 != resolved_sha:
         raise BridgeAuthorityError("launch-basis sha256 does not match")
-    return str(worktree_root_path), repository, resolved_path, resolved_sha
+    return worktree_root_path, repository, resolved_path, resolved_sha
+
+
+def _assert_basis_bound(
+    current: Mapping[str, Any],
+    launch_basis_path: str | None = None,
+    launch_basis_sha256: str | None = None,
+) -> None:
+    if current.get("launch_basis_path") is None or current.get("launch_basis_sha256") is None:
+        raise BridgeAuthorityError("bridge authority launch basis is not bound")
+    if launch_basis_path is None and launch_basis_sha256 is None:
+        return
+    if current.get("launch_basis_path") != launch_basis_path:
+        raise BridgeAuthorityError("bridge authority launch-basis path differs")
+    if current.get("launch_basis_sha256") != launch_basis_sha256:
+        raise BridgeAuthorityError("bridge authority launch-basis sha256 differs")
+
+
+def _resolve_bind_basis(
+    launch_basis_path: str | None,
+    launch_basis_sha256: str | None,
+) -> tuple[str, str]:
+    if launch_basis_path is None or launch_basis_sha256 is None:
+        raise BridgeAuthorityError("launch-basis path and sha256 must be provided together")
+    resolved_path, resolved_sha = _read_launch_basis(Path(launch_basis_path))
+    if launch_basis_sha256 != resolved_sha:
+        raise BridgeAuthorityError("launch-basis sha256 does not match")
+    return resolved_path, resolved_sha
 
 
 def load_current(
@@ -361,8 +406,13 @@ def load_current(
     repository_head: str | None = None,
     launch_basis_path: str | None = None,
     launch_basis_sha256: str | None = None,
+    require_basis_bound: bool = False,
     resource_id: str | None = DEFAULT_RESOURCE_ID,
 ) -> dict[str, Any] | None:
+    if launch_basis_path is None and launch_basis_sha256 is not None:
+        raise BridgeAuthorityError("launch-basis path and sha256 must be provided together")
+    if launch_basis_sha256 is None and launch_basis_path is not None:
+        raise BridgeAuthorityError("launch-basis path and sha256 must be provided together")
     root = _resolve_authority_root(authority_root, resource_id)
     state = _load(root / STATE_FILE)
     if state is None:
@@ -389,6 +439,8 @@ def load_current(
         "launch_basis_sha256"
     ) != launch_basis_sha256:
         raise BridgeAuthorityError("bridge authority launch-basis sha256 differs")
+    if require_basis_bound:
+        _assert_basis_bound(state, launch_basis_path, launch_basis_sha256)
     state["boot_id"] = _normalize_boot_id(state.get("boot_id"))
     return state
 
@@ -400,6 +452,9 @@ def require_active(
     sequence: int,
     owner_pid: int | None = None,
     owner_starttime_ticks: int | None = None,
+    launch_basis_path: str | None = None,
+    launch_basis_sha256: str | None = None,
+    require_basis_bound: bool = False,
     resource_id: str | None = DEFAULT_RESOURCE_ID,
 ) -> dict[str, Any]:
     current = load_current(
@@ -407,6 +462,9 @@ def require_active(
         attempt_id=attempt_id,
         owner_pid=owner_pid,
         owner_starttime_ticks=owner_starttime_ticks,
+        launch_basis_path=launch_basis_path,
+        launch_basis_sha256=launch_basis_sha256,
+        require_basis_bound=require_basis_bound,
         resource_id=resource_id,
     )
     if (
@@ -452,6 +510,9 @@ class AuthorityFence:
         sequence: int,
         owner_pid: int | None = None,
         owner_starttime_ticks: int | None = None,
+        launch_basis_path: str | None = None,
+        launch_basis_sha256: str | None = None,
+        require_basis_bound: bool = True,
         resource_id: str = DEFAULT_RESOURCE_ID,
     ) -> None:
         self.root = _safe_root(authority_root, None)
@@ -459,6 +520,9 @@ class AuthorityFence:
         self.sequence = sequence
         self.owner_pid = owner_pid
         self.owner_starttime_ticks = owner_starttime_ticks
+        self.launch_basis_path = launch_basis_path
+        self.launch_basis_sha256 = launch_basis_sha256
+        self.require_basis_bound = require_basis_bound
         self.resource_id = resource_id
 
     def assert_active(self) -> dict[str, Any]:
@@ -468,6 +532,9 @@ class AuthorityFence:
             sequence=self.sequence,
             owner_pid=self.owner_pid,
             owner_starttime_ticks=self.owner_starttime_ticks,
+            launch_basis_path=self.launch_basis_path,
+            launch_basis_sha256=self.launch_basis_sha256,
+            require_basis_bound=self.require_basis_bound,
             resource_id=self.resource_id,
         )
 
@@ -503,15 +570,24 @@ def begin(
     owner = _normalize_owner(owner_pid, owner_starttime_ticks)
     _caller_owner(owner["pid"], owner["starttime_ticks"])
     root = _resolve_authority_root(authority_root, resource_id)
-    worktree_root, repository_head, launch_basis_path, launch_basis_sha256 = (
-        _resolve_launch_context(
-            authority_root,
-            worktree_root,
-            repository_head,
-            launch_basis_path,
-            launch_basis_sha256,
+    if authority_root is None:
+        worktree_root, repository_head = _resolve_worktree_and_head(
+            worktree_root, repository_head
         )
-    )
+        if launch_basis_path is not None or launch_basis_sha256 is not None:
+            _resolve_bind_basis(launch_basis_path, launch_basis_sha256)
+        launch_basis_path = None
+        launch_basis_sha256 = None
+    else:
+        worktree_root, repository_head, launch_basis_path, launch_basis_sha256 = (
+            _resolve_launch_context(
+                authority_root,
+                worktree_root,
+                repository_head,
+                launch_basis_path,
+                launch_basis_sha256,
+            )
+        )
 
     with _locked_state(root):
         current = _load(root / STATE_FILE)
@@ -565,6 +641,56 @@ def begin(
         }
         _atomic_json(root / STATE_FILE, payload)
         return payload
+
+
+def bind_basis(
+    authority_root: Path | None = None,
+    attempt_id: str | None = None,
+    owner_pid: int | None = None,
+    owner_starttime_ticks: int | None = None,
+    *,
+    sequence: int | None = None,
+    launch_basis_path: str | None = None,
+    launch_basis_sha256: str | None = None,
+    resource_id: str | None = DEFAULT_RESOURCE_ID,
+) -> dict[str, Any]:
+    normalized_attempt = _normalize_attempt_value(attempt_id)
+    normalized_sequence = _normalize_sequence_value(sequence)
+    owner = _normalize_owner(owner_pid, owner_starttime_ticks)
+    _caller_owner(owner["pid"], owner["starttime_ticks"])
+    root = _resolve_authority_root(authority_root, resource_id)
+    resolved_basis_path, resolved_basis_sha = _resolve_bind_basis(
+        launch_basis_path,
+        launch_basis_sha256,
+    )
+
+    with _locked_state(root):
+        current = _load(root / STATE_FILE)
+        if current is None:
+            raise BridgeAuthorityError("bridge authority not found")
+        if current.get("state") != "ACTIVE":
+            raise BridgeAuthorityError("bridge authority is not ACTIVE")
+        if current.get("attempt_id") != normalized_attempt or current.get("owner") != owner:
+            raise BridgeAuthorityError("bridge authority owner binding differs")
+        if current.get("sequence") != normalized_sequence:
+            raise BridgeAuthorityError("bridge authority sequence mismatch")
+
+        if (
+            current.get("launch_basis_path") is None
+            and current.get("launch_basis_sha256") is None
+        ):
+            payload = dict(current)
+            payload["launch_basis_path"] = resolved_basis_path
+            payload["launch_basis_sha256"] = resolved_basis_sha
+            _atomic_json(root / STATE_FILE, payload)
+            return payload
+
+        if (
+            current.get("launch_basis_path") == resolved_basis_path
+            and current.get("launch_basis_sha256") == resolved_basis_sha
+        ):
+            return current
+        raise BridgeAuthorityError("bridge authority launch basis is already bound")
 
 
 def revoke(
@@ -649,6 +775,7 @@ def record_runtime_attempt(
         repository_head=repository_head,
         launch_basis_path=launch_basis_path,
         launch_basis_sha256=launch_basis_sha256,
+        require_basis_bound=True,
         resource_id=resource_id,
     )
     publish_payload = publish_launch_attempt(
@@ -671,7 +798,10 @@ def record_runtime_attempt(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("begin", "revoke", "runtime-start", "runtime-fail"))
+    parser.add_argument(
+        "action",
+        choices=("begin", "bind-basis", "revoke", "runtime-start", "runtime-fail"),
+    )
     parser.add_argument("--authority-root", type=Path)
     parser.add_argument("--attempt-id", required=True)
     parser.add_argument("--owner-pid", type=int, required=True)
@@ -680,6 +810,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repository-head", default=None)
     parser.add_argument("--launch-basis-path", default=None)
     parser.add_argument("--launch-basis-sha256", default=None)
+    parser.add_argument("--sequence", type=int)
     parser.add_argument("--reason", choices=sorted(ALLOWED_REASONS))
     parser.add_argument("--exit-code", type=int)
     parser.add_argument("--reason-code")
@@ -701,6 +832,19 @@ def main(argv: list[str] | None = None) -> int:
             args.owner_starttime,
             worktree_root=args.worktree_root,
             repository_head=args.repository_head,
+            launch_basis_path=args.launch_basis_path,
+            launch_basis_sha256=args.launch_basis_sha256,
+            resource_id=args.resource_id,
+        )
+    elif args.action == "bind-basis":
+        if args.sequence is None:
+            parser.error("bind-basis requires --sequence")
+        payload = bind_basis(
+            args.authority_root,
+            args.attempt_id,
+            args.owner_pid,
+            args.owner_starttime,
+            sequence=args.sequence,
             launch_basis_path=args.launch_basis_path,
             launch_basis_sha256=args.launch_basis_sha256,
             resource_id=args.resource_id,
@@ -749,7 +893,7 @@ def main(argv: list[str] | None = None) -> int:
             launch_basis_sha256=args.launch_basis_sha256,
             resource_id=args.resource_id,
         )
-    if args.action in {"begin", "revoke"}:
+    if args.action in {"begin", "bind-basis", "revoke"}:
         print(payload["sequence"])
     else:
         print(payload["attestation"]["sequence"])
