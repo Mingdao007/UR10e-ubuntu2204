@@ -159,8 +159,12 @@ registers 44--47 now expose control-update dt/count/max-gap and the dedicated
 torque-thread tick count. Future evidence separately gates `500 Hz` RTDE
 output, `450--550 Hz` torque application, at least `150 Hz` control-law
 refresh, and at most `10 ms` control-update gap. This timing-corrected source
-is offline-ready but has not yet passed a controller no-motion probe or a
-physical hold; the historical hold does not promote it.
+uses URScript's supported `pow(e, -omega*dt)` form rather than the unsupported
+`exp()` spelling. The exact frozen source passed an official 5.25.2 URSim
+full-source no-motion check and a real 5.26 bounded parser/start probe with
+WAITING and COMPLETE observed, no RTDE inputs, no Direct Torque, and no
+motion. It has not yet passed a physical Direct Torque hold; the historical
+hold does not promote it.
 
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean
