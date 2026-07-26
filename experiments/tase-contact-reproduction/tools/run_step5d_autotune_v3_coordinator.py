@@ -55,6 +55,7 @@ CAMPAIGN_RESULT_FIELDS = {
     "campaign_binding_file", "launch_profile_path", "launch_profile_sha256",
     "machine_binding_status", "candidate_plan", "trial_overlay_plan", "receiver_root",
 }
+_REPO_HEAD_CANDIDATES = (Path(__file__).resolve().parents[2], Path(__file__).resolve().parent.parent)
 
 
 def _strict_json(path: Path, *, role: str) -> dict[str, Any]:
@@ -80,6 +81,22 @@ def _checked_output_root(args: argparse.Namespace) -> Path:
     except OSError as exc:
         raise RuntimeError("coordinator output root path is unsafe") from exc
     return output_root
+
+
+def _repository_head(root: Path) -> str:
+    for candidate in (root.resolve(strict=True), *_REPO_HEAD_CANDIDATES):
+        result = subprocess.run(
+            ["git", "-C", str(candidate), "rev-parse", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            continue
+        revision = result.stdout.strip()
+        if re.fullmatch(r"[0-9a-f]{40}", revision):
+            return revision
+    raise RuntimeError("launch basis repository HEAD is unavailable")
 
 
 def _create_coordinator_runtime_root(args: argparse.Namespace) -> Path:
@@ -383,6 +400,8 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
         launch_nonce=os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", args.attempt_id),
         argv_sha256=_sha256_json(sys.argv),
         effective_config_sha256=_sha256_json(effective["effective_config"]),
+        worktree_root=str(root),
+        repository_head=_repository_head(root),
         issued_at_unix_ns=time.time_ns(),
         expires_at_unix_ns=time.time_ns() + args.basis_ttl_s * 1_000_000_000,
     )

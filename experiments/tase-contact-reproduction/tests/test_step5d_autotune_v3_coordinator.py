@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+import re
 import time
 from types import SimpleNamespace
 from typing import Any
@@ -28,9 +29,11 @@ def _basis(now_ns: int) -> dict[str, Any]:
         owner_pid=123,
         owner_starttime=456,
         authority_epoch=7,
-        launch_nonce="attempt",
+        launch_nonce="b" * 32,
         argv_sha256="e" * 64,
         effective_config_sha256="f" * 64,
+        worktree_root="/tmp/step5d-basis-worktree",
+        repository_head="a" * 40,
         issued_at_unix_ns=now_ns - 1_000_000,
         expires_at_unix_ns=now_ns + 60_000_000_000,
     )
@@ -194,7 +197,7 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
         experiment_root=experiment_root,
         admission=admission_path,
         authority_root=tmp_path / "authority",
-        attempt_id="attempt",
+        attempt_id="a" * 32,
         authority_epoch=7,
         owner_pid=123,
         owner_starttime=456,
@@ -227,7 +230,7 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
         "load_current",
         lambda _root: {
             "state": "ACTIVE",
-            "attempt_id": "attempt",
+            "attempt_id": "a" * 32,
             "sequence": 7,
             "owner": {"pid": 123, "starttime_ticks": 456},
         },
@@ -247,6 +250,9 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
     )
 
     basis = coordinator._basis(args)
+    assert basis["schema"] == "step5d.autotune-v3/launch-basis-v2"
+    assert basis["worktree_root"] == str(args.experiment_root.resolve(strict=True))
+    assert re.fullmatch(r"[0-9a-f]{40}", basis["repository_head"])
     assert basis["basis_sha256"]
     attempt_args = SimpleNamespace(**vars(args))
     attempt_args.output_root = tmp_path / "output" / "attempt-0001"

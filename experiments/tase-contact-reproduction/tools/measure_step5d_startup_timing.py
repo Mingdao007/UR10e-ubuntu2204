@@ -54,18 +54,6 @@ def _sha256_json(value: Any) -> str:
     ).hexdigest()
 
 
-def _fixture_fingerprint() -> tuple[str, dict[str, str]]:
-    paths = {
-        "experiment_config": ROOT / "config/step5d_autotune_campaign_v1.json",
-        "launch_profile": ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
-        "campaign_prepare": PREPARE,
-        "timing_harness": SCRIPT,
-    }
-    digests = {name: _sha256(path) for name, path in paths.items()}
-    encoded = json.dumps(digests, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest(), digests
-
-
 def _offline_runtime_environment(sandbox: Path) -> dict[str, str]:
     return {
         "HOME": str(sandbox / "home"),
@@ -209,7 +197,6 @@ def _make_fixture(index: int) -> dict[str, Any]:
     )
     from step5d_autotune_v3.runtime_identity import bind_final_script
     from step5d_autotune_v3.runtime_gate import release_runtime_contract
-    from prepare_step5d_autotune_launch import _campaign_fingerprint
     from step5d_autotune_v3.release_transition import (
         create_delivery_basis,
         write_publication_lineage,
@@ -398,10 +385,6 @@ def _make_fixture(index: int) -> dict[str, Any]:
         encoding="utf-8",
     )
     release = load_runtime_release(root)
-    campaign_fingerprint = _campaign_fingerprint(
-        release_manifest_sha256=release.manifest_sha256,
-        launch_profile_sha256=_sha256(release_profile_path),
-    )
     runtime_contract = release_runtime_contract(root, release)
     expected_program = str(runtime_contract["expected_loaded_program"])
     triplet = {
@@ -537,7 +520,17 @@ def _make_fixture(index: int) -> dict[str, Any]:
         "dashboard": dashboard,
         "authority_acquired": False,
         "attempt_created": False,
-        "campaign_fingerprint": campaign_fingerprint,
+        "campaign_fingerprint": hashlib.sha256(
+            json.dumps(
+                {
+                    "schema": "step5d.parameter-receiver/campaign-fingerprint-v1",
+                    "release_manifest_sha256": release.manifest_sha256,
+                    "launch_profile_sha256": _sha256(release_profile_path),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("ascii")
+        ).hexdigest(),
     }
     validate_bridge_admission(
         root,
@@ -546,6 +539,21 @@ def _make_fixture(index: int) -> dict[str, Any]:
         environment=runtime_environment,
     )
     admission_path = write_indexed_bridge_admission(root, admission)
+    admission_payload = json.loads(admission_path.read_text(encoding="utf-8"))
+    campaign_fingerprint = str(admission_payload["campaign_fingerprint"])
+    if not re.fullmatch(r"[0-9a-f]{64}", campaign_fingerprint):
+        raise RuntimeError("timing fixture admission campaign fingerprint is malformed")
+    head_result = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if head_result.returncode != 0:
+        raise RuntimeError("timing fixture could not read repository HEAD")
+    repository_head = head_result.stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", repository_head):
+        raise RuntimeError("timing fixture repository HEAD is malformed")
     basis_root = root / "basis"
     basis_path = basis_root / "launch-basis.json"
     now = time.time_ns()
@@ -563,6 +571,8 @@ def _make_fixture(index: int) -> dict[str, Any]:
         launch_nonce=f"{index + 1:064x}"[-32:],
         argv_sha256="e" * 64,
         effective_config_sha256="f" * 64,
+        worktree_root=str(root),
+        repository_head=repository_head,
         issued_at_unix_ns=now - 1_000_000,
         expires_at_unix_ns=now + 120_000_000_000,
     )
@@ -587,10 +597,19 @@ def _make_fixture(index: int) -> dict[str, Any]:
         "delivery": str(delivery_path),
         "owner_pid": os.getpid(),
         "owner_starttime": owner_starttime,
-        "campaign_fingerprint": basis["campaign_fingerprint"],
+        "campaign_fingerprint": campaign_fingerprint,
         "runtime_identity": runtime_identity,
         "runtime_environment": runtime_environment,
     }
+
+
+def _campaign_fingerprint_from_fixture(fixture: Mapping[str, Any]) -> str:
+    admission_path = Path(str(fixture["admission"]))
+    payload = json.loads(admission_path.read_text(encoding="utf-8"))
+    campaign_fingerprint = str(payload["campaign_fingerprint"])
+    if not re.fullmatch(r"[0-9a-f]{64}", campaign_fingerprint):
+        raise RuntimeError("timing fixture admission campaign fingerprint is malformed")
+    return campaign_fingerprint
 
 
 def _campaign_command(fixture: Mapping[str, Any]) -> list[str]:
@@ -692,6 +711,7 @@ def _run_campaign_function(fixture: Mapping[str, Any]) -> dict[str, Any]:
             campaign_root=Path(str(fixture["campaign_root"])),
             binding_file=Path(str(fixture["binding_file"])),
             binding_source="offline_startup_timing_fixture",
+            campaign_fingerprint=str(fixture["campaign_fingerprint"]),
             launch_profile_path=Path(str(fixture["launch_profile"])),
             candidate_batch_size=5,
             rolling_plan=False,
@@ -960,17 +980,14 @@ def _run_handoff_with_environment(fixture: Mapping[str, Any]) -> dict[str, Any]:
                 "launch_nonce": basis["launch_nonce"],
                 "ticket": {
                     "launch_id": basis["launch_nonce"],
-                    "control_profile_id": release.control_profile_id,
                     "launch_basis": {
-                        "path": basis_path.relative_to(root).as_posix(),
+                        "path": str(basis_path.resolve()),
                         "sha256": basis["basis_sha256"],
                     },
                     "delivery_observation": {
-                        "path": Path(fixture["delivery"]).relative_to(root).as_posix(),
+                        "path": str(Path(fixture["delivery"]).resolve()),
                         "sha256": basis["delivery_observation_sha256"],
                     },
-                    "manifest_sha256": release.manifest_sha256,
-                    "tp_program_id": release.program_id,
                 },
             },
             sort_keys=True,
@@ -1109,8 +1126,9 @@ def _persistent_worker() -> int:
     return 0
 
 
-def _run_cold(operation: str, index: int, fingerprint: str) -> dict[str, Any]:
+def _run_cold(operation: str, index: int) -> dict[str, Any]:
     fixture = _make_fixture(index)
+    fingerprint = _campaign_fingerprint_from_fixture(fixture)
     started = time.perf_counter_ns()
     command = _campaign_command(fixture) if operation == "campaign_prepare" else _worker_command(operation, fixture)
     env = _python_env()
@@ -1140,8 +1158,9 @@ def _run_cold(operation: str, index: int, fingerprint: str) -> dict[str, Any]:
         shutil.rmtree(fixture["root"], ignore_errors=False)
 
 
-def _run_warm(operation: str, index: int, fingerprint: str, worker: subprocess.Popen[str]) -> dict[str, Any]:
+def _run_warm(operation: str, index: int, worker: subprocess.Popen[str]) -> dict[str, Any]:
     fixture = _make_fixture(100 + index)
+    fingerprint = _campaign_fingerprint_from_fixture(fixture)
     request = {"operation": operation, "fixture": fixture["experiment_root"]}
     started = time.perf_counter_ns()
     assert worker.stdin is not None and worker.stdout is not None
@@ -1186,9 +1205,11 @@ def _summary(samples: list[dict[str, Any]], field: str, threshold: float, *, inc
 
 
 def _run_measurement(output: Path) -> dict[str, Any]:
-    fingerprint, files = _fixture_fingerprint()
     operations = ("campaign_prepare", "preflight_worker", "live_handoff_to_bridge_popen")
-    cold = {operation: [_run_cold(operation, index, fingerprint) for index in range(RUNS)] for operation in operations}
+    cold = {
+        operation: [_run_cold(operation, index) for index in range(RUNS)]
+        for operation in operations
+    }
     env = _python_env()
     worker = subprocess.Popen(
         [sys.executable, str(SCRIPT), "--persistent-worker"],
@@ -1201,11 +1222,26 @@ def _run_measurement(output: Path) -> dict[str, Any]:
         bufsize=1,
     )
     try:
-        warm = {operation: [_run_warm(operation, index, fingerprint, worker) for index in range(RUNS)] for operation in operations}
+        warm = {
+            operation: [_run_warm(operation, index, worker) for index in range(RUNS)]
+            for operation in operations
+        }
     finally:
         if worker.stdin is not None:
             worker.stdin.close()
         worker.wait(timeout=10.0)
+    operation_fingerprints = {
+        str(sample["fixture_fingerprint"])
+        for samples in cold.values()
+        for sample in samples
+    } | {
+        str(sample["fixture_fingerprint"])
+        for samples in warm.values()
+        for sample in samples
+    }
+    if len(operation_fingerprints) != 1:
+        raise RuntimeError("timing fixture campaign fingerprint is not stable across samples")
+    fingerprint = next(iter(operation_fingerprints))
     for operation in operations:
         if any(sample.get("result", {}).get("ok") is not True for sample in cold[operation] + warm[operation]):
             raise RuntimeError(f"{operation} produced an unsuccessful sample")
@@ -1289,7 +1325,7 @@ def _run_measurement(output: Path) -> dict[str, Any]:
         "offline_only": True,
         "hardware_touched": False,
         "runs_per_mode": RUNS,
-        "fixture": {"fingerprint": fingerprint, "files": files},
+        "fixture": {"fingerprint": fingerprint},
         "commands": {
             "campaign_prepare": "actual prepare_step5d_autotune_launch.py CLI with launch-basis fixture",
             "preflight_worker": "persistent/cold worker calls preflight_step5d_autotune_v3.main with patched offline hardware observations",

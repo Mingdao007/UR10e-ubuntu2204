@@ -40,34 +40,11 @@ def _sha256_path(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _campaign_fingerprint(
-    *,
-    release_manifest_sha256: str,
-    launch_profile_sha256: str,
-) -> str:
-    encoded = json.dumps(
-        {
-            "schema": "step5d.parameter-receiver/campaign-fingerprint-v1",
-            "release_manifest_sha256": release_manifest_sha256,
-            "launch_profile_sha256": launch_profile_sha256,
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("ascii")
-    return hashlib.sha256(encoded).hexdigest()
-
-
 def _validate_campaign_fingerprint(
-    *,
-    requested_fingerprint: str | None,
-    release_manifest_sha256: str,
-    launch_profile_sha256: str,
+    *, requested_fingerprint: str | None
 ) -> str:
     if requested_fingerprint is None:
-        return _campaign_fingerprint(
-            release_manifest_sha256=release_manifest_sha256,
-            launch_profile_sha256=launch_profile_sha256,
-        )
+        raise RuntimeError("campaign_fingerprint is required")
     if not isinstance(requested_fingerprint, str) or not re.fullmatch(
         r"[0-9a-f]{64}",
         requested_fingerprint,
@@ -160,11 +137,7 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
         INITIAL_MANIFEST_PATH,
     )
     launch_profile_sha256 = _sha256_path(launch_profile_path)
-    fingerprint = _validate_campaign_fingerprint(
-        requested_fingerprint=args.campaign_fingerprint,
-        release_manifest_sha256=release.manifest_sha256,
-        launch_profile_sha256=launch_profile_sha256,
-    )
+    fingerprint = _validate_campaign_fingerprint(requested_fingerprint=args.campaign_fingerprint)
     chain = discover_campaign_epochs(campaign_root)
     if chain:
         latest = chain[-1]

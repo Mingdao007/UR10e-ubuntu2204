@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import hashlib
 import subprocess
@@ -37,6 +38,8 @@ def _basis(now: int) -> dict[str, object]:
         launch_nonce="e" * 32,
         argv_sha256="f" * 64,
         effective_config_sha256="0" * 64,
+        worktree_root="/tmp/step5d-tase-basis-root",
+        repository_head="a" * 40,
         issued_at_unix_ns=now - 1_000_000,
         expires_at_unix_ns=now + 10_000_000_000,
     )
@@ -107,15 +110,23 @@ def test_consumers_hash_actual_delivery_and_admission_identity(tmp_path: Path) -
         )
 
 
-def test_strict_bridge_ready_binds_process_ticket_basis_release_and_health() -> None:
+def _write_basis_json(path: Path, payload: dict[str, object]) -> None:
+    path.write_text(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_strict_bridge_ready_binds_process_ticket_basis_release_and_health(tmp_path: Path) -> None:
     basis = {
         "basis_sha256": "a" * 64,
         "release_manifest_sha256": "b" * 64,
         "delivery_observation_sha256": "d" * 64,
     }
+    absolute_basis_path = str(tmp_path / "basis.json")
     ticket = {
         "launch_id": "c" * 32,
-        "launch_basis": {"sha256": basis["basis_sha256"], "path": "basis.json"},
+        "launch_basis": {"sha256": basis["basis_sha256"], "path": absolute_basis_path},
         "delivery_observation": {"sha256": "d" * 64, "path": "delivery.json"},
         "control_profile_id": "profile",
         "manifest_sha256": basis["release_manifest_sha256"],
@@ -144,6 +155,107 @@ def test_strict_bridge_ready_binds_process_ticket_basis_release_and_health() -> 
         basis=basis,
         release={"manifest_sha256": "b" * 64, "program_id": "program"},
     )["ok"] is True
+
+
+def test_launch_basis_v1_schema_still_readable_for_one_compatibility_release(tmp_path: Path) -> None:
+    now = time.time_ns()
+    path = tmp_path / "launch-basis-v1.json"
+    payload = _basis(now)
+    payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"worktree_root", "repository_head"}
+    }
+    payload["schema"] = "step5d.autotune-v3/launch-basis-v1"
+    payload.pop("basis_sha256", None)
+    payload["basis_sha256"] = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
+            "utf-8"
+        )
+    ).hexdigest()
+    _write_basis_json(path, payload)
+    checked = read_and_validate_launch_basis(
+        path,
+        owner_pid=123,
+        owner_starttime=456,
+        expected_basis_sha256=payload["basis_sha256"],
+        now_unix_ns=now,
+    )
+    assert checked["schema"] == "step5d.autotune-v3/launch-basis-v1"
+
+
+def test_validate_strict_bridge_ready_rejects_relative_basis_path(tmp_path: Path) -> None:
+    basis = {
+        "basis_sha256": "a" * 64,
+        "release_manifest_sha256": "b" * 64,
+        "delivery_observation_sha256": "d" * 64,
+    }
+    ticket = {
+        "launch_id": "c" * 32,
+        "launch_basis": {"sha256": basis["basis_sha256"], "path": "basis.json"},
+        "delivery_observation": {"sha256": basis["delivery_observation_sha256"], "path": "delivery.json"},
+    }
+    ready = {
+        "ready_schema": "step5d_bridge_ready_v2",
+        "ok": True,
+        "pid": 99,
+        "launch_nonce": "c" * 32,
+        "bridge_profile": "profile",
+        "rtde_connected": True,
+        "rtde_send_succeeded": True,
+        "sensor_stream_ready": True,
+        "prewarm_status": "ok",
+        "rtde_output_fields": ["heartbeat"],
+        "rtde_output_types": ["DOUBLE"],
+    }
+    with pytest.raises(LaunchBasisError, match="absolute"):
+        validate_strict_bridge_ready(
+            ready,
+            bridge_pid=99,
+            bridge_starttime_ticks=123,
+            launch_nonce="c" * 32,
+            expected_profile="profile",
+            ticket=ticket,
+            basis=basis,
+            release={"manifest_sha256": "b" * 64, "program_id": "program"},
+        )
+
+
+def test_validate_strict_bridge_ready_rejects_tampered_basis_sha() -> None:
+    basis = {
+        "basis_sha256": "a" * 64,
+        "release_manifest_sha256": "b" * 64,
+        "delivery_observation_sha256": "d" * 64,
+    }
+    ticket = {
+        "launch_id": "c" * 32,
+        "launch_basis": {"sha256": "b" * 64, "path": "/tmp/basis.json"},
+        "delivery_observation": {"sha256": basis["delivery_observation_sha256"], "path": "/tmp/delivery.json"},
+    }
+    ready = {
+        "ready_schema": "step5d_bridge_ready_v2",
+        "ok": True,
+        "pid": 99,
+        "launch_nonce": "c" * 32,
+        "bridge_profile": "profile",
+        "rtde_connected": True,
+        "rtde_send_succeeded": True,
+        "sensor_stream_ready": True,
+        "prewarm_status": "ok",
+        "rtde_output_fields": ["heartbeat"],
+        "rtde_output_types": ["DOUBLE"],
+    }
+    with pytest.raises(LaunchBasisError, match="basis identity"):
+        validate_strict_bridge_ready(
+            ready,
+            bridge_pid=99,
+            bridge_starttime_ticks=123,
+            launch_nonce="c" * 32,
+            expected_profile="profile",
+            ticket=ticket,
+            basis=basis,
+            release={"manifest_sha256": "b" * 64, "program_id": "program"},
+        )
 
 
 def _coordinator_args(tmp_path: Path) -> SimpleNamespace:
