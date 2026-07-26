@@ -4,7 +4,9 @@ from __future__ import annotations
 import csv
 import json
 import subprocess
+import queue
 import tempfile
+import time
 import unittest
 from pathlib import Path
 import sys
@@ -15,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import analyze_step5d_bridge_run  # noqa: E402
+import kunwei_rtde_bridge  # noqa: E402
 
 
 FIELDNAMES = [
@@ -684,7 +687,132 @@ def write_v29_speedj_rnn_sparse_accepted_slice(run_dir: Path) -> None:
     write_bridge_csv(csv_path, rows, fieldnames=fieldnames)
 
 
+class _FakeProcess:
+    def __init__(self, alive: bool) -> None:
+        self._alive = alive
+
+    def is_alive(self) -> bool:
+        return self._alive
+
+
 class Step5dBridgeRunAnalysisTest(unittest.TestCase):
+    def test_dashboard_watchdog_nonblocking_read_fails_closed_when_poll_stale(self) -> None:
+        snapshot_queue = queue.Queue(maxsize=1)
+        process = _FakeProcess(alive=True)
+        now = time.perf_counter()
+        start = time.perf_counter()
+        for _ in range(400):
+            stop_reason, _ = kunwei_rtde_bridge.read_dashboard_watch_snapshot(
+                dashboard_watch_process=process,
+                dashboard_watch_queue=snapshot_queue,
+                now_mono=time.monotonic(),
+                start_mono=now,
+                bridge_profile=kunwei_rtde_bridge.STEP5D_ABLATION_V29_STAGE_ID,
+                timeout_s=kunwei_rtde_bridge.STEP5D_DASHBOARD_WATCH_SNAPSHOT_STALE_S,
+                dashboard_watch_saw_running=False,
+            )
+            self.assertEqual(stop_reason, "dashboard_program_watch_stale")
+        self.assertLess(time.perf_counter() - start, 0.50)
+
+    def test_dashboard_watchdog_closed_if_watchdog_process_is_dead(self) -> None:
+        snapshot_queue = queue.Queue(maxsize=1)
+        now = time.monotonic()
+        snapshot_queue.put(
+            {
+                "captured_mono": now,
+                "dashboard": {
+                    "running": "TRUE",
+                    "programState": "PLAYING",
+                    "safetymode": "NORMAL",
+                    "get loaded program": "step5d_ablation_v29.urp",
+                },
+            }
+        )
+        process = _FakeProcess(alive=False)
+        stop_reason, _ = kunwei_rtde_bridge.read_dashboard_watch_snapshot(
+            dashboard_watch_process=process,
+            dashboard_watch_queue=snapshot_queue,
+            now_mono=now + 0.1,
+            start_mono=now,
+            bridge_profile=kunwei_rtde_bridge.STEP5D_ABLATION_V29_STAGE_ID,
+            timeout_s=kunwei_rtde_bridge.STEP5D_DASHBOARD_WATCH_SNAPSHOT_STALE_S,
+            dashboard_watch_saw_running=False,
+        )
+        self.assertEqual(stop_reason, "dashboard_program_watch_unavailable")
+
+    def test_dashboard_watchdog_closed_on_stale_snapshot(self) -> None:
+        snapshot_queue = queue.Queue(maxsize=1)
+        now = time.monotonic()
+        snapshot_queue.put(
+            {
+                "captured_mono": now - 5.0,
+                "dashboard": {
+                    "running": "TRUE",
+                    "programState": "PLAYING",
+                    "safetymode": "NORMAL",
+                    "get loaded program": "step5d_ablation_v29.urp",
+                },
+            }
+        )
+        process = _FakeProcess(alive=True)
+        stop_reason, _ = kunwei_rtde_bridge.read_dashboard_watch_snapshot(
+            dashboard_watch_process=process,
+            dashboard_watch_queue=snapshot_queue,
+            now_mono=now,
+            start_mono=now - 10.0,
+            bridge_profile=kunwei_rtde_bridge.STEP5D_ABLATION_V29_STAGE_ID,
+            timeout_s=kunwei_rtde_bridge.STEP5D_DASHBOARD_WATCH_QUERY_INTERVAL_S,
+            dashboard_watch_saw_running=False,
+        )
+        self.assertEqual(stop_reason, "dashboard_program_watch_stale")
+
+    def test_dashboard_watchdog_closed_on_snapshot_malformed(self) -> None:
+        snapshot_queue = queue.Queue(maxsize=1)
+        now = time.monotonic()
+        snapshot_queue.put(
+            {
+                "captured_mono": now,
+                "dashboard": "bad-snapshot",
+            }
+        )
+        process = _FakeProcess(alive=True)
+        stop_reason, _ = kunwei_rtde_bridge.read_dashboard_watch_snapshot(
+            dashboard_watch_process=process,
+            dashboard_watch_queue=snapshot_queue,
+            now_mono=now,
+            start_mono=now,
+            bridge_profile=kunwei_rtde_bridge.STEP5D_ABLATION_V29_STAGE_ID,
+            timeout_s=kunwei_rtde_bridge.STEP5D_DASHBOARD_WATCH_QUERY_INTERVAL_S,
+            dashboard_watch_saw_running=False,
+        )
+        self.assertEqual(stop_reason, "dashboard_program_watch_snapshot_malformed")
+
+    def test_dashboard_watchdog_closed_on_program_identity_drift(self) -> None:
+        snapshot_queue = queue.Queue(maxsize=1)
+        now = time.monotonic()
+        snapshot_queue.put(
+            {
+                "captured_mono": now,
+                "dashboard": {
+                    "running": "TRUE",
+                    "programState": "PLAYING",
+                    "safetymode": "NORMAL",
+                    "get loaded program": "wrong_profile.urp",
+                },
+            }
+        )
+        process = _FakeProcess(alive=True)
+        stop_reason, _ = kunwei_rtde_bridge.read_dashboard_watch_snapshot(
+            dashboard_watch_process=process,
+            dashboard_watch_queue=snapshot_queue,
+            now_mono=now,
+            start_mono=now,
+            bridge_profile=kunwei_rtde_bridge.STEP5D_ABLATION_V29_STAGE_ID,
+            timeout_s=kunwei_rtde_bridge.STEP5D_DASHBOARD_WATCH_QUERY_INTERVAL_S,
+            dashboard_watch_saw_running=False,
+        )
+        self.assertEqual(stop_reason, "dashboard_program_identity_drift")
+
     def test_v25_preload_failure_reports_short_dwell(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)

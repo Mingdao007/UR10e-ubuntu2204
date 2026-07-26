@@ -24,6 +24,8 @@ import socket
 import statistics
 import struct
 import sys
+from multiprocessing import Event, Process, Queue
+from queue import Empty, Full
 import threading
 import time
 from datetime import datetime
@@ -822,6 +824,15 @@ STEP5D_V29_FAIL_STOP_DASHBOARD_TIMEOUT_S = 0.04
 STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S = 0.05
 STEP5D_V29_FAIL_STOP_RTDE_RECONNECT_TIMEOUT_S = 0.008
 STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S = 0.02
+STEP5D_DASHBOARD_WATCH_COMMANDS = (
+    "running",
+    "programState",
+    "safetymode",
+    "get loaded program",
+)
+STEP5D_DASHBOARD_WATCH_QUERY_INTERVAL_S = 0.25
+STEP5D_DASHBOARD_WATCH_SNAPSHOT_STALE_S = 1.0
+STEP5D_DASHBOARD_WATCH_SNAPSHOT_QUEUE_MAX_SIZE = 1
 STEP5D_V29_LIVE_CONFIRMATION = "LIVE STEP5D STRICT RNN LIVEPREP"
 STEP5D_RT_PRIORITY = 20
 STEP5D_V29_RT_PRIORITY = STEP5D_RT_PRIORITY
@@ -10295,6 +10306,136 @@ def v29_dashboard_program_identity_matches(value: Any) -> bool:
     )
 
 
+def dashboard_watch_query_timeout(bridge_profile: str) -> float:
+    return (
+        STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S
+        if bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
+        else 3.0
+    )
+
+
+def dashboard_watch_startup(
+    robot_host: str,
+    bridge_profile: str,
+    query_timeout_s: float,
+    *,
+    dashboard_queue_factory: Callable[[int], Queue[Any]] | None = None,
+    process_factory: Callable[..., Process] = Process,
+    event_factory: Callable[[], Any] = Event,
+    exchange_fn: Callable[..., Mapping[str, str] | None] = dashboard_exchange,
+) -> tuple[Process, Queue[Any], Any]:
+    if dashboard_queue_factory is None:
+        dashboard_queue_factory = lambda maxsize: Queue(maxsize=maxsize)
+    dashboard_queue = dashboard_queue_factory(
+        STEP5D_DASHBOARD_WATCH_SNAPSHOT_QUEUE_MAX_SIZE
+    )
+    stop_event = event_factory()
+    process = process_factory(
+        target=dashboard_watch_worker,
+        args=(
+            robot_host,
+            bridge_profile,
+            dashboard_queue,
+            stop_event,
+            query_timeout_s,
+            exchange_fn,
+        ),
+    )
+    process.daemon = True
+    process.start()
+    return process, dashboard_queue, stop_event
+
+
+def dashboard_watch_worker(
+    robot_host: str,
+    bridge_profile: str,
+    dashboard_queue: Queue[Any],
+    stop_event: Any,
+    query_timeout_s: float,
+    exchange_fn: Callable[..., Mapping[str, str] | None] = dashboard_exchange,
+) -> None:
+    del bridge_profile
+    while not stop_event.is_set():
+        dashboard: Any = None
+        try:
+            dashboard = exchange_fn(
+                robot_host,
+                list(STEP5D_DASHBOARD_WATCH_COMMANDS),
+                timeout=query_timeout_s,
+            )
+        except (OSError, RuntimeError, socket.timeout) as exc:
+            dashboard = {"_dashboard_watch_error": f"{type(exc).__name__}: {exc}"}
+        except Exception as exc:
+            dashboard = {"_dashboard_watch_error": f"{type(exc).__name__}: {exc}"}
+        payload = {
+            "captured_mono": time.monotonic(),
+            "dashboard": dashboard,
+        }
+        try:
+            while True:
+                dashboard_queue.get_nowait()
+        except Empty:
+            pass
+        try:
+            dashboard_queue.put_nowait(payload)
+        except Full:
+            pass
+        stop_event.wait(STEP5D_DASHBOARD_WATCH_QUERY_INTERVAL_S)
+
+
+def read_dashboard_watch_snapshot(
+    *,
+    dashboard_watch_process: Any,
+    dashboard_watch_queue: Queue[Any] | None,
+    now_mono: float,
+    start_mono: float,
+    bridge_profile: str,
+    timeout_s: float,
+    dashboard_watch_saw_running: bool,
+    stale_tolerance_s: float = STEP5D_DASHBOARD_WATCH_SNAPSHOT_STALE_S,
+) -> tuple[str | None, bool]:
+    if not dashboard_watch_process.is_alive():
+        return "dashboard_program_watch_unavailable", dashboard_watch_saw_running
+    if dashboard_watch_queue is None:
+        return "dashboard_program_watch_unavailable", dashboard_watch_saw_running
+    try:
+        payload = dashboard_watch_queue.get_nowait()
+    except Empty:
+        return "dashboard_program_watch_stale", dashboard_watch_saw_running
+    if not isinstance(payload, Mapping):
+        return "dashboard_program_watch_snapshot_malformed", dashboard_watch_saw_running
+    captured_mono = payload.get("captured_mono")
+    if not isinstance(captured_mono, (int, float)) or not math.isfinite(
+        float(captured_mono)
+    ):
+        return "dashboard_program_watch_snapshot_malformed", dashboard_watch_saw_running
+    age_s = float(now_mono) - float(captured_mono)
+    if age_s > stale_tolerance_s:
+        return "dashboard_program_watch_stale", dashboard_watch_saw_running
+    dashboard = payload.get("dashboard")
+    if not isinstance(dashboard, Mapping):
+        return "dashboard_program_watch_snapshot_malformed", dashboard_watch_saw_running
+    if dashboard.get("_dashboard_watch_error"):
+        return "dashboard_program_watch_unavailable", dashboard_watch_saw_running
+    if dashboard_state_value(dashboard.get("safetymode")) != "NORMAL":
+        return "dashboard_safety_not_normal", dashboard_watch_saw_running
+    if bridge_profile in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}:
+        if not step5d_dashboard_program_identity_matches(
+            dashboard.get("get loaded program"), bridge_profile
+        ):
+            return "dashboard_program_identity_drift", dashboard_watch_saw_running
+    if not dashboard_watch_saw_running and dashboard_state_value(dashboard.get("programState")).startswith("STOPPED"):
+        if float(now_mono) - float(start_mono) >= timeout_s:
+            return "dashboard_play_timeout", dashboard_watch_saw_running
+    running = dashboard_state_value(dashboard.get("running")) == "TRUE"
+    stopped = dashboard_state_value(dashboard.get("programState")).startswith("STOPPED")
+    if running:
+        dashboard_watch_saw_running = True
+    elif dashboard_watch_saw_running and stopped:
+        return "dashboard_program_stopped", dashboard_watch_saw_running
+    return None, dashboard_watch_saw_running
+
+
 def require_v29_dashboard_program_binding(
     args: argparse.Namespace,
     dashboard: Mapping[str, Any] | None,
@@ -10983,6 +11124,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     dashboard_watch_enabled = bool(dashboard_watch["enabled"])
     dashboard_watch_saw_running = False
+    dashboard_watch_queue: Queue[Any] | None = None
+    dashboard_watch_process: Process | None = None
+    dashboard_watch_stop_event: Any | None = None
+    dashboard_watch_query_timeout_s = dashboard_watch_query_timeout(args.bridge_profile)
+    if dashboard_watch_enabled:
+        dashboard_watch_process, dashboard_watch_queue, dashboard_watch_stop_event = (
+            dashboard_watch_startup(
+                args.robot_host,
+                args.bridge_profile,
+                dashboard_watch_query_timeout_s,
+                dashboard_queue_factory=Queue,
+            )
+        )
     rtde_watch_saw_playing = False
     next_dashboard_watch = start_mono
     metadata["step5d_liveprep_runtime_prewarm"] = step5d_runtime_prewarm
@@ -11184,69 +11338,35 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     now = time.monotonic()
                 if dashboard_watch_enabled and not fail_stop_latched and now >= next_dashboard_watch:
-                    try:
-                        dash = dashboard_exchange(
-                            args.robot_host,
-                            [
-                                "running",
-                                "programState",
-                                "safetymode",
-                                "get loaded program",
-                            ],
-                            timeout=(
-                                STEP5D_V29_RUNTIME_DASHBOARD_WATCH_TIMEOUT_S
-                                if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
-                                else 3.0
-                            ),
-                        )
-                    except (OSError, RuntimeError, socket.timeout):
-                        if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
-                            raise
-                        v29_safety_fail_stop["latched_reason"] = "dashboard_program_watch_unavailable"
-                        v29_safety_fail_stop["next_dashboard_stop_attempt_mono"] = (
-                            time.monotonic() + STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S
-                        )
-                        fail_stop_latched = True
-                        dash = None
-                    if dash is not None and dashboard_state_value(dash.get("safetymode")) != "NORMAL":
-                        stop_reason = "dashboard_safety_not_normal"
+                    if dashboard_watch_process is None or dashboard_watch_queue is None:
+                        stop_reason = "dashboard_program_watch_unavailable"
                         break
-                    loaded_identity_drift = bool(
-                        dash is not None
-                        and args.bridge_profile
-                        in {
-                            STEP5D_ABLATION_V29_STAGE_ID,
-                            STEP5D_AUTOTUNE_STAGE_ID,
-                        }
-                        and not step5d_dashboard_program_identity_matches(
-                            dash.get("get loaded program"), args.bridge_profile
-                        )
+                    stop_reason, dashboard_watch_saw_running = read_dashboard_watch_snapshot(
+                        dashboard_watch_process=dashboard_watch_process,
+                        dashboard_watch_queue=dashboard_watch_queue,
+                        now_mono=now,
+                        start_mono=start_mono,
+                        bridge_profile=args.bridge_profile,
+                        timeout_s=args.dashboard_program_watch_timeout_s,
+                        dashboard_watch_saw_running=dashboard_watch_saw_running,
                     )
-                    if loaded_identity_drift:
+                    if stop_reason is not None and not fail_stop_latched:
                         if args.bridge_profile == STEP5D_ABLATION_V29_STAGE_ID:
-                            v29_safety_fail_stop["latched_reason"] = (
-                                "dashboard_program_identity_drift"
-                            )
-                            fail_stop_latched = True
-                        else:
-                            stop_reason = "dashboard_program_identity_drift"
-                            break
-                    if dash is not None and not fail_stop_latched:
-                        running = dashboard_state_value(dash.get("running")) == "TRUE"
-                        stopped = dashboard_state_value(dash.get("programState")).startswith("STOPPED")
-                        if running:
-                            dashboard_watch_saw_running = True
-                        elif dashboard_watch_saw_running and stopped:
-                            stop_reason = "dashboard_program_stopped"
-                            break
-                        elif (
-                            not dashboard_watch_saw_running
-                            and stopped
-                            and now - start_mono >= args.dashboard_program_watch_timeout_s
-                        ):
-                            stop_reason = "dashboard_play_timeout"
-                            break
-                    next_dashboard_watch = now + 0.25
+                            if stop_reason in {
+                                "dashboard_program_watch_unavailable",
+                                "dashboard_program_identity_drift",
+                            }:
+                                v29_safety_fail_stop["latched_reason"] = stop_reason
+                                fail_stop_latched = True
+                                if stop_reason == "dashboard_program_watch_unavailable":
+                                    v29_safety_fail_stop["next_dashboard_stop_attempt_mono"] = (
+                                        time.monotonic() + STEP5D_V29_FAIL_STOP_DASHBOARD_RETRY_S
+                                    )
+                                dashboard_watch_saw_running = False
+                                next_dashboard_watch = now + STEP5D_DASHBOARD_WATCH_QUERY_INTERVAL_S
+                                continue
+                        break
+                    next_dashboard_watch = now + STEP5D_DASHBOARD_WATCH_QUERY_INTERVAL_S
 
                 if fail_stop_latched and rtde is None:
                     attempt_v29_fail_stop_dashboard(now)
@@ -12123,6 +12243,13 @@ def main(argv: list[str] | None = None) -> int:
                     ) or terminate_after_write:
                         break
     finally:
+        if dashboard_watch_stop_event is not None:
+            dashboard_watch_stop_event.set()
+        if dashboard_watch_process is not None and dashboard_watch_process.is_alive():
+            dashboard_watch_process.join(timeout=0.25)
+            if dashboard_watch_process.is_alive():
+                dashboard_watch_process.terminate()
+                dashboard_watch_process.join(timeout=0.25)
         if step5d_autotune_trial_rotator is not None:
             step5d_autotune_trial_rotator.close()
         if args.bridge_profile in STEP5D_V34_OR_NEWER_PROFILE_IDS and v34_gc_was_enabled:
