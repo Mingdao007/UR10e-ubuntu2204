@@ -1716,6 +1716,89 @@ def test_validate_active_launch_identity_maps_live_cli_shape_to_coordinator_name
     assert contract["authority_epoch"] == 7
 
 
+def test_run_live_session_uses_basis_launch_nonce_not_mutable_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=111,
+        canonical_owner_starttime=222,
+    )
+    basis = {
+        "launch_nonce": "basis-attempt-lock",
+        "basis_sha256": "b" * 64,
+        "campaign_fingerprint": "c" * 64,
+        "delivery_observation_sha256": "d" * 64,
+        "release_manifest_sha256": "e" * 64,
+        "runtime_identity_sha256": "f" * 64,
+        "authority_epoch": 7,
+        "issued_at_unix_ns": 1,
+        "expires_at_unix_ns": 10,
+    }
+    observed = {"attempt_id": None}
+
+    class _NullWriterLease:
+        def __enter__(self) -> None:
+            return None
+
+        def __exit__(self, *_args: Any) -> None:
+            return None
+
+    monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", "drifted-attempt")
+    monkeypatch.setattr(
+        live,
+        "writer_lease",
+        lambda *_args, **_kwargs: _NullWriterLease(),
+    )
+    monkeypatch.setattr(
+        live,
+        "_validate_active_launch_identity",
+        lambda *_args: (basis, {"campaign_fingerprint": "c" * 64}, {}),
+    )
+    monkeypatch.setattr(
+        live,
+        "load_runtime_release",
+        lambda _root: SimpleNamespace(
+            release_stage_id=live.RELEASE_STAGE_ID,
+            control_profile_id=live.CONTROL_PROFILE_ID,
+            program_id="step5d_strict_rnn_autotune_v3_r999",
+            manifest_sha256="e" * 64,
+            generated_files={live.LAUNCH_PROFILE_PATH: "a" * 64},
+        ),
+    )
+    monkeypatch.setattr(
+        live,
+        "load_delivery_observation",
+        lambda *_args, **_kwargs: {"schema": "ignored"},
+    )
+    monkeypatch.setattr(
+        live,
+        "_validate_coordinator_runtime_root",
+        lambda ns: (
+            observed.__setitem__("attempt_id", ns.attempt_id),
+            tmp_path / "runtime-root",
+        )[1],
+    )
+    monkeypatch.setattr(
+        live,
+        "_create_bridge_runtime",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("stop-before-bridge")),
+    )
+
+    with pytest.raises(RuntimeError, match="stop-before-bridge"):
+        live._run_live_session(
+            args,
+            {"profiles": {"control": {"python_executable": sys.executable}}},
+        )
+
+    assert observed["attempt_id"] == basis["launch_nonce"]
+
 
 def test_run_recoverable_live_session_retries_once_for_recoverable_session_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path

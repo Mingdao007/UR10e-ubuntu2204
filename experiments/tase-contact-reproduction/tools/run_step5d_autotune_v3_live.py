@@ -1422,12 +1422,7 @@ def _run_live_session(
     runtime_root = _validate_coordinator_runtime_root(
         _build_coordinator_runtime_args(
             args,
-            str(
-                os.environ.get(
-                    "STEP5D_V3_LAUNCH_ATTEMPT_ID",
-                    basis["launch_nonce"],
-                )
-            ),
+            str(basis["launch_nonce"]),
         )
     )
     bridge_run, bridge_runtime = _create_bridge_runtime(runtime_root)
