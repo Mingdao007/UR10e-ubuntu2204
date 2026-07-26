@@ -608,8 +608,11 @@ def test_v3_campaign_lease_binds_the_canonical_attempt(
             "state": "WAITING_FOR_PLAY",
             "predicates": {
                 "release_contract_proven": True,
+                "canonical_attempt_bound": True,
                 "lease_valid": True,
+                "single_writer": True,
                 "play_prompt_ready": True,
+                "bridge_process_alive": True,
             },
             "blocker": {"class": None, "reason_codes": [], "evidence": []},
             "next_action": "press_play_or_stop",
@@ -776,6 +779,9 @@ def test_status_rejects_v2_metadata_attempt_without_global_owner_authority(
             "state": "WAITING_FOR_PLAY",
             "predicates": {
                 "release_contract_proven": True,
+                "canonical_attempt_bound": True,
+                "single_writer": True,
+                "bridge_process_alive": True,
                 "lease_valid": True,
                 "play_prompt_ready": True,
             },
@@ -885,7 +891,7 @@ def test_v3_status_finds_foreign_worktree_owner_authority_identity(
         authority_dir,
     )
     monkeypatch.setattr(authority.os, "getppid", lambda: owner_pid)
-    authority.begin(
+    reserved = authority.begin(
         None,
         attempt_id=attempt_id,
         owner_pid=owner_pid,
@@ -895,9 +901,19 @@ def test_v3_status_finds_foreign_worktree_owner_authority_identity(
         launch_basis_path=str(basis),
         launch_basis_sha256=launch_basis_sha,
     )
+    authority.bind_basis(
+        None,
+        attempt_id=attempt_id,
+        owner_pid=owner_pid,
+        owner_starttime_ticks=owner_starttime,
+        sequence=reserved["sequence"],
+        launch_basis_path=str(basis),
+        launch_basis_sha256=launch_basis_sha,
+    )
 
     bindings = _bindings(campaign, output, snapshot)
     bindings["resource_owner_metadata"] = {
+        "resource_id": authority.DEFAULT_RESOURCE_ID,
         "worktree_root": str(foreign_worktree.resolve()),
         "repository_head": repository_head,
         "launch_basis_path": str(basis.resolve()),
@@ -917,6 +933,7 @@ def test_v3_status_finds_foreign_worktree_owner_authority_identity(
         "_load_attempt",
         lambda _root: (attempt, None),
     )
+    assert bridge_status._owner_authority_state(tmp_path, attempt) is not None
     monkeypatch.setattr(
         bridge_status,
         "resolve_governed_status",
@@ -926,6 +943,9 @@ def test_v3_status_finds_foreign_worktree_owner_authority_identity(
             "state": "WAITING_FOR_PLAY",
             "predicates": {
                 "release_contract_proven": True,
+                "canonical_attempt_bound": True,
+                "single_writer": True,
+                "bridge_process_alive": True,
                 "lease_valid": True,
                 "play_prompt_ready": True,
             },
@@ -944,7 +964,7 @@ def test_v3_status_finds_foreign_worktree_owner_authority_identity(
 
     status = bridge_status.resolve_status(tmp_path)
 
-    assert status["state"] == "BENCH_READY"
+    assert status["state"] == "BENCH_READY", status.get("blocker")
     assert status["compatibility_phase"] == "WAITING_FOR_PLAY"
     assert status["predicates"]["canonical_attempt_bound"] is True
     assert status["capabilities"] == {"play_prompt": True}

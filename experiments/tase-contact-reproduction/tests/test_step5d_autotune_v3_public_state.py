@@ -289,6 +289,7 @@ def test_projection_with_blocker_removes_play_prompt_capability() -> None:
                 "bridge_process_alive": True,
                 "bridge_heartbeat_fresh": True,
                 "play_observed": True,
+                "trial_1_complete": True,
                 "admission": ["PROGRAM_LOADED_STOPPED", "TRIAL_1_COMPLETE"],
                 "compatibility_phase": "WAITING_FOR_PLAY",
             },
@@ -449,4 +450,26 @@ def test_next_arm_published_without_trial_cannot_skip_advance() -> None:
             }
         )
         == GovernedStatusMilestone.PLAY_OBSERVED.value
+    )
+
+
+def test_predicate_is_the_only_source_for_extended_gov_milestones() -> None:
+    assert (
+        _projected_milestone(
+            {
+                "release_contract_proven": True,
+                "canonical_attempt_bound": True,
+                "bridge_process_alive": True,
+                "bridge_heartbeat_fresh": True,
+                "admission": [
+                    "PROGRAM_LOADED_STOPPED",
+                    "PLAY_OBSERVED",
+                    "TRIAL_1_COMPLETE",
+                    "NEXT_ARM_PUBLISHED",
+                    "CONTINUOUS_READY",
+                ],
+                "compatibility_phase": "WAITING_FOR_PLAY",
+            }
+        )
+        == GovernedStatusMilestone.BRIDGE_WAITING_FOR_PLAY.value
     )

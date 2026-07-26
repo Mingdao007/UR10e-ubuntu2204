@@ -228,19 +228,15 @@ def project_status(status: Mapping[str, Any]) -> dict[str, Any]:
     }
     play_observed = (
         _coerced_bool(predicates.get("play_observed"), fallback=False)
-        or "PLAY_OBSERVED" in admission_milestones
     )
     trial_1_complete = (
         _coerced_bool(predicates.get("trial_1_complete"), fallback=False)
-        or "TRIAL_1_COMPLETE" in admission_milestones
     )
     next_arm_published = (
         _coerced_bool(predicates.get("next_arm_published"), fallback=False)
-        or "NEXT_ARM_PUBLISHED" in admission_milestones
     )
     continuous_ready = (
         _coerced_bool(predicates.get("continuous_ready"), fallback=False)
-        or "CONTINUOUS_READY" in admission_milestones
     )
     facts = PublicStateFacts(
         delivered=bool(

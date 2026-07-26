@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from step5d_autotune_v3 import cli, governance
+from step5d_parameter_queue import publish_next_arm, record_terminal_receipt
 from step5d_autotune_v3.governance import (
     BRIDGE_HEARTBEAT_MAX_AGE_NS,
     CURRENT_LAUNCH_ATTEMPT_POINTER_SCHEMA,
@@ -44,6 +45,10 @@ BRIDGE_PID = 4101
 BRIDGE_STARTTIME = 7101
 SUPERVISOR_PID = 4100
 SUPERVISOR_STARTTIME = 7100
+
+
+def parameter_receiver_root(campaign_root: Path) -> Path:
+    return campaign_root / "control" / "parameter_receiver"
 
 
 def test_governance_process_identity_rejects_zombie_state(
@@ -1242,6 +1247,116 @@ def test_status_uses_observed_snapshot_time_for_freshness_when_observation_is_pu
     assert status["predicates"]["kunwei_fresh"] is True
     assert status["predicates"]["mailbox_clean"] is True
     assert status["state"] == "BENCH_READY"
+
+
+def test_resolve_governed_status_exposes_receiver_authoritative_progress(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_governed_release(monkeypatch)
+    attestation = observed_attestation(tmp_path)
+    attestation["events"]["waiting_for_play_at_unix_ns"] = NOW_NS - 2
+    attestation["events"]["play_observed_at_unix_ns"] = NOW_NS - 1
+    publish_observed_attestation(tmp_path, attestation)
+    receiver = parameter_receiver_root(tmp_path)
+    fingerprint = "a" * 64
+    publish_next_arm(
+        receiver,
+        dispatch_identity="dispatch:v1:" + ("1" * 64),
+        dispatch_sequence=1,
+        campaign_fingerprint=fingerprint,
+        mailbox_packet_sha256="b" * 64,
+        observed_at=NOW_NS,
+    )
+    record_terminal_receipt(
+        receiver,
+        process_composition_sha256=fingerprint,
+        dispatch_identity="dispatch:v1:" + ("1" * 64),
+        dispatch_sequence=1,
+        terminal_state={"receipt": 1},
+    )
+
+    status = resolve_governed_status(
+        ROOT,
+        tmp_path,
+        now_ns=NOW_NS,
+        proc_starttime_reader=process_reader,
+    )
+
+    assert status["predicates"]["play_observed"] is True
+    assert status["predicates"]["next_arm_published"] is True
+    assert status["predicates"]["trial_1_complete"] is True
+    assert status["predicates"]["continuous_ready"] is False
+
+
+def test_resolve_governed_status_marks_continuous_ready_from_receiver_readiness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_governed_release(monkeypatch)
+    publish_observed_attestation(tmp_path, observed_attestation(tmp_path))
+    receiver = parameter_receiver_root(tmp_path)
+    fingerprint = "a" * 64
+    publish_next_arm(
+        receiver,
+        dispatch_identity="dispatch:v1:" + ("2" * 64),
+        dispatch_sequence=10,
+        campaign_fingerprint=fingerprint,
+        mailbox_packet_sha256="c" * 64,
+        observed_at=NOW_NS,
+    )
+    for sequence in range(1, 11):
+        record_terminal_receipt(
+            receiver,
+            process_composition_sha256=fingerprint,
+            dispatch_identity=(
+                "dispatch:v1:" + ("2" * 64)
+                if sequence == 10
+                else f"identity-{sequence}"
+            ),
+            dispatch_sequence=sequence,
+            terminal_state={"sequence": sequence},
+        )
+
+    status = resolve_governed_status(
+        ROOT,
+        tmp_path,
+        now_ns=NOW_NS,
+        proc_starttime_reader=process_reader,
+    )
+
+    assert status["predicates"]["next_arm_published"] is True
+    assert status["predicates"]["trial_1_complete"] is True
+    assert status["predicates"]["continuous_ready"] is True
+
+
+def test_resolve_governed_status_treats_receipt_conflicts_as_unknown_false(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _stub_governed_release(monkeypatch)
+    publish_observed_attestation(tmp_path, observed_attestation(tmp_path))
+    receiver = parameter_receiver_root(tmp_path)
+    fingerprint = "a" * 64
+    publish_next_arm(
+        receiver,
+        dispatch_identity="dispatch:v1:" + ("3" * 64),
+        dispatch_sequence=20,
+        campaign_fingerprint=fingerprint,
+        mailbox_packet_sha256="d" * 64,
+        observed_at=NOW_NS,
+    )
+    bad_receipt = receiver / "governance" / "terminal_receipts" / "bad.json"
+    bad_receipt.parent.mkdir(parents=True, exist_ok=True)
+    bad_receipt.write_text("{\"schema\": \"bad\"}\n", encoding="utf-8")
+
+    status = resolve_governed_status(
+        ROOT,
+        tmp_path,
+        now_ns=NOW_NS,
+        proc_starttime_reader=process_reader,
+    )
+
+    assert status["predicates"]["next_arm_published"] is True
+    assert status["predicates"]["trial_1_complete"] is False
+    assert status["predicates"]["continuous_ready"] is False
 
 
 def test_future_observation_cannot_advance_freshness_clock(

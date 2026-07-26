@@ -17,6 +17,11 @@ from .delivery_observation import (
     DeliveryObservationError,
     fresh_get_provenance,
 )
+from step5d_parameter_queue import (
+    ParameterQueueError,
+    _load_next_arm,
+    _load_terminal_receipts,
+)
 
 
 OBSERVED_ATTESTATION_SCHEMA = "step5d.autotune-v3/observed-attestation-v1"
@@ -84,6 +89,7 @@ RTDE_OBSERVATION_MAX_AGE_NS = RUNTIME_OBSERVATION_MAX_AGE_NS
 KUNWEI_OBSERVATION_MAX_AGE_NS = RUNTIME_OBSERVATION_MAX_AGE_NS
 MAILBOX_OBSERVATION_MAX_AGE_NS = 1_000_000_000
 OBSERVED_ATTESTATION_FUTURE_SKEW_NS = 5_000_000
+PARAMETER_RECEIVER_ROOT = Path("control") / "parameter_receiver"
 
 TP_RUNTIME_IDENTITY_FIELDS = {
     "schema",
@@ -1902,7 +1908,82 @@ def _empty_predicates() -> dict[str, bool]:
         "play_prompt_ready": False,
         "bench_ready": False,
         "first_arm_acknowledged": False,
+        "play_observed": False,
+        "trial_1_complete": False,
+        "next_arm_published": False,
+        "continuous_ready": False,
     }
+
+
+def _parameter_receiver_predicates(
+    campaign_root: Path,
+) -> dict[str, bool]:
+    receiver_root = _campaign_root(campaign_root) / PARAMETER_RECEIVER_ROOT
+    status = {
+        "trial_1_complete": False,
+        "next_arm_published": False,
+        "continuous_ready": False,
+    }
+    try:
+        next_arm = _load_next_arm(receiver_root)
+    except (OSError, ValueError, ParameterQueueError):
+        return status
+    if next_arm is None:
+        return status
+    status["next_arm_published"] = True
+    try:
+        terminal_receipts = _load_terminal_receipts(receiver_root)
+    except (OSError, ValueError, ParameterQueueError):
+        return status
+
+    seen_identity: set[str] = set()
+    seen_sequence: set[int] = set()
+    terminal_count = 0
+    duplicate_or_gap = False
+    for row in terminal_receipts:
+        if row["process_composition_sha256"] != next_arm["campaign_fingerprint"]:
+            continue
+        terminal_count += 1
+        identity = row["dispatch_identity"]
+        sequence = row["dispatch_sequence"]
+        duplicate_or_gap = duplicate_or_gap or (
+            identity in seen_identity or sequence in seen_sequence
+        )
+        seen_identity.add(identity)
+        seen_sequence.add(sequence)
+
+    latest_sequence = max(seen_sequence, default=0)
+    latest_receipt = next(
+        (
+            row
+            for row in terminal_receipts
+            if row["process_composition_sha256"] == next_arm["campaign_fingerprint"]
+            and row["dispatch_sequence"] == latest_sequence
+        ),
+        None,
+    )
+    latest_matches_next_arm = bool(
+        latest_receipt is not None
+        and latest_sequence == next_arm["dispatch_sequence"]
+        and latest_receipt["dispatch_identity"] == next_arm["dispatch_identity"]
+    )
+    status["trial_1_complete"] = terminal_count > 0 and latest_matches_next_arm
+    ready = False
+    if len(seen_sequence) >= 10:
+        sorted_sequence = sorted(seen_sequence)
+        duplicate_or_gap = duplicate_or_gap or any(
+            next_sequence != current_sequence + 1
+            for current_sequence, next_sequence in zip(
+                sorted_sequence[:-1], sorted_sequence[1:]
+            )
+        )
+        ready = (
+            not duplicate_or_gap
+            and latest_matches_next_arm
+            and len(seen_sequence) >= 10
+        )
+    status["continuous_ready"] = ready
+    return status
 
 
 def reduce_observed_attestation(
@@ -2184,6 +2265,7 @@ def reduce_observed_attestation(
         if not predicates["loaded_program_verified"]:
             reasons.append("DASHBOARD_LOADED_PROGRAM_MISMATCH")
         play = events["play_observed_at_unix_ns"]
+        predicates["play_observed"] = play is not None
         observed_tp = controller["tp_runtime_identity"]
         predicates["tp_runtime_identity_verified"] = (
             predicates["controller_fresh"]
@@ -2459,6 +2541,7 @@ def reduce_observed_attestation(
                         predicates[name] = False
                 state = "RELEASE_CONTRACT_PROVEN" if predicates["release_contract_proven"] else None
 
+    if attestation is not None:
         evidence.extend(
             (
                 _evidence_row("release_contract", contract["evidence"]),
@@ -2468,9 +2551,12 @@ def reduce_observed_attestation(
                 _evidence_row("mailbox", mailbox["evidence"]),
             )
         )
+    elif contract_proof is not None:
+        evidence.append(_evidence_row("release_contract", contract_proof["evidence"]))
 
     ordered_reasons = _ordered_reasons(reasons)
     live_proven = bool(outcome["live_proven"])
+    predicates.update(_parameter_receiver_predicates(root))
     return {
         "schema": GOVERNED_STATUS_SCHEMA,
         "generated_at_unix_ns": now_ns,
