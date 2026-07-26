@@ -142,6 +142,26 @@ acceleration was `2.714 rad/s²`, the first custom torque was zero, controller
 rows were `500 Hz`, and Kunwei captured `999.40 Hz`. This accepts only the
 100 ms no-contact hold; it does not authorize contact or claim later stages.
 
+A post-run cadence audit separated the `500 Hz` RTDE output rate from the
+controller-law refresh rate. In the accepted hold, commanded torque changed
+22 times across 54 active 500 Hz rows, approximately `198 Hz`; ACK advanced
+at approximately `94 Hz`. The dedicated torque thread still owns the only
+`direct_torque()` call site, but that historical source did not expose an
+explicit torque-call counter. The old main loop incorrectly used fixed 2 ms
+discretization for its finite-difference acceleration guard, entry
+dwell/blend, heartbeat age, and force filter.
+
+The next candidate therefore uses monotonic controller `time()` to measure
+each main-loop `control_dt_s`; dwell, blend, heartbeat, and filter evolution
+are expressed in elapsed seconds. The controller-side acceleration guard uses
+the official encoder-derived `get_actual_joint_accelerations()`. RTDE output
+registers 44--47 now expose control-update dt/count/max-gap and the dedicated
+torque-thread tick count. Future evidence separately gates `500 Hz` RTDE
+output, `450--550 Hz` torque application, at least `150 Hz` control-law
+refresh, and at most `10 ms` control-update gap. This timing-corrected source
+is offline-ready but has not yet passed a controller no-motion probe or a
+physical hold; the historical hold does not promote it.
+
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean
 `target_moment` was approximately

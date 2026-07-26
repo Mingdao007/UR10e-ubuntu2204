@@ -58,6 +58,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     WRENCH_FRAME_TOKEN,
     _detect_live_writer_processes,
     _enforce_no_live_writer_conflict,
+    _counter_rate_hz,
     _is_stationary,
     _next_available_run_dir,
     _new_live_identity_pair,
@@ -90,6 +91,24 @@ REFERENCE = PASSIVE_RUN / "unknown_surface_anchor_circle_no_contact_2s_reference
 BUILDER = VIC_ROOT / "tools" / "build_tacdiffusion_direct_torque_live_v4.py"
 RUNNER = TOOLS / "run_tacdiffusion_remote_direct_torque_v4.py"
 KUNWEI_CALIBRATION = ROOT / "config/step5d_tacdiffusion_sensor_frame_v1.json"
+
+
+def test_cadence_counter_rate_uses_controller_time_and_counter_delta() -> None:
+    rows = [
+        {
+            "receiver_state": STATE_TORQUE,
+            "controller_timestamp_s": 10.000,
+            "counter": 5,
+        },
+        {
+            "receiver_state": STATE_TORQUE,
+            "controller_timestamp_s": 10.100,
+            "counter": 55,
+        },
+    ]
+    assert _counter_rate_hz(rows, "counter") == pytest.approx(500.0)
+    rows[-1]["counter"] = 25
+    assert _counter_rate_hz(rows, "counter") == pytest.approx(200.0)
 
 
 def test_entry_replay_classifies_zero_custom_tau_before_acceleration() -> None:
@@ -296,6 +315,10 @@ def _fake_output_sample(
         "output_int_register_35": 1,
         "output_double_register_24": 0.0,
         "output_double_register_25": 0.002,
+        "output_double_register_44": 0.005,
+        "output_double_register_45": timestamp * 200.0,
+        "output_double_register_46": 0.005,
+        "output_double_register_47": timestamp * 500.0,
         "actual_TCP_pose": pose,
         "actual_TCP_speed": [0.0] * 6,
         "actual_TCP_force": [0.0] * 6,
@@ -643,7 +666,8 @@ def test_remote_config_preserves_native_kunwei_rate_and_runtime_binding() -> Non
     control = config["direct_torque_control_contract"]
     assert control["startup_equilibrium_blend_s"] == 0.1
     assert control["startup_stationary_dwell_s"] == 0.05
-    assert control["startup_stationary_dwell_ticks"] == 25
+    assert control["startup_stationary_dwell_ticks"] is None
+    assert control["startup_stationary_clock"] == "monotonic_controller_time"
     assert control["startup_stationary_limits"] == {
         "maximum_abs_joint_speed_rad_s": 0.001,
         "maximum_tcp_translation_speed_m_s": 0.001,
@@ -662,13 +686,18 @@ def test_remote_config_preserves_native_kunwei_rate_and_runtime_binding() -> Non
     assert control["active_speed_guards"] == {
         "maximum_abs_joint_speed_rad_s": 0.02,
         "maximum_abs_derived_joint_acceleration_rad_s2": 5.0,
-        "joint_acceleration_definition": "500hz_actual_qd_finite_difference",
+        "joint_acceleration_definition": (
+            "controller_get_actual_joint_accelerations_encoder_derived"
+        ),
         "maximum_tcp_translation_speed_m_s": 0.01,
         "maximum_tcp_rotation_speed_rad_s": 0.02,
         "violation_action": "common_exit_stopj",
         "speed_fault_code": 11,
         "acceleration_fault_code": 12,
     }
+    assert control["cadence_contract"]["direct_torque_application_hz"] == 500
+    assert control["cadence_contract"]["control_update_rate_minimum_hz"] == 150
+    assert control["cadence_contract"]["maximum_control_update_gap_s"] == 0.01
     serialized = json.dumps(config, sort_keys=True)
     assert "sensor_stale_s" not in serialized
     assert "actual_TCP_force" not in serialized
@@ -1611,6 +1640,10 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
         "output_double_register_41": 0.0,
         "output_double_register_42": 0.0,
         "output_double_register_43": 0.0,
+        "output_double_register_44": 0.0,
+        "output_double_register_45": 0.0,
+        "output_double_register_46": 0.0,
+        "output_double_register_47": 0.0,
         "actual_TCP_pose": list(bundle.timeline.rows[0]["desired_pose_base"]),
         "actual_TCP_speed": [0.0] * 6,
         "actual_TCP_force": [0.0] * 6,

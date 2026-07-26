@@ -138,6 +138,10 @@ CANARY_STAGE_DURATIONS_S = {
     CANARY_STAGE_REFERENCE: 2.0,
 }
 ENTRY_ANALYSIS_WINDOW_S = 0.020
+MIN_CONTROL_UPDATE_RATE_HZ = 150.0
+MIN_TORQUE_CALL_RATE_HZ = 450.0
+MAX_TORQUE_CALL_RATE_HZ = 550.0
+MAX_CONTROL_UPDATE_GAP_S = 0.010
 
 _LIVE_WRITER_PATTERNS = (
     "run_tacdiffusion_remote_direct_torque_v4.py",
@@ -174,7 +178,7 @@ OUTPUT_FIELDS = [
     "runtime_state",
     "robot_mode",
     "safety_mode",
-    *[f"output_double_register_{index}" for index in range(24, 44)],
+    *[f"output_double_register_{index}" for index in range(24, 48)],
     *[f"output_int_register_{index}" for index in range(24, 36)],
 ]
 
@@ -201,6 +205,29 @@ def _maximum_derived_abs_joint_acceleration(
             ),
         )
     return maximum
+
+
+def _counter_rate_hz(
+    rows: Sequence[Mapping[str, Any]],
+    field: str,
+) -> float:
+    active = [
+        row
+        for row in rows
+        if int(float(row["receiver_state"])) in (STATE_STARTUP, STATE_TORQUE)
+        and row.get(field) not in (None, "")
+    ]
+    if len(active) < 2:
+        return 0.0
+    elapsed_s = float(active[-1]["controller_timestamp_s"]) - float(
+        active[0]["controller_timestamp_s"]
+    )
+    if elapsed_s <= 0.0:
+        return 0.0
+    delta = float(active[-1][field]) - float(active[0][field])
+    if delta < 0.0:
+        return 0.0
+    return delta / elapsed_s
 
 
 def analyze_entry_bumplessness(
@@ -1654,6 +1681,14 @@ def _output_row(
         "episode_latched_echo": int(sample["output_int_register_35"]),
         "max_abs_tau_nm": float(sample["output_double_register_24"]),
         "steptime_s": float(sample["output_double_register_25"]),
+        "control_update_dt_s": float(sample["output_double_register_44"]),
+        "control_update_count": float(sample["output_double_register_45"]),
+        "maximum_control_update_gap_s": float(
+            sample["output_double_register_46"]
+        ),
+        "torque_thread_tick_count": float(
+            sample["output_double_register_47"]
+        ),
         "outgoing_command_mode": outgoing.command_mode,
         "outgoing_command_sequence": outgoing.command_sequence,
         "acked_command_mode": "" if acked is None else acked.command_mode,
@@ -2797,6 +2832,20 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
             maximum_derived_abs_joint_acceleration_rad_s2 = (
                 _maximum_derived_abs_joint_acceleration(samples)
             )
+            achieved_control_update_rate_hz = _counter_rate_hz(
+                samples, "control_update_count"
+            )
+            achieved_torque_call_rate_hz = _counter_rate_hz(
+                samples, "torque_thread_tick_count"
+            )
+            maximum_control_update_gap_s = max(
+                (
+                    float(row["maximum_control_update_gap_s"])
+                    for row in samples
+                    if row.get("maximum_control_update_gap_s") not in (None, "")
+                ),
+                default=0.0,
+            )
             entry_analysis: dict[str, Any] | None = None
             try:
                 entry_analysis = analyze_entry_bumplessness(samples)
@@ -2818,6 +2867,20 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     maximum_derived_abs_joint_acceleration_rad_s2 <= 5.0
                 ),
                 "at_least_90_percent_expected_500hz_rows": rate_gate,
+                "torque_call_rate_between_450_and_550hz": (
+                    MIN_TORQUE_CALL_RATE_HZ
+                    <= achieved_torque_call_rate_hz
+                    <= MAX_TORQUE_CALL_RATE_HZ
+                ),
+                "control_update_rate_at_least_150hz": (
+                    achieved_control_update_rate_hz
+                    >= MIN_CONTROL_UPDATE_RATE_HZ
+                ),
+                "maximum_control_update_gap_le_10ms": (
+                    0.0
+                    < maximum_control_update_gap_s
+                    <= MAX_CONTROL_UPDATE_GAP_S
+                ),
                 "kunwei_baseline_complete": (
                     kunwei_summary["post_baseline_samples"] >= 50
                 ),
@@ -2846,6 +2909,15 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     "observed_controller_span_s": controller_span,
                     "expected_500hz_rows": expected_rows,
                     "achieved_output_row_rate_hz": achieved_rate,
+                    "achieved_control_update_rate_hz": (
+                        achieved_control_update_rate_hz
+                    ),
+                    "achieved_torque_call_rate_hz": (
+                        achieved_torque_call_rate_hz
+                    ),
+                    "maximum_control_update_gap_s": (
+                        maximum_control_update_gap_s
+                    ),
                     "duplicate_timestamp_count": duplicate_count,
                     "nonmonotonic_timestamp_count": nonmonotonic_count,
                     "ack_command_lineage_misses": lineage_misses,

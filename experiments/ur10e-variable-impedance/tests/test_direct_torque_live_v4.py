@@ -94,9 +94,9 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     )
     assert f'receiver_schema = "{LIVE_RECEIVER_SCHEMA}"' in source
     assert "running = True" in source
-    assert "entry_tick = 0" in source
+    assert "entry_elapsed_s = 0.0" in source
     assert "last_sequence = 0" in source
-    assert "held_age_ticks = 0" in source
+    assert "held_age_s = 0.0" in source
     assert "torque_thread_handle = 0" in source
     assert source.count("local compare_axis = 0") == 1
     assert source.count("local zero_axis = 0") == 1
@@ -116,6 +116,10 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     torque_thread_source = source[torque_thread_start:program_start]
     program_source = source[program_start:]
     assert "local torque = torque_command" in torque_thread_source
+    assert (
+        "torque_thread_tick_count = torque_thread_tick_count + 1"
+        in torque_thread_source
+    )
     assert "sync()" not in torque_thread_source
     assert not re.search(r"(?m)^\s*direct_torque\(", program_source)
     assert source.count("torque_thread_handle = run torqueThread()") == 1
@@ -143,11 +147,11 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
         "actual_pose[3], actual_pose[4], actual_pose[5]]"
         in source
     )
-    assert "entry_stable_ticks_required = 25" in source
+    assert "entry_stable_duration_s = 0.05" in source
     assert "entry_tcp_translation_speed_limit_m_s = 0.001" in source
     assert "entry_tcp_rotation_speed_limit_rad_s = 0.002" in source
     assert "entry_joint_speed_limit_rad_s = 0.001" in source
-    assert "entry_stable_ticks < entry_stable_ticks_required" in source
+    assert "entry_stable_elapsed_s < entry_stable_duration_s" in source
     assert "elif not entry_ready:" in source
     assert (
         source.index("elif not entry_ready:")
@@ -156,7 +160,8 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "guard_wrench = [read_input_float_register(36)" in source
     assert "guard_force_norm > 6.0 or guard_torque_norm > 0.5" in source
     assert "get_tcp_force()" not in source
-    assert "entry_tick < entry_blend_ticks" in source
+    assert "entry_elapsed_s < entry_blend_duration_s" in source
+    assert "blend = entry_elapsed_s / entry_blend_duration_s" in source
     assert "orientation_interpolation_policy =" not in source
     assert "if axis < 3:" in source
     assert "control_eq[axis] = entry_pose[axis]" in source
@@ -170,11 +175,17 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "active_joint_acceleration_limit_rad_s2 = 5.0" in source
     assert "active_tcp_translation_speed_limit_m_s = 0.01" in source
     assert "active_tcp_rotation_speed_limit_rad_s = 0.02" in source
-    assert "get_actual_joint_accelerations()" not in source
+    assert "qdd = get_actual_joint_accelerations()" in source
+    assert "control_clock = time()" in source
     assert (
-        "qdd[qdd_axis] = 500.0*(qd[qdd_axis] - last_qd[qdd_axis])"
+        "critical_decay = exp(-critical_natural_frequency_rad_s*control_dt_s)"
         in source
     )
+    assert "filter_c*control_dt_s" in source
+    assert "write_output_float_register(44, control_dt_s)" in source
+    assert "write_output_float_register(45, control_update_count)" in source
+    assert "write_output_float_register(46, maximum_control_update_gap_s)" in source
+    assert "write_output_float_register(47, torque_thread_tick_count)" in source
     assert "if torque_entered:" in source
     assert "active_speed_violation = True" in source
     assert "active_acceleration_violation = True" in source
@@ -435,6 +446,15 @@ def test_bundle_builder_binds_reference_source_and_refuses_overwrite(tmp_path) -
     assert manifest["register_contract"]["applied_action"][
         "commanded_joint_torque_nm"
     ] == list(range(38, 44))
+    assert manifest["register_contract"]["output_double_registers"] == list(
+        range(24, 48)
+    )
+    assert manifest["register_contract"]["applied_action"]["cadence"] == {
+        "control_update_dt_s": 44,
+        "control_update_count": 45,
+        "maximum_control_update_gap_s": 46,
+        "torque_thread_tick_count": 47,
+    }
     assert manifest["gates"]["single_top_level_program"] is True
     assert (
         manifest["gates"]["secondary_wire_outer_program"]

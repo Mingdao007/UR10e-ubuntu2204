@@ -119,8 +119,8 @@
     },
     "output_double_registers": {
       "index_start": 24,
-      "index_end": 43,
-      "field_count": 20,
+      "index_end": 47,
+      "field_count": 24,
       "fields": {
         "24": "max_abs_tau_nm",
         "25": "step_time_s",
@@ -141,7 +141,11 @@
         "40": "commanded_joint_torque_nm_2",
         "41": "commanded_joint_torque_nm_3",
         "42": "commanded_joint_torque_nm_4",
-        "43": "commanded_joint_torque_nm_5"
+        "43": "commanded_joint_torque_nm_5",
+        "44": "control_update_dt_s",
+        "45": "control_update_count",
+        "46": "maximum_control_update_gap_s",
+        "47": "torque_thread_tick_count"
       },
       "applied_12d_action": {
         "filtered_F_ff": "26:31",
@@ -189,8 +193,10 @@
     "startup_equilibrium": "fresh_actual_pose",
     "orientation_entry_policy": "hold_fresh_entry_orientation_no_rotvec_component_interpolation",
     "startup_equilibrium_blend_s": 0.1,
+    "startup_blend_clock": "monotonic_controller_time_not_main_loop_iteration_count",
     "startup_stationary_dwell_s": 0.05,
-    "startup_stationary_dwell_ticks": 25,
+    "startup_stationary_dwell_ticks": null,
+    "startup_stationary_clock": "monotonic_controller_time",
     "startup_stationary_limits": {
       "maximum_abs_joint_speed_rad_s": 0.001,
       "maximum_tcp_translation_speed_m_s": 0.001,
@@ -206,12 +212,26 @@
     "active_speed_guards": {
       "maximum_abs_joint_speed_rad_s": 0.02,
       "maximum_abs_derived_joint_acceleration_rad_s2": 5.0,
-      "joint_acceleration_definition": "500hz_actual_qd_finite_difference",
+      "joint_acceleration_definition": "controller_get_actual_joint_accelerations_encoder_derived",
       "maximum_tcp_translation_speed_m_s": 0.01,
       "maximum_tcp_rotation_speed_rad_s": 0.02,
       "violation_action": "common_exit_stopj",
       "speed_fault_code": 11,
       "acceleration_fault_code": 12
+    },
+    "cadence_contract": {
+      "direct_torque_application_hz": 500,
+      "direct_torque_application_owner": "torqueThread",
+      "control_update_rate_minimum_hz": 150,
+      "maximum_control_update_gap_s": 0.01,
+      "control_update_dt_source": "monotonic_controller_time",
+      "filter_and_heartbeat_discretization": "measured_control_update_dt",
+      "evidence_counters": {
+        "output_double_register_44": "control_update_dt_s",
+        "output_double_register_45": "control_update_count",
+        "output_double_register_46": "maximum_control_update_gap_s",
+        "output_double_register_47": "torque_thread_tick_count"
+      }
     },
     "friction_compensation": {
       "api": "direct_torque_v2",

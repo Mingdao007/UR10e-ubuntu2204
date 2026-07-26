@@ -333,11 +333,13 @@ def build_live_receiver_source(
   torque_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  torque_thread_tick_count = 0
 
   thread torqueThread():
     while torque_thread_run:
       local torque = torque_command
       direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)
+      torque_thread_tick_count = torque_thread_tick_count + 1
     end
     stopj(10.0)
   end
@@ -369,9 +371,8 @@ def build_live_receiver_source(
   local virtual_mass = [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
   local damping_ratio = 1.0
   local critical_natural_frequency_rad_s = 92.10340371976183
-  local critical_decay = 0.8317438636116526
-  local entry_blend_ticks = 50
-  local entry_stable_ticks_required = 25
+  local entry_blend_duration_s = 0.1
+  local entry_stable_duration_s = 0.05
   local entry_tcp_translation_speed_limit_m_s = 0.001
   local entry_tcp_rotation_speed_limit_rad_s = 0.002
   local entry_joint_speed_limit_rad_s = 0.001
@@ -386,12 +387,13 @@ def build_live_receiver_source(
   local running = True
   local torque_entered = False
   local tube_rebased = False
-  local entry_tick = 0
-  local entry_stable_ticks = 0
+  local entry_elapsed_s = 0.0
+  local entry_stable_elapsed_s = 0.0
   local exit_fault = 0
   local exit_reason = 0
   local last_sequence = 0
-  local held_age_ticks = 0
+  local held_age_s = 0.0
+  local heartbeat_timeout_s = heartbeat_timeout_ticks*get_steptime()
   local lease_id = 0
   local episode_identity = 0
   local episode_latched = 0
@@ -407,9 +409,11 @@ def build_live_receiver_source(
   local filtered_force = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filter_velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local entry_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  local last_qd = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  local last_qd_valid = False
   local torque_thread_handle = 0
+  local control_update_count = 0
+  local maximum_control_update_gap_s = 0.0
+  local initial_control_clock = time()
+  local last_control_time_s = initial_control_clock.sec + initial_control_clock.nanosec/1000000000.0
   write_output_integer_register(24, 0)
   write_output_integer_register(25, 0)
   write_output_integer_register(26, 0)
@@ -423,6 +427,16 @@ def build_live_receiver_source(
   write_output_integer_register(34, last_observed_command)
   write_output_integer_register(35, episode_latched)
   while running:
+    local control_clock = time()
+    local control_time_s = control_clock.sec + control_clock.nanosec/1000000000.0
+    local control_dt_s = control_time_s - last_control_time_s
+    if control_dt_s < get_steptime():
+      control_dt_s = get_steptime()
+    end
+    last_control_time_s = control_time_s
+    if control_dt_s > maximum_control_update_gap_s:
+      maximum_control_update_gap_s = control_dt_s
+    end
     local command = read_input_integer_register(24)
     local sequence_before = read_input_integer_register(25)
     local heartbeat = read_input_integer_register(26)
@@ -505,8 +519,8 @@ def build_live_receiver_source(
         packet_ok = False
       end
       if held_packet:
-        held_age_ticks = held_age_ticks + 1
-        if held_age_ticks > heartbeat_timeout_ticks:
+        held_age_s = held_age_s + control_dt_s
+        if held_age_s > heartbeat_timeout_s:
           packet_ok = False
         end
         local compare_axis = 0
@@ -538,7 +552,7 @@ def build_live_receiver_source(
           packet_ok = False
         end
       else:
-        held_age_ticks = 0
+        held_age_s = 0.0
       end
       if model_mode == 0:
         if model_sequence != 0 or model_period_us != 0 or model_timestamp_us != 0:
@@ -641,16 +655,7 @@ def build_live_receiver_source(
         local actual_speed = get_actual_tcp_speed()
         local q = get_actual_joint_positions()
         local qd = get_actual_joint_speeds()
-        local qdd = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-        local qdd_axis = 0
-        while qdd_axis < 6:
-          if last_qd_valid:
-            qdd[qdd_axis] = 500.0*(qd[qdd_axis] - last_qd[qdd_axis])
-          end
-          last_qd[qdd_axis] = qd[qdd_axis]
-          qdd_axis = qdd_axis + 1
-        end
-        last_qd_valid = True
+        local qdd = get_actual_joint_accelerations()
         local actual_translation_speed = sqrt(actual_speed[0]*actual_speed[0] + actual_speed[1]*actual_speed[1] + actual_speed[2]*actual_speed[2])
         local actual_rotation_speed = sqrt(actual_speed[3]*actual_speed[3] + actual_speed[4]*actual_speed[4] + actual_speed[5]*actual_speed[5])
         local actual_dx = actual_pose[0] - tube_center_base[0]
@@ -713,11 +718,11 @@ def build_live_receiver_source(
             axis = axis + 1
           end
           if entry_ready:
-            entry_stable_ticks = entry_stable_ticks + 1
+            entry_stable_elapsed_s = entry_stable_elapsed_s + control_dt_s
           else:
-            entry_stable_ticks = 0
+            entry_stable_elapsed_s = 0.0
           end
-          if entry_stable_ticks < entry_stable_ticks_required:
+          if entry_stable_elapsed_s < entry_stable_duration_s:
             entry_ready = False
           end
         end
@@ -749,8 +754,8 @@ def build_live_receiver_source(
           sync()
         else:
           local blend = 1.0
-          if entry_tick < entry_blend_ticks:
-            blend = entry_tick / entry_blend_ticks
+          if entry_elapsed_s < entry_blend_duration_s:
+            blend = entry_elapsed_s / entry_blend_duration_s
           end
           local control_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           local control_k = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -760,8 +765,9 @@ def build_live_receiver_source(
 {orientation_assignment}
             control_k[axis] = last_k[axis]
             local filter_c = filter_velocity[axis] + critical_natural_frequency_rad_s*(filtered_force[axis] - last_raw_force[axis])
-            local next_force = last_raw_force[axis] + critical_decay*((filtered_force[axis] - last_raw_force[axis]) + filter_c/500.0)
-            local next_velocity = critical_decay*(filter_velocity[axis] - critical_natural_frequency_rad_s*filter_c/500.0)
+            local critical_decay = exp(-critical_natural_frequency_rad_s*control_dt_s)
+            local next_force = last_raw_force[axis] + critical_decay*((filtered_force[axis] - last_raw_force[axis]) + filter_c*control_dt_s)
+            local next_velocity = critical_decay*(filter_velocity[axis] - critical_natural_frequency_rad_s*filter_c*control_dt_s)
             filtered_force[axis] = next_force
             filter_velocity[axis] = next_velocity
             axis = axis + 1
@@ -817,7 +823,7 @@ def build_live_receiver_source(
               torque_entered = True
             end
             write_output_integer_register(24, 2)
-            if entry_tick < entry_blend_ticks:
+            if entry_elapsed_s < entry_blend_duration_s:
               write_output_integer_register(24, 1)
             end
             write_output_integer_register(25, last_sequence)
@@ -833,6 +839,11 @@ def build_live_receiver_source(
             write_output_integer_register(35, episode_latched)
             write_output_float_register(24, max_abs_tau)
             write_output_float_register(25, get_steptime())
+            control_update_count = control_update_count + 1
+            write_output_float_register(44, control_dt_s)
+            write_output_float_register(45, control_update_count)
+            write_output_float_register(46, maximum_control_update_gap_s)
+            write_output_float_register(47, torque_thread_tick_count)
             axis = 0
             while axis < 6:
               write_output_float_register(26 + axis, filtered_force[axis])
@@ -840,8 +851,8 @@ def build_live_receiver_source(
               write_output_float_register(38 + axis, tau[axis])
               axis = axis + 1
             end
-            if entry_tick < entry_blend_ticks:
-              entry_tick = entry_tick + 1
+            if entry_elapsed_s < entry_blend_duration_s:
+              entry_elapsed_s = entry_elapsed_s + control_dt_s
             end
             sync()
           end
@@ -888,7 +899,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "packet_lease != lease_id or packet_episode != episode_identity",
         "sequence_after == last_sequence + 1",
         "sequence_after == last_sequence",
-        "held_age_ticks > heartbeat_timeout_ticks",
+        "held_age_s > heartbeat_timeout_s",
         "write_output_integer_register(27, lease_id)",
         "write_output_integer_register(28, last_model_sequence)",
         "write_output_integer_register(30, frame_token)",
@@ -902,6 +913,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "thread torqueThread():",
         "torque = torque_command",
         "direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)",
+        "torque_thread_tick_count = torque_thread_tick_count + 1",
         "torque_thread_handle = run torqueThread()",
         "torque_thread_run = False",
         "join torque_thread_handle",
@@ -911,19 +923,25 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "tube_rebased = False",
         "tube_center_base = [actual_pose[0], actual_pose[1], actual_pose[2]]",
         "tube_anchor_pose_base = p[actual_pose[0], actual_pose[1], actual_pose[2], actual_pose[3], actual_pose[4], actual_pose[5]]",
-        "entry_stable_ticks_required = 25",
+        "entry_stable_duration_s = 0.05",
         "entry_joint_speed_limit_rad_s = 0.001",
-        "entry_stable_ticks < entry_stable_ticks_required",
+        "entry_stable_elapsed_s < entry_stable_duration_s",
         "guard_wrench = [read_input_float_register(36)",
         "guard_force_norm > 6.0 or guard_torque_norm > 0.5",
-        "entry_tick < entry_blend_ticks",
+        "entry_elapsed_s < entry_blend_duration_s",
         "control_k[axis] = last_k[axis]",
         "viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
         "coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
         "actual_translation_speed > active_tcp_translation_speed_limit_m_s",
         "actual_rotation_speed > active_tcp_rotation_speed_limit_rad_s",
         "active_speed_violation",
-        "qdd[qdd_axis] = 500.0*(qd[qdd_axis] - last_qd[qdd_axis])",
+        "qdd = get_actual_joint_accelerations()",
+        "control_clock = time()",
+        "critical_decay = exp(-critical_natural_frequency_rad_s*control_dt_s)",
+        "write_output_float_register(44, control_dt_s)",
+        "write_output_float_register(45, control_update_count)",
+        "write_output_float_register(46, maximum_control_update_gap_s)",
+        "write_output_float_register(47, torque_thread_tick_count)",
         "active_joint_acceleration_limit_rad_s2 = 5.0",
         "active_acceleration_violation",
         "get_coriolis_and_centrifugal_torques(q, qd)",

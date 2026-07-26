@@ -243,12 +243,18 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         "register_contract": {
             "input_double_registers": list(range(24, 48)),
             "input_integer_registers": list(range(24, 36)),
-            "output_double_registers": list(range(24, 44)),
+            "output_double_registers": list(range(24, 48)),
             "output_integer_registers": list(range(24, 36)),
             "applied_action": {
                 "filtered_f_ff": list(range(26, 32)),
                 "stiffness_k": list(range(32, 38)),
                 "commanded_joint_torque_nm": list(range(38, 44)),
+                "cadence": {
+                    "control_update_dt_s": 44,
+                    "control_update_count": 45,
+                    "maximum_control_update_gap_s": 46,
+                    "torque_thread_tick_count": 47,
+                },
             },
         },
         "gates": {
