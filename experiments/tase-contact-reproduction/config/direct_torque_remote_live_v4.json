@@ -204,7 +204,7 @@
       {
         "id": "reference_2s",
         "duration_s": 2.0,
-        "trajectory": "bounded_reference_artifact"
+        "trajectory": "bounded_reference_offsets_reanchored_to_fresh_actual_pose"
       }
     ],
     "compile_probe_strict_success_required": true,
@@ -217,7 +217,7 @@
     "design_path_radius_m": 0.001,
     "release_translation_tolerance_m": 0.001,
     "hard_tube_normal_half_width_m": 0.002,
-    "dimension_note": "These are separate dimensions: design radius, release tolerance, and hard-tube normal half-width."
+    "dimension_note": "The 1 mm release tolerance applies to the fresh stage start pose, not the historical reference anchor. Reference XYZ offsets are reanchored to the fresh actual pose; every desired pose must still remain inside the immutable hard tube."
   },
   "gates": [
     {

@@ -108,6 +108,20 @@ def test_repository_signal_names_the_next_legal_action() -> None:
     assert report["certification_motion_authorization_required"] is True
     assert report["campaign_authorization_required"] is True
     assert report["hil_hold_required"] is False
+    current_stage = json.loads(
+        (ROOT / "config/current_stage.json").read_text(encoding="utf-8")
+    )
+    liveprep_status = current_stage["liveprep_status"]
+    assert liveprep_status["state"] == "blocked"
+    assert liveprep_status["blockers"] == [
+        "requires_current_poweroff_controller_identity",
+        "requires_certification_motion_authorization",
+        "requires_certified_stopping_bound",
+        "requires_certified_return_route_angular_envelope",
+        "requires_fresh_campaign_authorization",
+    ]
+    assert "readiness_artifact" not in liveprep_status
+    assert "readiness_sha256" not in liveprep_status
 
 
 def test_live_promotion_validation_digest_is_fail_closed(tmp_path: Path) -> None:

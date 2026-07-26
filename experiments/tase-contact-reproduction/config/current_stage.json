@@ -1166,10 +1166,14 @@
     "state": "not_started"
   },
   "liveprep_status": {
-    "blockers": [],
-    "readiness_artifact": "config/step5d_v35_liveprep_readiness.json",
-    "readiness_sha256": "912387a8a0c7e3692f5d7f39b867d23cc967d5ec6160cb268b111da52d81ccfe",
-    "state": "awaiting_live_authorization"
+    "blockers": [
+      "requires_current_poweroff_controller_identity",
+      "requires_certification_motion_authorization",
+      "requires_certified_stopping_bound",
+      "requires_certified_return_route_angular_envelope",
+      "requires_fresh_campaign_authorization"
+    ],
+    "state": "blocked"
   },
   "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3",
   "notes": [

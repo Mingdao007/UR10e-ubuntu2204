@@ -384,10 +384,6 @@ class CanaryTimeline:
         start_pose = _finite6(actual_pose, "canary_start_pose")
         duration_s = CANARY_STAGE_DURATIONS_S[stage]
         if stage == CANARY_STAGE_REFERENCE:
-            start_pose = _finite6(
-                bundle.timeline.rows[0]["desired_pose_base"],
-                "reference_start_pose",
-            )
             duration_s = bundle.timeline.duration_s
         timeline = cls(
             stage=stage,
@@ -402,6 +398,12 @@ class CanaryTimeline:
         bundle.tube.assert_contains_pose(
             timeline.row_at(duration_s)["desired_pose_base"], role="desired"
         )
+        if stage == CANARY_STAGE_REFERENCE:
+            for row in bundle.timeline.rows:
+                bundle.tube.assert_contains_pose(
+                    timeline.row_at(float(row["progress_s"]))["desired_pose_base"],
+                    role="desired",
+                )
         return timeline
 
     @property
@@ -411,7 +413,22 @@ class CanaryTimeline:
     def row_at(self, elapsed_s: float) -> Mapping[str, Any]:
         bounded = min(max(float(elapsed_s), 0.0), self.duration_s)
         if self.stage == CANARY_STAGE_REFERENCE:
-            return self.bundle_timeline.row_at(bounded)
+            reference_row = self.bundle_timeline.row_at(bounded)
+            reference_origin = _finite6(
+                self.bundle_timeline.rows[0]["desired_pose_base"],
+                "reference_origin_pose",
+            )
+            reference_pose = _finite6(
+                reference_row["desired_pose_base"],
+                "reference_desired_pose",
+            )
+            pose = list(self.start_pose)
+            for index in range(3):
+                pose[index] += reference_pose[index] - reference_origin[index]
+            return {
+                "progress_s": float(reference_row["progress_s"]),
+                "desired_pose_base": tuple(pose),
+            }
         pose = list(self.start_pose)
         if self.stage == CANARY_STAGE_RAMP:
             phase = bounded / self.duration_s
@@ -816,12 +833,11 @@ def validate_live_preflight(
     status: Mapping[str, Any],
     bundle: ValidatedBundle,
     *,
-    timeline: ReferenceTimeline | CanaryTimeline | None = None,
+    timeline: ReferenceTimeline | CanaryTimeline,
 ) -> None:
     dashboard = status["dashboard"]
     rtde = status["rtde"]
-    active_timeline = bundle.timeline if timeline is None else timeline
-    first_desired_pose = active_timeline.rows[0]["desired_pose_base"]
+    first_desired_pose = timeline.rows[0]["desired_pose_base"]
     failures = []
     if not status["remote_control"]:
         failures.append("controller_not_remote_control")

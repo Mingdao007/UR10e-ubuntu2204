@@ -518,7 +518,11 @@ def test_canary_timeline_has_fixed_hold_ramp_and_reference_stages(
     tmp_path: Path,
 ) -> None:
     bundle = _bundle(tmp_path)
-    actual = list(bundle.timeline.rows[0]["desired_pose_base"])
+    old_reference = list(bundle.timeline.rows[0]["desired_pose_base"])
+    actual = list(old_reference)
+    actual[0] += 0.0011
+    actual[1] += 0.0007
+    actual[2] += 0.0005
     hold = CanaryTimeline.from_stage(
         CANARY_STAGE_HOLD, actual_pose=actual, bundle=bundle
     )
@@ -538,6 +542,53 @@ def test_canary_timeline_has_fixed_hold_ramp_and_reference_stages(
         CANARY_STAGE_REFERENCE, actual_pose=actual, bundle=bundle
     )
     assert reference.duration_s == pytest.approx(bundle.timeline.duration_s)
+    assert reference.row_at(0.0)["desired_pose_base"] == pytest.approx(actual)
+    reference_last = bundle.timeline.row_at(bundle.timeline.duration_s)[
+        "desired_pose_base"
+    ]
+    relative_last = [
+        reference_last[index] - old_reference[index] for index in range(3)
+    ]
+    assert reference.row_at(reference.duration_s)["desired_pose_base"][:3] == pytest.approx(
+        [actual[index] + relative_last[index] for index in range(3)]
+    )
+    assert reference.row_at(reference.duration_s)["desired_pose_base"][3:] == pytest.approx(
+        actual[3:]
+    )
+
+
+def test_old_reference_drift_does_not_block_reanchored_canary_preflight(
+    tmp_path: Path,
+) -> None:
+    bundle = _bundle(tmp_path)
+    actual = list(bundle.timeline.rows[0]["desired_pose_base"])
+    actual[0] += 0.0011
+    actual[1] += 0.0007
+    actual[2] += 0.0005
+    assert math.dist(actual[:3], bundle.timeline.rows[0]["desired_pose_base"][:3]) > 0.001
+    status = {
+        "remote_control": True,
+        "stopped": True,
+        "stationary": True,
+        "dashboard": {
+            "PolyscopeVersion": "URSoftware 5.26.0",
+            "safetystatus": "Safetystatus: NORMAL",
+            "robotmode": "Robotmode: RUNNING",
+        },
+        "rtde": {
+            "safety_mode": SAFETY_MODE_NORMAL,
+            "robot_mode": ROBOT_MODE_RUNNING,
+            "actual_TCP_pose": actual,
+            "actual_TCP_force": [0.0] * 6,
+        },
+    }
+    for stage in (
+        CANARY_STAGE_HOLD,
+        CANARY_STAGE_RAMP,
+        CANARY_STAGE_REFERENCE,
+    ):
+        timeline = CanaryTimeline.from_stage(stage, actual_pose=actual, bundle=bundle)
+        validate_live_preflight(status, bundle, timeline=timeline)
 
 
 def test_compile_probe_authorization_and_evidence_are_strictly_no_motion(
@@ -783,12 +834,12 @@ def test_live_preflight_requires_1mm_release_translation_check(tmp_path: Path) -
         "stationary": True,
     }
     with pytest.raises(RuntimeError, match="release_translation_error_exceeds_1mm"):
-        validate_live_preflight(status, bundle)
+        validate_live_preflight(status, bundle, timeline=bundle.timeline)
     status["rtde"]["actual_TCP_pose"] = [
         expected[0] + NO_CONTACT_RELEASE_TOLERANCE_M * 0.5,
         *expected[1:],
     ]
-    validate_live_preflight(status, bundle)
+    validate_live_preflight(status, bundle, timeline=bundle.timeline)
 
 
 def test_next_available_output_dir_is_not_overwritten(tmp_path: Path) -> None:
