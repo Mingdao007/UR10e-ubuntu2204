@@ -1295,12 +1295,21 @@ def run(args: argparse.Namespace) -> int:
         attempt_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", basis["launch_nonce"])
         if attempt_id != basis["launch_nonce"]:
             raise RuntimeError("campaign launch attempt differs from launch basis")
+        authority_root = os.environ.get("STEP5D_V3_AUTHORITY_ROOT", "").strip()
+        authority_resource_id = os.environ.get(
+            "STEP5D_V3_AUTHORITY_RESOURCE_ID",
+            "step5d-bridge-writer",
+        ).strip()
         authority_fence = AuthorityFence(
-            Path(os.environ.get("STEP5D_V3_AUTHORITY_ROOT", str(root / "runs/step5d_bridge_authority"))),
+            Path(authority_root) if authority_root else None,
             attempt_id=attempt_id,
             sequence=int(basis["authority_epoch"]),
             owner_pid=args.owner_pid,
             owner_starttime_ticks=args.owner_starttime,
+            launch_basis_path=str(args.launch_basis),
+            launch_basis_sha256=args.launch_basis_sha256,
+            resource_id=authority_resource_id,
+            require_basis_bound=True,
         )
         authority_fence.assert_active()
         _ACTIVE_AUTHORITY_FENCE = authority_fence

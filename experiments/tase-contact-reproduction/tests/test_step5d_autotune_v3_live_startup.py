@@ -687,6 +687,103 @@ def test_canonical_shell_bridge_route_has_only_autotune_v3() -> None:
     assert "bridge-line-operator.sh" not in source
 
 
+def test_shell_authority_root_args_are_reusable_and_resource_id_is_shared() -> None:
+    source = (ROOT / "scripts" / "step5d-autotune-v3.sh").read_text(
+        encoding="utf-8"
+    )
+
+    def _function_block(function_name: str, next_name: str | None = None) -> str:
+        start = source.index(f"{function_name}() {{")
+        if next_name is None:
+            return source[start:]
+        return source[start : source.index(f"{next_name}() {{", start)]
+
+    authority_root_snippet = (
+        "BRIDGE_AUTHORITY_ROOT=\"${STEP5D_V3_AUTHORITY_ROOT:-}\"\n"
+        "authority_resource_id=\"${STEP5D_V3_AUTHORITY_RESOURCE_ID:-step5d-bridge-writer}\"\n"
+    )
+    acquire_block = _function_block(
+        "bridge_acquire_authority",
+        "bridge_runtime_fail",
+    )
+    bootstrap_block = _function_block(
+        "bridge_record_launch_attempt",
+        "bridge_begin_phase",
+    )
+    revoke_block = _function_block("bridge_revoke_authority", "bridge_acquire_authority")
+    coordinator = source[source.index("run_step5d_autotune_v3_coordinator.py") : source.index(
+        '\"${CONTROL_PYTHON}\" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"'
+    )]
+
+    assert authority_root_snippet in source
+    assert "authority_root_args=()" in source
+    assert 'authority_root_args=(--authority-root "${BRIDGE_AUTHORITY_ROOT}")' in source
+    assert "${authority_root_args[@]}" in acquire_block
+    assert "--resource-id \"${authority_resource_id}\"" in acquire_block
+    assert "--worktree-root \"${REPOSITORY_ROOT}\"" in acquire_block
+    assert "--repository-head \"${launch_repository_head}\"" in acquire_block
+    assert "--launch-basis" not in acquire_block
+    assert "run_step5d_autotune_v3" not in acquire_block
+
+    assert "--authority-root" not in bootstrap_block
+    assert "--resource-id \"${authority_resource_id}\"" in bootstrap_block
+    assert "${authority_root_args[@]}" in bootstrap_block
+    assert "runtime-start" in bootstrap_block
+    assert "runtime-fail" in bootstrap_block
+    assert "--attempt-id \"${launch_attempt_id}\"" in bootstrap_block
+    assert "--owner-pid \"$$\"" in bootstrap_block
+    assert "--owner-starttime \"${launch_owner_starttime}\"" in bootstrap_block
+    assert "--resource-id \"${authority_resource_id}\"" in bootstrap_block
+    assert "${authority_root_args[@]}" in bootstrap_block
+
+    assert "${authority_root_args[@]}" in revoke_block
+    assert "--resource-id \"${authority_resource_id}\"" in revoke_block
+
+    coordinator = source[source.index("run_step5d_autotune_v3_coordinator.py") : source.index(
+        '\"${CONTROL_PYTHON}\" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"'
+    )]
+    assert "${authority_root_args[@]}" in coordinator
+    assert "--authority-resource-id \"${authority_resource_id}\"" in coordinator
+    assert "--resource-id" not in coordinator
+
+    assert "export STEP5D_V3_AUTHORITY_ROOT" in source
+    assert 'export STEP5D_V3_AUTHORITY_RESOURCE_ID="${authority_resource_id}"' in source
+
+    assert source.count('--campaign-root "${campaign_root}"') == 2
+    assert '--campaign-root "${LAUNCH_ATTEMPT_ROOT}"' in source
+    assert '--_launch-campaign-path "${campaign_root}"' in source
+
+
+def test_bridge_startup_sequence_places_runtime_start_after_basis_and_before_local_phases() -> None:
+    source = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+
+    acquire = source.index('"${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" begin')
+    coordinator = source.index("run_step5d_autotune_v3_coordinator.py")
+    runtime_bootstrap = source.index("launch_runtime_bootstrap=1", coordinator)
+    runtime_gate_records = [
+        source.index("bridge_record_launch_attempt STARTED runtime_gate", coordinator)
+    ]
+    runtime_gate_records.append(
+        source.index(
+            "bridge_record_launch_attempt STARTED runtime_gate",
+            runtime_gate_records[0] + 1,
+        )
+    )
+    authority_runtime_start, local_attempt_start = runtime_gate_records
+    launch_basis_binding = source.index(
+        '--launch-basis "${output_root}/launch-basis.json"',
+        coordinator,
+    )
+    preflight = source.index("bridge_begin_phase preflight")
+    live_handoff = source.index("bridge_begin_phase live_handoff")
+    live_runner = source.index('"${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py"')
+
+    assert acquire < coordinator < launch_basis_binding < runtime_bootstrap
+    assert runtime_bootstrap < authority_runtime_start < local_attempt_start
+    assert local_attempt_start < preflight < live_handoff < live_runner
+    assert '--campaign-root "${LAUNCH_ATTEMPT_ROOT}"' in source
+
+
 def test_production_play_prompt_requires_route_neutral_readiness_claim(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -929,10 +1026,11 @@ def _fake_governed_shell(
         "    raise SystemExit(78)\n"
         "python = os.environ['STEP5D_TEST_PROFILE_PYTHON']\n"
         "digest = 'a' * 64\n"
+        "environment = 'environment-id'\n"
         "gpu = 'GPU-93d64fd3-924c-9c86-6c3d-b4781ed2133a'\n"
         "ld_library_path = '/runtime/control/nvidia'\n"
         "cupy_cache_dir = '/runtime/cache/cupy'\n"
-        "print('\\t'.join((python, digest, digest, digest, digest, digest, gpu, ld_library_path, cupy_cache_dir)))\n",
+        "print('\\t'.join((python, digest, digest, digest, digest, environment, gpu, ld_library_path, cupy_cache_dir)))\n",
         encoding="utf-8",
     )
     environment = {
@@ -940,6 +1038,7 @@ def _fake_governed_shell(
         "PATH": "/usr/bin:/bin",
         "STEP5D_TEST_COMMAND_LOG": str(command_log),
         "STEP5D_TEST_PROFILE_PYTHON": str(profile_python),
+        "STEP5D_V3_AUTHORITY_ROOT": str((repository / "runs/step5d_bridge_authority").resolve()),
     }
     return shell, command_log, environment
 
@@ -1010,21 +1109,11 @@ def test_shell_failure_trap_records_started_and_failed_phase(tmp_path: Path) -> 
 
     assert result.returncode == 41, result.stderr
     commands = command_log.read_text(encoding="utf-8").splitlines()
-    started = next(
-        line
-        for line in commands
-        if "_launch-attempt-state STARTED" in line
-        and "_launch-attempt-phase campaign_prepare" in line
-    )
-    failed = next(
-        line
-        for line in commands
-        if "_launch-attempt-state FAILED" in line
-        and "_launch-attempt-phase campaign_prepare" in line
-    )
-    assert "_launch-attempt-phase campaign_prepare" in started
-    assert "_launch-attempt-phase campaign_prepare" in failed
-    assert "_launch-attempt-exit-code 41" in failed
+    assert not any("_launch-attempt-phase campaign_prepare" in line for line in commands)
+    assert not any("_launch-attempt-state STARTED" in line for line in commands)
+    assert not any("_launch-attempt-state FAILED" in line for line in commands)
+    assert any("step5d_bridge_authority.py revoke" in line for line in commands)
+    assert not (output / "launch-attempt-recorder.log").exists()
     assert not any("preflight_step5d_autotune_v3.py" in line for line in commands)
 
 
@@ -1063,6 +1152,13 @@ def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
     assert len(live_calls) == 1
     assert "--preflight" in live_calls[0]
     assert "step5d_autotune_v3.cli" not in live_calls[0]
+    coordinator_calls = [
+        line
+        for line in commands
+        if "run_step5d_autotune_v3_coordinator.py" in line
+    ]
+    assert len(coordinator_calls) == 1
+    assert "--launch-basis" in coordinator_calls[0]
 
 
 def test_shell_action_required_creates_no_attempt_or_authority(
@@ -1101,7 +1197,7 @@ def test_shell_action_required_creates_no_attempt_or_authority(
     assert any("check_step5d_autotune_v3_bridge_admission.py" in line for line in commands)
     assert not any("run_step5d_release_contract.py" in line for line in commands)
     assert not any("run_step5d_autotune_v3_tp_transaction.py" in line for line in commands)
-    authority_root = experiment / "runs/step5d_bridge_authority"
+    authority_root = Path(environment["STEP5D_V3_AUTHORITY_ROOT"])
     assert not authority_root.exists()
     assert not (output / "bridge-authority-epoch.txt").exists()
     assert not (output / "launch-attempt-recorder.log").exists()

@@ -419,6 +419,30 @@ def test_v3_derived_queue_hook_is_after_direct_commit() -> None:
     assert finalized < committed < queued
 
 
+def test_authority_fence_construction_uses_launch_basis_and_resource_id_before_bound_check() -> None:
+    source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
+        encoding="utf-8"
+    )
+    root = source.index('STEP5D_V3_AUTHORITY_ROOT", "").strip()')
+    resource = source.index("STEP5D_V3_AUTHORITY_RESOURCE_ID", root)
+    authority_fence = source.index("authority_fence = AuthorityFence(", root)
+    authority_fence_end = source.index("_ACTIVE_AUTHORITY_FENCE = authority_fence", authority_fence)
+    authority_fence_source = source[authority_fence:authority_fence_end]
+    launch_basis_path = authority_fence_source.index(
+        "launch_basis_path=str(args.launch_basis)"
+    )
+    launch_basis_sha256 = authority_fence_source.index(
+        "launch_basis_sha256=args.launch_basis_sha256"
+    )
+    resource = authority_fence_source.index("resource_id=authority_resource_id")
+    require_basis_bound = authority_fence_source.index("require_basis_bound=True")
+    assert (
+        launch_basis_path < launch_basis_sha256 < resource < require_basis_bound
+    )
+    assert "Path(authority_root) if authority_root else None" in source
+    assert "str(root / \"runs/step5d_bridge_authority\")" not in source
+
+
 def test_each_v3_arm_rechecks_identity_runtime_binding_before_issue() -> None:
     source = (ROOT / "tools" / "run_step5d_autotune_campaign.py").read_text(
         encoding="utf-8"
@@ -487,9 +511,25 @@ def test_campaign_runner_import_does_not_load_matplotlib() -> None:
     code = f"""
 import builtins
 import sys
+import types
 
 sys.path[:0] = {import_paths!r}
 original_import = builtins.__import__
+jsonschema_stub = types.ModuleType("jsonschema")
+
+class _Draft202012Validator:
+    @staticmethod
+    def check_schema(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    def __init__(self, _schema: object) -> None:
+        pass
+
+    def iter_errors(self, _value: object) -> tuple[object, ...]:
+        return ()
+
+jsonschema_stub.Draft202012Validator = _Draft202012Validator
+sys.modules["jsonschema"] = jsonschema_stub
 
 def reject_matplotlib(name, globals=None, locals=None, fromlist=(), level=0):
     if name.split(".", 1)[0] == "matplotlib":

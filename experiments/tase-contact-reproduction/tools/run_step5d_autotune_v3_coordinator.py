@@ -30,6 +30,7 @@ from step5d_autotune_v3.release_identity import (
 from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY, load_launch_profile
 from step5d_autotune_v3.runtime_gate import release_runtime_contract
 from step5d_autotune_v3.state import atomic_json
+from step5d_autotune_v3.launch_basis import read_and_validate_launch_basis
 import step5d_bridge_authority as authority
 
 
@@ -303,7 +304,13 @@ def _sha256_path(path: Path) -> str:
 
 
 def _revoke(args: argparse.Namespace, reason: str) -> None:
-    before = authority.load_current(args.authority_root)
+    before = authority.load_current(
+        args.authority_root,
+        attempt_id=args.attempt_id,
+        owner_pid=args.owner_pid,
+        owner_starttime_ticks=args.owner_starttime,
+        resource_id=args.authority_resource_id,
+    )
     expected_owner = {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime}
     if (
         not isinstance(before, dict)
@@ -314,23 +321,26 @@ def _revoke(args: argparse.Namespace, reason: str) -> None:
         or not isinstance(before.get("sequence"), int)
     ):
         raise RuntimeError("bridge authority fencing is not confirmed before revoke")
+    command = [
+        sys.executable,
+        str(Path(__file__).with_name("step5d_bridge_authority.py")),
+        "revoke",
+        "--attempt-id",
+        args.attempt_id,
+        "--owner-pid",
+        str(args.owner_pid),
+        "--owner-starttime",
+        str(args.owner_starttime),
+        "--reason",
+        reason,
+        "--resource-id",
+        args.authority_resource_id,
+    ]
+    if args.authority_root is not None:
+        command.extend(["--authority-root", str(args.authority_root)])
     try:
         completed = subprocess.run(
-            [
-                sys.executable,
-                str(Path(__file__).with_name("step5d_bridge_authority.py")),
-                "revoke",
-                "--authority-root",
-                str(args.authority_root),
-                "--attempt-id",
-                args.attempt_id,
-                "--owner-pid",
-                str(args.owner_pid),
-                "--owner-starttime",
-                str(args.owner_starttime),
-                "--reason",
-                reason,
-            ],
+            command,
             check=True,
             capture_output=True,
             text=True,
@@ -340,7 +350,13 @@ def _revoke(args: argparse.Namespace, reason: str) -> None:
     output = completed.stdout.strip()
     if not re.fullmatch(r"[1-9][0-9]*", output):
         raise RuntimeError("bridge authority revoke sequence is missing")
-    revoked = authority.load_current(args.authority_root)
+    revoked = authority.load_current(
+        args.authority_root,
+        attempt_id=args.attempt_id,
+        owner_pid=args.owner_pid,
+        owner_starttime_ticks=args.owner_starttime,
+        resource_id=args.authority_resource_id,
+    )
     expected_sequence = before["sequence"] + 1
     if (
         not isinstance(revoked, dict)
@@ -360,17 +376,97 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
     admission_path, admission = resolve_bridge_admission(root, release=release)
     if admission_path.resolve() != args.admission.resolve():
         raise RuntimeError("coordinator admission path is not the current validated admission")
-    current = authority.load_current(args.authority_root)
+    repository_head = _repository_head(root)
+    current = authority.load_current(
+        args.authority_root,
+        attempt_id=args.attempt_id,
+        owner_pid=args.owner_pid,
+        owner_starttime_ticks=args.owner_starttime,
+        worktree_root=str(root),
+        repository_head=repository_head,
+        resource_id=args.authority_resource_id,
+    )
     if not isinstance(current, dict) or current.get("state") != "ACTIVE":
         raise RuntimeError("coordinator authority is not active")
-    if current.get("attempt_id") != args.attempt_id or current.get("sequence") != args.authority_epoch:
+    if (
+        current.get("attempt_id") != args.attempt_id
+        or current.get("sequence") != args.authority_epoch
+        or current.get("authority_epoch") != args.authority_epoch
+    ):
         raise RuntimeError("coordinator authority epoch/attempt differs")
     owner = current.get("owner")
     if owner != {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime}:
         raise RuntimeError("coordinator authority owner differs")
+
+    current_basis_path = current.get("launch_basis_path")
+    current_basis_sha256 = current.get("launch_basis_sha256")
+    if current_basis_path is not None or current_basis_sha256 is not None:
+        if current_basis_path is None or current_basis_sha256 is None:
+            raise RuntimeError("coordinator authority launch basis binding is incomplete")
+        basis_path = str(args.launch_basis.resolve())
+        if current_basis_path != basis_path:
+            raise RuntimeError("coordinator authority is already bound to a different launch basis")
+        authority.load_current(
+            args.authority_root,
+            attempt_id=args.attempt_id,
+            owner_pid=args.owner_pid,
+            owner_starttime_ticks=args.owner_starttime,
+            worktree_root=str(root),
+            repository_head=repository_head,
+            launch_basis_path=basis_path,
+            launch_basis_sha256=current_basis_sha256,
+            require_basis_bound=True,
+            resource_id=args.authority_resource_id,
+        )
+        campaign_fingerprint = admission.get("campaign_fingerprint")
+        if not isinstance(campaign_fingerprint, str) or len(campaign_fingerprint) != 64:
+            raise RuntimeError("validated admission lacks the exact campaign fingerprint")
+        delivery = admission.get("delivery_observation")
+        if (
+            not isinstance(delivery, Mapping)
+            or not isinstance(delivery.get("path"), str)
+            or not delivery.get("path")
+        ):
+            raise RuntimeError("validated admission lacks the delivery observation binding")
+        delivery_path = root / delivery["path"]
+        expected_delivery_observation_sha256 = _sha256_path(delivery_path)
+        runtime_contract = release_runtime_contract(root, release)
+        runtime_identity = runtime_contract.get("tp_runtime_identity")
+        if not isinstance(runtime_identity, Mapping):
+            raise RuntimeError("release runtime contract lacks runtime identity")
+        expected_runtime_identity_sha256 = _sha256_json(runtime_identity)
+        expected_release_manifest_sha256 = release.manifest_sha256
+        bound_basis = read_and_validate_launch_basis(
+            args.launch_basis,
+            owner_pid=args.owner_pid,
+            owner_starttime=args.owner_starttime,
+            expected_basis_sha256=current_basis_sha256,
+        )
+        if (
+            bound_basis.get("release_manifest_sha256") != expected_release_manifest_sha256
+            or bound_basis.get("campaign_fingerprint") != campaign_fingerprint
+            or bound_basis.get("delivery_observation_sha256")
+            != expected_delivery_observation_sha256
+            or bound_basis.get("runtime_identity_sha256") != expected_runtime_identity_sha256
+            or bound_basis.get("worktree_root") != str(root)
+            or bound_basis.get("repository_head") != repository_head
+            or bound_basis.get("authority_epoch") != args.authority_epoch
+            or bound_basis.get("launch_nonce") != args.attempt_id
+        ):
+            raise RuntimeError("coordinator launch basis identity differs from authority state")
+        return bound_basis
+
     campaign_fingerprint = admission.get("campaign_fingerprint")
     if not isinstance(campaign_fingerprint, str) or len(campaign_fingerprint) != 64:
         raise RuntimeError("validated admission lacks the exact campaign fingerprint")
+    delivery = admission.get("delivery_observation")
+    if (
+        not isinstance(delivery, Mapping)
+        or not isinstance(delivery.get("path"), str)
+        or not delivery.get("path")
+    ):
+        raise RuntimeError("validated admission lacks the delivery observation binding")
+    expected_delivery_observation_sha256 = _sha256_path(root / delivery["path"])
     contract_path = release_payload_path(root, release, SAFETY_ENVELOPE_PATH)
     profile_path = release_payload_path(root, release, LAUNCH_PROFILE_PATH)
     contract = load_contract(contract_path)
@@ -385,15 +481,16 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
         expected_tp_program_id=release.program_id,
         trial_overlay=DEFAULT_OVERLAY,
     )
-    delivery = admission["delivery_observation"]
-    delivery_path = root / str(delivery["path"])
     runtime_contract = release_runtime_contract(root, release)
     runtime_identity = runtime_contract.get("tp_runtime_identity")
+    if not isinstance(runtime_identity, Mapping):
+        raise RuntimeError("release runtime contract lacks runtime identity")
+    expected_runtime_identity_sha256 = _sha256_json(runtime_identity)
     basis = make_launch_basis(
         release_manifest_sha256=release.manifest_sha256,
-        runtime_identity_sha256=_sha256_json(runtime_identity),
+        runtime_identity_sha256=expected_runtime_identity_sha256,
         campaign_fingerprint=campaign_fingerprint,
-        delivery_observation_sha256=_sha256_path(delivery_path),
+        delivery_observation_sha256=expected_delivery_observation_sha256,
         owner_pid=args.owner_pid,
         owner_starttime=args.owner_starttime,
         authority_epoch=args.authority_epoch,
@@ -401,11 +498,47 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
         argv_sha256=_sha256_json(sys.argv),
         effective_config_sha256=_sha256_json(effective["effective_config"]),
         worktree_root=str(root),
-        repository_head=_repository_head(root),
+        repository_head=repository_head,
         issued_at_unix_ns=time.time_ns(),
         expires_at_unix_ns=time.time_ns() + args.basis_ttl_s * 1_000_000_000,
     )
-    return write_launch_basis(args.launch_basis, basis)
+    basis_path = str(args.launch_basis.resolve())
+    bound_basis = write_launch_basis(args.launch_basis, basis)
+    if (
+        current.get("launch_basis_path") is not None
+        and current.get("launch_basis_sha256") is not None
+        and current.get("launch_basis_sha256") != bound_basis["basis_sha256"]
+    ):
+        raise RuntimeError("coordinator authority is already bound to a different launch basis")
+    authority.bind_basis(
+        args.authority_root,
+        args.attempt_id,
+        args.owner_pid,
+        args.owner_starttime,
+        sequence=current["sequence"],
+        launch_basis_path=basis_path,
+        launch_basis_sha256=bound_basis["basis_sha256"],
+        resource_id=args.authority_resource_id,
+    )
+    bound = authority.load_current(
+        args.authority_root,
+        attempt_id=args.attempt_id,
+        owner_pid=args.owner_pid,
+        owner_starttime_ticks=args.owner_starttime,
+        worktree_root=str(root),
+        repository_head=repository_head,
+        launch_basis_path=basis_path,
+        launch_basis_sha256=bound_basis["basis_sha256"],
+        require_basis_bound=True,
+        resource_id=args.authority_resource_id,
+    )
+    if (
+        bound.get("sequence") != current.get("sequence")
+        or bound.get("state") != "ACTIVE"
+        or bound.get("authority_epoch") != args.authority_epoch
+    ):
+        raise RuntimeError("coordinator authority did not confirm launch basis binding")
+    return bound_basis
 
 
 def _campaign_worker_code(basis: Mapping[str, Any]) -> str:
@@ -573,7 +706,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment-root", type=Path, required=True)
     parser.add_argument("--admission", type=Path, required=True)
-    parser.add_argument("--authority-root", type=Path, required=True)
+    parser.add_argument("--authority-root", type=Path)
     parser.add_argument("--attempt-id", required=True)
     parser.add_argument("--authority-epoch", type=int, required=True)
     parser.add_argument("--owner-pid", type=int, required=True)
@@ -583,6 +716,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--delivery-observation", type=Path, required=True)
     parser.add_argument("--preflight", type=Path, required=True)
     parser.add_argument("--launch-basis", type=Path, required=True)
+    parser.add_argument(
+        "--authority-resource-id",
+        default=authority.DEFAULT_RESOURCE_ID,
+    )
     parser.add_argument("--basis-ttl-s", type=int, default=900)
     return parser.parse_args(argv)
 

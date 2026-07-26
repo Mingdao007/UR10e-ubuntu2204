@@ -20,6 +20,9 @@ from step5d_parameter_queue import (  # noqa: E402
     adopt_selected_legacy_binding,
     bind_home,
     finish_dispatch,
+    publish_next_arm,
+    read_next_arm,
+    continuous_readiness,
     initialize,
     prepare_next_dispatch,
     reconcile_not_consumed,
@@ -515,9 +518,10 @@ def test_restart_adopts_terminal_outcome_without_resending_arm(
     )
     terminal_row = _observation(seq=1, trial=1, state=78, reason=reason)
     terminal_row["ur_output_int_register_27"] = dispatch["packet"]["candidate_token"]
+    binding = {"campaign_fingerprint": "a" * 64}
     observed = runner._adopt_inflight(
         args,
-        binding={},
+        binding=binding,
         follower=FakeFollower([terminal_row]),
         dispatch=dispatch,
     )
@@ -637,6 +641,7 @@ def test_ten_dispatches_continue_after_per_trial_failures(
         runner._run_trial(
             args,
             FakeFollower([observed]),
+            binding={"campaign_fingerprint": "a" * 64},
             dispatch={
                 "dispatch_sequence": number,
                 "request": {"request_uid": f"request-{number}"},
@@ -679,7 +684,7 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
     campaign_root.mkdir()
     bridge_run.mkdir()
     args = SimpleNamespace(
-        experiment_root=tmp_path,
+        experiment_root=ROOT,
         bridge_run=bridge_run,
         campaign_root=campaign_root,
         receiver_root=receiver_root,
@@ -695,7 +700,7 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
     binding = {
         "campaign_id": "campaign-test",
         "campaign_epoch": 1,
-        "campaign_fingerprint": "campaign-fingerprint",
+        "campaign_fingerprint": "a" * 64,
     }
     monkeypatch.setattr(runner, "_strict_object", lambda path, role: binding)
     monkeypatch.setattr(runner, "_validate_authority", lambda args, binding: None)
@@ -735,8 +740,10 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
 
     finished = []
 
-    def fake_run_trial(args, follower, *, dispatch, arm, prepared, observation):
-        del follower, arm, observation
+    def fake_run_trial(
+        args, follower, *, binding, dispatch, arm, prepared, observation
+    ):
+        del follower, arm, observation, binding
         packet = dispatch["packet"]
         observed = {
             "campaign_epoch": packet["campaign_epoch"],
@@ -779,6 +786,7 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
             capture.write_text("time,value\n0,0\n", encoding="utf-8")
         runner._finish_trial(
             args,
+            binding={"campaign_fingerprint": "a" * 64},
             dispatch=dispatch,
             prepared=prepared,
             observed=observed,
@@ -807,6 +815,746 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
     assert receiver_status(receiver_root)["inflight"] is None
 
 
+def test_send_is_idempotent_when_next_arm_already_published(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    v3_program_id = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_launch_profile.json").read_text(
+            encoding="utf-8"
+        )
+    )["tp_program_id"]
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        force_p=0.0008408964152537145,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+    args = SimpleNamespace(
+        receiver_root=receiver_root,
+        mailbox=tmp_path / "mailbox.json",
+        v3_launch_profile=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        v3_program_id=v3_program_id,
+    )
+    binding = {"campaign_fingerprint": "a" * 64}
+    arm = _arm(
+        trial=int(dispatch["packet"]["trial_id"]),
+        seq=int(dispatch["packet"]["command_seq"]),
+        token=int(dispatch["packet"]["candidate_token"]),
+        batch=int(dispatch["packet"]["logical_batch_sequence"]),
+    )
+    prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-1"))
+    monkeypatch.setattr(
+        runner,
+        "_prepared",
+        lambda *args, **kwargs: (arm, prepared),
+    )
+
+    class Mailbox:
+        send_calls = 0
+        latest = None
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def send_command(self, packet, prepared_trial):  # noqa: ARG002
+            Mailbox.send_calls += 1
+            Mailbox.latest = packet
+
+        def read_latest(self):
+            if Mailbox.latest is None:
+                return None
+            return SimpleNamespace(packet=Mailbox.latest)
+
+    monkeypatch.setattr(runner, "AtomicCommandMailbox", lambda *args, **kwargs: Mailbox())
+
+    runner._send(
+        args,
+        binding=binding,
+        dispatch=dispatch,
+    )
+    runner._send(
+        args,
+        binding=binding,
+        dispatch=dispatch,
+    )
+
+    assert Mailbox.send_calls == 1
+    next_arm = read_next_arm(receiver_root)
+    assert next_arm is not None
+    assert next_arm["dispatch_identity"] == runner._dispatch_identity(dispatch)
+
+
+def test_send_blocks_newer_next_arm_marker_without_resend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        force_p=0.0008408964152537145,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+    args = SimpleNamespace(
+        receiver_root=receiver_root,
+        mailbox=tmp_path / "mailbox.json",
+    )
+    binding = {"campaign_fingerprint": "a" * 64}
+    arm = _arm(
+        trial=int(dispatch["packet"]["trial_id"]),
+        seq=int(dispatch["packet"]["command_seq"]),
+        token=int(dispatch["packet"]["candidate_token"]),
+        batch=int(dispatch["packet"]["logical_batch_sequence"]),
+    )
+    prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-1"))
+    monkeypatch.setattr(
+        runner,
+        "_prepared",
+        lambda *args, **kwargs: (arm, prepared),
+    )
+
+    class Mailbox:
+        send_calls = 0
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def send_command(self, packet, prepared_trial):  # noqa: ARG002
+            Mailbox.send_calls += 1
+
+        def read_latest(self):
+            return None
+
+    requested_sequence = int(dispatch["dispatch_sequence"])
+    publish_next_arm(
+        receiver_root,
+        dispatch_identity="dispatch:v1:future",
+        dispatch_sequence=requested_sequence + 1,
+        campaign_fingerprint="a" * 64,
+        mailbox_packet_sha256="b" * 64,
+        observed_at=0,
+    )
+
+    monkeypatch.setattr(runner, "AtomicCommandMailbox", lambda *args, **kwargs: Mailbox())
+
+    with pytest.raises(
+        runner.HardwareRecoveryRequired,
+        match="NEXT_ARM has newer dispatch_sequence than requested",
+    ):
+        runner._send(
+            args,
+            binding=binding,
+            dispatch=dispatch,
+        )
+
+    assert Mailbox.send_calls == 0
+
+
+def test_send_blocks_same_sequence_payload_mismatch_without_resend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        force_p=0.0008408964152537145,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+    args = SimpleNamespace(
+        receiver_root=receiver_root,
+        mailbox=tmp_path / "mailbox.json",
+    )
+    binding = {"campaign_fingerprint": "a" * 64}
+    arm = _arm(
+        trial=int(dispatch["packet"]["trial_id"]),
+        seq=int(dispatch["packet"]["command_seq"]),
+        token=int(dispatch["packet"]["candidate_token"]),
+        batch=int(dispatch["packet"]["logical_batch_sequence"]),
+    )
+    prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-1"))
+    monkeypatch.setattr(
+        runner,
+        "_prepared",
+        lambda *args, **kwargs: (arm, prepared),
+    )
+
+    class Mailbox:
+        send_calls = 0
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def send_command(self, packet, prepared_trial):  # noqa: ARG002
+            Mailbox.send_calls += 1
+
+        def read_latest(self):
+            return None
+
+    requested_sequence = int(dispatch["dispatch_sequence"])
+    publish_next_arm(
+        receiver_root,
+        dispatch_identity="dispatch:v1:conflict",
+        dispatch_sequence=requested_sequence,
+        campaign_fingerprint="a" * 64,
+        mailbox_packet_sha256="c" * 64,
+        observed_at=0,
+    )
+
+    monkeypatch.setattr(runner, "AtomicCommandMailbox", lambda *args, **kwargs: Mailbox())
+
+    with pytest.raises(
+        runner.HardwareRecoveryRequired,
+        match="NEXT_ARM payload differs from requested ARM",
+    ):
+        runner._send(
+            args,
+            binding=binding,
+            dispatch=dispatch,
+        )
+
+    assert Mailbox.send_calls == 0
+
+
+def test_send_replays_from_mailbox_after_preflight_send_without_next_arm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    v3_program_id = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_launch_profile.json").read_text(
+            encoding="utf-8"
+        )
+    )["tp_program_id"]
+    class Mailbox:
+        send_calls = 0
+        latest = None
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def send_command(self, packet, prepared_trial):  # noqa: ARG002
+            Mailbox.send_calls += 1
+            Mailbox.latest = packet
+
+        def read_latest(self):
+            if Mailbox.latest is None:
+                return None
+            return SimpleNamespace(packet=Mailbox.latest)
+
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        force_p=0.0008408964152537145,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+    args = SimpleNamespace(
+        receiver_root=receiver_root,
+        mailbox=tmp_path / "mailbox.json",
+        v3_launch_profile=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        v3_program_id=v3_program_id,
+    )
+    binding = {"campaign_fingerprint": "a" * 64}
+    arm = _arm(
+        trial=int(dispatch["packet"]["trial_id"]),
+        seq=int(dispatch["packet"]["command_seq"]),
+        token=int(dispatch["packet"]["candidate_token"]),
+        batch=int(dispatch["packet"]["logical_batch_sequence"]),
+    )
+    prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-1"))
+    monkeypatch.setattr(
+        runner,
+        "_prepared",
+        lambda *args, **kwargs: (arm, prepared),
+    )
+    Mailbox.latest = arm
+
+    monkeypatch.setattr(runner, "AtomicCommandMailbox", lambda *args, **kwargs: Mailbox())
+
+    runner._send(
+        args,
+        binding=binding,
+        dispatch=dispatch,
+    )
+
+    assert Mailbox.send_calls == 0
+    assert read_next_arm(receiver_root) is not None
+
+
+def test_runner_first_cycle_publishes_next_arm_and_terminal_receipt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    v3_program_id = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_launch_profile.json").read_text(
+            encoding="utf-8"
+        )
+    )["tp_program_id"]
+    class StopAfterQueue(Exception):
+        pass
+
+    class Mailbox:
+        latest = None
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def send_command(self, packet, prepared_trial):  # noqa: ARG002
+            Mailbox.latest = packet
+
+        def read_latest(self):
+            if Mailbox.latest is None:
+                return None
+            return SimpleNamespace(packet=Mailbox.latest)
+
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        force_p=0.0008408964152537145,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+        source="first-cycle",
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    campaign_root = tmp_path / "campaign"
+    bridge_run = tmp_path / "bridge"
+    campaign_root.mkdir()
+    bridge_run.mkdir()
+    args = SimpleNamespace(
+        experiment_root=ROOT,
+        bridge_run=bridge_run,
+        campaign_root=campaign_root,
+        receiver_root=receiver_root,
+        mailbox=tmp_path / "mailbox.json",
+        runner_ready_file=tmp_path / "runner-ready.json",
+        campaign_binding=tmp_path / "binding.json",
+        campaign_lease=tmp_path / "lease.json",
+        release_manifest_sha256="a" * 64,
+        v3_launch_profile=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        v3_program_id=v3_program_id,
+    )
+    binding = {
+        "campaign_id": "campaign-test",
+        "campaign_epoch": 1,
+        "campaign_fingerprint": "a" * 64,
+    }
+
+    monkeypatch.setattr(runner, "_strict_object", lambda path, role: binding)
+    monkeypatch.setattr(runner, "_validate_authority", lambda args, binding: None)
+    monkeypatch.setattr(runner, "_validate_launch_identity", lambda args, binding: None)
+    monkeypatch.setattr(runner, "BridgeCsvFollower", lambda path: object())
+    monkeypatch.setattr(
+        runner,
+        "_wait_initial_home",
+        lambda args, follower: runner._tp_observation(
+            _observation(seq=0, trial=0, state=10)
+        ),
+    )
+    monkeypatch.setattr(runner, "AtomicCommandMailbox", lambda *args, **kwargs: Mailbox())
+    first_dispatch_sequence = 1
+
+    def fake_wait_next(args, follower, observation):
+        del follower, observation
+        dispatch = prepare_next_dispatch(args.receiver_root)
+        if dispatch is None:
+            raise StopAfterQueue
+        if dispatch["dispatch_sequence"] != first_dispatch_sequence:
+            raise StopAfterQueue
+        return dispatch
+
+    def fake_run_trial(
+        args,
+        follower,
+        *,
+        binding,
+        dispatch,
+        arm,
+        prepared,
+        observation,
+    ):
+        del follower, arm, observation
+        packet = dispatch["packet"]
+        observed = {
+            "campaign_epoch": packet["campaign_epoch"],
+            "trial_id": packet["trial_id"],
+            "state": 78,
+            "candidate_token": packet["candidate_token"],
+            "execution_profile_id": packet["execution_profile_id"],
+            "consumed_command_seq": packet["command_seq"],
+            "logical_batch_sequence": packet["logical_batch_sequence"],
+            "batch_row_index": 1,
+            "safety_mode": 1,
+            "controller_state": 0,
+        }
+        capture = (
+            args.bridge_run / "autotune_trials" / prepared.trial.trial_uid / "capture.csv"
+        )
+        capture.parent.mkdir(parents=True)
+        capture.write_text("time,value\n0,0\n", encoding="utf-8")
+        runner._finish_trial(
+            args,
+            binding=binding,
+            dispatch=dispatch,
+            prepared=prepared,
+            observed=observed,
+            status="SUCCEEDED",
+            failure_class=None,
+            detail="first-cycle",
+            capture=capture,
+        )
+        raise StopAfterQueue
+
+    monkeypatch.setattr(runner, "_wait_next_dispatch", fake_wait_next)
+    monkeypatch.setattr(runner, "_run_trial", fake_run_trial)
+
+    with pytest.raises(StopAfterQueue):
+        runner.run(args)
+
+    assert (
+        read_next_arm(receiver_root)["dispatch_sequence"] == first_dispatch_sequence
+    )
+    terminal_receipts = list((receiver_root / "governance" / "terminal_receipts").glob("*.json"))
+    assert len(terminal_receipts) == 1
+    assert (receiver_root / "governance" / "next_arm.json").is_file()
+    assert receiver_status(receiver_root)["attempted_count"] == 1
+
+
+def test_runner_recovering_from_send_readback_race_reuses_mailbox_state_without_resend(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    v3_program_id = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_launch_profile.json").read_text(
+            encoding="utf-8"
+        )
+    )["tp_program_id"]
+    class StopAfterOne(Exception):
+        pass
+
+    class Mailbox:
+        send_calls = 0
+        read_calls = 0
+        latest = None
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def send_command(self, packet, prepared_trial):  # noqa: ARG002
+            Mailbox.send_calls += 1
+            Mailbox.latest = packet
+
+        def read_latest(self):
+            Mailbox.read_calls += 1
+            if Mailbox.read_calls == 1:
+                return None
+            if Mailbox.latest is None:
+                return None
+            return SimpleNamespace(packet=Mailbox.latest)
+
+    class RecoveryFollower:
+        def __init__(self):
+            self.rows_calls = 0
+
+        def rows(self, *, timeout_s):
+            del timeout_s
+            self.rows_calls += 1
+            if self.rows_calls == 1:
+                yield _observation(seq=0, trial=0, state=10)
+                return
+            if self.rows_calls == 2:
+                observation = _observation(seq=1, trial=1, state=78, reason=1)
+                yield observation
+                return
+            raise BridgeCsvTimeout("no_fresh_rows", stats=BridgeCsvFollowerStats())
+
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    submit(
+        receiver_root,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        force_p=0.0008408964152537145,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+        source="recover-dispatch-1",
+    )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    campaign_root = tmp_path / "campaign"
+    bridge_run = tmp_path / "bridge"
+    campaign_root.mkdir()
+    bridge_run.mkdir()
+    args = SimpleNamespace(
+        experiment_root=tmp_path,
+        bridge_run=bridge_run,
+        campaign_root=campaign_root,
+        receiver_root=receiver_root,
+        mailbox=tmp_path / "mailbox.json",
+        runner_ready_file=tmp_path / "runner-ready.json",
+        campaign_binding=tmp_path / "binding.json",
+        campaign_lease=tmp_path / "lease.json",
+        release_manifest_sha256="a" * 64,
+        v3_launch_profile=ROOT
+        / "config/step5/step5d_autotune_v3_launch_profile.json",
+        v3_program_id=v3_program_id,
+    )
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+    binding = {
+        "campaign_id": "campaign-test",
+        "campaign_epoch": 1,
+        "campaign_fingerprint": "a" * 64,
+    }
+    arm = _arm(
+        trial=int(dispatch["packet"]["trial_id"]),
+        seq=int(dispatch["packet"]["command_seq"]),
+        token=int(dispatch["packet"]["candidate_token"]),
+        batch=int(dispatch["packet"]["logical_batch_sequence"]),
+    )
+    prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-1"))
+
+    monkeypatch.setattr(runner, "_strict_object", lambda path, role: binding)
+    monkeypatch.setattr(runner, "_validate_authority", lambda args, binding: None)
+    monkeypatch.setattr(runner, "_validate_launch_identity", lambda args, binding: None)
+    monkeypatch.setattr(
+        runner,
+        "_wait_initial_home",
+        lambda args, follower: runner._tp_observation(
+            _observation(seq=0, trial=0, state=10)
+        ),
+    )
+    monkeypatch.setattr(runner, "_prepared", lambda *args, **kwargs: (arm, prepared))
+    Mailbox.latest = arm
+    monkeypatch.setattr(runner, "_run_trial", lambda *args, **kwargs: pytest.fail("recovery path should not re-run terminal ARM"))
+    monkeypatch.setattr(
+        runner,
+        "BridgeCsvFollower",
+        lambda path: RecoveryFollower(),
+    )
+    monkeypatch.setattr(runner, "AtomicCommandMailbox", lambda *args, **kwargs: Mailbox())
+
+    def fake_wait_next(args, follower, observation):
+        del follower, observation
+        raise StopAfterOne
+
+    monkeypatch.setattr(runner, "_wait_next_dispatch", fake_wait_next)
+
+    with pytest.raises(StopAfterOne):
+        runner.run(args)
+
+    next_arm = read_next_arm(receiver_root)
+    assert Mailbox.send_calls == 0
+    assert next_arm is None
+    terminal_receipts = tuple((receiver_root / "governance" / "terminal_receipts").glob("*.json"))
+    assert len(terminal_receipts) == 0
+
+
+def test_real_runner_continuous_readiness_with_eleven_cycles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    v3_program_id = json.loads(
+        (ROOT / "config/step5/step5d_autotune_v3_launch_profile.json").read_text(
+            encoding="utf-8"
+        )
+    )["tp_program_id"]
+    class StopAfterEleven(Exception):
+        pass
+
+    class Mailbox:
+        latest = None
+        send_calls = 0
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def send_command(self, packet, prepared_trial):  # noqa: ARG002
+            Mailbox.send_calls += 1
+            Mailbox.latest = packet
+
+        def read_latest(self):
+            if Mailbox.latest is None:
+                return None
+            return SimpleNamespace(packet=Mailbox.latest)
+
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+    )
+    for index in range(11):
+        submit(
+            receiver_root,
+            launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+            force_p=0.0005946035575013605 * (2 ** (index / 4)),
+            force_i=0.00001,
+            force_damping=7.0,
+            source=f"continuous-{index}",
+        )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    campaign_root = tmp_path / "campaign"
+    bridge_run = tmp_path / "bridge"
+    campaign_root.mkdir()
+    bridge_run.mkdir()
+    args = SimpleNamespace(
+        experiment_root=tmp_path,
+        bridge_run=bridge_run,
+        campaign_root=campaign_root,
+        receiver_root=receiver_root,
+        mailbox=tmp_path / "mailbox.json",
+        runner_ready_file=tmp_path / "runner-ready.json",
+        campaign_binding=tmp_path / "binding.json",
+        campaign_lease=tmp_path / "lease.json",
+        release_manifest_sha256="a" * 64,
+        v3_launch_profile=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        v3_program_id=v3_program_id,
+    )
+    binding = {
+        "campaign_id": "campaign-test",
+        "campaign_epoch": 1,
+        "campaign_fingerprint": "a" * 64,
+    }
+    finished = []
+
+    def fake_run_trial(
+        args,
+        follower,
+        *,
+        binding,
+        dispatch,
+        arm,
+        prepared,
+        observation,
+    ):
+        del follower, observation
+        packet = dispatch["packet"]
+        observed = {
+            "campaign_epoch": packet["campaign_epoch"],
+            "trial_id": packet["trial_id"],
+            "state": 78,
+            "candidate_token": packet["candidate_token"],
+            "execution_profile_id": packet["execution_profile_id"],
+            "consumed_command_seq": packet["command_seq"],
+            "logical_batch_sequence": packet["logical_batch_sequence"],
+            "batch_row_index": 1,
+            "safety_mode": 1,
+            "controller_state": 0,
+        }
+        capture = args.bridge_run / "autotune_trials" / prepared.trial.trial_uid / "capture.csv"
+        capture.parent.mkdir(parents=True)
+        capture.write_text("time,value\n0,0\n", encoding="utf-8")
+        runner._finish_trial(
+            args,
+            binding=binding,
+            dispatch=dispatch,
+            prepared=prepared,
+            observed=observed,
+            status="SUCCEEDED",
+            failure_class=None,
+            detail="continuous-eleven",
+            capture=capture,
+        )
+        finished.append(int(dispatch["dispatch_sequence"]))
+        return observed
+
+    dispatch_calls = {"count": 0}
+
+    def fake_wait_next_dispatch(args, follower, observation):
+        del follower, observation
+        dispatch_calls["count"] += 1
+        dispatch = prepare_next_dispatch(args.receiver_root)
+        if dispatch is None:
+            raise StopAfterEleven
+        return dispatch
+
+    monkeypatch.setattr(runner, "_strict_object", lambda path, role: binding)
+    monkeypatch.setattr(runner, "_validate_authority", lambda args, binding: None)
+    monkeypatch.setattr(runner, "_validate_launch_identity", lambda args, binding: None)
+    monkeypatch.setattr(runner, "BridgeCsvFollower", lambda path: object())
+    monkeypatch.setattr(runner, "_wait_initial_home", lambda args, follower: runner._tp_observation(
+        _observation(seq=0, trial=0, state=10)
+    ))
+    monkeypatch.setattr(runner, "AtomicCommandMailbox", lambda *args, **kwargs: Mailbox())
+    monkeypatch.setattr(
+        runner,
+        "_prepared",
+        lambda args, *, binding, dispatch: (
+            _arm(
+                trial=int(dispatch["packet"]["trial_id"]),
+                seq=int(dispatch["packet"]["command_seq"]),
+                token=int(dispatch["packet"]["candidate_token"]),
+                batch=int(dispatch["packet"]["logical_batch_sequence"]),
+            ),
+            SimpleNamespace(
+                trial=SimpleNamespace(
+                    trial_uid=f"trial-{dispatch['dispatch_sequence']}"
+                )
+            ),
+        ),
+    )
+    monkeypatch.setattr(runner, "_wait_next_dispatch", fake_wait_next_dispatch)
+    monkeypatch.setattr(runner, "_run_trial", fake_run_trial)
+
+    with pytest.raises(StopAfterEleven):
+        runner.run(args)
+
+    assert dispatch_calls["count"] == 12
+    assert finished == list(range(1, 12))
+    assert receiver_status(receiver_root)["attempted_count"] == 11
+    assert receiver_status(receiver_root)["inflight"] is None
+    readiness = continuous_readiness(receiver_root)
+    assert readiness["continuous_readiness"] is True
+    assert readiness["terminal_receipts"] == 11
+    assert readiness["duplicate_arm_detected"] is False
+
+
 def test_capture_health_never_waits_for_async_seal(tmp_path: Path):
     status, detail = runner._capture_health(tmp_path / "capture.csv")
 
@@ -828,6 +1576,7 @@ def test_async_capture_seal_does_not_block_next_trial(
     observed = runner._run_trial(
         SimpleNamespace(bridge_run=tmp_path),
         FakeFollower([_observation(seq=1, trial=1, state=78, reason=1)]),
+        binding={"campaign_fingerprint": "a" * 64},
         dispatch={"dispatch_sequence": 1, "request": {"request_uid": "request-1"}},
         arm=_arm(trial=1, seq=1, token=99, batch=1),
         prepared=SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-1")),

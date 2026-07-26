@@ -153,14 +153,27 @@ bridge_record_launch_attempt() {
       return 2
     fi
     local bootstrap_command=(
-      /usr/bin/python3.10 -B -I
+      "${CONTROL_PYTHON}" -B -I
       "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py"
       "${bootstrap_action}"
-      --authority-root "${BRIDGE_AUTHORITY_ROOT}"
+      "${authority_root_args[@]}"
+      --resource-id "${authority_resource_id}"
       --attempt-id "${launch_attempt_id}"
       --owner-pid "$$"
       --owner-starttime "${launch_owner_starttime}"
+      --worktree-root "${REPOSITORY_ROOT}"
+      --repository-head "${launch_repository_head}"
     )
+    if [[ -n "${launch_basis_path}" || -n "${launch_basis_sha256}" ]]; then
+      if [[ -z "${launch_basis_path}" || -z "${launch_basis_sha256}" ]]; then
+        echo "canonical launch basis metadata is incomplete" >&2
+        return 2
+      fi
+      bootstrap_command+=(
+        --launch-basis-path "${launch_basis_path}"
+        --launch-basis-sha256 "${launch_basis_sha256}"
+      )
+    fi
     if [[ "${state}" == "FAILED" ]]; then
       bootstrap_command+=(
         --exit-code "${exit_code}"
@@ -178,7 +191,7 @@ bridge_record_launch_attempt() {
   local command=(
     "${CONTROL_PYTHON}" -m step5d_autotune_v3.cli
     --experiment-root "${EXPERIMENT_ROOT}"
-    --campaign-root "${BRIDGE_AUTHORITY_ROOT}"
+    --campaign-root "${LAUNCH_ATTEMPT_ROOT}"
     --_launch-attempt-id "${launch_attempt_id}"
     --_launch-attempt-state "${state}"
     --_launch-attempt-phase "${phase}"
@@ -238,7 +251,8 @@ bridge_revoke_authority() {
   fi
   local authority_python="${CONTROL_PYTHON:-/usr/bin/python3.10}"
   "${authority_python}" "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" revoke \
-    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+    "${authority_root_args[@]}" \
+    --resource-id "${authority_resource_id}" \
     --attempt-id "${launch_attempt_id}" \
     --owner-pid "$$" \
     --owner-starttime "${launch_owner_starttime}" \
@@ -267,24 +281,30 @@ bridge_acquire_authority() {
     echo "canonical bridge owner starttime is unavailable" >&2
     return 66
   fi
-  mkdir -p -- "${BRIDGE_AUTHORITY_ROOT}"
+  if [[ -n "${BRIDGE_AUTHORITY_ROOT}" ]]; then
+    mkdir -p -- "${BRIDGE_AUTHORITY_ROOT}"
+  fi
+  launch_authority_runtime_started=0
+  launch_runtime_gate_started=0
+  launch_basis_path=""
+  launch_basis_sha256=""
   launch_authority_epoch_file="${output_root}/bridge-authority-epoch.txt"
   /usr/bin/python3.10 -B -I \
     "${EXPERIMENT_ROOT}/tools/step5d_bridge_authority.py" begin \
-    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+    "${authority_root_args[@]}" \
+    --resource-id "${authority_resource_id}" \
     --attempt-id "${launch_attempt_id}" \
     --owner-pid "$$" \
     --owner-starttime "${launch_owner_starttime}" \
+    --worktree-root "${REPOSITORY_ROOT}" \
+    --repository-head "${launch_repository_head}" \
     >"${launch_authority_epoch_file}"
   read -r launch_owner_authority_epoch <"${launch_authority_epoch_file}"
   launch_authority_active=1
   launch_attempt_enabled=1
-  launch_runtime_bootstrap=1
   launch_attempt_phase="runtime_gate"
   trap bridge_failure_trap ERR
   trap bridge_cancel_trap INT TERM
-  bridge_record_launch_attempt STARTED runtime_gate
-  launch_runtime_bootstrap=0
 }
 
 bridge_runtime_fail() {
@@ -293,9 +313,27 @@ bridge_runtime_fail() {
   local detail="$3"
   if (( launch_attempt_enabled == 1 )); then
     set +e
-    bridge_record_launch_attempt \
-      FAILED runtime_gate "${exit_code}" "${detail}" "${reason_code}"
-    bridge_revoke_authority failed
+    if (( launch_authority_runtime_started == 1 )); then
+      launch_runtime_bootstrap=1
+      bridge_record_launch_attempt \
+        FAILED runtime_gate "${exit_code}" "${detail}" "${reason_code}"
+      launch_runtime_bootstrap=0
+      if (( launch_runtime_gate_started == 1 )); then
+        bridge_record_launch_attempt \
+          FAILED runtime_gate "${exit_code}" "${detail}" "${reason_code}"
+      fi
+      if [[ "${reason_code}" == "LAUNCH_ATTEMPT_CANCELLED" ]]; then
+        bridge_revoke_authority cancelled
+      else
+        bridge_revoke_authority failed
+      fi
+    else
+      if [[ "${reason_code}" == "LAUNCH_ATTEMPT_CANCELLED" ]]; then
+        bridge_revoke_authority cancelled
+      else
+        bridge_revoke_authority failed
+      fi
+    fi
     launch_attempt_enabled=0
   fi
   echo "${detail}" >&2
@@ -307,12 +345,10 @@ bridge_failure_trap() {
   trap - ERR
   if (( launch_attempt_enabled == 1 )) && [[ -n "${launch_attempt_phase}" ]]; then
     set +e
-    bridge_record_launch_attempt \
-      FAILED \
-      "${launch_attempt_phase}" \
+    bridge_runtime_fail \
       "${exit_code}" \
+      LAUNCH_ATTEMPT_FAILED \
       "canonical bridge phase ${launch_attempt_phase} exited ${exit_code}"
-    bridge_revoke_authority failed
   fi
   exit "${exit_code}"
 }
@@ -321,13 +357,13 @@ bridge_cancel_trap() {
   trap - ERR INT TERM
   set +e
   if (( launch_attempt_enabled == 1 )) && [[ -n "${launch_attempt_phase}" ]]; then
-    bridge_record_launch_attempt \
-      CANCELLED \
-      "${launch_attempt_phase}" \
+    bridge_runtime_fail \
       130 \
+      LAUNCH_ATTEMPT_CANCELLED \
       "canonical bridge was cancelled during ${launch_attempt_phase}"
+  else
+    bridge_revoke_authority cancelled
   fi
-  bridge_revoke_authority cancelled
   exit 130
 }
 
@@ -348,13 +384,25 @@ launch_attempt_enabled=0
 launch_attempt_route="UNKNOWN"
 launch_attempt_route_snapshot=""
 launch_manifest_sha256=""
+LAUNCH_ATTEMPT_ROOT="${EXPERIMENT_ROOT}/runs/step5d_bridge_authority"
+launch_basis_path=""
+launch_basis_sha256=""
 launch_repository_head=""
 launch_owner_starttime=""
 launch_owner_authority_epoch=""
 launch_authority_active=0
+launch_authority_runtime_started=0
+launch_runtime_gate_started=0
 launch_runtime_bootstrap=0
 CONTROL_PYTHON=""
-BRIDGE_AUTHORITY_ROOT="${EXPERIMENT_ROOT}/runs/step5d_bridge_authority"
+BRIDGE_AUTHORITY_ROOT="${STEP5D_V3_AUTHORITY_ROOT:-}"
+authority_resource_id="${STEP5D_V3_AUTHORITY_RESOURCE_ID:-step5d-bridge-writer}"
+authority_root_args=()
+if [[ -n "${BRIDGE_AUTHORITY_ROOT}" ]]; then
+  authority_root_args=(--authority-root "${BRIDGE_AUTHORITY_ROOT}")
+  export STEP5D_V3_AUTHORITY_ROOT
+fi
+export STEP5D_V3_AUTHORITY_RESOURCE_ID="${authority_resource_id}"
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
@@ -872,7 +920,9 @@ if (( bridge_mode == 1 )); then
   if [[ -z "${output_root}" ]]; then
     output_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3/bridge-$(date -u +%Y%m%dT%H%M%SZ)-$$"
   fi
+  LAUNCH_ATTEMPT_ROOT="${EXPERIMENT_ROOT}/runs/step5d_bridge_authority"
   output_root="$(readlink -m -- "${output_root}")"
+  LAUNCH_ATTEMPT_ROOT="$(readlink -m -- "${LAUNCH_ATTEMPT_ROOT}")"
   campaign_root="$(readlink -m -- "${campaign_root}")"
   mkdir -p -- "${output_root}" "${campaign_root}"
   launch_runtime_bootstrap=0
@@ -939,11 +989,11 @@ print(admission_index_path(root, payload))
   )"
   bridge_acquire_authority
   preflight="${output_root}/preflight.json"
-  bridge_begin_phase campaign_prepare
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_coordinator.py" \
     --experiment-root "${EXPERIMENT_ROOT}" \
     --admission "${admission}" \
-    --authority-root "${BRIDGE_AUTHORITY_ROOT}" \
+    "${authority_root_args[@]}" \
+    --authority-resource-id "${authority_resource_id}" \
     --attempt-id "${launch_attempt_id}" \
     --authority-epoch "${launch_owner_authority_epoch}" \
     --owner-pid "$$" \
@@ -953,6 +1003,15 @@ print(admission_index_path(root, payload))
     --delivery-observation "${delivery_observation}" \
     --preflight "${preflight}" \
     --launch-basis "${output_root}/launch-basis.json"
+  launch_basis_path="${output_root}/launch-basis.json"
+  launch_basis_sha256="$(${CONTROL_PYTHON} -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["basis_sha256"])' "${launch_basis_path}")"
+  launch_runtime_bootstrap=1
+  bridge_record_launch_attempt STARTED runtime_gate
+  launch_authority_runtime_started=1
+  launch_runtime_bootstrap=0
+  bridge_record_launch_attempt STARTED runtime_gate
+  launch_runtime_gate_started=1
+  bridge_begin_phase campaign_prepare
   bridge_begin_phase preflight
   bridge_begin_phase live_handoff
   "${CONTROL_PYTHON}" "${EXPERIMENT_ROOT}/tools/run_step5d_autotune_v3_live.py" \
@@ -965,7 +1024,7 @@ print(admission_index_path(root, payload))
     --preflight "${preflight}" \
     --admission "${admission}" \
     --launch-basis "${output_root}/launch-basis.json" \
-    --launch-basis-sha256 "$(${CONTROL_PYTHON} -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["basis_sha256"])' "${output_root}/launch-basis.json")" \
+    --launch-basis-sha256 "${launch_basis_sha256}" \
     --campaign-prepare "${output_root}/campaign-prepare.json"
   bridge_finish_phase
   bridge_revoke_authority completed

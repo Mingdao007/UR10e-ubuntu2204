@@ -661,6 +661,7 @@ def test_prepare_keeps_receiver_root_stable_across_release_rollover(
         launch_profile_path=PROFILE,
         candidate_batch_size=5,
         rolling_plan=False,
+        campaign_fingerprint="a" * 64,
     )
     releases = iter(
         [
@@ -680,7 +681,7 @@ def test_prepare_keeps_receiver_root_stable_across_release_rollover(
     assert not (expected / "migration.json").exists()
 
 
-def test_publish_next_arm_is_idempotent_only_for_identical_next_arm(
+def test_publish_next_arm_is_atomic_idempotent_and_monotonic_for_composition(
     tmp_path: Path,
 ) -> None:
     root = _queue(tmp_path)
@@ -701,6 +702,79 @@ def test_publish_next_arm_is_idempotent_only_for_identical_next_arm(
         mailbox_packet_sha256="b" * 64,
         observed_at=100,
     ) == published
+    next_published = publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "1" * 64,
+        dispatch_sequence=2,
+        campaign_fingerprint="a" * 64,
+        mailbox_packet_sha256="c" * 64,
+        observed_at=101,
+    )
+    assert read_next_arm(root) == next_published
+    assert next_published["dispatch_sequence"] == 2
+    with pytest.raises(ParameterQueueError, match="campaign_fingerprint differs"):
+        publish_next_arm(
+            root,
+            dispatch_identity="dispatch:v1:" + "2" * 64,
+            dispatch_sequence=3,
+            campaign_fingerprint="b" * 64,
+            mailbox_packet_sha256="b" * 64,
+            observed_at=102,
+        )
+    with pytest.raises(ParameterQueueError, match="conflicts"):
+        publish_next_arm(
+            root,
+            dispatch_identity="dispatch:v1:" + "1" * 64,
+            dispatch_sequence=2,
+            campaign_fingerprint="a" * 64,
+            mailbox_packet_sha256="b" * 64,
+            observed_at=100,
+        )
+    with pytest.raises(ParameterQueueError, match="must increase"):
+        publish_next_arm(
+            root,
+            dispatch_identity="dispatch:v1:" + "0" * 64,
+            dispatch_sequence=1,
+            campaign_fingerprint="a" * 64,
+            mailbox_packet_sha256="b" * 64,
+            observed_at=100,
+        )
+
+
+def test_publish_next_arm_delayed_retry_is_idempotent_for_observed_at(tmp_path: Path) -> None:
+    root = _queue(tmp_path)
+    published = publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint="a" * 64,
+        mailbox_packet_sha256="b" * 64,
+        observed_at=100,
+    )
+    delayed = publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint="a" * 64,
+        mailbox_packet_sha256="b" * 64,
+        observed_at=200,
+    )
+    assert delayed == published
+    assert delayed["observed_at"] == 100
+
+
+def test_publish_next_arm_conflicting_retry_rejects_same_sequence_with_different_immutable_fields(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint="a" * 64,
+        mailbox_packet_sha256="b" * 64,
+        observed_at=100,
+    )
     with pytest.raises(ParameterQueueError, match="conflicts"):
         publish_next_arm(
             root,
@@ -710,15 +784,40 @@ def test_publish_next_arm_is_idempotent_only_for_identical_next_arm(
             mailbox_packet_sha256="b" * 64,
             observed_at=100,
         )
-    with pytest.raises(ParameterQueueError, match="conflicts"):
-        publish_next_arm(
-            root,
-            dispatch_identity="dispatch:v1:" + "0" * 64,
-            dispatch_sequence=2,
-            campaign_fingerprint="a" * 64,
-            mailbox_packet_sha256="b" * 64,
-            observed_at=100,
-        )
+
+
+def test_finish_dispatch_with_optional_composition_writes_terminal_receipt(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.0008408964152537145,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+    )
+    bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(root)
+    assert dispatch is not None
+    packet = dispatch["packet"]
+    finish_dispatch(
+        root,
+        status="SUCCEEDED",
+        observed={
+            "campaign_epoch": packet["campaign_epoch"],
+            "trial_id": packet["trial_id"],
+            "state": 78,
+            "candidate_token": packet["candidate_token"],
+            "execution_profile_id": packet["execution_profile_id"],
+            "consumed_command_seq": packet["command_seq"],
+            "logical_batch_sequence": packet["logical_batch_sequence"],
+            "batch_row_index": 1,
+        },
+        process_composition_sha256="d" * 64,
+    )
+    receipts = tuple((root / "governance" / "terminal_receipts").glob("*.json"))
+    assert len(receipts) == 1
 
 
 def test_next_arm_read_missing_and_schema_validation(tmp_path: Path) -> None:
@@ -772,6 +871,102 @@ def test_record_terminal_receipt_enforces_identity_and_sequence_and_duplicate_re
             dispatch_sequence=10,
             terminal_state={"state": 10},
         )
+
+
+def test_record_terminal_receipt_delayed_retry_returns_existing_record(tmp_path: Path) -> None:
+    root = _queue(tmp_path)
+    composition = "c" * 64
+    first = record_terminal_receipt(
+        root,
+        process_composition_sha256=composition,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        terminal_state={"state": 1},
+    )
+    second = record_terminal_receipt(
+        root,
+        process_composition_sha256=composition,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        terminal_state={"state": 1},
+    )
+    assert second == first
+    assert len(tuple((root / "governance" / "terminal_receipts").glob("*.json"))) == 1
+
+
+def test_record_terminal_receipt_conflicting_retry_is_rejected_for_same_dispatch_identity(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    composition = "c" * 64
+    record_terminal_receipt(
+        root,
+        process_composition_sha256=composition,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        terminal_state={"state": 1},
+    )
+    with pytest.raises(ParameterQueueError, match="already exists"):
+        record_terminal_receipt(
+            root,
+            process_composition_sha256=composition,
+            dispatch_identity="dispatch:v1:" + "0" * 64,
+            dispatch_sequence=1,
+            terminal_state={"state": 2},
+        )
+
+
+def test_finish_dispatch_with_identical_governance_receipt_is_idempotent_while_inflight(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.0008408964152537145,
+        force_i=0.00001,
+        force_damping=4.949747468305833,
+    )
+    bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    dispatch = prepare_next_dispatch(root)
+    assert dispatch is not None
+    packet = dispatch["packet"]
+    observed = {
+        "campaign_epoch": packet["campaign_epoch"],
+        "trial_id": packet["trial_id"],
+        "state": 78,
+        "candidate_token": packet["candidate_token"],
+        "execution_profile_id": packet["execution_profile_id"],
+        "consumed_command_seq": packet["command_seq"],
+        "logical_batch_sequence": packet["logical_batch_sequence"],
+        "batch_row_index": 1,
+    }
+    first = finish_dispatch(
+        root,
+        status="SUCCEEDED",
+        observed=observed,
+        process_composition_sha256="d" * 64,
+    )
+    state_path = root / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["inflight"] = {
+        "dispatch_sequence": dispatch["dispatch_sequence"],
+        "request_uid": dispatch["request"]["request_uid"],
+    }
+    state_path.write_text(
+        json.dumps(state, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    replay = finish_dispatch(
+        root,
+        status="SUCCEEDED",
+        observed=observed,
+        process_composition_sha256="d" * 64,
+    )
+    assert replay == first
+    assert len(tuple((root / "governance" / "terminal_receipts").glob("*.json"))) == 1
+    assert status(root)["attempted_count"] == 1
+    assert status(root)["inflight"] is None
 
 
 def test_continuous_readiness_requires_ten_unique_terminal_receipts_for_composition(

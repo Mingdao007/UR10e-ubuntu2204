@@ -43,6 +43,8 @@ from step5d_autotune_v3.state import atomic_json
 from step5d_parameter_outbox import enqueue_postprocess_task
 from step5d_parameter_queue import (
     bind_home,
+    read_next_arm,
+    publish_next_arm,
     finish_dispatch,
     load_state,
     prepare_next_dispatch,
@@ -179,6 +181,22 @@ def _terminal_failure_class(terminal_reason: int) -> str | None:
     if terminal_reason in PARAMETER_GUARD_TERMINAL_REASONS:
         return "PARAMETER_GUARD"
     return "SOFTWARE"
+
+
+def _mailbox_packet_sha256(packet: HostPacket) -> str:
+    return hashlib.sha256(
+        canonical_json_bytes(
+            {
+                "campaign_epoch": int(packet.campaign_epoch),
+                "trial_id": int(packet.trial_id),
+                "command": int(packet.command),
+                "candidate_token": int(packet.candidate_token),
+                "execution_profile_id": int(packet.execution_profile_id),
+                "command_seq": int(packet.command_seq),
+                "logical_batch_sequence": int(packet.logical_batch_sequence),
+            }
+        )
+    ).hexdigest()
 
 
 def _publish_status(
@@ -382,6 +400,23 @@ def _send(
     dispatch: Mapping[str, Any],
 ) -> tuple[HostPacket, Any]:
     arm, prepared = _prepared(args, binding=binding, dispatch=dispatch)
+    dispatch_identity = _dispatch_identity(dispatch)
+    packet_sha256 = _mailbox_packet_sha256(arm)
+    requested_sequence = int(dispatch["dispatch_sequence"])
+    next_arm = read_next_arm(args.receiver_root)
+    if next_arm is not None:
+        if next_arm["campaign_fingerprint"] != str(binding["campaign_fingerprint"]):
+            raise HardwareRecoveryRequired("NEXT_ARM campaign_fingerprint differs")
+        next_sequence = int(next_arm["dispatch_sequence"])
+        if next_sequence > requested_sequence:
+            raise HardwareRecoveryRequired("NEXT_ARM has newer dispatch_sequence than requested")
+        if next_sequence == requested_sequence:
+            if (
+                next_arm["dispatch_identity"] != dispatch_identity
+                or next_arm["mailbox_packet_sha256"] != packet_sha256
+            ):
+                raise HardwareRecoveryRequired("NEXT_ARM payload differs from requested ARM")
+            return arm, prepared
     mailbox = AtomicCommandMailbox(
         args.mailbox,
         network_mode=True,
@@ -391,12 +426,31 @@ def _send(
         ),
     )
     try:
+        preflight = mailbox.read_latest()
+        if preflight is not None and preflight.packet == arm:
+            publish_next_arm(
+                args.receiver_root,
+                dispatch_identity=dispatch_identity,
+                dispatch_sequence=int(dispatch["dispatch_sequence"]),
+                campaign_fingerprint=str(binding["campaign_fingerprint"]),
+                mailbox_packet_sha256=packet_sha256,
+                observed_at=int(time.time()),
+            )
+            return arm, prepared
         mailbox.send_command(arm, prepared_trial=prepared)
         decoded = mailbox.read_latest()
     except (ConnectionError, OSError, TimeoutError, RuntimeError) as exc:
         raise HardwareRecoveryRequired("ARM mailbox or bridge is unavailable") from exc
     if decoded is None or decoded.packet != arm:
         raise HardwareRecoveryRequired("receiver ARM mailbox readback differs")
+    publish_next_arm(
+        args.receiver_root,
+        dispatch_identity=dispatch_identity,
+        dispatch_sequence=int(dispatch["dispatch_sequence"]),
+        campaign_fingerprint=str(binding["campaign_fingerprint"]),
+        mailbox_packet_sha256=packet_sha256,
+        observed_at=int(time.time()),
+    )
     return arm, prepared
 
 
@@ -695,6 +749,7 @@ def _finish_adopted_terminal(
     if decision == "IDENTITY":
         _finish_trial(
             args,
+            binding=binding,
             dispatch=dispatch,
             prepared=prepared,
             observed=observed,
@@ -719,6 +774,7 @@ def _finish_adopted_terminal(
         )
     _finish_trial(
         args,
+        binding=binding,
         dispatch=dispatch,
         prepared=prepared,
         observed=observed,
@@ -1004,6 +1060,7 @@ def _recover_home(
 def _finish_trial(
     args: argparse.Namespace,
     *,
+    binding: Mapping[str, Any],
     dispatch: Mapping[str, Any],
     prepared: Any,
     observed: Mapping[str, int],
@@ -1023,6 +1080,7 @@ def _finish_trial(
         failure_class=failure_class,
         observed=queue_observed,
         detail=detail,
+        process_composition_sha256=str(binding["campaign_fingerprint"]),
     )
     _persist_trial_artifacts(
         args,
@@ -1037,6 +1095,7 @@ def _run_trial(
     args: argparse.Namespace,
     follower: BridgeCsvFollower,
     *,
+    binding: Mapping[str, Any],
     dispatch: Mapping[str, Any],
     arm: HostPacket,
     prepared: Any,
@@ -1069,6 +1128,7 @@ def _run_trial(
             observed = exc.observed or dict(observation)
             _finish_trial(
                 args,
+                binding=binding,
                 dispatch=dispatch,
                 prepared=prepared,
                 observed=observed,
@@ -1098,6 +1158,7 @@ def _run_trial(
         )
     _finish_trial(
         args,
+        binding=binding,
         dispatch=dispatch,
         prepared=prepared,
         observed=terminal,
@@ -1192,6 +1253,7 @@ def run(args: argparse.Namespace) -> None:
             observed = _run_trial(
                 args,
                 follower,
+                binding=binding,
                 dispatch=dispatch,
                 arm=arm,
                 prepared=prepared,

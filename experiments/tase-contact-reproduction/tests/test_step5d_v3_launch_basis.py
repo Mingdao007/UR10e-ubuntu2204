@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT.parents[1] / "src" / "ur10e_experiment_runtime"))
 
+import run_step5d_autotune_v3_coordinator as coordinator
 from step5d_autotune_v3.launch_basis import (
     LaunchBasisError,
     make_launch_basis,
@@ -23,7 +24,10 @@ from step5d_autotune_v3.launch_basis import (
     validate_strict_bridge_ready,
     write_launch_basis,
 )
-from run_step5d_autotune_v3_coordinator import run as run_coordinator
+from run_step5d_autotune_v3_coordinator import (
+    parse_args,
+    run as run_coordinator,
+)
 
 
 def _basis(now: int) -> dict[str, object]:
@@ -265,6 +269,7 @@ def _coordinator_args(tmp_path: Path) -> SimpleNamespace:
         authority_root=tmp_path / "authority",
         attempt_id="timing-attempt",
         authority_epoch=7,
+        authority_resource_id=coordinator.authority.DEFAULT_RESOURCE_ID,
         owner_pid=123,
         owner_starttime=456,
         output_root=tmp_path / "coordinator",
@@ -401,3 +406,350 @@ def test_run_coordinator_revoke_and_cleanup_on_spawn_or_timeout(monkeypatch, tmp
         assert preflight.killed is True
 
     assert spawn_calls
+
+
+def test_parse_args_defaults_authority_root_and_resource_id() -> None:
+    args = parse_args(
+        [
+            "--experiment-root",
+            "/tmp/experiment-root",
+            "--admission",
+            "/tmp/admission.json",
+            "--attempt-id",
+            "attempt-defaults",
+            "--authority-epoch",
+            "11",
+            "--owner-pid",
+            "123",
+            "--owner-starttime",
+            "456",
+            "--output-root",
+            "/tmp/coordinator-output",
+            "--campaign-root",
+            "/tmp/campaign-root",
+            "--delivery-observation",
+            "/tmp/delivery-observation.json",
+            "--preflight",
+            "/tmp/preflight.json",
+            "--launch-basis",
+            "/tmp/launch-basis.json",
+        ]
+    )
+    assert args.authority_root is None
+    assert args.authority_resource_id == coordinator.authority.DEFAULT_RESOURCE_ID
+
+
+def test_revoke_subprocess_uses_resource_id_and_optional_authority_root(monkeypatch: Any, tmp_path: Path) -> None:
+    args = _coordinator_args(tmp_path)
+    args.authority_resource_id = "custom-resource-id"
+    command_log: list[list[str]] = []
+    next_sequence = {"value": args.authority_epoch + 1}
+    state_reads = [
+        {
+            "state": "ACTIVE",
+            "attempt_id": args.attempt_id,
+            "owner": {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime},
+            "sequence": args.authority_epoch,
+        },
+        {
+            "state": "REVOKED",
+            "attempt_id": args.attempt_id,
+            "owner": {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime},
+            "reason": "failed",
+            "sequence": args.authority_epoch + 1,
+        },
+    ]
+
+    def _fake_load_current(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        if not state_reads:
+            return {}
+        return state_reads.pop(0)
+
+    def _fake_run(
+        command: list[str],
+        check: bool,
+        capture_output: bool,
+        text: bool,
+    ) -> Any:
+        command_log.append(command)
+        class _Completed:
+            stdout = str(next_sequence["value"])
+            next_sequence["value"] += 1
+
+        return _Completed()
+
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.authority.load_current", _fake_load_current)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.subprocess.run", _fake_run)
+    args.authority_root = None
+    coordinator._revoke(args, "failed")
+    assert command_log, "revoke command should be called"
+    absent_root_command = command_log.pop(0)
+    assert "--resource-id" in absent_root_command
+    assert "custom-resource-id" in absent_root_command
+    assert "--authority-root" not in absent_root_command
+
+    state_reads.extend(
+        [
+            {
+                "state": "ACTIVE",
+                "attempt_id": args.attempt_id,
+                "owner": {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime},
+                "sequence": args.authority_epoch + 1,
+            },
+            {
+                "state": "REVOKED",
+                "attempt_id": args.attempt_id,
+                "owner": {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime},
+                "reason": "cancelled",
+                "sequence": args.authority_epoch + 2,
+            },
+        ]
+    )
+    args.authority_root = tmp_path / "authority-root"
+    coordinator._revoke(args, "cancelled")
+    present_root_command = command_log.pop(0)
+    assert "--resource-id" in present_root_command
+    assert "custom-resource-id" in present_root_command
+    root_index = present_root_command.index("--authority-root")
+    assert present_root_command[root_index + 1] == str(args.authority_root)
+
+
+def test_basis_binding_is_idempotent_for_duplicate_launch_basis(monkeypatch, tmp_path: Path) -> None:
+    args = _coordinator_args(tmp_path)
+    args.attempt_id = "e" * 32
+    args.experiment_root.mkdir()
+    args.output_root.mkdir(parents=True, exist_ok=True)
+    args.delivery_observation = args.experiment_root / "delivery-observation.json"
+    args.delivery_observation.write_text('{"delivery":true}\n', encoding="utf-8")
+    args.admission.write_text("{}", encoding="utf-8")
+    state = {
+        "state": "ACTIVE",
+        "sequence": args.authority_epoch,
+        "attempt_id": args.attempt_id,
+        "owner": {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime},
+        "worktree_root": str(args.experiment_root.resolve()),
+        "repository_head": "d" * 40,
+        "authority_epoch": args.authority_epoch,
+        "launch_basis_path": None,
+        "launch_basis_sha256": None,
+    }
+    counters = {"make": 0, "write": 0, "bind": 0}
+
+    def _fake_load_runtime_release(_root: Path) -> Any:
+        return SimpleNamespace(manifest_sha256="a" * 64, program_id="program")
+
+    def _fake_resolve_bridge_admission(_root: Path, release: Any) -> tuple[Path, dict[str, Any]]:
+        return (
+            args.admission,
+            {
+                "campaign_fingerprint": "c" * 64,
+                "delivery_observation": {"path": "delivery-observation.json"},
+            },
+        )
+
+    def _fake_release_payload_path(_root: Path, _release: Any, payload_path: str) -> Path:
+        return args.experiment_root / payload_path
+
+    def _fake_load_contract(_path: Path) -> Any:
+        return {}
+
+    def _fake_load_launch_profile(
+        _path: Path, contract: Any | None = None, expected_tp_program_id: Any | None = None
+    ) -> Any:
+        return {}
+
+    def _fake_check_effective_config(**_kwargs: Any) -> dict[str, Any]:
+        return {"effective_config": {}}
+
+    def _fake_release_runtime_contract(_root: Path, _release: Any) -> dict[str, str]:
+        return {"tp_runtime_identity": {}}
+
+    def _fake_load_current(*_args: Any, **kwargs: Any) -> dict[str, Any]:
+        if kwargs.get("require_basis_bound"):
+            if (
+                state.get("launch_basis_path") != kwargs.get("launch_basis_path")
+                or state.get("launch_basis_sha256") != kwargs.get("launch_basis_sha256")
+            ):
+                raise RuntimeError("basis binding not yet committed")
+        return dict(state)
+    real_make_basis = coordinator.make_launch_basis
+    real_write_basis = coordinator.write_launch_basis
+
+    def _fake_bind_basis(
+        _authority_root: Path | None = None,
+        attempt_id: str | None = None,
+        owner_pid: int | None = None,
+        owner_starttime_ticks: int | None = None,
+        *,
+        sequence: int | None = None,
+        launch_basis_path: str | None = None,
+        launch_basis_sha256: str | None = None,
+        resource_id: str | None = None,
+    ) -> dict[str, Any]:
+        assert attempt_id == args.attempt_id
+        assert owner_pid == args.owner_pid
+        assert owner_starttime_ticks == args.owner_starttime
+        assert sequence == state["sequence"]
+        assert resource_id == args.authority_resource_id
+        if (
+            state["launch_basis_path"] is not None
+            and state["launch_basis_sha256"] is not None
+            and state["launch_basis_sha256"] != launch_basis_sha256
+        ):
+            raise RuntimeError("conflicting basis")
+        state["launch_basis_path"] = launch_basis_path
+        state["launch_basis_sha256"] = launch_basis_sha256
+        counters["bind"] += 1
+        return dict(state)
+
+    def _fake_make_launch_basis(**kwargs: Any) -> dict[str, Any]:
+        counters["make"] += 1
+        return real_make_basis(**kwargs)
+
+    def _fake_write_basis(_path: Path, payload: dict[str, Any]) -> dict[str, Any]:
+        counters["write"] += 1
+        payload = dict(payload)
+        payload["launch_nonce"] = args.attempt_id
+        return real_write_basis(_path, payload)
+
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator._repository_head", lambda _root: "d" * 40)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.load_runtime_release", _fake_load_runtime_release)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.resolve_bridge_admission", _fake_resolve_bridge_admission)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.release_payload_path", _fake_release_payload_path)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.load_contract", _fake_load_contract)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.load_launch_profile", _fake_load_launch_profile)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.check_effective_config", _fake_check_effective_config)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.release_runtime_contract", _fake_release_runtime_contract)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.authority.load_current", _fake_load_current)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.authority.bind_basis", _fake_bind_basis)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.make_launch_basis", _fake_make_launch_basis)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.write_launch_basis", _fake_write_basis)
+    first = coordinator._basis(args)
+    args.output_root = args.output_root.parent / "coordinator_retry"
+    args.output_root.mkdir()
+    second = coordinator._basis(args)
+    assert first["basis_sha256"] == second["basis_sha256"]
+    assert first["campaign_fingerprint"] == "c" * 64
+    assert second["campaign_fingerprint"] == "c" * 64
+    assert state["launch_basis_path"] == str(args.launch_basis.resolve())
+    assert counters["make"] == 1
+    assert counters["write"] == 1
+    assert counters["bind"] == 1
+
+
+def test_basis_binding_rejects_drifted_bound_launch_basis(monkeypatch, tmp_path: Path) -> None:
+    args = _coordinator_args(tmp_path)
+    args.attempt_id = "f" * 32
+    args.experiment_root.mkdir()
+    args.output_root.mkdir(parents=True, exist_ok=True)
+    args.delivery_observation = args.experiment_root / "delivery-observation.json"
+    args.delivery_observation.write_text('{"delivery":true}\n', encoding="utf-8")
+    args.admission.write_text("{}", encoding="utf-8")
+    state = {
+        "state": "ACTIVE",
+        "sequence": args.authority_epoch,
+        "attempt_id": args.attempt_id,
+        "owner": {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime},
+        "worktree_root": str(args.experiment_root.resolve()),
+        "repository_head": "d" * 40,
+        "authority_epoch": args.authority_epoch,
+        "launch_basis_path": str(args.launch_basis.resolve()),
+        "launch_basis_sha256": None,
+    }
+    stale_delivery_hash = hashlib.sha256(args.delivery_observation.read_bytes()).hexdigest()
+    stale_runtime_identity = {"tag": "stale-runtime"}
+    stale_basis = coordinator.make_launch_basis(
+        release_manifest_sha256="b" * 64,
+        runtime_identity_sha256=coordinator._sha256_json(stale_runtime_identity),
+        campaign_fingerprint="e" * 64,
+        delivery_observation_sha256=stale_delivery_hash,
+        owner_pid=args.owner_pid,
+        owner_starttime=args.owner_starttime,
+        authority_epoch=args.authority_epoch,
+        launch_nonce=args.attempt_id,
+        argv_sha256="c" * 64,
+        effective_config_sha256="0" * 64,
+        worktree_root=str(args.experiment_root.resolve()),
+        repository_head="d" * 40,
+        issued_at_unix_ns=time.time_ns() - 1_000_000,
+        expires_at_unix_ns=time.time_ns() + 10_000_000_000,
+    )
+    state["launch_basis_sha256"] = coordinator.write_launch_basis(args.launch_basis, stale_basis)["basis_sha256"]
+    args.delivery_observation.write_text('{"delivery":false}\n', encoding="utf-8")
+
+    def _fake_load_runtime_release(_root: Path) -> Any:
+        return SimpleNamespace(manifest_sha256="a" * 64, program_id="program")
+
+    def _fake_resolve_bridge_admission(_root: Path, release: Any) -> tuple[Path, dict[str, Any]]:
+        return (
+            args.admission,
+            {
+                "campaign_fingerprint": "d" * 64,
+                "delivery_observation": {"path": "delivery-observation.json"},
+            },
+        )
+
+    def _fake_release_runtime_contract(_root: Path, _release: Any) -> dict[str, Any]:
+        return {"tp_runtime_identity": {"tag": "fresh-runtime"}}
+
+    def _fake_load_current(*_args: Any, **kwargs: Any) -> dict[str, Any]:
+        if kwargs.get("require_basis_bound"):
+            if (
+                state.get("launch_basis_path") != kwargs.get("launch_basis_path")
+                or state.get("launch_basis_sha256") != kwargs.get("launch_basis_sha256")
+            ):
+                raise RuntimeError("basis binding not yet committed")
+        return dict(state)
+
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator._repository_head", lambda _root: "d" * 40)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.load_runtime_release", _fake_load_runtime_release)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.resolve_bridge_admission", _fake_resolve_bridge_admission)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.release_runtime_contract", _fake_release_runtime_contract)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.authority.load_current", _fake_load_current)
+
+    with pytest.raises(RuntimeError, match="coordinator launch basis identity differs from authority state"):
+        coordinator._basis(args)
+
+
+@pytest.mark.parametrize("only_path_set", [True, False])
+def test_basis_binding_fails_for_partial_existing_basis(monkeypatch, tmp_path: Path, only_path_set: bool) -> None:
+    args = _coordinator_args(tmp_path)
+    args.experiment_root.mkdir()
+    args.output_root.mkdir(parents=True, exist_ok=True)
+    args.delivery_observation = args.experiment_root / "delivery-observation.json"
+    args.delivery_observation.write_text('{"delivery":true}\n', encoding="utf-8")
+    args.admission.write_text("{}", encoding="utf-8")
+    state = {
+        "state": "ACTIVE",
+        "sequence": args.authority_epoch,
+        "attempt_id": args.attempt_id,
+        "owner": {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime},
+        "worktree_root": str(args.experiment_root.resolve()),
+        "repository_head": "d" * 40,
+        "authority_epoch": args.authority_epoch,
+        "launch_basis_path": str(args.launch_basis.resolve()) if only_path_set else None,
+        "launch_basis_sha256": None if only_path_set else "b" * 64,
+    }
+
+    def _fake_load_runtime_release(_root: Path) -> Any:
+        return SimpleNamespace(manifest_sha256="a" * 64, program_id="program")
+
+    def _fake_resolve_bridge_admission(_root: Path, release: Any) -> tuple[Path, dict[str, Any]]:
+        return (
+            args.admission,
+            {
+                "campaign_fingerprint": "c" * 64,
+                "delivery_observation": {"path": "delivery-observation.json"},
+            },
+        )
+
+    def _fake_load_current(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return dict(state)
+
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator._repository_head", lambda _root: "d" * 40)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.load_runtime_release", _fake_load_runtime_release)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.resolve_bridge_admission", _fake_resolve_bridge_admission)
+    monkeypatch.setattr("run_step5d_autotune_v3_coordinator.authority.load_current", _fake_load_current)
+
+    with pytest.raises(RuntimeError, match="launch basis binding is incomplete"):
+        coordinator._basis(args)

@@ -360,6 +360,32 @@ def _terminal_receipt_document(
     return payload
 
 
+def _record_terminal_receipt_locked(
+    root: Path,
+    existing: tuple[dict[str, Any], ...],
+    record: Mapping[str, Any],
+) -> dict[str, Any]:
+    dispatch_identity = str(record["dispatch_identity"])
+    requested_record = dict(record)
+    path = _terminal_receipt_path(root, dispatch_identity)
+    for item in existing:
+        if item["dispatch_identity"] == dispatch_identity:
+            if item == requested_record:
+                return item
+            raise ParameterQueueError("terminal receipt dispatch_identity already exists")
+    highest = 0
+    for item in existing:
+        if item["process_composition_sha256"] != record["process_composition_sha256"]:
+            continue
+        if int(item["dispatch_sequence"]) >= int(record["dispatch_sequence"]):
+            raise ParameterQueueError("terminal receipt sequence is not monotonic")
+        highest = max(highest, int(item["dispatch_sequence"]))
+    if highest and int(record["dispatch_sequence"]) <= highest:
+        raise ParameterQueueError("terminal receipt sequence is not monotonic")
+    _atomic_json(path, requested_record)
+    return requested_record
+
+
 def _validate_terminal_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
     required = {
         "schema",
@@ -420,6 +446,8 @@ def _load_terminal_receipts(root: Path) -> tuple[dict[str, Any], ...]:
             continue
         rows.append(_validate_terminal_receipt(_strict_json(path, "governance terminal receipt")))
     return tuple(rows)
+
+
 def _physical_attempt_document(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema": PHYSICAL_ATTEMPT_SCHEMA,
@@ -450,13 +478,22 @@ def publish_next_arm(
             observed_at=observed_at,
         )
         path = _next_arm_path(root)
-        if path.exists():
-            existing = _load_next_arm(root)
-            if existing != record:
-                raise ParameterQueueError("next-arm publication conflicts with prior publish")
-            return existing
-        if path.is_symlink():
-            raise ParameterQueueError("next-arm must be a regular file")
+        existing = _load_next_arm(root)
+        if existing is not None:
+            if existing["campaign_fingerprint"] != record["campaign_fingerprint"]:
+                raise ParameterQueueError("next-arm campaign_fingerprint differs")
+            if int(record["dispatch_sequence"]) == int(existing["dispatch_sequence"]):
+                if (
+                    existing["dispatch_identity"] == record["dispatch_identity"]
+                    and existing["mailbox_packet_sha256"]
+                    == record["mailbox_packet_sha256"]
+                ):
+                    return existing
+                raise ParameterQueueError(
+                    "next-arm publication conflicts with prior publish"
+                )
+            if int(record["dispatch_sequence"]) < int(existing["dispatch_sequence"]):
+                raise ParameterQueueError("next-arm dispatch_sequence must increase")
         _atomic_json(path, record)
         return record
 
@@ -489,20 +526,12 @@ def record_terminal_receipt(
         terminal_state=terminal_state,
     )
     with _lock(root):
-        path = _terminal_receipt_path(root, dispatch_identity)
         existing = _load_terminal_receipts(root)
-        if any(item["dispatch_identity"] == dispatch_identity for item in existing):
-            raise ParameterQueueError("terminal receipt dispatch_identity already exists")
-        highest = 0
-        for item in existing:
-            if item["process_composition_sha256"] == process_composition_sha256:
-                if item["dispatch_sequence"] >= dispatch_sequence:
-                    raise ParameterQueueError("terminal receipt sequence is not monotonic")
-                highest = max(highest, item["dispatch_sequence"])
-        _atomic_json(path, record)
-        if highest and record["dispatch_sequence"] <= highest:
-            raise ParameterQueueError("terminal receipt sequence is not monotonic")
-        return record
+        return _record_terminal_receipt_locked(
+            root=root,
+            existing=existing,
+            record=record,
+        )
 
 
 def _is_physical_receipt(payload: Mapping[str, Any]) -> bool:
@@ -538,15 +567,15 @@ def continuous_readiness(root: Path) -> dict[str, Any]:
                 )
                 seen_identity.add(identity)
                 seen_sequence.add(sequence)
-            if len(seen_sequence) >= 2:
-                sorted_sequence = sorted(seen_sequence)
-                duplicate = duplicate or any(
-                    next_sequence != current_sequence + 1
-                    for current_sequence, next_sequence in zip(
-                        sorted_sequence[:-1], sorted_sequence[1:]
-                    )
+        if len(seen_sequence) >= 10:
+            sorted_sequence = sorted(seen_sequence)
+            duplicate = duplicate or any(
+                next_sequence != current_sequence + 1
+                for current_sequence, next_sequence in zip(
+                    sorted_sequence[:-1], sorted_sequence[1:]
                 )
-            ready = not duplicate and len(seen_identity) >= 10
+            )
+            ready = not duplicate and len(seen_sequence) >= 10
         return {
             "schema": CONTINUOUS_READINESS_SCHEMA,
             "continuous_readiness": bool(next_arm is not None and ready),
@@ -555,7 +584,7 @@ def continuous_readiness(root: Path) -> dict[str, Any]:
             "next_arm_dispatch_identity": None
             if next_arm is None
             else next_arm["dispatch_identity"],
-            "terminal_receipts": len(seen_identity),
+            "terminal_receipts": len(seen_sequence),
         }
 
 
@@ -1104,6 +1133,7 @@ def finish_dispatch(
     *,
     status: str,
     observed: Mapping[str, Any],
+    process_composition_sha256: str | None = None,
     detail: str | None = None,
     failure_class: str | None = None,
 ) -> dict[str, Any]:
@@ -1116,6 +1146,10 @@ def finish_dispatch(
             )
     elif failure_class is not None:
         raise ParameterQueueError("SUCCEEDED dispatch must not have failure_class")
+    if process_composition_sha256 is not None and not _is_sha256(
+        process_composition_sha256
+    ):
+        raise ParameterQueueError("process_composition_sha256 must be SHA-256")
     with _lock(root):
         state = load_state(root)
         if state["inflight"] is None:
@@ -1197,6 +1231,17 @@ def finish_dispatch(
             _receipt_path(root, str(receipt["request_uid"])),
             receipt,
         )
+        if process_composition_sha256 is not None:
+            _record_terminal_receipt_locked(
+                root=root,
+                existing=_load_terminal_receipts(root),
+                record=_terminal_receipt_document(
+                    process_composition_sha256=process_composition_sha256,
+                    dispatch_identity=str(dispatch["dispatch_identity"]),
+                    dispatch_sequence=int(dispatch["dispatch_sequence"]),
+                    terminal_state=observed,
+                ),
+            )
         state["home_identity"] = home_identity
         state["inflight"] = None
         _atomic_json(_state_path(root), state)
