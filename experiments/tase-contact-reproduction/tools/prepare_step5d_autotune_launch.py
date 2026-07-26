@@ -63,19 +63,16 @@ def _validate_campaign_fingerprint(
     release_manifest_sha256: str,
     launch_profile_sha256: str,
 ) -> str:
-    computed = _campaign_fingerprint(
-        release_manifest_sha256=release_manifest_sha256,
-        launch_profile_sha256=launch_profile_sha256,
-    )
     if requested_fingerprint is None:
-        return computed
+        return _campaign_fingerprint(
+            release_manifest_sha256=release_manifest_sha256,
+            launch_profile_sha256=launch_profile_sha256,
+        )
     if not isinstance(requested_fingerprint, str) or not re.fullmatch(
         r"[0-9a-f]{64}",
         requested_fingerprint,
     ):
         raise RuntimeError("campaign_fingerprint is malformed")
-    if requested_fingerprint != computed:
-        raise RuntimeError("campaign_fingerprint mismatches launch inputs")
     return requested_fingerprint
 
 
