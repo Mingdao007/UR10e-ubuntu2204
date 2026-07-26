@@ -1,0 +1,120 @@
+{
+  "schema": "ur10e_tacdiffusion_surface_input/v1",
+  "capture": {
+    "experiment_relative_root": "experiments/tase-contact-reproduction",
+    "run_relative_path": "runs/tacdiffusion/surface-calibration-20260726",
+    "capture_dates_utc": [
+      "2026-07-26T02:30:17.588167+00:00",
+      "2026-07-26T02:42:32.515286+00:00",
+      "2026-07-26T02:57:17.320704+00:00",
+      "2026-07-26T02:52:58.527886+00:00"
+    ],
+    "source_json_sha256": {
+      "corner_1.json": "d93b147051162b8348428545554008c2ebcb6af3505bdb3198a79c87a8648740",
+      "corner_2.json": "44693cd4bf6f6b075fc29d89702bc435af348e9d4791d3b633ceb10e01f418ec",
+      "corner_3.json": "de3b81e3b449316bc2826ef562dd4b50aaf982808b68f69cec740902dfb41991",
+      "corner_4.json": "793e9499a406aa22f404001ab452b107b63597e709775a8c9e35ccfc1d83d623"
+    }
+  },
+  "coordinate_convention": {
+    "frame_id": "base",
+    "position_units": "m",
+    "orientation_units": "rad",
+    "orientation_parameterization": "ur_rotvec",
+    "pose_order": ["x", "y", "z", "rx", "ry", "rz"],
+    "corner_order": ["right_upper", "left_upper", "left_lower", "right_lower"],
+    "u_direction": "right_upper_to_left_upper",
+    "v_direction": "right_upper_to_right_lower",
+    "reaction_normal": "cross(u_direction, v_direction)",
+    "approach_normal": "negative_reaction_normal",
+    "orientation_preprocessing": "UR rotation vector radians -> unit quaternion xyzw"
+  },
+  "corners": [
+    {
+      "corner_id": "corner_1",
+      "user_label": "right_upper",
+      "tcp_pose": [0.4272157726408306, 0.10151934303515088, 0.005716661892530686, -3.141547575729168, 0.005836497441922894, -0.0000418321929255991]
+    },
+    {
+      "corner_id": "corner_2",
+      "user_label": "left_upper",
+      "tcp_pose": [0.49924070658674935, 0.09944656872647425, 0.01632095147095773, -3.141578090688174, 0.005841269491042227, -0.000020106518766776515]
+    },
+    {
+      "corner_id": "corner_3",
+      "user_label": "left_lower",
+      "tcp_pose": [0.4993944480551726, 0.24777194543566136, 0.01728908908733169, -3.141515863456799, 0.0056985872042599394, -0.0001459547918656053]
+    },
+    {
+      "corner_id": "corner_4",
+      "user_label": "right_lower",
+      "tcp_pose": [0.4265378557335391, 0.2473423709816815, 0.01962070835849071, -3.1415643384759986, 0.005771165103090554, 0.00007959745558667963]
+    }
+  ],
+  "geometry_diagnostics_from_capture": {
+    "width_m": 0.07283088946808082,
+    "height_m": 0.14648596369261943,
+    "orthogonality_cosine": -0.019087850771903534,
+    "planarity_residual_m": 0.013094908855259307,
+    "rectangle_closure_error_m": 0.013201937083195938,
+    "z_range_m": 0.013904046465960024,
+    "planar_contract_eligible": false
+  },
+  "stl_candidates": [
+    {
+      "role": "simulation_visual_candidate_only",
+      "relative_path": "src/ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl",
+      "sha256": "c68d176a88260f7845f102c1dc6e9a60549d7c270738d1757050c0d79036c1cc",
+      "native_units": "mm",
+      "scale_to_m": 0.001,
+      "raw_bbox_mm": {
+        "min": [-111.46788787841797, 87.33544921875, 0.0],
+        "max": [38.532108306884766, 104.91121673583984, 150.0],
+        "size": [150.0, 17.575767517089844, 150.0]
+      },
+      "mapping_to_measured_base_corners_validated": false
+    },
+    {
+      "role": "small_coupon_reference_candidate_only",
+      "relative_path": "src/ur10e_example_controllers/meshes/contact_surface/coupon_v11_smooth_seam_30x30_3mm.stl",
+      "sha256": "39d3f576ebb19f65638d9fbe5864037a21d4ab5025af26d9e89fe7a9c6ffdc78",
+      "native_units": "mm",
+      "scale_to_m": 0.001,
+      "raw_bbox_mm": {
+        "min": [-51.467891693115234, 100.64448547363281, 60.0],
+        "max": [-21.467891693115234, 104.73933410644531, 90.0],
+        "size": [30.0, 4.0948486328125, 30.0]
+      },
+      "mapping_to_measured_base_corners_validated": false
+    }
+  ],
+  "preprocessing_and_gates": {
+    "planar_surface_gate": {
+      "planarity_tolerance_m": 0.0001,
+      "rectangle_tolerance_m": 0.0002,
+      "orientation_tolerance_rad": 0.08726646259971647,
+      "safe_inset_m": 0.003
+    },
+    "required_before_trajectory_generation": [
+      "resolve CAD/STL to base rigid transform",
+      "choose curved-surface parameterization or replace with a proven planar patch",
+      "bind contact-tip/TCP and sensor-origin lever arm for the selected frame",
+      "verify normal sign and surface correspondence without live motion"
+    ]
+  },
+  "status": {
+    "corner_labels_and_order_validated": true,
+    "pose_units_and_frame_validated": true,
+    "rotvec_preprocessing_defined": true,
+    "stl_identity_and_unit_scale_validated": true,
+    "planar_surface_ready": false,
+    "cad_to_base_transform_validated": false,
+    "model_active_allowed": false,
+    "live_or_contact_ready": false,
+    "blockers": [
+      "measured four-corner geometry is non-planar relative to the existing planar backend",
+      "neither STL candidate has a validated rigid transform to the measured base-frame corners",
+      "no live/controller/TP/bridge action is part of this offline preparation"
+    ]
+  }
+}
