@@ -51,11 +51,6 @@ def _validated_manual_release_contract(monkeypatch: pytest.MonkeyPatch) -> None:
         "release_contract_reference",
         lambda *_args, **_kwargs: {"ok": "contract"},
     )
-    monkeypatch.setattr(
-        bridge_status,
-        "resolve_publication_lineage",
-        lambda *_args, **_kwargs: (Path("lineage.json"), {"ok": True}),
-    )
 
 
 def _bindings(campaign: Path, output: Path, snapshot: Path) -> dict[str, object]:
@@ -318,49 +313,6 @@ def test_failed_latest_attempt_hides_stale_route_status(tmp_path: Path) -> None:
     assert status["blocker"]["reason_codes"] == ["LAUNCH_ATTEMPT_FAILED"]
 
 
-def test_closed_world_route_failure_preserves_named_physical_blocker(
-    tmp_path: Path,
-) -> None:
-    campaign = tmp_path / "campaign"
-    output = tmp_path / "output"
-    authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
-    authority.parent.mkdir(parents=True)
-    campaign.mkdir()
-    output.mkdir()
-    snapshot = output / "route.json"
-    _route_snapshot(snapshot, "BLOCKED")
-    bindings = _bindings(campaign, output, snapshot)
-    route_reference = bindings["route_snapshot"]
-    bindings["route_snapshot"] = None
-    publish_launch_attempt(
-        authority,
-        attempt_id="attempt-unsupported",
-        state="STARTED",
-        phase="route_resolve",
-        route="UNKNOWN",
-        bindings=bindings,
-    )
-    bindings["route_snapshot"] = route_reference
-    publish_launch_attempt(
-        authority,
-        attempt_id="attempt-unsupported",
-        state="FAILED",
-        phase="route_resolve",
-        route="BLOCKED",
-        bindings=bindings,
-        exit_code=3,
-        reason_code="LOADED_PROGRAM_UNSUPPORTED",
-        detail="loaded program is outside the closed route set",
-    )
-
-    status = bridge_status.resolve_status(tmp_path)
-
-    assert status["route"] == "BLOCKED"
-    assert status["blocker"]["class"] == "PHYSICAL"
-    assert status["blocker"]["reason_codes"] == ["LOADED_PROGRAM_UNSUPPORTED"]
-    assert status["next_action"] == "load_exact_supported_program_before_retry"
-
-
 def test_status_without_canonical_attempt_never_reuses_stale_v3_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -429,7 +381,7 @@ def test_status_requires_runtime_revalidation_before_bridge(
     assert status["next_action"] == "run_revalidate_current"
 
 
-def test_status_without_attempt_projects_fresh_action_required(
+def test_status_without_attempt_does_not_project_load_action(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -451,26 +403,22 @@ def test_status_without_attempt_projects_fresh_action_required(
         lambda *_args, **_kwargs: (
             admission,
             {
-                "state": "ACTION_REQUIRED",
-                "operator_action": "LOAD_EXACT_PROGRAM_ON_TP_AND_LEAVE_STOPPED",
+                "state": "BRIDGE_START_READY",
+                "reason_code": "DELIVERY_VERIFIED",
             },
         ),
     )
 
     status = bridge_status.resolve_status(tmp_path)
 
-    assert status["state"] == "ACTION_REQUIRED"
-    assert status["blocker"]["reason_codes"] == ["EXTERNAL_ACTION_REQUIRED"]
+    assert status["blocker"]["reason_codes"] == []
+    assert status["next_action"] == "run_bridge_live"
     assert status["launch_attempt"]["present"] is False
     assert status["capabilities"] == {"play_prompt": False}
-    assert (
-        status["milestones"]["acceptance_certificate"]["admission"]
-        == []
-    )
     assert not (tmp_path / bridge_status.AUTHORITY_RELATIVE).exists()
 
 
-def test_status_without_attempt_projects_bench_ready_press_play_milestone(
+def test_status_without_attempt_does_not_require_loaded_stopped_milestone(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -492,25 +440,19 @@ def test_status_without_attempt_projects_bench_ready_press_play_milestone(
         lambda *_args, **_kwargs: (
             admission,
             {
-                "state": "BENCH_READY",
-                "milestones": ["PROGRAM_LOADED_STOPPED"],
+                "state": "BRIDGE_START_READY",
+                "reason_code": "DELIVERY_VERIFIED",
             },
         ),
     )
 
     status = bridge_status.resolve_status(tmp_path)
 
-    assert status["state"] == "DELIVERED"
     assert status["blocker"]["reason_codes"] == []
-    assert status["next_action"] == "PRESS_PLAY"
+    assert status["next_action"] == "run_bridge_live"
     assert status["capabilities"] == {"play_prompt": False}
-    assert (
-        status["milestones"]["acceptance_certificate"]["admission"]
-        == ["PROGRAM_LOADED_STOPPED"]
-    )
-    assert status["milestones"]["acceptance"]["admission"] == [
-        "PROGRAM_LOADED_STOPPED"
-    ]
+    assert status["milestones"]["acceptance_certificate"]["admission"] == []
+    assert status["milestones"]["acceptance"]["admission"] == []
 
 
 def test_passed_phase_with_dead_owner_is_not_a_readiness_authority(

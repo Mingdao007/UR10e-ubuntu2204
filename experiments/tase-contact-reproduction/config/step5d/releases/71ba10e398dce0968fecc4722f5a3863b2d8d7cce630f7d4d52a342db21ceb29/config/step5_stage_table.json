@@ -7486,7 +7486,7 @@
       "operator_lifecycle": {
         "executable": false,
         "reason": "ARCHIVED_PROFILE",
-        "replacement": "step5d_strict_rnn_autotune_v3_r023"
+        "replacement": "step5d_strict_rnn_autotune_v3_r024"
       },
       "owner": "archive",
       "package_delivery": {
@@ -7499,7 +7499,7 @@
         "local_program_dir": "programs/step5/step5d/archive",
         "local_triplet": "programs/step5/step5d/archive/step5d_strict_rnn_ablation_v29.{script,txt,urp}",
         "program_basename": "step5d_strict_rnn_ablation_v29",
-        "replacement": "step5d_strict_rnn_autotune_v3_r023",
+        "replacement": "step5d_strict_rnn_autotune_v3_r024",
         "sha256": {
           ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
           ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
@@ -10996,7 +10996,7 @@
       "contact": true,
       "control_profile_id": "step5d_strict_rnn_autotune_v1",
       "current_binding": {
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r023.urp",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r024.urp",
         "current_stage_pointer": "config/current_stage.json",
         "is_current": true,
         "program": "step5d_strict_rnn_autotune_v3",
@@ -11032,7 +11032,7 @@
       },
       "operator_lifecycle": {
         "entrypoint": "scripts/step5d-autotune-v3.sh",
-        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r023.urp",
+        "expected_program": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r024.urp",
         "force_baseline_policy": {
           "anchor_applies_to": [
             "control",
@@ -11071,34 +11071,34 @@
       "owner": "contact_control_current",
       "package_delivery": {
         "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-        "controller_readback_manifest_sha256": "0c2efcdd5f772a1da25c16ba97b7c053c4b30f86aa79bad0002d6586f5015a7f",
+        "controller_readback_manifest_sha256": "dce868f382d9e56da6c3fb5922e35319ac6f6cf582b14779874b3e8b6a7c92cf",
         "controller_readback_verified": true,
-        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r023.urp",
+        "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r024.urp",
         "controller_uploaded_by_v3": true,
         "fresh_controller_sha_at": null,
         "local_candidate": {
           "controller_readback_verified": true,
           "controller_uploaded": true,
-          "deploy_manifest_sha256": "8aa0786a0955086072e80f78c5e7c2d91f504720dbe58fa147022b0b8867c4fc",
-          "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r023",
-          "numeric_sanity_sha256": "6c8023de709d20be4f37feb85c63081c5e3b705f3109196771f96a4d299e22c3",
-          "program_basename": "step5d_strict_rnn_autotune_v3_r023",
+          "deploy_manifest_sha256": "b6ee82a8e416d7db3bfa59c321a6a8518cc8e404546c1a29ebb5db2b01378c95",
+          "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r024",
+          "numeric_sanity_sha256": "7209639b8a95506c4ad779db80cb540d148aafaf21a1064d0bac4416870046aa",
+          "program_basename": "step5d_strict_rnn_autotune_v3_r024",
           "sha256": {
-            ".script": "e7ab45cd05e5d134885125241929b51a615353f73f0bab6126c74b4865c02f5a",
-            ".txt": "1c0fc798bfe44e885d4009f9318de299bac61761a646dace0d9732cc66505f25",
-            ".urp": "6ff1285142f1e7d0325c03c9668be67164e7bb569a8cf6f7ef8993399c206f4a"
+            ".script": "c80010426b81ac0c5bbbc7820e69ff029c3f6b60bea7944eabf3cffcb40cbc11",
+            ".txt": "4ab31c2afaeb99b4339e9e40235a20e4cd42a6ceb088e7c6416919f629546aac",
+            ".urp": "d5359e400a06bbe41b6c5a3bc352506b03b0dd135dbf7a49094bc7f46ef10f51"
           },
           "status": "controller_readback_verified"
         },
-        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r023",
-        "program_basename": "step5d_strict_rnn_autotune_v3_r023",
+        "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r024",
+        "program_basename": "step5d_strict_rnn_autotune_v3_r024",
         "sha256": {
-          ".script": "e7ab45cd05e5d134885125241929b51a615353f73f0bab6126c74b4865c02f5a",
-          ".txt": "1c0fc798bfe44e885d4009f9318de299bac61761a646dace0d9732cc66505f25",
-          ".urp": "6ff1285142f1e7d0325c03c9668be67164e7bb569a8cf6f7ef8993399c206f4a"
+          ".script": "c80010426b81ac0c5bbbc7820e69ff029c3f6b60bea7944eabf3cffcb40cbc11",
+          ".txt": "4ab31c2afaeb99b4339e9e40235a20e4cd42a6ceb088e7c6416919f629546aac",
+          ".urp": "d5359e400a06bbe41b6c5a3bc352506b03b0dd135dbf7a49094bc7f46ef10f51"
         },
         "status": "controller_readback_verified",
-        "tp_fingerprint": "8aa0786a0955086072e80f78c5e7c2d91f504720dbe58fa147022b0b8867c4fc",
+        "tp_fingerprint": "b6ee82a8e416d7db3bfa59c321a6a8518cc8e404546c1a29ebb5db2b01378c95",
         "watchdog_manifest": "config/step5/tp_watchdog_v2.json",
         "watchdog_only_diff_verified": false
       },

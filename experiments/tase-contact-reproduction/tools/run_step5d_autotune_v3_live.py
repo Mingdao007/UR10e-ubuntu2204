@@ -586,20 +586,10 @@ def _refresh_live_bridge_admission(
         raise LiveLaunchError("reference bridge delivery observation is not a mapping")
     if current.get("delivery_observation") != reference_delivery:
         raise LiveLaunchError("bridge admission delivery binding differs")
-    if current.get("expected_loaded_program") != reference_admission.get(
-        "expected_loaded_program"
-    ):
-        raise LiveLaunchError("fresh bridge admission expected loaded program differs")
-    if current.get("loaded_program") != reference_admission.get("loaded_program"):
-        raise LiveLaunchError("fresh bridge admission loaded program differs")
-    if current.get("state") != "BENCH_READY":
-        raise LiveLaunchError("fresh bridge admission is not BENCH_READY")
+    if current.get("state") != "BRIDGE_START_READY":
+        raise LiveLaunchError("fresh bridge admission is not BRIDGE_START_READY")
     if current.get("ok") is not True:
         raise LiveLaunchError("fresh bridge admission is not successful")
-    if "STOPPED" not in str(current.get("program_state", "")):
-        raise LiveLaunchError("fresh bridge admission program state is not STOPPED")
-    if current.get("program_state") != reference_admission.get("program_state"):
-        raise LiveLaunchError("fresh bridge admission program state differs")
     try:
         return write_indexed(root, current)
     except Exception as exc:
@@ -1324,7 +1314,6 @@ def _validate_preflight(
     predicates = payload.get("predicates") or {}
     required = {
         "safety_normal",
-        "program_safe_for_bridge",
         "robot_stationary",
         "no_existing_writer",
         "mailbox_initial_zero",

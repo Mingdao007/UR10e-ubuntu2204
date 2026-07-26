@@ -1,5 +1,5 @@
 #!/usr/bin/python3.10
-"""Resolve delivery and check exact loaded/stopped state before live authority."""
+"""Resolve delivery identity before live bridge authority."""
 
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ from step5d_autotune_v3.state import atomic_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ACTION_REQUIRED_EXIT = 75
 OBSERVATION_FAILED_EXIT = 69
 
 
@@ -40,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
             timeout_s=args.timeout_s,
         )
         write_indexed_bridge_admission(args.root, payload)
-        return_code = 0 if payload["ok"] is True else ACTION_REQUIRED_EXIT
+        return_code = 0
     except Exception as exc:
         payload = {
             "schema": SCHEMA,

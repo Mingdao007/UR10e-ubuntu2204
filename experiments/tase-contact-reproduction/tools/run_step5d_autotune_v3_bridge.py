@@ -19,7 +19,7 @@ import queue
 import signal
 import sys
 import time
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,7 +38,6 @@ from step5d_autotune_v3.runtime_gate import (
     ArmGateProvider,
     RuntimeGateError,
     load_campaign_lease,
-    loaded_program_matches,
     release_runtime_contract,
 )
 from step5d_autotune_v3.runtime_installation import require_runtime_profile
@@ -805,39 +804,7 @@ def install_v3_seams(
 
     live.BridgeMailboxRuntime._apply_arm_runtime = staticmethod(v3_apply_arm_runtime)
 
-    original_matcher = bridge.step5d_dashboard_program_identity_matches
-    if no_arm_expected_loaded_program is not None:
-        if ticket is not None or release is None:
-            raise BridgeTicketError(
-                "NO_ARM loaded-program override requires an isolated release adapter"
-            )
-        target = PurePosixPath(no_arm_expected_loaded_program)
-        if (
-            not no_arm_expected_loaded_program.startswith("/")
-            or target.name.lower() != f"{release.program_id}.urp".lower()
-        ):
-            raise BridgeTicketError("NO_ARM loaded-program override identity differs")
-        expected_loaded_program = target.as_posix()
-    else:
-        runtime_contract = (
-            None if release is None else release_runtime_contract(ROOT, release)
-        )
-        expected_loaded_program = (
-            None
-            if runtime_contract is None
-            else runtime_contract["expected_loaded_program"]
-        )
-
-    def v3_tp_identity_match(value: Any, control_profile: str) -> bool:
-        if release is not None and control_profile == release.control_profile_id:
-            assert expected_loaded_program is not None
-            return loaded_program_matches(
-                value,
-                expected_loaded_program,
-            )
-        return original_matcher(value, control_profile)
-
-    bridge.step5d_dashboard_program_identity_matches = v3_tp_identity_match
+    del no_arm_expected_loaded_program
 
     def v3_runtime_prewarm(state: Any, args: Any) -> None:
         if state.step5d_model_bundle is None:

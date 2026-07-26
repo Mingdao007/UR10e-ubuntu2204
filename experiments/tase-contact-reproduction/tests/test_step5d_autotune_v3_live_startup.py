@@ -1000,11 +1000,7 @@ def _fake_governed_shell(
         "    shift\n"
         "  done\n"
         "  [[ -n \"${admission_output}\" ]]\n"
-        "  if [[ \"${STEP5D_TEST_ADMISSION_RC:-0}\" == '75' ]]; then\n"
-        "    printf '%s\\n' '{\"ok\":false,\"state\":\"ACTION_REQUIRED\",\"reason_code\":\"EXTERNAL_ACTION_REQUIRED\"}' >\"${admission_output}\"\n"
-        "    exit 75\n"
-        "  fi\n"
-        "  printf '%s\\n' '{\"ok\":true,\"state\":\"BENCH_READY\",\"delivery_observation\":{\"path\":\"scripts/step5d-autotune-v3.sh\"}}' >\"${admission_output}\"\n"
+        "  printf '%s\\n' '{\"ok\":true,\"state\":\"BRIDGE_START_READY\",\"reason_code\":\"DELIVERY_VERIFIED\",\"delivery_observation\":{\"path\":\"scripts/step5d-autotune-v3.sh\"}}' >\"${admission_output}\"\n"
         "  printf '{}\\n'\n"
         "  exit 0\n"
         "fi\n"
@@ -1162,46 +1158,10 @@ def test_shell_successful_live_handoff_exits_without_operator_cli_fallthrough(
     assert "--launch-basis" in coordinator_calls[0]
 
 
-def test_shell_action_required_creates_no_attempt_or_authority(
-    tmp_path: Path,
-) -> None:
-    shell, command_log, environment = _fake_governed_shell(
-        tmp_path,
-        fail_prepare=False,
-    )
-    environment["STEP5D_TEST_ADMISSION_RC"] = "75"
-    experiment = shell.parent.parent
-    output = experiment / "runs/action-required"
-    result = subprocess.run(
-        [
-            str(shell),
-            "bridge-live",
-            "--output-root",
-            str(output),
-            "--campaign-root",
-            str(tmp_path / "campaign"),
-            "--delivery-observation",
-            str(shell),
-        ],
-        cwd=experiment,
-        env=environment,
-        stdin=subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        timeout=10.0,
-        check=False,
-    )
-
-    assert result.returncode == 75, result.stderr
-    assert "EXTERNAL_ACTION_REQUIRED" in result.stderr
-    commands = command_log.read_text(encoding="utf-8").splitlines()
-    assert any("check_step5d_autotune_v3_bridge_admission.py" in line for line in commands)
-    assert not any("run_step5d_release_contract.py" in line for line in commands)
-    assert not any("run_step5d_autotune_v3_tp_transaction.py" in line for line in commands)
-    authority_root = Path(environment["STEP5D_V3_AUTHORITY_ROOT"])
-    assert not authority_root.exists()
-    assert not (output / "bridge-authority-epoch.txt").exists()
-    assert not (output / "launch-attempt-recorder.log").exists()
+def test_shell_has_no_load_action_required_admission_branch() -> None:
+    shell = (ROOT / "scripts/step5d-autotune-v3.sh").read_text(encoding="utf-8")
+    assert "admission_rc == 75" not in shell
+    assert "LOAD_EXACT_PROGRAM_ON_TP_AND_LEAVE_STOPPED" not in shell
 
 
 def test_shell_tp_deliver_is_independent_from_bridge_authority(
@@ -2026,12 +1986,12 @@ def test_refresh_live_bridge_admission_prefers_fresh_observation_when_reference_
         "campaign_fingerprint": "c" * 64,
     }
     reference_admission = {
-        "schema": "step5d.autotune-v3/bridge-admission-v1",
+        "schema": "step5d.autotune-v3/bridge-admission-v2",
         "campaign_fingerprint": "c" * 64,
         "observed_at_unix_ns": 100_000_000_0,
-        "state": "BENCH_READY",
+        "state": "BRIDGE_START_READY",
         "ok": True,
-        "reason_code": "PROGRAM_LOADED_STOPPED",
+        "reason_code": "DELIVERY_VERIFIED",
         "checks": {},
         "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
         "loaded_program": "step5d_strict_rnn_autotune_v3_r999",
@@ -2109,7 +2069,6 @@ def test_refresh_live_bridge_admission_prefers_fresh_observation_when_reference_
         ("campaign", "campaign identity"),
         ("release", "release binding"),
         ("delivery", "delivery binding"),
-        ("stopped", "program state is not STOPPED"),
     ],
 )
 def test_refresh_live_bridge_admission_rejects_drift_before_runner_spawn(
@@ -2123,11 +2082,11 @@ def test_refresh_live_bridge_admission_rejects_drift_before_runner_spawn(
     }
     release = SimpleNamespace(manifest_sha256="e" * 64, program_id="step5d_strict_rnn_autotune_v3_r999")
     reference_admission = {
-        "schema": "step5d.autotune-v3/bridge-admission-v1",
+        "schema": "step5d.autotune-v3/bridge-admission-v2",
         "campaign_fingerprint": "c" * 64,
-        "state": "BENCH_READY",
+        "state": "BRIDGE_START_READY",
         "ok": True,
-        "reason_code": "PROGRAM_LOADED_STOPPED",
+        "reason_code": "DELIVERY_VERIFIED",
         "checks": {},
         "observed_at_unix_ns": 100_000_000_0,
         "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
@@ -2166,7 +2125,7 @@ def test_refresh_live_bridge_admission_rejects_drift_before_runner_spawn(
         {
             "observed_at_unix_ns": 2,
             "ok": True,
-            "state": "BENCH_READY",
+            "state": "BRIDGE_START_READY",
             "program_state": "STOPPED step5d_strict_rnn_autotune_v3_r999",
         }
     )
@@ -2176,8 +2135,6 @@ def test_refresh_live_bridge_admission_rejects_drift_before_runner_spawn(
         fresh["release"] = {"manifest_sha256": "d" * 64, "program_id": "other"}
     elif mutate == "delivery":
         fresh["delivery_observation"]["transaction_id"] = "e" * 32
-    elif mutate == "stopped":
-        fresh["program_state"] = "RUNNING step5d_strict_rnn_autotune_v3_r999"
 
     def observe(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
         return dict(fresh)

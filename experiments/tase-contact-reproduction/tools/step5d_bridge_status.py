@@ -46,10 +46,6 @@ from step5d_autotune_v3.release_identity import (
 )
 from step5d_autotune_v3.release_certificate import ReleaseCertificateError
 from step5d_autotune_v3.release_contract import ReleaseContractError
-from step5d_autotune_v3.release_transition import (
-    ReleaseTransitionError,
-    resolve_publication_lineage,
-)
 from step5d_bridge_authority import (
     BridgeAuthorityError,
     load_current as load_owner_authority,
@@ -151,9 +147,7 @@ def _base_status(reason: str, *, attempt: Mapping[str, Any] | None) -> dict[str,
             "CURRENT_RELEASE_INVALID": "repair_current_release_before_retry",
             "RELEASE_CERTIFICATE_MISSING": "run_revalidate_current",
             "DELIVERY_REVALIDATION_REQUIRED": "run_revalidate_current",
-            "PUBLICATION_LINEAGE_MISSING": "run_revalidate_current",
-            "LOADED_PROGRAM_UNSUPPORTED": "load_exact_supported_program_before_retry",
-            "MANUAL_V2_ARCHIVED": "load_current_autotune_v3_program",
+            "MANUAL_V2_ARCHIVED": "start_current_autotune_v3_bridge",
         }.get(reason, "repair_internal_governance_state"),
         "launch_attempt": _launch_view(attempt),
     }
@@ -193,10 +187,6 @@ def _resolve_pre_attempt_status(root: Path) -> dict[str, Any]:
         )
     except (OSError, ValueError, DeliveryObservationError):
         return _base_status("DELIVERY_REVALIDATION_REQUIRED", attempt=None)
-    try:
-        resolve_publication_lineage(root, release=release)
-    except ReleaseTransitionError:
-        return _base_status("PUBLICATION_LINEAGE_MISSING", attempt=None)
     status = _base_status("NO_CANONICAL_LAUNCH_ATTEMPT", attempt=None)
     status["predicates"]["controller_fresh_get"] = True
     status["predicates"]["release_contract_proven"] = True
@@ -210,34 +200,16 @@ def _resolve_pre_attempt_status(root: Path) -> dict[str, Any]:
         )
     except BridgeAdmissionError:
         return status
-    if admission["state"] == "ACTION_REQUIRED":
-        status["blocker"] = {
-            "class": "BLOCKED_EXTERNAL",
-            "reason_codes": ["EXTERNAL_ACTION_REQUIRED"],
-            "evidence": [
-                {
-                    "role": "bridge_admission",
-                    "path": admission_path.relative_to(root).as_posix(),
-                    "detail": admission["operator_action"],
-                    "delivery_observation": delivery_path.relative_to(root).as_posix(),
-                    "transaction_id": delivery["transaction_id"],
-                }
-            ],
-        }
-        status["next_action"] = "load_exact_program_on_tp_and_leave_stopped"
-        status["milestones"]["acceptance"]["admission"] = admission.get(
-            "milestones", []
-        )
-    if admission["state"] == "BENCH_READY":
-        status["predicates"]["play_prompt_ready"] = True
-        status["blocker"] = {"class": None, "reason_codes": [], "evidence": []}
-        status["next_action"] = "PRESS_PLAY"
-        status["milestones"]["acceptance"]["admission"] = admission.get(
-            "milestones", []
-        )
-        status["milestones"]["acceptance_certificate"]["admission"] = admission.get(
-            "milestones", []
-        )
+    if admission["state"] == "BRIDGE_START_READY":
+        evidence = [
+            {
+                "role": "bridge_admission",
+                "path": admission_path.relative_to(root).as_posix(),
+                "delivery_observation": delivery_path.relative_to(root).as_posix(),
+                "transaction_id": delivery["transaction_id"],
+            }
+        ]
+        status["blocker"] = {"class": None, "reason_codes": [], "evidence": evidence}
     return status
 
 

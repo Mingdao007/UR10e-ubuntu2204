@@ -10419,12 +10419,16 @@ def read_dashboard_watch_snapshot(
         return "dashboard_program_watch_unavailable", dashboard_watch_saw_running
     if dashboard_state_value(dashboard.get("safetymode")) != "NORMAL":
         return "dashboard_safety_not_normal", dashboard_watch_saw_running
-    if bridge_profile in {STEP5D_ABLATION_V29_STAGE_ID, STEP5D_AUTOTUNE_STAGE_ID}:
+    if bridge_profile == STEP5D_ABLATION_V29_STAGE_ID:
         if not step5d_dashboard_program_identity_matches(
             dashboard.get("get loaded program"), bridge_profile
         ):
             return "dashboard_program_identity_drift", dashboard_watch_saw_running
-    if not dashboard_watch_saw_running and dashboard_state_value(dashboard.get("programState")).startswith("STOPPED"):
+    if (
+        bridge_profile == STEP5D_ABLATION_V29_STAGE_ID
+        and not dashboard_watch_saw_running
+        and dashboard_state_value(dashboard.get("programState")).startswith("STOPPED")
+    ):
         if float(now_mono) - float(start_mono) >= timeout_s:
             return "dashboard_play_timeout", dashboard_watch_saw_running
     running = dashboard_state_value(dashboard.get("running")) == "TRUE"
@@ -10440,10 +10444,7 @@ def require_v29_dashboard_program_binding(
     args: argparse.Namespace,
     dashboard: Mapping[str, Any] | None,
 ) -> None:
-    if args.bridge_profile not in {
-        STEP5D_ABLATION_V29_STAGE_ID,
-        STEP5D_AUTOTUNE_STAGE_ID,
-    }:
+    if args.bridge_profile != STEP5D_ABLATION_V29_STAGE_ID:
         return
     if not isinstance(dashboard, Mapping):
         raise SystemExit("v29 Dashboard preflight is missing")

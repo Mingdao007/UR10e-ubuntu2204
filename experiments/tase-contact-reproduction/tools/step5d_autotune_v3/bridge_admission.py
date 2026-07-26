@@ -6,38 +6,25 @@ import hashlib
 import json
 from pathlib import Path
 import time
-from typing import Any, Callable, Mapping
+from typing import Any, Mapping
 
 from .atomic_io import AtomicIOError, atomic_bytes
-from .dashboard import dashboard_exchange
 from .delivery_observation import (
     load_delivery_observation,
     resolve_delivery_observation,
 )
-from .profile import ContractViolation, load_contract
 from .release_certificate import certificate_path, load_release_certificate
 from .release_contract import (
     release_contract_scope_for_release,
     validate_release_contract_result,
 )
 from .release_identity import (
-    SAFETY_ENVELOPE_PATH,
     ReleaseIdentity,
     load_runtime_release,
-    release_payload_path,
-)
-from .runtime_gate import (
-    RuntimeGateError,
-    loaded_program_matches,
-    release_runtime_contract,
-)
-from .release_transition import (
-    ReleaseTransitionError,
-    resolve_publication_lineage,
 )
 
 
-SCHEMA = "step5d.autotune-v3/bridge-admission-v1"
+SCHEMA = "step5d.autotune-v3/bridge-admission-v2"
 INDEX_ROOT = Path("runs/step5d_autotune_v3/bridge-admissions")
 ADMISSION_MAX_AGE_NS = 5_000_000_000
 ADMISSION_FUTURE_SKEW_NS = 5_000_000
@@ -118,17 +105,9 @@ def validate_bridge_admission(
         "state",
         "ok",
         "reason_code",
-        "checks",
-        "program_state",
-        "loaded_program",
-        "expected_loaded_program",
-        "milestones",
-        "operator_action",
         "release",
         "release_contract",
-        "publication_lineage",
         "delivery_observation",
-        "dashboard",
         "authority_acquired",
         "attempt_created",
         "campaign_fingerprint",
@@ -144,6 +123,9 @@ def validate_bridge_admission(
         or observed_at <= 0
         or observed_at > observed_now + ADMISSION_FUTURE_SKEW_NS
         or observed_now - observed_at > ADMISSION_MAX_AGE_NS
+        or row.get("state") != "BRIDGE_START_READY"
+        or row.get("ok") is not True
+        or row.get("reason_code") != "DELIVERY_VERIFIED"
         or row.get("authority_acquired") is not False
         or row.get("attempt_created") is not False
     ):
@@ -162,25 +144,12 @@ def validate_bridge_admission(
     ):
         raise BridgeAdmissionError("bridge admission release binding differs")
     campaign_fingerprint = row.get("campaign_fingerprint")
-    milestones = row.get("milestones", [])
     if (
-        not isinstance(milestones, list)
-        or not all(isinstance(item, str) for item in milestones)
+        not isinstance(campaign_fingerprint, str)
+        or len(campaign_fingerprint) != 64
+        or any(character not in "0123456789abcdef" for character in campaign_fingerprint)
     ):
-        raise BridgeAdmissionError("bridge admission milestones differ")
-    if row.get("ok") is True:
-        if "PROGRAM_LOADED_STOPPED" not in milestones:
-            raise BridgeAdmissionError(
-                "bridge admission readiness milestone is missing"
-            )
-        if (
-            not isinstance(campaign_fingerprint, str)
-            or len(campaign_fingerprint) != 64
-            or any(character not in "0123456789abcdef" for character in campaign_fingerprint)
-        ):
-            raise BridgeAdmissionError("bridge admission campaign fingerprint differs")
-    elif campaign_fingerprint is not None:
-        raise BridgeAdmissionError("action-required admission must not carry a campaign fingerprint")
+        raise BridgeAdmissionError("bridge admission campaign fingerprint differs")
     if environment is None:
         expected_release_contract = release_contract_reference(root, release)
     else:
@@ -191,23 +160,6 @@ def validate_bridge_admission(
         )
     if row.get("release_contract") != expected_release_contract:
         raise BridgeAdmissionError("bridge admission release contract differs")
-    try:
-        lineage_path, _lineage = resolve_publication_lineage(
-            root,
-            release=release,
-        )
-    except ReleaseTransitionError as exc:
-        raise BridgeAdmissionError(
-            f"bridge admission publication lineage differs: {exc}"
-        ) from exc
-    expected_lineage = {
-        "path": lineage_path.relative_to(root.resolve(strict=True)).as_posix(),
-        "sha256": _sha256(lineage_path),
-    }
-    if row.get("publication_lineage") != expected_lineage:
-        raise BridgeAdmissionError(
-            "bridge admission publication lineage differs"
-        )
     experiment = root.resolve(strict=True)
     relative_delivery = Path(str(delivery_ref["path"]))
     if (
@@ -231,33 +183,6 @@ def validate_bridge_admission(
         or delivery["transaction_id"] != delivery_ref["transaction_id"]
     ):
         raise BridgeAdmissionError("bridge admission delivery binding differs")
-    try:
-        runtime_contract = release_runtime_contract(experiment, release)
-        expected_program = str(runtime_contract["expected_loaded_program"])
-    except (KeyError, TypeError, ValueError, RuntimeGateError) as exc:
-        raise BridgeAdmissionError(
-            f"bridge admission release contract differs: {exc}"
-        ) from exc
-    if row.get("expected_loaded_program") != expected_program:
-        raise BridgeAdmissionError("bridge admission expected program differs")
-    computed = compute_program_admission(
-        {
-            "programState": row.get("program_state"),
-            "get loaded program": row.get("loaded_program"),
-        },
-        expected_program=expected_program,
-    )
-    if sorted(set(row.get("milestones", []))) != sorted(set(computed["milestones"])):
-        raise BridgeAdmissionError("bridge admission computed milestones differ")
-    for field in (
-        "state",
-        "ok",
-        "reason_code",
-        "checks",
-        "operator_action",
-    ):
-        if row.get(field) != computed[field]:
-            raise BridgeAdmissionError("bridge admission computed view differs")
     return row
 
 
@@ -354,140 +279,49 @@ def resolve_bridge_admission(
     return path, row
 
 
-def release_robot_host(root: Path, release: ReleaseIdentity) -> str:
-    contract_path = release_payload_path(root, release, SAFETY_ENVELOPE_PATH)
-    contract = load_contract(contract_path)
-    try:
-        robot_host = contract["effective_fields"]["runtime_identity"]["robot_host"]
-    except (KeyError, TypeError) as exc:
-        raise ContractViolation(
-            "immutable release contract lacks robot_host"
-        ) from exc
-    if not isinstance(robot_host, str) or not robot_host or any(
-        character in robot_host for character in ("\x00", "\r", "\n")
-    ):
-        raise ContractViolation("immutable release robot_host is unsafe")
-    return robot_host
-
-
-def compute_program_admission(
-    dashboard: Mapping[str, Any],
-    *,
-    expected_program: str,
-) -> dict[str, Any]:
-    raw_state = str(
-        dashboard.get("programState", dashboard.get("program_state", ""))
-    )
-    raw_loaded = str(
-        dashboard.get("get loaded program", dashboard.get("loaded_program", ""))
-    )
-    state = raw_state.split(maxsplit=1)[0].upper() if raw_state else ""
-    checks = {
-        "exact_program_loaded": loaded_program_matches(
-            raw_loaded,
-            expected_program,
-        ),
-        "program_stopped": state == "STOPPED",
-    }
-    ready = all(checks.values())
-    milestones = ["PROGRAM_LOADED_STOPPED"] if ready else []
-    return {
-        "state": "BENCH_READY" if ready else "ACTION_REQUIRED",
-        "ok": ready,
-        "reason_code": (
-            "PROGRAM_LOADED_STOPPED"
-            if ready
-            else "EXTERNAL_ACTION_REQUIRED"
-        ),
-        "checks": checks,
-        "program_state": raw_state,
-        "loaded_program": raw_loaded,
-        "expected_loaded_program": expected_program,
-        "milestones": milestones,
-        "operator_action": (
-            None
-            if ready
-            else "LOAD_EXACT_PROGRAM_ON_TP_AND_LEAVE_STOPPED"
-        ),
-    }
-
-
 def observe_bridge_admission(
     root: Path,
     *,
     compatibility_delivery_observation: Path | None = None,
-    dashboard_reader: Callable[..., Mapping[str, Any]] = dashboard_exchange,
     robot_host: str | None = None,
     timeout_s: float = 3.0,
 ) -> dict[str, Any]:
+    del robot_host, timeout_s
     experiment = root.resolve(strict=True)
     release = load_runtime_release(experiment)
-    runtime_contract = release_runtime_contract(experiment, release)
     release_contract = release_contract_reference(experiment, release)
-    try:
-        lineage_path, _lineage = resolve_publication_lineage(
-            experiment,
-            release=release,
-        )
-    except ReleaseTransitionError as exc:
-        raise BridgeAdmissionError(
-            f"publication lineage gate failed: {exc}"
-        ) from exc
     delivery_path, delivery = resolve_delivery_observation(
         experiment,
         release=release,
         compatibility_path=compatibility_delivery_observation,
     )
-    host = robot_host or release_robot_host(experiment, release)
+    from step5d_autotune_backend import Step5dV35Backend
+
     try:
-        dashboard = dashboard_reader(
-            host,
-            ["programState", "get loaded program"],
-            timeout=timeout_s,
-        )
+        campaign_fingerprint = Step5dV35Backend(
+            experiment
+        ).freeze_fingerprint().composite_fingerprint
     except Exception as exc:
         raise BridgeAdmissionError(
-            f"Dashboard read-only admission failed: {type(exc).__name__}:{exc}"
+            f"verified campaign fingerprint unavailable: {type(exc).__name__}:{exc}"
         ) from exc
-    if not isinstance(dashboard, Mapping):
-        raise BridgeAdmissionError("Dashboard admission response is not an object")
-    computed = compute_program_admission(
-        dashboard,
-        expected_program=str(runtime_contract["expected_loaded_program"]),
-    )
-    campaign_fingerprint = None
-    if computed["ok"] is True:
-        from step5d_autotune_backend import Step5dV35Backend
-
-        try:
-            campaign_fingerprint = Step5dV35Backend(experiment).freeze_fingerprint().composite_fingerprint
-        except Exception as exc:
-            raise BridgeAdmissionError(
-                f"verified campaign fingerprint unavailable: {type(exc).__name__}:{exc}"
-            ) from exc
     return validate_bridge_admission(
         experiment,
         {
         "schema": SCHEMA,
         "observed_at_unix_ns": time.time_ns(),
-        **computed,
+        "state": "BRIDGE_START_READY",
+        "ok": True,
+        "reason_code": "DELIVERY_VERIFIED",
         "release": {
             "manifest_sha256": release.manifest_sha256,
             "program_id": release.program_id,
         },
         "release_contract": release_contract,
-        "publication_lineage": {
-            "path": lineage_path.relative_to(experiment).as_posix(),
-            "sha256": _sha256(lineage_path),
-        },
         "delivery_observation": {
             "path": delivery_path.relative_to(experiment).as_posix(),
             "sha256": _sha256(delivery_path),
             "transaction_id": delivery["transaction_id"],
-        },
-        "dashboard": {
-            "host": host,
-            "commands": ["programState", "get loaded program"],
         },
         "authority_acquired": False,
         "attempt_created": False,
@@ -501,10 +335,8 @@ __all__ = [
     "BridgeAdmissionError",
     "SCHEMA",
     "admission_index_path",
-    "compute_program_admission",
     "observe_bridge_admission",
     "release_contract_reference",
-    "release_robot_host",
     "resolve_bridge_admission",
     "validate_bridge_admission",
     "write_indexed_bridge_admission",

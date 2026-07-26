@@ -32,64 +32,9 @@ RUNTIME_IDENTITY = {
 }
 
 
-def _program_gate(dashboard, rtde):
-    return gate._program_safe_for_bridge(
-        dashboard,
-        rtde,
-        expected_controller_program=EXPECTED_PROGRAM,
-        runtime_identity=RUNTIME_IDENTITY,
-    )
-
-
-def test_exact_v3_must_be_stopped_before_bridge_start() -> None:
-    assert _program_gate(
-        {
-            "programState": "STOPPED",
-            "get loaded program": f"Loaded program: {EXPECTED_PROGRAM}",
-        },
-        {"output_int_register_30": 33},
-    )["ok"] is True
-    assert _program_gate(
-        {
-            "programState": "STOPPED",
-            "get loaded program": (
-                "Loaded program: /programs/andyl/kunwei/step5/"
-                "step5d_strict_rnn_autotune_v1.urp"
-            ),
-        },
-        {},
-    )["ok"] is False
-    ready_home = {f"output_int_register_{index}": 0 for index in range(24, 35)}
-    ready_home["output_int_register_26"] = 10
-    ready_home.update(
-        {
-            "output_int_register_35": 1,
-            "output_int_register_36": 1234,
-            "output_int_register_37": 5678,
-        }
-    )
-    result = _program_gate(
-        {
-            "programState": "PLAYING",
-            "get loaded program": f"Loaded program: {EXPECTED_PROGRAM}",
-        },
-        ready_home,
-    )
-    assert result["ok"] is False
-    assert result["mode"] == "loaded_stopped"
-
-
-def test_playing_v3_before_bridge_is_always_rejected() -> None:
-    base = {f"output_int_register_{index}": 0 for index in range(24, 35)}
-    dashboard = {
-        "programState": "PLAYING",
-        "get loaded program": f"Loaded program: {EXPECTED_PROGRAM}",
-    }
-    assert _program_gate(dashboard, base)["ok"] is False
-    assert _program_gate(
-        dashboard,
-        {**base, "output_int_register_26": 10, "output_int_register_24": 1},
-    )["ok"] is False
+def test_loaded_program_and_stopped_are_not_bridge_preflight_predicates() -> None:
+    assert "program_safe_for_bridge" not in gate.PREDICATE_NAMES
+    assert not hasattr(gate, "_program_safe_for_bridge")
 
 
 def test_stationary_predicate_uses_tcp_and_joint_speed() -> None:

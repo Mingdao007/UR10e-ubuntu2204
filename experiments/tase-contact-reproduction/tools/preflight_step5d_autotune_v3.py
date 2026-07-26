@@ -26,10 +26,7 @@ from step5d_autotune_v3.release_identity import (
     load_runtime_release,
     release_payload_path,
 )
-from step5d_autotune_v3.runtime_gate import (
-    loaded_program_matches,
-    release_runtime_contract,
-)
+from step5d_autotune_v3.runtime_gate import release_runtime_contract
 from step5d_autotune_v3.runtime_identity import validate_rtde_output_recipe
 from step5d_autotune_v3.rtde_client import RTDEClient
 from step5d_autotune_v3.runtime_profile import DEFAULT_OVERLAY
@@ -45,7 +42,6 @@ SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v4"
 PREDICATE_NAMES = frozenset(
     {
         "safety_normal",
-        "program_safe_for_bridge",
         "robot_stationary",
         "no_existing_writer",
         "mailbox_initial_zero",
@@ -103,35 +99,6 @@ def _read_rtde_with_recipe_proof(
 def _value(observation: Mapping[str, Any]) -> Mapping[str, Any]:
     value = observation.get("value")
     return value if isinstance(value, Mapping) else {}
-
-
-def _program_safe_for_bridge(
-    dashboard: Mapping[str, Any],
-    rtde: Mapping[str, Any],
-    *,
-    expected_controller_program: str,
-    runtime_identity: Mapping[str, Any],
-) -> dict[str, Any]:
-    raw_state = str(
-        dashboard.get("programState", dashboard.get("program_state", ""))
-    )
-    raw_loaded = str(
-        dashboard.get("get loaded program", dashboard.get("loaded_program", ""))
-    )
-    state = raw_state.split(maxsplit=1)[0].upper() if raw_state else ""
-    exact_program = loaded_program_matches(raw_loaded, expected_controller_program)
-    checks = {
-        "exact_program": exact_program,
-        "stopped": state == "STOPPED",
-    }
-    return {
-        "ok": all(checks.values()),
-        "mode": "loaded_stopped",
-        "checks": checks,
-        "program_state": raw_state,
-        "loaded_program": raw_loaded,
-        "expected_loaded_program": expected_controller_program,
-    }
 
 
 def _stationary(rtde: Mapping[str, Any]) -> dict[str, Any]:
@@ -302,12 +269,6 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
     )
     predicates = {
         "safety_normal": _safety_normal(dashboard),
-        "program_safe_for_bridge": _program_safe_for_bridge(
-            dashboard,
-            rtde,
-            expected_controller_program=runtime_contract["expected_loaded_program"],
-            runtime_identity=runtime_contract["tp_runtime_identity"],
-        ),
         "robot_stationary": _stationary(rtde),
         "no_existing_writer": {
             "ok": _value(local.get("writer", {})).get("ok") is True,

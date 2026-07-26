@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve the canonical bridge route from one fresh read-only Dashboard GET."""
+"""Resolve the canonical autotune bridge route from the current release."""
 
 from __future__ import annotations
 
@@ -9,9 +9,7 @@ import json
 from pathlib import Path
 import sys
 
-from step5d_autotune_v3.dashboard import dashboard_exchange
 from step5d_autotune_v3.governance import load_current_release_snapshot
-from step5d_autotune_v3.runtime_gate import loaded_program_matches
 from step5d_autotune_v3.state import atomic_json
 
 
@@ -53,49 +51,24 @@ def _v3_program_paths(root: Path) -> tuple[str, frozenset[str]]:
 
 
 def resolve(*, root: Path, robot_host: str, timeout_s: float) -> dict[str, object]:
-    dashboard = dashboard_exchange(
-        robot_host,
-        ["programState", "safetymode", "get loaded program"],
-        timeout=timeout_s,
-    )
-    loaded = dashboard["get loaded program"]
-    manual = loaded_program_matches(loaded, MANUAL_PATH)
+    del robot_host, timeout_s
     active_v3_path, recovery_v3_paths = _v3_program_paths(root)
-    autotune_release = None if manual else load_current_release_snapshot(root)
-    active_v3 = loaded_program_matches(loaded, active_v3_path)
-    recovery_v3 = any(
-        loaded_program_matches(loaded, path) for path in recovery_v3_paths
-    )
-    autotune = not manual and (active_v3 or recovery_v3)
-    route = "autotune_v3" if autotune else "BLOCKED"
-    reason_code = None
-    if route == "BLOCKED":
-        reason_code = (
-            "MANUAL_V2_ARCHIVED" if manual else "LOADED_PROGRAM_UNSUPPORTED"
-        )
+    autotune_release = load_current_release_snapshot(root)
+    if not autotune_release.valid:
+        raise ValueError("current autotune release is invalid")
     return {
         "schema": "step5d.bridge-route/v2",
-        "route": route,
-        "reason_code": reason_code,
-        "loaded_program_response": loaded,
+        "route": "autotune_v3",
+        "reason_code": None,
+        "loaded_program_response": None,
         "expected_manual_program": MANUAL_PATH,
-        "expected_autotune_program": (
-            active_v3_path
-        ),
+        "expected_autotune_program": active_v3_path,
         "accepted_autotune_recovery_programs": sorted(recovery_v3_paths),
-        "autotune_route_mode": (
-            "active" if active_v3 else "recovery" if recovery_v3 else None
-        ),
-        "program_state": dashboard["programState"],
-        "safety_mode": dashboard["safetymode"],
-        "manual_release_manifest_sha256": (
-            None
-        ),
-        "autotune_release_manifest_sha256": (
-            None
-            if autotune_release is None or not autotune_release.valid
-            else autotune_release.manifest_sha256
-        ),
+        "autotune_route_mode": "current_release",
+        "program_state": None,
+        "safety_mode": None,
+        "manual_release_manifest_sha256": None,
+        "autotune_release_manifest_sha256": autotune_release.manifest_sha256,
         "read_only": True,
     }
 

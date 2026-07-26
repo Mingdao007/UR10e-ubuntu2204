@@ -107,8 +107,6 @@ def _observation_fixture(
     delivery_path = root / "runs/delivery-observation.json"
     delivery_path.parent.mkdir()
     delivery_path.write_text('{"fixture":true}\n', encoding="utf-8")
-    lineage_path = root / "runs/publication-lineage.json"
-    lineage_path.write_text('{"fixture":"lineage"}\n', encoding="utf-8")
     release = SimpleNamespace(
         manifest_sha256="a" * 64,
         program_id="step5d_strict_rnn_autotune_v3_r012",
@@ -122,13 +120,6 @@ def _observation_fixture(
     )
     monkeypatch.setattr(
         bridge_admission,
-        "release_runtime_contract",
-        lambda _root, _release: {
-            "expected_loaded_program": EXPECTED_PROGRAM,
-        },
-    )
-    monkeypatch.setattr(
-        bridge_admission,
         "release_contract_reference",
         lambda _root, _release: {
             "certificate_path": "runs/certificate.json",
@@ -136,11 +127,6 @@ def _observation_fixture(
             "evidence_path": "runs/contract.json",
             "evidence_sha256": "d" * 64,
         },
-    )
-    monkeypatch.setattr(
-        bridge_admission,
-        "resolve_publication_lineage",
-        lambda _root, **_kwargs: (lineage_path, {"ok": True}),
     )
     monkeypatch.setattr(
         bridge_admission,
@@ -155,31 +141,12 @@ def _observation_fixture(
         "load_delivery_observation",
         lambda _root, _path, **_kwargs: {"transaction_id": "b" * 32},
     )
-    monkeypatch.setattr(
-        bridge_admission,
-        "release_robot_host",
-        lambda _root, _release: "robot",
-    )
-
-    def dashboard_reader(
-        _host: str,
-        requested: list[str],
-        **_kwargs: object,
-    ) -> dict[str, str]:
-        commands.extend(requested)
-        return {
-            "programState": program_state,
-            "get loaded program": f"Loaded program: {loaded_program}",
-        }
-
-    result = bridge_admission.observe_bridge_admission(
-        root,
-        dashboard_reader=dashboard_reader,
-    )
+    del program_state, loaded_program
+    result = bridge_admission.observe_bridge_admission(root)
     return result, commands
 
 
-def test_wrong_program_returns_action_required_without_authority(
+def test_loaded_program_is_not_a_bridge_start_admission_input(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -190,18 +157,15 @@ def test_wrong_program_returns_action_required_without_authority(
         loaded_program="/programs/wrong.urp",
     )
 
-    assert result["state"] == "ACTION_REQUIRED"
-    assert result["reason_code"] == "EXTERNAL_ACTION_REQUIRED"
-    assert result["operator_action"] == (
-        "LOAD_EXACT_PROGRAM_ON_TP_AND_LEAVE_STOPPED"
-    )
-    assert result["milestones"] == []
+    assert result["state"] == "BRIDGE_START_READY"
+    assert result["reason_code"] == "DELIVERY_VERIFIED"
+    assert result["ok"] is True
     assert result["authority_acquired"] is False
     assert result["attempt_created"] is False
-    assert commands == ["programState", "get loaded program"]
+    assert commands == []
 
 
-def test_exact_loaded_stopped_program_is_bench_ready(
+def test_loaded_stopped_program_produces_the_same_bridge_start_admission(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -212,16 +176,15 @@ def test_exact_loaded_stopped_program_is_bench_ready(
         loaded_program=EXPECTED_PROGRAM,
     )
 
-    assert result["state"] == "BENCH_READY"
-    assert result["reason_code"] == "PROGRAM_LOADED_STOPPED"
-    assert result["milestones"] == ["PROGRAM_LOADED_STOPPED"]
-    assert result["operator_action"] is None
+    assert result["state"] == "BRIDGE_START_READY"
+    assert result["reason_code"] == "DELIVERY_VERIFIED"
+    assert result["ok"] is True
     assert result["authority_acquired"] is False
     assert result["attempt_created"] is False
-    assert commands == ["programState", "get loaded program"]
+    assert commands == []
 
 
-def test_validation_rejects_ready_admission_without_program_loaded_stopped_milestone(
+def test_validation_rejects_legacy_loaded_program_field(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -231,11 +194,11 @@ def test_validation_rejects_ready_admission_without_program_loaded_stopped_miles
         program_state="STOPPED step5d_strict_rnn_autotune_v3_r012.urp",
         loaded_program=EXPECTED_PROGRAM,
     )
-    result["milestones"] = []
+    result["loaded_program"] = EXPECTED_PROGRAM
 
     with pytest.raises(
         bridge_admission.BridgeAdmissionError,
-        match="readiness milestone",
+        match="fields or freshness differ",
     ):
         bridge_admission.validate_bridge_admission(
             tmp_path / "experiment",
@@ -248,7 +211,7 @@ def test_validation_rejects_ready_admission_without_program_loaded_stopped_miles
         )
 
 
-def test_admission_expected_program_is_bound_to_release_contract(
+def test_validation_rejects_legacy_publication_lineage_field(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -258,7 +221,7 @@ def test_admission_expected_program_is_bound_to_release_contract(
         program_state="STOPPED step5d_strict_rnn_autotune_v3_r012.urp",
         loaded_program=EXPECTED_PROGRAM,
     )
-    result["expected_loaded_program"] = "/programs/forged.urp"
+    result["publication_lineage"] = {"path": "obsolete", "sha256": "f" * 64}
     release = SimpleNamespace(
         manifest_sha256="a" * 64,
         program_id="step5d_strict_rnn_autotune_v3_r012",
@@ -266,7 +229,7 @@ def test_admission_expected_program_is_bound_to_release_contract(
 
     with pytest.raises(
         bridge_admission.BridgeAdmissionError,
-        match="expected program differs",
+        match="fields or freshness differ",
     ):
         bridge_admission.validate_bridge_admission(
             tmp_path / "experiment",
@@ -276,16 +239,16 @@ def test_admission_expected_program_is_bound_to_release_contract(
         )
 
 
-def test_cli_uses_exit_75_for_external_action_required(
+def test_cli_has_no_external_action_required_exit(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     output = tmp_path / "admission.json"
     payload = {
         "schema": bridge_admission.SCHEMA,
-        "state": "ACTION_REQUIRED",
-        "ok": False,
-        "reason_code": "EXTERNAL_ACTION_REQUIRED",
+        "state": "BRIDGE_START_READY",
+        "ok": True,
+        "reason_code": "DELIVERY_VERIFIED",
         "authority_acquired": False,
         "attempt_created": False,
     }
@@ -300,7 +263,7 @@ def test_cli_uses_exit_75_for_external_action_required(
         lambda *_args, **_kwargs: tmp_path / "indexed-admission.json",
     )
 
-    assert admission_cli.main(["--root", str(tmp_path), "--output", str(output)]) == 75
+    assert admission_cli.main(["--root", str(tmp_path), "--output", str(output)]) == 0
     assert json.loads(output.read_text(encoding="utf-8")) == payload
 
 

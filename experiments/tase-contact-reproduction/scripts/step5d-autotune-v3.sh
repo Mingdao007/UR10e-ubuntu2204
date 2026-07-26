@@ -976,10 +976,6 @@ if (( bridge_mode == 1 )); then
     "${EXPERIMENT_ROOT}/tools/check_step5d_autotune_v3_bridge_admission.py" \
     "${admission_args[@]}" \
     >"${output_root}/bridge-admission.log" || admission_rc=$?
-  if (( admission_rc == 75 )); then
-    echo "EXTERNAL_ACTION_REQUIRED: load the exact current TP program and leave it STOPPED, then rerun the same bridge command" >&2
-    exit 75
-  fi
   if (( admission_rc != 0 )); then
     echo "bridge admission observation failed; see ${admission}" >&2
     exit "${admission_rc}"
