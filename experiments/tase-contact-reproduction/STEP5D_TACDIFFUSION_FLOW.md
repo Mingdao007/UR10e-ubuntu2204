@@ -95,6 +95,12 @@ compensation; the commanded torque therefore contains no gravity term.
 The stage trajectory clock begins only after the host first observes the
 Direct Torque state, so the stationary dwell cannot shorten the 100 ms hold
 or advance a later ramp/reference before torque entry.
+The certified tube axes and half-widths remain bundle-bound, but their absolute
+center and orientation are rebound on the controller to the first fresh actual
+TCP pose of each valid RUN episode. Host preflight, timeline validation, and
+per-sample guards use the same episode-entry rebase. The historical reference
+anchor therefore defines the validated relative path shape, not a requirement
+to return the robot to a stale absolute pose before a no-contact canary.
 Every exit converges to one `stopj(10.0)` site. There is no deliberately
 zero-vector startup or exit command; the computed non-gravity torque is
 expected to be zero at exact equilibrium and zero velocity.
@@ -110,6 +116,15 @@ friction/stiction injection from other controller-internal mode-transition
 effects. A separate `5 rad/s²` guard, derived from consecutive 500 Hz
 `actual_qd` samples, reports fault 12; it is defense-in-depth and is not
 claimed as the root fix.
+
+A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
+captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean
+`target_moment` was approximately
+`[0.000, 35.732, 22.270, 3.767, 0.00667, -0.00000057] Nm`, while maximum
+observed joint speed was `4.93e-5 rad/s`. These values are diagnostic evidence
+that a stationary position-control state does not present as an all-zero
+`target_moment`; they are not copied into the Direct Torque command and are
+not training data.
 
 The compile probe is a distinct no-motion program: it contains no
 `direct_torque`, `stopj`, motion primitive, or RTDE input read. A successful

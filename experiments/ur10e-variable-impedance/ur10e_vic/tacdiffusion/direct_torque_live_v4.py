@@ -200,6 +200,21 @@ class LiveTubeContract:
         ):
             raise RuntimeError(f"{role}_tube_orientation_guard")
 
+    def rebased(self, anchor_pose_base: Sequence[float]) -> "LiveTubeContract":
+        """Keep the certified envelope but bind it to a fresh episode entry pose."""
+
+        anchor = _finite(anchor_pose_base, 6, "rebase anchor pose")
+        return LiveTubeContract(
+            center_base_m=anchor[:3],
+            anchor_pose_base=anchor,
+            u_axis_base=self.u_axis_base,
+            v_axis_base=self.v_axis_base,
+            safe_u_half_width_m=self.safe_u_half_width_m,
+            safe_v_half_width_m=self.safe_v_half_width_m,
+            normal_half_width_m=self.normal_half_width_m,
+            orientation_tolerance_rad=self.orientation_tolerance_rad,
+        )
+
 
 class SequenceDecision(str, Enum):
     NEW = "NEW"
@@ -319,6 +334,7 @@ def build_live_receiver_source(
   local command_abort = 3
   local running = True
   local torque_entered = False
+  local tube_rebased = False
   local entry_tick = 0
   local entry_stable_ticks = 0
   local exit_fault = 0
@@ -525,6 +541,12 @@ def build_live_receiver_source(
       if guard_force_norm > 6.0 or guard_torque_norm > 0.5:
         packet_ok = False
       end
+      local actual_pose = get_actual_tcp_pose()
+      if not tube_rebased:
+        tube_center_base = [actual_pose[0], actual_pose[1], actual_pose[2]]
+        tube_anchor_pose_base = p[actual_pose[0], actual_pose[1], actual_pose[2], actual_pose[3], actual_pose[4], actual_pose[5]]
+        tube_rebased = True
+      end
       local desired_dx = eq[0] - tube_center_base[0]
       local desired_dy = eq[1] - tube_center_base[1]
       local desired_dz = eq[2] - tube_center_base[2]
@@ -564,7 +586,6 @@ def build_live_receiver_source(
           last_guard_wrench = guard_wrench
           last_raw_force = raw_force
         end
-        local actual_pose = get_actual_tcp_pose()
         local actual_speed = get_actual_tcp_speed()
         local q = get_actual_joint_positions()
         local qd = get_actual_joint_speeds()
@@ -829,6 +850,9 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "def tacdiffusion_remote_direct_torque_v4_program():",
         "tacdiffusion_remote_direct_torque_v4_program()",
         "entry_pose[axis] = actual_pose[axis]",
+        "tube_rebased = False",
+        "tube_center_base = [actual_pose[0], actual_pose[1], actual_pose[2]]",
+        "tube_anchor_pose_base = p[actual_pose[0], actual_pose[1], actual_pose[2], actual_pose[3], actual_pose[4], actual_pose[5]]",
         "entry_stable_ticks_required = 25",
         "entry_joint_speed_limit_rad_s = 0.001",
         "entry_stable_ticks < entry_stable_ticks_required",

@@ -939,15 +939,16 @@ class CanaryTimeline:
             bundle_timeline=bundle.timeline,
             ramp_axis=tuple(float(value) for value in bundle.tube.v_axis_base),
         )
-        bundle.tube.assert_contains_pose(
+        episode_tube = bundle.tube.rebased(start_pose)
+        episode_tube.assert_contains_pose(
             timeline.row_at(0.0)["desired_pose_base"], role="desired"
         )
-        bundle.tube.assert_contains_pose(
+        episode_tube.assert_contains_pose(
             timeline.row_at(duration_s)["desired_pose_base"], role="desired"
         )
         if stage == CANARY_STAGE_REFERENCE:
             for row in bundle.timeline.rows:
-                bundle.tube.assert_contains_pose(
+                episode_tube.assert_contains_pose(
                     timeline.row_at(float(row["progress_s"]))["desired_pose_base"],
                     role="desired",
                 )
@@ -1494,7 +1495,9 @@ def validate_live_preflight(
     ):
         failures.append("release_translation_error_exceeds_1mm")
     try:
-        bundle.tube.assert_contains_pose(rtde["actual_TCP_pose"], role="actual")
+        bundle.tube.rebased(first_desired_pose).assert_contains_pose(
+            rtde["actual_TCP_pose"], role="actual"
+        )
     except RuntimeError as exc:
         failures.append(str(exc))
     if failures:
@@ -1749,6 +1752,7 @@ def _sample_safety_errors(
     episode_identity: int,
     bundle: ValidatedBundle,
     desired_pose: Sequence[float],
+    tube_anchor_pose: Sequence[float],
 ) -> list[str]:
     errors: list[str] = []
     if int(sample["robot_mode"]) != ROBOT_MODE_RUNNING or int(
@@ -1769,11 +1773,12 @@ def _sample_safety_errors(
         if int(sample["output_int_register_30"]) != WRENCH_FRAME_TOKEN:
             errors.append("frame_echo_mismatch")
     try:
-        bundle.tube.assert_contains_pose(sample["actual_TCP_pose"], role="actual")
+        episode_tube = bundle.tube.rebased(tube_anchor_pose)
+        episode_tube.assert_contains_pose(sample["actual_TCP_pose"], role="actual")
     except RuntimeError as exc:
         errors.append(str(exc))
     try:
-        bundle.tube.assert_contains_pose(desired_pose, role="desired")
+        episode_tube.assert_contains_pose(desired_pose, role="desired")
     except RuntimeError as exc:
         errors.append(str(exc))
     return errors
@@ -1808,6 +1813,7 @@ def _append_output_batch(
                 episode_identity=episode_identity,
                 bundle=bundle,
                 desired_pose=desired_row["desired_pose_base"],
+                tube_anchor_pose=active_timeline.rows[0]["desired_pose_base"],
             )
         )
         samples.append(

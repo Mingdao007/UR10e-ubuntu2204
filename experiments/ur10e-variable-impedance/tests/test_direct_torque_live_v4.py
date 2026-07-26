@@ -49,6 +49,23 @@ def test_live_tube_loads_fresh_anchor_without_cad_feedforward() -> None:
     assert payload["cad_height_or_normal_feedforward"] is False
 
 
+def test_live_tube_rebases_certified_envelope_to_fresh_entry_pose() -> None:
+    tube = LiveTubeContract.from_reference_artifact(reference_path())
+    entry = list(tube.anchor_pose_base)
+    entry[0] += 0.001
+    entry[1] += 0.006
+    entry[2] -= 0.025
+    rebased = tube.rebased(entry)
+    assert rebased.center_base_m == pytest.approx(entry[:3])
+    assert rebased.anchor_pose_base == pytest.approx(entry)
+    assert rebased.u_axis_base == tube.u_axis_base
+    assert rebased.v_axis_base == tube.v_axis_base
+    assert rebased.safe_u_half_width_m == tube.safe_u_half_width_m
+    assert rebased.safe_v_half_width_m == tube.safe_v_half_width_m
+    assert rebased.normal_half_width_m == tube.normal_half_width_m
+    rebased.assert_contains_pose(entry, role="actual")
+
+
 def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> None:
     source = build_live_receiver_source(
         LiveTubeContract.from_reference_artifact(reference_path())
@@ -89,6 +106,16 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "blend*coulomb_scale_target[axis]" not in source
     assert "direct_torque([0.0" not in source
     assert "entry_pose[axis] = actual_pose[axis]" in source
+    assert "tube_rebased = False" in source
+    assert (
+        "tube_center_base = [actual_pose[0], actual_pose[1], actual_pose[2]]"
+        in source
+    )
+    assert (
+        "tube_anchor_pose_base = p[actual_pose[0], actual_pose[1], actual_pose[2], "
+        "actual_pose[3], actual_pose[4], actual_pose[5]]"
+        in source
+    )
     assert "entry_stable_ticks_required = 25" in source
     assert "entry_tcp_translation_speed_limit_m_s = 0.001" in source
     assert "entry_tcp_rotation_speed_limit_rad_s = 0.002" in source

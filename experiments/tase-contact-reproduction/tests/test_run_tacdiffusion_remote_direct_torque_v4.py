@@ -344,6 +344,9 @@ def _fake_output_sample(
 
 def _fake_control_bundle(pose: list[float], *, unsafe_x: float | None = None):
     class FakeTube:
+        def rebased(self, _anchor_pose: list[float]):
+            return self
+
         def assert_contains_pose(self, candidate: list[float], *, role: str) -> None:
             if role == "actual" and unsafe_x is not None and candidate[0] == unsafe_x:
                 raise RuntimeError("actual_pose_outside_tube")
@@ -867,6 +870,38 @@ def test_old_reference_drift_does_not_block_reanchored_canary_preflight(
     ):
         timeline = CanaryTimeline.from_stage(stage, actual_pose=actual, bundle=bundle)
         validate_live_preflight(status, bundle, timeline=timeline)
+
+
+def test_large_old_reference_offset_is_bounded_against_fresh_entry(
+    tmp_path: Path,
+) -> None:
+    bundle = _bundle(tmp_path)
+    actual = list(bundle.timeline.rows[0]["desired_pose_base"])
+    actual[0] += 0.001
+    actual[1] += 0.006
+    actual[2] -= 0.025
+    status = {
+        "remote_control": True,
+        "stopped": True,
+        "stationary": True,
+        "dashboard": {
+            "PolyscopeVersion": "URSoftware 5.26.0",
+            "safetystatus": "Safetystatus: NORMAL",
+            "robotmode": "Robotmode: RUNNING",
+        },
+        "rtde": {
+            "safety_mode": SAFETY_MODE_NORMAL,
+            "robot_mode": ROBOT_MODE_RUNNING,
+            "actual_TCP_pose": actual,
+            "actual_TCP_force": [0.0] * 6,
+        },
+    }
+    timeline = CanaryTimeline.from_stage(
+        CANARY_STAGE_HOLD,
+        actual_pose=actual,
+        bundle=bundle,
+    )
+    validate_live_preflight(status, bundle, timeline=timeline)
 
 
 def test_idle_prime_overwrites_stale_command_for_five_fresh_controller_ticks() -> None:
