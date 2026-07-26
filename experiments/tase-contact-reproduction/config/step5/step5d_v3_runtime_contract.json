@@ -108,7 +108,7 @@
   "owner_dependencies": {
     "controller_helper": {
       "owner_id": "ur10e-controller-access",
-      "sha256": "82296c159d241589420a259faf6a480c9c1b3372c9904ba474ecc6140fe03579"
+      "sha256": "06d01fa8e2cd654e917e86ff87f9dfe6923720bede85b8f2259458bcf06acf9e"
     }
   }
 }

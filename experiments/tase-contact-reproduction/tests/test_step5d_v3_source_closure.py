@@ -189,7 +189,7 @@ def test_production_report_classifies_every_active_provider() -> None:
             "name": "controller_helper",
             "owner_id": "ur10e-controller-access",
             "contract_key": "owner_dependencies.controller_helper.sha256",
-            "sha256": "82296c159d241589420a259faf6a480c9c1b3372c9904ba474ecc6140fe03579",
+            "sha256": "06d01fa8e2cd654e917e86ff87f9dfe6923720bede85b8f2259458bcf06acf9e",
         }
     ]
     assert "pyproject.toml" in report["experiment_paths"]
