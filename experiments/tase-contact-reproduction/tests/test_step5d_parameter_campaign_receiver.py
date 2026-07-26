@@ -147,12 +147,16 @@ def test_migrated_not_consumed_p05_rebinds_zero_home_then_advances_p06(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
+    v3_launch_profile = ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+    current_v3_program_id = json.loads(
+        v3_launch_profile.read_text(encoding="utf-8")
+    )["tp_program_id"]
     receiver_root = tmp_path / "receiver"
     initialize(
         receiver_root,
         campaign_id="campaign-test",
         release_manifest_sha256="a" * 64,
-        launch_profile_path=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
+        launch_profile_path=v3_launch_profile,
     )
     for index in range(3):
         submit(
@@ -258,8 +262,8 @@ def test_migrated_not_consumed_p05_rebinds_zero_home_then_advances_p06(
     arm, prepared = runner._prepared(
         SimpleNamespace(
             experiment_root=ROOT,
-            v3_launch_profile=ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
-            v3_program_id="step5d_strict_rnn_autotune_v3_r021",
+            v3_launch_profile=v3_launch_profile,
+            v3_program_id=current_v3_program_id,
             release_manifest_sha256="a" * 64,
         ),
         binding={
@@ -273,8 +277,8 @@ def test_migrated_not_consumed_p05_rebinds_zero_home_then_advances_p06(
         mailbox_path,
         network_mode=True,
         launch_profile=load_launch_profile(
-            ROOT / "config/step5/step5d_autotune_v3_launch_profile.json",
-            expected_tp_program_id="step5d_strict_rnn_autotune_v3_r021",
+            v3_launch_profile,
+            expected_tp_program_id=current_v3_program_id,
         ),
     )
     mailbox.send_command(arm, prepared_trial=prepared)
