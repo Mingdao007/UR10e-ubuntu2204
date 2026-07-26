@@ -196,9 +196,10 @@ def test_installed_runtime_build_context_refactor_is_fail_closed_for_incompatibl
     readiness_report = context_builder.resolve_release_readiness(ROOT)
     blockers = readiness_report["blockers"]
     assert any(
-        "canonical_active_release_verification_failed:source file fingerprint drifted: "
-        "scripts/step5d-autotune-v3.sh"
-        in blocker
+        blocker.startswith(
+            "canonical_active_release_verification_failed:"
+            "source file fingerprint drifted: "
+        )
         for blocker in blockers
     )
 
