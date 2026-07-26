@@ -10885,6 +10885,26 @@
         "readiness_requires_no_sched_fifo_threads": true
       },
       "shape": "cycloid",
+      "stage_contract": {
+        "entry_orientation_policy": "Do not reject the starting pose for Z-axis orientation; correct it through the entry transfer sequence.",
+        "physical_motion_evidence": "ARM or TP command/register consumption is protocol evidence only; physical motion requires measured TCP pose/velocity evidence.",
+        "entry_sequence": [
+          {
+            "id": "corrective_safe_vertical",
+            "target_z_policy": "max(current_z, precontact_z + 0.010136481 m)"
+          },
+          {
+            "id": "xy_orientation_transfer",
+            "z_policy": "constant_z",
+            "orientation_policy": "target_precontact_orientation"
+          },
+          {
+            "id": "precontact_descent",
+            "target_z_m": 0.022863519,
+            "z_policy": "vertical"
+          }
+        ]
+      },
       "source_binding": {
         "autotune_rendered_script_bytes": 34022,
         "autotune_rendered_script_sha256": "eca2c7acaa878b1944c24b46c823ed64ffc0fb9e8658021dfd863a9f624f6676",

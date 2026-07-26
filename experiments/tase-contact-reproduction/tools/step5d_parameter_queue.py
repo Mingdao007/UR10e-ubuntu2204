@@ -34,22 +34,17 @@ STATE_SCHEMA = "step5d.parameter-receiver/state-v2"
 LEGACY_STATE_SCHEMA = "step5d.parameter-receiver/state-v1"
 REQUEST_SCHEMA = "step5d.parameter-receiver/request-v1"
 DISPATCH_SCHEMA = "step5d.parameter-receiver/dispatch-v1"
-RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v2"
-LEGACY_RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v1"
+RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v3"
+LEGACY_RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v2"
 RECONCILIATION_SCHEMA = "step5d.parameter-receiver/reconciliation-v1"
-PHYSICAL_ATTEMPT_SCHEMA = "step5d.parameter-receiver/physical-attempt-v2"
 MIGRATION_SCHEMA = "step5d.parameter-receiver/migration-v1"
 NEXT_ARM_SCHEMA = "step5d.parameter-receiver/governance-next-arm-v1"
 TERMINAL_RECEIPT_SCHEMA = "step5d.parameter-receiver/governance-terminal-receipt-v1"
-CONTINUOUS_READINESS_SCHEMA = "step5d.parameter-receiver/governance-continuous-readiness-v1"
 PROTOCOL = "v3_full_home_parameter_receiver_v1"
 PROFILE_INTEGER_ID = 633
 MAX_JSON_BYTES = 16 * 1024
 POSITIONS = frozenset({"tail", "next"})
 RECEIPT_STATUSES = frozenset({"SUCCEEDED", "FAILED"})
-FAILURE_CLASSES = frozenset(
-    {"PARAMETER_GUARD", "IDENTITY", "SOFTWARE", "DATA_QUALITY", "EXTERNAL_HARDWARE"}
-)
 LEGACY_RECEIPT_STATUSES = frozenset({"COMPLETE", "DATA_ISSUE"})
 
 
@@ -217,14 +212,6 @@ def _receipt_path(root: Path, request_uid: str) -> Path:
 
 def _reconciliation_path(root: Path, dispatch_sequence: int) -> Path:
     return root / "reconciliations" / f"{dispatch_sequence:012d}.json"
-
-
-def _physical_attempt_path(root: Path, control_candidate_uid: str) -> Path:
-    return root / "physical_attempts" / f"{_sha256_bytes(control_candidate_uid.encode('utf-8'))}.json"
-
-
-def _request_physical_attempt_path(root: Path, request_uid: str) -> Path:
-    return root / "physical_attempts" / f"request-{_sha256_bytes(request_uid.encode('utf-8'))}.json"
 
 
 def _governance_root(root: Path) -> Path:
@@ -448,18 +435,6 @@ def _load_terminal_receipts(root: Path) -> tuple[dict[str, Any], ...]:
     return tuple(rows)
 
 
-def _physical_attempt_document(dispatch: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        "schema": PHYSICAL_ATTEMPT_SCHEMA,
-        "request_uid": dispatch["request"]["request_uid"],
-        "control_candidate_uid": dispatch["request"]["control_candidate_uid"],
-        "dispatch_sequence": dispatch["dispatch_sequence"],
-        "dispatch_sha256": dispatch["dispatch_sha256"],
-        "consumed_command_seq": dispatch["packet"]["command_seq"],
-        "physical_attempted": True,
-    }
-
-
 def publish_next_arm(
     root: Path,
     *,
@@ -532,60 +507,6 @@ def record_terminal_receipt(
             existing=existing,
             record=record,
         )
-
-
-def _is_physical_receipt(payload: Mapping[str, Any]) -> bool:
-    schema = payload.get("schema")
-    status = payload.get("status")
-    if schema == RECEIPT_SCHEMA:
-        return status in RECEIPT_STATUSES and payload.get("physical_attempted") is True
-    if schema == LEGACY_RECEIPT_SCHEMA:
-        return status in LEGACY_RECEIPT_STATUSES and payload.get(
-            "physical_attempted", True
-        ) is True
-    return False
-
-
-def continuous_readiness(root: Path) -> dict[str, Any]:
-    with _lock(root):
-        next_arm = _load_next_arm(root)
-        receipts = _load_terminal_receipts(root)
-        ready = False
-        duplicate = False
-        seen_identity: set[str] = set()
-        seen_sequence: set[int] = set()
-        composition = None
-        if next_arm is not None:
-            composition = next_arm["campaign_fingerprint"]
-            for row in receipts:
-                if row["process_composition_sha256"] != composition:
-                    continue
-                identity = row["dispatch_identity"]
-                sequence = row["dispatch_sequence"]
-                duplicate = duplicate or (
-                    identity in seen_identity or sequence in seen_sequence
-                )
-                seen_identity.add(identity)
-                seen_sequence.add(sequence)
-        if len(seen_sequence) >= 10:
-            sorted_sequence = sorted(seen_sequence)
-            duplicate = duplicate or any(
-                next_sequence != current_sequence + 1
-                for current_sequence, next_sequence in zip(
-                    sorted_sequence[:-1], sorted_sequence[1:]
-                )
-            )
-            ready = not duplicate and len(seen_sequence) >= 10
-        return {
-            "schema": CONTINUOUS_READINESS_SCHEMA,
-            "continuous_readiness": bool(next_arm is not None and ready),
-            "duplicate_arm_detected": bool(duplicate),
-            "process_composition_sha256": composition,
-            "next_arm_dispatch_identity": None
-            if next_arm is None
-            else next_arm["dispatch_identity"],
-            "terminal_receipts": len(seen_sequence),
-        }
 
 
 def _initial_state(
@@ -941,7 +862,6 @@ def _pending(
         for row in _visible_requests(root, state)
         if row["request_uid"] != inflight_uid
         and not _receipt_path(root, str(row["request_uid"])).exists()
-        and not _request_physical_attempt_path(root, str(row["request_uid"])).exists()
     ]
     rows.sort(
         key=lambda row: (
@@ -1139,12 +1059,11 @@ def finish_dispatch(
 ) -> dict[str, Any]:
     if status not in RECEIPT_STATUSES:
         raise ParameterQueueError("dispatch status must be SUCCEEDED or FAILED")
-    if status == "FAILED":
-        if failure_class not in FAILURE_CLASSES:
-            raise ParameterQueueError(
-                "FAILED dispatch requires a valid failure_class"
-            )
-    elif failure_class is not None:
+    if failure_class not in {None, "IDENTITY"}:
+        raise ParameterQueueError(
+            "failure_class is internal-only and may only mark identity recovery"
+        )
+    if status == "SUCCEEDED" and failure_class is not None:
         raise ParameterQueueError("SUCCEEDED dispatch must not have failure_class")
     if process_composition_sha256 is not None and not _is_sha256(
         process_composition_sha256
@@ -1199,6 +1118,12 @@ def finish_dispatch(
                 "last_command_seq": observed["consumed_command_seq"],
             }
         else:
+            terminal_reason = observed.get("terminal_reason")
+            if isinstance(terminal_reason, bool) or not isinstance(terminal_reason, int):
+                raise ParameterQueueError(
+                    "READY_HOME_NEXT terminal observation lacks raw terminal_reason"
+                )
+            expected["terminal_reason"] = terminal_reason
             if dict(observed) != expected:
                 raise ParameterQueueError(
                     "READY_HOME_NEXT identity differs from dispatch"
@@ -1214,19 +1139,9 @@ def finish_dispatch(
             "dispatch_sequence": dispatch["dispatch_sequence"],
             "dispatch_sha256": dispatch["dispatch_sha256"],
             "status": status,
-            "physical_attempted": True,
-            "automatic_retry_allowed": False,
             "detail": detail,
-            "failure_class": failure_class,
             "terminal_observation": dict(observed),
         }
-        ledger = _physical_attempt_document(dispatch)
-        _write_once(
-            _request_physical_attempt_path(
-                root, str(dispatch["request"]["request_uid"])
-            ),
-            ledger,
-        )
         _write_once(
             _receipt_path(root, str(receipt["request_uid"])),
             receipt,
@@ -1246,54 +1161,6 @@ def finish_dispatch(
         state["inflight"] = None
         _atomic_json(_state_path(root), state)
         return receipt
-
-
-def record_dispatch_consumed(
-    root: Path,
-    *,
-    observed: Mapping[str, Any],
-    dispatch_sequence: int | None = None,
-) -> dict[str, Any]:
-    """Persist the physical-attempt fact before terminal Home is available."""
-
-    with _lock(root):
-        state = load_state(root)
-        if dispatch_sequence is None:
-            if state["inflight"] is None:
-                raise ParameterQueueError("no parameter dispatch is inflight")
-            dispatch_sequence = int(state["inflight"]["dispatch_sequence"])
-        elif (
-            isinstance(dispatch_sequence, bool)
-            or not isinstance(dispatch_sequence, int)
-            or dispatch_sequence <= 0
-        ):
-            raise ParameterQueueError("dispatch_sequence must be a positive integer")
-        dispatch = _strict_json(
-            _dispatch_path(root, dispatch_sequence),
-            "parameter dispatch",
-        )
-        packet = dispatch["packet"]
-        expected = {
-            "campaign_epoch": packet["campaign_epoch"],
-            "trial_id": packet["trial_id"],
-            "candidate_token": packet["candidate_token"],
-            "execution_profile_id": packet["execution_profile_id"],
-            "consumed_command_seq": packet["command_seq"],
-            "logical_batch_sequence": packet["logical_batch_sequence"],
-            "batch_row_index": 1,
-        }
-        if any(observed.get(key) != value for key, value in expected.items()):
-            raise ParameterQueueError(
-                "consumed ARM identity differs from inflight dispatch"
-            )
-        ledger = _physical_attempt_document(dispatch)
-        _write_once(
-            _request_physical_attempt_path(
-                root, str(dispatch["request"]["request_uid"])
-            ),
-            ledger,
-        )
-        return ledger
 
 
 def reconcile_not_consumed(
@@ -1326,7 +1193,6 @@ def reconcile_not_consumed(
             "dispatch_sequence": dispatch["dispatch_sequence"],
             "dispatch_sha256": dispatch["dispatch_sha256"],
             "status": "NOT_CONSUMED",
-            "physical_attempted": False,
             "detail": detail,
             "observed_command_seq": observed_command_seq,
             "dispatched_command_seq": packet["command_seq"],
@@ -1348,8 +1214,10 @@ def status(root: Path) -> dict[str, Any]:
         receipts = tuple(
             path
             for path in (root / "receipts").glob("*.json")
-            if not path.is_symlink() and path.is_file()
-            and _is_physical_receipt(_strict_json(path, "parameter receipt"))
+            if not path.is_symlink()
+            and path.is_file()
+            and _strict_json(path, "parameter receipt").get("schema")
+            in {RECEIPT_SCHEMA, LEGACY_RECEIPT_SCHEMA, "step5d.parameter-receiver/receipt-v1"}
         )
     return {
         "schema": STATE_SCHEMA,
@@ -1358,7 +1226,7 @@ def status(root: Path) -> dict[str, Any]:
         "revision": state["revision"],
         "dispatch_sequence": state["dispatch_sequence"],
         "pending_count": len(pending),
-        "attempted_count": len(receipts),
+        "terminal_receipt_count": len(receipts),
         "inflight": state["inflight"],
         "next_request": None if not pending else pending[0],
         "accepting": True,
@@ -1403,8 +1271,6 @@ def main(argv: list[str] | None = None) -> int:
             campaign_id=args.campaign_id,
         )
     else:
-        from step5d_parameter_manifest import import_physical_attempt_uids
-
         payload = submit(
             args.queue_root,
             launch_profile_path=args.launch_profile,
@@ -1414,10 +1280,6 @@ def main(argv: list[str] | None = None) -> int:
             orientation_ko=args.orientation_ko,
             source=args.source,
             position=args.position,
-            attempted_control_uids=import_physical_attempt_uids(
-                args.experiment_root,
-                launch_profile_path=args.launch_profile,
-            ),
         )
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0

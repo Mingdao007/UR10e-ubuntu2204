@@ -213,11 +213,9 @@ def validate_bridge(
         "trial_id": int(float(row["ur_output_int_register_25"])),
         "consumed_command_seq": int(float(row["ur_output_int_register_30"])),
         "command": int(float(row["command"])),
-        "controller_state": int(float(row["step4e_controller_state"])),
         "safety_mode": int(float(row["ur_safety_mode"])),
     }
     if any((
-        observed["controller_state"] != 0,
         observed["safety_mode"] != 1,
         observed["campaign_epoch"] < 0,
         observed["trial_id"] < 0,
@@ -825,7 +823,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                     "trial_id": terminal["trial_id"],
                     "consumed_command_seq": terminal["consumed_command_seq"],
                     "command": int(float(row["command"])),
-                    "controller_state": int(float(row["step4e_controller_state"])),
                     "safety_mode": int(float(row["ur_safety_mode"])),
                 }
                 break

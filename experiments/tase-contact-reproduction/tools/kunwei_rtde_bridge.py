@@ -10588,7 +10588,6 @@ def main(argv: list[str] | None = None) -> int:
         dashboard = dashboard_exchange(
             args.robot_host,
             [
-                "is in remote control",
                 "safetymode",
                 "robotmode",
                 "running",

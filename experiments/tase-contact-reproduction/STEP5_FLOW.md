@@ -64,12 +64,14 @@ for all ten trials. Later register-34 requests retain the TP sensor-ready
 dip/rise handshake but update diagnostic baseline/drift only; contaminated
 finite diagnostic windows are recorded and never overwrite the anchor.
 
-Stage22 means `PREALIGN_IN_PROGRESS`, so the bridge does not apply the final
-pose-admission guard before the two blocking `movel` calls. Stage23 is the
-explicit `PREALIGN_VERIFIED` admission point: XYZ error must be at most `3 mm`
-and approach-axis error at most `2 deg`. Stage24/24.2 retain the orientation
-guard while Z changes during contact search, so they do not reapply the
-precontact XYZ condition.
+Stage22 means `PREALIGN_IN_PROGRESS`. The corrective entry route first moves
+vertically to `max(current_z, precontact_z + 0.010136481 m)`, then performs a
+constant-Z XY and target-orientation transfer, and finally descends vertically
+to the precontact pose. The starting pose is not rejected for Z or orientation.
+Stage23 is the explicit `PREALIGN_VERIFIED` point for the resulting pose: XYZ
+error must be at most `3 mm` and approach-axis error at most `2 deg`.
+Stage24/24.2 retain the orientation guard while Z changes during contact search,
+so they do not reapply the precontact XYZ condition.
 
 The V3 physical prior binds reaction normal
 `[-0.043955267, 0.020079909, 0.998831683]`, approach axis
@@ -95,10 +97,12 @@ Return is typed by exact batch identity: rows 1--9 close at
 the fixed three-segment route: vertical transfer to `z=0.033 m` at
 `a=0.060 m/s^2`, `v=0.040 m/s`; constant-Z translation to precontact XY/prior
 orientation at `a=0.135 m/s^2`, `v=0.090 m/s`; then vertical descent to
-`z=0.022863519 m`. Pose, stillness, and transfer guards must pass before
-state 76 (`READY_NEAR`) for rows 1--9 or state 77
-(`READY_HOME_CLOSED`) for row 10. A read-only observer may sample TCP angular
-speed and controller/sample time but cannot issue any motion call.
+`z=0.022863519 m`. ARM or TP command/register consumption is protocol evidence,
+not proof of physical motion; motion claims require measured TCP pose/velocity
+evidence. Pose, stillness, and transfer guards must pass before state 76
+(`READY_NEAR`) for rows 1--9 or state 77 (`READY_HOME_CLOSED`) for row 10. A
+read-only observer may sample TCP angular speed and controller/sample time but
+cannot issue any motion call.
 
 During active Stage25, the shared moving-sphere kernel checks actual and
 conservative predicted-stop distance against a `15 mm` radius using the

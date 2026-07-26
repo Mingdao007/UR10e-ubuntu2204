@@ -580,9 +580,9 @@ def test_live_consumer_accepts_the_complete_production_preflight_schema(
     observed = live._validate_preflight(path, release)
 
     assert observed == payload
-    assert "prealign_start_clearance" in observed["predicates"]
+    assert "prealign_start_clearance" not in observed["predicates"]
 
-    del payload["predicates"]["prealign_start_clearance"]
+    del payload["predicates"]["robot_stationary"]
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(live.LiveLaunchError, match="predicates are incomplete"):
         live._validate_preflight(path, release)
@@ -1655,7 +1655,7 @@ def test_run_recoverable_live_session_preserves_first_pre_bridge_error_and_stops
     assert status["attempt"] == 0
     assert status["orchestration_cycle"] == 1
     assert status["bridge_launch_attempt"] == 0
-    assert status["trial_physical_attempt"] == 0
+    assert status["session_attempt"] == 0
     assert "bridge admission campaign identity differs" in status["error"]
     assert status["attempt_root"] == str(args.output_root)
     assert not attempt_root.exists()
@@ -1909,7 +1909,7 @@ def test_run_recoverable_live_session_stops_retry_on_raw_session_exception(
     assert status["attempt"] == 0
     assert status["orchestration_cycle"] == 1
     assert status["bridge_launch_attempt"] == 0
-    assert status["trial_physical_attempt"] == 0
+    assert status["session_attempt"] == 0
     assert "unclassified runtime fault" in status["error"]
     assert status["attempt_root"] == str(args.output_root)
     assert not attempt_root.exists()
@@ -1968,7 +1968,7 @@ def test_run_live_single_session_nonrecoverable_failure_preserves_recovering_and
     assert status["attempt_root"] == str(args.output_root)
     assert status["orchestration_cycle"] == 1
     assert status["bridge_launch_attempt"] == 0
-    assert status["trial_physical_attempt"] == 0
+    assert status["session_attempt"] == 0
     assert "single session hard failure" in status["error"]
 
 
@@ -2898,8 +2898,8 @@ def test_run_recoverable_live_session_retries_once_for_recoverable_session_failu
     def recoverable_then_success(*_args: Any, **_kwargs: Any) -> dict[str, bool]:
         attempts.append(1)
         attempt_args = _args[0]
-        attempt_no = int(getattr(attempt_args, "trial_physical_attempt", 0)) + 1
-        attempt_args.trial_physical_attempt = attempt_no
+        attempt_no = int(getattr(attempt_args, "session_attempt", 0)) + 1
+        attempt_args.session_attempt = attempt_no
         attempt_args.output_root = attempt_args.output_root / f"attempt-{attempt_no:04d}"
         attempt_args.bridge_launch_attempt = int(getattr(attempt_args, "bridge_launch_attempt", 0)) + 1
         Path(attempt_args.output_root).mkdir(parents=True, exist_ok=False, mode=0o700)
@@ -2930,7 +2930,7 @@ def test_run_recoverable_live_session_retries_once_for_recoverable_session_failu
     assert final_status["attempt"] == 2
     assert final_status["orchestration_cycle"] == 2
     assert final_status["bridge_launch_attempt"] == 1
-    assert final_status["trial_physical_attempt"] == 2
+    assert final_status["session_attempt"] == 2
     assert final_status["attempt_root"] == str(args.output_root / "attempt-0002")
     assert (args.output_root / "attempt-0001").exists()
     assert (args.output_root / "attempt-0002").exists()
@@ -2977,7 +2977,7 @@ def test_run_recoverable_live_session_default_retry_budget_does_not_retry(
     assert status["attempt"] == 0
     assert status["orchestration_cycle"] == 1
     assert status["bridge_launch_attempt"] == 0
-    assert status["trial_physical_attempt"] == 0
+    assert status["session_attempt"] == 0
 
 
 def test_parameter_receiver_binds_observed_home_before_first_dispatch() -> None:

@@ -299,7 +299,7 @@ def _run_lane(
         (bridge_run / "offline_bridge_stats.json").read_text(encoding="utf-8")
     )
     if (
-        state["attempted_count"] != count
+        state["terminal_receipt_count"] != count
         or state["pending_count"] != 0
         or state["inflight"] is not None
         or len(receipts) != count
@@ -310,7 +310,7 @@ def _run_lane(
         )
     return {
         "trial_count": count,
-        "attempted_count": state["attempted_count"],
+        "terminal_receipt_count": state["terminal_receipt_count"],
         "receipt_count": len(receipts),
         "succeeded_count": sum(
             json.loads(path.read_text(encoding="utf-8"))["status"] == "SUCCEEDED"

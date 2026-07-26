@@ -98,7 +98,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WRAPPER = ROOT / "tools/run_step5d_autotune_v3_bridge.py"
 RUNNER = ROOT / "tools/run_step5d_parameter_campaign.py"
 RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
-LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
+LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v4"
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
 ARM_GATE_REFRESH_INTERVAL_S = ARM_GRANT_MAX_AGE_S * 0.4
 RECOVERY_BACKOFF_S = 1.0
@@ -1326,7 +1326,6 @@ def _validate_preflight(
         "safety_normal",
         "program_safe_for_bridge",
         "robot_stationary",
-        "prealign_start_clearance",
         "no_existing_writer",
         "mailbox_initial_zero",
         "runtime_dependencies",
@@ -1402,8 +1401,8 @@ def _run_live(
     output_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     lifecycle = LiveSessionLifecycle()
     orchestration_cycle = 0
-    trial_physical_attempt = _as_non_negative_int(
-        getattr(args, "trial_physical_attempt", 0), field="trial physical attempt"
+    session_attempt = _as_non_negative_int(
+        getattr(args, "session_attempt", 0), field="session attempt"
     )
     bridge_launch_attempt = _as_non_negative_int(
         getattr(args, "bridge_launch_attempt", 0), field="bridge launch attempt"
@@ -1419,9 +1418,9 @@ def _run_live(
         receiver_accepting: bool | None = None,
         error: str | None = None,
     ) -> dict[str, Any]:
-        attempt_no = int(getattr(attempt_args, "trial_physical_attempt", 0) or 0)
+        attempt_no = int(getattr(attempt_args, "session_attempt", 0) or 0)
         payload = {
-            "schema": "step5d.autotune-v3/recoverable-session-status-v1",
+            "schema": "step5d.autotune-v3/recoverable-session-status-v2",
             "attempt": attempt_no,
             "state": state,
             "attempt_root": str(getattr(attempt_args, "output_root", output_root)),
@@ -1431,7 +1430,7 @@ def _run_live(
             "bridge_launch_attempt": int(
                 getattr(attempt_args, "bridge_launch_attempt", 0)
             ),
-            "trial_physical_attempt": attempt_no,
+            "session_attempt": attempt_no,
         }
         if receiver_accepting is not None:
             payload["receiver_accepting"] = receiver_accepting
@@ -1456,11 +1455,11 @@ def _run_live(
             ),
         )
 
-    def _sync_physical_attempt(attempt_args: argparse.Namespace) -> None:
-        nonlocal trial_physical_attempt
-        attempt_no = int(getattr(attempt_args, "trial_physical_attempt", 0))
-        if attempt_no > trial_physical_attempt:
-            trial_physical_attempt = attempt_no
+    def _sync_session_attempt(attempt_args: argparse.Namespace) -> None:
+        nonlocal session_attempt
+        attempt_no = int(getattr(attempt_args, "session_attempt", 0))
+        if attempt_no > session_attempt:
+            session_attempt = attempt_no
 
     def _sync_bridge_launch_attempt(attempt_args: argparse.Namespace) -> None:
         nonlocal bridge_launch_attempt
@@ -1472,13 +1471,13 @@ def _run_live(
             bridge_launch_attempt = attempt_no
 
     def session_callable() -> Mapping[str, Any] | None:
-        nonlocal orchestration_cycle, current_attempt_args, trial_physical_attempt
+        nonlocal orchestration_cycle, current_attempt_args, session_attempt
         orchestration_cycle += 1
         attempt_args = argparse.Namespace(**vars(args))
         attempt_args._coordinator_output_root = output_root
         attempt_args.output_root = output_root
         attempt_args.orchestration_cycle = orchestration_cycle
-        attempt_args.trial_physical_attempt = trial_physical_attempt
+        attempt_args.session_attempt = session_attempt
         attempt_args.bridge_launch_attempt = 0
         attempt_args._next_bridge_launch_attempt = bridge_launch_attempt
         current_attempt_args = attempt_args
@@ -1486,7 +1485,7 @@ def _run_live(
         try:
             result = _run_live_session(attempt_args, runtime_pointer)
         except BaseException as exc:
-            _sync_physical_attempt(attempt_args)
+            _sync_session_attempt(attempt_args)
             _sync_bridge_launch_attempt(attempt_args)
             _write_status(
                 attempt_args,
@@ -1494,7 +1493,7 @@ def _run_live(
                 error=f"{type(exc).__name__}:{exc}",
             )
             raise
-        _sync_physical_attempt(attempt_args)
+        _sync_session_attempt(attempt_args)
         _sync_bridge_launch_attempt(attempt_args)
         _write_status(attempt_args, "COMPLETED", receiver_accepting=True)
         return result
@@ -1507,12 +1506,10 @@ def _run_live(
             status = read_strict_json(status_path, role="recoverable session status")
         except Exception:
             return False
-        attempt_no = int(getattr(attempt_args, "trial_physical_attempt", 0) or 0)
+        attempt_no = int(getattr(attempt_args, "session_attempt", 0) or 0)
         if not isinstance(status, dict):
             return False
-        if status.get("attempt") != attempt_no and status.get(
-            "trial_physical_attempt"
-        ) != attempt_no:
+        if status.get("attempt") != attempt_no and status.get("session_attempt") != attempt_no:
             return False
         if status.get("state") == "SHUTDOWN":
             return True
@@ -2026,21 +2023,6 @@ def _run_live_session(
                         release=release,
                     )
                 except LiveLaunchError:
-                    if publisher is not None:
-                        _publish_runtime_observation(
-                            publisher,
-                            release=release,
-                            bridge=bridge,
-                            runner=runner,
-                            bridge_csv=csv_follower,
-                            bridge_ready=bridge_ready,
-                            robot_host=robot_host,
-                            mailbox_reader=mailbox_reader,
-                            mailbox_tracker=mailbox_tracker,
-                            campaign_root=args.campaign_root,
-                            preexisting_bundles=preexisting_bundles,
-                            delivery_observation=delivery_observation,
-                        )
                     raise
                 if publisher is not None:
                     play_at = time.time_ns()
@@ -2093,21 +2075,6 @@ def _run_live_session(
                                 release=release,
                             )
                         except LiveLaunchError:
-                            if publisher is not None:
-                                _publish_runtime_observation(
-                                    publisher,
-                                    release=release,
-                                    bridge=bridge,
-                                    runner=runner,
-                                    bridge_csv=csv_follower,
-                                    bridge_ready=bridge_ready,
-                                    robot_host=robot_host,
-                                    mailbox_reader=mailbox_reader,
-                                    mailbox_tracker=mailbox_tracker,
-                                    campaign_root=args.campaign_root,
-                                    preexisting_bundles=preexisting_bundles,
-                                    delivery_observation=delivery_observation,
-                                )
                             raise
                         next_gate_refresh = now + ARM_GATE_REFRESH_INTERVAL_S
                     if publisher is not None and now >= next_observation:

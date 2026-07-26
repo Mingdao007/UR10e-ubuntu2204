@@ -44,10 +44,21 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
     assert "# CONTROL_PROFILE_ID: step5d_strict_rnn_autotune_v1" in rendered
     assert hashlib.sha256(v1.render_script().encode()).hexdigest() in rendered
     assert "def codex_step5d_autotune_trial_v1(" in rendered
-    assert "local entry_xy_pose = p[entry_x, entry_y, p_current[2]" in rendered
+    assert "local entry_safe_transfer_z = precontact_z + precontact_transfer_clearance_m" in rendered
+    assert "if p_current[2] > entry_safe_transfer_z:" in rendered
+    assert "entry_safe_transfer_z = p_current[2]" in rendered
+    assert "local entry_safe_rise_pose = p[p_current[0], p_current[1], entry_safe_transfer_z" in rendered
+    assert "local entry_xy_pose = p[entry_x, entry_y, entry_safe_transfer_z" in rendered
+    assert "home_orientation_error_rad" not in rendered
+    assert "if p_current[2] < precontact_z + minimum_start_above_entry_m" not in rendered
+    assert "return 17.0" not in rendered.split("def codex_step5d_autotune_trial_v1(", 1)[1].split("\nend\n", 1)[0]
+    assert "movel(entry_safe_rise_pose, a=0.060, v=0.040, r=0.0)" in rendered
     assert "movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)" in rendered
     assert "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)" in rendered
     stage22 = rendered.index("write_output_float_register(35, 22.0)")
+    entry_safe_rise_movel = rendered.index(
+        "movel(entry_safe_rise_pose, a=0.060, v=0.040, r=0.0)", stage22
+    )
     entry_xy_movel = rendered.index(
         "movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)", stage22
     )
@@ -58,7 +69,7 @@ def test_r010_rolling_campaign_preserves_v1_kernel_and_has_one_motion_owner() ->
     stage23 = rendered.index(
         "write_output_float_register(35, 23.0)", entry_precontact_movel
     )
-    assert stage22 < entry_xy_movel < entry_precontact_movel < stage23
+    assert stage22 < entry_safe_rise_movel < entry_xy_movel < entry_precontact_movel < stage23
     assert "movel(rise_pose, a=0.060, v=0.040, r=0.0)" in rendered
     assert "movel(transfer_pose, a=0.135, v=0.090, r=0.0)" in rendered
     assert "movel(target_pose, a=0.060, v=0.040, r=0.0)" in rendered
@@ -239,7 +250,9 @@ def test_r010_triplet_is_exact_and_revision_is_immutable(tmp_path: Path) -> None
     assert f'name="{basename}"' in xml
     assert f"/programs/andyl/kunwei/step5/{basename}.script" in xml
     sanity = json.loads((tmp_path / f"{basename}.numeric-sanity.json").read_text())
-    assert sanity["delta_class"] == "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_read_only_telemetry_v5"
+    assert sanity["delta_class"] == "identity_precontact_prior_corrective_entry_batch_lifecycle_single_owner_return_read_only_telemetry_v6"
+    assert sanity["precontact_transfer_clearance_m"] == 0.01
+    assert "minimum_start_above_entry_m" not in sanity
     assert sanity["stage25_stale_command_hold_s"] == 1.000
     assert sanity["return_segment_count"] == 3
     assert sanity["batch_row_policy"] == "five_row_logical_batches_every_row_campaign_home"

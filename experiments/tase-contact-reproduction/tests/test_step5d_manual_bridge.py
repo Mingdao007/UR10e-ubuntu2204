@@ -303,7 +303,7 @@ def test_live_preflight_validation_is_no_arm_and_exact() -> None:
         name: {"ok": True}
         for name in (
             "safety_normal", "program_safe_for_bridge", "robot_stationary",
-            "prealign_start_clearance", "no_existing_writer", "mailbox_initial_zero",
+            "no_existing_writer", "mailbox_initial_zero",
             "runtime_dependencies",
         )
     }

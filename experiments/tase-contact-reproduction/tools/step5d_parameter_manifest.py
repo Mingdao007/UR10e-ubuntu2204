@@ -107,7 +107,7 @@ def import_physical_attempt_uids(
     *,
     launch_profile_path: Path,
 ) -> frozenset[str]:
-    """Import physical attempts from the bounded Step5d evidence roots."""
+    """Read frozen historical attempt provenance without affecting dispatch."""
 
     result: set[str] = set()
 
@@ -142,63 +142,8 @@ def import_physical_attempt_uids(
             )
         )
 
-    # A queue dispatch carries the candidate identity; a receipt carries the
-    # authoritative physical outcome.  Reconciled dispatches are therefore
-    # intentionally ignored here.  Release bindings are enumerable at this
-    # fixed root; never walk the experiment tree to find them.
-    binding_root = (
-        experiment_root
-        / "runs/step5d_autotune_v3/parameter-campaign/control/parameter_receiver_bindings"
-    )
-    queue_roots = (
-        tuple(
-            sorted(
-                path
-                for path in binding_root.glob("*/queue")
-                if not path.is_symlink() and path.is_dir()
-            )
-        )
-        if not binding_root.is_symlink() and binding_root.is_dir()
-        else ()
-    )
-    dispatches: dict[str, dict[str, Any]] = {}
-    for queue_root in queue_roots:
-        for path in json_files(queue_root / "dispatches"):
-            payload = read_json(path, "parameter dispatch")
-            if payload is None:
-                continue
-            request = payload.get("request")
-            if isinstance(request, Mapping) and isinstance(request.get("request_uid"), str):
-                dispatches[str(request["request_uid"])] = payload
-    for queue_root in queue_roots:
-        for path in json_files(queue_root / "receipts"):
-            payload = read_json(path, "parameter receipt")
-            if payload is None:
-                continue
-            schema = payload.get("schema")
-            legacy = schema == LEGACY_RECEIPT_SCHEMA
-            physical = payload.get("physical_attempted", True) if legacy else payload.get(
-                "physical_attempted"
-            )
-            if schema not in {RECEIPT_SCHEMA, LEGACY_RECEIPT_SCHEMA} or physical is not True:
-                continue
-            if payload.get("status") not in {"SUCCEEDED", "FAILED", "COMPLETE", "DATA_ISSUE"}:
-                continue
-            dispatch = dispatches.get(str(payload.get("request_uid")))
-            if dispatch is None:
-                continue
-            request = dispatch.get("request")
-            if isinstance(request, Mapping):
-                add_entry(request)
-
-    for queue_root in queue_roots:
-        for path in json_files(queue_root / "physical_attempts"):
-            payload = read_json(path, "physical attempt ledger")
-            if payload is not None and payload.get("physical_attempted") is True:
-                add_entry(payload)
-
-    # Read only the explicit frozen config ledger and the two exact runtime
-    # ledger paths; immutable releases are deliberately outside this list.
+    # Read only explicit frozen config and historical runtime ledgers;
+    # current queue receipts and dispatches never establish physical motion.
     ledger_paths = (
         experiment_root / "config/step5/step5d_autotune_v3_attempt_ledger.json",
         experiment_root / "runs/step5d_autotune_v3/physical_attempt_ledger.jsonl",
@@ -261,7 +206,6 @@ def validate_manifest(
     path: Path,
     *,
     launch_profile_path: Path,
-    attempted_control_uids: frozenset[str] = frozenset(),
 ) -> tuple[dict[str, Any], ...]:
     payload = _load(path, "initial parameter manifest")
     if set(payload) != {"schema", "parameters"} or payload["schema"] != SCHEMA:
@@ -314,10 +258,6 @@ def validate_manifest(
         uid = _candidate_uid(row, launch_profile_path=launch_profile_path)
         if uid in seen:
             raise ParameterManifestError(f"parameter row {index} repeats a candidate")
-        if uid in attempted_control_uids:
-            raise ParameterManifestError(
-                f"parameter row {index} already has a physical attempt: {uid}"
-            )
         seen.add(uid)
         normalized.append(row)
         previous = current
@@ -341,30 +281,14 @@ def seed_initial_manifest(
     )
     state = load_state(queue_root)
     if state["revision"] == 0:
-        attempted = import_physical_attempt_uids(
-            experiment_root,
-            launch_profile_path=launch_profile_path,
-        )
         rows = validate_manifest(
             manifest_path,
             launch_profile_path=launch_profile_path,
         )
-        rows = tuple(
-            row
-            for row in rows
-            if _candidate_uid(
-                row,
-                launch_profile_path=launch_profile_path,
-            )
-            not in attempted
-        )
-        if not rows:
-            return ()
         return submit_manifest(
             queue_root,
             launch_profile_path=launch_profile_path,
             rows=rows,
-            attempted_control_uids=attempted,
         )
     rows = validate_manifest(
         manifest_path,
@@ -412,23 +336,6 @@ def seed_initial_manifest(
     return ()
 
 
-def _queue_physical_attempt_uids(queue_root: Path) -> frozenset[str]:
-    attempted: set[str] = set()
-    ledger_root = queue_root / "physical_attempts"
-    if ledger_root.is_symlink() or not ledger_root.is_dir():
-        return frozenset()
-    for path in sorted(ledger_root.glob("*.json")):
-        if path.is_symlink() or not path.is_file():
-            raise ParameterManifestError("physical-attempt ledger entry is unsafe")
-        payload = _load(path, "physical-attempt ledger")
-        if payload.get("physical_attempted") is True:
-            uid = payload.get("control_candidate_uid")
-            if not isinstance(uid, str) or not uid:
-                raise ParameterManifestError("physical-attempt ledger lacks candidate UID")
-            attempted.add(uid)
-    return frozenset(attempted)
-
-
 def submit_candidate_pool(
     queue_root: Path,
     *,
@@ -436,7 +343,6 @@ def submit_candidate_pool(
     launch_profile_path: Path,
     manifest_path: Path,
     experiment_root: Path | None = None,
-    attempted_control_uids: frozenset[str] = frozenset(),
 ) -> tuple[dict[str, Any], ...]:
     """Submit the deterministic ten-row sender pool exactly once per control."""
 
@@ -446,20 +352,11 @@ def submit_candidate_pool(
         str(row["control_candidate_uid"])
         for row in list_requests(queue_root)
     }
-    attempted = set(attempted_control_uids)
-    attempted.update(_queue_physical_attempt_uids(queue_root))
-    if experiment_root is not None:
-        attempted.update(
-            import_physical_attempt_uids(
-                experiment_root,
-                launch_profile_path=launch_profile_path,
-            )
-        )
+    del experiment_root
     candidates = tuple(
         row
         for row in rows
-        if str(_candidate_uid(row, launch_profile_path=launch_profile_path))
-        not in queued | attempted
+        if str(_candidate_uid(row, launch_profile_path=launch_profile_path)) not in queued
     )
     return submit_manifest(
         queue_root,

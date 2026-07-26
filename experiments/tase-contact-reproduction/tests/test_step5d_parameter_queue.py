@@ -29,12 +29,10 @@ from step5d_parameter_queue import (  # noqa: E402
     list_requests,
     list_pending,
     prepare_next_dispatch,
-    record_dispatch_consumed,
     reconcile_not_consumed,
     publish_next_arm,
     read_next_arm,
     record_terminal_receipt,
-    continuous_readiness,
     status,
     submit,
 )
@@ -133,22 +131,20 @@ def test_dispatch_identity_is_separate_and_failed_outcome_never_retries(
         "consumed_command_seq": 10,
         "logical_batch_sequence": 1,
         "batch_row_index": 1,
+        "terminal_reason": 1,
     }
     receipt = finish_dispatch(
         root,
         status="FAILED",
         observed=terminal,
         detail="capture missing",
-        failure_class="DATA_QUALITY",
     )
-    assert receipt["physical_attempted"] is True
-    assert receipt["automatic_retry_allowed"] is False
-    assert receipt["failure_class"] == "DATA_QUALITY"
-    assert status(root)["attempted_count"] == 1
+    assert "failure_class" not in receipt
+    assert status(root)["terminal_receipt_count"] == 1
     assert prepare_next_dispatch(root) is None
 
 
-def test_consumed_arm_is_durable_before_terminal_home(tmp_path: Path) -> None:
+def test_consumed_arm_does_not_create_a_physical_attempt_marker(tmp_path: Path) -> None:
     root = (
         tmp_path
         / "runs/step5d_autotune_v3/parameter-campaign/control/"
@@ -172,37 +168,19 @@ def test_consumed_arm_is_durable_before_terminal_home(tmp_path: Path) -> None:
     assert dispatch is not None
     packet = dispatch["packet"]
 
-    ledger = record_dispatch_consumed(
-        root,
-        observed={
-            "campaign_epoch": packet["campaign_epoch"],
-            "trial_id": packet["trial_id"],
-            "state": 20,
-            "candidate_token": packet["candidate_token"],
-            "execution_profile_id": packet["execution_profile_id"],
-            "consumed_command_seq": packet["command_seq"],
-            "logical_batch_sequence": packet["logical_batch_sequence"],
-            "batch_row_index": 1,
-        },
-    )
-
-    assert ledger["physical_attempted"] is True
-    assert ledger["control_candidate_uid"] == request["control_candidate_uid"]
     assert status(root)["inflight"] is not None
-    imported = import_physical_attempt_uids(
-        tmp_path,
-        launch_profile_path=PROFILE,
-    )
-    assert request["control_candidate_uid"] in imported
+    assert not (root / "physical_attempts").exists()
     reconcile_not_consumed(
         root,
         detail="a lagging observer still saw the preceding Home row",
         observed_command_seq=0,
     )
-    assert prepare_next_dispatch(root) is None
+    redispatched = prepare_next_dispatch(root)
+    assert redispatched is not None
+    assert redispatched["request"]["request_uid"] == request["request_uid"]
 
 
-def test_succeeded_requires_no_failure_class_and_failed_class_is_strict(
+def test_receipt_omits_classifier_and_identity_marker_is_internal_only(
     tmp_path: Path,
 ) -> None:
     root = _queue(tmp_path)
@@ -225,10 +203,11 @@ def test_succeeded_requires_no_failure_class_and_failed_class_is_strict(
         "consumed_command_seq": 1,
         "logical_batch_sequence": 1,
         "batch_row_index": 1,
+        "terminal_reason": 1,
     }
-    with pytest.raises(ParameterQueueError, match="valid failure_class"):
+    with pytest.raises(ParameterQueueError, match="internal-only"):
         finish_dispatch(root, status="FAILED", observed=observed, failure_class="NOPE")
-    with pytest.raises(ParameterQueueError, match="must not have failure_class"):
+    with pytest.raises(ParameterQueueError, match="internal-only"):
         finish_dispatch(
             root,
             status="SUCCEEDED",
@@ -236,10 +215,10 @@ def test_succeeded_requires_no_failure_class_and_failed_class_is_strict(
             failure_class="SOFTWARE",
         )
     receipt = finish_dispatch(root, status="SUCCEEDED", observed=observed)
-    assert receipt["schema"].endswith("receipt-v2")
-    assert receipt["failure_class"] is None
-    assert status(root)["attempted_count"] == 1
-    assert len(tuple((root / "physical_attempts").glob("*.json"))) == 1
+    assert receipt["schema"].endswith("receipt-v3")
+    assert "failure_class" not in receipt
+    assert status(root)["terminal_receipt_count"] == 1
+    assert not (root / "physical_attempts").exists()
 
 
 def test_identity_failure_accepts_safe_terminal_home_and_advances_observed_identity(
@@ -284,7 +263,6 @@ def test_identity_failure_accepts_safe_terminal_home_and_advances_observed_ident
         failure_class="IDENTITY",
     )
 
-    assert receipt["physical_attempted"] is True
     assert receipt["terminal_observation"] == observed
     state = json.loads((root / "state.json").read_text(encoding="utf-8"))
     assert state["home_identity"] == {
@@ -349,8 +327,7 @@ def test_not_consumed_is_immutable_non_attempt_and_request_remains_pending(
         detail="TP command was not consumed",
         observed_command_seq=10,
     )
-    assert record["physical_attempted"] is False
-    assert status(root)["attempted_count"] == 0
+    assert status(root)["terminal_receipt_count"] == 0
     assert status(root)["inflight"] is None
     assert list_pending(root)[0]["request_uid"] == request["request_uid"]
     assert not tuple((root / "receipts").glob("*.json"))
@@ -370,7 +347,7 @@ def test_not_consumed_is_immutable_non_attempt_and_request_remains_pending(
     assert redispatched["dispatch_sha256"] == dispatch["dispatch_sha256"]
 
 
-def test_crash_restart_preserves_inflight_dispatch_and_v1_complete_imports(
+def test_crash_restart_preserves_inflight_dispatch_and_ignores_legacy_queue_attempts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = _queue(tmp_path)
@@ -417,7 +394,7 @@ def test_crash_restart_preserves_inflight_dispatch_and_v1_complete_imports(
         encoding="utf-8",
     )
     imported = import_physical_attempt_uids(tmp_path, launch_profile_path=PROFILE)
-    assert request["control_candidate_uid"] in imported
+    assert request["control_candidate_uid"] not in imported
 
 
 def test_receiver_accepts_distinct_request_uids_for_same_control(tmp_path: Path) -> None:
@@ -441,7 +418,7 @@ def test_receiver_accepts_distinct_request_uids_for_same_control(tmp_path: Path)
     assert second["request_uid"] != list_requests(root)[0]["request_uid"]
 
 
-def test_seed_skips_prior_physical_attempt_and_is_idempotent(tmp_path: Path) -> None:
+def test_seed_keeps_frozen_attempt_provenance_out_of_dispatch_and_is_idempotent(tmp_path: Path) -> None:
     experiment = tmp_path / "experiment"
     ledger = experiment / "config/step5/step5d_autotune_v3_attempt_ledger.json"
     ledger.parent.mkdir(parents=True)
@@ -471,8 +448,8 @@ def test_seed_skips_prior_physical_attempt_and_is_idempotent(tmp_path: Path) -> 
         manifest_path=MANIFEST,
         experiment_root=experiment,
     )
-    assert len(seeded) == 9
-    assert list_requests(queue)[0]["source"] == "approved_initial_10:P02"
+    assert len(seeded) == 10
+    assert list_requests(queue)[0]["source"] == "approved_initial_10:P01"
     assert (
         seed_initial_manifest(
             queue,
@@ -513,6 +490,7 @@ def test_selected_legacy_migration_preserves_p04_and_next_p05(tmp_path: Path) ->
                 "consumed_command_seq": packet["command_seq"],
                 "logical_batch_sequence": packet["logical_batch_sequence"],
                 "batch_row_index": 1,
+                "terminal_reason": 1,
             },
         )
     state_path = source / "state.json"
@@ -558,7 +536,7 @@ def test_selected_legacy_migration_missing_source_fails_closed(tmp_path: Path) -
         )
 
 
-def test_sender_dedups_experiment_attempt_and_existing_p05_to_p10(tmp_path: Path) -> None:
+def test_sender_dedups_existing_requests_but_not_frozen_attempt_provenance(tmp_path: Path) -> None:
     queue = _queue(tmp_path)
     rows = validate_manifest(MANIFEST, launch_profile_path=PROFILE)
     for row in rows[4:]:
@@ -603,6 +581,7 @@ def test_sender_dedups_experiment_attempt_and_existing_p05_to_p10(tmp_path: Path
         "approved_initial_10:P01",
         "approved_initial_10:P02",
         "approved_initial_10:P03",
+        "approved_initial_10:P04",
     ]
     assert submit_candidate_pool(
         queue,
@@ -641,10 +620,11 @@ def test_receiver_handles_one_hundred_fast_continuous_dispatches(tmp_path: Path)
                 "consumed_command_seq": packet["command_seq"],
                 "logical_batch_sequence": packet["logical_batch_sequence"],
                 "batch_row_index": 1,
+                "terminal_reason": 1,
             },
         )
     assert status(root)["dispatch_sequence"] == 100
-    assert status(root)["attempted_count"] == 100
+    assert status(root)["terminal_receipt_count"] == 100
     assert status(root)["pending_count"] == 0
 
 
@@ -813,6 +793,7 @@ def test_finish_dispatch_with_optional_composition_writes_terminal_receipt(
             "consumed_command_seq": packet["command_seq"],
             "logical_batch_sequence": packet["logical_batch_sequence"],
             "batch_row_index": 1,
+            "terminal_reason": 1,
         },
         process_composition_sha256="d" * 64,
     )
@@ -940,6 +921,7 @@ def test_finish_dispatch_with_identical_governance_receipt_is_idempotent_while_i
         "consumed_command_seq": packet["command_seq"],
         "logical_batch_sequence": packet["logical_batch_sequence"],
         "batch_row_index": 1,
+        "terminal_reason": 1,
     }
     first = finish_dispatch(
         root,
@@ -965,42 +947,15 @@ def test_finish_dispatch_with_identical_governance_receipt_is_idempotent_while_i
     )
     assert replay == first
     assert len(tuple((root / "governance" / "terminal_receipts").glob("*.json"))) == 1
-    assert status(root)["attempted_count"] == 1
+    assert status(root)["terminal_receipt_count"] == 1
     assert status(root)["inflight"] is None
 
 
-def test_continuous_readiness_requires_ten_unique_terminal_receipts_for_composition(
+def test_terminal_receipts_are_transport_records_not_readiness_claims(
     tmp_path: Path,
 ) -> None:
     root = _queue(tmp_path)
     composition = "c" * 64
-    assert continuous_readiness(root) == {
-        "schema": "step5d.parameter-receiver/governance-continuous-readiness-v1",
-        "continuous_readiness": False,
-        "duplicate_arm_detected": False,
-        "process_composition_sha256": None,
-        "next_arm_dispatch_identity": None,
-        "terminal_receipts": 0,
-    }
-    publish_next_arm(
-        root,
-        dispatch_identity="dispatch:v1:" + "0" * 64,
-        dispatch_sequence=1,
-        campaign_fingerprint=composition,
-        mailbox_packet_sha256="d" * 64,
-        observed_at=10,
-    )
-    for index in range(1, 10):
-        record_terminal_receipt(
-            root,
-            process_composition_sha256=composition,
-            dispatch_identity=f"dispatch:v1:{'0'*63}{index}",
-            dispatch_sequence=index,
-            terminal_state={"state": index},
-        )
-    snapshot = continuous_readiness(root)
-    assert snapshot["continuous_readiness"] is False
-    assert snapshot["duplicate_arm_detected"] is False
     record_terminal_receipt(
         root,
         process_composition_sha256=composition,
@@ -1008,105 +963,5 @@ def test_continuous_readiness_requires_ten_unique_terminal_receipts_for_composit
         dispatch_sequence=10,
         terminal_state={"state": 10},
     )
-    assert continuous_readiness(root)["continuous_readiness"] is True
-    assert continuous_readiness(root)["duplicate_arm_detected"] is False
-
-
-def test_continuous_readiness_detects_duplicate_terminal_receipt_arm(
-    tmp_path: Path,
-) -> None:
-    root = _queue(tmp_path)
-    composition = "c" * 64
-    publish_next_arm(
-        root,
-        dispatch_identity="dispatch:v1:" + "0" * 64,
-        dispatch_sequence=1,
-        campaign_fingerprint=composition,
-        mailbox_packet_sha256="d" * 64,
-        observed_at=10,
-    )
-    for index in range(1, 11):
-        record_terminal_receipt(
-            root,
-            process_composition_sha256=composition,
-            dispatch_identity=f"dispatch:v1:{index:064x}",
-            dispatch_sequence=index,
-            terminal_state={"state": index},
-        )
-    duplicate = root / "governance/terminal_receipts/duplicate.json"
-    duplicate.parent.mkdir(parents=True, exist_ok=True)
-    first_path = next((root / "governance" / "terminal_receipts").glob("*.json"))
-    first = json.loads(first_path.read_text(encoding="utf-8"))
-    first_state = json.dumps(
-        first["terminal_state"], sort_keys=True, separators=(",", ":")
-    )
-    canonical_state_sha256 = hashlib.sha256(first_state.encode("utf-8")).hexdigest()
-    duplicate.write_text(
-        json.dumps(
-            {
-                "schema": "step5d.parameter-receiver/governance-terminal-receipt-v1",
-                "process_composition_sha256": composition,
-                "dispatch_identity": "dispatch:v1:" + "f" * 64,
-                "dispatch_sequence": first["dispatch_sequence"],
-                "terminal_state": first["terminal_state"],
-                "terminal_state_sha256": canonical_state_sha256,
-            },
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    assert continuous_readiness(root)["duplicate_arm_detected"] is True
-
-
-def test_continuous_readiness_remains_ready_with_more_than_ten_terminal_receipts_for_composition(
-    tmp_path: Path,
-) -> None:
-    root = _queue(tmp_path)
-    composition = "c" * 64
-    publish_next_arm(
-        root,
-        dispatch_identity="dispatch:v1:" + "0" * 64,
-        dispatch_sequence=1,
-        campaign_fingerprint=composition,
-        mailbox_packet_sha256="d" * 64,
-        observed_at=10,
-    )
-    for index in range(1, 12):
-        record_terminal_receipt(
-            root,
-            process_composition_sha256=composition,
-            dispatch_identity=f"dispatch:v1:{'0'*63}{index}",
-            dispatch_sequence=index,
-            terminal_state={"state": index},
-        )
-    snapshot = continuous_readiness(root)
-    assert snapshot["continuous_readiness"] is True
-    assert snapshot["duplicate_arm_detected"] is False
-    assert snapshot["terminal_receipts"] == 11
-
-
-def test_continuous_readiness_fails_non_monotonic_terminal_receipt_sequences_for_composition(
-    tmp_path: Path,
-) -> None:
-    root = _queue(tmp_path)
-    composition = "c" * 64
-    publish_next_arm(
-        root,
-        dispatch_identity="dispatch:v1:" + "0" * 64,
-        dispatch_sequence=1,
-        campaign_fingerprint=composition,
-        mailbox_packet_sha256="d" * 64,
-        observed_at=10,
-    )
-    for index in (1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12):
-        record_terminal_receipt(
-            root,
-            process_composition_sha256=composition,
-            dispatch_identity=f"dispatch:v1:{index:060x}",
-            dispatch_sequence=index,
-            terminal_state={"state": index},
-        )
-    assert continuous_readiness(root)["continuous_readiness"] is False
-    assert continuous_readiness(root)["duplicate_arm_detected"] is True
+    records = tuple((root / "governance" / "terminal_receipts").glob("*.json"))
+    assert len(records) == 1

@@ -22,7 +22,6 @@ from step5d_parameter_queue import (  # noqa: E402
     finish_dispatch,
     publish_next_arm,
     read_next_arm,
-    continuous_readiness,
     initialize,
     prepare_next_dispatch,
     reconcile_not_consumed,
@@ -85,25 +84,21 @@ def test_terminal_wait_ignores_stale_state78_before_next_trial():
     assert observed["trial_id"] == 2
 
 
-def test_terminal_wait_records_consumption_before_terminal_home():
+def test_terminal_wait_does_not_label_consumption_as_a_physical_attempt():
     arm = _arm(trial=1, seq=1, token=99, batch=1)
-    consumed = []
 
     class ActiveThenTerminal:
         def rows(self, *, timeout_s):
             del timeout_s
             yield _observation(seq=1, trial=1, state=20)
-            assert len(consumed) == 1
             yield _observation(seq=1, trial=1, state=78, reason=1)
 
     observed, _ = runner._wait_terminal(
         ActiveThenTerminal(),
         arm=arm,
         poll_s=0.0,
-        on_consumed=lambda row: consumed.append(dict(row)),
     )
 
-    assert consumed[0]["state"] == 20
     assert observed["state"] == 78
 
 
@@ -186,6 +181,7 @@ def test_migrated_not_consumed_p05_rebinds_zero_home_then_advances_p06(
             "consumed_command_seq": packet["command_seq"],
             "logical_batch_sequence": packet["logical_batch_sequence"],
             "batch_row_index": 1,
+            "terminal_reason": 1,
         },
     )
     p05_old = prepare_next_dispatch(receiver_root)
@@ -303,6 +299,7 @@ def test_migrated_not_consumed_p05_rebinds_zero_home_then_advances_p06(
             "consumed_command_seq": packet["command_seq"],
             "logical_batch_sequence": packet["logical_batch_sequence"],
             "batch_row_index": 1,
+            "terminal_reason": 1,
         },
     )
     p06 = prepare_next_dispatch(stable)
@@ -381,26 +378,6 @@ def test_inflight_observation_decisions_are_conservative():
     assert mismatch_terminal == "IDENTITY"
 
 
-@pytest.mark.parametrize(
-    ("terminal_reason", "failure_class"),
-    [
-        (1, None),
-        (2, "EXTERNAL_HARDWARE"),
-        (3, "EXTERNAL_HARDWARE"),
-        (17, "EXTERNAL_HARDWARE"),
-        (4, "PARAMETER_GUARD"),
-        (14, "PARAMETER_GUARD"),
-        (13, "SOFTWARE"),
-        (9, "SOFTWARE"),
-        (999, "SOFTWARE"),
-    ],
-)
-def test_terminal_reason_classification_is_narrow_and_shared(
-    terminal_reason: int, failure_class: str | None
-):
-    assert runner._terminal_failure_class(terminal_reason) == failure_class
-
-
 def test_restart_adopts_not_consumed_without_sending_arm(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -441,16 +418,16 @@ def test_restart_adopts_not_consumed_without_sending_arm(
 
     assert observed["consumed_command_seq"] == 0
     assert receiver_status(receiver_root)["inflight"] is None
-    assert receiver_status(receiver_root)["attempted_count"] == 0
+    assert receiver_status(receiver_root)["terminal_receipt_count"] == 0
     assert statuses[0]["state"] == "WAITING_FOR_HARDWARE"
 
 
 @pytest.mark.parametrize(
-    ("reason", "expected_status", "expected_failure_class"),
+    ("reason", "expected_status"),
     [
-        (1, "SUCCEEDED", None),
-        (2, "FAILED", "EXTERNAL_HARDWARE"),
-        (999, "FAILED", "SOFTWARE"),
+        (1, "SUCCEEDED"),
+        (2, "FAILED"),
+        (999, "FAILED"),
     ],
 )
 def test_restart_adopts_terminal_outcome_without_resending_arm(
@@ -458,7 +435,6 @@ def test_restart_adopts_terminal_outcome_without_resending_arm(
     monkeypatch: pytest.MonkeyPatch,
     reason: int,
     expected_status: str,
-    expected_failure_class: str | None,
 ):
     receiver_root = tmp_path / "receiver"
     initialize(
@@ -528,12 +504,13 @@ def test_restart_adopts_terminal_outcome_without_resending_arm(
 
     assert observed["state"] == 78
     assert receiver_status(receiver_root)["inflight"] is None
-    assert receiver_status(receiver_root)["attempted_count"] == 1
+    assert receiver_status(receiver_root)["terminal_receipt_count"] == 1
     receipt = next((receiver_root / "receipts").glob("*.json"))
     payload = json.loads(receipt.read_text())
-    assert payload["schema"].endswith("receipt-v2")
+    assert payload["schema"].endswith("receipt-v3")
     assert payload["status"] == expected_status
-    assert payload["failure_class"] == expected_failure_class
+    assert "failure_class" not in payload
+    assert payload["terminal_observation"]["terminal_reason"] == reason
 
 
 def test_inflight_adoption_keeps_waiting_through_hardware_timeout(
@@ -595,7 +572,7 @@ def test_inflight_adoption_keeps_waiting_through_hardware_timeout(
     assert follower.timeouts == [runner.INFLIGHT_OBSERVATION_POLL_S] * 2
     assert all(item["state"] == "WAITING_FOR_HARDWARE" for item in statuses)
     assert inflight_snapshots[1] is not None
-    assert receiver_status(receiver_root)["attempted_count"] == 0
+    assert receiver_status(receiver_root)["terminal_receipt_count"] == 0
 
 
 def test_safety_state_is_hardware_recovery_not_a_fake_terminal():
@@ -653,7 +630,7 @@ def test_ten_dispatches_continue_after_per_trial_failures(
 
     assert len(finished) == 10
     assert finished.count("FAILED") == 3
-    assert failure_classes.count("EXTERNAL_HARDWARE") == 3
+    assert failure_classes == [None] * 10
 
 
 def test_runner_continuous_loop_finishes_ten_queue_dispatches(
@@ -756,6 +733,7 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
             "batch_row_index": 1,
             "safety_mode": 1,
             "controller_state": 0,
+            "terminal_reason": 1,
         }
         number = int(dispatch["dispatch_sequence"])
         if number % 4 == 0:
@@ -769,10 +747,11 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
             failure_class = "IDENTITY"
         elif number % 4 == 1:
             status = "FAILED"
-            failure_class = "PARAMETER_GUARD"
+            failure_class = None
+            observed["terminal_reason"] = 2
         elif number % 4 == 2:
             status = "FAILED"
-            failure_class = "DATA_QUALITY"
+            failure_class = None
         else:
             status = "SUCCEEDED"
             failure_class = None
@@ -811,7 +790,7 @@ def test_runner_continuous_loop_finishes_ten_queue_dispatches(
         runner.run(args)
 
     assert [number for number, _status, _failure in finished] == list(range(1, 11))
-    assert receiver_status(receiver_root)["attempted_count"] == 10
+    assert receiver_status(receiver_root)["terminal_receipt_count"] == 10
     assert receiver_status(receiver_root)["inflight"] is None
 
 
@@ -1229,6 +1208,7 @@ def test_runner_first_cycle_publishes_next_arm_and_terminal_receipt(
             "batch_row_index": 1,
             "safety_mode": 1,
             "controller_state": 0,
+            "terminal_reason": 1,
         }
         capture = (
             args.bridge_run / "autotune_trials" / prepared.trial.trial_uid / "capture.csv"
@@ -1260,7 +1240,7 @@ def test_runner_first_cycle_publishes_next_arm_and_terminal_receipt(
     terminal_receipts = list((receiver_root / "governance" / "terminal_receipts").glob("*.json"))
     assert len(terminal_receipts) == 1
     assert (receiver_root / "governance" / "next_arm.json").is_file()
-    assert receiver_status(receiver_root)["attempted_count"] == 1
+    assert receiver_status(receiver_root)["terminal_receipt_count"] == 1
 
 
 def test_runner_recovering_from_send_readback_race_reuses_mailbox_state_without_resend(
@@ -1395,7 +1375,7 @@ def test_runner_recovering_from_send_readback_race_reuses_mailbox_state_without_
     assert len(terminal_receipts) == 0
 
 
-def test_real_runner_continuous_readiness_with_eleven_cycles(
+def test_real_runner_records_eleven_terminal_receipts_without_readiness_claim(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     v3_program_id = json.loads(
@@ -1486,6 +1466,7 @@ def test_real_runner_continuous_readiness_with_eleven_cycles(
             "batch_row_index": 1,
             "safety_mode": 1,
             "controller_state": 0,
+            "terminal_reason": 1,
         }
         capture = args.bridge_run / "autotune_trials" / prepared.trial.trial_uid / "capture.csv"
         capture.parent.mkdir(parents=True)
@@ -1547,12 +1528,8 @@ def test_real_runner_continuous_readiness_with_eleven_cycles(
 
     assert dispatch_calls["count"] == 12
     assert finished == list(range(1, 12))
-    assert receiver_status(receiver_root)["attempted_count"] == 11
+    assert receiver_status(receiver_root)["terminal_receipt_count"] == 11
     assert receiver_status(receiver_root)["inflight"] is None
-    readiness = continuous_readiness(receiver_root)
-    assert readiness["continuous_readiness"] is True
-    assert readiness["terminal_receipts"] == 11
-    assert readiness["duplicate_arm_detected"] is False
 
 
 def test_capture_health_never_waits_for_async_seal(tmp_path: Path):
@@ -1699,6 +1676,7 @@ def test_terminal_artifact_recovery_skips_legacy_and_recovers_missing_identity(
             "consumed_command_seq": packet["command_seq"],
             "logical_batch_sequence": packet["logical_batch_sequence"],
             "batch_row_index": 1,
+            "terminal_reason": 1,
         },
     )
     dispatch_path = receiver_root / "dispatches/000000000001.json"
@@ -1753,7 +1731,7 @@ def test_receipt_artifact_failures_are_best_effort_and_retryable(
         "request": {"request_uid": "request:best-effort"},
     }
     prepared = SimpleNamespace(trial=SimpleNamespace(trial_uid="trial-best-effort"))
-    receipt = {"status": "SUCCEEDED", "failure_class": None, "detail": None}
+    receipt = {"status": "SUCCEEDED", "detail": None}
     monkeypatch.setattr(
         runner,
         "enqueue_postprocess_task",

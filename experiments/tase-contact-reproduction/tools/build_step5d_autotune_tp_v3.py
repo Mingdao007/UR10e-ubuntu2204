@@ -41,7 +41,7 @@ PRECONTACT_POSE_PRIOR_SHA256 = STEP5D_V3_PHYSICAL_PRIOR.fingerprint
 PRECONTACT_XYZ_M = STEP5D_V3_PHYSICAL_PRIOR.precontact_xyz_m
 PRECONTACT_ROTVEC_RAD = STEP5D_V3_PHYSICAL_PRIOR.precontact_rotvec_rad
 PRECONTACT_CLEARANCE_M = 0.005
-MINIMUM_START_ABOVE_ENTRY_M = 0.01
+PRECONTACT_TRANSFER_CLEARANCE_M = 0.01
 # Preserve the frozen V1 Stage25 transport watchdog.  The V3 host already
 # freezes the last accepted command and heartbeat on a late publication; a
 # shorter TP timeout would turn ordinary host scheduling jitter into a false
@@ -232,22 +232,22 @@ end
       sleep(0.20)
     end'''
     new_stage22 = '''    local p_current = get_actual_tcp_pose()
-    local expected_home_orientation = p[p_current[0], p_current[1], p_current[2], target_rx, target_ry, target_rz]
-    local home_orientation_delta = pose_trans(pose_inv(expected_home_orientation), p_current)
-    local home_orientation_error_rad = sqrt(home_orientation_delta[3] * home_orientation_delta[3] + home_orientation_delta[4] * home_orientation_delta[4] + home_orientation_delta[5] * home_orientation_delta[5])
-    if p_current[2] < precontact_z + minimum_start_above_entry_m or home_orientation_error_rad > 0.035:
-      return 17.0
-    else:
-      write_output_float_register(35, 22.0)
-      local entry_xy_pose = p[entry_x, entry_y, p_current[2], target_rx, target_ry, target_rz]
-      local entry_precontact_pose = p[entry_x, entry_y, precontact_z, target_rx, target_ry, target_rz]
-      codex_echo_step4e(stop_reason)
-      movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)
-      stopl(0.1)
-      movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)
-      stopl(0.1)
-      sleep(0.20)
-    end'''
+    local entry_safe_transfer_z = precontact_z + precontact_transfer_clearance_m
+    if p_current[2] > entry_safe_transfer_z:
+      entry_safe_transfer_z = p_current[2]
+    end
+    local entry_safe_rise_pose = p[p_current[0], p_current[1], entry_safe_transfer_z, p_current[3], p_current[4], p_current[5]]
+    local entry_xy_pose = p[entry_x, entry_y, entry_safe_transfer_z, target_rx, target_ry, target_rz]
+    local entry_precontact_pose = p[entry_x, entry_y, precontact_z, target_rx, target_ry, target_rz]
+    write_output_float_register(35, 22.0)
+    codex_echo_step4e(stop_reason)
+    movel(entry_safe_rise_pose, a=0.060, v=0.040, r=0.0)
+    stopl(0.1)
+    movel(entry_xy_pose, a=0.135, v=0.090, r=0.0)
+    stopl(0.1)
+    movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)
+    stopl(0.1)
+    sleep(0.20)'''
     return (
         (
             "# PROFILE_NORMAL_LEVELS: 1=.010, 2=.015, 3=.020, 5=.050 rad/s;",
@@ -583,8 +583,8 @@ def _render_script_body(
         f"  local entry_x = {PRECONTACT_XYZ_M[0]:.9f}\n"
         f"  local entry_y = {PRECONTACT_XYZ_M[1]:.9f}\n"
         f"  local precontact_z = {PRECONTACT_XYZ_M[2]:.9f}\n"
-        f"  local minimum_start_above_entry_m = {MINIMUM_START_ABOVE_ENTRY_M:.9f}",
-        role="contact-plus-0.1s prealign position",
+        f"  local precontact_transfer_clearance_m = {PRECONTACT_TRANSFER_CLEARANCE_M:.9f}",
+        role="contact-plus-0.1s corrective prealign position",
     )
     rendered = _replace_once(
         rendered,
@@ -623,7 +623,7 @@ def _render_script_body(
         "      sleep(0.20)\n"
         "    end\n"
         "    write_output_float_register(35, 23.0)",
-        role="two-step safe prealign",
+        role="corrective three-step prealign",
     )
     rendered = _apply_batch_lifecycle(rendered)
     rendered = _apply_direct_arm_protocol(rendered)
@@ -714,7 +714,11 @@ def validate_rendered_script(
         f"local target_ry = {PRECONTACT_ROTVEC_RAD[1]:.9f}",
         f"local target_rz = {PRECONTACT_ROTVEC_RAD[2]:.9f}",
         "local entry_precontact_pose = p[entry_x, entry_y, precontact_z",
-        "if p_current[2] < precontact_z + minimum_start_above_entry_m or home_orientation_error_rad > 0.035:",
+        "local entry_safe_transfer_z = precontact_z + precontact_transfer_clearance_m",
+        "if p_current[2] > entry_safe_transfer_z:",
+        "entry_safe_transfer_z = p_current[2]",
+        "local entry_safe_rise_pose = p[p_current[0], p_current[1], entry_safe_transfer_z, p_current[3], p_current[4], p_current[5]]",
+        "movel(entry_safe_rise_pose, a=0.060, v=0.040, r=0.0)",
         "movel(entry_precontact_pose, a=0.060, v=0.040, r=0.0)",
         "local qdot_cap_rad_s = 0.500",
         f"if stale_s2 > {STAGE25_STALE_COMMAND_HOLD_S:.3f}:",
@@ -812,7 +816,7 @@ def validate_rendered_script(
         f"  local entry_x = {PRECONTACT_XYZ_M[0]:.9f}\n"
         f"  local entry_y = {PRECONTACT_XYZ_M[1]:.9f}\n"
         f"  local precontact_z = {PRECONTACT_XYZ_M[2]:.9f}\n"
-        f"  local minimum_start_above_entry_m = {MINIMUM_START_ABOVE_ENTRY_M:.9f}",
+        f"  local precontact_transfer_clearance_m = {PRECONTACT_TRANSFER_CLEARANCE_M:.9f}",
         "  local entry_x = 0.487795411\n"
         "  local entry_y = 0.129326793",
         role="normalized precontact position",
@@ -976,7 +980,7 @@ def numeric_sanity(script: str, *, program_id: str) -> dict[str, Any]:
         "schema": "step5d.autotune-v3/tp-numeric-sanity-v1",
         "program": program_id,
         "control_profile_id": CONTROL_PROFILE_ID,
-        "delta_class": "identity_precontact_prior_exact_batch_lifecycle_single_owner_return_read_only_telemetry_v5",
+        "delta_class": "identity_precontact_prior_corrective_entry_batch_lifecycle_single_owner_return_read_only_telemetry_v6",
         "precontact_pose_prior_id": PRECONTACT_POSE_PRIOR_ID,
         "physical_prior_sha256": PRECONTACT_POSE_PRIOR_SHA256,
         "reaction_normal_b": list(STEP5D_V3_PHYSICAL_PRIOR.reaction_normal_b),
@@ -984,8 +988,8 @@ def numeric_sanity(script: str, *, program_id: str) -> dict[str, Any]:
         "precontact_xyz_m": list(PRECONTACT_XYZ_M),
         "precontact_rotvec_rad": list(PRECONTACT_ROTVEC_RAD),
         "precontact_clearance_m": PRECONTACT_CLEARANCE_M,
-        "minimum_start_above_entry_m": MINIMUM_START_ABOVE_ENTRY_M,
-        "precontact_z_policy": "contact_plus_0p1s_robust_z_plus_0p005m_clearance",
+        "precontact_transfer_clearance_m": PRECONTACT_TRANSFER_CLEARANCE_M,
+        "precontact_z_policy": "corrective_safe_rise_xy_orientation_then_precontact",
         "qdot_cap_rad_s": 0.5,
         "stage25_stale_command_hold_s": STAGE25_STALE_COMMAND_HOLD_S,
         "ready_arm_timeout_s": None,

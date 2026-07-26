@@ -36,7 +36,7 @@ import step5d_bridge_authority as authority
 
 SCHEMA = "step5d.autotune-v3/launch-coordinator-v1"
 CAMPAIGN_PREPARE_SCHEMA = "step5d.autotune-v3/campaign-prepare-result-v1"
-PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
+PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v4"
 RESULT_MAX_AGE_NS = 30 * 1_000_000_000
 PREFLIGHT_REQUIRED_FIELDS = {
     "schema", "ok", "fresh", "created_at", "elapsed_s", "healthy_target_s",

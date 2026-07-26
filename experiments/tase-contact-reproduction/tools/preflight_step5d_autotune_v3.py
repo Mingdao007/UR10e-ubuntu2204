@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-import build_step5d_autotune_tp_v3 as tp_v3
 import run_step5d_autotune_v3_bridge as bridge_wrapper
 from step5d_autotune_v3 import preflight_support as support
 from step5d_autotune_v3.launcher import build_bridge_argv
@@ -42,13 +41,12 @@ from step5d_autotune_v3.launch_basis import read_and_validate_launch_basis
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v3"
+SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v4"
 PREDICATE_NAMES = frozenset(
     {
         "safety_normal",
         "program_safe_for_bridge",
         "robot_stationary",
-        "prealign_start_clearance",
         "no_existing_writer",
         "mailbox_initial_zero",
         "runtime_dependencies",
@@ -162,25 +160,6 @@ def _stationary(rtde: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _prealign_start_clearance(rtde: Mapping[str, Any]) -> dict[str, Any]:
-    pose = rtde.get("actual_TCP_pose")
-    required_z_m = tp_v3.PRECONTACT_XYZ_M[2] + tp_v3.MINIMUM_START_ABOVE_ENTRY_M
-    if not isinstance(pose, list) or len(pose) != 6:
-        return {"ok": False, "error": "RTDE actual_TCP_pose is incomplete"}
-    try:
-        observed_z_m = float(pose[2])
-    except (TypeError, ValueError):
-        return {"ok": False, "error": "RTDE actual_TCP_pose z is nonnumeric"}
-    return {
-        "ok": math.isfinite(observed_z_m) and observed_z_m >= required_z_m,
-        "observed_start_z_m": observed_z_m,
-        "precontact_entry_z_m": tp_v3.PRECONTACT_XYZ_M[2],
-        "minimum_start_above_entry_m": tp_v3.MINIMUM_START_ABOVE_ENTRY_M,
-        "required_start_z_min_m": required_z_m,
-        "policy": "reject_before Play when two-step prealign lacks vertical clearance",
-    }
-
-
 def _safety_normal(dashboard: Mapping[str, Any]) -> dict[str, Any]:
     raw = str(dashboard.get("safetymode", dashboard.get("safety_mode", "")))
     value = raw.rsplit(":", 1)[-1].strip().upper()
@@ -211,8 +190,6 @@ def _controller_identity(
                 "safetymode",
                 "programState",
                 "get loaded program",
-                "is in remote control",
-                "remote_control",
             )
             if key in dashboard
         },
@@ -293,7 +270,6 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
                     args.robot_host,
                     [
                         "PolyscopeVersion",
-                        "is in remote control",
                         "safetymode",
                         "robotmode",
                         "programState",
@@ -333,7 +309,6 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
             runtime_identity=runtime_contract["tp_runtime_identity"],
         ),
         "robot_stationary": _stationary(rtde),
-        "prealign_start_clearance": _prealign_start_clearance(rtde),
         "no_existing_writer": {
             "ok": _value(local.get("writer", {})).get("ok") is True,
             "observation": _value(local.get("writer", {})),

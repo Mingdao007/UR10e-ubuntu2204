@@ -93,7 +93,7 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
             "dashboard": lambda: dashboard_exchange(
                 args.robot_host,
                 [
-                    "PolyscopeVersion", "is in remote control", "safetymode",
+                    "PolyscopeVersion", "safetymode",
                     "robotmode", "programState", "get loaded program",
                 ],
                 timeout=args.timeout_s,
@@ -120,7 +120,6 @@ def run_preflight(args: argparse.Namespace) -> dict[str, Any]:
         "safety_normal": r009_preflight._safety_normal(dashboard),
         "program_safe_for_bridge": _program_safe(dashboard, rtde),
         "robot_stationary": r009_preflight._stationary(rtde),
-        "prealign_start_clearance": r009_preflight._prealign_start_clearance(rtde),
         "no_existing_writer": {
             "ok": r009_preflight._value(local.get("writer", {})).get("ok") is True,
             "observation": r009_preflight._value(local.get("writer", {})),

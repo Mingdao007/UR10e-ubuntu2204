@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 import signal
 import time
-from typing import Any, Callable, Mapping
+from typing import Any, Mapping
 
 from step5d_campaign_identity import campaign_spec
 from step5d_autotune_contract import (
@@ -48,7 +48,6 @@ from step5d_parameter_queue import (
     finish_dispatch,
     load_state,
     prepare_next_dispatch,
-    record_dispatch_consumed,
     rebind_transport_home,
     reconcile_not_consumed,
     status as receiver_status,
@@ -77,8 +76,6 @@ RECOVERY_BACKOFF_S = (0.1, 0.25, 0.5, 1.0)
 OBSERVATION_POLL_S = 0.5
 INFLIGHT_OBSERVATION_POLL_S = 0.5
 INFLIGHT_RECOVERY_SLEEP_S = 0.1
-EXTERNAL_HARDWARE_TERMINAL_REASONS = frozenset({2, 3, 17})
-PARAMETER_GUARD_TERMINAL_REASONS = frozenset({4, 5, 6, 7, 8, 10, 12, 14})
 
 
 class ParameterCampaignError(RuntimeError):
@@ -143,7 +140,6 @@ def _tp_observation(row: Mapping[str, str]) -> dict[str, int]:
         "logical_batch_sequence": _integer(row, "ur_output_int_register_34"),
         "batch_row_index": _integer(row, "ur_output_int_register_31"),
         "safety_mode": _integer(row, "ur_safety_mode"),
-        "controller_state": _integer(row, "step4e_controller_state"),
     }
 
 
@@ -159,6 +155,7 @@ def _terminal_identity(observation: Mapping[str, int]) -> dict[str, int]:
             "consumed_command_seq",
             "logical_batch_sequence",
             "batch_row_index",
+            "terminal_reason",
         )
     }
 
@@ -167,20 +164,7 @@ def _safe_home(observation: Mapping[str, int]) -> bool:
     return bool(
         observation["state"] in {READY_HOME, READY_HOME_NEXT}
         and observation["safety_mode"] == 1
-        and observation["controller_state"] == 0
     )
-
-
-def _terminal_failure_class(terminal_reason: int) -> str | None:
-    """Classify only explicit terminal reasons; unknown reasons stay software."""
-
-    if terminal_reason == 1:
-        return None
-    if terminal_reason in EXTERNAL_HARDWARE_TERMINAL_REASONS:
-        return "EXTERNAL_HARDWARE"
-    if terminal_reason in PARAMETER_GUARD_TERMINAL_REASONS:
-        return "PARAMETER_GUARD"
-    return "SOFTWARE"
 
 
 def _mailbox_packet_sha256(packet: HostPacket) -> str:
@@ -223,7 +207,7 @@ def _publish_status(
             "revision": queue["revision"],
             "dispatch_sequence": queue["dispatch_sequence"],
             "pending_count": queue["pending_count"],
-            "attempted_count": queue["attempted_count"],
+            "terminal_receipt_count": queue["terminal_receipt_count"],
             "inflight": queue["inflight"],
             "accepting": True,
             "capacity": None,
@@ -613,7 +597,6 @@ def _wait_terminal(
     *,
     arm: HostPacket,
     poll_s: float = OBSERVATION_POLL_S,
-    on_consumed: Callable[[Mapping[str, int]], None] | None = None,
 ) -> tuple[dict[str, int], dict[str, str]]:
     expected = {
         "campaign_epoch": arm.campaign_epoch,
@@ -625,7 +608,6 @@ def _wait_terminal(
         "batch_row_index": 1,
     }
     identity_failure: str | None = None
-    attempt_recorded = False
     while True:
         try:
             for row in follower.rows(timeout_s=poll_s):
@@ -643,9 +625,6 @@ def _wait_terminal(
                     identity_failure = (
                         "same-sequence observation identity differs from dispatched ARM"
                     )
-                elif not attempt_recorded and on_consumed is not None:
-                    on_consumed(observed)
-                    attempt_recorded = True
                 if observed["state"] != READY_HOME_NEXT:
                     continue
                 if identity_failure is not None:
@@ -760,18 +739,13 @@ def _finish_adopted_terminal(
         )
         return
 
-    failure_class = _terminal_failure_class(observed["terminal_reason"])
-    if failure_class is None:
+    if observed["terminal_reason"] == 1:
         capture_status, capture_detail = _capture_health(capture)
         status = "FAILED" if capture_status == "DATA_ISSUE" else "SUCCEEDED"
-        failure_class = "DATA_QUALITY" if status == "FAILED" else None
         detail = capture_detail
     else:
         status = "FAILED"
-        detail = (
-            f"terminal reason={observed['terminal_reason']}"
-            f" classified={failure_class}"
-        )
+        detail = f"terminal reason={observed['terminal_reason']}"
     _finish_trial(
         args,
         binding=binding,
@@ -779,7 +753,7 @@ def _finish_adopted_terminal(
         prepared=prepared,
         observed=observed,
         status=status,
-        failure_class=failure_class,
+        failure_class=None,
         detail=detail,
         capture=capture,
     )
@@ -810,11 +784,6 @@ def _adopt_inflight(
                     dispatch, observed
                 )
                 if decision == "WAITING_FOR_HARDWARE":
-                    if _inflight_identity_matches(dispatch, observed):
-                        record_dispatch_consumed(
-                            args.receiver_root,
-                            observed=observed,
-                        )
                     detail = evidence_detail
                     _publish_status(
                         args,
@@ -923,7 +892,7 @@ def _persist_trial_artifacts_impl(
             )
             return
     result = {
-        "schema": "step5d.parameter-receiver/trial-result-v2",
+        "schema": "step5d.parameter-receiver/trial-result-v3",
         "request_uid": dispatch["request"]["request_uid"],
         "dispatch_identity": _dispatch_identity(dispatch),
         "dispatch_sequence": dispatch["dispatch_sequence"],
@@ -931,7 +900,6 @@ def _persist_trial_artifacts_impl(
         "capture": str(capture),
         "capture_sha256": None,
         "status": receipt["status"],
-        "failure_class": receipt.get("failure_class"),
         "detail": receipt.get("detail"),
         "outbox_task": None if outbox_path is None else str(outbox_path),
         "receipt": dict(receipt),
@@ -1077,7 +1045,7 @@ def _finish_trial(
     receipt = finish_dispatch(
         args.receiver_root,
         status=status,
-        failure_class=failure_class,
+        failure_class="IDENTITY" if failure_class == "IDENTITY" else None,
         observed=queue_observed,
         detail=detail,
         process_composition_sha256=str(binding["campaign_fingerprint"]),
@@ -1103,18 +1071,9 @@ def _run_trial(
 ) -> dict[str, int]:
     while True:
         try:
-            on_consumed = (
-                None
-                if not hasattr(args, "receiver_root")
-                else lambda observed: record_dispatch_consumed(
-                    args.receiver_root,
-                    observed=observed,
-                )
-            )
             terminal, _row = _wait_terminal(
                 follower,
                 arm=arm,
-                on_consumed=on_consumed,
             )
             break
         except HardwareRecoveryRequired as exc:
@@ -1145,17 +1104,12 @@ def _run_trial(
         / prepared.trial.trial_uid
         / "capture.csv"
     )
-    failure_class = _terminal_failure_class(terminal["terminal_reason"])
-    if failure_class is None:
+    if terminal["terminal_reason"] == 1:
         capture_status, detail = _capture_health(capture)
         status = "FAILED" if capture_status == "DATA_ISSUE" else "SUCCEEDED"
-        failure_class = "DATA_QUALITY" if status == "FAILED" else None
     else:
         status = "FAILED"
-        detail = (
-            f"terminal reason={terminal['terminal_reason']}"
-            f" classified={failure_class}"
-        )
+        detail = f"terminal reason={terminal['terminal_reason']}"
     _finish_trial(
         args,
         binding=binding,
@@ -1163,7 +1117,7 @@ def _run_trial(
         prepared=prepared,
         observed=terminal,
         status=status,
-        failure_class=failure_class,
+        failure_class=None,
         detail=detail,
         capture=capture,
     )

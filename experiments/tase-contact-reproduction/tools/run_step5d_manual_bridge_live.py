@@ -80,7 +80,7 @@ def _validate_preflight(path: Path, context: Mapping[str, Any]) -> dict[str, Any
     )
     required_predicates = {
         "safety_normal", "program_safe_for_bridge", "robot_stationary",
-        "prealign_start_clearance", "no_existing_writer", "mailbox_initial_zero",
+        "no_existing_writer", "mailbox_initial_zero",
         "runtime_dependencies",
     }
     predicates = payload.get("predicates")

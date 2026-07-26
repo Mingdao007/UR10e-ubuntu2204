@@ -148,7 +148,7 @@ def run(args: argparse.Namespace) -> None:
     def wait_or_complete(runner_args, follower, observation):
         state = receiver_status(runner_args.receiver_root)
         if (
-            state["attempted_count"] == args.trial_count
+            state["terminal_receipt_count"] == args.trial_count
             and state["pending_count"] == 0
             and state["inflight"] is None
         ):
