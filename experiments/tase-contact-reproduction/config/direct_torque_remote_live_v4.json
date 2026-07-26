@@ -227,6 +227,15 @@
     "hard_tube_normal_half_width_m": 0.002,
     "dimension_note": "The 1 mm release tolerance applies to the fresh stage start pose, not the historical reference anchor. Reference XYZ offsets are reanchored to the fresh actual pose; every desired pose must still remain inside the immutable hard tube."
   },
+  "no_contact_wrench_guard": {
+    "force_source": "kunwei_software_baselined_sensor_to_tcp_si",
+    "software_baseline_samples": 1000,
+    "preflight_force_norm_n": 2.0,
+    "preflight_torque_norm_nm": 0.2,
+    "active_force_norm_n": 6.0,
+    "active_torque_norm_nm": 0.5,
+    "ur_internal_ft_allowed_for_experiment_guard_or_ft_evidence": false
+  },
   "gates": [
     {
       "id": "source_build_offline_validation",

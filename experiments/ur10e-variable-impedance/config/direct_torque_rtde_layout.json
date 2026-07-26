@@ -57,7 +57,7 @@
   },
   "registers": {
     "input_double": {
-      "damping": [36, 37, 38, 39, 40, 41],
+      "kunwei_guard_wrench_tcp_si": [36, 37, 38, 39, 40, 41],
       "equilibrium_pose_base_rotvec": [24, 25, 26, 27, 28, 29],
       "raw_feedforward_wrench_tcp_si": [42, 43, 44, 45, 46, 47],
       "stiffness": [30, 31, 32, 33, 34, 35]

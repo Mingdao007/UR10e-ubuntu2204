@@ -323,6 +323,7 @@ def build_live_receiver_source(
   local last_model_timestamp_us = 0
   local last_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local last_k = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
+  local last_guard_wrench = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local last_raw_force = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filtered_force = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filter_velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -406,6 +407,7 @@ def build_live_receiver_source(
     else:
       local eq = [read_input_float_register(24), read_input_float_register(25), read_input_float_register(26), read_input_float_register(27), read_input_float_register(28), read_input_float_register(29)]
       local desired_k = [read_input_float_register(30), read_input_float_register(31), read_input_float_register(32), read_input_float_register(33), read_input_float_register(34), read_input_float_register(35)]
+      local guard_wrench = [read_input_float_register(36), read_input_float_register(37), read_input_float_register(38), read_input_float_register(39), read_input_float_register(40), read_input_float_register(41)]
       local raw_force = [read_input_float_register(42), read_input_float_register(43), read_input_float_register(44), read_input_float_register(45), read_input_float_register(46), read_input_float_register(47)]
       local coherent = sequence_before == sequence_after and heartbeat == sequence_after
       local new_packet = sequence_after == last_sequence + 1
@@ -431,6 +433,9 @@ def build_live_receiver_source(
             packet_ok = False
           end
           if desired_k[compare_axis] != last_k[compare_axis]:
+            packet_ok = False
+          end
+          if guard_wrench[compare_axis] != last_guard_wrench[compare_axis]:
             packet_ok = False
           end
           if raw_force[compare_axis] != last_raw_force[compare_axis]:
@@ -479,8 +484,13 @@ def build_live_receiver_source(
       end
       local force_norm = sqrt(raw_force[0]*raw_force[0] + raw_force[1]*raw_force[1] + raw_force[2]*raw_force[2])
       local torque_norm = sqrt(raw_force[3]*raw_force[3] + raw_force[4]*raw_force[4] + raw_force[5]*raw_force[5])
+      local guard_force_norm = sqrt(guard_wrench[0]*guard_wrench[0] + guard_wrench[1]*guard_wrench[1] + guard_wrench[2]*guard_wrench[2])
+      local guard_torque_norm = sqrt(guard_wrench[3]*guard_wrench[3] + guard_wrench[4]*guard_wrench[4] + guard_wrench[5]*guard_wrench[5])
       local axis = 0
       while axis < 6:
+        if guard_wrench[axis] != guard_wrench[axis]:
+          packet_ok = False
+        end
         if raw_force[axis] != raw_force[axis]:
           packet_ok = False
         end
@@ -496,6 +506,9 @@ def build_live_receiver_source(
         axis = axis + 1
       end
       if force_norm > 20.0 or torque_norm > 2.0:
+        packet_ok = False
+      end
+      if guard_force_norm > 6.0 or guard_torque_norm > 0.5:
         packet_ok = False
       end
       local desired_dx = eq[0] - tube_center_base[0]
@@ -534,11 +547,11 @@ def build_live_receiver_source(
           last_model_timestamp_us = model_timestamp_us
           last_eq = eq
           last_k = desired_k
+          last_guard_wrench = guard_wrench
           last_raw_force = raw_force
         end
         local actual_pose = get_actual_tcp_pose()
         local actual_speed = get_actual_tcp_speed()
-        local actual_force = get_tcp_force()
         local q = get_actual_joint_positions()
         local qd = get_actual_joint_speeds()
         local actual_dx = actual_pose[0] - tube_center_base[0]
@@ -548,8 +561,6 @@ def build_live_receiver_source(
         local actual_v = actual_dx*tube_v_axis_base[0] + actual_dy*tube_v_axis_base[1] + actual_dz*tube_v_axis_base[2]
         local actual_orientation_error = pose_sub(tube_anchor_pose_base, actual_pose)
         local actual_orientation_norm = sqrt(actual_orientation_error[3]*actual_orientation_error[3] + actual_orientation_error[4]*actual_orientation_error[4] + actual_orientation_error[5]*actual_orientation_error[5])
-        local actual_force_norm = sqrt(actual_force[0]*actual_force[0] + actual_force[1]*actual_force[1] + actual_force[2]*actual_force[2])
-        local actual_torque_norm = sqrt(actual_force[3]*actual_force[3] + actual_force[4]*actual_force[4] + actual_force[5]*actual_force[5])
         local control_ok = True
         if actual_u > tube_u_half_width_m or actual_u < -tube_u_half_width_m:
           control_ok = False
@@ -561,9 +572,6 @@ def build_live_receiver_source(
           control_ok = False
         end
         if actual_orientation_norm > tube_orientation_tolerance_rad:
-          control_ok = False
-        end
-        if actual_force_norm > 10.0 or actual_torque_norm > 1.0:
           control_ok = False
         end
         if not torque_entered:
@@ -741,6 +749,8 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "def tacdiffusion_remote_direct_torque_v4_program():",
         "tacdiffusion_remote_direct_torque_v4_program()",
         "entry_pose[axis] = actual_pose[axis]",
+        "guard_wrench = [read_input_float_register(36)",
+        "guard_force_norm > 6.0 or guard_torque_norm > 0.5",
         "entry_tick < entry_blend_ticks",
         "control_k[axis] = k_min[axis] + blend*(last_k[axis] - k_min[axis])",
         "get_coriolis_and_centrifugal_torques(q, qd)",
@@ -755,6 +765,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         r"\bdashboard\b",
         r"\b(load|play)\s*\(",
         r"\b(movej|movel|movec|speedj|speedl|servoj|force_mode)\s*\(",
+        r"\bget_tcp_force\s*\(",
         r"\bssh\b",
         r"\bhttp\b",
         r"time\.sleep",

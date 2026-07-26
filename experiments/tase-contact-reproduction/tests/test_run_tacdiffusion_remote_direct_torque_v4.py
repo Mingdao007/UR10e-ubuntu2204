@@ -26,6 +26,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     COMPILE_PROBE_AUTHORIZATION_SCHEMA,
     AckPacedScheduler,
     CanaryTimeline,
+    KunweiSnapshot,
     CANARY_STAGE_HOLD,
     CANARY_STAGE_RAMP,
     CANARY_STAGE_REFERENCE,
@@ -76,6 +77,43 @@ PASSIVE_RUN = ROOT / "runs" / "tacdiffusion" / "passive_remote_baseline_20260726
 REFERENCE = PASSIVE_RUN / "unknown_surface_anchor_circle_no_contact_2s_reference_v2.json"
 BUILDER = VIC_ROOT / "tools" / "build_tacdiffusion_direct_torque_live_v4.py"
 RUNNER = TOOLS / "run_tacdiffusion_remote_direct_torque_v4.py"
+KUNWEI_CALIBRATION = ROOT / "config/step5d_tacdiffusion_sensor_frame_v1.json"
+
+
+class FakeKunweiCapture:
+    def __init__(self, **_kwargs: object) -> None:
+        self.sample = KunweiSnapshot(
+            sample_index=1100,
+            t_monotonic_s=0.0,
+            raw_si=(0.0,) * 6,
+            wrench_tcp_si=(0.0,) * 6,
+            normal_load_n=0.0,
+            force_norm_n=0.0,
+            torque_norm_nm=0.0,
+        )
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def wait_preflight(self):
+        return self.sample
+
+    def snapshot(self, **_kwargs: object):
+        return self.sample
+
+    def stop(self) -> None:
+        return None
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "post_baseline_samples": 100,
+            "parse_errors": 0,
+            "dropped_sync_bytes": 0,
+            "rate_hz_by_first_last": 1000.0,
+        }
 
 
 def _bundle(tmp_path: Path):
@@ -122,7 +160,9 @@ def _write_authorization(
         "allow_direct_torque": True,
         "allow_motion": True,
         "allow_contact": False,
-        "allow_kunwei_stream": False,
+        "allow_kunwei_stream": True,
+        "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
+        "kunwei_calibration_sha256": None,
         "authorized_at": "2026-07-26T00:00:00+00:00",
         "expires_at": "2026-07-27T00:00:00+00:00",
     }
@@ -333,10 +373,55 @@ def _run_fake_batched_control(
         output_dir=tmp_path / "capture",
         connect_timeout_s=1.0,
         receiver_wait_s=1.0,
+        kunwei_calibration=Path("unused-calibration.json"),
+        sensor_ip="192.168.50.25",
+        sensor_port=5152,
     )
     clock = iter([0.0001 + 0.0002 * index for index in range(30)])
+    kunwei_snapshot = KunweiSnapshot(
+        sample_index=1100,
+        t_monotonic_s=0.0,
+        raw_si=(0.0,) * 6,
+        wrench_tcp_si=(0.0,) * 6,
+        normal_load_n=0.0,
+        force_norm_n=0.0,
+        torque_norm_nm=0.0,
+    )
+
+    class FakeKunwei:
+        def __init__(self, **_kwargs: object) -> None:
+            return None
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def wait_preflight(self):
+            return kunwei_snapshot
+
+        def snapshot(self, **_kwargs: object):
+            return kunwei_snapshot
+
+        def stop(self) -> None:
+            return None
+
+        def summary(self) -> dict[str, Any]:
+            return {
+                "post_baseline_samples": 100,
+                "parse_errors": 0,
+                "dropped_sync_bytes": 0,
+                "rate_hz_by_first_last": 1000.0,
+            }
+
     with patch(
         "run_tacdiffusion_remote_direct_torque_v4.LiveRTDE", return_value=fake_rtde
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.KunweiGuardCapture", FakeKunwei
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_calibration",
+        return_value=({"wrench_transform_sensor_to_tcp_6x6": []}, "calibration-sha"),
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4.validate_compile_probe_evidence",
         return_value={"ok": True},
@@ -702,8 +787,10 @@ def test_stage_evidence_prevents_skipping_a_live_canary_stage(tmp_path: Path) ->
                 "receiver_source_sha256": bundle.source_sha256,
                 "bundle_manifest_sha256": bundle.manifest_sha256,
                 "reference_artifact_sha256": bundle.reference_sha256,
-                "canary_stage": CANARY_STAGE_HOLD,
-                "strict_success_gate": {"ok": True},
+                    "canary_stage": CANARY_STAGE_HOLD,
+                    "kunwei_stream_started": True,
+                    "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
+                    "strict_success_gate": {"ok": True},
             }
         ),
         encoding="utf-8",
@@ -1018,6 +1105,7 @@ def test_run_live_rejects_partial_cli_gates_before_authorization_or_connect(tmp_
         allow_direct_torque=True,
         allow_motion=True,
         no_contact=True,
+        allow_kunwei_stream_command=True,
         canary_stage=CANARY_STAGE_REFERENCE,
         compile_probe_evidence=Path("unused-probe.json"),
         prior_stage_evidence=Path("unused-prior.json"),
@@ -1049,6 +1137,7 @@ def test_run_live_maps_canonical_writer_lock_contention_to_stable_error(
         allow_direct_torque=True,
         allow_motion=True,
         no_contact=True,
+        allow_kunwei_stream_command=True,
         canary_stage=CANARY_STAGE_REFERENCE,
         compile_probe_evidence=Path("unused-probe.json"),
         prior_stage_evidence=Path("unused-prior.json"),
@@ -1095,6 +1184,7 @@ def test_run_live_lock_order_is_before_authorization_preflight_and_connection() 
         allow_direct_torque=True,
         allow_motion=True,
         no_contact=True,
+        allow_kunwei_stream_command=True,
         canary_stage=CANARY_STAGE_REFERENCE,
         compile_probe_evidence=Path("unused-probe.json"),
         prior_stage_evidence=Path("unused-prior.json"),
@@ -1103,6 +1193,9 @@ def test_run_live_lock_order_is_before_authorization_preflight_and_connection() 
         output_dir=Path("unused-output"),
         connect_timeout_s=1.0,
         receiver_wait_s=1.0,
+        kunwei_calibration=KUNWEI_CALIBRATION,
+        sensor_ip="192.168.50.25",
+        sensor_port=5152,
     )
 
     def fake_authorization(*args: object, **kwargs: object) -> dict[str, int]:
@@ -1154,6 +1247,9 @@ def test_run_live_lock_order_is_before_authorization_preflight_and_connection() 
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4.LiveRTDE",
         FakeRTDE,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.KunweiGuardCapture",
+        FakeKunweiCapture,
     ):
         with pytest.raises(RuntimeError, match="stop_before_controller_io"):
             run_live(args, bundle)
@@ -1188,12 +1284,14 @@ def test_run_live_conflict_failure_stays_inside_lease_and_releases() -> None:
         allow_direct_torque=True,
         allow_motion=True,
         no_contact=True,
+        allow_kunwei_stream_command=True,
         canary_stage=CANARY_STAGE_REFERENCE,
         compile_probe_evidence=Path("unused-probe.json"),
         prior_stage_evidence=Path("unused-prior.json"),
         authorization=Path("unused-authorization.json"),
         robot_host="192.168.1.18",
         output_dir=Path("unused-output"),
+        kunwei_calibration=KUNWEI_CALIBRATION,
     )
 
     def fake_authorization(*args: object, **kwargs: object) -> dict[str, int]:
@@ -1372,6 +1470,7 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
         allow_direct_torque=True,
         allow_motion=True,
         no_contact=True,
+        allow_kunwei_stream_command=True,
         canary_stage=CANARY_STAGE_HOLD,
         compile_probe_evidence=compile_probe_evidence,
         prior_stage_evidence=None,
@@ -1380,6 +1479,9 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
         robot_host="192.168.1.18",
         connect_timeout_s=1.0,
         receiver_wait_s=1.0,
+        kunwei_calibration=KUNWEI_CALIBRATION,
+        sensor_ip="192.168.50.25",
+        sensor_port=5152,
     )
 
     def record_evidence_close(path: Path, payload: dict[str, Any]) -> None:
@@ -1405,6 +1507,12 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4.LiveRTDE",
         FakeRTDE,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.KunweiGuardCapture",
+        FakeKunweiCapture,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization",
+        return_value={"lease_id": 111, "episode_identity": 222},
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4._enforce_no_live_writer_conflict",
     ), patch(

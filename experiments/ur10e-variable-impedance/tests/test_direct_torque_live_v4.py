@@ -79,6 +79,9 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "coulomb_scale[axis] = blend*coulomb_scale_target[axis]" in source
     assert "direct_torque([0.0" not in source
     assert "entry_pose[axis] = actual_pose[axis]" in source
+    assert "guard_wrench = [read_input_float_register(36)" in source
+    assert "guard_force_norm > 6.0 or guard_torque_norm > 0.5" in source
+    assert "get_tcp_force()" not in source
     assert "entry_tick < entry_blend_ticks" in source
     assert "control_k[axis] = k_min[axis] + blend*(last_k[axis] - k_min[axis])" in source
     assert "virtual_mass[axis]*control_k[axis]" in source
