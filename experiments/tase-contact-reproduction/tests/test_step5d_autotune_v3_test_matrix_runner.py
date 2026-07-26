@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +15,44 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_autotune_v3_test_matrix as runner  # noqa: E402
 import validate_step5d_autotune_v3_refactor as validator  # noqa: E402
+
+
+def test_hermetic_python_preserves_venv_invocation_path(tmp_path: Path) -> None:
+    venv = tmp_path / "venv"
+    python = venv / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.symlink_to(Path(sys.executable).resolve(strict=True))
+    (venv / "pyvenv.cfg").write_text(
+        "\n".join(
+            (
+                f"home = {Path(sys.base_prefix) / 'bin'}",
+                "include-system-site-packages = false",
+                (
+                    "version = "
+                    f"{sys.version_info.major}.{sys.version_info.minor}."
+                    f"{sys.version_info.micro}"
+                ),
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    executable = runner._resolve_hermetic_python(python)
+    completed = subprocess.run(
+        [
+            str(executable),
+            "-I",
+            "-c",
+            "import json,sys; print(json.dumps({'prefix': sys.prefix}))",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert executable == python.absolute()
+    assert Path(json.loads(completed.stdout)["prefix"]) == venv
 
 
 def test_small_uses_bounded_xdist_while_medium_remains_serial() -> None:

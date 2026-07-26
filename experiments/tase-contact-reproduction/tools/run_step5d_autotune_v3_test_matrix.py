@@ -173,14 +173,14 @@ def resolve_workers(value: int | str, lanes: Sequence[str]) -> int:
 def _resolve_hermetic_python(value: str | Path | None = None) -> Path:
     candidate = Path(value) if value is not None else Path(sys.executable)
     try:
-        resolved = candidate.expanduser().resolve(strict=True)
-    except OSError as exc:
+        executable = Path(os.path.abspath(candidate.expanduser()))
+    except (OSError, RuntimeError) as exc:
         raise TestMatrixError(
             f"hermetic Python executable is unavailable: {candidate}"
         ) from exc
-    if not resolved.is_file():
+    if not executable.is_file():
         raise TestMatrixError("hermetic Python executable is not a regular file")
-    return resolved
+    return executable
 
 
 def _hermetic_binding(executable: Path) -> dict[str, str]:
