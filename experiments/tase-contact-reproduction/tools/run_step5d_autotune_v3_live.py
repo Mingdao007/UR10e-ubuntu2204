@@ -69,7 +69,6 @@ from step5d_autotune_v3.runtime_profile import (
     overlay_fingerprint,
 )
 from step5d_autotune_v3.runtime_gate import (
-    ARM_GRANT_MAX_AGE_S,
     CampaignLease,
     RuntimeGateError,
     loaded_program_paths,
@@ -100,7 +99,6 @@ RUNNER = ROOT / "tools/run_step5d_parameter_campaign.py"
 RESULT_SCHEMA = "step5d.autotune-v3/live-campaign-launch-result-v1"
 LIVE_PREFLIGHT_SCHEMA = "step5d.autotune-v3/live-preflight-snapshot-v4"
 CANONICAL_LAUNCH_ENV = "STEP5D_V3_CANONICAL_LAUNCHER"
-ARM_GATE_REFRESH_INTERVAL_S = ARM_GRANT_MAX_AGE_S * 0.4
 RECOVERY_BACKOFF_S = 1.0
 TERMINAL_STOP_OBSERVATION_BUDGET_S = 1.0
 ARM_ACKNOWLEDGED_STATES = frozenset(
@@ -2044,28 +2042,9 @@ def _run_live_session(
                     )
                 print("V3_POST_PLAY_IDENTITY_REVERIFIED_ARM_GATE_OPEN", flush=True)
                 print("V3_CAMPAIGN_RUNNING_ONE_PLAY_CONTINUOUS", flush=True)
-                next_gate_refresh = time.monotonic()
                 next_observation = time.monotonic()
                 while bridge.poll() is None and runner.poll() is None:
                     now = time.monotonic()
-                    dashboard_observation: Mapping[str, Any] | None = None
-                    if now >= next_gate_refresh:
-                        try:
-                            _, dashboard_observation = _refresh_arm_gate(
-                                arm_gate_path,
-                                lease=lease,
-                                lease_sha256=lease_sha256,
-                                bridge=bridge,
-                                csv_follower=csv_follower,
-                                robot_host=robot_host,
-                                runtime_contract=runtime_contract,
-                                mailbox_reader=mailbox_reader,
-                                delivery_observation=delivery_observation,
-                                release=release,
-                            )
-                        except LiveLaunchError:
-                            raise
-                        next_gate_refresh = now + ARM_GATE_REFRESH_INTERVAL_S
                     if publisher is not None and now >= next_observation:
                         governed_status = _publish_runtime_observation(
                             publisher,
@@ -2079,7 +2058,6 @@ def _run_live_session(
                             mailbox_tracker=mailbox_tracker,
                             campaign_root=args.campaign_root,
                             preexisting_bundles=preexisting_bundles,
-                            dashboard=dashboard_observation,
                             delivery_observation=delivery_observation,
                         )
                         next_observation = now + RUNTIME_OBSERVATION_INTERVAL_S

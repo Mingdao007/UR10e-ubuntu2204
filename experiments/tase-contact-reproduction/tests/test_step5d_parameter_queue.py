@@ -692,7 +692,18 @@ def test_publish_next_arm_is_atomic_idempotent_and_monotonic_for_composition(
     )
     assert read_next_arm(root) == next_published
     assert next_published["dispatch_sequence"] == 2
-    with pytest.raises(ParameterQueueError, match="campaign_fingerprint differs"):
+    rolled_release = publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "2" * 64,
+        dispatch_sequence=3,
+        campaign_fingerprint="b" * 64,
+        mailbox_packet_sha256="d" * 64,
+        observed_at=102,
+    )
+    assert read_next_arm(root) == rolled_release
+    assert rolled_release["dispatch_sequence"] == 3
+    assert rolled_release["campaign_fingerprint"] == "b" * 64
+    with pytest.raises(ParameterQueueError, match="conflicts"):
         publish_next_arm(
             root,
             dispatch_identity="dispatch:v1:" + "2" * 64,
@@ -700,15 +711,6 @@ def test_publish_next_arm_is_atomic_idempotent_and_monotonic_for_composition(
             campaign_fingerprint="b" * 64,
             mailbox_packet_sha256="b" * 64,
             observed_at=102,
-        )
-    with pytest.raises(ParameterQueueError, match="conflicts"):
-        publish_next_arm(
-            root,
-            dispatch_identity="dispatch:v1:" + "1" * 64,
-            dispatch_sequence=2,
-            campaign_fingerprint="a" * 64,
-            mailbox_packet_sha256="b" * 64,
-            observed_at=100,
         )
     with pytest.raises(ParameterQueueError, match="must increase"):
         publish_next_arm(

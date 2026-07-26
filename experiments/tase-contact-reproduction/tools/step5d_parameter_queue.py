@@ -455,8 +455,6 @@ def publish_next_arm(
         path = _next_arm_path(root)
         existing = _load_next_arm(root)
         if existing is not None:
-            if existing["campaign_fingerprint"] != record["campaign_fingerprint"]:
-                raise ParameterQueueError("next-arm campaign_fingerprint differs")
             if int(record["dispatch_sequence"]) == int(existing["dispatch_sequence"]):
                 if (
                     existing["dispatch_identity"] == record["dispatch_identity"]

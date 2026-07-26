@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import sys
 import json
 from pathlib import Path
@@ -1096,6 +1097,182 @@ def test_send_replays_from_mailbox_after_preflight_send_without_next_arm(
 
     assert Mailbox.send_calls == 0
     assert read_next_arm(receiver_root) is not None
+
+
+def test_restart_replays_existing_inflight_arm_after_release_rollover(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    profile = ROOT / "config/step5/step5d_autotune_v3_launch_profile.json"
+    v3_program_id = json.loads(profile.read_text(encoding="utf-8"))["tp_program_id"]
+    receiver_root = tmp_path / "receiver"
+    initialize(
+        receiver_root,
+        campaign_id="campaign-test",
+        release_manifest_sha256="a" * 64,
+        launch_profile_path=profile,
+    )
+    for index in range(11):
+        submit(
+            receiver_root,
+            launch_profile_path=profile,
+            force_p=0.0005946035575013605 * (2 ** (index / 4)),
+            force_i=0.00001,
+            force_damping=7.0,
+            source=f"restart-{index + 1}",
+        )
+    bind_home(receiver_root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    for sequence in range(1, 11):
+        dispatch = prepare_next_dispatch(receiver_root)
+        assert dispatch is not None
+        assert dispatch["dispatch_sequence"] == sequence
+        packet = dispatch["packet"]
+        finish_dispatch(
+            receiver_root,
+            status="SUCCEEDED",
+            process_composition_sha256="a" * 64,
+            observed={
+                "campaign_epoch": packet["campaign_epoch"],
+                "trial_id": packet["trial_id"],
+                "state": 78,
+                "candidate_token": packet["candidate_token"],
+                "execution_profile_id": packet["execution_profile_id"],
+                "consumed_command_seq": packet["command_seq"],
+                "logical_batch_sequence": packet["logical_batch_sequence"],
+                "batch_row_index": 1,
+                "terminal_reason": 1,
+            },
+        )
+
+    dispatch = prepare_next_dispatch(receiver_root)
+    assert dispatch is not None
+    assert dispatch["dispatch_sequence"] == 11
+    arm = _arm(
+        trial=int(dispatch["packet"]["trial_id"]),
+        seq=int(dispatch["packet"]["command_seq"]),
+        token=int(dispatch["packet"]["candidate_token"]),
+        batch=int(dispatch["packet"]["logical_batch_sequence"]),
+    )
+    publish_next_arm(
+        receiver_root,
+        dispatch_identity=runner._dispatch_identity(dispatch),
+        dispatch_sequence=11,
+        campaign_fingerprint="a" * 64,
+        mailbox_packet_sha256=runner._mailbox_packet_sha256(arm),
+        observed_at=0,
+    )
+
+    campaign_root = tmp_path / "campaign"
+    bridge_run = tmp_path / "bridge"
+    mailbox_dir = tmp_path / "new-mailbox"
+    campaign_root.mkdir()
+    bridge_run.mkdir()
+    mailbox_dir.mkdir()
+    bridge_csv = bridge_run / "bridge_rtde_500hz.csv"
+    fieldnames = (
+        "ur_output_int_register_24",
+        "ur_output_int_register_25",
+        "ur_output_int_register_26",
+        "ur_output_int_register_27",
+        "ur_output_int_register_28",
+        "ur_output_int_register_29",
+        "ur_output_int_register_30",
+        "ur_output_int_register_34",
+        "ur_output_int_register_31",
+        "ur_safety_mode",
+    )
+    with bridge_csv.open("w", newline="", encoding="utf-8") as stream:
+        csv.DictWriter(stream, fieldnames=fieldnames).writeheader()
+
+    real_follower = runner.BridgeCsvFollower
+
+    def growing_follower(path):
+        follower = real_follower(path)
+        with path.open("a", newline="", encoding="utf-8") as stream:
+            csv.DictWriter(stream, fieldnames=fieldnames).writerow(
+                {
+                    "ur_output_int_register_24": 0,
+                    "ur_output_int_register_25": 0,
+                    "ur_output_int_register_26": runner.READY_HOME,
+                    "ur_output_int_register_27": 0,
+                    "ur_output_int_register_28": 0,
+                    "ur_output_int_register_29": 0,
+                    "ur_output_int_register_30": 0,
+                    "ur_output_int_register_34": 0,
+                    "ur_output_int_register_31": 0,
+                    "ur_safety_mode": 1,
+                }
+            )
+            stream.flush()
+        return follower
+
+    monkeypatch.setattr(runner, "BridgeCsvFollower", growing_follower)
+    binding = {
+        "campaign_id": "campaign-test",
+        "campaign_epoch": 1,
+        "campaign_fingerprint": "b" * 64,
+    }
+    monkeypatch.setattr(runner, "_strict_object", lambda path, role: binding)
+    monkeypatch.setattr(runner, "_validate_authority", lambda args, binding: None)
+    monkeypatch.setattr(runner, "_validate_launch_identity", lambda args, binding: None)
+
+    class StopAfterArm(Exception):
+        pass
+
+    states = []
+    publish_status = runner._publish_status
+
+    def stop_after_arm(args, *, state, observation, blocker=None):
+        states.append(state)
+        if state == "RUNNING":
+            raise StopAfterArm
+        return publish_status(
+            args,
+            state=state,
+            observation=observation,
+            blocker=blocker,
+        )
+
+    monkeypatch.setattr(runner, "_publish_status", stop_after_arm)
+    args = SimpleNamespace(
+        experiment_root=ROOT,
+        bridge_run=bridge_run,
+        campaign_root=campaign_root,
+        receiver_root=receiver_root,
+        mailbox=mailbox_dir / "command.json",
+        runner_ready_file=tmp_path / "runner-ready.json",
+        campaign_binding=tmp_path / "binding.json",
+        campaign_lease=tmp_path / "lease.json",
+        release_manifest_sha256="b" * 64,
+        v3_launch_profile=profile,
+        v3_program_id=v3_program_id,
+    )
+
+    with pytest.raises(StopAfterArm):
+        runner.run(args)
+
+    state = receiver_status(receiver_root)
+    assert state["dispatch_sequence"] == 11
+    assert state["inflight"]["dispatch_sequence"] == 11
+    assert len(tuple((receiver_root / "dispatches").glob("*.json"))) == 11
+    assert len(tuple((receiver_root / "governance/terminal_receipts").glob("*.json"))) == 10
+    assert states == ["WAITING_FOR_HARDWARE", "RUNNING"]
+    next_arm = read_next_arm(receiver_root)
+    assert next_arm is not None
+    assert next_arm["campaign_fingerprint"] == "a" * 64
+    assert next_arm["dispatch_identity"] == runner._dispatch_identity(dispatch)
+
+    mailbox = AtomicCommandMailbox(
+        args.mailbox,
+        network_mode=True,
+        launch_profile=load_launch_profile(
+            profile,
+            expected_tp_program_id=v3_program_id,
+        ),
+    )
+    decoded = mailbox.read_latest()
+    assert decoded is not None
+    assert decoded.packet == arm
+    assert runner._mailbox_packet_sha256(decoded.packet) == next_arm["mailbox_packet_sha256"]
 
 
 def test_runner_first_cycle_publishes_next_arm_and_terminal_receipt(

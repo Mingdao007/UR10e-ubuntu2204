@@ -389,8 +389,6 @@ def _send(
     requested_sequence = int(dispatch["dispatch_sequence"])
     next_arm = read_next_arm(args.receiver_root)
     if next_arm is not None:
-        if next_arm["campaign_fingerprint"] != str(binding["campaign_fingerprint"]):
-            raise HardwareRecoveryRequired("NEXT_ARM campaign_fingerprint differs")
         next_sequence = int(next_arm["dispatch_sequence"])
         if next_sequence > requested_sequence:
             raise HardwareRecoveryRequired("NEXT_ARM has newer dispatch_sequence than requested")
