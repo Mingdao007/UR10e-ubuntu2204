@@ -32,6 +32,12 @@ WRENCH_FRAME_TOKEN = 5_252_001
 CONTROL_RATE_HZ = 500
 DEFAULT_HEARTBEAT_TIMEOUT_TICKS = 10
 NO_CONTACT_RELEASE_TOLERANCE_M = 0.001
+ORIENTATION_POLICY_HOLD_ENTRY = "hold_entry_orientation"
+ORIENTATION_POLICY_INTERPOLATE_POSE = "interpolate_pose_geodesic"
+ORIENTATION_INTERPOLATION_POLICIES = (
+    ORIENTATION_POLICY_HOLD_ENTRY,
+    ORIENTATION_POLICY_INTERPOLATE_POSE,
+)
 
 
 def build_compile_probe_source() -> str:
@@ -271,6 +277,7 @@ class LiveReceiverContract:
     applied_action_echo: bool
     hard_tube_guard: bool
     dedicated_torque_thread: bool
+    orientation_interpolation_policy: str
     source_builder_physical_io_enabled: bool
     controller_runtime_physical_io_enabled: bool
 
@@ -279,6 +286,7 @@ def build_live_receiver_source(
     tube: LiveTubeContract,
     *,
     heartbeat_timeout_ticks: int = DEFAULT_HEARTBEAT_TIMEOUT_TICKS,
+    orientation_interpolation_policy: str = ORIENTATION_POLICY_HOLD_ENTRY,
 ) -> str:
     """Build one controller-resident 500 Hz program; sending is a separate gate."""
 
@@ -286,10 +294,40 @@ def build_live_receiver_source(
         raise TypeError("tube must be a LiveTubeContract")
     if not 5 <= int(heartbeat_timeout_ticks) <= 100:
         raise ValueError("heartbeat timeout must be between 5 and 100 robot ticks")
+    if orientation_interpolation_policy not in ORIENTATION_INTERPOLATION_POLICIES:
+        raise ValueError(
+            "orientation interpolation policy must be one of "
+            + ", ".join(ORIENTATION_INTERPOLATION_POLICIES)
+        )
     center = _urscript_vector(tube.center_base_m)
     anchor = _urscript_vector(tube.anchor_pose_base)
     u_axis = _urscript_vector(tube.u_axis_base)
     v_axis = _urscript_vector(tube.v_axis_base)
+    if orientation_interpolation_policy == ORIENTATION_POLICY_HOLD_ENTRY:
+        orientation_policy_declaration = ""
+        orientation_prelude = ""
+        orientation_assignment = """            if axis < 3:
+              control_eq[axis] = entry_pose[axis] + blend*(last_eq[axis] - entry_pose[axis])
+            else:
+              # Axis-angle coordinates have a branch cut at +/-pi.  The
+              # no-contact canary has no orientation trajectory, so hold the
+              # measured entry orientation instead of interpolating two
+              # equivalent rotvec representations through a 2*pi excursion.
+              control_eq[axis] = entry_pose[axis]
+            end"""
+    else:
+        orientation_policy_declaration = (
+            "  local orientation_interpolation_policy = "
+            f'"{orientation_interpolation_policy}"\n'
+        )
+        orientation_prelude = """          local interpolated_control_pose = interpolate_pose(
+            p[entry_pose[0], entry_pose[1], entry_pose[2], entry_pose[3], entry_pose[4], entry_pose[5]],
+            p[last_eq[0], last_eq[1], last_eq[2], last_eq[3], last_eq[4], last_eq[5]],
+            blend)
+"""
+        orientation_assignment = (
+            "            control_eq[axis] = interpolated_control_pose[axis]"
+        )
     wrapped_source = f'''def tacdiffusion_remote_direct_torque_v4_program():
   torque_thread_run = False
   torque_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -309,6 +347,7 @@ def build_live_receiver_source(
   local receiver_protocol_token = {LIVE_PROTOCOL_TOKEN}
   local control_rate_hz = {CONTROL_RATE_HZ}
   local heartbeat_timeout_ticks = {int(heartbeat_timeout_ticks)}
+{orientation_policy_declaration}\
   local source_builder_physical_io_enabled = False
   local controller_runtime_physical_io_enabled = True
   local wrench_frame_token = {WRENCH_FRAME_TOKEN}
@@ -715,17 +754,10 @@ def build_live_receiver_source(
           end
           local control_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           local control_k = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+{orientation_prelude}\
           axis = 0
           while axis < 6:
-            if axis < 3:
-              control_eq[axis] = entry_pose[axis] + blend*(last_eq[axis] - entry_pose[axis])
-            else:
-              # Axis-angle coordinates have a branch cut at +/-pi.  The
-              # no-contact canary has no orientation trajectory, so hold the
-              # measured entry orientation instead of interpolating two
-              # equivalent rotvec representations through a 2*pi excursion.
-              control_eq[axis] = entry_pose[axis]
-            end
+{orientation_assignment}
             control_k[axis] = last_k[axis]
             local filter_c = filter_velocity[axis] + critical_natural_frequency_rad_s*(filtered_force[axis] - last_raw_force[axis])
             local next_force = last_raw_force[axis] + critical_decay*((filtered_force[axis] - last_raw_force[axis]) + filter_c/500.0)
@@ -960,6 +992,39 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
     )
     if timeout_match is None:
         raise ValueError("live receiver heartbeat timeout is not parseable")
+    orientation_policy_match = re.search(
+        r'^\s*(?:local\s+)?orientation_interpolation_policy = "([^"]+)"$',
+        source,
+        re.MULTILINE,
+    )
+    orientation_interpolation_policy = (
+        ORIENTATION_POLICY_HOLD_ENTRY
+        if orientation_policy_match is None
+        else orientation_policy_match.group(1)
+    )
+    if orientation_interpolation_policy == ORIENTATION_POLICY_HOLD_ENTRY:
+        orientation_tokens = (
+            "if axis < 3:",
+            "control_eq[axis] = entry_pose[axis]",
+            "blend*(last_eq[axis] - entry_pose[axis])",
+        )
+        if any(token not in source for token in orientation_tokens):
+            raise ValueError("hold-entry orientation policy source is incomplete")
+        if "interpolate_pose(" in source:
+            raise ValueError("hold-entry orientation policy must not interpolate pose")
+    elif orientation_interpolation_policy == ORIENTATION_POLICY_INTERPOLATE_POSE:
+        orientation_tokens = (
+            "local interpolated_control_pose = interpolate_pose(",
+            "control_eq[axis] = interpolated_control_pose[axis]",
+        )
+        if any(token not in source for token in orientation_tokens):
+            raise ValueError("geodesic orientation policy source is incomplete")
+        if "if axis < 3:" in source:
+            raise ValueError(
+                "geodesic orientation policy must not interpolate rotvec components"
+            )
+    else:
+        raise ValueError("live receiver orientation interpolation policy is unsupported")
     if re.search(
         r"(?m)^\s*tacdiffusion_remote_direct_torque_v4_program\(\)\s*$",
         source,
@@ -976,6 +1041,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         applied_action_echo=True,
         hard_tube_guard=True,
         dedicated_torque_thread=True,
+        orientation_interpolation_policy=orientation_interpolation_policy,
         source_builder_physical_io_enabled=False,
         controller_runtime_physical_io_enabled=True,
     )

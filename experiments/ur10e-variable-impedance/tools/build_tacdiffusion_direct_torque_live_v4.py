@@ -20,6 +20,8 @@ if str(ROOT) not in sys.path:
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
     LIVE_PROTOCOL_TOKEN,
     LIVE_RECEIVER_SCHEMA,
+    ORIENTATION_INTERPOLATION_POLICIES,
+    ORIENTATION_POLICY_HOLD_ENTRY,
     LiveTubeContract,
     build_live_receiver_source,
     parse_live_receiver_source,
@@ -204,6 +206,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
     source = build_live_receiver_source(
         tube,
         heartbeat_timeout_ticks=args.heartbeat_timeout_ticks,
+        orientation_interpolation_policy=args.orientation_interpolation_policy,
     )
     contract = parse_live_receiver_source(source)
     numeric_sanity = _numeric_sanity(reference, tube)
@@ -216,6 +219,9 @@ def build(args: argparse.Namespace) -> dict[str, object]:
         "receiver_protocol_token": LIVE_PROTOCOL_TOKEN,
         "control_rate_hz": contract.control_rate_hz,
         "heartbeat_timeout_ticks": contract.heartbeat_timeout_ticks,
+        "orientation_interpolation_policy": (
+            contract.orientation_interpolation_policy
+        ),
         "receiver_source": args.receiver_source.name,
         "receiver_source_sha256": source_sha,
         "reference_artifact": str(reference_path),
@@ -257,6 +263,9 @@ def build(args: argparse.Namespace) -> dict[str, object]:
                 "def_tacdiffusion_remote_direct_torque_v4_program"
             ),
             "dedicated_torque_thread": contract.dedicated_torque_thread,
+            "orientation_interpolation_policy": (
+                contract.orientation_interpolation_policy
+            ),
             "continuous_500hz_torque_site": contract.dedicated_torque_thread,
             "zero_torque_startup_or_exit": False,
             "friction_compensation": "v2_zero_scales_no_contact_entry_canary",
@@ -292,6 +301,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--receiver-source", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--heartbeat-timeout-ticks", type=int, default=10)
+    parser.add_argument(
+        "--orientation-interpolation-policy",
+        choices=ORIENTATION_INTERPOLATION_POLICIES,
+        default=ORIENTATION_POLICY_HOLD_ENTRY,
+    )
     args = parser.parse_args(argv)
     try:
         result = build(args)

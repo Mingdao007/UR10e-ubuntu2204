@@ -12,6 +12,8 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (
     COMPILE_PROBE_PROTOCOL_TOKEN,
     LIVE_PROTOCOL_TOKEN,
     LIVE_RECEIVER_SCHEMA,
+    ORIENTATION_POLICY_HOLD_ENTRY,
+    ORIENTATION_POLICY_INTERPOLATE_POSE,
     LiveTubeContract,
     SequenceDecision,
     build_compile_probe_source,
@@ -79,6 +81,7 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert contract.applied_action_echo
     assert contract.hard_tube_guard
     assert contract.dedicated_torque_thread
+    assert contract.orientation_interpolation_policy == ORIENTATION_POLICY_HOLD_ENTRY
     assert not contract.source_builder_physical_io_enabled
     assert contract.controller_runtime_physical_io_enabled
     assert source.rstrip().endswith("end")
@@ -154,6 +157,7 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "guard_force_norm > 6.0 or guard_torque_norm > 0.5" in source
     assert "get_tcp_force()" not in source
     assert "entry_tick < entry_blend_ticks" in source
+    assert "orientation_interpolation_policy =" not in source
     assert "if axis < 3:" in source
     assert "control_eq[axis] = entry_pose[axis]" in source
     assert (
@@ -188,6 +192,49 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "write_output_integer_register(35, episode_latched)" in source
     assert not re.search(r"(?m)^\s*return\b", source)
     assert source.count("sync()") == 4
+
+
+def test_geodesic_orientation_policy_uses_ur_pose_interpolation() -> None:
+    source = build_live_receiver_source(
+        LiveTubeContract.from_reference_artifact(reference_path()),
+        orientation_interpolation_policy=ORIENTATION_POLICY_INTERPOLATE_POSE,
+    )
+    contract = parse_live_receiver_source(source)
+    assert (
+        contract.orientation_interpolation_policy
+        == ORIENTATION_POLICY_INTERPOLATE_POSE
+    )
+    assert (
+        f'orientation_interpolation_policy = "'
+        f'{ORIENTATION_POLICY_INTERPOLATE_POSE}"'
+        in source
+    )
+    assert source.count("interpolate_pose(") == 1
+    assert "local interpolated_control_pose = interpolate_pose(" in source
+    assert "control_eq[axis] = interpolated_control_pose[axis]" in source
+    assert "if axis < 3:" not in source
+    assert "blend*(last_eq[axis] - entry_pose[axis])" not in source
+
+
+def test_orientation_policy_rejects_unknown_or_mismatched_source() -> None:
+    tube = LiveTubeContract.from_reference_artifact(reference_path())
+    with pytest.raises(ValueError, match="orientation interpolation policy"):
+        build_live_receiver_source(
+            tube,
+            orientation_interpolation_policy="componentwise_rotvec",
+        )
+    source = build_live_receiver_source(
+        tube,
+        orientation_interpolation_policy=ORIENTATION_POLICY_INTERPOLATE_POSE,
+    )
+    mismatched = source.replace(
+        f'orientation_interpolation_policy = "'
+        f'{ORIENTATION_POLICY_INTERPOLATE_POSE}"',
+        f'orientation_interpolation_policy = "{ORIENTATION_POLICY_HOLD_ENTRY}"',
+        1,
+    )
+    with pytest.raises(ValueError, match="hold-entry orientation policy"):
+        parse_live_receiver_source(mismatched)
 
 
 def test_compile_probe_is_bounded_and_contains_no_motion_api() -> None:
@@ -394,6 +441,10 @@ def test_bundle_builder_binds_reference_source_and_refuses_overwrite(tmp_path) -
         == "def_tacdiffusion_remote_direct_torque_v4_program"
     )
     assert manifest["gates"]["dedicated_torque_thread"] is True
+    assert (
+        manifest["gates"]["orientation_interpolation_policy"]
+        == ORIENTATION_POLICY_HOLD_ENTRY
+    )
     assert manifest["gates"]["continuous_500hz_torque_site"] is True
     assert manifest["gates"]["zero_torque_startup_or_exit"] is False
     repeated = subprocess.run(
