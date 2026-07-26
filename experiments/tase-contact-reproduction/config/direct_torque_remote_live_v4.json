@@ -177,7 +177,13 @@
     "startup_gain_floor": [25.0, 25.0, 25.0, 0.5, 0.5, 0.5],
     "zero_torque_startup_or_exit": false,
     "active_tick_direct_torque_calls": 1,
-    "friction_compensation": true,
+    "friction_compensation": {
+      "api": "direct_torque_v2",
+      "startup_blend_s": 0.1,
+      "viscous_scale_target": [0.9, 0.9, 0.8, 0.9, 0.9, 0.9],
+      "coulomb_scale_target": [0.8, 0.8, 0.7, 0.8, 0.8, 0.8],
+      "deprecated_friction_comp_argument": false
+    },
     "torque_law": "coriolis_plus_jacobian_transpose_impedance_minus_joint_damping",
     "exit_shape": "single_common_stopj_site",
     "exit_stopj_deceleration": 10.0

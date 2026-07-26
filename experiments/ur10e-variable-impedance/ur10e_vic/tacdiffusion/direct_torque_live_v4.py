@@ -295,6 +295,8 @@ def build_live_receiver_source(
   local k_min = [25.0, 25.0, 25.0, 0.5, 0.5, 0.5]
   local k_max = [1000.0, 1000.0, 1000.0, 60.0, 60.0, 60.0]
   local receiver_force_limit = [20.0, 20.0, 20.0, 2.0, 2.0, 2.0]
+  local viscous_scale_target = [0.9, 0.9, 0.8, 0.9, 0.9, 0.9]
+  local coulomb_scale_target = [0.8, 0.8, 0.7, 0.8, 0.8, 0.8]
   local virtual_mass = [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
   local damping_ratio = 1.0
   local critical_natural_frequency_rad_s = 92.10340371976183
@@ -591,10 +593,14 @@ def build_live_receiver_source(
           end
           local control_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           local control_k = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          local viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          local coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           axis = 0
           while axis < 6:
             control_eq[axis] = entry_pose[axis] + blend*(last_eq[axis] - entry_pose[axis])
             control_k[axis] = k_min[axis] + blend*(last_k[axis] - k_min[axis])
+            viscous_scale[axis] = blend*viscous_scale_target[axis]
+            coulomb_scale[axis] = blend*coulomb_scale_target[axis]
             local filter_c = filter_velocity[axis] + critical_natural_frequency_rad_s*(filtered_force[axis] - last_raw_force[axis])
             local next_force = last_raw_force[axis] + critical_decay*((filtered_force[axis] - last_raw_force[axis]) + filter_c/500.0)
             local next_velocity = critical_decay*(filter_velocity[axis] - critical_natural_frequency_rad_s*filter_c/500.0)
@@ -646,7 +652,7 @@ def build_live_receiver_source(
             exit_reason = 7
             running = False
           else:
-            direct_torque(tau, friction_comp=True)
+            direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)
             torque_entered = True
             write_output_integer_register(24, 2)
             if entry_tick < entry_blend_ticks:
@@ -730,7 +736,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "write_output_float_register(26 + axis, filtered_force[axis])",
         "write_output_float_register(32 + axis, control_k[axis])",
         "write_output_float_register(38 + axis, tau[axis])",
-        "direct_torque(tau, friction_comp=True)",
+        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)",
         "stopj(10.0)",
         "def tacdiffusion_remote_direct_torque_v4_program():",
         "tacdiffusion_remote_direct_torque_v4_program()",
@@ -765,7 +771,9 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         raise ValueError("live receiver active state machine must use one common exit")
     if re.search(r"\babs\s*\(", source):
         raise ValueError("live receiver must avoid unsupported abs() parser calls")
-    if source.count("direct_torque(tau, friction_comp=True)") != 1:
+    if source.count(
+        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
+    ) != 1:
         raise ValueError("live receiver requires one continuous torque command site")
     if source.count("stopj(10.0)") != 1:
         raise ValueError("live receiver requires exactly one explicit position handoff")

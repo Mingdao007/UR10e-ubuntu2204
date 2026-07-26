@@ -71,7 +71,12 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "write_output_float_register(32 + axis, control_k[axis])" in source
     assert "write_output_float_register(26 + axis, filtered_force[axis])" in source
     assert "write_output_float_register(38 + axis, tau[axis])" in source
-    assert source.count("direct_torque(tau, friction_comp=True)") == 1
+    assert source.count(
+        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
+    ) == 1
+    assert "friction_comp=True" not in source
+    assert "viscous_scale[axis] = blend*viscous_scale_target[axis]" in source
+    assert "coulomb_scale[axis] = blend*coulomb_scale_target[axis]" in source
     assert "direct_torque([0.0" not in source
     assert "entry_pose[axis] = actual_pose[axis]" in source
     assert "entry_tick < entry_blend_ticks" in source
@@ -82,7 +87,7 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "startup_packet_ok = command == command_idle" in source
     assert "packet_lease != lease_id or packet_episode != episode_identity" in source
     assert source.index("episode_latched == 0") < source.index(
-        "direct_torque(tau, friction_comp=True)"
+        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
     )
     assert "write_output_integer_register(34, last_observed_command)" in source
     assert "write_output_integer_register(35, episode_latched)" in source

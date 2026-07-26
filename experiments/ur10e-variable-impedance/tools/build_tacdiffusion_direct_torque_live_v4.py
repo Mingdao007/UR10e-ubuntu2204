@@ -255,7 +255,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
             "single_top_level_program": True,
             "continuous_500hz_torque_site": True,
             "zero_torque_startup_or_exit": False,
-            "friction_compensation": True,
+            "friction_compensation": "v2_scales_blended_from_zero",
             "source_builder_physical_io": contract.source_builder_physical_io_enabled,
             "controller_runtime_physical_io": contract.controller_runtime_physical_io_enabled,
         },
