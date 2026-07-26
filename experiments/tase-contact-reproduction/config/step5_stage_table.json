@@ -9128,8 +9128,11 @@
         "acceleration_fault_code": 12,
         "direct_torque_consumes_timestep": true,
         "empty_sync_after_direct_torque_allowed": false,
+        "program_shape": "secondary_client_outer_def_with_nested_minimal_500hz_torque_thread",
+        "main_loop_sync_runs_concurrently_with_torque_thread": true,
         "root_cause_evidence": "runs/tacdiffusion/direct_torque_v4_v34reuse_live_20260726T1859HKT/hold_100ms/entry_bumplessness_analysis_v1.json",
-        "root_fix_claim": "remove_empty_sync_timestep_after_direct_torque",
+        "root_fix": "official_style_dedicated_torque_thread_plus_translation_only_entry_blend_and_entry_orientation_hold",
+        "root_fix_live_validation": "hold_100ms_passed_20260726",
         "guard_claim": "acceleration_guard_is_defense_in_depth_not_root_fix"
       },
       "kunwei_capture_contract": {

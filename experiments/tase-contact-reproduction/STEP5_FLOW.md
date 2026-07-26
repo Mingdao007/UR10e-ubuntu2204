@@ -102,6 +102,15 @@ stationarity and disables all UR viscous/Coulomb friction scales for the
 no-contact entry canary while retaining `direct_torque()` internal gravity
 compensation. Fault 12 classifies `Δactual_qd / 2 ms` above `5 rad/s²`; it is
 a secondary stop guard, not the root-cause remedy.
+Removing the extra active `sync()` reduced but did not eliminate the entry
+acceleration. The receiver now follows UR's official torque layout inside the
+required port-30002 outer program: a minimal dedicated `torqueThread()` owns
+the `direct_torque()` call while the main state machine updates a shared
+bounded command. A subsequent live failure identified a separate `+/-pi`
+axis-angle interpolation bug. Translation-only blending plus entry-orientation
+hold then passed the 100 ms no-contact hold (`2.714 rad/s²` maximum derived
+joint acceleration, COMPLETE observed). Later no-contact stages remain
+separate acceptance gates; contact remains unauthorized.
 
 That timing gate is not a generic post-edit check. Its freeze invalidates only
 when the timing-critical bridge, outer, RNN, control contract, operator, or

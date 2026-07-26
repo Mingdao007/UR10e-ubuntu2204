@@ -253,9 +253,13 @@ def build(args: argparse.Namespace) -> dict[str, object]:
             "hard_tube_guard": contract.hard_tube_guard,
             "explicit_position_handoff": contract.explicit_position_handoff,
             "single_top_level_program": True,
-            "continuous_500hz_torque_site": True,
+            "secondary_wire_outer_program": (
+                "def_tacdiffusion_remote_direct_torque_v4_program"
+            ),
+            "dedicated_torque_thread": contract.dedicated_torque_thread,
+            "continuous_500hz_torque_site": contract.dedicated_torque_thread,
             "zero_torque_startup_or_exit": False,
-            "friction_compensation": "v2_scales_blended_from_zero",
+            "friction_compensation": "v2_zero_scales_no_contact_entry_canary",
             "source_builder_physical_io": contract.source_builder_physical_io_enabled,
             "controller_runtime_physical_io": contract.controller_runtime_physical_io_enabled,
         },

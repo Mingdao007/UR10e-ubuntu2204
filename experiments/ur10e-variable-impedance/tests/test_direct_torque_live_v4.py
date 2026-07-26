@@ -78,30 +78,54 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert contract.complete_identity_echo
     assert contract.applied_action_echo
     assert contract.hard_tube_guard
+    assert contract.dedicated_torque_thread
     assert not contract.source_builder_physical_io_enabled
     assert contract.controller_runtime_physical_io_enabled
-    assert source.rstrip().endswith("tacdiffusion_remote_direct_torque_v4_program()")
+    assert source.rstrip().endswith("end")
     assert source.startswith("def tacdiffusion_remote_direct_torque_v4_program():\n")
     assert len(re.findall(r"(?m)^\s*def\s+", source)) == 1
+    assert not re.search(r"(?m)^(?:local|global)\s+", source)
+    assert not re.search(
+        r"(?m)^\s*tacdiffusion_remote_direct_torque_v4_program\(\)\s*$",
+        source,
+    )
+    assert f'receiver_schema = "{LIVE_RECEIVER_SCHEMA}"' in source
+    assert "running = True" in source
+    assert "entry_tick = 0" in source
+    assert "last_sequence = 0" in source
+    assert "held_age_ticks = 0" in source
+    assert "torque_thread_handle = 0" in source
+    assert source.count("local compare_axis = 0") == 1
+    assert source.count("local zero_axis = 0") == 1
+    assert source.count("local filter_c = ") == 1
+    assert "local feedforward_base = wrench_trans(" in source
+    assert source.count("thread torqueThread():") == 1
     assert source.count("stopj(10.0)") == 1
     assert "release_ready_tolerance_m = 0.001" in source
     assert "write_output_float_register(32 + axis, control_k[axis])" in source
     assert "write_output_float_register(26 + axis, filtered_force[axis])" in source
     assert "write_output_float_register(38 + axis, tau[axis])" in source
     assert source.count(
-        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
+        "direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
     ) == 1
+    torque_thread_start = source.index("thread torqueThread():")
+    program_start = source.index(f'receiver_schema = "{LIVE_RECEIVER_SCHEMA}"')
+    torque_thread_source = source[torque_thread_start:program_start]
+    program_source = source[program_start:]
+    assert "local torque = torque_command" in torque_thread_source
+    assert "sync()" not in torque_thread_source
+    assert not re.search(r"(?m)^\s*direct_torque\(", program_source)
+    assert source.count("torque_thread_handle = run torqueThread()") == 1
+    assert source.count("join torque_thread_handle") == 1
+    assert source.index("torque_command = tau") < source.index(
+        "torque_thread_handle = run torqueThread()"
+    )
+    assert source.index("torque_thread_run = False", program_start) < source.index(
+        "join torque_thread_handle"
+    )
     assert "friction_comp=True" not in source
-    assert (
-        "viscous_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
-        in source
-    )
-    assert (
-        "coulomb_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
-        in source
-    )
-    assert "viscous_scale[axis] = viscous_scale_target[axis]" in source
-    assert "coulomb_scale[axis] = coulomb_scale_target[axis]" in source
+    assert "viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in source
+    assert "coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]" in source
     assert "blend*viscous_scale_target[axis]" not in source
     assert "blend*coulomb_scale_target[axis]" not in source
     assert "direct_torque([0.0" not in source
@@ -130,6 +154,12 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "guard_force_norm > 6.0 or guard_torque_norm > 0.5" in source
     assert "get_tcp_force()" not in source
     assert "entry_tick < entry_blend_ticks" in source
+    assert "if axis < 3:" in source
+    assert "control_eq[axis] = entry_pose[axis]" in source
+    assert (
+        "control_eq[axis] = entry_pose[axis] + "
+        "blend*(last_eq[axis] - entry_pose[axis])"
+    ) in source
     assert "control_k[axis] = last_k[axis]" in source
     assert "k_min[axis] + blend*(last_k[axis] - k_min[axis])" not in source
     assert "active_joint_speed_limit_rad_s = 0.02" in source
@@ -152,16 +182,12 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "startup_packet_ok = command == command_idle" in source
     assert "packet_lease != lease_id or packet_episode != episode_identity" in source
     assert source.index("episode_latched == 0") < source.index(
-        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
+        "torque_thread_handle = run torqueThread()"
     )
     assert "write_output_integer_register(34, last_observed_command)" in source
     assert "write_output_integer_register(35, episode_latched)" in source
     assert not re.search(r"(?m)^\s*return\b", source)
-    direct_torque_site = source.index(
-        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
-    )
-    assert "sync()" not in source[direct_torque_site:]
-    assert source.count("sync()") == 3
+    assert source.count("sync()") == 4
 
 
 def test_compile_probe_is_bounded_and_contains_no_motion_api() -> None:
@@ -200,8 +226,9 @@ def test_receiver_parser_rejects_empty_sync_after_direct_torque() -> None:
         LiveTubeContract.from_reference_artifact(reference_path())
     )
     injected = source.replace(
-        "            if entry_tick < entry_blend_ticks:",
-        "            sync()\n            if entry_tick < entry_blend_ticks:",
+        "    direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)",
+        "    direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)\n"
+        "    sync()",
     )
     with pytest.raises(ValueError, match="empty sync timestep"):
         parse_live_receiver_source(injected)
@@ -282,30 +309,32 @@ def test_live_tube_checks_actual_and_desired_pose() -> None:
         )
 
 
-def test_parser_rejects_missing_invocation_or_high_level_motion() -> None:
+def test_parser_rejects_wrapped_main_or_high_level_motion() -> None:
     source = build_live_receiver_source(
         LiveTubeContract.from_reference_artifact(reference_path())
     )
-    with pytest.raises(ValueError, match="invocation"):
+    with pytest.raises(ValueError, match="missing contract token"):
         parse_live_receiver_source(
             source.replace(
-                "\ntacdiffusion_remote_direct_torque_v4_program()\n",
-                "\n",
+                f'receiver_schema = "{LIVE_RECEIVER_SCHEMA}"',
+                'receiver_schema = "missing"',
             )
         )
     with pytest.raises(ValueError, match="forbidden"):
         parse_live_receiver_source(source + "\nmovel(p[0,0,0,0,0,0])\n")
-    with pytest.raises(ValueError, match="unique"):
+    with pytest.raises(ValueError, match="explicitly invoked"):
         parse_live_receiver_source(
             source + "\ntacdiffusion_remote_direct_torque_v4_program()\n"
         )
     with pytest.raises(ValueError, match="gravity"):
         parse_live_receiver_source(source + "\n    get_gravity_torques(q)\n")
-    with pytest.raises(ValueError, match="nested helpers"):
+    with pytest.raises(ValueError, match="one outer program"):
         parse_live_receiver_source(
             source.replace(
-                "  local receiver_schema",
-                "  def accidental_nested_helper():\n  end\n  local receiver_schema",
+                f'  local receiver_schema = "{LIVE_RECEIVER_SCHEMA}"',
+                "  def accidental_wrapper():\n"
+                f'    local receiver_schema = "{LIVE_RECEIVER_SCHEMA}"\n'
+                "  end",
                 1,
             )
         )
@@ -316,7 +345,7 @@ def test_parser_rejects_missing_invocation_or_high_level_motion() -> None:
     with pytest.raises(ValueError, match="common exit"):
         parse_live_receiver_source(source + "\nreturn\n")
     with pytest.raises(ValueError, match=r"abs\(\)"):
-        parse_live_receiver_source(source + "\nlocal x = abs(1.0)\n")
+        parse_live_receiver_source(source + "\nx = abs(1.0)\n")
 
 
 def test_bundle_builder_binds_reference_source_and_refuses_overwrite(tmp_path) -> None:
@@ -360,6 +389,11 @@ def test_bundle_builder_binds_reference_source_and_refuses_overwrite(tmp_path) -
         "commanded_joint_torque_nm"
     ] == list(range(38, 44))
     assert manifest["gates"]["single_top_level_program"] is True
+    assert (
+        manifest["gates"]["secondary_wire_outer_program"]
+        == "def_tacdiffusion_remote_direct_torque_v4_program"
+    )
+    assert manifest["gates"]["dedicated_torque_thread"] is True
     assert manifest["gates"]["continuous_500hz_torque_site"] is True
     assert manifest["gates"]["zero_torque_startup_or_exit"] is False
     repeated = subprocess.run(

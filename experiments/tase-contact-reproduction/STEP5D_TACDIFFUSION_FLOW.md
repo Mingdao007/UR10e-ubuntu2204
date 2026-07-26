@@ -83,10 +83,14 @@ index, receive-batch identity, one batch-arrival timestamp, and nominal
 `sample_index/1000` time. TCP batching means these captures are not valid
 1 ms causal robot/force alignment and remain `training_dataset=false`.
 
-The controller source has one
-top-level 500 Hz state machine. Once torque starts, every active robot tick
-computes and sends a
-`direct_torque(..., viscous_scale=..., coulomb_scale=...)` command;
+The port-30002 wire source is one outer `def ... end` Secondary Client
+program. Inside that transport wrapper, an official-style minimal
+`torqueThread()` runs alongside the main state machine. Once torque starts,
+the torque thread repeats the
+latest shared command through
+`direct_torque(..., viscous_scale=..., coulomb_scale=...)` every robot tick,
+while the main thread computes the next bounded command and handles packet,
+guard, and evidence work;
 the receiver first requires 25 consecutive stationary controller ticks
 (50 ms), then startup blends from the fresh actual pose for 100 ms. The
 no-contact entry canary sets all UR viscous and Coulomb friction scales to
@@ -118,13 +122,25 @@ effects. A separate `5 rad/s²` guard, derived from consecutive 500 Hz
 claimed as the root fix.
 
 The subsequent zero-friction live hold still failed with zero custom torque
-preceding motion, while Kunwei remained near zero load. Its controller torque
-spikes recurred at the cadence created by an explicit `sync()` after each
-`direct_torque()` call. Because `direct_torque()` already consumes one robot
-timestep, that extra `sync()` left an empty timestep in which the controller
-could revert to position mode. The receiver now forbids any `sync()` after the
-active torque command site; waiting and handshake sync points remain before
-torque entry.
+preceding motion, while Kunwei remained near zero load. Removing the explicit
+`sync()` after each `direct_torque()` call reduced maximum derived acceleration
+from `20.09` to `13.72 rad/s²`, but did not eliminate the failure. The receiver
+therefore now follows UR's official thread separation: the torque thread
+contains no `sync()` or packet/control computation, and the main thread may
+`sync()` concurrently after publishing its next bounded shared command. This
+threaded fingerprint is controller-validated. The first structurally correct
+live attempt then exposed a separate axis-angle branch-cut bug: linearly
+blending equivalent `+pi` and `-pi` rotation-vector representations produced
+a raw `6.283 rad` orientation excursion and grew the commanded torque to
+`5.66 Nm`.
+
+The no-contact stages have no orientation trajectory. Their corrected entry
+therefore blends translation only and holds the fresh measured entry
+orientation. The resulting 2026-07-26 live hold passed: Direct Torque was
+observed for `114.96 ms`, COMPLETE was observed, maximum derived joint
+acceleration was `2.714 rad/s²`, the first custom torque was zero, controller
+rows were `500 Hz`, and Kunwei captured `999.40 Hz`. This accepts only the
+100 ms no-contact hold; it does not authorize contact or claim later stages.
 
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean

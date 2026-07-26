@@ -1665,6 +1665,11 @@ def _sample_safety_errors(
         errors.append("receiver_protocol_identity_changed")
     state = int(sample["output_int_register_24"])
     fault = int(sample["output_int_register_26"])
+    if (
+        state not in {STATE_FAULT, STATE_COMPLETE}
+        and int(sample["runtime_state"]) != RUNTIME_PLAYING
+    ):
+        errors.append("receiver_runtime_stopped_before_terminal_state")
     if fault != 0 or state == STATE_FAULT:
         errors.append(f"receiver_fault:{fault}")
     if state in {STATE_STARTUP, STATE_TORQUE}:

@@ -270,6 +270,7 @@ class LiveReceiverContract:
     complete_identity_echo: bool
     applied_action_echo: bool
     hard_tube_guard: bool
+    dedicated_torque_thread: bool
     source_builder_physical_io_enabled: bool
     controller_runtime_physical_io_enabled: bool
 
@@ -289,7 +290,20 @@ def build_live_receiver_source(
     anchor = _urscript_vector(tube.anchor_pose_base)
     u_axis = _urscript_vector(tube.u_axis_base)
     v_axis = _urscript_vector(tube.v_axis_base)
-    return f'''def tacdiffusion_remote_direct_torque_v4_program():
+    wrapped_source = f'''def tacdiffusion_remote_direct_torque_v4_program():
+  torque_thread_run = False
+  torque_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+  thread torqueThread():
+    while torque_thread_run:
+      local torque = torque_command
+      direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)
+    end
+    stopj(10.0)
+  end
+
   # generated Remote-Control Direct Torque receiver; sending is separately authorized
   local receiver_schema = "{LIVE_RECEIVER_SCHEMA}"
   local receiver_protocol_token = {LIVE_PROTOCOL_TOKEN}
@@ -313,8 +327,6 @@ def build_live_receiver_source(
   # Gravity is compensated internally by direct_torque().  The no-contact
   # canary deliberately disables UR friction/stiction injection so that a
   # zero-error, zero-speed entry has a zero non-gravity torque equilibrium.
-  local viscous_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-  local coulomb_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local virtual_mass = [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
   local damping_ratio = 1.0
   local critical_natural_frequency_rad_s = 92.10340371976183
@@ -358,6 +370,7 @@ def build_live_receiver_source(
   local entry_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local last_qd = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local last_qd_valid = False
+  local torque_thread_handle = 0
   write_output_integer_register(24, 0)
   write_output_integer_register(25, 0)
   write_output_integer_register(26, 0)
@@ -702,14 +715,18 @@ def build_live_receiver_source(
           end
           local control_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           local control_k = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-          local viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-          local coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           axis = 0
           while axis < 6:
-            control_eq[axis] = entry_pose[axis] + blend*(last_eq[axis] - entry_pose[axis])
+            if axis < 3:
+              control_eq[axis] = entry_pose[axis] + blend*(last_eq[axis] - entry_pose[axis])
+            else:
+              # Axis-angle coordinates have a branch cut at +/-pi.  The
+              # no-contact canary has no orientation trajectory, so hold the
+              # measured entry orientation instead of interpolating two
+              # equivalent rotvec representations through a 2*pi excursion.
+              control_eq[axis] = entry_pose[axis]
+            end
             control_k[axis] = last_k[axis]
-            viscous_scale[axis] = viscous_scale_target[axis]
-            coulomb_scale[axis] = coulomb_scale_target[axis]
             local filter_c = filter_velocity[axis] + critical_natural_frequency_rad_s*(filtered_force[axis] - last_raw_force[axis])
             local next_force = last_raw_force[axis] + critical_decay*((filtered_force[axis] - last_raw_force[axis]) + filter_c/500.0)
             local next_velocity = critical_decay*(filter_velocity[axis] - critical_natural_frequency_rad_s*filter_c/500.0)
@@ -761,8 +778,12 @@ def build_live_receiver_source(
             exit_reason = 7
             running = False
           else:
-            direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)
-            torque_entered = True
+            torque_command = tau
+            if not torque_entered:
+              torque_thread_run = True
+              torque_thread_handle = run torqueThread()
+              torque_entered = True
+            end
             write_output_integer_register(24, 2)
             if entry_tick < entry_blend_ticks:
               write_output_integer_register(24, 1)
@@ -790,6 +811,7 @@ def build_live_receiver_source(
             if entry_tick < entry_blend_ticks:
               entry_tick = entry_tick + 1
             end
+            sync()
           end
         end
       end
@@ -808,7 +830,8 @@ def build_live_receiver_source(
   write_output_integer_register(34, last_observed_command)
   write_output_integer_register(35, episode_latched)
   if torque_entered:
-    stopj(10.0)
+    torque_thread_run = False
+    join torque_thread_handle
   end
   if exit_fault == 0:
     write_output_integer_register(24, 5)
@@ -816,8 +839,8 @@ def build_live_receiver_source(
     write_output_integer_register(24, 4)
   end
 end
-tacdiffusion_remote_direct_torque_v4_program()
 '''
+    return wrapped_source
 
 
 def parse_live_receiver_source(source: str) -> LiveReceiverContract:
@@ -844,10 +867,14 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "write_output_float_register(26 + axis, filtered_force[axis])",
         "write_output_float_register(32 + axis, control_k[axis])",
         "write_output_float_register(38 + axis, tau[axis])",
-        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)",
+        "thread torqueThread():",
+        "torque = torque_command",
+        "direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)",
+        "torque_thread_handle = run torqueThread()",
+        "torque_thread_run = False",
+        "join torque_thread_handle",
         "stopj(10.0)",
-        "def tacdiffusion_remote_direct_torque_v4_program():",
-        "tacdiffusion_remote_direct_torque_v4_program()",
+        f'receiver_schema = "{LIVE_RECEIVER_SCHEMA}"',
         "entry_pose[axis] = actual_pose[axis]",
         "tube_rebased = False",
         "tube_center_base = [actual_pose[0], actual_pose[1], actual_pose[2]]",
@@ -859,10 +886,8 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "guard_force_norm > 6.0 or guard_torque_norm > 0.5",
         "entry_tick < entry_blend_ticks",
         "control_k[axis] = last_k[axis]",
-        "viscous_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
-        "coulomb_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
-        "viscous_scale[axis] = viscous_scale_target[axis]",
-        "coulomb_scale[axis] = coulomb_scale_target[axis]",
+        "viscous_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
+        "coulomb_scale = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
         "actual_translation_speed > active_tcp_translation_speed_limit_m_s",
         "actual_rotation_speed > active_tcp_rotation_speed_limit_rad_s",
         "active_speed_violation",
@@ -890,40 +915,56 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         raise ValueError("live receiver source contains a forbidden primitive")
     if re.search(r"\bget_.*gravity", source, flags=re.IGNORECASE):
         raise ValueError("live receiver source must not include gravity compensation terms")
+    outer_program = "def tacdiffusion_remote_direct_torque_v4_program():"
+    if not source.startswith(outer_program + "\n"):
+        raise ValueError(
+            "live receiver Secondary Client wire source requires one outer program"
+        )
     if len(re.findall(r"(?m)^\s*def\s+", source)) != 1:
-        raise ValueError("live receiver requires one top-level program and no nested helpers")
+        raise ValueError(
+            "live receiver Secondary Client wire source requires one outer program"
+        )
+    if re.search(r"(?m)^global\s+", source):
+        raise ValueError("live receiver must not declare state outside its wire program")
     if re.search(r"\bdirect_torque\s*\(\s*\[\s*0(?:\.0)?", source):
         raise ValueError("live receiver must not use a zero-torque startup or exit")
     if re.search(r"(?m)^\s*return\b", source):
         raise ValueError("live receiver active state machine must use one common exit")
     if re.search(r"\babs\s*\(", source):
         raise ValueError("live receiver must avoid unsupported abs() parser calls")
-    if source.count(
-        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
-    ) != 1:
-        raise ValueError("live receiver requires one continuous torque command site")
-    direct_torque_site = source.index(
-        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
+    torque_call = (
+        "direct_torque(torque, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
     )
-    if "sync()" in source[direct_torque_site:]:
+    if source.count(torque_call) != 1:
+        raise ValueError("live receiver requires one continuous torque command site")
+    torque_thread_start = source.index("thread torqueThread():")
+    program_start = source.index(f'receiver_schema = "{LIVE_RECEIVER_SCHEMA}"')
+    torque_thread_source = source[torque_thread_start:program_start]
+    program_source = source[program_start:]
+    if "sync()" in torque_thread_source:
         raise ValueError(
-            "live receiver must not leave an empty sync timestep after direct_torque"
+            "live receiver torque thread must not leave an empty sync timestep"
         )
+    if torque_thread_source.count(torque_call) != 1:
+        raise ValueError("live receiver torque command must be owned by torqueThread")
+    if source.count("torque_thread_handle = run torqueThread()") != 1:
+        raise ValueError("live receiver requires exactly one torque thread launch site")
+    if source.count("join torque_thread_handle") != 1:
+        raise ValueError("live receiver requires exactly one torque thread join site")
     if source.count("stopj(10.0)") != 1:
         raise ValueError("live receiver requires exactly one explicit position handoff")
     timeout_match = re.search(
-        r"^\s*(?:local\s+)?heartbeat_timeout_ticks = (\d+)$",
+        r"^\s*(?:(?:local|global)\s+)?heartbeat_timeout_ticks = (\d+)$",
         source,
         re.MULTILINE,
     )
     if timeout_match is None:
         raise ValueError("live receiver heartbeat timeout is not parseable")
-    program_invocation_matches = re.findall(
-        r"(?m)^tacdiffusion_remote_direct_torque_v4_program\(\)\s*$",
+    if re.search(
+        r"(?m)^\s*tacdiffusion_remote_direct_torque_v4_program\(\)\s*$",
         source,
-    )
-    if len(program_invocation_matches) != 1:
-        raise ValueError("live receiver program invocation is missing or not unique")
+    ):
+        raise ValueError("live receiver outer program must not be explicitly invoked")
     return LiveReceiverContract(
         schema=LIVE_RECEIVER_SCHEMA,
         control_rate_hz=CONTROL_RATE_HZ,
@@ -934,6 +975,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         complete_identity_echo=True,
         applied_action_echo=True,
         hard_tube_guard=True,
+        dedicated_torque_thread=True,
         source_builder_physical_io_enabled=False,
         controller_runtime_physical_io_enabled=True,
     )

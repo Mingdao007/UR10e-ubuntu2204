@@ -183,8 +183,11 @@
     "stale_action": "fault_after_heartbeat_timeout"
   },
   "direct_torque_control_contract": {
-    "program_shape": "single_top_level_500hz_state_machine",
+    "program_shape": "secondary_client_outer_def_with_nested_minimal_500hz_torque_thread",
+    "torque_thread_owner": "torqueThread",
+    "main_thread_role": "packet_guard_impedance_and_shared_torque_update",
     "startup_equilibrium": "fresh_actual_pose",
+    "orientation_entry_policy": "hold_fresh_entry_orientation_no_rotvec_component_interpolation",
     "startup_equilibrium_blend_s": 0.1,
     "startup_stationary_dwell_s": 0.05,
     "startup_stationary_dwell_ticks": 25,
@@ -199,6 +202,7 @@
     "active_tick_direct_torque_calls": 1,
     "direct_torque_consumes_timestep": true,
     "empty_sync_after_direct_torque_allowed": false,
+    "main_loop_sync_runs_concurrently_with_torque_thread": true,
     "active_speed_guards": {
       "maximum_abs_joint_speed_rad_s": 0.02,
       "maximum_abs_derived_joint_acceleration_rad_s2": 5.0,
@@ -213,7 +217,7 @@
       "api": "direct_torque_v2",
       "startup_blend_s": 0.0,
       "startup_policy": "disabled_for_no_contact_entry_canary",
-      "root_cause_basis": "two_failed_holds_showed_zero_custom_tau_preceding_motion; the second zero-friction run exposed an empty sync timestep after each direct_torque call",
+      "root_cause_basis": "dedicated torque-thread cadence fixed the transport/control architecture; the remaining live fault was caused by componentwise interpolation across equivalent +/-pi rotation-vector representations",
       "gravity_compensation": "internal_to_direct_torque_do_not_add_gravity",
       "viscous_scale_target": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
       "coulomb_scale_target": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
