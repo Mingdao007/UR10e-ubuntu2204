@@ -543,8 +543,6 @@ def _run_revalidate(root: Path, plan: Mapping[str, Any], canonical_shell: Path) 
     command = [
         str(canonical_shell),
         "revalidate-current",
-        "--artifact-dir",
-        str(root / "programs/step5/step5d"),
         "--evidence-output",
         str(evidence),
     ]

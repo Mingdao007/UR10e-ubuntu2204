@@ -529,6 +529,39 @@ def _plan_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def test_publication_revalidate_resolves_artifacts_from_immutable_current(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "experiment"
+    canonical_shell = root / "scripts/step5d-autotune-v3.sh"
+    plan = {"release": {"transaction_id": "a" * 32}}
+    with mock.patch.object(
+        publication_consumer.subprocess,
+        "run",
+        return_value=SimpleNamespace(returncode=0),
+    ) as run:
+        assert (
+            publication_consumer._run_revalidate(
+                root,
+                plan,
+                canonical_shell,
+            )
+            == 0
+        )
+
+    evidence = (
+        root
+        / "runs/step5d_autotune_v3"
+        / f"publication-revalidate-{'a' * 32}.json"
+    )
+    assert run.call_args.args[0] == [
+        str(canonical_shell),
+        "revalidate-current",
+        "--evidence-output",
+        str(evidence),
+    ]
+
+
 def test_publication_consumer_end_to_end_commits_then_cleanly_revalidates(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
