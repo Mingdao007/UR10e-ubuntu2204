@@ -1,0 +1,820 @@
+# VERSION: 2026-07-26TDIAGNOSTIC_STEP5D_TACDIFFUSION_DIRECT_TORQUE_SIMULATION_PROBE_V3
+# STEP5_STAGE_ID: step5d_tacdiffusion_direct_torque_simulation_probe_v3
+# DIRECT_TEMPLATE_SHA256: 297691225720dfb887ec1311c7fb8046c18e9f2aa191876e61422667de242d80
+# SEQUENCE_PACING: ack_gated_host_driver; controller_sequence_guard_unchanged
+# EXECUTION_SCOPE: TP Simulation Mode only; physical robot motion is forbidden.
+# MOTION_PRIMITIVES: none; only direct_torque() and controlled stopj() exist.
+# PURPOSE: validate strict sequence semantics with controller-ACK-paced host
+# packets while preserving the v2 diagnostic telemetry and fail-closed guards.
+# HASH-BOUND DIRECT TORQUE HELPERS: live use still requires fresh owner gates.
+# Bound manifest: ../config/direct_torque_rtde_layout.json
+# Design target is PolyScope 5.25.2, Direct Torque V2, and 500 Hz.
+# Direct Torque V2 predates 5.25.2; this exact target still requires fresh
+# controller readback plus successful URSim syntax/runtime validation.
+# direct_torque() adds gravity compensation internally; tau below excludes gravity.
+
+def vic_abs(value):
+  if value < 0.0:
+    return -value
+  end
+  return value
+end
+
+def vic_finite(value, limit):
+  return value == value and vic_abs(value) <= limit
+end
+
+def vic_read_six(start_register):
+  return [read_input_float_register(start_register),
+          read_input_float_register(start_register + 1),
+          read_input_float_register(start_register + 2),
+          read_input_float_register(start_register + 3),
+          read_input_float_register(start_register + 4),
+          read_input_float_register(start_register + 5)]
+end
+
+def vic_zero_six():
+  return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+end
+
+def vic_write_six(start_register, values):
+  local axis = 0
+  while axis < 6:
+    write_output_float_register(start_register + axis, values[axis])
+    axis = axis + 1
+  end
+end
+
+def vic_same_six(left, right):
+  local axis = 0
+  while axis < 6:
+    if vic_abs(left[axis] - right[axis]) > 0.000000000001:
+      return False
+    end
+    axis = axis + 1
+  end
+  return True
+end
+
+def vic_feedforward_zero(values):
+  local axis = 0
+  while axis < 6:
+    if not vic_finite(values[axis], 0.000000000001):
+      return False
+    end
+    axis = axis + 1
+  end
+  return True
+end
+
+def vic_feedforward_valid(values):
+  local component_max = [20.0, 20.0, 20.0, 2.0, 2.0, 2.0]
+  local axis = 0
+  while axis < 6:
+    if not vic_finite(values[axis], component_max[axis]):
+      return False
+    end
+    axis = axis + 1
+  end
+  return vic_norm3(values, 0) <= 20.0 and vic_norm3(values, 3) <= 2.0
+end
+
+def vic_model_period_valid(period_us):
+  # Microseconds represent all planned 50/100/200/500 Hz model rates exactly;
+  # 200 Hz cannot be represented by an integer number of 500 Hz ticks.
+  return period_us == 2000 or period_us == 5000 or period_us == 10000 or period_us == 20000
+end
+
+def vic_force_filter_step(raw_feedforward, filtered_feedforward, filtered_velocity, dt):
+  # Paper Eq. 11, discretized at the 500 Hz controller tick with
+  # semi-implicit Euler: Fff_ddot=alpha*(beta*(Fdf-Fff)-Fff_dot).
+  local alpha = 0.9
+  local beta = 0.3
+  local next_filtered = vic_zero_six()
+  local next_velocity = vic_zero_six()
+  local axis = 0
+  while axis < 6:
+    local acceleration = alpha * (beta * (raw_feedforward[axis] - filtered_feedforward[axis]) - filtered_velocity[axis])
+    next_velocity[axis] = filtered_velocity[axis] + acceleration * dt
+    next_filtered[axis] = filtered_feedforward[axis] + next_velocity[axis] * dt
+    if not vic_finite(next_velocity[axis], 1000.0) or not vic_finite(next_filtered[axis], 1000.0):
+      return [0.0]
+    end
+    axis = axis + 1
+  end
+  return [1.0,
+          next_filtered[0], next_filtered[1], next_filtered[2], next_filtered[3], next_filtered[4], next_filtered[5],
+          next_velocity[0], next_velocity[1], next_velocity[2], next_velocity[3], next_velocity[4], next_velocity[5]]
+end
+
+def vic_monotonic_feedforward_decay(filtered_feedforward):
+  local decayed = vic_zero_six()
+  local axis = 0
+  while axis < 6:
+    decayed[axis] = 0.5 * filtered_feedforward[axis]
+    axis = axis + 1
+  end
+  return decayed
+end
+
+def vic_norm3(values, start_index):
+  return sqrt(values[start_index] * values[start_index] +
+              values[start_index + 1] * values[start_index + 1] +
+              values[start_index + 2] * values[start_index + 2])
+end
+
+def vic_damping_matches_sqrt(stiffness, damping):
+  local virtual_mass = [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
+  local axis = 0
+  while axis < 6:
+    local expected = 2.0 * sqrt(stiffness[axis] * virtual_mass[axis])
+    if vic_abs(damping[axis] - expected) > 0.05:
+      return False
+    end
+    axis = axis + 1
+  end
+  return True
+end
+
+def vic_input_valid(eq, stiffness, damping):
+  local stiffness_min = [25.0, 25.0, 25.0, 0.5, 0.5, 0.5]
+  local stiffness_max = [1000.0, 1000.0, 1000.0, 60.0, 60.0, 60.0]
+  local damping_max = [200.0, 200.0, 200.0, 30.0, 30.0, 30.0]
+  local index = 0
+  while index < 6:
+    if not vic_finite(eq[index], 10.0):
+      return False
+    elif not vic_finite(stiffness[index], stiffness_max[index]):
+      return False
+    elif stiffness[index] < stiffness_min[index]:
+      return False
+    elif not vic_finite(damping[index], damping_max[index]):
+      return False
+    elif damping[index] < 0.0:
+      return False
+    end
+    index = index + 1
+  end
+  # The reviewed impedance is fixed on the controller, not just host-side.
+  if vic_abs(stiffness[3] - 30.0) > 0.000001 or vic_abs(stiffness[4] - 30.0) > 0.000001 or vic_abs(stiffness[5] - 30.0) > 0.000001:
+    return False
+  end
+  return vic_damping_matches_sqrt(stiffness, damping)
+end
+
+def vic_initial_baseline(stiffness):
+  local baseline = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
+  local index = 0
+  while index < 6:
+    if vic_abs(stiffness[index] - baseline[index]) > 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def vic_stiffness_transition_valid(stiffness, last_stiffness, dt):
+  local max_slew_per_s = [400.0, 400.0, 400.0, 20.0, 20.0, 20.0]
+  local index = 0
+  while index < 6:
+    local decrease = last_stiffness[index] - stiffness[index]
+    if decrease < -0.000001 or decrease > max_slew_per_s[index] * dt + 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  return True
+end
+
+def vic_equilibrium_transition_valid(eq, last_eq, dt):
+  local index = 0
+  while index < 3:
+    if vic_abs(eq[index] - last_eq[index]) > 0.05 * dt + 0.000001:
+      return False
+    end
+    index = index + 1
+  end
+  local orientation_step = sqrt((eq[3] - last_eq[3]) * (eq[3] - last_eq[3]) + (eq[4] - last_eq[4]) * (eq[4] - last_eq[4]) + (eq[5] - last_eq[5]) * (eq[5] - last_eq[5]))
+  if orientation_step > 0.05 * dt + 0.000001:
+    return False
+  end
+  return True
+end
+
+def vic_release_ready(eq):
+  local actual_pose = get_actual_tcp_pose()
+  local target_pose = p[eq[0], eq[1], eq[2], eq[3], eq[4], eq[5]]
+  local error = pose_sub(target_pose, actual_pose)
+  local wrench = get_tcp_force()
+  return vic_norm3(error, 0) <= 0.002 and vic_norm3(wrench, 0) <= 2.0 and vic_norm3(wrench, 3) <= 0.2
+end
+
+def vic_runtime_guard_ok():
+  local wrench = get_tcp_force()
+  if vic_norm3(wrench, 0) > 50.0 or vic_norm3(wrench, 3) > 3.0:
+    return False
+  end
+  local pose = get_actual_tcp_pose()
+  local xyz_min = [0.30, 0.00, -0.02]
+  local xyz_max = [0.55, 0.24, 0.12]
+  local axis = 0
+  while axis < 3:
+    if not vic_finite(pose[axis], 10.0) or pose[axis] < xyz_min[axis] or pose[axis] > xyz_max[axis]:
+      return False
+    end
+    axis = axis + 1
+  end
+  local q = get_actual_joint_positions()
+  local qd = get_actual_joint_speeds()
+  local q_min = [0.40, -2.00, -3.00, -0.80, 1.30, -1.50]
+  local q_max = [0.90, -1.20, -2.20, -0.20, 1.80, -0.70]
+  local joint = 0
+  while joint < 6:
+    if not vic_finite(q[joint], 7.0) or q[joint] < q_min[joint] or q[joint] > q_max[joint] or not vic_finite(qd[joint], 1.0):
+      return False
+    end
+    joint = joint + 1
+  end
+  return True
+end
+
+def vic_tcp_wrench_to_base(wrench_tcp):
+  # get_jacobian() maps qdot to a base-frame TCP twist. Transform the model's
+  # TCP-frame wrench into that common frame without shifting its point of
+  # application away from the TCP (rotation-only pose, zero translation).
+  local tcp_pose_base = get_actual_tcp_pose()
+  local tcp_rotation_base = p[0.0, 0.0, 0.0, tcp_pose_base[3], tcp_pose_base[4], tcp_pose_base[5]]
+  return wrench_trans(tcp_rotation_base, wrench_tcp)
+end
+
+def vic_compute_tau(eq, stiffness, damping, filtered_feedforward):
+  local actual_pose = get_actual_tcp_pose()
+  local actual_twist = get_actual_tcp_speed()
+  local target_pose = p[eq[0], eq[1], eq[2], eq[3], eq[4], eq[5]]
+  local error = pose_sub(target_pose, actual_pose)
+  local error_max = [0.05, 0.05, 0.05, 0.35, 0.35, 0.35]
+  local wrench_command = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local feedforward_base = vic_tcp_wrench_to_base(filtered_feedforward)
+  local axis = 0
+  while axis < 6:
+    if not vic_finite(error[axis], error_max[axis]):
+      return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    end
+    wrench_command[axis] = feedforward_base[axis] + stiffness[axis] * error[axis] - damping[axis] * actual_twist[axis]
+    axis = axis + 1
+  end
+
+  local q = get_actual_joint_positions()
+  local qd = get_actual_joint_speeds()
+  local jacobian = get_jacobian(q)
+  local coriolis = get_coriolis_and_centrifugal_torques(q, qd)
+  local joint_damping = [1.5, 1.5, 1.2, 0.3, 0.3, 0.2]
+  local tau_limit = [20.0, 20.0, 20.0, 8.0, 8.0, 8.0]
+  local tau = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local joint = 0
+  while joint < 6:
+    local value = coriolis[joint] - joint_damping[joint] * qd[joint]
+    axis = 0
+    while axis < 6:
+      value = value + jacobian[axis, joint] * wrench_command[axis]
+      axis = axis + 1
+    end
+    if not vic_finite(value, tau_limit[joint]):
+      return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    end
+    tau[joint] = value
+    joint = joint + 1
+  end
+  return [1.0, tau[0], tau[1], tau[2], tau[3], tau[4], tau[5]]
+end
+
+def vic_diag(diagnostic_base, reason, detail):
+  # Current diagnosis is volatile; phase diagnosis remains until the next
+  # invocation of that phase.  Integer and double register namespaces are
+  # independent on RTDE, so these do not alter the existing result registers.
+  write_output_integer_register(32, reason)
+  write_output_integer_register(33, detail)
+  write_output_integer_register(diagnostic_base, reason)
+  write_output_integer_register(diagnostic_base + 1, detail)
+end
+
+def vic_safe_exit_tick(decaying_feedforward, diagnostic_base, failure_reason):
+  local q = get_actual_joint_positions()
+  local qd = get_actual_joint_speeds()
+  local coriolis = get_coriolis_and_centrifugal_torques(q, qd)
+  local jacobian = get_jacobian(q)
+  local decaying_feedforward_base = vic_tcp_wrench_to_base(decaying_feedforward)
+  local joint_damping = [1.5, 1.5, 1.2, 0.3, 0.3, 0.2]
+  local tau = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local joint = 0
+  while joint < 6:
+    if not vic_finite(q[joint], 7.0):
+      vic_diag(diagnostic_base, failure_reason, 100 + joint)
+      return False
+    end
+    if not vic_finite(qd[joint], 1.0):
+      vic_diag(diagnostic_base, failure_reason, 200 + joint)
+      return False
+    end
+    if not vic_finite(coriolis[joint], 20.0):
+      vic_diag(diagnostic_base, failure_reason, 300 + joint)
+      return False
+    end
+    tau[joint] = coriolis[joint] - joint_damping[joint] * qd[joint]
+    local axis = 0
+    while axis < 6:
+      tau[joint] = tau[joint] + jacobian[axis, joint] * decaying_feedforward_base[axis]
+      axis = axis + 1
+    end
+    if not vic_finite(tau[joint], 20.0):
+      vic_diag(diagnostic_base, failure_reason, 400 + joint)
+      return False
+    end
+    joint = joint + 1
+  end
+  direct_torque(tau)
+  return True
+end
+
+
+def vic_fixed_impedance_exact(stiffness, damping):
+  local fixed_k = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
+  local fixed_d = [69.2820323, 69.2820323, 69.2820323, 4.898979486, 4.898979486, 4.898979486]
+  local axis = 0
+  while axis < 6:
+    if vic_abs(stiffness[axis] - fixed_k[axis]) > 0.000001 or vic_abs(damping[axis] - fixed_d[axis]) > 0.000001:
+      return False
+    end
+    axis = axis + 1
+  end
+  return True
+end
+
+def vic_contact_release_ready(eq):
+  local actual_pose = get_actual_tcp_pose()
+  local target_pose = p[eq[0], eq[1], eq[2], eq[3], eq[4], eq[5]]
+  local error = pose_sub(target_pose, actual_pose)
+  local qd = get_actual_joint_speeds()
+  local qd_max = 0.0
+  local joint = 0
+  while joint < 6:
+    if vic_abs(qd[joint]) > qd_max:
+      qd_max = vic_abs(qd[joint])
+    end
+    joint = joint + 1
+  end
+  return vic_norm3(error, 0) <= 0.002 and vic_norm3(error, 3) <= 0.010 and qd_max <= 0.010
+end
+
+def codex_step5d_direct_torque_stage25(diagnostic_base):
+  local MODE_ARMED = 1
+  local MODE_COMPLETE = 2
+  local MODEL_DISABLED = 0
+  local MODEL_SHADOW = 1
+  local MODEL_ACTIVE = 2
+  # Hash-bound compile-time capability. A future separately reviewed package
+  # must flip this; input registers alone cannot authorize model-active torque.
+  local model_active_allowed = False
+  local STATE_WAITING = 0
+  local STATE_ZERO_STARTUP = 1
+  local STATE_TORQUE = 2
+  local STATE_SAFE_EXIT = 3
+  local FAULT_NONE = 0
+  local FAULT_STALE = 1
+  local FAULT_INPUT = 2
+  local FAULT_SEQUENCE = 3
+  local FAULT_PACKET = 4
+  local FAULT_RUNTIME_GUARD = 5
+  local FAULT_SLEW = 6
+  local FAULT_RELEASE = 7
+  local FAULT_LEASE = 8
+  local FAULT_MODEL = 9
+  local MODEL_FAULT_NONE = 0
+  local MODEL_FAULT_PACKET = 1
+  local MODEL_FAULT_SEQUENCE = 2
+  local MODEL_FAULT_STALE = 3
+  local MODEL_FAULT_INPUT = 4
+  local MODEL_FAULT_FRAME = 5
+  local MODEL_FAULT_MODE = 6
+  local MODEL_FAULT_PERIOD = 7
+  local expected_wrench_frame_token = 5252001
+  local heartbeat_timeout_ticks = 10
+  local zero_startup_ticks = 5
+  local safe_exit_ticks = 10
+  local last_sequence = 0
+  local lease_id = 0
+  local last_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local last_stiffness = [600.0, 600.0, 600.0, 30.0, 30.0, 30.0]
+  local stale_ticks = 0
+  local last_model_sequence = 0
+  local last_model_period_us = 0
+  local last_model_mode = MODEL_DISABLED
+  local model_age_ticks = 0
+  local last_raw_feedforward = vic_zero_six()
+  local filtered_feedforward = vic_zero_six()
+  local filtered_velocity = vic_zero_six()
+  local last_applied_feedforward = vic_zero_six()
+  local torque_active = False
+  local zero_startup_count = 0
+  local safe_exit_count = 0
+  vic_diag(diagnostic_base, 0, 0)
+
+  write_output_integer_register(24, STATE_WAITING)
+  write_output_integer_register(25, last_sequence)
+  write_output_integer_register(26, FAULT_NONE)
+  write_output_integer_register(27, 0)
+  write_output_integer_register(28, last_model_sequence)
+  write_output_integer_register(29, MODEL_FAULT_NONE)
+  write_output_integer_register(30, 0)
+  vic_write_six(26, filtered_feedforward)
+
+  while True:
+    # Host writes payload/heartbeat/lease first and sequence last.  A stable
+    # sequence before and after all reads is the controller-side packet commit.
+    local sequence_before = read_input_integer_register(25)
+    local mode = read_input_integer_register(24)
+    local heartbeat = read_input_integer_register(26)
+    local packet_lease = read_input_integer_register(27)
+    local model_sequence_before = read_input_integer_register(28)
+    local model_period_us = read_input_integer_register(29)
+    local model_mode = read_input_integer_register(30)
+    local wrench_frame_token = read_input_integer_register(31)
+
+    local eq = vic_read_six(24)
+    local stiffness = vic_read_six(30)
+    local damping = vic_read_six(36)
+    local raw_feedforward = vic_read_six(42)
+    local model_sequence_after = read_input_integer_register(28)
+    local sequence_after = read_input_integer_register(25)
+    local sequence = sequence_after
+    local coherent_packet = sequence_before == sequence_after and heartbeat == sequence
+    local sequence_ok = sequence == last_sequence + 1 and sequence > 0
+    local lease_ok = packet_lease > 0 and (lease_id == 0 or packet_lease == lease_id)
+    if coherent_packet and sequence_ok:
+      stale_ticks = 0
+    else:
+      stale_ticks = stale_ticks + 1
+    end
+
+    if mode == MODE_COMPLETE and torque_active and coherent_packet and sequence_ok and lease_ok:
+      local normal_exit_count = 0
+      while normal_exit_count < safe_exit_ticks:
+        if not vic_safe_exit_tick(vic_zero_six(), diagnostic_base, 14):
+          stopj(10.0)
+          return 13.0
+        end
+        normal_exit_count = normal_exit_count + 1
+      end
+      stopj(10.0)
+      return 1.0
+    end
+
+    local model_fault = MODEL_FAULT_NONE
+    local model_packet_ok = True
+    local candidate_model_age_ticks = 0
+    local candidate_model_sequence = 0
+    local candidate_model_period_us = 0
+    local candidate_model_mode = MODEL_DISABLED
+    local candidate_raw_feedforward = vic_zero_six()
+    local candidate_filtered_feedforward = vic_monotonic_feedforward_decay(filtered_feedforward)
+    local candidate_filtered_velocity = vic_zero_six()
+    if model_mode == MODEL_DISABLED:
+      if model_sequence_before != 0 or model_sequence_after != 0 or model_period_us != 0 or not vic_feedforward_zero(raw_feedforward):
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_INPUT
+      end
+    elif model_mode == MODEL_ACTIVE and not model_active_allowed:
+      model_packet_ok = False
+      model_fault = MODEL_FAULT_MODE
+    elif model_mode == MODEL_SHADOW or model_mode == MODEL_ACTIVE:
+      if model_sequence_before != model_sequence_after:
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_PACKET
+      elif wrench_frame_token != expected_wrench_frame_token:
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_FRAME
+      elif not vic_model_period_valid(model_period_us):
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_PERIOD
+      elif not vic_feedforward_zero(raw_feedforward):
+        model_packet_ok = False
+        model_fault = MODEL_FAULT_INPUT
+      else:
+        local model_sequence = model_sequence_after
+        local first_model_packet = last_model_sequence == 0
+        local new_model_packet = first_model_packet or model_sequence == last_model_sequence + 1
+        local held_model_packet = model_sequence == last_model_sequence
+        if model_sequence <= 0 or not (new_model_packet or held_model_packet):
+          model_packet_ok = False
+          model_fault = MODEL_FAULT_SEQUENCE
+        elif held_model_packet and (model_period_us != last_model_period_us or model_mode != last_model_mode or not vic_same_six(raw_feedforward, last_raw_feedforward)):
+          model_packet_ok = False
+          model_fault = MODEL_FAULT_PACKET
+        else:
+          if held_model_packet:
+            candidate_model_age_ticks = model_age_ticks + 1
+          else:
+            candidate_model_age_ticks = 0
+          end
+          if candidate_model_age_ticks * 2000 > 2 * model_period_us:
+            model_packet_ok = False
+            model_fault = MODEL_FAULT_STALE
+          else:
+            local filter_step = vic_force_filter_step(raw_feedforward, filtered_feedforward, filtered_velocity, get_steptime())
+            if filter_step[0] < 0.5:
+              model_packet_ok = False
+              model_fault = MODEL_FAULT_INPUT
+            else:
+              candidate_model_sequence = model_sequence
+              candidate_model_period_us = model_period_us
+              candidate_model_mode = model_mode
+              candidate_raw_feedforward = raw_feedforward
+              candidate_filtered_feedforward = [filter_step[1], filter_step[2], filter_step[3], filter_step[4], filter_step[5], filter_step[6]]
+              candidate_filtered_velocity = [filter_step[7], filter_step[8], filter_step[9], filter_step[10], filter_step[11], filter_step[12]]
+            end
+          end
+        end
+      end
+    else:
+      model_packet_ok = False
+      model_fault = MODEL_FAULT_MODE
+    end
+
+    local input_shape_ok = vic_input_valid(eq, stiffness, damping)
+    local fixed_impedance_ok = vic_fixed_impedance_exact(stiffness, damping)
+    local input_ok = input_shape_ok and fixed_impedance_ok
+    local heartbeat_ok = stale_ticks <= heartbeat_timeout_ticks
+    local first_packet = last_sequence == 0
+    local stiffness_ok = (first_packet and vic_initial_baseline(stiffness)) or ((not first_packet) and vic_stiffness_transition_valid(stiffness, last_stiffness, get_steptime()))
+    local eq_ok = first_packet or vic_equilibrium_transition_valid(eq, last_eq, get_steptime())
+    # Release/reset is checked exactly once, when a new run restores baseline.
+    # It is deliberately not re-evaluated after contact begins.
+    local release_ok = True
+    if first_packet:
+      release_ok = vic_contact_release_ready(eq)
+    end
+    local runtime_ok = vic_runtime_guard_ok()
+    local armed = mode == MODE_ARMED and coherent_packet and input_ok and stiffness_ok and eq_ok and sequence_ok and heartbeat_ok and release_ok and runtime_ok and lease_ok and model_packet_ok
+
+    if armed:
+      if first_packet:
+        lease_id = packet_lease
+      end
+      last_model_sequence = candidate_model_sequence
+      last_model_period_us = candidate_model_period_us
+      last_model_mode = candidate_model_mode
+      model_age_ticks = candidate_model_age_ticks
+      last_raw_feedforward = candidate_raw_feedforward
+      filtered_feedforward = candidate_filtered_feedforward
+      filtered_velocity = candidate_filtered_velocity
+      # MODEL_SHADOW is evidence-only: filtering runs and is reported, while
+      # the torque path receives exact zeros. Only MODEL_ACTIVE injects F_ff.
+      local applied_feedforward = vic_zero_six()
+      if model_mode == MODEL_ACTIVE and model_active_allowed:
+        applied_feedforward = filtered_feedforward
+      end
+      if zero_startup_count < zero_startup_ticks:
+        # Enter direct-torque mode through zero-wrench/joint-damping ticks;
+        # never jump from position mode directly to a nonzero Cartesian wrench.
+        if not vic_safe_exit_tick(vic_zero_six(), diagnostic_base, 11):
+          stopj(10.0)
+          return 13.0
+        end
+        torque_active = True
+        last_applied_feedforward = vic_zero_six()
+        zero_startup_count = zero_startup_count + 1
+        safe_exit_count = 0
+        last_sequence = sequence
+        last_eq = eq
+        last_stiffness = stiffness
+        write_output_integer_register(24, STATE_ZERO_STARTUP)
+        write_output_integer_register(25, sequence)
+        write_output_integer_register(26, FAULT_NONE)
+        write_output_integer_register(27, lease_id)
+        write_output_integer_register(28, last_model_sequence)
+        write_output_integer_register(29, MODEL_FAULT_NONE)
+        write_output_integer_register(30, wrench_frame_token)
+        write_output_float_register(24, 0.0)
+        write_output_float_register(25, get_steptime())
+        vic_write_six(26, filtered_feedforward)
+      else:
+        local result = vic_compute_tau(eq, stiffness, damping, applied_feedforward)
+        if result[0] > 0.5:
+          local tau = [result[1], result[2], result[3], result[4], result[5], result[6]]
+          local max_abs_tau = 0.0
+          local tau_index = 0
+          while tau_index < 6:
+            if vic_abs(tau[tau_index]) > max_abs_tau:
+              max_abs_tau = vic_abs(tau[tau_index])
+            end
+            tau_index = tau_index + 1
+          end
+          direct_torque(tau)
+          torque_active = True
+          last_applied_feedforward = applied_feedforward
+          safe_exit_count = 0
+          last_sequence = sequence
+          last_eq = eq
+          last_stiffness = stiffness
+          write_output_integer_register(24, STATE_TORQUE)
+          write_output_integer_register(25, sequence)
+          write_output_integer_register(26, FAULT_NONE)
+          write_output_integer_register(27, lease_id)
+          write_output_integer_register(28, last_model_sequence)
+          write_output_integer_register(29, MODEL_FAULT_NONE)
+          write_output_integer_register(30, wrench_frame_token)
+          write_output_float_register(24, max_abs_tau)
+          write_output_float_register(25, get_steptime())
+          vic_write_six(26, filtered_feedforward)
+        else:
+          input_ok = False
+          vic_diag(diagnostic_base, 12, 1)
+        end
+      end
+    end
+
+    if not armed or not input_ok:
+      local terminal_reason = 13.0
+      if not heartbeat_ok:
+        terminal_reason = 2.0
+      elif not coherent_packet:
+        terminal_reason = 4.0
+      elif not sequence_ok:
+        terminal_reason = 13.0
+      elif not lease_ok:
+        terminal_reason = 13.0
+      elif not model_packet_ok:
+        terminal_reason = 13.0
+      elif not release_ok:
+        terminal_reason = 17.0
+      elif not runtime_ok:
+        terminal_reason = 17.0
+      elif not stiffness_ok or not eq_ok:
+        terminal_reason = 13.0
+      end
+      # Preserve the first failing pre-arm predicate as the code and expose
+      # every failed predicate in the detail bitmask.  A compute-tau or
+      # safe-exit diagnostic written above is not overwritten when all these
+      # predicates are valid.
+      local diagnostic_reason = 0
+      local diagnostic_detail = 0
+      if not coherent_packet:
+        diagnostic_reason = 1
+      elif not sequence_ok:
+        diagnostic_reason = 2
+      elif not heartbeat_ok:
+        diagnostic_reason = 3
+      elif not lease_ok:
+        diagnostic_reason = 4
+      elif not model_packet_ok:
+        diagnostic_reason = 5
+      elif not input_shape_ok:
+        diagnostic_reason = 6
+      elif not fixed_impedance_ok:
+        diagnostic_reason = 7
+      elif not eq_ok:
+        diagnostic_reason = 8
+      elif not release_ok:
+        diagnostic_reason = 9
+      elif not runtime_ok:
+        diagnostic_reason = 10
+      end
+      if not coherent_packet:
+        diagnostic_detail = diagnostic_detail + 1
+      end
+      if not sequence_ok:
+        diagnostic_detail = diagnostic_detail + 2
+      end
+      if not heartbeat_ok:
+        diagnostic_detail = diagnostic_detail + 4
+      end
+      if not lease_ok:
+        diagnostic_detail = diagnostic_detail + 8
+      end
+      if not model_packet_ok:
+        diagnostic_detail = diagnostic_detail + 16
+      end
+      if not input_shape_ok:
+        diagnostic_detail = diagnostic_detail + 32
+      end
+      if not fixed_impedance_ok:
+        diagnostic_detail = diagnostic_detail + 64
+      end
+      if not eq_ok:
+        diagnostic_detail = diagnostic_detail + 128
+      end
+      if not release_ok:
+        diagnostic_detail = diagnostic_detail + 256
+      end
+      if not runtime_ok:
+        diagnostic_detail = diagnostic_detail + 512
+      end
+      if diagnostic_reason > 0:
+        vic_diag(diagnostic_base, diagnostic_reason, diagnostic_detail)
+      end
+      if torque_active:
+        # Every fail-closed path uses a component-wise monotonic F_ff fade,
+        # then joint damping and a controlled stop. No stale model is held.
+        filtered_feedforward = vic_monotonic_feedforward_decay(filtered_feedforward)
+        filtered_velocity = vic_zero_six()
+        # Decay only feed-forward that was actually applied. Shadow diagnostic
+        # F_ff can never enter torque for the first time on a fault path.
+        last_applied_feedforward = vic_monotonic_feedforward_decay(last_applied_feedforward)
+        write_output_integer_register(24, STATE_SAFE_EXIT)
+        if not heartbeat_ok:
+          write_output_integer_register(26, FAULT_STALE)
+        elif not coherent_packet:
+          write_output_integer_register(26, FAULT_PACKET)
+        elif not sequence_ok:
+          write_output_integer_register(26, FAULT_SEQUENCE)
+        elif not lease_ok:
+          write_output_integer_register(26, FAULT_LEASE)
+        elif not model_packet_ok:
+          write_output_integer_register(26, FAULT_MODEL)
+        elif not release_ok:
+          write_output_integer_register(26, FAULT_RELEASE)
+        elif not runtime_ok:
+          write_output_integer_register(26, FAULT_RUNTIME_GUARD)
+        elif not stiffness_ok or not eq_ok:
+          write_output_integer_register(26, FAULT_SLEW)
+        else:
+          write_output_integer_register(26, FAULT_INPUT)
+        end
+        write_output_integer_register(28, last_model_sequence)
+        write_output_integer_register(29, model_fault)
+        write_output_integer_register(30, wrench_frame_token)
+        vic_write_six(26, filtered_feedforward)
+        if not vic_safe_exit_tick(last_applied_feedforward, diagnostic_base, 13):
+          stopj(10.0)
+          return terminal_reason
+        end
+        safe_exit_count = safe_exit_count + 1
+        if safe_exit_count >= safe_exit_ticks:
+          stopj(10.0)
+          return terminal_reason
+        end
+      else:
+        write_output_integer_register(24, STATE_WAITING)
+        if mode == MODE_ARMED:
+          if not coherent_packet:
+            write_output_integer_register(26, FAULT_PACKET)
+          elif not lease_ok:
+            write_output_integer_register(26, FAULT_LEASE)
+          elif not model_packet_ok:
+            write_output_integer_register(26, FAULT_MODEL)
+          elif not release_ok:
+            write_output_integer_register(26, FAULT_RELEASE)
+          elif not runtime_ok:
+            write_output_integer_register(26, FAULT_RUNTIME_GUARD)
+          elif not stiffness_ok or not eq_ok:
+            write_output_integer_register(26, FAULT_SLEW)
+          elif not sequence_ok:
+            write_output_integer_register(26, FAULT_SEQUENCE)
+          else:
+            write_output_integer_register(26, FAULT_INPUT)
+          end
+        end
+        write_output_integer_register(28, last_model_sequence)
+        write_output_integer_register(29, model_fault)
+        write_output_integer_register(30, wrench_frame_token)
+        vic_write_six(26, filtered_feedforward)
+        if mode == MODE_ARMED:
+          return terminal_reason
+        end
+        sync()
+      end
+    end
+  end
+end
+
+def codex_step5d_tacdiffusion_simulation_probe_v3():
+  # v3 uses the same diagnostic registers and controller guards as v2.
+  # The host writer is ACK-paced and must not advance sequence independently
+  # of the controller's acknowledged packet.
+  write_output_integer_register(32, 0)
+  write_output_integer_register(33, 0)
+  write_output_integer_register(34, 0)
+  write_output_integer_register(35, 0)
+  write_output_integer_register(36, 0)
+  write_output_integer_register(37, 0)
+
+  write_output_integer_register(31, 1)
+  write_output_float_register(34, 1.0)
+  write_output_float_register(35, 25.0)
+  local normal_result = codex_step5d_direct_torque_stage25(34)
+  write_output_float_register(32, normal_result)
+
+  write_output_integer_register(31, 2)
+  write_output_float_register(34, 2.0)
+  write_output_float_register(35, 25.0)
+  local sequence_fault_result = codex_step5d_direct_torque_stage25(36)
+  write_output_float_register(33, sequence_fault_result)
+
+  write_output_integer_register(31, 99)
+  write_output_float_register(34, 99.0)
+  write_output_float_register(35, 99.0)
+  textmsg("TacDiffusion Direct Torque TP Simulation ACK-paced probe complete")
+end
+
+codex_step5d_tacdiffusion_simulation_probe_v3()

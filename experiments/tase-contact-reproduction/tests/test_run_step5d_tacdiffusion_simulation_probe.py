@@ -205,12 +205,41 @@ class StaleCompletionFakeProbeRTDE(FakeProbeRTDE):
         return super().receive_latest_available(recipe, types, fields, timeout_s)
 
 
-def run_fake_probe(monkeypatch, tmp_path, fake_class=FakeProbeRTDE):
+class DelayedAckFakeProbeRTDE(FakeProbeRTDE):
+    def __init__(self, host, timeout):
+        super().__init__(host, timeout)
+        self.delayed_ack_calls = 0
+
+    def receive_latest_available(self, recipe, types, fields, timeout_s):
+        last = self.sent[-1]
+        if (
+            self.phase == 1
+            and last[24] == probe.MODE_ARMED
+            and self.delayed_ack_calls < 2
+        ):
+            self.delayed_ack_calls += 1
+            return output_sample(
+                phase=1,
+                state=probe.STATE_WAITING,
+                ack=0,
+            ), 1
+        return super().receive_latest_available(recipe, types, fields, timeout_s)
+
+
+def run_fake_probe(
+    monkeypatch,
+    tmp_path,
+    fake_class=FakeProbeRTDE,
+    *,
+    program=probe.PROGRAM,
+    sequence_pacing=None,
+    auto_play_simulation=False,
+):
     clock = FakeClock()
     fake_class.instances.clear()
     monkeypatch.setattr(probe.time, "monotonic", clock.monotonic)
     monkeypatch.setattr(probe.time, "sleep", clock.sleep)
-    monkeypatch.setattr(probe, "readonly_status", lambda _host: initial_status())
+    monkeypatch.setattr(probe, "readonly_status", lambda *_args, **_kwargs: initial_status())
     monkeypatch.setattr(
         probe,
         "dashboard_snapshot",
@@ -228,6 +257,9 @@ def run_fake_probe(monkeypatch, tmp_path, fake_class=FakeProbeRTDE):
         tcp_position_abort=0.0002,
         joint_position_abort=0.002,
         evidence=tmp_path / "evidence.json",
+        program=program,
+        sequence_pacing=sequence_pacing,
+        auto_play_simulation=auto_play_simulation,
         run_probe=True,
         write_rtde_inputs=True,
         tp_simulation_visible=True,
@@ -314,12 +346,13 @@ def test_source_has_no_dashboard_mutation_or_program_control() -> None:
     source = probe.Path(probe.__file__).read_text(encoding="utf-8")
     for forbidden in (
         '"load"',
-        '"play"',
         '"stop"',
         '"power on"',
         '"brake release"',
     ):
         assert forbidden not in source
+    assert 'dashboard_exchange(host, ["play"])' in source
+    assert "auto_play_simulation" in source
 
 
 def test_absolute_release_schedule_records_missed_slots_without_burst() -> None:
@@ -383,6 +416,62 @@ def test_fake_rtde_uses_fixed_equilibrium_and_continuous_sequences(monkeypatch, 
     assert result["faults_by_phase"]["1"] == [0]
     assert probe.FAULT_SEQUENCE in result["faults_by_phase"]["2"]
     assert result["evidence_path"] == str(tmp_path / "evidence.json")
+
+
+def test_ack_pacing_preserves_sequence_and_records_effective_rate(monkeypatch, tmp_path) -> None:
+    result, fake = run_fake_probe(
+        monkeypatch,
+        tmp_path,
+        program="step5d_tacdiffusion_direct_torque_simulation_probe_v3",
+        sequence_pacing=probe.SEQUENCE_PACING_ACK,
+    )
+    assert result["status"] == "passed"
+    assert result["sequence_pacing"] == probe.SEQUENCE_PACING_ACK
+    assert result["phase_sequence_stats"]["1"]["armed_packets_sent"] >= 6
+    assert result["phase_sequence_stats"]["1"]["effective_send_rate_hz"] is not None
+    phase1 = [
+        packet[25]
+        for packet_phase, packet in fake.send_phases
+        if packet_phase == 1 and packet[24] == probe.MODE_ARMED
+    ]
+    assert phase1 == list(range(1, len(phase1) + 1))
+
+
+def test_ack_pacing_waits_without_repeating_unacknowledged_sequence(monkeypatch, tmp_path) -> None:
+    result, fake = run_fake_probe(
+        monkeypatch,
+        tmp_path,
+        DelayedAckFakeProbeRTDE,
+        program="step5d_tacdiffusion_direct_torque_simulation_probe_v3",
+        sequence_pacing=probe.SEQUENCE_PACING_ACK,
+    )
+    assert result["status"] == "passed"
+    assert result["phase_sequence_stats"]["1"]["sequence_wait_releases"] >= 2
+    phase1 = [
+        packet[25]
+        for packet_phase, packet in fake.send_phases
+        if packet_phase == 1 and packet[24] == probe.MODE_ARMED
+    ]
+    assert phase1 == list(range(1, len(phase1) + 1))
+    assert any(event["kind"] == "normal_sequence_wait" for event in result["events"])
+
+
+def test_auto_play_is_restricted_to_v3_ack_pacing_and_simulation(monkeypatch) -> None:
+    args = Namespace(
+        run_probe=True,
+        write_rtde_inputs=True,
+        tp_simulation_visible=True,
+        program=probe.PROGRAM,
+        sequence_pacing=probe.SEQUENCE_PACING_INDEPENDENT,
+        auto_play_simulation=True,
+    )
+    monkeypatch.setattr(
+        probe,
+        "readonly_status",
+        lambda _host: (_ for _ in ()).throw(AssertionError("must fail before network")),
+    )
+    with pytest.raises(RuntimeError, match="auto_play_requires_v3"):
+        probe.run_probe(args)
 
 
 def test_stale_terminal_registers_do_not_complete_a_new_run(monkeypatch, tmp_path) -> None:

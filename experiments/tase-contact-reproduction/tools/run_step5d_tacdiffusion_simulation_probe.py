@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Drive the TacDiffusion Stage25 probe only after TP Simulation confirmation.
 
-This tool never uploads, loads, plays, stops, or otherwise commands the
-Dashboard server.  The operator owns TP Load, the Simulation button, Play, and
-Stop.  RTDE input writes require all three explicit start flags.
+This tool never uploads or loads a program.  By default it also never plays or
+stops the Dashboard server.  The explicit v3 ``--auto-play-simulation`` gate
+allows Codex to start only the already-loaded TP Simulation package after a
+fresh stationary/local/safety preflight.  RTDE input writes require all three
+explicit start flags.
 """
 
 from __future__ import annotations
@@ -35,7 +37,7 @@ CONTROLLER_PROGRAM = f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
 
 
 def controller_program_for(program: str) -> str:
-    if not program or "/" in program or not program.endswith(("_v1", "_v2")):
+    if not program or "/" in program or not program.endswith(("_v1", "_v2", "_v3")):
         raise ValueError(f"invalid_probe_program:{program}")
     return f"/programs/andyl/kunwei/step5/{program}.urp"
 RUNTIME_STOPPED = 1
@@ -62,6 +64,8 @@ FIXED_DAMPING = (
 WRENCH_FRAME_TOKEN = 5_252_001
 CONTROL_PERIOD_S = 0.002
 EVENT_RING_SIZE = 256
+SEQUENCE_PACING_INDEPENDENT = "independent"
+SEQUENCE_PACING_ACK = "ack"
 
 DOUBLE_INPUT_FIELDS = [f"input_double_register_{index}" for index in range(24, 48)]
 INTEGER_INPUT_FIELDS = [f"input_int_register_{index}" for index in range(24, 32)]
@@ -278,6 +282,16 @@ def dashboard_snapshot(host: str) -> dict[str, str]:
     )
 
 
+def dashboard_play(host: str) -> dict[str, str]:
+    """Start only an explicitly authorized TP-Simulation invocation."""
+
+    responses = dashboard_exchange(host, ["play"])
+    response = responses.get("play", "")
+    if not response.lower().startswith("starting program"):
+        raise RuntimeError(f"dashboard_play_rejected:{response}")
+    return responses
+
+
 def readonly_status(host: str, program: str = PROGRAM) -> dict[str, Any]:
     controller_program = controller_program_for(program)
     dashboard = dashboard_snapshot(host)
@@ -384,10 +398,28 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
         )
     program = getattr(args, "program", PROGRAM)
     controller_program = controller_program_for(program)
+    sequence_pacing = getattr(args, "sequence_pacing", None) or (
+        SEQUENCE_PACING_ACK if program.endswith("_v3") else SEQUENCE_PACING_INDEPENDENT
+    )
+    if sequence_pacing not in {SEQUENCE_PACING_INDEPENDENT, SEQUENCE_PACING_ACK}:
+        raise RuntimeError(f"invalid_sequence_pacing:{sequence_pacing}")
+    auto_play_simulation = bool(getattr(args, "auto_play_simulation", False))
+    if auto_play_simulation and (
+        not program.endswith("_v3")
+        or sequence_pacing != SEQUENCE_PACING_ACK
+        or not args.tp_simulation_visible
+    ):
+        raise RuntimeError(
+            "auto_play_requires_v3_ack_pacing_and_tp_simulation_visible"
+        )
     evidence_schema = (
+        "step5d_tacdiffusion_controller_simulation_probe_v3"
+        if program.endswith("_v3")
+        else (
         "step5d_tacdiffusion_controller_simulation_probe_v2"
         if program.endswith("_v2")
         else "step5d_tacdiffusion_controller_simulation_probe_v1"
+        )
     )
     evidence_path = Path(getattr(args, "evidence", None) or default_evidence_path())
     started_at = datetime.now().astimezone().isoformat()
@@ -428,6 +460,18 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
         "1": {"code": 0, "detail": 0},
         "2": {"code": 0, "detail": 0},
     }
+    phase_sequence_stats: dict[int, dict[str, Any]] = {
+        phase_id: {
+            "armed_packets_sent": 0,
+            "sequence_wait_releases": 0,
+            "ack_observations": 0,
+            "first_send_monotonic_s": None,
+            "last_send_monotonic_s": None,
+            "maximum_sequence_lag": 0,
+        }
+        for phase_id in (1, 2)
+    }
+    dashboard_play_result: dict[str, str] | None = None
     max_tcp_speed = 0.0
     max_qd = 0.0
     max_tcp_pose_delta = 0.0
@@ -462,6 +506,8 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 "diagnostic_code": latest_diagnostic_code,
                 "diagnostic_detail": latest_diagnostic_detail,
                 "phase_diagnostics": phase_diagnostics,
+                "sequence_pacing": sequence_pacing,
+                "phase_sequence_stats": phase_sequence_stats,
             }
         return {
             "controller_timestamp_s": controller_timestamp,
@@ -474,6 +520,8 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
             "diagnostic_code": latest_diagnostic_code,
             "diagnostic_detail": latest_diagnostic_detail,
             "phase_diagnostics": phase_diagnostics,
+            "sequence_pacing": sequence_pacing,
+            "phase_sequence_stats": phase_sequence_stats,
             "actual_TCP_pose": [float(value) for value in last_output["actual_TCP_pose"]],
             "actual_TCP_speed": [float(value) for value in last_output["actual_TCP_speed"]],
             "actual_q": [float(value) for value in last_output["actual_q"]],
@@ -529,6 +577,8 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
             "diagnostic_code": latest_diagnostic_code,
             "diagnostic_detail": latest_diagnostic_detail,
             "phase_diagnostics": phase_diagnostics,
+            "sequence_pacing": sequence_pacing,
+            "sequence_lag": max(0, outgoing_sequence - latest_ack_sequence),
             "outgoing": packet,
             "outgoing_mode": event_outgoing_mode,
             "outgoing_sequence": event_outgoing_sequence,
@@ -582,6 +632,21 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
         )
         rtde.send_inputs(input_recipe, input_types, values)
         last_values = list(values)
+        if kind in {"normal_armed", "fault_phase_armed", "sequence_gap_injected"}:
+            stats = phase_sequence_stats.get(phase)
+            if stats is not None:
+                now = float(
+                    release["actual_monotonic_s"]
+                    if release is not None
+                    else time.monotonic()
+                )
+                stats["armed_packets_sent"] += 1
+                stats["first_send_monotonic_s"] = (
+                    now
+                    if stats["first_send_monotonic_s"] is None
+                    else stats["first_send_monotonic_s"]
+                )
+                stats["last_send_monotonic_s"] = now
         record_event(
             kind,
             release=release,
@@ -599,6 +664,26 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
             heartbeat=sequence,
             lease_id=lease_id,
         )
+
+    def sequence_stats_snapshot() -> dict[str, dict[str, Any]]:
+        snapshot: dict[str, dict[str, Any]] = {}
+        for phase_id, raw in phase_sequence_stats.items():
+            item = dict(raw)
+            first = item["first_send_monotonic_s"]
+            last = item["last_send_monotonic_s"]
+            count = int(item["armed_packets_sent"])
+            elapsed = (
+                float(last) - float(first)
+                if first is not None and last is not None
+                else None
+            )
+            item["effective_send_rate_hz"] = (
+                (count - 1) / elapsed
+                if elapsed is not None and elapsed > 0.0 and count > 1
+                else None
+            )
+            snapshot[str(phase_id)] = item
+        return snapshot
 
     try:
         try:
@@ -619,6 +704,9 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 input_recipe, input_types = rtde.setup_inputs(INPUT_FIELDS)
                 rtde.start()
                 send_packet(rtde, input_recipe, input_types, last_values, kind="initial_disabled")
+                if auto_play_simulation:
+                    dashboard_play_result = dashboard_play(args.robot_host)
+                    record_event("dashboard_play")
                 schedule = AbsoluteReleaseSchedule(period_s=CONTROL_PERIOD_S)
                 try:
                     while time.monotonic() < deadline:
@@ -652,6 +740,14 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                                 "detail": int(current["output_int_register_37"]),
                             }
                             current_phase = int(current["output_int_register_31"])
+                            if current_phase in {1, 2}:
+                                stats = phase_sequence_stats[current_phase]
+                                if latest_ack_sequence > 0:
+                                    stats["ack_observations"] += 1
+                                stats["maximum_sequence_lag"] = max(
+                                    int(stats["maximum_sequence_lag"]),
+                                    max(0, outgoing_sequence - latest_ack_sequence),
+                                )
                             if robot_mode != ROBOT_MODE_RUNNING or safety_mode != SAFETY_MODE_NORMAL:
                                 raise RuntimeError(
                                     f"runtime_safety_changed:robot_mode={robot_mode},safety_mode={safety_mode}"
@@ -807,7 +903,26 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                                 normal_completion_sent = True
                                 kind = "normal_completion"
                             else:
-                                outgoing_sequence += 1
+                                if sequence_pacing == SEQUENCE_PACING_ACK:
+                                    if latest_ack_sequence > outgoing_sequence:
+                                        raise RuntimeError(
+                                            f"ack_ahead_of_sent_sequence:phase=1:ack={latest_ack_sequence}:sent={outgoing_sequence}"
+                                        )
+                                    if latest_ack_sequence != outgoing_sequence:
+                                        phase_sequence_stats[1]["sequence_wait_releases"] += 1
+                                        phase_valid_acks[1] = max(
+                                            phase_valid_acks[1], latest_ack_sequence
+                                        )
+                                        record_event(
+                                            "normal_sequence_wait",
+                                            release=release,
+                                            output_fresh=output_fresh,
+                                            output_drained=drained,
+                                        )
+                                        continue
+                                    outgoing_sequence = latest_ack_sequence + 1
+                                else:
+                                    outgoing_sequence += 1
                                 outgoing_mode = MODE_ARMED
                                 outgoing_heartbeat = outgoing_sequence
                                 values = build_values(MODE_ARMED, outgoing_sequence, phase_equilibrium)
@@ -829,7 +944,26 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                                 sequence_fault_sent = True
                                 kind = "sequence_gap_injected"
                             else:
-                                outgoing_sequence += 1
+                                if sequence_pacing == SEQUENCE_PACING_ACK:
+                                    if latest_ack_sequence > outgoing_sequence:
+                                        raise RuntimeError(
+                                            f"ack_ahead_of_sent_sequence:phase=2:ack={latest_ack_sequence}:sent={outgoing_sequence}"
+                                        )
+                                    if latest_ack_sequence != outgoing_sequence:
+                                        phase_sequence_stats[2]["sequence_wait_releases"] += 1
+                                        phase_valid_acks[2] = max(
+                                            phase_valid_acks[2], latest_ack_sequence
+                                        )
+                                        record_event(
+                                            "fault_sequence_wait",
+                                            release=release,
+                                            output_fresh=output_fresh,
+                                            output_drained=drained,
+                                        )
+                                        continue
+                                    outgoing_sequence = latest_ack_sequence + 1
+                                else:
+                                    outgoing_sequence += 1
                                 outgoing_mode = MODE_ARMED
                                 outgoing_heartbeat = outgoing_sequence
                                 values = build_values(MODE_ARMED, outgoing_sequence, phase_equilibrium)
@@ -894,8 +1028,12 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                     "run_probe": args.run_probe,
                     "write_rtde_inputs": args.write_rtde_inputs,
                     "tp_simulation_visible": args.tp_simulation_visible,
+                    "auto_play_simulation": auto_play_simulation,
                 },
                 "initial_status": initial_status,
+                "dashboard_play_result": dashboard_play_result,
+                "sequence_pacing": sequence_pacing,
+                "phase_sequence_stats": sequence_stats_snapshot(),
                 "phase_results": phase_results,
                 "phase_diagnostics": phase_diagnostics,
                 "observed_playing_phase": observed_playing_phase,
@@ -963,8 +1101,12 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                     "run_probe": getattr(args, "run_probe", False),
                     "write_rtde_inputs": getattr(args, "write_rtde_inputs", False),
                     "tp_simulation_visible": getattr(args, "tp_simulation_visible", False),
+                    "auto_play_simulation": auto_play_simulation,
                 },
                 "initial_status": initial_status,
+                "dashboard_play_result": dashboard_play_result,
+                "sequence_pacing": sequence_pacing,
+                "phase_sequence_stats": sequence_stats_snapshot(),
                 "phase_results": phase_results,
                 "phase_diagnostics": phase_diagnostics,
                 "observed_playing_phase": observed_playing_phase,
@@ -979,6 +1121,12 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 "samples": samples,
                 "release_timing": schedule.timing() if schedule is not None else None,
                 "scheduler": scheduler_metadata(),
+                "no_motion_observation": {
+                    "maximum_tcp_speed": max_tcp_speed,
+                    "maximum_joint_speed": max_qd,
+                    "maximum_tcp_position_delta_m": max_tcp_pose_delta,
+                    "maximum_joint_position_delta_rad": max_joint_delta,
+                },
                 "last_controller_observation": current_observation(),
                 "last_outgoing_packet": {
                     "mode": int(last_values[24]),
@@ -1022,6 +1170,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("command", nargs="?", choices=("status", "start"), default="status")
     parser.add_argument("--robot-host", default="192.168.1.18")
     parser.add_argument("--program", default=PROGRAM)
+    parser.add_argument(
+        "--sequence-pacing",
+        choices=(SEQUENCE_PACING_INDEPENDENT, SEQUENCE_PACING_ACK),
+    )
     parser.add_argument("--connect-timeout-s", type=float, default=3.0)
     parser.add_argument("--wait-for-play-s", type=float, default=180.0)
     parser.add_argument("--valid-ticks", type=int, default=100)
@@ -1034,6 +1186,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-probe", action="store_true")
     parser.add_argument("--write-rtde-inputs", action="store_true")
     parser.add_argument("--tp-simulation-visible", action="store_true")
+    parser.add_argument("--auto-play-simulation", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "status":
         print(

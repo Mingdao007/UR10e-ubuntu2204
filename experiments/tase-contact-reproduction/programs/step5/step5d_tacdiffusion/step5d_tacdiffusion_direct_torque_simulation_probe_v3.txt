@@ -1,0 +1,17 @@
+Step5d TacDiffusion Direct Torque Simulation ACK-paced probe v3
+
+Open only on the physical 5.26 Teach Pendant with Simulation visibly enabled:
+  /programs/andyl/kunwei/step5/step5d_tacdiffusion_direct_torque_simulation_probe_v3.urp
+
+Version:
+  2026-07-26TDIAGNOSTIC_STEP5D_TACDIFFUSION_DIRECT_TORQUE_SIMULATION_PROBE_V3
+
+The controller-side Stage25 sequence guard is unchanged from v2. The v3 host
+writer advances packet sequence only after the controller acknowledges the
+previous sequence. Host release timing remains an absolute 2 ms schedule,
+while effective sequence/ACK rate is measured separately and may be below
+500 Hz. Diagnostic registers are current 32/33, phase 1 34/35, and phase 2
+36/37.
+
+Do not press Play in Real Robot mode. Do not bypass a sequence or safe-exit
+guard based on a diagnostic result.

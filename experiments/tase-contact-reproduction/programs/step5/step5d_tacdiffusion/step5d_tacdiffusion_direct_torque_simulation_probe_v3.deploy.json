@@ -1,0 +1,22 @@
+{
+  "artifacts": [
+    {
+      "filename": "step5d_tacdiffusion_direct_torque_simulation_probe_v3.script",
+      "sha256": "b0623fa49b3f889696564c08b9fdc26aa29ceb7e5a754948f11b1d4a9df9e4b6",
+      "source": "step5d_tacdiffusion_direct_torque_simulation_probe_v3.script"
+    },
+    {
+      "filename": "step5d_tacdiffusion_direct_torque_simulation_probe_v3.txt",
+      "sha256": "8e3920b4058124e3e377cc91db404f693a71416308c67b90070c1f11b9c7fdc2",
+      "source": "step5d_tacdiffusion_direct_torque_simulation_probe_v3.txt"
+    },
+    {
+      "filename": "step5d_tacdiffusion_direct_torque_simulation_probe_v3.urp",
+      "sha256": "fcbc297765c066d0c6df5a1c2745d31559b18edb27acac12657b050c012ec145",
+      "source": "step5d_tacdiffusion_direct_torque_simulation_probe_v3.urp"
+    }
+  ],
+  "basename": "step5d_tacdiffusion_direct_torque_simulation_probe_v3",
+  "controller_directory": "/programs/andyl/kunwei/step5",
+  "schema_version": 1
+}
