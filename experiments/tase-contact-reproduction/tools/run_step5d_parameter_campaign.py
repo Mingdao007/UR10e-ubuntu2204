@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import csv
 from datetime import datetime, timezone
+import hashlib
 import json
+import logging
 import math
 import os
 from pathlib import Path
@@ -27,12 +29,17 @@ from step5d_autotune_runtime_contract import PreparedFingerprint, PreparedTrial
 from step5d_autotune_state_machine import HostCommand, HostPacket, TpLoopState
 from step5d_autotune_v3.profile import canonical_json_bytes
 from step5d_autotune_v3.runtime_gate import load_campaign_lease, process_starttime
+from step5d_autotune_v3.release_identity import load_runtime_release
+from step5d_autotune_v3.bridge_admission import validate_bridge_admission
+from step5d_autotune_v3.launch_basis import (
+    read_and_validate_launch_basis,
+    validate_delivery_observation_binding,
+)
 from step5d_autotune_v3.runtime_profile import (
     load_launch_profile,
     normalized_overlay_sha256,
 )
 from step5d_autotune_v3.state import atomic_json
-from step5d_parameter_manifest import seed_initial_manifest
 from step5d_parameter_outbox import enqueue_postprocess_task
 from step5d_parameter_queue import (
     bind_home,
@@ -40,10 +47,14 @@ from step5d_parameter_queue import (
     load_state,
     prepare_next_dispatch,
     record_dispatch_consumed,
+    rebind_transport_home,
     reconcile_not_consumed,
     status as receiver_status,
 )
 from step5d_production_csv import BridgeCsvFollower, BridgeCsvTimeout
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 STATUS_SCHEMA = "step5d.parameter-receiver/live-status-v1"
@@ -231,6 +242,50 @@ def _validate_authority(
         raise ParameterCampaignError("campaign lease differs from receiver runner")
 
 
+def _validate_launch_identity(args: argparse.Namespace, binding: Mapping[str, Any]) -> None:
+    """Validate coordinator identity before publishing readiness or touching the mailbox."""
+    try:
+        release = load_runtime_release(args.experiment_root.resolve())
+        basis = read_and_validate_launch_basis(
+            args.launch_basis,
+            owner_pid=args.canonical_owner_pid,
+            owner_starttime=args.canonical_owner_starttime,
+            expected_basis_sha256=args.launch_basis_sha256,
+        )
+        if basis["authority_epoch"] != args.authority_epoch:
+            raise ParameterCampaignError("receiver launch basis authority epoch differs")
+        if release.manifest_sha256 != basis["release_manifest_sha256"]:
+            raise ParameterCampaignError("receiver release identity differs from launch basis")
+        admission = validate_bridge_admission(
+            args.experiment_root.resolve(),
+            _strict_object(args.admission, "bridge admission"),
+            release=release,
+        )
+        validate_delivery_observation_binding(
+            args.delivery_observation,
+            basis=basis,
+            admission=admission,
+            experiment_root=args.experiment_root.resolve(),
+        )
+        from run_step5d_autotune_v3_coordinator import _validate_campaign_prepare
+
+        campaign = _validate_campaign_prepare(
+            _strict_object(args.campaign_prepare, "campaign preparation"),
+            basis,
+        )["result"]
+        if any(
+            binding.get(key) != campaign.get(key)
+            for key in ("campaign_id", "campaign_epoch", "campaign_fingerprint")
+        ):
+            raise ParameterCampaignError("receiver campaign binding differs from preparation")
+        if binding.get("release_manifest_sha256") not in (None, basis["release_manifest_sha256"]):
+            raise ParameterCampaignError("receiver release identity differs from launch basis")
+    except ParameterCampaignError:
+        raise
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        raise ParameterCampaignError(f"receiver launch identity validation failed: {exc}") from exc
+
+
 def _prepared(
     args: argparse.Namespace,
     *,
@@ -385,8 +440,11 @@ def _wait_initial_home(
                         observed["campaign_epoch"],
                         observed["trial_id"],
                         observed["candidate_token"],
+                        observed["terminal_reason"],
+                        observed["execution_profile_id"],
                         observed["consumed_command_seq"],
                         observed["logical_batch_sequence"],
+                        observed["batch_row_index"],
                     )
                     if any(zero_fields):
                         raise ParameterCampaignError(
@@ -402,8 +460,9 @@ def _wait_resume_home(
     follower: BridgeCsvFollower,
     *,
     home_identity: Mapping[str, int],
+    allow_zero_session_rebind: bool = False,
 ) -> dict[str, int]:
-    """Adopt only the exact durable terminal Home after a runner restart."""
+    """Adopt durable Home, or explicitly rebind a fresh zero-identity session."""
 
     expected = {
         "campaign_epoch": int(home_identity["campaign_epoch"]),
@@ -417,6 +476,30 @@ def _wait_resume_home(
                 observed = _tp_observation(row)
                 if observed["safety_mode"] != 1:
                     raise HardwareRecoveryRequired("UR Safety is not NORMAL")
+                if (
+                    allow_zero_session_rebind
+                    and _integer(row, "ur_runtime_state") == UR_RUNTIME_PLAYING
+                    and observed["state"] == READY_HOME
+                ):
+                    if not _safe_home(observed):
+                        raise HardwareRecoveryRequired(
+                            "new-session READY_HOME is not a safe Home"
+                        )
+                    zero_fields = (
+                        observed["campaign_epoch"],
+                        observed["trial_id"],
+                        observed["candidate_token"],
+                        observed["terminal_reason"],
+                        observed["execution_profile_id"],
+                        observed["consumed_command_seq"],
+                        observed["logical_batch_sequence"],
+                        observed["batch_row_index"],
+                    )
+                    if any(zero_fields):
+                        raise ParameterCampaignError(
+                            "new-session READY_HOME identity is not zero"
+                        )
+                    return observed
                 if (
                     _integer(row, "ur_runtime_state") != UR_RUNTIME_PLAYING
                     or observed["state"] != READY_HOME_NEXT
@@ -722,6 +805,169 @@ def _sleep(args: argparse.Namespace, delay_s: float) -> None:
     getattr(args, "sleep", time.sleep)(delay_s)
 
 
+def _dispatch_identity(dispatch: Mapping[str, Any]) -> str:
+    identity = dispatch.get("dispatch_identity")
+    if isinstance(identity, str) and identity:
+        return identity
+    digest = dispatch.get("dispatch_sha256")
+    if not isinstance(digest, str) or not digest:
+        raise ParameterCampaignError("dispatch lacks immutable identity")
+    return f"dispatch:legacy:{digest}"
+
+
+def _dispatch_artifact_key(dispatch: Mapping[str, Any]) -> str:
+    return hashlib.sha256(_dispatch_identity(dispatch).encode("utf-8")).hexdigest()
+
+
+def _write_immutable_result(path: Path, payload: Mapping[str, Any]) -> None:
+    encoded = canonical_json_bytes(payload)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if path.exists() or path.is_symlink():
+        if path.is_symlink() or path.read_bytes() != encoded:
+            raise ParameterCampaignError("immutable parameter result differs")
+        return
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_bytes(encoded)
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def _persist_trial_artifacts_impl(
+    args: argparse.Namespace,
+    *,
+    dispatch: Mapping[str, Any],
+    prepared: Any,
+    receipt: Mapping[str, Any],
+    capture: Path,
+) -> None:
+    result_path = (
+        args.campaign_root
+        / "parameter_results"
+        / f"{_dispatch_artifact_key(dispatch)}.json"
+    )
+    outbox_path = None
+    if receipt["status"] == "SUCCEEDED":
+        try:
+            outbox_path = enqueue_postprocess_task(
+                args.campaign_root / "parameter_outbox",
+                dispatch_sequence=int(dispatch["dispatch_sequence"]),
+                dispatch_identity=_dispatch_identity(dispatch),
+                trial_uid=prepared.trial.trial_uid,
+                capture_path=capture,
+                result_path=result_path,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "best-effort postprocess enqueue deferred for dispatch %s: %s",
+                _dispatch_identity(dispatch),
+                exc,
+            )
+            return
+    result = {
+        "schema": "step5d.parameter-receiver/trial-result-v2",
+        "request_uid": dispatch["request"]["request_uid"],
+        "dispatch_identity": _dispatch_identity(dispatch),
+        "dispatch_sequence": dispatch["dispatch_sequence"],
+        "trial_uid": prepared.trial.trial_uid,
+        "capture": str(capture),
+        "capture_sha256": None,
+        "status": receipt["status"],
+        "failure_class": receipt.get("failure_class"),
+        "detail": receipt.get("detail"),
+        "outbox_task": None if outbox_path is None else str(outbox_path),
+        "receipt": dict(receipt),
+    }
+    try:
+        _write_immutable_result(result_path, result)
+    except Exception as exc:
+        LOGGER.warning(
+            "best-effort parameter result write deferred for dispatch %s: %s",
+            _dispatch_identity(dispatch),
+            exc,
+        )
+
+
+def _persist_trial_artifacts(
+    args: argparse.Namespace,
+    *,
+    dispatch: Mapping[str, Any],
+    prepared: Any,
+    receipt: Mapping[str, Any],
+    capture: Path,
+) -> None:
+    """Persist optional artifacts without changing receipt/queue progress."""
+
+    try:
+        _persist_trial_artifacts_impl(
+            args,
+            dispatch=dispatch,
+            prepared=prepared,
+            receipt=receipt,
+            capture=capture,
+        )
+    except Exception as exc:
+        LOGGER.warning(
+            "best-effort parameter artifacts deferred for dispatch %s: %s",
+            dispatch.get("dispatch_sequence", "unknown"),
+            exc,
+        )
+
+
+def _recover_terminal_artifacts(
+    args: argparse.Namespace,
+    *,
+    binding: Mapping[str, Any],
+) -> None:
+    receipts_root = args.receiver_root / "receipts"
+    if receipts_root.is_symlink() or not receipts_root.is_dir():
+        return
+    for receipt_path in sorted(receipts_root.glob("*.json")):
+        try:
+            receipt = _strict_object(receipt_path, "parameter receipt")
+            sequence = receipt.get("dispatch_sequence")
+            if not isinstance(sequence, int) or sequence <= 0:
+                continue
+            dispatch_path = args.receiver_root / "dispatches" / f"{sequence:012d}.json"
+            if not dispatch_path.is_file() or dispatch_path.is_symlink():
+                continue
+            dispatch = _strict_object(dispatch_path, "parameter dispatch")
+            identity_result = (
+                args.campaign_root
+                / "parameter_results"
+                / f"{_dispatch_artifact_key(dispatch)}.json"
+            )
+            legacy_result = (
+                args.campaign_root
+                / "parameter_results"
+                / f"{sequence:012d}.json"
+            )
+            if identity_result.is_file() or legacy_result.is_file():
+                continue
+            prepared = _prepared(args, binding=binding, dispatch=dispatch)
+            capture = (
+                args.bridge_run
+                / "autotune_trials"
+                / prepared.trial.trial_uid
+                / "capture.csv"
+            )
+            _persist_trial_artifacts(
+                args,
+                dispatch=dispatch,
+                prepared=prepared,
+                receipt=receipt,
+                capture=capture,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "best-effort terminal artifact recovery deferred for %s: %s",
+                receipt_path,
+                exc,
+            )
+
+
 def _recover_home(
     args: argparse.Namespace,
     follower: BridgeCsvFollower,
@@ -778,40 +1024,13 @@ def _finish_trial(
         observed=queue_observed,
         detail=detail,
     )
-    result_path = (
-        args.campaign_root
-        / "parameter_results"
-        / f"{dispatch['dispatch_sequence']:012d}.json"
+    _persist_trial_artifacts(
+        args,
+        dispatch=dispatch,
+        prepared=prepared,
+        receipt=receipt,
+        capture=capture,
     )
-    outbox_path = None
-    if status == "SUCCEEDED":
-        outbox_path = enqueue_postprocess_task(
-            args.campaign_root / "parameter_outbox",
-            dispatch_sequence=int(dispatch["dispatch_sequence"]),
-            trial_uid=prepared.trial.trial_uid,
-            capture_path=capture,
-            result_path=result_path,
-        )
-    result = {
-        "schema": "step5d.parameter-receiver/trial-result-v2",
-        "request_uid": dispatch["request"]["request_uid"],
-        "dispatch_sequence": dispatch["dispatch_sequence"],
-        "trial_uid": prepared.trial.trial_uid,
-        "capture": str(capture),
-        "capture_sha256": None,
-        "status": status,
-        "failure_class": failure_class,
-        "detail": detail,
-        "outbox_task": None if outbox_path is None else str(outbox_path),
-        "receipt": receipt,
-    }
-    encoded = canonical_json_bytes(result)
-    result_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if result_path.exists() or result_path.is_symlink():
-        if result_path.is_symlink() or result_path.read_bytes() != encoded:
-            raise ParameterCampaignError("immutable parameter result differs")
-    else:
-        result_path.write_bytes(encoded)
 
 
 def _run_trial(
@@ -893,21 +1112,15 @@ def _run_trial(
 def run(args: argparse.Namespace) -> None:
     binding = _strict_object(args.campaign_binding, "campaign binding")
     _validate_authority(args, binding)
-    seeded = seed_initial_manifest(
-        args.receiver_root,
-        campaign_id=str(binding["campaign_id"]),
-        release_manifest_sha256=args.release_manifest_sha256,
-        launch_profile_path=args.v3_launch_profile,
-        manifest_path=args.initial_manifest,
-        experiment_root=args.experiment_root,
-    )
+    _validate_launch_identity(args, binding)
     queue_state = load_state(args.receiver_root)
+    _recover_terminal_artifacts(args, binding=binding)
     ready = {
         "schema": "step5d.parameter-receiver/runner-ready-v1",
         "campaign_id": binding["campaign_id"],
         "release_manifest_sha256": args.release_manifest_sha256,
         "receiver_root": str(args.receiver_root.resolve()),
-        "initial_parameters_seeded": len(seeded),
+        "candidate_pool_owner": "sender",
         "optimizer_required": False,
         "motion_authorized": False,
     }
@@ -960,7 +1173,15 @@ def run(args: argparse.Namespace) -> None:
                 args,
                 follower,
                 home_identity=home_identity,
+                allow_zero_session_rebind=True,
             )
+            if observed["state"] == READY_HOME:
+                rebind_transport_home(
+                    args.receiver_root,
+                    campaign_epoch=int(binding["campaign_epoch"]),
+                    last_trial_id=observed["trial_id"],
+                    last_command_seq=observed["consumed_command_seq"],
+                )
     dispatch = None
     while True:
         try:
@@ -984,6 +1205,19 @@ def run(args: argparse.Namespace) -> None:
                 observation=observed,
                 detail=str(exc),
             )
+            if dispatch is not None:
+                durable = prepare_next_dispatch(args.receiver_root)
+                if durable is None:
+                    raise ParameterCampaignError(
+                        "inflight dispatch disappeared during hardware recovery"
+                    )
+                observed = _adopt_inflight(
+                    args,
+                    binding=binding,
+                    follower=follower,
+                    dispatch=durable,
+                )
+                dispatch = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -999,7 +1233,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--release-manifest-sha256", required=True)
     parser.add_argument("--v3-launch-profile", type=Path, required=True)
     parser.add_argument("--v3-program-id", required=True)
-    parser.add_argument("--initial-manifest", type=Path, required=True)
+    parser.add_argument("--launch-basis", type=Path, required=True)
+    parser.add_argument("--launch-basis-sha256", required=True)
+    parser.add_argument("--delivery-observation", type=Path, required=True)
+    parser.add_argument("--campaign-prepare", type=Path, required=True)
+    parser.add_argument("--admission", type=Path, required=True)
+    parser.add_argument("--canonical-owner-pid", type=int, required=True)
+    parser.add_argument("--canonical-owner-starttime", type=int, required=True)
+    parser.add_argument("--authority-epoch", type=int, required=True)
     return parser.parse_args()
 
 

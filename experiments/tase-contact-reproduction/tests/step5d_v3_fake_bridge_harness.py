@@ -73,6 +73,10 @@ from step5d_autotune_supervisor import (  # noqa: E402
     CampaignSupervisor,
     execution_profile_integer_id,
 )
+from step5d_autotune_v3.runtime_profile import (  # noqa: E402
+    DEFAULT_LAUNCH_PROFILE,
+    load_launch_profile,
+)
 from ur10e_experiment_runtime.candidate_identity import (  # noqa: E402
     ControlCandidateUid,
 )
@@ -83,6 +87,14 @@ TIMEOUT_S = 10.0
 SOURCE_FINGERPRINT = "b" * 64
 CONFIG_FINGERPRINT = "c" * 64
 CAMPAIGN_FINGERPRINT = "a" * 64
+V3_PROGRAM_ID = "step5d_strict_rnn_autotune_v3_r021"
+
+
+def immutable_launch_profile() -> Any:
+    return load_launch_profile(
+        DEFAULT_LAUNCH_PROFILE,
+        expected_tp_program_id=V3_PROGRAM_ID,
+    )
 
 
 def _fsync_directory(path: Path) -> None:
@@ -441,7 +453,10 @@ def packet_payload(command: Any) -> dict[str, int]:
 
 def run_bridge(args: argparse.Namespace) -> int:
     root = Path(args.root).absolute()
-    mailbox = AtomicCommandMailbox((root / "control" / "command_mailbox.json").absolute())
+    mailbox = AtomicCommandMailbox(
+        (root / "control" / "command_mailbox.json").absolute(),
+        launch_profile=immutable_launch_profile(),
+    )
     snapshot_path = Path(args.snapshot).absolute()
     events = Path(args.events).absolute()
     ready = Path(args.ready).absolute()
@@ -526,7 +541,7 @@ def run_runner(args: argparse.Namespace) -> int:
         campaign_fingerprint=CAMPAIGN_FINGERPRINT,
         f0_shadow_reaction_normal_base=(0.0, 0.0, 1.0),
     )
-    profile = ExecutionProfile("nf010-slew010-a010", 0.010)
+    profile = ExecutionProfile("nf100-slew050-a050", 0.100, 0.5, 0.5)
     store = CampaignStore(root / "store")
     store.initialize(
         {
@@ -546,7 +561,10 @@ def run_runner(args: argparse.Namespace) -> int:
     journal = SupervisorJournal(root / "journal")
     coordinator = CampaignCoordinator(supervisor=supervisor, journal=journal)
     coordinator.persist_home()
-    mailbox = AtomicCommandMailbox(mailbox_path)
+    mailbox = AtomicCommandMailbox(
+        mailbox_path,
+        launch_profile=immutable_launch_profile(),
+    )
 
     def runner_event(event: str, **details: Any) -> None:
         append_event(

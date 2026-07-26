@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ def enqueue_postprocess_task(
     root: Path,
     *,
     dispatch_sequence: int,
+    dispatch_identity: str | None = None,
     trial_uid: str,
     capture_path: Path,
     result_path: Path,
@@ -24,10 +26,13 @@ def enqueue_postprocess_task(
 
     tasks = root / "tasks"
     tasks.mkdir(parents=True, exist_ok=True, mode=0o700)
-    path = tasks / f"{dispatch_sequence:012d}.json"
+    identity = dispatch_identity or f"sequence:{int(dispatch_sequence)}"
+    identity_key = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    path = tasks / f"{identity_key}.json"
     payload: dict[str, Any] = {
         "schema": OUTBOX_SCHEMA,
         "dispatch_sequence": int(dispatch_sequence),
+        "dispatch_identity": identity,
         "trial_uid": str(trial_uid),
         "capture_path": str(capture_path),
         "result_path": str(result_path),

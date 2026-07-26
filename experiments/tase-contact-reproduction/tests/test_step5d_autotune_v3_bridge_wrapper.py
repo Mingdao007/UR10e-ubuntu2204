@@ -233,6 +233,10 @@ def test_wrapper_requires_parent_and_exact_argv_ticket(tmp_path: Path) -> None:
     assert wrapper._strict_ticket(
         ticket, argv, release_identity=release, root=root
     )["scope"] == wrapper.TICKET_SCOPE
+    inline = json.loads(ticket.read_text(encoding="utf-8"))
+    assert wrapper._strict_ticket(
+        inline, argv, release_identity=release, root=root
+    )["scope"] == wrapper.TICKET_SCOPE
     try:
         wrapper._strict_ticket(
             ticket,

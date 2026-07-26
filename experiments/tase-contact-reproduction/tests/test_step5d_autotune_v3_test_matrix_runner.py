@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +15,44 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import run_step5d_autotune_v3_test_matrix as runner  # noqa: E402
 import validate_step5d_autotune_v3_refactor as validator  # noqa: E402
+
+
+def test_hermetic_python_preserves_venv_invocation_path(tmp_path: Path) -> None:
+    venv = tmp_path / "venv"
+    python = venv / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.symlink_to(Path(sys.executable).resolve(strict=True))
+    (venv / "pyvenv.cfg").write_text(
+        "\n".join(
+            (
+                f"home = {Path(sys.base_prefix) / 'bin'}",
+                "include-system-site-packages = false",
+                (
+                    "version = "
+                    f"{sys.version_info.major}.{sys.version_info.minor}."
+                    f"{sys.version_info.micro}"
+                ),
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    executable = runner._resolve_hermetic_python(python)
+    completed = subprocess.run(
+        [
+            str(executable),
+            "-I",
+            "-c",
+            "import json,sys; print(json.dumps({'prefix': sys.prefix}))",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert executable == python.absolute()
+    assert Path(json.loads(completed.stdout)["prefix"]) == venv
 
 
 def test_small_uses_bounded_xdist_while_medium_remains_serial() -> None:
@@ -79,6 +118,20 @@ def test_installed_runtime_runs_only_after_passing_hermetic_lanes(
     )
     monkeypatch.setattr(
         runner,
+        "_installed_runtime_precondition",
+        lambda: {
+            "schema": runner.INSTALLED_RUNTIME_PRECONDITION_SCHEMA,
+            "ok": True,
+            "release_mode": "deployed-current",
+            "reason_code": "CURRENT_RELEASE_VALID",
+            "detail": "",
+            "program_id": "step5d_strict_rnn_autotune_v3_r017",
+            "manifest_path": "config/step5d/releases/fixture/manifest.json",
+            "manifest_sha256": "f" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        runner,
         "_runtime_binding",
         lambda: ["/control/python", "/optimizer/python", *("a" * 64 for _ in range(6)), "GPU-fixture", "/runtime/nvidia", "/runtime/cupy-cache"],
     )
@@ -95,6 +148,87 @@ def test_installed_runtime_runs_only_after_passing_hermetic_lanes(
         "executed_serial_after_hermetic"
     )
     assert payload["installed_runtime_binding"]["gpu_uuid"] == "GPU-fixture"
+    assert payload["installed_runtime_precondition"]["reason_code"] == (
+        "CURRENT_RELEASE_VALID"
+    )
+
+
+def test_invalid_current_release_blocks_installed_runtime_before_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str] = []
+
+    def fake_run(name: str, _command: list[str], _output: Path) -> dict[str, object]:
+        observed.append(name)
+        return {"lane": name, "returncode": 0}
+
+    monkeypatch.setattr(runner, "_run_lane", fake_run)
+    monkeypatch.setattr(
+        runner,
+        "_installed_runtime_precondition",
+        lambda: {
+            "schema": runner.INSTALLED_RUNTIME_PRECONDITION_SCHEMA,
+            "ok": False,
+            "release_mode": "deployed-current",
+            "reason_code": "CURRENT_RELEASE_INVALID",
+            "detail": "ReleaseIdentityError: current source fingerprints differ",
+            "program_id": "",
+            "manifest_path": "",
+            "manifest_sha256": "",
+        },
+    )
+    monkeypatch.setattr(
+        runner,
+        "_runtime_binding",
+        lambda: pytest.fail("runtime binding must not run after failed precondition"),
+    )
+
+    payload = runner.run(
+        ["small", "medium"],
+        workers=2,
+        output=tmp_path / "stale-current",
+        include_installed_runtime=True,
+    )
+
+    assert set(observed) == {"small", "medium"}
+    assert payload["ok"] is False
+    assert payload["parallel_policy"]["installed_runtime_status"] == (
+        "blocked_by_current_release_precondition"
+    )
+    assert payload["installed_runtime_binding"] is None
+    assert payload["installed_runtime_precondition"]["reason_code"] == (
+        "CURRENT_RELEASE_INVALID"
+    )
+
+
+def test_installed_runtime_precondition_bounds_failure_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BrokenReleaseIdentityModule:
+        def __getattr__(self, _name: str) -> object:
+            raise RuntimeError("x" * 2048)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "step5d_autotune_v3.release_identity",
+        BrokenReleaseIdentityModule(),
+    )
+
+    payload = runner._installed_runtime_precondition()
+
+    assert payload == {
+        "schema": runner.INSTALLED_RUNTIME_PRECONDITION_SCHEMA,
+        "ok": False,
+        "release_mode": "deployed-current",
+        "reason_code": "CURRENT_RELEASE_INVALID",
+        "detail": payload["detail"],
+        "program_id": "",
+        "manifest_path": "",
+        "manifest_sha256": "",
+    }
+    assert payload["detail"].startswith("RuntimeError: ")
+    assert len(payload["detail"]) == runner.PRECONDITION_DETAIL_MAX_CHARS
 
 
 def test_repository_binding_drift_blocks_a_passing_matrix(
@@ -168,16 +302,27 @@ def test_installed_runtime_lane_uses_governed_cuda_paths(
 def test_installed_runtime_pytest_overlay_comes_from_frozen_venv(
     tmp_path: Path,
 ) -> None:
-    overlay = runner._pytest_overlay(tmp_path)
+    hermetic_site = tmp_path / "hermetic-site"
+    (hermetic_site / "pytest").mkdir(parents=True)
+    (hermetic_site / "_pytest").mkdir()
+    (hermetic_site / "pytest" / "__init__.py").write_text("\n", encoding="utf-8")
+    (hermetic_site / "_pytest" / "__init__.py").write_text("\n", encoding="utf-8")
+    original_run = runner.subprocess.run
 
-    assert (overlay / "pytest").is_symlink()
-    assert (overlay / "_pytest").is_symlink()
-    assert (overlay / "pytest").resolve().is_relative_to(
-        (runner.ROOT / ".venv").resolve()
-    )
-    assert (overlay / "_pytest").resolve().is_relative_to(
-        (runner.ROOT / ".venv").resolve()
-    )
+    def fake_run(*args, **kwargs):
+        del args, kwargs
+        return SimpleNamespace(returncode=0, stdout=f"{hermetic_site}\n")
+
+    runner.subprocess.run = fake_run
+    try:
+        overlay = runner._pytest_overlay(tmp_path)
+    finally:
+        runner.subprocess.run = original_run
+
+    assert not (overlay / "pytest").is_symlink()
+    assert not (overlay / "_pytest").is_symlink()
+    assert (overlay / "pytest" / "__init__.py").is_file()
+    assert (overlay / "_pytest" / "__init__.py").is_file()
 
 
 @pytest.mark.parametrize("lanes", [["large_ursim"], ["hil_no_motion"], []])

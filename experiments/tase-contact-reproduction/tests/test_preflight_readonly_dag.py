@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -15,6 +16,86 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import preflight_readonly as preflight  # noqa: E402
+
+
+def _create_p0_v9_binding_fixture(root: Path) -> str:
+    manifest_rel = "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_185412/manifest.json"
+    manifest_path = root / manifest_rel
+    run_dir = manifest_path.parent
+    run_dir.mkdir(parents=True)
+    artifacts = {
+        ".script": b"noop script fixture for preflight test",
+        ".txt": b"noop txt fixture for preflight test",
+        ".urp": b"noop urp fixture for preflight test",
+    }
+    file_shas = {
+        extension: hashlib.sha256(content).hexdigest() for extension, content in artifacts.items()
+    }
+    for extension, content in artifacts.items():
+        (run_dir / f"{preflight.P0_V9_PROFILE}{extension}").write_bytes(content)
+
+    capture_sha = {
+        ".script": file_shas[".script"],
+        ".txt": file_shas[".txt"],
+        ".urp": file_shas[".urp"],
+    }
+
+    manifest = {
+        "status": "controller read-back verified",
+        "target_dir": "/programs/andyl/kunwei/step5",
+        "validation": {
+            "program": preflight.P0_V9_PROFILE,
+            "target_dir": "/programs/andyl/kunwei/step5",
+            "script_node_path": f"/programs/andyl/kunwei/step5/{preflight.P0_V9_PROFILE}.script",
+        },
+        "sha256": {
+            "local": capture_sha,
+            "controller": capture_sha,
+            "readback": capture_sha,
+        },
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    config_root = root / "config"
+    config_root.mkdir(parents=True)
+    (config_root / "current_stage.json").write_text(
+        json.dumps(
+            {
+                "bridge_trigger": {
+                    "no_contact_p0_v9_capture": {
+                        "profile": preflight.P0_V9_PROFILE,
+                        "capture_authorized": True,
+                        "controller_readback_verified": True,
+                        "controller_target": f"/programs/andyl/kunwei/step5/{preflight.P0_V9_PROFILE}.urp",
+                        "controller_readback_manifest": manifest_rel,
+                        "sha256": capture_sha,
+                    },
+                },
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    (config_root / "step5_stage_table.json").write_text(
+        json.dumps(
+            {
+                "stages": [
+                    {
+                        "id": preflight.P0_V9_PROFILE,
+                        "package_delivery": {
+                            "status": "controller_readback_verified",
+                            "controller_readback_verified": True,
+                            "controller_readback_manifest": manifest_rel,
+                            "sha256": capture_sha,
+                        },
+                    },
+                ]
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return manifest_rel
 
 
 class PreflightReadonlyDagTest(unittest.TestCase):
@@ -54,19 +135,19 @@ class PreflightReadonlyDagTest(unittest.TestCase):
         self.assertFalse(preflight.bridge_profile_uses_tp_local("step5b_contact_cycloid_baseline_v1"))
 
     def test_p0_v9_uses_its_capture_binding_instead_of_current_v29(self) -> None:
-        result = preflight.p0_controller_binding(preflight.P0_V9_PROFILE, ROOT)
+        with tempfile.TemporaryDirectory() as directory:
+            temp_root = Path(directory)
+            manifest_rel = _create_p0_v9_binding_fixture(temp_root)
+            result = preflight.p0_controller_binding(preflight.P0_V9_PROFILE, temp_root)
 
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["errors"], [])
-        self.assertEqual(result["program"], preflight.P0_V9_PROFILE)
-        self.assertEqual(
-            result["controller_target"],
-            "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
-        )
-        self.assertEqual(
-            result["manifest"],
-            "runs/controller_readback_step5d_strict_rnn_no_contact_p0_v9_20260714_185412/manifest.json",
-        )
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["errors"], [])
+            self.assertEqual(result["program"], preflight.P0_V9_PROFILE)
+            self.assertEqual(
+                result["controller_target"],
+                "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v9.urp",
+            )
+            self.assertEqual(result["manifest"], manifest_rel)
 
     def test_open_probe_accepts_open_only_payloads(self) -> None:
         self.assertTrue(preflight._open({"open": True}))

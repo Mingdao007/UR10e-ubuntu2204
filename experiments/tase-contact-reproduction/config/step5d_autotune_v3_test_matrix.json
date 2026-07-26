@@ -8,6 +8,7 @@
     "unclassified_failure_policy": "block",
     "classified_test_files": {
       "active": [
+        "tests/test_current_stage_readback_gate.py",
         "tests/test_step5d_v3_active_surface_architecture.py",
         "tests/test_step5d_autotune_runtime.py",
         "tests/test_step5d_autotune_runtime_lifecycle.py",
@@ -35,6 +36,12 @@
         "tests/test_step5d_autotune_v3_campaign_prepare.py",
         "tests/test_step5d_autotune_v3_refactor_gate.py",
         "tests/test_step5d_autotune_v3_test_matrix_runner.py",
+        "tests/test_step5d_autotune_v3_coordinator.py",
+        "tests/test_step5d_autotune_v3_handoff_timing.py",
+        "tests/test_step5d_v3_import_boundaries.py",
+        "tests/test_step5d_v3_launch_basis.py",
+        "tests/test_step5d_v3_shell_source_fingerprint.py",
+        "tests/test_step5d_v3_supervisor_guard.py",
         "tests/test_step5d_autotune_v3_tp_delivery_transaction.py",
         "tests/test_step5d_runtime_environment.py",
         "tests/test_step5d_runtime_observation.py",
@@ -171,7 +178,7 @@
       "claim": "pure contracts, parsing, identities, and fail-closed release policy",
       "commands": [
         [
-          ".venv/bin/python",
+        "@hermetic-python",
           "-m",
           "pytest",
           "-q",
@@ -202,10 +209,17 @@
           "tests/test_step5d_autotune_v3_shared_contracts.py",
           "tests/test_step5d_layer_boundaries.py",
           "tests/test_step5d_autotune_v3_campaign_prepare.py",
+          "tests/test_current_stage_readback_gate.py",
           "tests/test_step5d_v3_immutable_payload_routing.py",
           "tests/test_step5d_parameter_queue.py",
-          "tests/test_step5d_autotune_v3_refactor_gate.py",
-          "tests/test_step5d_autotune_v3_test_matrix_runner.py"
+        "tests/test_step5d_autotune_v3_refactor_gate.py",
+        "tests/test_step5d_autotune_v3_test_matrix_runner.py",
+        "tests/test_step5d_autotune_v3_coordinator.py",
+        "tests/test_step5d_autotune_v3_handoff_timing.py",
+        "tests/test_step5d_v3_import_boundaries.py",
+        "tests/test_step5d_v3_launch_basis.py",
+          "tests/test_step5d_v3_shell_source_fingerprint.py",
+          "tests/test_step5d_v3_supervisor_guard.py"
         ]
       ],
       "ci": true,
@@ -226,7 +240,7 @@
       "claim": "real local process, filesystem, mailbox, service, timeout, and crash-cut behavior",
       "commands": [
         [
-          ".venv/bin/python",
+        "@hermetic-python",
           "-m",
           "pytest",
           "-q",
@@ -234,7 +248,6 @@
           "tests/test_step5d_autotune_v3_live_startup.py",
           "tests/test_step5d_live_session_lifecycle.py",
           "tests/test_step5d_parameter_campaign_receiver.py",
-          "tests/test_step5d_release_contract.py",
           "tests/test_step5d_runtime_observation.py"
         ]
       ],

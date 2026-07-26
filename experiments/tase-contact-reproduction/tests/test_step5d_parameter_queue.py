@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -13,11 +15,14 @@ sys.path.insert(0, str(ROOT / "tools"))
 from step5d_parameter_manifest import (  # noqa: E402
     import_physical_attempt_uids,
     seed_initial_manifest,
+    submit_candidate_pool,
     validate_manifest,
 )
+import prepare_step5d_autotune_launch as launch  # noqa: E402
 from step5d_parameter_queue import (  # noqa: E402
     ParameterQueueError,
     bind_home,
+    adopt_selected_legacy_binding,
     finish_dispatch,
     initialize,
     list_requests,
@@ -410,7 +415,7 @@ def test_crash_restart_preserves_inflight_dispatch_and_v1_complete_imports(
     assert request["control_candidate_uid"] in imported
 
 
-def test_duplicate_parameter_is_rejected_even_with_new_source(tmp_path: Path) -> None:
+def test_receiver_accepts_distinct_request_uids_for_same_control(tmp_path: Path) -> None:
     root = _queue(tmp_path)
     submit(
         root,
@@ -420,15 +425,15 @@ def test_duplicate_parameter_is_rejected_even_with_new_source(tmp_path: Path) ->
         force_damping=5.886274906776001,
         source="operator",
     )
-    with pytest.raises(ParameterQueueError, match="already attempted or queued"):
-        submit(
-            root,
-            launch_profile_path=PROFILE,
-            force_p=0.001189207115002721,
-            force_i=0.00001,
-            force_damping=5.886274906776001,
-            source="optimizer",
-        )
+    second = submit(
+        root,
+        launch_profile_path=PROFILE,
+        force_p=0.001189207115002721,
+        force_i=0.00001,
+        force_damping=5.886274906776001,
+        source="optimizer",
+    )
+    assert second["request_uid"] != list_requests(root)[0]["request_uid"]
 
 
 def test_seed_skips_prior_physical_attempt_and_is_idempotent(tmp_path: Path) -> None:
@@ -474,3 +479,197 @@ def test_seed_skips_prior_physical_attempt_and_is_idempotent(tmp_path: Path) -> 
         )
         == ()
     )
+
+
+def test_selected_legacy_migration_preserves_p04_and_next_p05(tmp_path: Path) -> None:
+    source = _queue(tmp_path / "source")
+    for index in range(1, 11):
+        submit(
+            source,
+            launch_profile_path=PROFILE,
+            force_p=0.0005 * (2 ** (index / 4)),
+            force_i=0.00001,
+            force_damping=7.0,
+            source=f"P{index:02d}",
+        )
+    bind_home(source, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    for _ in range(4):
+        dispatch = prepare_next_dispatch(source)
+        packet = dispatch["packet"]
+        finish_dispatch(
+            source,
+            status="SUCCEEDED",
+            observed={
+                "campaign_epoch": packet["campaign_epoch"],
+                "trial_id": packet["trial_id"],
+                "state": 78,
+                "candidate_token": packet["candidate_token"],
+                "execution_profile_id": packet["execution_profile_id"],
+                "consumed_command_seq": packet["command_seq"],
+                "logical_batch_sequence": packet["logical_batch_sequence"],
+                "batch_row_index": 1,
+            },
+        )
+    state_path = source / "state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state.update(
+        schema="step5d.parameter-receiver/state-v1",
+        release_manifest_sha256="447110" + "0" * 58,
+        launch_profile_sha256="1" * 64,
+    )
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    legacy = tmp_path / "legacy-447110"
+    shutil.copytree(source, legacy)
+    before = (legacy / "state.json").read_bytes()
+    stable = tmp_path / "stable"
+    migrated = adopt_selected_legacy_binding(
+        stable,
+        legacy_root=legacy,
+        campaign_id="campaign-test",
+    )
+    assert migrated["dispatch_sequence"] == 4
+    assert migrated["revision"] == 10
+    assert (stable / "receipts").is_dir()
+    assert len(tuple((stable / "receipts").glob("*.json"))) == 4
+    assert list_pending(stable)[0]["source"] == "P05"
+    assert (legacy / "state.json").read_bytes() == before
+    assert adopt_selected_legacy_binding(
+        stable, legacy_root=legacy, campaign_id="campaign-test"
+    )["dispatch_sequence"] == 4
+    other_legacy = tmp_path / "other-447110"
+    shutil.copytree(legacy, other_legacy)
+    with pytest.raises(ParameterQueueError, match="migration binding differs"):
+        adopt_selected_legacy_binding(
+            stable, legacy_root=other_legacy, campaign_id="campaign-test"
+        )
+
+
+def test_selected_legacy_migration_missing_source_fails_closed(tmp_path: Path) -> None:
+    with pytest.raises(ParameterQueueError, match="missing or unsafe"):
+        adopt_selected_legacy_binding(
+            tmp_path / "stable",
+            legacy_root=tmp_path / "missing-447110",
+            campaign_id="campaign-test",
+        )
+
+
+def test_sender_dedups_experiment_attempt_and_existing_p05_to_p10(tmp_path: Path) -> None:
+    queue = _queue(tmp_path)
+    rows = validate_manifest(MANIFEST, launch_profile_path=PROFILE)
+    for row in rows[4:]:
+        submit(
+            queue,
+            launch_profile_path=PROFILE,
+            force_p=row["force_p_gain"],
+            force_i=row["force_i_gain"],
+            force_damping=row["force_damping"],
+            orientation_ko=row["orientation_ko"],
+            source=row["source"],
+            position=row["position"],
+            occurrence_nonce=row["occurrence_nonce"],
+        )
+    experiment = tmp_path / "experiment"
+    ledger = experiment / "config/step5/step5d_autotune_v3_attempt_ledger.json"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "parameters": {
+                            "force_p_gain": rows[3]["force_p_gain"],
+                            "force_i_gain": rows[3]["force_i_gain"],
+                            "force_damping": rows[3]["force_damping"],
+                        }
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    submitted = submit_candidate_pool(
+        queue,
+        campaign_id="campaign-test",
+        launch_profile_path=PROFILE,
+        manifest_path=MANIFEST,
+        experiment_root=experiment,
+    )
+    assert [row["source"] for row in submitted] == [
+        "approved_initial_10:P01",
+        "approved_initial_10:P02",
+        "approved_initial_10:P03",
+    ]
+    assert submit_candidate_pool(
+        queue,
+        campaign_id="campaign-test",
+        launch_profile_path=PROFILE,
+        manifest_path=MANIFEST,
+        experiment_root=experiment,
+    ) == ()
+
+
+def test_receiver_handles_one_hundred_fast_continuous_dispatches(tmp_path: Path) -> None:
+    root = _queue(tmp_path)
+    for index in range(100):
+        submit(
+            root,
+            launch_profile_path=PROFILE,
+            force_p=0.0008408964152537145 * (2 ** ((index % 10) / 4)),
+            force_i=0.00001,
+            force_damping=4.949747468305833 * (2 ** ((index // 10) / 4)),
+            source=f"fast-{index}",
+        )
+    bind_home(root, campaign_epoch=1, last_trial_id=0, last_command_seq=0)
+    for _ in range(100):
+        dispatch = prepare_next_dispatch(root)
+        assert dispatch is not None
+        packet = dispatch["packet"]
+        finish_dispatch(
+            root,
+            status="SUCCEEDED",
+            observed={
+                "campaign_epoch": packet["campaign_epoch"],
+                "trial_id": packet["trial_id"],
+                "state": 78,
+                "candidate_token": packet["candidate_token"],
+                "execution_profile_id": packet["execution_profile_id"],
+                "consumed_command_seq": packet["command_seq"],
+                "logical_batch_sequence": packet["logical_batch_sequence"],
+                "batch_row_index": 1,
+            },
+        )
+    assert status(root)["dispatch_sequence"] == 100
+    assert status(root)["attempted_count"] == 100
+    assert status(root)["pending_count"] == 0
+
+
+def test_prepare_keeps_receiver_root_stable_across_release_rollover(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign_root = tmp_path / "campaign"
+    request = launch.LaunchPreparationRequest(
+        experiment_root=ROOT,
+        campaign_root=campaign_root,
+        binding_file=tmp_path / "binding.json",
+        binding_source="offline-test",
+        launch_profile_path=PROFILE,
+        candidate_batch_size=5,
+        rolling_plan=False,
+    )
+    releases = iter(
+        [
+            SimpleNamespace(manifest_sha256="a" * 64),
+            SimpleNamespace(manifest_sha256="b" * 64),
+        ]
+    )
+    monkeypatch.setattr(launch, "load_current_release", lambda _root: next(releases))
+    monkeypatch.setattr(launch, "release_payload_path", lambda _root, _release, _path: MANIFEST)
+    first = launch.prepare(request)
+    second = launch.prepare(request)
+    expected = campaign_root / "control" / "parameter_receiver"
+    assert Path(first["receiver_root"]) == expected.resolve()
+    assert Path(second["receiver_root"]) == expected.resolve()
+    assert first["candidate_plan"] != second["candidate_plan"]
+    assert not (expected / "state.json").exists()
+    assert not (expected / "migration.json").exists()

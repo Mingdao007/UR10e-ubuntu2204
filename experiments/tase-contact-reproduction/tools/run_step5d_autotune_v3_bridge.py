@@ -737,6 +737,11 @@ def install_v3_seams(
     import kunwei_rtde_bridge as bridge
     from step5d_autotune_v3.dashboard import dashboard_exchange
 
+    # Keep the historical seam available to the V3 prewarm wrapper while the
+    # bridge module itself remains importable without the optional kinematics
+    # dependency.
+    bridge.step5d_kin = bridge._step5d_kinematics_module()
+
     bridge.dashboard_exchange = dashboard_exchange
 
     original_authorization_gate = bridge.require_v29_live_bridge_authorization

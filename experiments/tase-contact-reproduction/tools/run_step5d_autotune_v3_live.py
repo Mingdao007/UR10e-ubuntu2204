@@ -19,12 +19,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from prepare_step5d_autotune_launch import (
-    LaunchPreparationRequest,
-    prepare,
-    write_machine_campaign_binding,
-)
-from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
 from step5d_autotune_state_machine import TpLoopState
 from step5d_autotune_v3.dashboard import DashboardObservationError, dashboard_exchange
 from step5d_autotune_v3.delivery_observation import (
@@ -32,6 +26,12 @@ from step5d_autotune_v3.delivery_observation import (
     fresh_get_provenance,
     load_delivery_observation,
     validate_delivery_observation,
+)
+from step5d_autotune_v3.bridge_admission import validate_bridge_admission
+from step5d_autotune_v3.launch_basis import (
+    read_and_validate_launch_basis,
+    validate_delivery_observation_binding,
+    validate_strict_bridge_ready,
 )
 from step5d_autotune_v3.governance import (
     RUNTIME_OBSERVATION_INTERVAL_S,
@@ -116,6 +116,18 @@ ARM_ACKNOWLEDGED_STATES = frozenset(
 )
 class LiveLaunchError(RuntimeError):
     pass
+
+
+LIVE_REQUIRED_IDENTITY_ARGS = (
+    "output_root",
+    "preflight",
+    "delivery_observation",
+    "admission",
+    "authority_epoch",
+    "launch_basis",
+    "launch_basis_sha256",
+    "campaign_prepare",
+)
 
 
 class LiveSessionState(str, Enum):
@@ -295,6 +307,23 @@ def _run_recoverable_sessions(
                 pass
 
 
+def dispatch_single_session(
+    session_callable: Callable[[], Mapping[str, Any] | None],
+    cleanup: Callable[[], None],
+) -> Mapping[str, Any] | None:
+    """Run exactly one owned session for deterministic offline tests.
+
+    This seam deliberately has no retry loop and creates no child process of
+    its own.  The session callback owns any children it starts; on failure the
+    supplied cleanup callback is invoked before the exception is propagated.
+    """
+    try:
+        return session_callable()
+    except BaseException:
+        cleanup()
+        raise
+
+
 def _write_session_lifecycle(
     output_root: Path,
     lifecycle: LiveSessionLifecycle,
@@ -412,6 +441,57 @@ def _sha256_path(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _missing_live_identity_args(args: argparse.Namespace) -> list[str]:
+    missing = [
+        name
+        for name in LIVE_REQUIRED_IDENTITY_ARGS
+        if getattr(args, name, None) is None
+    ]
+    if getattr(args, "launch_basis_sha256", None) == "":
+        missing.append("launch_basis_sha256")
+    return sorted(set(missing))
+
+
+def _require_live_identity_args(args: argparse.Namespace) -> None:
+    missing = _missing_live_identity_args(args)
+    if missing:
+        raise LiveLaunchError(
+            "live worker requires "
+            + ", ".join(f"--{name.replace('_', '-')}" for name in missing)
+        )
+
+
+def _validate_coordinator_runtime_root(args: argparse.Namespace) -> Path:
+    from run_step5d_autotune_v3_coordinator import validate_coordinator_runtime_root
+
+    try:
+        return validate_coordinator_runtime_root(args)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise LiveLaunchError(f"coordinator runtime root validation failed: {exc}") from exc
+
+
+def _create_bridge_runtime(runtime_root: Path) -> tuple[Path, Path]:
+    """Create the still-empty bridge subtree after identity validation."""
+
+    bridge_run = runtime_root / "bridge"
+    bridge_runtime = bridge_run / "runtime"
+    if bridge_run.exists() or bridge_run.is_symlink():
+        raise LiveLaunchError("bridge session state already exists")
+    try:
+        bridge_run.mkdir(mode=0o700, exist_ok=False)
+        bridge_runtime.mkdir(mode=0o700, exist_ok=False)
+    except OSError as exc:
+        raise LiveLaunchError(f"bridge runtime could not be created: {exc}") from exc
+    if (
+        bridge_run.is_symlink()
+        or not bridge_run.is_dir()
+        or bridge_runtime.is_symlink()
+        or not bridge_runtime.is_dir()
+    ):
+        raise LiveLaunchError("bridge runtime is not a real directory")
+    return bridge_run, bridge_runtime
 
 
 def _integer_row(row: Mapping[str, Any] | None, name: str) -> int:
@@ -955,6 +1035,30 @@ def _terminate(process: subprocess.Popen[Any] | None) -> int | None:
     return process.returncode
 
 
+def _run_bridge_command_and_wait_for_readiness(
+    command: list[str],
+    *,
+    bridge_ready_path: Path,
+    timeout_s: float,
+    role: str,
+    **popen_kwargs: Any,
+) -> tuple[subprocess.Popen[Any], int, int]:
+    """Start one owned bridge child and require a bounded readiness artifact."""
+    launch_started_ns = time.perf_counter_ns()
+    process = subprocess.Popen(command, **popen_kwargs)
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise LiveLaunchError(
+                f"{role} process exited before readiness rc={process.returncode}"
+            )
+        if bridge_ready_path.is_file():
+            return process, launch_started_ns, time.perf_counter_ns()
+        time.sleep(0.05)
+    _terminate(process)
+    raise LiveLaunchError(f"{role} readiness timeout")
+
+
 def _parent_death_guard(
     expected_parent_pid: int,
     expected_parent_starttime: int,
@@ -1102,6 +1206,50 @@ def _validate_preflight(
     return payload
 
 
+def _validate_active_launch_identity(
+    args: argparse.Namespace,
+    release: ReleaseIdentity,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Consume the coordinator artifacts before any live child is spawned."""
+    try:
+        _require_live_identity_args(args)
+        _validate_coordinator_runtime_root(args)
+        if args.campaign_prepare is None:
+            raise LiveLaunchError("coordinator campaign preparation artifact is required")
+        basis = read_and_validate_launch_basis(
+            args.launch_basis,
+            owner_pid=args.canonical_owner_pid,
+            owner_starttime=args.canonical_owner_starttime,
+            expected_basis_sha256=args.launch_basis_sha256,
+        )
+        if basis["authority_epoch"] != args.authority_epoch:
+            raise LiveLaunchError("launch basis authority epoch differs")
+        admission = validate_bridge_admission(
+            ROOT,
+            read_strict_json(args.admission, role="bridge admission"),
+            release=release,
+        )
+        if admission.get("campaign_fingerprint") != basis["campaign_fingerprint"]:
+            raise LiveLaunchError("bridge admission campaign identity differs")
+        validate_delivery_observation_binding(
+            args.delivery_observation,
+            basis=basis,
+            admission=admission,
+            experiment_root=ROOT,
+        )
+        from run_step5d_autotune_v3_coordinator import _validate_campaign_prepare
+
+        campaign = _validate_campaign_prepare(
+            read_strict_json(args.campaign_prepare, role="campaign preparation"),
+            basis,
+        )
+        return basis, admission, campaign
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        if isinstance(exc, LiveLaunchError):
+            raise
+        raise LiveLaunchError(f"active launch identity validation failed: {exc}") from exc
+
+
 def run(args: argparse.Namespace) -> Mapping[str, Any]:
     runtime_pointer = getattr(args, "_runtime_pointer", None)
     if not isinstance(runtime_pointer, Mapping):
@@ -1115,6 +1263,7 @@ def _run_live(
 ) -> Mapping[str, Any] | None:
     """Own the durable receiver and re-enter isolated live session attempts."""
 
+    _require_live_identity_args(args)
     output_root = args.output_root.expanduser().absolute()
     output_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     lifecycle = LiveSessionLifecycle()
@@ -1126,6 +1275,7 @@ def _run_live(
         attempt_root = output_root / f"attempt-{attempt_number:04d}"
         attempt_root.mkdir(parents=False, exist_ok=False, mode=0o700)
         attempt_args = argparse.Namespace(**vars(args))
+        attempt_args._coordinator_output_root = output_root
         attempt_args.output_root = attempt_root
         atomic_json(
             output_root / "recoverable_session_status.json",
@@ -1184,6 +1334,8 @@ def _run_live(
             },
         )
 
+    if getattr(args, "single_session", False):
+        return dispatch_single_session(session_callable, cleanup)
     return _run_recoverable_sessions(
         session_callable,
         cleanup=cleanup,
@@ -1196,17 +1348,18 @@ def _run_live_session(
     args: argparse.Namespace,
     runtime_pointer: Mapping[str, Any],
 ) -> Mapping[str, Any]:
+    from prepare_step5d_autotune_launch import write_machine_campaign_binding
+    from run_step5d_autotune_v3_bridge import TICKET_SCHEMA, TICKET_SCOPE
+
     control_python = runtime_pointer["profiles"]["control"]["python_executable"]
     release = load_runtime_release(ROOT)
     delivery_observation = load_delivery_observation(
         ROOT, args.delivery_observation, release=release
     )
     legacy_preflight = None
-    runtime_root = args.output_root.expanduser().absolute() / "runtime"
-    runtime_root.mkdir(parents=True, exist_ok=False, mode=0o700)
-    bridge_run = runtime_root / "bridge"
-    bridge_runtime = bridge_run / "runtime"
-    bridge_runtime.mkdir(parents=True, exist_ok=False, mode=0o700)
+    runtime_root = _validate_coordinator_runtime_root(args)
+    basis, admission, campaign_prepare = _validate_active_launch_identity(args, release)
+    bridge_run, bridge_runtime = _create_bridge_runtime(runtime_root)
     contract_path = release_payload_path(ROOT, release, SAFETY_ENVELOPE_PATH)
     launch_profile_path = release_payload_path(ROOT, release, LAUNCH_PROFILE_PATH)
     contract = load_contract(contract_path)
@@ -1240,17 +1393,7 @@ def _run_live_session(
     )
     campaign_binding = bridge_runtime / "campaign_binding.json"
     launch_plan_path = bridge_runtime / "campaign_launch_plan.json"
-    prepared = prepare(
-        LaunchPreparationRequest(
-            experiment_root=ROOT,
-            campaign_root=args.campaign_root,
-            binding_file=campaign_binding,
-            binding_source="canonical_v3_live_entrypoint",
-            launch_profile_path=launch_profile_path,
-            candidate_batch_size=5,
-            rolling_plan=True,
-        )
-    )
+    prepared = dict(campaign_prepare["result"])
     plan_path = Path(str(prepared["candidate_plan"]))
     source_path = Path(str(prepared["trial_overlay_plan"]))
     plan = read_strict_json(plan_path, role="parameter receiver plan")
@@ -1277,14 +1420,10 @@ def _run_live_session(
     }
     atomic_json(launch_plan_path, prepared)
     receiver_root = Path(str(prepared["receiver_root"]))
-    initial_manifest = Path(str(prepared["initial_manifest"]))
     inherited_launch_id = os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID")
-    if inherited_launch_id is not None and (
-        len(inherited_launch_id) != 32
-        or any(character not in "0123456789abcdef" for character in inherited_launch_id)
-    ):
-        raise LiveLaunchError("canonical launch-attempt ID is invalid")
-    launch_id = inherited_launch_id or uuid.uuid4().hex
+    if inherited_launch_id is not None and inherited_launch_id != basis["launch_nonce"]:
+        raise LiveLaunchError("canonical launch-attempt ID differs from launch basis")
+    launch_id = str(basis["launch_nonce"])
     runtime_contract = release_runtime_contract(ROOT, release)
     lease = CampaignLease.issue(
         lease_id=uuid.uuid4().hex,
@@ -1318,6 +1457,19 @@ def _run_live_session(
         "tp_program_id": release.program_id,
         "manifest_sha256": release.manifest_sha256,
         "safety_envelope_sha256": runtime_contract["safety_envelope_sha256"],
+        "launch_basis": {
+            "path": str(args.launch_basis),
+            "sha256": basis["basis_sha256"],
+        },
+        "delivery_observation": {
+            "path": str(args.delivery_observation),
+            "sha256": basis["delivery_observation_sha256"],
+        },
+        "authority_epoch": basis["authority_epoch"],
+        "campaign_prepare": {
+            "path": str(args.campaign_prepare),
+            "sha256": _sha256_path(args.campaign_prepare),
+        },
         "campaign_binding": {
             "campaign_id": prepared["campaign_id"],
             "campaign_epoch": prepared["campaign_epoch"],
@@ -1340,7 +1492,7 @@ def _run_live_session(
         profile="control",
         additions={
             "STEP5D_V3_RUNTIME_TICKET": str(ticket_path),
-            "STEP5D_BRIDGE_LAUNCH_NONCE": uuid.uuid4().hex,
+            "STEP5D_BRIDGE_LAUNCH_NONCE": launch_id,
         },
         runtime_pointer=runtime_pointer,
     )
@@ -1390,23 +1542,39 @@ def _run_live_session(
         ) from exc
     try:
         with bridge_log_path.open("wb") as bridge_log:
-            bridge = subprocess.Popen(
-                command,
-                cwd=ROOT,
-                env=bridge_environment,
-                stdin=subprocess.DEVNULL,
-                stdout=bridge_log,
-                stderr=subprocess.STDOUT,
-                close_fds=True,
-                preexec_fn=lambda expected_pid=supervisor_pid, expected_start=supervisor_starttime: _parent_death_guard(
-                    expected_pid,
-                    expected_start,
-                ),
+            # The production session remains continuous after this barrier;
+            # only startup readiness is bounded and fail-fast.
+            bridge, _bridge_launch_started_ns, _bridge_ready_observed_ns = (
+                _run_bridge_command_and_wait_for_readiness(
+                    command,
+                    bridge_ready_path=bridge_run / "bridge_ready.json",
+                    timeout_s=float(getattr(args, "ready_timeout_s", 30.0)),
+                    role="bridge",
+                    cwd=ROOT,
+                    env=bridge_environment,
+                    stdin=subprocess.DEVNULL,
+                    stdout=bridge_log,
+                    stderr=subprocess.STDOUT,
+                    close_fds=True,
+                    preexec_fn=lambda expected_pid=supervisor_pid, expected_start=supervisor_starttime: _parent_death_guard(
+                        expected_pid, expected_start
+                    ),
+                )
             )
             lifecycle.bridge = bridge
-            _wait_file(bridge_run / "bridge_ready.json", bridge, "bridge")
             bridge_ready = read_strict_json(
                 bridge_run / "bridge_ready.json", role="bridge readiness"
+            )
+            validate_strict_bridge_ready(
+                bridge_ready,
+                bridge_pid=bridge.pid,
+                bridge_starttime_ticks=process_starttime(bridge.pid),
+                launch_nonce=launch_id,
+                expected_profile=release.control_profile_id,
+                ticket=ticket,
+                basis=basis,
+                release=release,
+                admission=admission,
             )
             csv_path = bridge_run / "bridge_rtde_500hz.csv"
             csv_follower = _LatestCsvFollower(csv_path)
@@ -1436,8 +1604,22 @@ def _run_live_session(
                 str(launch_profile_path),
                 "--v3-program-id",
                 release.program_id,
-                "--initial-manifest",
-                str(initial_manifest),
+                "--launch-basis",
+                str(args.launch_basis),
+                "--launch-basis-sha256",
+                basis["basis_sha256"],
+                "--delivery-observation",
+                str(args.delivery_observation),
+                "--campaign-prepare",
+                str(args.campaign_prepare),
+                "--admission",
+                str(args.admission),
+                "--canonical-owner-pid",
+                str(args.canonical_owner_pid),
+                "--canonical-owner-starttime",
+                str(args.canonical_owner_starttime),
+                "--authority-epoch",
+                str(args.authority_epoch),
             ]
             with runner_log_path.open("wb") as runner_log:
                 runner = subprocess.Popen(
@@ -1962,6 +2144,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--preflight", type=Path)
     parser.add_argument("--delivery-observation", type=Path)
+    parser.add_argument("--admission", type=Path)
+    parser.add_argument("--authority-epoch", type=int)
+    parser.add_argument("--launch-basis", type=Path)
+    parser.add_argument("--launch-basis-sha256")
+    parser.add_argument("--campaign-prepare", type=Path)
+    parser.add_argument("--ready-timeout-s", type=float, default=30.0)
     parser.add_argument(
         "--campaign-root",
         type=Path,
@@ -1975,7 +2163,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--canonical-owner-pid", type=int, required=True)
     parser.add_argument("--canonical-owner-starttime", type=int, required=True)
     parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
-    return parser.parse_args(argv)
+    parser.add_argument("--single-session", action="store_true", help=argparse.SUPPRESS)
+    args = parser.parse_args(argv)
+    if not args.prepare_only:
+        missing = _missing_live_identity_args(args)
+        if missing:
+            parser.error(
+                "live mode requires "
+                + ", ".join(f"--{name.replace('_', '-')}" for name in missing)
+            )
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1998,6 +2195,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         args._runtime_pointer = require_runtime_profile("control")
         if args.prepare_only:
+            from prepare_step5d_autotune_launch import LaunchPreparationRequest, prepare
+
             release = load_current_release(ROOT)
             contract_path = release_payload_path(
                 ROOT, release, SAFETY_ENVELOPE_PATH
@@ -2036,6 +2235,7 @@ def main(argv: list[str] | None = None) -> int:
                 "live worker requires --output-root, --preflight, and "
                 "--delivery-observation"
             )
+        _require_live_identity_args(args)
         result = run(args)
     except Exception as exc:
         result = {"schema": RESULT_SCHEMA, "ok": False, "blocker": str(exc)}

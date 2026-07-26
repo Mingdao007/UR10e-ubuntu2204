@@ -14,7 +14,26 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Mapping
 
-from ur10e_experiment_runtime.identity import canonical_sha256
+try:
+    from ur10e_experiment_runtime.identity import canonical_sha256
+except ModuleNotFoundError as exc:
+    # ``status --help`` and other offline gates must remain parser-importable
+    # under the system interpreter even when optional runtime distributions are
+    # absent.  Load the dependency-free identity module directly; installed
+    # runtime execution still uses the normal package import above.
+    if exc.name != "jsonschema":
+        raise
+    import importlib.util
+
+    _identity_path = Path(__file__).resolve().parents[4] / "src/ur10e_experiment_runtime/ur10e_experiment_runtime/identity.py"
+    _identity_spec = importlib.util.spec_from_file_location(
+        "_step5d_runtime_identity", _identity_path
+    )
+    if _identity_spec is None or _identity_spec.loader is None:
+        raise
+    _identity_module = importlib.util.module_from_spec(_identity_spec)
+    _identity_spec.loader.exec_module(_identity_module)
+    canonical_sha256 = _identity_module.canonical_sha256
 
 from .identity_layers import (
     deployment_fingerprint,

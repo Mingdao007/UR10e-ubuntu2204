@@ -30,6 +30,9 @@ from step5d_autotune_live_driver import AtomicCommandMailbox  # noqa: E402
 from step5d_autotune_state_machine import HostCommand  # noqa: E402
 from step5d_autotune_store import CampaignStore  # noqa: E402
 from step5d_autotune_v3.launcher import check_effective_config  # noqa: E402
+from step5d_v3_fake_bridge_harness import (  # noqa: E402
+    immutable_launch_profile,
+)
 
 
 def read_events(path: Path) -> list[dict[str, Any]]:
@@ -371,7 +374,8 @@ def test_exact_ten_row_fake_bridge_uses_durable_batch_and_trial_brief_truth(
         assert done_document["verified_exit_code"] == 0
 
         final_mailbox = AtomicCommandMailbox(
-            (gate / "control" / "command_mailbox.json").absolute()
+            (gate / "control" / "command_mailbox.json").absolute(),
+            launch_profile=immutable_launch_profile(),
         ).read_latest()
         assert final_mailbox is not None
         assert final_mailbox.packet.command is HostCommand.ACK_BUNDLE

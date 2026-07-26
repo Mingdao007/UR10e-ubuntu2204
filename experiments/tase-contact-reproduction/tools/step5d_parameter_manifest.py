@@ -412,24 +412,78 @@ def seed_initial_manifest(
     return ()
 
 
+def _queue_physical_attempt_uids(queue_root: Path) -> frozenset[str]:
+    attempted: set[str] = set()
+    ledger_root = queue_root / "physical_attempts"
+    if ledger_root.is_symlink() or not ledger_root.is_dir():
+        return frozenset()
+    for path in sorted(ledger_root.glob("*.json")):
+        if path.is_symlink() or not path.is_file():
+            raise ParameterManifestError("physical-attempt ledger entry is unsafe")
+        payload = _load(path, "physical-attempt ledger")
+        if payload.get("physical_attempted") is True:
+            uid = payload.get("control_candidate_uid")
+            if not isinstance(uid, str) or not uid:
+                raise ParameterManifestError("physical-attempt ledger lacks candidate UID")
+            attempted.add(uid)
+    return frozenset(attempted)
+
+
+def submit_candidate_pool(
+    queue_root: Path,
+    *,
+    campaign_id: str,
+    launch_profile_path: Path,
+    manifest_path: Path,
+    experiment_root: Path | None = None,
+    attempted_control_uids: frozenset[str] = frozenset(),
+) -> tuple[dict[str, Any], ...]:
+    """Submit the deterministic ten-row sender pool exactly once per control."""
+
+    initialize(queue_root, campaign_id=campaign_id)
+    rows = validate_manifest(manifest_path, launch_profile_path=launch_profile_path)
+    queued = {
+        str(row["control_candidate_uid"])
+        for row in list_requests(queue_root)
+    }
+    attempted = set(attempted_control_uids)
+    attempted.update(_queue_physical_attempt_uids(queue_root))
+    if experiment_root is not None:
+        attempted.update(
+            import_physical_attempt_uids(
+                experiment_root,
+                launch_profile_path=launch_profile_path,
+            )
+        )
+    candidates = tuple(
+        row
+        for row in rows
+        if str(_candidate_uid(row, launch_profile_path=launch_profile_path))
+        not in queued | attempted
+    )
+    return submit_manifest(
+        queue_root,
+        launch_profile_path=launch_profile_path,
+        rows=candidates,
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--experiment-root", type=Path, required=True)
     parser.add_argument("--queue-root", type=Path, required=True)
     parser.add_argument("--campaign-id", required=True)
-    parser.add_argument("--release-manifest-sha256", required=True)
     parser.add_argument("--launch-profile", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     args = parser.parse_args()
-    rows = seed_initial_manifest(
+    rows = submit_candidate_pool(
         args.queue_root,
         campaign_id=args.campaign_id,
-        release_manifest_sha256=args.release_manifest_sha256,
         launch_profile_path=args.launch_profile,
         manifest_path=args.manifest,
         experiment_root=args.experiment_root,
     )
-    print(json.dumps({"seeded": len(rows)}, indent=2, sort_keys=True))
+    print(json.dumps({"submitted": len(rows)}, indent=2, sort_keys=True))
     return 0
 
 

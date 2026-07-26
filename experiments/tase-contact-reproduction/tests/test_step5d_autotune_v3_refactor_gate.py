@@ -201,7 +201,7 @@ class Step5dAutotuneV3RefactorGateTest(unittest.TestCase):
         duplicate = payload["lanes"]["small"]["commands"][0][-1]
         payload["lanes"]["medium"]["commands"][0].append(duplicate)
         self.assertIn(
-            f"test_matrix_duplicate_test_path:{duplicate}:small:medium",
+            f"test_matrix_duplicate_entry:{duplicate}:small[0][41],medium[0][9]",
             gate.content_governance_issues(ROOT, payload),
         )
 

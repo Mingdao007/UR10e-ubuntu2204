@@ -8,9 +8,13 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
+import stat
+import subprocess
 import sys
 import tempfile
 import uuid
+from typing import Any, Mapping
 
 import promote_step5d_r009_atomic_release as promote
 import upload_ur_tp_package as upload
@@ -24,14 +28,16 @@ from step5d_autotune_v3.release_identity import (
     discover_candidate_artifact_identity,
     load_current_release,
     load_local_release_candidate,
-    release_payload_path,
 )
 from step5d_autotune_v3.release_transition import (
     ReleaseTransitionError,
+    build_post_promotion_publication_plan,
     create_delivery_basis,
     delivery_basis_reference,
-    git_snapshot,
+    git_publication_snapshot as git_snapshot,
     load_delivery_basis,
+    publication_plan_sha256,
+    write_post_promotion_publication_plan,
     write_publication_lineage,
 )
 from step5d_autotune_v3.runtime_installation import (
@@ -62,6 +68,58 @@ SHELL_PID_ENV = "STEP5D_V3_SHELL_PID"
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _safe_publication_file(root: Path, path: Path, role: str) -> tuple[str, Path]:
+    experiment = Path(os.path.abspath(root))
+    candidate = Path(os.path.abspath(path.expanduser()))
+    if candidate.is_symlink():
+        raise RuntimeError(f"{role} is unsafe")
+    try:
+        relative = candidate.relative_to(experiment)
+        resolved = candidate.resolve(strict=True)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"{role} must be root-relative") from exc
+    if resolved != candidate or not stat.S_ISREG(resolved.stat().st_mode):
+        raise RuntimeError(f"{role} must be a regular non-symlink file")
+    return PurePosixPath(relative).as_posix(), resolved
+
+
+def _add_delivery_basis_outputs(
+    root: Path,
+    candidate_release: ReleaseIdentity,
+    basis_path: Path,
+    basis_payload: Mapping[str, Any],
+    outputs: dict[str, Path],
+) -> None:
+    """Bind both the basis and its imported receipt to the publication plan."""
+
+    parsed_path, parsed_basis = load_delivery_basis(root, release=candidate_release)
+    basis_relative, basis_file = _safe_publication_file(
+        root,
+        basis_path,
+        "delivery basis",
+    )
+    parsed_relative, parsed_file = _safe_publication_file(
+        root,
+        parsed_path,
+        "parsed delivery basis",
+    )
+    if basis_relative != parsed_relative or dict(basis_payload) != parsed_basis:
+        raise RuntimeError("delivery basis handoff differs")
+    prior = parsed_basis.get("prior_full_readback_receipt")
+    if not isinstance(prior, Mapping) or not isinstance(prior.get("path"), str):
+        raise RuntimeError("delivery basis prior receipt reference is invalid")
+    prior_path = root / Path(*PurePosixPath(prior["path"]).parts)
+    prior_relative, prior_file = _safe_publication_file(
+        root,
+        prior_path,
+        "imported prior full-readback receipt",
+    )
+    if basis_file != parsed_file:
+        raise RuntimeError("delivery basis handoff resolves inconsistently")
+    outputs[basis_relative] = basis_file
+    outputs[prior_relative] = prior_file
 
 
 def _artifact_program(root: Path, local_dir: Path) -> str:
@@ -107,27 +165,20 @@ def _validate_candidate_and_certificate(
     return release
 
 
-def _current_release_artifact_dir(root: Path) -> Path:
-    release = load_current_release(root)
-    directories = {
-        release_payload_path(root, release, reference["path"]).parent
-        for reference in release.artifacts.values()
-    }
-    if len(directories) != 1:
-        raise RuntimeError(
-            "current immutable release TP artifacts do not share one directory"
-        )
-    return directories.pop()
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
-    parser.add_argument("--artifact-dir", type=Path)
+    parser.add_argument("--artifact-dir", type=Path, required=True)
     parser.add_argument("--release-candidate", type=Path)
     parser.add_argument("--release-certificate", type=Path)
     parser.add_argument("--evidence-output", type=Path)
     parser.add_argument("--prior-full-readback-receipt", type=Path)
+    parser.add_argument("--publication-plan-output", type=Path)
+    parser.add_argument(
+        "--publish-and-revalidate",
+        action="store_true",
+        help="consume the fixed publication plan, commit its exact allowlist, then cleanly revalidate",
+    )
     parser.add_argument(
         "--revalidate-current",
         action="store_true",
@@ -147,23 +198,23 @@ def main(argv: list[str] | None = None) -> int:
         args.release_candidate is not None
         or args.release_certificate is not None
         or args.prior_full_readback_receipt is not None
+        or args.publication_plan_output is not None
         or not args.readback_only_existing
         or args.dry_run
-    ):
+        ):
         raise RuntimeError(
             "--revalidate-current requires readback-only mode and no candidate, "
             "certificate, prior receipt, or dry-run"
         )
+    if args.revalidate_current and args.publish_and_revalidate:
+        raise RuntimeError("--publish-and-revalidate cannot be used with --revalidate-current")
+    if args.dry_run and args.publish_and_revalidate:
+        raise RuntimeError("--publish-and-revalidate cannot be used with --dry-run")
     root = args.root.resolve(strict=True)
-    if args.artifact_dir is None:
-        if not args.revalidate_current:
-            raise RuntimeError("--artifact-dir is required before TP delivery")
-        local_dir = _current_release_artifact_dir(root)
-    else:
-        unresolved_local_dir = args.artifact_dir.expanduser()
-        if unresolved_local_dir.is_symlink():
-            raise RuntimeError("pending artifact directory is unsafe")
-        local_dir = unresolved_local_dir.resolve(strict=True)
+    unresolved_local_dir = args.artifact_dir.expanduser()
+    if unresolved_local_dir.is_symlink():
+        raise RuntimeError("pending artifact directory is unsafe")
+    local_dir = unresolved_local_dir.resolve(strict=True)
     try:
         local_dir.relative_to(root)
     except ValueError as exc:
@@ -207,6 +258,15 @@ def main(argv: list[str] | None = None) -> int:
         evidence_output.relative_to(evidence_root)
     except ValueError as exc:
         raise RuntimeError("delivery evidence output escapes runs evidence root") from exc
+    if not args.revalidate_current and args.publication_plan_output is not None:
+        unresolved_plan_output = args.publication_plan_output.expanduser()
+        if unresolved_plan_output.is_symlink():
+            raise RuntimeError("publication plan output is unsafe")
+        plan_output = unresolved_plan_output.resolve(strict=False)
+        try:
+            plan_output.relative_to(evidence_root)
+        except ValueError as exc:
+            raise RuntimeError("publication plan output escapes runs evidence root") from exc
     if (
         not args.revalidate_current
         and (args.release_candidate is None or args.release_certificate is None)
@@ -219,6 +279,10 @@ def main(argv: list[str] | None = None) -> int:
     except RuntimeInstallationError as exc:
         raise RuntimeError(f"control environment gate failed: {exc}") from exc
     delivery_basis: dict[str, str] | None = None
+    publication_baseline: dict[str, Any] | None = None
+    additional_publication_outputs: dict[str, Path] = {}
+    publication_plan_path: Path | None = None
+    final_payload: dict[str, object] | None = None
     if args.revalidate_current:
         git_snapshot(root)
         candidate_release = load_current_release(root)
@@ -255,6 +319,10 @@ def main(argv: list[str] | None = None) -> int:
             StateError,
         ) as exc:
             raise RuntimeError(f"candidate certificate gate failed: {exc}") from exc
+        try:
+            publication_baseline = git_snapshot(root)
+        except ReleaseTransitionError as exc:
+            raise RuntimeError(f"TP publication baseline is not clean: {exc}") from exc
         if args.readback_only_existing:
             prior_receipt = args.prior_full_readback_receipt
             if prior_receipt is not None:
@@ -268,11 +336,18 @@ def main(argv: list[str] | None = None) -> int:
                 prior_receipt = root / prior_basis[
                     "prior_full_readback_receipt"
                 ]["path"]
-            create_delivery_basis(
+            basis_path, basis_payload = create_delivery_basis(
                 root,
                 candidate_release=candidate_release,
                 basis_release=basis_release,
                 prior_full_receipt=prior_receipt,
+            )
+            _add_delivery_basis_outputs(
+                root,
+                candidate_release,
+                basis_path,
+                basis_payload,
+                additional_publication_outputs,
             )
             delivery_basis = delivery_basis_reference(
                 root,
@@ -336,11 +411,18 @@ def main(argv: list[str] | None = None) -> int:
                 raise RuntimeError("upload-result manifest handoff differs")
             receipt_sha256 = str(result["manifest_sha256"])
             if not args.readback_only_existing:
-                create_delivery_basis(
+                basis_path, basis_payload = create_delivery_basis(
                     root,
                     candidate_release=candidate_release,
                     basis_release=candidate_release,
                     prior_full_receipt=manifest,
+                )
+                _add_delivery_basis_outputs(
+                    root,
+                    candidate_release,
+                    basis_path,
+                    basis_payload,
+                    additional_publication_outputs,
                 )
             observation = build_delivery_observation(
                 root,
@@ -401,25 +483,97 @@ def main(argv: list[str] | None = None) -> int:
                     != observation["release_manifest_sha256"]
                 ):
                     raise RuntimeError("promoted release pointer identity differs")
-            print(
-                json.dumps(
-                    {
-                        "ok": True,
-                        "release_manifest_sha256": promotion["manifest_sha256"],
-                        "delivery_observation": str(evidence_output),
-                        "indexed_delivery_observation": str(indexed_observation),
-                        "publication_lineage": (
-                            None if lineage_path is None else str(lineage_path)
-                        ),
-                        "promoted": not args.revalidate_current,
-                        "dashboard_load_attempted": False,
-                    },
-                    sort_keys=True,
+                if publication_baseline is None:
+                    raise RuntimeError("TP publication baseline is missing")
+                compatibility_targets = promotion.get("compatibility_targets")
+                if not isinstance(compatibility_targets, dict):
+                    raise RuntimeError("promotion output compatibility binding is missing")
+                publication_plan = build_post_promotion_publication_plan(
+                    root,
+                    release_manifest_sha256=release.manifest_sha256,
+                    program_id=release.program_id,
+                    transaction_id=transaction_id,
+                    baseline=publication_baseline,
+                    compatibility_targets=compatibility_targets,
+                    additional_outputs=additional_publication_outputs,
                 )
-            )
-            return 0
+                publication_plan_output = (
+                    args.publication_plan_output
+                    if args.publication_plan_output is not None
+                    else root
+                    / "runs/step5d_autotune_v3/post-promotion-publication"
+                    / f"{transaction_id}.json"
+                )
+                intended_plan_sha256 = publication_plan_sha256(publication_plan)
+                publication_plan_path = write_post_promotion_publication_plan(
+                    root,
+                    publication_plan_output,
+                    publication_plan,
+                    expected_sha256=intended_plan_sha256,
+                )
+            final_payload = {
+                "ok": True,
+                "release_manifest_sha256": promotion["manifest_sha256"],
+                "delivery_observation": str(evidence_output),
+                "indexed_delivery_observation": str(indexed_observation),
+                "publication_lineage": (
+                    None if lineage_path is None else str(lineage_path)
+                ),
+                "post_promotion_publication_plan": (
+                    None if args.revalidate_current else str(publication_plan_path)
+                ),
+                "promoted": not args.revalidate_current,
+                "dashboard_load_attempted": False,
+            }
     finally:
         release_controller_mutation_locks(handles)
+
+    if args.publish_and_revalidate:
+        if publication_plan_path is None or final_payload is None:
+            raise RuntimeError("publication plan was not produced")
+        consumer = root / "tools/finalize_step5d_autotune_v3_publication.py"
+        if consumer.is_symlink() or not consumer.is_file():
+            raise RuntimeError("publication consumer is missing from the experiment root")
+        launcher = os.environ.get(CANONICAL_LAUNCH_ENV)
+        if not launcher:
+            raise RuntimeError("canonical shell launcher is missing")
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(consumer),
+                "--root",
+                str(root),
+                "--plan",
+                str(publication_plan_path),
+                "--plan-sha256",
+                intended_plan_sha256,
+                "--canonical-shell",
+                launcher,
+            ],
+            cwd=str(root),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if not completed.stdout.strip():
+            raise RuntimeError(
+                "publication consumer produced no final JSON: "
+                + completed.stderr.strip()
+            )
+        try:
+            publication_payload = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("publication consumer final JSON is not parseable") from exc
+        if not isinstance(publication_payload, dict):
+            raise RuntimeError("publication consumer final JSON is not an object")
+        print(json.dumps(publication_payload, allow_nan=False, separators=(",", ":"), sort_keys=True))
+        return completed.returncode
+
+    assert final_payload is not None
+    print(json.dumps(final_payload, sort_keys=True))
+    return 0
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import stat
 from typing import Any, Iterator, Mapping, Sequence
 
@@ -29,13 +30,15 @@ from step5d_autotune_v3.runtime_profile import (
 )
 
 
-STATE_SCHEMA = "step5d.parameter-receiver/state-v1"
+STATE_SCHEMA = "step5d.parameter-receiver/state-v2"
+LEGACY_STATE_SCHEMA = "step5d.parameter-receiver/state-v1"
 REQUEST_SCHEMA = "step5d.parameter-receiver/request-v1"
 DISPATCH_SCHEMA = "step5d.parameter-receiver/dispatch-v1"
 RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v2"
 LEGACY_RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v1"
 RECONCILIATION_SCHEMA = "step5d.parameter-receiver/reconciliation-v1"
 PHYSICAL_ATTEMPT_SCHEMA = "step5d.parameter-receiver/physical-attempt-v2"
+MIGRATION_SCHEMA = "step5d.parameter-receiver/migration-v1"
 PROTOCOL = "v3_full_home_parameter_receiver_v1"
 PROFILE_INTEGER_ID = 633
 MAX_JSON_BYTES = 16 * 1024
@@ -185,6 +188,10 @@ def _state_path(root: Path) -> Path:
     return root / "state.json"
 
 
+def _migration_path(root: Path) -> Path:
+    return root / "migration.json"
+
+
 def _request_path(root: Path, sequence: int) -> Path:
     return root / "requests" / f"{sequence:012d}.json"
 
@@ -203,6 +210,26 @@ def _reconciliation_path(root: Path, dispatch_sequence: int) -> Path:
 
 def _physical_attempt_path(root: Path, control_candidate_uid: str) -> Path:
     return root / "physical_attempts" / f"{_sha256_bytes(control_candidate_uid.encode('utf-8'))}.json"
+
+
+def _request_physical_attempt_path(root: Path, request_uid: str) -> Path:
+    return root / "physical_attempts" / f"request-{_sha256_bytes(request_uid.encode('utf-8'))}.json"
+
+
+def _request_equivalent(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
+    return all(
+        left.get(key) == right.get(key)
+        for key in (
+            "schema",
+            "request_uid",
+            "occurrence_nonce",
+            "control_candidate_uid",
+            "normalized_overlay_sha256",
+            "overlay",
+            "source",
+            "position",
+        )
+    )
 
 
 def _physical_attempt_document(dispatch: Mapping[str, Any]) -> dict[str, Any]:
@@ -232,15 +259,13 @@ def _is_physical_receipt(payload: Mapping[str, Any]) -> bool:
 def _initial_state(
     *,
     campaign_id: str,
-    release_manifest_sha256: str,
-    launch_profile_sha256: str,
+    release_manifest_sha256: str | None = None,
+    launch_profile_sha256: str | None = None,
 ) -> dict[str, Any]:
     return {
         "schema": STATE_SCHEMA,
         "protocol": PROTOCOL,
         "campaign_id": campaign_id,
-        "release_manifest_sha256": release_manifest_sha256,
-        "launch_profile_sha256": launch_profile_sha256,
         "revision": 0,
         "dispatch_sequence": 0,
         "home_identity": None,
@@ -249,32 +274,38 @@ def _initial_state(
 
 
 def _validate_state(payload: Mapping[str, Any]) -> dict[str, Any]:
-    required = {
+    common = {
         "schema",
         "protocol",
         "campaign_id",
-        "release_manifest_sha256",
-        "launch_profile_sha256",
         "revision",
         "dispatch_sequence",
         "home_identity",
         "inflight",
     }
-    if not isinstance(payload, Mapping) or set(payload) != required:
+    if not isinstance(payload, Mapping) or not common.issubset(payload):
         raise ParameterQueueError("queue state fields differ")
-    if payload["schema"] != STATE_SCHEMA or payload["protocol"] != PROTOCOL:
+    schema = payload["schema"]
+    if schema == LEGACY_STATE_SCHEMA:
+        required = common | {"release_manifest_sha256", "launch_profile_sha256"}
+    elif schema == STATE_SCHEMA:
+        required = common
+    else:
+        raise ParameterQueueError("queue state schema or protocol differs")
+    if set(payload) != required or payload["protocol"] != PROTOCOL:
         raise ParameterQueueError("queue state schema or protocol differs")
     for key in ("campaign_id",):
         if not isinstance(payload[key], str) or not payload[key]:
             raise ParameterQueueError(f"queue {key} is invalid")
-    for key in ("release_manifest_sha256", "launch_profile_sha256"):
-        value = payload[key]
-        if (
-            not isinstance(value, str)
-            or len(value) != 64
-            or any(character not in "0123456789abcdef" for character in value)
-        ):
-            raise ParameterQueueError(f"queue {key} is not SHA-256")
+    if schema == LEGACY_STATE_SCHEMA:
+        for key in ("release_manifest_sha256", "launch_profile_sha256"):
+            value = payload[key]
+            if (
+                not isinstance(value, str)
+                or len(value) != 64
+                or any(character not in "0123456789abcdef" for character in value)
+            ):
+                raise ParameterQueueError(f"queue {key} is not SHA-256")
     for key in ("revision", "dispatch_sequence"):
         value = payload[key]
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -306,22 +337,27 @@ def initialize(
     root: Path,
     *,
     campaign_id: str,
-    release_manifest_sha256: str,
-    launch_profile_path: Path,
+    release_manifest_sha256: str | None = None,
+    launch_profile_path: Path | None = None,
 ) -> dict[str, Any]:
-    launch_sha = _sha256_file(launch_profile_path, "launch profile")
+    launch_sha = (
+        None
+        if launch_profile_path is None
+        else _sha256_file(launch_profile_path, "launch profile")
+    )
     with _lock(root):
         path = _state_path(root)
         if path.exists() or path.is_symlink():
             state = _validate_state(_strict_json(path, "queue state"))
-            expected = (campaign_id, release_manifest_sha256, launch_sha)
-            observed = (
-                state["campaign_id"],
-                state["release_manifest_sha256"],
-                state["launch_profile_sha256"],
-            )
-            if observed != expected:
+            if state["campaign_id"] != campaign_id:
                 raise ParameterQueueError("queue immutable identity changed")
+            if state["schema"] == LEGACY_STATE_SCHEMA and (
+                release_manifest_sha256 is None
+                or launch_sha is None
+                or state["release_manifest_sha256"] != release_manifest_sha256
+                or state["launch_profile_sha256"] != launch_sha
+            ):
+                raise ParameterQueueError("legacy queue immutable identity changed")
             return state
         state = _initial_state(
             campaign_id=campaign_id,
@@ -334,6 +370,84 @@ def initialize(
 
 def load_state(root: Path) -> dict[str, Any]:
     return _validate_state(_strict_json(_state_path(root), "queue state"))
+
+
+def adopt_selected_legacy_binding(
+    root: Path,
+    *,
+    legacy_root: Path,
+    campaign_id: str,
+) -> dict[str, Any]:
+    """Adopt one explicitly named legacy binding exactly once.
+
+    The old tree is copied byte-for-byte and never rewritten.  No release
+    directory enumeration or best-effort merge is allowed.
+    """
+
+    root = root.resolve()
+    legacy_root = legacy_root.resolve()
+    if root == legacy_root:
+        raise ParameterQueueError("stable receiver root must differ from legacy root")
+    if not legacy_root.exists() or legacy_root.is_symlink() or not legacy_root.is_dir():
+        raise ParameterQueueError("selected legacy receiver binding is missing or unsafe")
+    marker = _migration_path(root)
+    if marker.is_file() or marker.is_symlink():
+        migration = _strict_json(marker, "receiver migration")
+        expected = {
+            "schema": MIGRATION_SCHEMA,
+            "legacy_root": str(legacy_root),
+            "campaign_id": campaign_id,
+        }
+        if migration != expected:
+            raise ParameterQueueError("receiver migration binding differs")
+        return load_state(root)
+    if _state_path(root).exists() or _state_path(root).is_symlink():
+        state = load_state(root)
+        raise ParameterQueueError("stable receiver root already exists without migration marker")
+    if legacy_root.exists() or legacy_root.is_symlink():
+        legacy_state = _validate_state(
+            _strict_json(legacy_root / "state.json", "legacy queue state")
+        )
+        if legacy_state["schema"] != LEGACY_STATE_SCHEMA:
+            raise ParameterQueueError("selected legacy binding is not v1")
+        if legacy_state["campaign_id"] != campaign_id:
+            raise ParameterQueueError("legacy receiver campaign identity differs")
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        for dirname in (
+            "requests",
+            "dispatches",
+            "receipts",
+            "reconciliations",
+            "physical_attempts",
+        ):
+            source_dir = legacy_root / dirname
+            if not source_dir.exists():
+                continue
+            if source_dir.is_symlink() or not source_dir.is_dir():
+                raise ParameterQueueError(f"legacy {dirname} tree is unsafe")
+            for source in sorted(source_dir.iterdir(), key=lambda path: path.name):
+                if source.is_symlink() or not source.is_file():
+                    raise ParameterQueueError(f"legacy {dirname} entry is unsafe")
+                target = root / dirname / source.name
+                target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                if target.exists() or target.is_symlink():
+                    if target.is_symlink() or target.read_bytes() != source.read_bytes():
+                        raise ParameterQueueError("legacy migration target differs")
+                else:
+                    shutil.copyfile(source, target)
+        migrated = _initial_state(campaign_id=campaign_id)
+        migrated["revision"] = legacy_state["revision"]
+        migrated["dispatch_sequence"] = legacy_state["dispatch_sequence"]
+        migrated["home_identity"] = legacy_state["home_identity"]
+        migrated["inflight"] = legacy_state["inflight"]
+        _atomic_json(_state_path(root), migrated)
+        _write_once(marker, {
+            "schema": MIGRATION_SCHEMA,
+            "legacy_root": str(legacy_root),
+            "campaign_id": campaign_id,
+        })
+        return migrated
+    raise ParameterQueueError("selected legacy receiver binding is missing")
 
 
 def _request_document(
@@ -370,8 +484,8 @@ def _request_document(
     overlay_sha = normalized_overlay_sha256(profile, overlay)
     identity = {
         "protocol": PROTOCOL,
-        "enqueue_sequence": enqueue_sequence,
         "occurrence_nonce": occurrence_nonce,
+        "control_candidate_uid": overlay["control_candidate_uid"],
         "normalized_overlay_sha256": overlay_sha,
         "source": source,
         "position": position,
@@ -415,13 +529,14 @@ def submit_manifest(
     with _lock(root):
         state = load_state(root)
         existing = _visible_requests(root, state)
-        seen = {str(row["control_candidate_uid"]) for row in existing}
-        seen.update(attempted_control_uids)
+        del attempted_control_uids
+        by_uid = {str(row["request_uid"]): row for row in existing}
         prepared = []
-        for offset, row in enumerate(rows, start=1):
-            sequence = int(state["revision"]) + offset
+        new_requests = []
+        new_count = 0
+        for row in rows:
             request = _request_document(
-                enqueue_sequence=sequence,
+                enqueue_sequence=0,
                 launch_profile_path=launch_profile_path,
                 force_p=float(row["force_p_gain"]),
                 force_i=float(row["force_i_gain"]),
@@ -431,19 +546,24 @@ def submit_manifest(
                 position=str(row.get("position", "tail")),
                 occurrence_nonce=str(row.get("occurrence_nonce") or secrets.token_hex(16)),
             )
-            control_uid = str(request["control_candidate_uid"])
-            if control_uid in seen:
-                raise ParameterQueueError(
-                    f"candidate was already attempted or queued: {control_uid}"
-                )
-            seen.add(control_uid)
+            prior = by_uid.get(str(request["request_uid"]))
+            if prior is not None:
+                if not _request_equivalent(prior, request):
+                    raise ParameterQueueError("duplicate request UID differs")
+                prepared.append(prior)
+                continue
+            new_count += 1
+            request["enqueue_sequence"] = int(state["revision"]) + new_count
+            by_uid[str(request["request_uid"])] = request
+            new_requests.append(request)
             prepared.append(request)
-        for request in prepared:
+        for request in new_requests:
             _write_once(
                 _request_path(root, int(request["enqueue_sequence"])), request
             )
-        state["revision"] = int(state["revision"]) + len(prepared)
-        _atomic_json(_state_path(root), state)
+        if new_requests:
+            state["revision"] = int(state["revision"]) + len(new_requests)
+            _atomic_json(_state_path(root), state)
         return tuple(prepared)
 
 
@@ -489,9 +609,7 @@ def _pending(
         for row in _visible_requests(root, state)
         if row["request_uid"] != inflight_uid
         and not _receipt_path(root, str(row["request_uid"])).exists()
-        and not _physical_attempt_path(
-            root, str(row["control_candidate_uid"])
-        ).exists()
+        and not _request_physical_attempt_path(root, str(row["request_uid"])).exists()
     ]
     rows.sort(
         key=lambda row: (
@@ -532,6 +650,39 @@ def bind_home(
         return state
 
 
+def rebind_transport_home(
+    root: Path,
+    *,
+    campaign_epoch: int,
+    last_trial_id: int,
+    last_command_seq: int,
+) -> dict[str, Any]:
+    """Start a new TP transport session without resetting receiver history."""
+
+    home = {
+        "campaign_epoch": campaign_epoch,
+        "last_trial_id": last_trial_id,
+        "last_command_seq": last_command_seq,
+    }
+    if (
+        isinstance(campaign_epoch, bool)
+        or not isinstance(campaign_epoch, int)
+        or campaign_epoch <= 0
+        or last_trial_id != 0
+        or last_command_seq != 0
+    ):
+        raise ParameterQueueError(
+            "transport rebind requires positive epoch and zero trial/command"
+        )
+    with _lock(root):
+        state = load_state(root)
+        if state["inflight"] is not None:
+            raise ParameterQueueError("cannot rebind an inflight dispatch")
+        state["home_identity"] = home
+        _atomic_json(_state_path(root), state)
+        return state
+
+
 def prepare_next_dispatch(root: Path) -> dict[str, Any] | None:
     with _lock(root):
         state = load_state(root)
@@ -546,7 +697,16 @@ def prepare_next_dispatch(root: Path) -> dict[str, Any] | None:
         if not pending:
             return None
         request = pending[0]
+        # A zero Home is an explicit new TP transport session.  A prior
+        # NOT_CONSUMED dispatch was not accepted by that session, so preserve
+        # its evidence but allocate a new dispatch identity/high-water entry.
+        home = state["home_identity"]
+        reuse_not_consumed = any(
+            int(home[key]) != 0 for key in ("last_trial_id", "last_command_seq")
+        )
         for prior_sequence in range(int(state["dispatch_sequence"]), 0, -1):
+            if not reuse_not_consumed:
+                break
             prior_path = _dispatch_path(root, prior_sequence)
             reconciliation_path = _reconciliation_path(root, prior_sequence)
             if not prior_path.is_file() or not reconciliation_path.is_file():
@@ -609,6 +769,21 @@ def prepare_next_dispatch(root: Path) -> dict[str, Any] | None:
                 "normalized_overlay_sha256": request["normalized_overlay_sha256"],
             },
         }
+        dispatch["dispatch_identity"] = (
+            "dispatch:v1:"
+            + _sha256_bytes(
+                _canonical(
+                    {
+                        "protocol": PROTOCOL,
+                        "request_uid": request["request_uid"],
+                        "dispatch_sequence": dispatch_sequence,
+                        "campaign_epoch": home["campaign_epoch"],
+                        "trial_id": home["last_trial_id"] + 1,
+                        "command_seq": home["last_command_seq"] + 1,
+                    }
+                )
+            )
+        )
         digest = _sha256_bytes(_canonical(dispatch))
         dispatch["dispatch_sha256"] = digest
         _write_once(_dispatch_path(root, dispatch_sequence), dispatch)
@@ -710,8 +885,8 @@ def finish_dispatch(
         }
         ledger = _physical_attempt_document(dispatch)
         _write_once(
-            _physical_attempt_path(
-                root, str(dispatch["request"]["control_candidate_uid"])
+            _request_physical_attempt_path(
+                root, str(dispatch["request"]["request_uid"])
             ),
             ledger,
         )
@@ -765,8 +940,8 @@ def record_dispatch_consumed(
             )
         ledger = _physical_attempt_document(dispatch)
         _write_once(
-            _physical_attempt_path(
-                root, str(dispatch["request"]["control_candidate_uid"])
+            _request_physical_attempt_path(
+                root, str(dispatch["request"]["request_uid"])
             ),
             ledger,
         )
@@ -831,7 +1006,7 @@ def status(root: Path) -> dict[str, Any]:
     return {
         "schema": STATE_SCHEMA,
         "campaign_id": state["campaign_id"],
-        "release_manifest_sha256": state["release_manifest_sha256"],
+        "release_manifest_sha256": state.get("release_manifest_sha256"),
         "revision": state["revision"],
         "dispatch_sequence": state["dispatch_sequence"],
         "pending_count": len(pending),
@@ -862,6 +1037,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     status_parser = subparsers.add_parser("status")
     status_parser.add_argument("--queue-root", type=Path, required=True)
+    migrate_parser = subparsers.add_parser("migrate")
+    migrate_parser.add_argument("--queue-root", type=Path, required=True)
+    migrate_parser.add_argument("--legacy-root", type=Path, required=True)
+    migrate_parser.add_argument("--campaign-id", required=True)
     return parser.parse_args(argv)
 
 
@@ -869,6 +1048,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if args.command == "status":
         payload = status(args.queue_root)
+    elif args.command == "migrate":
+        payload = adopt_selected_legacy_binding(
+            args.queue_root,
+            legacy_root=args.legacy_root,
+            campaign_id=args.campaign_id,
+        )
     else:
         from step5d_parameter_manifest import import_physical_attempt_uids
 

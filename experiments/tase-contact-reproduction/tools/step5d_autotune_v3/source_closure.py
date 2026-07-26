@@ -29,7 +29,9 @@ PRODUCTION_EXPERIMENT_SEEDS = frozenset(
         "tools/resolve_step5d_autotune_v3_runtime.py",
         "tools/resolve_step5d_bridge_route.py",
         "tools/run_step5d_autotune_v3_bridge.py",
+        "tools/run_step5d_autotune_v3_coordinator.py",
         "tools/run_step5d_autotune_v3_live.py",
+        "tools/check_step5d_autotune_v3_bridge_admission.py",
         "tools/run_step5d_autotune_v3_tp_transaction.py",
         "tools/run_step5d_release_contract.py",
         "tools/run_step5d_parameter_campaign.py",
@@ -39,6 +41,9 @@ PRODUCTION_EXPERIMENT_SEEDS = frozenset(
         "tools/step5d_bridge_authority.py",
         "tools/step5d_bridge_status.py",
         "tools/step5d_autotune_v3/cli.py",
+        "tools/step5d_autotune_v3/campaign_basis.py",
+        "tools/step5d_autotune_v3/launch_basis.py",
+        "tools/step5d_autotune_v3/source_fingerprint_contract.py",
     }
 )
 
