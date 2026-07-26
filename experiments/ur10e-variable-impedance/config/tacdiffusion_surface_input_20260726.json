@@ -62,7 +62,7 @@
   },
   "stl_candidates": [
     {
-      "role": "simulation_visual_candidate_only",
+      "role": "selected_simulation_visual_and_offline_model_candidate",
       "relative_path": "src/ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl",
       "sha256": "c68d176a88260f7845f102c1dc6e9a60549d7c270738d1757050c0d79036c1cc",
       "native_units": "mm",
@@ -72,7 +72,9 @@
         "max": [38.532108306884766, 104.91121673583984, 150.0],
         "size": [150.0, 17.575767517089844, 150.0]
       },
-      "mapping_to_measured_base_corners_validated": false
+      "mapping_to_measured_base_corners_validated": true,
+      "offline_rigid_registration_validated": true,
+      "live_physical_transform_validated": false
     },
     {
       "role": "small_coupon_reference_candidate_only",
