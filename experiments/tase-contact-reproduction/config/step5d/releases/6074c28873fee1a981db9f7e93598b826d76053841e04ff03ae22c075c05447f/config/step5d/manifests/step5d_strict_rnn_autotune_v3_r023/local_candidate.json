@@ -1,0 +1,21 @@
+{
+  "control_profile_id": "step5d_strict_rnn_autotune_v1",
+  "controller_readback_sha256": "0c2efcdd5f772a1da25c16ba97b7c053c4b30f86aa79bad0002d6586f5015a7f",
+  "controller_readback_verified": true,
+  "controller_uploaded": true,
+  "deploy_manifest_sha256": "8aa0786a0955086072e80f78c5e7c2d91f504720dbe58fa147022b0b8867c4fc",
+  "disposition": "controller_readback_verified_pending_atomic_pointer",
+  "execution_profile_id": "nf100-slew050-a050",
+  "execution_profile_integer_id": 633,
+  "normal_max_rate_rad_s": 0.1,
+  "numeric_sanity_sha256": "6c8023de709d20be4f37feb85c63081c5e3b705f3109196771f96a4d299e22c3",
+  "program": "step5d_strict_rnn_autotune_v3_r023",
+  "protocol": "v3_full_home_rolling_arm_v1",
+  "release_stage_id": "step5d_strict_rnn_autotune_v3",
+  "schema": "step5d.autotune-v3/local-tp-candidate-v2",
+  "triplet_sha256": {
+    ".script": "e7ab45cd05e5d134885125241929b51a615353f73f0bab6126c74b4865c02f5a",
+    ".txt": "1c0fc798bfe44e885d4009f9318de299bac61761a646dace0d9732cc66505f25",
+    ".urp": "6ff1285142f1e7d0325c03c9668be67164e7bb569a8cf6f7ef8993399c206f4a"
+  }
+}
