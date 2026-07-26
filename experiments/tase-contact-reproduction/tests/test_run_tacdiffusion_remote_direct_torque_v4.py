@@ -78,6 +78,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     validate_prior_stage_evidence,
     runtime_source_binding,
     run_live,
+    summarize_receiver_handshake_samples,
 )
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
     build_compile_probe_source,
@@ -1286,6 +1287,7 @@ def test_wait_for_handshake_accepts_playing_marker_with_matching_protocol(monkey
 
     clock = FakeClock()
     accepted_samples: list[dict[str, Any]] = []
+    diagnostic_samples: list[dict[str, Any]] = []
     with patch("run_tacdiffusion_remote_direct_torque_v4.time.monotonic", clock):
         start, sample = _wait_for_fresh_receiver_waiting(
             FakeRTDE(samples),
@@ -1296,10 +1298,51 @@ def test_wait_for_handshake_accepts_playing_marker_with_matching_protocol(monkey
             lease_id=111,
             episode_identity=222,
             samples_out=accepted_samples,
+            diagnostic_samples_out=diagnostic_samples,
         )
     assert start > 0.04
     assert sample["runtime_state"] == RUNTIME_PLAYING
     assert accepted_samples == [sample]
+    assert diagnostic_samples == samples
+
+
+def test_receiver_handshake_summary_localizes_startup_latch_failure() -> None:
+    sample = {
+        "timestamp": 10.0,
+        "runtime_state": RUNTIME_PLAYING,
+        "output_int_register_24": STATE_WAITING,
+        "output_int_register_27": 0,
+        "output_int_register_31": 0,
+        "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+        "output_int_register_34": MODE_IDLE,
+        "output_int_register_35": 0,
+    }
+    summary = summarize_receiver_handshake_samples(
+        [sample],
+        lease_id=111,
+        episode_identity=222,
+    )
+    assert summary == {
+        "total_rows": 1,
+        "protocol_rows": 1,
+        "waiting_rows": 1,
+        "waiting_playing_rows": 1,
+        "idle_echo_rows": 1,
+        "episode_latched_rows": 0,
+        "lease_match_rows": 0,
+        "episode_match_rows": 0,
+        "accepted_rows": 0,
+        "last_observed": {
+            "controller_timestamp_s": 10.0,
+            "runtime_state": RUNTIME_PLAYING,
+            "receiver_state": STATE_WAITING,
+            "protocol_echo": LIVE_PROTOCOL_TOKEN,
+            "observed_command_echo": MODE_IDLE,
+            "episode_latched_echo": 0,
+            "lease_echo": 0,
+            "episode_echo": 0,
+        },
+    }
 
 
 def test_run_live_rejects_partial_cli_gates_before_preflight_or_connect(tmp_path: Path) -> None:

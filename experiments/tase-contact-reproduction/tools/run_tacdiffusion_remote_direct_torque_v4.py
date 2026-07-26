@@ -1431,15 +1431,21 @@ def _wait_for_fresh_receiver_waiting(
     lease_id: int,
     episode_identity: int,
     samples_out: list[dict[str, Any]] | None = None,
+    diagnostic_samples_out: list[dict[str, Any]] | None = None,
 ) -> tuple[float, Mapping[str, Any]]:
     deadline = time.monotonic() + receiver_wait_s
-    waiting_stale = False
+    diagnostics = (
+        diagnostic_samples_out
+        if diagnostic_samples_out is not None
+        else []
+    )
     while time.monotonic() < deadline:
         batch = _receive_available(
             rtde, output_recipe, output_types, output_fields, 0.01
         )
         if not batch:
             continue
+        diagnostics.extend(dict(value) for value in batch)
         for index, sample in enumerate(batch):
             state = int(sample["output_int_register_24"])
             runtime_state = int(sample["runtime_state"])
@@ -1449,7 +1455,6 @@ def _wait_for_fresh_receiver_waiting(
             if state != STATE_WAITING:
                 continue
             if runtime_state != RUNTIME_PLAYING:
-                waiting_stale = True
                 continue
             if int(sample["output_int_register_34"]) != MODE_IDLE:
                 continue
@@ -1463,9 +1468,99 @@ def _wait_for_fresh_receiver_waiting(
                 samples_out.clear()
                 samples_out.extend(dict(value) for value in batch[index:])
             return time.monotonic(), sample
-    if waiting_stale:
-        raise RuntimeError("receiver_waiting_stale_after_send")
-    raise RuntimeError("receiver_protocol_wait_timeout")
+    summary = summarize_receiver_handshake_samples(
+        diagnostics,
+        lease_id=lease_id,
+        episode_identity=episode_identity,
+    )
+    if summary["protocol_rows"] == 0:
+        reason = "receiver_protocol_missing_after_send"
+    elif summary["waiting_rows"] == 0:
+        reason = "receiver_waiting_state_missing"
+    elif summary["waiting_playing_rows"] == 0:
+        reason = "receiver_waiting_stale_after_send"
+    elif summary["idle_echo_rows"] == 0:
+        reason = "receiver_idle_echo_missing"
+    elif summary["episode_latched_rows"] == 0:
+        reason = "receiver_episode_not_latched"
+    elif summary["lease_match_rows"] == 0:
+        reason = "receiver_lease_echo_mismatch"
+    elif summary["episode_match_rows"] == 0:
+        reason = "receiver_episode_echo_mismatch"
+    else:
+        reason = "receiver_handshake_unclassified_timeout"
+    raise RuntimeError(
+        reason
+        + ":"
+        + json.dumps(summary, sort_keys=True, separators=(",", ":"))
+    )
+
+
+def summarize_receiver_handshake_samples(
+    samples: Sequence[Mapping[str, Any]],
+    *,
+    lease_id: int,
+    episode_identity: int,
+) -> dict[str, Any]:
+    protocol_rows = [
+        sample
+        for sample in samples
+        if int(sample.get("output_int_register_32", -1))
+        == LIVE_PROTOCOL_TOKEN
+    ]
+    waiting_rows = [
+        sample
+        for sample in protocol_rows
+        if int(sample.get("output_int_register_24", -1)) == STATE_WAITING
+    ]
+    playing_rows = [
+        sample
+        for sample in waiting_rows
+        if int(sample.get("runtime_state", -1)) == RUNTIME_PLAYING
+    ]
+    idle_rows = [
+        sample
+        for sample in playing_rows
+        if int(sample.get("output_int_register_34", -1)) == MODE_IDLE
+    ]
+    latched_rows = [
+        sample
+        for sample in idle_rows
+        if int(sample.get("output_int_register_35", -1)) == 1
+    ]
+    lease_rows = [
+        sample
+        for sample in latched_rows
+        if int(sample.get("output_int_register_27", -1)) == lease_id
+    ]
+    episode_rows = [
+        sample
+        for sample in lease_rows
+        if int(sample.get("output_int_register_31", -1))
+        == episode_identity
+    ]
+    last = samples[-1] if samples else {}
+    return {
+        "total_rows": len(samples),
+        "protocol_rows": len(protocol_rows),
+        "waiting_rows": len(waiting_rows),
+        "waiting_playing_rows": len(playing_rows),
+        "idle_echo_rows": len(idle_rows),
+        "episode_latched_rows": len(latched_rows),
+        "lease_match_rows": len(lease_rows),
+        "episode_match_rows": len(episode_rows),
+        "accepted_rows": len(episode_rows),
+        "last_observed": {
+            "controller_timestamp_s": last.get("timestamp"),
+            "runtime_state": last.get("runtime_state"),
+            "receiver_state": last.get("output_int_register_24"),
+            "protocol_echo": last.get("output_int_register_32"),
+            "observed_command_echo": last.get("output_int_register_34"),
+            "episode_latched_echo": last.get("output_int_register_35"),
+            "lease_echo": last.get("output_int_register_27"),
+            "episode_echo": last.get("output_int_register_31"),
+        },
+    }
 
 
 def _prime_idle_inputs(
@@ -2342,9 +2437,10 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
             output_types,
             OUTPUT_FIELDS,
         )
+        handshake_samples: list[dict[str, Any]] = []
+        handshake_diagnostic_samples: list[dict[str, Any]] = []
         _send_urscript(args.robot_host, bundle.source, args.connect_timeout_s)
         try:
-            handshake_samples: list[dict[str, Any]] = []
             start, sample = _wait_for_fresh_receiver_waiting(
                 rtde,
                 output_recipe,
@@ -2354,6 +2450,7 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 lease_id=lease_id,
                 episode_identity=episode_identity,
                 samples_out=handshake_samples,
+                diagnostic_samples_out=handshake_diagnostic_samples,
             )
             scheduler.arm(start)
             pending = handshake_samples or [dict(sample)]
@@ -2538,8 +2635,62 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
             kunwei_summary = kunwei.summary()
             csv_path = output_dir / "direct_torque_rtde.csv"
             evidence_path = output_dir / "evidence.json"
+            handshake_diagnostics_path = (
+                output_dir / "receiver_handshake_diagnostics.json"
+            )
             if samples:
                 _write_csv(csv_path, samples)
+            handshake_summary = summarize_receiver_handshake_samples(
+                handshake_diagnostic_samples,
+                lease_id=lease_id,
+                episode_identity=episode_identity,
+            )
+            if handshake_diagnostic_samples:
+                _write_json_new(
+                    handshake_diagnostics_path,
+                    {
+                        "schema": (
+                            "ur10e_tacdiffusion_receiver_handshake_"
+                            "diagnostics/v1"
+                        ),
+                        "receiver_source_sha256": bundle.source_sha256,
+                        "lease_id": lease_id,
+                        "episode_identity": episode_identity,
+                        "summary": handshake_summary,
+                        "rows": [
+                            {
+                                "controller_timestamp_s": sample.get(
+                                    "timestamp"
+                                ),
+                                "runtime_state": sample.get("runtime_state"),
+                                "robot_mode": sample.get("robot_mode"),
+                                "safety_mode": sample.get("safety_mode"),
+                                "receiver_state": sample.get(
+                                    "output_int_register_24"
+                                ),
+                                "fault": sample.get(
+                                    "output_int_register_26"
+                                ),
+                                "lease_echo": sample.get(
+                                    "output_int_register_27"
+                                ),
+                                "episode_echo": sample.get(
+                                    "output_int_register_31"
+                                ),
+                                "protocol_echo": sample.get(
+                                    "output_int_register_32"
+                                ),
+                                "observed_command_echo": sample.get(
+                                    "output_int_register_34"
+                                ),
+                                "episode_latched_echo": sample.get(
+                                    "output_int_register_35"
+                                ),
+                            }
+                            for sample in handshake_diagnostic_samples
+                        ],
+                    },
+                )
             evidence = {
                 "schema": CANARY_EVIDENCE_SCHEMA,
                 "claim_class": "live_no_contact_direct_torque_canary",
@@ -2579,6 +2730,17 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     )
                 ),
                 "stationary_entry_dwell_excluded_from_stage_clock": True,
+                "receiver_handshake_summary": handshake_summary,
+                "receiver_handshake_diagnostics": (
+                    str(handshake_diagnostics_path)
+                    if handshake_diagnostic_samples
+                    else None
+                ),
+                "receiver_handshake_diagnostics_sha256": (
+                    _sha256(handshake_diagnostics_path)
+                    if handshake_diagnostic_samples
+                    else None
+                ),
                 "sample_count": len(samples),
                 "total_rows": len(samples),
                 "sent_sequences": sent_sequences,
