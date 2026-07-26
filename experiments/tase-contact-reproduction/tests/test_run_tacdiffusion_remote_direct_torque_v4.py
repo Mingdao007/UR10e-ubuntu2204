@@ -58,6 +58,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     WRENCH_FRAME_TOKEN,
     _detect_live_writer_processes,
     _enforce_no_live_writer_conflict,
+    _is_stationary,
     _next_available_run_dir,
     _new_live_identity_pair,
     _prime_idle_inputs,
@@ -885,6 +886,30 @@ def test_compile_probe_evidence_is_strictly_no_motion(
     assert validate_compile_probe_evidence(
         evidence, robot_host="192.168.1.18"
     )["ok"]
+
+
+def test_stationary_preflight_uses_the_probe_no_motion_limits() -> None:
+    rtde = {
+        "actual_TCP_speed": [
+            -2.9e-6,
+            -2.1e-6,
+            -1.8e-6,
+            -8.7e-6,
+            1.3e-5,
+            0.0,
+        ],
+        "actual_qd": [0.0, 0.0, 0.0, -1.6e-5, 0.0, 0.0],
+    }
+    assert _is_stationary(rtde)
+
+    rtde["actual_TCP_speed"][0] = 0.00101
+    assert not _is_stationary(rtde)
+    rtde["actual_TCP_speed"][0] = 0.0
+    rtde["actual_TCP_speed"][4] = 0.00101
+    assert not _is_stationary(rtde)
+    rtde["actual_TCP_speed"][4] = 0.0
+    rtde["actual_qd"][3] = 0.00101
+    assert not _is_stationary(rtde)
 
 
 def test_compile_probe_ignores_stale_complete_until_current_active() -> None:

@@ -110,6 +110,7 @@ KUNWEI_ACTIVE_TORQUE_NM = 0.5
 DEFAULT_KUNWEI_DELIVERY_WATCHDOG_S = 0.080
 COMPILE_PROBE_TRANSLATION_TOLERANCE_M = 0.0002
 COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S = 0.001
+COMPILE_PROBE_TCP_ANGULAR_SPEED_TOLERANCE_RAD_S = 0.001
 COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S = 0.001
 KUNWEI_RAW_FIELDS = (
     "fx_kg_manual",
@@ -400,6 +401,19 @@ def _new_live_identity_pair() -> tuple[int, int]:
 def _sample_translation_error_sqm3(a_pose: Sequence[float], b_pose: Sequence[float]) -> float:
     return math.sqrt(
         sum((float(a_pose[index]) - float(b_pose[index])) ** 2 for index in range(3))
+    )
+
+
+def _is_stationary(rtde: Mapping[str, Any]) -> bool:
+    """Use the same no-motion limits before and after the compile probe."""
+
+    return (
+        max(abs(float(value)) for value in rtde["actual_TCP_speed"][:3])
+        <= COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S
+        and max(abs(float(value)) for value in rtde["actual_TCP_speed"][3:])
+        <= COMPILE_PROBE_TCP_ANGULAR_SPEED_TOLERANCE_RAD_S
+        and max(abs(float(value)) for value in rtde["actual_qd"])
+        <= COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S
     )
 
 
@@ -1323,9 +1337,7 @@ def readonly_status(robot_host: str) -> dict[str, Any]:
         ],
         frequency_hz=10.0,
     )
-    stationary = max(
-        abs(float(value)) for value in (*rtde["actual_TCP_speed"], *rtde["actual_qd"])
-    ) <= 1.0e-6
+    stationary = _is_stationary(rtde)
     return {
         "dashboard": dashboard,
         "rtde": rtde,
@@ -1891,6 +1903,18 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                     ),
                     default=0.0,
                 )
+                maximum_tcp_angular_speed_rad_s = max(
+                    (
+                        math.sqrt(
+                            sum(
+                                float(row[f"actual_TCP_speed_{axis}"]) ** 2
+                                for axis in range(3, 6)
+                            )
+                        )
+                        for row in rows
+                    ),
+                    default=0.0,
+                )
                 maximum_joint_speed_rad_s = max(
                     (
                         max(
@@ -1915,6 +1939,10 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                     <= COMPILE_PROBE_TRANSLATION_TOLERANCE_M,
                     "maximum_tcp_speed_le_1mm_s": maximum_speed_m_s
                     <= COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S,
+                    "maximum_tcp_angular_speed_le_1mrad_s": (
+                        maximum_tcp_angular_speed_rad_s
+                        <= COMPILE_PROBE_TCP_ANGULAR_SPEED_TOLERANCE_RAD_S
+                    ),
                     "maximum_joint_speed_le_1mrad_s": maximum_joint_speed_rad_s
                     <= COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S,
                 }
@@ -1930,6 +1958,9 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                     "active_500hz_rows": active_rows,
                     "maximum_tcp_translation_m": maximum_translation_m,
                     "maximum_tcp_speed_m_s": maximum_speed_m_s,
+                    "maximum_tcp_angular_speed_rad_s": (
+                        maximum_tcp_angular_speed_rad_s
+                    ),
                     "maximum_joint_speed_rad_s": maximum_joint_speed_rad_s,
                     "observed_active_marker": observed_active,
                     "observed_complete_marker": observed_complete,
