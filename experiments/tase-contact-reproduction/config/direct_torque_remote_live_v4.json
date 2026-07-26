@@ -230,6 +230,7 @@
   "no_contact_wrench_guard": {
     "force_source": "kunwei_software_baselined_sensor_to_tcp_si",
     "software_baseline_samples": 1000,
+    "sensor_stale_s": 0.08,
     "preflight_force_norm_n": 2.0,
     "preflight_torque_norm_nm": 0.2,
     "active_force_norm_n": 6.0,
