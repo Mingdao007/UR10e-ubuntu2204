@@ -1449,6 +1449,25 @@ def test_live_parser_rejects_missing_identity_but_prepare_only_remains_compatibl
     assert prepared.prepare_only is True
 
 
+def test_live_parser_retry_budget_defaults_to_zero(tmp_path: Path) -> None:
+    args = live.parse_args(
+        [
+            "--output-root", str(tmp_path / "output"),
+            "--preflight", str(tmp_path / "preflight.json"),
+            "--delivery-observation", str(tmp_path / "delivery.json"),
+            "--admission", str(tmp_path / "admission.json"),
+            "--authority-epoch", "7",
+            "--launch-basis", str(tmp_path / "basis.json"),
+            "--launch-basis-sha256", "a" * 64,
+            "--campaign-prepare", str(tmp_path / "campaign-prepare.json"),
+            "--canonical-owner-pid", "123",
+            "--canonical-owner-starttime", "456",
+        ]
+    )
+
+    assert args.retry_budget == 0
+
+
 def test_live_runtime_missing_identity_fails_before_output_creation(tmp_path: Path) -> None:
     args = SimpleNamespace(
         output_root=tmp_path / "output",
@@ -1536,10 +1555,226 @@ def test_run_recoverable_live_session_preserves_first_pre_bridge_error_and_stops
         args.output_root / "recoverable_session_status.json", role="recoverable session status"
     )
     assert status["state"] == "RECOVERING"
-    assert status["attempt"] == 1
+    assert status["attempt"] == 0
+    assert status["orchestration_cycle"] == 1
+    assert status["bridge_launch_attempt"] == 0
+    assert status["trial_physical_attempt"] == 0
     assert "bridge admission campaign identity differs" in status["error"]
-    assert status["attempt_root"] == str(attempt_root)
-    assert not (args.output_root / "attempt-0002").exists()
+    assert status["attempt_root"] == str(args.output_root)
+    assert not attempt_root.exists()
+    assert not (args.output_root / "bridge.log").exists()
+    assert not (args.output_root / "campaign_runner.log").exists()
+
+
+def test_run_recoverable_live_session_writer_lease_failure_stops_before_attempt_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+    )
+    attempt_root = args.output_root / "attempt-0001"
+    release = SimpleNamespace(
+        release_stage_id=live.RELEASE_STAGE_ID,
+        control_profile_id=live.CONTROL_PROFILE_ID,
+        program_id="step5d_strict_rnn_autotune_v3_r999",
+        protocol_id="v3_full_home_rolling_arm_v1",
+        manifest_sha256="e" * 64,
+        generated_files={live.LAUNCH_PROFILE_PATH: "a" * 64},
+    )
+    basis = {
+        "launch_nonce": "f" * 32,
+        "basis_sha256": "b" * 64,
+        "campaign_fingerprint": "c" * 64,
+        "delivery_observation_sha256": "d" * 64,
+        "release_manifest_sha256": "e" * 64,
+        "runtime_identity_sha256": "f" * 64,
+        "authority_epoch": 7,
+        "issued_at_unix_ns": 1,
+        "expires_at_unix_ns": 10,
+    }
+
+    def validate_active(*_args: Any, **_kwargs: Any) -> tuple[Any, Any, Any]:
+        return (
+            basis,
+            {
+                "schema": "step5d.autotune-v3/bridge-admission-v1",
+                "campaign_fingerprint": basis["campaign_fingerprint"],
+                "release": {
+                    "manifest_sha256": basis["release_manifest_sha256"],
+                    "program_id": release.program_id,
+                },
+                "delivery_observation": {
+                    "path": "runs/delivery-observation.json",
+                    "sha256": "d" * 64,
+                    "transaction_id": "f" * 32,
+                },
+            },
+            {
+                "schema": coordinator.CAMPAIGN_PREPARE_SCHEMA,
+                "ok": True,
+                "fresh": True,
+                "created_at_unix_ns": 2,
+                "launch_basis_sha256": basis["basis_sha256"],
+                "identity": {
+                    "campaign_id": "campaign-lease-failure",
+                    "campaign_epoch": 1,
+                    "campaign_fingerprint": basis["campaign_fingerprint"],
+                    "release_manifest_sha256": basis["release_manifest_sha256"],
+                    "runtime_identity_sha256": basis["runtime_identity_sha256"],
+                },
+                "result": {
+                    "ok": True,
+                    "campaign_id": "campaign-lease-failure",
+                    "campaign_epoch": 1,
+                    "campaign_fingerprint": basis["campaign_fingerprint"],
+                    "campaign_root": str(tmp_path / "campaign"),
+                    "campaign_binding_file": str(tmp_path / "campaign-binding.json"),
+                    "launch_profile_path": str(tmp_path / "launch-profile.json"),
+                    "launch_profile_sha256": "a" * 64,
+                    "machine_binding_status": "pending_exact_candidate_and_overlay_plans",
+                    "candidate_plan": str(tmp_path / "candidate-plan.json"),
+                    "trial_overlay_plan": str(tmp_path / "trial-overlay-plan.json"),
+                    "receiver_root": str(tmp_path / "receiver"),
+                },
+            },
+        )
+
+    (tmp_path / "campaign").mkdir(parents=True, exist_ok=True)
+    args.output_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    args.preflight.write_text("{}", encoding="utf-8")
+    args.delivery_observation.write_text("{}", encoding="utf-8")
+    args.admission.write_text("{}", encoding="utf-8")
+    args.launch_basis.write_text(
+        json.dumps({"campaign_fingerprint": "c" * 64}, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    (tmp_path / "candidate-plan.json").write_text(
+        json.dumps(
+            {
+                "schema": "step5d.parameter-receiver/launch-plan-v1",
+                "campaign_id": "campaign-lease-failure",
+                "revision": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "trial-overlay-plan.json").write_text('{"revision":1}\n', encoding="utf-8")
+    args.campaign_prepare.write_text(
+        json.dumps(validate_active()[2], separators=(",", ":")),
+        encoding="utf-8",
+    )
+    runtime_root = tmp_path / "coordinator-runtime"
+    control_runtime_root = tmp_path / "control-runtime-root"
+    bridge_runtime = runtime_root / "bridge" / "runtime"
+    bridge_run = runtime_root / "bridge"
+    control_runtime_root.mkdir(parents=True, exist_ok=True)
+    bridge_runtime.mkdir(parents=True, exist_ok=True)
+    runtime_pointer = {
+        "profiles": {
+            "control": {
+                "root": str(control_runtime_root),
+                "python_executable": sys.executable,
+                "environment_id": "control-env-id",
+            }
+        },
+        "attestation_sha256": "attestation-id",
+        "bundle_id": "bundle-id",
+    }
+
+    monkeypatch.setattr(live, "_validate_active_launch_identity", validate_active)
+    monkeypatch.setattr(
+        live,
+        "load_runtime_release",
+        lambda _root: release,
+    )
+    monkeypatch.setattr(
+        live,
+        "load_delivery_observation",
+        lambda *_args, **_kwargs: {"schema": "step5d.autotune-v3/delivery-observation-v1"},
+    )
+    monkeypatch.setattr(
+        live,
+        "_validate_coordinator_runtime_root",
+        lambda *_args, **_kwargs: runtime_root,
+    )
+    monkeypatch.setattr(
+        live,
+        "_create_bridge_runtime",
+        lambda *_args: (bridge_run, bridge_runtime),
+    )
+    monkeypatch.setattr(
+        live,
+        "load_contract",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        live,
+        "load_launch_profile",
+        lambda *_args, **_kwargs: SimpleNamespace(fingerprint="a" * 64),
+    )
+    monkeypatch.setattr(
+        live,
+        "check_effective_config",
+        lambda **_kwargs: {"effective_config": {"robot_host": "192.0.2.1"}},
+    )
+    monkeypatch.setattr(
+        live,
+        "release_payload_path",
+        lambda *_args, **_kwargs: tmp_path / "payload.json",
+    )
+    monkeypatch.setattr(
+        live,
+        "overlay_fingerprint",
+        lambda *_args, **_kwargs: "a" * 64,
+    )
+    monkeypatch.setattr(
+        live,
+        "_validate_preflight",
+        lambda *_args, **_kwargs: {"controller_identity_sha256": "a" * 64},
+    )
+    monkeypatch.setattr(
+        live,
+        "release_runtime_contract",
+        lambda *_args, **_kwargs: {
+            "expected_loaded_program": release.program_id,
+            "safety_envelope_sha256": "a" * 64,
+        },
+    )
+
+    def writer_lease_busy(*_args: Any, **_kwargs: Any) -> Any:
+        raise OSError("writer lease unavailable")
+
+    monkeypatch.setattr(live, "writer_lease", writer_lease_busy)
+    monkeypatch.setattr(
+        live,
+        "build_bridge_argv",
+        lambda *_args, **_kwargs: ["python", str(live.WRAPPER), "bridge"],
+    )
+    monkeypatch.setattr(
+        live,
+        "production_runtime_environment",
+        lambda *_args, **_kwargs: {"PATH": "/bin", "PYTHONPATH": "", "HOME": "/tmp"},
+    )
+
+    with pytest.raises(live.LiveLaunchError, match="writer lease is unavailable"):
+        live._run_live_session(
+            args,
+            runtime_pointer,
+        )
+
+    assert not attempt_root.exists()
+    assert not (args.output_root / "bridge.log").exists()
+    assert not (args.output_root / "campaign_runner.log").exists()
 
 
 def test_run_recoverable_live_session_stops_retry_on_raw_session_exception(
@@ -1574,10 +1809,13 @@ def test_run_recoverable_live_session_stops_retry_on_raw_session_exception(
         args.output_root / "recoverable_session_status.json", role="recoverable session status"
     )
     assert status["state"] == "RECOVERING"
-    assert status["attempt"] == 1
+    assert status["attempt"] == 0
+    assert status["orchestration_cycle"] == 1
+    assert status["bridge_launch_attempt"] == 0
+    assert status["trial_physical_attempt"] == 0
     assert "unclassified runtime fault" in status["error"]
-    assert status["attempt_root"] == str(attempt_root)
-    assert not (args.output_root / "attempt-0002").exists()
+    assert status["attempt_root"] == str(args.output_root)
+    assert not attempt_root.exists()
     assert attempts == [1]
 
 
@@ -1629,8 +1867,11 @@ def test_run_live_single_session_nonrecoverable_failure_preserves_recovering_and
         role="recoverable session status",
     )
     assert status["state"] == "RECOVERING"
-    assert status["attempt"] == 1
-    assert status["attempt_root"] == str(attempt_root)
+    assert status["attempt"] == 0
+    assert status["attempt_root"] == str(args.output_root)
+    assert status["orchestration_cycle"] == 1
+    assert status["bridge_launch_attempt"] == 0
+    assert status["trial_physical_attempt"] == 0
     assert "single session hard failure" in status["error"]
 
 
@@ -1656,8 +1897,8 @@ def test_run_recoverable_live_session_retries_once_for_recoverable_session_failu
     def recoverable_then_success(*_args: Any, **_kwargs: Any) -> dict[str, bool]:
         attempts.append(len(attempts) + 1)
         if len(attempts) == 1:
-            raise live.LiveSessionAttemptError(
-                RuntimeError("temporary hardware fault"), recoverable=True
+            raise live.RecoverableLiveSessionAttemptError(
+                RuntimeError("temporary hardware fault")
             )
         return {"ok": True}
 
@@ -1669,6 +1910,7 @@ def test_run_recoverable_live_session_retries_once_for_recoverable_session_failu
         status_before_backoff.append(status["state"])
 
     monkeypatch.setattr(live, "_run_live_session", recoverable_then_success)
+    args.retry_budget = 1
     monkeypatch.setattr(live.time, "sleep", record_waiting_before_backoff)
 
     result = live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
@@ -2558,14 +2800,21 @@ def test_run_recoverable_live_session_retries_once_for_recoverable_session_failu
 
     def recoverable_then_success(*_args: Any, **_kwargs: Any) -> dict[str, bool]:
         attempts.append(1)
+        attempt_args = _args[0]
+        attempt_no = int(getattr(attempt_args, "trial_physical_attempt", 0)) + 1
+        attempt_args.trial_physical_attempt = attempt_no
+        attempt_args.output_root = attempt_args.output_root / f"attempt-{attempt_no:04d}"
+        attempt_args.bridge_launch_attempt = int(getattr(attempt_args, "bridge_launch_attempt", 0)) + 1
+        Path(attempt_args.output_root).mkdir(parents=True, exist_ok=False, mode=0o700)
         if len(attempts) == 1:
-            raise live.LiveSessionAttemptError(
-                RuntimeError("temporary hardware fault"), recoverable=True
+            raise live.RecoverableLiveSessionAttemptError(
+                RuntimeError("temporary hardware fault")
             )
         return {"ok": True}
 
     sleeps: list[float] = []
     monkeypatch.setattr(live, "_run_live_session", recoverable_then_success)
+    args.retry_budget = 1
     monkeypatch.setattr(live.time, "sleep", sleeps.append)
 
     result = live._run_live(
@@ -2582,8 +2831,56 @@ def test_run_recoverable_live_session_retries_once_for_recoverable_session_failu
     )
     assert final_status["state"] == "COMPLETED"
     assert final_status["attempt"] == 2
+    assert final_status["orchestration_cycle"] == 2
+    assert final_status["bridge_launch_attempt"] == 1
+    assert final_status["trial_physical_attempt"] == 2
+    assert final_status["attempt_root"] == str(args.output_root / "attempt-0002")
     assert (args.output_root / "attempt-0001").exists()
     assert (args.output_root / "attempt-0002").exists()
+
+
+def test_run_recoverable_live_session_default_retry_budget_does_not_retry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+    )
+    attempts: list[int] = []
+
+    def recoverable_then_fail(*_args: Any, **_kwargs: Any) -> dict[str, bool]:
+        attempts.append(1)
+        raise live.RecoverableLiveSessionAttemptError(
+            RuntimeError("retry-budget default zero no retry")
+        )
+
+    monkeypatch.setattr(live, "_run_live_session", recoverable_then_fail)
+
+    with pytest.raises(RuntimeError, match="retry-budget default zero no retry"):
+        live._run_live(
+            args,
+            {"profiles": {"control": {"python_executable": sys.executable}}},
+        )
+
+    assert attempts == [1]
+    status = live.read_strict_json(
+        args.output_root / "recoverable_session_status.json",
+        role="recoverable session status",
+    )
+    assert status["state"] == "RECOVERING"
+    assert status["attempt"] == 0
+    assert status["orchestration_cycle"] == 1
+    assert status["bridge_launch_attempt"] == 0
+    assert status["trial_physical_attempt"] == 0
 
 
 def test_parameter_receiver_binds_observed_home_before_first_dispatch() -> None:

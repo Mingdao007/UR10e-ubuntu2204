@@ -141,9 +141,22 @@ class RecoverableLiveSessionAttemptError(LiveSessionAttemptError):
 
 
 def _should_retry_session_error(exc: BaseException) -> bool:
-    if isinstance(exc, LiveSessionAttemptError):
-        return bool(exc.recoverable)
-    return False
+    return isinstance(exc, RecoverableLiveSessionAttemptError)
+
+
+def _as_non_negative_int(value: Any, *, field: str) -> int:
+    if type(value) is not int:
+        raise LiveLaunchError(f"{field} must be an int")
+    if value < 0:
+        raise LiveLaunchError(f"{field} must be non-negative")
+    return value
+
+
+def _validate_retry_budget(value: Any) -> int:
+    budget = _as_non_negative_int(value, field="retry budget")
+    if budget not in (0, 1):
+        raise LiveLaunchError("retry budget must be 0 or 1")
+    return budget
 
 
 LIVE_REQUIRED_IDENTITY_ARGS = (
@@ -272,6 +285,7 @@ def _run_recoverable_sessions(
     backoff: Callable[[], None],
     *,
     lifecycle: LiveSessionLifecycle | None = None,
+    retry_budget: int = 0,
 ) -> Mapping[str, Any] | None:
     """Run sessions while keeping the durable receiver alive across failures.
 
@@ -285,7 +299,9 @@ def _run_recoverable_sessions(
     """
 
     lifecycle = lifecycle or LiveSessionLifecycle()
+    retry_budget = _validate_retry_budget(retry_budget)
     previous_handlers: dict[int, Any] = {}
+    retry_count = 0
 
     def request_signal_shutdown(signum: int, frame: Any) -> None:
         del signum, frame
@@ -309,6 +325,9 @@ def _run_recoverable_sessions(
             except Exception as exc:
                 if not _should_retry_session_error(exc):
                     raise
+                if retry_count >= retry_budget:
+                    raise
+                retry_count += 1
                 lifecycle._set_state(LiveSessionState.RECOVERING, status="DEGRADED")
                 lifecycle._set_state(LiveSessionState.WAITING_FOR_HARDWARE)
                 cleanup()
@@ -1382,61 +1401,118 @@ def _run_live(
     output_root = args.output_root.expanduser().absolute()
     output_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     lifecycle = LiveSessionLifecycle()
-    attempt_number = 0
+    orchestration_cycle = 0
+    trial_physical_attempt = _as_non_negative_int(
+        getattr(args, "trial_physical_attempt", 0), field="trial physical attempt"
+    )
+    bridge_launch_attempt = _as_non_negative_int(
+        getattr(args, "bridge_launch_attempt", 0), field="bridge launch attempt"
+    )
+    retry_budget = _validate_retry_budget(getattr(args, "retry_budget", 0))
+    current_attempt_args: argparse.Namespace | None = None
+    recoverable_status_path = output_root / "recoverable_session_status.json"
+
+    def _status_payload(
+        attempt_args: argparse.Namespace,
+        state: str,
+        *,
+        receiver_accepting: bool | None = None,
+        error: str | None = None,
+    ) -> dict[str, Any]:
+        attempt_no = int(getattr(attempt_args, "trial_physical_attempt", 0) or 0)
+        payload = {
+            "schema": "step5d.autotune-v3/recoverable-session-status-v1",
+            "attempt": attempt_no,
+            "state": state,
+            "attempt_root": str(getattr(attempt_args, "output_root", output_root)),
+            "orchestration_cycle": int(
+                getattr(attempt_args, "orchestration_cycle", 0)
+            ),
+            "bridge_launch_attempt": int(
+                getattr(attempt_args, "bridge_launch_attempt", 0)
+            ),
+            "trial_physical_attempt": attempt_no,
+        }
+        if receiver_accepting is not None:
+            payload["receiver_accepting"] = receiver_accepting
+        if error is not None:
+            payload["error"] = error
+        return payload
+
+    def _write_status(
+        attempt_args: argparse.Namespace,
+        state: str,
+        *,
+        receiver_accepting: bool | None = None,
+        error: str | None = None,
+    ) -> None:
+        atomic_json(
+            recoverable_status_path,
+            _status_payload(
+                attempt_args,
+                state,
+                receiver_accepting=receiver_accepting,
+                error=error,
+            ),
+        )
+
+    def _sync_physical_attempt(attempt_args: argparse.Namespace) -> None:
+        nonlocal trial_physical_attempt
+        attempt_no = int(getattr(attempt_args, "trial_physical_attempt", 0))
+        if attempt_no > trial_physical_attempt:
+            trial_physical_attempt = attempt_no
+
+    def _sync_bridge_launch_attempt(attempt_args: argparse.Namespace) -> None:
+        nonlocal bridge_launch_attempt
+        attempt_no = _as_non_negative_int(
+            getattr(attempt_args, "bridge_launch_attempt", 0),
+            field="bridge launch attempt",
+        )
+        if attempt_no > bridge_launch_attempt:
+            bridge_launch_attempt = attempt_no
 
     def session_callable() -> Mapping[str, Any] | None:
-        nonlocal attempt_number
-        attempt_number += 1
-        attempt_root = output_root / f"attempt-{attempt_number:04d}"
-        attempt_root.mkdir(parents=False, exist_ok=False, mode=0o700)
+        nonlocal orchestration_cycle, current_attempt_args, trial_physical_attempt
+        orchestration_cycle += 1
         attempt_args = argparse.Namespace(**vars(args))
         attempt_args._coordinator_output_root = output_root
-        attempt_args.output_root = attempt_root
-        atomic_json(
-            output_root / "recoverable_session_status.json",
-            {
-                "schema": "step5d.autotune-v3/recoverable-session-status-v1",
-                "attempt": attempt_number,
-                "state": "RUNNING",
-                "attempt_root": str(attempt_root),
-            },
-        )
+        attempt_args.output_root = output_root
+        attempt_args.orchestration_cycle = orchestration_cycle
+        attempt_args.trial_physical_attempt = trial_physical_attempt
+        attempt_args.bridge_launch_attempt = 0
+        attempt_args._next_bridge_launch_attempt = bridge_launch_attempt
+        current_attempt_args = attempt_args
+        _write_status(attempt_args, "RUNNING", receiver_accepting=True)
         try:
             result = _run_live_session(attempt_args, runtime_pointer)
         except BaseException as exc:
-            atomic_json(
-                output_root / "recoverable_session_status.json",
-                {
-                    "schema": "step5d.autotune-v3/recoverable-session-status-v1",
-                    "attempt": attempt_number,
-                    "state": (
-                        "SHUTDOWN"
-                        if isinstance(exc, KeyboardInterrupt)
-                        else "RECOVERING"
-                    ),
-                    "attempt_root": str(attempt_root),
-                    "error": f"{type(exc).__name__}:{exc}",
-                },
+            _sync_physical_attempt(attempt_args)
+            _sync_bridge_launch_attempt(attempt_args)
+            _write_status(
+                attempt_args,
+                "SHUTDOWN" if isinstance(exc, KeyboardInterrupt) else "RECOVERING",
+                error=f"{type(exc).__name__}:{exc}",
             )
             raise
-        atomic_json(
-            output_root / "recoverable_session_status.json",
-            {
-                "schema": "step5d.autotune-v3/recoverable-session-status-v1",
-                "attempt": attempt_number,
-                "state": "COMPLETED",
-                "attempt_root": str(attempt_root),
-            },
-        )
+        _sync_physical_attempt(attempt_args)
+        _sync_bridge_launch_attempt(attempt_args)
+        _write_status(attempt_args, "COMPLETED", receiver_accepting=True)
         return result
 
-    def _has_terminal_status_lock() -> bool:
+    def _has_terminal_status_lock(
+        attempt_args: argparse.Namespace,
+    ) -> bool:
         status_path = output_root / "recoverable_session_status.json"
         try:
             status = read_strict_json(status_path, role="recoverable session status")
         except Exception:
             return False
-        if not isinstance(status, dict) or status.get("attempt") != attempt_number:
+        attempt_no = int(getattr(attempt_args, "trial_physical_attempt", 0) or 0)
+        if not isinstance(status, dict):
+            return False
+        if status.get("attempt") != attempt_no and status.get(
+            "trial_physical_attempt"
+        ) != attempt_no:
             return False
         if status.get("state") == "SHUTDOWN":
             return True
@@ -1448,25 +1524,21 @@ def _run_live(
         return False
 
     def cleanup() -> None:
+        attempt_args = (
+            current_attempt_args
+            if current_attempt_args is not None
+            else argparse.Namespace(**vars(args))
+        )
         # _run_live_session owns and terminates its runner + bridge in its
         # finally block.  This injectable hook records that the durable
         # receiver remains alive while the wrapper backs off before creating
         # the next isolated session.  Readiness belongs to that new session.
-        if _has_terminal_status_lock():
+        if _has_terminal_status_lock(attempt_args):
             return
-        status_path = output_root / "recoverable_session_status.json"
-        atomic_json(
-            status_path,
-            {
-                "schema": "step5d.autotune-v3/recoverable-session-status-v1",
-                "attempt": attempt_number,
-                "state": (
-                    "SHUTDOWN"
-                    if lifecycle.explicit_shutdown
-                    else "WAITING_FOR_HARDWARE"
-                ),
-                "receiver_accepting": lifecycle.receiver_accepting,
-            },
+        _write_status(
+            attempt_args,
+            "SHUTDOWN" if lifecycle.explicit_shutdown else "WAITING_FOR_HARDWARE",
+            receiver_accepting=lifecycle.receiver_accepting,
         )
 
     if getattr(args, "single_session", False):
@@ -1479,6 +1551,7 @@ def _run_live(
         cleanup=cleanup,
         backoff=lambda: time.sleep(RECOVERY_BACKOFF_S),
         lifecycle=lifecycle,
+        retry_budget=retry_budget,
     )
 
 
@@ -1667,6 +1740,13 @@ def _run_live_session(
     preexisting_bundles = _immutable_trial_bundles(args.campaign_root)
     supervisor_pid = os.getpid()
     supervisor_starttime = process_starttime(supervisor_pid)
+    coordinator_output_root = getattr(args, "_coordinator_output_root", None)
+    coordinator_output_root = (
+        Path(coordinator_output_root).expanduser().absolute()
+        if coordinator_output_root is not None
+        else None
+    )
+    attempt_root = Path(args.output_root).expanduser().absolute()
     try:
         writer_guard = writer_lease(
             ResourceProfile.from_env(),
@@ -1679,6 +1759,23 @@ def _run_live_session(
             f"exclusive production writer lease is unavailable: {exc}"
         ) from exc
     try:
+        args.bridge_launch_attempt = _as_non_negative_int(
+            getattr(args, "_next_bridge_launch_attempt", 0), field="bridge launch attempt"
+        ) + 1
+        if (
+            coordinator_output_root is not None
+            and attempt_root == coordinator_output_root
+        ):
+            attempt_root = coordinator_output_root / f"attempt-{args.bridge_launch_attempt:04d}"
+            args.output_root = attempt_root
+        if not attempt_root.exists():
+            attempt_root.mkdir(parents=True, exist_ok=False, mode=0o700)
+        elif not attempt_root.is_dir():
+            raise LiveLaunchError(
+                f"attempt output root is not a directory: {attempt_root}"
+            )
+        bridge_log_path = attempt_root / "bridge.log"
+        runner_log_path = attempt_root / "campaign_runner.log"
         with bridge_log_path.open("wb") as bridge_log:
             # The production session remains continuous after this barrier;
             # only startup readiness is bounded and fail-fast.
@@ -2310,6 +2407,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--canonical-owner-pid", type=int, required=True)
     parser.add_argument("--canonical-owner-starttime", type=int, required=True)
+    parser.add_argument("--retry-budget", type=int, default=0)
     parser.add_argument("--prepare-only", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--single-session", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)

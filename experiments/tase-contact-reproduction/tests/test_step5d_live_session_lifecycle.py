@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -12,9 +13,12 @@ sys.path.insert(0, str(ROOT / "tools"))
 from run_step5d_autotune_v3_live import (  # noqa: E402
     LiveSessionLifecycle,
     LiveSessionState,
+    LiveSessionAttemptError,
     RecoverableLiveSessionAttemptError,
-    _should_request_program_stop,
+    LiveLaunchError,
     _run_recoverable_sessions,
+    _should_retry_session_error,
+    _should_request_program_stop,
 )
 
 
@@ -35,6 +39,7 @@ def test_first_failure_cleanup_backoff_then_second_isolated_session() -> None:
         cleanup=lambda: events.append("cleanup"),
         backoff=lambda: events.append("backoff"),
         lifecycle=lifecycle,
+        retry_budget=1,
     )
 
     assert result == {"ok": True}
@@ -69,6 +74,69 @@ def test_hardware_false_never_starts_second_session() -> None:
     assert cleanups == []
     assert lifecycle.state is LiveSessionState.WAITING_FOR_PARAMETERS
     assert lifecycle.receiver_accepting is True
+
+
+def test_retry_budget_default_zero_prevents_additional_retries() -> None:
+    calls: list[int] = []
+    lifecycle = LiveSessionLifecycle()
+
+    def session() -> dict[str, object]:
+        calls.append(1)
+        raise RecoverableLiveSessionAttemptError(RuntimeError("budgeted no retry"))
+
+    with pytest.raises(RuntimeError, match="budgeted no retry"):
+        _run_recoverable_sessions(
+            session,
+            cleanup=lambda: None,
+            backoff=lambda: pytest.fail("backoff should not run when budget is zero"),
+            lifecycle=lifecycle,
+        )
+
+    assert calls == [1]
+    assert lifecycle.receiver_accepting is True
+
+
+@pytest.mark.parametrize("retry_budget", [2, 1.5, True, "1"])
+def test_retry_budget_rejects_invalid_values(retry_budget: Any) -> None:
+    lifecycle = LiveSessionLifecycle()
+
+    def session() -> dict[str, object]:
+        return {"ok": True}
+
+    with pytest.raises(LiveLaunchError, match="retry budget"):
+        _run_recoverable_sessions(
+            session,
+            cleanup=lambda: None,
+            backoff=lambda: None,
+            lifecycle=lifecycle,
+            retry_budget=retry_budget,
+        )
+
+
+def test_non_explicit_live_session_attempt_error_is_not_retried() -> None:
+    calls: list[int] = []
+    lifecycle = LiveSessionLifecycle()
+
+    def session() -> None:
+        calls.append(1)
+        raise LiveSessionAttemptError(
+            RuntimeError("implicit recoverable flag false"),
+            recoverable=True,
+        )
+
+    with pytest.raises(RuntimeError, match="implicit recoverable flag false"):
+        _run_recoverable_sessions(
+            session,
+            cleanup=lambda: None,
+            backoff=lambda: pytest.fail("backoff should not run for non-explicit marker"),
+            lifecycle=lifecycle,
+            retry_budget=1,
+        )
+
+    assert calls == [1]
+    assert _should_retry_session_error(
+        LiveSessionAttemptError(RuntimeError("test"), recoverable=True)
+    ) is False
 
 
 def test_empty_queue_keeps_receiver_accepting_until_shutdown() -> None:
