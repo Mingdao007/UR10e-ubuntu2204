@@ -871,7 +871,8 @@ def test_shell_defaults_bind_current_release_and_durable_parameter_campaign() ->
     assert 'campaign_root="${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"' not in source
     revalidate = source[source.index('if [[ "${1:-}" == "revalidate-current"') :]
     assert 'artifact_dir=""' in revalidate
-    assert 'revalidate_command+=(--artifact-dir "${artifact_dir}")' in revalidate
+    assert 'pointer = json.loads((root / "config/step5d/current.json")' in revalidate
+    assert '--artifact-dir "${artifact_dir}"' in revalidate
 
 
 def test_bridge_wrapper_skips_parent_mailbox_while_identity_is_pending() -> None:

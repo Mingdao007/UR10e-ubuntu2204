@@ -895,6 +895,19 @@ if (( runtime_revalidate_mode == 1 )); then
   export STEP5D_V3_CANONICAL_LAUNCHER="${SCRIPT_PATH}"
   export STEP5D_V3_SHELL_PID="$$"
   mkdir -p -- "${EXPERIMENT_ROOT}/runs/step5d_autotune_v3"
+  if [[ -z "${artifact_dir}" ]]; then
+    artifact_dir="$(
+      "${CONTROL_PYTHON}" -c '
+import json
+import pathlib
+import sys
+root = pathlib.Path(sys.argv[1]).resolve(strict=True)
+pointer = json.loads((root / "config/step5d/current.json").read_text(encoding="utf-8"))
+manifest = (root / pointer["manifest_path"]).resolve(strict=True)
+print(manifest.parent / "programs/step5/step5d")
+' "${EXPERIMENT_ROOT}"
+    )"
+  fi
   "${CONTROL_PYTHON}" \
     "${EXPERIMENT_ROOT}/tools/run_step5d_release_contract.py" \
     --experiment-root "${EXPERIMENT_ROOT}" \
@@ -907,10 +920,8 @@ if (( runtime_revalidate_mode == 1 )); then
     --evidence-output "${delivery_evidence_output}"
     --readback-only-existing
     --revalidate-current
+    --artifact-dir "${artifact_dir}"
   )
-  if [[ -n "${artifact_dir}" ]]; then
-    revalidate_command+=(--artifact-dir "${artifact_dir}")
-  fi
   "${revalidate_command[@]}"
   exit $?
 fi

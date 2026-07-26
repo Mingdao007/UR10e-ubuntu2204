@@ -136,11 +136,31 @@ def _read_launch_basis(path: Path) -> tuple[str, str]:
     if candidate.is_symlink() or not candidate.is_file():
         raise BridgeAuthorityError("bridge authority launch basis path is unsafe")
     try:
-        digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+        encoded = candidate.read_bytes()
     except OSError as exc:
         raise BridgeAuthorityError(
             f"bridge authority launch basis is unavailable: {exc}"
         ) from exc
+    digest = hashlib.sha256(encoded).hexdigest()
+    try:
+        payload = json.loads(encoded)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        payload = None
+    if isinstance(payload, dict) and "basis_sha256" in payload:
+        supplied = payload.get("basis_sha256")
+        unsigned = dict(payload)
+        unsigned.pop("basis_sha256", None)
+        canonical = json.dumps(
+            unsigned,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("utf-8")
+        expected = hashlib.sha256(canonical).hexdigest()
+        if not _validate_required_hex(supplied, length=64) or supplied != expected:
+            raise BridgeAuthorityError("bridge authority launch basis digest differs")
+        digest = supplied
     return str(candidate), digest
 
 

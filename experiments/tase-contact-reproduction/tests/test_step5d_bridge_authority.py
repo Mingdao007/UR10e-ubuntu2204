@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import hashlib
+import json
 import os
 from typing import Any
 import pytest
@@ -20,6 +21,34 @@ def _write_basis(base: Path, name: str) -> tuple[str, str]:
     path.write_text("launch basis", encoding="utf-8")
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     return str(path), digest
+
+
+def test_launch_basis_uses_embedded_canonical_digest(tmp_path: Path) -> None:
+    path = tmp_path / "launch-basis.json"
+    unsigned = {"schema": "fixture", "value": 1}
+    digest = hashlib.sha256(
+        json.dumps(
+            unsigned,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    path.write_text(
+        json.dumps(
+            {**unsigned, "basis_sha256": digest},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    resolved, observed = authority._read_launch_basis(path)
+
+    assert resolved == str(path.resolve())
+    assert observed == digest
 
 
 def _attempt_ctx(base: Path, suffix: str) -> tuple[str, str, str, str]:
