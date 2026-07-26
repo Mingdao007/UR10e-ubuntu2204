@@ -173,6 +173,8 @@ def issues_for_file(path: Path) -> list[str]:
             target = (module_name, symbol or "")
         else:
             target = ("", "")
+        if target not in REGISTERED_SUPERVISORS:
+            continue
         finite_prepare_only = any(
             isinstance(argument, ast.Constant)
             and argument.value == "--prepare-only"
@@ -180,8 +182,7 @@ def issues_for_file(path: Path) -> list[str]:
         )
         finite_single_session = _explicit_single_session(node)
         if (
-            target in REGISTERED_SUPERVISORS
-            and not finite_prepare_only
+            not finite_prepare_only
             and not finite_single_session
         ):
             issues.append(

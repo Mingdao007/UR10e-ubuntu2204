@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 import sys
 
@@ -9,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from run_step5d_autotune_v3_live import dispatch_single_session  # noqa: E402
+import validate_step5d_retry_supervisor_tests as supervisor_validator  # noqa: E402
 from validate_step5d_retry_supervisor_tests import issues_for_file  # noqa: E402
 
 
@@ -109,6 +111,38 @@ def test_ast_guard_accepts_explicit_single_session_seam(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert issues_for_file(path) == []
+
+
+def test_ast_guard_preserves_findings_and_subtree_scan_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "test_scan_budget.py"
+    path.write_text(
+        "import run_step5d_autotune_v3_live as live\n"
+        "def test_guard():\n"
+        "    unrelated.deep.call(\n"
+        "        '--prepare-only',\n"
+        "        nested.unrelated(single_session=True),\n"
+        "    )\n"
+        "    live.run(None)\n",
+        encoding="utf-8",
+    )
+    original_walk = ast.walk
+    call_subtree_roots: list[ast.Call] = []
+
+    def tracked_walk(node: ast.AST):
+        if isinstance(node, ast.Call):
+            call_subtree_roots.append(node)
+        return original_walk(node)
+
+    monkeypatch.setattr(supervisor_validator.ast, "walk", tracked_walk)
+
+    assert supervisor_validator.issues_for_file(path) == [
+        f"{path}:7:direct_retry_supervisor_without_deadline:"
+        "run_step5d_autotune_v3_live.run"
+    ]
+    assert len(call_subtree_roots) == 2
+    assert all(root.lineno == 7 for root in call_subtree_roots)
 
 
 def test_single_session_dispatch_does_not_retry_or_leave_owned_work() -> None:
