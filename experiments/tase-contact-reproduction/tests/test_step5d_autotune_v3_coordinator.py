@@ -234,7 +234,7 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
         "state": "ACTIVE",
         "attempt_id": "a" * 32,
         "sequence": 7,
-        "authority_epoch": 7,
+        "authority_epoch": 4,
         "owner": {"pid": 123, "starttime_ticks": 456},
         "launch_basis_path": None,
         "launch_basis_sha256": None,

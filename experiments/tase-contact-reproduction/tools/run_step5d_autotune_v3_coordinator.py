@@ -408,9 +408,8 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
     if (
         current.get("attempt_id") != args.attempt_id
         or current.get("sequence") != args.authority_epoch
-        or current.get("authority_epoch") != args.authority_epoch
     ):
-        raise RuntimeError("coordinator authority epoch/attempt differs")
+        raise RuntimeError("coordinator authority fencing sequence/attempt differs")
     owner = current.get("owner")
     if owner != {"pid": args.owner_pid, "starttime_ticks": args.owner_starttime}:
         raise RuntimeError("coordinator authority owner differs")
@@ -552,7 +551,6 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
     if (
         bound.get("sequence") != current.get("sequence")
         or bound.get("state") != "ACTIVE"
-        or bound.get("authority_epoch") != args.authority_epoch
     ):
         raise RuntimeError("coordinator authority did not confirm launch basis binding")
     return bound_basis
