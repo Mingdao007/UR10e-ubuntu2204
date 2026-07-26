@@ -1,5 +1,5 @@
 {
-  "control_contract_sha256": "ce089275772bf0f329418e07cdc17b840901651477bb7450756ff7bb15faba48",
+  "control_contract_sha256": "0620a3e2516e3a02a9796cd93111a874cf41947a289d3c52dc665415dea977f1",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "launch_overrides": {},
   "moving_sphere_reference_sha256": "dd5f065a5cecc04098865dda08891e11bfa8c6c11f40bbd964d1b1dcb2b60b86",
