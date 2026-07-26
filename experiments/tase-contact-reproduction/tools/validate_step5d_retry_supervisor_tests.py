@@ -156,9 +156,15 @@ def _explicit_single_session(node: ast.Call) -> bool:
 
 def issues_for_file(path: Path) -> list[str]:
     try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(path))
     except (OSError, UnicodeError, SyntaxError) as exc:
         return [f"{path}:parse:{exc}"]
+    if not (
+        any(module_name in source for module_name, _ in REGISTERED_SUPERVISORS)
+        or "subprocess" in source
+    ):
+        return []
     aliases = _module_names(tree)
     issues: list[str] = []
     for node in ast.walk(tree):

@@ -28,6 +28,30 @@ def test_ast_guard_rejects_direct_retry_supervisor(tmp_path: Path) -> None:
     )
 
 
+def test_ast_guard_reports_token_irrelevant_syntax_error(tmp_path: Path) -> None:
+    path = tmp_path / "test_syntax_error.py"
+    path.write_text("def broken(:\n    pass\n", encoding="utf-8")
+
+    issues = issues_for_file(path)
+
+    assert len(issues) == 1
+    assert f"{path}:parse:" in issues[0]
+
+
+def test_ast_guard_skips_walk_for_irrelevant_valid_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "test_irrelevant.py"
+    path.write_text("def test_irrelevant():\n    return 1\n", encoding="utf-8")
+
+    def fail_walk(node: ast.AST):
+        raise AssertionError(f"unexpected AST walk for {node!r}")
+
+    monkeypatch.setattr(supervisor_validator.ast, "walk", fail_walk)
+
+    assert issues_for_file(path) == []
+
+
 def test_ast_guard_accepts_deadline_bounded_child_process(tmp_path: Path) -> None:
     path = tmp_path / "test_good.py"
     path.write_text(
