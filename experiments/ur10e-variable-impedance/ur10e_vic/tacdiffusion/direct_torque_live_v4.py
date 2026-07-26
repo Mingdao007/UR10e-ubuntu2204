@@ -300,6 +300,7 @@ def build_live_receiver_source(
   local critical_natural_frequency_rad_s = 92.10340371976183
   local critical_decay = 0.8317438636116526
   local entry_blend_ticks = 50
+  local command_idle = 0
   local command_run = 1
   local command_end = 2
   local command_abort = 3
@@ -312,6 +313,8 @@ def build_live_receiver_source(
   local held_age_ticks = 0
   local lease_id = 0
   local episode_identity = 0
+  local episode_latched = 0
+  local last_observed_command = 0
   local last_model_sequence = 0
   local last_model_period_us = 0
   local last_model_mode = 0
@@ -332,9 +335,46 @@ def build_live_receiver_source(
   write_output_integer_register(31, 0)
   write_output_integer_register(32, receiver_protocol_token)
   write_output_integer_register(33, 0)
+  write_output_integer_register(34, last_observed_command)
+  write_output_integer_register(35, episode_latched)
   while running:
     local command = read_input_integer_register(24)
-    if command == command_end:
+    local sequence_before = read_input_integer_register(25)
+    local heartbeat = read_input_integer_register(26)
+    local packet_lease = read_input_integer_register(27)
+    local model_sequence = read_input_integer_register(28)
+    local model_period_us = read_input_integer_register(29)
+    local model_mode = read_input_integer_register(30)
+    local frame_token = read_input_integer_register(31)
+    local model_timestamp_us = read_input_integer_register(32)
+    local packet_episode = read_input_integer_register(35)
+    local sequence_after = read_input_integer_register(25)
+    last_observed_command = command
+    if episode_latched == 0:
+      local startup_packet_ok = command == command_idle and sequence_before == 0 and sequence_after == 0 and heartbeat == 0 and packet_lease > 0 and packet_episode > 0 and frame_token == wrench_frame_token
+      if startup_packet_ok:
+        lease_id = packet_lease
+        episode_identity = packet_episode
+        episode_latched = 1
+      end
+      write_output_integer_register(24, 0)
+      write_output_integer_register(25, 0)
+      write_output_integer_register(26, 0)
+      write_output_integer_register(27, lease_id)
+      write_output_integer_register(28, 0)
+      write_output_integer_register(29, 0)
+      write_output_integer_register(30, 0)
+      write_output_integer_register(31, episode_identity)
+      write_output_integer_register(32, receiver_protocol_token)
+      write_output_integer_register(33, 0)
+      write_output_integer_register(34, last_observed_command)
+      write_output_integer_register(35, episode_latched)
+      sync()
+    elif packet_lease != lease_id or packet_episode != episode_identity:
+      exit_fault = 10
+      exit_reason = 10
+      running = False
+    elif command == command_end:
       exit_reason = 2
       running = False
     elif command == command_abort:
@@ -357,22 +397,14 @@ def build_live_receiver_source(
         write_output_integer_register(31, episode_identity)
         write_output_integer_register(32, receiver_protocol_token)
         write_output_integer_register(33, 0)
+        write_output_integer_register(34, last_observed_command)
+        write_output_integer_register(35, episode_latched)
         sync()
       end
     else:
-      local sequence_before = read_input_integer_register(25)
-      local heartbeat = read_input_integer_register(26)
-      local packet_lease = read_input_integer_register(27)
-      local model_sequence = read_input_integer_register(28)
-      local model_period_us = read_input_integer_register(29)
-      local model_mode = read_input_integer_register(30)
-      local frame_token = read_input_integer_register(31)
-      local model_timestamp_us = read_input_integer_register(32)
-      local packet_episode = read_input_integer_register(35)
       local eq = [read_input_float_register(24), read_input_float_register(25), read_input_float_register(26), read_input_float_register(27), read_input_float_register(28), read_input_float_register(29)]
       local desired_k = [read_input_float_register(30), read_input_float_register(31), read_input_float_register(32), read_input_float_register(33), read_input_float_register(34), read_input_float_register(35)]
       local raw_force = [read_input_float_register(42), read_input_float_register(43), read_input_float_register(44), read_input_float_register(45), read_input_float_register(46), read_input_float_register(47)]
-      local sequence_after = read_input_integer_register(25)
       local coherent = sequence_before == sequence_after and heartbeat == sequence_after
       local new_packet = sequence_after == last_sequence + 1
       local held_packet = last_sequence > 0 and sequence_after == last_sequence
@@ -627,6 +659,8 @@ def build_live_receiver_source(
             write_output_integer_register(31, episode_identity)
             write_output_integer_register(32, receiver_protocol_token)
             write_output_integer_register(33, 0)
+            write_output_integer_register(34, last_observed_command)
+            write_output_integer_register(35, episode_latched)
             write_output_float_register(24, max_abs_tau)
             write_output_float_register(25, get_steptime())
             axis = 0
@@ -655,6 +689,8 @@ def build_live_receiver_source(
   write_output_integer_register(31, episode_identity)
   write_output_integer_register(32, receiver_protocol_token)
   write_output_integer_register(33, exit_reason)
+  write_output_integer_register(34, last_observed_command)
+  write_output_integer_register(35, episode_latched)
   if torque_entered:
     stopj(10.0)
   end
@@ -676,6 +712,9 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "source_builder_physical_io_enabled = False",
         "controller_runtime_physical_io_enabled = True",
         "heartbeat_timeout_ticks = ",
+        "episode_latched == 0",
+        "startup_packet_ok = command == command_idle",
+        "packet_lease != lease_id or packet_episode != episode_identity",
         "sequence_after == last_sequence + 1",
         "sequence_after == last_sequence",
         "held_age_ticks > heartbeat_timeout_ticks",
@@ -684,6 +723,8 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "write_output_integer_register(30, frame_token)",
         "write_output_integer_register(31, episode_identity)",
         "write_output_integer_register(32, receiver_protocol_token)",
+        "write_output_integer_register(34, last_observed_command)",
+        "write_output_integer_register(35, episode_latched)",
         "write_output_float_register(26 + axis, filtered_force[axis])",
         "write_output_float_register(32 + axis, last_k[axis])",
         "write_output_float_register(38 + axis, tau[axis])",

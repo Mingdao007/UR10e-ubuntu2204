@@ -238,7 +238,7 @@ def build(args: argparse.Namespace) -> dict[str, object]:
             "input_double_registers": list(range(24, 48)),
             "input_integer_registers": list(range(24, 36)),
             "output_double_registers": list(range(24, 44)),
-            "output_integer_registers": list(range(24, 34)),
+            "output_integer_registers": list(range(24, 36)),
             "applied_action": {
                 "filtered_f_ff": list(range(26, 32)),
                 "stiffness_k": list(range(32, 38)),

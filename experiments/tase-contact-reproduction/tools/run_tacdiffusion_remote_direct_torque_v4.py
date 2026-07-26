@@ -127,7 +127,7 @@ OUTPUT_FIELDS = [
     "robot_mode",
     "safety_mode",
     *[f"output_double_register_{index}" for index in range(24, 44)],
-    *[f"output_int_register_{index}" for index in range(24, 34)],
+    *[f"output_int_register_{index}" for index in range(24, 36)],
 ]
 
 
@@ -880,6 +880,8 @@ def _wait_for_fresh_receiver_waiting(
     output_fields: list[str],
     *,
     receiver_wait_s: float,
+    lease_id: int,
+    episode_identity: int,
     samples_out: list[dict[str, Any]] | None = None,
 ) -> tuple[float, Mapping[str, Any]]:
     deadline = time.monotonic() + receiver_wait_s
@@ -902,6 +904,14 @@ def _wait_for_fresh_receiver_waiting(
                 continue
             if runtime_state != RUNTIME_PLAYING:
                 waiting_stale = True
+                continue
+            if int(sample["output_int_register_34"]) != MODE_IDLE:
+                continue
+            if int(sample["output_int_register_35"]) != 1:
+                continue
+            if int(sample["output_int_register_27"]) != lease_id:
+                continue
+            if int(sample["output_int_register_31"]) != episode_identity:
                 continue
             return time.monotonic(), sample
     if waiting_stale:
@@ -996,6 +1006,8 @@ def _output_row(
         "episode_echo": int(sample["output_int_register_31"]),
         "protocol_echo": int(sample["output_int_register_32"]),
         "exit_reason": int(sample["output_int_register_33"]),
+        "observed_command_echo": int(sample["output_int_register_34"]),
+        "episode_latched_echo": int(sample["output_int_register_35"]),
         "max_abs_tau_nm": float(sample["output_double_register_24"]),
         "steptime_s": float(sample["output_double_register_25"]),
         "outgoing_command_mode": outgoing.command_mode,
@@ -1434,6 +1446,8 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 output_types,
                 OUTPUT_FIELDS,
                 receiver_wait_s=args.receiver_wait_s,
+                lease_id=lease_id,
+                episode_identity=episode_identity,
                 samples_out=handshake_samples,
             )
             pending = handshake_samples or [dict(sample)]

@@ -75,8 +75,16 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "direct_torque([0.0" not in source
     assert "entry_pose[axis] = actual_pose[axis]" in source
     assert "entry_tick < entry_blend_ticks" in source
+    assert "episode_latched == 0" in source
+    assert "startup_packet_ok = command == command_idle" in source
+    assert "packet_lease != lease_id or packet_episode != episode_identity" in source
+    assert source.index("episode_latched == 0") < source.index(
+        "direct_torque(tau, friction_comp=True)"
+    )
+    assert "write_output_integer_register(34, last_observed_command)" in source
+    assert "write_output_integer_register(35, episode_latched)" in source
     assert not re.search(r"(?m)^\s*return\b", source)
-    assert source.count("sync()") == 2
+    assert source.count("sync()") == 3
 
 
 def test_compile_probe_is_bounded_and_contains_no_motion_api() -> None:

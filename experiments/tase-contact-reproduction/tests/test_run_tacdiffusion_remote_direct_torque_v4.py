@@ -226,6 +226,8 @@ def _fake_output_sample(
         "output_int_register_31": 222,
         "output_int_register_32": LIVE_PROTOCOL_TOKEN,
         "output_int_register_33": 0,
+        "output_int_register_34": MODE_RUN,
+        "output_int_register_35": 1,
         "output_double_register_24": 0.0,
         "output_double_register_25": 0.002,
         "actual_TCP_pose": pose,
@@ -935,6 +937,8 @@ def test_wait_for_handshake_rejects_stale_waiting_marker_before_playing(monkeypa
                 [],
                 [],
                 receiver_wait_s=0.02,
+                lease_id=111,
+                episode_identity=222,
             )
 
 
@@ -961,7 +965,20 @@ def test_wait_for_handshake_accepts_playing_marker_with_matching_protocol(monkey
         {
             "output_int_register_24": STATE_WAITING,
             "runtime_state": RUNTIME_PLAYING,
+            "output_int_register_27": 999,
+            "output_int_register_31": 888,
             "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+            "output_int_register_34": MODE_RUN,
+            "output_int_register_35": 1,
+        },
+        {
+            "output_int_register_24": STATE_WAITING,
+            "runtime_state": RUNTIME_PLAYING,
+            "output_int_register_27": 111,
+            "output_int_register_31": 222,
+            "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+            "output_int_register_34": MODE_IDLE,
+            "output_int_register_35": 1,
         },
     ]
 
@@ -981,8 +998,10 @@ def test_wait_for_handshake_accepts_playing_marker_with_matching_protocol(monkey
             [],
             [],
             receiver_wait_s=1.0,
+            lease_id=111,
+            episode_identity=222,
         )
-    assert start > 0.03
+    assert start > 0.04
     assert sample["runtime_state"] == RUNTIME_PLAYING
 
 
@@ -1245,6 +1264,8 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
         "output_int_register_31": 222,
         "output_int_register_32": LIVE_PROTOCOL_TOKEN,
         "output_int_register_33": 0,
+        "output_int_register_34": MODE_IDLE,
+        "output_int_register_35": 1,
         "output_double_register_24": 0.0,
         "output_double_register_25": 0.0,
         "output_double_register_26": 0.0,
