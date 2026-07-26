@@ -88,6 +88,70 @@
       "mapping_to_measured_base_corners_validated": false
     }
   ],
+  "model_binding": {
+    "family": "two_piece_surface_smooth_v11",
+    "relative_path": "src/ur10e_example_controllers/meshes/contact_surface/two_piece_surface_smooth_v11_3mm_thick.stl",
+    "sha256": "c68d176a88260f7845f102c1dc6e9a60549d7c270738d1757050c0d79036c1cc",
+    "native_units": "mm",
+    "scale_to_m": 0.001,
+    "height_axis_in_stl": "y",
+    "in_plane_axes_in_stl": ["x", "z"],
+    "surface_selection": "outer top surface; at a fixed x,z choose the maximum STL-y shell member",
+    "global_top_minimum_is_unique": true,
+    "corner_mapping": [
+      {
+        "label": "right_upper",
+        "x_selector": "x_min",
+        "z_selector": "z_max",
+        "model_point_stl_mm": [-111.46788787841797, 90.33544921875, 150.0]
+      },
+      {
+        "label": "left_upper",
+        "x_selector": "x_mid",
+        "z_selector": "z_max",
+        "model_point_stl_mm": [-36.46788787841797, 101.20331573486328, 150.0]
+      },
+      {
+        "label": "left_lower",
+        "x_selector": "x_mid",
+        "z_selector": "z_min",
+        "model_point_stl_mm": [-36.46788787841797, 101.19680786132812, 0.0]
+      },
+      {
+        "label": "right_lower",
+        "x_selector": "x_min",
+        "z_selector": "z_min",
+        "model_point_stl_mm": [-111.46788787841797, 104.86717987060547, 0.0]
+      }
+    ],
+    "predicted_delta_z_mm": [0.0, 10.867866516113281, 10.861358642578125, 14.531730651855469],
+    "measured_minus_model_delta_z_mm": [0.0, -0.2635769376862367, 0.7110685522228799, -0.6276841858954452],
+    "height_delta_mismatch_tolerance_mm": 1.0,
+    "registration_model_to_base": {
+      "method": "Kabsch least-squares rigid fit",
+      "constant_probe_offset_absorbed_by_translation": true,
+      "rotation_matrix": [
+        [0.9999486131888249, -0.010070116707885976, -0.0011677890375893889],
+        [-0.001194800655963064, -0.0026767553270523603, -0.9999957037069271],
+        [0.01006694755818615, 0.9999457123916319, -0.0026886495591801826]
+      ],
+      "translation_base_m": [0.5381498433671528, 0.24919742926337962, -0.0837121596782277],
+      "predicted_points_base_m": [
+        [0.42560282659591075, 0.09908944971797853, 0.005092946629462511],
+        [0.5004895319008896, 0.09897074904919062, 0.01671524422195854],
+        [0.500664765791574, 0.24897012202521485, 0.01711203413559731],
+        [0.4256316587279174, 0.24904990738658397, 0.020027185822292473]
+      ],
+      "per_point_residual_m": [0.0029824481900019013, 0.001393354155991811, 0.0017551873823338107, 0.0019753727535945418],
+      "rms_residual_m": 0.0021106404995174313,
+      "max_residual_m": 0.0029824481900019013,
+      "limitations": [
+        "fit is to captured TCP/probe points, so constant probe offset is not separately identified",
+        "residuals include manual corner placement and TCP/model surface convention error",
+        "this is offline static registration, not physical contact or live controller validation"
+      ]
+    }
+  },
   "preprocessing_and_gates": {
     "planar_surface_gate": {
       "planarity_tolerance_m": 0.0001,
@@ -96,8 +160,8 @@
       "safe_inset_m": 0.003
     },
     "required_before_trajectory_generation": [
-      "resolve CAD/STL to base rigid transform",
-      "choose curved-surface parameterization or replace with a proven planar patch",
+      "consume the hashed v11 outer-top model binding and its recorded base-frame rigid fit",
+      "integrate the curved model parameterization into a TacDiffusion trajectory/model backend",
       "bind contact-tip/TCP and sensor-origin lever arm for the selected frame",
       "verify normal sign and surface correspondence without live motion"
     ]
@@ -107,13 +171,18 @@
     "pose_units_and_frame_validated": true,
     "rotvec_preprocessing_defined": true,
     "stl_identity_and_unit_scale_validated": true,
+    "unique_v11_corner_correspondence_validated": true,
+    "v11_height_delta_model_match_validated": true,
+    "cad_to_base_rigid_fit_validated_offline": true,
+    "model_aligned_curved_surface_ready": true,
     "planar_surface_ready": false,
-    "cad_to_base_transform_validated": false,
+    "cad_to_base_transform_validated": true,
+    "curved_trajectory_backend_ready": false,
     "model_active_allowed": false,
     "live_or_contact_ready": false,
     "blockers": [
-      "measured four-corner geometry is non-planar relative to the existing planar backend",
-      "neither STL candidate has a validated rigid transform to the measured base-frame corners",
+      "existing TacDiffusion trajectory backend remains planar-only; curved model integration is still required",
+      "rigid fit residuals are millimetre-scale and constant probe offset is absorbed rather than independently identified",
       "no live/controller/TP/bridge action is part of this offline preparation"
     ]
   }

@@ -8,16 +8,27 @@ assessed before a planar trajectory backend is allowed to consume it.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 import math
 from pathlib import Path
+import struct
 from typing import Any, Sequence
+
+import numpy as np
 
 from .surface import SurfaceCalibration, SurfacePose, calibrate_surface
 
 
 EXPECTED_SCHEMA = "ur10e_tacdiffusion_surface_input/v1"
 EXPECTED_CORNER_ORDER = ("right_upper", "left_upper", "left_lower", "right_lower")
+EXPECTED_MODEL_MAPPING = (
+    ("right_upper", "x_min", "z_max"),
+    ("left_upper", "x_mid", "z_max"),
+    ("left_lower", "x_mid", "z_min"),
+    ("right_lower", "x_min", "z_min"),
+)
+MODEL_HEIGHT_MISMATCH_TOLERANCE_M = 0.001
 
 
 def _finite_vector(values: Sequence[Any], size: int, name: str) -> tuple[float, ...]:
@@ -60,6 +71,40 @@ class SurfaceInputAssessment:
     planar_contract_eligible: bool
 
 
+@dataclass(frozen=True)
+class SurfaceModelBinding:
+    relative_path: str
+    path: Path
+    sha256: str
+    triangle_count: int
+    native_units: str
+    scale_to_m: float
+    height_axis_in_stl: str
+    in_plane_axes_in_stl: tuple[str, str]
+    model_corner_points_stl_mm: tuple[tuple[float, float, float], ...]
+    predicted_delta_z_m: tuple[float, ...]
+    global_top_minimum_is_unique: bool
+
+
+@dataclass(frozen=True)
+class RigidRegistration:
+    rotation_model_to_base: tuple[tuple[float, float, float], ...]
+    translation_base_m: tuple[float, float, float]
+    predicted_points_base_m: tuple[tuple[float, float, float], ...]
+    per_point_residual_m: tuple[float, ...]
+    rms_residual_m: float
+    max_residual_m: float
+
+
+@dataclass(frozen=True)
+class SurfaceModelAssessment:
+    binding: SurfaceModelBinding
+    registration: RigidRegistration
+    measured_minus_model_delta_z_m: tuple[float, ...]
+    height_delta_max_abs_m: float
+    model_match: bool
+
+
 def load_surface_input_manifest(path: str | Path) -> SurfaceInputSet:
     """Load a self-contained corner manifest without touching robot I/O."""
 
@@ -98,6 +143,175 @@ def load_surface_input_manifest(path: str | Path) -> SurfaceInputSet:
             )
         )
     return SurfaceInputSet(EXPECTED_SCHEMA, "base", tuple(labels), tuple(corners), manifest)
+
+
+def _resolve_repo_relative_path(manifest_path: Path, relative_path: str) -> Path:
+    for root in (manifest_path.parents[3], *manifest_path.parents):
+        candidate = root / relative_path
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(f"model asset is not present below manifest repo: {relative_path}")
+
+
+def _binary_stl_vertices(path: Path) -> tuple[int, tuple[tuple[float, float, float], ...]]:
+    payload = path.read_bytes()
+    if len(payload) < 84:
+        raise ValueError("selected STL is shorter than a binary STL header")
+    triangle_count = struct.unpack_from("<I", payload, 80)[0]
+    expected_size = 84 + 50 * triangle_count
+    if len(payload) != expected_size:
+        raise ValueError("selected STL is not the expected exact binary STL payload")
+    vertices: list[tuple[float, float, float]] = []
+    for index in range(triangle_count):
+        values = struct.unpack_from("<12f", payload, 84 + 50 * index)
+        vertices.extend((tuple(values[3:6]), tuple(values[6:9]), tuple(values[9:12])))
+    return triangle_count, tuple(vertices)
+
+
+def _top_surface_corner(
+    vertices: Sequence[Sequence[float]], x_target: float, z_target: float
+) -> tuple[float, float, float]:
+    candidates = [
+        vertex
+        for vertex in vertices
+        if abs(vertex[0] - x_target) <= 1e-4 and abs(vertex[2] - z_target) <= 1e-4
+    ]
+    if not candidates:
+        raise ValueError(f"STL has no surface vertex near x={x_target}, z={z_target}")
+    # The v11 binary contains shell thickness.  At a fixed (x,z), the outer
+    # top surface is the maximum STL-y member; the lower member is thickness.
+    top_y = max(vertex[1] for vertex in candidates)
+    return (float(x_target), float(top_y), float(z_target))
+
+
+def load_surface_model_binding(manifest_path: str | Path) -> SurfaceModelBinding:
+    """Hash and deterministically extract the selected v11 outer top surface."""
+
+    path = Path(manifest_path)
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    config = manifest.get("model_binding")
+    if not isinstance(config, dict):
+        raise ValueError("model_binding is required for the selected surface")
+    mapping = tuple(
+        (item.get("label"), item.get("x_selector"), item.get("z_selector"))
+        for item in config.get("corner_mapping", ())
+        if isinstance(item, dict)
+    )
+    if mapping != EXPECTED_MODEL_MAPPING:
+        raise ValueError("model corner correspondence does not match the unique v11 mapping")
+    if config.get("native_units") != "mm" or config.get("scale_to_m") != 0.001:
+        raise ValueError("selected v11 STL must be bound as millimetres scaled by 0.001")
+    if config.get("height_axis_in_stl") != "y" or tuple(config.get("in_plane_axes_in_stl", ())) != ("x", "z"):
+        raise ValueError("selected v11 STL axes must be height=y and in-plane=(x,z)")
+    relative_path = str(config.get("relative_path", ""))
+    stl_path = _resolve_repo_relative_path(path, relative_path)
+    actual_sha256 = hashlib.sha256(stl_path.read_bytes()).hexdigest()
+    if actual_sha256 != config.get("sha256"):
+        raise ValueError("selected v11 STL hash does not match the manifest")
+    triangle_count, vertices = _binary_stl_vertices(stl_path)
+    x_values = [vertex[0] for vertex in vertices]
+    z_values = [vertex[2] for vertex in vertices]
+    x_min, x_max = min(x_values), max(x_values)
+    z_min, z_max = min(z_values), max(z_values)
+    x_mid_target = (x_min + x_max) / 2.0
+    x_mid = min(set(x_values), key=lambda value: abs(value - x_mid_target))
+    selectors = {"x_min": x_min, "x_mid": x_mid, "z_min": z_min, "z_max": z_max}
+    model_points = tuple(
+        _top_surface_corner(vertices, selectors[x_selector], selectors[z_selector])
+        for _, x_selector, z_selector in EXPECTED_MODEL_MAPPING
+    )
+    expected_points = tuple(
+        tuple(float(value) for value in item["model_point_stl_mm"])
+        for item in config.get("corner_mapping", ())
+    )
+    if model_points != expected_points:
+        raise ValueError("selected v11 STL surface corners differ from the manifest")
+    top_heights = [point[1] for point in model_points]
+    unique_minimum = top_heights[0] == min(top_heights) and sum(
+        abs(value - top_heights[0]) <= 1e-6 for value in top_heights
+    ) == 1
+    if unique_minimum != bool(config.get("global_top_minimum_is_unique")):
+        raise ValueError("selected v11 global top minimum uniqueness does not match the manifest")
+    predicted_delta_z_m = tuple((point[1] - model_points[0][1]) * 0.001 for point in model_points)
+    return SurfaceModelBinding(
+        relative_path=relative_path,
+        path=stl_path,
+        sha256=actual_sha256,
+        triangle_count=triangle_count,
+        native_units="mm",
+        scale_to_m=0.001,
+        height_axis_in_stl="y",
+        in_plane_axes_in_stl=("x", "z"),
+        model_corner_points_stl_mm=model_points,
+        predicted_delta_z_m=predicted_delta_z_m,
+        global_top_minimum_is_unique=unique_minimum,
+    )
+
+
+def solve_rigid_registration(
+    model_points_m: Sequence[Sequence[float]], measured_points_m: Sequence[Sequence[float]]
+) -> RigidRegistration:
+    """Solve the least-squares model-to-base rigid transform with Kabsch."""
+
+    source = np.asarray(model_points_m, dtype=float)
+    target = np.asarray(measured_points_m, dtype=float)
+    if source.shape != (4, 3) or target.shape != (4, 3):
+        raise ValueError("rigid registration requires four 3D point pairs")
+    if not np.isfinite(source).all() or not np.isfinite(target).all():
+        raise ValueError("rigid registration points must be finite")
+    source_center = source.mean(axis=0)
+    target_center = target.mean(axis=0)
+    u_matrix, _, v_transpose = np.linalg.svd((source - source_center).T @ (target - target_center))
+    rotation = v_transpose.T @ u_matrix.T
+    if np.linalg.det(rotation) < 0.0:
+        v_transpose[-1, :] *= -1.0
+        rotation = v_transpose.T @ u_matrix.T
+    translation = target_center - rotation @ source_center
+    predicted = (rotation @ source.T).T + translation
+    residuals = np.linalg.norm(predicted - target, axis=1)
+    return RigidRegistration(
+        rotation_model_to_base=tuple(tuple(float(value) for value in row) for row in rotation),
+        translation_base_m=tuple(float(value) for value in translation),
+        predicted_points_base_m=tuple(tuple(float(value) for value in row) for row in predicted),
+        per_point_residual_m=tuple(float(value) for value in residuals),
+        rms_residual_m=float(math.sqrt(float(np.mean(residuals**2)))),
+        max_residual_m=float(np.max(residuals)),
+    )
+
+
+def assess_surface_model(
+    surface_input: SurfaceInputSet,
+    binding: SurfaceModelBinding,
+    *,
+    mismatch_tolerance_m: float = MODEL_HEIGHT_MISMATCH_TOLERANCE_M,
+) -> SurfaceModelAssessment:
+    """Bind model height deltas and fit the static CAD-to-base transform."""
+
+    if mismatch_tolerance_m <= 0.0 or not math.isfinite(mismatch_tolerance_m):
+        raise ValueError("model mismatch tolerance must be finite and positive")
+    measured_points = tuple(corner.position_base_m for corner in surface_input.corners)
+    measured_delta_z = tuple(point[2] - measured_points[0][2] for point in measured_points)
+    height_residuals = tuple(
+        measured - predicted for measured, predicted in zip(measured_delta_z, binding.predicted_delta_z_m)
+    )
+    maximum = max(abs(value) for value in height_residuals)
+    registration = solve_rigid_registration(
+        tuple(tuple(value * binding.scale_to_m for value in point) for point in binding.model_corner_points_stl_mm),
+        measured_points,
+    )
+    assessment = SurfaceModelAssessment(
+        binding=binding,
+        registration=registration,
+        measured_minus_model_delta_z_m=height_residuals,
+        height_delta_max_abs_m=maximum,
+        model_match=maximum <= mismatch_tolerance_m,
+    )
+    if not assessment.model_match:
+        raise ValueError(
+            "measured height deltas do not match the selected v11 model: "
+            f"max_abs_residual_m={maximum:.9g} > tolerance_m={mismatch_tolerance_m:.9g}"
+        )
+    return assessment
 
 
 def assess_surface_input(surface_input: SurfaceInputSet) -> SurfaceInputAssessment:
