@@ -68,6 +68,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _update_compile_probe_markers,
     _run_live_locked,
     _write_json_new,
+    analyze_entry_bumplessness,
     command_values,
     validate_authorization,
     validate_bundle,
@@ -89,6 +90,36 @@ REFERENCE = PASSIVE_RUN / "unknown_surface_anchor_circle_no_contact_2s_reference
 BUILDER = VIC_ROOT / "tools" / "build_tacdiffusion_direct_torque_live_v4.py"
 RUNNER = TOOLS / "run_tacdiffusion_remote_direct_torque_v4.py"
 KUNWEI_CALIBRATION = ROOT / "config/step5d_tacdiffusion_sensor_frame_v1.json"
+
+
+def test_entry_replay_classifies_zero_custom_tau_before_acceleration() -> None:
+    def row(timestamp_s: float, qd_1: float) -> dict[str, float]:
+        result = {
+            "receiver_state": 1.0,
+            "ack_sequence": 1.0,
+            "controller_timestamp_s": timestamp_s,
+        }
+        for axis in range(6):
+            result[f"commanded_joint_torque_nm_{axis}"] = 0.0
+            result[f"command_desired_pose_{axis}"] = 0.0
+            result[f"actual_TCP_pose_{axis}"] = 0.0
+            result[f"actual_TCP_speed_{axis}"] = 0.0
+            result[f"actual_qd_{axis}"] = qd_1 if axis == 1 else 0.0
+        return result
+
+    analysis = analyze_entry_bumplessness(
+        [row(10.000, 0.0), row(10.002, 0.020)]
+    )
+    assert analysis["zero_custom_torque_at_entry"] is True
+    assert analysis["acceleration_after_zero_custom_torque"] is True
+    assert analysis["maximum_derived_abs_joint_acceleration_rad_s2"] == (
+        pytest.approx(10.0)
+    )
+    assert analysis["classification"] == (
+        "mode_or_internal_friction_transition_precedes_custom_impedance_response"
+    )
+    assert analysis["motion_performed"] is False
+    assert analysis["controller_io_performed"] is False
 
 
 class FakeKunweiCapture:
@@ -318,7 +349,10 @@ def _fake_control_bundle(pose: list[float], *, unsafe_x: float | None = None):
                 raise RuntimeError("actual_pose_outside_tube")
 
     class FakeTimeline:
-        duration_s = 0.001
+        # This transport-only fixture ends immediately after the first
+        # observed torque batch. Real canary timelines remain strictly
+        # positive and start their clock at first observed Direct Torque.
+        duration_s = 0.0
         rows = [{"progress_s": 0.0, "desired_pose_base": tuple(pose)}]
 
         @staticmethod
@@ -636,19 +670,37 @@ def test_remote_config_preserves_native_kunwei_rate_and_runtime_binding() -> Non
     assert capture["native_sensor_sample_rate_hz"] == 1000
     assert capture["sensor_delivery_watchdog_s"] == 0.08
     assert capture["causal_1khz_alignment_valid"] is False
+    hold = config["hold_contract"]
+    assert hold["stage_clock_origin"] == "first_observed_direct_torque_state"
+    assert hold["stationary_entry_dwell_counts_toward_stage_duration"] is False
     control = config["direct_torque_control_contract"]
     assert control["startup_equilibrium_blend_s"] == 0.1
+    assert control["startup_stationary_dwell_s"] == 0.05
+    assert control["startup_stationary_dwell_ticks"] == 25
+    assert control["startup_stationary_limits"] == {
+        "maximum_abs_joint_speed_rad_s": 0.001,
+        "maximum_tcp_translation_speed_m_s": 0.001,
+        "maximum_tcp_rotation_speed_rad_s": 0.002,
+    }
     assert control["startup_gain_blend_s"] == 0.0
     assert control["startup_gain_policy"] == (
         "full_commanded_gain_from_first_direct_torque_tick"
     )
     assert control["friction_compensation"]["startup_blend_s"] == 0.0
+    assert control["friction_compensation"]["startup_policy"] == (
+        "disabled_for_no_contact_entry_canary"
+    )
+    assert control["friction_compensation"]["viscous_scale_target"] == [0.0] * 6
+    assert control["friction_compensation"]["coulomb_scale_target"] == [0.0] * 6
     assert control["active_speed_guards"] == {
         "maximum_abs_joint_speed_rad_s": 0.02,
+        "maximum_abs_derived_joint_acceleration_rad_s2": 5.0,
+        "joint_acceleration_definition": "500hz_actual_qd_finite_difference",
         "maximum_tcp_translation_speed_m_s": 0.01,
         "maximum_tcp_rotation_speed_rad_s": 0.02,
         "violation_action": "common_exit_stopj",
-        "fault_code": 11,
+        "speed_fault_code": 11,
+        "acceleration_fault_code": 12,
     }
     serialized = json.dumps(config, sort_keys=True)
     assert "sensor_stale_s" not in serialized

@@ -295,14 +295,22 @@ def build_live_receiver_source(
   local k_min = [25.0, 25.0, 25.0, 0.5, 0.5, 0.5]
   local k_max = [1000.0, 1000.0, 1000.0, 60.0, 60.0, 60.0]
   local receiver_force_limit = [20.0, 20.0, 20.0, 2.0, 2.0, 2.0]
-  local viscous_scale_target = [0.9, 0.9, 0.8, 0.9, 0.9, 0.9]
-  local coulomb_scale_target = [0.8, 0.8, 0.7, 0.8, 0.8, 0.8]
+  # Gravity is compensated internally by direct_torque().  The no-contact
+  # canary deliberately disables UR friction/stiction injection so that a
+  # zero-error, zero-speed entry has a zero non-gravity torque equilibrium.
+  local viscous_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local coulomb_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local virtual_mass = [2.0, 2.0, 2.0, 0.2, 0.2, 0.2]
   local damping_ratio = 1.0
   local critical_natural_frequency_rad_s = 92.10340371976183
   local critical_decay = 0.8317438636116526
   local entry_blend_ticks = 50
+  local entry_stable_ticks_required = 25
+  local entry_tcp_translation_speed_limit_m_s = 0.001
+  local entry_tcp_rotation_speed_limit_rad_s = 0.002
+  local entry_joint_speed_limit_rad_s = 0.001
   local active_joint_speed_limit_rad_s = 0.02
+  local active_joint_acceleration_limit_rad_s2 = 5.0
   local active_tcp_translation_speed_limit_m_s = 0.01
   local active_tcp_rotation_speed_limit_rad_s = 0.02
   local command_idle = 0
@@ -312,6 +320,7 @@ def build_live_receiver_source(
   local running = True
   local torque_entered = False
   local entry_tick = 0
+  local entry_stable_ticks = 0
   local exit_fault = 0
   local exit_reason = 0
   local last_sequence = 0
@@ -331,6 +340,8 @@ def build_live_receiver_source(
   local filtered_force = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local filter_velocity = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
   local entry_pose = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local last_qd = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  local last_qd_valid = False
   write_output_integer_register(24, 0)
   write_output_integer_register(25, 0)
   write_output_integer_register(26, 0)
@@ -557,6 +568,16 @@ def build_live_receiver_source(
         local actual_speed = get_actual_tcp_speed()
         local q = get_actual_joint_positions()
         local qd = get_actual_joint_speeds()
+        local qdd = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        local qdd_axis = 0
+        while qdd_axis < 6:
+          if last_qd_valid:
+            qdd[qdd_axis] = 500.0*(qd[qdd_axis] - last_qd[qdd_axis])
+          end
+          last_qd[qdd_axis] = qd[qdd_axis]
+          qdd_axis = qdd_axis + 1
+        end
+        last_qd_valid = True
         local actual_translation_speed = sqrt(actual_speed[0]*actual_speed[0] + actual_speed[1]*actual_speed[1] + actual_speed[2]*actual_speed[2])
         local actual_rotation_speed = sqrt(actual_speed[3]*actual_speed[3] + actual_speed[4]*actual_speed[4] + actual_speed[5]*actual_speed[5])
         local actual_dx = actual_pose[0] - tube_center_base[0]
@@ -568,6 +589,7 @@ def build_live_receiver_source(
         local actual_orientation_norm = sqrt(actual_orientation_error[3]*actual_orientation_error[3] + actual_orientation_error[4]*actual_orientation_error[4] + actual_orientation_error[5]*actual_orientation_error[5])
         local control_ok = True
         local active_speed_violation = False
+        local active_acceleration_violation = False
         if actual_u > tube_u_half_width_m or actual_u < -tube_u_half_width_m:
           control_ok = False
         end
@@ -589,30 +611,48 @@ def build_live_receiver_source(
             if qd[axis] > active_joint_speed_limit_rad_s or qd[axis] < -active_joint_speed_limit_rad_s:
               active_speed_violation = True
             end
+            if qdd[axis] > active_joint_acceleration_limit_rad_s2 or qdd[axis] < -active_joint_acceleration_limit_rad_s2:
+              active_acceleration_violation = True
+            end
             axis = axis + 1
           end
-          if active_speed_violation:
+          if active_speed_violation or active_acceleration_violation:
             control_ok = False
           end
         end
+        local entry_ready = torque_entered
         if not torque_entered:
+          entry_ready = True
           local release_error = pose_sub(p[last_eq[0], last_eq[1], last_eq[2], last_eq[3], last_eq[4], last_eq[5]], actual_pose)
           local release_translation = sqrt(release_error[0]*release_error[0] + release_error[1]*release_error[1] + release_error[2]*release_error[2])
-          local release_speed = sqrt(actual_speed[0]*actual_speed[0] + actual_speed[1]*actual_speed[1] + actual_speed[2]*actual_speed[2])
-          if release_translation > release_ready_tolerance_m or release_speed > 0.005:
+          if release_translation > release_ready_tolerance_m:
             control_ok = False
+          end
+          if actual_translation_speed > entry_tcp_translation_speed_limit_m_s or actual_rotation_speed > entry_tcp_rotation_speed_limit_rad_s:
+            entry_ready = False
           end
           axis = 0
           while axis < 6:
-            if qd[axis] > 0.02 or qd[axis] < -0.02:
-              control_ok = False
+            if qd[axis] > entry_joint_speed_limit_rad_s or qd[axis] < -entry_joint_speed_limit_rad_s:
+              entry_ready = False
             end
             entry_pose[axis] = actual_pose[axis]
             axis = axis + 1
           end
+          if entry_ready:
+            entry_stable_ticks = entry_stable_ticks + 1
+          else:
+            entry_stable_ticks = 0
+          end
+          if entry_stable_ticks < entry_stable_ticks_required:
+            entry_ready = False
+          end
         end
         if not control_ok:
-          if active_speed_violation:
+          if active_acceleration_violation:
+            exit_fault = 12
+            exit_reason = 12
+          elif active_speed_violation:
             exit_fault = 11
             exit_reason = 11
           else:
@@ -620,6 +660,20 @@ def build_live_receiver_source(
             exit_reason = 6
           end
           running = False
+        elif not entry_ready:
+          write_output_integer_register(24, 0)
+          write_output_integer_register(25, last_sequence)
+          write_output_integer_register(26, 0)
+          write_output_integer_register(27, lease_id)
+          write_output_integer_register(28, last_model_sequence)
+          write_output_integer_register(29, 0)
+          write_output_integer_register(30, frame_token)
+          write_output_integer_register(31, episode_identity)
+          write_output_integer_register(32, receiver_protocol_token)
+          write_output_integer_register(33, 0)
+          write_output_integer_register(34, last_observed_command)
+          write_output_integer_register(35, episode_latched)
+          sync()
         else:
           local blend = 1.0
           if entry_tick < entry_blend_ticks:
@@ -775,15 +829,23 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "def tacdiffusion_remote_direct_torque_v4_program():",
         "tacdiffusion_remote_direct_torque_v4_program()",
         "entry_pose[axis] = actual_pose[axis]",
+        "entry_stable_ticks_required = 25",
+        "entry_joint_speed_limit_rad_s = 0.001",
+        "entry_stable_ticks < entry_stable_ticks_required",
         "guard_wrench = [read_input_float_register(36)",
         "guard_force_norm > 6.0 or guard_torque_norm > 0.5",
         "entry_tick < entry_blend_ticks",
         "control_k[axis] = last_k[axis]",
+        "viscous_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
+        "coulomb_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]",
         "viscous_scale[axis] = viscous_scale_target[axis]",
         "coulomb_scale[axis] = coulomb_scale_target[axis]",
         "actual_translation_speed > active_tcp_translation_speed_limit_m_s",
         "actual_rotation_speed > active_tcp_rotation_speed_limit_rad_s",
         "active_speed_violation",
+        "qdd[qdd_axis] = 500.0*(qd[qdd_axis] - last_qd[qdd_axis])",
+        "active_joint_acceleration_limit_rad_s2 = 5.0",
+        "active_acceleration_violation",
         "get_coriolis_and_centrifugal_torques(q, qd)",
         "get_jacobian(q)",
         "running = False",

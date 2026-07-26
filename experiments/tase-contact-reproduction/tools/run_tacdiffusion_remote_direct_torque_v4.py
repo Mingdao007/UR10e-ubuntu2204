@@ -138,6 +138,7 @@ CANARY_STAGE_DURATIONS_S = {
     CANARY_STAGE_RAMP: 0.5,
     CANARY_STAGE_REFERENCE: 2.0,
 }
+ENTRY_ANALYSIS_WINDOW_S = 0.020
 
 _LIVE_WRITER_PATTERNS = (
     "run_tacdiffusion_remote_direct_torque_v4.py",
@@ -177,6 +178,160 @@ OUTPUT_FIELDS = [
     *[f"output_double_register_{index}" for index in range(24, 44)],
     *[f"output_int_register_{index}" for index in range(24, 36)],
 ]
+
+
+def _maximum_derived_abs_joint_acceleration(
+    rows: Sequence[Mapping[str, Any]],
+) -> float:
+    maximum = 0.0
+    for left, right in zip(rows, rows[1:]):
+        dt_s = float(right["controller_timestamp_s"]) - float(
+            left["controller_timestamp_s"]
+        )
+        if dt_s <= 0.0:
+            continue
+        maximum = max(
+            maximum,
+            *(
+                abs(
+                    float(right[f"actual_qd_{axis}"])
+                    - float(left[f"actual_qd_{axis}"])
+                )
+                / dt_s
+                for axis in range(6)
+            ),
+        )
+    return maximum
+
+
+def analyze_entry_bumplessness(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Classify the first 20 ms of a recorded Direct Torque transition."""
+
+    if not rows:
+        raise ValueError("entry_analysis_rows_empty")
+    active_indices = [
+        index
+        for index, row in enumerate(rows)
+        if int(float(row["receiver_state"])) in (STATE_STARTUP, STATE_TORQUE)
+        and int(float(row["ack_sequence"])) > 0
+    ]
+    if not active_indices:
+        raise ValueError("entry_analysis_direct_torque_state_missing")
+    first_index = active_indices[0]
+    first = rows[first_index]
+    first_timestamp = float(first["controller_timestamp_s"])
+    window = [
+        row
+        for row in rows[first_index:]
+        if float(row["controller_timestamp_s"]) - first_timestamp
+        <= ENTRY_ANALYSIS_WINDOW_S + 1e-12
+    ]
+    if len(window) < 2:
+        raise ValueError("entry_analysis_window_too_short")
+
+    first_tau = tuple(
+        float(first[f"commanded_joint_torque_nm_{axis}"]) for axis in range(6)
+    )
+    first_tau_max_abs = max(abs(value) for value in first_tau)
+    first_pose_error_translation_m = math.dist(
+        [
+            float(first[f"command_desired_pose_{axis}"])
+            for axis in range(3)
+        ],
+        [float(first[f"actual_TCP_pose_{axis}"]) for axis in range(3)],
+    )
+    first_pose_error_rotation_raw_rad = math.dist(
+        [
+            float(first[f"command_desired_pose_{axis}"])
+            for axis in range(3, 6)
+        ],
+        [float(first[f"actual_TCP_pose_{axis}"]) for axis in range(3, 6)],
+    )
+
+    maximum_abs_joint_speed_rad_s = max(
+        abs(float(row[f"actual_qd_{axis}"]))
+        for row in window
+        for axis in range(6)
+    )
+    maximum_tcp_translation_speed_m_s = max(
+        math.sqrt(
+            sum(
+                float(row[f"actual_TCP_speed_{axis}"]) ** 2
+                for axis in range(3)
+            )
+        )
+        for row in window
+    )
+    maximum_tcp_rotation_speed_rad_s = max(
+        math.sqrt(
+            sum(
+                float(row[f"actual_TCP_speed_{axis}"]) ** 2
+                for axis in range(3, 6)
+            )
+        )
+        for row in window
+    )
+    maximum_derived_abs_joint_acceleration_rad_s2 = (
+        _maximum_derived_abs_joint_acceleration(window)
+    )
+
+    zero_custom_torque_at_entry = first_tau_max_abs <= 1e-6
+    acceleration_after_zero_custom_torque = (
+        maximum_derived_abs_joint_acceleration_rad_s2 > 5.0
+    )
+    return {
+        "schema": "ur10e_direct_torque_entry_bumplessness_analysis/v1",
+        "claim_class": "offline_replay_of_recorded_live_no_contact_entry",
+        "first_direct_torque_row_index": first_index,
+        "analysis_window_s": ENTRY_ANALYSIS_WINDOW_S,
+        "analysis_window_rows": len(window),
+        "first_commanded_joint_torque_nm": list(first_tau),
+        "first_commanded_joint_torque_max_abs_nm": first_tau_max_abs,
+        "first_pose_error_translation_m": first_pose_error_translation_m,
+        "first_pose_error_rotation_raw_rad": first_pose_error_rotation_raw_rad,
+        "maximum_abs_joint_speed_rad_s": maximum_abs_joint_speed_rad_s,
+        "maximum_tcp_translation_speed_m_s": (
+            maximum_tcp_translation_speed_m_s
+        ),
+        "maximum_tcp_rotation_speed_rad_s": maximum_tcp_rotation_speed_rad_s,
+        "maximum_derived_abs_joint_acceleration_rad_s2": (
+            maximum_derived_abs_joint_acceleration_rad_s2
+        ),
+        "zero_custom_torque_at_entry": zero_custom_torque_at_entry,
+        "acceleration_after_zero_custom_torque": (
+            acceleration_after_zero_custom_torque
+        ),
+        "classification": (
+            "mode_or_internal_friction_transition_precedes_custom_impedance_response"
+            if zero_custom_torque_at_entry
+            and acceleration_after_zero_custom_torque
+            else "entry_not_classified"
+        ),
+        "causal_limit": (
+            "recorded replay distinguishes the initial custom torque command "
+            "from the transition response but does not by itself distinguish "
+            "all controller-internal torque-mode effects; the zero-friction "
+            "canary is the isolating experiment"
+        ),
+        "motion_performed": False,
+        "controller_io_performed": False,
+    }
+
+
+def analyze_entry_csv(
+    csv_path: Path,
+    output_path: Path | None = None,
+) -> dict[str, Any]:
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    result = analyze_entry_bumplessness(rows)
+    result["source_csv"] = str(csv_path.resolve())
+    result["source_csv_sha256"] = _sha256(csv_path)
+    if output_path is not None:
+        _write_json_new(output_path.resolve(), result)
+    return result
 
 
 def _sha256(path: Path) -> str:
@@ -1972,6 +2127,7 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
     samples: list[dict[str, Any]] = []
     sent_sequences = 0
     observed_torque = False
+    torque_start_elapsed_s: float | None = None
     complete = False
     start: float | None = None
     initial_command = _command_packet(
@@ -2057,8 +2213,15 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     raise RuntimeError("output_batch_safety_failed:" + ";".join(errors))
 
                 elapsed = time.monotonic() - start
-                if elapsed >= timeline.duration_s and observed_torque:
-                    end_row = timeline.row_at(elapsed)
+                if batch_torque and torque_start_elapsed_s is None:
+                    torque_start_elapsed_s = elapsed
+                active_elapsed_s = (
+                    0.0
+                    if torque_start_elapsed_s is None
+                    else max(0.0, elapsed - torque_start_elapsed_s)
+                )
+                if active_elapsed_s >= timeline.duration_s and observed_torque:
+                    end_row = timeline.row_at(active_elapsed_s)
                     end_command = _command_packet(
                         command=MODE_END,
                         sequence=outgoing.lineage.command_sequence,
@@ -2124,7 +2287,7 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                         int(last_sample["output_int_register_25"])
                     )
                     if next_sequence is not None:
-                        command_row = timeline.row_at(elapsed)
+                        command_row = timeline.row_at(active_elapsed_s)
                         next_command = _command_packet(
                             command=MODE_RUN,
                             sequence=next_sequence,
@@ -2232,6 +2395,15 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "lease_id": lease_id,
                 "episode_identity": episode_identity,
                 "duration_s": time.monotonic() - start if start is not None else 0.0,
+                "active_direct_torque_duration_s": (
+                    None
+                    if torque_start_elapsed_s is None or start is None
+                    else max(
+                        0.0,
+                        time.monotonic() - start - torque_start_elapsed_s,
+                    )
+                ),
+                "stationary_entry_dwell_excluded_from_stage_clock": True,
                 "sample_count": len(samples),
                 "total_rows": len(samples),
                 "sent_sequences": sent_sequences,
@@ -2285,6 +2457,14 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
             lineage_misses = sum(
                 int(row["ack_command_lineage_missing"]) for row in samples
             )
+            maximum_derived_abs_joint_acceleration_rad_s2 = (
+                _maximum_derived_abs_joint_acceleration(samples)
+            )
+            entry_analysis: dict[str, Any] | None = None
+            try:
+                entry_analysis = analyze_entry_bumplessness(samples)
+            except ValueError:
+                pass
             rate_gate = bool(
                 timestamps
                 and len(timestamps) >= 0.9 * expected_rows
@@ -2294,6 +2474,12 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "no_nonmonotonic_timestamps": nonmonotonic_count == 0,
                 "observed_direct_torque": observed_torque,
                 "observed_complete": complete,
+                "entry_bumplessness_analysis_present": (
+                    entry_analysis is not None
+                ),
+                "maximum_derived_abs_joint_acceleration_le_5rad_s2": (
+                    maximum_derived_abs_joint_acceleration_rad_s2 <= 5.0
+                ),
                 "at_least_90_percent_expected_500hz_rows": rate_gate,
                 "kunwei_baseline_complete": (
                     kunwei_summary["post_baseline_samples"] >= 50
@@ -2326,6 +2512,10 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     "duplicate_timestamp_count": duplicate_count,
                     "nonmonotonic_timestamp_count": nonmonotonic_count,
                     "ack_command_lineage_misses": lineage_misses,
+                    "maximum_derived_abs_joint_acceleration_rad_s2": (
+                        maximum_derived_abs_joint_acceleration_rad_s2
+                    ),
+                    "entry_bumplessness": entry_analysis,
                     "strict_success_gate": strict_gate,
                 }
             )
@@ -2458,6 +2648,12 @@ def build_parser() -> argparse.ArgumentParser:
     baseline.add_argument("--duration-s", type=float, default=2.0)
     baseline.add_argument("--output-dir", type=Path, required=True)
     baseline.add_argument("--connect-timeout-s", type=float, default=3.0)
+    analyze_entry = subparsers.add_parser(
+        "analyze-entry",
+        help="offline replay of the first 20 ms of a recorded torque transition",
+    )
+    analyze_entry.add_argument("--csv", type=Path, required=True)
+    analyze_entry.add_argument("--output", type=Path)
     probe = subparsers.add_parser(
         "compile-probe",
         help="explicitly authorized controller parser/connectivity probe without motion",
@@ -2520,6 +2716,8 @@ def main(argv: list[str] | None = None) -> int:
             result = readonly_status(args.robot_host)
         elif args.command == "normal-torque-baseline":
             result = run_normal_torque_baseline(args)
+        elif args.command == "analyze-entry":
+            result = analyze_entry_csv(args.csv.resolve(), args.output)
         elif args.command == "compile-probe":
             result = run_compile_probe(args)
         else:

@@ -75,12 +75,30 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
         "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
     ) == 1
     assert "friction_comp=True" not in source
+    assert (
+        "viscous_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
+        in source
+    )
+    assert (
+        "coulomb_scale_target = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
+        in source
+    )
     assert "viscous_scale[axis] = viscous_scale_target[axis]" in source
     assert "coulomb_scale[axis] = coulomb_scale_target[axis]" in source
     assert "blend*viscous_scale_target[axis]" not in source
     assert "blend*coulomb_scale_target[axis]" not in source
     assert "direct_torque([0.0" not in source
     assert "entry_pose[axis] = actual_pose[axis]" in source
+    assert "entry_stable_ticks_required = 25" in source
+    assert "entry_tcp_translation_speed_limit_m_s = 0.001" in source
+    assert "entry_tcp_rotation_speed_limit_rad_s = 0.002" in source
+    assert "entry_joint_speed_limit_rad_s = 0.001" in source
+    assert "entry_stable_ticks < entry_stable_ticks_required" in source
+    assert "elif not entry_ready:" in source
+    assert (
+        source.index("elif not entry_ready:")
+        < source.index("write_output_integer_register(24, 0)", source.index("elif not entry_ready:"))
+    )
     assert "guard_wrench = [read_input_float_register(36)" in source
     assert "guard_force_norm > 6.0 or guard_torque_norm > 0.5" in source
     assert "get_tcp_force()" not in source
@@ -88,11 +106,19 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "control_k[axis] = last_k[axis]" in source
     assert "k_min[axis] + blend*(last_k[axis] - k_min[axis])" not in source
     assert "active_joint_speed_limit_rad_s = 0.02" in source
+    assert "active_joint_acceleration_limit_rad_s2 = 5.0" in source
     assert "active_tcp_translation_speed_limit_m_s = 0.01" in source
     assert "active_tcp_rotation_speed_limit_rad_s = 0.02" in source
+    assert "get_actual_joint_accelerations()" not in source
+    assert (
+        "qdd[qdd_axis] = 500.0*(qd[qdd_axis] - last_qd[qdd_axis])"
+        in source
+    )
     assert "if torque_entered:" in source
     assert "active_speed_violation = True" in source
+    assert "active_acceleration_violation = True" in source
     assert "exit_fault = 11" in source
+    assert "exit_fault = 12" in source
     assert "virtual_mass[axis]*control_k[axis]" in source
     assert "control_k[axis]*pose_error[axis]" in source
     assert "episode_latched == 0" in source
@@ -104,7 +130,7 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "write_output_integer_register(34, last_observed_command)" in source
     assert "write_output_integer_register(35, episode_latched)" in source
     assert not re.search(r"(?m)^\s*return\b", source)
-    assert source.count("sync()") == 3
+    assert source.count("sync()") == 4
 
 
 def test_compile_probe_is_bounded_and_contains_no_motion_api() -> None:

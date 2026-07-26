@@ -9108,7 +9108,27 @@
         "host_sequence_policy": "v34_absolute_deadline_ack_gated_no_burst",
         "host_release_period_s": 0.002,
         "burst_catchup_allowed": false,
+        "stage_clock_origin": "first_observed_direct_torque_state",
+        "stationary_entry_dwell_counts_toward_stage_duration": false,
         "max_unchanged_packet_hold_robot_ticks": 10
+      },
+      "direct_torque_entry_contract": {
+        "entry_pose": "fresh_actual_pose",
+        "stationary_dwell_ticks": 25,
+        "stationary_dwell_s": 0.05,
+        "maximum_abs_joint_speed_rad_s": 0.001,
+        "maximum_tcp_translation_speed_m_s": 0.001,
+        "maximum_tcp_rotation_speed_rad_s": 0.002,
+        "ur_internal_gravity_compensation": true,
+        "commanded_gravity_term": false,
+        "viscous_scale": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "coulomb_scale": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        "derived_joint_acceleration_guard_rad_s2": 5.0,
+        "joint_acceleration_definition": "500hz_actual_qd_finite_difference",
+        "acceleration_fault_code": 12,
+        "root_cause_evidence": "runs/tacdiffusion/direct_torque_v4_v34reuse_live_20260726T1859HKT/hold_100ms/entry_bumplessness_analysis_v1.json",
+        "root_fix_claim": "zero_friction_mode_entry_isolation",
+        "guard_claim": "acceleration_guard_is_defense_in_depth_not_root_fix"
       },
       "kunwei_capture_contract": {
         "force_source": "kunwei_software_baselined_sensor_to_tcp_si",
@@ -9135,7 +9155,7 @@
         "current_stage_pointer": "config/current_stage.json",
         "live_authorized": false
       },
-      "success_condition": "Direct Torque RTDE v4 remains an inactive no-contact candidate. Each new source fingerprint must pass compile probe, 100 ms hold, 0.2 mm/500 ms ramp, and bounded 2 s reference in order, with Direct Torque and COMPLETE observed, at least 90% of expected 500 Hz RTDE rows, zero lineage/parse/drop errors, Kunwei raw rate 900-1100 Hz, and TCP delivery gaps within 80 ms. This does not imply contact success or training-data eligibility."
+      "success_condition": "Direct Torque RTDE v4 remains an inactive no-contact candidate. Each new source fingerprint must pass compile probe, 50 ms consecutive stationary entry, zero-friction-scale 100 ms hold, 0.2 mm/500 ms ramp, and bounded 2 s reference in order, with Direct Torque and COMPLETE observed, actual joint acceleration at or below 5 rad/s^2, at least 90% of expected 500 Hz RTDE rows, zero lineage/parse/drop errors, Kunwei raw rate 900-1100 Hz, and TCP delivery gaps within 80 ms. This does not imply contact success or training-data eligibility."
     },
     {
       "id": "step5d_strict_rnn_ablation_v30",

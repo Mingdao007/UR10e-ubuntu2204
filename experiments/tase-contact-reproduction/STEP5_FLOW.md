@@ -95,6 +95,13 @@ Kunwei stays a native 1 kHz raw stream; its `80 ms` value is a TCP
 receive-batch delivery watchdog, not a sample period. Batch arrival identity
 and nominal sample-index time must both be recorded, and the route remains
 `training_dataset=false` until 1 ms causal force/robot alignment is validated.
+The failed 2026-07-26 hold entered with an exactly zero echoed custom joint
+torque but then reached `10.8513 rad/s²` derived joint acceleration inside
+20 ms. The successor fingerprint therefore requires 50 ms of consecutive
+stationarity and disables all UR viscous/Coulomb friction scales for the
+no-contact entry canary while retaining `direct_torque()` internal gravity
+compensation. Fault 12 classifies `Δactual_qd / 2 ms` above `5 rad/s²`; it is
+a secondary stop guard, not the root-cause remedy.
 
 That timing gate is not a generic post-edit check. Its freeze invalidates only
 when the timing-critical bridge, outer, RNN, control contract, operator, or

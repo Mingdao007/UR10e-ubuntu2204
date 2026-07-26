@@ -87,9 +87,29 @@ The controller source has one
 top-level 500 Hz state machine. Once torque starts, every active robot tick
 computes and sends a
 `direct_torque(..., viscous_scale=..., coulomb_scale=...)` command;
-startup blends from the fresh actual pose for 100 ms, and every exit converges
-to one `stopj(10.0)` site. There is no deliberately zero-vector startup or
-exit command; a computed torque may still be zero at exact equilibrium.
+the receiver first requires 25 consecutive stationary controller ticks
+(50 ms), then startup blends from the fresh actual pose for 100 ms. The
+no-contact entry canary sets all UR viscous and Coulomb friction scales to
+zero. `direct_torque()` continues to provide its documented internal gravity
+compensation; the commanded torque therefore contains no gravity term.
+The stage trajectory clock begins only after the host first observes the
+Direct Torque state, so the stationary dwell cannot shorten the 100 ms hold
+or advance a later ramp/reference before torque entry.
+Every exit converges to one `stopj(10.0)` site. There is no deliberately
+zero-vector startup or exit command; the computed non-gravity torque is
+expected to be zero at exact equilibrium and zero velocity.
+
+The zero-friction policy is a root-cause isolation change, not a `Δtau`
+workaround. In the failed 2026-07-26 hold, the first echoed six-axis custom
+torque was exactly zero while derived joint acceleration reached
+`10.8513 rad/s²` within the first 20 ms. The replay artifact is
+`runs/tacdiffusion/direct_torque_v4_v34reuse_live_20260726T1859HKT/hold_100ms/entry_bumplessness_analysis_v1.json`.
+This proves that the initial motion preceded any nonzero custom impedance
+torque, while the next zero-friction canary remains necessary to distinguish
+friction/stiction injection from other controller-internal mode-transition
+effects. A separate `5 rad/s²` guard, derived from consecutive 500 Hz
+`actual_qd` samples, reports fault 12; it is defense-in-depth and is not
+claimed as the root fix.
 
 The compile probe is a distinct no-motion program: it contains no
 `direct_torque`, `stopj`, motion primitive, or RTDE input read. A successful
