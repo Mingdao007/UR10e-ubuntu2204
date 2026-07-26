@@ -2507,6 +2507,7 @@ def test_run_live_session_refreshes_fresh_bridge_admission_before_runner_spawn(
     monkeypatch.setattr(live, "_revoke_campaign_authority", lambda *_args, **_kwargs: ["ok"])
     monkeypatch.setattr(live, "read_strict_json", fake_read_json)
     monkeypatch.setattr(live.subprocess, "Popen", runner_process)
+    monkeypatch.setattr(live, "process_starttime", lambda _pid: 1)
 
     with pytest.raises(RuntimeError, match="runner observation stop"):
         live._run_live_session(
