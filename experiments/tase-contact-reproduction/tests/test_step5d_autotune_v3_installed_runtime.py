@@ -137,7 +137,7 @@ def test_canonical_shell_resolves_runtime_without_caller_pythonpath() -> None:
     )
     assert completed.returncode == 0, completed.stderr
     status = json.loads(completed.stdout)
-    assert status["schema"] == "step5d.bridge/governed-status-v2"
+    assert status["schema"] == "step5d.bridge/governed-status-v3"
     assert isinstance(status["launch_attempt"]["present"], bool)
     assert status["predicates"]["play_prompt_ready"] is False
     assert isinstance(status["predicates"]["canonical_attempt_bound"], bool)
@@ -196,7 +196,8 @@ def test_installed_runtime_build_context_refactor_is_fail_closed_for_incompatibl
     readiness_report = context_builder.resolve_release_readiness(ROOT)
     blockers = readiness_report["blockers"]
     assert any(
-        "canonical_active_release_verification_failed:experiment source fingerprint coverage differs"
+        "canonical_active_release_verification_failed:source file fingerprint drifted: "
+        "scripts/step5d-autotune-v3.sh"
         in blocker
         for blocker in blockers
     )

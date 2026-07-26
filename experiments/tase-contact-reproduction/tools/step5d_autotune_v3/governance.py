@@ -17,13 +17,6 @@ from .delivery_observation import (
     DeliveryObservationError,
     fresh_get_provenance,
 )
-from step5d_parameter_queue import (
-    ParameterQueueError,
-    _load_next_arm,
-    _load_terminal_receipts,
-)
-
-
 OBSERVED_ATTESTATION_SCHEMA = "step5d.autotune-v3/observed-attestation-v1"
 CURRENT_OBSERVATION_POINTER_SCHEMA = (
     "step5d.autotune-v3/current-observation-pointer-v1"
@@ -1925,15 +1918,22 @@ def _parameter_receiver_predicates(
         "continuous_ready": False,
     }
     try:
+        from step5d_parameter_queue import (
+            _load_next_arm,
+            _load_terminal_receipts,
+        )
+    except ImportError:
+        return status
+    try:
         next_arm = _load_next_arm(receiver_root)
-    except (OSError, ValueError, ParameterQueueError):
+    except (OSError, RuntimeError, ValueError):
         return status
     if next_arm is None:
         return status
     status["next_arm_published"] = True
     try:
         terminal_receipts = _load_terminal_receipts(receiver_root)
-    except (OSError, ValueError, ParameterQueueError):
+    except (OSError, RuntimeError, ValueError):
         return status
 
     seen_identity: set[str] = set()
