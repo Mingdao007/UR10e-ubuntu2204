@@ -40,14 +40,16 @@ from ur10e_parallel import (  # noqa: E402
 )
 
 
-def test_post_play_steady_state_uses_runtime_and_process_outcome_paths() -> None:
+def test_post_play_steady_state_refreshes_command_bound_arm_gate() -> None:
     source = inspect.getsource(live._run_live_session)
     post_play = source[source.index("V3_CAMPAIGN_RUNNING_ONE_PLAY_CONTINUOUS") :]
     outcome = post_play.index("if runner.poll() is not None and runner.returncode == 0:")
 
-    assert "ARM_GATE_REFRESH_INTERVAL_S" not in source
-    assert "_refresh_arm_gate(" not in post_play
-    assert "ARM gate observation failed" not in post_play
+    assert live.ARM_GATE_REFRESH_INTERVAL_S <= live.ARM_GRANT_MAX_AGE_S * 0.5
+    refresh = post_play.index("_, dashboard_observation = _refresh_arm_gate(")
+    observation = post_play.index("_publish_runtime_observation(", refresh)
+    assert refresh < observation < outcome
+    assert "next_gate_refresh = now + ARM_GATE_REFRESH_INTERVAL_S" in post_play
     assert "RECOVERING" not in post_play
     assert "durable_queue_empty_waiting" in post_play[outcome:]
     assert "return None" in post_play[outcome:]

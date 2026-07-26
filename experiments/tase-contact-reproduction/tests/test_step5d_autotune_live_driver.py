@@ -295,6 +295,57 @@ class Step5dAutotuneLiveDriverTest(unittest.TestCase):
                 self.assertEqual(read_latest.call_count, 2)
             self.assertEqual(args.step5d_autotune_handshake["command"], 1)
 
+    def test_post_play_new_seq11_stays_zero_until_command_grant_refresh(self) -> None:
+        trial = make_trial(trial_id=11, command_seq=11, candidate_token=21)
+        arm = packet_for(trial, HostCommand.ARM)
+        grant = {"available": False}
+        gate_calls: list[tuple[dict[str, Any], int]] = []
+
+        def command_grant(
+            binding: dict[str, Any], *, connection_epoch: int
+        ) -> object | None:
+            gate_calls.append((binding, connection_epoch))
+            return object() if grant["available"] else None
+
+        with tempfile.TemporaryDirectory() as directory:
+            mailbox_path = Path(directory) / "command.json"
+            sink = AtomicCommandMailbox(mailbox_path)
+            sink.send_command(arm, prepared_trial=make_prepared(trial))
+            command = sink.read_latest()
+            self.assertIsNotNone(command)
+            runtime = BridgeMailboxRuntime(
+                mailbox_path,
+                arming_context_provider=command_grant,
+            )
+            args = fake_bridge_args()
+            ready_home = fake_rtde(
+                TpLoopState.READY_HOME,
+                None,
+                consumed_seq=0,
+            )
+
+            self.assertFalse(runtime.poll(args, ready_home, connection_epoch=3))
+            self.assertEqual(args.step5d_autotune_handshake["command_seq"], 0)
+
+            grant["available"] = True
+            self.assertTrue(runtime.poll(args, ready_home, connection_epoch=3))
+            self.assertEqual(
+                args.step5d_autotune_handshake,
+                {
+                    "campaign_epoch": arm.campaign_epoch,
+                    "trial_id": arm.trial_id,
+                    "command": int(HostCommand.ARM),
+                    "candidate_token": arm.candidate_token,
+                    "execution_profile_id": arm.execution_profile_id,
+                    "command_seq": 11,
+                    "batch_row_index": 0,
+                    "logical_batch_sequence": arm.logical_batch_sequence,
+                },
+            )
+            self.assertEqual(gate_calls[-1][0]["mailbox_sha256"], command.sha256)
+            self.assertEqual(gate_calls[-1][0]["command_seq"], 11)
+            self.assertEqual(gate_calls[-1][1], 3)
+
     def test_arm_mailbox_toctou_after_grant_fails_closed(self) -> None:
         trial1 = make_trial(trial_id=1, command_seq=10, candidate_token=20)
         trial2 = make_trial(trial_id=2, command_seq=11, candidate_token=21)
