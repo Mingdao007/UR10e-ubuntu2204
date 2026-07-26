@@ -32,6 +32,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     LiveRTDE,
     _LIVE_WRITER_PATTERNS,
     _LIVE_WRITER_IGNORED_PATTERNS,
+    INPUT_FIELDS,
     OUTPUT_FIELDS,
     LIVE_PROTOCOL_TOKEN,
     RUNTIME_PLAYING,
@@ -51,6 +52,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _detect_live_writer_processes,
     _enforce_no_live_writer_conflict,
     _next_available_run_dir,
+    _prime_idle_inputs,
     _sample_translation_error_sqm3,
     _wait_for_fresh_receiver_waiting,
     _run_live_locked,
@@ -355,6 +357,11 @@ def _run_fake_batched_control(
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4._send_urscript"
     ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._prime_idle_inputs",
+        side_effect=lambda rtde, input_recipe, input_types, idle_values, *_args, **_kwargs: rtde.send_inputs(
+            input_recipe, input_types, idle_values
+        ),
+    ), patch(
         "run_tacdiffusion_remote_direct_torque_v4._wait_for_fresh_receiver_waiting",
         return_value=(0.0, waiting),
     ), patch(
@@ -589,6 +596,45 @@ def test_old_reference_drift_does_not_block_reanchored_canary_preflight(
     ):
         timeline = CanaryTimeline.from_stage(stage, actual_pose=actual, bundle=bundle)
         validate_live_preflight(status, bundle, timeline=timeline)
+
+
+def test_idle_prime_overwrites_stale_command_for_five_fresh_controller_ticks() -> None:
+    class FakeRTDE:
+        def __init__(self) -> None:
+            self.sent: list[list[Any]] = []
+            self.batch_index = 0
+
+        def send_inputs(
+            self, _recipe: int, _types: list[str], values: list[Any]
+        ) -> None:
+            self.sent.append(list(values))
+
+        def receive_available(
+            self,
+            _recipe: int,
+            _types: list[str],
+            _fields: list[str],
+            _timeout_s: float,
+        ) -> list[dict[str, Any]]:
+            timestamp = self.batch_index / 500.0
+            self.batch_index += 1
+            return [
+                {
+                    "timestamp": timestamp,
+                    "runtime_state": RUNTIME_STOPPED,
+                    "robot_mode": ROBOT_MODE_RUNNING,
+                    "safety_mode": SAFETY_MODE_NORMAL,
+                }
+            ]
+
+    rtde = FakeRTDE()
+    idle_values = [0.0] * len(INPUT_FIELDS)
+    _prime_idle_inputs(
+        rtde, 1, ["DOUBLE"] * len(idle_values), idle_values, 2, [], OUTPUT_FIELDS
+    )
+    assert len(rtde.sent) >= 5
+    assert all(values == idle_values for values in rtde.sent)
+    assert rtde.batch_index >= 6
 
 
 def test_compile_probe_authorization_and_evidence_are_strictly_no_motion(
@@ -1340,6 +1386,11 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4._send_urscript",
         side_effect=fake_urscript_send,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._prime_idle_inputs",
+        side_effect=lambda rtde, input_recipe, input_types, idle_values, *_args, **_kwargs: rtde.send_inputs(
+            input_recipe, input_types, idle_values
+        ),
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4.validate_live_preflight",
     ), patch(

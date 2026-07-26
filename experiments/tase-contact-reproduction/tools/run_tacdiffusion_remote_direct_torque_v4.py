@@ -909,6 +909,65 @@ def _wait_for_fresh_receiver_waiting(
     raise RuntimeError("receiver_protocol_wait_timeout")
 
 
+def _prime_idle_inputs(
+    rtde: LiveRTDE,
+    input_recipe: int,
+    input_types: list[str],
+    idle_values: Sequence[Any],
+    output_recipe: int,
+    output_types: list[str],
+    output_fields: list[str],
+    *,
+    timeout_s: float = 0.25,
+    minimum_fresh_ticks: int = 5,
+) -> None:
+    """Overwrite stale terminal commands before starting the URScript receiver."""
+    deadline = time.monotonic() + timeout_s
+    baseline_timestamp: float | None = None
+    while time.monotonic() < deadline and baseline_timestamp is None:
+        baseline_batch = _receive_available(
+            rtde, output_recipe, output_types, output_fields, 0.01
+        )
+        for sample in baseline_batch:
+            if int(sample["robot_mode"]) != ROBOT_MODE_RUNNING:
+                raise RuntimeError("idle_prime_robotmode_changed")
+            if int(sample["safety_mode"]) != SAFETY_MODE_NORMAL:
+                raise RuntimeError("idle_prime_safety_changed")
+            if int(sample["runtime_state"]) != RUNTIME_STOPPED:
+                raise RuntimeError("idle_prime_runtime_not_stopped")
+            timestamp = float(sample["timestamp"])
+            if baseline_timestamp is None or timestamp > baseline_timestamp:
+                baseline_timestamp = timestamp
+    if baseline_timestamp is None:
+        raise RuntimeError("idle_prime_baseline_timeout")
+
+    timestamps: list[float] = []
+    while time.monotonic() < deadline:
+        rtde.send_inputs(input_recipe, input_types, idle_values)
+        batch = _receive_available(
+            rtde, output_recipe, output_types, output_fields, 0.01
+        )
+        for sample in batch:
+            if int(sample["robot_mode"]) != ROBOT_MODE_RUNNING:
+                raise RuntimeError("idle_prime_robotmode_changed")
+            if int(sample["safety_mode"]) != SAFETY_MODE_NORMAL:
+                raise RuntimeError("idle_prime_safety_changed")
+            if int(sample["runtime_state"]) != RUNTIME_STOPPED:
+                raise RuntimeError("idle_prime_runtime_not_stopped")
+            timestamp = float(sample["timestamp"])
+            if timestamp <= baseline_timestamp:
+                continue
+            if not timestamps or timestamp > timestamps[-1]:
+                timestamps.append(timestamp)
+            if (
+                len(timestamps) >= minimum_fresh_ticks
+                and timestamps[-1] - timestamps[0]
+                >= (minimum_fresh_ticks - 1) / 500.0
+            ):
+                return
+    raise RuntimeError("idle_prime_timeout")
+
+
 def _send_urscript(host: str, source: str, timeout_s: float) -> None:
     payload = source if source.endswith("\n") else source + "\n"
     with socket.create_connection((host, 30002), timeout=timeout_s) as connection:
@@ -1357,7 +1416,15 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
         output_recipe, output_types = rtde.setup_outputs(500.0, OUTPUT_FIELDS)
         input_recipe, input_types = rtde.setup_inputs(INPUT_FIELDS)
         rtde.start()
-        rtde.send_inputs(input_recipe, input_types, outgoing.values)
+        _prime_idle_inputs(
+            rtde,
+            input_recipe,
+            input_types,
+            outgoing.values,
+            output_recipe,
+            output_types,
+            OUTPUT_FIELDS,
+        )
         _send_urscript(args.robot_host, bundle.source, args.connect_timeout_s)
         try:
             handshake_samples: list[dict[str, Any]] = []
