@@ -1,0 +1,315 @@
+{
+  "schema": "ur10e_tacdiffusion_direct_torque_remote_v4/v1",
+  "stage_id": "step5d_direct_torque_remote_live_v4",
+  "owner": "native_remote_direct_torque_candidate",
+  "status": "inactive_blocked_candidate",
+  "current": false,
+  "transport": {
+    "target": "controller_resident_urscript",
+    "client": "native_secondary_client",
+    "tcp_port": 30002,
+    "source_send_gate": "urscript_send_tcp_secondary_30002",
+    "controller_program_artifact": false
+  },
+  "urscript": {
+    "source_module": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/direct_torque_live_v4.py",
+    "builder": "experiments/ur10e-variable-impedance/tools/build_tacdiffusion_direct_torque_live_v4.py",
+    "send_mode": "independent_secondary_client_source_send",
+    "runtime_loop_hz": 500,
+    "source_build_offline_validation": {
+      "physical_io": false,
+      "status": "no_io"
+    }
+  },
+  "authority": {
+    "default_authorized": false,
+    "source_build_offline_validation": {
+      "authorized": false,
+      "physical_io": false,
+      "status": "offline_no_io"
+    },
+    "live_gates": {
+      "urscript_send_tcp_secondary_30002": {
+        "authorized": false,
+        "status": "pending_independent_live_authority"
+      },
+      "rtde_input_write": {
+        "authorized": false,
+        "status": "pending_independent_live_authority"
+      },
+      "direct_torque_motion": {
+        "authorized": false,
+        "status": "pending_independent_live_authority"
+      }
+    },
+    "kunwei_stream": {
+      "authorized": false,
+      "status": "deferred"
+    },
+    "contact": {
+      "authorized": false,
+      "status": "deferred"
+    }
+  },
+  "rtde_register_contract": {
+    "input_double_registers": {
+      "index_start": 24,
+      "index_end": 47,
+      "field_count": 24,
+      "fields": {
+        "24": "desired_pose_x",
+        "25": "desired_pose_y",
+        "26": "desired_pose_z",
+        "27": "desired_pose_rx",
+        "28": "desired_pose_ry",
+        "29": "desired_pose_rz",
+        "30": "stiffness_K_x",
+        "31": "stiffness_K_y",
+        "32": "stiffness_K_z",
+        "33": "stiffness_K_rx",
+        "34": "stiffness_K_ry",
+        "35": "stiffness_K_rz",
+        "36": "unused_reserved_0",
+        "37": "unused_reserved_1",
+        "38": "unused_reserved_2",
+        "39": "unused_reserved_3",
+        "40": "unused_reserved_4",
+        "41": "unused_reserved_5",
+        "42": "raw_feedforward_wrench_tcp_fx",
+        "43": "raw_feedforward_wrench_tcp_fy",
+        "44": "raw_feedforward_wrench_tcp_fz",
+        "45": "raw_feedforward_wrench_tcp_tx",
+        "46": "raw_feedforward_wrench_tcp_ty",
+        "47": "raw_feedforward_wrench_tcp_tz"
+      },
+      "runner_semantics": {
+        "24:29": "desired_pose",
+        "30:35": "stiffness_K",
+        "36:41": "unused_reserved_runner_sends_zeros",
+        "42:47": "raw_feedforward_wrench_in_tcp_frame"
+      }
+    },
+    "input_int_registers": {
+      "index_start": 24,
+      "index_end": 35,
+      "field_count": 12,
+      "fields": {
+        "24": "command",
+        "25": "sequence",
+        "26": "heartbeat",
+        "27": "lease",
+        "28": "model_sequence",
+        "29": "model_period_us",
+        "30": "model_mode",
+        "31": "wrench_frame_token",
+        "32": "model_timestamp_us",
+        "33": "reserved",
+        "34": "reserved",
+        "35": "episode"
+      }
+    },
+    "output_double_registers": {
+      "index_start": 24,
+      "index_end": 43,
+      "field_count": 20,
+      "fields": {
+        "24": "max_abs_tau_nm",
+        "25": "step_time_s",
+        "26": "applied_filtered_F_ff_x",
+        "27": "applied_filtered_F_ff_y",
+        "28": "applied_filtered_F_ff_z",
+        "29": "applied_filtered_F_ff_tx",
+        "30": "applied_filtered_F_ff_ty",
+        "31": "applied_filtered_F_ff_tz",
+        "32": "applied_K_x",
+        "33": "applied_K_y",
+        "34": "applied_K_z",
+        "35": "applied_K_rx",
+        "36": "applied_K_ry",
+        "37": "applied_K_rz",
+        "38": "commanded_joint_torque_nm_0",
+        "39": "commanded_joint_torque_nm_1",
+        "40": "commanded_joint_torque_nm_2",
+        "41": "commanded_joint_torque_nm_3",
+        "42": "commanded_joint_torque_nm_4",
+        "43": "commanded_joint_torque_nm_5"
+      },
+      "applied_12d_action": {
+        "filtered_F_ff": "26:31",
+        "K": "32:37"
+      },
+      "commanded_joint_torque_nm": {
+        "tau": "38:43"
+      }
+    },
+    "output_int_registers": {
+      "index_start": 24,
+      "index_end": 33,
+      "field_count": 10,
+      "fields": {
+        "24": "state",
+        "25": "ACK_sequence",
+        "26": "fault",
+        "27": "lease",
+        "28": "model_sequence",
+        "29": "model_fault",
+        "30": "frame",
+        "31": "episode",
+        "32": "protocol",
+        "33": "exit_reason"
+      }
+    }
+  },
+  "hold_contract": {
+    "controller_loop_hz": 500,
+    "heartbeat_timeout_robot_ticks": 10,
+    "heartbeat_timeout_ms": 20,
+    "host_sequence_policy": "ACK_paced",
+    "unchanged_packet": "may_be_held",
+    "max_unchanged_packet_hold_robot_ticks": 10,
+    "stale_action": "fault_after_heartbeat_timeout"
+  },
+  "direct_torque_control_contract": {
+    "program_shape": "single_top_level_500hz_state_machine",
+    "startup_equilibrium": "fresh_actual_pose",
+    "startup_equilibrium_blend_s": 0.1,
+    "zero_torque_startup_or_exit": false,
+    "active_tick_direct_torque_calls": 1,
+    "friction_compensation": true,
+    "torque_law": "coriolis_plus_jacobian_transpose_impedance_minus_joint_damping",
+    "exit_shape": "single_common_stopj_site",
+    "exit_stopj_deceleration": 10.0
+  },
+  "compile_probe_contract": {
+    "separate_source": true,
+    "rtde_output_read_only": true,
+    "rtde_input_write": false,
+    "direct_torque": false,
+    "motion_primitives": false,
+    "stopj": false,
+    "training_dataset": false
+  },
+  "staged_canary_contract": {
+    "stage_order": [
+      {
+        "id": "hold_100ms",
+        "duration_s": 0.1,
+        "trajectory": "fresh_actual_pose_hold"
+      },
+      {
+        "id": "ramp_0_2mm_500ms",
+        "duration_s": 0.5,
+        "trajectory": "smoothstep_0_2mm_along_tube_v_axis"
+      },
+      {
+        "id": "reference_2s",
+        "duration_s": 2.0,
+        "trajectory": "bounded_reference_artifact"
+      }
+    ],
+    "compile_probe_strict_success_required": true,
+    "fresh_stage_authorization_required": true,
+    "immediately_prior_stage_strict_success_required": true,
+    "stage_skip_allowed": false
+  },
+  "geometry_contract": {
+    "shape": "anchor_circle",
+    "design_path_radius_m": 0.001,
+    "release_translation_tolerance_m": 0.001,
+    "hard_tube_normal_half_width_m": 0.002,
+    "dimension_note": "These are separate dimensions: design radius, release tolerance, and hard-tube normal half-width."
+  },
+  "gates": [
+    {
+      "id": "source_build_offline_validation",
+      "requirement": "required",
+      "status": "offline_no_io",
+      "physical_io": false
+    },
+    {
+      "id": "bundle_hash_validation",
+      "requirement": "required",
+      "status": "offline_pending",
+      "physical_io": false
+    },
+    {
+      "id": "numeric_sanity",
+      "requirement": "required",
+      "status": "offline_pending",
+      "physical_io": false
+    },
+    {
+      "id": "fresh_readonly_preflight",
+      "requirement": "required",
+      "status": "pending",
+      "physical_io": false
+    },
+    {
+      "id": "compile_probe_no_motion",
+      "requirement": "required_before_live_canary",
+      "status": "pending_independent_live_authority",
+      "authorized": false
+    },
+    {
+      "id": "urscript_send_tcp_secondary_30002",
+      "requirement": "required",
+      "status": "pending_independent_live_authority",
+      "authorized": false
+    },
+    {
+      "id": "rtde_input_write",
+      "requirement": "required",
+      "status": "pending_independent_live_authority",
+      "authorized": false
+    },
+    {
+      "id": "direct_torque_motion",
+      "requirement": "required",
+      "status": "pending_independent_live_authority",
+      "authorized": false
+    }
+  ],
+  "evidence_scope": {
+    "direct_torque_rtde_data": {
+      "claim_class": "direct_torque_rtde_diagnostic",
+      "training_dataset": false,
+      "training_dataset_reason": "Diagnostic state/action evidence is not the TacDiffusion training dataset."
+    },
+    "full_packet_capture": {
+      "preserve_every_decoded_controller_packet": true,
+      "target_output_frequency_hz": 500,
+      "minimum_expected_row_fraction": 0.9,
+      "command_lineage_required": true,
+      "fields": [
+        "actual_TCP_pose",
+        "actual_TCP_speed",
+        "actual_TCP_force",
+        "actual_q",
+        "actual_qd",
+        "target_moment",
+        "applied_filtered_F_ff",
+        "applied_K",
+        "commanded_joint_torque_nm"
+      ]
+    },
+    "kunwei_stream": {
+      "started": false,
+      "status": "deferred"
+    },
+    "contact": {
+      "authorized": false,
+      "status": "deferred"
+    }
+  },
+  "run_contract": {
+    "ready_for_live": false,
+    "source_build_no_io": true,
+    "urscript_send": false,
+    "rtde_input_write": false,
+    "direct_torque_motion": false,
+    "kunwei_start_stream": false,
+    "contact_authorized": false,
+    "no_contact_required": true,
+    "training_dataset": false
+  }
+}

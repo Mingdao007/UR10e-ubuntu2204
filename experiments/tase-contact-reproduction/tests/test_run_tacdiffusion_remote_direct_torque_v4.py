@@ -1,0 +1,1316 @@
+from contextlib import contextmanager
+from datetime import datetime, timezone
+import hashlib
+import json
+import math
+from pathlib import Path
+import struct
+import subprocess
+import sys
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import patch
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+TOOLS = ROOT / "tools"
+VIC_ROOT = ROOT.parent / "ur10e-variable-impedance"
+for path in (TOOLS, VIC_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
+from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
+    AUTHORIZATION_SCHEMA,
+    COMPILE_PROBE_AUTHORIZATION_SCHEMA,
+    AckPacedScheduler,
+    CanaryTimeline,
+    CANARY_STAGE_HOLD,
+    CANARY_STAGE_RAMP,
+    CANARY_STAGE_REFERENCE,
+    LiveRTDE,
+    _LIVE_WRITER_PATTERNS,
+    _LIVE_WRITER_IGNORED_PATTERNS,
+    OUTPUT_FIELDS,
+    LIVE_PROTOCOL_TOKEN,
+    RUNTIME_PLAYING,
+    RUNTIME_STOPPED,
+    ReferenceTimeline,
+    NO_CONTACT_RELEASE_TOLERANCE_M,
+    STATE_WAITING,
+    STATE_TORQUE,
+    STATE_COMPLETE,
+    MODE_ABORT,
+    MODE_END,
+    MODE_IDLE,
+    MODE_RUN,
+    ROBOT_MODE_RUNNING,
+    SAFETY_MODE_NORMAL,
+    WRENCH_FRAME_TOKEN,
+    _detect_live_writer_processes,
+    _enforce_no_live_writer_conflict,
+    _next_available_run_dir,
+    _sample_translation_error_sqm3,
+    _wait_for_fresh_receiver_waiting,
+    _run_live_locked,
+    _write_json_new,
+    command_values,
+    validate_authorization,
+    validate_bundle,
+    validate_compile_probe_authorization,
+    validate_compile_probe_evidence,
+    validate_compile_probe_preflight,
+    validate_live_preflight,
+    validate_prior_stage_evidence,
+    run_live,
+)
+from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
+    build_compile_probe_source,
+)
+
+
+PASSIVE_RUN = ROOT / "runs" / "tacdiffusion" / "passive_remote_baseline_20260726"
+REFERENCE = PASSIVE_RUN / "unknown_surface_anchor_circle_no_contact_2s_reference_v2.json"
+BUILDER = VIC_ROOT / "tools" / "build_tacdiffusion_direct_torque_live_v4.py"
+RUNNER = TOOLS / "run_tacdiffusion_remote_direct_torque_v4.py"
+
+
+def _bundle(tmp_path: Path):
+    if not REFERENCE.is_file():
+        pytest.skip("fresh passive reference is unavailable")
+    source = tmp_path / "receiver.script"
+    manifest = tmp_path / "receiver.manifest.json"
+    subprocess.run(
+        [
+            sys.executable,
+            str(BUILDER),
+            "--reference",
+            str(REFERENCE),
+            "--receiver-source",
+            str(source),
+            "--manifest",
+            str(manifest),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return validate_bundle(manifest)
+
+
+def _write_authorization(
+    tmp_path: Path,
+    bundle,
+    **overrides: Any,
+) -> Path:
+    payload = {
+        "schema": AUTHORIZATION_SCHEMA,
+        "robot_host": "192.168.1.18",
+        "receiver_source_sha256": bundle.source_sha256,
+        "bundle_manifest_sha256": bundle.manifest_sha256,
+        "reference_artifact_sha256": bundle.reference_sha256,
+        "canary_stage": CANARY_STAGE_REFERENCE,
+        "lease_id": 111,
+        "episode_identity": 222,
+        "max_duration_s": 2.0,
+        "normal_half_width_m": 0.002,
+        "allow_urscript_send": True,
+        "allow_rtde_input_write": True,
+        "allow_direct_torque": True,
+        "allow_motion": True,
+        "allow_contact": False,
+        "allow_kunwei_stream": False,
+        "authorized_at": "2026-07-26T00:00:00+00:00",
+        "expires_at": "2026-07-27T00:00:00+00:00",
+    }
+    payload.update(overrides)
+    path = tmp_path / "authorization.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def _write_compile_probe_evidence(tmp_path: Path, **overrides: Any) -> Path:
+    source_sha256 = hashlib.sha256(
+        build_compile_probe_source().encode("utf-8")
+    ).hexdigest()
+    payload = {
+        "schema": "ur10e_tacdiffusion_compile_probe_evidence/v1",
+        "claim_class": "live_controller_compile_probe_no_motion",
+        "ok": True,
+        "robot_host": "192.168.1.18",
+        "compile_probe_source_sha256": source_sha256,
+        "strict_success_gate": {"ok": True},
+        "motion_performed": False,
+        "direct_torque_called": False,
+        "rtde_inputs_written": False,
+        "kunwei_stream_started": False,
+    }
+    payload.update(overrides)
+    path = tmp_path / "compile_probe_evidence.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def test_ack_paced_scheduler_has_no_gaps_at_approximately_83_hz() -> None:
+    scheduler = AckPacedScheduler()
+    sent: list[tuple[int, float]] = []
+    ack = 0
+    for robot_tick in range(1001):
+        elapsed = robot_tick / 500.0
+        if robot_tick % 6 == 0:
+            sequence = scheduler.next_sequence(ack)
+            assert sequence is not None
+            sent.append((sequence, elapsed))
+            ack = sequence
+        else:
+            assert scheduler.next_sequence(ack - 1) is None
+    assert [sequence for sequence, _ in sent] == list(range(1, len(sent) + 1))
+    assert sent[-1][1] == pytest.approx(1.992)
+    assert len(sent) == 167
+
+
+def test_receive_available_preserves_every_decoded_controller_packet(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rtde = LiveRTDE.__new__(LiveRTDE)
+    rtde.sock = object()
+    packets = [
+        (
+            ord("U"),
+            bytes([7]) + struct.pack("!di", index / 500.0, index),
+        )
+        for index in range(6)
+    ]
+    rtde._recv_packet = lambda: packets.pop(0)  # type: ignore[method-assign]
+    readiness = iter([[rtde.sock]] + [[rtde.sock]] * 5 + [[]])
+
+    def fake_select(*_args: object, **_kwargs: object):
+        return next(readiness), [], []
+
+    monkeypatch.setattr(
+        "run_tacdiffusion_remote_direct_torque_v4.select.select", fake_select
+    )
+    samples = rtde.receive_available(
+        7,
+        ["DOUBLE", "INT32"],
+        ["timestamp", "ack_sequence"],
+        0.1,
+    )
+    assert [sample["ack_sequence"] for sample in samples] == list(range(6))
+    assert [sample["timestamp"] for sample in samples] == pytest.approx(
+        [index / 500.0 for index in range(6)]
+    )
+
+
+def _fake_output_sample(
+    *,
+    pose: list[float],
+    timestamp: float,
+    ack_sequence: int = 0,
+    state: int = STATE_TORQUE,
+) -> dict[str, Any]:
+    sample: dict[str, Any] = {
+        "timestamp": timestamp,
+        "runtime_state": RUNTIME_PLAYING,
+        "robot_mode": ROBOT_MODE_RUNNING,
+        "safety_mode": SAFETY_MODE_NORMAL,
+        "output_int_register_24": state,
+        "output_int_register_25": ack_sequence,
+        "output_int_register_26": 0,
+        "output_int_register_27": 111,
+        "output_int_register_28": 0,
+        "output_int_register_30": WRENCH_FRAME_TOKEN,
+        "output_int_register_31": 222,
+        "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+        "output_int_register_33": 0,
+        "output_double_register_24": 0.0,
+        "output_double_register_25": 0.002,
+        "actual_TCP_pose": pose,
+        "actual_TCP_speed": [0.0] * 6,
+        "actual_TCP_force": [0.0] * 6,
+        "actual_q": [0.0] * 6,
+        "actual_qd": [0.0] * 6,
+        "target_moment": [0.0] * 6,
+    }
+    for index in range(18):
+        sample[f"output_double_register_{26 + index}"] = float(index)
+    return sample
+
+
+def _fake_control_bundle(pose: list[float], *, unsafe_x: float | None = None):
+    class FakeTube:
+        def assert_contains_pose(self, candidate: list[float], *, role: str) -> None:
+            if role == "actual" and unsafe_x is not None and candidate[0] == unsafe_x:
+                raise RuntimeError("actual_pose_outside_tube")
+
+    class FakeTimeline:
+        duration_s = 0.001
+        rows = [{"progress_s": 0.0, "desired_pose_base": tuple(pose)}]
+
+        @staticmethod
+        def row_at(_elapsed: float) -> dict[str, Any]:
+            return {"progress_s": 0.0, "desired_pose_base": tuple(pose)}
+
+    return SimpleNamespace(
+        timeline=FakeTimeline(),
+        tube=FakeTube(),
+        source="generated receiver\n",
+        source_sha256="source-sha",
+        manifest_sha256="manifest-sha",
+        reference_sha256="reference-sha",
+    )
+
+
+def _run_fake_batched_control(
+    tmp_path: Path,
+    *,
+    unsafe_intermediate: bool,
+) -> tuple[list[int], list[dict[str, Any]], dict[str, Any]]:
+    pose = [0.0] * 6
+    unsafe_x = 0.5 if unsafe_intermediate else None
+    bundle = _fake_control_bundle(pose, unsafe_x=unsafe_x)
+    waiting = _fake_output_sample(pose=pose, timestamp=0.0, state=STATE_WAITING)
+    data_batch = [
+        _fake_output_sample(
+            pose=([unsafe_x] + pose[1:] if index == 2 and unsafe_x is not None else pose),
+            timestamp=index / 500.0,
+        )
+        for index in range(6)
+    ]
+    terminal = _fake_output_sample(
+        pose=pose,
+        timestamp=6 / 500.0,
+        ack_sequence=1,
+        state=STATE_COMPLETE,
+    )
+
+    class FakeRTDE:
+        batches = [data_batch, [terminal]]
+
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            self.sent_modes: list[int] = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def negotiate(self) -> None:
+            return None
+
+        def setup_outputs(self, *_args: object, **_kwargs: object):
+            return 1, OUTPUT_FIELDS
+
+        def setup_inputs(self, *_args: object, **_kwargs: object):
+            return 1, ["DOUBLE"] * 24 + ["INT32"] * 12
+
+        def start(self) -> None:
+            return None
+
+        def send_inputs(self, _recipe: int, _types: list[str], values: list[Any]) -> None:
+            self.sent_modes.append(int(values[24]))
+
+        def receive_available(self, *_args: object, **_kwargs: object):
+            if not self.batches:
+                return []
+            return self.batches.pop(0)
+
+    fake_rtde = FakeRTDE()
+    auth = SimpleNamespace(resolve=lambda: tmp_path / "unused.json")
+    compile_probe_evidence = _write_compile_probe_evidence(tmp_path)
+    args = SimpleNamespace(
+        authorization=auth,
+        canary_stage=CANARY_STAGE_HOLD,
+        compile_probe_evidence=compile_probe_evidence,
+        prior_stage_evidence=None,
+        robot_host="192.168.1.18",
+        output_dir=tmp_path / "capture",
+        connect_timeout_s=1.0,
+        receiver_wait_s=1.0,
+    )
+    clock = iter([0.0001 + 0.0002 * index for index in range(30)])
+    with patch(
+        "run_tacdiffusion_remote_direct_torque_v4.LiveRTDE", return_value=fake_rtde
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_compile_probe_evidence",
+        return_value={"ok": True},
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_prior_stage_evidence",
+        return_value=None,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization",
+        return_value={"lease_id": 111, "episode_identity": 222},
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.readonly_status",
+        return_value={"rtde": {"actual_TCP_pose": pose}},
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.CanaryTimeline.from_stage",
+        return_value=bundle.timeline,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_live_preflight"
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._enforce_no_live_writer_conflict"
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._send_urscript"
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._wait_for_fresh_receiver_waiting",
+        return_value=(0.0, waiting),
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.time.monotonic",
+        side_effect=lambda: next(clock),
+    ):
+        result: dict[str, Any] | None = None
+        error: Exception | None = None
+        try:
+            result = _run_live_locked(args, bundle)
+        except Exception as exc:
+            error = exc
+
+    capture_dir = tmp_path / "capture"
+    run_dir = capture_dir if capture_dir.exists() else tmp_path / "capture_1"
+    if not (run_dir / "evidence.json").is_file() and error is not None:
+        raise error
+    evidence = json.loads((run_dir / "evidence.json").read_text(encoding="utf-8"))
+    rows = []
+    csv_path = run_dir / "direct_torque_rtde.csv"
+    if csv_path.is_file():
+        import csv
+
+        with csv_path.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+    if unsafe_intermediate:
+        assert error is not None
+    else:
+        assert error is None
+        assert result is not None
+    return fake_rtde.sent_modes, rows, evidence
+
+
+def test_fake_batched_rtde_logs_six_samples_with_one_new_ack_command(
+    tmp_path: Path,
+) -> None:
+    sent_modes, rows, evidence = _run_fake_batched_control(
+        tmp_path, unsafe_intermediate=False
+    )
+    assert sent_modes.count(MODE_RUN) == 1
+    assert sent_modes[:2] == [MODE_IDLE, MODE_RUN]
+    assert len(rows) == 8
+    assert [float(row["controller_timestamp_s"]) for row in rows[1:7]] == pytest.approx(
+        [index / 500.0 for index in range(6)]
+    )
+    assert all(row["ack_command_lineage_missing"] == "0" for row in rows)
+    assert rows[0]["acked_command_sequence"] == "0"
+    assert rows[1]["acked_command_mode"] == "0"
+    assert rows[1]["acked_command_progress_s"] == "0.0"
+    assert rows[1]["acked_command_desired_pose_0"] == "0.0"
+    assert rows[1]["acked_commanded_k_0"] == "600.0"
+    assert rows[1]["acked_commanded_raw_f_ff_0"] == "0.0"
+    assert rows[1]["acked_command_lease"] == "111"
+    assert rows[1]["acked_command_episode"] == "222"
+    assert rows[1]["acked_command_model_mode"] == "0"
+    assert rows[1]["acked_command_frame_token"] == str(WRENCH_FRAME_TOKEN)
+    assert rows[-1]["outgoing_command_mode"] == str(MODE_END)
+    assert rows[-1]["outgoing_command_sequence"] == "1"
+    assert evidence["total_rows"] == 8
+
+
+def test_fake_batched_rtde_aborts_on_unsafe_intermediate_sample(tmp_path: Path) -> None:
+    sent_modes, rows, evidence = _run_fake_batched_control(
+        tmp_path, unsafe_intermediate=True
+    )
+    assert sent_modes.count(MODE_RUN) == 1
+    assert sent_modes[-1] == MODE_ABORT
+    assert len(rows) == 8
+    assert rows[3]["controller_timestamp_s"] == "0.004"
+    assert evidence["failure"].startswith("RuntimeError: output_batch_safety_failed:")
+
+
+def test_reference_selection_depends_on_elapsed_time_not_ack_count() -> None:
+    payload = json.loads(REFERENCE.read_text(encoding="utf-8"))
+    timeline = ReferenceTimeline.from_payload(payload)
+    assert timeline.row_at(0.0)["progress_s"] == 0.0
+    assert timeline.row_at(1.0)["progress_s"] == pytest.approx(1.0)
+    assert timeline.row_at(1.992)["progress_s"] == pytest.approx(1.992)
+    assert timeline.row_at(99.0)["progress_s"] == pytest.approx(2.0)
+
+
+def test_sample_translation_error_only_uses_xyz_component() -> None:
+    assert _sample_translation_error_sqm3((0.1, 0.2, 0.3, 0, 0, 0), (0.4, 0.2, 0.3, 0, 0, 0)) == pytest.approx(
+        0.3
+    )
+
+
+def test_command_packet_has_complete_register_identity() -> None:
+    values = command_values(
+        command=1,
+        sequence=7,
+        pose=(0.1, 0.2, 0.3, 3.14, 0.0, 0.0),
+        lease_id=111,
+        episode_identity=222,
+    )
+    assert len(values) == 36
+    assert values[24:] == [
+        1,
+        7,
+        7,
+        111,
+        0,
+        0,
+        0,
+        5_252_001,
+        0,
+        0,
+        0,
+        222,
+    ]
+    assert values[18:24] == [0.0] * 6
+
+
+def test_bundle_validation_and_cli_are_offline(tmp_path: Path) -> None:
+    bundle = _bundle(tmp_path)
+    assert len(bundle.timeline.rows) == 1001
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(RUNNER),
+            "validate",
+            "--bundle-manifest",
+            str(bundle.manifest_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    payload = json.loads(completed.stdout)
+    assert payload["ok"]
+    assert payload["motion_performed"] is False
+    assert payload["urscript_sent"] is False
+    assert payload["rtde_inputs_written"] is False
+    assert payload["kunwei_stream_started"] is False
+
+
+def test_authorization_binds_every_live_gate_and_hash(tmp_path: Path) -> None:
+    bundle = _bundle(tmp_path)
+    authorization = _write_authorization(tmp_path, bundle)
+    validated = validate_authorization(
+        authorization,
+        bundle,
+        robot_host="192.168.1.18",
+        now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
+    )
+    assert validated["allow_contact"] is False
+    payload = json.loads(authorization.read_text(encoding="utf-8"))
+    payload["allow_direct_torque"] = False
+    authorization.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="allow_direct_torque"):
+        validate_authorization(
+            authorization,
+            bundle,
+            robot_host="192.168.1.18",
+            now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
+        )
+
+
+def test_canary_timeline_has_fixed_hold_ramp_and_reference_stages(
+    tmp_path: Path,
+) -> None:
+    bundle = _bundle(tmp_path)
+    actual = list(bundle.timeline.rows[0]["desired_pose_base"])
+    hold = CanaryTimeline.from_stage(
+        CANARY_STAGE_HOLD, actual_pose=actual, bundle=bundle
+    )
+    assert hold.duration_s == pytest.approx(0.1)
+    assert hold.row_at(0.1)["desired_pose_base"] == pytest.approx(actual)
+
+    ramp = CanaryTimeline.from_stage(
+        CANARY_STAGE_RAMP, actual_pose=actual, bundle=bundle
+    )
+    delta = [
+        ramp.row_at(0.5)["desired_pose_base"][index] - actual[index]
+        for index in range(3)
+    ]
+    assert math.sqrt(sum(value * value for value in delta)) == pytest.approx(0.0002)
+
+    reference = CanaryTimeline.from_stage(
+        CANARY_STAGE_REFERENCE, actual_pose=actual, bundle=bundle
+    )
+    assert reference.duration_s == pytest.approx(bundle.timeline.duration_s)
+
+
+def test_compile_probe_authorization_and_evidence_are_strictly_no_motion(
+    tmp_path: Path,
+) -> None:
+    source_sha256 = hashlib.sha256(
+        build_compile_probe_source().encode("utf-8")
+    ).hexdigest()
+    authorization = tmp_path / "compile_probe_authorization.json"
+    payload = {
+        "schema": COMPILE_PROBE_AUTHORIZATION_SCHEMA,
+        "robot_host": "192.168.1.18",
+        "compile_probe_source_sha256": source_sha256,
+        "allow_urscript_send": True,
+        "allow_rtde_output_read": True,
+        "allow_rtde_input_write": False,
+        "allow_direct_torque": False,
+        "allow_motion": False,
+        "allow_contact": False,
+        "allow_kunwei_stream": False,
+        "authorized_at": "2026-07-26T00:00:00+00:00",
+        "expires_at": "2026-07-27T00:00:00+00:00",
+    }
+    authorization.write_text(json.dumps(payload), encoding="utf-8")
+    validated = validate_compile_probe_authorization(
+        authorization,
+        source_sha256,
+        robot_host="192.168.1.18",
+        now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
+    )
+    assert validated["allow_direct_torque"] is False
+    evidence = _write_compile_probe_evidence(tmp_path)
+    assert validate_compile_probe_evidence(
+        evidence, robot_host="192.168.1.18"
+    )["ok"]
+    payload["allow_motion"] = True
+    authorization.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="allow_motion"):
+        validate_compile_probe_authorization(
+            authorization,
+            source_sha256,
+            robot_host="192.168.1.18",
+            now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
+        )
+
+
+def test_stage_evidence_prevents_skipping_a_live_canary_stage(tmp_path: Path) -> None:
+    bundle = _bundle(tmp_path)
+    with pytest.raises(RuntimeError, match="prior_stage_evidence_required"):
+        validate_prior_stage_evidence(
+            None,
+            required_stage=CANARY_STAGE_HOLD,
+            bundle=bundle,
+            robot_host="192.168.1.18",
+        )
+    evidence = tmp_path / "hold_evidence.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "schema": "ur10e_tacdiffusion_direct_torque_canary_evidence/v1",
+                "ok": True,
+                "robot_host": "192.168.1.18",
+                "receiver_source_sha256": bundle.source_sha256,
+                "bundle_manifest_sha256": bundle.manifest_sha256,
+                "reference_artifact_sha256": bundle.reference_sha256,
+                "canary_stage": CANARY_STAGE_HOLD,
+                "strict_success_gate": {"ok": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert validate_prior_stage_evidence(
+        evidence,
+        required_stage=CANARY_STAGE_HOLD,
+        bundle=bundle,
+        robot_host="192.168.1.18",
+    )["ok"]
+
+
+def test_run_refuses_partial_cli_authority_before_any_io(tmp_path: Path) -> None:
+    bundle = _bundle(tmp_path)
+    fake_authorization = tmp_path / "not_read.json"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(RUNNER),
+            "run",
+            "--bundle-manifest",
+            str(bundle.manifest_path),
+            "--authorization",
+            str(fake_authorization),
+            "--canary-stage",
+            CANARY_STAGE_HOLD,
+            "--compile-probe-evidence",
+            str(tmp_path / "not_read_probe.json"),
+            "--output-dir",
+            str(tmp_path / "out"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 2
+    assert "all_independent_live_cli_gates_are_required" in completed.stderr
+    assert not (tmp_path / "out").exists()
+
+
+def test_manifest_hash_is_authorization_identity(tmp_path: Path) -> None:
+    bundle = _bundle(tmp_path)
+    assert bundle.manifest_sha256 == hashlib.sha256(
+        bundle.manifest_path.read_bytes()
+    ).hexdigest()
+
+
+def test_live_writer_conflict_check_ignores_own_process(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_probe(cmd, *, capture_output: bool, text: bool, check: bool, timeout: float):
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout="321: python run_tacdiffusion_remote_direct_torque_v4.py\n",
+            stderr="",
+        )
+
+    with patch("run_tacdiffusion_remote_direct_torque_v4.subprocess.run", fake_probe):
+        monkeypatch.setattr(
+            "run_tacdiffusion_remote_direct_torque_v4.os.getpid", lambda: 321
+        )
+        assert not _detect_live_writer_processes()
+
+
+def test_live_writer_conflict_check_blocks_python_step5d_tacdiffusion_bridge_writer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_probe(cmd, *, capture_output: bool, text: bool, check: bool, timeout: float):
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout="123 python run_step5d_tacdiffusion_bridge.py\n",
+            stderr="",
+        )
+
+    with patch("run_tacdiffusion_remote_direct_torque_v4.subprocess.run", fake_probe):
+        monkeypatch.setattr(
+            "run_tacdiffusion_remote_direct_torque_v4.os.getpid", lambda: 999
+        )
+        with pytest.raises(RuntimeError, match="active_live_writer_detected"):
+            _enforce_no_live_writer_conflict()
+
+
+def test_live_writer_conflict_check_blocks_direct_torque_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_probe(cmd, *, capture_output: bool, text: bool, check: bool, timeout: float):
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout="124 /usr/bin/python3 run_tacdiffusion_remote_direct_torque_v4.py\n",
+            stderr="",
+        )
+
+    with patch("run_tacdiffusion_remote_direct_torque_v4.subprocess.run", fake_probe):
+        monkeypatch.setattr(
+            "run_tacdiffusion_remote_direct_torque_v4.os.getpid", lambda: 999
+        )
+        with pytest.raises(RuntimeError, match="active_live_writer_detected"):
+            _enforce_no_live_writer_conflict()
+
+
+def test_live_writer_conflict_check_ignores_codex_inline_prompt_mentions_rtde_kunwei_bridge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_probe(cmd, *, capture_output: bool, text: bool, check: bool, timeout: float):
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout="125 python -m codex --prompt 'release bridge RTDE KUNWEI checks'\n",
+            stderr="",
+        )
+
+    with patch("run_tacdiffusion_remote_direct_torque_v4.subprocess.run", fake_probe):
+        monkeypatch.setattr(
+            "run_tacdiffusion_remote_direct_torque_v4.os.getpid", lambda: 999
+        )
+        assert not _detect_live_writer_processes()
+
+
+def test_live_writer_conflict_check_ignores_pytest_collection(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_probe(cmd, *, capture_output: bool, text: bool, check: bool, timeout: float):
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout="126 python -m pytest tests/test_run_tacdiffusion_remote_direct_torque_v4.py\n",
+            stderr="",
+        )
+
+    with patch("run_tacdiffusion_remote_direct_torque_v4.subprocess.run", fake_probe):
+        monkeypatch.setattr(
+            "run_tacdiffusion_remote_direct_torque_v4.os.getpid", lambda: 999
+        )
+        assert not _detect_live_writer_processes()
+
+
+def test_live_writer_probe_fails_closed_on_probe_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_probe(cmd, *, capture_output: bool, text: bool, check: bool, timeout: float):
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=timeout)
+
+    with patch("run_tacdiffusion_remote_direct_torque_v4.subprocess.run", fake_probe):
+        with pytest.raises(RuntimeError, match="active_writer_probe_failed"):
+            _detect_live_writer_processes()
+
+
+def test_live_writer_pattern_list_covers_expected_endpoints() -> None:
+    assert "run_step5d_tacdiffusion_bridge.py" in _LIVE_WRITER_PATTERNS
+    assert "run_tacdiffusion_remote_direct_torque_v4.py" in _LIVE_WRITER_PATTERNS
+    assert "step5d_tacdiffusion_bridge" in _LIVE_WRITER_PATTERNS
+    assert "codex" in _LIVE_WRITER_IGNORED_PATTERNS
+    assert "pytest" in _LIVE_WRITER_IGNORED_PATTERNS
+    assert "pgrep" in _LIVE_WRITER_IGNORED_PATTERNS
+
+
+def test_live_preflight_requires_1mm_release_translation_check(tmp_path: Path) -> None:
+    bundle = _bundle(tmp_path)
+    expected = list(bundle.timeline.rows[0]["desired_pose_base"])
+    drift_pose = [
+        expected[0] + NO_CONTACT_RELEASE_TOLERANCE_M + 1e-6,
+        *expected[1:],
+    ]
+    status = {
+        "dashboard": {
+            "PolyscopeVersion": "URSoftware 5.26.",
+            "safetystatus": "Safetystatus: NORMAL",
+            "robotmode": "Robotmode: RUNNING",
+        },
+        "rtde": {
+            "runtime_state": 1,
+            "robot_mode": 7,
+            "safety_mode": 1,
+            "actual_TCP_pose": drift_pose,
+            "actual_TCP_speed": [0.0] * 6,
+            "actual_TCP_force": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+        },
+        "remote_control": True,
+        "stopped": True,
+        "stationary": True,
+    }
+    with pytest.raises(RuntimeError, match="release_translation_error_exceeds_1mm"):
+        validate_live_preflight(status, bundle)
+    status["rtde"]["actual_TCP_pose"] = [
+        expected[0] + NO_CONTACT_RELEASE_TOLERANCE_M * 0.5,
+        *expected[1:],
+    ]
+    validate_live_preflight(status, bundle)
+
+
+def test_next_available_output_dir_is_not_overwritten(tmp_path: Path) -> None:
+    existing = tmp_path / "live-run"
+    existing.mkdir()
+    (existing / "evidence.json").write_text("{}", encoding="utf-8")
+    allocated = _next_available_run_dir(existing)
+    assert allocated != existing
+    assert allocated.name == "live-run_1"
+    assert not allocated.exists()
+
+
+def test_wait_for_handshake_rejects_stale_waiting_marker_before_playing(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeRTDE:
+        def __init__(self, samples: list[dict[str, object]]):
+            self.samples = list(samples)
+
+        def receive_latest(
+            self,
+            *_args: object,
+            **_kwargs: object,
+        ) -> dict[str, object] | None:
+            if not self.samples:
+                return None
+            return self.samples.pop(0)
+
+    stale_sample = {
+        "output_int_register_24": STATE_WAITING,
+        "runtime_state": RUNTIME_STOPPED,
+        "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+    }
+
+    class FakeClock:
+        def __init__(self) -> None:
+            self.now = 0.0
+
+        def __call__(self) -> float:
+            self.now += 0.01
+            return self.now
+
+    clock = FakeClock()
+    with patch("run_tacdiffusion_remote_direct_torque_v4.time.monotonic", clock):
+        with pytest.raises(RuntimeError, match="receiver_waiting_stale_after_send"):
+            _wait_for_fresh_receiver_waiting(
+                FakeRTDE([stale_sample]),
+                0,
+                [],
+                [],
+                receiver_wait_s=0.02,
+            )
+
+
+def test_wait_for_handshake_accepts_playing_marker_with_matching_protocol(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeRTDE:
+        def __init__(self, samples: list[dict[str, object]]):
+            self.samples = list(samples)
+
+        def receive_latest(
+            self,
+            *_args: object,
+            **_kwargs: object,
+        ) -> dict[str, object] | None:
+            if not self.samples:
+                return None
+            return self.samples.pop(0)
+
+    samples = [
+        {
+            "output_int_register_24": STATE_WAITING,
+            "runtime_state": RUNTIME_STOPPED,
+            "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+        },
+        {
+            "output_int_register_24": STATE_WAITING,
+            "runtime_state": RUNTIME_PLAYING,
+            "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+        },
+    ]
+
+    class FakeClock:
+        def __init__(self) -> None:
+            self.now = 0.0
+
+        def __call__(self) -> float:
+            self.now += 0.01
+            return self.now
+
+    clock = FakeClock()
+    with patch("run_tacdiffusion_remote_direct_torque_v4.time.monotonic", clock):
+        start, sample = _wait_for_fresh_receiver_waiting(
+            FakeRTDE(samples),
+            0,
+            [],
+            [],
+            receiver_wait_s=1.0,
+        )
+    assert start > 0.03
+    assert sample["runtime_state"] == RUNTIME_PLAYING
+
+
+def test_run_live_rejects_partial_cli_gates_before_authorization_or_connect(tmp_path: Path) -> None:
+    bundle = _bundle(tmp_path)
+    auth = _write_authorization(tmp_path, bundle)
+    args = SimpleNamespace(
+        live=True,
+        send_urscript=False,
+        write_rtde_inputs=True,
+        allow_direct_torque=True,
+        allow_motion=True,
+        no_contact=True,
+        canary_stage=CANARY_STAGE_REFERENCE,
+        compile_probe_evidence=Path("unused-probe.json"),
+        prior_stage_evidence=Path("unused-prior.json"),
+        authorization=auth,
+        output_dir=tmp_path / "output",
+        robot_host="192.168.1.18",
+        connect_timeout_s=1.0,
+        receiver_wait_s=1.0,
+    )
+    with patch("run_tacdiffusion_remote_direct_torque_v4.validate_authorization") as mock_validate, patch(
+        "run_tacdiffusion_remote_direct_torque_v4.readonly_status"
+    ) as mock_status, patch(
+        "run_tacdiffusion_remote_direct_torque_v4._live_writer_lease"
+    ) as mock_lease:
+        with pytest.raises(RuntimeError, match="all_independent_live_cli_gates_are_required"):
+            run_live(args, bundle)
+        mock_validate.assert_not_called()
+        mock_status.assert_not_called()
+        mock_lease.assert_not_called()
+
+
+def test_run_live_maps_canonical_writer_lock_contention_to_stable_error(
+    tmp_path: Path,
+) -> None:
+    args = SimpleNamespace(
+        live=True,
+        send_urscript=True,
+        write_rtde_inputs=True,
+        allow_direct_torque=True,
+        allow_motion=True,
+        no_contact=True,
+        canary_stage=CANARY_STAGE_REFERENCE,
+        compile_probe_evidence=Path("unused-probe.json"),
+        prior_stage_evidence=Path("unused-prior.json"),
+    )
+    profile = object()
+    with patch(
+        "run_tacdiffusion_remote_direct_torque_v4.ResourceProfile.from_env",
+        return_value=profile,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.writer_lease",
+        side_effect=BlockingIOError,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization"
+    ) as mock_validate:
+        with pytest.raises(RuntimeError, match=r"^live_writer_lock_unavailable$"):
+            run_live(args, object())
+    mock_validate.assert_not_called()
+
+
+def test_run_live_lock_order_is_before_authorization_preflight_and_connection() -> None:
+    events: list[str] = []
+    profile = object()
+    bundle = SimpleNamespace(
+        timeline=SimpleNamespace(rows=[{"desired_pose_base": (0.0,) * 6}])
+    )
+
+    class FakeLease:
+        def __enter__(self):
+            events.append("lease_acquire")
+            return self
+
+        def __exit__(self, *exc: object) -> None:
+            events.append("lease_release")
+
+    def fake_writer_lease(*args: object, **kwargs: object) -> FakeLease:
+        assert args == (profile, "tacdiffusion-remote-direct-torque-v4")
+        assert kwargs == {"blocking": False}
+        return FakeLease()
+
+    args = SimpleNamespace(
+        live=True,
+        send_urscript=True,
+        write_rtde_inputs=True,
+        allow_direct_torque=True,
+        allow_motion=True,
+        no_contact=True,
+        canary_stage=CANARY_STAGE_REFERENCE,
+        compile_probe_evidence=Path("unused-probe.json"),
+        prior_stage_evidence=Path("unused-prior.json"),
+        authorization=Path("unused-authorization.json"),
+        robot_host="192.168.1.18",
+        output_dir=Path("unused-output"),
+        connect_timeout_s=1.0,
+        receiver_wait_s=1.0,
+    )
+
+    def fake_authorization(*args: object, **kwargs: object) -> dict[str, int]:
+        events.append("authorization")
+        return {"lease_id": 111, "episode_identity": 222}
+
+    def fake_status(*args: object, **kwargs: object) -> dict[str, object]:
+        events.append("readonly_status")
+        return {"rtde": {"actual_TCP_pose": [0.0] * 6}}
+
+    def fake_preflight(*args: object, **kwargs: object) -> None:
+        events.append("preflight")
+
+    def fake_conflict() -> None:
+        events.append("legacy_conflict_scan")
+
+    class FakeRTDE:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            events.append("controller_connection")
+            raise RuntimeError("stop_before_controller_io")
+
+    with patch(
+        "run_tacdiffusion_remote_direct_torque_v4.ResourceProfile.from_env",
+        return_value=profile,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.writer_lease",
+        side_effect=fake_writer_lease,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_compile_probe_evidence",
+        return_value={"ok": True},
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_prior_stage_evidence",
+        return_value={"ok": True},
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization",
+        side_effect=fake_authorization,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.readonly_status",
+        side_effect=fake_status,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.CanaryTimeline.from_stage",
+        return_value=bundle.timeline,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_live_preflight",
+        side_effect=fake_preflight,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._enforce_no_live_writer_conflict",
+        side_effect=fake_conflict,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.LiveRTDE",
+        FakeRTDE,
+    ):
+        with pytest.raises(RuntimeError, match="stop_before_controller_io"):
+            run_live(args, bundle)
+
+    assert events == [
+        "lease_acquire",
+        "authorization",
+        "readonly_status",
+        "preflight",
+        "legacy_conflict_scan",
+        "controller_connection",
+        "lease_release",
+    ]
+
+
+def test_run_live_conflict_failure_stays_inside_lease_and_releases() -> None:
+    events: list[str] = []
+    profile = object()
+
+    @contextmanager
+    def fake_lease():
+        events.append("lease_acquire")
+        try:
+            yield
+        finally:
+            events.append("lease_release")
+
+    args = SimpleNamespace(
+        live=True,
+        send_urscript=True,
+        write_rtde_inputs=True,
+        allow_direct_torque=True,
+        allow_motion=True,
+        no_contact=True,
+        canary_stage=CANARY_STAGE_REFERENCE,
+        compile_probe_evidence=Path("unused-probe.json"),
+        prior_stage_evidence=Path("unused-prior.json"),
+        authorization=Path("unused-authorization.json"),
+        robot_host="192.168.1.18",
+        output_dir=Path("unused-output"),
+    )
+
+    def fake_authorization(*args: object, **kwargs: object) -> dict[str, int]:
+        events.append("authorization")
+        return {"lease_id": 111, "episode_identity": 222}
+
+    def fake_conflict() -> None:
+        events.append("legacy_conflict_scan")
+        raise RuntimeError("active_live_writer_detected:legacy")
+
+    with patch(
+        "run_tacdiffusion_remote_direct_torque_v4.ResourceProfile.from_env",
+        return_value=profile,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.writer_lease",
+        return_value=fake_lease(),
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_compile_probe_evidence",
+        return_value={"ok": True},
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_prior_stage_evidence",
+        return_value={"ok": True},
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization",
+        side_effect=fake_authorization,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.readonly_status",
+        return_value={"rtde": {"actual_TCP_pose": [0.0] * 6}},
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.CanaryTimeline.from_stage",
+        return_value=SimpleNamespace(rows=[{"desired_pose_base": (0.0,) * 6}]),
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_live_preflight",
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._enforce_no_live_writer_conflict",
+        side_effect=fake_conflict,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.LiveRTDE",
+    ) as mock_rtde:
+        with pytest.raises(RuntimeError, match="active_live_writer_detected:legacy"):
+            run_live(args, object())
+
+    assert events == ["lease_acquire", "authorization", "legacy_conflict_scan", "lease_release"]
+    mock_rtde.assert_not_called()
+
+
+def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(tmp_path: Path) -> None:
+    bundle = _bundle(tmp_path)
+    auth = _write_authorization(
+        tmp_path,
+        bundle,
+        canary_stage=CANARY_STAGE_HOLD,
+        max_duration_s=0.1,
+    )
+    compile_probe_evidence = _write_compile_probe_evidence(tmp_path)
+    output_root = tmp_path / "run"
+    output_root.mkdir()
+    (output_root / "evidence.json").write_text("{}", encoding="utf-8")
+
+    handshake_sample: dict[str, Any] = {
+        "timestamp": 0.0,
+        "runtime_state": RUNTIME_PLAYING,
+        "robot_mode": 7,
+        "safety_mode": 1,
+        "output_int_register_24": STATE_WAITING,
+        "output_int_register_25": 0,
+        "output_int_register_26": 0,
+        "output_int_register_27": 111,
+        "output_int_register_28": 0,
+        "output_int_register_30": LIVE_PROTOCOL_TOKEN,
+        "output_int_register_31": 222,
+        "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+        "output_int_register_33": 0,
+        "output_double_register_24": 0.0,
+        "output_double_register_25": 0.0,
+        "output_double_register_26": 0.0,
+        "output_double_register_27": 0.0,
+        "output_double_register_28": 0.0,
+        "output_double_register_29": 0.0,
+        "output_double_register_30": 0.0,
+        "output_double_register_31": 0.0,
+        "output_double_register_32": 0.0,
+        "output_double_register_33": 0.0,
+        "output_double_register_34": 0.0,
+        "output_double_register_35": 0.0,
+        "output_double_register_36": 0.0,
+        "output_double_register_37": 0.0,
+        "output_double_register_38": 0.0,
+        "output_double_register_39": 0.0,
+        "output_double_register_40": 0.0,
+        "output_double_register_41": 0.0,
+        "output_double_register_42": 0.0,
+        "output_double_register_43": 0.0,
+        "actual_TCP_pose": list(bundle.timeline.rows[0]["desired_pose_base"]),
+        "actual_TCP_speed": [0.0] * 6,
+        "actual_TCP_force": [0.0] * 6,
+        "actual_q": [0.0] * 6,
+        "actual_qd": [0.0] * 6,
+        "target_moment": [0.0] * 6,
+    }
+
+    events: list[str] = []
+
+    @contextmanager
+    def fake_lease():
+        events.append("lease_acquire")
+        try:
+            yield
+        finally:
+            events.append("lease_release")
+
+    class FakeRTDE:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            self.calls = 0
+            events.append("controller_connection")
+
+        def __enter__(self):
+            events.append("rtde_enter")
+            return self
+
+        def __exit__(self, *exc) -> None:
+            events.append("rtde_close")
+            return None
+
+        def negotiate(self) -> None:
+            return None
+
+        def setup_outputs(self, *_args: object, **_kwargs: object):
+            return 1, OUTPUT_FIELDS
+
+        def setup_inputs(self, *_args: object, **_kwargs: object):
+            events.append("rtde_input_setup")
+            return 1, ["i"] * len(OUTPUT_FIELDS)
+
+        def start(self) -> None:
+            return None
+
+        def send_inputs(self, *_args: object, **_kwargs: object) -> None:
+            self.calls += 1
+            events.append(f"rtde_input_write_{self.calls}")
+            if self.calls == 3:
+                events.append("safe_abort")
+            if self.calls == 2:
+                raise RuntimeError("injected_rtde_send_failure")
+
+        def receive_latest(self, *_args: object, **_kwargs: object):
+            return handshake_sample
+
+    valid_status = {
+        "dashboard": {
+            "PolyscopeVersion": "URSoftware 5.26.",
+            "robotmode": "Robotmode: RUNNING",
+            "safetystatus": "Safetystatus: NORMAL",
+            "is in remote control": "True",
+        },
+        "rtde": {
+            "actual_TCP_pose": list(bundle.timeline.rows[0]["desired_pose_base"]),
+            "actual_TCP_speed": [0.0] * 6,
+            "actual_TCP_force": [0.0] * 6,
+            "actual_qd": [0.0] * 6,
+            "runtime_state": RUNTIME_STOPPED,
+            "robot_mode": 7,
+            "safety_mode": 1,
+        },
+        "remote_control": True,
+        "stopped": True,
+        "stationary": True,
+    }
+
+    args = SimpleNamespace(
+        live=True,
+        send_urscript=True,
+        write_rtde_inputs=True,
+        allow_direct_torque=True,
+        allow_motion=True,
+        no_contact=True,
+        canary_stage=CANARY_STAGE_HOLD,
+        compile_probe_evidence=compile_probe_evidence,
+        prior_stage_evidence=None,
+        authorization=auth,
+        output_dir=output_root,
+        robot_host="192.168.1.18",
+        connect_timeout_s=1.0,
+        receiver_wait_s=1.0,
+    )
+
+    def record_evidence_close(path: Path, payload: dict[str, Any]) -> None:
+        _write_json_new(path, payload)
+        events.append("evidence_close")
+
+    def fake_urscript_send(*args: object, **kwargs: object) -> None:
+        events.append("urscript_send")
+
+    def fake_direct_torque_run(*args: object, **kwargs: object):
+        events.append("direct_torque_run")
+        return 123.0, handshake_sample
+
+    with patch(
+        "run_tacdiffusion_remote_direct_torque_v4._live_writer_lease",
+        return_value=fake_lease(),
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._write_json_new",
+        side_effect=record_evidence_close,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.readonly_status",
+        return_value=valid_status,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.LiveRTDE",
+        FakeRTDE,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._enforce_no_live_writer_conflict",
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._send_urscript",
+        side_effect=fake_urscript_send,
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4.validate_live_preflight",
+    ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._wait_for_fresh_receiver_waiting",
+        side_effect=fake_direct_torque_run,
+    ):
+        with pytest.raises(RuntimeError, match="injected_rtde_send_failure"):
+            run_live(args, bundle)
+
+    failure_run = output_root.parent / "run_1"
+    assert failure_run.is_dir()
+    assert (failure_run / "evidence.json").is_file()
+    assert (output_root / "evidence.json").read_text(encoding="utf-8") == "{}"
+    evidence = json.loads((failure_run / "evidence.json").read_text(encoding="utf-8"))
+    assert evidence["failure"] == "RuntimeError: injected_rtde_send_failure"
+    assert evidence["sample_count"] > 0
+    assert (failure_run / "direct_torque_rtde.csv").is_file()
+
+    assert events.index("lease_acquire") < events.index("rtde_input_setup")
+    assert events.index("rtde_input_setup") < events.index("rtde_input_write_1")
+    assert events.index("rtde_input_write_1") < events.index("urscript_send")
+    assert events.index("urscript_send") < events.index("direct_torque_run")
+    assert events.index("direct_torque_run") < events.index("safe_abort")
+    assert events.index("safe_abort") < events.index("evidence_close")
+    assert events.index("evidence_close") < events.index("lease_release")

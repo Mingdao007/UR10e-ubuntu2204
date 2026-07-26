@@ -107,6 +107,21 @@ from .queue import (
 )
 from .remote_headless import RemoteEvidence, RemoteLifecycleReport, RemoteStage, build_dry_run_command_plan, inspect_remote_headless, parse_dashboard_response, parse_load_response, parse_play_response
 from .direct_torque_receiver import ReceiverContract, ReceiverCommand, ReceiverSemanticState, build_receiver_source, parse_receiver_source, receiver_empty_wait
+from .direct_torque_live_v4 import (
+    COMPILE_PROBE_PROTOCOL_TOKEN,
+    COMPILE_PROBE_SCHEMA,
+    LIVE_PROTOCOL_TOKEN as LIVE_DIRECT_TORQUE_PROTOCOL_TOKEN,
+    LIVE_RECEIVER_SCHEMA,
+    LiveReceiverContract,
+    LiveTubeContract,
+    SequenceDecision,
+    SequenceResult,
+    build_compile_probe_source,
+    build_live_receiver_source,
+    evaluate_sequence,
+    parse_compile_probe_source,
+    parse_live_receiver_source,
+)
 from .mainline_dataset import validate_mainline_dataset, write_mainline_dataset, write_mainline_manifest
 from .mainline_model import ConditionalActionModel, DeterministicMainlinePredictor, MainlineModelConfig, benchmark_runtime, export_torchscript, load_mainline_checkpoint, train_mainline_model
 from .raw_artifact import DurableRawFrameWriter, RawFrameRecord, derive_training_view, read_raw_frames
@@ -240,6 +255,19 @@ __all__ = [
     "build_receiver_source",
     "parse_receiver_source",
     "receiver_empty_wait",
+    "COMPILE_PROBE_PROTOCOL_TOKEN",
+    "COMPILE_PROBE_SCHEMA",
+    "LIVE_DIRECT_TORQUE_PROTOCOL_TOKEN",
+    "LIVE_RECEIVER_SCHEMA",
+    "LiveReceiverContract",
+    "LiveTubeContract",
+    "SequenceDecision",
+    "SequenceResult",
+    "build_compile_probe_source",
+    "build_live_receiver_source",
+    "evaluate_sequence",
+    "parse_compile_probe_source",
+    "parse_live_receiver_source",
     "validate_mainline_dataset",
     "write_mainline_dataset",
     "write_mainline_manifest",

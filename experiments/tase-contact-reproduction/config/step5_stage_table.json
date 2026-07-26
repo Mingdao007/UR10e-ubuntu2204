@@ -9056,6 +9056,61 @@
       "success_condition": "P0 v9 guard v2 live acceptance requires 60 continuous seconds of Stage25 layout-524 consumed and structurally host-accepted packets with full TP echo, actual along endpoint >=90 mm, actual lateral peak >=25 mm, final relative base Z >=18 mm, and terminal exact-zero TP stop acknowledgement. Force, Cartesian-speed, approach-normal motion/displacement, DLS, residual magnitude, and active bounds remain diagnostics only."
     },
     {
+      "id": "step5d_direct_torque_remote_live_v4",
+      "stage": "Step5d",
+      "owner": "native_remote_direct_torque_candidate",
+      "active": false,
+      "blocked": true,
+      "complete": false,
+      "completion_target": false,
+      "shape": "anchor_circle",
+      "frame": "config/step5_safe_frame.json",
+      "contact": false,
+      "bridge": false,
+      "runtime_interface_ref": "config/direct_torque_remote_live_v4.json",
+      "transport_contract": {
+        "target": "controller_resident_urscript",
+        "client": "native_secondary_client",
+        "tcp_port": 30002,
+        "source_send_gate": "urscript_send_tcp_secondary_30002",
+        "controller_program_artifact": false
+      },
+      "geometry_contract": {
+        "shape": "anchor_circle",
+        "design_path_radius_m": 0.001,
+        "release_translation_tolerance_m": 0.001,
+        "hard_tube_normal_half_width_m": 0.002
+      },
+      "offline_validation": {
+        "source_build_physical_io": false,
+        "validation_physical_io": false,
+        "status": "offline_no_io"
+      },
+      "live_authority": {
+        "default_authorized": false,
+        "urscript_send_tcp_secondary_30002": "pending_independent_live_authority",
+        "rtde_input_write": "pending_independent_live_authority",
+        "direct_torque_motion": "pending_independent_live_authority",
+        "kunwei_stream": "deferred",
+        "contact": "deferred"
+      },
+      "hold_contract": {
+        "controller_loop_hz": 500,
+        "heartbeat_timeout_robot_ticks": 10,
+        "heartbeat_timeout_ms": 20,
+        "host_sequence_policy": "ACK_paced",
+        "max_unchanged_packet_hold_robot_ticks": 10
+      },
+      "register_contract_ref": "config/direct_torque_remote_live_v4.json#rtde_register_contract",
+      "current_binding": {
+        "is_current": false,
+        "stage_id": "step5d_direct_torque_remote_live_v4",
+        "current_stage_pointer": "config/current_stage.json",
+        "live_authorized": false
+      },
+      "success_condition": "Direct Torque RTDE v4 is retained only as an inactive canary candidate; it is an offline/awaiting-live candidate and does not imply contact success, completion, or controller motion authority."
+    },
+    {
       "id": "step5d_strict_rnn_ablation_v30",
       "canonical_profile_ref": "Step5.step5d_rnn",
       "stage": "Step5d",

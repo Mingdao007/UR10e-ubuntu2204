@@ -57,3 +57,28 @@ No-contact acceptance is 2 s, then 10 s, then 60 s with a fresh authorization
 for each tranche and deterministic `0+0` validation. One final frozen-
 fingerprint `2+1` review is deferred until immediately before expert-data
 collection contact, which also requires fresh contact authorization.
+
+## Inactive native remote Direct Torque v4 candidate
+
+The v4 candidate is separate from the frozen fixture-shadow route and remains
+inactive, blocked, non-current, and no-contact. Its controller source has one
+top-level 500 Hz state machine. Once torque starts, every active robot tick
+computes and sends a non-empty `direct_torque(..., friction_comp=True)` command;
+startup blends from the fresh actual pose for 100 ms, and every exit converges
+to one `stopj(10.0)` site. There is no zero-torque startup or exit window.
+
+The compile probe is a distinct no-motion program: it contains no
+`direct_torque`, `stopj`, motion primitive, or RTDE input read. A successful
+probe evidence artifact is required before any v4 live canary. The live stages
+cannot be skipped:
+
+1. 100 ms hold at the fresh actual pose;
+2. 0.2 mm smooth in-plane ramp over 0.5 s;
+3. bounded 2 s reference.
+
+Each stage requires a fresh hash-bound authorization and, after the first
+stage, strict-success evidence from the immediately preceding stage. The live
+CSV records every decoded controller packet, command lineage, actual state,
+applied `F_ff`/`K`, and the six commanded joint torques. These diagnostic
+captures remain `training_dataset=false`; Expert/contact collection needs a
+separate authorization and acceptance gate.
