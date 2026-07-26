@@ -98,6 +98,10 @@ def test_shell_rebinds_copied_admission_to_content_addressed_index() -> None:
     assert '"${admission}" "${EXPERIMENT_ROOT}"' in source
 
 
+def test_coordinator_repository_root_matches_shell_authority_root() -> None:
+    assert coordinator._repository_root(ROOT) == ROOT.parents[1].resolve(strict=True)
+
+
 def test_campaign_worker_code_preserves_bounded_campaign_fingerprint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -211,6 +215,7 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
         canonical_owner_starttime=456,
         launch_basis_sha256=None,
         campaign_prepare=output_root / "campaign-prepare.json",
+        authority_resource_id=coordinator.authority.DEFAULT_RESOURCE_ID,
     )
     release = SimpleNamespace(manifest_sha256="a" * 64, program_id="program")
     monkeypatch.setattr(coordinator, "load_runtime_release", lambda _root: release)
@@ -225,16 +230,38 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
             },
         ),
     )
-    monkeypatch.setattr(
-        coordinator.authority,
-        "load_current",
-        lambda _root: {
-            "state": "ACTIVE",
-            "attempt_id": "a" * 32,
-            "sequence": 7,
-            "owner": {"pid": 123, "starttime_ticks": 456},
-        },
-    )
+    authority_state = {
+        "state": "ACTIVE",
+        "attempt_id": "a" * 32,
+        "sequence": 7,
+        "authority_epoch": 7,
+        "owner": {"pid": 123, "starttime_ticks": 456},
+        "launch_basis_path": None,
+        "launch_basis_sha256": None,
+    }
+
+    def fake_load_current(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return dict(authority_state)
+
+    def fake_bind_basis(
+        _authority_root: Path | None,
+        _attempt_id: str,
+        _owner_pid: int,
+        _owner_starttime: int,
+        *,
+        sequence: int,
+        launch_basis_path: str,
+        launch_basis_sha256: str,
+        resource_id: str,
+    ) -> dict[str, Any]:
+        assert sequence == authority_state["sequence"]
+        assert resource_id == args.authority_resource_id
+        authority_state["launch_basis_path"] = launch_basis_path
+        authority_state["launch_basis_sha256"] = launch_basis_sha256
+        return dict(authority_state)
+
+    monkeypatch.setattr(coordinator.authority, "load_current", fake_load_current)
+    monkeypatch.setattr(coordinator.authority, "bind_basis", fake_bind_basis)
     monkeypatch.setattr(coordinator, "release_payload_path", lambda *_args: tmp_path / "payload.json")
     monkeypatch.setattr(coordinator, "load_contract", lambda _path: {})
     monkeypatch.setattr(coordinator, "load_launch_profile", lambda *_args, **_kwargs: object())
@@ -248,10 +275,13 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
         "release_runtime_contract",
         lambda *_args: {"tp_runtime_identity": {"protocol_version": 1}},
     )
+    monkeypatch.setattr(coordinator, "_repository_head", lambda _root: "a" * 40)
 
     basis = coordinator._basis(args)
     assert basis["schema"] == "step5d.autotune-v3/launch-basis-v2"
-    assert basis["worktree_root"] == str(args.experiment_root.resolve(strict=True))
+    assert basis["worktree_root"] == str(
+        coordinator._repository_root(args.experiment_root)
+    )
     assert re.fullmatch(r"[0-9a-f]{40}", basis["repository_head"])
     assert basis["basis_sha256"]
     attempt_args = SimpleNamespace(**vars(args))
@@ -418,6 +448,7 @@ def test_revoke_requires_success_and_confirms_exact_fence(monkeypatch: pytest.Mo
         attempt_id="attempt",
         owner_pid=123,
         owner_starttime=456,
+        authority_resource_id=coordinator.authority.DEFAULT_RESOURCE_ID,
     )
     owner = {"pid": 123, "starttime_ticks": 456}
     active = {"state": "ACTIVE", "attempt_id": "attempt", "owner": owner, "sequence": 7}
@@ -425,7 +456,11 @@ def test_revoke_requires_success_and_confirms_exact_fence(monkeypatch: pytest.Mo
     states = iter([active, revoked])
     calls: list[dict[str, Any]] = []
 
-    monkeypatch.setattr(coordinator.authority, "load_current", lambda _root: next(states))
+    monkeypatch.setattr(
+        coordinator.authority,
+        "load_current",
+        lambda *_args, **_kwargs: next(states),
+    )
 
     def fake_run(_command: list[str], **kwargs: Any) -> Any:
         calls.append(kwargs)
@@ -442,9 +477,14 @@ def test_revoke_command_failure_is_hard_failure(monkeypatch: pytest.MonkeyPatch,
         attempt_id="attempt",
         owner_pid=123,
         owner_starttime=456,
+        authority_resource_id=coordinator.authority.DEFAULT_RESOURCE_ID,
     )
     active = {"state": "ACTIVE", "attempt_id": "attempt", "owner": {"pid": 123, "starttime_ticks": 456}, "sequence": 7}
-    monkeypatch.setattr(coordinator.authority, "load_current", lambda _root: active)
+    monkeypatch.setattr(
+        coordinator.authority,
+        "load_current",
+        lambda *_args, **_kwargs: active,
+    )
     monkeypatch.setattr(
         coordinator.subprocess,
         "run",

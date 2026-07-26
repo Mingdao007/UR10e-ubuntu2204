@@ -100,6 +100,22 @@ def _repository_head(root: Path) -> str:
     raise RuntimeError("launch basis repository HEAD is unavailable")
 
 
+def _repository_root(root: Path) -> Path:
+    for candidate in (root.resolve(strict=True), *_REPO_HEAD_CANDIDATES):
+        result = subprocess.run(
+            ["git", "-C", str(candidate), "rev-parse", "--show-toplevel"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            continue
+        top_level = Path(result.stdout.strip())
+        if top_level.is_absolute():
+            return top_level.resolve(strict=True)
+    raise RuntimeError("launch basis repository root is unavailable")
+
+
 def _create_coordinator_runtime_root(args: argparse.Namespace) -> Path:
     """Create the one-shot runtime root owned by the coordinator."""
 
@@ -372,17 +388,18 @@ def _revoke(args: argparse.Namespace, reason: str) -> None:
 
 def _basis(args: argparse.Namespace) -> dict[str, Any]:
     root = args.experiment_root.resolve(strict=True)
+    worktree_root = _repository_root(root)
     release = load_runtime_release(root)
     admission_path, admission = resolve_bridge_admission(root, release=release)
     if admission_path.resolve() != args.admission.resolve():
         raise RuntimeError("coordinator admission path is not the current validated admission")
-    repository_head = _repository_head(root)
+    repository_head = _repository_head(worktree_root)
     current = authority.load_current(
         args.authority_root,
         attempt_id=args.attempt_id,
         owner_pid=args.owner_pid,
         owner_starttime_ticks=args.owner_starttime,
-        worktree_root=str(root),
+        worktree_root=str(worktree_root),
         repository_head=repository_head,
         resource_id=args.authority_resource_id,
     )
@@ -411,7 +428,7 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
             attempt_id=args.attempt_id,
             owner_pid=args.owner_pid,
             owner_starttime_ticks=args.owner_starttime,
-            worktree_root=str(root),
+            worktree_root=str(worktree_root),
             repository_head=repository_head,
             launch_basis_path=basis_path,
             launch_basis_sha256=current_basis_sha256,
@@ -448,7 +465,7 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
             or bound_basis.get("delivery_observation_sha256")
             != expected_delivery_observation_sha256
             or bound_basis.get("runtime_identity_sha256") != expected_runtime_identity_sha256
-            or bound_basis.get("worktree_root") != str(root)
+            or bound_basis.get("worktree_root") != str(worktree_root)
             or bound_basis.get("repository_head") != repository_head
             or bound_basis.get("authority_epoch") != args.authority_epoch
             or bound_basis.get("launch_nonce") != args.attempt_id
@@ -497,7 +514,7 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
         launch_nonce=os.environ.get("STEP5D_V3_LAUNCH_ATTEMPT_ID", args.attempt_id),
         argv_sha256=_sha256_json(sys.argv),
         effective_config_sha256=_sha256_json(effective["effective_config"]),
-        worktree_root=str(root),
+        worktree_root=str(worktree_root),
         repository_head=repository_head,
         issued_at_unix_ns=time.time_ns(),
         expires_at_unix_ns=time.time_ns() + args.basis_ttl_s * 1_000_000_000,
@@ -525,7 +542,7 @@ def _basis(args: argparse.Namespace) -> dict[str, Any]:
         attempt_id=args.attempt_id,
         owner_pid=args.owner_pid,
         owner_starttime_ticks=args.owner_starttime,
-        worktree_root=str(root),
+        worktree_root=str(worktree_root),
         repository_head=repository_head,
         launch_basis_path=basis_path,
         launch_basis_sha256=bound_basis["basis_sha256"],
