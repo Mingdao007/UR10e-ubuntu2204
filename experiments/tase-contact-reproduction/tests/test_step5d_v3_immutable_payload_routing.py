@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import shutil
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -26,6 +28,7 @@ if (
 import preflight_step5d_autotune_v3 as preflight  # noqa: E402
 import prepare_step5d_autotune_launch as launch_preparer  # noqa: E402
 import run_step5d_autotune_v3_live as live  # noqa: E402
+import run_step5d_autotune_v3_coordinator as coordinator  # noqa: E402
 from step5d_autotune_v3.release_identity import (  # noqa: E402
     LAUNCH_PROFILE_PATH,
     SAFETY_ENVELOPE_PATH,
@@ -35,6 +38,7 @@ from step5d_autotune_v3.release_identity import (  # noqa: E402
 
 
 INITIAL_MANIFEST_PATH = "config/step5d/parameter_receiver_initial.json"
+WORKTREE_ROOT = ROOT.parents[1]
 
 
 def _sha256(value: bytes) -> str:
@@ -98,6 +102,48 @@ def _release_bundle(root: Path) -> tuple[Any, dict[str, Path], dict[str, bytes]]
         program_id="step5d_strict_rnn_autotune_v3_r999",
     )
     return release, paths, contents
+
+
+def _seed_git_reference(source_root: Path, fixture_root: Path) -> None:
+    source = source_root / ".git"
+    if source.is_file():
+        raw = source.read_text(encoding="utf-8").splitlines()
+        if not raw or not raw[0].startswith("gitdir:"):
+            raise ValueError(f"Invalid Git worktree metadata: {source}")
+        target = Path(raw[0][len("gitdir:") :].strip())
+        if not target.is_absolute():
+            target = source.parent / target
+        content = f"gitdir: {target.resolve()}\n"
+    elif source.is_dir():
+        content = f"gitdir: {source.resolve(strict=True)}\n"
+    else:
+        raise FileNotFoundError(f"Git metadata is unavailable: {source}")
+    (fixture_root / ".git").write_text(content, encoding="utf-8")
+
+
+def _seed_campaign_source_contract(root: Path) -> None:
+    from step5d_autotune_backend import Step5dV35Backend
+
+    def _copy_path(src: Path, dst: Path) -> None:
+        if src.is_dir():
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+        else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+
+    for path in Step5dV35Backend.SOURCE_PATHS:
+        _copy_path(ROOT / path, root / path)
+    for path in Step5dV35Backend.CONFIG_PATHS:
+        _copy_path(ROOT / path, root / path)
+    _copy_path(
+        ROOT / "config" / "step5d" / "manifests",
+        root / "config" / "step5d" / "manifests",
+    )
+    _copy_path(
+        ROOT / "programs" / "step5" / "step5d",
+        root / "programs" / "step5" / "step5d",
+    )
+    _seed_git_reference(WORKTREE_ROOT, root)
 
 
 def test_release_payload_uses_bundle_when_mutable_mirrors_are_tampered(
@@ -350,3 +396,226 @@ def test_live_prepare_only_ignores_mutable_launch_override(
     assert observed["contract_bytes"] == contents[SAFETY_ENVELOPE_PATH]
     assert observed["launch_bytes"] == contents[LAUNCH_PROFILE_PATH]
     assert observed["profile_contract"] is observed
+
+
+def test_no_arm_live_composition_uses_one_real_campaign_fingerprint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from step5d_autotune_v3 import bridge_admission
+
+    experiment = tmp_path / "experiment"
+    _seed_campaign_source_contract(experiment)
+    release, paths, _contents = _release_bundle(experiment)
+    (experiment / "config/step5d").mkdir(parents=True, exist_ok=True)
+    (experiment / "config/step5d/current.json").write_text(
+        json.dumps(
+            {
+                "schema": "step5d.autotune-v3/current-release-pointer-v1",
+                "manifest_path": release.manifest_path,
+                "manifest_sha256": release.manifest_sha256,
+            },
+            separators=(",", ":"),
+        ),
+        encoding="utf-8",
+    )
+
+    expected_program = (
+        "/programs/andyl/kunwei/step5/"
+        "step5d_strict_rnn_autotune_v3_r012.urp"
+    )
+    delivery_observation = experiment / "runs/delivery-observation.json"
+    delivery_observation.parent.mkdir(parents=True, exist_ok=True)
+    delivery_observation.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.autotune-v3/delivery-observation-v1",
+                "transaction_id": "0123456789abcdef0123456789abcdef",
+                "fresh_controller_checked_at": "2026-01-01T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+    publication_lineage = experiment / "runs/publication-lineage.json"
+    publication_lineage.write_text('{"ok":true}\n', encoding="utf-8")
+
+    monkeypatch.setattr(
+        bridge_admission,
+        "load_runtime_release",
+        lambda _root: release,
+    )
+    monkeypatch.setattr(
+        bridge_admission,
+        "release_runtime_contract",
+        lambda *_args: {"expected_loaded_program": expected_program},
+    )
+    monkeypatch.setattr(
+        bridge_admission,
+        "release_contract_reference",
+        lambda *_args: {
+            "certificate_path": "runs/certificate.json",
+            "certificate_sha256": "c" * 64,
+            "evidence_path": "runs/contract.json",
+            "evidence_sha256": "d" * 64,
+        },
+    )
+    monkeypatch.setattr(
+        bridge_admission,
+        "resolve_publication_lineage",
+        lambda _root, **_kwargs: (publication_lineage, {"ok": True}),
+    )
+    monkeypatch.setattr(
+        bridge_admission,
+        "resolve_delivery_observation",
+        lambda _root, **_kwargs: (
+            delivery_observation,
+            {"transaction_id": "0123456789abcdef0123456789abcdef"},
+        ),
+    )
+    monkeypatch.setattr(
+        bridge_admission,
+        "load_delivery_observation",
+        lambda *_args, **_kwargs: {"transaction_id": "0123456789abcdef0123456789abcdef"},
+    )
+    monkeypatch.setattr(bridge_admission, "release_robot_host", lambda *_args: "robot")
+    monkeypatch.setattr(
+        bridge_admission,
+        "dashboard_exchange",
+        lambda _host, _requested, **_kwargs: {
+            "programState": f"STOPPED {expected_program}",
+            "get loaded program": f"Loaded program: {expected_program}",
+        },
+    )
+
+    admission = bridge_admission.observe_bridge_admission(
+        experiment,
+        dashboard_reader=lambda _host, _requested, **_kwargs: {
+            "programState": f"STOPPED {expected_program}",
+            "get loaded program": f"Loaded program: {expected_program}",
+        },
+    )
+    admission_path = bridge_admission.write_indexed_bridge_admission(experiment, admission)
+    assert admission["campaign_fingerprint"] and len(admission["campaign_fingerprint"]) == 64
+
+    coordinator_output = tmp_path / "coordinator-output"
+    authority_root = experiment / "authority"
+    campaign_root = experiment / "campaign"
+
+    monkeypatch.setattr(coordinator, "load_runtime_release", lambda _root: release)
+    monkeypatch.setattr(
+        coordinator,
+        "release_payload_path",
+        lambda _root, _release, relative: experiment / relative,
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "resolve_bridge_admission",
+        lambda *_args, **_kwargs: (admission_path, admission),
+    )
+    monkeypatch.setattr(
+        coordinator.authority,
+        "load_current",
+        lambda _root: {
+            "state": "ACTIVE",
+            "attempt_id": "attempt-no-arm-composition",
+            "sequence": 7,
+            "owner": {"pid": 123, "starttime_ticks": 456},
+        },
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "load_contract",
+        lambda _path: {"deployment_identity": "synthetic"},
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "load_launch_profile",
+        lambda *_args, **_kwargs: {"execution_profile_id": "nf100-slew050-a050"},
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "check_effective_config",
+        lambda **_kwargs: {"effective_config": {"robot_host": "192.0.2.1"}},
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "release_runtime_contract",
+        lambda *_args, **_kwargs: {"tp_runtime_identity": {"protocol_version": 1}},
+    )
+    monkeypatch.setattr(live, "ROOT", experiment)
+    monkeypatch.setattr(
+        launch_preparer,
+        "load_current_release",
+        lambda _root: release,
+    )
+    monkeypatch.setattr(
+        launch_preparer,
+        "release_payload_path",
+        lambda _root, _release, relative: experiment / relative,
+    )
+
+    coordinator_args = SimpleNamespace(
+        experiment_root=experiment,
+        admission=admission_path,
+        authority_root=authority_root,
+        attempt_id="attempt-no-arm-composition",
+        authority_epoch=7,
+        owner_pid=123,
+        owner_starttime=456,
+        output_root=coordinator_output,
+        campaign_root=campaign_root,
+        delivery_observation=delivery_observation,
+        preflight=tmp_path / "preflight.json",
+        launch_basis=tmp_path / "launch-basis.json",
+        launch_basis_sha256=None,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        basis_ttl_s=60,
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+    )
+    coordinator_output.mkdir(parents=True, exist_ok=True)
+    basis = coordinator._basis(coordinator_args)
+
+    prepare_args = launch_preparer.LaunchPreparationRequest(
+        experiment_root=experiment,
+        campaign_root=campaign_root,
+        binding_file=experiment / "campaign-binding.json",
+        binding_source="canonical-no-arm-composition",
+        launch_profile_path=paths[LAUNCH_PROFILE_PATH],
+        candidate_batch_size=5,
+        rolling_plan=False,
+        campaign_fingerprint=basis["campaign_fingerprint"],
+    )
+    campaign_prepare = launch_preparer.prepare(prepare_args)
+    campaign_prepare_payload = coordinator._build_campaign_prepare_payload(
+        basis=basis,
+        result=campaign_prepare,
+        created_at_unix_ns=basis["issued_at_unix_ns"],
+    )
+    campaign_prepare_path = tmp_path / "campaign-prepare.json"
+    campaign_prepare_path.write_text(
+        json.dumps(campaign_prepare_payload, separators=(",", ":")),
+        encoding="utf-8",
+    )
+
+    attempt_args = SimpleNamespace(**vars(coordinator_args))
+    attempt_args.output_root = coordinator_output / "attempt-0001"
+    attempt_args._coordinator_output_root = coordinator_output
+    attempt_args.launch_basis_sha256 = basis["basis_sha256"]
+    attempt_args.campaign_prepare = campaign_prepare_path
+    attempt_args.output_root.mkdir(parents=True, exist_ok=True)
+
+    checked_basis, checked_admission, checked_campaign = live._validate_active_launch_identity(
+        attempt_args,
+        release,
+    )
+    assert checked_basis["campaign_fingerprint"] == admission["campaign_fingerprint"]
+    assert checked_admission["campaign_fingerprint"] == checked_basis["campaign_fingerprint"]
+    assert (
+        checked_campaign["identity"]["campaign_fingerprint"]
+        == checked_basis["campaign_fingerprint"]
+    )
+    assert (
+        checked_campaign["result"]["campaign_fingerprint"]
+        == checked_basis["campaign_fingerprint"]
+    )

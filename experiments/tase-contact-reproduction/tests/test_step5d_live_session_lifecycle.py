@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from run_step5d_autotune_v3_live import (  # noqa: E402
     LiveSessionLifecycle,
     LiveSessionState,
+    RecoverableLiveSessionAttemptError,
     _should_request_program_stop,
     _run_recoverable_sessions,
 )
@@ -26,7 +27,7 @@ def test_first_failure_cleanup_backoff_then_second_isolated_session() -> None:
         calls.append(1)
         events.append(f"session-{len(calls)}")
         if len(calls) == 1:
-            raise RuntimeError("runner failed")
+            raise RecoverableLiveSessionAttemptError(RuntimeError("runner failed"))
         return {"ok": True}
 
     result = _run_recoverable_sessions(
@@ -40,7 +41,7 @@ def test_first_failure_cleanup_backoff_then_second_isolated_session() -> None:
     assert len(calls) == 2
     assert events == ["session-1", "cleanup", "backoff", "session-2"]
     assert lifecycle.receiver_accepting is True
-    assert LiveSessionState.WAITING_FOR_HARDWARE.value in lifecycle.transitions
+    assert lifecycle.transitions == [LiveSessionState.RECOVERING.value, LiveSessionState.WAITING_FOR_HARDWARE.value]
 
 
 def test_hardware_false_never_starts_second_session() -> None:
@@ -56,7 +57,7 @@ def test_hardware_false_never_starts_second_session() -> None:
         if cleanups:
             raise KeyboardInterrupt
 
-    with pytest.raises(KeyboardInterrupt):
+    with pytest.raises(RuntimeError, match="bridge failed"):
         _run_recoverable_sessions(
             session,
             cleanup=lambda: cleanups.append("cleanup"),
@@ -65,9 +66,9 @@ def test_hardware_false_never_starts_second_session() -> None:
         )
 
     assert len(calls) == 1
-    assert cleanups == ["cleanup", "cleanup"]
-    assert lifecycle.state is LiveSessionState.SHUTDOWN
-    assert lifecycle.receiver_accepting is False
+    assert cleanups == []
+    assert lifecycle.state is LiveSessionState.WAITING_FOR_PARAMETERS
+    assert lifecycle.receiver_accepting is True
 
 
 def test_empty_queue_keeps_receiver_accepting_until_shutdown() -> None:

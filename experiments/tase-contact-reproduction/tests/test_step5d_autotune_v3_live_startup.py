@@ -10,7 +10,7 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Mapping
 
 import pytest
 import subprocess
@@ -31,6 +31,7 @@ if (
 
 import run_step5d_autotune_v3_live as live  # noqa: E402
 import preflight_step5d_autotune_v3 as preflight  # noqa: E402
+import run_step5d_autotune_v3_coordinator as coordinator  # noqa: E402
 from ur10e_parallel import (  # noqa: E402
     ResourceProfile,
     writer_lease,
@@ -1461,6 +1462,521 @@ def test_live_runtime_missing_identity_fails_before_output_creation(tmp_path: Pa
     with pytest.raises(live.LiveLaunchError, match="admission|authority-epoch"):
         live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
     assert not args.output_root.exists()
+
+
+def test_run_recoverable_live_session_preserves_first_pre_bridge_error_and_stops_retrying(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+    )
+    attempt_root = args.output_root / "attempt-0001"
+    release = SimpleNamespace(
+        release_stage_id=live.RELEASE_STAGE_ID,
+        control_profile_id=live.CONTROL_PROFILE_ID,
+        program_id="step5d_strict_rnn_autotune_v3_r999",
+        manifest_sha256="e" * 64,
+        generated_files={live.LAUNCH_PROFILE_PATH: "a" * 64},
+    )
+
+    def fail_identity(*_args: Any, **_kwargs: Any) -> tuple[Any, Any, Any]:
+        raise live.LiveLaunchError("bridge admission campaign identity differs")
+
+    monkeypatch.setattr(live, "_validate_active_launch_identity", fail_identity)
+    monkeypatch.setattr(
+        live,
+        "load_runtime_release",
+        lambda _root: release,
+    )
+    monkeypatch.setattr(
+        live,
+        "load_delivery_observation",
+        lambda *_args, **_kwargs: {
+            "schema": "step5d.autotune-v3/delivery-observation-v1",
+            "recorded_at_unix_ns": 1,
+            "release_manifest_sha256": release.manifest_sha256,
+            "program_id": release.program_id,
+            "controller_target": "/programs/fake_r010.urp",
+            "transaction_id": "f" * 32,
+            "fresh_controller_checked_at": "2026-01-01T00:00:00+00:00",
+            "triplet_sha256": {
+                ".script": "a" * 64,
+                ".txt": "b" * 64,
+                ".urp": "c" * 64,
+            },
+            "receipt": {"path": "runs/delivery-observation.json", "sha256": "d" * 64},
+            },
+    )
+    args.output_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    coordinator._create_coordinator_runtime_root(
+        SimpleNamespace(
+            output_root=args.output_root,
+            owner_pid=args.canonical_owner_pid,
+            owner_starttime=args.canonical_owner_starttime,
+            attempt_id="attempt-no-retry",
+            authority_epoch=args.authority_epoch,
+        )
+    )
+
+    with pytest.raises(live.LiveLaunchError, match="bridge admission campaign identity differs"):
+        live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
+
+    status = live.read_strict_json(
+        args.output_root / "recoverable_session_status.json", role="recoverable session status"
+    )
+    assert status["state"] == "RECOVERING"
+    assert status["attempt"] == 1
+    assert "bridge admission campaign identity differs" in status["error"]
+    assert status["attempt_root"] == str(attempt_root)
+    assert not (args.output_root / "attempt-0002").exists()
+
+
+def test_run_recoverable_live_session_stops_retry_on_raw_session_exception(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+    )
+    attempt_root = args.output_root / "attempt-0001"
+    attempts: list[int] = []
+
+    def hard_fail(*_args: Any, **_kwargs: Any) -> dict[str, bool]:
+        attempts.append(1)
+        raise RuntimeError("unclassified runtime fault")
+
+    monkeypatch.setattr(live, "_run_live_session", hard_fail)
+
+    with pytest.raises(RuntimeError, match="unclassified runtime fault"):
+        live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
+
+    status = live.read_strict_json(
+        args.output_root / "recoverable_session_status.json", role="recoverable session status"
+    )
+    assert status["state"] == "RECOVERING"
+    assert status["attempt"] == 1
+    assert "unclassified runtime fault" in status["error"]
+    assert status["attempt_root"] == str(attempt_root)
+    assert not (args.output_root / "attempt-0002").exists()
+    assert attempts == [1]
+
+
+def test_run_live_single_session_nonrecoverable_failure_preserves_recovering_and_invokes_cleanup(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+        single_session=True,
+    )
+    attempt_root = args.output_root / "attempt-0001"
+    dispatch_calls: list[str] = []
+    original_dispatch = live.dispatch_single_session
+
+    def dispatch_spy(session_callable: Any, cleanup: Any) -> Any:
+        dispatch_calls.append("dispatch")
+
+        def wrapped_cleanup() -> None:
+            dispatch_calls.append("cleanup")
+            cleanup()
+
+        return original_dispatch(session_callable, wrapped_cleanup)
+
+    monkeypatch.setattr(live, "dispatch_single_session", dispatch_spy)
+    monkeypatch.setattr(
+        live,
+        "_run_live_session",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            live.LiveSessionAttemptError(RuntimeError("single session hard failure"), recoverable=False)
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="single session hard failure"):
+        live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
+
+    assert dispatch_calls == ["dispatch", "cleanup"]
+    status = live.read_strict_json(
+        args.output_root / "recoverable_session_status.json",
+        role="recoverable session status",
+    )
+    assert status["state"] == "RECOVERING"
+    assert status["attempt"] == 1
+    assert status["attempt_root"] == str(attempt_root)
+    assert "single session hard failure" in status["error"]
+
+
+def test_run_recoverable_live_session_retries_once_for_recoverable_session_failure_waiting_before_backoff(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+    )
+    attempts: list[int] = []
+    status_before_backoff: list[str] = []
+
+    def recoverable_then_success(*_args: Any, **_kwargs: Any) -> dict[str, bool]:
+        attempts.append(len(attempts) + 1)
+        if len(attempts) == 1:
+            raise live.LiveSessionAttemptError(
+                RuntimeError("temporary hardware fault"), recoverable=True
+            )
+        return {"ok": True}
+
+    def record_waiting_before_backoff(_seconds: float = live.RECOVERY_BACKOFF_S) -> None:
+        status = live.read_strict_json(
+            args.output_root / "recoverable_session_status.json",
+            role="recoverable session status",
+        )
+        status_before_backoff.append(status["state"])
+
+    monkeypatch.setattr(live, "_run_live_session", recoverable_then_success)
+    monkeypatch.setattr(live.time, "sleep", record_waiting_before_backoff)
+
+    result = live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
+
+    assert result["ok"] is True
+    assert attempts == [1, 2]
+    assert status_before_backoff == ["WAITING_FOR_HARDWARE"]
+
+
+def test_run_live_single_session_keyboard_interrupt_preserves_shutdown(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+        single_session=True,
+    )
+
+    monkeypatch.setattr(
+        live,
+        "_run_live_session",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(KeyboardInterrupt),
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        live._run_live(args, {"profiles": {"control": {"python_executable": sys.executable}}})
+
+    status = live.read_strict_json(
+        args.output_root / "recoverable_session_status.json",
+        role="recoverable session status",
+    )
+    assert status["state"] == "SHUTDOWN"
+
+
+def test_validate_active_launch_identity_maps_live_cli_shape_to_coordinator_namespace(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "attempt-0001",
+        _coordinator_output_root=tmp_path / "coordinator-output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=111,
+        canonical_owner_starttime=222,
+    )
+    args.admission.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.autotune-v3/bridge-admission-v1",
+                "campaign_fingerprint": "c" * 64,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    basis = {
+        "launch_nonce": "live-attempt-sentinel",
+        "basis_sha256": "b" * 64,
+        "campaign_fingerprint": "c" * 64,
+        "delivery_observation_sha256": "d" * 64,
+        "release_manifest_sha256": "e" * 64,
+        "runtime_identity_sha256": "f" * 64,
+        "authority_epoch": 7,
+        "issued_at_unix_ns": 1,
+        "expires_at_unix_ns": 10,
+    }
+    campaign_prepare = {
+        "schema": coordinator.CAMPAIGN_PREPARE_SCHEMA,
+        "ok": True,
+        "fresh": True,
+        "created_at_unix_ns": 2,
+        "launch_basis_sha256": basis["basis_sha256"],
+        "identity": {
+            "campaign_id": "campaign-mapping",
+            "campaign_epoch": 1,
+            "campaign_fingerprint": basis["campaign_fingerprint"],
+            "release_manifest_sha256": basis["release_manifest_sha256"],
+            "runtime_identity_sha256": basis["runtime_identity_sha256"],
+        },
+        "result": {
+            "ok": True,
+            "campaign_id": "campaign-mapping",
+            "campaign_epoch": 1,
+            "campaign_fingerprint": basis["campaign_fingerprint"],
+            "campaign_root": str(tmp_path / "campaign"),
+            "campaign_binding_file": str(tmp_path / "campaign-binding.json"),
+            "launch_profile_path": str(tmp_path / "launch-profile.json"),
+            "launch_profile_sha256": "0" * 64,
+            "machine_binding_status": "ready_parameter_receiver",
+            "candidate_plan": str(tmp_path / "candidate-plan.json"),
+            "trial_overlay_plan": str(tmp_path / "trial-overlay-plan.json"),
+            "receiver_root": str(tmp_path / "receiver"),
+        },
+    }
+    coordinator_output = tmp_path / "coordinator-output"
+    coordinator_output.mkdir(mode=0o700, exist_ok=True)
+    coordinator._create_coordinator_runtime_root(
+        SimpleNamespace(
+            output_root=coordinator_output,
+            _coordinator_output_root=coordinator_output,
+            owner_pid=111,
+            owner_starttime=222,
+            attempt_id=basis["launch_nonce"],
+            authority_epoch=7,
+        )
+    )
+
+    def fake_read_and_validate_launch_basis(*_args: Any, **_kwargs: Any) -> dict[str, object]:
+        return basis
+
+    def fake_validate_bridge_admission(*_args: Any, **_kwargs: Any) -> dict[str, object]:
+        return {
+            "schema": "step5d.autotune-v3/bridge-admission-v1",
+            "campaign_fingerprint": basis["campaign_fingerprint"],
+        }
+
+    def fake_validate_delivery_observation_binding(
+        *_args: Any, **_kwargs: Any
+    ) -> None:
+        pass
+
+    def fake_validate_campaign_prepare(
+        payload: Any, basis_payload: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        assert payload == campaign_prepare
+        return campaign_prepare
+
+    def fake_release_identity(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(program_id="step5d_strict_rnn_autotune_v3_r999")
+
+    monkeypatch.setattr(live, "read_and_validate_launch_basis", fake_read_and_validate_launch_basis)
+    monkeypatch.setattr(live, "validate_bridge_admission", fake_validate_bridge_admission)
+    monkeypatch.setattr(live, "validate_delivery_observation_binding", fake_validate_delivery_observation_binding)
+    monkeypatch.setattr(coordinator, "_validate_campaign_prepare", fake_validate_campaign_prepare)
+
+    args.launch_basis = tmp_path / "basis.json"
+    args.launch_basis_sha256 = basis["basis_sha256"]
+    args.campaign_prepare.write_text(json.dumps(campaign_prepare), encoding="utf-8")
+    args.launch_basis.write_text(json.dumps(basis), encoding="utf-8")
+
+    assert not hasattr(args, "owner_pid")
+    assert not hasattr(args, "owner_starttime")
+
+    checked_basis, checked_admission, checked_campaign = live._validate_active_launch_identity(
+        args,
+        fake_release_identity(),
+    )
+
+    assert checked_basis == basis
+    assert checked_admission == {
+        "schema": "step5d.autotune-v3/bridge-admission-v1",
+        "campaign_fingerprint": basis["campaign_fingerprint"],
+    }
+    assert checked_campaign == campaign_prepare
+
+    contract_path = coordinator_output / "runtime" / coordinator.RUNTIME_ROOT_CONTRACT_FILE
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    assert contract["attempt_id"] == basis["launch_nonce"]
+    assert contract["owner_pid"] == args.canonical_owner_pid
+    assert contract["owner_starttime"] == args.canonical_owner_starttime
+    assert contract["authority_epoch"] == 7
+
+
+def test_run_live_session_uses_basis_launch_nonce_not_mutable_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=111,
+        canonical_owner_starttime=222,
+    )
+    basis = {
+        "launch_nonce": "basis-attempt-lock",
+        "basis_sha256": "b" * 64,
+        "campaign_fingerprint": "c" * 64,
+        "delivery_observation_sha256": "d" * 64,
+        "release_manifest_sha256": "e" * 64,
+        "runtime_identity_sha256": "f" * 64,
+        "authority_epoch": 7,
+        "issued_at_unix_ns": 1,
+        "expires_at_unix_ns": 10,
+    }
+    observed = {"attempt_id": None}
+
+    class _NullWriterLease:
+        def __enter__(self) -> None:
+            return None
+
+        def __exit__(self, *_args: Any) -> None:
+            return None
+
+    monkeypatch.setenv("STEP5D_V3_LAUNCH_ATTEMPT_ID", "drifted-attempt")
+    monkeypatch.setattr(
+        live,
+        "writer_lease",
+        lambda *_args, **_kwargs: _NullWriterLease(),
+    )
+    monkeypatch.setattr(
+        live,
+        "_validate_active_launch_identity",
+        lambda *_args: (basis, {"campaign_fingerprint": "c" * 64}, {}),
+    )
+    monkeypatch.setattr(
+        live,
+        "load_runtime_release",
+        lambda _root: SimpleNamespace(
+            release_stage_id=live.RELEASE_STAGE_ID,
+            control_profile_id=live.CONTROL_PROFILE_ID,
+            program_id="step5d_strict_rnn_autotune_v3_r999",
+            manifest_sha256="e" * 64,
+            generated_files={live.LAUNCH_PROFILE_PATH: "a" * 64},
+        ),
+    )
+    monkeypatch.setattr(
+        live,
+        "load_delivery_observation",
+        lambda *_args, **_kwargs: {"schema": "ignored"},
+    )
+    monkeypatch.setattr(
+        live,
+        "_validate_coordinator_runtime_root",
+        lambda ns: (
+            observed.__setitem__("attempt_id", ns.attempt_id),
+            tmp_path / "runtime-root",
+        )[1],
+    )
+    monkeypatch.setattr(
+        live,
+        "_create_bridge_runtime",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("stop-before-bridge")),
+    )
+
+    with pytest.raises(RuntimeError, match="stop-before-bridge"):
+        live._run_live_session(
+            args,
+            {"profiles": {"control": {"python_executable": sys.executable}}},
+        )
+
+    assert observed["attempt_id"] == basis["launch_nonce"]
+
+
+def test_run_recoverable_live_session_retries_once_for_recoverable_session_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    args = SimpleNamespace(
+        output_root=tmp_path / "output",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery.json",
+        admission=tmp_path / "admission.json",
+        authority_epoch=7,
+        launch_basis=tmp_path / "basis.json",
+        launch_basis_sha256="a" * 64,
+        campaign_prepare=tmp_path / "campaign-prepare.json",
+        campaign_root=tmp_path / "campaign",
+        canonical_owner_pid=123,
+        canonical_owner_starttime=456,
+    )
+    attempts: list[int] = []
+
+    def recoverable_then_success(*_args: Any, **_kwargs: Any) -> dict[str, bool]:
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise live.LiveSessionAttemptError(
+                RuntimeError("temporary hardware fault"), recoverable=True
+            )
+        return {"ok": True}
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(live, "_run_live_session", recoverable_then_success)
+    monkeypatch.setattr(live.time, "sleep", sleeps.append)
+
+    result = live._run_live(
+        args,
+        {"profiles": {"control": {"python_executable": sys.executable}}},
+    )
+
+    assert result["ok"] is True
+    assert len(attempts) == 2
+    assert sleeps == [live.RECOVERY_BACKOFF_S]
+    final_status = live.read_strict_json(
+        args.output_root / "recoverable_session_status.json",
+        role="recoverable session status",
+    )
+    assert final_status["state"] == "COMPLETED"
+    assert final_status["attempt"] == 2
+    assert (args.output_root / "attempt-0001").exists()
+    assert (args.output_root / "attempt-0002").exists()
 
 
 def test_parameter_receiver_binds_observed_home_before_first_dispatch() -> None:
