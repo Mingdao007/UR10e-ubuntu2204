@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
 import promote_step5d_current as promote  # noqa: E402
+import finalize_step5d_autotune_v3_publication as finalize  # noqa: E402
 
 
 TARGET_DIR = "/programs/andyl/kunwei/step5"
@@ -30,6 +33,7 @@ V27 = "step5d_strict_rnn_ablation_v27"
 V28 = "step5d_strict_rnn_ablation_v28"
 V29 = "step5d_strict_rnn_ablation_v29"
 V30 = "step5d_strict_rnn_ablation_v30"
+CURRENT_JSON = "config/step5d/current.json"
 
 
 def _sha(data: bytes) -> str:
@@ -410,7 +414,502 @@ def _write_v26_fixture(root: Path) -> tuple[Path, Path]:
     return v26_dir, manifest_path
 
 
+def _init_publication_repo(root: Path) -> tuple[Path, str, str, Path]:
+    repository = root.parents[1]
+    subprocess.run(
+        ["git", "-C", str(repository), "init", "-q"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.email", "test@example.com"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "config", "user.name", "Test User"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    canonical = root / "scripts" / "step5d-autotune-v3.sh"
+    canonical.parent.mkdir(parents=True, exist_ok=True)
+    canonical.write_bytes(b"#!/usr/bin/env bash\nexit 0\n")
+    os.chmod(canonical, 0o755)
+    current_json = root / CURRENT_JSON
+    current_json.parent.mkdir(parents=True, exist_ok=True)
+    current_json.write_text('{"v": 21}\n', encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(repository), "add", "-A"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    subprocess.run(
+        ["git", "-C", str(repository), "commit", "-m", "publication baseline"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    baseline_head = subprocess.run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
+    baseline_tree = subprocess.run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD^{tree}"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
+    plan_path = root / "runs" / "step5d_autotune_v3" / "publication-plan.json"
+    plan_payload = json.dumps(
+        {
+            "baseline": {"head": baseline_head, "tree": baseline_tree},
+            "publication": {
+                "allowlist": [CURRENT_JSON],
+                "sha256": {CURRENT_JSON: _sha(b'{"v": 22}\\n')},
+                "commit_message": "publication candidate commit",
+            },
+            "release": {"transaction_id": "txn-001"},
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("ascii")
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_bytes(plan_payload)
+    current_json.write_text('{"v": 22}\n', encoding="utf-8")
+    return root, baseline_head, baseline_tree, current_json
+
+
+def _make_publication_plan(
+    root: Path,
+    baseline_head: str | None = None,
+    baseline_tree: str | None = None,
+    *,
+    transaction_id: str = "txn-001",
+) -> tuple[Path, str, str, str]:
+    plan_path = root / "runs" / "step5d_autotune_v3" / "publication-plan.json"
+    allowlist = [CURRENT_JSON]
+    if baseline_head is None:
+        baseline_head = _git(root, "rev-parse", "HEAD")
+    if baseline_tree is None:
+        baseline_tree = _git(root, "rev-parse", "HEAD^{tree}")
+    plan = {
+        "baseline": {"head": baseline_head, "tree": baseline_tree},
+        "publication": {
+            "allowlist": allowlist,
+            "sha256": {CURRENT_JSON: _sha(b'{"v": 22}\n')},
+            "commit_message": "publication candidate commit",
+        },
+        "release": {"transaction_id": transaction_id},
+    }
+    plan_payload = json.dumps(plan, sort_keys=True, separators=(",", ":")).encode("ascii")
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_bytes(plan_payload)
+    plan_sha = hashlib.sha256(plan_payload).hexdigest()
+    return plan_path, plan_sha, baseline_head, baseline_tree
+
+
+def _git(root: Path, *arguments: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(root.parents[1]), *arguments],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
+
+
+def _read_publication_head(root: Path) -> str:
+    return _git(root, "rev-parse", "HEAD")
+
+
+def _current_publication_ref(root: Path) -> str:
+    ref = subprocess.run(
+        ["git", "-C", str(root.parents[1]), "symbolic-ref", "-q", "HEAD"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
+    if not ref:
+        return "HEAD"
+    return ref
+
+
+def _staging_refs(root: Path) -> list[str]:
+    return [
+        item.strip()
+        for item in subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root.parents[1]),
+                "for-each-ref",
+                "--format=%(refname)",
+                "refs/heads/step5d-autotune-v3/publication",
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ).stdout.splitlines()
+        if item.strip()
+    ]
+
+
 class Step5dCurrentPromotionTest(unittest.TestCase):
+    def test_finalize_revalidate_failure_does_not_advance_head_or_pointer(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "publication-repo"
+            root = repository / "experiments" / "tase-contact-reproduction"
+            root.mkdir(parents=True)
+            _init_publication_repo(root)
+            baseline_head = _git(root, "rev-parse", "HEAD~0")
+            baseline_tree = _git(root, "rev-parse", "HEAD^{tree}")
+            plan_path, plan_sha, finalization_baseline_head, finalization_baseline_tree = _make_publication_plan(
+                root,
+                baseline_head=baseline_head,
+                baseline_tree=baseline_tree,
+            )
+            baseline_bytes = (root / CURRENT_JSON).read_bytes()
+            ref = _current_publication_ref(root)
+
+            with mock.patch.object(
+                finalize,
+                "_run_revalidate",
+                return_value=1,
+            ), mock.patch.object(
+                finalize.transition,
+                "validate_post_promotion_publication_plan",
+            ), mock.patch.object(
+                finalize.transition,
+                "_status_paths_nul",
+                return_value=(CURRENT_JSON,),
+            ):
+                rc, payload = finalize.finalize(root, plan_path, root / finalize.CANONICAL_SHELL_RELATIVE, plan_sha)
+
+            self.assertEqual(rc, 1)
+            self.assertEqual(payload["status"], "revalidate_failed")
+            self.assertEqual(_read_publication_head(root), finalization_baseline_head)
+            self.assertEqual(_git(root, "rev-parse", "HEAD^{tree}"), finalization_baseline_tree)
+            self.assertEqual(_current_publication_ref(root), ref)
+            self.assertEqual((root / CURRENT_JSON).read_bytes(), baseline_bytes)
+            self.assertEqual(_staging_refs(root), [])
+
+    def test_finalize_success_advances_head_exactly_once(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "publication-repo"
+            root = repository / "experiments" / "tase-contact-reproduction"
+            root.mkdir(parents=True)
+            _init_publication_repo(root)
+            plan_path, plan_sha, baseline_head, baseline_tree = _make_publication_plan(
+                root,
+            )
+            calls: list[tuple[str, ...]] = []
+            original_git = finalize._git
+
+            def traced_git(
+                git_root: Path,
+                *arguments: str,
+                check: bool = True,
+                env: dict[str, str] | None = None,
+            ) -> subprocess.CompletedProcess[str]:
+                calls.append(arguments)
+                return original_git(git_root, *arguments, check=check, env=env)
+
+            with mock.patch.object(finalize, "_git", side_effect=traced_git), mock.patch.object(
+                finalize,
+                "_run_revalidate",
+                return_value=0,
+            ), mock.patch.object(
+                finalize.transition,
+                "validate_post_promotion_publication_plan",
+            ), mock.patch.object(
+                finalize.transition,
+                "_status_paths_nul",
+                return_value=(CURRENT_JSON,),
+            ):
+                first_rc, first_payload = finalize.finalize(
+                    root,
+                    plan_path,
+                    root / finalize.CANONICAL_SHELL_RELATIVE,
+                    plan_sha,
+                )
+                second_rc, second_payload = finalize.finalize(
+                    root,
+                    plan_path,
+                    root / finalize.CANONICAL_SHELL_RELATIVE,
+                    plan_sha,
+                )
+
+            self.assertEqual(first_rc, 0)
+            self.assertEqual(second_rc, 0)
+            self.assertEqual(first_payload["status"], "ok")
+            self.assertEqual(second_payload["status"], "existing_commit_revalidated")
+            self.assertEqual(first_payload["commit"]["oid"], second_payload["commit"]["oid"])
+            self.assertNotEqual(_git(root, "rev-parse", "HEAD"), baseline_head)
+            self.assertEqual(_git(root, "rev-parse", "--verify", "HEAD"), first_payload["commit"]["oid"])
+            self.assertEqual(
+                subprocess.run(
+                    ["git", "-C", str(repository), "diff", "--quiet"], check=False
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repository),
+                        "diff",
+                        "--cached",
+                        "--quiet",
+                    ],
+                    check=False,
+                ).returncode,
+                0,
+            )
+            self.assertFalse(
+                any(command[:2] == ("reset", "--hard") for command in calls),
+                "finalization attempted a hard reset",
+            )
+            self.assertFalse(
+                any(command[:2] == ("checkout", "--force") for command in calls),
+                "finalization attempted a forced checkout",
+            )
+            self.assertEqual(_staging_refs(root), [])
+
+    def test_finalize_ref_race_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "publication-repo"
+            root = repository / "experiments" / "tase-contact-reproduction"
+            root.mkdir(parents=True)
+            _init_publication_repo(root)
+            plan_path, plan_sha, baseline_head, baseline_tree = _make_publication_plan(
+                root,
+            )
+            publish_ref = _current_publication_ref(root)
+            baseline_bytes = (root / CURRENT_JSON).read_bytes()
+            calls: list[tuple[str, ...]] = []
+            original_git = finalize._git
+
+            def traced_git(
+                git_root: Path,
+                *arguments: str,
+                check: bool = True,
+                env: dict[str, str] | None = None,
+            ) -> subprocess.CompletedProcess[str]:
+                calls.append(arguments)
+                if arguments[:2] == ("update-ref", publish_ref) and len(arguments) == 4:
+                    raise finalize.transition.ReleaseTransitionError("publication ref race")
+                return original_git(git_root, *arguments, check=check, env=env)
+
+            with mock.patch.object(finalize, "_git", side_effect=traced_git), mock.patch.object(
+                finalize,
+                "_run_revalidate",
+                return_value=0,
+            ), mock.patch.object(
+                finalize.transition,
+                "validate_post_promotion_publication_plan",
+            ), mock.patch.object(
+                finalize.transition,
+                "_status_paths_nul",
+                return_value=(CURRENT_JSON,),
+            ):
+                with self.assertRaises(finalize.transition.ReleaseTransitionError):
+                    finalize.finalize(
+                        root,
+                        plan_path,
+                        root / finalize.CANONICAL_SHELL_RELATIVE,
+                        plan_sha,
+                    )
+                self.assertEqual(_current_publication_ref(root), publish_ref)
+            self.assertEqual(_read_publication_head(root), baseline_head)
+            self.assertEqual((root / CURRENT_JSON).read_bytes(), baseline_bytes)
+            self.assertEqual(_git(root, "rev-parse", "HEAD^{tree}"), baseline_tree)
+            self.assertEqual(
+                subprocess.run(
+                    ["git", "-C", str(repository), "diff", "--name-only"],
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    text=True,
+                ).stdout.strip(),
+                str(Path("experiments/tase-contact-reproduction") / CURRENT_JSON),
+            )
+            self.assertEqual(
+                subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repository),
+                        "diff",
+                        "--cached",
+                        "--name-only",
+                    ],
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    text=True,
+                ).stdout.strip(),
+                "",
+            )
+            self.assertFalse(
+                any(command[:2] == ("reset", "--hard") for command in calls),
+                "finalization attempted a hard reset during CAS race",
+            )
+            self.assertFalse(
+                any(command[:2] == ("checkout", "--force") for command in calls),
+                "finalization attempted a forced checkout during CAS race",
+            )
+            self.assertEqual(_staging_refs(root), [])
+
+    def test_finalize_publish_state_verification_failure_restores_head_and_baseline_index(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "publication-repo"
+            root = repository / "experiments" / "tase-contact-reproduction"
+            root.mkdir(parents=True)
+            _init_publication_repo(root)
+            plan_path, plan_sha, baseline_head, baseline_tree = _make_publication_plan(
+                root,
+            )
+            publish_ref = _current_publication_ref(root)
+            baseline_bytes = (root / CURRENT_JSON).read_bytes()
+            calls: list[tuple[str, ...]] = []
+
+            original_git = finalize._git
+
+            def flaky_git(
+                git_root: Path,
+                *arguments: str,
+                check: bool = True,
+                env: dict[str, str] | None = None,
+            ) -> subprocess.CompletedProcess[str]:
+                calls.append(arguments)
+                if arguments[:2] == ("diff", "--quiet"):
+                    return subprocess.CompletedProcess(
+                        args=["git", str(root.parents[1]), *arguments],
+                        returncode=1,
+                        stdout=b"",
+                        stderr=b"forced dirty worktree after CAS",
+                    )
+                return original_git(git_root, *arguments, check=check, env=env)
+
+            with mock.patch.object(
+                finalize,
+                "_git",
+                side_effect=flaky_git,
+            ), mock.patch.object(
+                finalize,
+                "_run_revalidate",
+                return_value=0,
+            ), mock.patch.object(
+                finalize.transition,
+                "validate_post_promotion_publication_plan",
+            ), mock.patch.object(
+                finalize.transition,
+                "_status_paths_nul",
+                return_value=(CURRENT_JSON,),
+            ):
+                with self.assertRaises(finalize.transition.ReleaseTransitionError):
+                    finalize.finalize(
+                        root,
+                        plan_path,
+                        root / finalize.CANONICAL_SHELL_RELATIVE,
+                        plan_sha,
+                    )
+
+            self.assertEqual(_current_publication_ref(root), publish_ref)
+            self.assertEqual(_read_publication_head(root), baseline_head)
+            self.assertEqual((root / CURRENT_JSON).read_bytes(), baseline_bytes)
+            self.assertEqual(_git(root, "rev-parse", "HEAD^{tree}"), baseline_tree)
+            self.assertEqual(
+                subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repository),
+                        "diff",
+                        "--name-only",
+                    ],
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    text=True,
+                ).stdout.strip(),
+                str(Path("experiments/tase-contact-reproduction") / CURRENT_JSON),
+            )
+            self.assertEqual(
+                subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repository),
+                        "diff",
+                        "--cached",
+                        "--name-only",
+                    ],
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    text=True,
+                ).stdout.strip(),
+                "",
+            )
+            self.assertFalse(
+                any(command[:2] == ("reset", "--hard") for command in calls),
+                "finalization attempted a hard reset",
+            )
+            self.assertFalse(
+                any(command[:2] == ("checkout", "--force") for command in calls),
+                "finalization attempted a forced checkout",
+            )
+            self.assertEqual(_staging_refs(root), [])
+
+    def test_finalize_recovery_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repository = Path(tmp) / "publication-repo"
+            root = repository / "experiments" / "tase-contact-reproduction"
+            root.mkdir(parents=True)
+            _init_publication_repo(root)
+            plan_path, plan_sha, baseline_head, baseline_tree = _make_publication_plan(
+                root,
+            )
+
+            with mock.patch.object(
+                finalize,
+                "_run_revalidate",
+                return_value=1,
+            ), mock.patch.object(
+                finalize.transition,
+                "validate_post_promotion_publication_plan",
+            ), mock.patch.object(
+                finalize.transition,
+                "_status_paths_nul",
+                return_value=(CURRENT_JSON,),
+            ):
+                rc_first, _ = finalize.finalize(
+                    root,
+                    plan_path,
+                    root / finalize.CANONICAL_SHELL_RELATIVE,
+                    plan_sha,
+                )
+                rc_second, _ = finalize.finalize(
+                    root,
+                    plan_path,
+                    root / finalize.CANONICAL_SHELL_RELATIVE,
+                    plan_sha,
+                )
+
+            self.assertEqual(rc_first, 1)
+            self.assertEqual(rc_second, 1)
+            self.assertEqual(_read_publication_head(root), baseline_head)
+            self.assertEqual(_staging_refs(root), [])
+
+
     def test_v30_promotion_rejects_current_incomplete_evidence_before_local_copy(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -760,7 +1259,7 @@ class Step5dCurrentPromotionTest(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 RuntimeError,
-                "ARCHIVED_PROFILE.*step5d_strict_rnn_autotune_v3_r012",
+                f"ARCHIVED_PROFILE.*replacement_source={CURRENT_JSON}",
             ):
                 promote.promote(root, V29, TARGET_DIR, v29_dir, v29_manifest)
 

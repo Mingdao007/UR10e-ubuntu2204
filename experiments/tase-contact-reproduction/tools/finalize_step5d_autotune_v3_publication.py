@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
+import tempfile
 import stat
 import subprocess
 import sys
@@ -127,15 +129,41 @@ def _absolute_without_resolving(path: Path) -> Path:
     return Path(os.path.abspath(expanded))
 
 
-def _git(root: Path, *arguments: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+def _git(
+    root: Path,
+    *arguments: str,
+    check: bool = True,
+    env: Mapping[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    completed = _git_with_env(
+        root,
+        *arguments,
+        check=check,
+        env=env,
+        text=True,
+    )
+    return completed
+
+
+def _git_with_env(
+    root: Path,
+    *arguments: str,
+    env: Mapping[str, str] | None = None,
+    check: bool = True,
+    text: bool = True,
+) -> subprocess.CompletedProcess[str]:
     repository = root.resolve(strict=True).parents[1]
+    command_env = os.environ.copy()
+    if env is not None:
+        command_env.update(env)
     completed = subprocess.run(
         ["git", "-C", str(repository), *arguments],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
+        text=text,
         check=False,
+        env=command_env,
     )
     if check and completed.returncode != 0:
         raise transition.ReleaseTransitionError(
@@ -144,8 +172,15 @@ def _git(root: Path, *arguments: str, check: bool = True) -> subprocess.Complete
     return completed
 
 
-def _git_bytes(root: Path, *arguments: str) -> bytes:
+def _git_bytes(
+    root: Path,
+    *arguments: str,
+    env: Mapping[str, str] | None = None,
+) -> bytes:
     repository = root.resolve(strict=True).parents[1]
+    command_env = os.environ.copy()
+    if env is not None:
+        command_env.update(env)
     completed = subprocess.run(
         ["git", "-C", str(repository), *arguments],
         stdin=subprocess.DEVNULL,
@@ -153,6 +188,7 @@ def _git_bytes(root: Path, *arguments: str) -> bytes:
         stderr=subprocess.PIPE,
         text=False,
         check=False,
+        env=command_env,
     )
     if completed.returncode != 0:
         raise transition.ReleaseTransitionError(
@@ -203,6 +239,129 @@ def _index_tree(root: Path) -> str:
     return _git(root, "write-tree").stdout.strip()
 
 
+def _current_publication_ref(root: Path) -> str:
+    completed = _git_with_env(root, "symbolic-ref", "-q", "HEAD", check=False)
+    if completed.returncode != 0 or not completed.stdout.strip():
+        return "HEAD"
+    return completed.stdout.strip()
+
+
+def _transaction_staging_ref(plan: Mapping[str, Any]) -> str:
+    transaction = str(plan["release"]["transaction_id"])
+    safe = re.sub(r"[^A-Za-z0-9._-]", "_", transaction).strip("._")
+    if not safe:
+        raise transition.ReleaseTransitionError("publication transaction id is invalid")
+    return f"refs/heads/step5d-autotune-v3/publication/{safe}/{os.getpid()}"
+
+
+def _cleanup_staging_ref(root: Path, ref: str) -> None:
+    _git(root, "update-ref", "-d", ref, check=False)
+
+
+def _remove_temporary_worktree(root: Path, worktree: Path | None) -> None:
+    if worktree is None:
+        return
+    _git(root, "worktree", "remove", "--force", str(worktree), check=False)
+    if worktree.exists():
+        try:
+            shutil.rmtree(worktree)
+        except FileNotFoundError:
+            pass
+
+
+def _build_candidate_commit(
+    root: Path,
+    paths: tuple[str, ...],
+    baseline_head: str,
+    commit_message: str,
+    staging_ref: str,
+) -> str:
+    with tempfile.TemporaryDirectory(
+        prefix="step5d-autotune-v3-publication-"
+    ) as temporary:
+        staging_index = Path(temporary) / "index"
+        env = {"GIT_INDEX_FILE": str(staging_index)}
+        _git_with_env(root, "read-tree", baseline_head, env=env)
+        _git_with_env(
+            root,
+            "add",
+            "--",
+            *_repo_paths(root, paths),
+            env=env,
+        )
+        _verify_cached_delta(root, baseline_head, paths, env=env)
+        tree = _git_with_env(root, "write-tree", env=env).stdout.strip()
+        commit = _git_with_env(
+            root,
+            "commit-tree",
+            tree,
+            "-p",
+            baseline_head,
+            "-m",
+            str(commit_message),
+            env=env,
+        ).stdout.strip()
+        _git(root, "update-ref", staging_ref, commit)
+        return commit
+
+
+def _create_candidate_worktree(root: Path, commit: str) -> tuple[Path, Path]:
+    worktree_root = root.resolve(strict=True)
+    worktree_repo = Path(tempfile.mkdtemp(prefix="step5d-autotune-v3-publication-"))
+    relative_root = worktree_root.relative_to(worktree_root.parents[1])
+    _git(root, "worktree", "add", "--detach", str(worktree_repo), commit)
+    return worktree_repo, worktree_repo / relative_root
+
+
+def _publish_candidate(
+    root: Path,
+    publication_ref: str,
+    baseline_head: str,
+    candidate: str,
+    paths: tuple[str, ...],
+) -> None:
+    _git(root, "read-tree", candidate)
+    try:
+        _git(root, "update-ref", publication_ref, candidate, baseline_head)
+    except transition.ReleaseTransitionError as exc:
+        restore = _git(root, "read-tree", baseline_head, check=False)
+        if restore.returncode != 0:
+            raise transition.ReleaseTransitionError(
+                "publication branch CAS update failed and index restore to baseline failed"
+            ) from exc
+        raise
+
+    if _git(root, "diff", "--cached", "--quiet", check=False).returncode != 0:
+        rollback = _git(root, "update-ref", publication_ref, baseline_head, candidate, check=False)
+        restore = _git(root, "read-tree", baseline_head, check=False)
+        if rollback.returncode != 0:
+            raise transition.ReleaseTransitionError(
+                "publication branch advanced to candidate, cached state changed and rollback failed"
+            )
+        if restore.returncode != 0:
+            raise transition.ReleaseTransitionError(
+                "publication branch advanced to candidate, cached state changed and index restore to baseline failed"
+            )
+        raise transition.ReleaseTransitionError(
+            "publication branch advanced to candidate, cached state differs and index was restored to baseline"
+        )
+
+    if _git(root, "diff", "--quiet", check=False).returncode != 0:
+        rollback = _git(root, "update-ref", publication_ref, baseline_head, candidate, check=False)
+        restore = _git(root, "read-tree", baseline_head, check=False)
+        if rollback.returncode != 0:
+            raise transition.ReleaseTransitionError(
+                "publication branch advanced to candidate, worktree failed and rollback failed"
+            )
+        if restore.returncode != 0:
+            raise transition.ReleaseTransitionError(
+                "publication branch advanced to candidate, worktree failed and index restore to baseline failed"
+            )
+        raise transition.ReleaseTransitionError(
+            "publication branch advanced to candidate, worktree failed and state restored to baseline"
+        )
+
+
 def _verify_before_stage(
     root: Path,
     plan: Mapping[str, Any],
@@ -237,7 +396,13 @@ def _verify_before_stage(
     return baseline_head, baseline_tree, paths
 
 
-def _verify_cached_delta(root: Path, baseline_head: str, paths: tuple[str, ...]) -> None:
+def _verify_cached_delta(
+    root: Path,
+    baseline_head: str,
+    paths: tuple[str, ...],
+    *,
+    env: Mapping[str, str] | None = None,
+) -> None:
     actual = _nul_names(
         root,
         _git_bytes(
@@ -249,6 +414,7 @@ def _verify_cached_delta(root: Path, baseline_head: str, paths: tuple[str, ...])
             "-z",
             baseline_head,
             "--",
+            env=env,
         ),
         "cached Git delta",
     )
@@ -264,6 +430,7 @@ def _verify_cached_delta(root: Path, baseline_head: str, paths: tuple[str, ...])
             "-z",
             "--",
             *_repo_paths(root, (relative,)),
+            env=env,
         ).split(b"\0")
         records = [record for record in records if record]
         if len(records) != 1 or b"\t" not in records[0]:
@@ -285,7 +452,14 @@ def _verify_cached_delta(root: Path, baseline_head: str, paths: tuple[str, ...])
             raise transition.ReleaseTransitionError(f"cached Git hash differs: {relative}")
 
 
-def _verify_commit(root: Path, commit: str, baseline_head: str, paths: tuple[str, ...]) -> dict[str, str]:
+def _verify_commit(
+    root: Path,
+    commit: str,
+    baseline_head: str,
+    paths: tuple[str, ...],
+    *,
+    require_clean: bool = True,
+) -> dict[str, str]:
     parents = _git(root, "rev-list", "--parents", "-n", "1", commit).stdout.split()
     if parents != [commit, baseline_head]:
         raise transition.ReleaseTransitionError("publication commit is not a single direct child of baseline")
@@ -299,7 +473,7 @@ def _verify_commit(root: Path, commit: str, baseline_head: str, paths: tuple[str
         raise transition.ReleaseTransitionError(
             f"committed Git delta differs: expected {list(paths)}, got {list(actual)}"
         )
-    if transition._status_paths_nul(root):
+    if require_clean and transition._status_paths_nul(root):
         raise transition.ReleaseTransitionError("publication commit did not leave a clean worktree")
     return {"oid": commit, "parent": baseline_head, "tree": tree}
 
@@ -398,7 +572,13 @@ def _finish_revalidation(
     paths = tuple(plan["publication"]["allowlist"])
     revalidate_rc = _run_revalidate(root, plan, canonical_shell)
     try:
-        _verify_commit(root, commit["oid"], baseline_head, paths)
+        _verify_commit(
+            root,
+            commit["oid"],
+            baseline_head,
+            paths,
+            require_clean=False,
+        )
         transition.validate_post_promotion_publication_plan(
             root,
             plan,
@@ -452,7 +632,13 @@ def finalize(
     paths = tuple(plan["publication"]["allowlist"])
     current_head = _git(root, "rev-parse", "--verify", "HEAD").stdout.strip()
     if current_head != baseline_head:
-        existing_commit = _verify_commit(root, current_head, baseline_head, paths)
+        existing_commit = _verify_commit(
+            root,
+            current_head,
+            baseline_head,
+            paths,
+            require_clean=False,
+        )
         transition.validate_post_promotion_publication_plan(
             root,
             plan,
@@ -468,26 +654,56 @@ def finalize(
             reused_commit=True,
         )
     baseline_head, _baseline_tree, paths = _verify_before_stage(root, plan)
-    _git(root, "add", "--", *_repo_paths(root, paths))
-    _verify_cached_delta(root, baseline_head, paths)
-    commit_message = plan["publication"]["commit_message"]
-    _git(root, "commit", "-m", commit_message)
-    commit = _git(root, "rev-parse", "--verify", "HEAD").stdout.strip()
-    commit_info = _verify_commit(root, commit, baseline_head, paths)
-    transition.validate_post_promotion_publication_plan(
-        root,
-        plan,
-        require_clean=True,
-        require_publication=True,
-    )
-    return _finish_revalidation(
-        root,
-        plan_path,
-        plan,
-        canonical_shell,
-        commit_info,
-        reused_commit=False,
-    )
+    staging_ref = _transaction_staging_ref(plan)
+    publication_ref = _current_publication_ref(root)
+    if publication_ref == "HEAD":
+        raise transition.ReleaseTransitionError("publication branch is detached and cannot be updated")
+    staging_worktree: Path | None = None
+    staging_root: Path | None = None
+    try:
+        commit = _build_candidate_commit(
+            root=root,
+            paths=paths,
+            baseline_head=baseline_head,
+            commit_message=str(plan["publication"]["commit_message"]),
+            staging_ref=staging_ref,
+        )
+        staging_worktree, staging_root = _create_candidate_worktree(root, commit)
+        staging_shell = _canonical_shell(staging_root, staging_root / CANONICAL_SHELL_RELATIVE)
+        commit_info = _verify_commit(
+            staging_root,
+            commit,
+            baseline_head,
+            paths,
+            require_clean=False,
+        )
+        transition.validate_post_promotion_publication_plan(
+            staging_root,
+            plan,
+            require_clean=True,
+            require_publication=True,
+        )
+        revalidate_rc, payload = _finish_revalidation(
+            staging_root,
+            plan_path,
+            plan,
+            staging_shell,
+            commit_info,
+            reused_commit=False,
+        )
+        if revalidate_rc == 0:
+            _publish_candidate(
+                root=root,
+                publication_ref=publication_ref,
+                baseline_head=baseline_head,
+                candidate=commit,
+                paths=paths,
+            )
+            return revalidate_rc, payload
+        return revalidate_rc, payload
+    finally:
+        _cleanup_staging_ref(root, staging_ref)
+        _remove_temporary_worktree(root, staging_worktree)
 
 
 def main(argv: list[str] | None = None) -> int:
