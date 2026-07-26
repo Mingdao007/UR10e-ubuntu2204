@@ -1,5 +1,5 @@
 {
-  "schema": "ur10e_tacdiffusion_direct_torque_remote_v4/v1",
+  "schema": "ur10e_tacdiffusion_direct_torque_remote_v4/v2",
   "stage_id": "step5d_direct_torque_remote_live_v4",
   "owner": "native_remote_direct_torque_candidate",
   "status": "inactive_blocked_candidate",
@@ -9,7 +9,13 @@
     "client": "native_secondary_client",
     "tcp_port": 30002,
     "source_send_gate": "urscript_send_tcp_secondary_30002",
-    "controller_program_artifact": false
+    "controller_program_artifact": false,
+    "runtime_reuse": {
+      "basis": "step5d_v34_rtde_and_absolute_deadline_primitives",
+      "scheduler_policy": "step5d_v35_sched_other_no_fifo",
+      "remote_specific_surface": "secondary_client_source_send_and_receiver_handshake_only",
+      "historical_bridge_source_modified": false
+    }
   },
   "urscript": {
     "source_module": "experiments/ur10e-variable-impedance/ur10e_vic/tacdiffusion/direct_torque_live_v4.py",
@@ -23,6 +29,12 @@
   },
   "authority": {
     "default_authorized": false,
+    "authorization_artifact": {
+      "schema": "ur10e_tacdiffusion_direct_torque_authorization/v2",
+      "runtime_source_binding_required": true,
+      "runtime_source_binding_schema": "ur10e_tacdiffusion_direct_torque_runtime_binding/v1",
+      "prior_stage_runtime_identity_must_match": true
+    },
     "source_build_offline_validation": {
       "authorized": false,
       "physical_io": false,
@@ -164,7 +176,9 @@
     "controller_loop_hz": 500,
     "heartbeat_timeout_robot_ticks": 10,
     "heartbeat_timeout_ms": 20,
-    "host_sequence_policy": "ACK_paced",
+    "host_sequence_policy": "v34_absolute_deadline_ack_gated_no_burst",
+    "host_release_period_s": 0.002,
+    "burst_catchup_allowed": false,
     "unchanged_packet": "may_be_held",
     "max_unchanged_packet_hold_robot_ticks": 10,
     "stale_action": "fault_after_heartbeat_timeout"
@@ -173,13 +187,21 @@
     "program_shape": "single_top_level_500hz_state_machine",
     "startup_equilibrium": "fresh_actual_pose",
     "startup_equilibrium_blend_s": 0.1,
-    "startup_gain_blend_s": 0.1,
-    "startup_gain_floor": [25.0, 25.0, 25.0, 0.5, 0.5, 0.5],
+    "startup_gain_blend_s": 0.0,
+    "startup_gain_policy": "full_commanded_gain_from_first_direct_torque_tick",
     "zero_torque_startup_or_exit": false,
     "active_tick_direct_torque_calls": 1,
+    "active_speed_guards": {
+      "maximum_abs_joint_speed_rad_s": 0.02,
+      "maximum_tcp_translation_speed_m_s": 0.01,
+      "maximum_tcp_rotation_speed_rad_s": 0.02,
+      "violation_action": "common_exit_stopj",
+      "fault_code": 11
+    },
     "friction_compensation": {
       "api": "direct_torque_v2",
-      "startup_blend_s": 0.1,
+      "startup_blend_s": 0.0,
+      "startup_policy": "full_documented_scales_from_first_direct_torque_tick",
       "viscous_scale_target": [0.9, 0.9, 0.8, 0.9, 0.9, 0.9],
       "coulomb_scale_target": [0.8, 0.8, 0.7, 0.8, 0.8, 0.8],
       "deprecated_friction_comp_argument": false
@@ -190,12 +212,18 @@
   },
   "compile_probe_contract": {
     "separate_source": true,
+    "evidence_schema": "ur10e_tacdiffusion_compile_probe_evidence/v2",
     "rtde_output_read_only": true,
     "rtde_input_write": false,
     "direct_torque": false,
     "motion_primitives": false,
     "stopj": false,
-    "training_dataset": false
+    "training_dataset": false,
+    "stationary_gates": {
+      "maximum_tcp_translation_m": 0.0002,
+      "maximum_tcp_speed_m_s": 0.001,
+      "maximum_joint_speed_rad_s": 0.001
+    }
   },
   "staged_canary_contract": {
     "stage_order": [
@@ -230,7 +258,10 @@
   "no_contact_wrench_guard": {
     "force_source": "kunwei_software_baselined_sensor_to_tcp_si",
     "software_baseline_samples": 1000,
-    "sensor_stale_s": 0.08,
+    "native_sensor_sample_rate_hz": 1000,
+    "sensor_delivery_watchdog_s": 0.08,
+    "delivery_watchdog_semantics": "maximum host TCP receive-batch gap; not the native sample period",
+    "causal_1khz_alignment_valid": false,
     "preflight_force_norm_n": 2.0,
     "preflight_torque_norm_nm": 0.2,
     "active_force_norm_n": 6.0,
@@ -291,7 +322,8 @@
     "direct_torque_rtde_data": {
       "claim_class": "direct_torque_rtde_diagnostic",
       "training_dataset": false,
-      "training_dataset_reason": "Diagnostic state/action evidence is not the TacDiffusion training dataset."
+      "training_dataset_reason": "Ethernet TCP batches native 1 kHz frames; exact 1 ms causal robot/force alignment is not validated.",
+      "evidence_schema": "ur10e_tacdiffusion_direct_torque_canary_evidence/v2"
     },
     "full_packet_capture": {
       "preserve_every_decoded_controller_packet": true,
@@ -301,10 +333,13 @@
       "fields": [
         "actual_TCP_pose",
         "actual_TCP_speed",
-        "actual_TCP_force",
         "actual_q",
         "actual_qd",
         "target_moment",
+        "kunwei_sample_index",
+        "kunwei_receive_batch_id",
+        "kunwei_nominal_sensor_time_s",
+        "kunwei_batch_arrival_monotonic_s",
         "applied_filtered_F_ff",
         "applied_K",
         "commanded_joint_torque_nm"
@@ -312,7 +347,16 @@
     },
     "kunwei_stream": {
       "started": false,
-      "status": "deferred"
+      "status": "live_revalidation_pending_new_source_hash",
+      "raw_artifacts": [
+        "kunwei_raw_frames.bin",
+        "kunwei_sensor_1khz.csv"
+      ],
+      "timestamp_contract": {
+        "arrival": "one host monotonic timestamp per TCP receive batch",
+        "nominal": "sample_index divided by vendor native 1000 Hz",
+        "strict_causal_alignment": false
+      }
     },
     "contact": {
       "authorized": false,

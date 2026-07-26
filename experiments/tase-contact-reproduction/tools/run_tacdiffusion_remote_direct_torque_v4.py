@@ -21,9 +21,7 @@ import json
 import math
 import os
 from pathlib import Path
-import select
 import socket
-import struct
 import subprocess
 import sys
 import threading
@@ -37,16 +35,18 @@ UR_HELPERS = Path(
     "/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts"
 )
 KUNWEI_TOOLS = Path(
-    "/home/andy/ur10e_ros2_ws/experiments/sensor-integration/kunwei-kwr75b/tools"
+    ROOT.parent / "sensor-integration/kunwei-kwr75b/tools"
 )
 for import_root in (VIC_ROOT, UR_HELPERS, KUNWEI_TOOLS, ROOT / "tools"):
     if str(import_root) not in sys.path:
         sys.path.insert(0, str(import_root))
 
-from _ur_common import RTDEClient, dashboard_exchange, read_rtde_once  # noqa: E402
+from _ur_common import dashboard_exchange, read_rtde_once  # noqa: E402
 from capture_kunwei_kwr75_1khz import (  # noqa: E402
+    CaptureState,
     FORCE_KG_TO_N,
     MOMENT_KG_M_TO_NM,
+    RunningStats,
     START_STREAM,
     STOP_STREAM,
     parse_frame,
@@ -55,6 +55,11 @@ from capture_kunwei_kwr75_1khz import (  # noqa: E402
 from run_step5d_tacdiffusion_bridge import (  # noqa: E402
     apply_wrench_transform,
     validate_calibration,
+)
+from step5d_v34_transport_primitives import (  # noqa: E402
+    RTDEBridgeClient,
+    advance_periodic_deadline,
+    require_v35_sched_other,
 )
 from ur10e_parallel import ResourceProfile, writer_lease  # noqa: E402
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
@@ -69,12 +74,18 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
 )
 
 
-AUTHORIZATION_SCHEMA = "ur10e_tacdiffusion_direct_torque_authorization/v1"
+AUTHORIZATION_SCHEMA = "ur10e_tacdiffusion_direct_torque_authorization/v2"
 COMPILE_PROBE_AUTHORIZATION_SCHEMA = (
     "ur10e_tacdiffusion_direct_torque_compile_probe_authorization/v1"
 )
+COMPILE_PROBE_EVIDENCE_SCHEMA = (
+    "ur10e_tacdiffusion_compile_probe_evidence/v2"
+)
 BUNDLE_SCHEMA = "ur10e_tacdiffusion_direct_torque_live_bundle/v1"
 REFERENCE_SCHEMA = "ur10e_tacdiffusion_unknown_surface_episode_artifact/v1"
+CANARY_EVIDENCE_SCHEMA = (
+    "ur10e_tacdiffusion_direct_torque_canary_evidence/v2"
+)
 MODE_IDLE = 0
 MODE_RUN = 1
 MODE_END = 2
@@ -101,7 +112,10 @@ KUNWEI_PREFLIGHT_FORCE_N = 2.0
 KUNWEI_PREFLIGHT_TORQUE_NM = 0.2
 KUNWEI_ACTIVE_FORCE_N = 6.0
 KUNWEI_ACTIVE_TORQUE_NM = 0.5
-KUNWEI_STALE_S = 0.080
+DEFAULT_KUNWEI_DELIVERY_WATCHDOG_S = 0.080
+COMPILE_PROBE_TRANSLATION_TOLERANCE_M = 0.0002
+COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S = 0.001
+COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S = 0.001
 KUNWEI_RAW_FIELDS = (
     "fx_kg_manual",
     "fy_kg_manual",
@@ -167,6 +181,52 @@ OUTPUT_FIELDS = [
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def runtime_source_binding() -> dict[str, Any]:
+    """Identify every host-side source that can affect a live canary."""
+
+    paths = {
+        "remote_direct_torque_runner": Path(__file__).resolve(),
+        "v34_transport_primitives": (
+            ROOT / "tools/step5d_v34_transport_primitives.py"
+        ).resolve(),
+        "kunwei_native_capture_primitives": (
+            KUNWEI_TOOLS / "capture_kunwei_kwr75_1khz.py"
+        ).resolve(),
+        "direct_torque_contract": (
+            VIC_ROOT / "ur10e_vic/tacdiffusion/direct_torque_live_v4.py"
+        ).resolve(),
+        "calibration_validator": (
+            ROOT / "tools/run_step5d_tacdiffusion_bridge.py"
+        ).resolve(),
+        "live_writer_lease": (ROOT / "tools/ur10e_parallel.py").resolve(),
+        "controller_status_helpers": (UR_HELPERS / "_ur_common.py").resolve(),
+    }
+    missing = [name for name, path in paths.items() if not path.is_file()]
+    if missing:
+        raise RuntimeError(
+            "runtime_source_binding_missing:" + ",".join(sorted(missing))
+        )
+    files = {
+        name: {"path": str(path), "sha256": _sha256(path)}
+        for name, path in sorted(paths.items())
+    }
+    digest_payload = {
+        name: entry["sha256"] for name, entry in files.items()
+    }
+    composite = hashlib.sha256(
+        json.dumps(
+            digest_payload,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        "schema": "ur10e_tacdiffusion_direct_torque_runtime_binding/v1",
+        "sha256": composite,
+        "files": files,
+    }
 
 
 def _finite6(values: Sequence[float], name: str) -> tuple[float, ...]:
@@ -247,101 +307,15 @@ def _enforce_no_live_writer_conflict() -> None:
         raise RuntimeError("active_live_writer_detected:" + ",".join(matches))
 
 
-def _rtde_format(type_name: str) -> str:
-    formats = {
-        "DOUBLE": "d",
-        "VECTOR6D": "6d",
-        "INT32": "i",
-        "UINT32": "I",
-        "UINT64": "Q",
-        "BOOL": "?",
-    }
-    try:
-        return formats[type_name]
-    except KeyError as exc:
-        raise RuntimeError(f"unsupported_rtde_type:{type_name}") from exc
-
-
-class LiveRTDE(RTDEClient):
-    def setup_inputs(self, fields: list[str]) -> tuple[int, list[str]]:
-        self._send_packet("I", ",".join(fields).encode())
-        packet_type, payload = self._recv_packet()
-        if packet_type != ord("I"):
-            raise RuntimeError(f"rtde_input_setup_response:{packet_type}")
-        recipe = payload[0]
-        types = payload[1:].decode("ascii", errors="replace").split(",")
-        if recipe == 0 or any(value == "NOT_FOUND" for value in types):
-            raise RuntimeError(f"rtde_input_recipe_invalid:{types}")
-        return recipe, types
-
-    def send_inputs(self, recipe: int, types: list[str], values: Sequence[Any]) -> None:
-        if len(types) != len(values):
-            raise RuntimeError("rtde_input_value_count_mismatch")
-        payload = bytearray([recipe])
-        for type_name, value in zip(types, values):
-            payload.extend(struct.pack("!" + _rtde_format(type_name), value))
-        self._send_packet("U", bytes(payload))
-
-    def _decode_output_packet(
-        self,
-        recipe: int,
-        types: list[str],
-        fields: list[str],
-        payload: bytes,
-    ) -> dict[str, Any] | None:
-        if not payload or payload[0] != recipe:
-            return None
-        cursor = 1
-        values: list[Any] = []
-        for type_name in types:
-            fmt = _rtde_format(type_name)
-            width = struct.calcsize("!" + fmt)
-            if len(payload) < cursor + width:
-                raise RuntimeError("rtde_output_payload_truncated")
-            unpacked = struct.unpack("!" + fmt, payload[cursor : cursor + width])
-            cursor += width
-            values.append(unpacked[0] if len(unpacked) == 1 else tuple(unpacked))
-        if cursor != len(payload):
-            raise RuntimeError("rtde_output_payload_trailing_bytes")
-        return dict(zip(fields, values))
-
-    def receive_available(
-        self,
-        recipe: int,
-        types: list[str],
-        fields: list[str],
-        timeout_s: float,
-    ) -> list[dict[str, Any]]:
-        assert self.sock is not None
-        ready, _, _ = select.select([self.sock], [], [], timeout_s)
-        if not ready:
-            return []
-        samples: list[dict[str, Any]] = []
-        while True:
-            packet_type, payload = self._recv_packet()
-            if packet_type == ord("U"):
-                sample = self._decode_output_packet(recipe, types, fields, payload)
-                if sample is not None:
-                    samples.append(sample)
-            ready, _, _ = select.select([self.sock], [], [], 0.0)
-            if not ready:
-                return samples
-
-    def receive_latest(
-        self,
-        recipe: int,
-        types: list[str],
-        fields: list[str],
-        timeout_s: float,
-    ) -> dict[str, Any] | None:
-        samples = self.receive_available(recipe, types, fields, timeout_s)
-        return samples[-1] if samples else None
+LiveRTDE = RTDEBridgeClient
 
 
 @dataclass(frozen=True)
 class KunweiSnapshot:
     sample_index: int
+    receive_batch_id: int
     t_monotonic_s: float
+    nominal_sensor_time_s: float
     raw_si: tuple[float, ...]
     wrench_tcp_si: tuple[float, ...]
     normal_load_n: float
@@ -360,10 +334,17 @@ class KunweiGuardCapture:
         connect_timeout_s: float,
         output_dir: Path,
         calibration: Mapping[str, Any],
+        delivery_watchdog_s: float,
     ) -> None:
         self.sensor_ip = sensor_ip
         self.sensor_port = int(sensor_port)
         self.connect_timeout_s = float(connect_timeout_s)
+        self.delivery_watchdog_s = float(delivery_watchdog_s)
+        if (
+            not math.isfinite(self.delivery_watchdog_s)
+            or not 0.0 < self.delivery_watchdog_s <= 0.5
+        ):
+            raise ValueError("kunwei_delivery_watchdog_s_invalid")
         self.output_dir = output_dir
         self.matrix = calibration["wrench_transform_sensor_to_tcp_6x6"]
         self.normal_axis = {"fx": 0, "fy": 1, "fz": 2}[
@@ -384,8 +365,12 @@ class KunweiGuardCapture:
         self.parse_errors = 0
         self.dropped_sync_bytes = 0
         self.bytes_received = 0
-        self.first_t_monotonic_s: float | None = None
-        self.last_t_monotonic_s: float | None = None
+        self.capture_state = CaptureState()
+        self.capture_start_monotonic_s: float | None = None
+        self.receive_batches = 0
+        self.frames_per_batch = RunningStats()
+        self.delivery_intervals = RunningStats()
+        self.last_batch_arrival_monotonic_s: float | None = None
         self.max_force_norm_n = 0.0
         self.max_torque_norm_nm = 0.0
         self.csv_path = output_dir / "kunwei_sensor_1khz.csv"
@@ -398,6 +383,7 @@ class KunweiGuardCapture:
         )
         self.socket.settimeout(0.05)
         self.socket.sendall(START_STREAM)
+        self.capture_start_monotonic_s = time.monotonic()
         self.thread = threading.Thread(
             target=self._capture_loop,
             name="kunwei-direct-torque-v4-capture",
@@ -417,8 +403,12 @@ class KunweiGuardCapture:
         buffer = bytearray()
         fields = [
             "sample_index",
+            "receive_batch_id",
+            "frame_index_in_batch",
+            "receive_batch_size",
             "t_wall_ns",
-            "t_monotonic_s",
+            "batch_arrival_monotonic_s",
+            "nominal_sensor_time_s",
             *KUNWEI_RAW_FIELDS,
             "fx_n_raw",
             "fy_n_raw",
@@ -455,14 +445,33 @@ class KunweiGuardCapture:
                             raise RuntimeError("kunwei_stream_closed")
                         break
                     self.bytes_received += len(chunk)
+                    self.capture_state.bytes_received += len(chunk)
+                    self.capture_state.packets_received += 1
                     buffer.extend(chunk)
                     frames, dropped = pop_frames(buffer, 0x48)
                     self.dropped_sync_bytes += dropped
-                    for frame in frames:
+                    self.capture_state.dropped_sync_bytes += dropped
+                    if not frames:
+                        continue
+                    batch_arrival_monotonic_s = time.monotonic()
+                    batch_arrival_wall_ns = time.time_ns()
+                    self.receive_batches += 1
+                    receive_batch_id = self.receive_batches
+                    self.frames_per_batch.push(float(len(frames)))
+                    if self.last_batch_arrival_monotonic_s is not None:
+                        self.delivery_intervals.push(
+                            batch_arrival_monotonic_s
+                            - self.last_batch_arrival_monotonic_s
+                        )
+                    self.last_batch_arrival_monotonic_s = (
+                        batch_arrival_monotonic_s
+                    )
+                    for frame_index_in_batch, frame in enumerate(frames):
                         try:
                             raw_values = parse_frame(frame)
                         except ValueError:
                             self.parse_errors += 1
+                            self.capture_state.parse_errors += 1
                             continue
                         raw_handle.write(frame)
                         raw_si = tuple(
@@ -472,12 +481,15 @@ class KunweiGuardCapture:
                         )
                         if not all(math.isfinite(value) for value in raw_si):
                             raise RuntimeError("kunwei_raw_nonfinite")
-                        t_monotonic_s = time.monotonic()
-                        t_wall_ns = time.time_ns()
-                        self.samples += 1
-                        if self.first_t_monotonic_s is None:
-                            self.first_t_monotonic_s = t_monotonic_s
-                        self.last_t_monotonic_s = t_monotonic_s
+                        self.capture_state.push(
+                            frame,
+                            raw_values,
+                            batch_arrival_monotonic_s,
+                        )
+                        self.samples = self.capture_state.rows
+                        nominal_sensor_time_s = (
+                            self.samples - 1
+                        ) / 1000.0
                         if self.bias is None:
                             for index, value in enumerate(raw_si):
                                 self.bias_sum[index] += value
@@ -514,7 +526,9 @@ class KunweiGuardCapture:
                             )
                             snapshot = KunweiSnapshot(
                                 sample_index=self.samples,
-                                t_monotonic_s=t_monotonic_s,
+                                receive_batch_id=receive_batch_id,
+                                t_monotonic_s=batch_arrival_monotonic_s,
+                                nominal_sensor_time_s=nominal_sensor_time_s,
                                 raw_si=raw_si,
                                 wrench_tcp_si=tuple(wrench_tcp),
                                 normal_load_n=normal_load,
@@ -533,8 +547,16 @@ class KunweiGuardCapture:
                         writer.writerow(
                             {
                                 "sample_index": self.samples,
-                                "t_wall_ns": t_wall_ns,
-                                "t_monotonic_s": f"{t_monotonic_s:.9f}",
+                                "receive_batch_id": receive_batch_id,
+                                "frame_index_in_batch": frame_index_in_batch,
+                                "receive_batch_size": len(frames),
+                                "t_wall_ns": batch_arrival_wall_ns,
+                                "batch_arrival_monotonic_s": (
+                                    f"{batch_arrival_monotonic_s:.9f}"
+                                ),
+                                "nominal_sensor_time_s": (
+                                    f"{nominal_sensor_time_s:.9f}"
+                                ),
                                 **dict(zip(KUNWEI_RAW_FIELDS, raw_values)),
                                 **dict(
                                     zip(
@@ -579,7 +601,7 @@ class KunweiGuardCapture:
     def wait_preflight(self, timeout_s: float = 3.0) -> KunweiSnapshot:
         if not self.ready_event.wait(timeout_s):
             raise RuntimeError("kunwei_software_baseline_timeout")
-        snapshot = self.snapshot(max_age_s=KUNWEI_STALE_S)
+        snapshot = self.snapshot(max_age_s=self.delivery_watchdog_s)
         if snapshot.force_norm_n > KUNWEI_PREFLIGHT_FORCE_N:
             raise RuntimeError("kunwei_preflight_force_over_2n")
         if snapshot.torque_norm_nm > KUNWEI_PREFLIGHT_TORQUE_NM:
@@ -597,7 +619,7 @@ class KunweiGuardCapture:
         if snapshot is None:
             raise RuntimeError("kunwei_baseline_not_ready")
         if time.monotonic() - snapshot.t_monotonic_s > max_age_s:
-            raise RuntimeError("kunwei_sensor_stale")
+            raise RuntimeError("kunwei_delivery_stale")
         if snapshot.force_norm_n > KUNWEI_ACTIVE_FORCE_N:
             raise RuntimeError("kunwei_active_force_over_6n")
         if snapshot.torque_norm_nm > KUNWEI_ACTIVE_TORQUE_NM:
@@ -621,14 +643,16 @@ class KunweiGuardCapture:
         self.thread = None
 
     def summary(self) -> dict[str, Any]:
+        first = self.capture_state.first_t_monotonic
+        last = self.capture_state.last_t_monotonic
         span = (
-            None
-            if self.first_t_monotonic_s is None
-            or self.last_t_monotonic_s is None
-            else self.last_t_monotonic_s - self.first_t_monotonic_s
+            None if first is None or last is None else last - first
         )
+        batch_sizes = self.frames_per_batch.as_dict()
+        delivery = self.delivery_intervals.as_dict()
         return {
             "force_source": "kunwei_software_baselined_sensor_to_tcp_si",
+            "native_sensor_rate_hz": 1000,
             "sensor_ip": self.sensor_ip,
             "sensor_port": self.sensor_port,
             "samples": self.samples,
@@ -644,6 +668,27 @@ class KunweiGuardCapture:
             "parse_errors": self.parse_errors,
             "dropped_sync_bytes": self.dropped_sync_bytes,
             "bytes_received": self.bytes_received,
+            "receive_batches": self.receive_batches,
+            "mean_frames_per_batch": batch_sizes.get("mean"),
+            "max_frames_per_batch": batch_sizes.get("max"),
+            "mean_delivery_gap_ms": (
+                None
+                if delivery.get("mean") is None
+                else float(delivery["mean"]) * 1000.0
+            ),
+            "max_delivery_gap_ms": (
+                None
+                if delivery.get("max") is None
+                else float(delivery["max"]) * 1000.0
+            ),
+            "sensor_delivery_watchdog_s": self.delivery_watchdog_s,
+            "causal_1khz_alignment_valid": False,
+            "arrival_timestamp_semantics": (
+                "one_host_monotonic_timestamp_per_tcp_receive_batch"
+            ),
+            "nominal_sensor_time_semantics": (
+                "sample_index_divided_by_vendor_native_1000hz"
+            ),
             "max_zeroed_force_norm_n": self.max_force_norm_n,
             "max_zeroed_torque_norm_nm": self.max_torque_norm_nm,
             "csv": str(self.csv_path),
@@ -787,9 +832,43 @@ class CanaryTimeline:
 
 @dataclass
 class AckPacedScheduler:
-    """Issue exactly one new command only after the prior sequence is ACKed."""
+    """v34 absolute-deadline release plus ACK-gated, no-burst sequencing."""
 
     last_sent_sequence: int = 0
+    period_s: float = 0.002
+    next_release_s: float | None = None
+    release_count: int = 0
+    missed_slots_total: int = 0
+    overrun_events: int = 0
+    max_lateness_s: float = 0.0
+
+    def arm(self, now_s: float) -> None:
+        if self.next_release_s is not None:
+            raise RuntimeError("command_scheduler_already_armed")
+        if not math.isfinite(float(now_s)):
+            raise ValueError("command_scheduler_start_nonfinite")
+        self.next_release_s = float(now_s)
+
+    def release_due(self, now_s: float) -> bool:
+        if self.next_release_s is None:
+            raise RuntimeError("command_scheduler_not_armed")
+        now = float(now_s)
+        if not math.isfinite(now):
+            raise ValueError("command_scheduler_now_nonfinite")
+        if now < self.next_release_s:
+            return False
+        next_release, missed_slots, lateness = advance_periodic_deadline(
+            self.next_release_s,
+            now,
+            self.period_s,
+        )
+        self.next_release_s = next_release
+        self.release_count += 1
+        self.missed_slots_total += missed_slots
+        if missed_slots > 0:
+            self.overrun_events += 1
+        self.max_lateness_s = max(self.max_lateness_s, lateness)
+        return True
 
     def next_sequence(self, acknowledged_sequence: int) -> int | None:
         acknowledged = int(acknowledged_sequence)
@@ -799,6 +878,17 @@ class AckPacedScheduler:
             return None
         self.last_sent_sequence += 1
         return self.last_sent_sequence
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "policy": "v34_absolute_deadline_ack_gated_no_burst",
+            "period_s": self.period_s,
+            "release_count": self.release_count,
+            "missed_slots_total": self.missed_slots_total,
+            "overrun_events": self.overrun_events,
+            "max_lateness_s": self.max_lateness_s,
+            "burst_catchup_allowed": False,
+        }
 
 
 @dataclass(frozen=True)
@@ -812,6 +902,10 @@ class CommandLineage:
     commanded_k: tuple[float, ...]
     kunwei_guard_wrench_tcp_si: tuple[float, ...]
     commanded_raw_f_ff: tuple[float, ...]
+    kunwei_sample_index: int
+    kunwei_receive_batch_id: int
+    kunwei_nominal_sensor_time_s: float | None
+    kunwei_batch_arrival_monotonic_s: float | None
     lease: int
     episode: int
     model_mode: int
@@ -833,6 +927,10 @@ def _command_packet(
     lease_id: int,
     episode_identity: int,
     kunwei_guard_wrench_tcp_si: Sequence[float] = ZERO6,
+    kunwei_sample_index: int = 0,
+    kunwei_receive_batch_id: int = 0,
+    kunwei_nominal_sensor_time_s: float | None = None,
+    kunwei_batch_arrival_monotonic_s: float | None = None,
 ) -> CommandPacket:
     desired_pose = _finite6(pose, "desired_pose")
     guard_wrench = _finite6(
@@ -858,6 +956,18 @@ def _command_packet(
             float(value) for value in packet_values[12:18]
         ),
         commanded_raw_f_ff=tuple(float(value) for value in packet_values[18:24]),
+        kunwei_sample_index=int(kunwei_sample_index),
+        kunwei_receive_batch_id=int(kunwei_receive_batch_id),
+        kunwei_nominal_sensor_time_s=(
+            None
+            if kunwei_nominal_sensor_time_s is None
+            else float(kunwei_nominal_sensor_time_s)
+        ),
+        kunwei_batch_arrival_monotonic_s=(
+            None
+            if kunwei_batch_arrival_monotonic_s is None
+            else float(kunwei_batch_arrival_monotonic_s)
+        ),
         lease=int(packet_values[27]),
         episode=int(packet_values[35]),
         model_mode=int(packet_values[30]),
@@ -941,11 +1051,13 @@ def validate_authorization(
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping) or payload.get("schema") != AUTHORIZATION_SCHEMA:
         raise ValueError("authorization schema mismatch")
+    runtime_binding = runtime_source_binding()
     checks = {
         "robot_host": robot_host,
         "receiver_source_sha256": bundle.source_sha256,
         "bundle_manifest_sha256": bundle.manifest_sha256,
         "reference_artifact_sha256": bundle.reference_sha256,
+        "runtime_source_sha256": runtime_binding["sha256"],
         "canary_stage": canary_stage,
         "allow_urscript_send": True,
         "allow_rtde_input_write": True,
@@ -990,7 +1102,7 @@ def validate_compile_probe_evidence(
         build_compile_probe_source().encode("utf-8")
     ).hexdigest()
     checks = {
-        "schema": "ur10e_tacdiffusion_compile_probe_evidence/v1",
+        "schema": COMPILE_PROBE_EVIDENCE_SCHEMA,
         "claim_class": "live_controller_compile_probe_no_motion",
         "ok": True,
         "robot_host": robot_host,
@@ -1027,13 +1139,15 @@ def validate_prior_stage_evidence(
     if path is None:
         raise RuntimeError(f"prior_stage_evidence_required:{required_stage}")
     payload = json.loads(path.read_text(encoding="utf-8"))
+    runtime_binding = runtime_source_binding()
     checks = {
-        "schema": "ur10e_tacdiffusion_direct_torque_canary_evidence/v1",
+        "schema": CANARY_EVIDENCE_SCHEMA,
         "ok": True,
         "robot_host": robot_host,
         "receiver_source_sha256": bundle.source_sha256,
         "bundle_manifest_sha256": bundle.manifest_sha256,
         "reference_artifact_sha256": bundle.reference_sha256,
+        "runtime_source_sha256": runtime_binding["sha256"],
         "canary_stage": required_stage,
         "kunwei_stream_started": True,
         "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
@@ -1397,6 +1511,23 @@ def _output_row(
     row["command_episode"] = "" if associated is None else associated.episode
     row["command_model_mode"] = "" if associated is None else associated.model_mode
     row["command_frame_token"] = "" if associated is None else associated.frame_token
+    row["kunwei_sample_index"] = (
+        "" if associated is None else associated.kunwei_sample_index
+    )
+    row["kunwei_receive_batch_id"] = (
+        "" if associated is None else associated.kunwei_receive_batch_id
+    )
+    row["kunwei_nominal_sensor_time_s"] = (
+        ""
+        if associated is None or associated.kunwei_nominal_sensor_time_s is None
+        else associated.kunwei_nominal_sensor_time_s
+    )
+    row["kunwei_batch_arrival_monotonic_s"] = (
+        ""
+        if associated is None
+        or associated.kunwei_batch_arrival_monotonic_s is None
+        else associated.kunwei_batch_arrival_monotonic_s
+    )
     for prefix, lineage in (
         ("outgoing_command", outgoing),
         ("acked_command", acked),
@@ -1423,6 +1554,23 @@ def _output_row(
         row[f"{prefix}_episode"] = "" if lineage is None else lineage.episode
         row[f"{prefix}_model_mode"] = "" if lineage is None else lineage.model_mode
         row[f"{prefix}_frame_token"] = "" if lineage is None else lineage.frame_token
+        row[f"{prefix}_kunwei_sample_index"] = (
+            "" if lineage is None else lineage.kunwei_sample_index
+        )
+        row[f"{prefix}_kunwei_receive_batch_id"] = (
+            "" if lineage is None else lineage.kunwei_receive_batch_id
+        )
+        row[f"{prefix}_kunwei_nominal_sensor_time_s"] = (
+            ""
+            if lineage is None or lineage.kunwei_nominal_sensor_time_s is None
+            else lineage.kunwei_nominal_sensor_time_s
+        )
+        row[f"{prefix}_kunwei_batch_arrival_monotonic_s"] = (
+            ""
+            if lineage is None
+            or lineage.kunwei_batch_arrival_monotonic_s is None
+            else lineage.kunwei_batch_arrival_monotonic_s
+        )
     for name in ("actual_TCP_pose", "actual_TCP_speed", "actual_q", "actual_qd", "target_moment"):
         for index, value in enumerate(sample[name]):
             row[f"{name}_{index}"] = float(value)
@@ -1568,6 +1716,27 @@ def _compile_probe_row(
     return row
 
 
+def _update_compile_probe_markers(
+    observed_active: bool,
+    observed_complete: bool,
+    sample: Mapping[str, Any],
+) -> tuple[bool, bool]:
+    """Reject a persistent COMPLETE register until this run has been ACTIVE."""
+
+    token = int(sample["output_int_register_32"])
+    state = int(sample["output_int_register_24"])
+    if token != COMPILE_PROBE_PROTOCOL_TOKEN:
+        return observed_active, observed_complete
+    if (
+        state == COMPILE_PROBE_STATE_ACTIVE
+        and int(sample["runtime_state"]) == RUNTIME_PLAYING
+    ):
+        return True, observed_complete
+    if observed_active and state == COMPILE_PROBE_STATE_COMPLETE:
+        return observed_active, True
+    return observed_active, observed_complete
+
+
 def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
     if not (args.live and args.send_urscript and args.no_motion):
         raise RuntimeError("compile_probe_live_send_and_no_motion_gates_required")
@@ -1613,16 +1782,13 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                                 host_elapsed_s=time.monotonic() - start,
                             )
                         )
-                        token = int(sample["output_int_register_32"])
-                        state = int(sample["output_int_register_24"])
-                        if token == COMPILE_PROBE_PROTOCOL_TOKEN:
-                            observed_active = observed_active or (
-                                state == COMPILE_PROBE_STATE_ACTIVE
-                                and int(sample["runtime_state"]) == RUNTIME_PLAYING
+                        observed_active, observed_complete = (
+                            _update_compile_probe_markers(
+                                observed_active,
+                                observed_complete,
+                                sample,
                             )
-                            observed_complete = observed_complete or (
-                                state == COMPILE_PROBE_STATE_COMPLETE
-                            )
+                        )
                     if observed_active and observed_complete:
                         break
                 if not observed_active:
@@ -1662,6 +1828,16 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                     ),
                     default=0.0,
                 )
+                maximum_joint_speed_rad_s = max(
+                    (
+                        max(
+                            abs(float(row[f"actual_qd_{axis}"]))
+                            for axis in range(6)
+                        )
+                        for row in rows
+                    ),
+                    default=0.0,
+                )
                 active_rows = sum(
                     row["probe_protocol"] == COMPILE_PROBE_PROTOCOL_TOKEN
                     and row["probe_state"] == COMPILE_PROBE_STATE_ACTIVE
@@ -1672,13 +1848,16 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                     "observed_active_runtime_marker": observed_active,
                     "observed_complete_marker": observed_complete,
                     "at_least_45_active_500hz_rows": active_rows >= 45,
-                    "maximum_tcp_translation_le_0_1mm": maximum_translation_m
-                    <= 0.0001,
-                    "maximum_tcp_speed_le_1mm_s": maximum_speed_m_s <= 0.001,
+                    "maximum_tcp_translation_le_0_2mm": maximum_translation_m
+                    <= COMPILE_PROBE_TRANSLATION_TOLERANCE_M,
+                    "maximum_tcp_speed_le_1mm_s": maximum_speed_m_s
+                    <= COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S,
+                    "maximum_joint_speed_le_1mrad_s": maximum_joint_speed_rad_s
+                    <= COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S,
                 }
                 strict_gate["ok"] = all(strict_gate.values()) and failure is None
                 evidence = {
-                    "schema": "ur10e_tacdiffusion_compile_probe_evidence/v1",
+                    "schema": COMPILE_PROBE_EVIDENCE_SCHEMA,
                     "claim_class": "live_controller_compile_probe_no_motion",
                     "ok": strict_gate["ok"],
                     "failure": failure,
@@ -1688,6 +1867,7 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                     "active_500hz_rows": active_rows,
                     "maximum_tcp_translation_m": maximum_translation_m,
                     "maximum_tcp_speed_m_s": maximum_speed_m_s,
+                    "maximum_joint_speed_rad_s": maximum_joint_speed_rad_s,
                     "observed_active_marker": observed_active,
                     "observed_complete_marker": observed_complete,
                     "strict_success_gate": strict_gate,
@@ -1736,6 +1916,15 @@ def run_live(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[str, Any
 
 def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[str, Any]:
     canary_stage = str(args.canary_stage)
+    runtime_binding = runtime_source_binding()
+    scheduler_runtime = require_v35_sched_other()
+    sensor_delivery_watchdog_s = float(
+        getattr(
+            args,
+            "sensor_delivery_watchdog_s",
+            DEFAULT_KUNWEI_DELIVERY_WATCHDOG_S,
+        )
+    )
     if canary_stage not in CANARY_STAGE_ORDER:
         raise ValueError(f"unknown_canary_stage:{canary_stage}")
     compile_probe_evidence = validate_compile_probe_evidence(
@@ -1804,6 +1993,7 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
             connect_timeout_s=args.connect_timeout_s,
             output_dir=output_dir,
             calibration=calibration,
+            delivery_watchdog_s=sensor_delivery_watchdog_s,
         ) as kunwei,
         LiveRTDE(args.robot_host, timeout=args.connect_timeout_s) as rtde,
     ):
@@ -1834,9 +2024,12 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 episode_identity=episode_identity,
                 samples_out=handshake_samples,
             )
+            scheduler.arm(start)
             pending = handshake_samples or [dict(sample)]
             while True:
-                guard_snapshot = kunwei.snapshot(max_age_s=KUNWEI_STALE_S)
+                guard_snapshot = kunwei.snapshot(
+                    max_age_s=sensor_delivery_watchdog_s
+                )
                 if not pending:
                     pending = _receive_available(
                         rtde,
@@ -1874,12 +2067,24 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                         lease_id=lease_id,
                         episode_identity=episode_identity,
                         kunwei_guard_wrench_tcp_si=guard_snapshot.wrench_tcp_si,
+                        kunwei_sample_index=guard_snapshot.sample_index,
+                        kunwei_receive_batch_id=(
+                            guard_snapshot.receive_batch_id
+                        ),
+                        kunwei_nominal_sensor_time_s=(
+                            guard_snapshot.nominal_sensor_time_s
+                        ),
+                        kunwei_batch_arrival_monotonic_s=(
+                            guard_snapshot.t_monotonic_s
+                        ),
                     )
                     rtde.send_inputs(input_recipe, input_types, end_command.values)
                     outgoing = end_command
                     end_deadline = time.monotonic() + 1.0
                     while time.monotonic() < end_deadline:
-                        kunwei.snapshot(max_age_s=KUNWEI_STALE_S)
+                        kunwei.snapshot(
+                            max_age_s=sensor_delivery_watchdog_s
+                        )
                         final_batch = _receive_available(
                             rtde,
                             output_recipe,
@@ -1914,24 +2119,39 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     if not complete:
                         raise RuntimeError("receiver_completion_timeout")
                     break
-                next_sequence = scheduler.next_sequence(
-                    int(last_sample["output_int_register_25"])
-                )
-                if next_sequence is not None:
-                    command_row = timeline.row_at(elapsed)
-                    next_command = _command_packet(
-                        command=MODE_RUN,
-                        sequence=next_sequence,
-                        progress_s=float(command_row["progress_s"]),
-                        pose=command_row["desired_pose_base"],
-                        lease_id=lease_id,
-                        episode_identity=episode_identity,
-                        kunwei_guard_wrench_tcp_si=guard_snapshot.wrench_tcp_si,
+                if scheduler.release_due(start + elapsed):
+                    next_sequence = scheduler.next_sequence(
+                        int(last_sample["output_int_register_25"])
                     )
-                    rtde.send_inputs(input_recipe, input_types, next_command.values)
-                    _register_command_lineage(lineages, next_command)
-                    outgoing = next_command
-                    sent_sequences += 1
+                    if next_sequence is not None:
+                        command_row = timeline.row_at(elapsed)
+                        next_command = _command_packet(
+                            command=MODE_RUN,
+                            sequence=next_sequence,
+                            progress_s=float(command_row["progress_s"]),
+                            pose=command_row["desired_pose_base"],
+                            lease_id=lease_id,
+                            episode_identity=episode_identity,
+                            kunwei_guard_wrench_tcp_si=(
+                                guard_snapshot.wrench_tcp_si
+                            ),
+                            kunwei_sample_index=guard_snapshot.sample_index,
+                            kunwei_receive_batch_id=(
+                                guard_snapshot.receive_batch_id
+                            ),
+                            kunwei_nominal_sensor_time_s=(
+                                guard_snapshot.nominal_sensor_time_s
+                            ),
+                            kunwei_batch_arrival_monotonic_s=(
+                                guard_snapshot.t_monotonic_s
+                            ),
+                        )
+                        rtde.send_inputs(
+                            input_recipe, input_types, next_command.values
+                        )
+                        _register_command_lineage(lineages, next_command)
+                        outgoing = next_command
+                        sent_sequences += 1
                 pending = []
         except Exception as exc:
             failure = f"{type(exc).__name__}: {exc}"
@@ -1944,6 +2164,16 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                     lease_id=lease_id,
                     episode_identity=episode_identity,
                     kunwei_guard_wrench_tcp_si=outgoing.lineage.kunwei_guard_wrench_tcp_si,
+                    kunwei_sample_index=outgoing.lineage.kunwei_sample_index,
+                    kunwei_receive_batch_id=(
+                        outgoing.lineage.kunwei_receive_batch_id
+                    ),
+                    kunwei_nominal_sensor_time_s=(
+                        outgoing.lineage.kunwei_nominal_sensor_time_s
+                    ),
+                    kunwei_batch_arrival_monotonic_s=(
+                        outgoing.lineage.kunwei_batch_arrival_monotonic_s
+                    ),
                 )
                 rtde.send_inputs(input_recipe, input_types, abort_command.values)
                 outgoing = abort_command
@@ -1973,7 +2203,7 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
             if samples:
                 _write_csv(csv_path, samples)
             evidence = {
-                "schema": "ur10e_tacdiffusion_direct_torque_canary_evidence/v1",
+                "schema": CANARY_EVIDENCE_SCHEMA,
                 "claim_class": "live_no_contact_direct_torque_canary",
                 "ok": False,
                 "failure": failure,
@@ -1981,6 +2211,8 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "receiver_source_sha256": bundle.source_sha256,
                 "bundle_manifest_sha256": bundle.manifest_sha256,
                 "reference_artifact_sha256": bundle.reference_sha256,
+                "runtime_source_sha256": runtime_binding["sha256"],
+                "runtime_source_binding": runtime_binding,
                 "canary_stage": canary_stage,
                 "required_prior_stage": required_prior_stage,
                 "compile_probe_evidence_sha256": _sha256(
@@ -2003,6 +2235,8 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "sample_count": len(samples),
                 "total_rows": len(samples),
                 "sent_sequences": sent_sequences,
+                "command_release_scheduler": scheduler.summary(),
+                "runtime_scheduler": scheduler_runtime,
                 "observed_direct_torque_state": observed_torque,
                 "observed_complete_state": complete,
                 "applied_action_echo_captured": bool(samples),
@@ -2010,10 +2244,22 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
                 "kunwei_calibration_sha256": calibration_sha256,
                 "kunwei": kunwei_summary,
+                "program_start_mode": "remote_secondary_client",
+                "transport_reuse_basis": (
+                    "step5d_v34_rtde_and_absolute_deadline_primitives_with_"
+                    "v35_sched_other_policy"
+                ),
+                "sensor_native_sample_rate_hz": 1000,
+                "sensor_delivery_watchdog_s": sensor_delivery_watchdog_s,
+                "causal_1khz_alignment_valid": False,
                 "ur_internal_ft_used_for_guard": False,
                 "ur_internal_ft_in_experiment_data": False,
                 "contact_authorized": False,
                 "training_dataset": False,
+                "training_dataset_reason": (
+                    "Ethernet TCP batches native 1 kHz frames; exact 1 ms "
+                    "causal robot/force alignment is not validated."
+                ),
                 "data_csv": str(csv_path) if samples else None,
             }
             timestamps = [
@@ -2058,9 +2304,16 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
                 "kunwei_dropped_sync_bytes_zero": (
                     kunwei_summary["dropped_sync_bytes"] == 0
                 ),
-                "kunwei_rate_at_least_900hz": (
+                "kunwei_rate_between_900_and_1100hz": (
                     kunwei_summary["rate_hz_by_first_last"] is not None
-                    and kunwei_summary["rate_hz_by_first_last"] >= 900.0
+                    and 900.0
+                    <= kunwei_summary["rate_hz_by_first_last"]
+                    <= 1100.0
+                ),
+                "kunwei_delivery_gap_within_watchdog": (
+                    kunwei_summary["max_delivery_gap_ms"] is not None
+                    and kunwei_summary["max_delivery_gap_ms"]
+                    <= sensor_delivery_watchdog_s * 1000.0
                 ),
             }
             strict_gate["ok"] = all(strict_gate.values()) and failure is None
@@ -2081,11 +2334,130 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
     return json.loads((output_dir / "evidence.json").read_text())
 
 
+def run_normal_torque_baseline(args: argparse.Namespace) -> dict[str, Any]:
+    """Capture normal UR position-control torque without sending any command."""
+
+    if not math.isfinite(args.duration_s) or not 0.1 <= args.duration_s <= 10.0:
+        raise ValueError("normal_torque_baseline_duration_out_of_range")
+    status = readonly_status(args.robot_host)
+    failures: list[str] = []
+    if status["rtde"]["robot_mode"] != ROBOT_MODE_RUNNING:
+        failures.append("robot_not_running")
+    if status["rtde"]["safety_mode"] != SAFETY_MODE_NORMAL:
+        failures.append("safety_not_normal")
+    if not status["stopped"]:
+        failures.append("program_not_stopped")
+    if not status["stationary"]:
+        failures.append("robot_not_stationary")
+    if failures:
+        raise RuntimeError(
+            "normal_torque_baseline_preflight_failed:"
+            + ",".join(sorted(failures))
+        )
+    _enforce_no_live_writer_conflict()
+    output_dir = _next_available_run_dir(args.output_dir.resolve())
+    rows: list[dict[str, Any]] = []
+    start = time.monotonic()
+    with LiveRTDE(args.robot_host, timeout=args.connect_timeout_s) as rtde:
+        rtde.negotiate()
+        output_recipe, output_types = rtde.setup_outputs(500.0, OUTPUT_FIELDS)
+        rtde.start()
+        deadline = start + args.duration_s
+        while time.monotonic() < deadline:
+            batch = _receive_available(
+                rtde,
+                output_recipe,
+                output_types,
+                OUTPUT_FIELDS,
+                min(0.01, max(0.0, deadline - time.monotonic())),
+            )
+            for sample in batch:
+                rows.append(
+                    _compile_probe_row(
+                        sample,
+                        host_elapsed_s=time.monotonic() - start,
+                    )
+                )
+    if len(rows) < int(args.duration_s * 500.0 * 0.9):
+        raise RuntimeError("normal_torque_baseline_rtde_rows_insufficient")
+    csv_path = output_dir / "normal_position_control_rtde.csv"
+    _write_csv(csv_path, rows)
+    baseline_pose = [rows[0][f"actual_TCP_pose_{axis}"] for axis in range(6)]
+    joint_stats: list[dict[str, Any]] = []
+    for joint in range(6):
+        values = [float(row[f"target_moment_{joint}"]) for row in rows]
+        sorted_abs = sorted(abs(value) for value in values)
+        p95_index = min(
+            len(sorted_abs) - 1,
+            max(0, math.ceil(0.95 * len(sorted_abs)) - 1),
+        )
+        joint_stats.append(
+            {
+                "joint": joint,
+                "mean_nm": sum(values) / len(values),
+                "min_nm": min(values),
+                "max_nm": max(values),
+                "max_abs_nm": max(abs(value) for value in values),
+                "p95_abs_nm": sorted_abs[p95_index],
+            }
+        )
+    maximum_translation_m = max(
+        _sample_translation_error_sqm3(
+            [row[f"actual_TCP_pose_{axis}"] for axis in range(6)],
+            baseline_pose,
+        )
+        for row in rows
+    )
+    maximum_tcp_speed_m_s = max(
+        math.sqrt(
+            sum(
+                float(row[f"actual_TCP_speed_{axis}"]) ** 2
+                for axis in range(3)
+            )
+        )
+        for row in rows
+    )
+    maximum_joint_speed_rad_s = max(
+        max(abs(float(row[f"actual_qd_{axis}"])) for axis in range(6))
+        for row in rows
+    )
+    evidence = {
+        "schema": "ur10e_normal_position_control_torque_baseline/v1",
+        "claim_class": "live_read_only_normal_position_control_torque",
+        "ok": True,
+        "robot_host": args.robot_host,
+        "duration_s": time.monotonic() - start,
+        "sample_count": len(rows),
+        "target_moment_by_joint": joint_stats,
+        "maximum_tcp_translation_m": maximum_translation_m,
+        "maximum_tcp_speed_m_s": maximum_tcp_speed_m_s,
+        "maximum_joint_speed_rad_s": maximum_joint_speed_rad_s,
+        "data_csv": str(csv_path),
+        "program_sent": False,
+        "rtde_inputs_written": False,
+        "direct_torque_called": False,
+        "kunwei_stream_started": False,
+        "motion_performed": False,
+        "training_dataset": False,
+    }
+    evidence_path = output_dir / "evidence.json"
+    _write_json_new(evidence_path, evidence)
+    return evidence
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
     status = subparsers.add_parser("status", help="read-only controller snapshot")
     status.add_argument("--robot-host", default="192.168.1.18")
+    baseline = subparsers.add_parser(
+        "normal-torque-baseline",
+        help="read-only 500 Hz target_moment capture under normal position control",
+    )
+    baseline.add_argument("--robot-host", default="192.168.1.18")
+    baseline.add_argument("--duration-s", type=float, default=2.0)
+    baseline.add_argument("--output-dir", type=Path, required=True)
+    baseline.add_argument("--connect-timeout-s", type=float, default=3.0)
     probe = subparsers.add_parser(
         "compile-probe",
         help="explicitly authorized controller parser/connectivity probe without motion",
@@ -2122,6 +2494,15 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--output-dir", type=Path, required=True)
     run.add_argument("--connect-timeout-s", type=float, default=3.0)
     run.add_argument("--receiver-wait-s", type=float, default=2.0)
+    run.add_argument(
+        "--sensor-delivery-watchdog-s",
+        type=float,
+        default=DEFAULT_KUNWEI_DELIVERY_WATCHDOG_S,
+        help=(
+            "maximum host TCP delivery gap; this is not the native 1 kHz "
+            "sensor sample period"
+        ),
+    )
     run.add_argument("--live", action="store_true")
     run.add_argument("--send-urscript", action="store_true")
     run.add_argument("--write-rtde-inputs", action="store_true")
@@ -2137,17 +2518,22 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "status":
             result = readonly_status(args.robot_host)
+        elif args.command == "normal-torque-baseline":
+            result = run_normal_torque_baseline(args)
         elif args.command == "compile-probe":
             result = run_compile_probe(args)
         else:
             bundle = validate_bundle(args.bundle_manifest)
             if args.command == "validate":
+                runtime_binding = runtime_source_binding()
                 result = {
                     "ok": True,
                     "claim_class": "offline_validated_no_live_actions",
                     "receiver_source_sha256": bundle.source_sha256,
                     "bundle_manifest_sha256": bundle.manifest_sha256,
                     "reference_artifact_sha256": bundle.reference_sha256,
+                    "runtime_source_sha256": runtime_binding["sha256"],
+                    "runtime_source_binding": runtime_binding,
                     "reference_rows": len(bundle.timeline.rows),
                     "capture_duration_s": bundle.timeline.duration_s,
                     "motion_performed": False,

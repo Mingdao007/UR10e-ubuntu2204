@@ -9073,7 +9073,11 @@
         "client": "native_secondary_client",
         "tcp_port": 30002,
         "source_send_gate": "urscript_send_tcp_secondary_30002",
-        "controller_program_artifact": false
+        "controller_program_artifact": false,
+        "runtime_reuse_basis": "step5d_v34_rtde_and_absolute_deadline_primitives",
+        "scheduler_policy": "step5d_v35_sched_other_no_fifo",
+        "remote_specific_surface": "secondary_client_source_send_and_receiver_handshake_only",
+        "historical_bridge_source_modified": false
       },
       "geometry_contract": {
         "shape": "anchor_circle",
@@ -9088,6 +9092,9 @@
       },
       "live_authority": {
         "default_authorized": false,
+        "authorization_schema": "ur10e_tacdiffusion_direct_torque_authorization/v2",
+        "runtime_source_binding_required": true,
+        "prior_stage_runtime_identity_must_match": true,
         "urscript_send_tcp_secondary_30002": "pending_independent_live_authority",
         "rtde_input_write": "pending_independent_live_authority",
         "direct_torque_motion": "pending_independent_live_authority",
@@ -9098,8 +9105,28 @@
         "controller_loop_hz": 500,
         "heartbeat_timeout_robot_ticks": 10,
         "heartbeat_timeout_ms": 20,
-        "host_sequence_policy": "ACK_paced",
+        "host_sequence_policy": "v34_absolute_deadline_ack_gated_no_burst",
+        "host_release_period_s": 0.002,
+        "burst_catchup_allowed": false,
         "max_unchanged_packet_hold_robot_ticks": 10
+      },
+      "kunwei_capture_contract": {
+        "force_source": "kunwei_software_baselined_sensor_to_tcp_si",
+        "native_sensor_sample_rate_hz": 1000,
+        "sensor_delivery_watchdog_s": 0.08,
+        "delivery_watchdog_is_sample_period": false,
+        "arrival_timestamp": "one_host_monotonic_timestamp_per_tcp_receive_batch",
+        "nominal_sensor_time": "sample_index_divided_by_vendor_native_1000hz",
+        "causal_1khz_alignment_valid": false,
+        "training_dataset": false
+      },
+      "evidence_contract": {
+        "schema": "ur10e_tacdiffusion_direct_torque_canary_evidence/v2",
+        "preserve_every_decoded_controller_packet": true,
+        "rtde_target_hz": 500,
+        "rtde_minimum_row_fraction": 0.9,
+        "command_lineage_required": true,
+        "kunwei_parse_and_drop_errors_required_zero": true
       },
       "register_contract_ref": "config/direct_torque_remote_live_v4.json#rtde_register_contract",
       "current_binding": {
@@ -9108,7 +9135,7 @@
         "current_stage_pointer": "config/current_stage.json",
         "live_authorized": false
       },
-      "success_condition": "Direct Torque RTDE v4 is retained only as an inactive canary candidate; it is an offline/awaiting-live candidate and does not imply contact success, completion, or controller motion authority."
+      "success_condition": "Direct Torque RTDE v4 remains an inactive no-contact candidate. Each new source fingerprint must pass compile probe, 100 ms hold, 0.2 mm/500 ms ramp, and bounded 2 s reference in order, with Direct Torque and COMPLETE observed, at least 90% of expected 500 Hz RTDE rows, zero lineage/parse/drop errors, Kunwei raw rate 900-1100 Hz, and TCP delivery gaps within 80 ms. This does not imply contact success or training-data eligibility."
     },
     {
       "id": "step5d_strict_rnn_ablation_v30",

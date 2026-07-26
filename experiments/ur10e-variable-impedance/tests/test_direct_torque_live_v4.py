@@ -75,15 +75,24 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
         "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
     ) == 1
     assert "friction_comp=True" not in source
-    assert "viscous_scale[axis] = blend*viscous_scale_target[axis]" in source
-    assert "coulomb_scale[axis] = blend*coulomb_scale_target[axis]" in source
+    assert "viscous_scale[axis] = viscous_scale_target[axis]" in source
+    assert "coulomb_scale[axis] = coulomb_scale_target[axis]" in source
+    assert "blend*viscous_scale_target[axis]" not in source
+    assert "blend*coulomb_scale_target[axis]" not in source
     assert "direct_torque([0.0" not in source
     assert "entry_pose[axis] = actual_pose[axis]" in source
     assert "guard_wrench = [read_input_float_register(36)" in source
     assert "guard_force_norm > 6.0 or guard_torque_norm > 0.5" in source
     assert "get_tcp_force()" not in source
     assert "entry_tick < entry_blend_ticks" in source
-    assert "control_k[axis] = k_min[axis] + blend*(last_k[axis] - k_min[axis])" in source
+    assert "control_k[axis] = last_k[axis]" in source
+    assert "k_min[axis] + blend*(last_k[axis] - k_min[axis])" not in source
+    assert "active_joint_speed_limit_rad_s = 0.02" in source
+    assert "active_tcp_translation_speed_limit_m_s = 0.01" in source
+    assert "active_tcp_rotation_speed_limit_rad_s = 0.02" in source
+    assert "if torque_entered:" in source
+    assert "active_speed_violation = True" in source
+    assert "exit_fault = 11" in source
     assert "virtual_mass[axis]*control_k[axis]" in source
     assert "control_k[axis]*pose_error[axis]" in source
     assert "episode_latched == 0" in source

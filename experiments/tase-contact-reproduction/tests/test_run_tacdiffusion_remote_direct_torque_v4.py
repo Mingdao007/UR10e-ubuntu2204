@@ -17,13 +17,22 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = ROOT / "tools"
 VIC_ROOT = ROOT.parent / "ur10e-variable-impedance"
-for path in (TOOLS, VIC_ROOT):
+UR_HELPERS = Path(
+    "/home/andy/codex-private-skills-shared-main/skills/ur10e-realsetup/scripts"
+)
+for path in (TOOLS, VIC_ROOT, UR_HELPERS):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+import step5d_v34_transport_primitives as transport_primitives  # noqa: E402
 from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     AUTHORIZATION_SCHEMA,
     COMPILE_PROBE_AUTHORIZATION_SCHEMA,
+    COMPILE_PROBE_EVIDENCE_SCHEMA,
+    COMPILE_PROBE_PROTOCOL_TOKEN,
+    COMPILE_PROBE_STATE_ACTIVE,
+    COMPILE_PROBE_STATE_COMPLETE,
+    CANARY_EVIDENCE_SCHEMA,
     AckPacedScheduler,
     CanaryTimeline,
     KunweiSnapshot,
@@ -56,6 +65,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _prime_idle_inputs,
     _sample_translation_error_sqm3,
     _wait_for_fresh_receiver_waiting,
+    _update_compile_probe_markers,
     _run_live_locked,
     _write_json_new,
     command_values,
@@ -66,6 +76,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     validate_compile_probe_preflight,
     validate_live_preflight,
     validate_prior_stage_evidence,
+    runtime_source_binding,
     run_live,
 )
 from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
@@ -84,7 +95,9 @@ class FakeKunweiCapture:
     def __init__(self, **_kwargs: object) -> None:
         self.sample = KunweiSnapshot(
             sample_index=1100,
+            receive_batch_id=44,
             t_monotonic_s=0.0,
+            nominal_sensor_time_s=1.099,
             raw_si=(0.0,) * 6,
             wrench_tcp_si=(0.0,) * 6,
             normal_load_n=0.0,
@@ -113,6 +126,7 @@ class FakeKunweiCapture:
             "parse_errors": 0,
             "dropped_sync_bytes": 0,
             "rate_hz_by_first_last": 1000.0,
+            "max_delivery_gap_ms": 50.0,
         }
 
 
@@ -150,6 +164,7 @@ def _write_authorization(
         "receiver_source_sha256": bundle.source_sha256,
         "bundle_manifest_sha256": bundle.manifest_sha256,
         "reference_artifact_sha256": bundle.reference_sha256,
+        "runtime_source_sha256": runtime_source_binding()["sha256"],
         "canary_stage": CANARY_STAGE_REFERENCE,
         "lease_id": 111,
         "episode_identity": 222,
@@ -177,7 +192,7 @@ def _write_compile_probe_evidence(tmp_path: Path, **overrides: Any) -> Path:
         build_compile_probe_source().encode("utf-8")
     ).hexdigest()
     payload = {
-        "schema": "ur10e_tacdiffusion_compile_probe_evidence/v1",
+        "schema": COMPILE_PROBE_EVIDENCE_SCHEMA,
         "claim_class": "live_controller_compile_probe_no_motion",
         "ok": True,
         "robot_host": "192.168.1.18",
@@ -212,6 +227,19 @@ def test_ack_paced_scheduler_has_no_gaps_at_approximately_83_hz() -> None:
     assert len(sent) == 167
 
 
+def test_ack_scheduler_uses_v34_absolute_deadline_without_burst_catchup() -> None:
+    scheduler = AckPacedScheduler()
+    scheduler.arm(10.0)
+    assert scheduler.release_due(10.0)
+    assert not scheduler.release_due(10.001)
+    assert scheduler.release_due(10.0101)
+    summary = scheduler.summary()
+    assert summary["policy"] == "v34_absolute_deadline_ack_gated_no_burst"
+    assert summary["missed_slots_total"] == 4
+    assert summary["overrun_events"] == 1
+    assert summary["burst_catchup_allowed"] is False
+
+
 def test_receive_available_preserves_every_decoded_controller_packet(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -231,7 +259,8 @@ def test_receive_available_preserves_every_decoded_controller_packet(
         return next(readiness), [], []
 
     monkeypatch.setattr(
-        "run_tacdiffusion_remote_direct_torque_v4.select.select", fake_select
+        "step5d_v34_transport_primitives.select.select",
+        fake_select,
     )
     samples = rtde.receive_available(
         7,
@@ -380,7 +409,9 @@ def _run_fake_batched_control(
     clock = iter([0.0001 + 0.0002 * index for index in range(30)])
     kunwei_snapshot = KunweiSnapshot(
         sample_index=1100,
+        receive_batch_id=44,
         t_monotonic_s=0.0,
+        nominal_sensor_time_s=1.099,
         raw_si=(0.0,) * 6,
         wrench_tcp_si=(0.0,) * 6,
         normal_load_n=0.0,
@@ -413,6 +444,7 @@ def _run_fake_batched_control(
                 "parse_errors": 0,
                 "dropped_sync_bytes": 0,
                 "rate_hz_by_first_last": 1000.0,
+                "max_delivery_gap_ms": 50.0,
             }
 
     with patch(
@@ -584,6 +616,96 @@ def test_bundle_validation_and_cli_are_offline(tmp_path: Path) -> None:
     assert payload["urscript_sent"] is False
     assert payload["rtde_inputs_written"] is False
     assert payload["kunwei_stream_started"] is False
+    assert payload["runtime_source_binding"]["sha256"] == (
+        payload["runtime_source_sha256"]
+    )
+    assert "v34_transport_primitives" in payload["runtime_source_binding"]["files"]
+
+
+def test_remote_config_preserves_native_kunwei_rate_and_runtime_binding() -> None:
+    config = json.loads(
+        (ROOT / "config/direct_torque_remote_live_v4.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert config["schema"].endswith("/v2")
+    authority = config["authority"]["authorization_artifact"]
+    assert authority["schema"] == AUTHORIZATION_SCHEMA
+    assert authority["runtime_source_binding_required"] is True
+    capture = config["no_contact_wrench_guard"]
+    assert capture["native_sensor_sample_rate_hz"] == 1000
+    assert capture["sensor_delivery_watchdog_s"] == 0.08
+    assert capture["causal_1khz_alignment_valid"] is False
+    control = config["direct_torque_control_contract"]
+    assert control["startup_equilibrium_blend_s"] == 0.1
+    assert control["startup_gain_blend_s"] == 0.0
+    assert control["startup_gain_policy"] == (
+        "full_commanded_gain_from_first_direct_torque_tick"
+    )
+    assert control["friction_compensation"]["startup_blend_s"] == 0.0
+    assert control["active_speed_guards"] == {
+        "maximum_abs_joint_speed_rad_s": 0.02,
+        "maximum_tcp_translation_speed_m_s": 0.01,
+        "maximum_tcp_rotation_speed_rad_s": 0.02,
+        "violation_action": "common_exit_stopj",
+        "fault_code": 11,
+    }
+    serialized = json.dumps(config, sort_keys=True)
+    assert "sensor_stale_s" not in serialized
+    assert "actual_TCP_force" not in serialized
+
+
+def test_v35_scheduler_gate_requires_sched_other_for_every_thread() -> None:
+    good_process = {
+        "policy": "SCHED_OTHER",
+        "policy_value": transport_primitives.os.SCHED_OTHER,
+        "priority": 0,
+    }
+    good_threads = {
+        "threads": [
+            {
+                "tid": 1,
+                "is_control_thread": True,
+                **good_process,
+            }
+        ],
+        "counts": {"SCHED_OTHER/0": 1},
+    }
+    with patch.object(
+        transport_primitives,
+        "runtime_scheduler_metadata",
+        return_value=good_process,
+    ), patch.object(
+        transport_primitives,
+        "runtime_thread_scheduler_snapshot",
+        return_value=good_threads,
+    ):
+        assert (
+            transport_primitives.require_v35_sched_other()["mode"]
+            == "v35_quota_safe_sched_other"
+        )
+    bad_threads = {
+        "threads": [
+            {
+                "tid": 2,
+                "is_control_thread": False,
+                "policy": "SCHED_FIFO",
+                "policy_value": transport_primitives.os.SCHED_FIFO,
+                "priority": 20,
+            }
+        ],
+        "counts": {"SCHED_FIFO/20": 1},
+    }
+    with patch.object(
+        transport_primitives,
+        "runtime_scheduler_metadata",
+        return_value=good_process,
+    ), patch.object(
+        transport_primitives,
+        "runtime_thread_scheduler_snapshot",
+        return_value=bad_threads,
+    ), pytest.raises(RuntimeError, match="v35_sched_other_required"):
+        transport_primitives.require_v35_sched_other()
 
 
 def test_authorization_binds_every_live_gate_and_hash(tmp_path: Path) -> None:
@@ -597,6 +719,16 @@ def test_authorization_binds_every_live_gate_and_hash(tmp_path: Path) -> None:
     )
     assert validated["allow_contact"] is False
     payload = json.loads(authorization.read_text(encoding="utf-8"))
+    payload["runtime_source_sha256"] = "0" * 64
+    authorization.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="runtime_source_sha256"):
+        validate_authorization(
+            authorization,
+            bundle,
+            robot_host="192.168.1.18",
+            now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
+        )
+    payload["runtime_source_sha256"] = runtime_source_binding()["sha256"]
     payload["allow_direct_torque"] = False
     authorization.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(RuntimeError, match="allow_direct_torque"):
@@ -768,6 +900,26 @@ def test_compile_probe_authorization_and_evidence_are_strictly_no_motion(
         )
 
 
+def test_compile_probe_ignores_stale_complete_until_current_active() -> None:
+    stale_complete = {
+        "output_int_register_32": COMPILE_PROBE_PROTOCOL_TOKEN,
+        "output_int_register_24": COMPILE_PROBE_STATE_COMPLETE,
+        "runtime_state": RUNTIME_STOPPED,
+    }
+    assert _update_compile_probe_markers(False, False, stale_complete) == (
+        False,
+        False,
+    )
+    active = dict(stale_complete)
+    active["output_int_register_24"] = COMPILE_PROBE_STATE_ACTIVE
+    active["runtime_state"] = RUNTIME_PLAYING
+    assert _update_compile_probe_markers(False, False, active) == (True, False)
+    assert _update_compile_probe_markers(True, False, stale_complete) == (
+        True,
+        True,
+    )
+
+
 def test_stage_evidence_prevents_skipping_a_live_canary_stage(tmp_path: Path) -> None:
     bundle = _bundle(tmp_path)
     with pytest.raises(RuntimeError, match="prior_stage_evidence_required"):
@@ -781,16 +933,17 @@ def test_stage_evidence_prevents_skipping_a_live_canary_stage(tmp_path: Path) ->
     evidence.write_text(
         json.dumps(
             {
-                "schema": "ur10e_tacdiffusion_direct_torque_canary_evidence/v1",
+                "schema": CANARY_EVIDENCE_SCHEMA,
                 "ok": True,
                 "robot_host": "192.168.1.18",
                 "receiver_source_sha256": bundle.source_sha256,
                 "bundle_manifest_sha256": bundle.manifest_sha256,
                 "reference_artifact_sha256": bundle.reference_sha256,
-                    "canary_stage": CANARY_STAGE_HOLD,
-                    "kunwei_stream_started": True,
-                    "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
-                    "strict_success_gate": {"ok": True},
+                "runtime_source_sha256": runtime_source_binding()["sha256"],
+                "canary_stage": CANARY_STAGE_HOLD,
+                "kunwei_stream_started": True,
+                "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
+                "strict_success_gate": {"ok": True},
             }
         ),
         encoding="utf-8",

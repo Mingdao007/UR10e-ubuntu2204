@@ -61,11 +61,35 @@ collection contact, which also requires fresh contact authorization.
 ## Inactive native remote Direct Torque v4 candidate
 
 The v4 candidate is separate from the frozen fixture-shadow route and remains
-inactive, blocked, non-current, and no-contact. Its controller source has one
+inactive, blocked, non-current, and no-contact. A pre-refactor 100 ms hold
+completed on the real robot with Direct Torque and COMPLETE observed, 500 Hz
+RTDE output evidence, and Kunwei raw capture around 1 kHz. That run is retained
+as historical evidence only because the runtime source fingerprint changes in
+the transport-reuse refactor.
+
+Remote Control changes only how the controller-resident program is started.
+After the Secondary Client send and lease/episode handshake, the runtime now
+reuses the Step5d v34 RTDE framing, packet drain, and absolute-deadline
+no-burst behavior with the v35 `SCHED_OTHER` policy. It does not reuse v34's
+contact ablation, `speedj` command law, or failed FIFO/20 scheduler.
+Authorization v2 also binds the complete host runtime fingerprint (runner,
+v34 transport primitives, native Kunwei parser, torque contract, calibration
+validator, writer lease, and controller status helpers); a prior-stage
+certificate from a different runtime is rejected.
+
+Kunwei remains a native 1 kHz sensor stream, while `80 ms` is only the maximum
+allowed host TCP receive-batch delivery gap. Every raw row records sample
+index, receive-batch identity, one batch-arrival timestamp, and nominal
+`sample_index/1000` time. TCP batching means these captures are not valid
+1 ms causal robot/force alignment and remain `training_dataset=false`.
+
+The controller source has one
 top-level 500 Hz state machine. Once torque starts, every active robot tick
-computes and sends a non-empty `direct_torque(..., friction_comp=True)` command;
+computes and sends a
+`direct_torque(..., viscous_scale=..., coulomb_scale=...)` command;
 startup blends from the fresh actual pose for 100 ms, and every exit converges
-to one `stopj(10.0)` site. There is no zero-torque startup or exit window.
+to one `stopj(10.0)` site. There is no deliberately zero-vector startup or
+exit command; a computed torque may still be zero at exact equilibrium.
 
 The compile probe is a distinct no-motion program: it contains no
 `direct_torque`, `stopj`, motion primitive, or RTDE input read. A successful

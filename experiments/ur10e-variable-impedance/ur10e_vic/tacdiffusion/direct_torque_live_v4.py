@@ -302,6 +302,9 @@ def build_live_receiver_source(
   local critical_natural_frequency_rad_s = 92.10340371976183
   local critical_decay = 0.8317438636116526
   local entry_blend_ticks = 50
+  local active_joint_speed_limit_rad_s = 0.02
+  local active_tcp_translation_speed_limit_m_s = 0.01
+  local active_tcp_rotation_speed_limit_rad_s = 0.02
   local command_idle = 0
   local command_run = 1
   local command_end = 2
@@ -554,6 +557,8 @@ def build_live_receiver_source(
         local actual_speed = get_actual_tcp_speed()
         local q = get_actual_joint_positions()
         local qd = get_actual_joint_speeds()
+        local actual_translation_speed = sqrt(actual_speed[0]*actual_speed[0] + actual_speed[1]*actual_speed[1] + actual_speed[2]*actual_speed[2])
+        local actual_rotation_speed = sqrt(actual_speed[3]*actual_speed[3] + actual_speed[4]*actual_speed[4] + actual_speed[5]*actual_speed[5])
         local actual_dx = actual_pose[0] - tube_center_base[0]
         local actual_dy = actual_pose[1] - tube_center_base[1]
         local actual_dz = actual_pose[2] - tube_center_base[2]
@@ -562,6 +567,7 @@ def build_live_receiver_source(
         local actual_orientation_error = pose_sub(tube_anchor_pose_base, actual_pose)
         local actual_orientation_norm = sqrt(actual_orientation_error[3]*actual_orientation_error[3] + actual_orientation_error[4]*actual_orientation_error[4] + actual_orientation_error[5]*actual_orientation_error[5])
         local control_ok = True
+        local active_speed_violation = False
         if actual_u > tube_u_half_width_m or actual_u < -tube_u_half_width_m:
           control_ok = False
         end
@@ -573,6 +579,21 @@ def build_live_receiver_source(
         end
         if actual_orientation_norm > tube_orientation_tolerance_rad:
           control_ok = False
+        end
+        if torque_entered:
+          if actual_translation_speed > active_tcp_translation_speed_limit_m_s or actual_rotation_speed > active_tcp_rotation_speed_limit_rad_s:
+            active_speed_violation = True
+          end
+          axis = 0
+          while axis < 6:
+            if qd[axis] > active_joint_speed_limit_rad_s or qd[axis] < -active_joint_speed_limit_rad_s:
+              active_speed_violation = True
+            end
+            axis = axis + 1
+          end
+          if active_speed_violation:
+            control_ok = False
+          end
         end
         if not torque_entered:
           local release_error = pose_sub(p[last_eq[0], last_eq[1], last_eq[2], last_eq[3], last_eq[4], last_eq[5]], actual_pose)
@@ -591,8 +612,13 @@ def build_live_receiver_source(
           end
         end
         if not control_ok:
-          exit_fault = 6
-          exit_reason = 6
+          if active_speed_violation:
+            exit_fault = 11
+            exit_reason = 11
+          else:
+            exit_fault = 6
+            exit_reason = 6
+          end
           running = False
         else:
           local blend = 1.0
@@ -606,9 +632,9 @@ def build_live_receiver_source(
           axis = 0
           while axis < 6:
             control_eq[axis] = entry_pose[axis] + blend*(last_eq[axis] - entry_pose[axis])
-            control_k[axis] = k_min[axis] + blend*(last_k[axis] - k_min[axis])
-            viscous_scale[axis] = blend*viscous_scale_target[axis]
-            coulomb_scale[axis] = blend*coulomb_scale_target[axis]
+            control_k[axis] = last_k[axis]
+            viscous_scale[axis] = viscous_scale_target[axis]
+            coulomb_scale[axis] = coulomb_scale_target[axis]
             local filter_c = filter_velocity[axis] + critical_natural_frequency_rad_s*(filtered_force[axis] - last_raw_force[axis])
             local next_force = last_raw_force[axis] + critical_decay*((filtered_force[axis] - last_raw_force[axis]) + filter_c/500.0)
             local next_velocity = critical_decay*(filter_velocity[axis] - critical_natural_frequency_rad_s*filter_c/500.0)
@@ -752,7 +778,12 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "guard_wrench = [read_input_float_register(36)",
         "guard_force_norm > 6.0 or guard_torque_norm > 0.5",
         "entry_tick < entry_blend_ticks",
-        "control_k[axis] = k_min[axis] + blend*(last_k[axis] - k_min[axis])",
+        "control_k[axis] = last_k[axis]",
+        "viscous_scale[axis] = viscous_scale_target[axis]",
+        "coulomb_scale[axis] = coulomb_scale_target[axis]",
+        "actual_translation_speed > active_tcp_translation_speed_limit_m_s",
+        "actual_rotation_speed > active_tcp_rotation_speed_limit_rad_s",
+        "active_speed_violation",
         "get_coriolis_and_centrifugal_torques(q, qd)",
         "get_jacobian(q)",
         "running = False",

@@ -87,6 +87,15 @@ the FIFO control thread exhausted Linux's default 950 ms/s RT budget and was
 throttled for roughly 43–50 ms almost every second. v33c20 is also retained as
 earlier cadence failure evidence; neither package is current or authorized.
 
+The separate non-current `step5d_direct_torque_remote_live_v4` no-contact
+candidate reuses v34's RTDE framing, packet-drain, and absolute-deadline
+no-burst semantics together with v35's `SCHED_OTHER` scheduler policy. Remote
+Control changes only its Secondary Client source-send and handshake surface.
+Kunwei stays a native 1 kHz raw stream; its `80 ms` value is a TCP
+receive-batch delivery watchdog, not a sample period. Batch arrival identity
+and nominal sample-index time must both be recorded, and the route remains
+`training_dataset=false` until 1 ms causal force/robot alignment is validated.
+
 That timing gate is not a generic post-edit check. Its freeze invalidates only
 when the timing-critical bridge, outer, RNN, control contract, operator, or
 timing harness changes; status/reporting-only edits use short deterministic
