@@ -122,6 +122,7 @@ def validate_bridge_admission(
         "program_state",
         "loaded_program",
         "expected_loaded_program",
+        "milestones",
         "operator_action",
         "release",
         "release_contract",
@@ -161,7 +162,17 @@ def validate_bridge_admission(
     ):
         raise BridgeAdmissionError("bridge admission release binding differs")
     campaign_fingerprint = row.get("campaign_fingerprint")
+    milestones = row.get("milestones", [])
+    if (
+        not isinstance(milestones, list)
+        or not all(isinstance(item, str) for item in milestones)
+    ):
+        raise BridgeAdmissionError("bridge admission milestones differ")
     if row.get("ok") is True:
+        if "PROGRAM_LOADED_STOPPED" not in milestones:
+            raise BridgeAdmissionError(
+                "bridge admission readiness milestone is missing"
+            )
         if (
             not isinstance(campaign_fingerprint, str)
             or len(campaign_fingerprint) != 64
@@ -236,6 +247,8 @@ def validate_bridge_admission(
         },
         expected_program=expected_program,
     )
+    if sorted(set(row.get("milestones", []))) != sorted(set(computed["milestones"])):
+        raise BridgeAdmissionError("bridge admission computed milestones differ")
     for field in (
         "state",
         "ok",
@@ -377,6 +390,7 @@ def compute_program_admission(
         "program_stopped": state == "STOPPED",
     }
     ready = all(checks.values())
+    milestones = ["PROGRAM_LOADED_STOPPED"] if ready else []
     return {
         "state": "BENCH_READY" if ready else "ACTION_REQUIRED",
         "ok": ready,
@@ -389,6 +403,7 @@ def compute_program_admission(
         "program_state": raw_state,
         "loaded_program": raw_loaded,
         "expected_loaded_program": expected_program,
+        "milestones": milestones,
         "operator_action": (
             None
             if ready

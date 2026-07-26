@@ -195,6 +195,7 @@ def test_wrong_program_returns_action_required_without_authority(
     assert result["operator_action"] == (
         "LOAD_EXACT_PROGRAM_ON_TP_AND_LEAVE_STOPPED"
     )
+    assert result["milestones"] == []
     assert result["authority_acquired"] is False
     assert result["attempt_created"] is False
     assert commands == ["programState", "get loaded program"]
@@ -213,10 +214,38 @@ def test_exact_loaded_stopped_program_is_bench_ready(
 
     assert result["state"] == "BENCH_READY"
     assert result["reason_code"] == "PROGRAM_LOADED_STOPPED"
+    assert result["milestones"] == ["PROGRAM_LOADED_STOPPED"]
     assert result["operator_action"] is None
     assert result["authority_acquired"] is False
     assert result["attempt_created"] is False
     assert commands == ["programState", "get loaded program"]
+
+
+def test_validation_rejects_ready_admission_without_program_loaded_stopped_milestone(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    result, _commands = _observation_fixture(
+        tmp_path,
+        monkeypatch,
+        program_state="STOPPED step5d_strict_rnn_autotune_v3_r012.urp",
+        loaded_program=EXPECTED_PROGRAM,
+    )
+    result["milestones"] = []
+
+    with pytest.raises(
+        bridge_admission.BridgeAdmissionError,
+        match="readiness milestone",
+    ):
+        bridge_admission.validate_bridge_admission(
+            tmp_path / "experiment",
+            result,
+            release=type("Release", (), {
+                "manifest_sha256": "a" * 64,
+                "program_id": "step5d_strict_rnn_autotune_v3_r012",
+            })(),
+            now_ns=int(result["observed_at_unix_ns"]),
+        )
 
 
 def test_admission_expected_program_is_bound_to_release_contract(

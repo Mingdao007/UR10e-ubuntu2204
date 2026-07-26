@@ -15,8 +15,10 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import step5d_bridge_status as bridge_status  # noqa: E402
 import step5d_manual_status as manual_status  # noqa: E402
+import step5d_bridge_authority as authority  # noqa: E402
 from step5d_autotune_v3.governance import (  # noqa: E402
     publish_launch_attempt,
+    LAUNCH_ATTEMPT_SCHEMA,
     read_proc_starttime_ticks,
 )
 
@@ -75,21 +77,60 @@ def _bindings(campaign: Path, output: Path, snapshot: Path) -> dict[str, object]
 
 
 def _owner_authority(authority: Path, attempt_id: str) -> None:
+    owner_pid = os.getpid()
+    owner_starttime = read_proc_starttime_ticks(owner_pid)
+    authority.mkdir(parents=True, exist_ok=True)
+    launch_basis = authority / "launch-basis.py"
+    launch_basis.write_text("bridge owner launch basis\n", encoding="utf-8")
+    _owner_authority_record(
+        authority,
+        attempt_id=attempt_id,
+        owner_pid=owner_pid,
+        owner_starttime_ticks=owner_starttime,
+        worktree_root=str(authority),
+        repository_head="a" * 40,
+        launch_basis_path=str(launch_basis),
+        launch_basis_sha256=hashlib.sha256(launch_basis.read_bytes()).hexdigest(),
+    )
+
+
+def _owner_authority_record(
+    authority: Path,
+    *,
+    attempt_id: str,
+    owner_pid: int,
+    owner_starttime_ticks: int,
+    state: str = "ACTIVE",
+    sequence: int = 1,
+    worktree_root: str | None = None,
+    repository_head: str | None = None,
+    launch_basis_path: str | None = None,
+    launch_basis_sha256: str | None = None,
+    reason: str | None = None,
+    authority_epoch: int = 1,
+    resource_id: str = "step5d-bridge-writer",
+) -> None:
     authority.mkdir(parents=True, exist_ok=True)
     (authority / "owner-authority.json").write_text(
         json.dumps(
             {
                 "schema": "step5d.bridge/owner-authority-v1",
-                "sequence": 1,
-                "state": "ACTIVE",
+                "sequence": sequence,
+                "authority_epoch": authority_epoch,
+                "state": state,
                 "attempt_id": attempt_id,
                 "owner": {
-                    "pid": os.getpid(),
-                    "starttime_ticks": read_proc_starttime_ticks(os.getpid()),
+                    "pid": owner_pid,
+                    "starttime_ticks": owner_starttime_ticks,
                 },
                 "activated_at_unix_ns": 1,
                 "revoked_at_unix_ns": None,
-                "reason": None,
+                "reason": reason,
+                "resource_id": resource_id,
+                "worktree_root": worktree_root,
+                "repository_head": repository_head,
+                "launch_basis_path": launch_basis_path,
+                "launch_basis_sha256": launch_basis_sha256,
             }
         ),
         encoding="utf-8",
@@ -421,7 +462,55 @@ def test_status_without_attempt_projects_fresh_action_required(
     assert status["state"] == "ACTION_REQUIRED"
     assert status["blocker"]["reason_codes"] == ["EXTERNAL_ACTION_REQUIRED"]
     assert status["launch_attempt"]["present"] is False
+    assert status["capabilities"] == {"play_prompt": False}
+    assert (
+        status["milestones"]["acceptance_certificate"]["admission"]
+        == []
+    )
     assert not (tmp_path / bridge_status.AUTHORITY_RELATIVE).exists()
+
+
+def test_status_without_attempt_projects_bench_ready_press_play_milestone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = type("Release", (), {"manifest_sha256": "a" * 64})()
+    delivery = tmp_path / "runs/delivery.json"
+    admission = tmp_path / "runs/admission.json"
+    delivery.parent.mkdir()
+    delivery.write_text("{}\n", encoding="utf-8")
+    admission.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(bridge_status, "load_current_release", lambda _root: release)
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_delivery_observation",
+        lambda *_args, **_kwargs: (delivery, {"transaction_id": "b" * 32}),
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_bridge_admission",
+        lambda *_args, **_kwargs: (
+            admission,
+            {
+                "state": "BENCH_READY",
+                "milestones": ["PROGRAM_LOADED_STOPPED"],
+            },
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "DELIVERED"
+    assert status["blocker"]["reason_codes"] == []
+    assert status["next_action"] == "PRESS_PLAY"
+    assert status["capabilities"] == {"play_prompt": False}
+    assert (
+        status["milestones"]["acceptance_certificate"]["admission"]
+        == ["PROGRAM_LOADED_STOPPED"]
+    )
+    assert status["milestones"]["acceptance"]["admission"] == [
+        "PROGRAM_LOADED_STOPPED"
+    ]
 
 
 def test_passed_phase_with_dead_owner_is_not_a_readiness_authority(
@@ -539,8 +628,341 @@ def test_v3_campaign_lease_binds_the_canonical_attempt(
     status = bridge_status.resolve_status(tmp_path)
     claim = bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
 
+    assert status["compatibility_phase"] == "WAITING_FOR_PLAY"
     assert status["predicates"]["canonical_attempt_bound"] is True
+    assert status["capabilities"] == {"play_prompt": True}
+    assert status["next_operator_action"] == "PRESS_PLAY"
+    assert status["milestones"]["acceptance_certificate"]["admission"] == []
+    bridge_status._require_capability(status, bridge_status.PLAY_PROMPT)
+    with pytest.raises(ValueError, match="does not authorize"):
+        bridge_status._require_capability(
+            {**status, "compatibility_phase": "RUNNING"},
+            bridge_status.PLAY_PROMPT,
+        )
     assert claim["attempt_id"] == "attempt-v3"
+
+
+def test_owner_authority_state_prefers_global_metadata_for_attempt_with_resource_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner_pid = os.getpid()
+    owner_starttime = read_proc_starttime_ticks(owner_pid)
+    attempt_id = "attempt-v3-global-only"
+    metadata = {
+        "worktree_root": str((tmp_path / "global-worktree").resolve()),
+        "repository_head": "f" * 40,
+        "launch_basis_path": str((tmp_path / "global.launch").resolve()),
+        "launch_basis_sha256": hashlib.sha256(b"global-basis").hexdigest(),
+    }
+
+    calls: list[str | None] = []
+
+    def fake_load_owner_authority(authority_root, **kwargs):
+        calls.append(None if authority_root is None else "legacy")
+        if authority_root is None:
+            return {
+                "schema": "step5d.bridge/owner-authority-v1",
+                "attempt_id": attempt_id,
+                "owner": {
+                    "pid": owner_pid,
+                    "starttime_ticks": owner_starttime,
+                },
+                "state": "ACTIVE",
+                "sequence": 1,
+                "reason": None,
+                **{key: metadata[key] for key in metadata},
+            }
+        return {
+            "schema": "step5d.bridge/owner-authority-v1",
+            "attempt_id": "stale",
+            "owner": {"pid": owner_pid + 1, "starttime_ticks": owner_starttime + 1},
+            "state": "ACTIVE",
+            "sequence": 99,
+            "reason": "stale",
+            "worktree_root": str((tmp_path / "legacy-worktree").resolve()),
+        }
+
+    monkeypatch.setattr(bridge_status, "load_owner_authority", fake_load_owner_authority)
+    attempt = {
+        "bindings": {
+            "resource_owner": {"pid": owner_pid, "starttime_ticks": owner_starttime},
+            "resource_owner_metadata": metadata,
+        },
+        "attempt_id": attempt_id,
+    }
+
+    authority_state = bridge_status._owner_authority_state(tmp_path, attempt)
+
+    assert authority_state is not None
+    assert authority_state["worktree_root"] == metadata["worktree_root"]
+    assert calls == [None]
+
+
+def test_owner_authority_state_fails_without_global_authority_for_v2_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner_pid = os.getpid()
+    owner_starttime = read_proc_starttime_ticks(owner_pid)
+    attempt_id = "attempt-v3-no-global"
+    metadata = {
+        "worktree_root": str((tmp_path / "legacy-worktree").resolve()),
+        "repository_head": "a" * 40,
+        "launch_basis_path": str((tmp_path / "legacy.launch").resolve()),
+        "launch_basis_sha256": hashlib.sha256(b"legacy-basis").hexdigest(),
+    }
+
+    def fake_load_owner_authority(authority_root, **_kwargs):
+        return None if authority_root is None else {
+            "schema": "step5d.bridge/owner-authority-v1",
+            "attempt_id": attempt_id,
+            "owner": {"pid": owner_pid, "starttime_ticks": owner_starttime},
+            "state": "ACTIVE",
+            "sequence": 1,
+            "reason": None,
+            **{key: metadata[key] for key in metadata},
+        }
+
+    monkeypatch.setattr(bridge_status, "load_owner_authority", fake_load_owner_authority)
+    attempt = {
+        "bindings": {
+            "resource_owner": {"pid": owner_pid, "starttime_ticks": owner_starttime},
+            "resource_owner_metadata": metadata,
+        },
+        "attempt_id": attempt_id,
+    }
+
+    assert bridge_status._owner_authority_state(tmp_path, attempt) is None
+
+
+def test_status_rejects_v2_metadata_attempt_without_global_owner_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    basis = tmp_path / "launch-basis.py"
+    basis.write_text("basis\n", encoding="utf-8")
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    attempt_id = "attempt-v3-no-global-metadata"
+    owner_pid = os.getpid()
+    owner_starttime = read_proc_starttime_ticks(owner_pid)
+    metadata = {
+        "worktree_root": str((tmp_path / "foreign-worktree").resolve()),
+        "repository_head": "a" * 40,
+        "launch_basis_path": str(basis.resolve()),
+        "launch_basis_sha256": hashlib.sha256(basis.read_bytes()).hexdigest(),
+    }
+    _route_snapshot(snapshot, "autotune_v3")
+    bindings = _bindings(campaign, output, snapshot)
+    bindings["resource_owner_metadata"] = metadata
+    attempt = {
+        "schema": LAUNCH_ATTEMPT_SCHEMA,
+        "attempt_id": attempt_id,
+        "state": "STARTED",
+        "phase": "live_handoff",
+        "route": "autotune_v3",
+        "observed_at_unix_ns": time.time_ns(),
+        "bindings": bindings,
+    }
+    monkeypatch.setattr(bridge_status, "_load_attempt", lambda _root: (attempt, None))
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_governed_status",
+        lambda *_args, **_kwargs: {
+            "schema": "legacy",
+            "generated_at_unix_ns": time.time_ns(),
+            "state": "WAITING_FOR_PLAY",
+            "predicates": {
+                "release_contract_proven": True,
+                "lease_valid": True,
+                "play_prompt_ready": True,
+            },
+            "blocker": {"class": None, "reason_codes": [], "evidence": []},
+            "next_action": "press_play_or_stop",
+        },
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "_v3_attempt_binding_valid",
+        lambda observed_attempt, observed_campaign, observed_status: (
+            observed_attempt["attempt_id"] == attempt_id
+            and observed_status["state"] == "WAITING_FOR_PLAY"
+        ),
+    )
+    def fake_load_owner_authority(authority_root, **_kwargs):
+        if authority_root is None:
+            return None
+        return {
+            "schema": "step5d.bridge/owner-authority-v1",
+            "attempt_id": attempt_id,
+            "owner": {"pid": owner_pid, "starttime_ticks": owner_starttime},
+            "state": "ACTIVE",
+            "sequence": 1,
+            "reason": None,
+            "worktree_root": metadata["worktree_root"],
+            "repository_head": metadata["repository_head"],
+            "launch_basis_path": metadata["launch_basis_path"],
+            "launch_basis_sha256": metadata["launch_basis_sha256"],
+        }
+
+    monkeypatch.setattr(bridge_status, "load_owner_authority", fake_load_owner_authority)
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "UNPREPARED"
+    assert status["blocker"]["reason_codes"] == ["LAUNCH_ATTEMPT_BINDING_INVALID"]
+
+
+def test_owner_authority_state_reuses_legacy_when_no_global_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    owner_pid = os.getpid()
+    owner_starttime = read_proc_starttime_ticks(owner_pid)
+    authority_dir = tmp_path / bridge_status.AUTHORITY_RELATIVE
+    attempt_id = "attempt-v3-legacy-fallback"
+    _owner_authority(authority_dir, attempt_id)
+
+    def fake_load_owner_authority(authority_root, **_kwargs):
+        if authority_root is None:
+            return None
+        if authority_root != authority_dir:
+            return None
+        return json.loads(
+            (authority_root / "owner-authority.json").read_text(encoding="utf-8")
+        )
+
+    monkeypatch.setattr(bridge_status, "load_owner_authority", fake_load_owner_authority)
+    attempt = {
+        "schema": LAUNCH_ATTEMPT_SCHEMA,
+        "attempt_id": attempt_id,
+        "state": "STARTED",
+        "phase": "live_handoff",
+        "route": "autotune_v3",
+        "observed_at_unix_ns": time.time_ns(),
+        "bindings": {
+            "resource_owner": {
+                "pid": owner_pid,
+                "starttime_ticks": owner_starttime,
+                "authority_epoch": 1,
+            },
+            "campaign_root": str(tmp_path / "campaign"),
+            "output_root": str(tmp_path / "output"),
+        },
+    }
+
+    assert bridge_status._owner_authority_state(tmp_path, attempt) == json.loads(
+        (authority_dir / "owner-authority.json").read_text(encoding="utf-8")
+    )
+
+
+def test_v3_status_finds_foreign_worktree_owner_authority_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    authority_dir = tmp_path / "run-user"
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    foreign_worktree = tmp_path / "foreign-worktree"
+    foreign_worktree.mkdir()
+    _route_snapshot(snapshot, "autotune_v3")
+    _manual_status(campaign, attempt_id="attempt-v3-foreign")
+    basis = tmp_path / "launch-basis.py"
+    basis.write_text("launch basis\n", encoding="utf-8")
+    launch_basis_sha = hashlib.sha256(basis.read_bytes()).hexdigest()
+    repository_head = "a" * 40
+    owner_pid = os.getpid()
+    owner_starttime = read_proc_starttime_ticks(owner_pid)
+    attempt_id = "attempt-v3-foreign"
+
+    monkeypatch.setattr(
+        authority,
+        "DEFAULT_AUTHORITY_ROOT",
+        authority_dir,
+    )
+    monkeypatch.setattr(authority.os, "getppid", lambda: owner_pid)
+    authority.begin(
+        None,
+        attempt_id=attempt_id,
+        owner_pid=owner_pid,
+        owner_starttime_ticks=owner_starttime,
+        worktree_root=str(foreign_worktree),
+        repository_head=repository_head,
+        launch_basis_path=str(basis),
+        launch_basis_sha256=launch_basis_sha,
+    )
+
+    bindings = _bindings(campaign, output, snapshot)
+    bindings["resource_owner_metadata"] = {
+        "worktree_root": str(foreign_worktree.resolve()),
+        "repository_head": repository_head,
+        "launch_basis_path": str(basis.resolve()),
+        "launch_basis_sha256": launch_basis_sha,
+    }
+    attempt = {
+        "schema": LAUNCH_ATTEMPT_SCHEMA,
+        "attempt_id": attempt_id,
+        "state": "STARTED",
+        "phase": "live_handoff",
+        "route": "autotune_v3",
+        "observed_at_unix_ns": time.time_ns(),
+        "bindings": bindings,
+    }
+    monkeypatch.setattr(
+        bridge_status,
+        "_load_attempt",
+        lambda _root: (attempt, None),
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_governed_status",
+        lambda *_args, **_kwargs: {
+            "schema": "legacy",
+            "generated_at_unix_ns": time.time_ns(),
+            "state": "WAITING_FOR_PLAY",
+            "predicates": {
+                "release_contract_proven": True,
+                "lease_valid": True,
+                "play_prompt_ready": True,
+            },
+            "blocker": {"class": None, "reason_codes": [], "evidence": []},
+            "next_action": "press_play_or_stop",
+        },
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "_v3_attempt_binding_valid",
+        lambda observed_attempt, observed_campaign, observed_status: (
+            observed_attempt["attempt_id"] == attempt_id
+            and observed_status["state"] == "WAITING_FOR_PLAY"
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "BENCH_READY"
+    assert status["compatibility_phase"] == "WAITING_FOR_PLAY"
+    assert status["predicates"]["canonical_attempt_bound"] is True
+    assert status["capabilities"] == {"play_prompt": True}
+    assert status["next_operator_action"] == "PRESS_PLAY"
+    assert status["owner_authority"] == {
+        "attempt_id": attempt_id,
+        "owner": {
+            "pid": owner_pid,
+            "starttime_ticks": owner_starttime,
+        },
+        "worktree_root": str(foreign_worktree.resolve()),
+        "repository_head": repository_head,
+        "launch_basis_path": str(basis.resolve()),
+        "launch_basis_sha256": launch_basis_sha,
+    }
+    assert not (
+        (tmp_path / bridge_status.AUTHORITY_RELATIVE / authority.STATE_FILE).exists()
+    )
 
 
 def test_readiness_claim_rejects_an_aged_status_snapshot(
@@ -567,6 +989,64 @@ def test_readiness_claim_rejects_an_aged_status_snapshot(
         bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
 
     assert not (tmp_path / "readiness-claim.json").exists()
+
+
+def test_require_capability_requires_play_prompt_capability_and_fresh_binding() -> None:
+    now = 1_000
+    status = {
+        "state": "WAITING_FOR_PLAY",
+        "generated_at_unix_ns": now,
+        "predicates": {
+            "play_prompt_ready": True,
+            "canonical_attempt_bound": True,
+            "release_contract_proven": True,
+        },
+        "milestones": {
+            "liveness": {
+                "bridge_process_alive": True,
+                "bridge_heartbeat_fresh": True,
+            },
+            "authorization": {
+                "canonical_attempt_bound": True,
+                "single_writer": True,
+                "lease_valid": True,
+            },
+            "acceptance_certificate": {
+                "release_contract_proven": True,
+                "play_prompt_ready": True,
+                "admission": [],
+            },
+        },
+        "capabilities": {"play_prompt": True},
+    }
+
+    bridge_status._require_capability(
+        status,
+        bridge_status.PLAY_PROMPT,
+        now_ns=now + 1,
+    )
+
+    stale_status = {
+        **status,
+        "generated_at_unix_ns": now - bridge_status.STATUS_CLAIM_MAX_AGE_NS - 1,
+    }
+    with pytest.raises(ValueError, match="does not authorize"):
+        bridge_status._require_capability(
+            stale_status,
+            bridge_status.PLAY_PROMPT,
+            now_ns=now,
+        )
+
+    no_auth_status = {
+        **status,
+        "capabilities": {"play_prompt": False},
+    }
+    with pytest.raises(ValueError, match="does not authorize"):
+        bridge_status._require_capability(
+            no_auth_status,
+            bridge_status.PLAY_PROMPT,
+            now_ns=now + 1,
+        )
 
 
 def test_v3_runtime_evidence_must_bind_same_attempt_campaign_release_and_processes(
