@@ -144,18 +144,18 @@
     "zero_ftsensor_authorized": false
   },
   "controller_readback_manifest": "config/step5d_autotune_controller_readback_v3.json",
-  "controller_readback_manifest_sha256": "8fd31a3bfe9b98a3ed33e4cf28fd7e7881960e8c561dde5e460750d040ee0365",
+  "controller_readback_manifest_sha256": "108669d0a777d9d8ee4640b34315cd8c07a4a4c264d4048a8ff91d06a640ef36",
   "controller_readback_verified_for_selected_triplet": true,
-  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r021.script",
-  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r021.urp",
+  "controller_script": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r022.script",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v3_r022.urp",
   "current_stage_id": "step5d_strict_rnn_autotune_v3",
   "current_step": "Step5d",
   "delivery_manifest": "config/step5d_autotune_controller_readback_v3.json",
   "evidence": {
     "sha256": {
-      ".script": "9c045b483000ad774d46280927ecaf87bb66c54945654fff32c39d63e20f55c7",
-      ".txt": "bd03f3e2d0c0a00c0d91cd4ea4386b5544d5534919368491e4dff428dac5fa67",
-      ".urp": "10789871d7f2134a6ffd533410af6aaff46f7a6d7e880d7e9c752fe3a511f697"
+      ".script": "e20b97a4e32ba6b65f8568cce54c64aeb54cce02aba2a7dc163d8e5a08dea147",
+      ".txt": "a38f7fcff97144619abf1dcaf7cd7e00c65248dcf3aefa797d4138d0820a9a72",
+      ".urp": "32dfbc437f4e6024769b39139d366260753560966e02a9af19ca38fb9e2c54b5"
     },
     "step5d_projector_root_cause_fix": {
       "fixed_files": [
@@ -1167,18 +1167,18 @@
   "local_candidate": {
     "controller_readback_verified": true,
     "controller_uploaded": true,
-    "deploy_manifest_sha256": "52cf508e4ab467b5358c61580ab72d61bdcbf255b1a7102893fdeeaf05dd73cf",
+    "deploy_manifest_sha256": "30aeae092b9ef4190668e048e1000da7b6583b2340692815ec8af73028528a5a",
     "disposition": "controller_readback_verified_promoted_current",
-    "manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r021/local_candidate.json",
-    "numeric_sanity_sha256": "c8acab830587cf3c6ac22c56a8de440322cda2d632e0407e704209f1bfe208cb",
-    "program": "step5d_strict_rnn_autotune_v3_r021",
+    "manifest": "config/step5d/manifests/step5d_strict_rnn_autotune_v3_r022/local_candidate.json",
+    "numeric_sanity_sha256": "d9f8eb8eda999df5b4475b50ed6dcf3a159a569fb250fbae2cb7a8ab96b1fa0a",
+    "program": "step5d_strict_rnn_autotune_v3_r022",
     "triplet_sha256": {
-      ".script": "9c045b483000ad774d46280927ecaf87bb66c54945654fff32c39d63e20f55c7",
-      ".txt": "bd03f3e2d0c0a00c0d91cd4ea4386b5544d5534919368491e4dff428dac5fa67",
-      ".urp": "10789871d7f2134a6ffd533410af6aaff46f7a6d7e880d7e9c752fe3a511f697"
+      ".script": "e20b97a4e32ba6b65f8568cce54c64aeb54cce02aba2a7dc163d8e5a08dea147",
+      ".txt": "a38f7fcff97144619abf1dcaf7cd7e00c65248dcf3aefa797d4138d0820a9a72",
+      ".urp": "32dfbc437f4e6024769b39139d366260753560966e02a9af19ca38fb9e2c54b5"
     }
   },
-  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r021",
+  "local_triplet": "programs/step5/step5d/step5d_strict_rnn_autotune_v3_r022",
   "notes": [
     "step5d_strict_rnn_ablation_v29 is ARCHIVED_PROFILE historical evidence and has no execution authority; replacement is step5d_strict_rnn_autotune_v3_r012.",
     "v30 is an inactive offline candidate. Its fresh source-bound RNN512 timing passes the bounded last-command-hold route under the 1.5 ms schedule-lateness gate; hard-real-time remains false. P0 canaries and live-runtime prewarm verification remain outstanding.",
@@ -1400,12 +1400,12 @@
   ],
   "selection_state": "current",
   "sha256": {
-    ".script": "9c045b483000ad774d46280927ecaf87bb66c54945654fff32c39d63e20f55c7",
-    ".txt": "bd03f3e2d0c0a00c0d91cd4ea4386b5544d5534919368491e4dff428dac5fa67",
-    ".urp": "10789871d7f2134a6ffd533410af6aaff46f7a6d7e880d7e9c752fe3a511f697"
+    ".script": "e20b97a4e32ba6b65f8568cce54c64aeb54cce02aba2a7dc163d8e5a08dea147",
+    ".txt": "a38f7fcff97144619abf1dcaf7cd7e00c65248dcf3aefa797d4138d0820a9a72",
+    ".urp": "32dfbc437f4e6024769b39139d366260753560966e02a9af19ca38fb9e2c54b5"
   },
   "stage_table_path": "config/step5_stage_table.json",
-  "status": "step5d_strict_rnn_autotune_v3_r021_controller_readback_verified",
+  "status": "step5d_strict_rnn_autotune_v3_r022_controller_readback_verified",
   "strict_rnn_status": {
     "blocked": true,
     "paper_truth_config": "config/step5d_liveprep_solver_gate.json",
@@ -1435,7 +1435,7 @@
     "p0_gate_required": false,
     "profile": "step5d_strict_rnn_ablation_v29",
     "reactivation_forbidden": true,
-    "replacement": "step5d_strict_rnn_autotune_v3_r021",
+    "replacement": "step5d_strict_rnn_autotune_v3_r022",
     "sha256": {
       ".script": "ff88cb56f5e28aa1cba495f5431b6f137269a1f04eb0414f80058fb8f7a0e9ff",
       ".txt": "e4da90baceddb7e4ffbf46c3266ae1271d75f83364549de5d1fec66dfac680d4",
