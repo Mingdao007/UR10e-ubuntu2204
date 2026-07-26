@@ -1,0 +1,10 @@
+{
+  "checkpoint": "90min",
+  "limit_s": 5400.0,
+  "rows": 48487,
+  "first_t_s": 0.07000279426574707,
+  "last_t_s": 5399.904244661331,
+  "events_kept": 364,
+  "source_run_dir": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/warmup_100min_20260519_120845/main_100min",
+  "created_wall_time_utc": "2026-05-19T05:39:00+00:00"
+}

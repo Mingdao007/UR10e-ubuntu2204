@@ -1,0 +1,26 @@
+Step6b contact 8-shaped baseline TP package
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step6/step6b_contact_eight_baseline_v1.urp
+
+Version:
+  2026-06-12T2217HKT_STEP6B_CONTACT_EIGHT_BASELINE_V1
+
+Motion boundary:
+  Contact motion.
+  Reuses the current v31/Step5b contact search, first-contact normal latch,
+  20 mm lift, 25.2 attitude correction, second contact, and 25.3 line-entry gate.
+  Stage 25.0 consumes bridge command registers 37..44 only.
+  Bridge profile: --step4e-version step6b_v1 --step4e-path-shape eight.
+  Force target: --target-force-n 5.0.
+  Runtime: 30.0 s success threshold, 35.0 s guard.
+  Raw normal guard: 50 N. Force norm guard: 60 N. Torque guard: 3.0 Nm.
+  No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
+
+Reference:
+  STEP6_FLOW.md
+  config/step6_stage_table.json stage step6_contact_eight_baseline_v1
+  config/step6_eight_safe_frame.json
+
+Path:
+  along=0.04*sin(0.2t), lateral=0.01*sin(0.4t), duration=30s

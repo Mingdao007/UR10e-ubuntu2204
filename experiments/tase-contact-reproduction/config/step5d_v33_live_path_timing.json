@@ -1,0 +1,37 @@
+{
+  "claim_boundary": "offline exact-component live-path timing; no network, controller write, bridge start, or motion authorization",
+  "components": [
+    "rtde_drain_latest_decode",
+    "feedback_age_guard",
+    "outer",
+    "calibrated_jacobian",
+    "cupy_rnn512",
+    "rtde_encode",
+    "csv_log"
+  ],
+  "deadline_ms": 2.0,
+  "p99_deadline_pass": true,
+  "profile": "step5d_strict_rnn_ablation_v33",
+  "replay_source": "/home/andy/.codex-worktrees/ur10e-step5d-concurrency-20260714/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v32_20260714_225729/bridge_rtde_500hz.csv",
+  "replay_source_sha256": "d47ef6fa48c74394ea8469218eca3ce4d66654f61269de36d21cfdf9730bfb18",
+  "samples": 2000,
+  "schema": "step5d_v33_live_path_timing_v1",
+  "source_binding": {
+    "step5d_v33_stage_contract": "b7955fc29e7453bdcf74284ebe5f40f104fc966bc4b52acc282d732ae14c857d",
+    "tools/kunwei_rtde_bridge.py": "622ebdc48d9c4999bb2597e1228b3ae00b9df88de8eb48a8c01259bfe6052665",
+    "tools/run_step5d_v33_live_path_timing.py": "9c0ca7c6c6b5a6bfd759bd2ecdb2a3c246a417814f474b3a2121ceb1309fca63",
+    "tools/step5c_strict_rnn.py": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+    "tools/step5d_control_contract.py": "488c67a4f7f5e54807cd125cf707821cfea70fcf4d47ed7b8c7ee5bb348508b9",
+    "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+    "tools/step5d_runtime_interface.py": "3ab10b76359f8f3ca0c95b2abf275d86c1c72b0605acfc26f94d8a3baf92fe61"
+  },
+  "source_binding_sha256": "d74076b49a21ab375530511025809aa69f878e269db3c1e94ea4ca1ff53f4a1b",
+  "timing": {
+    "max_ms": 0.30866700399201363,
+    "mean_ms": 0.26384701691858936,
+    "p50_ms": 0.26249200163874775,
+    "p95_ms": 0.2736020105658099,
+    "p99_ms": 0.2828189899446443
+  },
+  "warmup": 100
+}

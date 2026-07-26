@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Step6 8-Shaped Waypoint Guide</title>
+  <style>
+    :root { color-scheme: light; --ink:#17202a; --muted:#5d6875; --line:#d7dfe8; --bg:#f7f9fb; --panel:#fff; --path:#0b6bcb; --point:#0f766e; --accent:#b42318; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:var(--bg); }
+    header { padding:22px 26px 14px; background:#fff; border-bottom:1px solid var(--line); }
+    h1 { margin:0 0 6px; font-size:26px; line-height:1.2; letter-spacing:0; }
+    p { margin:0; color:var(--muted); line-height:1.5; }
+    main { display:grid; grid-template-columns:minmax(0,1fr) 390px; gap:18px; padding:18px 24px 28px; }
+    section, aside { background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+    svg { display:block; width:100%; height:auto; aspect-ratio:1.25; background:#fbfcfe; }
+    aside { padding:16px; align-self:start; }
+    h2 { margin:0 0 10px; font-size:17px; line-height:1.25; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th,td { padding:7px 4px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+    th:first-child,td:first-child { text-align:left; }
+    code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
+    .note { margin-top:13px; font-size:13px; }
+    @media (max-width:900px) { main { grid-template-columns:1fr; padding:14px; } header { padding:18px 16px 12px; } h1 { font-size:22px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Step6 8-Shaped Waypoint Guide</h1>
+    <p>五个点用于校正经过点；正式 frame 来自 read-only RTDE capture，不用 HTML 手工点 marker。</p>
+  </header>
+  <main>
+    <section>
+      <svg id="view" viewBox="0 0 960 760" role="img" aria-label="Step6 local 8-shaped waypoint guide"></svg>
+    </section>
+    <aside>
+      <h2>采集顺序</h2>
+      <table>
+        <tr><th>label</th><th>t s</th><th>phase</th><th>along mm</th><th>lat mm</th></tr>
+        <tr><td><code>center_start</code></td><td>0.000</td><td>0.000000</td><td>0.000</td><td>0.000</td></tr>
+<tr><td><code>right_upper</code></td><td>3.927</td><td>0.785398</td><td>28.284</td><td>10.000</td></tr>
+<tr><td><code>right_lower</code></td><td>11.781</td><td>2.356194</td><td>28.284</td><td>-10.000</td></tr>
+<tr><td><code>left_upper</code></td><td>19.635</td><td>3.926991</td><td>-28.284</td><td>10.000</td></tr>
+<tr><td><code>left_lower</code></td><td>27.489</td><td>5.497787</td><td>-28.284</td><td>-10.000</td></tr>
+      </table>
+      <p class="note">公式：<code>along=0.04*sin(0.2t), lateral=0.01*sin(0.4t), duration=30s</code></p>
+      <p class="note">Draft base coordinates use the previous Step5 frame only as a visual reference. The formal Step6 frame comes from five fresh read-only captures.</p>
+    </aside>
+  </main>
+  <script>
+    const payload = {"program":"step6a_eight_no_contact_v1","formula":"along=0.04*sin(0.2t), lateral=0.01*sin(0.4t), duration=30s","waypoints":[{"label":"center_start","phase_rad":0.0,"t_s":0.0,"local_x_m":0.0,"local_y_m":0.0},{"label":"right_upper","phase_rad":0.7853981633974483,"t_s":3.9269908169872414,"local_x_m":0.028284271247461898,"local_y_m":0.01},{"label":"right_lower","phase_rad":2.356194490192345,"t_s":11.780972450961723,"local_x_m":0.028284271247461905,"local_y_m":-0.01},{"label":"left_upper","phase_rad":3.9269908169872414,"t_s":19.634954084936204,"local_x_m":-0.028284271247461884,"local_y_m":0.01},{"label":"left_lower","phase_rad":5.497787143782138,"t_s":27.48893571891069,"local_x_m":-0.02828427124746191,"local_y_m":-0.01}],"draft_points":[{"label":"center_start","phase_rad":0.0,"t_s":0.0,"local_x_m":0.0,"local_y_m":0.0,"draft_base_x_m":0.487795411149049,"draft_base_y_m":0.12932679270060748},{"label":"right_upper","phase_rad":0.7853981633974483,"t_s":3.9269908169872414,"local_x_m":0.028284271247461898,"local_y_m":0.01,"draft_base_x_m":0.4774909287746217,"draft_base_y_m":0.157501562318035},{"label":"right_lower","phase_rad":2.356194490192345,"t_s":11.780972450961723,"local_x_m":0.028284271247461905,"local_y_m":-0.01,"draft_base_x_m":0.49748976543991813,"draft_base_y_m":0.15771727517067316},{"label":"left_upper","phase_rad":3.9269908169872414,"t_s":19.634954084936204,"local_x_m":-0.028284271247461884,"local_y_m":0.01,"draft_base_x_m":0.4781010568581799,"draft_base_y_m":0.10093631023054182},{"label":"left_lower","phase_rad":5.497787143782138,"t_s":27.48893571891069,"local_x_m":-0.02828427124746191,"local_y_m":-0.01,"draft_base_x_m":0.49809989352347633,"draft_base_y_m":0.10115202308317996}],"note":"Draft base coordinates use the previous Step5 frame only as a visual reference. The formal Step6 frame comes from five fresh read-only captures."};
+    const svg = document.getElementById("view");
+    const ns = "http://www.w3.org/2000/svg";
+    const W = 960, H = 760, pad = 92;
+    const samples = [];
+    for (let i = 0; i <= 600; i++) {
+      const t = i * 0.1;
+      const phase = 0.2 * t;
+      samples.push({x: 40 * Math.sin(phase), y: 10 * Math.sin(2 * phase), t});
+    }
+    const xs = samples.map(p => p.x), ys = samples.map(p => p.y);
+    const minX = Math.min(...xs) - 12, maxX = Math.max(...xs) + 12;
+    const minY = Math.min(...ys) - 12, maxY = Math.max(...ys) + 12;
+    const sx = x => pad + (x - minX) / (maxX - minX) * (W - 2 * pad);
+    const sy = y => H - pad - (y - minY) / (maxY - minY) * (H - 2 * pad);
+    function el(tag, attrs, text) {
+      const node = document.createElementNS(ns, tag);
+      for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
+      if (text !== undefined) node.textContent = text;
+      svg.appendChild(node);
+      return node;
+    }
+    for (let x = -40; x <= 40; x += 20) {
+      el("line", {x1:sx(x), y1:sy(minY), x2:sx(x), y2:sy(maxY), stroke:"#d7dfe8", "stroke-width":1});
+      el("text", {x:sx(x)-10, y:H-34, fill:"#647184", "font-size":13}, x);
+    }
+    for (let y = -10; y <= 10; y += 10) {
+      el("line", {x1:sx(minX), y1:sy(y), x2:sx(maxX), y2:sy(y), stroke:"#d7dfe8", "stroke-width":1});
+      el("text", {x:24, y:sy(y)-5, fill:"#647184", "font-size":13}, y);
+    }
+    el("line", {x1:sx(minX), y1:sy(0), x2:sx(maxX), y2:sy(0), stroke:"#8793a0", "stroke-width":2});
+    el("line", {x1:sx(0), y1:sy(minY), x2:sx(0), y2:sy(maxY), stroke:"#8793a0", "stroke-width":2});
+    const d = samples.map((p, i) => (i ? "L" : "M") + sx(p.x).toFixed(2) + "," + sy(p.y).toFixed(2)).join(" ");
+    el("path", {d, fill:"none", stroke:"#0b6bcb", "stroke-width":5, "stroke-linecap":"round", "stroke-linejoin":"round"});
+    for (const row of payload.waypoints) {
+      const x = row.local_x_m * 1000, y = row.local_y_m * 1000;
+      el("circle", {cx:sx(x), cy:sy(y), r:8, fill:"#0f766e", stroke:"#fff", "stroke-width":2});
+      el("text", {x:sx(x)+10, y:sy(y)-10, fill:"#0f766e", "font-size":15, "font-weight":700}, row.label);
+      el("text", {x:sx(x)+10, y:sy(y)+9, fill:"#5d6875", "font-size":12}, "t=" + row.t_s.toFixed(3) + "s");
+    }
+    el("text", {x:W-210, y:H-34, fill:"#17202a", "font-size":14}, "local units: mm");
+  </script>
+</body>
+</html>

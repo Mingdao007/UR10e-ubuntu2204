@@ -1,0 +1,139 @@
+{
+  "experiment": "kunwei_closed_loop_straight_line",
+  "created_at": "2026-06-04",
+  "reference_source": {
+    "name": "demo_1_2_final_success_20260528_022654",
+    "local_path": "/home/andy/ur10e_lab_vault/onrobot/hex_e_v2_3010007655/measurements/demo_1_2_final_success_20260528_022654",
+    "controller_snapshot": "controller_snapshot/path_straight_line.script",
+    "onrobot_path_id": 3964,
+    "note": "Kunwei run must not depend on the OnRobot URCap path id."
+  },
+  "reference_line": {
+    "full_start_xyz_m": [0.444781266, 0.228663962, 0.020265571],
+    "full_end_xyz_m": [0.489249167, 0.180685371, 0.020619143],
+    "contact_start_xyz_m": [0.446585764, 0.226717001, 0.020279919],
+    "contact_progress_start_m": 0.00269,
+    "contact_progress_end_m": 0.06627,
+    "xy_unit_vector": [0.679764156, -0.733430768],
+    "xy_length_m": 0.06358
+  },
+  "step2d_circle": {
+    "source": "middle half of reference_line contact path",
+    "diameter_start_fraction": 0.25,
+    "diameter_end_fraction": 0.75,
+    "circle_direction": 1.0,
+    "derived_start_xy_m": [0.457390615, 0.215059119],
+    "derived_center_xy_m": [0.468195467, 0.203401237],
+    "derived_opposite_xy_m": [0.479000318, 0.191743355],
+    "derived_radius_m": 0.015895,
+    "derived_full_arc_length_m": 0.09987123,
+    "first_version_policy": {
+      "trajectory": "full circle",
+      "ik_owner": "UR controller through speedl Cartesian twist",
+      "normal_control": "reuse Step2C signed-Fz velocity admittance",
+      "attitude_control": "bounded force/torque-based paper-first compliance proxy"
+    }
+  },
+  "step4e_line": {
+    "source": "user TP Move screenshots IMG_1740.JPG and IMG_1741.JPG on 2026-06-09",
+    "type": "line_from_two_tcp_points",
+    "start_label": "lower/start",
+    "end_label": "higher/end",
+    "start_tcp_pose_m_rad": [0.43301, 0.10802, -0.39179, 3.133, 0.529, 0.191],
+    "end_tcp_pose_m_rad": [0.49274, 0.23877, -0.38146, 2.968, 0.717, 0.007],
+    "path_frame": "base_xy_projection",
+    "z_policy": "force_control_not_interpolated",
+    "validated_search_start_z_m": 0.09835,
+    "xy_unit_vector": [0.415512246, 0.909587417],
+    "xy_length_m": 0.1437471231016468,
+    "first_version_policy": {
+      "trajectory": "straight line in XY projection from start to end",
+      "ik_owner": "UR controller through speedl Cartesian twist",
+      "normal_control": "Step4e bridge computes paper-style force-motion outer loop",
+      "attitude_control": "force-normal roll/pitch compliance, yaw frozen"
+    }
+  },
+  "robot_state_policy": {
+    "keep_existing_tcp_payload": true,
+    "current_tcp_z_mm_used_as_field_state": 122.1,
+    "do_not_write_tcp": true,
+    "do_not_write_payload": true,
+    "do_not_call_zero_ftsensor": true
+  },
+  "kunwei_stream": {
+    "transport": "tcp-client",
+    "sensor_ip": "192.168.50.25",
+    "sensor_port": 5152,
+    "frame_bytes": 28,
+    "manual_units": {
+      "force": "Kg",
+      "moment": "Kg*m"
+    },
+    "derived_units": {
+      "force": "N",
+      "moment": "Nm",
+      "kg_to_n": 9.80665
+    }
+  },
+  "rtde_register_map": {
+    "input_double_register_24": "normal_force_n",
+    "input_double_register_25": "force_norm_n",
+    "input_double_register_26": "heartbeat",
+    "input_double_register_27": "sensor_ok",
+    "input_double_register_28": "stop_request",
+    "input_double_register_29": "target_force_n",
+    "input_double_register_30": "torque_norm_nm",
+    "input_double_register_31": "fx_n_zeroed",
+    "input_double_register_32": "fy_n_zeroed",
+    "input_double_register_33": "fz_n_zeroed",
+    "input_double_register_34": "mx_nm_zeroed",
+    "input_double_register_35": "my_nm_zeroed",
+    "input_double_register_36": "mz_nm_zeroed",
+    "output_double_register_24": "echo_normal_force_n",
+    "output_double_register_25": "echo_force_norm_n",
+    "output_double_register_26": "echo_heartbeat",
+    "output_double_register_27": "echo_sensor_ok",
+    "output_double_register_28": "echo_stop_request",
+    "output_double_register_29": "echo_target_force_n",
+    "output_double_register_30": "ur_stop_reason_code",
+    "output_double_register_31": "path_progress_m",
+    "output_double_register_32": "normal_correction_m",
+    "output_double_register_33": "last_commanded_normal_velocity_m_s",
+    "output_double_register_34": "software_zero_request_counter",
+    "output_double_register_35": "step0_stage_code"
+  },
+  "control": {
+    "pilot": {
+      "target_force_n": 3.0,
+      "tangent_speed_m_s": 0.005
+    },
+    "final": {
+      "target_force_n": 5.0,
+      "tangent_speed_m_s": 0.01
+    },
+    "normal_velocity_gain_m_per_s_per_n": 0.0004,
+    "normal_velocity_p_gain_m_per_s_per_n": 0.0004,
+    "normal_velocity_i_gain_m_per_s_per_n_s": 0.00008,
+    "normal_velocity_limit_m_s": 0.003,
+    "normal_force_filter_alpha": 0.25,
+    "integral_error_limit_n_s": 10.0,
+    "normal_axis_base": [0.0, 0.0, 1.0],
+    "closed_loop_control_period_s": 0.002,
+    "python_rtde_write_rate_hz": 125.0
+  },
+  "guards": {
+    "heartbeat_stale_s": 0.08,
+    "normal_force_abs_max_n": 12.0,
+    "force_norm_abs_max_n": 50.0,
+    "torque_norm_abs_max_nm": 0.6,
+    "normal_correction_abs_max_m": 0.008,
+    "path_progress_min_m": -0.003,
+    "path_progress_max_m": 0.067,
+    "runtime_limit_s": 12.0
+  },
+  "baseline_onrobot": {
+    "contact_abs_fz_target_error_mean_n": 0.623,
+    "path_error_2d_mean_mm": 0.261,
+    "path_error_2d_p95_mm": 0.343
+  }
+}

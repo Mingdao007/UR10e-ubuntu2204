@@ -1,0 +1,49 @@
+{
+  "status": "controller read-back verified",
+  "controller": "root@192.168.1.18",
+  "target_dir": "/programs/andyl/kunwei/step5",
+  "target_source": "config/step5d_p0_v8_controller_deploy_manifest.json",
+  "local_dir": "programs/step5/step5d",
+  "validation": {
+    "stamp": "2026-07-11T1115HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V8",
+    "program": "step5d_strict_rnn_no_contact_p0_v8",
+    "target_dir": "/programs/andyl/kunwei/step5",
+    "installation_relative_path": "../../../default",
+    "script_node_path": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.script",
+    "urp_sha256": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f",
+    "script_sha256": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
+    "txt_sha256": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6"
+  },
+  "sha256": {
+    "local": {
+      ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
+      ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
+      ".urp": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f"
+    },
+    "controller": {
+      ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
+      ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
+      ".urp": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f"
+    },
+    "readback": {
+      ".script": "16d94d48795cba7a278f47007d099057217ff3135e151a73620deb6197651df2",
+      ".txt": "6280768807ab74336f098b5a5e34d1e4e76f3f2d036262f53e4bbcc52bbb3cf6",
+      ".urp": "3fa7b08a42b7fe9c0385ad9761e95ea52c1b47167e268b41d0e3211d56df897f"
+    }
+  },
+  "delivery_mode": "full_upload_readback",
+  "target_resolution": {
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_no_contact_p0_v8.urp",
+    "controller_directory": "/programs/andyl/kunwei/step5",
+    "manifest": "config/step5d_p0_v8_controller_deploy_manifest.json"
+  },
+  "readback_source": "fresh_controller_get",
+  "safety_boundary": [
+    "ssh/scp file deploy only",
+    "no URScript send",
+    "no program load",
+    "no program start",
+    "no live bridge",
+    "no robot motion command"
+  ]
+}

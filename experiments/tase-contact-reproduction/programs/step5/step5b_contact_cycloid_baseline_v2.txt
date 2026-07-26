@@ -1,0 +1,26 @@
+Step5b contact cycloid baseline v2 TP package
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step5/step5b_contact_cycloid_baseline_v2.urp
+
+Version:
+  2026-06-30T0459HKT_STEP5B_CONTACT_CYCLOID_BASELINE_V2
+
+Motion boundary:
+  Contact motion.
+  Reuses the current v31 contact search and first-contact normal latch.
+  Stage 25.15 skips the 20 mm lift and 25.2 attitude correction when bridge
+  orientation_error <= 0.069813 rad; otherwise it runs the old lift,
+  25.2 attitude correction, second contact, and 25.3 line-entry gate.
+  Stage 25.0 consumes bridge command registers 37..44 only.
+  Bridge profile: --step4e-version step5b_v2 --step4e-path-shape cycloid.
+  Bridge normal filter alpha: --step4e-normal-filter-alpha 0.70.
+  Non-contact movel speed: entry/lift/retract 0.040 m/s,
+  accel 0.060 m/s^2; contact search/acquire/Stage 25.0 unchanged.
+  Force target: --target-force-n 15.0.
+  Raw normal guard: 50 N. Force norm guard: 60 N. Torque guard: 3.0 Nm.
+  No UR zero_ftsensor(), no Kunwei tare/zero/config, no TCP/payload write.
+
+Reference:
+  STEP5_FLOW.md
+  config/step5_stage_table.json stage step5_contact_cycloid_baseline_v1

@@ -1,0 +1,51 @@
+{
+  "schema": "step5d_v35_review_v3_v1",
+  "program": "step5d_strict_rnn_ablation_v35",
+  "reviewed_composite_fingerprint": "39f012594def04024a50eed54a597ccfa372c496122586b7b04bb4037820938d",
+  "decision": "ACCEPT_AFTER_DETERMINISTIC_FINDING_CLOSURE",
+  "degraded_review": true,
+  "effective_stack": "1+0",
+  "degraded_reason": "fable5_skipped_unavailable_session_limit_http_429",
+  "automatic_unavailable_lane_policy": true,
+  "lanes": {
+    "codex_high": {
+      "requested_model": "gpt-5.6-sol",
+      "requested_effort": "high",
+      "actual_model": "gpt-5.6-sol",
+      "actual_effort": "high",
+      "status": "completed_findings_closed",
+      "runtime_evidence_path": "config/reviews/step5d_v35_codex_high.md",
+      "runtime_evidence_sha256": "8a2ee6f0b727044e983d7ab860c98f0a4077e6fda7a1880fbb48573e8fd4a45c",
+      "findings": [
+        {"id": "V35-QUOTA-EVIDENCE-001", "severity": "P1"},
+        {"id": "V35-TIMING-SCHEMA-002", "severity": "P1"},
+        {"id": "V35-OPERATOR-VERIFY-003", "severity": "P1"},
+        {"id": "V35-STALE-DOC-004", "severity": "P1"},
+        {"id": "V35-FORMAL-TIMING-005", "severity": "P0_GATE"},
+        {"id": "V35-CANONICAL-STATE-006", "severity": "P0_GATE"}
+      ]
+    },
+    "fable5_high": {
+      "requested_model": "claude-fable-5",
+      "requested_effort": "high",
+      "actual_model": null,
+      "actual_effort": null,
+      "status": "skipped_unavailable",
+      "runtime_evidence_path": "config/reviews/step5d_v35_fable5_unavailable.md",
+      "runtime_evidence_sha256": "0c78c9d583b0fbd337821da802f6880cc2c4d1c6d12ef8bb74b754518a418be3",
+      "findings": []
+    }
+  },
+  "deterministic_finding_closure": {
+    "path": "config/reviews/step5d_v35_deterministic_closure.json",
+    "sha256": "e8d04664d3b9b930365725ea41b56d7295e0995405a7eb34a2320b78c2d3dd4f"
+  },
+  "freeze_binding": {
+    "path": "config/step5d_v35_freeze_binding.json",
+    "sha256": "718dea5a8739318c6ff9029adb858c22d3f56795b050ff861074ec29c332d7d1"
+  },
+  "authorization_evidence": [
+    "user: 是无额度就自动豁免而不需要明确"
+  ],
+  "claim_boundary": "review fallback and package acceptance are recorded; live authorization remains false"
+}

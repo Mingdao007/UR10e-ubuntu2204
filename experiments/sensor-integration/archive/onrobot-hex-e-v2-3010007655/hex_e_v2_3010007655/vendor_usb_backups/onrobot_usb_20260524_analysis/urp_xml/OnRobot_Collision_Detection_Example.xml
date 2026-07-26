@@ -1,0 +1,99 @@
+<URProgram createdIn="3.3.1.237" lastSavedIn="3.7.0.40195" robotSerialNumber="2014359999" name="OnRobot_Collision_Detection_Example" directory="/home/ur/ursim-current/programs/TransferVM/Examples/Pendrive" installation="default" crcValue="2588156642">
+  <kinematics status="LINEARIZED" validChecksum="true">
+    <deltaTheta value="7.467612976535026E-6, -1.145705003197799, 0.47218783284177224, 0.6735513703613082, -3.8496138095199195E-5, 5.739769475292667E-5"/>
+    <a value="1.280711661743393E-4, -0.17526813611014813, -0.3066184133196879, 3.296975547779717E-5, 1.4680056371398737E-4, 0.0"/>
+    <d value="0.08907391277506421, 542.3927595484687, -475.59134852165585, -66.691211126871, 0.09492791363933568, 0.08253348942934285"/>
+    <alpha value="1.5700444820570616, -7.137995654758497E-4, -0.003663245626129222, 1.5703035131965746, -1.5702466740455776, 0.0"/>
+    <jointChecksum value="-2052410159, 1585104502, 677532209, -946989852, -24358439, -170023945"/>
+  </kinematics>
+  <children>
+    <SpecialSequence type="BeforeStart">
+      <children>
+        <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OFZero" strategyProgramNodeType="F/T Zero" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+          <dataModel/>
+        </Contributed>
+      </children>
+    </SpecialSequence>
+    <MainProgram runOnlyOnce="true">
+      <children>
+        <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_GUARD" strategyProgramNodeType="F/T Guard" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+          <dataModel>
+            <data key="FX" value="0.0"/>
+            <data key="FY" value="0.0"/>
+            <data key="FZ" value="0.0"/>
+            <data key="TX" value="0.0"/>
+            <data key="TY" value="0.0"/>
+            <data key="TZ" value="0.0"/>
+            <data key="F3D" value="50.0"/>
+            <data key="T3D" value="1.0"/>
+            <data key="ABS" value="true"/>
+            <data key="COORD" value="0"/>
+            <data key="NAME" value="50N &amp; 1Nm"/>
+            <data key="OF_PID" value="4"/>
+            <data key="INDEX" value="0"/>
+            <data key="STATE" value="true"/>
+            <data key="ADVANCED" value="false"/>
+            <data key="NEEDDIGI" value="false"/>
+          </dataModel>
+          <children>
+            <Move motionType="MoveJ" speed="1.0471975511965976" acceleration="1.3962634015954636" useActiveTCP="false">
+              <children>
+                <Waypoint type="Fixed" name="Start_WP" kinematicsFlags="4">
+                  <motionParameters/>
+                  <position joints="-1.6007002035724085, -1.7271001974688929, -2.2029998938189905, -0.8079999128924769, 1.5951000452041626, -0.03099996248354131" pose="-0.1201131702845836, -0.4317631667637431, 0.14607252291477701, -0.0012209830284131572, 3.1162764812408956, 0.03889191616813326"/>
+                  <poseInFeatureCoordinates pose="-0.1201131702845836, -0.4317631667637431, 0.14607252291477701, -0.0012209830284131073, 3.1162764812408956, 0.03889191616813327"/>
+                  <outputFlangePose pose="-0.1201131702845836, -0.4317631667637431, 0.14607252291477701, -0.0012209830284131073, 3.1162764812408956, 0.03889191616813327"/>
+                </Waypoint>
+              </children>
+            </Move>
+            <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_SEARCH" strategyProgramNodeType="F/T Search" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+              <dataModel>
+                <data key="coordsys" value="0"/>
+                <data key="absolute" value="false"/>
+                <data key="advanced" value="true"/>
+                <data key="speed" value="0.015"/>
+                <data key="acceleration" value="0.3"/>
+                <data key="rpy" value="[0.0, 0.0, 0.0]"/>
+                <data key="popupLimit" value="false"/>
+                <data key="ftarray" value="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 0.0]"/>
+                <data key="ftabsarray" value="[false, false, false, false, false, false]"/>
+              </dataModel>
+              <children>
+                <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_WAYPOINT" strategyProgramNodeType="F/T Waypoint" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+                  <dataModel>
+                    <data key="relativeCoords" value="[0.0, 0.0, -0.05, 0.0, 0.0, 0.0]"/>
+                    <data key="type" value="2"/>
+                    <data key="z" value="0.0"/>
+                    <data key="x" value="0.1"/>
+                  </dataModel>
+                </Contributed>
+              </children>
+            </Contributed>
+            <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_MOVE" strategyProgramNodeType="F/T Move" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+              <dataModel>
+                <data key="coordsys" value="0"/>
+                <data key="absolute" value="false"/>
+                <data key="advanced" value="true"/>
+                <data key="speed" value="0.05"/>
+                <data key="acceleration" value="0.5"/>
+                <data key="rpy" value="[0.0, 0.0, 0.0]"/>
+                <data key="popupLimit" value="false"/>
+                <data key="ftarray" value="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 0.0]"/>
+                <data key="ftabsarray" value="[false, false, false, false, false, false]"/>
+              </dataModel>
+              <children>
+                <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_WAYPOINT" strategyProgramNodeType="F/T Waypoint" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+                  <dataModel>
+                    <data key="relativeCoords" value="[0.0, 0.0, 0.025, 0.0, 0.0, 0.0]"/>
+                    <data key="type" value="2"/>
+                    <data key="x" value="-0.1"/>
+                  </dataModel>
+                </Contributed>
+              </children>
+            </Contributed>
+          </children>
+        </Contributed>
+      </children>
+    </MainProgram>
+  </children>
+</URProgram>

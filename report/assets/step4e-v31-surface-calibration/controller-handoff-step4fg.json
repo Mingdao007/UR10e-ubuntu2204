@@ -1,0 +1,80 @@
+{
+  "step4f_cycloid_seed_normal_v1": {
+    "program": "step4f_cycloid_seed_normal_v1",
+    "controller_paths": {
+      ".script": "root@192.168.1.18:/programs/andyl/kunwei/step4/step4f_cycloid_seed_normal_v1.script",
+      ".txt": "root@192.168.1.18:/programs/andyl/kunwei/step4/step4f_cycloid_seed_normal_v1.txt",
+      ".urp": "root@192.168.1.18:/programs/andyl/kunwei/step4/step4f_cycloid_seed_normal_v1.urp"
+    },
+    "readback_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/controller_readback_step4f_cycloid_seed_normal_v1_20260612_055814",
+    "stamp": "2026-06-12T0536HKT_STEP4F_CYCLOID_SEED_NORMAL_V1",
+    "checks": {
+      "status": true,
+      "local_controller_readback_sha_match": true,
+      "urp_name": true,
+      "urp_directory": true,
+      "script_node_path": true,
+      "cached_script_exact": true,
+      "stamp_in_script_txt_cache": true,
+      "path_shape": true,
+      "sixty_second_reference": true
+    },
+    "all_checks_ok": true,
+    "sha256": {
+      "local": {
+        ".script": "a9c413218c53e1bda89b4c321162f6782fce3491703cbb9730406c0f770e8e87",
+        ".txt": "e1ad166690f43ce8e8b05ba26bad994a85a1c5f0fe516a3f4d91932ca1cb2a96",
+        ".urp": "b37a88d9538466fdabbb9d6bd1b20997aaf40d56f825c973150289eac5fc267f"
+      },
+      "controller": {
+        ".script": "a9c413218c53e1bda89b4c321162f6782fce3491703cbb9730406c0f770e8e87",
+        ".txt": "e1ad166690f43ce8e8b05ba26bad994a85a1c5f0fe516a3f4d91932ca1cb2a96",
+        ".urp": "b37a88d9538466fdabbb9d6bd1b20997aaf40d56f825c973150289eac5fc267f"
+      },
+      "readback": {
+        ".script": "a9c413218c53e1bda89b4c321162f6782fce3491703cbb9730406c0f770e8e87",
+        ".txt": "e1ad166690f43ce8e8b05ba26bad994a85a1c5f0fe516a3f4d91932ca1cb2a96",
+        ".urp": "b37a88d9538466fdabbb9d6bd1b20997aaf40d56f825c973150289eac5fc267f"
+      }
+    }
+  },
+  "step4g_eight_seed_normal_v1": {
+    "program": "step4g_eight_seed_normal_v1",
+    "controller_paths": {
+      ".script": "root@192.168.1.18:/programs/andyl/kunwei/step4/step4g_eight_seed_normal_v1.script",
+      ".txt": "root@192.168.1.18:/programs/andyl/kunwei/step4/step4g_eight_seed_normal_v1.txt",
+      ".urp": "root@192.168.1.18:/programs/andyl/kunwei/step4/step4g_eight_seed_normal_v1.urp"
+    },
+    "readback_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/controller_readback_step4g_eight_seed_normal_v1_20260612_055814",
+    "stamp": "2026-06-12T0536HKT_STEP4G_EIGHT_SEED_NORMAL_V1",
+    "checks": {
+      "status": true,
+      "local_controller_readback_sha_match": true,
+      "urp_name": true,
+      "urp_directory": true,
+      "script_node_path": true,
+      "cached_script_exact": true,
+      "stamp_in_script_txt_cache": true,
+      "path_shape": true,
+      "sixty_second_reference": true
+    },
+    "all_checks_ok": true,
+    "sha256": {
+      "local": {
+        ".script": "25a64f0f38b549571cb5b13d70af2b9fd356603ffad80ced7a0ab930cb98c83d",
+        ".txt": "d3a002dfa6b1140f4dba627b62bb02f191f65a0cd3d5d4e7fb4cf0fe16493169",
+        ".urp": "fd34bd0d31e5da04f00dc54cf75644e912fd7e47e20585b06be7f7f7acbb684f"
+      },
+      "controller": {
+        ".script": "25a64f0f38b549571cb5b13d70af2b9fd356603ffad80ced7a0ab930cb98c83d",
+        ".txt": "d3a002dfa6b1140f4dba627b62bb02f191f65a0cd3d5d4e7fb4cf0fe16493169",
+        ".urp": "fd34bd0d31e5da04f00dc54cf75644e912fd7e47e20585b06be7f7f7acbb684f"
+      },
+      "readback": {
+        ".script": "25a64f0f38b549571cb5b13d70af2b9fd356603ffad80ced7a0ab930cb98c83d",
+        ".txt": "d3a002dfa6b1140f4dba627b62bb02f191f65a0cd3d5d4e7fb4cf0fe16493169",
+        ".urp": "fd34bd0d31e5da04f00dc54cf75644e912fd7e47e20585b06be7f7f7acbb684f"
+      }
+    }
+  }
+}

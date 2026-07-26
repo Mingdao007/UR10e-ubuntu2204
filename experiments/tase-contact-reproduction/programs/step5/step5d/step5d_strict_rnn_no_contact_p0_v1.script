@@ -1,0 +1,191 @@
+# VERSION: 2026-07-06T2325HKT_STEP5D_STRICT_RNN_NO_CONTACT_P0_V1
+# GENERATED_AT_LOCAL: 2026-07-06T23:25:43+08:00
+# PURPOSE: NO_CONTACT_P0_CAPTURE; no contact search, no preload, no zero/tare, direct Stage25 strict RNN warm-start capture.
+# TP_ROLE: no_contact_stage25_executor_and_guard_only; bridge computes Step5d strict RNN speedj command.
+# REGISTER_CONTRACT: Stage 25.95 requires bridge-cleared registers 37..47 before Stage25.0. Stage25.0 reads register 47 as layout tag: 523.0=Cartesian speedl vx/vy/vz/wx/wy/wz, 524.0=joint speedj qd0..qd5; 43 cmd_valid, 44 path_time_s.
+# FORCE_FRAME_CONTRACT: reaction normal for load, approach normal for posture/press direction; no-contact capture uses the bridge fallback normal rather than live force as the normal source.
+# SAFETY: no-contact P0 caps raw normal 2 N, force norm 5 N, torque 3.0 Nm; external cage/operator/E-stop boundary still applies.
+
+def codex_abs(x):
+  if x < 0:
+    return -x
+  end
+  return x
+end
+
+def codex_wait_for_bridge_ready(timeout_s):
+  local t_wait = 0.0
+  local last_heartbeat = read_input_float_register(26)
+  local heartbeat_seen = False
+  while t_wait < timeout_s:
+    local heartbeat = read_input_float_register(26)
+    if heartbeat != last_heartbeat:
+      heartbeat_seen = True
+      last_heartbeat = heartbeat
+    end
+    if heartbeat_seen and read_input_float_register(27) >= 0.5:
+      return True
+    end
+    t_wait = t_wait + get_steptime()
+    sync()
+  end
+  return False
+end
+
+def codex_step5d_no_contact_p0_guard_stop_reason():
+  local normal_force = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local sensor_ok = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if sensor_ok < 0.5:
+    return 2.0
+  elif stop_request > 0.5:
+    return stop_request
+  elif codex_abs(normal_force) > 2.0:
+    return 17.0
+  elif force_norm > 5.0:
+    return 17.0
+  elif torque_norm > 3.0:
+    return 17.0
+  end
+  return 0.0
+end
+
+def codex_step5d_strict_rnn_no_contact_p0_v1():
+  write_output_float_register(35, 20.0)
+  write_output_float_register(47, 0.0)
+  local stop_reason = 0.0
+  local bridge_ready = codex_wait_for_bridge_ready(60.0)
+  if not bridge_ready:
+    stop_reason = 2.0
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.95)
+    local register_clear_required_s = 0.006
+    local register_clear_timeout_s = 1.000
+    local register_clear_s = 0.0
+    local register_clear_t = 0.0
+    local register_clear_zero_tol = 0.000500
+    local line_entry_param_valid_code = 521.000
+    local last_heartbeat_clear = read_input_float_register(26)
+    local stale_s_clear = 0.0
+    while stop_reason == 0.0 and register_clear_s < register_clear_required_s and register_clear_t < register_clear_timeout_s:
+      local heartbeat_clear = read_input_float_register(26)
+      local clear_cmd_valid = read_input_float_register(43)
+      local clear_reg0 = read_input_float_register(37)
+      local clear_reg1 = read_input_float_register(38)
+      local clear_reg2 = read_input_float_register(39)
+      local clear_reg3 = read_input_float_register(40)
+      local clear_reg4 = read_input_float_register(41)
+      local clear_reg5 = read_input_float_register(42)
+      local clear_layout_tag = read_input_float_register(47)
+      local loop_dt = get_steptime()
+      if heartbeat_clear == last_heartbeat_clear:
+        stale_s_clear = stale_s_clear + loop_dt
+      else:
+        stale_s_clear = 0.0
+        last_heartbeat_clear = heartbeat_clear
+      end
+      register_clear_t = register_clear_t + loop_dt
+      stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
+      if stale_s_clear > 0.100:
+        stop_reason = 2.0
+      end
+      if stop_reason == 0.0:
+        if clear_cmd_valid < 0.5 and codex_abs(clear_layout_tag - line_entry_param_valid_code) >= 0.001 and codex_abs(clear_layout_tag - 523.000) >= 0.001 and codex_abs(clear_layout_tag - 524.000) >= 0.001 and codex_abs(clear_reg0) <= register_clear_zero_tol and codex_abs(clear_reg1) <= register_clear_zero_tol and codex_abs(clear_reg2) <= register_clear_zero_tol and codex_abs(clear_reg3) <= register_clear_zero_tol and codex_abs(clear_reg4) <= register_clear_zero_tol and codex_abs(clear_reg5) <= register_clear_zero_tol:
+          register_clear_s = register_clear_s + loop_dt
+        else:
+          register_clear_s = 0.0
+        end
+        sync()
+      end
+    end
+    if stop_reason == 0.0 and register_clear_s < register_clear_required_s:
+      stop_reason = 12.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.0)
+    local last_heartbeat2 = read_input_float_register(26)
+    local stale_s2 = 0.0
+    local t2 = 0.0
+    local qdot_cap_rad_s = 0.050
+    local cartesian_linear_cap_m_s = 0.004
+    local cartesian_angular_cap_rad_s = 0.015
+    local cartesian_accel_m_s2 = 0.050
+    local joint_accel_rad_s2 = 0.050
+    local cartesian_layout_code = 523.000
+    local joint_layout_code = 524.000
+    local cmd_valid_grace_s = 1.000
+    local stage25_runtime_limit_s = 65.000
+    local stage25_command_consumed = 0
+    while stop_reason == 0.0:
+      local heartbeat2 = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local stage25_layout_tag = read_input_float_register(47)
+      local cartesian_layout_ok = codex_abs(stage25_layout_tag - cartesian_layout_code) < 0.001
+      local joint_layout_ok = codex_abs(stage25_layout_tag - joint_layout_code) < 0.001
+      local cmd_qd0 = read_input_float_register(37)
+      local cmd_qd1 = read_input_float_register(38)
+      local cmd_qd2 = read_input_float_register(39)
+      local cmd_qd3 = read_input_float_register(40)
+      local cmd_qd4 = read_input_float_register(41)
+      local cmd_qd5 = read_input_float_register(42)
+      local cmd_vx = cmd_qd0
+      local cmd_vy = cmd_qd1
+      local cmd_vz = cmd_qd2
+      local cmd_wx = cmd_qd3
+      local cmd_wy = cmd_qd4
+      local cmd_wz = cmd_qd5
+      local loop_dt2 = get_steptime()
+      if heartbeat2 == last_heartbeat2:
+        stale_s2 = stale_s2 + loop_dt2
+      else:
+        stale_s2 = 0.0
+        last_heartbeat2 = heartbeat2
+      end
+      t2 = t2 + loop_dt2
+      stop_reason = codex_step5d_no_contact_p0_guard_stop_reason()
+      if stale_s2 > 0.100:
+        stop_reason = 2.0
+      end
+      if stop_reason == 0.0:
+        if cmd_valid < 0.5 or not (cartesian_layout_ok or joint_layout_ok):
+          write_output_float_register(47, stage25_command_consumed)
+          if t2 < cmd_valid_grace_s:
+            sync()
+          else:
+            stop_reason = 12.0
+          end
+        elif cartesian_layout_ok and (codex_abs(cmd_vx) > cartesian_linear_cap_m_s or codex_abs(cmd_vy) > cartesian_linear_cap_m_s or codex_abs(cmd_vz) > cartesian_linear_cap_m_s or codex_abs(cmd_wx) > cartesian_angular_cap_rad_s or codex_abs(cmd_wy) > cartesian_angular_cap_rad_s or codex_abs(cmd_wz) > cartesian_angular_cap_rad_s):
+          write_output_float_register(47, stage25_command_consumed)
+          stop_reason = 13.0
+        elif joint_layout_ok and (codex_abs(cmd_qd0) > qdot_cap_rad_s or codex_abs(cmd_qd1) > qdot_cap_rad_s or codex_abs(cmd_qd2) > qdot_cap_rad_s or codex_abs(cmd_qd3) > qdot_cap_rad_s or codex_abs(cmd_qd4) > qdot_cap_rad_s or codex_abs(cmd_qd5) > qdot_cap_rad_s):
+          write_output_float_register(47, stage25_command_consumed)
+          stop_reason = 13.0
+        elif t2 >= stage25_runtime_limit_s:
+          write_output_float_register(47, stage25_command_consumed)
+          stop_reason = 1.0
+        elif cartesian_layout_ok:
+          stage25_command_consumed = 1
+          write_output_float_register(47, stage25_command_consumed)
+          speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, cmd_wz], cartesian_accel_m_s2, 0.002)
+        else:
+          stage25_command_consumed = 1
+          write_output_float_register(47, stage25_command_consumed)
+          speedj([cmd_qd0, cmd_qd1, cmd_qd2, cmd_qd3, cmd_qd4, cmd_qd5], joint_accel_rad_s2, 0.002)
+        end
+      end
+    end
+    stopj(0.3)
+    stopl(0.1)
+  end
+
+  write_output_float_register(28, stop_reason)
+  write_output_float_register(35, 26.0)
+end
+
+codex_step5d_strict_rnn_no_contact_p0_v1()

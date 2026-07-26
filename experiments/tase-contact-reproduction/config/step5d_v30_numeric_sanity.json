@@ -1,0 +1,81 @@
+{
+  "schema_version": "step5d_v30_numeric_sanity_v1",
+  "generated_at": "2026-07-14T04:19:00+08:00",
+  "stage_id": "step5d_strict_rnn_ablation_v30",
+  "overall_pass": true,
+  "profile": {
+    "backend": "cupy",
+    "inner_iterations": 512,
+    "epsilon": 0.01,
+    "sigr_exponent_r": 0.8,
+    "qdot_cap_rad_s": 0.05,
+    "control_mode": "speedj_rnn_live",
+    "joint_layout_code": 524.0
+  },
+  "package": {
+    "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v30.urp",
+    "sha256": {
+      ".script": "0f12722ddd54a2fc7676c2c79f0b1d596d1952aac10b06694bef46417a9ff992",
+      ".txt": "9af1f70bed739c4387afab2a8f65ffe2857575db001d4b9f0ee53e23f1eeff09",
+      ".urp": "2f57065326ba0c956d49a622c5d9039bd4607571073c6a7da0311b7436448617"
+    },
+    "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v30_20260714_041851/manifest.json"
+  },
+  "trajectory": {
+    "formula": "x=0.015*(0.1*t-sin(0.1*t)); y=0.015*(1-cos(0.1*t))",
+    "duration_s": 60.0,
+    "final_phase_rad": 6.0,
+    "endpoint_local_m": [0.09419123247298389, 0.0005974457002445104],
+    "endpoint_span_m": 0.0941931272235105,
+    "max_path_speed_m_s": 0.003,
+    "path_speed_cap_m_s": 0.004,
+    "max_path_acceleration_m_s2": 0.00015,
+    "tp_cartesian_acceleration_cap_m_s2": 0.05
+  },
+  "guards": {
+    "joint_acceleration_rad_s2": 0.05,
+    "cartesian_angular_cap_rad_s": 0.015,
+    "raw_normal_guard_n": 50.0,
+    "force_norm_guard_n": 60.0,
+    "torque_norm_guard_nm": 3.0,
+    "heartbeat_stale_stop_s": 0.02,
+    "repeated_heartbeat_action": "last_published_guard_approved_qdot_consumed",
+    "late_candidate_policy": "discard_without_publish",
+    "bounded_hold_miss_ratio_max": 0.01,
+    "bounded_hold_max_consecutive_misses": 10,
+    "held_tick_counts_as_consumed": true,
+    "stop_dominates_hold": true
+  },
+  "full_chain": {
+    "artifact": "/home/andy/codex_handoffs/step5d-v30-numeric-sanity-20260714/step5d_numeric_sanity.json",
+    "sha256": "1e794bd63d03802405fa798d74fe21ccfaee3ebadbe33880e978630069c6fe92",
+    "samples": 400,
+    "overall_pass": true,
+    "qdot_max_abs_rad_s": 0.05,
+    "register_order_pass": true,
+    "finite_outputs_pass": true,
+    "strict_rnn_eq23_sign_gate_pass": true,
+    "contact_evidence": "not_claimed"
+  },
+  "gates": {
+    "exact_profile_bound": true,
+    "package_hashes_bound": true,
+    "duration_feasible": true,
+    "path_span_finite": true,
+    "path_speed_within_cap": true,
+    "path_acceleration_within_tp_cap": true,
+    "joint_speed_within_cap": true,
+    "joint_acceleration_bound_present": true,
+    "wrench_limits_present": true,
+    "attitude_rate_limit_present": true,
+    "full_chain_structural_sanity_pass": true
+  },
+  "claim_boundary": {
+    "offline_structural_sanity_only": true,
+    "controller_uploaded": true,
+    "controller_readback_verified": true,
+    "live_motion_authorized": false,
+    "contact_accepted": false,
+    "v30_current": false
+  }
+}

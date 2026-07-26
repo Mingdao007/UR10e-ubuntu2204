@@ -1,0 +1,76 @@
+  #======    OnRobot F/T Waypoint    ======#
+  
+  def of_waypoint_send(wp):
+  if not(wp==ZEROPOSE):
+  relativeWPInt=0
+  of_send_full(OF_CMD_WAYPOINT,of_float_to_int(wp[0]),of_float_to_int(wp[1]),of_float_to_int(wp[2]),of_float_to_int(wp[3]),of_float_to_int(wp[4]),of_float_to_int(wp[5]),relativeWPInt)
+  if OF_DEBUG_STATE:
+  textmsg("FT Waypoint sent: ",wp)
+  end 
+  of_move_wp_count=of_move_wp_count+1
+  else:
+  textmsg("Invalid FT Waypoint and not sent")
+  end 
+  end 
+  def of_waypoint(fixP=ZEROPOSE,variableP=p[0,0,0,0,0,0],relativeP=p[0,0,0,0,0,0]):
+  sync()
+  local mergedWP=ZEROPOSE
+  local startPose=ZEROPOSE
+  local frameID=of_move_frameID
+  if not(of_move_state==OF_MOVE_STATE_INITED):
+  textmsg("of_move_state: ",of_move_state)
+  popup(of_waypoint_move_state_error,title=of_waypoint_error_title,error=True,blocking=False)
+  halt
+  end 
+  if of_move_path_count!=0:
+  popup(of_waypoint_path_count_error,title=of_waypoint_error_title,error=True,blocking=False)
+  halt
+  end 
+  if fixP==ZEROPOSE:
+  if variableP==ZEROPOSE:
+  if(relativeP==ZEROPOSE):
+  popup(of_waypoint_parameter_error_target,title=of_waypoint_error_title,error=True,blocking=False)
+  halt
+  end 
+  if frameID==0:
+  startPose=of_move_last_pose
+  elif frameID==1:
+  startPose=ZEROPOSE 
+  elif frameID==2:
+  startPose=pose_trans(pose_inv(of_move_frame),of_move_last_pose)
+  elif frameID==3:
+  startPose=pose_inv(of_move_frame)
+  else:
+  startPose=of_move_last_pose
+  end 
+  else:
+  startPose=variableP
+  end 
+  mergedCustom=pose_add(relativeP,startPose)
+  if frameID==0:
+  mergedWP=mergedCustom
+  elif frameID==1:
+  mergedWP= pose_trans(of_move_last_pose,mergedCustom)
+  elif frameID==2:
+  mergedWP=pose_trans(of_move_frame,mergedCustom)
+  elif frameID==3:
+  local customMerged=pose_trans(of_move_frame,mergedCustom)
+  mergedWP=pose_trans(of_move_last_pose,customMerged)
+  end 
+  else:
+  mergedWP=fixP
+  end 
+  local poseDiff=point_dist(mergedWP,of_move_last_pose)
+  if((of_move_wp_count!=0)and(poseDiff<of_move_min_dist)):
+  textmsg(of_waypoint_parameter_error_distance,poseDiff)
+  popup(of_waypoint_parameter_error_close,title=of_waypoint_error_title,error=True,blocking=False)
+  halt
+  else:
+  of_waypoint_send(mergedWP)
+  end 
+  of_move_last_pose=mergedWP
+  return mergedWP
+  end 
+  
+  
+  #======    End of OnRobot F/T Waypoint    ======#

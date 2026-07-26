@@ -1,0 +1,108 @@
+# Step6a 8-shaped no-contact fixed-Z rehearsal v1.
+# VERSION: 2026-06-12T2204HKT_STEP6A_EIGHT_NO_CONTACT_V1
+# GENERATED_AT_LOCAL: 2026-06-12T22:04:25+08:00
+# CONTROLLER_TARGET: /programs/andyl/kunwei/step6/step6a_eight_no_contact_v1.urp
+# FLOW_TABLE: STEP6_FLOW.md
+# STEP6_STAGE_ID: step6a_eight_no_contact_v1
+# STEP6_TABLE_SOURCE: config/step6_stage_table.json
+# STEP6_SAFE_FRAME_SOURCE: config/step6_eight_safe_frame.json
+# STEP6_WAYPOINTS: five-point read-only RTDE calibration; max residual 5.919813 mm.
+# ENTRY_XY_M: [0.462055182, 0.177882596]
+# FIXED_BASE_Z_M: 0.030311079
+# X_GUARD: guard_line=0.488878434 m, path_max_x=0.472193783 m.
+# STEP6_PATH_FORMULA: along=0.04*sin(0.2t), lateral=0.01*sin(0.4t), duration=30s.
+# STEP6_TIMING: speedl hold_s=0.001 requests near-500Hz cadence; path clock uses get_steptime().
+# NO_CONTACT_POLICY: fixed base Z, no force control, no contact search, no Kunwei/bridge requirement, no zero_ftsensor(), no TCP/payload write.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_clamp(x, lo, hi):
+  if x < lo:
+    return lo
+  elif x > hi:
+    return hi
+  end
+  return x
+end
+
+def codex_step6a_eight_no_contact_v1():
+  local origin_x = 0.462055182
+  local origin_y = 0.177882596
+  local u_along_x = 0.004933643
+  local u_along_y = 0.999987830
+  local p_lateral_x = -0.999987830
+  local p_lateral_y = 0.004933643
+  local fixed_base_z_m = 0.030311079
+  local ref_rx = 3.133000000
+  local ref_ry = 0.529000000
+  local ref_rz = 0.191000000
+  local x_guard_m = 0.488878434
+  local path_duration_s = 30.000
+  local along_amplitude_m = 0.040000000
+  local lateral_amplitude_m = 0.010000000
+  local omega_rad_s = 0.200000000
+  local warmup_hold_s = 0.008
+  local fast_hold_s = 0.001
+  local fast_after_s = 0.100
+  local accel_m_s2 = 0.300
+  local xy_p_gain_m_s_per_m = 2.0
+  local z_p_gain_m_s_per_m = 2.0
+  local correction_limit_m_s = 0.003
+  local z_velocity_limit_m_s = 0.003
+  local velocity_cap_m_s = 0.009
+  local stop_reason = 0.0
+  local t = 0.0
+
+  textmsg("codex Step6a 8-shaped no-contact start 2026-06-12T2204HKT_STEP6A_EIGHT_NO_CONTACT_V1")
+  local entry_pose = p[origin_x, origin_y, fixed_base_z_m, ref_rx, ref_ry, ref_rz]
+  movel(entry_pose, a=0.030, v=0.020, r=0.0)
+  stopl(0.5)
+
+  while stop_reason == 0.0 and t < path_duration_s:
+    local hold_s = warmup_hold_s
+    if t >= fast_after_s:
+      hold_s = fast_hold_s
+    end
+    local pose_now = get_actual_tcp_pose()
+    local phase = omega_rad_s * t
+    local local_x = along_amplitude_m * sin(phase)
+    local local_y = lateral_amplitude_m * sin(2.0 * phase)
+    local local_vx = along_amplitude_m * omega_rad_s * cos(phase)
+    local local_vy = lateral_amplitude_m * 2.0 * omega_rad_s * cos(2.0 * phase)
+    local desired_x = origin_x + local_x * u_along_x + local_y * p_lateral_x
+    local desired_y = origin_y + local_x * u_along_y + local_y * p_lateral_y
+    local desired_vx = local_vx * u_along_x + local_vy * p_lateral_x
+    local desired_vy = local_vx * u_along_y + local_vy * p_lateral_y
+    local correction_vx = codex_clamp(xy_p_gain_m_s_per_m * (desired_x - pose_now[0]), -correction_limit_m_s, correction_limit_m_s)
+    local correction_vy = codex_clamp(xy_p_gain_m_s_per_m * (desired_y - pose_now[1]), -correction_limit_m_s, correction_limit_m_s)
+    local correction_vz = codex_clamp(z_p_gain_m_s_per_m * (fixed_base_z_m - pose_now[2]), -z_velocity_limit_m_s, z_velocity_limit_m_s)
+    local cmd_vx = desired_vx + correction_vx
+    local cmd_vy = desired_vy + correction_vy
+    local cmd_vz = correction_vz
+    local cmd_norm = sqrt(cmd_vx * cmd_vx + cmd_vy * cmd_vy + cmd_vz * cmd_vz)
+    if cmd_norm > velocity_cap_m_s:
+      local cmd_scale = velocity_cap_m_s / cmd_norm
+      cmd_vx = cmd_vx * cmd_scale
+      cmd_vy = cmd_vy * cmd_scale
+      cmd_vz = cmd_vz * cmd_scale
+    end
+    if desired_x > x_guard_m:
+      stop_reason = 8.0
+    elif pose_now[0] > x_guard_m:
+      stop_reason = 9.0
+    else:
+      speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0], accel_m_s2, hold_s)
+      t = t + get_steptime()
+    end
+  end
+  speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], accel_m_s2, 0.010)
+  stopl(0.5)
+  textmsg("codex Step6a 8-shaped no-contact stop reason:", stop_reason)
+end
+
+codex_step6a_eight_no_contact_v1()

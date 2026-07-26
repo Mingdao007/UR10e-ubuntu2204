@@ -1,0 +1,87 @@
+  #======    OnRobot HEX Mount    ======#
+  
+  of_hex_mounting_qc_offset=p[0,0,0.0241,0,0,-0.39270]
+  of_hex_mounting_qc_cog=p[0,0,0.01205,0,0,0]
+  of_hex_mounting_qc_mass=0.202 
+  of_hex_body_offset=p[0,0,0.0375,0,0,0]
+  of_hex_mount_offset=p[0,0,0,0,0,0]
+  of_hex_mounted_cog=p[0,0,0,0,0,0]
+  of_hex_mass=0.245 
+  of_hex_body_cog=p[0,0,0.020,0,0,0]
+  of_hex_mounted_mass=of_hex_mass
+  of_hex_mounted_cog=of_hex_body_cog
+  of_hex_mount_offset=of_hex_body_offset
+  def of_hex_mount_qc10():
+  if OF_DEBUG_STATE:
+  textmsg("HEX Mount QC10 command starting..")
+  end 
+  of_hex_mounted_mass=of_hex_mounted_mass+of_hex_mounting_qc_mass
+  local mass_ratio=of_hex_mounting_qc_mass/of_hex_mounted_mass
+  local mounted_cog=pose_trans(of_hex_mounting_qc_offset,of_hex_mounted_cog)
+  local hex_mounted_cog=p[mounted_cog[0],mounted_cog[1],mounted_cog[2],0,0,0]
+  of_hex_mounted_cog=interpolate_pose(hex_mounted_cog,of_hex_mounting_qc_cog,mass_ratio)
+  local hex_offset=pose_trans(of_hex_mounting_qc_offset,of_hex_mount_offset)
+  local mount_offset=pose_trans(of_hex_qc_offset,hex_offset)
+  of_hex_mount_offset=mount_offset
+  if OF_DEBUG_STATE:
+  textmsg("HEX Mount QC10 command ended.")
+  end 
+  return mount_offset
+  end 
+  def of_hex_relative_offset_set(tool_offset):
+  if OF_DEBUG_STATE:
+  textmsg("HEX sensor flange-relative TCP Offset set started!")
+  end 
+  local tcp_offset=of_hex_mount_offset
+  if not(tool_offset==p[0,0,0,0,0,0]):
+  tcp_offset=pose_trans(of_hex_mount_offset,tool_offset)
+  end 
+  of_tcp_offset_set(tcp_offset)
+  if OF_DEBUG_STATE:
+  textmsg("HEX fingertip-relative TCP Offset set to: ",tcp_offset)
+  end 
+  return tcp_offset
+  end
+  def of_hex_relative_rpy_offset_set(offset=[0,0,0],rpy=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("HEX fingertip-relative TCP Offset RPY set started!")
+  end 
+  local rotvec=rpy2rotvec(rpy)
+  local tool_offset=p[offset[0],offset[1],offset[2],rotvec[0],rotvec[1],rotvec[2]]
+  local tcp_offset=of_hex_relative_offset_set(tool_offset)
+  if OF_DEBUG_STATE:
+  textmsg("HEX fingertip-relative TCP Offset RPY set to: ",tcp_offset)
+  end 
+  return tcp_offset
+  end
+  def of_hex_compensated_relative_payload_set(tool_mass=0,center_of_gravity=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("HEX fingertip-relative Payload set started!")
+  end 
+  local tool_cog_offset=p[center_of_gravity[0],center_of_gravity[1],center_of_gravity[2],0,0,0]
+  local mass_ratio=of_hex_mounted_mass/(tool_mass+of_hex_mounted_mass)
+  local tool_cog=pose_trans(of_hex_mount_offset,tool_cog_offset)
+  local cog_pose=interpolate_pose(tool_cog,of_hex_mounted_cog,mass_ratio)
+  local cog=[cog_pose[0],cog_pose[1],cog_pose[2]]
+  local mass= tool_mass+of_hex_mounted_mass
+  of_payload_set(mass=mass,center_of_gravity=cog)
+  if OF_DEBUG_STATE:
+  textmsg("HEX compensated fingertip-relative Payload set to: ",cog)
+  end 
+  return cog
+  end
+  def of_hex_relative_payload_set(mass=0,center_of_gravity=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("HEX fingertip-relative Payload set started!")
+  end 
+  local tool_cog_offset=p[center_of_gravity[0],center_of_gravity[1],center_of_gravity[2],0,0,0]
+  local cog_pose=pose_trans(of_hex_mount_offset,tool_cog_offset)
+  local cog=[cog_pose[0],cog_pose[1],cog_pose[2]]
+  of_payload_set(mass=mass,center_of_gravity=cog)
+  if OF_DEBUG_STATE:
+  textmsg("HEX compensated fingertip-relative Payload set to: ",center_of_gravity)
+  end 
+  return cog
+  end
+  
+  #======    End of OnRobot HEX Mount    ======#

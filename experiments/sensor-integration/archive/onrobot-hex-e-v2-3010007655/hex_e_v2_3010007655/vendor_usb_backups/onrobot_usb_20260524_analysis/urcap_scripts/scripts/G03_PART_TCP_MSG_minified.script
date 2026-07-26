@@ -1,0 +1,6 @@
+  #======    OnRobot Gripper Part TCP Messages    ======#
+  
+  of_gripper_tcp_set_done="OnRobot: TCP set to the RG2-FT fingertip center."
+  
+  
+  #======    End of OnRobot Gripper Part TCP Messages    ======#

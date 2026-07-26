@@ -1,0 +1,138 @@
+  #======    OnRobot Hand Guide    ======#
+  
+  of_hg_enable_HandGuide=True
+  of_hand_guide_state=0
+  of_hg_enable_axes=FALSE6D
+  of_hg_axisZ_extra_dist=0
+  of_hg_axisZ_min_dist=0
+  of_hg_axisZ_dist=0
+  of_hg_TMB_dist=0
+  of_hg_joints_min_dev=0
+  of_hg_stop_F=0
+  of_hg_stop_T=0
+  of_hg_joints_min_dev=d2r(0.5)
+  of_hg_axisZ_extra_dist=0.06
+  if of_robot_type==10:
+  if OF_DEBUG_STATE:
+  textmsg("Robot type UR10 set")
+  end 
+  of_hg_axisZ_min_dist=0.163941
+  of_hg_TMB_dist=0.0922
+  elif of_robot_type==5:
+  if OF_DEBUG_STATE:
+  textmsg("Robot type UR5 set")
+  end 
+  of_hg_axisZ_min_dist=0.10915
+  of_hg_TMB_dist=0.0823
+  elif of_robot_type==3:
+  if OF_DEBUG_STATE:
+  textmsg("Robot type UR3 set")
+  end 
+  of_hg_axisZ_min_dist=0.11235
+  of_hg_TMB_dist=0.0819
+  elif of_robot_type==0:
+  if OF_DEBUG_STATE:
+  textmsg("Robot type not set: do not use caranteen")
+  end 
+  of_hg_axisZ_min_dist=0
+  of_hg_TMB_dist=0.0
+  else:
+  if OF_DEBUG_STATE:
+  textmsg("Unknown robot type, using UR10 parameters; Type: ",of_robot_type)
+  end 
+  of_hg_axisZ_min_dist=0.163941
+  of_hg_TMB_dist=0.0922
+  end 
+  of_hg_axisZ_dist=of_hg_axisZ_min_dist+of_hg_axisZ_extra_dist
+  OF_HAND_GUIDE_STATE_IDLE=0
+  OF_HAND_GUIDE_STATE_RUNNING=1
+  def of_hand_guide_start(axes_en=FALSE6D,thresholdF=15,thresholdT=0.6,saturationV=0.6,saturationW=0.2,stopF=100,stopT=5,PGainF=0.15,PGainT=0.15,IGainF=0,IGainT=0,DGainF=0.01,DGainT=0.01):
+  if OF_DEBUG_STATE:
+  textmsg("Starting hand guide")
+  end 
+  if not(of_hand_guide_state==OF_HAND_GUIDE_STATE_IDLE or of_hand_guide_state==OF_HAND_GUIDE_STATE_RUNNING):
+  textmsg("of_hand_guide_state: ",of_hand_guide_state)
+  popup(of_hand_guide_start_error,title=of_hand_guide_title,error=True,blocking=False)
+  halt
+  else:
+  of_hand_guide_state=OF_HAND_GUIDE_STATE_RUNNING
+  end 
+  of_tcp_offset_send_actual()
+  local Axes_en=binary_list_to_integer(axes_en)
+  if OF_DEBUG_VAR:
+  textmsg("Axes_en: ",Axes_en)
+  end 
+  of_hg_stop_F=stopF
+  of_hg_stop_T=stopT
+  of_send_full(OF_CMD_HAND_GUIDE,Axes_en,of_float_to_int(thresholdF),of_float_to_int(thresholdT),of_float_to_int(saturationV),of_float_to_int(saturationW),of_float_to_int(stopF),of_float_to_int(stopT),of_float_to_int(PGainF),of_float_to_int(PGainT),of_float_to_int(IGainF),of_float_to_int(IGainT),of_float_to_int(DGainF),of_float_to_int(DGainT))
+  of_speedl_start_for_CMD(OF_CMD_HAND_GUIDE)
+  if OF_DEBUG_STATE:
+  textmsg("HandGuide started")
+  end 
+  end 
+  def of_hand_guide_stop():
+  of_stop_atomic(stopHandGuide=True)
+  of_hand_guide_state=OF_HAND_GUIDE_STATE_IDLE
+  of_parent_of_move_frameID=0
+  of_parent_of_move_frame=ZEROFRAME
+  end 
+  def of_hg_stop_limit_reached():
+  local is_reached=False
+  if(of_hg_enable_axes[0]and(Fx>of_hg_stop_F)):
+  is_reached=True
+  elif(of_hg_enable_axes[1]and(Fy>of_hg_stop_F)):
+  is_reached=True
+  elif(of_hg_enable_axes[2]and(Fz>of_hg_stop_F)):
+  is_reached=True
+  elif(of_hg_enable_axes[3]and(Tx>of_hg_stop_T)):
+  is_reached=True
+  elif(of_hg_enable_axes[4]and(Ty>of_hg_stop_T)):
+  is_reached=True
+  elif(of_hg_enable_axes[5]and(Tz>of_hg_stop_T)):
+  is_reached=True
+  end
+  return is_reached
+  end
+  def of_hg_stop_area_reached():
+  local is_reached=False
+  local Zzero=p[0,0,0,0,0,0]
+  local XYplane=p[0,0,0,0,0,0]
+  local act_flange=get_actual_tool_flange_pose()
+  local act_joints=get_actual_joint_positions()
+  XYplane[0]=act_flange[0]
+  XYplane[1]=act_flange[1]
+  local qWrist2=act_joints[4]%MATH_PI
+  local dist2Z=point_dist(XYplane,Zzero)
+  local dist2Z_min=of_hg_axisZ_dist+(of_hg_TMB_dist*cos(act_joints[4]))
+  if(dist2Z<dist2Z_min):
+  of_speedl_hg_caranteen_reached=True
+  elif(dist2Z>dist2Z_min+0.01):
+  of_speedl_hg_caranteen_reached=False
+  if of_speedl_hg_caranteen_safemode:
+  of_speedl_hg_caranteen_safemode=False
+  textmsg(of_hand_guide_safemode_exit)
+  end 
+  end 
+  if(norm(qWrist2)<of_hg_joints_min_dev):
+  is_reached=True
+  end
+  return is_reached
+  end
+  def of_hand_guide_run():
+  while of_hg_enable_HandGuide:
+  if(of_hg_stop_limit_reached()):
+  popup(of_hand_guide_error_high_ft,title=of_hand_guide_title,error=True,blocking=False)
+  of_hg_enable_HandGuide=False
+  elif(of_hg_stop_area_reached()):
+  popup(of_hand_guide_error_singularity,title=of_hand_guide_title,warning=True,blocking=False)
+  of_hg_enable_HandGuide=False
+  elif(of_speedl_hg_caranteen_reached and(not of_speedl_hg_caranteen_safemode)):
+  popup(of_hand_guide_safemode_enter,title=of_hand_guide_title,warning=True,blocking=True)
+  of_speedl_hg_caranteen_safemode=True
+  else:
+  sync()
+  end 
+  end 
+  end 
+  
+  #======    End of OnRobot Hand Guide    ======#

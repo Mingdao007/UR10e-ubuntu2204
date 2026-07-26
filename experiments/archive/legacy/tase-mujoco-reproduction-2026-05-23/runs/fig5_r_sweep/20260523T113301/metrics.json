@@ -1,0 +1,38 @@
+{
+  "config": "/home/andy/ur10e_ros2_ws/experiments/20260523_tase_finite_time_ur10e_mujoco_reproduction/configs/paper_truth.yaml",
+  "run_id": "20260523T113301",
+  "pending_pdf_verify": [
+    "q0",
+    "trajectory",
+    "orientation_signal_raw",
+    "desired_normal_force_N",
+    "r_sweep"
+  ],
+  "r": {
+    "0.2": {
+      "convergence_time_s": 0.249,
+      "tail_abs_error": 0.0005680109202043986,
+      "max_abs_error": 1.0
+    },
+    "0.4": {
+      "convergence_time_s": 0.3275,
+      "tail_abs_error": 0.0009549599977618957,
+      "max_abs_error": 1.0
+    },
+    "0.6": {
+      "convergence_time_s": 0.4675,
+      "tail_abs_error": 0.0009932375041477718,
+      "max_abs_error": 1.0
+    },
+    "0.8": {
+      "convergence_time_s": 0.7475,
+      "tail_abs_error": 0.0009985830528261453,
+      "max_abs_error": 1.0
+    },
+    "1.0": {
+      "convergence_time_s": 1.3800000000000001,
+      "tail_abs_error": 0.0009991162676965982,
+      "max_abs_error": 1.0
+    }
+  }
+}

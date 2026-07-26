@@ -1,0 +1,195 @@
+{
+  "acceptance_eligible": false,
+  "artifact_binding": {
+    "calibration_yaml": {
+      "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/src/ur10e_bringup/config/ur10e_calibration.yaml",
+      "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+    },
+    "paper_truth": {
+      "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+      "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+    },
+    "replay_csv": {
+      "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+      "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+      "size": 43700470
+    },
+    "stage_table": {
+      "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+      "sha256": "f990a52a040ecf2783d7da059dbf5796b853519a07c933aa796c5ad26ad12b43"
+    },
+    "ur_xacro": {
+      "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+      "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+    }
+  },
+  "blockers": [
+    "full_tick_deadline_miss",
+    "full_tick_max_reaches_2ms_deadline",
+    "full_tick_runtime_acceptance_path_incomplete",
+    "full_tick_schedule_deadline_miss"
+  ],
+  "classification": "diagnostic_only_not_acceptance",
+  "cupy_dedicated_stream": true,
+  "cupy_host_staging_pinned": true,
+  "cupy_parallel_equivalence": {
+    "bitwise_equal": true,
+    "compared_float32_values_per_sample": 48,
+    "inner_iterations": 128,
+    "max_abs_difference": 0.0,
+    "parallel_block_threads": 6,
+    "samples": 100,
+    "serial_reference_threads": 1
+  },
+  "cupy_precompile_ms": 409.26095203030854,
+  "cupy_stream_priority": null,
+  "cupy_stream_priority_capability": "unsupported_by_cupy_13_6",
+  "deadline_robustness": {
+    "claim_boundary": "bounded tail latency candidate only; not a 500 Hz hard-real-time claim",
+    "compute_miss_budget": 6,
+    "controller_stale_hold_proven": false,
+    "deadline_miss_diagnostics": {
+      "full_tick_compute": {
+        "capacity": 64,
+        "max_consecutive": 1,
+        "overflowed": false,
+        "retained_indices": [
+          1
+        ],
+        "total": 1
+      },
+      "full_tick_schedule": {
+        "capacity": 64,
+        "max_consecutive": 1,
+        "overflowed": false,
+        "retained_indices": [
+          1
+        ],
+        "total": 1
+      },
+      "safe_hold_compute": {
+        "capacity": 64,
+        "max_consecutive": 0,
+        "overflowed": false,
+        "retained_indices": [],
+        "total": 0
+      },
+      "safe_hold_schedule": {
+        "capacity": 64,
+        "max_consecutive": 0,
+        "overflowed": false,
+        "retained_indices": [],
+        "total": 0
+      },
+      "solver_compute": {
+        "capacity": 64,
+        "overflowed": false,
+        "retained_indices": [],
+        "total": 0
+      }
+    },
+    "degraded_fail_closed_pass": false,
+    "hard_realtime_pass": false,
+    "miss_index_diagnostics_valid": true,
+    "safe_hold_miss_budget": 6,
+    "timing_degraded_candidate": true,
+    "unrelated_blockers": []
+  },
+  "elapsed_full_tick_wall_s": 59.99862010299694,
+  "elapsed_safe_hold_wall_s": 59.99876200908329,
+  "first_post_warm_ms": 0.30534190591424704,
+  "full_tick": {
+    "deadline_miss_count": 1,
+    "max_ms": 2.29572004172951,
+    "mean_ms": 0.8110036246905413,
+    "nonfinite_count": 0,
+    "p95_ms": 0.9927290258929133,
+    "p99_ms": 1.0216242389287797,
+    "samples": 30000
+  },
+  "full_tick_reason_counts": {
+    "constraint_residual_norm_exceeded": 30000
+  },
+  "full_tick_schedule_deadline_miss_count": 1,
+  "full_tick_schedule_max_lateness_ms": 0.29897200874984264,
+  "input_evidence": {
+    "path": "config/step5d_v30_rnn128_00d64f5_formal_timing_raw.json",
+    "sha256": "c2a858f7f84b7e746ce17f30fd88f4c71fef11edbdf3cd3a26b3907b1442f073"
+  },
+  "model_prepare_ms": 1062.6713070087135,
+  "overall_pass": false,
+  "pacing_provenance": {
+    "clock": "time.perf_counter",
+    "control_hz": 500.0,
+    "full_tick_release_policy": "absolute",
+    "period_s": 0.002,
+    "safe_hold_release_policy": "independent_absolute"
+  },
+  "precompile_policy": "completed_before_control_loop",
+  "profile": {
+    "backend": "cupy",
+    "control_hz": 500.0,
+    "epsilon": 0.01,
+    "inner_iterations": 128,
+    "qdot_cap_rad_s": 0.05,
+    "sigr_exponent_r": 0.8
+  },
+  "safe_hold": {
+    "deadline_miss_count": 0,
+    "max_ms": 1.915076980367303,
+    "mean_ms": 0.8352788317482919,
+    "nonfinite_count": 0,
+    "p95_ms": 1.0281261056661606,
+    "p99_ms": 1.0777293180581182,
+    "samples": 30000
+  },
+  "safe_hold_schedule_deadline_miss_count": 0,
+  "safe_hold_schedule_max_lateness_ms": 0.0,
+  "safety_boundary": [
+    "read-only source evidence",
+    "stdout JSON only",
+    "no RTDE connection",
+    "no Dashboard connection",
+    "no controller write",
+    "no bridge start",
+    "no motion authorization"
+  ],
+  "schema_version": "step5d_v30_timing_v1",
+  "solver": {
+    "deadline_miss_count": 0,
+    "max_ms": 0.30534190591424704,
+    "mean_ms": 0.09898474697256461,
+    "nonfinite_count": 0,
+    "p95_ms": 0.1024219673126936,
+    "p99_ms": 0.1074114558286965,
+    "samples": 10000
+  },
+  "source_binding": {
+    "aggregator_sha256": "2f8e750c19163278d1c1253fb3b3cdd74c5aeaa1f7c17a005f13ef26df333519",
+    "bridge_sha256": "fd437f3a7dbd962673d344a602893307902ed94b21380b20eed7ce20debd5baa",
+    "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+    "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+    "control_contract_sha256": "b64947b0100ff73d1f717ad3d9793f9680a0ae27f26efdd118d6ca5e788cc77b",
+    "delivery": "stdin_bundle",
+    "harness_sha256": "a317ab257f50537b5da17f7239cf0db84cbbac214aae3034a134709dea89b308",
+    "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+    "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+    "readiness_builder_sha256": "8cc6c1b19cfc8b7086fd09f1af00b39eb010796b3d08f74b7831536a609826f3",
+    "runtime_interface_sha256": "834df962defe97f383e1a753dd7e559981a88cefcf176e0774c030dfdfdb59ac",
+    "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+  },
+  "source_schema_version": "step5d_v30_remote_timing_raw_v1",
+  "thresholds": {
+    "degraded_deadline_miss_ratio_max": 0.0002,
+    "degraded_max_consecutive_misses": 2,
+    "degraded_schedule_lateness_max_ms": 0.5,
+    "first_post_warm_max_ms": 1.75,
+    "full_tick_p99_max_ms": 1.8,
+    "hard_deadline_ms": 2.0,
+    "safe_hold_p99_max_ms": 1.8,
+    "safe_hold_samples_required": 30000,
+    "solver_p99_max_ms": 1.5,
+    "solver_samples_required": 10000,
+    "tick_samples_required": 30000
+  }
+}

@@ -1,0 +1,66 @@
+  #======    OnRobot Engine Start    ======#
+  
+  of_RPC=rpc_factory("xmlrpc","http://127.0.0.1:33000")
+  of_compute_engine_IP=of_sensor_IP
+  textmsg(of_engine_start_ip,of_compute_engine_IP)
+  of_sg_thrd=run of_safeguard_thread()
+  sync()
+  of_portopen_controlSocket()
+  sync()
+  of_portopen_vectorStream()
+  sync()
+  of_vectorStream_thrd=run of_vectorStream_thread()
+  sync()
+  of_vectorProcess_thrd=run of_vectorProcess_thread()
+  sync()
+  of_portopen_commandFlow()
+  sync()
+  of_cmd_thrd=run of_commandFlow_thread()
+  sync()
+  sync()
+  while(of_sensor_id==OF_SENSOR_ID_UNDEFINED):
+  sync()
+  end 
+  {%if ghex%}
+  local gripper_mount=of_gripper_mount_single(d2r(of_mounting_bracket_angle),d2r(of_mounting_gripper_angle))
+  of_gripper_mount_send(gripper_mount)
+  local mount_offset=of_gripper_qc_offset
+  if(of_mounting_qc_use):
+  mount_offset=of_gripper_mount_qc10()
+  end 
+  of_sensor_config_send(mount_offset)
+  if(of_install_tcp):
+  of_gripper_follow_tcp_set(of_gripper_follow_fingertip) 
+  of_gripper_relative_rpy_offset_set(offset=of_gripper_part_tcp_offset_xyz,rpy=of_gripper_part_tcp_offset_rpy)
+  of_gripper_follow_cog_set(of_gripper_follow_fingertip)
+  if(of_gripper_install_cog2tcp):
+  local cog_mass=of_gripper_part_cog_mass+of_gripper_mounted_mass
+  of_gripper_relative_payload_set(mass=cog_mass,center_of_gravity=of_gripper_part_cog_offset)
+  else:
+  of_gripper_compensated_relative_payload_set(part_mass=of_gripper_part_cog_mass,center_of_gravity=of_gripper_part_cog_offset)
+  end 
+  end 
+  {%else%}
+  of_hex_mounted_mass=of_hex_mass
+  of_hex_mounted_cog=of_hex_body_cog
+  of_hex_mount_offset=of_hex_body_offset
+  local hex_mount=of_hex_mount_offset
+  if(of_mounting_qc_use):
+  hex_mount=of_hex_mount_qc10()
+  end 
+  of_sensor_config_send(hex_mount)
+  if(of_install_tcp):
+  of_hex_relative_rpy_offset_set(offset=of_hex_part_tcp_offset_xyz,rpy=of_hex_part_tcp_offset_rpy)
+  if(of_hex_install_cog2tcp):
+  local cog_mass=of_hex_part_cog_mass+of_hex_mounted_mass
+  of_hex_relative_payload_set(mass=cog_mass,center_of_gravity=of_hex_part_cog_offset)
+  else:
+  of_hex_compensated_relative_payload_set(tool_mass=of_hex_part_cog_mass,center_of_gravity=of_hex_part_cog_offset)
+  end 
+  end 
+  {%end%}
+  of_tcp_offset_send_actual()
+  of_ft_bias()
+  
+  
+  #======    End of OnRobot Engine Start    ======#

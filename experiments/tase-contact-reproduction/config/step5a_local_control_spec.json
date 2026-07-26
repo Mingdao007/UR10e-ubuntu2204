@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "status": "active_textbook_for_step5a_ros2_migration",
+  "scope": "Step5a Local Control / Teach Pendant no-contact cycloid semantics that ROS2 migrations must inspect before implementation and classify after implementation.",
+  "source_scripts": {
+    "active_baseline": {
+      "id": "step5a_cycloid_no_contact_v3",
+      "status": "active_local_control_baseline",
+      "path": "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v3.script",
+      "controller_target": "/programs/andyl/kunwei/step5/step5a_cycloid_no_contact_v3.urp",
+      "version_stamp": "2026-06-17T1856HKT_STEP5A_CYCLOID_NO_CONTACT_V3"
+    },
+    "retired_provenance": [
+      {
+        "id": "step5a_cycloid_no_contact_v1",
+        "status": "retired_provenance",
+        "path": "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v1.script",
+        "controller_target": "/programs/andyl/kunwei/step5/step5a_cycloid_no_contact_v1.urp",
+        "version_stamp": "2026-06-12T0701HKT_STEP5A_CYCLOID_NO_CONTACT_V1",
+        "notes": "60 s no-scale safe-frame rotation lineage."
+      },
+      {
+        "id": "step5a_cycloid_no_contact_v2",
+        "status": "retired_provenance",
+        "path": "experiments/tase-contact-reproduction/programs/step5/step5a/step5a_cycloid_no_contact_v2.script",
+        "controller_target": "/programs/andyl/kunwei/step5/step5a_cycloid_no_contact_v2.urp",
+        "version_stamp": "2026-06-12T0726HKT_STEP5A_CYCLOID_NO_CONTACT_V2",
+        "notes": "15 s timing lineage with the same no-scale cycloid geometry."
+      }
+    ]
+  },
+  "required_preimplementation_sources": [
+    "experiments/tase-contact-reproduction/programs/step5/step5a_cycloid_no_contact_v3.script",
+    "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
+    "experiments/tase-contact-reproduction/config/step5_stage_table.json",
+    "experiments/tase-contact-reproduction/config/step5a_local_control_spec.json",
+    "/home/andy/codex_handoffs/ur10e-step5a-gate-a-final-audit-report-20260617-1655.md",
+    "/home/andy/codex_handoffs/ur10e-step5a-historical-fixed-z-auditor-report-20260617-1815.md",
+    "/home/andy/codex_handoffs/ur10e-step5a-15s-achieved-speed-gate-auditor-report-20260617-2321.md"
+  ],
+  "cycloid_task_geometry": {
+    "formula": "x=A(theta-sin(theta)), y=A(1-cos(theta))",
+    "amplitude_m": 0.015,
+    "final_phase_rad": 6.0,
+    "phase_variable": "theta",
+    "phase_semantics": "theta is the cycloid path parameter; 2*pi is one cycloid arch in the formula, not TCP orientation and not a circular TCP path.",
+    "endpoint_local_xy_m": [
+      0.09419123247298389,
+      0.0005974457002445104
+    ]
+  },
+  "tp_v3_task_space": {
+    "frame_map": {
+      "mode": "affine_map_exact_to_shifted_drag_teach_start_mid_end",
+      "safe_frame_source": "experiments/tase-contact-reproduction/config/step5_safe_frame.json",
+      "physical_path_gate": "Affine map exactly matches shifted drag-teach start/mid/end targets.",
+      "max_target_residual_mm": 0.0,
+      "affine_map": {
+        "origin_x_m": 0.487795411,
+        "origin_y_m": 0.129326793,
+        "m_xx": 0.002609327,
+        "m_xy": -1.364018877,
+        "m_yx": 1.030959244,
+        "m_yy": -0.151099367
+      }
+    },
+    "fixed_z_and_clearance": {
+      "fixed_base_z_m": 0.029423891,
+      "highest_taught_z_m": 0.019423891,
+      "clearance_above_platform_m": 0.01,
+      "policy": "fixed base Z, no contact search"
+    },
+    "entry_motion": {
+      "primitive": "movel",
+      "speed_m_s": 0.02,
+      "acceleration_m_s2": 0.03
+    },
+    "path_motion": {
+      "primitive": "speedl",
+      "duration_s": 22.0,
+      "omega_rad_s": 0.272727273,
+      "warmup_hold_s": 0.008,
+      "fast_hold_s": 0.001,
+      "fast_after_s": 0.1,
+      "acceleration_m_s2": 0.3
+    },
+    "corrections_and_caps": {
+      "xy_p_gain_m_s_per_m": 2.0,
+      "z_p_gain_m_s_per_m": 2.0,
+      "correction_limit_m_s": 0.003,
+      "z_velocity_limit_m_s": 0.003,
+      "tp_v3_command_clamp_m_s": 0.009,
+      "tp_v3_command_clamp_role": "URScript command-vector clamp provenance only; it is not automatically a ROS2 achieved-speed hard gate.",
+      "x_guard_m": 0.4888784335
+    },
+    "endpoint_semantics": {
+      "tp_v3_path_returns_to_start": false,
+      "endpoint_policy": "non_returning_historical_step5a_endpoint",
+      "return_recovery_policy": "Any ROS2 combo return is an operator recovery surface and must name its target explicitly."
+    },
+    "no_contact_policy": {
+      "force_control": false,
+      "contact_search": false,
+      "kunwei_bridge_required": false,
+      "zero_ftsensor": false,
+      "tcp_payload_write": false,
+      "external_control_urcap": false
+    }
+  },
+  "ros2_migration_alignment_contract": {
+    "preimplementation_gate": "Before changing any UR10e migration/refactor/live-gated script for Step5a/Step5b lineage, Implementor MUST list the Local Control source scripts, stage table, safe-frame/correction artifacts, and relevant Auditor reports inspected.",
+    "completion_gate": "Completion/handoff MUST include a Local Control Textbook Alignment table. Each field MUST be marked preserved, changed_with_reason, or out_of_scope.",
+    "frame_map_gate": "If ROS2 uses safe-frame rotation instead of the TP v3 affine map, the artifact MUST mark it as changed_with_reason and name the reason. Silent replacement is a failure.",
+    "speed_gate": "The TP v3 0.009 m/s command clamp MUST NOT be treated as a ROS2 achieved-speed hard gate unless the artifact explicitly names that as the route policy and justifies it.",
+    "return_gate": "Combo return target MUST come from step5a_historical_fixed_z_position.json pre-cycle start_positions when the command is the historical fixed-Z cycle wrapper; it must not silently use path summary or an unrelated no_contact_test run."
+  }
+}

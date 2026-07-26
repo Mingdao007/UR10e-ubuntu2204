@@ -1,0 +1,224 @@
+{
+  "sources": {
+    "v15a_run": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355",
+    "v15a_csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/bridge_rtde_500hz.csv",
+    "v15a_summary": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/summary.json",
+    "v15a_offline_summary": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/step5d_v15a_permissive_recovery_offline_20260616/summary.json",
+    "stage_table": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/config/step5_stage_table.json"
+  },
+  "v15a": {
+    "stage25_rows": 500,
+    "stage25_index_start": 12523,
+    "stage25_index_end": 13022,
+    "stage25_duration_s": 0.9979995499597862,
+    "stop_reason": "step5d_contact_safety:hold_duty_limit",
+    "reason_counts": {
+      "ok": 71,
+      "early_tcp_escape_recoverable_hold": 10,
+      "soft_low_contact_hold": 72,
+      "hard_lost_contact_hold": 74,
+      "low_load_reacquire_hold_timeout_deferred": 272,
+      "hold_duty_limit": 1
+    },
+    "cage_reason_counts": {
+      "inside_broad_tcp_cage": 500
+    },
+    "normal_load_n": {
+      "samples": 500,
+      "min": 0.0,
+      "mean": 1.7553005171079974,
+      "p50": 0.228856266,
+      "p95": 13.3092201,
+      "max": 13.6216104
+    },
+    "force_norm_n": {
+      "samples": 500,
+      "min": 0.0712000165,
+      "mean": 1.8138891485610105,
+      "p50": 0.22961159,
+      "p95": 13.3680776,
+      "max": 13.6236828
+    },
+    "actual_tcp_speed_m_s": {
+      "samples": 500,
+      "min": 0.0,
+      "mean": 0.0016522871755871615,
+      "p50": 5.16654581e-05,
+      "p95": 0.00870131128,
+      "max": 0.0114133178
+    },
+    "predicted_tcp_speed_m_s": {
+      "samples": 71,
+      "min": 0.0,
+      "mean": 0.019265542890915487,
+      "p50": 0.0188258418,
+      "p95": 0.0391336638,
+      "max": 0.0417589127
+    },
+    "tcp_cage_braking_margin_m": {
+      "samples": 500,
+      "min": 0.00998929546,
+      "mean": 0.014078544303119986,
+      "p50": 0.0143392172,
+      "p95": 0.0143814866,
+      "max": 0.0151444841
+    },
+    "hold_duty": {
+      "samples": 500,
+      "min": 0.0,
+      "mean": 0.5826552430199996,
+      "p50": 0.717131474,
+      "p95": 0.850526316,
+      "max": 0.858
+    },
+    "consecutive_hold_s": {
+      "samples": 500,
+      "min": 0.0,
+      "mean": 0.15706800000000004,
+      "p50": 0.05,
+      "p95": 0.496,
+      "max": 0.546
+    },
+    "command_max_abs": {
+      "samples": 500,
+      "min": 0.0,
+      "mean": 0.001728,
+      "p50": 0.0,
+      "p95": 0.016,
+      "max": 0.026
+    },
+    "hold_rows": 428,
+    "pass_solver_rows": 71,
+    "stop_rows": 1,
+    "hold_command_nonzero_rows": 0,
+    "pass_command_nonzero_rows": 70,
+    "final_row": {
+      "normal_load_n": 0.194863786,
+      "force_norm_n": 0.208861864,
+      "hold_duty": 0.858,
+      "hold_event_count": 10.0,
+      "consecutive_hold_s": 0.546,
+      "tcp_cage_braking_margin_m": 0.0143498989,
+      "tcp_cage_reason": "inside_broad_tcp_cage",
+      "contact_safety_reason": "hold_duty_limit"
+    }
+  },
+  "offline_gate": {
+    "success_hold_duty_max_observed": 0.3163918060112362,
+    "hold_duty_limit": 0.4,
+    "success_hold_event_count_max_observed": 309,
+    "hold_event_limit": 360,
+    "acceptance": {
+      "cage_margin_hard_stop": true,
+      "online_tcp_cage_ready": true,
+      "success_hold_burden_reported": true,
+      "success_no_hard_stop": true,
+      "v11_intervenes_before_qdot_rail_or_large_escape": true,
+      "v14_enters_hold_before_hard_stop": true
+    }
+  },
+  "runtime": {
+    "bridge_write_rate_hz": 508.2309788886176,
+    "rtde_output_rate_hz": 437.73243210582484,
+    "rtde_reconnect_event_count": 2,
+    "stage25_echo_rate_hz": 496.9942120915646
+  },
+  "version_rows": [
+    {
+      "version": "v1",
+      "stage": "entered Stage25",
+      "cause": "heartbeat stale",
+      "summary": "约 0.106 s 后 TP heartbeat stale 停止"
+    },
+    {
+      "version": "v2",
+      "stage": "entered Stage25",
+      "cause": "force guard",
+      "summary": "高预载进入，qdot 到 0.30 rad/s，normal force guard 停止"
+    },
+    {
+      "version": "v3",
+      "stage": "before Stage25",
+      "cause": "25.3 gate too narrow",
+      "summary": "strict 5N force-settle gate 太窄"
+    },
+    {
+      "version": "v4",
+      "stage": "entered Stage25",
+      "cause": "semantic bug",
+      "summary": "暴露 force/frame semantic bug"
+    },
+    {
+      "version": "v5",
+      "stage": "Stage25 blocked",
+      "cause": "engage gate too narrow",
+      "summary": "2-15 N gate 拦住 17-21 N contact"
+    },
+    {
+      "version": "v6",
+      "stage": "entered Stage25",
+      "cause": "re-contact overpressure",
+      "summary": "2-40 N gate 放过 20-22 N re-contact"
+    },
+    {
+      "version": "v7",
+      "stage": "transition",
+      "cause": "incomplete contact strategy",
+      "summary": "保留过渡包，仍未解决主动稳定接触"
+    },
+    {
+      "version": "v8",
+      "stage": "before Stage25",
+      "cause": "low-load dropout",
+      "summary": "25.3 low-load dropout 被当作 violation 停止"
+    },
+    {
+      "version": "v9",
+      "stage": "before Stage25",
+      "cause": "PID hunting",
+      "summary": "direct force-PID under point contact hunting timeout"
+    },
+    {
+      "version": "v10",
+      "stage": "before Stage25",
+      "cause": "admittance hunting",
+      "summary": "scalar admittance 饱和/翻符号，无法稳定 settle"
+    },
+    {
+      "version": "v11",
+      "stage": "entered Stage25",
+      "cause": "lost contact / E-stop",
+      "summary": "deadband acquire 后失接触并触发 operator E-stop"
+    },
+    {
+      "version": "v12",
+      "stage": "not live",
+      "cause": "read-back only",
+      "summary": "guarded read-back package，被 v13 planning supersede"
+    },
+    {
+      "version": "v13",
+      "stage": "not live",
+      "cause": "P1 safety gap",
+      "summary": "first-sample actual-speed dwell gap，被 v14 supersede"
+    },
+    {
+      "version": "v14",
+      "stage": "entered Stage25",
+      "cause": "predicted speed watchdog",
+      "summary": "predicted TCP speed watchdog 停止"
+    },
+    {
+      "version": "v15",
+      "stage": "not live",
+      "cause": "audit gap",
+      "summary": "cage 未真正 online，bounded hold 不完整"
+    },
+    {
+      "version": "v15a",
+      "stage": "entered Stage25",
+      "cause": "hold duty limit",
+      "summary": "zero-qdot hold 未恢复接触，hold_duty_limit 停止"
+    }
+  ]
+}

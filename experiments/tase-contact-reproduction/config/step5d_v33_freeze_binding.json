@@ -1,0 +1,280 @@
+{
+  "artifact_sha256": {
+    "config/step5d_v32_failure_evidence.json": "4605a7d323111b8df4a3b0708c69c8378f96ed18be52fa0095a86b158e47275b",
+    "config/step5d_v33_live_path_timing.json": "8008c661bae1953cb08dc47deef1b624d86e0062be30565c8d7bc7c15644c30e",
+    "config/step5d_v33_offline_validation.json": "3daf9288529c8fd4e7fd258f5c2629246bfc115a58d3c8e66031a23b788dced4"
+  },
+  "claim_boundary": "package/read-back/offline freeze only; live authorization remains separate",
+  "composite_fingerprint": "552d5748d02d932d54bbea05f4fb859c45b68a7c1309790afa1556b348090b0c",
+  "package_binding": {
+    "step5d_strict_rnn_ablation_v33": {
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v33_20260715_000215/manifest.json",
+      "controller_readback_manifest_sha256": "aedb7649abd8c12da087185caad6b1f4f9b24776940e168efbe4b4bcc16b29f5",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v33.urp",
+      "triplet_sha256": {
+        ".script": "0d444d333013095e777e24eabc482275831af228d9a3b9637478d85be599c331",
+        ".txt": "6be69d6c0270586502a7df0282f29dde49bc4599c91df67ef0e8be3e23db4627",
+        ".urp": "4bef71b3d0690479cba13c9ca01a9bcd2e5d2c7802c64b6bf7d2f86dab3c4e5f"
+      }
+    },
+    "step5d_strict_rnn_ablation_v33c20": {
+      "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v33c20_20260715_000210/manifest.json",
+      "controller_readback_manifest_sha256": "27642bedb00a7d35b0ccadda257a8e604d51ac828017003b15306d0e84ae0030",
+      "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_ablation_v33c20.urp",
+      "triplet_sha256": {
+        ".script": "c25a3b5a232ec76b32ee83b87853061d7f8f080eb9623b789661c21798d779ac",
+        ".txt": "c9c510e358f9fc7f8ade675843c1bd357c24ab9008eb67d8e684837d51b45b90",
+        ".urp": "3d9f04c4d762747b541a3041c0a0f62b40215b39ace2a5e2deeebf90a3a3fe3c"
+      }
+    }
+  },
+  "profiles": [
+    "step5d_strict_rnn_ablation_v33c20",
+    "step5d_strict_rnn_ablation_v33"
+  ],
+  "schema": "step5d_v33_freeze_binding_v1",
+  "source_sha256": {
+    "scripts/bridge-line-operator.sh": "690cae4c2d46cbb01e919095ee4097c8e2c1db9eb20359d8183db50a0b7a4816",
+    "scripts/step5d-strict-rnn-contact-v33.sh": "b79c609fa4c74ccdead6c75bbefa75d3c9dc6edf38a3250ec0c33e7bcd755fdc",
+    "tools/analyze_step5d_bridge_run.py": "325980079a136f507e0184f23d64f8976e0ad6d98afb8c1607015e3c5a36b9e7",
+    "tools/build_step5d_liveprep.py": "b4602d66ca7c83366417d6392fb5e368c029e35f8592601acd187236ab18a49b",
+    "tools/build_step5d_v33_freeze_binding.py": "1856f787bb5b8febc7ee87d70977329e2822d355d24874c196119bf63ebd7239",
+    "tools/kunwei_rtde_bridge.py": "622ebdc48d9c4999bb2597e1228b3ae00b9df88de8eb48a8c01259bfe6052665",
+    "tools/run_step5d_v33_live_path_timing.py": "9c0ca7c6c6b5a6bfd759bd2ecdb2a3c246a417814f474b3a2121ceb1309fca63",
+    "tools/step5c_strict_rnn.py": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7",
+    "tools/step5d_control_contract.py": "488c67a4f7f5e54807cd125cf707821cfea70fcf4d47ed7b8c7ee5bb348508b9",
+    "tools/step5d_paper_outer_loop.py": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+    "tools/step5d_runtime_interface.py": "3ab10b76359f8f3ca0c95b2abf275d86c1c72b0605acfc26f94d8a3baf92fe61",
+    "tools/validate_step5d_v33.py": "3212da79a2433cc6cfcaf23d9a98b892f679bf64205f50574929a0aec6de53c5",
+    "tools/verify_step5d_contact_v33.py": "a4fa545ffa2a499003e410d1529651c045875aa156f1bfcafeabfde6f4f7ab3a",
+    "tools/verify_step5d_current_binding.py": "341aa89b87e2f7fbb4bf526718dec5b8b71dce9c58b2fa4f72d2ccc0c9e69ac0"
+  },
+  "stage_contract": {
+    "step5d_strict_rnn_ablation_v33": {
+      "acceptance": {
+        "contact_live_accepted": false,
+        "controller_readback_required": true,
+        "explicit_live_contact_authorization_required": true,
+        "reproduction_complete": false,
+        "review_v3_pre_live_stack": "1xCodex+1xFable5"
+      },
+      "bridge_runtime": {
+        "duration_s": 180,
+        "force_damping": 7,
+        "force_i_gain": 1e-05,
+        "force_p_gain": 0.001,
+        "integral_limit_n_s": 1,
+        "normal_follow_mode": "filtered_live",
+        "normal_min_force_n": 2,
+        "rtde_hz": 500,
+        "sensor_stale_s": 2,
+        "socket_timeout_s": 0
+      },
+      "duration_s": 60,
+      "feedback_policy": {
+        "continuous_stale_dwell_stop_s": 0.1,
+        "controller_timestamp_required": true,
+        "feedback_age_limit_s": 0.05,
+        "receive": "drain_all_currently_readable_packets_use_latest",
+        "single_sample_jitter_role": "diagnostic_only"
+      },
+      "guard": {
+        "attitude_cap_rad_s": 1,
+        "cartesian_speed_guards_enabled": false,
+        "dls_runtime_fallback_allowed": false,
+        "force_norm_guard_n": 100,
+        "force_window_guards_enabled": false,
+        "heartbeat_stale_stop_s": 1,
+        "line_entry_force_norm_max_n": 100,
+        "line_entry_force_norm_stop_n": 100,
+        "line_entry_normal_load_max_n": 22,
+        "line_entry_normal_load_min_n": 5,
+        "line_entry_raw_sanity_max_n": 25,
+        "line_entry_raw_sanity_min_n": 3,
+        "line_entry_recovery_normal_load_max_n": 100,
+        "line_entry_recovery_normal_load_min_n": 0,
+        "line_entry_required_s": 0,
+        "line_entry_timeout_s": 60,
+        "normal_load_filter_alpha": 0.55,
+        "normal_motion_guards_enabled": false,
+        "normal_motion_policy": "frame_contract_only",
+        "normal_velocity_cap_m_s": 1,
+        "path_cap_m_s": 1,
+        "post_far_search_rezero_s": 1,
+        "qdot_cap_rad_s": 0.5,
+        "qdot_slew_rad_s2": 0.05,
+        "raw_normal_guard_n": 60,
+        "runtime_limit_s": 75,
+        "schema": "step5d_v33_permissive_contact_fresh_feedback",
+        "stage25_default_control_mode": "speedj_rnn_live",
+        "stage25_runtime_limit_s": 75,
+        "stage25_success_target_s": 60,
+        "step5d_epsilon": 0.01,
+        "step5d_rnn_backend": "cupy",
+        "step5d_rnn_inner_iterations": 512,
+        "step5d_sigr_exponent_r": 0.8,
+        "target_force_n": 12,
+        "torque_norm_guard_nm": 3,
+        "total_linear_cap_m_s": 1
+      },
+      "phase_law": {
+        "final_phase_rad": 6,
+        "omega_rad_s": 0.1,
+        "relative_z_lift_m": 0.02,
+        "theta_rate_rad_s": 0.1,
+        "type": "canonical_cycloid_linear_time",
+        "z_law": "quintic_smoothstep"
+      },
+      "runtime_profile": {
+        "backend": "cupy",
+        "command_slew_rad_s2": 0.05,
+        "control_mode": "speedj_rnn_live",
+        "dls_runtime_fallback_allowed": false,
+        "dls_shadow_only": true,
+        "epsilon": 0.01,
+        "guard_schema": "step5d_v33_permissive_contact_fresh_feedback",
+        "inner_iterations": 512,
+        "qdot_cap_rad_s": 0.5,
+        "sigr_exponent_r": 0.8,
+        "solver_ok_status": 40,
+        "wire_protocol": "stage_aware_joint_v1"
+      },
+      "stage25_outer_profile": {
+        "contact_search_cli_parameters_are_not_active_outer_parameters": true,
+        "exact_binding": true,
+        "force_Bd": 7000,
+        "force_Md": 1000,
+        "force_integral_limit_n_s": 1,
+        "force_kf": 0.01,
+        "orientation_ko": 0.4,
+        "profile_id": "step5d_v33_step5b_discrete_equivalent_v1",
+        "tangential_kp": 1.5
+      },
+      "wire_protocol": {
+        "joint_marker_internal": 524,
+        "layout_is_not_a_global_publish_gate": true,
+        "schema": "step5d_stage_aware_packet_v1",
+        "stage25_0": "strict_rnn_joint_packet",
+        "stage25_05": "latch_ready_state_33",
+        "stage25_3": "preload_state_521",
+        "stage25_95": "zero_invalid_clear_state_522"
+      }
+    },
+    "step5d_strict_rnn_ablation_v33c20": {
+      "acceptance": {
+        "command_actual_qd_correlation_min": 0.9,
+        "command_actual_qd_lag_max_s": 0.02,
+        "controller_readback_required": true,
+        "explicit_live_contact_authorization_required": true,
+        "feedback_age_p99_max_s": 0.01,
+        "final_safety_mode": "NORMAL",
+        "gross_stop_required": false,
+        "review_v3_pre_live_stack": "1xCodex+1xFable5",
+        "rnn_accepted_consumed_ratio_min": 0.98,
+        "sent_echo_heartbeat_gap_max": 5,
+        "xy_error_max_m": 0.001,
+        "xy_error_p95_max_m": 0.0005
+      },
+      "bridge_runtime": {
+        "duration_s": 180,
+        "force_damping": 7,
+        "force_i_gain": 1e-05,
+        "force_p_gain": 0.001,
+        "integral_limit_n_s": 1,
+        "normal_follow_mode": "filtered_live",
+        "normal_min_force_n": 2,
+        "rtde_hz": 500,
+        "sensor_stale_s": 2,
+        "socket_timeout_s": 0
+      },
+      "duration_s": 20,
+      "feedback_policy": {
+        "continuous_stale_dwell_stop_s": 0.1,
+        "controller_timestamp_required": true,
+        "feedback_age_limit_s": 0.05,
+        "receive": "drain_all_currently_readable_packets_use_latest",
+        "single_sample_jitter_role": "diagnostic_only"
+      },
+      "guard": {
+        "attitude_cap_rad_s": 1,
+        "cartesian_speed_guards_enabled": false,
+        "dls_runtime_fallback_allowed": false,
+        "force_norm_guard_n": 100,
+        "force_window_guards_enabled": false,
+        "heartbeat_stale_stop_s": 1,
+        "line_entry_force_norm_max_n": 100,
+        "line_entry_force_norm_stop_n": 100,
+        "line_entry_normal_load_max_n": 22,
+        "line_entry_normal_load_min_n": 5,
+        "line_entry_raw_sanity_max_n": 25,
+        "line_entry_raw_sanity_min_n": 3,
+        "line_entry_recovery_normal_load_max_n": 100,
+        "line_entry_recovery_normal_load_min_n": 0,
+        "line_entry_required_s": 0,
+        "line_entry_timeout_s": 60,
+        "normal_load_filter_alpha": 0.55,
+        "normal_motion_guards_enabled": false,
+        "normal_motion_policy": "frame_contract_only",
+        "normal_velocity_cap_m_s": 1,
+        "path_cap_m_s": 1,
+        "post_far_search_rezero_s": 1,
+        "qdot_cap_rad_s": 0.5,
+        "qdot_slew_rad_s2": 0.05,
+        "raw_normal_guard_n": 60,
+        "runtime_limit_s": 35,
+        "schema": "step5d_v33_permissive_contact_fresh_feedback",
+        "stage25_default_control_mode": "speedj_rnn_live",
+        "stage25_runtime_limit_s": 35,
+        "stage25_success_target_s": 20,
+        "step5d_epsilon": 0.01,
+        "step5d_rnn_backend": "cupy",
+        "step5d_rnn_inner_iterations": 512,
+        "step5d_sigr_exponent_r": 0.8,
+        "target_force_n": 12,
+        "torque_norm_guard_nm": 3,
+        "total_linear_cap_m_s": 1
+      },
+      "phase_law": {
+        "final_phase_rad": 2,
+        "omega_rad_s": 0.1,
+        "theta_rate_rad_s": 0.1,
+        "type": "canonical_cycloid_linear_time"
+      },
+      "runtime_profile": {
+        "backend": "cupy",
+        "command_slew_rad_s2": 0.05,
+        "control_mode": "speedj_rnn_live",
+        "dls_runtime_fallback_allowed": false,
+        "dls_shadow_only": true,
+        "epsilon": 0.01,
+        "guard_schema": "step5d_v33_permissive_contact_fresh_feedback",
+        "inner_iterations": 512,
+        "qdot_cap_rad_s": 0.5,
+        "sigr_exponent_r": 0.8,
+        "solver_ok_status": 40,
+        "wire_protocol": "stage_aware_joint_v1"
+      },
+      "stage25_outer_profile": {
+        "contact_search_cli_parameters_are_not_active_outer_parameters": true,
+        "exact_binding": true,
+        "force_Bd": 7000,
+        "force_Md": 1000,
+        "force_integral_limit_n_s": 1,
+        "force_kf": 0.01,
+        "orientation_ko": 0.4,
+        "profile_id": "step5d_v33_step5b_discrete_equivalent_v1",
+        "tangential_kp": 1.5
+      },
+      "wire_protocol": {
+        "joint_marker_internal": 524,
+        "layout_is_not_a_global_publish_gate": true,
+        "schema": "step5d_stage_aware_packet_v1",
+        "stage25_0": "strict_rnn_joint_packet",
+        "stage25_05": "latch_ready_state_33",
+        "stage25_3": "preload_state_521",
+        "stage25_95": "zero_invalid_clear_state_522"
+      }
+    }
+  },
+  "stage_contract_sha256": "554da3dd32a249bb8866da9ce0956b6f46c3107a6ceb25d777002d1975f48fd7"
+}

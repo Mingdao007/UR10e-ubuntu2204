@@ -5,5 +5,6 @@
   "newFileLocation": "folder",
   "readableLineLength": false,
   "showLineNumber": true,
-  "showUnsupportedFiles": true
+  "showUnsupportedFiles": true,
+  "promptDelete": false
 }

@@ -1,0 +1,10 @@
+{
+  "host": "192.168.1.1",
+  "duration_s": 28800.0,
+  "poll_interval_s": 0.05,
+  "flush_every_s": 30.0,
+  "started_wall_time_utc": "2026-05-19T15:35:39.111+00:00",
+  "hostname": "andy7",
+  "read_only_policy": "No bias/zero/autocalib/firmware/config endpoints are called by this script.",
+  "compute_box_version_response": "{\"version\":\"4.1.8\"}"
+}

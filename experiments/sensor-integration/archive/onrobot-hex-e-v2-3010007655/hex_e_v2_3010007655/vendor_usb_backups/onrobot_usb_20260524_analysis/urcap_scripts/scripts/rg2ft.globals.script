@@ -1,0 +1,35 @@
+  #======    OnRobot Globals    ======#
+  
+  global FT_left=[0,0,0,0,0,0]
+  global FT_right=[0,0,0,0,0,0]
+  global F3D_left=0
+  global F3D_right=0
+  global T3D_left=0
+  global T3D_right=0
+  global ft_Prox_left=0
+  global ft_Prox_right=0
+  global ft_Width=0
+  global ft_Part_width=0
+  {{debug_global}}of_compute_engine_ping=0
+  {{debug_global}}of_compute_engine_ping_max=0
+  {{debug_global}}ft_Engine_state=0
+  {{debug_global}}ft_Sensor_ID=0
+  ft_Gyro=[0,0,0]
+  ft_Stopped=False
+  ft_Gripped=False
+  ft_FGrip_detected=False
+  ft_FGrip_lost=False
+  ft_FGripped=False
+  ft_Slip_alert=False
+  ft_Part_weight=0
+  {{debug_global}}ft_Status_left=0
+  {{debug_global}}ft_Status_right=0
+  {{debug_global}}ft_Status_backpack=0
+  of_hex={{hex}}
+  {{debug_global}}of_gripper_qc_offset=p[0,0,0,0,0,0]
+  {{debug_global}}of_gripper_bracket_offset=p[0,0,0,0,0,0]
+  {{debug_global}}of_gripper_mount_offset=p[0,0,0,0,0,0]
+  {{debug_global}}of_gripper_mounted_mass=0
+  {{debug_global}}of_gripper_mounted_cog=p[0,0,0,0,0,0]
+  
+  #======    End of OnRobot Globals    ======#

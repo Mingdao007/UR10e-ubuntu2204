@@ -1,0 +1,253 @@
+{
+  "decision": {
+    "acceptance_scope": "offline_pre_live_only",
+    "campaign_authorization_required": false,
+    "certification_motion_authorization_required": false,
+    "current_selector": "step5d_strict_rnn_autotune_v3",
+    "execution_readiness": "bridge_start_ready",
+    "hardware_promotion": "candidate_controller_readback_verified",
+    "live_motion_authorized": false,
+    "offline_implementation": "pass",
+    "robot_power_state": "runtime_observation_required",
+    "v3_active": true
+  },
+  "gates": {
+    "advisory_fable": {
+      "claim_boundary": "advisory only; deterministic UR owner gates remain authoritative",
+      "requested_effort": "high",
+      "requested_model": "claude-fable-5",
+      "role": "read_only_nonblocking_advisory",
+      "status": "completed_read_only_nonblocking_advisory"
+    },
+    "authorization_separation": {
+      "campaign_schema": "ur-exp/step5d-campaign-authorization-v2",
+      "certification_no_contact_only": true,
+      "certification_optimizer_eligible": false,
+      "certification_schema": "ur-exp/step5d-certification-motion-authorization-v2",
+      "interchangeable": false,
+      "procedure_ticket_required_before_motion": true,
+      "status": "pass_offline_contract"
+    },
+    "control_semantics": {
+      "replay_rows": 124,
+      "semantic_gate_summary_sha256": "90ec07c303551675b5510000a0845453df0bf8e5d222a7995ac994316087241e",
+      "status": "pass",
+      "strict_rnn_eq23_sign_gate": "pass",
+      "textbook_alignment": "pass",
+      "textbook_alignment_evidence_sha256": "7a285c071693368db8105bbfaf31e16f201acefb5fd6683ab1663a4ca3eec734"
+    },
+    "diagnostic_bundle_replay": {
+      "actual_sphere_breach_count": 0,
+      "audit_identity_sha256": "e8e526747e4517e9c7f1b1f790399767d100f6d05e798cb3bc463a3083cde455",
+      "bundle_count": 10,
+      "evidence_sha256": "0c5857d4b1d7b45321f8c9bb68d19315892f86603ef69c99909c1365b02ef055",
+      "optimizer_eligible_count": 0,
+      "parameter_impact": "retune_required",
+      "predicted_stop_replay": "unavailable_uncertified_stopping_bound",
+      "source_trials": [
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22
+      ],
+      "status": "pass",
+      "trial21_force_metric_role": "unavailable"
+    },
+    "exact_batch_lifecycle": {
+      "ack_commands": 0,
+      "arm_11_dispatched": false,
+      "batch_size": 10,
+      "fake_transport_rows": 10,
+      "formal_production_runner_arm2_entered_run": true,
+      "production_trial_briefs_exactly_once": 1,
+      "protocol": "v3_direct_arm_v1",
+      "row_10_return": "campaign_home_state_77_bounded_halt",
+      "rows_1_to_9_return": "ready_near_state_76",
+      "status": "pass"
+    },
+    "formal_500hz_timing": {
+      "acceptance_classification": "not_required_by_user",
+      "attempt_count": 0,
+      "pressure_test_required": false,
+      "release_gate_applicable": false,
+      "release_gate_satisfied": false,
+      "required_lanes": {},
+      "status": "not_required_by_user",
+      "system_setup_required": false
+    },
+    "package_and_readback": {
+      "blocker": null,
+      "controller_readback": "config/step5d_autotune_controller_readback_v3.json",
+      "controller_readback_sha256": "93306bca30d20d683c68be5eb9ecbcf060f09b1129cf25cdf0179fc810aedf17",
+      "historical_controller_readback": null,
+      "historical_controller_readback_sha256": null,
+      "historical_readback_matches_local_triplet": true,
+      "local_candidate": {
+        "controller_readback_verified": true,
+        "program": "step5d_strict_rnn_autotune_v3_r008",
+        "promotion_status": "controller_readback_verified",
+        "triplet_sha256": {
+          ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+          ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+          ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
+        }
+      },
+      "local_triplet_sha256": {
+        ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+        ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+        ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
+      },
+      "status": "pass_current_triplet_controller_readback"
+    },
+    "power_off_controller_audit": {
+      "content_identity_verified": false,
+      "current_probe": {
+        "content_identity_verified": false,
+        "contract_sha256": "5b23d8862a335b1c92b5b3b7829d6a212fbb021438ed64cc5c06aa793371da18",
+        "control_fingerprint": "6cc7320ebf1450233cd2fb447432e613e67c8103294edbfa8f40449f518f3ac0",
+        "orchestration_fingerprint": "521c69dc45773ed296f668bdd63d8e149c5ce2796c214fd6e70bf48ecc56fcfe",
+        "path": "/home/andy/.codex/runs/ur-exp-bridge-readiness-20260719/poweroff-probe-521c69dc-v2/preflight.json",
+        "program_state": "STOPPED",
+        "robot_mode": "POWER_OFF",
+        "sha256": "7aead3b500dc05576c2b25dc3617db28fcc359e80977dce7d32806282bd28c6b",
+        "status": "pass_read_only_runtime_identity_tp_content_unverified",
+        "writes_performed": false
+      },
+      "evidence_sha256": "03b242cbd04a4749d8eab47a51dbf56db3f942272ee2f91a1873b50965ae7757",
+      "kunwei_tcp_connect_only": true,
+      "loaded_program_basename": "step5d_strict_rnn_autotune_v3.urp",
+      "program_state": "STOPPED",
+      "robot_mode": "POWER_OFF",
+      "rtde_output_read": true,
+      "safety_mode": "NORMAL",
+      "status": "retained_prior_read_only_boundary_current_candidate_unverified",
+      "writes_performed": false
+    },
+    "repository_validation": {
+      "acceptance_replay_tests_passed": 4,
+      "changed_surface_regression_tests_passed": 785,
+      "current_final_regression": {
+        "changed_surface_subtests_passed": 78,
+        "changed_surface_tests_passed": 785,
+        "cross_step_validator": "pass",
+        "focused_subtests_passed": 0,
+        "focused_tests_passed": 95,
+        "selected_test_count": 42,
+        "shared_runtime_subtests_passed": 12,
+        "shared_runtime_tests_passed": 28,
+        "tase_protocol_validator": "pass",
+        "unmapped_changed_path_count": 0
+      },
+      "full_suite_diagnostic": {
+        "claim_boundary": "outside changed-path V3 acceptance scope",
+        "failed": 82,
+        "passed": 1648,
+        "skipped": 1,
+        "status": "retained_non_acceptance_baseline_failures",
+        "subtests_passed": 261
+      },
+      "installed_runtime_tests_passed": 3,
+      "manifest_claim_boundary": "the embedded hashes precede final report/hash closure; post-report validation is retained externally to avoid a self-referential evidence digest",
+      "medium_subtests_passed": 5,
+      "medium_tests_passed": 109,
+      "pre_report_finalization_impacted_validation_manifest_sha256": "26d678b360cf1bc5db49ab48997983e5c42ec0e850893f87d24a3471a4fa4e40",
+      "pre_report_finalization_test_matrix_manifest_sha256": "364c51a94c97d6d6f63a99b18dfdd12820600428a417214ed8ec658a85a16570",
+      "replay_lifecycle_failure_guard_subtests_passed": 0,
+      "replay_lifecycle_failure_guard_tests_passed": 95,
+      "shared_runtime_subtests_passed": 12,
+      "shared_runtime_tests_passed": 58,
+      "small_subtests_passed": 2,
+      "small_tests_passed": 260,
+      "status": "pass"
+    },
+    "return_route_angular_envelope": {
+      "blocker": "requires_certified_return_route_angular_velocity_and_acceleration_envelope",
+      "certified": false,
+      "evidence": {
+        "path": "config/step5/step5d_autotune_v3_return_route_evidence.json",
+        "sha256": "bc7e9a3d3ac15177e8ffdb434642bbe2c7a22d5c987c15e31ab583bb60792664"
+      },
+      "fail_closed": true,
+      "offline_enforcement_complete": true,
+      "status": "blocked"
+    },
+    "simulation": {
+      "claim": "digest_pinned_ursim_return_motion_only_not_robot_acceptance",
+      "gazebo": "gz_8.14_installed_but_no_step5d_v3_backend_or_world",
+      "retained_hold_raw_artifact": {
+        "path": "config/step5/step5d_autotune_v3_ursim_hold_raw_6cc7320e_v3.json",
+        "sha256": "9c0709c57d838837681e7a0b99dfff86df37dd3310cce7b57785384c0d0d4e15"
+      },
+      "retained_hold_result_artifact": {
+        "path": "config/step5/step5d_autotune_v3_ursim_hold_result_6cc7320e_v3.json",
+        "sha256": "ebc624e5f0fd06a6e1d50a58bd6f7b16b875295f6a456ed3a95098d48998aadf"
+      },
+      "return_route_motion_trace": {
+        "path": "config/step5/step5d_autotune_v3_ursim_return_trace.json",
+        "sha256": "e2928b756dbd4d66dba328711e4cb579ee704f5a7b12dca55adf632a7a2db537"
+      },
+      "status": "pass_motion_capable_ursim_core_source_equivalence",
+      "ursim": "pass_motion_capable_ursim_core_source_equivalence"
+    },
+    "sol_xhigh_audit": {
+      "experiment_start_blocking": false,
+      "release_gate_applicable": false,
+      "safety_action_requires_deterministic_reproduction": true,
+      "status": "parallel_advisory_nonblocking"
+    },
+    "source_exact_sphere_seam_timing": {
+      "attempt_count": 0,
+      "claim_class": "diagnostic_only",
+      "pressure_test_required": false,
+      "release_gate_applicable": false,
+      "status": "diagnostic_only_not_required_by_user",
+      "system_setup_required": false
+    },
+    "stopping_bound": {
+      "blocker": "requires_certified_reaction_latency_deceleration_and_numeric_margin_bound",
+      "certified": false,
+      "evidence": {
+        "path": "config/step5/step5d_autotune_v3_stopping_bound_evidence.json",
+        "sha256": "1c3d28ed3bc7b4f7419b6564834bfa33f0b0cf6ce83a67c637cb2810037851a3"
+      },
+      "fail_closed": true,
+      "status": "blocked"
+    }
+  },
+  "identity": {
+    "controller_readback_triplet_sha256": {
+      ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+      ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+      ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
+    },
+    "deployment_fingerprint": "1bc137f3f268cdd9e32fdc4a830d60695066d7ab7514b6086079499bfb6e04b9",
+    "legacy_provenance": {
+      "contract_sha256": "224a5958d96f86379841076c09c614341dd2356575885ec126477b90238717fc",
+      "control_fingerprint": "3b5788cda6392e68c95a05037e073fb376883e6a1c66a7878bb8e2533ad47a0f",
+      "orchestration_fingerprint": "3a8fdf2d59b782cf0c731eb925f78179a82c2077d5308663f562a5cb1f0d0ddc"
+    },
+    "local_triplet_sha256": {
+      ".script": "4a150d662fe3698bc394b8fa890c2ba23cc5f85cb534bc6abda8db2bc1cc1330",
+      ".txt": "81df2a8d3c0d94e7b0db416cd8df3b23bcbd5e331cd4c02ac384db6964f6ad4d",
+      ".urp": "b85f295129ae32438554abd303cd7007e75c67442ea6ba72abe1d74de4a141cf"
+    },
+    "orchestration_fingerprint": "7988c905b5bb5186766ddd95353394b9da8a37127fda01f8ed383662353a2920",
+    "release_basis_fingerprint": null,
+    "release_fingerprint": null,
+    "runtime_environment_fingerprint": null,
+    "schema": "step5d.autotune-v3/layered-identity-snapshot-v1",
+    "tick_semantics_fingerprint": "c340fdb6ed5c3ab32ed67f65ffce36f86f89db997f482bc8cd003afa3bd5199b",
+    "timing_harness_fingerprint": "016e7af37c89391d4b7652da5ae91ae95ec50c547aaa86cb8d1cfc1185196ae2",
+    "verifier_provenance": {
+      "evidence_verifier_fingerprint": "1b08175414c84c37f3987c2662427836151cc20746f8ed3f4b6923852ccb9ee6"
+    }
+  },
+  "observed_at": "2026-07-21T13:19:06+08:00",
+  "schema": "step5d.autotune-v3/offline-acceptance-v5"
+}

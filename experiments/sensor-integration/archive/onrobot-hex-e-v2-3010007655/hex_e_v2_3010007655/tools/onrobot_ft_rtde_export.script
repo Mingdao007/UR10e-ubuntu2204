@@ -1,0 +1,17 @@
+thread onrobot_ft_rtde_export_thread():
+  while True:
+    write_output_float_register(24, Fx)
+    write_output_float_register(25, Fy)
+    write_output_float_register(26, Fz)
+    write_output_float_register(27, Tx)
+    write_output_float_register(28, Ty)
+    write_output_float_register(29, Tz)
+    sync()
+  end
+end
+
+onrobot_ft_rtde_export_handle = run onrobot_ft_rtde_export_thread()
+
+while True:
+  sync()
+end

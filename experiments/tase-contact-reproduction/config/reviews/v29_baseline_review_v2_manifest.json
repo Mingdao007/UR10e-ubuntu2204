@@ -1,0 +1,56 @@
+{
+  "component_fingerprints": {
+    "code": "82bd28ee96259776c3344760c3738656cc434278b2896a7c3412a2514e407924",
+    "evidence": "ab17ed8544cf4d217c14ed61a5755281db0c51bdcbff152f14c8202da7c8d2d1",
+    "package": "95bf63da574f34396847e55cd589cbef0e80ae7b872aebeb09e303d79c091c17",
+    "policy": "38db1ff4b6cbc3eff93cda8e25e46f31a6d64178b5803e687958e71d3b395841"
+  },
+  "composite_fingerprint": "b24176554e5ad6cf553a2781318f27a6b6ad2e3909539ac849f889d8ac76d040",
+  "invalidation_reason": null,
+  "lanes": {
+    "control_claim": {
+      "actual_effort": "high",
+      "actual_model": "gpt-5.6-sol",
+      "elapsed_seconds": 94.98979544639587,
+      "findings": [
+        {
+          "backlog_ref": null,
+          "evidence": "The authoritative packet and actual allowlisted triplet bind files under programs/step5/step5d/, but config/current_stage.json:11 points local_triplet to programs/step5/step5d_strict_rnn_ablation_v29, while config/current_stage.json:1163 uses the correct nested path. config/step5_stage_table.json:7561-7562 and :7702-7703 repeat the incorrect non-nested location. Although all three actual file hashes match the packet, package identity does not agree across the bound files.",
+          "id": "V29-CC-001",
+          "resolution": null,
+          "severity": "P1",
+          "status": "open",
+          "title": "Bound v29 package paths disagree"
+        },
+        {
+          "backlog_ref": null,
+          "evidence": "The packet declares evidence_frozen=true and binds portable evidence at config/step5d_v29_imported_evidence_manifest.json, but config/current_stage.json:1178 and config/step5_stage_table.json:7449-7452 still state blocked_evidence_not_portable_in_sparse_worktree, evidence_frozen=false, composite_fingerprint=null, and manifest=null. These stale bound records conflict with the authoritative portable frozen-review state, even though separate fields correctly deny live authorization and require fresh readback/timing, Review v2 2+1, and explicit live/contact authorization for reactivation.",
+          "id": "V29-CC-002",
+          "resolution": null,
+          "severity": "P1",
+          "status": "open",
+          "title": "Bound Review v2 state contradicts the frozen portable packet"
+        }
+      ],
+      "invocation_id": "019f4f68-1b86-7630-b985-602e7cb2b993",
+      "packet_path": "config/reviews/v29_baseline_review_v2_packet.json",
+      "packet_sha256": "09deb2b9ebc6c0637af316dd2b9a6c940144941d07de131b8c5cfbac0266f75c",
+      "raw_output_path": "config/reviews/v29_baseline_review_v2_raw_control_claim.json",
+      "raw_output_sha256": "f710dffcebc9d5648dbf2acc2efcea0aa828601525cfce83cf71f950941c8b4f",
+      "requested_effort": "high",
+      "requested_model": "gpt-5.6-sol",
+      "scope_note": "The reviewer loaded the governing UR10e router and acceptance references, then inspected only packet-allowlisted experiment files; no controller, remote host, bridge, or motion surface was accessed.",
+      "status": "block",
+      "summary": "Block: package hashes, replay normal/frame semantics, no-command replay boundary, safe-hold focused-test record, and package/live/reproduction claim bounds are otherwise consistent, but two P1 cross-file contradictions prevent the lane from being internally unambiguous.",
+      "timeout_seconds": 720,
+      "verdict": "block"
+    }
+  },
+  "milestone": "baseline_re_review",
+  "policy_id": "ur10e_review_policy_v2",
+  "required_stack": "1+0",
+  "review_class": "v29_baseline_re_review",
+  "review_mode": "full",
+  "schema_version": "ur10e_review_manifest_v2",
+  "workflow": "v29"
+}

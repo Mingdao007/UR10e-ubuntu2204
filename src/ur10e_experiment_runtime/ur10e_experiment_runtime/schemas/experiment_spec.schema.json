@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.invalid/ur10e/experiment-spec-v1.schema.json",
+  "title": "UR10e ExperimentSpec v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "stage",
+    "components",
+    "objective",
+    "trajectory_contract",
+    "frame_contract",
+    "surface_contract",
+    "safety_contract",
+    "bindings",
+    "lanes",
+    "resource_contract",
+    "readiness",
+    "legacy_provenance",
+    "warm_start"
+  ],
+  "properties": {
+    "schema_version": {"const": "ur10e.experiment_spec/v1"},
+    "experiment_id": {"$ref": "#/$defs/identifier"},
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage_key", "stage_id", "program_id", "source_stage_id"],
+      "properties": {
+        "stage_key": {"$ref": "#/$defs/identifier"},
+        "stage_id": {"$ref": "#/$defs/identifier"},
+        "program_id": {"$ref": "#/$defs/identifier"},
+        "source_stage_id": {
+          "oneOf": [
+            {"$ref": "#/$defs/identifier"},
+            {"type": "null"}
+          ]
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trajectory",
+        "controller",
+        "stage_adapter",
+        "backend",
+        "observer",
+        "safety",
+        "evidence"
+      ],
+      "properties": {
+        "trajectory": {"$ref": "#/$defs/component_ref"},
+        "controller": {"$ref": "#/$defs/component_ref"},
+        "stage_adapter": {"$ref": "#/$defs/component_ref"},
+        "backend": {"$ref": "#/$defs/component_ref"},
+        "observer": {"$ref": "#/$defs/component_ref"},
+        "safety": {"$ref": "#/$defs/component_ref"},
+        "evidence": {"$ref": "#/$defs/component_ref"}
+      }
+    },
+    "objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_force_n",
+        "window_s",
+        "window_semantics",
+        "bins",
+        "parameter_semantics"
+      ],
+      "properties": {
+        "target_force_n": {"type": "number", "minimum": 0},
+        "window_s": {
+          "type": "array",
+          "prefixItems": [
+            {"type": "number", "minimum": 0},
+            {"type": "number", "exclusiveMinimum": 0}
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "window_semantics": {"const": "half_open"},
+        "bins": {"type": "integer", "minimum": 1},
+        "parameter_semantics": {"const": "force_pi_damping_v1"}
+      }
+    },
+    "trajectory_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["duration_s", "reference_frame", "parameters_sha256"],
+      "properties": {
+        "duration_s": {"type": "number", "exclusiveMinimum": 0},
+        "reference_frame": {"$ref": "#/$defs/identifier"},
+        "parameters_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "frame_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "base_frame",
+        "task_frame",
+        "sensor_frame",
+        "tool_frame",
+        "contract_sha256"
+      ],
+      "properties": {
+        "base_frame": {"$ref": "#/$defs/identifier"},
+        "task_frame": {"$ref": "#/$defs/identifier"},
+        "sensor_frame": {"$ref": "#/$defs/identifier"},
+        "tool_frame": {"$ref": "#/$defs/identifier"},
+        "contract_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "surface_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface_id", "calibration_sha256", "workspace_cage_sha256"],
+      "properties": {
+        "surface_id": {"$ref": "#/$defs/identifier"},
+        "calibration_sha256": {"$ref": "#/$defs/nullable_sha256"},
+        "workspace_cage_sha256": {"$ref": "#/$defs/nullable_sha256"}
+      }
+    },
+    "safety_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy_id", "policy_sha256", "fail_closed"],
+      "properties": {
+        "policy_id": {"$ref": "#/$defs/identifier"},
+        "policy_sha256": {"$ref": "#/$defs/nullable_sha256"},
+        "fail_closed": {"const": true}
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "git_sha",
+        "source_sha256",
+        "config_sha256",
+        "model_sha256",
+        "tp_sha256",
+        "controller"
+      ],
+      "properties": {
+        "git_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "config_sha256": {"$ref": "#/$defs/sha256"},
+        "model_sha256": {"$ref": "#/$defs/nullable_sha256"},
+        "tp_sha256": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["program", "script", "txt"],
+          "properties": {
+            "program": {"$ref": "#/$defs/nullable_sha256"},
+            "script": {"$ref": "#/$defs/nullable_sha256"},
+            "txt": {"$ref": "#/$defs/nullable_sha256"}
+          }
+        },
+        "controller": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "sha256"],
+          "properties": {
+            "id": {"$ref": "#/$defs/identifier"},
+            "sha256": {"$ref": "#/$defs/nullable_sha256"}
+          }
+        }
+      }
+    },
+    "lanes": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "enum": ["offline", "replay", "gazebo", "ursim", "hil", "live_autotune"]
+      },
+      "additionalProperties": {"$ref": "#/$defs/lane"}
+    },
+    "resource_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source_sha256",
+        "exclusive_resources",
+        "serial_fallback_supported"
+      ],
+      "properties": {
+        "id": {"const": "ur10e_concurrency_contract_v1"},
+        "source_sha256": {
+          "const": "e3dc1886750ff500c17f4277fad0b90fea90e5ed6ca3f4bd1dbec1ad9f1e80d2"
+        },
+        "exclusive_resources": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/resource"},
+          "uniqueItems": true,
+          "allOf": [
+            {"contains": {"const": "live_writer"}, "minContains": 1},
+            {"contains": {"const": "visible_gazebo"}, "minContains": 1},
+            {"contains": {"const": "formal_timing"}, "minContains": 1}
+          ]
+        },
+        "serial_fallback_supported": {"const": true}
+      }
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["calibration_required", "calibration_complete", "evidence_sha256"],
+      "properties": {
+        "calibration_required": {"type": "boolean"},
+        "calibration_complete": {"type": "boolean"},
+        "evidence_sha256": {"$ref": "#/$defs/nullable_sha256"}
+      }
+    },
+    "legacy_provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_id", "artifact_path", "sha256", "claim_class"],
+        "properties": {
+          "source_id": {"$ref": "#/$defs/identifier"},
+          "artifact_path": {"type": "string", "minLength": 1},
+          "sha256": {"$ref": "#/$defs/sha256"},
+          "claim_class": {
+            "enum": ["seed_only", "regression_only", "authoritative"]
+          }
+        }
+      }
+    },
+    "warm_start": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source_experiment_id", "source_fingerprint", "mode"],
+          "properties": {
+            "source_experiment_id": {"$ref": "#/$defs/identifier"},
+            "source_fingerprint": {"$ref": "#/$defs/sha256"},
+            "mode": {"const": "explicit_parameters_only"}
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]*$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "nullable_sha256": {
+      "oneOf": [
+        {"$ref": "#/$defs/sha256"},
+        {"type": "null"}
+      ]
+    },
+    "component_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "version": {"type": "string", "pattern": "^[0-9]+([.][0-9]+){0,2}$"}
+      }
+    },
+    "resource": {
+      "enum": [
+        "cpu_throughput",
+        "gpu_functional",
+        "visible_gazebo",
+        "formal_timing",
+        "live_writer"
+      ]
+    },
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend_id", "backend_version", "motion_ceiling", "resources"],
+      "properties": {
+        "backend_id": {"$ref": "#/$defs/identifier"},
+        "backend_version": {"type": "string", "pattern": "^[0-9]+([.][0-9]+){0,2}$"},
+        "motion_ceiling": {
+          "enum": ["none", "simulation", "no_motion", "live_motion"]
+        },
+        "resources": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/resource"},
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "commands_sent": [
+    {
+      "command": "SPEED",
+      "command_hex": "0x0082",
+      "data": 1,
+      "sent_wall": "2026-05-26T20:41:28.453"
+    },
+    {
+      "command": "START",
+      "command_hex": "0x0002",
+      "data": 2000,
+      "sent_wall": "2026-05-26T20:41:28.458"
+    },
+    {
+      "command": "STOP",
+      "command_hex": "0x0000",
+      "data": 0,
+      "sent_wall": "2026-05-26T20:41:30.453"
+    }
+  ],
+  "configuration": {
+    "filter_mode": null,
+    "initial_bias": "none",
+    "midrun_at_sample": 1000,
+    "midrun_bias": "none",
+    "profile": "custom",
+    "speed_divisor": 1,
+    "start_count": 2000
+  },
+  "csv_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/udp_highspeed_open_reference_20260526_204128/onrobot_udp_open_reference_20260526_204128.csv",
+  "duration_first_last_s": 1.990264937,
+  "errors": [],
+  "finished_wall": "2026-05-26T20:41:30",
+  "first_t_s": 0.010337948,
+  "force_torque": {
+    "fx_n": {
+      "first": 0.36,
+      "last": 0.28,
+      "last_minus_first": -0.07999999999999996,
+      "max": 0.42,
+      "mean": 0.30361023069207627,
+      "min": 0.19
+    },
+    "fy_n": {
+      "first": 3.14,
+      "last": 3.09,
+      "last_minus_first": -0.050000000000000266,
+      "max": 3.18,
+      "mean": 3.111562788365095,
+      "min": 3.03
+    },
+    "fz_n": {
+      "first": -28.71,
+      "last": -28.3,
+      "last_minus_first": 0.41000000000000014,
+      "max": -28.1,
+      "mean": -28.457693079237714,
+      "min": -28.81
+    },
+    "tx_nm": {
+      "first": -0.029,
+      "last": -0.023,
+      "last_minus_first": 0.006000000000000002,
+      "max": -0.015,
+      "mean": -0.02642909729187563,
+      "min": -0.035
+    },
+    "ty_nm": {
+      "first": -0.081,
+      "last": -0.077,
+      "last_minus_first": 0.0040000000000000036,
+      "max": -0.067,
+      "mean": -0.07852448345035105,
+      "min": -0.087
+    },
+    "tz_nm": {
+      "first": 0.071,
+      "last": 0.07,
+      "last_minus_first": -0.000999999999999987,
+      "max": 0.07599,
+      "mean": 0.07082555667001003,
+      "min": 0.065
+    }
+  },
+  "host": "192.168.1.1",
+  "intervals_per_duration_hz": 500.4358874458732,
+  "last_t_s": 2.000602885,
+  "max_dt_ms": 3.051051000000138,
+  "max_recv_latency_ms": 3.041212,
+  "max_samples": 2000,
+  "mean_dt_ms": 1.9982579688755022,
+  "mean_recv_latency_ms": 1.9870150551654966,
+  "median_dt_ms": 2.002174000000023,
+  "median_recv_latency_ms": 1.993337,
+  "min_dt_ms": 0.022693000000000713,
+  "min_recv_latency_ms": 0.00524,
+  "one_over_mean_dt_hz": 500.4358874458732,
+  "p95_dt_ms": 2.028969500000005,
+  "p95_recv_latency_ms": 2.0209532,
+  "p99_dt_ms": 2.0665091000000024,
+  "p99_recv_latency_ms": 2.05717652,
+  "port": 49152,
+  "requested_seconds": 2.0,
+  "safety_boundary": [
+    "open-permission reference client",
+    "may send SPEED/FILTER/BIAS when requested or when profile=vendor-demo",
+    "no TCP/payload/URScript/URCap/robot-motion commands",
+    "final STOP attempted after START"
+  ],
+  "sample_counter": {
+    "backward_count": 0,
+    "duplicate_or_zero_delta_count": 0,
+    "first": 48320,
+    "last": 50312,
+    "lost_estimate": 996,
+    "max_forward_delta": 2,
+    "wrap_count": 0
+  },
+  "samples": 997,
+  "samples_per_duration_hz": 500.9383331159996,
+  "scaling": {
+    "force_divisor": 10000.0,
+    "source": "OnRobot vendor highspeed_udp.c Newton/Newton-meter mode",
+    "torque_divisor": 100000.0
+  },
+  "script_mode": "open_reference_allows_speed_filter_bias",
+  "sequence_number": {
+    "backward_count": 0,
+    "duplicate_or_zero_delta_count": 0,
+    "first": 1,
+    "last": 997,
+    "lost_estimate": 0,
+    "max_forward_delta": 1,
+    "wrap_count": 0
+  },
+  "started_wall": "2026-05-26T20:41:28",
+  "status_counts": {
+    "0": 997
+  },
+  "summary_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/udp_highspeed_open_reference_20260526_204128/onrobot_udp_open_reference_20260526_204128_summary.json"
+}

@@ -1,0 +1,3 @@
+ Program
+   Robot Program
+     Script: step0_register_echo_500hz.script

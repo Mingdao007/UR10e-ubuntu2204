@@ -1,0 +1,191 @@
+# Step2A 500 Hz: contact search, no stale-stop; TP-openable package.
+# VERSION: 2026-06-05T1818HKT_STEP2A_500HZ_SPEEDL_NO_STALE_STOP_V1
+# GENERATED_AT_LOCAL: 2026-06-05T18:18:55+0800
+# BEHAVIOR: wait for Kunwei bridge; movel current TCP pose to the old reference
+# orientation; movel to old contact-start XY at current Z with that orientation;
+# then movel down to old contact Z + 15 mm; speedl down in base Z at 500 Hz requested loop until
+# raw signed normal_force/Fz <= -2 N or 20 mm search travel is exhausted.
+# force_norm is a 50 N guard, not the contact trigger. If contact is triggered,
+# speedl retracts upward to the search entry height immediately. No TCP/payload
+# write, no UR zero_ftsensor, no Kunwei tare/config write. Heartbeat stale is logged for post-run analysis, not used as an immediate stop condition in this version.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_wait_for_sensor_ok(timeout_s):
+  local dt = 0.002
+  local t = 0.0
+  while t < timeout_s:
+    if read_input_float_register(27) > 0.5:
+      return True
+    end
+    sync()
+    t = t + dt
+  end
+  return False
+end
+
+def codex_step2_guard_stop_reason():
+  local normal_force = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local sensor_ok = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if sensor_ok < 0.5:
+    return 3.0
+  elif stop_request > 0.5:
+    return 4.0
+  elif codex_abs(normal_force) > 12.0:
+    return 5.0
+  elif force_norm > 50.0:
+    return 6.0
+  elif torque_norm > 0.6:
+    return 7.0
+  end
+  return 0.0
+end
+
+def codex_write_echo(stop_reason, progress_m, correction_m, commanded_z_m_s):
+  write_output_float_register(24, read_input_float_register(24))
+  write_output_float_register(25, read_input_float_register(25))
+  write_output_float_register(26, read_input_float_register(26))
+  write_output_float_register(27, read_input_float_register(27))
+  write_output_float_register(28, read_input_float_register(28))
+  write_output_float_register(29, read_input_float_register(29))
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(31, progress_m)
+  write_output_float_register(32, correction_m)
+  write_output_float_register(33, commanded_z_m_s)
+end
+
+def codex_step2a_contact_search():
+  local entry_x = 0.446585764
+  local entry_y = 0.226717001
+  local old_contact_z = 0.020279919
+  local entry_z = old_contact_z + 0.015
+  local ref_rx = 3.141572714
+  local ref_ry = -0.000026465
+  local ref_rz = -0.000024158
+  local approach_speed_m_s = 0.080
+  local approach_z_speed_m_s = 0.080
+  local search_speed_m_s = -0.025
+  local search_accel_m_s2 = 0.500
+  # speedl config: search [0,0,-0.025,0,0,0] m/s; retract [0,0,+0.025,0,0,0] m/s; acceleration 0.500 m/s^2.
+  local contact_retract_speed_m_s = 0.025
+  local trigger_normal_force_n = -2.0
+  local max_search_down_m = 0.020
+  local contact_retract_runtime_limit_s = 4.0
+  local stale_limit_s = 0.080
+  local max_observed_stale_s = 0.0
+  local runtime_limit_s = 65.0
+  local dt = 0.002
+  local stop_reason = 0.0
+
+  textmsg("codex step2a version 2026-06-05T1818HKT_STEP2A_500HZ_SPEEDL_NO_STALE_STOP_V1 ref-orient_signedFz_le_neg2N_entry15_search20_v25_acc500 start")
+  write_output_float_register(35, 20.0)
+  codex_write_echo(0.0, 0.0, 0.0, 0.0)
+
+  if not codex_wait_for_sensor_ok(15.0):
+    stop_reason = 3.0
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 21.0)
+    local p0 = get_actual_tcp_pose()
+    local reference_orientation_pose = p[p0[0], p0[1], p0[2], ref_rx, ref_ry, ref_rz]
+    movel(reference_orientation_pose, a=0.030, v=approach_speed_m_s, r=0.0)
+    stopl(0.5)
+    write_output_float_register(35, 22.0)
+    local p1 = get_actual_tcp_pose()
+    local entry_xy_pose = p[entry_x, entry_y, p1[2], ref_rx, ref_ry, ref_rz]
+    movel(entry_xy_pose, a=0.030, v=approach_speed_m_s, r=0.0)
+    stopl(0.5)
+    write_output_float_register(35, 23.0)
+    local entry_pose = p[entry_x, entry_y, entry_z, ref_rx, ref_ry, ref_rz]
+    movel(entry_pose, a=0.030, v=approach_z_speed_m_s, r=0.0)
+    stopl(0.5)
+    sleep(0.20)
+    stop_reason = codex_step2_guard_stop_reason()
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 24.0)
+    local search_start = get_actual_tcp_pose()
+    local last_heartbeat = read_input_float_register(26)
+    local stale_s = 0.0
+    local t = 0.0
+    while stop_reason == 0.0:
+      local heartbeat = read_input_float_register(26)
+      local normal_force = read_input_float_register(24)
+      local pose_now = get_actual_tcp_pose()
+      local search_depth_m = search_start[2] - pose_now[2]
+
+      if heartbeat == last_heartbeat:
+        stale_s = stale_s + dt
+        if stale_s > max_observed_stale_s:
+          max_observed_stale_s = stale_s
+        end
+      else:
+        stale_s = 0.0
+        last_heartbeat = heartbeat
+      end
+
+      codex_write_echo(stop_reason, 0.0, search_depth_m, search_speed_m_s)
+
+      # Do not stop on heartbeat stale in this Step2A variant. RTDE reconnect
+      # gaps are analyzed from the bridge CSV after the run; raw force/torque
+      # guards and max_search_down_m remain active stops.
+      stop_reason = codex_step2_guard_stop_reason()
+
+      if stop_reason == 0.0:
+        if normal_force <= trigger_normal_force_n:
+          stop_reason = 11.0
+        elif search_depth_m >= max_search_down_m:
+          stop_reason = 8.0
+        elif t >= runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          speedl([0.0, 0.0, search_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, dt)
+          sync()
+          t = t + dt
+        end
+      end
+    end
+    stopl(0.5)
+    if stop_reason == 11.0:
+      write_output_float_register(35, 27.0)
+      local retract_t = 0.0
+      local retract_pose = get_actual_tcp_pose()
+      while retract_t < contact_retract_runtime_limit_s and retract_pose[2] < search_start[2] - 0.001:
+        local remaining_depth_m = search_start[2] - retract_pose[2]
+        codex_write_echo(stop_reason, 0.0, remaining_depth_m, contact_retract_speed_m_s)
+        speedl([0.0, 0.0, contact_retract_speed_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, dt)
+        sync()
+        retract_t = retract_t + dt
+        retract_pose = get_actual_tcp_pose()
+      end
+      stopl(0.5)
+    end
+  end
+
+  # If no contact was found, return to the entry height. If contact was found,
+  # the search loop has already retracted upward to the search entry height.
+  if stop_reason == 8.0:
+    write_output_float_register(35, 28.0)
+    local p_end = get_actual_tcp_pose()
+    local retract_pose = p[p_end[0], p_end[1], entry_z, p_end[3], p_end[4], p_end[5]]
+    movel(retract_pose, a=0.030, v=0.005, r=0.0)
+    stopl(0.5)
+  end
+
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(34, max_observed_stale_s)
+  write_output_float_register(35, 29.0)
+  textmsg("codex step2a version 2026-06-05T1818HKT_STEP2A_500HZ_SPEEDL_NO_STALE_STOP_V1 stop reason:", stop_reason)
+end
+
+codex_step2a_contact_search()

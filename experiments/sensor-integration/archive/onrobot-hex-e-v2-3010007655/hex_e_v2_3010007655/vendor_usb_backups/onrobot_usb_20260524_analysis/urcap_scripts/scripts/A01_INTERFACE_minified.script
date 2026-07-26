@@ -1,0 +1,379 @@
+  #======    OnRobot Interface    ======#
+  
+  of_compute_engine_ping=0
+  of_compute_engine_ping_max=0
+  of_compute_engine_IP=""
+  OF_APP_ENGINE_PORT=0
+  OF_COMMAND_PORT=0
+  OF_VECTOR_STREAM_PORT=0
+  of_portopened_controlSocket=False
+  of_portopened_vectorStream=False
+  of_portopened_commandFlow=False
+  of_v2r_received=0 
+  of_cmd_received=0 
+  of_sg_count=0
+  of_dataAVFT=[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  of_data=[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  of_cmd_state=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  of_cmd_return=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  of_cmd_rx=[0,0,0]
+  of_ack_received=False
+  OF_COMPUTE_ENGINE_PING_LIMIT=19
+  OF_COMPUTE_ENGINE_PING_DESC=0.05
+  OF_APP_ENGINE_PORT=51234
+  OF_COMMAND_PORT=OF_APP_ENGINE_PORT
+  OF_VECTOR_STREAM_PORT=OF_APP_ENGINE_PORT+1
+  OF_SCALE_FLOAT=1000000
+  OF_CMD_STATE_IDLE=0
+  OF_CMD_STATE_STARTED=1
+  OF_CMD_STATE_RETURNING=2
+  OF_CMD_STATE_INTERRUPTED=3
+  OF_CMD_ACK=0
+  OF_CMD_STOP=1
+  OF_CMD_START=2
+  OF_CMD_BIAS=3
+  OF_CMD_TCP=4
+  OF_CMD_SENSOR_CONFIG=5
+  OF_CMD_PAYLOAD=6
+  OF_CMD_LIMIT=7
+  OF_CMD_FT_CONTROL=8
+  OF_CMD_HAND_GUIDE=9
+  OF_CMD_MOVE=10
+  OF_CMD_WAYPOINT=11
+  OF_CMD_PATH=12
+  OF_CMD_DIO=13
+  OF_CMD_AIO=14
+  OF_CMD_INSERT_PIN=15
+  OF_CMD_GRIPPER_SET_WIDTH=16
+  OF_CMD_GRIPPER_SET_LEDS=17
+  OF_CMD_GRIPPER_STOP=18
+  OF_CMD_GRIPPER_CENTERING=19
+  OF_CMD_GRIPPER_PROXI_OFFSETS=20
+  OF_CMD_GRIPPER_PROXI_AVG_WINDOW=21
+  OF_CMD_GRIPPER_WIDTH_FILTERING=22
+  OF_CMD_GRIPPER_MOUNT=23
+  OF_CMD_TX_PARAM_LENGTH=20
+  OF_DUMMY_VALUE=-1
+  def of_float_to_int(value):
+  if value>(2147483647/OF_SCALE_FLOAT):
+  textmsg(of_float_to_int_overflow,value)
+  value=2147483647/OF_SCALE_FLOAT
+  elif value<(-2147483648/OF_SCALE_FLOAT):
+  textmsg(of_float_to_int_underflow,value)
+  value=-2147483648/OF_SCALE_FLOAT
+  end 
+  return value*OF_SCALE_FLOAT
+  end 
+  def of_int_to_float(value):
+  return value/OF_SCALE_FLOAT
+  end 
+  def of_portclose_controlSocket():
+  socket_close("controlSocket")
+  of_portopened_controlSocket=False
+  end 
+  def of_portopen_controlSocket():
+  of_portclose_controlSocket()
+  of_portopened_controlSocket=socket_open("127.0.0.1",44005,"controlSocket")
+  if not of_portopened_controlSocket:
+  textmsg(of_ce_comm_error_textmsg_title,of_ce_comm_controlsocket_open_error)
+  popup(of_ce_comm_socket_open_error,title=of_ce_comm_error_title,error=True,blocking=False)
+  halt
+  end 
+  end 
+  def of_portclose_vectorStream():
+  socket_close("vectorStream")
+  of_portopened_vectorStream=False
+  end 
+  def of_portopen_vectorStream():
+  of_portclose_vectorStream()
+  of_portopened_vectorStream=socket_open(of_compute_engine_IP,OF_VECTOR_STREAM_PORT,"vectorStream")
+  if not of_portopened_vectorStream:
+  of_portopened_vectorStream=socket_open(of_compute_engine_IP,OF_VECTOR_STREAM_PORT,"vectorStream")
+  end 
+  if not of_portopened_vectorStream:
+  textmsg(of_ce_comm_error_title,of_ce_comm_vectorstream_open_error)
+  popup(of_ce_comm_socket_open_error,title=of_ce_comm_error_title,error=True,blocking=False)
+  halt
+  end 
+  end 
+  thread of_vectorStream_thread():
+  if OF_DEBUG_STATE:
+  textmsg("Starting vectorStream thread")
+  end 
+  while of_portopened_vectorStream:
+  of_data=socket_read_ascii_float(30,"vectorStream",0)
+  if of_data[0]==30:
+  enter_critical
+  of_dataAVFT=of_data
+  of_v2r_received=of_v2r_received+1
+  exit_critical
+  else:
+  textmsg("Received of_data: ",of_data)
+  textmsg(of_ce_comm_error_textmsg_title,of_ce_comm_vectorstream_packet_error)
+  popup(of_ce_comm_socket_packet_error,title=of_ce_comm_error_title,error=True,blocking=False)
+  halt
+  end 
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Stopping vectorStream thread")
+  end 
+  end 
+  thread of_safeguard_thread():
+  if OF_DEBUG_STATE:
+  textmsg("SafeGuard thread starting..")
+  end 
+  while(of_sensor_id==OF_SENSOR_ID_UNDEFINED):
+  sync()
+  end 
+  of_sg_count=of_v2r_received
+  while of_portopened_vectorStream:
+  sync()
+  {%if eSeries%}
+  sync()
+  sync()
+  sync()
+  {%end%}
+  of_sg_count=of_sg_count+1
+  of_compute_engine_ping=of_sg_count-of_v2r_received
+  if of_compute_engine_ping>OF_COMPUTE_ENGINE_PING_LIMIT:
+  textmsg(of_ce_comm_safeguard_lost_error)
+  popup(of_ce_comm_safeguard_lost_error,title=of_ce_comm_error_title,error=True,blocking=False)
+  halt
+  end 
+  if of_compute_engine_ping>of_compute_engine_ping_max:
+  of_compute_engine_ping_max=of_compute_engine_ping
+  end 
+  of_sg_count=of_sg_count-OF_COMPUTE_ENGINE_PING_DESC*of_compute_engine_ping 
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("SafeGuard thread stopped")
+  end 
+  end 
+  def of_portclose_commandFlow():
+  socket_close("commandFlow")
+  of_portopened_commandFlow=False
+  end 
+  def of_portopen_commandFlow():
+  of_portclose_commandFlow()
+  of_portopened_commandFlow=socket_open(of_compute_engine_IP,OF_COMMAND_PORT,"commandFlow")
+  if not of_portopened_commandFlow:
+  of_portopened_commandFlow=socket_open(of_compute_engine_IP,OF_COMMAND_PORT,"commandFlow")
+  end 
+  if not of_portopened_commandFlow:
+  textmsg(of_ce_comm_error_textmsg_title,of_ce_comm_commandflow_open_error)
+  popup(of_ce_comm_socket_open_error,title=of_ce_comm_error_title,error=True,blocking=False)
+  halt
+  end 
+  end 
+  thread of_commandFlow_thread():
+  if OF_DEBUG_STATE:
+  textmsg("Starting commandFlow thread..")
+  end 
+  while of_portopened_commandFlow:
+  of_cmd_rx=socket_read_binary_integer(2,"commandFlow",0)
+  if of_cmd_rx[0]!=0:
+  parse_command()
+  end 
+  sync()
+  of_cmd_received=of_cmd_received+1
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Stopping commandFlow thread")
+  end 
+  end 
+  def of_send_command(command):
+  sync()
+  if OF_DEBUG_CMD or OF_DEBUG_TX:
+  textmsg("Sending command: ",command)
+  end 
+  succ=socket_send_int(command,"commandFlow")
+  if not succ:
+  if OF_DEBUG_STATE and OF_DEBUG_TX:
+  textmsg(of_ce_comm_cmd_send_error,command)
+  popup(of_ce_comm_cmd_send_again,title=of_ce_comm_error_title,warning=True,blocking=False)
+  end 
+  sync()
+  of_send_command(command)
+  end 
+  end 
+  def of_send_int(intvalue):
+  if OF_DEBUG_TX:
+  textmsg("Sending integer: ",intvalue)
+  end 
+  local succ=socket_send_int(intvalue,"commandFlow")
+  if not succ:
+  if OF_DEBUG_STATE and OF_DEBUG_TX:
+  textmsg(of_ce_comm_int_send_error,intvalue)
+  popup(of_ce_comm_int_send_again,title=of_ce_comm_error_title,warning=True,blocking=False)
+  end 
+  sync()
+  of_send_int(intvalue)
+  end 
+  end 
+  def of_send_float_as_int(floatvalue):
+  local value=of_float_to_int(floatvalue)
+  if OF_DEBUG_TX:
+  textmsg("Sending [float, as int]: ",[floatvalue,value])
+  end 
+  local succ=socket_send_int(value,"commandFlow")
+  if not succ:
+  if OF_DEBUG_STATE and OF_DEBUG_TX:
+  textmsg(of_ce_comm_float_send_error,floatvalue)
+  popup(of_ce_comm_float_send_again,title=of_ce_comm_error_title,warning=True,blocking=False)
+  end 
+  sync()
+  of_send_float_as_int(floatvalue)
+  end 
+  end 
+  def of_send_dummies(count):
+  if OF_DEBUG_TX:
+  textmsg("Sending dummies: ",count)
+  end 
+  local counter=0
+  while counter<count:
+  local succ=socket_send_int(OF_DUMMY_VALUE,"commandFlow")
+  if not succ:
+  if OF_DEBUG_STATE and OF_DEBUG_TX:
+  textmsg(of_ce_comm_dummy_send_error,[(counter+1),count])
+  popup(of_ce_comm_dummy_send_again,title=of_ce_comm_error_title,warning=True,blocking=False)
+  end 
+  counter=counter-1
+  sync()
+  end 
+  counter=counter+1
+  end 
+  end 
+  def of_send_full(command,arg01=OF_DUMMY_VALUE,arg02=OF_DUMMY_VALUE,arg03=OF_DUMMY_VALUE,arg04=OF_DUMMY_VALUE,arg05=OF_DUMMY_VALUE,arg06=OF_DUMMY_VALUE,arg07=OF_DUMMY_VALUE,arg08=OF_DUMMY_VALUE,arg09=OF_DUMMY_VALUE,arg10=OF_DUMMY_VALUE,arg11=OF_DUMMY_VALUE,arg12=OF_DUMMY_VALUE,arg13=OF_DUMMY_VALUE,arg14=OF_DUMMY_VALUE,arg15=OF_DUMMY_VALUE,arg16=OF_DUMMY_VALUE,arg17=OF_DUMMY_VALUE,arg18=OF_DUMMY_VALUE,arg19=OF_DUMMY_VALUE,arg20=OF_DUMMY_VALUE):
+  if OF_DEBUG_TX:
+  textmsg("Sending full command: ",command)
+  end 
+  of_send_command(command)
+  of_send_int(arg01)
+  of_send_int(arg02)
+  of_send_int(arg03)
+  of_send_int(arg04)
+  of_send_int(arg05)
+  of_send_int(arg06)
+  of_send_int(arg07)
+  of_send_int(arg08)
+  of_send_int(arg09)
+  of_send_int(arg10)
+  of_send_int(arg11)
+  of_send_int(arg12)
+  of_send_int(arg13)
+  of_send_int(arg14)
+  of_send_int(arg15)
+  of_send_int(arg16)
+  of_send_int(arg17)
+  of_send_int(arg18)
+  of_send_int(arg19)
+  of_send_int(arg20)
+  of_wait_for_ACK()
+  if OF_DEBUG_TX:
+  textmsg("Full command sent.")
+  end 
+  end 
+  def of_wait_for_ACK(timeout=0):
+  local timeout_sync_max=timeout*125
+  local timeout_sync=0
+  local timedOut=False
+  if timeout>=0:
+  useTimeout=True
+  else:
+  useTimeout=False
+  end 
+  syncCounter=0
+  enter_critical
+  local ackReceived=of_ack_received
+  exit_critical
+  while((not ackReceived)and(not timedOut)):
+  sync()
+  if useTimeout:
+  timeout_sync=timeout_sync+1
+  if timeout_sync>timeout_sync_max:
+  timedOut=True
+  end 
+  end 
+  enter_critical
+  ackReceived=of_ack_received
+  exit_critical
+  end 
+  enter_critical
+  of_ack_received=False
+  exit_critical
+  end 
+  def of_wait_for_return(of_cmd_id,blocking):
+  if not(of_cmd_state[of_cmd_id]==OF_CMD_STATE_IDLE):
+  textmsg("Command state: [cmd_id, state]",[of_cmd_id,of_cmd_state[of_cmd_id]])
+  popup(of_cmd_rx_wrong_state,title=of_cmd_error_title,error=True,blocking=False)
+  halt
+  else:
+  enter_critical
+  of_cmd_return[of_cmd_id]=-1
+  of_cmd_state[of_cmd_id]=OF_CMD_STATE_STARTED
+  exit_critical
+  end 
+  if blocking:
+  if OF_DEBUG_RX:
+  textmsg("Waiting for return of CMD: ",of_cmd_id)
+  end 
+  while of_cmd_state[of_cmd_id]==OF_CMD_STATE_STARTED:
+  sync()
+  end 
+  end 
+  enter_critical
+  local retVal=of_cmd_return[of_cmd_id]
+  of_cmd_state[of_cmd_id]=OF_CMD_STATE_IDLE
+  of_cmd_return[of_cmd_id]=0
+  exit_critical
+  if OF_DEBUG_RX:
+  textmsg("Return value received: [CMD, return]",[of_cmd_id,retVal])
+  end 
+  return retVal
+  end 
+  def of_wait_for_return_stop(of_cmd_id):
+  enter_critical
+  of_cmd_state[of_cmd_id]=OF_CMD_STATE_IDLE
+  exit_critical
+  end 
+  def parse_command():
+  if of_cmd_rx[0]==0:
+  if OF_DEBUG_RX:
+  textmsg("Nothing received..")
+  end 
+  elif of_cmd_rx[0]==1:
+  if OF_DEBUG_RX:
+  textmsg("Half command received: ",of_cmd_rx[1])
+  end 
+  elif of_cmd_rx[0]==2:
+  if of_cmd_rx[1]==OF_CMD_ACK:
+  enter_critical
+  of_ack_received=True
+  exit_critical
+  if OF_DEBUG_RX:
+  textmsg("Acknowledge received")
+  end 
+  elif of_cmd_rx[1]<20:
+  enter_critical
+  local cmd_id=of_cmd_rx[1]
+  if(of_cmd_state[cmd_id]==OF_CMD_STATE_IDLE):
+  of_cmd_return[cmd_id]=of_cmd_rx[2]
+  elif(of_cmd_state[cmd_id]==OF_CMD_STATE_STARTED):
+  of_cmd_return[cmd_id]=of_cmd_rx[2]
+  of_cmd_state[cmd_id]=OF_CMD_STATE_RETURNING
+  else:
+  popup(of_cmd_rx_wrong_state,title=of_cmd_error_title,error=True,blocking=False)
+  halt
+  end 
+  exit_critical
+  else:
+  popup(of_cmd_rx_invalid_id,title=of_cmd_error_title,error=True,blocking=False)
+  halt
+  end 
+  else:
+  textmsg("Unknown command-length received: ",of_cmd_rx)
+  end 
+  end 
+  
+  
+  #======    End of OnRobot Interface    ======#

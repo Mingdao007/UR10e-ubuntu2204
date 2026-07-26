@@ -1,0 +1,15 @@
+[INFO] [launch]: All log files can be found below /home/andy/.ros/log/2026-05-25-16-41-40-101284-andy7-394520
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [calibration_correction-1]: process started with pid [394530]
+[calibration_correction-1] [WARN] [1779698500.140725794] [UR_Client_Library:]: Failed to read from stream, reconnecting in 1 seconds...
+[calibration_correction-1] [INFO] [1779698501.645493964] [ur_calibration]: checksum: [2804420936 2838392742 2788344596 2801568089 2802126373 2802026738 ]
+[calibration_correction-1] dh_theta: [-2.10942175400686e-07 0.376257725328061 -0.101074411003968 -0.275185002576689 -1.80249527689802e-06 2.9402326063438e-08 ]
+[calibration_correction-1] dh_a: [2.04168912779151e-05 -0.569482886846931 -0.549920212552521 -9.50467469139076e-06 -3.60372365720766e-05 0 ]
+[calibration_correction-1] dh_d: [0.180893772677554 -146.691669348211 192.918668619718 -46.0530875740596 0.119777804038213 0.11560212559306 ]
+[calibration_correction-1] dh_alpha: [1.57142524802122 -0.0015337665762078 0.00335883125596123 1.56873922989424 -1.5714772428732 0 ]
+[calibration_correction-1] calibration_status: 2
+[calibration_correction-1] 
+[calibration_correction-1] [INFO] [1779698501.755458163] [ur_calibration]: Writing calibration data to "/home/andy/ur10e_ros2_ws/experiments/20260525_tase_sim_readable_state_backup/calibration/ur10e_calibration_20260525T1641.yaml"
+[calibration_correction-1] [INFO] [1779698501.755642546] [ur_calibration]: Wrote output.
+[calibration_correction-1] [INFO] [1779698501.755673334] [ur_calibration]: Calibration correction done
+[INFO] [calibration_correction-1]: process has finished cleanly [pid 394530]

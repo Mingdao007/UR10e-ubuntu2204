@@ -1,0 +1,306 @@
+  #======    OnRobot Elements    ======#
+  
+  sync()
+  MATH_PI=3.141593
+  bFT=[0,0,0,0,0,0]
+  tFT=[0,0,0,0,0,0]
+  def of_qu_inv(qu):
+  return[qu[0],-qu[1],-qu[2],-qu[3]]
+  end
+  def of_qu_mult(x,y):
+  local qa=x[0]*y[0]-x[1]*y[1]-x[2]*y[2]-x[3]*y[3]
+  local qb=x[0]*y[1]+x[1]*y[0]+x[2]*y[3]-x[3]*y[2]
+  local qc=x[0]*y[2]-x[1]*y[3]+x[2]*y[0]+x[3]*y[1]
+  local qd=x[0]*y[3]+x[1]*y[2]-x[2]*y[1]+x[3]*y[0]
+  local retVal=[qa,qb,qc,qd]
+  return retVal
+  end
+  def of_rotvec2qu(rv):
+  local rvlen=sqrt(rv[0]*rv[0]+rv[1]*rv[1]+rv[2]*rv[2])
+  if rvlen!=0:
+  local rv4=[rvlen,rv[0]/rvlen,rv[1]/rvlen,rv[2]/rvlen]
+  else:
+  local rv4=[0,0,0,0]
+  end
+  local rvs=sin(rv4[0]/2)
+  return[cos(rv4[0]/2),rvs*rv4[1],rvs*rv4[2],rvs*rv4[3]]
+  end
+  def of_rotate_qu(v,q):
+  local v4=[0,v[0],v[1],v[2]]
+  local r4a=of_qu_mult(q,v4)
+  local r4b=of_qu_inv(q)
+  local r4=of_qu_mult(r4a,r4b)
+  return[r4[1],r4[2],r4[3]]
+  end
+  def of_pose_add(tt,ss,base=True):
+  if base:
+  local rr=pose_add(ss,tt)
+  else:
+  local rr=pose_trans(tt,ss)
+  end
+  return rr
+  end 
+  def of_threshold(fx=0,fy=0,fz=0,tx=0,ty=0,tz=0,f3d=0,t3d=0,force_abs=True,base=True):
+  local is_above_the_threshold=False
+  def check_limit(force,limit,fabs):
+  if limit!=0:
+  if(fabs)and norm(force)>=norm(limit):
+  return True
+  elif(not fabs)and((limit<0 and force<=limit)or(limit>0 and force>=limit)):
+  return True
+  else:
+  return False
+  end 
+  else:
+  return False
+  end 
+  end 
+  if base:
+  local compareFT=bFT
+  else:
+  local compareFT=tFT 
+  end 
+  if(check_limit(compareFT[0],fx,force_abs)):
+  is_above_the_threshold=True
+  end
+  if(check_limit(compareFT[1],fy,force_abs)):
+  is_above_the_threshold=True
+  end
+  if(check_limit(compareFT[2],fz,force_abs)):
+  is_above_the_threshold=True
+  end
+  if(check_limit(compareFT[3],tx,force_abs)):
+  is_above_the_threshold=True
+  end
+  if(check_limit(compareFT[4],ty,force_abs)):
+  is_above_the_threshold=True
+  end
+  if(check_limit(compareFT[5],tz,force_abs)):
+  is_above_the_threshold=True
+  end
+  if f3d!=0 and norm(F3D)>=norm(f3d):
+  is_above_the_threshold=True
+  end
+  if t3d!=0 and norm(T3D)>=norm(t3d):
+  is_above_the_threshold=True
+  end
+  return is_above_the_threshold
+  end 
+  def of_above_zero(fx=0,fy=0,fz=0,tx=0,ty=0,tz=0,zeroVal=0,base=True):
+  local is_above_the_threshold=False
+  def check_zero(force,axis,limit):
+  if axis!=0:
+  if(force>limit):
+  return True
+  else:
+  return False
+  end 
+  else:
+  return False
+  end 
+  end 
+  if base:
+  local compareFT=bFT
+  else:
+  local compareFT=tFT 
+  end 
+  if(check_zero(compareFT[0],fx,zeroVal)):
+  is_above_the_threshold=True
+  end
+  if(check_zero(compareFT[1],fy,zeroVal)):
+  is_above_the_threshold=True
+  end
+  if(check_zero(compareFT[2],fz,zeroVal)):
+  is_above_the_threshold=True
+  end
+  if(check_zero(compareFT[3],tx,zeroVal)):
+  is_above_the_threshold=True
+  end
+  if(check_zero(compareFT[4],ty,zeroVal)):
+  is_above_the_threshold=True
+  end
+  if(check_zero(compareFT[5],tz,zeroVal)):
+  is_above_the_threshold=True
+  end
+  return is_above_the_threshold
+  end 
+  of_go_new_pos=p[0,0,0,0,0,0]
+  of_go_acc=0
+  of_go_speed=0
+  of_go_thread_flag=-1
+  of_joint_move=False
+  of_go_time=0
+  of_go_blend=0
+  of_joint_move=False
+  of_go_thread_handler=0
+  thread of_go_thread():
+  if of_joint_move:
+  movej(of_go_new_pos,a=of_go_acc,v=of_go_speed)
+  else:
+  movel(of_go_new_pos,a=of_go_acc,v=of_go_speed)
+  end 
+  of_go_thread_flag= 1 
+  end
+  def of_go(of_go_target,fx=0,fy=0,fz=0,tx=0,ty=0,tz=0,f3d=0,t3d=0,speed=0.03,acc=1.2,brake=1.2,force_abs=True,base=True,joint_move=False):
+  sync()
+  of_go_new_pos=of_go_target
+  of_go_acc=acc
+  of_go_speed=speed
+  of_joint_move=joint_move
+  of_go_thread_flag=0
+  sync()
+  if of_threshold(fx,fy,fz,tx,ty,tz,f3d,t3d,force_abs,base)==False:
+  of_go_thread_flag=0
+  of_go_thread_handler=run of_go_thread()
+  sync()
+  while(of_go_thread_flag==0):
+  if of_threshold(fx,fy,fz,tx,ty,tz,f3d,t3d,force_abs,base)==False:
+  sync()
+  else:
+  kill of_go_thread_handler
+  if of_joint_move:
+  stopj(brake)
+  else:
+  stopl(brake)
+  end
+  of_go_thread_flag=2
+  end 
+  end 
+  end 
+  return of_go_thread_flag
+  end 
+  def of_merge_poses(target,x,y,z,rx,ry,rz,base=True):
+  if target==p[0,0,0,0,0,0]:
+  if(x!=0 or y!=0 or z!=0 or rx!=0 or ry!=0 or rz!=0):
+  local actpos=get_actual_tcp_pose()
+  sync()
+  local merged=of_pose_add(actpos,p[x,y,z,-rx,-ry,-rz],base)
+  sync()
+  return merged
+  else:
+  popup(of_merge_poses_invalid,title=of_elements_onrobot,error=True,blocking=False)
+  halt
+  end 
+  else:
+  if(x==0 and y==0 and z==0 and rx==0 and ry==0 and rz==0):
+  return target
+  else:
+  popup(of_merge_poses_both,title=of_elements_onrobot,error=True,blocking=False)
+  halt
+  end 
+  end 
+  end 
+  of_ftpid_p_pith=0.2
+  of_ftpid_i_pith=0.0
+  of_ftpid_d_pith=0.0
+  of_ftpid_p_pith_default=0.2
+  of_ftpid_i_pith_default=0.0
+  of_ftpid_d_pith_default=0.0
+  of_fpid_i_pin=0.0
+  of_fpid_d_pin=0.0
+  of_fpid_i_pin_default=0.0
+  of_fpid_d_pin_default=0.0
+  of_tpid_i_pin=0.0
+  of_tpid_d_pin=0.0
+  of_tpid_i_pin_default=0.0
+  of_tpid_d_pin_default=0.0
+  of_ftpid_i_conn=0.0
+  of_ftpid_d_conn=0.0
+  of_tpid_div_conn=5
+  of_ftpid_i_conn_default=0.0
+  of_ftpid_d_conn_default=0.0
+  of_tpid_div_conn_default=5
+  def of_center_RxRy(AngR,TorqueXY,spdR,stateCntr=0,silent=False,base=True):
+  sync()
+  local state=0+stateCntr
+  local retCVal=of_center(rx=AngR,t3d=TorqueXY,speed=spdR,acc=0.05,silent=True,base=base)
+  if(retCVal==0):
+  sync()
+  elif(retCVal==1):
+  state=1+stateCntr
+  local retMVal=of_move_ur(rx=-AngR,tx=TorqueXY,speed=spdR,acc=0.05,silent=True,force_abs=False,base=base)
+  if not silent:
+  popup(of_center_rxry_return_1,title=of_fix_and_rotate_title,warning=True,blocking=True)
+  end 
+  return 1 
+  elif(retCVal==2):
+  state=2+stateCntr
+  local retMVal=of_move_ur(rx=AngR,tx=-TorqueXY,speed=spdR,acc=0.05,silent=True,force_abs=False,base=base)
+  if not silent:
+  popup(of_center_rxry_return_1,title=of_fix_and_rotate_title,warning=True,blocking=True)
+  end 
+  return 1 
+  else:
+  state=3+stateCntr
+  if not silent:
+  popup(of_center_rxry_return_1,title=of_fix_and_rotate_title,warning=True,blocking=True)
+  end 
+  return 1 
+  end 
+  state=3+stateCntr
+  retCVal=of_center(ry=AngR,t3d=TorqueXY,speed=spdR,acc=0.05,silent=True,base=base)
+  if(retCVal==0):
+  sync()
+  elif(retCVal==1):
+  state=4+stateCntr
+  sync()
+  local retMVal=of_move_ur(ry=-AngR,ty=TorqueXY,speed=spdR,acc=0.05,silent=True,force_abs=False,base=base)
+  if not silent:
+  popup(of_center_rxry_return_2,title=of_fix_and_rotate_title,warning=True,blocking=True)
+  end 
+  return 2 
+  elif(retCVal==2):
+  state=5+stateCntr
+  local retMVal=of_move_ur(ry=AngR,ty=-TorqueXY,speed=spdR,acc=0.05,silent=True,force_abs=False,base=base)
+  if not silent:
+  popup(of_center_rxry_return_2,title=of_fix_and_rotate_title,warning=True,blocking=True)
+  end 
+  return 2 
+  else:
+  state=3+stateCntr
+  if not silent:
+  popup(of_center_rxry_return_2,title=of_fix_and_rotate_title,warning=True,blocking=True)
+  end 
+  return 2 
+  end 
+  return 0
+  end 
+  of_peakFzScanner_flag=False
+  min_bFT=[0,0,0,0,0,0]
+  min0_bFT=[False,False,False,False,False,False]
+  max_bFT=[0,0,0,0,0,0]
+  max0_bFT=[False,False,False,False,False,False]
+  abs_bFT=[0,0,0,0,0,0]
+  abs0_bFT=[False,False,False,False,False,False]
+  min_tFT=[0,0,0,0,0,0]
+  min0_tFT=[False,False,False,False,False,False]
+  max_tFT=[0,0,0,0,0,0]
+  max0_tFT=[False,False,False,False,False,False]
+  abs_tFT=[0,0,0,0,0,0]
+  abs0_tFT=[False,False,False,False,False,False]
+  min_3DFT=[0,0]
+  min0_3DFT=[False,False]
+  max_3DFT=[0,0]
+  max0_3DFT=[False,False]
+  thread of_peakFzScanner():
+  of_peakFzScanner_flag=True
+  abs_tFT[2]=0
+  while(of_peakFzScanner_flag==True):
+  i=0
+  norm_tFT2=norm(tFT[2])
+  if abs0_tFT[2]:
+  abs_tFT[2]=0
+  abs0_tFT[2]=False
+  elif(abs_tFT[2]<norm_tFT2):
+  abs_tFT[2]=norm_tFT2
+  end
+  sync()
+  end 
+  return False
+  end 
+  of_bi_cp_x_inv=False
+  of_bi_cp_y_inv=False
+  of_bi_cp_z_inv=False
+  of_stack_curr_it=0
+  
+  #======    End of OnRobot Elements    ======#

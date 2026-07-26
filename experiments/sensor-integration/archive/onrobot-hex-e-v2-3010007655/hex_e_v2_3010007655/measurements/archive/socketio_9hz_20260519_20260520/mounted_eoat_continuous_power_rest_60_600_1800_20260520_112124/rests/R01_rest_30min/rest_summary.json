@@ -1,0 +1,12 @@
+{
+  "rest": "R01_rest_30min",
+  "after": "S01_600s",
+  "planned_duration_s": 1800,
+  "actual_duration_s": 1080.8698186019974,
+  "remaining_s_at_interrupt": 719.1301813980026,
+  "start_wall_time_utc": "2026-05-20T04:04:10.511+00:00",
+  "end_wall_time_utc": "2026-05-20T04:23:06.157+00:00",
+  "power_state": "continuous_on",
+  "completed_planned_rest": false,
+  "interrupted_reason": "user requested direct continuation without further rest"
+}

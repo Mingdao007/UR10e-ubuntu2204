@@ -1,0 +1,14 @@
+{
+  "schema_version": "step5d_remote_evidence_sha256_v1",
+  "source_run": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820",
+  "source_mode": "remote_read_only_sha256sum",
+  "sha256": {
+    "bridge_rtde_500hz.csv": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+    "bridge_run_manifest.json": "4d33be2bc4843d111aa03282a7ccbb31daae9bf8e1061432af35c8caaae0b894",
+    "metadata.json": "01ce8a82f0fcf61e04c5abbf8d07dd7e23bcf8fed8cc8fcf3fcd53d8e873b8c3",
+    "stage_frequency_summary.json": "c7dbf918b569d4c6ba419332168c6e8fdd34cbd917645a25d60be2e2be906c8b",
+    "step5d_bridge_analysis.json": "97559d1938f22ccf2f3031ef77443587192f236efdf0a6f5693d7ab26f262710",
+    "summary.json": "6e089029e8cf4420bb03312fa9ab6ba5ae48ed979ffa1afe62663ecc4e38210a"
+  },
+  "claim_boundary": "Hashes bind remote source bytes only; they do not imply live acceptance or reproduction completion."
+}

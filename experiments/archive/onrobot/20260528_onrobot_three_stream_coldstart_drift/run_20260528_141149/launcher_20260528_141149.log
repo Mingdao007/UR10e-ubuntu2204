@@ -1,0 +1,22 @@
+[launcher] run_dir=/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149
+[launcher] log=/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149/launcher_20260528_141149.log
+[launcher] cap_seconds=86400
+[launcher] checkpoint_interval_s=300
+[launcher] robot_host=192.168.1.18
+[launcher] compute_box_host=192.168.1.1
+[launcher] require_program_running=1
+[launcher] require_urcap_activity=1
+[launcher] start_time=2026-05-28T14:11:49+08:00
+
+[launcher] Waiting for UR Dashboard/RTDE and OnRobot Compute Box TCP DAQ.
+[launcher] You can start/power the bench now. Press Ctrl+C before capture starts to abort.
+2026-05-28T14:11:49 UR Dashboard=OK UR RTDE=OK OnRobot TCP DAQ=OK
+
+[launcher] Waiting for no-motion URCap export program/register activity.
+[launcher] Keep the wait/export loop running for the whole capture.
+2026-05-28T14:11:52 program=OK urcap_register_activity=OK program_info={'banner': 'Connected: Universal Robots Dashboard Server', 'robotmode': 'Robotmode: RUNNING', 'safetymode': 'Safetymode: NORMAL', 'running': 'Program running: true', 'programState': 'PLAYING 3.urp'} activity_info={'samples': 157, 'distinct': 157, 'first': (0.073477, -0.002676, -0.489241, 0.000633, -0.001527, 0.001934), 'last': (0.053477, 0.037324, -0.259241, -0.003367, -0.002527, 0.002934), 'all_zero': False}
+
+[launcher] Network endpoints are reachable. Starting live capture.
+[launcher] This sends OnRobot UDP SPEED=2, START, and final STOP.
+[launcher] Stop command: press Ctrl+C in this terminal.
+

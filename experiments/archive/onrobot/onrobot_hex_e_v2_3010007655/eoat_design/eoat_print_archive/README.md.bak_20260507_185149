@@ -1,0 +1,40 @@
+# UR5e EOAT model workspace
+
+这个目录用于保存 `UR5e`（Universal Robots 5e）末端执行器 `EOAT`（end-effector, 末端执行器）建模输出。
+
+## 目录规范
+
+- 每个版本单独放在一个子文件夹内，例如 `v1/`、`v2/`、`v3/`
+- `v1`、`v2` 是早期分层结构的历史版本
+- 从 `v3` 起，每个版本目录内部默认直接平铺文件，不再继续套 `source / parts / assembly / preview / notes`
+- 新版本从 `v5/` 开始继续使用这个新主路径
+- 保留所有旧版本
+- 不覆盖旧版本
+- 不把不同版本文件混放在同一级目录
+
+## 当前验证顺序
+
+1. 拆下 `RG2`，目标安装对象锁定为 `UR5e` 裸法兰
+2. 获取裸法兰照片：
+   - 正视图
+   - 轻微侧视图
+   - 普通尺子同框
+3. 根据照片静态复核当前版本的机器人侧接口
+4. 若静态复核通过，先打印对应版本的 `fit-check`
+5. `fit-check` 通过后，再考虑打印 `base` 或 `onepiece`
+
+## 当前默认规则
+
+- `UR5e` 裸法兰安装风险未解除前，第一打印件必须是 `fit-check`
+- 分件版和整体版默认都保留
+- 每个版本都应附带假设说明、未确认尺寸、下一步建议测量项
+
+## 当前已存在版本
+
+- `v1`：基础法兰转接盘
+- `v2`：探针式接触头概念版，已包含 `fit-check`
+- `v3`：roller probe reference
+- `v4`：flat-pad / fit-check baseline，80 mm adapter OD，已有 May 7 实物 fit-check 照片和视频
+- `v5_receiver_fitcheck`：M6 receiver/thread coupon，不是完整 EOAT 版本
+- `v6_slim_adapter_72mm`：v4 的 slim adapter 继任版，72 mm adapter OD，保留 4 x M6 on 50 mm PCD 和中心 register/recess
+- `v7_ksm8n_ball_transfer_tool`：当前完整被动 rolling-contact EOAT，使用 KSM-8N M6 ball transfer，TCP 距法兰面 140 mm，采用 captive M6 nut receiver

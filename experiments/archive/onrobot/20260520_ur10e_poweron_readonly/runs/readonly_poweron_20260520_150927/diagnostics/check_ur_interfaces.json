@@ -1,0 +1,82 @@
+{
+  "ok": false,
+  "host": "192.168.1.18",
+  "timeout": 1.5,
+  "results": [
+    {
+      "port": 22,
+      "open": false,
+      "error": "TimeoutError: timed out"
+    },
+    {
+      "port": 29999,
+      "open": false,
+      "error": "TimeoutError: timed out"
+    },
+    {
+      "port": 30001,
+      "open": false,
+      "error": "TimeoutError: timed out"
+    },
+    {
+      "port": 30002,
+      "open": false,
+      "error": "TimeoutError: timed out"
+    },
+    {
+      "port": 30003,
+      "open": false,
+      "error": "TimeoutError: timed out"
+    },
+    {
+      "port": 30004,
+      "open": false,
+      "error": "TimeoutError: timed out"
+    },
+    {
+      "port": 30011,
+      "open": false,
+      "error": "TimeoutError: timed out"
+    },
+    {
+      "port": 30012,
+      "open": false,
+      "error": "TimeoutError: timed out"
+    },
+    {
+      "port": 30013,
+      "open": false,
+      "error": "TimeoutError: timed out"
+    }
+  ],
+  "open_ports": [],
+  "closed_ports": [
+    22,
+    29999,
+    30001,
+    30002,
+    30003,
+    30004,
+    30011,
+    30012,
+    30013
+  ],
+  "required_ports": [
+    29999,
+    30002,
+    30004
+  ],
+  "issues": [
+    "required_port_29999_closed",
+    "required_port_30002_closed",
+    "required_port_30004_closed"
+  ],
+  "command": [
+    "/usr/bin/python3",
+    "scripts/check_ur_interfaces.py",
+    "--host",
+    "192.168.1.18",
+    "--json-only"
+  ],
+  "returncode": 0
+}

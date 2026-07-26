@@ -1,0 +1,958 @@
+{
+  "created_utc": "2026-05-19T06:48:39+00:00",
+  "archive_root": "/Users/andyl/Documents/UR10e/archive/ur5e_legacy_20260518_223331/eoat_ur5e/eoat_print",
+  "active_candidate": "v13_ksm8n_receiver_5p3mm_side_window_85mm",
+  "active_candidate_present_in_archive": true,
+  "version_dirs": [
+    "v1",
+    "v10_ksm8n_receiver_recessed_face_85mm",
+    "v11_ksm8n_receiver_flat_recess_85mm",
+    "v12_ksm8n_receiver_tight_side_window_85mm",
+    "v13_ksm8n_receiver_5p3mm_side_window_85mm",
+    "v2",
+    "v3",
+    "v4",
+    "v5_receiver_fitcheck",
+    "v6_slim_adapter_72mm",
+    "v7_ksm8n_ball_transfer_tool",
+    "v8_ksm8n_ball_transfer_tool_85mm",
+    "v9_ksm8n_receiver_slim_85mm"
+  ],
+  "version_count": 13,
+  "file_count": 182,
+  "total_size_bytes": 187697687,
+  "excluded_policy": {
+    "exclude_name": [
+      ".DS_Store"
+    ],
+    "exclude_dir": [
+      "__pycache__"
+    ],
+    "exclude_glob": []
+  },
+  "excluded_paths": [
+    ".DS_Store",
+    "v3/__pycache__",
+    "v3/__pycache__/make_ur5e_roller_probe_v3.cpython-311.pyc",
+    "v6_slim_adapter_72mm/__pycache__",
+    "v6_slim_adapter_72mm/__pycache__/make_ur5e_flat_pad_tool_v6_slim_adapter.cpython-311.pyc"
+  ],
+  "metadata": {
+    "artifact_family": "EOAT print archive",
+    "current_experiment": "onrobot_hex_e_v2_3010007655",
+    "remote_archive_path": "/home/andy/ur10e_ros2_ws/experiments/onrobot_hex_e_v2_3010007655/eoat_design/eoat_print_archive",
+    "active_candidate_note": "v13 is a TCP design candidate only; not mounted or verified on UR10e yet."
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "size": 3135,
+      "sha256": "b3369b5e1e9c4c04b8b3a369ffebedb696fa74cf5f1ab5b1a1197d533fd7e539"
+    },
+    {
+      "path": "README.md.bak_20260507_184416",
+      "size": 1652,
+      "sha256": "be04bb443879785bcb1830e67229a3a569c548f3b1fdfe49d848a5a92731c818"
+    },
+    {
+      "path": "README.md.bak_20260507_185149",
+      "size": 1818,
+      "sha256": "9f54a8f838e85187ee1bce0096e4c218cd9abb8d10a7f1d6ab49dae64eb32d28"
+    },
+    {
+      "path": "README.md.bak_20260507_190218",
+      "size": 1986,
+      "sha256": "f0e5cae08a4812c2650c38c84329669a8c747db49252db594cb7a4c0158b5256"
+    },
+    {
+      "path": "README.md.bak_20260507_190659",
+      "size": 2207,
+      "sha256": "10942b7e1ed7d9a0b5362377f944acb5e0dde5e79673495d5799313737ea49b2"
+    },
+    {
+      "path": "README.md.bak_20260507_191225",
+      "size": 2459,
+      "sha256": "a57cdd98c486a1d371ee1e5e67a9d10ab1e69a0313c4b03a57ad53c3a15475ea"
+    },
+    {
+      "path": "README.md.bak_20260508_140458",
+      "size": 2679,
+      "sha256": "9077f8c6e2c8b021a51088c3990a47c5e0558edded6b60d0cd39d051ab21080c"
+    },
+    {
+      "path": "README.md.bak_20260508_145629",
+      "size": 2919,
+      "sha256": "a862554002c76b6669fbe226ad61f10a656cd6cc45d6f1fdddbf528d118ca0cc"
+    },
+    {
+      "path": "v1/notes/README.md",
+      "size": 1571,
+      "sha256": "ecefba7c34d226df89046f9e9d1879b44721f35f8ce59fb258ff74f86514c9c0"
+    },
+    {
+      "path": "v1/parts/ur5e_contact_adapter_v1.step",
+      "size": 75375,
+      "sha256": "3f1509b0937feeb6cff3d9c67b1f230e230e6390548e01b5e537185912352c7b"
+    },
+    {
+      "path": "v1/parts/ur5e_contact_adapter_v1.stl",
+      "size": 352084,
+      "sha256": "f11558f68ae2d9bae6502d5e1eebe437b14d39918ff1f755e0efff64f767cb7a"
+    },
+    {
+      "path": "v1/preview/ur5e_contact_adapter_v1_layout.png",
+      "size": 118451,
+      "sha256": "d247768d1937af1c743bc9f649a7050f12291e371bb62ac467119630dd45c5d8"
+    },
+    {
+      "path": "v1/source/ur5e_contact_adapter_v1.py",
+      "size": 3609,
+      "sha256": "a91c3a9f28b76f29c8b3c2b2cf958cb0506cbe51b84a5d5cb93660aed517d693"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/README.md",
+      "size": 2187,
+      "sha256": "fc2f8b2c30156a96adc98384c05a77a8c468f7d8e03d17aa387b255d0fbca4fe"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/make_ur5e_ksm8n_ball_transfer_tool_v10.py",
+      "size": 17937,
+      "sha256": "a75d92f5f68da07814201ca7594a880e5b33bceaa52c39dea05153840adc1e17"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_assembly.step",
+      "size": 66452,
+      "sha256": "02902f97d772bb1a6ae744c280816e30cf3c94e3064add31ef60dec963f38d74"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_assembly.stl",
+      "size": 4578810,
+      "sha256": "c59390b4d2fda8dc378e8c452de030b01a37bc2bb118532981eca7f8535159e8"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_body.step",
+      "size": 66452,
+      "sha256": "fda8c56e0d498c0995087d2cf5e53dc6619a2e45394a08c12c3948254123d929"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_body.stl",
+      "size": 4578810,
+      "sha256": "c59390b4d2fda8dc378e8c452de030b01a37bc2bb118532981eca7f8535159e8"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_flange_fitcheck.step",
+      "size": 13041,
+      "sha256": "6b81bf23d445baa983494761c33f6583ef60506462d3cd4fdc9ce10f2d8062ae"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_flange_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "05283dc051361efc8afd88f773782134b02f7a7b3b9d8aaae3914bad9173512d"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_ksm_placeholder.step",
+      "size": 6418,
+      "sha256": "76322e210ed362b920d9cf88a09c4601fcf55b0d594ccc0ec4b953e87cddc893"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_ksm_placeholder.stl",
+      "size": 2832351,
+      "sha256": "6de00bba96383dfb365e0de4e7f54cc6ec2bb937693c0942a457ded978f34e78"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_onepiece_preview.step",
+      "size": 66452,
+      "sha256": "ee14c5b3431c22e8fc95d81ea34f128c84c02dd4f108f91b1a356cdef9f7fdb0"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_onepiece_preview.stl",
+      "size": 4578810,
+      "sha256": "c59390b4d2fda8dc378e8c452de030b01a37bc2bb118532981eca7f8535159e8"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_receiver_fitcheck.step",
+      "size": 35658,
+      "sha256": "721c6d5cd7ec0e3b110450ff7d735f7237f3aa748436cc7d63e3d342d0f572d5"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/ur5e_ksm8n_ball_transfer_tool_v10_receiver_fitcheck.stl",
+      "size": 1213404,
+      "sha256": "b506f379da7a4ba9f1f63391981efabaf6e2032102a0d3d26b9fe67c2a554a8a"
+    },
+    {
+      "path": "v10_ksm8n_receiver_recessed_face_85mm/verification.json",
+      "size": 4767,
+      "sha256": "36bc24bb51c5af9559039109a7d6ff5264bb284aa5570bd78134d732e08f9f14"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/README.md",
+      "size": 2206,
+      "sha256": "f37ade945a867a32318827200aff9ca27667f097be1ecd16d543ce175d5800cf"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/make_ur5e_ksm8n_ball_transfer_tool_v11.py",
+      "size": 17989,
+      "sha256": "a806d33fe816aed6591a1b7fed26f8c43767547b85d3154a8c1cb3cfcd2fc1c2"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_assembly.step",
+      "size": 64626,
+      "sha256": "3a7883977f9c3091a2cdd5364d14cc8dc4903322090066d14f1f11302964822f"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_assembly.stl",
+      "size": 4347062,
+      "sha256": "7c98fe1257e34739d8525725b35e034514295c71cd1a9c93f5f2b0ba023f1ed1"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_body.step",
+      "size": 64626,
+      "sha256": "4720f6cc7bb292b8116f2bc67a94db2969729500eaca1305a7612687e8cf7978"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_body.stl",
+      "size": 4347062,
+      "sha256": "7c98fe1257e34739d8525725b35e034514295c71cd1a9c93f5f2b0ba023f1ed1"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_flange_fitcheck.step",
+      "size": 13041,
+      "sha256": "7649316c67116fdb376296ae9b5f444dac6a094e07c8384fb5866d1a810bddd2"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_flange_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "05283dc051361efc8afd88f773782134b02f7a7b3b9d8aaae3914bad9173512d"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_ksm_placeholder.step",
+      "size": 6418,
+      "sha256": "4c3c98bbbf22141cfc54281bac14ac9aa6df8711fd42337b196386f91566c8a1"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_ksm_placeholder.stl",
+      "size": 2832351,
+      "sha256": "6de00bba96383dfb365e0de4e7f54cc6ec2bb937693c0942a457ded978f34e78"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_onepiece_preview.step",
+      "size": 64626,
+      "sha256": "e6519918b8d7801b6d899701d8400f51d59544e440d7df49a34028869c0dd79d"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_onepiece_preview.stl",
+      "size": 4347062,
+      "sha256": "7c98fe1257e34739d8525725b35e034514295c71cd1a9c93f5f2b0ba023f1ed1"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_receiver_fitcheck.step",
+      "size": 33936,
+      "sha256": "ecda41a01843a95c0b2059568a2156a173093e77421c2a6ed67d76c70f8ff949"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/ur5e_ksm8n_ball_transfer_tool_v11_receiver_fitcheck.stl",
+      "size": 981656,
+      "sha256": "7aa1183ef92974840acf5e2b750f194a8488a9c3795d2ce1d4848ac499f311e3"
+    },
+    {
+      "path": "v11_ksm8n_receiver_flat_recess_85mm/verification.json",
+      "size": 4826,
+      "sha256": "81486a9374a4f4167108829b0a9c92b5ca81fc447c426e5508247db4f8e5440f"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/README.md",
+      "size": 2269,
+      "sha256": "2c9050f9ea008ed97a9b577b90db2ef35db3c46f738094c92cfbc46befba673f"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/make_ur5e_ksm8n_ball_transfer_tool_v12.py",
+      "size": 18834,
+      "sha256": "66f0ed934df4b23a40f22ee528d87c3e44fcd685bffaad1faef49646a4534403"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_assembly.step",
+      "size": 57784,
+      "sha256": "91894fc38c29cfefdd1b19c47456f7c5cfe92925f2468ad596cffcc4f1fcc2cb"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_assembly.stl",
+      "size": 4340990,
+      "sha256": "62f1d61a01785fa213e45670db546088fe8918cae71e06b20136b06b38934ef5"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_body.step",
+      "size": 57784,
+      "sha256": "75a6d1f98bb18e450342a5e5f869bfd29cece9bfd950c172029eff9c855d3cb3"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_body.stl",
+      "size": 4340990,
+      "sha256": "62f1d61a01785fa213e45670db546088fe8918cae71e06b20136b06b38934ef5"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_flange_fitcheck.step",
+      "size": 13041,
+      "sha256": "fc59e9c243956092d6c74173a84aaea9c2d5f4f3a3fcf4bb3aae3b9e911e5209"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_flange_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "05283dc051361efc8afd88f773782134b02f7a7b3b9d8aaae3914bad9173512d"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_ksm_placeholder.step",
+      "size": 6418,
+      "sha256": "50f243acd94277cb662a0f26f86a6fc6cbe8422ded7cc7a72c242cb3940adb37"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_ksm_placeholder.stl",
+      "size": 2832351,
+      "sha256": "6de00bba96383dfb365e0de4e7f54cc6ec2bb937693c0942a457ded978f34e78"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_onepiece_preview.step",
+      "size": 57784,
+      "sha256": "8db7e4c8f9ec78ecea7c4dc56c27247c73ffe6047d062f371c89906d6fc7ecd6"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_onepiece_preview.stl",
+      "size": 4340990,
+      "sha256": "62f1d61a01785fa213e45670db546088fe8918cae71e06b20136b06b38934ef5"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_receiver_fitcheck.step",
+      "size": 27490,
+      "sha256": "6eb0b4f985196dd85972c8b282e3679192d815537588c0548cddcda0d9168af3"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v12_receiver_fitcheck.stl",
+      "size": 975584,
+      "sha256": "d743846c9e57bf5201532e1ca9b9eb0d353a9cfa05920973046b70b7ec636ed0"
+    },
+    {
+      "path": "v12_ksm8n_receiver_tight_side_window_85mm/verification.json",
+      "size": 5313,
+      "sha256": "5c3bc50450e30400a36b345c84665342a1c7f6650590d586d63730a8d425c5f0"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/README.md",
+      "size": 2309,
+      "sha256": "aa8ae61465cc49084382db91154f48d3ec1df0747ba000b187d8c0dddfd1da34"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/make_ur5e_ksm8n_ball_transfer_tool_v13.py",
+      "size": 19027,
+      "sha256": "07c011f0b62fcbb1d868a71f1a3921cb613359b67eff3d037f26c59234d925c5"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_assembly.step",
+      "size": 57826,
+      "sha256": "62a796e60f447f654645d3aebe1c0c34330a5a569128e22be50e2cbfc9e8bffe"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_assembly.stl",
+      "size": 4340990,
+      "sha256": "598c3c5fe98864ae570b2439baa542c67d0bf4dcdfcf5dbe4667d2eacc3ae6ab"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_body.step",
+      "size": 57826,
+      "sha256": "3a673ea7d158d976658729b5873e1c52a8a7bc4f7c94b5f27f67502faea5e5d2"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_body.stl",
+      "size": 4340990,
+      "sha256": "598c3c5fe98864ae570b2439baa542c67d0bf4dcdfcf5dbe4667d2eacc3ae6ab"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_flange_fitcheck.step",
+      "size": 13041,
+      "sha256": "7973f5f12a8ad567368e615d68bf52acc4d1c185ada26499e7493d3cc7ac0cce"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_flange_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "05283dc051361efc8afd88f773782134b02f7a7b3b9d8aaae3914bad9173512d"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_ksm_placeholder.step",
+      "size": 6418,
+      "sha256": "734178512b8665a7b0d2fd83c76ac21491414b63ee06c975ae7075ee3eeb2f7a"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_ksm_placeholder.stl",
+      "size": 2832351,
+      "sha256": "6de00bba96383dfb365e0de4e7f54cc6ec2bb937693c0942a457ded978f34e78"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_onepiece_preview.step",
+      "size": 57826,
+      "sha256": "a4d61f5c57df757a1f49f6e32cf0d51d708f0992bac0163f43bbb878939c1166"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_onepiece_preview.stl",
+      "size": 4340990,
+      "sha256": "598c3c5fe98864ae570b2439baa542c67d0bf4dcdfcf5dbe4667d2eacc3ae6ab"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_receiver_fitcheck.step",
+      "size": 27532,
+      "sha256": "8226ebf54e37402fb44d7ddc58c4ad52493ce1ecf891dffcd4140ba67f519b92"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/ur5e_ksm8n_ball_transfer_tool_v13_receiver_fitcheck.stl",
+      "size": 975584,
+      "sha256": "605b0a92f3b3e4900b5a56de0013c3b898f19dce91eaac17ec3d15307bb3acf7"
+    },
+    {
+      "path": "v13_ksm8n_receiver_5p3mm_side_window_85mm/verification.json",
+      "size": 5450,
+      "sha256": "999a6bb19d27ae34db984e648754be819f243202bc91376e59e0f95ff0551120"
+    },
+    {
+      "path": "v2/assembly/ur5e_probe_concept_v2_assembly.step",
+      "size": 132939,
+      "sha256": "72040f03b8706ac75d5d42a746fa81e96b9780dd2d9b4cb620c180e170202356"
+    },
+    {
+      "path": "v2/assembly/ur5e_probe_concept_v2_assembly.stl",
+      "size": 691834,
+      "sha256": "1b438808fec9007a826be32d34c37bb4a593d22c56d04419adc5edc96cef47ef"
+    },
+    {
+      "path": "v2/assembly/ur5e_probe_concept_v2_onepiece.step",
+      "size": 126516,
+      "sha256": "9eff0d085a58e5f95dfe5654ad6332fbbd4df9c3a5981ec1ee59242b66414aa3"
+    },
+    {
+      "path": "v2/assembly/ur5e_probe_concept_v2_onepiece.stl",
+      "size": 691834,
+      "sha256": "1b438808fec9007a826be32d34c37bb4a593d22c56d04419adc5edc96cef47ef"
+    },
+    {
+      "path": "v2/notes/README.md",
+      "size": 1203,
+      "sha256": "bf45511c6628046e5d2b819157f56cc0a35302a0175db206d553c851289a4ee4"
+    },
+    {
+      "path": "v2/parts/ur5e_probe_concept_v2_base.step",
+      "size": 116819,
+      "sha256": "19c7c7907b6e821955b529417f042b280da553cfeecd76f5d147a0488270920d"
+    },
+    {
+      "path": "v2/parts/ur5e_probe_concept_v2_base.stl",
+      "size": 359584,
+      "sha256": "577c8ac5f776392a92046805ac192ad00a1f69d42093c5de529a81f2860fec5b"
+    },
+    {
+      "path": "v2/parts/ur5e_probe_concept_v2_fitcheck.step",
+      "size": 28366,
+      "sha256": "f32fb6565848a9654cb15cf56e7c8fa4d1aea88ef744375407b4d0a8b11c6a59"
+    },
+    {
+      "path": "v2/parts/ur5e_probe_concept_v2_fitcheck.stl",
+      "size": 177284,
+      "sha256": "67f224a71a3d386e7ac5d8ecfc3a47af5f5097b3b6b57cce12853637842391c3"
+    },
+    {
+      "path": "v2/parts/ur5e_probe_concept_v2_probe.step",
+      "size": 12249,
+      "sha256": "5f42617cb726f31e616b5db3005083e569e53ef7202e673f260703b70eb15e0e"
+    },
+    {
+      "path": "v2/parts/ur5e_probe_concept_v2_probe.stl",
+      "size": 332334,
+      "sha256": "68f454240458c5569bcc81f96343c9337bd5af7394a8df4af6927fdf889ddf95"
+    },
+    {
+      "path": "v2/preview/ur5e_probe_concept_v2_side.png",
+      "size": 29062,
+      "sha256": "0ece691bf597d946a7997e30654b59915b5ad94964249e7d5ebc58c37ea33c75"
+    },
+    {
+      "path": "v2/source/ur5e_probe_concept_v2.py",
+      "size": 9570,
+      "sha256": "d52ec6bf116bfa784fbcc352260f7630c2f6da99486462938133152dd9f35cd4"
+    },
+    {
+      "path": "v3/README.md",
+      "size": 1003,
+      "sha256": "238a16aa308676dcf0290eec270c2bd06e54c2a13a075c308c0060c7f2892fa6"
+    },
+    {
+      "path": "v3/make_ur5e_roller_probe_v3.py",
+      "size": 9076,
+      "sha256": "f68e473a3252309a126b355f394697f91f38cd1a40a82d03b21229bf35034f80"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_assembly.step",
+      "size": 61230,
+      "sha256": "623bc13d3723ac844befe0c70ee37944ae5a94cae1423a351024c21fca7baf84"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_assembly.stl",
+      "size": 4538330,
+      "sha256": "0a84f6289485a219d162e09be11e427ec0b0876d3f795eef013aa0eca83972dc"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_axle.step",
+      "size": 3550,
+      "sha256": "76d35e8dc4192410debccfcc0c6b041be735ad6504e4fe0db0136de2d373a6e8"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_axle.stl",
+      "size": 230752,
+      "sha256": "ec58b4b7b10a2a247cc2f686d964bb889ba8389920520ed59c75bbcec006524f"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_body.step",
+      "size": 55422,
+      "sha256": "53e6e4cbda777b49cc1833387b2253b07bc5e04d89bebc7f13b0dc81f3cd8c39"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_body.stl",
+      "size": 3844098,
+      "sha256": "87e5434e9a540aa760b331afcf943725f164bfb461aec6478b9fac30183ad2e4"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_fitcheck.step",
+      "size": 13033,
+      "sha256": "9b6719432274af79acb15c29ea28162a64315c838390461f903b8641174bdec1"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "9d9bbfb149c25b749821387df84d311a0dd04f219dde78bf9f4f199de7d01ad7"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_onepiece.step",
+      "size": 62234,
+      "sha256": "cc8490313a9e251ef083df60338054f0c4a8311bd2c90b0f8a975ecbdab014e7"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_onepiece.stl",
+      "size": 4504934,
+      "sha256": "fd240e205b3ccc7d1d0de14706a76196bab6a31f177c0a2b595de9a4c83e610f"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_roller.step",
+      "size": 4984,
+      "sha256": "f69a59efdeb839f5ebae13f85036304befc33b332131351ff78765a28370c641"
+    },
+    {
+      "path": "v3/ur5e_roller_probe_v3_roller.stl",
+      "size": 463512,
+      "sha256": "4ba7ae1ae9bda9c33d6bd8369acd6f672a754a364862487c98193ae1db256575"
+    },
+    {
+      "path": "v3/verification.json",
+      "size": 3208,
+      "sha256": "13f8378689a68ebd4f6d61f84027478987a883c19ef5e4e3758de964d1eb2961"
+    },
+    {
+      "path": "v4/README.md",
+      "size": 1039,
+      "sha256": "a42900b080a96bba7370c6c7a71e39b6341626f9bbd0fdcab0eecdc053aa7b67"
+    },
+    {
+      "path": "v4/make_ur5e_flat_pad_tool_v4.py",
+      "size": 8194,
+      "sha256": "f9458a34b5758a1bad58d019c3799dbd959027b9dd521e31dc05a5076afca318"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_assembly.step",
+      "size": 37047,
+      "sha256": "86fa0b036c792df9933af9cf00e1b64a95caae660d53cd9dce00dc125c470a7f"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_assembly.stl",
+      "size": 4116326,
+      "sha256": "87f47bd2f5c868b75e6406e9d5a31c7bd68d0c1fcea23379fc1239738c8b7925"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_body.step",
+      "size": 33291,
+      "sha256": "74e6f30747aab880b5f255b0911ab075f30c10f36f53554a2b83aa34efb1cd3d"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_body.stl",
+      "size": 3362892,
+      "sha256": "0a36f43b24a39008ea2997a146bd5481223b751e3056a57bc6127e35304e4b6d"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_fitcheck.step",
+      "size": 13041,
+      "sha256": "f0b4e0577454e169106706e5fa0b00777337e302d9795befa47c6f061a703f15"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "5378fc644e996642b896b671f5638b6a8378ec126a81dd94a7527eaca73428fe"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_onepiece.step",
+      "size": 34549,
+      "sha256": "174280804f483c2d60ede441ffb1d99a617f48e24269551391b3302ebee9c1bd"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_onepiece.stl",
+      "size": 3768704,
+      "sha256": "81d9ad1787c6bf866c1ae2b5417c229845429089fbf05c8cc1be0bcc3ee5f907"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_pad.step",
+      "size": 5249,
+      "sha256": "5dcd7bd3100f18860b60113c25c8a7a6f220cbe316ba27a62a604aa12d92d3d8"
+    },
+    {
+      "path": "v4/ur5e_flat_pad_tool_v4_pad.stl",
+      "size": 753450,
+      "sha256": "213f71880ef4019ee567415bd6eecda1c90befbd7d81a13af07e456edad8fe1e"
+    },
+    {
+      "path": "v4/verification.json",
+      "size": 2842,
+      "sha256": "0eae72d84db2b62a5d4b1720dfd473fb4b01d45c20bc8d7cdaba7f3a368a4af1"
+    },
+    {
+      "path": "v5_receiver_fitcheck/README.md",
+      "size": 1355,
+      "sha256": "fbba1611ae65bc66dd3cfb76a2e6536bf4d48016405087c087c3552aa9d15ee7"
+    },
+    {
+      "path": "v5_receiver_fitcheck/make_v5_receiver_thread_coupons.py",
+      "size": 5403,
+      "sha256": "73c53eb91ceebf7d6b6bf281bd83c557e70502bf7b044cf0398c82cc3b056979"
+    },
+    {
+      "path": "v5_receiver_fitcheck/v5_receiver_fitcheck_captive_m6_nut.step",
+      "size": 41122,
+      "sha256": "3e3b37eaa7e2cff365288b474307b647a2fffaf1b2e9bf8be2dadbc426d1d843"
+    },
+    {
+      "path": "v5_receiver_fitcheck/v5_receiver_fitcheck_captive_m6_nut.stl",
+      "size": 27284,
+      "sha256": "c02a40774214e1a811778b0459e504bad6f257abef0af70d1ec8383296d3c214"
+    },
+    {
+      "path": "v5_receiver_fitcheck/v5_receiver_fitcheck_self_thread_m6_pilots.step",
+      "size": 26862,
+      "sha256": "f27262b81da42ea4d25a1df6e143df01ef78daa70fccdacc0e4335efaf40f832"
+    },
+    {
+      "path": "v5_receiver_fitcheck/v5_receiver_fitcheck_self_thread_m6_pilots.stl",
+      "size": 76884,
+      "sha256": "aa0c8cdca9353953d0b3494d2a3d7817458fafcee89b0b7a6897d9fcb45aa989"
+    },
+    {
+      "path": "v5_receiver_fitcheck/verification.json",
+      "size": 1871,
+      "sha256": "683ce72aa3ca378139a1d36b861d68ef70877794c8427e042e5c8532cce8aaf7"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/README.md",
+      "size": 1618,
+      "sha256": "ea4c2891df8abba6891aa619035f49f085954841c426c5d4b058b8d5e11c7e26"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/make_ur5e_flat_pad_tool_v6_slim_adapter.py",
+      "size": 9709,
+      "sha256": "a3b121e223830b3aebe45e937a50c6e3c7791abf6dffc1e98ed3d86de901f402"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_assembly.step",
+      "size": 37047,
+      "sha256": "04f1ba05b68ef9ff5261175417b1bdd17bdd87f9acb804fa73f2d4209c6bba96"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_assembly.stl",
+      "size": 4116326,
+      "sha256": "2f269c89f14b652360d6ffd74a0cc6dfd54ef8a607546b1e208e466995b8bd75"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_body.step",
+      "size": 33291,
+      "sha256": "9f520004ed28405c4f6459d4ab45d645a4f42d778b32aaad10f00c4a40eee0f5"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_body.stl",
+      "size": 3362892,
+      "sha256": "f9f47a956b317224d170a21086e7d09662a35d985748ac4e27941ae6c648670a"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_fitcheck.step",
+      "size": 13041,
+      "sha256": "f57ac59b95cc245baec6cd67df7e7bde0a0d9e98dc45bd4392ab34966d6a155b"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "05283dc051361efc8afd88f773782134b02f7a7b3b9d8aaae3914bad9173512d"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_onepiece.step",
+      "size": 34549,
+      "sha256": "271d4983b0629d4107e18d54d8890f92a80fc7a45c5241a1547777536fca0707"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_onepiece.stl",
+      "size": 3768704,
+      "sha256": "b6715a3703a9f77a8de55e199b863c05841849cc4f1dee2471fed5ea7dbdbfa9"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_pad.step",
+      "size": 5249,
+      "sha256": "8bab680781fdb2d63ae3dc12c21633e4d5c61f95b8e0bd1945e00a2765921b5a"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/ur5e_flat_pad_tool_v6_slim_adapter_pad.stl",
+      "size": 753450,
+      "sha256": "213f71880ef4019ee567415bd6eecda1c90befbd7d81a13af07e456edad8fe1e"
+    },
+    {
+      "path": "v6_slim_adapter_72mm/verification.json",
+      "size": 3116,
+      "sha256": "50a7a13941add1fb036932ab0e73eda571df45c0fffbd3938d79dea72f6cf381"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/README.md",
+      "size": 1529,
+      "sha256": "893f298c9ffb2a7e555b41af5847c8ae5b6d5cc4ae4645a44be249abcf43835c"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/make_ur5e_ksm8n_ball_transfer_tool_v7.py",
+      "size": 15721,
+      "sha256": "366342e1b18f84caa238993326d399eb6cb405452611a6ef2571b0138b02c77e"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_assembly.step",
+      "size": 66432,
+      "sha256": "3cb1c988451f5639502efa5e8d72ea385f370ef14c2a869b2aaeac70e218beb0"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_assembly.stl",
+      "size": 7054921,
+      "sha256": "699f38a267dc0cbfb35fad90cb97607c33e8fb21ab0067ee45f66ab8cb89628d"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_body.step",
+      "size": 61213,
+      "sha256": "367955347e3ec2e203c1a82f256e1f848025e2b1541412fbcbf599664479f392"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_body.stl",
+      "size": 4222586,
+      "sha256": "f5470b6930d4b6a2165107f03273e5da91ea5d859531741fe7a850b2749b9fb4"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_flange_fitcheck.step",
+      "size": 13041,
+      "sha256": "bcdff85321019a435e35a5a6802cd1a28f5e5d9370f4c1196fa5f71ce80f7cd6"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_flange_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "05283dc051361efc8afd88f773782134b02f7a7b3b9d8aaae3914bad9173512d"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_ksm_placeholder.step",
+      "size": 6441,
+      "sha256": "b3a5e8901d7abb9ff23952d92cdc6138bdd7a6af39ed819fc0f2e6e779a42ac7"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_ksm_placeholder.stl",
+      "size": 2832351,
+      "sha256": "7376877ebf497b78841da64aa177009a29a953722fbb0ed0d8e29ce441e7de98"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_onepiece_preview.step",
+      "size": 66373,
+      "sha256": "b24dc19d36c6143c2db6a441482777cb1729dcd91c1ace19881d24f0789fa74a"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_onepiece_preview.stl",
+      "size": 7054921,
+      "sha256": "bf95eaaf7e785dd8a786f7dbefe30b7adf21fd8a49b5c641ab304351a8c8081d"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_receiver_fitcheck.step",
+      "size": 29826,
+      "sha256": "bf1c638f76057b201b3ed9866e36bafec6c157533061d0f5845612e3d3f931c0"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/ur5e_ksm8n_ball_transfer_tool_v7_receiver_fitcheck.stl",
+      "size": 741812,
+      "sha256": "153ab6dc708bfadbc4e2708b664f7a71877a6be0a46723c0bbe2ecc97e8f7835"
+    },
+    {
+      "path": "v7_ksm8n_ball_transfer_tool/verification.json",
+      "size": 4249,
+      "sha256": "472031c9662972c335fd6bf3c544ff6fe235ff332c970f0f3694b9af72637373"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/README.md",
+      "size": 1772,
+      "sha256": "ce2d1b20adf66551a0d5b2a2bc36e40eb3be13b8a6d408998c39887fa5b68601"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/make_ur5e_ksm8n_ball_transfer_tool_v8.py",
+      "size": 16192,
+      "sha256": "fabb449d529548b08d88213a6564cb116a6ff9ead707fe8622781b4db76ace11"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_assembly.step",
+      "size": 66274,
+      "sha256": "16deb4dc817a5e02d2783e9a5c89930c6457c6820b6aa2d511e5ea010b26c0ea"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_assembly.stl",
+      "size": 7055427,
+      "sha256": "87ed070c1cd57ce34a6b9727507f3e7e169bd8ef9aed0b135ff45e6aa841714b"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_body.step",
+      "size": 61075,
+      "sha256": "0662d2f789a90d37948a89940dc9ad566442a8f9893bedd3b758d1ef9e03ef61"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_body.stl",
+      "size": 4223092,
+      "sha256": "0dc5b4249a9d3f929487189e2cfac9abd18219957beb2003460b1345523944ac"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_flange_fitcheck.step",
+      "size": 13041,
+      "sha256": "3e10870376b14f4c5eb4f8a4d5ab739b8bf21a234fbf358ad5e585117435a056"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_flange_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "05283dc051361efc8afd88f773782134b02f7a7b3b9d8aaae3914bad9173512d"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_ksm_placeholder.step",
+      "size": 6418,
+      "sha256": "7dc38dbe22e8cd975d30f34b494364ccac0a68d27e74678d0c71c51b2bdbe044"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_ksm_placeholder.stl",
+      "size": 2832351,
+      "sha256": "6de00bba96383dfb365e0de4e7f54cc6ec2bb937693c0942a457ded978f34e78"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_onepiece_preview.step",
+      "size": 66215,
+      "sha256": "2e6e0a132ecac15dad8f060e31db99a731ad98e02d631c68836fd5ca4c1d184e"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_onepiece_preview.stl",
+      "size": 7055427,
+      "sha256": "515080b0833c558769056b3c115d2dfcd7bfd788dd416646327b24689309fcca"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_receiver_fitcheck.step",
+      "size": 29826,
+      "sha256": "8bac1328404c29b7c265256c579ba318e03d23a66a484f711936d57201ac9272"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/ur5e_ksm8n_ball_transfer_tool_v8_receiver_fitcheck.stl",
+      "size": 741812,
+      "sha256": "153ab6dc708bfadbc4e2708b664f7a71877a6be0a46723c0bbe2ecc97e8f7835"
+    },
+    {
+      "path": "v8_ksm8n_ball_transfer_tool_85mm/verification.json",
+      "size": 4290,
+      "sha256": "4de22298c81035071707b30c9b0b9870c4889c3214116211924625f80e0920d0"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/README.md",
+      "size": 1992,
+      "sha256": "1d47c7f747c4607d05e92c017cd1f22e86c407614aa705741f3710275342cd44"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/README.md.bak_20260507_190402",
+      "size": 1796,
+      "sha256": "b02acdbf196f549cabf70ae22dc68054e5fee3846a9c687037fdd8aaef0cb1b3"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/make_ur5e_ksm8n_ball_transfer_tool_v9.py",
+      "size": 16613,
+      "sha256": "e3e13e3cb347ec7effea21099d03a28474aeff30bd447725e3bc6b03202eada3"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/make_ur5e_ksm8n_ball_transfer_tool_v9.py.bak_20260507_190402",
+      "size": 16331,
+      "sha256": "927881912e131d38f904114119b9f8d99268b978bea4d16dd6f729b1419b6061"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_assembly.step",
+      "size": 62818,
+      "sha256": "d634a1bf219631436c2071422cd7b7348eb1ca68304154542ae60121826856d4"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_assembly.stl",
+      "size": 4115314,
+      "sha256": "f32ab85ce7e33bc230923662e8ecb92a0d5755e6ff544f6afc6757b262e3b007"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_body.step",
+      "size": 62818,
+      "sha256": "bcc008cefbbfb2cf473c9c0adb996e3b7b2856d85a2888b7d1dbee33abe4f2fa"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_body.stl",
+      "size": 4115314,
+      "sha256": "f32ab85ce7e33bc230923662e8ecb92a0d5755e6ff544f6afc6757b262e3b007"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_flange_fitcheck.step",
+      "size": 13041,
+      "sha256": "a3c6e2d33b32fec03374efdd6ea7f3cc979cd522e7721a07e0a716ee02cd7c1f"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_flange_fitcheck.stl",
+      "size": 1626300,
+      "sha256": "05283dc051361efc8afd88f773782134b02f7a7b3b9d8aaae3914bad9173512d"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_ksm_placeholder.step",
+      "size": 6418,
+      "sha256": "dd32fbcbcad6a1dbc91f246aa8d6a2736df7ba8ec3893d6593749c13c8619562"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_ksm_placeholder.stl",
+      "size": 2832351,
+      "sha256": "6de00bba96383dfb365e0de4e7f54cc6ec2bb937693c0942a457ded978f34e78"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_onepiece_preview.step",
+      "size": 62818,
+      "sha256": "cb62f14a6bb8b32288d329fe3fe85a6798d67b55cfa2b66568e1d402bff6b9ea"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_onepiece_preview.stl",
+      "size": 4115314,
+      "sha256": "f32ab85ce7e33bc230923662e8ecb92a0d5755e6ff544f6afc6757b262e3b007"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_receiver_fitcheck.step",
+      "size": 32225,
+      "sha256": "f495bfbb3f1049faf8d61dfe0b397ed6b31d6d24d7746bf173b21a11bcdb4c52"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/ur5e_ksm8n_ball_transfer_tool_v9_receiver_fitcheck.stl",
+      "size": 749908,
+      "sha256": "e5c6a999a9440d5a03d5e66dbda86f5530ce0e14c56afb99c6158de62df65238"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/verification.json",
+      "size": 4494,
+      "sha256": "ee7874c970518b5f428e07c2f3eb8e782104958130ea18e521cbbbccc0d5c3ba"
+    },
+    {
+      "path": "v9_ksm8n_receiver_slim_85mm/verification.json.bak_20260507_190402",
+      "size": 4374,
+      "sha256": "6c2ee6014bdb04ee93b4ea18b58ee8ba1d6b0672a4266fc628539e0867bb6e12"
+    }
+  ]
+}

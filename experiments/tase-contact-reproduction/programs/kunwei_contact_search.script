@@ -1,0 +1,81 @@
+# Kunwei contact search for axis/sign identification.
+# Boundary: fixed orientation, low-speed base-Z search, no TCP/payload write,
+# no zero_ftsensor, no Kunwei zero/tare/config write.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_kunwei_contact_search():
+  local search_speed_m_s = -0.001
+  local trigger_force_n = 2.0
+  local max_travel_m = 0.006
+  local runtime_limit_s = 8.0
+  local stale_limit_s = 0.08
+  local dt = 0.008
+  local start_pose = get_actual_tcp_pose()
+  local last_heartbeat = read_input_float_register(26)
+  local stale_s = 0.0
+  local t = 0.0
+  local stop_reason = 0.0
+
+  textmsg("codex kunwei contact search start")
+  while stop_reason == 0.0:
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local heartbeat = read_input_float_register(26)
+    local sensor_ok = read_input_float_register(27)
+    local stop_request = read_input_float_register(28)
+    local torque_norm = read_input_float_register(30)
+    local pose_now = get_actual_tcp_pose()
+    local travel_m = pose_now[2] - start_pose[2]
+
+    if heartbeat == last_heartbeat:
+      stale_s = stale_s + dt
+    else:
+      stale_s = 0.0
+      last_heartbeat = heartbeat
+    end
+
+    write_output_float_register(24, normal_force)
+    write_output_float_register(25, force_norm)
+    write_output_float_register(26, heartbeat)
+    write_output_float_register(27, sensor_ok)
+    write_output_float_register(28, stop_request)
+    write_output_float_register(29, read_input_float_register(29))
+    write_output_float_register(30, stop_reason)
+    write_output_float_register(31, 0.0)
+    write_output_float_register(32, travel_m)
+    write_output_float_register(33, search_speed_m_s)
+
+    if stale_s > stale_limit_s:
+      stop_reason = 2.0
+    elif sensor_ok < 0.5:
+      stop_reason = 3.0
+    elif stop_request > 0.5:
+      stop_reason = 4.0
+    elif codex_abs(normal_force) >= trigger_force_n:
+      stop_reason = 11.0
+    elif force_norm > 15.0:
+      stop_reason = 6.0
+    elif torque_norm > 0.6:
+      stop_reason = 7.0
+    elif codex_abs(travel_m) > max_travel_m:
+      stop_reason = 8.0
+    elif t > runtime_limit_s:
+      stop_reason = 10.0
+    else:
+      speedl([0.0, 0.0, search_speed_m_s, 0.0, 0.0, 0.0], 0.03, dt)
+      sync()
+      t = t + dt
+    end
+  end
+  stopl(0.5)
+  write_output_float_register(30, stop_reason)
+  textmsg("codex kunwei contact search stop reason:", stop_reason)
+end
+
+codex_kunwei_contact_search()

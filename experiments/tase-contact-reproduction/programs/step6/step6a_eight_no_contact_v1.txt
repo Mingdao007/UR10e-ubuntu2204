@@ -1,0 +1,26 @@
+Step6a 8-shaped no-contact TP package
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step6/step6a_eight_no_contact_v1.urp
+
+Version:
+  2026-06-12T2204HKT_STEP6A_EIGHT_NO_CONTACT_V1
+
+Motion boundary:
+  No-contact motion only.
+  Fixed base Z: 0.030311079 m.
+  Duration: 30.0 s.
+  Timing: speedl hold_s=0.001 requests near-500Hz cadence; path time advances with get_steptime().
+  Velocity cap: 0.009 m/s.
+  No force control, no contact search, no Kunwei bridge, no zero_ftsensor(), no TCP/payload write.
+
+Reference:
+  STEP6_FLOW.md
+  config/step6_stage_table.json
+  config/step6_eight_safe_frame.json
+
+Path:
+  along=0.04*sin(0.2t), lateral=0.01*sin(0.4t)
+  five-waypoint max residual: 5.919813 mm
+  max base X: 0.4721937827 m
+  X guard: 0.4888784335 m

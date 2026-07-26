@@ -1,0 +1,24 @@
+def demo_1_1_write_onrobot_registers():
+  write_output_float_register(24, Fx)
+  write_output_float_register(25, Fy)
+  write_output_float_register(26, Fz)
+  write_output_float_register(27, Tx)
+  write_output_float_register(28, Ty)
+  write_output_float_register(29, Tz)
+end
+
+def demo_1_1_onrobot_data_path_check_wait_0p1s():
+  cycles = 13
+  i = 0
+
+  textmsg("demo-1.1: OnRobot RTDE data path check 0.1s")
+  while i < cycles:
+    demo_1_1_write_onrobot_registers()
+    sync()
+    i = i + 1
+  end
+  demo_1_1_write_onrobot_registers()
+  textmsg("demo-1.1: data path check finished")
+end
+
+demo_1_1_onrobot_data_path_check_wait_0p1s()

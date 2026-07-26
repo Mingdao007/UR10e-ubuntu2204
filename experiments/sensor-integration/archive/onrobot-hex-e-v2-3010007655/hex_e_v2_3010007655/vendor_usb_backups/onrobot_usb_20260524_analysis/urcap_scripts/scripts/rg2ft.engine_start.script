@@ -1,0 +1,29 @@
+  #======    OnRobot Engine Start    ======#
+  
+  of_vectorProcess_running=True
+  sync()
+  of_vectorProcess_thrd=run of_vectorProcess_rg2ft_thread()
+  sync()
+  sync()
+  local gripper_mount=of_gripper_mount_single(d2r(of_mounting_bracket_angle),d2r(of_mounting_gripper_angle))
+  of_gripper_mount_send(gripper_mount)
+  local mount_offset=of_gripper_qc_offset
+  if(of_mounting_qc_use):
+  mount_offset=of_gripper_mount_qc10()
+  end 
+  of_sensor_config_send(mount_offset)
+  if(of_install_tcp):
+  of_gripper_follow_tcp_set(of_gripper_follow_fingertip) 
+  of_gripper_relative_rpy_offset_set(offset=of_gripper_part_tcp_offset_xyz,rpy=of_gripper_part_tcp_offset_rpy)
+  of_gripper_follow_cog_set(of_gripper_follow_fingertip)
+  if(of_gripper_install_cog2tcp):
+  local cog_mass=of_gripper_part_cog_mass+of_gripper_mounted_mass
+  of_gripper_relative_payload_set(mass=cog_mass,center_of_gravity=of_gripper_part_cog_offset)
+  else:
+  of_gripper_compensated_relative_payload_set(part_mass=of_gripper_part_cog_mass,center_of_gravity=of_gripper_part_cog_offset)
+  end 
+  end 
+  of_tcp_offset_send_actual()
+  of_ft_bias()
+  
+  #======    End of OnRobot Engine Start    ======#

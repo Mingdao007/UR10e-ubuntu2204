@@ -1,0 +1,24 @@
+  #======    OnRobot Engine Start    ======#
+  
+  of_RPC=rpc_factory("xmlrpc","http://127.0.0.1:31416")
+  of_compute_engine_IP=of_sensor_IP
+  textmsg(of_engine_start_ip,of_compute_engine_IP)
+  of_portopen_javaSocket()
+  sync()
+  ft_set_rtde_watchdog(0.2)
+  sync()
+  of_vectorRead_running=True
+  sync()
+  of_vectorRead_thrd=run of_vectorRead_thread()
+  sync()
+  of_portopen_commandFlow()
+  sync()
+  of_cmd_thrd=run of_commandFlow_thread()
+  sync()
+  sync()
+  while(ft_Sensor_ID==OF_SENSOR_ID_UNDEFINED):
+  sync()
+  end 
+  ft_set_rtde_watchdog(5)
+  
+  #======    End of OnRobot Engine Start    ======#

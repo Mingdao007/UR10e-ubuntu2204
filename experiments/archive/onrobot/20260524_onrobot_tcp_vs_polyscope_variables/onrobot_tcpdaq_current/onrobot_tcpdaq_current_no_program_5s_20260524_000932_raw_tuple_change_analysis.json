@@ -1,0 +1,26 @@
+{
+  "consecutive_change_rate_hz": 249.91678376383507,
+  "consecutive_raw_tuple_changes": 1249,
+  "duration_first_last_s": 4.997663547,
+  "force_torque_max": {
+    "fx_n": 0.6,
+    "fy_n": 3.2,
+    "fz_n": -31.919999999999998,
+    "tx_nm": -0.036000000000000004,
+    "ty_nm": -0.038,
+    "tz_nm": 0.07865
+  },
+  "force_torque_min": {
+    "fx_n": 0.16,
+    "fy_n": 2.92,
+    "fz_n": -33.44,
+    "tx_nm": -0.079,
+    "ty_nm": -0.078,
+    "tz_nm": 0.05655
+  },
+  "interpretation": "TCP request/response row rate is not the physical sensor sample rate when returned raw tuples repeat.",
+  "max_constant_raw_run_reads": 48,
+  "mean_reads_per_constant_raw_run": 21.8744,
+  "rows": 27343,
+  "unique_raw_tuples": 1248
+}

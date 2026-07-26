@@ -1,0 +1,70 @@
+  #======    OnRobot Gripper Detect Part Thread    ======#
+  
+  local of_minifier=""
+  {%if header%}
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Detect Part starting..")
+  end 
+  global of_gripper_detect_part_{{detectorID}}_exiting=False
+  of_gripper_detect_part_{{detectorID}}_handler=0
+  local detectorCount_{{detectorID}}=0
+  of_gripper_detect_part_{{detectorID}}_return=1
+  local detector_{{detectorID}}_under_ft_control=False
+  if not(of_ft_control_state==OF_FT_CONTROL_STATE_IDLE):
+  detector_{{detectorID}}_under_ft_control=True
+  end 
+  {%if optical%}local detector_{{detectorID}}_gProx_avg_window_last=of_gProx_avg_window
+  of_gripper_proxi_avg_window_set(1){%end%}
+  thread of_gripper_detect_part_{{detectorID}}_thread():
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Detect Part Thread (Children tasks) starting..")
+  end 
+  {%else%}
+  enter_critical
+  of_gripper_detect_part_{{detectorID}}_exiting=True
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("End of Gripper Detect Part Thread (Children tasks).")
+  end 
+  end 
+  of_gripper_detect_part_{{detectorID}}_handler=run of_gripper_detect_part_{{detectorID}}_thread()
+  while not(of_gripper_detect_part_{{detectorID}}_exiting):
+  local partDetected=of_gripper_detect_part_check([{{optical|titlecase}},{{mechanical|titlecase}}],{{minWidth}},{{maxWidth}},{{force3D}})
+  if(partDetected==True):
+  detectorCount_{{detectorID}}=detectorCount_{{detectorID}}+1
+  if({{detectorSamples}}<=detectorCount_{{detectorID}}):
+  kill of_gripper_detect_part_{{detectorID}}_handler
+  of_gripper_detect_part_{{detectorID}}_return=0
+  if not(of_move_state==OF_MOVE_STATE_IDLE):
+  of_move_stop()
+  of_limit_stop()
+  end 
+  if not detector_{{detectorID}}_under_ft_control:
+  if not(of_ft_control_state==OF_FT_CONTROL_STATE_IDLE):
+  of_ft_control_stop()
+  end 
+  end 
+  enter_critical
+  of_gripper_detect_part_{{detectorID}}_exiting=True
+  exit_critical
+  else:
+  sync()
+  end 
+  else:
+  detectorCount_{{detectorID}}=0
+  sync()
+  end 
+  end 
+  {%if optical%}of_gripper_proxi_avg_window_set(detector_{{detectorID}}_gProx_avg_window_last){%end%}
+  if(of_gripper_detect_part_{{detectorID}}_return!=0):
+  if({{popupmsg|titlecase}}):
+  popup(of_gripper_detect_part_not_detected,title=of_gripper_detect_part_title,warning=True,blocking=True)
+  end 
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("End of Gripper Detect Part.")
+  end 
+  global of_return=of_gripper_detect_part_{{detectorID}}_return
+  {%end%}
+  
+  #======    End of OnRobot Gripper Detect Part Thread    ======#

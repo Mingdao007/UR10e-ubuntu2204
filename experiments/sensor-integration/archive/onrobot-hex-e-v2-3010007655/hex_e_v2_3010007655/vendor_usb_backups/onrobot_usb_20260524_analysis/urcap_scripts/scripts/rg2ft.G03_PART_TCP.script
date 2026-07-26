@@ -1,0 +1,183 @@
+  #======    OnRobot Gripper Part TCP    ======#
+  
+  of_gripper_gripperSingleOffset=39.0 
+  of_gripper_mounting_qc_offset=p[0,0,0.0241,0,0,-0.39270]
+  of_gripper_mounting_qc_cog=p[0,0,0.01205,0,0,0]
+  of_gripper_mounting_qc_mass=0.202 
+  of_gripper_mount_offset=p[0,0,0,0,0,0]
+  of_gripper_mounted_cog=p[0,0,0,0,0,0]
+  of_gripper_mounting_single_mass=0.088 
+  of_gripper_bodyEndOffsetZ=-30.0+118.0 
+  of_gripper_pivotCenterOffsetY=-2.3 
+  of_gripper_pivotCenterOffsetZ=26.8 
+  of_gripper_sensorCenterOffsetZ=-7.6 
+  of_gripper_armLength=55.0 
+  of_gripper_bodyDepthZSum=of_gripper_bodyEndOffsetZ+of_gripper_pivotCenterOffsetZ+of_gripper_sensorCenterOffsetZ 
+  of_gripper_bodyCOGOffsetZ=-30.0 
+  of_gripper_bodyCOGZ=of_gripper_bodyEndOffsetZ+of_gripper_bodyCOGOffsetZ 
+  of_gripper_mass=0.770 
+  of_gripper_body_cog=p[0,0,(of_gripper_bodyCOGZ/1000),0,0,0]
+  of_gripper_mounted_mass=of_gripper_mass
+  of_gripper_follow_tcp=False
+  of_gripper_follow_tcp_offset=p[0,0,0,0,0,0]
+  of_gripper_follow_cog=False
+  of_gripper_follow_cog_offset=[0,0,0]
+  def of_gripper_mount_single(mount_angle,gripper_angle):
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Mount Single command starting..")
+  end 
+  local gripper_rotvec=rpy2rotvec([0,gripper_angle,mount_angle])
+  local gripper_mount_offset=p[0,0,of_gripper_gripperSingleOffset/1000.0,gripper_rotvec[0],gripper_rotvec[1],gripper_rotvec[2]]
+  local gripper_offset=pose_trans(of_gripper_bracket_offset,gripper_mount_offset)
+  of_gripper_mounted_mass=of_gripper_mounted_mass+of_gripper_mounting_single_mass
+  of_gripper_mount_offset=gripper_offset
+  of_gripper_mounted_cog=pose_trans(of_gripper_mount_offset,of_gripper_body_cog)
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Mount Single command ended.")
+  end 
+  return gripper_offset
+  end 
+  def of_gripper_mount_qc10():
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Mount QC10 command starting..")
+  end 
+  of_gripper_mounted_mass=of_gripper_mounted_mass+of_gripper_mounting_qc_mass
+  local mass_ratio=of_gripper_mounting_qc_mass/of_gripper_mounted_mass
+  local mounted_cog=pose_trans(of_gripper_mounting_qc_offset,of_gripper_mounted_cog)
+  local gripper_mounted_cog=p[mounted_cog[0],mounted_cog[1],mounted_cog[2],0,0,0]
+  of_gripper_mounted_cog=interpolate_pose(gripper_mounted_cog,of_gripper_mounting_qc_cog,mass_ratio)
+  local gripper_offset=pose_trans(of_gripper_mounting_qc_offset,of_gripper_mount_offset)
+  local mount_offset=pose_trans(of_gripper_qc_offset,gripper_offset)
+  of_gripper_mount_offset=mount_offset
+  local qc_additional_offset=pose_trans(of_gripper_qc_offset,of_gripper_mounting_qc_offset)
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Mount QC10 command ended.")
+  end 
+  return qc_additional_offset
+  end 
+  def of_gripper_fcp_depth_calc(gripperWidth):
+  local d2=gripperWidth/2.0-of_gripper_pivotCenterOffsetY
+  local alpha=asin(d2/of_gripper_armLength)
+  local gripperDepth=of_gripper_armLength*cos(alpha)+of_gripper_bodyDepthZSum
+  return gripperDepth
+  end
+  def of_gripper_fcp_part_offset_calc(gripperWidth,part_offset=p[0,0,0,0,0,0]):
+  local gripperDepth=of_gripper_fcp_depth_calc(gripperWidth)
+  local gripper_fcp_pose=pose_trans(of_gripper_mount_offset,p[0.0,0.0,gripperDepth/1000.0,0,0,0])
+  local offset_pose=gripper_fcp_pose
+  if not(part_offset==p[0,0,0,0,0,0]):
+  offset_pose=pose_trans(gripper_fcp_pose,part_offset)
+  end 
+  return offset_pose
+  end
+  def of_gripper_tcp_update():
+  local part_offset=of_gripper_follow_tcp_offset
+  local tcp_offset=of_gripper_fcp_part_offset_calc(ft_Width,part_offset)
+  of_tcp_offset_set(tcp_offset)
+  return tcp_offset
+  end 
+  def of_gripper_part_offset_set(length,angle):
+  local finger_rotation=rpy2rotvec([0,angle,0])
+  local part_rotation=p[0,0,0,finger_rotation[0],finger_rotation[1],finger_rotation[2]]
+  local fingertip_offset=of_gripper_fcp_part_offset_calc(ft_Width,part_rotation)
+  local part_offset=p[0,0,length,0,0,0]
+  tcp_offset=pose_trans(fingertip_offset,part_offset)
+  of_tcp_offset_set(tcp_offset)
+  return tcp_offset
+  end
+  def of_gripper_relative_offset_set(part_offset):
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative TCP Offset set started!")
+  end 
+  enter_critical
+  of_gripper_follow_tcp_offset=part_offset 
+  exit_critical
+  local tcp_offset=of_gripper_fcp_part_offset_calc(ft_Width,part_offset)
+  of_tcp_offset_set(tcp_offset)
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative TCP Offset set to: ",tcp_offset)
+  end 
+  return tcp_offset
+  end
+  def of_gripper_relative_rpy_offset_set(offset=[0,0,0],rpy=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative TCP Offset RPY set started!")
+  end 
+  local rotvec=rpy2rotvec(rpy)
+  local tool_offset=p[offset[0],offset[1],offset[2],rotvec[0],rotvec[1],rotvec[2]]
+  local tcp_offset=of_gripper_relative_offset_set(tool_offset)
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative TCP Offset RPY set to: ",tcp_offset)
+  end 
+  return tcp_offset
+  end
+  def of_gripper_follow_tcp_set(follow):
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative TCP Offset follow set started!")
+  end 
+  enter_critical
+  of_gripper_follow_tcp=follow
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative TCP Offset follow set to: ",follow)
+  end 
+  end
+  def of_gripper_compensated_relative_payload_set(part_mass=0,center_of_gravity=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative Payload set started!")
+  end 
+  local gripperWidth=ft_Width
+  local part_cog_offset=p[center_of_gravity[0],center_of_gravity[1],center_of_gravity[2],0,0,0]
+  local mass_ratio=of_gripper_mounted_mass/(part_mass+of_gripper_mounted_mass)
+  local gripper_fcp_pose=of_gripper_fcp_part_offset_calc(gripperWidth)
+  local part_cog=pose_trans(gripper_fcp_pose,part_cog_offset)
+  local cog_pose=interpolate_pose(part_cog,of_gripper_mounted_cog,mass_ratio)
+  local cog_relative=pose_trans(pose_inv(gripper_fcp_pose),cog_pose)
+  cog=[cog_pose[0],cog_pose[1],cog_pose[2]]
+  mass= part_mass+of_gripper_mounted_mass
+  of_payload_set(mass=mass,center_of_gravity=cog)
+  enter_critical
+  of_gripper_follow_cog_offset=[cog_relative[0],cog_relative[1],cog_relative[2]] 
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("Gripper compensated fingertip-relative Payload set to: ",cog)
+  end 
+  return cog
+  end
+  def of_gripper_relative_payload_set(mass=0,center_of_gravity=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative Payload set started!")
+  end 
+  local gripperWidth=ft_Width
+  local part_cog_offset=p[center_of_gravity[0],center_of_gravity[1],center_of_gravity[2],0,0,0]
+  local cog_pose=of_gripper_fcp_part_offset_calc(gripperWidth,part_cog_offset)
+  local cog=[cog_pose[0],cog_pose[1],cog_pose[2]]
+  of_payload_set(mass=mass,center_of_gravity=cog)
+  enter_critical
+  of_gripper_follow_cog_offset=center_of_gravity 
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("Gripper compensated fingertip-relative Payload set to: ",center_of_gravity)
+  end 
+  return cog
+  end
+  def of_gripper_cog_update():
+  enter_critical
+  local part_cog=of_gripper_follow_cog_offset
+  exit_critical
+  local cog=of_gripper_relative_payload_set(mass=of_payload_mass,center_of_gravity=part_cog)
+  return cog
+  end
+  def of_gripper_follow_cog_set(follow):
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative TCP Offset follow set started!")
+  end 
+  enter_critical
+  of_gripper_follow_cog=follow
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("Gripper fingertip-relative TCP Offset follow set to: ",follow)
+  end 
+  end
+  
+  #======    End of OnRobot Gripper Part TCP    ======#

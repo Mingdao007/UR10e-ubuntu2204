@@ -1,0 +1,24 @@
+Step2C admittance search15 v9 TP package
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step2/step2c/step2c_admittance_search15_guard20_search2ms_line1ms_alpha70_v9_v4copy_far15.urp
+
+Script source:
+  /programs/andyl/kunwei/step2/step2c/step2c_admittance_search15_guard20_search2ms_line1ms_alpha70_v9_v4copy_far15.script
+
+Version stamp:
+  2026-06-08T1516HKT_STEP2C_V9_V4COPY_FAR15
+
+Motion summary:
+  bounded Z prep: keep current Z if already 30-100 mm above known contact
+  far search: 15 mm/s, acceleration 500 mm/s^2, speedl t=2 ms
+  near search: 5 mm/s inside 10 mm above known contact Z, speedl t=2 ms
+  soft acquisition: 2 N velocity admittance, gain 0.0030, vlim 8 mm/s, speedl t=2 ms
+  line: 10 mm/s tangent, acceleration 500 mm/s^2, first 0.10 s at t=10 ms, then t=1 ms
+  success exit: retract upward 10 mm, then movel back to TP-start home pose
+
+Raw guards:
+  normal force guard: 20 N
+  force norm guard: 50 N
+  torque norm guard: 0.6 Nm
+  sensor stale: 100 ms

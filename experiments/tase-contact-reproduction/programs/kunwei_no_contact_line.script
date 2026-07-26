@@ -1,0 +1,61 @@
+# Kunwei no-contact line check.
+# Start at a safe no-contact height and run the Python bridge for logging.
+# This script follows the reference XY direction from the current TCP pose.
+
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_kunwei_no_contact_line():
+  local ux = 0.679764156
+  local uy = -0.733430768
+  local tangent_speed_m_s = 0.005
+  local path_length_m = 0.06358
+  local runtime_limit_s = 18.0
+  local dt = 0.008
+  local start_pose = get_actual_tcp_pose()
+  local t = 0.0
+  local stop_reason = 0.0
+
+  textmsg("codex kunwei no-contact line start")
+  while stop_reason == 0.0:
+    local pose_now = get_actual_tcp_pose()
+    local dx = pose_now[0] - start_pose[0]
+    local dy = pose_now[1] - start_pose[1]
+    local progress_m = dx * ux + dy * uy
+    local stop_request = read_input_float_register(28)
+
+    write_output_float_register(24, read_input_float_register(24))
+    write_output_float_register(25, read_input_float_register(25))
+    write_output_float_register(26, read_input_float_register(26))
+    write_output_float_register(27, read_input_float_register(27))
+    write_output_float_register(28, stop_request)
+    write_output_float_register(29, read_input_float_register(29))
+    write_output_float_register(30, stop_reason)
+    write_output_float_register(31, progress_m)
+    write_output_float_register(32, 0.0)
+    write_output_float_register(33, 0.0)
+
+    if stop_request > 0.5:
+      stop_reason = 4.0
+    elif progress_m >= path_length_m:
+      stop_reason = 1.0
+    elif progress_m < -0.003:
+      stop_reason = 9.0
+    elif t > runtime_limit_s:
+      stop_reason = 10.0
+    else:
+      speedl([ux * tangent_speed_m_s, uy * tangent_speed_m_s, 0.0, 0.0, 0.0, 0.0], 0.03, dt)
+      sync()
+      t = t + dt
+    end
+  end
+  stopl(0.5)
+  write_output_float_register(30, stop_reason)
+  textmsg("codex kunwei no-contact line stop reason:", stop_reason)
+end
+
+codex_kunwei_no_contact_line()

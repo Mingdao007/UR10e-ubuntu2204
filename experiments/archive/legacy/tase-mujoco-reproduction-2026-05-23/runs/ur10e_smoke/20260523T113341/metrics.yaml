@@ -1,0 +1,24 @@
+config: /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/configs/mujoco_ur10e.yaml
+model: /home/andy/ur10e_ros2_ws/experiments/archive/legacy/tase-mujoco-reproduction-2026-05-23/assets/mjcf/ur10e_nominal.xml
+run_id: 20260523T113341
+v1_model_status: v1_approximation_not_calibrated
+nq: 6
+nv: 6
+nu: 6
+nbody: 9
+ngeom: 9
+duration_s: 2.0
+steps: 1000
+max_abs_qvel_rad_s: 0.0
+max_contact_count: 1
+mean_contact_count: 1.0
+max_contact_normal_force_N: 849.5375456805683
+mean_contact_normal_force_N: 849.5375456805685
+final_tcp_xyz_m:
+- 0.0
+- 0.0
+- 0.03499999999999999
+warnings:
+- v1 approximate MJCF, not calibrated
+- 85 mm TCP is unverified CAD guess
+- smoke run is not controller validation

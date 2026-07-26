@@ -1,0 +1,51 @@
+  #======    OnRobot Start Atomic    ======#
+  
+  def of_start_atomic(startLimit=False,startFTControl=False,startMove=False,startHandGuide=False):
+  if(not startLimit)and(not startFTControl)and(not startMove)and(not startHandGuide):
+  if OF_DEBUG_STATE:
+  textmsg("No atomic command has been started.")
+  end 
+  end 
+  if startLimit:
+  if OF_DEBUG_STATE:
+  textmsg("Start Atomic (Limit) sending..")
+  end 
+  of_send_full(OF_CMD_START,OF_CMD_LIMIT)
+  if OF_DEBUG_STATE:
+  textmsg("Start Atomic (Limit) sent")
+  end 
+  end 
+  if startFTControl:
+  if OF_DEBUG_STATE:
+  textmsg("Start Atomic (FTControl) sending..")
+  end 
+  of_send_full(OF_CMD_START,OF_CMD_FT_CONTROL)
+  of_speedl_start_for_CMD(OF_CMD_FT_CONTROL)
+  if OF_DEBUG_STATE:
+  textmsg("Start Atomic (FTControl) sent")
+  end 
+  end 
+  if startMove:
+  if OF_DEBUG_STATE:
+  textmsg("Start Atomic (Move) sending..")
+  end 
+  of_send_full(OF_CMD_START,OF_CMD_MOVE)
+  of_speedl_start_for_CMD(OF_CMD_MOVE)
+  if OF_DEBUG_STATE:
+  textmsg("Start Atomic (Move) sent")
+  end 
+  end 
+  if startHandGuide:
+  if OF_DEBUG_STATE:
+  textmsg("Start Atomic (FTControl) sending..")
+  end 
+  of_send_full(OF_CMD_START,OF_CMD_FT_CONTROL)
+  of_speedl_start_for_CMD(OF_CMD_HAND_GUIDE)
+  if OF_DEBUG_STATE:
+  textmsg("Start Atomic (HandGuide) sent")
+  end 
+  end 
+  return of_speedl_is_running
+  end 
+  
+  #======    End of OnRobot Start Atomic    ======#

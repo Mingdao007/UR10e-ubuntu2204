@@ -1,0 +1,5 @@
+ Program
+   Robot Program
+     Script: test_first_drawing_8_m18.script
+     Script: test_second_drawing_8_m18.script
+     Script: test_fourth_drawing_8_m18.script

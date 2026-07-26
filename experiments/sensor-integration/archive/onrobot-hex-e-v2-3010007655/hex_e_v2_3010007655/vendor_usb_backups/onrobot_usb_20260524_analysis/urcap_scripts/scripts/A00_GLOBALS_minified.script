@@ -1,0 +1,67 @@
+  #======    OnRobot Globals    ======#
+  
+  OF_DEBUG_GLOBAL=False
+  OF_DEBUG_CMD=False
+  OF_DEBUG_TX=False
+  OF_DEBUG_RX=False
+  OF_DEBUG_VAR=False
+  global of_return=0
+  {{hex_global}}Fx=0
+  {{hex_global}}Fy=0
+  {{hex_global}}Fz=0
+  {{hex_global}}Tx=0
+  {{hex_global}}Ty=0
+  {{hex_global}}Tz=0
+  {{hex_global}}F3D=0
+  {{hex_global}}T3D=0
+  {{hex_global}}bFT=[0,0,0,0,0,0]
+  {{hex_global}}tFT=[0,0,0,0,0,0]
+  {{ghex_global}}rg_FT_left=[0,0,0,0,0,0]
+  {{ghex_global}}rg_FT_right=[0,0,0,0,0,0]
+  {{ghex_global}}rg_F3D_left=0
+  {{ghex_global}}rg_F3D_right=0
+  {{ghex_global}}rg_T3D_left=0
+  {{ghex_global}}rg_T3D_right=0
+  {{ghex_global}}rg_Prox_left=0
+  {{ghex_global}}rg_Prox_right=0
+  {{ghex_global}}rg_Width=0
+  rg_Grip_detected=False
+  rg_Grip_lost=False
+  rg_Gripped=False
+  rg_Slip_alert=False
+  rg_Part_weight=0
+  {{ghex_global}}rg_Part_width=0
+  rg_Gyro=[0,0,0]
+  {{debug_global}}of_speedbase=[0,0,0,0,0,0]
+  {{debug_global}}of_sensor_id=0
+  {{debug_global}}of_sensor_status=0
+  {{debug_global}}of_engine_state=0
+  {{debug_global}}of_compute_engine_ping=0
+  {{debug_global}}of_compute_engine_ping_max=0
+  ZEROPOSE=p[0,0,0,0,0,0]
+  ZEROFRAME=p[0,0,0,0,0,0]
+  FALSE6D=[False,False,False,False,False,False]
+  FALSE8D=[False,False,False,False,False,False,False,False]
+  of_robot_TCP_offset=ZEROFRAME
+  of_parent_of_move_frameID=0
+  of_parent_of_move_frame=ZEROFRAME
+  {{debug_hex_global}}of_hex_qc_offset=p[0,0,0,0,0,0]
+  {{debug_ghex_global}}rg_Status_left=0
+  {{debug_ghex_global}}rg_Status_right=0
+  {{debug_ghex_global}}rg_Status_backpack=0
+  rg_ghex={{ghex}}
+  {{debug_ghex_global}}of_gripper_qc_offset=p[0,0,0,0,0,0]
+  {{debug_ghex_global}}of_gripper_bracket_offset=p[0,0,0,0,0,0]
+  {{debug_ghex_global}}of_gripper_mount_offset=p[0,0,0,0,0,0]
+  {{debug_ghex_global}}of_gripper_mounted_mass=0
+  {{debug_ghex_global}}of_gripper_mounted_cog=p[0,0,0,0,0,0]
+  def of_wait_ms(time_ms):
+  local sync_time=norm(time_ms/{%if eSeries%}2.0{%else%}8.0{%end%})
+  while(sync_time>0):
+  sync_time=sync_time-1
+  sync()
+  end
+  end
+  
+  
+  #======    End of OnRobot Globals    ======#

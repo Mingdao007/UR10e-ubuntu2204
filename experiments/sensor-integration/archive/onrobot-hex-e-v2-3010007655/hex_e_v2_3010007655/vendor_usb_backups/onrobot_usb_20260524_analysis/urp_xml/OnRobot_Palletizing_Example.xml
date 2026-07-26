@@ -1,0 +1,177 @@
+<URProgram createdIn="3.3.1.237" lastSavedIn="3.7.0.40195" robotSerialNumber="2014359999" name="OnRobot_Palletizing_Example" directory="/home/ur/ursim-current/programs/TransferVM/Examples/Pendrive" installation="default" crcValue="2588156642">
+  <kinematics status="LINEARIZED" validChecksum="true">
+    <deltaTheta value="7.467612976535026E-6, -1.145705003197799, 0.47218783284177224, 0.6735513703613082, -3.8496138095199195E-5, 5.739769475292667E-5"/>
+    <a value="1.280711661743393E-4, -0.17526813611014813, -0.3066184133196879, 3.296975547779717E-5, 1.4680056371398737E-4, 0.0"/>
+    <d value="0.08907391277506421, 542.3927595484687, -475.59134852165585, -66.691211126871, 0.09492791363933568, 0.08253348942934285"/>
+    <alpha value="1.5700444820570616, -7.137995654758497E-4, -0.003663245626129222, 1.5703035131965746, -1.5702466740455776, 0.0"/>
+    <jointChecksum value="-2052410159, 1585104502, 677532209, -946989852, -24358439, -170023945"/>
+  </kinematics>
+  <children>
+    <SpecialSequence type="BeforeStart">
+      <children>
+        <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OFZero" strategyProgramNodeType="F/T Zero" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+          <dataModel/>
+        </Contributed>
+      </children>
+    </SpecialSequence>
+    <MainProgram runOnlyOnce="false">
+      <children>
+        <Move motionType="MoveL" speed="0.25" acceleration="1.2" useActiveTCP="false">
+          <feature class="GeomFeatureReference" referencedName="Joint_0_name"/>
+          <children>
+            <Waypoint type="Fixed" name="PickWP" kinematicsFlags="4">
+              <motionParameters/>
+              <position joints="-1.574139420186178, -1.720856014882223, -2.2109344641314905, -0.8056553045855921, 1.5957742929458618, -0.0044396559344690445" pose="-0.10853855506241118, -0.43176301895659464, 0.14607235471813168, -0.0012209511127642925, 3.11627640963858, 0.03889225602534022"/>
+              <poseInFeatureCoordinates pose="-0.10853855506241118, -0.43176301895659464, 0.14607235471813168, -0.0012209511127644825, 3.1162764096385844, 0.03889225602534028"/>
+              <outputFlangePose pose="-0.10853855506241118, -0.43176301895659464, 0.14607235471813168, -0.0012209511127644825, 3.1162764096385844, 0.03889225602534028"/>
+            </Waypoint>
+          </children>
+        </Move>
+        <Comment comment="Insert your pick sequence."/>
+        <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OFZero" strategyProgramNodeType="F/T Zero" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+          <dataModel/>
+        </Contributed>
+        <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_MOVE" strategyProgramNodeType="F/T Move" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+          <dataModel>
+            <data key="speed" value="0.05"/>
+            <data key="acceleration" value="0.5"/>
+            <data key="coordsys" value="0"/>
+            <data key="rpy" value="[0.0, 0.0, 0.0]"/>
+            <data key="popupLimit" value="false"/>
+            <data key="ftarray" value="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
+            <data key="ftabsarray" value="[false, false, false, false, false, false]"/>
+            <data key="absolute" value="false"/>
+          </dataModel>
+          <children>
+            <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_WAYPOINT" strategyProgramNodeType="F/T Waypoint" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+              <dataModel>
+                <data key="relativeCoords" value="[0.0, 0.0, 0.07, 0.0, 0.0, 0.0]"/>
+                <data key="type" value="2"/>
+                <data key="variable" value="pose_2"/>
+                <data key="x" value="0.0"/>
+                <data key="z" value="0.02"/>
+              </dataModel>
+            </Contributed>
+          </children>
+        </Contributed>
+        <Pallet>
+          <pattern dimensionality="Box" firstAxisCount="3" secondAxisCount="2" thirdAxisCount="2" motionType="MoveL" speed="0.25" acceleration="1.2" useActiveTCP="false">
+            <counterVariable name="cnt_2" prefersPersistentValue="false">
+              <initializeExpression>
+                <ExpressionChar character="0"/>
+              </initializeExpression>
+            </counterVariable>
+            <patternPoseVariable name="pose_2" prefersPersistentValue="false">
+              <initializeExpression/>
+            </patternPoseVariable>
+            <feature class="GeomFeatureReference" reference="../../../Move/feature"/>
+            <children>
+              <Waypoint type="Fixed" name="a1st_Corner_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.18179218126819663, -1.2063430807897628, -2.557153027115586, -0.949299738142301, 1.5693405272129537, 1.398648365020117" pose="0.32892438780945654, -0.2209372262081626, 0.17463595459184114, -1.3229276105014464E-4, -3.141587170192272, 5.6536918797502635E-5"/>
+                <poseInFeatureCoordinates pose="0.32892438780945654, -0.2209372262081626, 0.17463595459184114, -1.3229276105142053E-4, -3.1415871702125315, 5.6536918798363444E-5"/>
+                <outputFlangePose pose="0.3289476857882434, -0.22091596605464986, 0.2746391018331404, 1.191701026058297E-6, -3.141588338963439, 8.506292479290479E-7"/>
+              </Waypoint>
+              <Waypoint type="Fixed" name="a2nd_Corner_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.14819364287993153, -1.438525037908576, -2.4011777562769936, -0.8731015428759266, 1.5663272806089346, 1.432425213217349" pose="0.44593351045595736, -0.22512528078606533, 0.17461013611559537, -1.1469618927860493E-4, -3.1415675556745226, -1.0817243042016175E-5"/>
+                <poseInFeatureCoordinates pose="0.44593351045595736, -0.22512528078606533, 0.17461013611559537, -1.1469618927829677E-4, -3.141567555665675, -1.0817243042713005E-5"/>
+                <outputFlangePose pose="0.44596680498054375, -0.22512402755326738, 0.2746376612065526, -2.0339810224098885E-7, -3.141588490321552, 6.321264863480264E-7"/>
+              </Waypoint>
+              <Waypoint type="Fixed" name="a3rd_Corner_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.027991817789214224, -1.386593807478878, -2.4419634710170497, -0.8842451952577797, 1.5670353672523571, 1.552617399408664" pose="0.44236491457327604, -0.16948484684153745, 0.1745704768802017, 1.2642847791794284E-4, -3.141355741998683, 2.5596207817989424E-5"/>
+                <poseInFeatureCoordinates pose="0.44236491457327604, -0.16948484684153745, 0.1745704768802017, 1.2642847791797618E-4, -3.1413557419991514, 2.5596207817985172E-5"/>
+                <outputFlangePose pose="0.44241140393130807, -0.16950050444063222, 0.27464184410691905, -3.7136952926201514E-7, -3.141588494590464, 6.191148938642474E-7"/>
+              </Waypoint>
+              <Waypoint type="Fixed" name="a4th_Corner_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.030268571576748116, -1.1351924597855714, -2.5924954997255476, -0.9851054719789261, 1.5701852497296453, 1.550050928400922" pose="0.33001392695138443, -0.16814049760643826, 0.17466593097346717, 2.959224207386941E-5, -3.141540530145319, 4.278931549116626E-5"/>
+                <poseInFeatureCoordinates pose="0.33001392695138443, -0.16814049760643826, 0.17466593097346717, 2.9592242073775776E-5, -3.141540530145319, 4.278931549116113E-5"/>
+                <outputFlangePose pose="0.3300057536246008, -0.16812131390491786, 0.27464893979103255, -1.7977558478402732E-6, -3.1415885272857924, 3.457573962235585E-7"/>
+              </Waypoint>
+              <Waypoint type="Fixed" name="a5th_Corner_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.1926479793266651, -1.1327761322907008, -2.4845356593775056, -1.0954789816668686, 1.5698467515173693, 1.388387573483814" pose="0.32873636570711445, -0.22433458328272912, 0.22830374477111212, -7.668218169476655E-5, -3.141556107430171, -8.377758148491932E-5"/>
+                <poseInFeatureCoordinates pose="0.32873636570711445, -0.22433458328272912, 0.22830374477111212, -7.668218169469868E-5, -3.141556107424095, -8.3777581484814E-5"/>
+                <outputFlangePose pose="0.3287567582655606, -0.22433305993614508, 0.3283244406034216, -4.128498225534729E-6, -3.1415885791616183, -8.391899124206279E-8"/>
+              </Waypoint>
+              <Waypoint type="Fixed" name="a6th_Corner_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.15871117085010056, -1.3533869922416528, -2.350483445047395, -1.0089300367460154, 1.5670227777593198, 1.42261139304979" pose="0.43821825605325004, -0.22856863429136132, 0.22838307996953253, 5.895732572495482E-5, 3.1414577714723975, -1.0110435115098015E-4"/>
+                <poseInFeatureCoordinates pose="0.43821825605325004, -0.22856863429136132, 0.22838307996953253, 5.895732572488645E-5, 3.141457771472397, -1.0110435115090138E-4"/>
+                <outputFlangePose pose="0.4381861751270472, -0.2285418694587292, 0.3283374149240099, -6.045540996419481E-6, -3.1415888866835635, -4.878111781569384E-7"/>
+              </Waypoint>
+              <Waypoint type="Fixed" name="a7th_Corner_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.02057031814105592, -1.310811904975182, -2.380536864084882, -1.0214497270070488, 1.567592187303191, 1.5607217517552439" pose="0.443927988088681, -0.16576590343260855, 0.22833551155381773, 9.627760541359413E-5, -3.1415720881706224, -1.7707389046682895E-5"/>
+                <poseInFeatureCoordinates pose="0.443927988088681, -0.16576590343260855, 0.22833551155381773, 9.627760541318866E-5, -3.1415720881598252, -1.7707389045925722E-5"/>
+                <outputFlangePose pose="0.4439234288562152, -0.16575374989440927, 0.3283415174953311, -6.354111397065195E-6, -3.1415889042900758, -5.340918309727245E-7"/>
+              </Waypoint>
+              <Waypoint type="Fixed" name="a8th_Corner_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.025029871939679538, -1.048460384626427, -2.522676366961907, -1.1416505648993613, 1.5708427797787547, 1.5558179380491515" pose="0.3272961419784184, -0.16576960913939562, 0.22836130037851846, 1.1387693440751826E-4, -3.141555032183314, 1.5282244454355734E-4"/>
+                <poseInFeatureCoordinates pose="0.3272961419784184, -0.16576960913939562, 0.22836130037851846, 1.1387693440760199E-4, -3.1415550321833146, 1.5282244454395977E-4"/>
+                <outputFlangePose pose="0.32730426821585046, -0.1657484791327147, 0.32836410916762804, -8.310307358120992E-6, -3.1415889580305634, -1.0563439610275572E-6"/>
+              </Waypoint>
+            </children>
+          </pattern>
+          <actionSequence name="PalletSequence" motionType="MoveL" speed="0.25" acceleration="1.2" useActiveTCP="false">
+            <anchorWaypoint type="Fixed" name="PatternPoint_2" kinematicsFlags="4">
+              <motionParameters/>
+              <position joints="-0.18276514886746043, -1.1515264400777987, -2.5112765130387005, -1.0499893103271063, 1.5697326568736383, 1.3980617258829113" pose="0.3289602808739009, -0.220907369224417, 0.21028219616628618, -6.134746356221756E-5, 3.141585898030077, -1.3132648306016172E-4"/>
+              <poseInFeatureCoordinates pose="0.3289602808739009, -0.220907369224417, 0.21028219616628618, -6.134746356653339E-5, 3.141585898095847, -1.3132648306308074E-4"/>
+              <outputFlangePose pose="0.32894189665353823, -0.22090647377820835, 0.31025157088648925, 1.178895802840631E-6, -3.1415873906725147, 2.1632701936308095E-6"/>
+            </anchorWaypoint>
+            <feature class="GeomFeatureReference" reference="../../../Move/feature"/>
+            <children>
+              <Waypoint type="Fixed" name="Approach_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.18450280776405137, -1.0837536119254212, -2.4264622053669105, -1.2025708489494722, 1.5702239912686466, 1.3969876086611377" pose="0.328952466789898, -0.22090074049658984, 0.27079575140169315, 6.998621950535503E-5, -3.1415346348778326, -7.928198650051173E-5"/>
+                <poseInFeatureCoordinates pose="0.328952466789898, -0.22090074049658984, 0.27079575140169315, 6.998621950528483E-5, -3.1415346348778326, -7.928198650034347E-5"/>
+                <outputFlangePose pose="0.3289470930410743, -0.2209080617716158, 0.3707823267223586, 1.172478811016237E-6, -3.141587701199887, 1.7332636905365644E-6"/>
+              </Waypoint>
+              <Waypoint reference="../../anchorWaypoint"/>
+              <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_SEARCH" strategyProgramNodeType="F/T Search" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+                <dataModel>
+                  <data key="type" value="1"/>
+                  <data key="absolute" value="true"/>
+                  <data key="coordsys" value="1"/>
+                  <data key="speed" value="0.05"/>
+                  <data key="acceleration" value="0.5"/>
+                  <data key="rpy" value="[0.0, 0.0, 0.0]"/>
+                  <data key="popupLimit" value="true"/>
+                  <data key="ftarray" value="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 0.1]"/>
+                  <data key="ftabsarray" value="[false, false, false, false, false, false]"/>
+                </dataModel>
+                <children>
+                  <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_WAYPOINT" strategyProgramNodeType="F/T Waypoint" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+                    <dataModel>
+                      <data key="variable" value="pose_2"/>
+                      <data key="type" value="2"/>
+                      <data key="z" value="0.1"/>
+                    </dataModel>
+                  </Contributed>
+                </children>
+              </Contributed>
+              <Comment comment="Insert your place sequence."/>
+              <Wait type="Sleep">
+                <waitTime>1.0</waitTime>
+              </Wait>
+              <Waypoint type="Fixed" name="Exit_2" kinematicsFlags="4">
+                <motionParameters/>
+                <position joints="-0.18450194995324054, -1.0837739165632758, -2.426413363813921, -1.2026646731002995, 1.5702645779725395, 1.396944999743165" pose="0.3289572557322285, -0.22093915716177903, 0.27080577014899593, 9.925488335324977E-5, 3.1415700349272435, 3.835152960211542E-5"/>
+                <poseInFeatureCoordinates pose="0.3289572557322285, -0.22093915716177903, 0.27080577014899593, 9.925488335303008E-5, 3.141570034922334, 3.835152960188259E-5"/>
+                <outputFlangePose pose="0.32895826859174876, -0.22090578772020042, 0.37079574933330206, 6.998609400580941E-5, -3.141534634912276, -7.928216662046587E-5"/>
+              </Waypoint>
+            </children>
+          </actionSequence>
+          <children>
+            <Pattern reference="../../pattern"/>
+            <AnchoredSequence reference="../../actionSequence"/>
+          </children>
+        </Pallet>
+      </children>
+    </MainProgram>
+  </children>
+</URProgram>

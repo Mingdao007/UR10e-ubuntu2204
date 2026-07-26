@@ -1,0 +1,91 @@
+{
+  "rows": 129284,
+  "duration_s": 14399.861037492752,
+  "first_wall_time_utc": "2026-05-18T19:27:58.536+00:00",
+  "last_wall_time_utc": "2026-05-18T23:27:58.397+00:00",
+  "device": "HEX 6-AXIS F/T SENSOR",
+  "serial_number": "HEXEB806",
+  "status": "0",
+  "authenticated": "True",
+  "bias": "False",
+  "event_count": 958,
+  "reconnect_count": 475,
+  "error_count": 474,
+  "baseline_s": 600.0,
+  "baseline_values": {
+    "fxN": 0.584918396359514,
+    "fyN": 3.3608753686488915,
+    "fzN": -43.451683985373386,
+    "txNm": -0.17872867218940036,
+    "tyNm": -0.007704562366411894,
+    "tzNm": 0.08503839035604138
+  },
+  "axis_stats": {
+    "fxN": {
+      "mean": 0.4383362969390513,
+      "std": 0.0965095816897791,
+      "min": 0.05000000074505806,
+      "max": 0.8500000238418579,
+      "first": 0.5699999928474426,
+      "last": 0.28999999165534973,
+      "last_minus_first": -0.2800000011920929
+    },
+    "fyN": {
+      "mean": 3.1968815251965874,
+      "std": 0.09712180002631363,
+      "min": 2.7899999618530273,
+      "max": 3.559999942779541,
+      "first": 3.259999990463257,
+      "last": 3.109999895095825,
+      "last_minus_first": -0.15000009536743164
+    },
+    "fzN": {
+      "mean": -41.12351690802641,
+      "std": 0.6086152166061297,
+      "min": -44.22999954223633,
+      "max": -39.95000076293945,
+      "first": -43.25,
+      "last": -40.369998931884766,
+      "last_minus_first": 2.8800010681152344
+    },
+    "txNm": {
+      "mean": -0.15717715286960934,
+      "std": 0.011975581009588497,
+      "min": -0.210999995470047,
+      "max": -0.12300000339746475,
+      "first": -0.17000000178813934,
+      "last": -0.14300000667572021,
+      "last_minus_first": 0.02699999511241913
+    },
+    "tyNm": {
+      "mean": 0.00800708520397679,
+      "std": 0.010258944189389553,
+      "min": -0.03700000047683716,
+      "max": 0.041999999433755875,
+      "first": -0.014000000432133675,
+      "last": 0.010999999940395355,
+      "last_minus_first": 0.02500000037252903
+    },
+    "tzNm": {
+      "mean": 0.07044866373074679,
+      "std": 0.004982412406699787,
+      "min": 0.05400000140070915,
+      "max": 0.10199999809265137,
+      "first": 0.08799999952316284,
+      "last": 0.07100000232458115,
+      "last_minus_first": -0.016999997198581696
+    }
+  },
+  "drift_bin_count": 24,
+  "plots": {
+    "full": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/overnight_20260519_032648/checkpoints/4h/force_torque.png",
+    "fz": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/overnight_20260519_032648/checkpoints/4h/fz.png",
+    "fxy": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/overnight_20260519_032648/checkpoints/4h/fxy.png"
+  },
+  "plot_errors": {
+    "full": null,
+    "fz": null,
+    "fxy": null
+  },
+  "plot_error": null
+}

@@ -1,0 +1,19 @@
+  #======    OnRobot Gripper Stop    ======#
+  
+  def of_gripper_stop():
+  sync()
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Stop command starting..")
+  end 
+  of_send_full(OF_CMD_GRIPPER_STOP)
+  of_speedl_stop_for_CMD(OF_CMD_GRIPPER_SET_WIDTH)
+  of_wait_for_return_stop(OF_CMD_GRIPPER_SET_WIDTH)
+  of_speedl_stop_for_CMD(OF_CMD_GRIPPER_CENTERING)
+  of_wait_for_return_stop(OF_CMD_GRIPPER_CENTERING)
+  if OF_DEBUG_STATE:
+  textmsg("End of Gripper Stop.")
+  end 
+  end 
+  
+  
+  #======    End of OnRobot Gripper Stop    ======#

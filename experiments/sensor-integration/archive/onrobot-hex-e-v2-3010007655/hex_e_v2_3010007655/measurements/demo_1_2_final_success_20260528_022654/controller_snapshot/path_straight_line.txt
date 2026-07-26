@@ -1,0 +1,12 @@
+ Program
+   Robot Program
+     Script: start_onrobot_ft_rtde_export_thread.script
+     Script: approach_above_path_start.script
+     F/T Zero
+     F/T Guard
+       F/T Search
+         F/T Waypoint
+       F/T Control
+         F/T Move
+           F/T Path
+       Script: retract_after_ft_path_tool_minus_z.script

@@ -1,0 +1,14 @@
+Step4e P0/P1 attitude package
+
+Program:
+  step4e_ball_vs_cyl_contact_p0_v1
+
+Version:
+  2026-06-11T1647HKT_STEP4E_BALL_VS_CYL_CONTACT_P0_V1
+
+Purpose:
+  P0 witness pair: ball contact then housing/cylindrical-face contact
+
+Control boundary:
+  Ubuntu bridge writes RTDE input registers 24..47.
+  No UR zero_ftsensor, no Kunwei tare/config write, no TCP/payload write.

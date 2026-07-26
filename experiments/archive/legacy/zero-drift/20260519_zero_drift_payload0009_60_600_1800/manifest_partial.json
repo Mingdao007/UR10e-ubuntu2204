@@ -1,0 +1,50 @@
+{
+  "experiment": "20260519_zero_drift_payload0009_60_600_1800_aborted",
+  "status": "aborted_after_s02",
+  "segments": [
+    {
+      "name": "S00_prezero_60s",
+      "zeroed": "No",
+      "duration_label": "60 s",
+      "purpose": "payload 0.009 kg pre-zero baseline",
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_payload0009_60_600_1800/artifacts/S00_prezero_60s_20260519_030210.csv",
+      "samples": 1200,
+      "duration_s": 59.95083403587341,
+      "plots": [
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_payload0009_60_600_1800/artifacts/S00_prezero_60s_20260519_030210.png",
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_payload0009_60_600_1800/artifacts/S00_prezero_60s_20260519_030210_fz.png"
+      ]
+    },
+    {
+      "name": "S01_rezero_60s",
+      "zeroed": "Yes",
+      "duration_label": "60 s",
+      "purpose": "payload 0.009 kg post-zero short drift",
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_payload0009_60_600_1800/artifacts/S01_rezero_60s_20260519_030321.csv",
+      "samples": 1200,
+      "duration_s": 59.950417041778564,
+      "plots": [
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_payload0009_60_600_1800/artifacts/S01_rezero_60s_20260519_030321.png",
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_payload0009_60_600_1800/artifacts/S01_rezero_60s_20260519_030321_fz.png"
+      ]
+    },
+    {
+      "name": "S02_rezero_600s",
+      "zeroed": "Yes",
+      "duration_label": "600 s",
+      "purpose": "payload 0.009 kg post-zero mid drift",
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_payload0009_60_600_1800/artifacts/S02_rezero_600s_20260519_031329.csv",
+      "samples": 12000,
+      "duration_s": 599.9522569179535,
+      "plots": [
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_payload0009_60_600_1800/artifacts/S02_rezero_600s_20260519_031329.png",
+        "/home/andy/ur10e_ros2_ws/experiments/zero_drift/20260519_zero_drift_payload0009_60_600_1800/artifacts/S02_rezero_600s_20260519_031329_fz.png"
+      ]
+    }
+  ],
+  "aborted_segment": {
+    "name": "S03_rezero_1800s",
+    "reason": "user stopped UR10e to switch to standalone OnRobot sensor overnight measurement",
+    "complete_artifact": false
+  }
+}

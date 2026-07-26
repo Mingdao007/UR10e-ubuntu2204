@@ -1,0 +1,52 @@
+{
+  "args": {
+    "connect_timeout_s": 4.0,
+    "flush_every": 250,
+    "no_start_command": false,
+    "no_stop_command": false,
+    "output_dir": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/gravity_axis_calibration/20260611_001523_p0_wrist3_zero",
+    "robot_host": "192.168.1.18",
+    "rtde_hz": 125.0,
+    "rtde_timeout_s": 3.0,
+    "segment_duration_s": 5.0,
+    "sensor_ip": "192.168.50.25",
+    "sensor_port": 5152
+  },
+  "created": "2026-06-11T00:15:24",
+  "outputs": {
+    "csv": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/gravity_axis_calibration/20260611_001523_p0_wrist3_zero/gravity_axis_calibration.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/gravity_axis_calibration/20260611_001523_p0_wrist3_zero/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/gravity_axis_calibration/20260611_001523_p0_wrist3_zero/kunwei_raw_frames.bin",
+    "summary": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/gravity_axis_calibration/20260611_001523_p0_wrist3_zero/summary.json"
+  },
+  "purpose": "Kunwei K raw frame to UR TCP/tool frame gravity-axis calibration",
+  "safety": [
+    "No robot motion is commanded by this script.",
+    "No UR RTDE inputs are written.",
+    "No UR zero_ftsensor call is made.",
+    "No Kunwei zero/tare/config command is sent.",
+    "Kunwei stream start/stop commands are sent unless disabled by CLI flags."
+  ],
+  "segments": [
+    {
+      "name": "P0_wrist3_0_current",
+      "operator_action": "current horizontal pose; hold still"
+    },
+    {
+      "name": "P1_wrist3_plus_90",
+      "operator_action": "rotate only wrist3 +90 deg from P0; hold still"
+    },
+    {
+      "name": "P2_wrist3_plus_180",
+      "operator_action": "rotate only wrist3 +180 deg from P0; hold still"
+    },
+    {
+      "name": "P3_wrist3_plus_270",
+      "operator_action": "rotate only wrist3 +270 deg from P0; hold still"
+    },
+    {
+      "name": "P4_return_P0",
+      "operator_action": "return wrist3 to P0; hold still"
+    }
+  ]
+}

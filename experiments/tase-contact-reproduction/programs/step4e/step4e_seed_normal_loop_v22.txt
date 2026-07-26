@@ -1,0 +1,14 @@
+Step4e P0/P1 attitude package
+
+Program:
+  step4e_seed_normal_loop_v22
+
+Version:
+  2026-06-12T0014HKT_STEP4E_SEED_NORMAL_LOOP_V22
+
+Purpose:
+  marked path-start XYZ with manually marked near-normal rotvec, first touch, 50 mm lift, optional normal alignment, second touch, 5N acquire and line
+
+Control boundary:
+  Ubuntu bridge writes RTDE input registers 24..47.
+  No UR zero_ftsensor, no Kunwei tare/config write, no TCP/payload write.

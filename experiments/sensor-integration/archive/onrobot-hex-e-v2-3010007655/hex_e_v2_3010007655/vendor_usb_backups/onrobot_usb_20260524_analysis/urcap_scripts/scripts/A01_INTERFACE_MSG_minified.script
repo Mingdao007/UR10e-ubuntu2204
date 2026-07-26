@@ -1,0 +1,28 @@
+  #======    OnRobot Interface Messages    ======#
+  
+  of_ce_comm_error_textmsg_title="OnRobot - Communication error: "
+  of_ce_comm_controlsocket_open_error="Socket 'controlSocket' opening was unsuccessful."
+  of_ce_comm_commandflow_open_error="Socket 'commandFlow opening was unsuccessful."
+  of_ce_comm_vectorstream_open_error="Socket 'vectorStream' opening was unsuccessful."
+  of_ce_comm_vectorstream_packet_error="Socket 'vectorStream' packet error."
+  of_ce_comm_error_title="OnRobot - Communication error"
+  of_ce_comm_socket_open_error="Establishing connection with the Compute Box was timed out.<br>Ensure that the Compute Box is operational, and check the status in the OnRobot Setup page in the Installation Tab."
+  of_ce_comm_socket_packet_error="Communication packet error.<br>Ensure that the Compute Box is operational, and check the status in the OnRobot Setup page in the Installation Tab."
+  of_ce_comm_safeguard_lost_error="Connection was lost with the Compute Box, program stopped. Restart the Compute Box, and check the status in the OnRobot Setup page in the Installation Tab."
+  of_ce_comm_cmd_send_error="Command sending to the Compute Box failed. Resending. Command: "
+  of_ce_comm_cmd_send_again="Try to send command again.."
+  of_ce_comm_int_send_error="Integer sending to the Compute Box failed. Resending. Integer: "
+  of_ce_comm_int_send_again="Try to send int again.."
+  of_ce_comm_float_send_error="Float sending to the Compute Box failed. Resending. Float: "
+  of_ce_comm_float_send_again="Try to send float as int again.."
+  of_ce_comm_dummy_send_error="Dummy sending to the Compute Box failed. Resending. [Counter, out of]: "
+  of_ce_comm_dummy_send_again="Try to send dummy again.."
+  of_cmd_error_title="OnRobot - Command error"
+  of_cmd_rx_invalid_id="Invalid Command ID"
+  of_cmd_rx_wrong_state="Wrong command state."
+  of_cmd_rx_error_length="Unknown command-length received: "
+  of_float_to_int_overflow="Float to int overflow! "
+  of_float_to_int_underflow="Float to int underflow! "
+  
+  
+  #======    End of OnRobot Interface Messages    ======#

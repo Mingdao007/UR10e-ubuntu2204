@@ -1,0 +1,25 @@
+{
+  "baseline_full_decode": {
+    "max_us": 211.496,
+    "p50_us": 6.422,
+    "p95_us": 7.224,
+    "p999_us": 13.535,
+    "p99_us": 8.957
+  },
+  "cache_policy": "full decode only after dev/inode/size/mtime_ns identity change",
+  "cached_delegate_decodes": 1,
+  "claim_boundary": "host synthetic timing; not a real-time scheduling guarantee",
+  "created_at": "2026-07-18T16:20:31.628399+00:00",
+  "fixture_bytes": 4096,
+  "iterations": 50000,
+  "ok": true,
+  "p99_saved_us": 7.304,
+  "schema": "step5d.autotune-v3/mailbox-timing/v1",
+  "v3_identity_cached_unchanged": {
+    "max_us": 62.166,
+    "p50_us": 1.092,
+    "p95_us": 1.132,
+    "p999_us": 2.255,
+    "p99_us": 1.653
+  }
+}

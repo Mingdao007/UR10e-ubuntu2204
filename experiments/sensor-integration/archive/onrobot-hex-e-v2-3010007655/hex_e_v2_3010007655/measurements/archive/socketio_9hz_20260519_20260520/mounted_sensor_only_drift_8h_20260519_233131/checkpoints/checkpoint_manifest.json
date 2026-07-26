@@ -1,0 +1,47 @@
+{
+  "main_dir": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/mounted_sensor_only_drift_8h_20260519_233131/main_8h",
+  "max_t_s": 28800.088998794556,
+  "rows_seen": 258598,
+  "created_or_updated": [
+    {
+      "name": "01h",
+      "rows": 32333,
+      "threshold_s": 3600.0
+    },
+    {
+      "name": "02h",
+      "rows": 64659,
+      "threshold_s": 7200.0
+    },
+    {
+      "name": "03h",
+      "rows": 96978,
+      "threshold_s": 10800.0
+    },
+    {
+      "name": "04h",
+      "rows": 129305,
+      "threshold_s": 14400.0
+    },
+    {
+      "name": "05h",
+      "rows": 161626,
+      "threshold_s": 18000.0
+    },
+    {
+      "name": "06h",
+      "rows": 193952,
+      "threshold_s": 21600.0
+    },
+    {
+      "name": "07h",
+      "rows": 226270,
+      "threshold_s": 25200.0
+    },
+    {
+      "name": "08h",
+      "rows": 258597,
+      "threshold_s": 28800.0
+    }
+  ]
+}

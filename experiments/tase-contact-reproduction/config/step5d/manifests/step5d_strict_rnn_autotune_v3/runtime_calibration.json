@@ -1,0 +1,64 @@
+{
+  "schema": "step5d.autotune-v3/runtime-calibration-v1",
+  "artifact_id": "step5c-calibrated-tcp-offset-20260613",
+  "source_evidence": {
+    "bridge_csv_origin": "runs/bridge_step4e_line_outerloop_step5c_speedj_dryrun_v1_20260613_001228/bridge_rtde_500hz.csv",
+    "bridge_csv_sha256": "495d6d3ee61d7f59bfb268e79ce083eef23f6de23f40ef9f5030e1b8a9d3f4ae",
+    "audit_summary_origin": "runs/step5c_calibrated_kinematics_audit_20260613_003314/step5c_calibrated_kinematics_summary.json",
+    "audit_summary_sha256": "a66b9fd50c34648205b1007ffbe4f80ef1ab058cde65a527f68e3b6e182eacb1",
+    "audit_generated_at": "2026-06-13T00:33:16",
+    "finite_samples": 13917
+  },
+  "calibrated_model": {
+    "calibration_yaml": "../../src/ur10e_bringup/config/ur10e_calibration.yaml",
+    "calibration_yaml_sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8",
+    "calibration_hash": "calib_7367377276742883610",
+    "xacro_path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+    "required_frames": [
+      "base",
+      "tool0",
+      "flange"
+    ]
+  },
+  "runtime_value": {
+    "tcp_offset_tool0_mean_xyz_m": [
+      1.8186503701174852e-06,
+      2.2293003722353485e-07,
+      0.12209917288991741
+    ],
+    "tcp_offset_norm_m": 0.1220991729036652
+  },
+  "audit_metrics": {
+    "tcp_offset_std_xyz_m": [
+      1.6672571213264227e-08,
+      4.894512526528344e-08,
+      1.2392041703192435e-08
+    ],
+    "tcp_offset_max_deviation_norm_m": 1.0363396632797264e-07,
+    "tcp_rotation_error_max_rad": 6.300566202225671e-06,
+    "jacobian_linear_vector_rms_m_s": 1.6511261243994456e-08,
+    "jacobian_angular_vector_rms_rad_s": 1.426703208037908e-07
+  },
+  "thresholds": {
+    "tcp_offset_norm_min_m": 0.1218,
+    "tcp_offset_norm_max_m": 0.1224,
+    "fk_offset_std_limit_m": 0.00025,
+    "tcp_rotation_error_limit_rad": 0.0001,
+    "speed_vector_rms_limit": 1e-05
+  },
+  "gates": {
+    "calibration_hash_match": true,
+    "model_shape_pass": true,
+    "required_frames_pass": true,
+    "tcp_offset_norm_pass": true,
+    "fk_offset_stability_pass": true,
+    "tcp_rotation_alignment_pass": true,
+    "jacobian_linear_speed_pass": true,
+    "jacobian_angular_speed_pass": true
+  },
+  "claim_boundary": [
+    "compact runtime value derived from the separately retained raw audit evidence",
+    "does not replace or claim to reproduce the raw CSV",
+    "does not authorize bridge start, TP Play, ARM, contact, or motion"
+  ]
+}

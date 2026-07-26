@@ -1,0 +1,111 @@
+<URProgram createdIn="3.3.4.310" lastSavedIn="3.7.0.40195" robotSerialNumber="2014359999" name="OnRobot_Box_Insertion_Example" directory="/home/ur/ursim-current/programs/TransferVM/Examples/Pendrive" installation="default" crcValue="2588156642">
+  <kinematics status="LINEARIZED" validChecksum="true">
+    <deltaTheta value="-6.403076670355471E-5, -0.05822565401562299, 0.11697584584705832, -0.05872847129455821, 2.883984236738814E-5, -1.2625916093732721E-5"/>
+    <a value="1.2452819533555657E-4, -0.6113827635507688, -0.5703926530978098, -9.155672822672641E-5, 8.758039807054785E-5, 0.0"/>
+    <d value="0.12790253079781796, 2.433031633826817, -6.959420609981363, 4.690192176517807, 0.11562969100142609, 0.09222319178978122"/>
+    <alpha value="1.5703776468067687, -0.014649649428560913, -0.007404894107771876, 1.5704772356660768, -1.570381356232753, 0.0"/>
+    <jointChecksum value="-1442603371, 848010644, -1865807994, -472062778, 1354210993, 1992254099"/>
+  </kinematics>
+  <children>
+    <SpecialSequence type="BeforeStart">
+      <children>
+        <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OFZero" strategyProgramNodeType="F/T Zero" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+          <dataModel/>
+        </Contributed>
+      </children>
+    </SpecialSequence>
+    <MainProgram runOnlyOnce="true">
+      <children>
+        <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_GUARD" strategyProgramNodeType="F/T Guard" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+          <dataModel>
+            <data key="OF_PID" value="0"/>
+            <data key="FX" value="0.0"/>
+            <data key="FY" value="0.0"/>
+            <data key="FZ" value="0.0"/>
+            <data key="TX" value="0.0"/>
+            <data key="TY" value="0.0"/>
+            <data key="TZ" value="0.0"/>
+            <data key="F3D" value="75.0"/>
+            <data key="T3D" value="2.0"/>
+            <data key="ABS" value="true"/>
+            <data key="COORD" value="0"/>
+            <data key="INDEX" value="0"/>
+            <data key="STATE" value="true"/>
+            <data key="ADVANCED" value="false"/>
+            <data key="NEEDDIGI" value="false"/>
+            <data key="NAME" value="75N &amp; 2Nm"/>
+            <data key="absolute" value="true"/>
+          </dataModel>
+          <children>
+            <Move motionType="MoveJ" speed="1.0471975511965976" acceleration="1.3962634015954636" useActiveTCP="false">
+              <children>
+                <Waypoint type="Fixed" name="StartWP" kinematicsFlags="4">
+                  <motionParameters/>
+                  <position joints="-1.6007002035724085, -1.7271001974688929, -2.2029998938189905, -0.8079999128924769, 1.5951000452041626, -0.03099996248354131" pose="-0.1201131702845836, -0.4317631667637431, 0.14607252291477701, -0.0012209830284131572, 3.1162764812408956, 0.03889191616813326"/>
+                  <poseInFeatureCoordinates pose="-0.1201131702845836, -0.4317631667637431, 0.14607252291477701, -0.0012209830284131073, 3.1162764812408956, 0.03889191616813327"/>
+                  <outputFlangePose pose="-0.1201131702845836, -0.4317631667637431, 0.14607252291477701, -0.0012209830284131073, 3.1162764812408956, 0.03889191616813327"/>
+                </Waypoint>
+              </children>
+            </Move>
+            <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_INSERT_BOX" strategyProgramNodeType="F/T Insert Box" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+              <dataModel>
+                <data key="X" value="0.0"/>
+                <data key="Y" value="0.0"/>
+                <data key="Z" value="-0.025"/>
+                <data key="X2" value="0.0"/>
+                <data key="Y2" value="0.0"/>
+                <data key="Z2" value="0.0"/>
+                <data key="RX" value="-0.2617993877991494"/>
+                <data key="RY" value="0.0"/>
+                <data key="Rz" value="0.0"/>
+                <data key="COORD" value="0"/>
+                <data key="LEN" value="2"/>
+                <data key="LEN2" value="0"/>
+                <data key="LEN3" value="2"/>
+                <data key="DEG" value="0"/>
+                <data key="SPEED" value="0.01"/>
+                <data key="ACC" value="1.2"/>
+                <data key="BREAK" value="2.0"/>
+                <data key="SILENT" value="false"/>
+                <data key="DEPTH" value="0.03"/>
+                <data key="FLIMIT" value="6.0"/>
+                <data key="TLIMIT" value="1.0"/>
+                <data key="FMULTI" value="2.0"/>
+                <data key="x" value="0.01"/>
+                <data key="y" value="0.0"/>
+                <data key="z" value="0.0"/>
+                <data key="x2" value="0.0"/>
+                <data key="y2" value="0.0"/>
+                <data key="z2" value="0.0"/>
+                <data key="rx" value="0.2617995"/>
+                <data key="ry" value="0.0"/>
+                <data key="rz" value="0.0"/>
+              </dataModel>
+            </Contributed>
+            <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_MOVE" strategyProgramNodeType="F/T Move" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+              <dataModel>
+                <data key="coordsys" value="1"/>
+                <data key="absolute" value="false"/>
+                <data key="speed" value="0.03"/>
+                <data key="acceleration" value="0.5"/>
+                <data key="rpy" value="[0.0, 0.0, 0.0]"/>
+                <data key="popupLimit" value="false"/>
+                <data key="ftarray" value="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 30.0, 0.0]"/>
+                <data key="ftabsarray" value="[false, false, false, false, false, false]"/>
+              </dataModel>
+              <children>
+                <Contributed strategyClass="com.optoforce.OptoForceForceTorqueSensor.OF_WAYPOINT" strategyProgramNodeType="F/T Waypoint" strategyURCapDeveloper="OnRobot A/S" strategyURCapName="FT-OnRobot">
+                  <dataModel>
+                    <data key="relativeCoords" value="[0.0, 0.0, 0.05, 0.0, 0.0, 0.0]"/>
+                    <data key="type" value="2"/>
+                    <data key="z" value="-0.02"/>
+                  </dataModel>
+                </Contributed>
+              </children>
+            </Contributed>
+          </children>
+        </Contributed>
+      </children>
+    </MainProgram>
+  </children>
+</URProgram>

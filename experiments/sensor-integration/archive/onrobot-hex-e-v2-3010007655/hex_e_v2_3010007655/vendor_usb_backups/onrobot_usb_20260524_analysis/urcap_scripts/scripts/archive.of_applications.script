@@ -1,0 +1,796 @@
+  #======    OnRobot Applications    ======#
+  
+  def of_move_ur(target=p[0,0,0,0,0,0],x=0,y=0,z=0,rx=0,ry=0,rz=0,fx=0,fy=0,fz=0,tx=0,ty=0,tz=0,f3d=0,t3d=0,speed=0.05,acc=1.2,brake=1.2,silent=False,force_abs=True,base=True,joint_move=False):
+  sync()
+  target=of_merge_poses(target,x,y,z,rx,ry,rz,base)
+  sync()
+  local ret=of_go(target,fx,fy,fz,tx,ty,tz,f3d,t3d,speed,acc,brake,force_abs,base,joint_move)
+  if not silent:
+  if ret==0:
+  popup(of_move_move_return_2,title=of_ur_move_return_title,warning=True,blocking=True)
+  elif ret==2:
+  popup(of_move_move_return_1,title=of_ur_move_return_title,warning=True,blocking=True)
+  end 
+  end 
+  return ret
+  end 
+  def of_search_ur(target=p[0,0,0,0,0,0],x=0,y=0,z=0,rx=0,ry=0,rz=0,fx=0,fy=0,fz=0,tx=0,ty=0,tz=0,f3d=0,t3d=0,speed=0.03,acc=1.2,brake=1.2,silent=False,force_abs=True,base=True):
+  sync()
+  target=of_merge_poses(target,x,y,z,rx,ry,rz,base)
+  sync()
+  local ret=of_go(target,fx,fy,fz,tx,ty,tz,f3d,t3d,speed,acc,brake,force_abs,base)
+  if not silent:
+  if ret==0:
+  popup(of_move_search_return_2,title=of_ur_search_return_title,warning=True,blocking=True)
+  elif ret==1:
+  popup(of_move_search_return_1,title=of_ur_search_return_title,warning=True,blocking=True)
+  end 
+  end 
+  return ret
+  end 
+  def of_center(x=0,y=0,z=0,rx=0,ry=0,rz=0,fx=0,fy=0,fz=0,tx=0,ty=0,tz=0,f3d=0,t3d=0,speed=0.03,speedCP=99999,acc=0.2,brake=1.2,silent=False,force_abs=True,base=True):
+  sync()
+  if speedCP==99999:
+  speedCP=speed
+  end
+  def invert_offset(o):
+  local i=0
+  local r=p[0,0,0,0,0,0]
+  while(i<6):
+  if(o[i]!=0):
+  r[i]=-o[i]
+  else:
+  r[i]=0 
+  end
+  i=i+1
+  end 
+  return r
+  end
+  local search3D=False
+  local db=0
+  if x!=0:
+  db=db+1
+  end
+  if y!=0:
+  db=db+1
+  end
+  if z!=0:
+  db=db+1
+  end
+  if rx!=0:
+  db=db+1
+  end
+  if ry!=0:
+  db=db+1
+  end
+  if rz!=0:
+  db=db+1
+  end
+  if db==0:
+  popup(of_center_return_99,title=of_center_title,error=True,blocking=True)
+  return 99
+  end
+  if db>1:
+  popup(of_center_return_99,title=of_center_title,error=True,blocking=True)
+  return 99
+  end
+  sync()
+  if f3d!=0:
+  force_abs=True
+  search3D=True
+  if(fx==0 and fy==0 and fz==0):
+  fx=f3d*0.57735
+  fy=fx
+  fz=fx
+  end 
+  f3d=norm(f3d)
+  end 
+  if t3d!=0:
+  force_abs=True
+  search3D=True
+  if(tx==0 and ty==0 and tz==0):
+  tx=t3d*0.57735
+  ty=tx
+  tz=tx
+  end 
+  t3d=norm(t3d)
+  end 
+  local offset=p[x,y,z,-rx,-ry,-rz]
+  if(force_abs):
+  fx=norm(fx)
+  fy=norm(fy)
+  fz=norm(fz)
+  tx=norm(tx)
+  ty=norm(ty)
+  tz=norm(tz)
+  else:
+  local reverse=of_threshold(fx,fy,fz,tx,ty,tz,force_abs=False,base=base)
+  if reverse:
+  offset=invert_offset(offset)
+  fx=-fx
+  fy=-fy
+  fz=-fz
+  tx=-tx
+  ty=-ty
+  tz=-tz
+  end 
+  end 
+  sync()
+  local start_wp=get_actual_tcp_pose()
+  local target=of_pose_add(start_wp,offset,base)
+  of_wait_ms(200)
+  sync()
+  local ret=of_search_ur(target=target,fx=fx,fy=fy,fz=fz,tx=tx,ty=ty,tz=tz,f3d=f3d,t3d=t3d,speed=speed,acc=acc,brake=brake,silent=True,force_abs=force_abs,base=base)
+  if ret!=1:
+  sync()
+  if(ret==0 and force_abs==True):
+  if not silent:
+  popup(of_center_return_4,title=of_center_title,warning=True,blocking=True)
+  end 
+  return 4
+  end
+  local pose1=get_actual_tcp_pose()
+  of_wait_ms(200)
+  sync()
+  if(force_abs):
+  local mret=0
+  if(search3D):
+  mret=of_search_ur(target=start_wp,f3d=3*f3d,t3d=3*t3d,speed=speed,acc=acc,brake=brake,silent=True,force_abs=True,base=base)
+  else:
+  local aboveZ=of_above_zero(fx,fy,fz,tx,ty,tz,0,base)
+  sync()
+  if(aboveZ):
+  mret=of_search_ur(target=start_wp,fx=-fx,fy=-fy,fz=-fz,tx=-tx,ty=-ty,tz=-tz,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  else:
+  mret=of_search_ur(target=start_wp,fx=fx,fy=fy,fz=fz,tx=tx,ty=ty,tz=tz,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  end 
+  end 
+  sync()
+  if mret!=1:
+  if mret==0:
+  if not silent:
+  popup(of_center_return_5,title=of_center_title,warning=True,blocking=True)
+  end 
+  return 5
+  end
+  sync()
+  local pose2=get_actual_tcp_pose()
+  local poseC=interpolate_pose(pose1,pose2,0.5)
+  sync()
+  if(search3D):
+  mret=of_move_ur(poseC,f3d=6*f3d,t3d=6*t3d,speed=speed,acc=acc,brake=brake,silent=True,force_abs=True,base=base)
+  else:
+  local aboveZ=of_above_zero(fx,fy,fz,tx,ty,tz,0,base)
+  if(aboveZ):
+  mret=of_move_ur(poseC,fx=3*fx,fy=3*fy,fz=3*fz,tx=3*tx,ty=3*ty,tz=3*tz,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  else:
+  mret=of_move_ur(poseC,fx=-3*fx,fy=-3*fy,fz=-3*fz,tx=-3*tx,ty=-3*ty,tz=-3*tz,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  end 
+  end 
+  if mret==1:
+  return 0
+  else:
+  if not silent:
+  popup(of_center_return_3,title=of_center_title,warning=True,blocking=True)
+  end 
+  return 3
+  end 
+  end 
+  end 
+  sync()
+  local offset2=invert_offset(offset)
+  sync()
+  target=of_pose_add(start_wp,offset2,base)
+  sync()
+  local ret2=of_search_ur(target,fx=-fx,fy=-fy,fz=-fz,tx=-tx,ty=-ty,tz=-tz,f3d=f3d,t3d=t3d,speed=speed,acc=acc,brake=brake,silent=True,force_abs=force_abs,base=base)
+  if ret2!=1:
+  sync()
+  local pose2=get_actual_tcp_pose()
+  local poseC=interpolate_pose(pose1,pose2,0.5)
+  local mret=0
+  of_wait_ms(200)
+  sync()
+  if(force_abs):
+  if(search3D):
+  mret=of_move_ur(poseC,f3d=3*f3d,t3d=3*t3d,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  else:
+  local aboveZ=of_above_zero(fx,fy,fz,tx,ty,tz,0,base)
+  if(aboveZ):
+  mret=of_move_ur(poseC,fx=-fx,fy=-fy,fz=-fz,tx=-tx,ty=-ty,tz=-tz,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  else:
+  mret=of_move_ur(poseC,fx=fx,fy=fy,fz=fz,tx=tx,ty=ty,tz=tz,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  end 
+  end 
+  else:
+  mret=of_move_ur(poseC,fx=fx,fy=fy,fz=fz,tx=tx,ty=ty,tz=tz,speed=speedCP,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  end 
+  sync()
+  if mret==1:
+  return 0
+  else:
+  if not silent:
+  popup(of_center_return_3,title=of_center_title,warning=True,blocking=True)
+  end 
+  return 3
+  end 
+  else:
+  if not silent:
+  popup(of_center_return_2,title=of_center_title,warning=True,blocking=True)
+  end
+  return 2
+  end 
+  else:
+  if not silent:
+  popup(of_center_return_1,title=of_center_title,warning=True,blocking=True)
+  end
+  return 1
+  end 
+  end 
+  of__pin_insertion_param_error_title="OnRobot - Insert Pin error"
+  of__pin_insertion_param_error_minDistZ="Please define parameter 'minDistZ' as a positive real number in meters!"
+  of__pin_insertion_param_error_forceZ="Please define parameter 'forceZ' as a positive number in Newtons!"
+  of__pin_insertion_param_error_maxDistZ="Please define parameter 'maxDistZ' as a positive real number in meters!"
+  of__pin_insertion_param_error_maxDistZ_minDistZ="Please define the parameters as 'maxDistZ' >= 'minDistZ'!"
+  of__pin_insertion_param_error_expSpeed="Please define parameter 'expSpeed' as a positive real number in meters!"
+  of__pin_insertion_param_error_deltaForce="Please define parameter 'deltaForce' as a positive number in Newtons!"
+  of__pin_insertion_param_error_timeOut="Please define parameter 'timeOut' as a positive number in seconds!"
+  of__pin_insertion_param_error_FTLimits="Please define parameter 'FTLimits' as a 6-element array of positive numbers in Newtons & Newton-meters!"
+  of__pin_insertion_param_error_PGainF="Please define parameter 'PGainF' as a positive real number!"
+  of__pin_insertion_param_error_PGainT="Please define parameter 'PGainT' as a positive real number!"
+  def of_pin_insertion(minDistZ,forceZ,compliance=[True,True,True,True,True,True],maxDistZ=0,expSpeed=0,deltaForce=1,timeOut=0,FTLimits=[999,999,0,999,999,999],PGainF=1.0,PGainT=1.0,silent=False):
+  sync()
+  local pinRet=0
+  if not(minDistZ>=0):
+  popup(of__pin_insertion_param_error_minDistZ,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(forceZ>0):
+  popup(of__pin_insertion_param_error_forceZ,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(maxDistZ>=0):
+  popup(of__pin_insertion_param_error_maxDistZ,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(maxDistZ>=minDistZ or maxDistZ==0):
+  popup(of__pin_insertion_param_error_maxDistZ_minDistZ,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(expSpeed>=0):
+  popup(of__pin_insertion_param_error_expSpeed,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(deltaForce>=0):
+  popup(of__pin_insertion_param_error_deltaForce,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(timeOut>=0):
+  popup(of__pin_insertion_param_error_timeOut,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(FTLimits[0]>=0):
+  popup(of__pin_insertion_param_error_FTLimits,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(FTLimits[1]>=0):
+  popup(of__pin_insertion_param_error_FTLimits,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(FTLimits[3]>=0):
+  popup(of__pin_insertion_param_error_FTLimits,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(FTLimits[4]>=0):
+  popup(of__pin_insertion_param_error_FTLimits,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(FTLimits[5]>=0):
+  popup(of__pin_insertion_param_error_FTLimits,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(PGainF>0):
+  popup(of__pin_insertion_param_error_PGainF,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  elif not(PGainT>0):
+  popup(of__pin_insertion_param_error_PGainT,title=of__pin_insertion_param_error_title,error=True,blocking=False)
+  pinRet=8
+  end 
+  if(pinRet!=0):
+  halt
+  end 
+  of_tcp_offset_send_actual()
+  local frameID=1
+  local base=False
+  local startPose=get_actual_tcp_pose()
+  if maxDistZ==0:
+  maxDistZ=minDistZ
+  end
+  local dist2Reach=maxDistZ
+  sync()
+  local ft_select=compliance
+  ft_select[2]=True
+  local ft_values=[0,0,0,0,0,0]
+  ft_values[2]=forceZ
+  local ft_threshold=FTLimits
+  ft_threshold[2]=0
+  i=0
+  while i<6:
+  if ft_select[i]:
+  ft_threshold[i]=0
+  end 
+  i=i+1
+  end 
+  local pin_useTimeOut=True
+  if timeOut==0:
+  pin_useTimeOut=False
+  end
+  local timeOut100ms=timeOut*10
+  local deltaD=expSpeed/10
+  global of_pin_currentDist=0
+  local peakScanner=run of_peakFzScanner() 
+  sync()
+  local pin_forcePID=[PGainF,of_fpid_i_pin,of_fpid_d_pin]
+  local pin_torquePID=[PGainT,of_tpid_i_pin,of_tpid_d_pin]
+  of_ft_control_start(ft_select=ft_select,ft_values=ft_values,frameID=frameID,frameRPY=[0,0,0],forcePID=pin_forcePID,torquePID=pin_torquePID,deviation_max=0)
+  local cntr=0
+  local leaveInsertion=False
+  local bumpZeroPeak=True
+  local pin_actual_pose=get_actual_tcp_pose()
+  of_pin_currentDist=point_dist(startPose,pin_actual_pose)
+  local pin_last_pose=pin_actual_pose
+  global actual_deltaD=deltaD
+  while((of_pin_currentDist<dist2Reach)and not leaveInsertion):
+  of_wait_ms(100)
+  pin_actual_pose=get_actual_tcp_pose()
+  of_pin_currentDist=point_dist(startPose,pin_actual_pose)
+  actual_deltaD=(actual_deltaD+pose_dist(pin_last_pose,pin_actual_pose))/2
+  if(of_threshold(fx=ft_threshold[0],fy=ft_threshold[1],fz=0,tx=ft_threshold[3],ty=ft_threshold[4],tz=ft_threshold[5],force_abs=True,base=base)):
+  leaveInsertion=True
+  if(of_pin_currentDist<minDistZ):
+  pinRet=7
+  else:
+  pinRet=6
+  end
+  of_ft_control_stop()
+  if not silent:
+  popup(of_pin_insertion_exit_maxSideFT,title=of_pin_insertion_exit_title,warning=True,blocking=True)
+  end 
+  elif(pin_useTimeOut and(cntr>timeOut100ms)):
+  leaveInsertion=True
+  if(of_pin_currentDist<minDistZ):
+  pinRet=5
+  else:
+  pinRet=4
+  end
+  of_ft_control_stop()
+  if not silent:
+  popup(of_pin_insertion_exit_timeOut,title=of_pin_insertion_exit_title,warning=True,blocking=True)
+  end 
+  elif(actual_deltaD<deltaD and cntr>=10):
+  leaveInsertion=True
+  if(of_pin_currentDist<minDistZ):
+  pinRet=3
+  of_ft_control_stop()
+  if not silent:
+  popup(of_pin_insertion_exit_deltaD,title=of_pin_insertion_exit_title,warning=True,blocking=True)
+  end 
+  else:
+  pinRet=2
+  end 
+  elif(of_pin_currentDist>=minDistZ):
+  if bumpZeroPeak:
+  bumpZeroPeak=False
+  abs0_tFT[2]=True
+  sync()
+  else:
+  if(abs_tFT[2]>norm(forceZ+deltaForce)and not abs0_tFT[2]):
+  of_peakFzScanner_flag=False
+  leaveInsertion=True
+  pinRet=1 
+  end
+  end 
+  end 
+  pin_last_pose=pin_actual_pose
+  cntr=cntr+1
+  sync()
+  end 
+  of_ft_control_stop()
+  of_peakFzScanner_flag=False
+  kill peakScanner
+  of_fpid_i_pin=of_fpid_i_pin_default
+  of_fpid_d_pin=of_fpid_d_pin_default
+  of_tpid_i_pin=of_tpid_i_pin_default
+  of_tpid_d_pin=of_tpid_d_pin_default
+  return pinRet 
+  end 
+  def of_connector_insertion(distZ,forceZ,forceXY_en0=[True,True],torqueXYZ_en0=[True,True,True],torqueXY=0.1,angR=0.175,speedR=0.01,alpha=0.1,omega=0.4,centeringRate=15,bumpRelative=1,deltaForce=1,PID_Gain=0.5,silent=False,base=True):
+  sync()
+  of_tcp_offset_send_actual()
+  local state=1
+  local startPose=get_actual_tcp_pose()
+  global of_conn_dist2Reach=distZ
+  local dist2StartC=alpha*distZ
+  local dist2EndC=omega*distZ
+  local forceXY=[0,0]
+  local torqueXYZ=[0,0,0]
+  local frameID=0
+  sync()
+  local i=0
+  while i<2:
+  if forceXY_en0[i]:
+  forceXY[i]=0.001
+  else:
+  forceXY[i]=0
+  end
+  i=i+1
+  end
+  i=0
+  while i<3:
+  if torqueXYZ_en0[i]:
+  torqueXYZ[i]=0.0001
+  else:
+  torqueXYZ[i]=0
+  end
+  i=i+1
+  end
+  sync()
+  if base:
+  forceZ=-norm(forceZ)
+  deltaForce=-norm(deltaForce)
+  frameID=0
+  else:
+  forceZ=norm(forceZ)
+  deltaForce=norm(deltaForce)
+  frameID=1
+  end 
+  angR=norm(angR)
+  torqueXY=norm(torqueXY)
+  global of_conn_currentDist=0
+  sync()
+  local peakScanner=run of_peakFzScanner()
+  sync()
+  local conn_forcePID=[PID_Gain,of_ftpid_i_conn,of_ftpid_d_conn]
+  local conn_torquePID=[PID_Gain/of_tpid_div_conn,of_ftpid_i_conn/of_tpid_div_conn,of_ftpid_d_conn/of_tpid_div_conn]
+  of_ft_control_start(ft_select=[forceXY_en0[0],forceXY_en0[1],True,torqueXYZ_en0[0],torqueXYZ_en0[1],torqueXYZ_en0[2]],ft_values=[forceXY[0],forceXY[1],forceZ,torqueXYZ[0],torqueXYZ[1],torqueXYZ[2]],frameID=frameID,frameRPY=[0,0,0],forcePID=conn_forcePID,torquePID=conn_torquePID,deviation_max=0)
+  of_wait_ms(300)
+  local cntr=0
+  local bumpEnd=False
+  local bumpZeroPeak=True
+  of_conn_currentDist=point_dist(startPose,get_actual_tcp_pose())
+  while((of_conn_currentDist<distZ)and not bumpEnd):
+  if(cntr>centeringRate):
+  of_ft_control_stop()
+  sync()
+  if((of_conn_currentDist>dist2StartC)and(of_conn_currentDist<dist2EndC)):
+  local SpeedR=speedR*(1-0.75*of_conn_currentDist/of_conn_dist2Reach)
+  local retVal=of_center_RxRy(angR,torqueXY,SpeedR,stateCntr=(cntr*10),silent=silent,base=base)
+  sync()
+  if(retVal!=0):
+  kill peakScanner
+  of_ftpid_i_conn=of_ftpid_i_conn_default
+  of_ftpid_d_conn=of_ftpid_d_conn_default
+  of_tpid_div_conn=of_tpid_div_conn_default
+  return retVal
+  end 
+  end 
+  cntr=0
+  if forceXY_en0:
+  forceXY=[-1*forceXY[0],-1*forceXY[1]]
+  end
+  if torqueXYZ_en0:
+  torqueXYZ=[-1*torqueXYZ[0],-1*torqueXYZ[1],-1*torqueXYZ[2]]
+  end
+  of_ft_control_start(ft_select=[forceXY_en0[0],forceXY_en0[1],True,torqueXYZ_en0[0],torqueXYZ_en0[1],torqueXYZ_en0[2]],ft_values=[forceXY[0],forceXY[1],forceZ,torqueXYZ[0],torqueXYZ[1],torqueXYZ[2]],frameID=frameID,frameRPY=[0,0,0],forcePID=conn_forcePID,torquePID=conn_torquePID,deviation_max=0)
+  end 
+  of_wait_ms(100)
+  cntr=cntr+1
+  of_conn_currentDist=point_dist(startPose,get_actual_tcp_pose())
+  sync()
+  if(of_conn_currentDist>(distZ*bumpRelative)):
+  if bumpZeroPeak:
+  bumpZeroPeak=False
+  abs0_tFT[2]=True
+  sync()
+  end 
+  if base:
+  if(bFT[2]>norm(forceZ+deltaForce)):
+  bumpEnd=True
+  of_peakFzScanner_flag=False
+  end
+  else:
+  if(abs_tFT[2]>norm(forceZ+deltaForce)):
+  bumpEnd=True
+  of_peakFzScanner_flag=False
+  end
+  end
+  end 
+  sync()
+  end 
+  sync()
+  of_ft_control_stop()
+  kill peakScanner
+  of_ftpid_i_conn=of_ftpid_i_conn_default
+  of_ftpid_d_conn=of_ftpid_d_conn_default
+  of_tpid_div_conn=of_tpid_div_conn_default
+  return 0 
+  end 
+  of__fix_and_rotate_param_error="Parameter error: rotateEndSearch!"
+  def of_fix_and_rotate(rotateZ,torqueZ,distZ,forceZ,forceXY_en0=[True,True],torqueXYZ_en0=[True,True,True],torqueXY=0.1,angR=0.175,speedR=0.01,alpha=0.1,omega=0.4,centeringRate=15,bumpRelative=1.0,deltaForce=1,PID_Gain=0.5,rotateEndSearch=1.0,torqueEndSearch=9999,silent=False,base=True):
+  if rotateEndSearch<0 and rotateEndSearch>1.0:
+  popup(of__fix_and_rotate_param_error,title=of_fix_and_rotate_title,error=True,blocking=False)
+  halt
+  end
+  if torqueEndSearch==9999:
+  torqueEndSearch=torqueZ/2
+  end
+  local moveRz=rotateZ*rotateEndSearch
+  local searchRz=rotateZ*norm(1-rotateEndSearch)
+  local retConn=of_connector_insertion(distZ,forceZ,forceXY_en0,torqueXYZ_en0,torqueXY,angR,speedR,alpha,omega,centeringRate,bumpRelative,deltaForce,PID_Gain,silent,base=base)
+  local retM=0
+  if(retConn==0):
+  if(rotateZ!=0):
+  if(moveRz!=0):
+  retM=of_move_ur(rz=moveRz,tz=torqueZ,speed=speedR,acc=speedR*3,silent=True,force_abs=True,base=base)
+  else:
+  retM=1
+  end 
+  if(retM!=1):
+  if not silent:
+  popup(of_fix_and_rotate_return_21,title=of_fix_and_rotate_title,warning=True,blocking=True)
+  end 
+  return 21
+  else:
+  local retS=0
+  if(searchRz!=0):
+  retS=of_search_ur(rz=searchRz,tz=torqueEndSearch,speed=speedR,acc=speedR*3,silent=True,force_abs=True,base=base)
+  else:
+  retS=0
+  end 
+  if(retS==1 and rotateEndSearch<1.0):
+  if not silent:
+  popup(of_fix_and_rotate_return_22,title=of_fix_and_rotate_title,warning=True,blocking=True)
+  end 
+  return 22
+  else:
+  return 0
+  end 
+  end 
+  else:
+  return 0
+  end 
+  else:
+  return 10+retConn
+  end 
+  end 
+  def of_box_ins(x1=0,y1=0,z1=0,x2=0,y2=0,z2=0,rx=0,ry=0,rz=0,speed=0.03,acc=0.5,brake=2,force=2,torque=0.3,silent=False,insert_force_multiplier=1.5,depth=0,base=True):
+  def calc_3d_forces(force,x,y,z,filtering=True):
+  local fnorm=sqrt(x*x+y*y+z*z)
+  local forces=[-force*x/fnorm,-force*y/fnorm,-force*z/fnorm]
+  if not filtering:
+  return forces
+  end 
+  i=0
+  while i<3:
+  if norm(forces[i])<0.1:
+  forces[i]=0
+  end 
+  i=i+1
+  end 
+  return forces
+  end 
+  local start_pose=get_actual_tcp_pose()
+  sync()
+  local ret=of_move_ur(rx=rx,ry=ry,rz=rz,f3d=force*2,t3d=torque*2,speed=speed,acc=acc,brake=brake,silent=True,base=base)
+  if ret!=1:
+  if not silent:
+  popup(of_box_ins_return_4,title=of_box_ins_title,warning=True,blocking=True)
+  end 
+  return 4
+  end 
+  sync()
+  local fdir=calc_3d_forces(force,x1,y1,z1)
+  local m3d=[x1,y1,z1]
+  if base==False:
+  fdir=of_rotate_qu(fdir,of_rotvec2qu([-rx,-ry,-rz]))
+  m3d=of_rotate_qu([x1,y1,z1],of_rotvec2qu([-rx,-ry,-rz]))
+  end 
+  sync()
+  ret=of_search_ur(x=m3d[0],y=m3d[1],z=m3d[2],fx=fdir[0],fy=fdir[1],fz=fdir[2],t3d=torque,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  if ret==1:
+  if not silent:
+  popup(of_box_ins_return_1,title=of_box_ins_title,warning=True,blocking=True)
+  end 
+  return 1
+  end 
+  sync()
+  if x2!=0 or y2!=0 or z2!=0:
+  fdir=calc_3d_forces(force,x2,y2,z2)
+  ret=of_search_ur(x=x2,y=y2,z=z2,fx=fdir[0],fy=fdir[1],fz=fdir[2],t3d=2*torque,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  if ret==1:
+  if not silent:
+  popup(of_box_ins_return_2,title=of_box_ins_title,warning=True,blocking=True)
+  end 
+  return 2
+  end 
+  end 
+  local apos=get_actual_tcp_pose()
+  ret=of_move_ur(p[apos[0],apos[1],apos[2],start_pose[3],start_pose[4],start_pose[5]],f3d=insert_force_multiplier*force,t3d=insert_force_multiplier*torque,speed=speed,acc=acc,brake=brake,silent=True,base=base)
+  if ret!=1:
+  if not silent:
+  popup(of_box_ins_return_3,title=of_box_ins_title,warning=True,blocking=True)
+  end 
+  return 3
+  end 
+  sync()
+  if depth!=0:
+  fdir=calc_3d_forces(insert_force_multiplier*force,x1,y1,z1)
+  local inserted=False
+  local collisions=0
+  while not inserted:
+  sync()
+  local current_dist=pose_dist(get_actual_tcp_pose(),start_pose)
+  local move3d=calc_3d_forces(depth-current_dist,-x1,-y1,-z1,filtering=False)
+  ret=of_move_ur(x=move3d[0],y=move3d[1],z=move3d[2],fx=fdir[0],fy=fdir[1],fz=fdir[2],t3d=insert_force_multiplier*torque,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  if ret==2 or ret==0:
+  collisions=collisions+1
+  if collisions>5:
+  if not silent:
+  popup(of_box_ins_return_8,title=of_box_ins_title,warning=True,blocking=True)
+  end 
+  return 8
+  end 
+  if move3d[0]==0:
+  if of_bi_cp_x_inv:
+  of_cp_inv=True
+  end 
+  ret=of_center(x=depth,f3d=insert_force_multiplier*force,t3d=insert_force_multiplier*torque,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  of_cp_inv=False
+  if ret!=0:
+  if not silent:
+  popup(of_box_ins_return_5,title=of_box_ins_title,warning=True,blocking=True)
+  end 
+  return 5
+  end 
+  end 
+  if move3d[1]==0:
+  if of_bi_cp_y_inv:
+  of_cp_inv=True
+  end 
+  ret=of_center(y=depth,f3d=insert_force_multiplier*force,t3d=insert_force_multiplier*torque,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  of_cp_inv=False
+  if ret!=0:
+  if not silent:
+  popup(of_box_ins_return_6,title=of_box_ins_title,warning=True,blocking=True)
+  end 
+  return 6
+  end 
+  end 
+  if move3d[2]==0:
+  if of_bi_cp_z_inv:
+  of_cp_inv=True
+  end 
+  ret=of_center(z=depth,f3d=insert_force_multiplier*force,t3d=insert_force_multiplier*torque,speed=speed,acc=acc,brake=brake,silent=True,force_abs=False,base=base)
+  of_cp_inv=False
+  if ret!=0:
+  if not silent:
+  popup(of_box_ins_return_7,title=of_box_ins_title,warning=True,blocking=True)
+  end 
+  return 7
+  end 
+  end 
+  elif ret==1:
+  inserted=True
+  end 
+  end 
+  end 
+  return 0
+  end 
+  of__stacking_param_error_dir="Please define only one direction parameter!"
+  of__stacking_param_error_itmax="The 'it_max' parameter cannot be greather than the distance/thickness!"
+  of__stacking_param_error_thickness="The 'thickness' parameter cannot be zero when 'it_max' is not zero!"
+  def of_stacking(start_wp,thickness,it,it_max=0,x=0,y=0,z=0,f3d=0,t3d=0,moveF3D=9999,moveT3D=9999,speed=0.03,moveSpd=0.05,acc=1.2,brake=1.2,move2Start=False,silent=False,base=True):
+  local stack_wp=start_wp
+  of_stack_curr_it=it
+  if(moveF3D==9999):
+  moveF3D=2*f3d
+  end 
+  if(moveT3D==9999):
+  moveT3D=2*t3d
+  end 
+  if(it_max==0):
+  if(thickness==0):
+  it=it_max-1
+  else:
+  it_max=floor(norm((x+y+z)/thickness))
+  end
+  elif(it_max>norm((x+y+z)/thickness)):
+  popup(of__stacking_param_error_itmax,title=of_stacking_title,error=True,blocking=False)
+  halt
+  elif(thickness==0):
+  popup(of__stacking_param_error_thickness,title=of_stacking_title,error=True,blocking=False)
+  halt
+  end
+  local it_end=floor(norm((x+y+z)/thickness))
+  local delta=0
+  local deltaMax=0
+  if(thickness>0): 
+  delta=norm(thickness*(it_end-of_stack_curr_it-1))
+  elif(thickness<0): 
+  delta=norm(thickness*of_stack_curr_it)
+  end 
+  local offset=p[0,0,0,0,0,0]
+  local db=0
+  if x!=0:
+  db=db+1
+  offset=p[delta*x/norm(x),0,0,0,0,0]
+  offsetMax=p[x,0,0,0,0,0]
+  end
+  if y!=0:
+  db=db+1
+  offset=p[0,delta*y/norm(y),0,0,0,0]
+  offsetMax=p[0,y,0,0,0,0]
+  end
+  if z!=0:
+  db=db+1
+  offset=p[0,0,delta*z/norm(z),0,0,0]
+  offsetMax=p[0,0,z,0,0,0]
+  end
+  if db==0:
+  popup(of__stacking_param_error_dir,title=of_stacking_title,error=True,blocking=False)
+  halt
+  end
+  if db>1:
+  popup(of__stacking_param_error_dir,title=of_stacking_title,error=True,blocking=False)
+  halt
+  end
+  if delta==0.0:
+  offset=p[0,0,0,0,0,0]
+  end 
+  if move2Start:
+  local mRet=of_move_ur(target=start_wp,f3d=moveF3D,t3d=moveT3D,speed=moveSpd,acc=acc,brake=brake,silent=True,force_abs=True,base=base)
+  if(mRet!=1):
+  if not silent:
+  popup(of_stacking_return_5,title=of_stacking_title,warning=True,blocking=True)
+  end 
+  return 5
+  end 
+  end 
+  if(it>=it_max):
+  if not silent:
+  if(thickness>0):
+  popup(of_stacking_return_1_stack,title=of_stacking_title,warning=True,blocking=True)
+  else:
+  popup(of_stacking_return_1_destack,title=of_stacking_title,warning=True,blocking=True)
+  end 
+  end 
+  of_stack_curr_it=0
+  return 1
+  end
+  stack_wp=of_pose_add(start_wp,offset,base)
+  local stack_max_wp=of_pose_add(start_wp,offsetMax,base)
+  local mRet=of_move_ur(target=stack_wp,f3d=moveF3D,t3d=moveT3D,speed=moveSpd,acc=acc,brake=brake,silent=True,force_abs=True,base=base)
+  if(mRet!=1):
+  if not silent:
+  popup(of_stacking_return_4,title=of_stacking_title,warning=True,blocking=True)
+  end 
+  return 4
+  end 
+  local sRet=of_search_ur(target=stack_max_wp,f3d=f3d,t3d=t3d,speed=speed,acc=acc,brake=brake,silent=True,force_abs=True,base=base)
+  if(sRet==2):
+  elif(sRet==1):
+  if not silent:
+  popup(of_stacking_return_2,title=of_stacking_title,warning=True,blocking=True)
+  end 
+  return 2
+  else:
+  if not silent:
+  popup(of_stacking_return_3,title=of_stacking_title,warning=True,blocking=True)
+  end
+  return 3
+  end 
+  of_stack_curr_it=of_stack_curr_it+1
+  return 0
+  end 
+  def of_stacking_last_it():
+  return of_stack_curr_it
+  end 
+  def of_get_virt_orient(virt_pose):
+  local retVal=[virt_pose[3],virt_pose[4],virt_pose[5]]
+  textmsg("virt_orient: ",retVal)
+  return retVal
+  end 
+  def of_polishing(forceAmp,forceDir,pidGain=[1.0,1.0,1.0]):
+  local force_orient=of_get_virt_orient(forceDir)
+  local frameRotVec=rpy2rotvec(force_orient)
+  of_ft_control_start(ft_select=[False,False,True,False,False,False],ft_values=[0,0,forceAmp,0,0,0],frameID=0,frameRPY=frameRotVec,forcePID=pidGain,torquePID=pidGain,deviation_max=0)
+  end 
+  
+  #======    End of OnRobot Applications    ======#

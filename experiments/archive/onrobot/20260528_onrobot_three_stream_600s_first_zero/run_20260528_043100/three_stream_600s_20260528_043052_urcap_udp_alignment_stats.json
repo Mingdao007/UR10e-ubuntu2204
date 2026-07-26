@@ -1,0 +1,285 @@
+{
+  "inputs": {
+    "summary": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_summary.json",
+    "rtde_csv": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_rtde_ur500_urcap125.csv",
+    "udp_csv": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/three_stream_600s_20260528_043052_onrobot_udp500_raw.csv"
+  },
+  "plot": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_600s_first_zero/run_20260528_043100/plots/three_stream_600s_20260528_043052_urcap_udp_residuals.png",
+  "software_zero": "Each stream/channel subtracts its own first logged sample. No hardware zero or bias command is applied.",
+  "sampling_validation": {
+    "summary_ok": true,
+    "errors": [],
+    "requested_seconds": 600.0,
+    "rtde_samples": 299994,
+    "rtde_interval_rate_hz": 499.9927756674799,
+    "urcap_tuple_updates": 74996,
+    "urcap_update_rate_hz": 124.99277720207691,
+    "udp_packets": 299756,
+    "udp_interval_rate_hz": 499.5997803411267,
+    "udp_sequence_delta_counts": {
+      "1": 299755
+    },
+    "udp_sample_counter_delta_mod65536_counts": {
+      "2": 299755
+    },
+    "dashboard_before": {
+      "banner": "Connected: Universal Robots Dashboard Server",
+      "is in remote control": "false",
+      "programState": "PLAYING 3.urp",
+      "robotmode": "Robotmode: RUNNING",
+      "running": "Program running: true",
+      "safetymode": "Safetymode: NORMAL"
+    },
+    "dashboard_after": {
+      "banner": "Connected: Universal Robots Dashboard Server",
+      "is in remote control": "false",
+      "programState": "PLAYING 3.urp",
+      "robotmode": "Robotmode: RUNNING",
+      "running": "Program running: true",
+      "safetymode": "Safetymode: NORMAL"
+    },
+    "commands_sent": [
+      {
+        "command": "SPEED",
+        "command_hex": "0x0082",
+        "data": 2,
+        "sent_wall": "2026-05-28T04:30:54.996"
+      },
+      {
+        "command": "START",
+        "command_hex": "0x0002",
+        "data": 360000,
+        "sent_wall": "2026-05-28T04:30:55.001"
+      },
+      {
+        "command": "STOP",
+        "command_hex": "0x0000",
+        "data": 0,
+        "sent_wall": "2026-05-28T04:40:54.997"
+      }
+    ],
+    "safety_boundary": [
+      "no robot motion commands",
+      "no URScript upload/run",
+      "no UR zero_ftsensor()",
+      "no UR TCP/payload writes",
+      "no OnRobot BIAS command",
+      "no OnRobot FILTER command",
+      "OnRobot UDP SPEED/START/final STOP only",
+      "analysis zero is first-sample subtraction only"
+    ]
+  },
+  "urcap_updates_extracted_from_rtde_rows": 74996,
+  "alignment": {
+    "lag_definition": "Residual is URCap(t) - UDP(t + lag); lag chosen by normalized six-axis RMS against linearly interpolated UDP.",
+    "best_lag_s": -0.004749999999999999,
+    "best_lag_ms": -4.749999999999999,
+    "lag_search_range_ms": [
+      -20.0,
+      20.0
+    ],
+    "lag_search_step_ms": 0.05,
+    "zero_lag_sample_count": 74994,
+    "best_lag_sample_count": 74994,
+    "nearest_udp_abs_dt_ms": {
+      "mean": 0.5004391160360632,
+      "max": 4.847494000003394
+    },
+    "nearest_udp_index_delta_counts_top": [
+      [
+        4,
+        74057
+      ],
+      [
+        3,
+        569
+      ],
+      [
+        5,
+        328
+      ],
+      [
+        6,
+        15
+      ],
+      [
+        2,
+        12
+      ],
+      [
+        1,
+        4
+      ],
+      [
+        8,
+        4
+      ],
+      [
+        7,
+        3
+      ],
+      [
+        0,
+        1
+      ]
+    ]
+  },
+  "residual_stats": {
+    "zero_lag_udp_interpolated": {
+      "fx": {
+        "mean": -0.02001735934792263,
+        "std": 0.032368279978466606,
+        "rms": 0.038057853644527406,
+        "min": -0.14525191242462943,
+        "max": 0.12566473339007636,
+        "max_abs": 0.14525191242462943
+      },
+      "fy": {
+        "mean": 0.010007653920612394,
+        "std": 0.021079222239313376,
+        "rms": 0.02333423980354004,
+        "min": -0.07919346356815261,
+        "max": 0.1016310108131018,
+        "max_abs": 0.1016310108131018
+      },
+      "fz": {
+        "mean": -0.21971396079846808,
+        "std": 0.10340022766955889,
+        "rms": 0.2428288114122115,
+        "min": -0.7204320065801506,
+        "max": 0.21879352467292723,
+        "max_abs": 0.7204320065801506
+      },
+      "tx": {
+        "mean": 0.001995089973341936,
+        "std": 0.0030512929946917913,
+        "rms": 0.0036456512369101805,
+        "min": -0.012089344951953728,
+        "max": 0.014322536572688997,
+        "max_abs": 0.014322536572688997
+      },
+      "ty": {
+        "mean": 0.004999261222031214,
+        "std": 0.003050111918236791,
+        "rms": 0.005856261220256073,
+        "min": -0.007655657925198067,
+        "max": 0.016607986346052955,
+        "max_abs": 0.016607986346052955
+      },
+      "tz": {
+        "mean": -0.0040027091391549975,
+        "std": 0.001633254876757009,
+        "rms": 0.0043231009640217165,
+        "min": -0.01060562875774429,
+        "max": 0.003218552641690022,
+        "max_abs": 0.01060562875774429
+      }
+    },
+    "best_lag_udp_interpolated": {
+      "fx": {
+        "mean": -0.019973174533233638,
+        "std": 0.00640139482075767,
+        "rms": 0.02097392563604238,
+        "min": -0.09084607873504492,
+        "max": 0.04960627511516909,
+        "max_abs": 0.09084607873504492
+      },
+      "fy": {
+        "mean": 0.010025393332795162,
+        "std": 0.004459091274037141,
+        "rms": 0.010972329126828446,
+        "min": -0.01982062658827107,
+        "max": 0.055706814114157205,
+        "max_abs": 0.055706814114157205
+      },
+      "fz": {
+        "mean": -0.22003758416496424,
+        "std": 0.02102858912661702,
+        "rms": 0.2210401321158893,
+        "min": -0.48551126755596774,
+        "max": -0.08161336071947246,
+        "max_abs": 0.48551126755596774
+      },
+      "tx": {
+        "mean": 0.001991353358917173,
+        "std": 0.0006132340948001505,
+        "rms": 0.0020836372657197476,
+        "min": -0.004558674268843211,
+        "max": 0.01101143090505621,
+        "max_abs": 0.01101143090505621
+      },
+      "ty": {
+        "mean": 0.004999454203487269,
+        "std": 0.0006061545586788594,
+        "rms": 0.005036066489014386,
+        "min": -0.0011448785161236623,
+        "max": 0.013183164361482558,
+        "max_abs": 0.013183164361482558
+      },
+      "tz": {
+        "mean": -0.0039985941737412925,
+        "std": 0.0003365974848024723,
+        "rms": 0.004012736377218563,
+        "min": -0.009509898616857632,
+        "max": -0.001133916959292533,
+        "max_abs": 0.009509898616857632
+      }
+    },
+    "best_lag_nearest_udp_sample": {
+      "fx": {
+        "mean": -0.019982317252046796,
+        "std": 0.0035038033063774145,
+        "rms": 0.020287179211788613,
+        "min": -0.09999999999999996,
+        "max": 0.07000000000000012,
+        "max_abs": 0.09999999999999996
+      },
+      "fy": {
+        "mean": 0.010021760406178151,
+        "std": 0.0023400983898356725,
+        "rms": 0.010291343066526914,
+        "min": -0.04000000000415818,
+        "max": 0.05999999999968034,
+        "max_abs": 0.05999999999968034
+      },
+      "fz": {
+        "mean": -0.21999454608306343,
+        "std": 0.011600671923365533,
+        "rms": 0.22030019495081407,
+        "min": -0.5099999999987209,
+        "max": 0.04000100000128054,
+        "max_abs": 0.5099999999987209
+      },
+      "tx": {
+        "mean": 0.001989949329279751,
+        "std": 0.00033474874453900494,
+        "rms": 0.0020179085844188706,
+        "min": -0.0070099999999999,
+        "max": 0.011990000000000101,
+        "max_abs": 0.011990000000000101
+      },
+      "ty": {
+        "mean": 0.004998014907858684,
+        "std": 0.00033338606363577663,
+        "rms": 0.005009121608286647,
+        "min": -0.004000000000000002,
+        "max": 0.013999999999999997,
+        "max_abs": 0.013999999999999997
+      },
+      "tz": {
+        "mean": -0.003996297037068061,
+        "std": 0.0001845662690519532,
+        "rms": 0.004000556800765453,
+        "min": -0.009999999999968095,
+        "max": 6.389897291847468e-14,
+        "max_abs": 0.009999999999968095
+      }
+    }
+  },
+  "classification": {
+    "strict_first_zero_overlap": false,
+    "basis": "After timestamp lag optimization, the residual variation is small, but the per-stream first-zeroed comparison retains a nonzero fixed offset, especially Fz. That offset exceeds force quantization and the remaining timestamp-alignment error.",
+    "conclusion_zh": "在本 600 s 静态同步采集中，URCap 125 Hz 相对于 UDP 500 Hz 没有观察到额外后级滤波；主要表现为约 4 倍降采样/保持。但首值归零后仍存在固定残差，不能把 URCap 说成 UDP 每 4 帧的严格同值抽样；这也不能排除二者共享的上游滤波、补偿、坐标或 bias/reference 处理。",
+    "requested_binary_conclusion_zh": "首值归零后仍存在残差，URCap 不是简单的 UDP 每 4 帧抽样；可能存在滤波、补偿、时间对齐误差或不同 reference 处理。"
+  }
+}

@@ -1,0 +1,182 @@
+{
+  "version": 1,
+  "strict_rnn_enabled": false,
+  "pdf_source": "/home/andy/Zotero/storage/UZRF97KG/Xu 等 - 2026 - Finite-Time Convergence Neural Network-Based Force-Motion Control for Unknown Surface With Orientati.pdf",
+  "status": "blocked_pending_pdf_truth_extraction",
+  "equations": {
+    "motion_control": {
+      "paper_eq": "Eq.8",
+      "form": "xdot_t = Phi_O * (xdot_pd + kp * e_p)"
+    },
+    "orientation_error": {
+      "paper_eq": "Eq.13",
+      "form": "e_qua = Q_d^-1 * Q"
+    },
+    "orientation_control": {
+      "paper_eq": "Eq.14",
+      "form": "xdot_o = xdot_od + ko * e_o",
+      "assumption": "Remark 1 sets xdot_od = 0 during operation"
+    },
+    "force_error": {
+      "paper_eq": "Eq.15",
+      "form": "e_p = x_pd - x_p; e_f = F_d - F"
+    },
+    "force_motion_impedance_velocity": {
+      "paper_eq": "Eq.16",
+      "form": "xddot_p = (e_f + kf * integral(e_f) - Bd * xdot_p) / Md"
+    },
+    "force_motion_velocity": {
+      "paper_eq": "Eq.17",
+      "form": "xdot_p(t) = Phi_O * (xdot_pd + kp * e_p) + Phi_bar_O * (xdot_p(t-T) + xddot_p(t) * T)"
+    },
+    "optimization_problem": {
+      "paper_eq": "Eq.20",
+      "objective": "min 0.5 * qdot.T * qdot",
+      "constraint": "J(q) * qdot = xdot_c",
+      "bounds": "omega_minus <= qdot <= omega_plus"
+    },
+    "lagrangian": {
+      "paper_eq": "Eq.21",
+      "form": "L = 0.5 * qdot.T * qdot + lambda.T * (J(q) * qdot - xdot_c)"
+    },
+    "kkt_projection": {
+      "paper_eq": "Eq.22",
+      "form": "qdot = P_Omega(qdot - dL/dqdot); J(q) * qdot = xdot_c"
+    },
+    "rnn_dynamics": {
+      "paper_eq": "Eq.23",
+      "theta_dot_equation_printed": "epsilon * qdot_state_dot = -sigr(qdot_state - P_Omega(qdot_state - (qdot_state - J(q).T * lambda_state)))",
+      "theta_dot_equation_simplified": "epsilon * qdot_state_dot = -sigr(qdot_state - P_Omega(J(q).T * lambda_state))",
+      "lambda_equation": "epsilon * lambda_state_dot = J(q) * qdot_state - xdot_c",
+      "projection_input_form": "J.T @ lambda_state",
+      "lambda_sign_note": "The Eq.23 lambda_state has the opposite sign of the standard Lagrange multiplier obtained directly from Eq.21/Eq.22."
+    },
+    "sigr": {
+      "paper_ref": "Remark 5 / Fig.5",
+      "form": "sigr(x, r) = abs(x)^r * sign(x)",
+      "domain": "0 < r <= 1"
+    }
+  },
+  "parameters": {
+    "epsilon": 0.022,
+    "kp": 4.0,
+    "ko": 5.0,
+    "kf": 1.0,
+    "Md_scalar": 12.0,
+    "Bd_scalar": 550.0,
+    "qdot_bound_rad_s": 0.3,
+    "force_target_n": 5.0,
+    "r_default_for_offline_tests": 0.2
+  },
+  "implementation_contract": {
+    "kinematics_backend": "Pinocchio calibrated base->tool0/active-TCP FK/J(q) only",
+    "outer_loop": "paper-form xdot_c from Eq.(7)/(8)/(13)/(14)/(16)/(17); Step4e path generators may provide x_pd and xdot_pd only",
+    "solver": "stateful finite-time RNN; no DLS, no pseudo-inverse, no IK fallback",
+    "state": [
+      "theta_dot_state",
+      "lambda_state"
+    ],
+    "diagnostics_required": [
+      "proj_input",
+      "projected",
+      "sigr_arg",
+      "sigr_val",
+      "theta_dot_state",
+      "lambda_state",
+      "constraint_residual_norm",
+      "R_d",
+      "Phi_O",
+      "Phi_bar_O",
+      "e_qua",
+      "e_o",
+      "xdot_p",
+      "xdot_o",
+      "xdot_c"
+    ],
+    "live_authorization": "blocked until every pending/open question is closed and Step5d gates pass"
+  },
+  "open_questions": [
+    "alpha_escape_velocity_gain",
+    "production_sigr_exponent_r",
+    "communication_delay_T_mapping",
+    "Eq23 nonzero-command stability from zero initial lambda under printed-sign dynamics"
+  ],
+  "pdf_text_audit": {
+    "source": "pdftotext -layout over pdf_source",
+    "claim_tier": "virtual/software force-loop",
+    "verified_fields": [
+      "finite_time_rnn_state_equation",
+      "rnn_gain_scalar_not_matrix",
+      "sigr_exponent_r_domain_and_examples",
+      "force_motion_task_equations",
+      "orientation_compliance_equations",
+      "constraint_qp_or_kkt_form",
+      "paper_section_vi_experimental_parameter_anchors"
+    ],
+    "partial_or_unresolved_fields": [
+      "alpha_escape_velocity_gain_numeric_value",
+      "production_sigr_exponent_r_selection",
+      "local_qdot_bound_rad_s",
+      "communication_delay_T_to_dt_mapping",
+      "Eq23_nonzero_command_stability_from_zero_initial_lambda",
+      "step5c_strict_dryrun_equation_subset",
+      "paper_task_variable_to_ur10e_6dof_qdot_mapping",
+      "filtered_live_normal_compatibility",
+      "force_ladder_parameters"
+    ],
+    "acceptance_effect": "PDF text now supports the core equation and Section VI parameter anchors, but strict_rnn_enabled remains false until unresolved local adaptation and stability gates close."
+  },
+  "implementation_assumptions": {
+    "alpha_escape_velocity_gain_default_s_inv": {
+      "value": 1.0,
+      "status": "ur10e_default_until_pdf_value_found",
+      "used_by": "offline structural full-chain sanity only"
+    },
+    "communication_delay_T_default_s": {
+      "value": "dt_s",
+      "status": "discrete_time_assumption_until_pdf_mapping_found",
+      "used_by": "step5d_paper_outer_loop offline sanity"
+    },
+    "force_sign_convention": {
+      "value": "step5_step6_positive_normal_load",
+      "status": "resolved_from_retained_step5_step6_bench_convention",
+      "evidence": {
+        "step5b_metadata": "runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/metadata.json",
+        "step6b_metadata": "runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/metadata.json",
+        "target_force_n": 5.0,
+        "normal_axis": "fz",
+        "normal_sign": 1.0,
+        "step4e_normal_command_sign": 1.0
+      }
+    },
+    "structural_sanity_force_input": {
+      "value": "synthetic_no_contact_unit_normal",
+      "status": "not contact evidence"
+    }
+  },
+  "pending_pdf_verify": [
+    "alpha_escape_velocity_gain",
+    "production_sigr_exponent_r",
+    "local_qdot_bound_rad_s",
+    "communication_delay_T_mapping",
+    "Eq23_nonzero_command_stability"
+  ],
+  "sections": {
+    "step5c_strict_dryrun": {
+      "pending_pdf_verify": [
+        "which paper equations remain active in no-contact dry-run",
+        "mapping from paper task variable to UR10e 6dof qdot"
+      ],
+      "qdot_limit_rad_s": 0.2,
+      "contact": false
+    },
+    "step5c_strict_contact": {
+      "pending_pdf_verify": [
+        "filtered-live normal compatibility",
+        "force ladder parameters"
+      ],
+      "contact": true,
+      "enabled": false
+    }
+  }
+}

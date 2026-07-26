@@ -1,0 +1,19 @@
+  #======    OnRobot F/T Insert Pin Messages    ======#
+  
+  of_insert_pin_error_title="OnRobot - Insert Pin error"
+  of_insert_pin_state_error_start="Wrong F/T Insert Pin status when initializing.<br>Another thread is using an F/T Insert Pin command. Program stopped."
+  of_insert_pin_state_error_return="Wrong F/T Insert Pin status when returning.<br>Another thread is using an F/T Insert Pin command. Program stopped."
+  of_insert_pin_return_title="OnRobot - Insert Pin"
+  of_insert_pin_return_0="The insertion has reached the maximal insertion depth."
+  of_insert_pin_return_1="The insertion bumped after the minimal insertion depth."
+  of_insert_pin_return_2="The insertion slowed down after the minimal insertion depth."
+  of_insert_pin_return_3="The insertion got stuck before the minimal insertion depth."
+  of_insert_pin_return_4="The command has timed out after the minimal insertion depth."
+  of_insert_pin_return_5="The command has timed out before the minimal insertion depth."
+  of_insert_pin_return_6="The side-force/-torque limit has been reached after the minimal insertion depth."
+  of_insert_pin_return_7="The side-force/-torque limit has been reached before the minimal insertion depth."
+  of_insert_pin_return_8="Parameter error returned from the Compute Box.<br>Check the parameters for the F/T Insert Pin command."
+  of_insert_pin_return_unknown="F/T Insert Pin finished with unknown return value."
+  
+  
+  #======    End of OnRobot F/T Insert Pin Messages    ======#

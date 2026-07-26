@@ -1,0 +1,130 @@
+{
+  "version": "v7_ksm8n_ball_transfer_tool",
+  "concept": "Complete direct-flange UR5e passive rolling-contact EOAT using local KSM-8N M6 ball transfer.",
+  "parameters": {
+    "adapter_outer_diameter_mm": 72.0,
+    "adapter_thickness_mm": 12.0,
+    "robot_pattern_pcd_mm": 50.0,
+    "robot_screw_clearance_mm": 6.6,
+    "robot_socket_head_counterbore_mm": 11.0,
+    "robot_socket_head_cbore_depth_mm": 6.0,
+    "robot_center_recess_mm": 31.7,
+    "robot_center_recess_depth_mm": 2.0,
+    "base_body_diameter_mm": 40.0,
+    "base_body_height_mm": 40.0,
+    "transition_height_mm": 18.0,
+    "neck_diameter_mm": 30.0,
+    "receiver_diameter_mm": 32.0,
+    "receiver_height_mm": 18.0,
+    "center_lightening_bore_mm": 6.0,
+    "m6_clearance_hole_mm": 6.6,
+    "m6_hex_nut_across_flats_pocket_mm": 10.6,
+    "m6_hex_nut_pocket_depth_mm": 5.8,
+    "nut_side_slot_width_mm": 12.0,
+    "nut_side_slot_extra_depth_mm": 0.6,
+    "nut_front_setback_mm": 3.8,
+    "hot_glue_relief_depth_mm": 1.2,
+    "ksm_ball_diameter_mm": 8.0,
+    "ksm_housing_diameter_mm": 15.0,
+    "ksm_housing_total_height_to_ball_top_mm": 11.1,
+    "ksm_visible_housing_height_mm": 9.1,
+    "ksm_ball_exposed_height_mm": 2.0,
+    "ksm_thread_diameter_mm": 6.0,
+    "ksm_thread_length_mm": 12.0,
+    "contact_point_from_flange_face_mm": 140.0
+  },
+  "derived": {
+    "contact_point_from_flange_face_mm": 140.0,
+    "receiver_front_z_mm": 128.9,
+    "ksm_thread_back_z_mm": 116.9,
+    "nut_z0_mm": 119.30000000000001,
+    "nut_z1_mm": 125.10000000000001,
+    "adapter_outer_radius_mm": 36.0,
+    "counterbore_outer_radius_from_center_mm": 30.5,
+    "outer_edge_margin_after_counterbore_mm": 5.5,
+    "body_length_to_receiver_face_mm": 128.9,
+    "assembly_zmax_mm": 140.0,
+    "tcp_on_centerline": true,
+    "receiver_strategy": "captive M6 hex nut with optional hot-glue retention only"
+  },
+  "bounding_boxes": {
+    "body": {
+      "xmin": -35.99661238166723,
+      "xmax": 36.0,
+      "ymin": -35.9991530854548,
+      "ymax": 35.9991530854548,
+      "zmin": 0.0,
+      "zmax": 128.9,
+      "xlen": 71.99661238166723,
+      "ylen": 71.9983061709096,
+      "zlen": 128.9
+    },
+    "ksm_placeholder": {
+      "xmin": -7.499294246180673,
+      "xmax": 7.5,
+      "ymin": -7.499823559469751,
+      "ymax": 7.499823559469751,
+      "zmin": 116.9,
+      "zmax": 140.0,
+      "xlen": 14.999294246180673,
+      "ylen": 14.999647118939501,
+      "zlen": 23.099999999999994
+    },
+    "assembly": {
+      "xmin": -35.99661238166723,
+      "xmax": 36.0,
+      "ymin": -35.9991530854548,
+      "ymax": 35.9991530854548,
+      "zmin": 0.0,
+      "zmax": 140.0,
+      "xlen": 71.99661238166723,
+      "ylen": 71.9983061709096,
+      "zlen": 140.0
+    },
+    "onepiece_preview": {
+      "xmin": -35.99661238166723,
+      "xmax": 36.0,
+      "ymin": -35.9991530854548,
+      "ymax": 35.9991530854548,
+      "zmin": 0.0,
+      "zmax": 140.0,
+      "xlen": 71.99661238166723,
+      "ylen": 71.9983061709096,
+      "zlen": 140.0
+    },
+    "receiver_fitcheck": {
+      "xmin": -15.998494391852102,
+      "xmax": 16.0,
+      "ymin": -15.999623593535468,
+      "ymax": 15.999623593535468,
+      "zmin": 0.0,
+      "zmax": 24.0,
+      "xlen": 31.998494391852102,
+      "ylen": 31.999247187070935,
+      "zlen": 24.0
+    },
+    "flange_fitcheck": {
+      "xmin": -35.99661238166723,
+      "xmax": 36.0,
+      "ymin": -35.9991530854548,
+      "ymax": 35.9991530854548,
+      "zmin": 0.0,
+      "zmax": 4.0,
+      "xlen": 71.99661238166723,
+      "ylen": 71.9983061709096,
+      "zlen": 4.0
+    }
+  },
+  "validation": {
+    "contact_point_target_mm": 140.0,
+    "contact_point_error_mm": 0.0,
+    "flange_pattern_unchanged_from_v6": true,
+    "m6_nut_pocket_inherited_from_v5_coupon": true
+  },
+  "assumptions_to_confirm": [
+    "KSM-8N dimensions follow the local product image: 8 mm ball, 15 mm housing, 11.1 mm total housing-to-ball-top height, and 12 mm M6 thread.",
+    "The KSM-8N thread should engage a metal captive nut; hot glue is only to retain the nut after assembly.",
+    "The receiver_fitcheck should be printed before the full body to confirm nut insertion, KSM engagement, and glue clearance.",
+    "Run only a low-speed no-contact posture sweep before any force-contact experiment."
+  ]
+}

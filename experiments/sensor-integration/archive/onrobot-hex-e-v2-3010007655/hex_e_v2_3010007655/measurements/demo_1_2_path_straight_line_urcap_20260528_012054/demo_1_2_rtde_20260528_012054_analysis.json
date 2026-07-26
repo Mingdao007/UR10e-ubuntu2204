@@ -1,0 +1,149 @@
+{
+  "csv_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/demo_1_2_path_straight_line_urcap_20260528_012054/demo_1_2_rtde_20260528_012054.csv",
+  "samples": 14992,
+  "duration_s": 119.929,
+  "runtime_runs": [
+    {
+      "state": 1,
+      "start_s": 0.075,
+      "end_s": 5.059,
+      "duration_s": 4.984,
+      "samples": null
+    },
+    {
+      "state": 2,
+      "start_s": 5.067,
+      "end_s": 22.507,
+      "duration_s": 17.44,
+      "samples": null
+    },
+    {
+      "state": 1,
+      "start_s": 22.515,
+      "end_s": 31.155,
+      "duration_s": 8.64,
+      "samples": null
+    },
+    {
+      "state": 2,
+      "start_s": 31.163,
+      "end_s": 32.627,
+      "duration_s": 1.464,
+      "samples": null
+    },
+    {
+      "state": 1,
+      "start_s": 32.635,
+      "end_s": 37.467,
+      "duration_s": 4.832,
+      "samples": null
+    },
+    {
+      "state": 2,
+      "start_s": 37.475,
+      "end_s": 37.835,
+      "duration_s": 0.36,
+      "samples": null
+    },
+    {
+      "state": 1,
+      "start_s": 37.843,
+      "end_s": 104.875,
+      "duration_s": 67.033,
+      "samples": null
+    },
+    {
+      "state": 2,
+      "start_s": 104.883,
+      "end_s": 105.011,
+      "duration_s": 0.128,
+      "samples": null
+    },
+    {
+      "state": 1,
+      "start_s": 105.019,
+      "end_s": 120.004,
+      "duration_s": 14.984,
+      "samples": null
+    }
+  ],
+  "xyz_range_mm": {
+    "x_mm": [
+      444.649,
+      489.296
+    ],
+    "y_mm": [
+      180.598,
+      228.703
+    ],
+    "z_mm": [
+      20.145,
+      53.189
+    ]
+  },
+  "tcp_displacement_first_to_last_mm": [
+    -0.002,
+    -0.058,
+    -0.018
+  ],
+  "max_tcp_linear_speed_mm_s": 114.244,
+  "max_tcp_linear_speed_at_s": 31.995,
+  "max_builtin_actual_tcp_force_norm_N": 8.313,
+  "max_builtin_actual_tcp_force_at_s": 8.651,
+  "force_at_max_N_Nm": [
+    -4.1806,
+    -6.1493,
+    -3.7156,
+    -0.1077,
+    0.1287,
+    -0.3134
+  ],
+  "safety_modes": [
+    1
+  ],
+  "robot_modes": [
+    7
+  ],
+  "output_register_ranges": {
+    "output_double_register_24": [
+      -0.246816,
+      -0.246816
+    ],
+    "output_double_register_25": [
+      0.140742,
+      0.140742
+    ],
+    "output_double_register_26": [
+      -7.359768,
+      -7.359768
+    ],
+    "output_double_register_27": [
+      -0.012273,
+      -0.012273
+    ],
+    "output_double_register_28": [
+      -0.012836,
+      -0.012836
+    ],
+    "output_double_register_29": [
+      0.002402,
+      0.002402
+    ],
+    "output_double_register_30": [
+      1.0,
+      1.0
+    ],
+    "output_double_register_31": [
+      0.012156,
+      0.012156
+    ],
+    "output_double_register_32": [
+      7.289681,
+      7.289681
+    ],
+    "output_double_register_33": [
+      -0.070087,
+      -0.070087
+    ]
+  }
+}

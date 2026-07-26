@@ -1,0 +1,65 @@
+{
+  "schema_version": "step5d_liveprep_readiness_v1",
+  "generated_at": "2026-07-14T22:55:56+08:00",
+  "profile": "step5d_strict_rnn_ablation_v32",
+  "program": "step5d_strict_rnn_ablation_v32",
+  "workflow_state": "awaiting_live_authorization",
+  "ready_for_explicit_live_authorization": true,
+  "live_motion_authorized": false,
+  "bridge_has_started": false,
+  "runtime_profile_match": true,
+  "runtime_profile": {
+    "backend": "cupy",
+    "inner_iterations": 512,
+    "epsilon": 0.01,
+    "sigr_exponent_r": 0.8,
+    "qdot_cap_rad_s": 0.5,
+    "control_mode": "speedj_rnn_live",
+    "wire_protocol": "stage_aware_joint_v1"
+  },
+  "timing": {
+    "ok": true,
+    "claim": "v31 CuPy512 control-core timing inherited plus v32 transport smoke; no exact-source full timing rerun",
+    "inherited_raw_sha256": "502fa7d8a2e10aa3c5239234174efcf88ceb72fa55b57499b2203cf6cfdc5735",
+    "inherited_summary_sha256": "bfd530189a679497949af794d48a5bd0b9aa166f2b5e7e78ac35bea2c45f8b0e",
+    "transport_smoke_sha256": "b114931321d009cdcde2ef5e08b29ae9be8188369c6e7e7dd6da2d2c261f0584",
+    "claim_class": "offline_diagnostic_and_inherited_control_core_timing"
+  },
+  "dls_shadow": {
+    "ok": true,
+    "diagnostic_only": true,
+    "runtime_fallback_allowed": false,
+    "claim": "DLS is excluded from the v32 runtime command path; this is a routing-policy gate, not a DLS accuracy claim"
+  },
+  "review": {
+    "ok": true,
+    "status": "accepted_user_waived",
+    "effective_stack": "0+0_user_waived",
+    "model_review_performed": false,
+    "manifest": "config/reviews/step5d_v32_user_review_waiver.json",
+    "manifest_sha256": "5c64a5a9384bed41554648a325e882485861a3feaa5fafa28bb8c18cc464bf69",
+    "composite_fingerprint": "2821fdae45503f9df3d1907682b9bb6bd073110178b7087ebd8f70653f194abc"
+  },
+  "controller_readback_verified": true,
+  "controller_readback_manifest": "runs/controller_readback_step5d_strict_rnn_ablation_v32_20260714_215219/manifest.json",
+  "controller_readback_manifest_sha256": "60fb9e157f948ac66062f4b20fc3d290d9a9bb381f6e1bb15dad751dd0043fd8",
+  "package_hashes_match": true,
+  "package_sha256": {
+    ".script": "8b0735ca222f37490aebfdf768498c55afcac0d909d8599400d7304da829893b",
+    ".txt": "d1beccd46e792d30ed67cc95b95789efe2ae52da50bd6b292880721fc0d087bc",
+    ".urp": "caabd4f969ba6de513c402739ad83beb56bceac3e1f7168b207de59fc946d3ba"
+  },
+  "blockers": [],
+  "claims": {
+    "package_accepted": true,
+    "live_run_accepted": false,
+    "reproduction_complete": false
+  },
+  "safety_boundary": [
+    "offline readiness evidence only",
+    "not a liveness cache",
+    "does not start bridge or TP Play",
+    "does not authorize motion by itself",
+    "per-run Dashboard/RTDE/Kunwei/RT-writer checks remain mandatory"
+  ]
+}

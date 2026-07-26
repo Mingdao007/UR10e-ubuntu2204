@@ -1,0 +1,14 @@
+ Program
+   Robot Program
+     MoveJ
+       HP
+       pw1
+       down
+       RG Grip
+       placeway1
+       placeway2
+       placeway3
+       RG Grip
+       upway
+       HP
+       Halt

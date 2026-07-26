@@ -1,0 +1,6 @@
+ Program
+   Robot Program
+     Script: output_0028.script
+     MoveJ
+       Waypoint_1
+     Halt

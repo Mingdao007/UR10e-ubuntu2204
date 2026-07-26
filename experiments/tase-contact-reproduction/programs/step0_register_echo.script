@@ -1,0 +1,43 @@
+# Step0: Kunwei RTDE input-register echo, no motion.
+# Run from a PolyScope Script node only after the Python step0 bridge/benchmark
+# is writing input_double_register_24..36. This program only mirrors values to
+# output_double_register_24..35 for the Ubuntu logger.
+
+def codex_step0_register_echo():
+  textmsg("codex step0 register echo start")
+  local t = 0.0
+  local dt = 0.002
+  local loop_counter = 0.0
+  while t < 120.0:
+    local normal_force = read_input_float_register(24)
+    local force_norm = read_input_float_register(25)
+    local heartbeat = read_input_float_register(26)
+    local sensor_ok = read_input_float_register(27)
+    local stop_request = read_input_float_register(28)
+    local target_force = read_input_float_register(29)
+    local torque_norm = read_input_float_register(30)
+    local fx = read_input_float_register(31)
+    local fy = read_input_float_register(32)
+    local fz = read_input_float_register(33)
+    local mx = read_input_float_register(34)
+    local my = read_input_float_register(35)
+    write_output_float_register(24, normal_force)
+    write_output_float_register(25, force_norm)
+    write_output_float_register(26, heartbeat)
+    write_output_float_register(27, sensor_ok)
+    write_output_float_register(28, stop_request)
+    write_output_float_register(29, target_force)
+    write_output_float_register(30, torque_norm)
+    write_output_float_register(31, fx)
+    write_output_float_register(32, fy)
+    write_output_float_register(33, fz)
+    write_output_float_register(34, mx)
+    write_output_float_register(35, loop_counter)
+    sync()
+    loop_counter = loop_counter + 1.0
+    t = t + dt
+  end
+  textmsg("codex step0 register echo done")
+end
+
+codex_step0_register_echo()

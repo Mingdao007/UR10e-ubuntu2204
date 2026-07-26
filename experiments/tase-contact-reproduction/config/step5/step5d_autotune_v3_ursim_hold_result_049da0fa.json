@@ -1,0 +1,104 @@
+{
+  "acceptance_scope": "offline_tooling_and_ursim_hold_only",
+  "claim_boundary": "digest_pinned_ursim_hold_only_not_robot_acceptance",
+  "container_lifecycle": {
+    "container_id": "4513a15eae0727b36fcc856a87d9219c54c135deaa592762e18fb59f4f3c5801",
+    "devices": [],
+    "mounts": [],
+    "name": "ur_exp_ursim_f355c48a",
+    "privileged": false,
+    "removed_after_gate": true
+  },
+  "decision": {
+    "current_selector": "step5d_strict_rnn_autotune_v1",
+    "live_robot_acceptance": "not_run_not_authorized",
+    "offline_acceptance": "go",
+    "rollout_authorized": false,
+    "v3_active": false
+  },
+  "hold": {
+    "arm_count": 0,
+    "controller_write_count": 0,
+    "dashboard_program_state": "STOPPED",
+    "dashboard_running": false,
+    "forbidden_action_count": 0,
+    "max_abs_actual_qd_rad_s": 0.0,
+    "max_abs_actual_tcp_speed": 0.0,
+    "motion_count": 0,
+    "play_count": 0,
+    "rtde_input_recipe_created": false,
+    "rtde_output_recipe_only": true,
+    "sample_count": 3
+  },
+  "identity": {
+    "contract_sha256": "236f207a595fe3946791bfdf51b4d61d108ed9c94789ae6a5db1fe3c7023a42b",
+    "control_fingerprint": "049da0fa6c0b9ee0a3d97009faa00b56a3f69195032bd60555566270622ee937",
+    "orchestration_fingerprint": "f355c48a7238a4348226de8ccf79a2b3d7abd1eea18f8f9d7ffc599c7b32dbc8"
+  },
+  "image": {
+    "entrypoint": [
+      "/entrypoint.sh"
+    ],
+    "entrypoint_overridden": false,
+    "image_id": "sha256:b002fdfa81e3ecdb95246ab78b6991fc065a622b890af45a27e10b088aef98c3",
+    "polyscope_version": "5.25.2",
+    "reference": "universalrobots/ursim_e-series:5.25.2@sha256:a4c4365207d54d1a1a4ead87526ff3781e2e98ae703c72f362060a46688fa7a4",
+    "robot_model_selection": {
+      "bench_target": "UR10e",
+      "binding": "official_e_series_image_ur10_token",
+      "environment_variable": "ROBOT_MODEL",
+      "image_family": "ursim_e-series",
+      "observed_token": "UR10"
+    },
+    "target_polyscope_version_equivalence_claimed": false
+  },
+  "network": {
+    "external_network_connected": false,
+    "host_ports_published": false,
+    "internal": true,
+    "name": "ur_exp_ursim_f355c48a_net",
+    "removed_after_gate": true,
+    "robot_network_connected": false
+  },
+  "observed_at": "2026-07-19T06:55:53.434334+00:00",
+  "raw_evidence": {
+    "byte_identical_copy_verified": true,
+    "original_run_path": "/home/andy/.codex/runs/ur-exp-bridge-readiness-20260719/ursim-hold-f355c48a/049da0fa6c0b9ee0-20260719T065553.672104Z-695570/ursim_hold_gate.json",
+    "path": "config/step5/step5d_autotune_v3_ursim_hold_raw_049da0fa.json",
+    "sha256": "7f154ce884575e9765dc4f733f749525b72e689b276155a0e532b149c62e5aac"
+  },
+  "rollback": {
+    "service_exit_code": 0,
+    "service_final_phase": "stopped",
+    "stderr": "",
+    "stdout": "",
+    "v1_selector_after": "step5d_strict_rnn_autotune_v1",
+    "v1_selector_before": "step5d_strict_rnn_autotune_v1",
+    "v3_active_after": false
+  },
+  "schema": "step5d.autotune-v3/ursim-hold-result-v1",
+  "service_lifecycle": {
+    "bridge_started": false,
+    "controller_touched": false,
+    "expected_prefix": [
+      "STOPPED",
+      "STARTING",
+      "READY_HOME"
+    ],
+    "hardware_enabled": false,
+    "observed": [
+      "STOPPED",
+      "STARTING",
+      "READY_HOME",
+      "STOPPED"
+    ],
+    "tp_started": false
+  },
+  "status": "pass",
+  "watchdog": {
+    "hold_monitor_passed": true,
+    "immutable_tp_watchdog_artifact_verified": true,
+    "tp_watchdog_runtime_executed": false,
+    "tp_watchdog_runtime_reason": "HOLD-only gate forbids TP Play"
+  }
+}

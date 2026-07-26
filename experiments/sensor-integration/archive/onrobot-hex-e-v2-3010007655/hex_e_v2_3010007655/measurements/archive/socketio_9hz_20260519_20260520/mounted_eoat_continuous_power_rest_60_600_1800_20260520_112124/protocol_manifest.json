@@ -1,0 +1,84 @@
+{
+  "run_root": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/mounted_eoat_continuous_power_rest_60_600_3600_20260520_112124",
+  "experiment_root": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655",
+  "host": "192.168.1.1",
+  "protocol": "continuous_power_rest_recovery",
+  "not_true_power_cycle_cooling": true,
+  "ur10e_state": "off_not_read",
+  "segments": [
+    {
+      "name": "S00_60s",
+      "duration_s": 60,
+      "status_every_s": 30
+    },
+    {
+      "name": "S01_600s",
+      "duration_s": 600,
+      "status_every_s": 120
+    },
+    {
+      "name": "S02_3600s",
+      "duration_s": 3600,
+      "status_every_s": 600
+    }
+  ],
+  "rests": [
+    {
+      "name": "R00_rest_30min",
+      "after": "S00_60s",
+      "duration_s": 1800
+    },
+    {
+      "name": "R01_rest_30min",
+      "after": "S01_600s",
+      "duration_s": 1800,
+      "completed_planned_rest": false,
+      "actual_duration_s": 1080.8698186019974
+    }
+  ],
+  "read_only_policy": [
+    "no_ur_motion",
+    "no_ur_zero_ftsensor",
+    "no_onrobot_zero",
+    "no_onrobot_bias",
+    "no_autocalib",
+    "no_firmware",
+    "no_config_write"
+  ],
+  "effective_protocol": "continuous_power_rest_recovery_60_600_1800",
+  "original_requested_segments": [
+    {
+      "name": "S00_60s",
+      "duration_s": 60
+    },
+    {
+      "name": "S01_600s",
+      "duration_s": 600
+    },
+    {
+      "name": "S02_3600s",
+      "duration_s": 3600
+    }
+  ],
+  "effective_valid_segments": [
+    {
+      "name": "S00_60s",
+      "duration_s": 60
+    },
+    {
+      "name": "S01_600s",
+      "duration_s": 600
+    },
+    {
+      "name": "S02_1800s",
+      "duration_s": 1800
+    }
+  ],
+  "aborted_segments": [
+    {
+      "name": "S02_3600s",
+      "planned_duration_s": 3600,
+      "reason": "user touched the setup during measurement and requested cancellation"
+    }
+  ]
+}

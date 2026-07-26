@@ -1,0 +1,6 @@
+  #======    OnRobot Gripper Set LEDs Messages    ======#
+  
+  of_gripper_set_LEDs_error_title="{{of_gripper_set_LEDs_error_title}}"
+  of_gripper_set_LEDs_error_no_select="{{of_gripper_set_LEDs_error_no_select}}"
+  
+  #======    End of OnRobot Gripper Set LEDs Messages    ======#

@@ -1,0 +1,17 @@
+Step4e P0/P1 attitude package
+
+Program:
+  step4e_seed_normal_loop_v29
+
+Version:
+  2026-06-12T0405HKT_STEP4E_SEED_NORMAL_LOOP_V29
+
+Purpose:
+  bridge-profile-fix + line-entry-gate release: one-step entry XY plus target attitude at current Z, v13 force-jump first-contact-Z search with 20 mm near window, 2.5 mm/s near descent, 50 N raw-normal guard, first touch, 20 mm lift, angular speedl alignment, second touch, zero-linear 25.3 gate, then line
+
+Control boundary:
+  Ubuntu bridge writes RTDE input registers 24..47.
+  No UR zero_ftsensor, no Kunwei tare/config write, no TCP/payload write.
+
+Canonical flow:
+  STEP4E_FLOW.md

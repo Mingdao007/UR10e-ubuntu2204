@@ -1,0 +1,87 @@
+{
+  "source_csv": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/data.csv",
+  "source_summary": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/19h15min/capture/summary.json",
+  "analysis_window": {
+    "rule": "all valid 0x48 frames from first logged frame to user-requested stop; no robot motion/contact phases in this no-motion sensor-only run",
+    "start_elapsed_s": 0.0,
+    "end_elapsed_s": 69325.77287676797,
+    "duration_s": 69325.77287676797,
+    "samples": 69325059
+  },
+  "overall": {
+    "samples": 69325059,
+    "duration_first_last_s": 69325.77287676797,
+    "rate_hz_by_first_last": 999.9897025775791,
+    "dt_mean_ms": 1.000010311953406,
+    "dt_min_ms": 0.006061047315597534,
+    "dt_max_ms": 63.37462901137769,
+    "stats": {
+      "Fx_N": {
+        "first": 2.43794392,
+        "last": 2.37468652,
+        "last_minus_first": -0.06325739999999991,
+        "mean": 2.409634121549102,
+        "std": 0.0176863846710509,
+        "min": 2.26284936,
+        "max": 2.59396845
+      },
+      "Fy_N": {
+        "first": -1.09227684,
+        "last": -1.04189544,
+        "last_minus_first": 0.05038140000000002,
+        "mean": -1.0695517676881134,
+        "std": 0.01746514120802355,
+        "min": -1.29556573,
+        "max": -0.908167057
+      },
+      "Fz_N": {
+        "first": -0.928559491,
+        "last": -0.882840673,
+        "last_minus_first": 0.045718817999999994,
+        "mean": -0.8990230321550813,
+        "std": 0.014582066469279174,
+        "min": -1.60359825,
+        "max": -0.497041248
+      },
+      "Mx_Nm": {
+        "first": 0.0520392852,
+        "last": 0.0524282251,
+        "last_minus_first": 0.00038893990000000295,
+        "mean": 0.051958331729522494,
+        "std": 0.00036955103723133843,
+        "min": 0.0442252687,
+        "max": 0.0582259151
+      },
+      "My_Nm": {
+        "first": -0.0638403072,
+        "last": -0.0636329937,
+        "last_minus_first": 0.00020731350000000037,
+        "mean": -0.06422959070822516,
+        "std": 0.00038718170607520504,
+        "min": -0.0703151749,
+        "max": -0.0573553519
+      },
+      "Mz_Nm": {
+        "first": 0.0607896007,
+        "last": 0.0620538439,
+        "last_minus_first": 0.001264243200000001,
+        "mean": 0.06183063581068477,
+        "std": 0.0005586713645383542,
+        "min": 0.0591425185,
+        "max": 0.0646440659
+      }
+    },
+    "summary_stop_reason": "signal_2",
+    "summary_finished_at": "2026-06-03T15:12:53",
+    "summary_parse_errors": 0,
+    "summary_dropped_sync_bytes": 0
+  },
+  "artifacts": {
+    "checkpoint_summary_csv": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-19h15-1khz-drift/checkpoint-summary-900s.csv",
+    "downsampled_plot_points_csv": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-19h15-1khz-drift/downsampled-plot-points.csv",
+    "full_context_plot": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-19h15-1khz-drift/full-context-force-torque.png",
+    "fz_plot": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-19h15-1khz-drift/fz-drift.png",
+    "fxy_plot": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-19h15-1khz-drift/fx-fy-drift.png",
+    "checkpoint_rate_plot": "/home/andy/ur10e_ros2_ws/report/assets/kunwei-19h15-1khz-drift/checkpoint-rate.png"
+  }
+}

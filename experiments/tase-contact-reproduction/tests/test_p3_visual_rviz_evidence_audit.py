@@ -1,0 +1,258 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE = ROOT.parents[1]
+TOOLS = ROOT / "tools"
+PACKAGE = WORKSPACE / "src" / "ur10e_example_controllers"
+MODULE_PATH = TOOLS / "build_p3_visual_rviz_evidence_audit.py"
+sys.path.insert(0, str(TOOLS))
+sys.path.insert(0, str(PACKAGE))
+
+EXPECTED_TIERS = [
+    "visual_only",
+    "virtual/software force-loop",
+    "simulated_ft",
+    "physical Gazebo collision/contact physics",
+    "real bench/live contact",
+]
+
+
+def import_audit_module():
+    if not MODULE_PATH.is_file():
+        raise AssertionError(f"missing generator: {MODULE_PATH}")
+    spec = importlib.util.spec_from_file_location("build_p3_visual_rviz_evidence_audit", MODULE_PATH)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"cannot load spec for {MODULE_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class P3VisualRvizEvidenceAuditTest(unittest.TestCase):
+    def test_build_audit_keeps_gazebo_observer_visual_only(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="rviz_missing_evidence_") as tmp:
+            payload = audit.build_audit(generated_at="2026-06-21T04:05:00+08:00", rviz_search_root=Path(tmp))
+
+        self.assertEqual(payload["schema"], "ur10e_p3_visual_rviz_evidence_audit_v1")
+        self.assertEqual(payload["claim_boundary_gate"]["tiers"], EXPECTED_TIERS)
+        self.assertFalse(payload["live_authorization"]["robot_motion_authorized"])
+        self.assertFalse(payload["live_authorization"]["real_bench_live_contact_authorized"])
+
+        gazebo = payload["gazebo_observer_evidence"]
+        self.assertEqual(gazebo["claim_tier"], "visual_only")
+        self.assertEqual(gazebo["row_count"], 24)
+        self.assertEqual(gazebo["observer_visual_pass_count"], 24)
+        self.assertEqual(gazebo["observer_visual_fail_count"], 0)
+        self.assertEqual(gazebo["reviewed_row_count"], 24)
+        self.assertEqual(gazebo["stages"], ["step5a", "step5b", "step5c", "step5d", "step6a", "step6b", "step7", "step8"])
+        self.assertEqual(gazebo["views"], ["close_detail", "context_overview", "interaction_view"])
+        self.assertEqual(gazebo["force_contact_source"], "gazebo_joint_state_fk_virtual_surface_model")
+        self.assertFalse(gazebo["force_contact_physics_proven"])
+        self.assertIn("force_contact_physics_proven=false", gazebo["blocker_tokens"])
+        self.assertEqual(gazebo["source_boundary"], "visual observer evidence only; not Gazebo contact physics")
+
+        required = payload["p3_requirement_status"]
+        self.assertEqual(required["gazebo_gui_observer"]["status"], "visual_observer_pass_with_claim_boundary")
+        self.assertEqual(required["gazebo_gui_observer"]["claim_tier"], "visual_only")
+        self.assertEqual(required["gazebo_gui_observer"]["explicit_side_view_status"], "missing_explicit_side_view_label")
+        self.assertEqual(required["rviz_debug_evidence"]["status"], "blocked_missing_current_rviz_evidence")
+        self.assertEqual(required["rviz_debug_evidence"]["claim_tier"], "visual_only")
+        self.assertFalse(required["rviz_debug_evidence"]["all_required_items_evidenced"])
+        self.assertIn("RViz rendered screenshot evidence is missing", payload["audit_coverage"]["full_p3_acceptance_blocker"])
+
+    def test_current_claim_table_has_exact_tiers_and_no_physical_upgrade(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="rviz_missing_evidence_") as tmp:
+            payload = audit.build_audit(generated_at="2026-06-21T04:05:00+08:00", rviz_search_root=Path(tmp))
+
+        rows = payload["current_claim_tier_table"]
+        self.assertGreaterEqual(len(rows), 4)
+        for row in rows:
+            self.assertIn(row["claim_tier"], EXPECTED_TIERS)
+            self.assertNotIn("blocked/not_proven", row["claim_tier"])
+
+        gazebo_row = next(row for row in rows if row["evidence_surface"] == "Gazebo observer matrix")
+        self.assertEqual(gazebo_row["claim_tier"], "visual_only")
+        self.assertIn("24/24", gazebo_row["current_status"])
+
+        rviz_row = next(row for row in rows if row["evidence_surface"] == "RViz debug evidence")
+        self.assertEqual(rviz_row["claim_tier"], "visual_only")
+        self.assertIn("missing", rviz_row["current_status"])
+
+        physical_row = next(row for row in rows if row["evidence_surface"] == "P2 physical Gazebo contact")
+        self.assertEqual(physical_row["claim_tier"], "visual_only")
+        self.assertIn("force_contact_physics_proven=false", physical_row["current_status"])
+
+        self.assertIn("p1_simulated_ft", payload["source_artifacts"])
+        p1_reference = payload["p1_simulated_ft_reference"]
+        self.assertEqual(p1_reference["claim_tier"], "simulated_ft")
+        self.assertEqual(p1_reference["artifact"], payload["source_artifacts"]["p1_simulated_ft"])
+        self.assertTrue(all(p1_reference["evidence_fields_present"].values()))
+        p1_row = next(row for row in rows if row["evidence_surface"] == "P1 simulated FT")
+        self.assertEqual(p1_row["claim_tier"], "simulated_ft")
+        self.assertEqual(p1_row["evidence_artifact"], payload["source_artifacts"]["p1_simulated_ft"])
+        self.assertEqual(
+            p1_row["required_evidence_fields"],
+            ["stamp", "frame_id", "source", "status", "baseline", "log_evidence"],
+        )
+
+    def test_observer_summary_with_explicit_side_view_satisfies_side_label_gate(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p3_side_view_summary_") as tmp:
+            root = Path(tmp)
+            summary_path = root / "summary.json"
+            manifest_path = root / "observer_manifest.json"
+            rows = [
+                {
+                    "stage": "step5b",
+                    "view": view,
+                    "observer_visual_pass": True,
+                    "observer_visual_review_status": "row_review_present",
+                    "observer_review_present": True,
+                    "eoat_tooling_visible": True,
+                    "tcp_marker_visible": True,
+                    "surface_path_visible": True,
+                    "robot_tool_surface_relation_visible": True,
+                    "clean_scene_capture": True,
+                    "obstructive_ui_panels_absent": True,
+                    "force_contact_source": "gazebo_joint_state_fk_virtual_surface_model",
+                    "force_contact_physics_proven": False,
+                }
+                for view in ("context_overview", "interaction_view", "side_view", "close_detail")
+            ]
+            summary_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "fixture",
+                        "run_dir": str(root),
+                        "row_count": len(rows),
+                        "observer_visual_pass_count": len(rows),
+                        "observer_visual_fail_count": 0,
+                        "all_expected_rows_present": True,
+                        "all_rows_observer_visual_pass": True,
+                        "all_rows_gui_evidence_captured": True,
+                        "rows": rows,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            manifest_path.write_text(
+                json.dumps({"reviewed_row_count": len(rows), "contact_sheet": str(root / "contact_sheet.png")})
+                + "\n",
+                encoding="utf-8",
+            )
+            payload = audit.build_audit(
+                generated_at="2026-06-21T04:05:00+08:00",
+                observer_summary_path=summary_path,
+                observer_manifest_path=manifest_path,
+                rviz_search_root=root,
+            )
+
+        gazebo = payload["p3_requirement_status"]["gazebo_gui_observer"]
+        self.assertIn("side_view", gazebo["covered_view_roles"])
+        self.assertEqual(gazebo["explicit_side_view_status"], "present")
+        self.assertEqual(gazebo["claim_tier"], "visual_only")
+
+    def test_shallow_rviz_files_do_not_unlock_debug_acceptance(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="rviz_shallow_evidence_") as tmp:
+            root = Path(tmp)
+            (root / "debug.rviz").write_text("Panels: []\n", encoding="utf-8")
+            (root / "rviz_view.png").write_bytes(b"not-a-real-image")
+            rviz = audit.find_rviz_artifacts(root)
+
+        self.assertEqual(rviz["claim_tier"], "visual_only")
+        self.assertEqual(rviz["status"], "blocked_incomplete_rviz_evidence")
+        self.assertFalse(rviz["all_required_items_evidenced"])
+        self.assertTrue(rviz["config_paths"])
+        self.assertTrue(rviz["screenshot_paths"])
+        self.assertTrue(all(value is False for value in rviz["evidenced_items"].values()))
+
+    def test_valid_rviz_manifest_unlocks_config_manifest_evidence_only(self) -> None:
+        audit = import_audit_module()
+        rviz_pack_path = TOOLS / "build_p3_rviz_debug_evidence_pack.py"
+        spec = importlib.util.spec_from_file_location("build_p3_rviz_debug_evidence_pack", rviz_pack_path)
+        if spec is None or spec.loader is None:
+            raise AssertionError(f"cannot load spec for {rviz_pack_path}")
+        rviz_pack = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rviz_pack)
+
+        with tempfile.TemporaryDirectory(prefix="rviz_valid_evidence_") as tmp:
+            root = Path(tmp)
+            manifest = rviz_pack.write_pack(root, generated_at="2026-06-21T04:20:00+08:00")
+            rviz = audit.find_rviz_artifacts(root)
+
+        self.assertEqual(rviz["claim_tier"], "visual_only")
+        self.assertEqual(rviz["status"], "rviz_config_manifest_evidence_present_not_rendered")
+        self.assertTrue(rviz["all_required_items_evidenced"])
+        self.assertFalse(rviz["rendered_screenshot_evidence_present"])
+        self.assertFalse(rviz["full_rviz_render_acceptance_allowed"])
+        self.assertEqual(rviz["manifest_paths"], [audit.rel(manifest)])
+        self.assertTrue(all(rviz["evidenced_items"].values()))
+
+    def test_rendered_rviz_manifest_unlocks_render_evidence(self) -> None:
+        audit = import_audit_module()
+        rviz_pack_path = TOOLS / "build_p3_rviz_debug_evidence_pack.py"
+        spec = importlib.util.spec_from_file_location("build_p3_rviz_debug_evidence_pack", rviz_pack_path)
+        if spec is None or spec.loader is None:
+            raise AssertionError(f"cannot load spec for {rviz_pack_path}")
+        rviz_pack = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rviz_pack)
+
+        with tempfile.TemporaryDirectory(prefix="rviz_rendered_evidence_") as tmp:
+            root = Path(tmp)
+            manifest = rviz_pack.write_pack(root, generated_at="2026-06-21T04:25:00+08:00")
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            screenshot = root / "rviz_debug_render.png"
+            screenshot.write_bytes(b"fake-png-bytes-for-parser-test")
+            payload["rendered_screenshot_evidence"] = {
+                "present": True,
+                "status": "rendered_screenshot_captured",
+                "path": screenshot.name,
+                "claim_tier": "visual_only",
+            }
+            manifest.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            rviz = audit.find_rviz_artifacts(root)
+            built = audit.build_audit(
+                generated_at="2026-06-21T04:25:00+08:00",
+                rviz_search_root=root,
+            )
+
+        self.assertEqual(rviz["status"], "rviz_rendered_evidence_present")
+        self.assertTrue(rviz["all_required_items_evidenced"])
+        self.assertTrue(rviz["rendered_screenshot_evidence_present"])
+        self.assertTrue(rviz["full_rviz_render_acceptance_allowed"])
+        rviz_row = next(row for row in built["current_claim_tier_table"] if row["evidence_surface"] == "RViz debug evidence")
+        self.assertEqual(rviz_row["claim_tier"], "visual_only")
+        self.assertIn("rendered RViz screenshot present", rviz_row["current_status"])
+        blocker = built["audit_coverage"]["full_p3_acceptance_blocker"]
+        self.assertNotIn("RViz rendered screenshot evidence is missing", blocker)
+        self.assertIn("explicit Gazebo side-view label is missing", blocker)
+        self.assertIn("P2 contact-physics target is blocked/not proven", blocker)
+
+    def test_write_audit_creates_json_artifact(self) -> None:
+        audit = import_audit_module()
+        with tempfile.TemporaryDirectory(prefix="p3_visual_rviz_audit_test_") as tmp:
+            path = audit.write_audit(Path(tmp), generated_at="2026-06-21T04:05:00+08:00")
+            payload = json.loads(path.read_text(encoding="utf-8"))
+
+        self.assertEqual(path.name, "p3_visual_rviz_evidence_audit.json")
+        self.assertEqual(payload["artifact_path"], str(path))
+        self.assertEqual(payload["schema"], "ur10e_p3_visual_rviz_evidence_audit_v1")
+
+
+if __name__ == "__main__":
+    unittest.main()

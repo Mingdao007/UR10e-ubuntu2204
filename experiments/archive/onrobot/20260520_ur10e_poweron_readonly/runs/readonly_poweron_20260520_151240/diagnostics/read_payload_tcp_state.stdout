@@ -1,0 +1,29 @@
+{
+  "ok": true,
+  "host": "192.168.1.18",
+  "port": 30004,
+  "payload": 0.009,
+  "payload_cog": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "tcp_offset": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "actual_TCP_force": {
+    "Fx": 0.0,
+    "Fy": 0.0,
+    "Fz": 0.0,
+    "Tx": 0.0,
+    "Ty": 0.0,
+    "Tz": 0.0
+  },
+  "force_norm_N": 0.0,
+  "torque_norm_Nm": 0.0
+}

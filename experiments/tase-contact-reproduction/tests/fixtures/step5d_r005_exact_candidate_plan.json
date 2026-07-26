@@ -1,0 +1,66 @@
+{
+  "batch_size": 10,
+  "batches": [
+    {
+      "batch_id": 1,
+      "candidates": [
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.75,
+          "log2_p": 0.5
+        },
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.75,
+          "log2_p": 0.25
+        },
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.75,
+          "log2_p": 0.0
+        },
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.75,
+          "log2_p": -0.25
+        },
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.75,
+          "log2_p": -0.5
+        },
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.75,
+          "log2_p": -0.75
+        },
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.75,
+          "log2_p": -1.0
+        },
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.5,
+          "log2_p": -1.0
+        },
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.25,
+          "log2_p": -1.0
+        },
+        {
+          "log2_damping": 0.25,
+          "log2_i": 0.0,
+          "log2_p": -1.0
+        }
+      ],
+      "source": "v3-pareto-round-a-10-trial-batch-20260719"
+    }
+  ],
+  "campaign_id": "step5d-native-1",
+  "closed": false,
+  "envelope_id": "positive_i_multiplier_coarse_log2_fine_v1",
+  "revision": 1,
+  "schema_version": "step5d_autotune_codex_batch_plan_v2"
+}

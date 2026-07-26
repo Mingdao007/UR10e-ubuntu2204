@@ -1,0 +1,93 @@
+  #======    OnRobot Gripper Set Width    ======#
+  
+  of_gripper_set_width_state=0
+  of_gripper_set_width_return=0
+  OF_GRIPPER_MAX_WIDTH=120
+  OF_GRIPPER_MAX_FORCE=40
+  OF_GRIPPER_SET_WIDTH_STATE_IDLE=0
+  OF_GRIPPER_SET_WIDTH_STATE_INIT=1
+  OF_GRIPPER_SET_WIDTH_STATE_STARTED=2
+  OF_GRIPPER_SET_WIDTH_STATE_RETURNING=3
+  of__gripper_set_width_param_error_width="Please define parameter 'width' as a positive real number in millimeters!"
+  of__gripper_set_width_param_warning_width="The parameter 'width' is higher than the maximum value. Maximum value sent: "
+  of__gripper_set_width_param_error_force="Please define parameter 'force' as a positive  real number in Newtons!"
+  of__gripper_set_width_param_warning_force="The parameter 'force' higher than the maximum value. Maximum value sent: "
+  def of_gripper_set_width(width,force,blocking=True,depth_compensation=False,popupmsg=True):
+  sync()
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Set Width starting..")
+  end 
+  if not(of_gripper_set_width_state==OF_GRIPPER_SET_WIDTH_STATE_IDLE):
+  textmsg("of_gripper_set_width_state: ",of_gripper_set_width_state)
+  popup(of_gripper_set_width_state_error_start,title=of_cmd_error_title,error=True,blocking=False)
+  halt
+  else:
+  enter_critical
+  of_gripper_set_width_state=OF_GRIPPER_SET_WIDTH_STATE_INIT
+  exit_critical
+  end 
+  enter_critical
+  of_gripper_set_width_return=0
+  exit_critical
+  if not(width>=0):
+  of_gripper_set_width_return=-99
+  popup(of__gripper_set_width_param_error_width,title=of_gripper_set_width_error_title,error=True,blocking=False)
+  elif not(width<=OF_GRIPPER_MAX_WIDTH):
+  width=OF_GRIPPER_MAX_WIDTH
+  textmsg(of__gripper_set_width_param_warning_width,width)
+  elif not(force>0):
+  of_gripper_set_width_return=-99
+  popup(of__gripper_set_width_param_error_force,title=of_gripper_set_width_error_title,error=True,blocking=False)
+  elif not(force<=OF_GRIPPER_MAX_FORCE):
+  force=OF_GRIPPER_MAX_FORCE
+  textmsg(of__gripper_set_width_param_warning_force,force)
+  end 
+  if(of_gripper_set_width_return!=0):
+  halt
+  end 
+  local blocking_int=binary_list_to_integer([blocking])
+  local depth_compensation_int=binary_list_to_integer([depth_compensation])
+  of_send_full(OF_CMD_GRIPPER_SET_WIDTH,of_float_to_int(width),of_float_to_int(force),blocking_int,depth_compensation_int)
+  if depth_compensation:
+  of_speedl_start_for_CMD(OF_CMD_GRIPPER_SET_WIDTH)
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Set Width command sent, waiting for the return.")
+  end 
+  enter_critical
+  of_gripper_set_width_state=OF_GRIPPER_SET_WIDTH_STATE_STARTED
+  exit_critical
+  of_gripper_set_width_return=of_wait_for_return(OF_CMD_GRIPPER_SET_WIDTH,blocking=blocking)
+  if depth_compensation:
+  of_speedl_stop_for_CMD(OF_CMD_GRIPPER_SET_WIDTH)
+  end 
+  if(of_gripper_follow_tcp):
+  of_gripper_tcp_update()
+  end 
+  if(of_gripper_follow_cog):
+  of_gripper_cog_update()
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Set Width returned.")
+  end 
+  if of_gripper_set_width_return==-1:
+  elif of_gripper_set_width_return==0:
+  elif of_gripper_set_width_return==1:
+  if(popupmsg):
+  popup(of_gripper_set_width_return_1,title=of_gripper_set_width_return_title,warning=True,blocking=True)
+  end 
+  else:
+  textmsg("of_gripper_set_width_return: ",of_gripper_set_width_return)
+  popup(of_gripper_set_width_return_unknown,title=of_gripper_set_width_return_title,warning=True,blocking=True)
+  end 
+  enter_critical
+  of_gripper_set_width_state=OF_GRIPPER_SET_WIDTH_STATE_IDLE
+  exit_critical
+  if OF_DEBUG_STATE:
+  textmsg("End of Gripper Set Width.")
+  end 
+  return of_gripper_set_width_return 
+  end 
+  
+  
+  #======    End of OnRobot Gripper Set Width    ======#

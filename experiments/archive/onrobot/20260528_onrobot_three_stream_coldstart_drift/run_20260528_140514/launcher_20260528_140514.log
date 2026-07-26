@@ -1,0 +1,35 @@
+[launcher] run_dir=/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_140514
+[launcher] log=/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_140514/launcher_20260528_140514.log
+[launcher] cap_seconds=86400
+[launcher] checkpoint_interval_s=300
+[launcher] robot_host=192.168.1.18
+[launcher] compute_box_host=192.168.1.1
+[launcher] start_time=2026-05-28T14:05:14+08:00
+
+[launcher] Waiting for UR Dashboard/RTDE and OnRobot Compute Box TCP DAQ.
+[launcher] You can start/power the bench now. Press Ctrl+C before capture starts to abort.
+2026-05-28T14:05:18 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:05:28 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:05:37 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:05:47 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:05:56 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:06:06 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:06:16 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:06:25 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:06:35 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:06:44 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:06:54 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:07:03 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:07:13 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:07:22 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:07:32 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:07:41 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:07:51 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:08:01 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:08:10 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:08:20 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:08:29 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:08:39 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:08:48 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:08:58 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT
+2026-05-28T14:09:07 UR Dashboard=WAIT UR RTDE=WAIT OnRobot TCP DAQ=WAIT

@@ -1,0 +1,23 @@
+  #======    OnRobot Gripper Width Filtering    ======#
+  
+  of_gWidth_filter=10
+  of__gripper_width_filtering_error_title="OnRobot - Gripper Proximity"
+  of__gripper_width_filtering_error_bufferSize="Please define parameter bufferSize as a positive integer between 0 and 20."
+  def of_gripper_width_filtering_set(bufferSize=10):
+  sync()
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Width filtering set command starting..")
+  end 
+  if not(bufferSize>0 and bufferSize<=20):
+  popup(of__gripper_width_filtering_error_bufferSize,title=of__gripper_width_filtering_error_title,error=True,blocking=False)
+  halt
+  end 
+  of_gWidth_filter=bufferSize
+  of_send_full(OF_CMD_GRIPPER_WIDTH_FILTERING,bufferSize)
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Width filtering set command stopping..")
+  end 
+  end 
+  
+  
+  #======    End of OnRobot Gripper Width Filtering    ======#

@@ -1,0 +1,17 @@
+Step4e P0/P1 attitude package
+
+Program:
+  step4f_cycloid_seed_normal_v1
+
+Version:
+  2026-06-12T0645HKT_STEP4F_CYCLOID_SEED_NORMAL_V1
+
+Purpose:
+  Step4f Experiment #1 cycloid: v31 TP scaffold with paper-derived cycloid XY reference for 60 s
+
+Control boundary:
+  Ubuntu bridge writes RTDE input registers 24..47.
+  No UR zero_ftsensor, no Kunwei tare/config write, no TCP/payload write.
+
+Canonical flow:
+  STEP4E_FLOW.md

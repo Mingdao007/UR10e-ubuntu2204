@@ -1,0 +1,34 @@
+  #======    OnRobot Stop Atomic    ======#
+  
+  def of_stop_atomic(stopLimit=False,stopFTControl=False,stopMove=False,stopHandGuide=False):
+  if(not stopLimit)and(not stopFTControl)and(not stopMove)and(not stopHandGuide):
+  if OF_DEBUG_STATE:
+  textmsg("No atomic command has been stopped.")
+  end 
+  end 
+  local stopFTControlOrHandGuide=stopFTControl or stopHandGuide
+  if OF_DEBUG_STATE:
+  textmsg("Stop Atomic sending.. ",[stopLimit,stopFTControl,stopMove,stopHandGuide])
+  end 
+  of_cmd_stop_arg=binary_list_to_integer([stopLimit,stopFTControlOrHandGuide,stopMove])
+  of_send_full(OF_CMD_STOP,of_cmd_stop_arg)
+  if stopLimit:
+  of_speedl_stop_for_CMD(OF_CMD_LIMIT)
+  end 
+  if stopFTControl:
+  of_speedl_stop_for_CMD(OF_CMD_FT_CONTROL)
+  end 
+  if stopHandGuide:
+  of_speedl_stop_for_CMD(OF_CMD_HAND_GUIDE)
+  end 
+  if stopMove:
+  of_speedl_stop_for_CMD(OF_CMD_MOVE)
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("Stop Atomic sent: ",of_cmd_stop_arg)
+  end 
+  return of_speedl_is_running
+  end 
+  
+  
+  #======    End of OnRobot Stop Atomic    ======#

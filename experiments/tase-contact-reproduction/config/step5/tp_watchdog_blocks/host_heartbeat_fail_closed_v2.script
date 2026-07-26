@@ -1,0 +1,55 @@
+  # AUTOTUNE_WATCHDOG_V2_BEGIN host_heartbeat_fail_closed_v2
+  global watchdog_home_pose = get_actual_tcp_pose()
+  global watchdog_home_q = get_actual_joint_positions()
+  thread codex_autotune_v2_heartbeat_watchdog():
+    local watchdog_last_heartbeat = read_input_float_register(26)
+    local watchdog_stale_s = 0.000
+    while True:
+      local watchdog_heartbeat = read_input_float_register(26)
+      if watchdog_heartbeat == watchdog_last_heartbeat:
+        watchdog_stale_s = watchdog_stale_s + get_steptime()
+      else:
+        watchdog_stale_s = 0.000
+        watchdog_last_heartbeat = watchdog_heartbeat
+      end
+
+      local watchdog_actual_pose = get_actual_tcp_pose()
+      local watchdog_pose_delta = pose_trans(pose_inv(watchdog_home_pose), watchdog_actual_pose)
+      local watchdog_position_error_m = sqrt(watchdog_pose_delta[0] * watchdog_pose_delta[0] + watchdog_pose_delta[1] * watchdog_pose_delta[1] + watchdog_pose_delta[2] * watchdog_pose_delta[2])
+      local watchdog_orientation_error_rad = sqrt(watchdog_pose_delta[3] * watchdog_pose_delta[3] + watchdog_pose_delta[4] * watchdog_pose_delta[4] + watchdog_pose_delta[5] * watchdog_pose_delta[5])
+      local watchdog_actual_q = get_actual_joint_positions()
+      local watchdog_joint_error_rad = 0.000
+      local watchdog_joint_index = 0
+      while watchdog_joint_index < 6:
+        local watchdog_joint_delta = watchdog_home_q[watchdog_joint_index] - watchdog_actual_q[watchdog_joint_index]
+        if watchdog_joint_delta < 0.000:
+          watchdog_joint_delta = -watchdog_joint_delta
+        end
+        if watchdog_joint_delta > watchdog_joint_error_rad:
+          watchdog_joint_error_rad = watchdog_joint_delta
+        end
+        watchdog_joint_index = watchdog_joint_index + 1
+      end
+      local watchdog_measured_home_verified = watchdog_position_error_m <= 0.003 and watchdog_orientation_error_rad <= 0.050 and watchdog_joint_error_rad <= 0.010
+      local watchdog_state = read_output_integer_register(26)
+      local watchdog_timeout_s = 0.100
+      if watchdog_state == 70 and watchdog_measured_home_verified:
+        watchdog_timeout_s = 2.000
+      end
+
+      if watchdog_stale_s > watchdog_timeout_s:
+        if watchdog_measured_home_verified:
+          textmsg("host_heartbeat_timeout_at_verified_home")
+          halt
+        else:
+          stopj(0.500)
+          textmsg("host_heartbeat_timeout_unknown_home_controlled_stop")
+          halt
+        end
+      end
+      sync()
+    end
+  end
+  local watchdog_thread_handle = run codex_autotune_v2_heartbeat_watchdog()
+  # AUTO_HOME_AFTER_HEARTBEAT_LOSS: false
+  # AUTOTUNE_WATCHDOG_V2_END host_heartbeat_fail_closed_v2

@@ -1,0 +1,696 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+
+import step5d_bridge_status as bridge_status  # noqa: E402
+import step5d_manual_status as manual_status  # noqa: E402
+from step5d_autotune_v3.governance import (  # noqa: E402
+    publish_launch_attempt,
+    read_proc_starttime_ticks,
+)
+
+
+@pytest.fixture(autouse=True)
+def _validated_manual_release_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        manual_status,
+        "manual_release_contract_scope",
+        lambda *_args, **_kwargs: {"release_manifest_sha256": "a" * 64},
+    )
+    monkeypatch.setattr(
+        manual_status,
+        "validate_release_contract_result",
+        lambda _payload, **kwargs: kwargs["expected_scope"],
+    )
+    monkeypatch.setattr(
+        manual_status,
+        "writer_lease_owner",
+        lambda _profile: {
+            "schema": "ur10e/live-writer-lease-owner-v1",
+            "pid": os.getpid(),
+            "starttime_ticks": read_proc_starttime_ticks(os.getpid()),
+            "task": "step5d-manual-no-arm-bridge",
+            "acquired_at": "fixture",
+        },
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "release_contract_reference",
+        lambda *_args, **_kwargs: {"ok": "contract"},
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_publication_lineage",
+        lambda *_args, **_kwargs: (Path("lineage.json"), {"ok": True}),
+    )
+
+
+def _bindings(campaign: Path, output: Path, snapshot: Path) -> dict[str, object]:
+    return {
+        "repository_head": "a" * 40,
+        "runtime_environment_id": hashlib.sha256(b"runtime").hexdigest(),
+        "campaign_root": str(campaign),
+        "output_root": str(output),
+        "resource_owner": {
+            "pid": os.getpid(),
+            "starttime_ticks": read_proc_starttime_ticks(os.getpid()),
+            "authority_epoch": 1,
+        },
+        "route_snapshot": {
+            "path": str(snapshot),
+            "sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
+        },
+    }
+
+
+def _owner_authority(authority: Path, attempt_id: str) -> None:
+    authority.mkdir(parents=True, exist_ok=True)
+    (authority / "owner-authority.json").write_text(
+        json.dumps(
+            {
+                "schema": "step5d.bridge/owner-authority-v1",
+                "sequence": 1,
+                "state": "ACTIVE",
+                "attempt_id": attempt_id,
+                "owner": {
+                    "pid": os.getpid(),
+                    "starttime_ticks": read_proc_starttime_ticks(os.getpid()),
+                },
+                "activated_at_unix_ns": 1,
+                "revoked_at_unix_ns": None,
+                "reason": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _route_snapshot(path: Path, route: str) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.bridge-route/v2",
+                "route": route,
+                "read_only": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _manual_status(campaign: Path, *, attempt_id: str) -> None:
+    contract = campaign / "manual-release-contract.json"
+    contract.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.autotune-v3/release-contract-result-v1",
+                "ok": True,
+                "state": "RELEASE_CONTRACT_PROVEN",
+            }
+        ),
+        encoding="utf-8",
+    )
+    bridge_csv = campaign.parent / "output/runtime/bridge/bridge_rtde_500hz.csv"
+    bridge_csv.parent.mkdir(parents=True, exist_ok=True)
+    bridge_csv.write_text(
+        "write_index,t_wall_ns,heartbeat,command,step4e_controller_state,ur_safety_mode\n"
+        f"1,{time.time_ns()},1,0,0,1\n"
+        f"2,{time.time_ns()},2,0,0,1\n",
+        encoding="utf-8",
+    )
+    (bridge_csv.parent / "bridge_ready.json").write_text(
+        json.dumps(
+            {"ok": True, "pid": os.getpid(), "launch_nonce": "1" * 32}
+        ),
+        encoding="utf-8",
+    )
+    starttime = read_proc_starttime_ticks(os.getpid())
+    (campaign / "manual_governed_status.json").write_text(
+        json.dumps(
+            {
+                "schema": "step5d.manual-v2/governed-status-v1",
+                "state": "WAITING_FOR_PLAY",
+                "release_sha": "a" * 64,
+                "campaign_id": "manual-test",
+                "launch_attempt_id": attempt_id,
+                "output_root": str(campaign.parent / "output"),
+                "bridge_pid": os.getpid(),
+                "bridge_starttime_ticks": starttime,
+                "bridge_owner_pid": os.getpid(),
+                "bridge_owner_starttime_ticks": starttime,
+                "bridge_launch_id": "1" * 32,
+                "bridge_heartbeat": True,
+                "play_prompt_ready": True,
+                "canonical_attempt_bound": True,
+                "controller_observation": {
+                    "observed_at_unix_ns": time.time_ns(),
+                    "loaded_program_response": (
+                        "Loaded program: /programs/andyl/kunwei/step5/"
+                        "step5d_strict_rnn_manual_tune_v2.urp"
+                    ),
+                    "program_state": "STOPPED",
+                    "program_state_normalized": "STOPPED",
+                    "safety_mode": "Safetymode: NORMAL",
+                    "safety_mode_normalized": "NORMAL",
+                    "expected_loaded_program": (
+                        "/programs/andyl/kunwei/step5/"
+                        "step5d_strict_rnn_manual_tune_v2.urp"
+                    ),
+                },
+                "release_contract": {
+                    "path": str(contract),
+                    "sha256": hashlib.sha256(contract.read_bytes()).hexdigest(),
+                },
+                "blocker": None,
+                "next_action": "press Play once",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_status_hard_archives_canonical_manual_attempt(
+    tmp_path: Path,
+) -> None:
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
+    authority.parent.mkdir(parents=True)
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    _route_snapshot(snapshot, "manual_v2")
+    _manual_status(campaign, attempt_id="attempt-1")
+    _owner_authority(authority, "attempt-1")
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-1",
+        state="STARTED",
+        phase="manual_campaign",
+        route="manual_v2",
+        bindings=_bindings(campaign, output, snapshot),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+    assert status["schema"] == bridge_status.STATUS_SCHEMA
+    assert status["route"] == "manual_v2"
+    assert status["state"] == "UNPREPARED"
+    assert status["blocker"]["reason_codes"] == ["MANUAL_V2_ARCHIVED"]
+    assert status["predicates"]["play_prompt_ready"] is False
+    assert status["predicates"]["canonical_attempt_bound"] is False
+    with pytest.raises(ValueError, match="does not authorize"):
+        bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
+
+
+def test_archived_manual_attempt_cannot_issue_readiness_claim(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
+    authority.parent.mkdir(parents=True)
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    _route_snapshot(snapshot, "manual_v2")
+    _manual_status(campaign, attempt_id="attempt-2")
+    _owner_authority(authority, "attempt-2")
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-2",
+        state="STARTED",
+        phase="manual_campaign",
+        route="manual_v2",
+        bindings=_bindings(campaign, output, snapshot),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+    with pytest.raises(ValueError, match="does not authorize"):
+        bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
+
+
+def test_failed_latest_attempt_hides_stale_route_status(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
+    authority.parent.mkdir(parents=True)
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    _route_snapshot(snapshot, "manual_v2")
+    _manual_status(campaign, attempt_id="attempt-3")
+    _owner_authority(authority, "attempt-3")
+    bindings = _bindings(campaign, output, snapshot)
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-3",
+        state="STARTED",
+        phase="manual_campaign",
+        route="manual_v2",
+        bindings=bindings,
+    )
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-3",
+        state="FAILED",
+        phase="manual_campaign",
+        route="manual_v2",
+        bindings=bindings,
+        exit_code=2,
+        reason_code="LAUNCH_ATTEMPT_FAILED",
+        detail="manual child exited",
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+    assert status["state"] == "TERMINAL"
+    assert status["compatibility_phase"] is None
+    assert status["predicates"]["play_prompt_ready"] is False
+    assert status["blocker"]["reason_codes"] == ["LAUNCH_ATTEMPT_FAILED"]
+
+
+def test_closed_world_route_failure_preserves_named_physical_blocker(
+    tmp_path: Path,
+) -> None:
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
+    authority.parent.mkdir(parents=True)
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    _route_snapshot(snapshot, "BLOCKED")
+    bindings = _bindings(campaign, output, snapshot)
+    route_reference = bindings["route_snapshot"]
+    bindings["route_snapshot"] = None
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-unsupported",
+        state="STARTED",
+        phase="route_resolve",
+        route="UNKNOWN",
+        bindings=bindings,
+    )
+    bindings["route_snapshot"] = route_reference
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-unsupported",
+        state="FAILED",
+        phase="route_resolve",
+        route="BLOCKED",
+        bindings=bindings,
+        exit_code=3,
+        reason_code="LOADED_PROGRAM_UNSUPPORTED",
+        detail="loaded program is outside the closed route set",
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["route"] == "BLOCKED"
+    assert status["blocker"]["class"] == "PHYSICAL"
+    assert status["blocker"]["reason_codes"] == ["LOADED_PROGRAM_UNSUPPORTED"]
+    assert status["next_action"] == "load_exact_supported_program_before_retry"
+
+
+def test_status_without_canonical_attempt_never_reuses_stale_v3_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_governed_status",
+        lambda *_args, **_kwargs: pytest.fail("stale V3 status must not be consulted"),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "UNPREPARED"
+    assert status["compatibility_phase"] is None
+    assert status["predicates"]["play_prompt_ready"] is False
+    assert status["blocker"]["reason_codes"] == ["CURRENT_RELEASE_INVALID"]
+    assert status["next_action"] == "repair_current_release_before_retry"
+
+
+def test_status_without_attempt_projects_delivery_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = type("Release", (), {"manifest_sha256": "a" * 64})()
+    delivery = tmp_path / "runs/delivery.json"
+    delivery.parent.mkdir()
+    delivery.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(bridge_status, "load_current_release", lambda _root: release)
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_delivery_observation",
+        lambda *_args, **_kwargs: (delivery, {"transaction_id": "b" * 32}),
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_bridge_admission",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            bridge_status.BridgeAdmissionError("not observed")
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "DELIVERED"
+    assert status["predicates"]["controller_fresh_get"] is True
+    assert status["blocker"]["reason_codes"] == []
+    assert status["launch_attempt"]["present"] is False
+
+
+def test_status_requires_runtime_revalidation_before_bridge(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = type("Release", (), {"manifest_sha256": "a" * 64})()
+    monkeypatch.setattr(bridge_status, "load_current_release", lambda _root: release)
+    monkeypatch.setattr(
+        bridge_status,
+        "release_contract_reference",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            FileNotFoundError("missing")
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["blocker"]["reason_codes"] == ["RELEASE_CERTIFICATE_MISSING"]
+    assert status["next_action"] == "run_revalidate_current"
+
+
+def test_status_without_attempt_projects_fresh_action_required(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = type("Release", (), {"manifest_sha256": "a" * 64})()
+    delivery = tmp_path / "runs/delivery.json"
+    admission = tmp_path / "runs/admission.json"
+    delivery.parent.mkdir()
+    delivery.write_text("{}\n", encoding="utf-8")
+    admission.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(bridge_status, "load_current_release", lambda _root: release)
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_delivery_observation",
+        lambda *_args, **_kwargs: (delivery, {"transaction_id": "b" * 32}),
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_bridge_admission",
+        lambda *_args, **_kwargs: (
+            admission,
+            {
+                "state": "ACTION_REQUIRED",
+                "operator_action": "LOAD_EXACT_PROGRAM_ON_TP_AND_LEAVE_STOPPED",
+            },
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "ACTION_REQUIRED"
+    assert status["blocker"]["reason_codes"] == ["EXTERNAL_ACTION_REQUIRED"]
+    assert status["launch_attempt"]["present"] is False
+    assert not (tmp_path / bridge_status.AUTHORITY_RELATIVE).exists()
+
+
+def test_passed_phase_with_dead_owner_is_not_a_readiness_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
+    authority.parent.mkdir(parents=True)
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    _route_snapshot(snapshot, "manual_v2")
+    _manual_status(campaign, attempt_id="attempt-dead")
+    _owner_authority(authority, "attempt-dead")
+    bindings = _bindings(campaign, output, snapshot)
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-dead",
+        state="STARTED",
+        phase="manual_campaign",
+        route="manual_v2",
+        bindings=bindings,
+    )
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-dead",
+        state="PASSED",
+        phase="manual_campaign",
+        route="manual_v2",
+        bindings=bindings,
+    )
+    monkeypatch.setattr(bridge_status, "read_proc_starttime_ticks", lambda _pid: None)
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "UNPREPARED"
+    assert status["compatibility_phase"] is None
+    assert status["blocker"]["reason_codes"] == ["LAUNCH_ATTEMPT_BINDING_INVALID"]
+
+
+def test_route_snapshot_content_must_match_bound_route(tmp_path: Path) -> None:
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
+    authority.parent.mkdir(parents=True)
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    _route_snapshot(snapshot, "autotune_v3")
+    _manual_status(campaign, attempt_id="attempt-route-mismatch")
+    _owner_authority(authority, "attempt-route-mismatch")
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-route-mismatch",
+        state="STARTED",
+        phase="manual_campaign",
+        route="manual_v2",
+        bindings=_bindings(campaign, output, snapshot),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "UNPREPARED"
+    assert status["compatibility_phase"] is None
+    assert status["blocker"]["reason_codes"] == ["LAUNCH_ATTEMPT_BINDING_INVALID"]
+
+
+def test_v3_campaign_lease_binds_the_canonical_attempt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
+    authority.parent.mkdir(parents=True)
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    _route_snapshot(snapshot, "autotune_v3")
+    _owner_authority(authority, "attempt-v3")
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-v3",
+        state="STARTED",
+        phase="live_handoff",
+        route="autotune_v3",
+        bindings=_bindings(campaign, output, snapshot),
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "resolve_governed_status",
+        lambda *_args, **_kwargs: {
+            "schema": "legacy",
+            "generated_at_unix_ns": time.time_ns(),
+            "state": "WAITING_FOR_PLAY",
+            "predicates": {
+                "release_contract_proven": True,
+                "lease_valid": True,
+                "play_prompt_ready": True,
+            },
+            "blocker": {"class": None, "reason_codes": [], "evidence": []},
+            "next_action": "press_play_or_stop",
+        },
+    )
+    monkeypatch.setattr(
+        bridge_status,
+        "_v3_attempt_binding_valid",
+        lambda observed_attempt, observed_campaign, observed_status: (
+            observed_attempt["attempt_id"] == "attempt-v3"
+            and observed_campaign == campaign
+            and observed_status["state"] == "WAITING_FOR_PLAY"
+        ),
+    )
+
+    status = bridge_status.resolve_status(tmp_path)
+    claim = bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
+
+    assert status["predicates"]["canonical_attempt_bound"] is True
+    assert claim["attempt_id"] == "attempt-v3"
+
+
+def test_readiness_claim_rejects_an_aged_status_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_now = 20_000_000_000
+    status = {
+        "state": "WAITING_FOR_PLAY",
+        "generated_at_unix_ns": (
+            observed_now - bridge_status.STATUS_CLAIM_MAX_AGE_NS - 1
+        ),
+        "route": "autotune_v3",
+        "launch_attempt": {"attempt_id": "attempt-aged"},
+        "predicates": {
+            "play_prompt_ready": True,
+            "canonical_attempt_bound": True,
+            "release_contract_proven": True,
+        },
+    }
+    monkeypatch.setattr(bridge_status.time, "time_ns", lambda: observed_now)
+
+    with pytest.raises(ValueError, match="does not authorize"):
+        bridge_status.readiness_claim(status, "WAITING_FOR_PLAY")
+
+    assert not (tmp_path / "readiness-claim.json").exists()
+
+
+def test_v3_runtime_evidence_must_bind_same_attempt_campaign_release_and_processes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    process_path = tmp_path / "governance/evidence/process.json"
+    process_path.parent.mkdir(parents=True)
+    process_payload = {
+        "schema": "step5d.autotune-v3/process-observation-evidence-v1",
+        "processes": [
+            {
+                "role": "canonical_launcher",
+                "pid": 41,
+                "starttime_ticks": 701,
+            },
+            {
+                "role": "bridge_wrapper",
+                "pid": 42,
+                "starttime_ticks": 702,
+            },
+        ],
+    }
+    process_path.write_text(json.dumps(process_payload), encoding="utf-8")
+    manifest_sha = "a" * 64
+    attestation = {
+        "run_id": "attempt-v3-bound",
+        "campaign_id": "campaign-v3-bound",
+        "bindings": {"manifest_sha256": manifest_sha},
+        "process": {
+            "evidence": {
+                "path": str(process_path.relative_to(tmp_path)),
+                "sha256": hashlib.sha256(process_path.read_bytes()).hexdigest(),
+            },
+            "bridge_pid": 42,
+            "bridge_starttime_ticks": 702,
+        },
+    }
+    monkeypatch.setattr(
+        bridge_status,
+        "load_current_observation",
+        lambda _campaign: (attestation, {}),
+    )
+    attempt = {
+        "attempt_id": "attempt-v3-bound",
+        "manifest_sha256": manifest_sha,
+        "bindings": {
+            "resource_owner": {"pid": 41, "starttime_ticks": 701},
+        },
+    }
+    status = {
+        "release": {"sha256": manifest_sha},
+        "attestation": {"run_id": "attempt-v3-bound"},
+        "campaign_lease": {"campaign_id": "campaign-v3-bound"},
+    }
+
+    assert bridge_status._v3_attempt_binding_valid(attempt, tmp_path, status) is True
+    assert (
+        bridge_status._v3_attempt_binding_valid(
+            {**attempt, "attempt_id": "different-attempt"}, tmp_path, status
+        )
+        is False
+    )
+    assert (
+        bridge_status._v3_attempt_binding_valid(
+            attempt,
+            tmp_path,
+            {**status, "campaign_lease": {"campaign_id": "different-campaign"}},
+        )
+        is False
+    )
+
+
+def test_completed_attempt_preserves_outcome_but_cannot_claim_readiness(
+    tmp_path: Path,
+) -> None:
+    campaign = tmp_path / "campaign"
+    output = tmp_path / "output"
+    authority = tmp_path / bridge_status.AUTHORITY_RELATIVE
+    authority.parent.mkdir(parents=True)
+    campaign.mkdir()
+    output.mkdir()
+    snapshot = output / "route.json"
+    _route_snapshot(snapshot, "manual_v2")
+    _manual_status(campaign, attempt_id="attempt-complete")
+    manual_path = campaign / "manual_governed_status.json"
+    manual = json.loads(manual_path.read_text(encoding="utf-8"))
+    manual["state"] = "COMPLETE"
+    manual["play_prompt_ready"] = False
+    manual["next_action"] = "none"
+    manual_path.write_text(json.dumps(manual), encoding="utf-8")
+    _owner_authority(authority, "attempt-complete")
+    bindings = _bindings(campaign, output, snapshot)
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-complete",
+        state="STARTED",
+        phase="manual_campaign",
+        route="manual_v2",
+        bindings=bindings,
+    )
+    publish_launch_attempt(
+        authority,
+        attempt_id="attempt-complete",
+        state="COMPLETED",
+        phase="manual_campaign",
+        route="manual_v2",
+        bindings=bindings,
+    )
+    owner = json.loads((authority / "owner-authority.json").read_text())
+    owner.update(
+        {
+            "sequence": 2,
+            "state": "REVOKED",
+            "revoked_at_unix_ns": 2,
+            "reason": "completed",
+        }
+    )
+    (authority / "owner-authority.json").write_text(json.dumps(owner))
+
+    status = bridge_status.resolve_status(tmp_path)
+
+    assert status["state"] == "TERMINAL"
+    assert status["compatibility_phase"] is None
+    assert status["predicates"]["play_prompt_ready"] is False
+    assert status["predicates"]["canonical_attempt_bound"] is False
+    with pytest.raises(ValueError, match="pre-Play"):
+        bridge_status.readiness_claim(status, "COMPLETE")

@@ -1,0 +1,28 @@
+{
+  "duration_s": 69.162,
+  "width": 1846,
+  "height": 1036,
+  "avg_frame_rate": "1363800/41497",
+  "size_bytes": 83957838,
+  "sha256": "4f2556e47aad9e83df041a09d8c2622682f33691827c48acc61c10d0b01fd32c",
+  "mac_source": "/Users/andyl/Documents/UR10e/archive/ur5e_legacy_20260518_223331/tase_reproduction_ur5e/TASE_Zhihao/reference_media/tase_supplementary_video_screenstudio_20260612.mp4",
+  "local_ignored_copy": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/video_reference_tase_supplementary_20260612/tase_supplementary_video_screenstudio_20260612.mp4",
+  "frames": [
+    {
+      "time_s": 5.0,
+      "path": "assets/step4e-v31-surface-calibration/video-frames/tase-video-frame-01-005.0s.jpg"
+    },
+    {
+      "time_s": 20.0,
+      "path": "assets/step4e-v31-surface-calibration/video-frames/tase-video-frame-02-020.0s.jpg"
+    },
+    {
+      "time_s": 40.0,
+      "path": "assets/step4e-v31-surface-calibration/video-frames/tase-video-frame-03-040.0s.jpg"
+    },
+    {
+      "time_s": 60.0,
+      "path": "assets/step4e-v31-surface-calibration/video-frames/tase-video-frame-04-060.0s.jpg"
+    }
+  ]
+}

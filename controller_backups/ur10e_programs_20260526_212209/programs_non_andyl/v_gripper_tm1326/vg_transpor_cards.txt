@@ -1,0 +1,16 @@
+ Program
+   Robot Program
+     MoveJ
+       base
+     MoveJ
+       first_contact
+       VG Grip (AB:5 kPa)
+     MoveL
+       lift_up
+     MoveJ
+       above_des
+     MoveL
+       before_dropping
+       VG Release (AB)
+       up_from_des
+       Halt

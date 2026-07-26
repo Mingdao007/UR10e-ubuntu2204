@@ -1,0 +1,234 @@
+{
+  "csv_path": "/home/andy/ur10e_ros2_ws/experiments/20260528_dual_ur_onrobot_rtde_probe/dual_ur_actual_tcp_force_onrobot_registers_20260528_035502.csv",
+  "dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "programState": "PLAYING 3.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: true",
+    "safetymode": "Safetymode: NORMAL"
+  },
+  "duration_first_last_s": 5.000096942996606,
+  "errors": [],
+  "fields": [
+    "actual_TCP_force",
+    "output_double_register_24",
+    "output_double_register_25",
+    "output_double_register_26",
+    "output_double_register_27",
+    "output_double_register_28",
+    "output_double_register_29"
+  ],
+  "finished_wall": "2026-05-28T03:55:09",
+  "first_row": {
+    "onrobot_fx_n": 0.11158199999999979,
+    "onrobot_fy_n": 0.018672000005171014,
+    "onrobot_fz_n": -0.32333899999970145,
+    "onrobot_tx_nm": -0.003632999999999999,
+    "onrobot_ty_nm": -0.002348000000020518,
+    "onrobot_tz_nm": 0.001282999999962452,
+    "sample_index": 0,
+    "t_s": 0.007577788004709873,
+    "ur_fx_n": -0.40269726837114717,
+    "ur_fy_n": -0.5110874275322937,
+    "ur_fz_n": -0.9259927619617127,
+    "ur_tx_nm": 0.034996523026911024,
+    "ur_ty_nm": -0.009764888188800908,
+    "ur_tz_nm": 0.0038910645438495193
+  },
+  "first_t_s": 0.007577788004709873,
+  "host": "192.168.1.18",
+  "last_row": {
+    "onrobot_fx_n": 0.15158199999999983,
+    "onrobot_fy_n": 0.028672000004371402,
+    "onrobot_fz_n": -0.27333999999954156,
+    "onrobot_tx_nm": -0.006632999999999998,
+    "onrobot_ty_nm": -0.005348000000036511,
+    "onrobot_tz_nm": 0.002282999999914476,
+    "sample_index": 625,
+    "t_s": 5.007674731001316,
+    "ur_fx_n": -0.2931576965502575,
+    "ur_fy_n": -0.44699407112512884,
+    "ur_fz_n": -1.6834196075908445,
+    "ur_tx_nm": 0.008819849132671054,
+    "ur_ty_nm": 0.010586924482087328,
+    "ur_tz_nm": -0.0036231067377063214
+  },
+  "last_t_s": 5.007674731001316,
+  "max_dt_ms": 8.808498001599219,
+  "mean_dt_ms": 8.000155108794571,
+  "ok": true,
+  "onrobot_all_zero": false,
+  "onrobot_force_norm_n": {
+    "first": 0.34255991480177594,
+    "last": 0.31386930704992483,
+    "max": 0.6250053668481577,
+    "mean": 0.3144154839800778,
+    "min": 0.03150209370819661,
+    "range": 0.5935032731399611,
+    "std": 0.1106988245369279
+  },
+  "onrobot_fx_n": {
+    "first": 0.11158199999999979,
+    "last": 0.15158199999999983,
+    "max": 0.2015819999999999,
+    "mean": 0.09589509904153337,
+    "min": -0.018418000000000184,
+    "range": 0.22000000000000008,
+    "std": 0.036194024536386864
+  },
+  "onrobot_fy_n": {
+    "first": 0.018672000005171014,
+    "last": 0.028672000004371402,
+    "max": 0.11867200000261222,
+    "mean": 0.04343238339120834,
+    "min": -0.031327999995308733,
+    "range": 0.14999999999792096,
+    "std": 0.023501967833060994
+  },
+  "onrobot_fz_n": {
+    "first": -0.32333899999970145,
+    "last": -0.27333999999954156,
+    "max": 0.056660000000298597,
+    "mean": -0.28931429073412973,
+    "min": -0.6233409999997015,
+    "range": 0.6800010000000001,
+    "std": 0.12029335392768914
+  },
+  "onrobot_tx_nm": {
+    "first": -0.003632999999999999,
+    "last": -0.006632999999999998,
+    "max": 0.006366999999999997,
+    "mean": -0.003524373801916932,
+    "min": -0.014632999999999995,
+    "range": 0.02099999999999999,
+    "std": 0.003496881677959458
+  },
+  "onrobot_ty_nm": {
+    "first": -0.002348000000020518,
+    "last": -0.005348000000036511,
+    "max": 0.010652000000091429,
+    "mean": -0.0014726006389955996,
+    "min": -0.013348000000116475,
+    "range": 0.024000000000207904,
+    "std": 0.0035759823601991822
+  },
+  "onrobot_tz_nm": {
+    "first": 0.001282999999962452,
+    "last": 0.002282999999914476,
+    "max": 0.007282999999786541,
+    "mean": 0.0011232555910307648,
+    "min": -0.005716999999829652,
+    "range": 0.012999999999616194,
+    "std": 0.0019166744361963446
+  },
+  "port": 30004,
+  "port_probe_dashboard": {
+    "banner_hex": "436f6e6e65637465643a20556e6976657273616c20526f626f74732044617368626f617264205365727665720a",
+    "open": true,
+    "port": 29999
+  },
+  "port_probe_rtde": {
+    "open": true,
+    "port": 30004
+  },
+  "register_mapping": {
+    "output_double_register_24": "OnRobot Fx",
+    "output_double_register_25": "OnRobot Fy",
+    "output_double_register_26": "OnRobot Fz",
+    "output_double_register_27": "OnRobot Tx",
+    "output_double_register_28": "OnRobot Ty",
+    "output_double_register_29": "OnRobot Tz"
+  },
+  "requested_hz": 125.0,
+  "requested_seconds": 5.0,
+  "rtde_type_names": [
+    "VECTOR6D",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE",
+    "DOUBLE"
+  ],
+  "safety_boundary": [
+    "read-only Dashboard queries",
+    "read-only RTDE output recipe",
+    "no URScript, no register writes, no motion, no zero/bias/filter/speed/TCP/payload writes"
+  ],
+  "sample_rate_hz": 124.99757647207366,
+  "samples": 626,
+  "started_wall": "2026-05-28T03:55:02",
+  "summary_path": "/home/andy/ur10e_ros2_ws/experiments/20260528_dual_ur_onrobot_rtde_probe/dual_ur_actual_tcp_force_onrobot_registers_20260528_035502_summary.json",
+  "ur_actual_tcp_force_all_zero": false,
+  "ur_force_norm_n": {
+    "first": 1.1317411558040302,
+    "last": 1.7662521648646272,
+    "max": 2.6219964407340006,
+    "mean": 1.364713295983782,
+    "min": 0.6310900206585025,
+    "range": 1.9909064200754982,
+    "std": 0.3225924243851573
+  },
+  "ur_fx_n": {
+    "first": -0.40269726837114717,
+    "last": -0.2931576965502575,
+    "max": 0.5832759051467247,
+    "mean": -0.27198218050260303,
+    "min": -1.2232940715471559,
+    "range": 1.8065699766938805,
+    "std": 0.2975035978896203
+  },
+  "ur_fy_n": {
+    "first": -0.5110874275322937,
+    "last": -0.44699407112512884,
+    "max": 0.5029278044637162,
+    "mean": -0.40463576316778294,
+    "min": -1.1994908172139738,
+    "range": 1.70241862167769,
+    "std": 0.254291515245469
+  },
+  "ur_fz_n": {
+    "first": -0.9259927619617127,
+    "last": -1.6834196075908445,
+    "max": -0.3869236577474909,
+    "mean": -1.2032182152708897,
+    "min": -2.477868562841088,
+    "range": 2.090944905093597,
+    "std": 0.3580229215517401
+  },
+  "ur_tx_nm": {
+    "first": 0.034996523026911024,
+    "last": 0.008819849132671054,
+    "max": 0.05908357231355333,
+    "mean": 0.02313510499254751,
+    "min": -0.022404151894340685,
+    "range": 0.08148772420789402,
+    "std": 0.0170647274586182
+  },
+  "ur_ty_nm": {
+    "first": -0.009764888188800908,
+    "last": 0.010586924482087328,
+    "max": 0.035777261324554235,
+    "mean": -0.004276466447310643,
+    "min": -0.0385427309217724,
+    "range": 0.07431999224632663,
+    "std": 0.01429261739048551
+  },
+  "ur_tz_nm": {
+    "first": 0.0038910645438495193,
+    "last": -0.0036231067377063214,
+    "max": 0.01835345542144788,
+    "mean": 0.0005940172627077441,
+    "min": -0.01905545721049653,
+    "range": 0.037408912631944416,
+    "std": 0.00679137830728443
+  }
+}

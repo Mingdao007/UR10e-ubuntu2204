@@ -1,0 +1,1244 @@
+#!/usr/bin/env python3
+"""Generate Step4e line outer-loop TP packages."""
+
+from __future__ import annotations
+
+import argparse
+import gzip
+import html
+import json
+import math
+import re
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from pathlib import PurePosixPath
+
+
+EXPERIMENT_ROOT = Path(__file__).resolve().parents[1]
+PROGRAM_DIR = EXPERIMENT_ROOT / "programs"
+CONFIG_PATH = EXPERIMENT_ROOT / "config" / "straight_line_reference.json"
+TEMPLATE_URP = PROGRAM_DIR / "step4abcd" / "step4d_circle_detsearch_attitude_v1.urp"
+CONTROLLER_BASE_DIR = "/programs/andyl/kunwei/step4"
+
+def program_specs(version: str) -> dict[str, dict[str, str]]:
+    specs = {
+        "hold": {
+            "name": f"step4e_contact_hold_line_{version}",
+            "suffix": f"CONTACT_HOLD_LINE_{version.upper()}",
+            "description": "deterministic search, contact latch, force/orientation hold",
+        },
+        "line": {
+            "name": f"step4e_line_outerloop_{version}",
+            "suffix": f"LINE_OUTERLOOP_{version.upper()}",
+            "description": "deterministic search, contact latch, Step4e line outer-loop",
+        },
+    }
+    if version in {"v1", "v2", "v14"}:
+        return {
+            "preview": {
+                "name": f"step4e_preview_line_{version}",
+                "suffix": f"PREVIEW_LINE_{version.upper()}",
+                "description": "no-motion RTDE/command preview",
+            },
+            **specs,
+        }
+    if version in {"v15", "v16", "v17", "v18", "v19", "v20"}:
+        return {"line": specs["line"]}
+    return specs
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def fmt(value: float) -> str:
+    return f"{value:.9f}".rstrip("0").rstrip(".")
+
+
+def source_stamp(suffix: str, now: datetime) -> str:
+    return now.strftime(f"%Y-%m-%dT%H%MHKT_STEP4E_{suffix}")
+
+
+def generated_at(now: datetime) -> str:
+    return now.isoformat(timespec="seconds")
+
+
+def line_cfg(config: dict) -> dict:
+    cfg = config["step4e_line"]
+    reference_line = config.get("reference_line", {})
+    sx, sy, sz, srx, sry, srz = [float(v) for v in cfg["start_tcp_pose_m_rad"]]
+    ex, ey, _ez, _erx, _ery, _erz = [float(v) for v in cfg["end_tcp_pose_m_rad"]]
+    contact_start_xyz = reference_line.get("contact_start_xyz_m", [sx, sy, cfg.get("validated_search_start_z_m", 0.09835)])
+    return {
+        "start_x": sx,
+        "start_y": sy,
+        "start_z": sz,
+        "end_x": ex,
+        "end_y": ey,
+        "ref_rx": srx,
+        "ref_ry": sry,
+        "ref_rz": srz,
+        "validated_search_start_z": float(cfg.get("validated_search_start_z_m", 0.09835)),
+        "target_initial_z": float(contact_start_xyz[2]),
+        "ux": float(cfg["xy_unit_vector"][0]),
+        "uy": float(cfg["xy_unit_vector"][1]),
+        "length": math.hypot(ex - sx, ey - sy),
+    }
+
+
+COMMON_FUNCTIONS = r"""
+def codex_abs(x):
+  if x < 0.0:
+    return -x
+  end
+  return x
+end
+
+def codex_clamp(x, lo, hi):
+  if x < lo:
+    return lo
+  elif x > hi:
+    return hi
+  end
+  return x
+end
+
+def codex_wait_for_fresh_heartbeat(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_wait_for_rezero_complete(timeout_s):
+  local t = 0.0
+  local initial_heartbeat = read_input_float_register(26)
+  local current_heartbeat = initial_heartbeat
+  local saw_sensor_not_ready = False
+  while t < timeout_s:
+    current_heartbeat = read_input_float_register(26)
+    write_output_float_register(26, current_heartbeat)
+    if read_input_float_register(27) < 0.5:
+      saw_sensor_not_ready = True
+    elif saw_sensor_not_ready and read_input_float_register(27) > 0.5 and current_heartbeat != initial_heartbeat:
+      return True
+    end
+    sync()
+    t = t + get_steptime()
+  end
+  return False
+end
+
+def codex_step4e_guard_stop_reason():
+  local normal_force = read_input_float_register(24)
+  local force_norm = read_input_float_register(25)
+  local sensor_ok = read_input_float_register(27)
+  local stop_request = read_input_float_register(28)
+  local torque_norm = read_input_float_register(30)
+  if sensor_ok < 0.5:
+    return 3.0
+  elif stop_request > 0.5:
+    return 4.0
+  elif codex_abs(normal_force) > 20.0:
+    return 5.0
+  elif force_norm > 50.0:
+    return 6.0
+  elif torque_norm > 0.6:
+    return 7.0
+  end
+  return 0.0
+end
+
+def codex_should_auto_home(stop_reason):
+  if stop_reason == 1.0:
+    return True
+  elif stop_reason == 2.0:
+    return True
+  elif stop_reason == 4.0:
+    return True
+  elif stop_reason == 5.0:
+    return True
+  elif stop_reason == 6.0:
+    return True
+  elif stop_reason == 7.0:
+    return True
+  elif stop_reason == 8.0:
+    return True
+  elif stop_reason == 9.0:
+    return True
+  elif stop_reason == 10.0:
+    return True
+  elif stop_reason == 12.0:
+    return True
+  elif stop_reason == 13.0:
+    return True
+  elif stop_reason == 14.0:
+    return True
+  end
+  return False
+end
+
+def codex_echo_basic(stop_reason):
+  write_output_float_register(24, read_input_float_register(24))
+  write_output_float_register(25, read_input_float_register(25))
+  write_output_float_register(26, read_input_float_register(26))
+  write_output_float_register(27, read_input_float_register(27))
+  write_output_float_register(28, read_input_float_register(28))
+  write_output_float_register(29, read_input_float_register(29))
+  write_output_float_register(30, stop_reason)
+end
+
+def codex_echo_step4e(stop_reason):
+  codex_echo_basic(stop_reason)
+  write_output_float_register(31, read_input_float_register(44))
+  write_output_float_register(32, read_input_float_register(45))
+  write_output_float_register(33, read_input_float_register(39))
+  write_output_float_register(36, read_input_float_register(37))
+  write_output_float_register(37, read_input_float_register(38))
+  write_output_float_register(38, read_input_float_register(39))
+  write_output_float_register(39, read_input_float_register(40))
+  write_output_float_register(40, read_input_float_register(41))
+  write_output_float_register(41, read_input_float_register(42))
+  write_output_float_register(42, read_input_float_register(43))
+  write_output_float_register(43, read_input_float_register(44))
+  write_output_float_register(44, read_input_float_register(45))
+  write_output_float_register(45, read_input_float_register(46))
+  write_output_float_register(46, read_input_float_register(47))
+end
+"""
+
+
+def common_functions(normal_guard_n: str = "20.0", torque_guard_nm: str = "0.6") -> str:
+    return (
+        COMMON_FUNCTIONS.replace(
+        "codex_abs(normal_force) > 20.0",
+        f"codex_abs(normal_force) > {normal_guard_n}",
+    )
+        .replace("torque_norm > 0.6", f"torque_norm > {torque_guard_nm}")
+    )
+
+
+def preview_script(stamp: str, gen_at: str, version: str) -> str:
+    return f"""# Step4e line preview {version}: no-motion RTDE/command preview.
+# VERSION: {stamp}
+# GENERATED_AT_LOCAL: {gen_at}
+# BEHAVIOR: wait for Kunwei bridge, echo Step4e command registers for review,
+# and stop without speedl/movel contact motion. No UR zero_ftsensor, no Kunwei
+# tare/config write, no TCP/payload write.
+{common_functions()}
+
+def codex_step4e_preview_line():
+  local stop_reason = 0.0
+  local t = 0.0
+  local hold_s = 0.002
+  textmsg("codex step4e version {stamp} start preview_line_{version}")
+  write_output_float_register(34, 0.0)
+  write_output_float_register(35, 20.0)
+  if not codex_wait_for_fresh_heartbeat(30.0):
+    stop_reason = 3.0
+  end
+  while stop_reason == 0.0 and t < 20.0:
+    write_output_float_register(35, 25.0)
+    codex_echo_step4e(stop_reason)
+    stop_reason = codex_step4e_guard_stop_reason()
+    sync()
+    t = t + hold_s
+  end
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(35, 29.0)
+  textmsg("codex step4e version {stamp} stop reason:", stop_reason)
+end
+
+codex_step4e_preview_line()
+"""
+
+
+def search_profile(version: str) -> dict[str, str]:
+    if version == "v20":
+        return {
+            "comment": "two-stage deterministic search after one-step vertical-orientation XY entry: far 15 mm/s, then near 3 mm/s with no fixed-Z pre-search movel; first contact only latches normal.",
+            "accel": "0.300",
+            "hold": "0.002",
+            "single_speed": "-0.003",
+            "far_speed": "-0.015",
+            "near_speed": "-0.003",
+            "near_start": "0.130",
+            "max_depth": "0.150",
+            "runtime": "40.0",
+            "two_stage": "True",
+        }
+    if version in {"v16", "v17", "v18", "v19"}:
+        return {
+            "comment": "two-stage deterministic search directly after XY entry: far 15 mm/s, then near 3 mm/s with no fixed-Z pre-search movel; no force admittance before contact latch.",
+            "accel": "0.300",
+            "hold": "0.002",
+            "single_speed": "-0.003",
+            "far_speed": "-0.015",
+            "near_speed": "-0.003",
+            "near_start": "0.130",
+            "max_depth": "0.150",
+            "runtime": "40.0",
+            "two_stage": "True",
+        }
+    if version in {"v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15"}:
+        return {
+            "comment": "two-stage deterministic search: far 15 mm/s, then near 3 mm/s with 12 mm slow-search margin; no force admittance before contact latch.",
+            "accel": "0.300",
+            "hold": "0.002",
+            "single_speed": "-0.003",
+            "far_speed": "-0.015",
+            "near_speed": "-0.003",
+            "near_start": "0.080",
+            "max_depth": "0.092",
+            "runtime": "25.0",
+            "two_stage": "True",
+        }
+    if version == "v5":
+        return {
+            "comment": "two-stage deterministic search: far 15 mm/s, then near 3 mm/s with 12 mm slow-search margin; no force admittance before contact latch.",
+            "accel": "0.300",
+            "hold": "0.002",
+            "single_speed": "-0.003",
+            "far_speed": "-0.015",
+            "near_speed": "-0.003",
+            "near_start": "0.080",
+            "max_depth": "0.092",
+            "runtime": "25.0",
+            "two_stage": "True",
+        }
+    if version == "v4":
+        return {
+            "comment": "two-stage deterministic search: far 10 mm/s, then near 3 mm/s for the last 10 mm; no force admittance before contact latch.",
+            "accel": "0.300",
+            "hold": "0.002",
+            "single_speed": "-0.003",
+            "far_speed": "-0.010",
+            "near_speed": "-0.003",
+            "near_start": "0.080",
+            "max_depth": "0.090",
+            "runtime": "25.0",
+            "two_stage": "True",
+        }
+    if version == "v3":
+        return {
+            "comment": "two-stage deterministic search: far 10 mm/s, then near 3 mm/s; no force admittance before contact latch.",
+            "accel": "0.300",
+            "hold": "0.002",
+            "single_speed": "-0.003",
+            "far_speed": "-0.010",
+            "near_speed": "-0.003",
+            "near_start": "0.045",
+            "max_depth": "0.070",
+            "runtime": "25.0",
+            "two_stage": "True",
+        }
+    return {
+        "comment": "deterministic downward speedl at 3 mm/s; no force admittance before contact latch.",
+        "accel": "0.300",
+        "hold": "0.002",
+        "single_speed": "-0.003",
+        "far_speed": "-0.003",
+        "near_speed": "-0.003",
+        "near_start": "0.060",
+        "max_depth": "0.060",
+        "runtime": "25.0",
+        "two_stage": "False",
+    }
+
+
+def contact_script(mode: str, stamp: str, gen_at: str, geom: dict, version: str) -> str:
+    is_line = mode == "line"
+    enable_entry_rezero = version in {
+        "v2",
+        "v3",
+        "v4",
+        "v5",
+        "v6",
+        "v7",
+        "v8",
+        "v9",
+        "v10",
+        "v11",
+        "v12",
+        "v13",
+        "v14",
+        "v15",
+        "v16",
+        "v17",
+        "v18",
+        "v19",
+        "v20",
+    }
+    search = search_profile(version)
+    use_vertical_precontact = version in {"v17", "v18", "v19", "v20"}
+    if version in {"v14", "v15", "v16", "v17", "v18", "v19", "v20"}:
+        normal_guard_n = "50.0"
+    elif version in {"v9", "v10", "v11", "v12", "v13"}:
+        normal_guard_n = "100.0"
+    elif version in {"v6", "v7", "v8"}:
+        normal_guard_n = "30.0"
+    else:
+        normal_guard_n = "20.0"
+    torque_guard_nm = "3.0" if version in {"v18", "v19", "v20"} else (
+        "1.0" if version in {"v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17"} else "0.6"
+    )
+    stop_decel = "0.1" if version in {"v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20"} else "0.5"
+    cmd_angular_xy_limit = "0.120" if version in {"v18", "v19", "v20"} else "0.030"
+    runtime_limit = 75.0 if is_line else 12.0
+    end_check = """elif end_hold_s >= end_hold_required_s:
+          stop_reason = 1.0""" if is_line else """elif t2 >= line_runtime_limit_s:
+          stop_reason = 1.0"""
+    timeout_check = """elif t2 >= line_runtime_limit_s:
+          stop_reason = 10.0""" if is_line else "# hold mode reaches success at line_runtime_limit_s"
+    program_label = "outerloop" if is_line else mode
+    entry_rezero_block = """    write_output_float_register(35, 23.0)
+    codex_echo_step4e(stop_reason)
+    write_output_float_register(34, 1.0)
+    if not codex_wait_for_rezero_complete(5.0):
+      stop_reason = 14.0
+    end
+""" if enable_entry_rezero else ""
+    rezero_comment = (
+        "ENTRY_REZERO: request bridge re-baseline at entry pose before contact search."
+        if enable_entry_rezero
+        else "ENTRY_REZERO: not enabled in this version."
+    )
+    fixed_search_start_note = "FIXED_SEARCH_START_Z: not enabled in this version."
+    precontact_orientation_note = (
+        "PRECONTACT_ORIENTATION: use vertical TCP orientation before XY entry and downward search; bridge attitude outer-loop starts only after contact latch."
+        if use_vertical_precontact
+        else "PRECONTACT_ORIENTATION: use path reference orientation before contact."
+    )
+    if version == "v20":
+        precontact_orientation_note = (
+            "PRECONTACT_ORIENTATION: one movel goes directly to entry XY with vertical TCP orientation [pi,0,0]; "
+            "first touch latches the normal only, then base-Z detaches before attitude alignment."
+        )
+    fixed_search_start_local = ""
+    fixed_search_start_block = ""
+    if version in {"v13", "v14", "v15"}:
+        fixed_search_start_note = (
+            "FIXED_SEARCH_START_Z: after high-Z XY entry, descend to validated "
+            f"no-contact search-start TCP z={fmt(geom['validated_search_start_z'])} m before entry re-zero."
+        )
+        fixed_search_start_local = f"  local fixed_search_start_z_m = {fmt(geom['validated_search_start_z'])}\n"
+        fixed_search_start_block = f"""    write_output_float_register(35, 22.5)
+    local p2 = get_actual_tcp_pose()
+    local fixed_search_start_pose = p[p2[0], p2[1], fixed_search_start_z_m, ref_rx, ref_ry, ref_rz]
+    codex_echo_step4e(stop_reason)
+    movel(fixed_search_start_pose, a=0.030, v=home_return_speed_m_s, r=0.0)
+    stopl({stop_decel})
+"""
+    point_orient_block = ""
+    if version in {"v18", "v19"} and is_line:
+        point_orient_block = f"""
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.1)
+    local last_heartbeat_orient = read_input_float_register(26)
+    local stale_s_orient = 0.0
+    local t_orient = 0.0
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0:
+      local heartbeat_orient = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local force_error = read_input_float_register(45)
+      local orientation_error = read_input_float_register(46)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local cmd_wx = read_input_float_register(40)
+      local cmd_wy = read_input_float_register(41)
+      local cmd_wz = read_input_float_register(42)
+      local loop_dt = get_steptime()
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat_orient == last_heartbeat_orient:
+        stale_s_orient = stale_s_orient + loop_dt
+      else:
+        stale_s_orient = 0.0
+        last_heartbeat_orient = heartbeat_orient
+      end
+      t_orient = t_orient + loop_dt
+      if t_orient >= point_orient_min_s and codex_abs(force_error) <= point_orient_force_error_limit_n and orientation_error <= point_orient_error_limit_rad:
+        point_orient_stable_s = point_orient_stable_s + loop_dt
+      else:
+        point_orient_stable_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s_orient > stale_limit_s:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if point_orient_stable_s >= point_orient_stable_required_s:
+          stop_reason = 16.0
+        elif cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t_orient < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
+          stop_reason = 13.0
+        elif codex_abs(cmd_wx) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wy) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wz) > 0.005:
+          stop_reason = 13.0
+        elif t_orient >= point_orient_runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, 0.0], line_accel_m_s2, line_hold_s)
+        end
+      end
+    end
+    if stop_reason == 16.0:
+      stop_reason = 0.0
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      end_hold_s = 0.0
+    end
+  end
+"""
+    v20_latch_detach_acquire_block = ""
+    if version == "v20" and is_line:
+        v20_latch_detach_acquire_block = f"""
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.05)
+    local latch_wait_s = 0.0
+    local latch_runtime_limit_s = 1.000
+    local latch_ready = 0
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0 and latch_ready == 0:
+      local cmd_valid_latch = read_input_float_register(43)
+      if cmd_valid_latch >= 0.5:
+        latch_ready = 1
+        saw_cmd_valid = 1
+      else:
+        codex_echo_step4e(stop_reason)
+        stop_reason = codex_step4e_guard_stop_reason()
+        if stop_reason == 0.0:
+          if latch_wait_s >= latch_runtime_limit_s:
+            stop_reason = 12.0
+          else:
+            sync()
+            latch_wait_s = latch_wait_s + get_steptime()
+          end
+        end
+      end
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.1)
+    local detach_start = get_actual_tcp_pose()
+    local detach_pose = p[detach_start[0], detach_start[1], detach_start[2] + 0.002, detach_start[3], detach_start[4], detach_start[5]]
+    codex_echo_step4e(stop_reason)
+    movel(detach_pose, a=0.030, v=0.010, r=0.0)
+    stopl({stop_decel})
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.2)
+    local last_heartbeat_orient = read_input_float_register(26)
+    local stale_s_orient = 0.0
+    local t_orient = 0.0
+    point_orient_stable_s = 0.0
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0:
+      local heartbeat_orient = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local orientation_error = read_input_float_register(46)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local cmd_wx = read_input_float_register(40)
+      local cmd_wy = read_input_float_register(41)
+      local cmd_wz = read_input_float_register(42)
+      local loop_dt = get_steptime()
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat_orient == last_heartbeat_orient:
+        stale_s_orient = stale_s_orient + loop_dt
+      else:
+        stale_s_orient = 0.0
+        last_heartbeat_orient = heartbeat_orient
+      end
+      t_orient = t_orient + loop_dt
+      if t_orient >= point_orient_min_s and orientation_error <= point_orient_error_limit_rad:
+        point_orient_stable_s = point_orient_stable_s + loop_dt
+      else:
+        point_orient_stable_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s_orient > stale_limit_s:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if point_orient_stable_s >= point_orient_stable_required_s:
+          stop_reason = 16.0
+        elif cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t_orient < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.001 or codex_abs(cmd_vy) > 0.001 or codex_abs(cmd_vz) > 0.001:
+          stop_reason = 13.0
+        elif codex_abs(cmd_wx) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wy) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wz) > 0.005:
+          stop_reason = 13.0
+        elif t_orient >= point_orient_runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          speedl([0.0, 0.0, 0.0, cmd_wx, cmd_wy, 0.0], line_accel_m_s2, line_hold_s)
+        end
+      end
+    end
+    stopl({stop_decel})
+    if stop_reason == 16.0:
+      stop_reason = 0.0
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.3)
+    local last_heartbeat_acquire = read_input_float_register(26)
+    local stale_s_acquire = 0.0
+    local t_acquire = 0.0
+    local acquire_stable_s = 0.0
+    local acquire_min_s = 0.200
+    local acquire_runtime_limit_s = 8.000
+    local acquire_force_error_limit_n = 0.750
+    local acquire_stable_required_s = 0.250
+    saw_cmd_valid = 0
+    cmd_invalid_s = 0.0
+    while stop_reason == 0.0:
+      local heartbeat_acquire = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local force_error = read_input_float_register(45)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local cmd_wx = read_input_float_register(40)
+      local cmd_wy = read_input_float_register(41)
+      local cmd_wz = read_input_float_register(42)
+      local loop_dt = get_steptime()
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat_acquire == last_heartbeat_acquire:
+        stale_s_acquire = stale_s_acquire + loop_dt
+      else:
+        stale_s_acquire = 0.0
+        last_heartbeat_acquire = heartbeat_acquire
+      end
+      t_acquire = t_acquire + loop_dt
+      if t_acquire >= acquire_min_s and codex_abs(force_error) <= acquire_force_error_limit_n:
+        acquire_stable_s = acquire_stable_s + loop_dt
+      else:
+        acquire_stable_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s_acquire > stale_limit_s:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if acquire_stable_s >= acquire_stable_required_s:
+          stop_reason = 16.0
+        elif cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t_acquire < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
+          stop_reason = 13.0
+        elif codex_abs(cmd_wx) > 0.005 or codex_abs(cmd_wy) > 0.005 or codex_abs(cmd_wz) > 0.005:
+          stop_reason = 13.0
+        elif t_acquire >= acquire_runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          speedl([cmd_vx, cmd_vy, cmd_vz, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+        end
+      end
+    end
+    stopl({stop_decel})
+    if stop_reason == 16.0:
+      stop_reason = 0.0
+      saw_cmd_valid = 0
+      cmd_invalid_s = 0.0
+      end_hold_s = 0.0
+    end
+  end
+"""
+    if version == "v20":
+        script_consumption_note = (
+            "URScript consumes speedl([37..42]) only in v20 25.2/25.3/25.0; yaw command is expected 0."
+        )
+        entry_motion_block = f"""    write_output_float_register(35, 22.0)
+    local p1 = get_actual_tcp_pose()
+    local entry_xy_pose = p[entry_x, entry_y, p1[2], search_rx, search_ry, search_rz]
+    movel(entry_xy_pose, a=0.030, v=approach_speed_m_s, r=0.0)
+    stopl({stop_decel})
+"""
+    else:
+        script_consumption_note = (
+            "URScript consumes speedl([37..42]) only after contact latch; yaw command is expected 0."
+        )
+        entry_motion_block = f"""    write_output_float_register(35, 21.0)
+    local p0 = get_actual_tcp_pose()
+    local reference_orientation_pose = p[p0[0], p0[1], p0[2], search_rx, search_ry, search_rz]
+    movel(reference_orientation_pose, a=0.030, v=approach_speed_m_s, r=0.0)
+    stopl({stop_decel})
+    write_output_float_register(35, 22.0)
+    local p1 = get_actual_tcp_pose()
+    local entry_xy_pose = p[entry_x, entry_y, p1[2], search_rx, search_ry, search_rz]
+    movel(entry_xy_pose, a=0.030, v=approach_speed_m_s, r=0.0)
+    stopl({stop_decel})
+"""
+    return f"""# Step4e {program_label} line {version}: deterministic contact search, Step4e bridge outer-loop command consumption.
+# VERSION: {stamp}
+# GENERATED_AT_LOCAL: {gen_at}
+# PATH: XY line from TP screenshot P0 [{fmt(geom['start_x'])}, {fmt(geom['start_y'])}]
+# to P1 [{fmt(geom['end_x'])}, {fmt(geom['end_y'])}], length {fmt(geom['length'])} m.
+# CONTROL: Ubuntu bridge computes paper-style outer-loop command in registers 37..47.
+# {script_consumption_note}
+# SEARCH: {search['comment']}
+# {rezero_comment}
+# {fixed_search_start_note}
+# {precontact_orientation_note}
+# SAFETY: raw guards use registers 24..30; recoverable stops retract 10 mm then return home.
+{common_functions(normal_guard_n, torque_guard_nm)}
+
+def codex_step4e_{program_label}_line():
+  local entry_x = {fmt(geom['start_x'])}
+  local entry_y = {fmt(geom['start_y'])}
+  local ref_rx = {fmt(geom['ref_rx'])}
+  local ref_ry = {fmt(geom['ref_ry'])}
+  local ref_rz = {fmt(geom['ref_rz'])}
+  local search_rx = {"3.141592654" if use_vertical_precontact else "ref_rx"}
+  local search_ry = {"0.0" if use_vertical_precontact else "ref_ry"}
+  local search_rz = {"0.0" if use_vertical_precontact else "ref_rz"}
+  local approach_speed_m_s = 0.050
+  local search_accel_m_s2 = {search['accel']}
+  local search_hold_s = {search['hold']}
+  local search_down_m_s = {search['single_speed']}
+  local search_far_down_m_s = {search['far_speed']}
+  local search_near_down_m_s = {search['near_speed']}
+  local search_near_start_depth_m = {search['near_start']}
+  local max_search_down_m = {search['max_depth']}
+{fixed_search_start_local}  local use_fixed_search_start_z = {"True" if version in {"v13", "v14", "v15"} else "False"}
+  local use_two_stage_search = {search['two_stage']}
+  local stale_limit_s = 0.100
+  local search_runtime_limit_s = {search['runtime']}
+  local line_accel_m_s2 = 0.300
+  local line_hold_s = 0.002
+  local line_runtime_limit_s = {fmt(runtime_limit)}
+  local point_orient_min_s = 1.000
+  local point_orient_runtime_limit_s = 8.000
+  local point_orient_force_error_limit_n = 2.000
+  local point_orient_error_limit_rad = 0.150
+  local point_orient_stable_required_s = 0.250
+  local point_orient_stable_s = 0.0
+  local line_success_progress_m = {fmt(max(0.0, geom['length'] - 0.0005))}
+  local end_hold_required_s = 0.100
+  local end_hold_s = 0.0
+  local max_cmd_angular_xy_rad_s = {cmd_angular_xy_limit}
+  local cmd_valid_grace_s = 0.250
+  local cmd_valid_loss_limit_s = 0.100
+  local cmd_invalid_s = 0.0
+  local saw_cmd_valid = 0
+  local short_retract_z_m = 0.010
+  local short_retract_speed_m_s = 0.020
+  local home_return_speed_m_s = 0.050
+  local stop_reason = 0.0
+  local contact_triggered = 0
+  local max_observed_stale_s = 0.0
+  local final_progress_m = 0.0
+  local home_pose = get_actual_tcp_pose()
+
+  textmsg("codex step4e version {stamp} start {program_label}_line_{version}")
+  write_output_float_register(34, 0.0)
+  write_output_float_register(35, 20.0)
+  codex_echo_step4e(0.0)
+
+  if not codex_wait_for_fresh_heartbeat(30.0):
+    stop_reason = 3.0
+  end
+
+  if stop_reason == 0.0:
+{entry_motion_block}
+{fixed_search_start_block}
+    sleep(0.20)
+{entry_rezero_block}    if stop_reason == 0.0:
+      sleep(0.20)
+      stop_reason = codex_step4e_guard_stop_reason()
+    end
+  end
+
+  if stop_reason == 0.0:
+    write_output_float_register(35, 24.0)
+    local search_start = get_actual_tcp_pose()
+    local last_heartbeat = read_input_float_register(26)
+    local stale_s = 0.0
+    local t = 0.0
+    while stop_reason == 0.0:
+      local heartbeat = read_input_float_register(26)
+      local normal_force = read_input_float_register(24)
+      local force_norm = read_input_float_register(25)
+      local pose_now = get_actual_tcp_pose()
+      local search_depth_m = search_start[2] - pose_now[2]
+      if heartbeat == last_heartbeat:
+        stale_s = stale_s + search_hold_s
+        if stale_s > max_observed_stale_s:
+          max_observed_stale_s = stale_s
+        end
+      else:
+        stale_s = 0.0
+        last_heartbeat = heartbeat
+      end
+      if normal_force <= -1.0 or force_norm > 1.5:
+        contact_triggered = 1
+        stop_reason = 11.0
+      elif stale_s > stale_limit_s:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if search_depth_m >= max_search_down_m:
+          stop_reason = 8.0
+        elif t >= search_runtime_limit_s:
+          stop_reason = 10.0
+        else:
+          if use_two_stage_search and search_depth_m < search_near_start_depth_m:
+            write_output_float_register(35, 24.0)
+            codex_echo_step4e(stop_reason)
+            speedl([0.0, 0.0, search_far_down_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          elif use_two_stage_search:
+            write_output_float_register(35, 24.2)
+            codex_echo_step4e(stop_reason)
+            speedl([0.0, 0.0, search_near_down_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          else:
+            codex_echo_step4e(stop_reason)
+            speedl([0.0, 0.0, search_down_m_s, 0.0, 0.0, 0.0], search_accel_m_s2, search_hold_s)
+          end
+          t = t + get_steptime()
+        end
+      end
+    end
+    stopl({stop_decel})
+  end
+
+  if contact_triggered == 1:
+    stop_reason = 0.0
+  end
+
+{point_orient_block}
+{v20_latch_detach_acquire_block}
+  if stop_reason == 0.0:
+    write_output_float_register(35, 25.0)
+    local last_heartbeat2 = read_input_float_register(26)
+    local stale_s2 = 0.0
+    local t2 = 0.0
+    while stop_reason == 0.0:
+      local heartbeat2 = read_input_float_register(26)
+      local cmd_valid = read_input_float_register(43)
+      local progress_m = read_input_float_register(44)
+      local cmd_vx = read_input_float_register(37)
+      local cmd_vy = read_input_float_register(38)
+      local cmd_vz = read_input_float_register(39)
+      local cmd_wx = read_input_float_register(40)
+      local cmd_wy = read_input_float_register(41)
+      local cmd_wz = read_input_float_register(42)
+      local loop_dt = get_steptime()
+      final_progress_m = progress_m
+      if cmd_valid >= 0.5:
+        saw_cmd_valid = 1
+        cmd_invalid_s = 0.0
+      else:
+        cmd_invalid_s = cmd_invalid_s + loop_dt
+      end
+      if heartbeat2 == last_heartbeat2:
+        stale_s2 = stale_s2 + loop_dt
+      else:
+        stale_s2 = 0.0
+        last_heartbeat2 = heartbeat2
+      end
+      t2 = t2 + loop_dt
+      if progress_m >= line_success_progress_m:
+        end_hold_s = end_hold_s + loop_dt
+      else:
+        end_hold_s = 0.0
+      end
+      codex_echo_step4e(stop_reason)
+      if stale_s2 > stale_limit_s:
+        stop_reason = 2.0
+      else:
+        stop_reason = codex_step4e_guard_stop_reason()
+      end
+      if stop_reason == 0.0:
+        if cmd_valid < 0.5:
+          if saw_cmd_valid == 0 and t2 < cmd_valid_grace_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          elif saw_cmd_valid == 1 and cmd_invalid_s <= cmd_valid_loss_limit_s:
+            speedl([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], line_accel_m_s2, line_hold_s)
+          else:
+            stop_reason = 12.0
+          end
+        elif codex_abs(cmd_vx) > 0.010 or codex_abs(cmd_vy) > 0.010 or codex_abs(cmd_vz) > 0.010:
+          stop_reason = 13.0
+        elif codex_abs(cmd_wx) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wy) > max_cmd_angular_xy_rad_s or codex_abs(cmd_wz) > 0.005:
+          stop_reason = 13.0
+        {end_check}
+        {timeout_check}
+        else:
+          speedl([cmd_vx, cmd_vy, cmd_vz, cmd_wx, cmd_wy, 0.0], line_accel_m_s2, line_hold_s)
+        end
+      end
+    end
+    stopl({stop_decel})
+  end
+
+  if codex_should_auto_home(stop_reason):
+    write_output_float_register(35, 26.0)
+    local short_retract_start = get_actual_tcp_pose()
+    local short_retract_pose = p[short_retract_start[0], short_retract_start[1], short_retract_start[2] + short_retract_z_m, short_retract_start[3], short_retract_start[4], short_retract_start[5]]
+    codex_echo_step4e(stop_reason)
+    movel(short_retract_pose, a=0.030, v=short_retract_speed_m_s, r=0.0)
+    stopl({stop_decel})
+    write_output_float_register(35, 27.0)
+    codex_echo_step4e(stop_reason)
+    movel(home_pose, a=0.030, v=home_return_speed_m_s, r=0.0)
+    stopl({stop_decel})
+  end
+
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(31, final_progress_m)
+  write_output_float_register(35, 29.0)
+  textmsg("codex step4e version {stamp} stop reason:", stop_reason)
+end
+
+codex_step4e_{program_label}_line()
+"""
+
+
+def build_txt(name: str, stamp: str, description: str, geom: dict) -> str:
+    return f"""Step4e line outer-loop TP package
+
+Program:
+  {name}
+
+Version:
+  {stamp}
+
+Purpose:
+  {description}
+
+Path:
+  start XY: {geom['start_x']:.9f}, {geom['start_y']:.9f}
+  end XY: {geom['end_x']:.9f}, {geom['end_y']:.9f}
+  XY length: {geom['length'] * 1000.0:.3f} mm
+
+Control boundary:
+  Ubuntu bridge computes Step4e outer-loop command registers 37..47.
+  URScript consumes Cartesian speedl twist only after contact latch.
+  This is not a finite-time RNN/joint-torque inner-loop reproduction.
+"""
+
+
+def installation_relative_path(controller_dir: str) -> str:
+    path = PurePosixPath(controller_dir)
+    try:
+        programs_idx = path.parts.index("programs")
+    except ValueError as exc:
+        raise ValueError(f"controller_dir must be under /programs: {controller_dir}") from exc
+    parent_levels = len(path.parts) - programs_idx - 1
+    return "/".join([".."] * parent_levels + ["default"])
+
+
+def build_urp(script: str, name: str, controller_dir: str) -> bytes:
+    controller_script = f"{controller_dir}/{name}.script"
+    install_rel = installation_relative_path(controller_dir)
+    xml = gzip.decompress(TEMPLATE_URP.read_bytes()).decode("utf-8")
+    xml = re.sub(r'<URProgram name="[^"]+"', f'<URProgram name="{name}"', xml, count=1)
+    xml = re.sub(r'directory="[^"]+"', f'directory="{controller_dir}"', xml, count=1)
+    xml = re.sub(r'installationRelativePath="[^"]+"', f'installationRelativePath="{install_rel}"', xml, count=1)
+    xml = re.sub(
+        r'<cachedContents>.*?</cachedContents>',
+        f"<cachedContents>{html.escape(script)}</cachedContents>",
+        xml,
+        count=1,
+        flags=re.S,
+    )
+    xml = re.sub(
+        r'<file resolves-to="file">.*?</file>',
+        f'<file resolves-to="file">{controller_script}</file>',
+        xml,
+        count=1,
+        flags=re.S,
+    )
+    return gzip.compress(xml.encode("utf-8"), mtime=0)
+
+
+def validate(name: str, script: str, txt: str, urp: bytes, stamp: str, controller_dir: str) -> None:
+    xml = gzip.decompress(urp).decode("utf-8")
+    install_rel = installation_relative_path(controller_dir)
+    checks = {
+        "script stamp": stamp in script,
+        "txt stamp": stamp in txt,
+        "program name": f'URProgram name="{name}"' in xml,
+        "controller directory": f'directory="{controller_dir}"' in xml,
+        "installation path": f'installationRelativePath="{install_rel}"' in xml,
+        "script file": f"{controller_dir}/{name}.script" in xml,
+        "cached stamp": stamp in xml,
+        "step4e registers": "read_input_float_register(37)" in xml,
+    }
+    if name.endswith(("_v2", "_v3", "_v4", "_v5", "_v6", "_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15")) and "preview" not in name:
+        checks.update(
+            {
+                "entry rezero request": "write_output_float_register(34, 1.0)" in xml,
+                "entry rezero wait": "codex_wait_for_rezero_complete(5.0)" in xml,
+                "rezero stop reason": "stop_reason = 14.0" in xml,
+            }
+        )
+    if name.endswith("_v3") and "preview" not in name:
+        checks.update(
+            {
+                "far search speed": "local search_far_down_m_s = -0.010" in xml,
+                "near search speed": "local search_near_down_m_s = -0.003" in xml,
+                "near search stage": "write_output_float_register(35, 24.2)" in xml,
+                "near start depth": "local search_near_start_depth_m = 0.045" in xml,
+                "max search depth": "local max_search_down_m = 0.070" in xml,
+            }
+        )
+    if name.endswith("_v4") and "preview" not in name:
+        checks.update(
+            {
+                "far search speed": "local search_far_down_m_s = -0.010" in xml,
+                "near search speed": "local search_near_down_m_s = -0.003" in xml,
+                "near search stage": "write_output_float_register(35, 24.2)" in xml,
+                "near start depth": "local search_near_start_depth_m = 0.080" in xml,
+                "max search depth": "local max_search_down_m = 0.090" in xml,
+            }
+        )
+    if name.endswith(("_v5", "_v6", "_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15")) and "preview" not in name:
+        checks.update(
+            {
+                "far search speed": "local search_far_down_m_s = -0.015" in xml,
+                "near search speed": "local search_near_down_m_s = -0.003" in xml,
+                "near search stage": "write_output_float_register(35, 24.2)" in xml,
+                "near start depth": "local search_near_start_depth_m = 0.080" in xml,
+                "max search depth": "local max_search_down_m = 0.092" in xml,
+            }
+        )
+    if name.endswith(("_v16", "_v17", "_v18", "_v19", "_v20")) and "preview" not in name:
+        checks.update(
+            {
+                "direct xy-to-search": "local fixed_search_start_z_m" not in script
+                and "write_output_float_register(35, 22.5)" not in script,
+                "far search speed": "local search_far_down_m_s = -0.015" in xml,
+                "near search speed": "local search_near_down_m_s = -0.003" in xml,
+                "near search stage": "write_output_float_register(35, 24.2)" in xml,
+                "near start depth": "local search_near_start_depth_m = 0.130" in xml,
+                "max search depth": "local max_search_down_m = 0.150" in xml,
+                "search runtime": "local search_runtime_limit_s = 40.0" in xml,
+            }
+        )
+    if name.endswith(("_v6", "_v7", "_v8")) and "preview" not in name:
+        checks.update(
+            {
+                "normal guard": "codex_abs(normal_force) > 30.0" in script
+                and "codex_abs(normal_force) &gt; 30.0" in xml,
+            }
+        )
+    if name.endswith(("_v9", "_v10", "_v11", "_v12", "_v13")) and "preview" not in name:
+        checks.update(
+            {
+                "normal guard": "codex_abs(normal_force) > 100.0" in script
+                and "codex_abs(normal_force) &gt; 100.0" in xml,
+                "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
+            }
+        )
+    if name.endswith(("_v14", "_v15", "_v16", "_v17")) and "preview" not in name:
+        checks.update(
+            {
+                "normal guard": "codex_abs(normal_force) > 50.0" in script
+                and "codex_abs(normal_force) &gt; 50.0" in xml,
+                "torque guard": "torque_norm > 1.0" in script and "torque_norm &gt; 1.0" in xml,
+            }
+        )
+    if name.endswith(("_v18", "_v19", "_v20")) and "preview" not in name:
+        checks.update(
+            {
+                "normal guard": "codex_abs(normal_force) > 50.0" in script
+                and "codex_abs(normal_force) &gt; 50.0" in xml,
+                "torque guard": "torque_norm > 3.0" in script and "torque_norm &gt; 3.0" in xml,
+                "v18 angular sanity": "local max_cmd_angular_xy_rad_s = 0.120" in script,
+            }
+        )
+        if name.endswith(("_v18", "_v19")):
+            checks.update(
+                {
+                    "point orient stage": "write_output_float_register(35, 25.1)" in script
+                    and "write_output_float_register(35, 25.1)" in xml,
+                    "point orient gate": "point_orient_error_limit_rad = 0.150" in script
+                    and "point_orient_force_error_limit_n = 2.000" in script,
+                }
+            )
+    if name.endswith("_v20") and "line_outerloop" in name:
+        checks.update(
+            {
+                "v20 one-step entry": "write_output_float_register(35, 21.0)" not in script
+                and "reference_orientation_pose" not in script
+                and "entry_xy_pose = p[entry_x, entry_y, p1[2], search_rx, search_ry, search_rz]" in script,
+                "v20 latch stage": "write_output_float_register(35, 25.05)" in script
+                and "write_output_float_register(35, 25.05)" in xml,
+                "v20 detach stage": "write_output_float_register(35, 25.1)" in script
+                and "detach_start[2] + 0.002" in script,
+                "v20 orientation stage": "write_output_float_register(35, 25.2)" in script
+                and "point_orient_runtime_limit_s = 8.000" in script,
+                "v20 acquire stage": "write_output_float_register(35, 25.3)" in script
+                and "acquire_runtime_limit_s = 8.000" in script
+                and "acquire_force_error_limit_n = 0.750" in script,
+                "v20 elapsed timing": "get_steptime()" in script
+                and "latch_wait_s = latch_wait_s + get_steptime()" in script,
+                "v20 line stage": "write_output_float_register(35, 25.0)" in script,
+            }
+        )
+    if name.endswith(("_v7", "_v8", "_v9", "_v10", "_v11", "_v12", "_v13", "_v14", "_v15", "_v16", "_v17", "_v18", "_v19", "_v20")) and "preview" not in name:
+        checks.update(
+            {
+                "fast stop decel": "stopl(0.1)" in script and "stopl(0.1)" in xml,
+                "old stop decel removed": "stopl(0.5)" not in script and "stopl(0.5)" not in xml,
+            }
+        )
+    if name.endswith(("_v12", "_v13", "_v14", "_v15", "_v16", "_v17", "_v18", "_v19", "_v20")) and "line_outerloop" in name:
+        checks.update(
+            {
+                "line success threshold": "local line_success_progress_m = " in script
+                and "local line_success_progress_m = " in xml,
+                "line end hold": "local end_hold_required_s = 0.100" in script
+                and "end_hold_s >= end_hold_required_s" in script,
+                "guard auto home": "elif stop_reason == 5.0" in script
+                and "elif stop_reason == 6.0" in script
+                and "elif stop_reason == 7.0" in script,
+            }
+        )
+    if name.endswith(("_v13", "_v14", "_v15")) and "line_outerloop" in name:
+        checks.update(
+            {
+                "fixed search start z": "local fixed_search_start_z_m = 0.09835" in script
+                and "local fixed_search_start_z_m = 0.09835" in xml,
+                "fixed search start stage": "write_output_float_register(35, 22.5)" in script
+                and "write_output_float_register(35, 22.5)" in xml,
+            }
+        )
+    if name.endswith(("_v15", "_v16", "_v17", "_v18", "_v19", "_v20")) and "line_outerloop" in name:
+        checks.update(
+            {
+                "cmd valid grace": "local cmd_valid_grace_s = 0.250" in script
+                and "saw_cmd_valid == 0 and t2 &lt; cmd_valid_grace_s" in xml,
+                "cmd valid loss grace": "local cmd_valid_loss_limit_s = 0.100" in script
+                and "cmd_invalid_s &lt;= cmd_valid_loss_limit_s" in xml,
+            }
+        )
+    if name.endswith(("_v17", "_v18", "_v19", "_v20")) and "line_outerloop" in name:
+        checks.update(
+            {
+                "vertical precontact rx": "local search_rx = 3.141592654" in script,
+                "vertical precontact ry": "local search_ry = 0.0" in script,
+                "vertical precontact rz": "local search_rz = 0.0" in script,
+                "entry uses search orientation": "entry_xy_pose = p[entry_x, entry_y, p1[2], search_rx, search_ry, search_rz]" in script,
+            }
+        )
+    failed = [label for label, ok in checks.items() if not ok]
+    if failed:
+        raise RuntimeError(f"{name} validation failed: {failed}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--version",
+        choices=("v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15", "v16", "v17", "v18", "v19", "v20"),
+        default="v2",
+    )
+    parser.add_argument("--stamp-prefix", default=None)
+    parser.add_argument(
+        "--program-subdir",
+        default="",
+        help="Optional local/controller subdirectory under the Step4 program directory, for archived packages such as step4e.",
+    )
+    args = parser.parse_args()
+    local_program_dir = PROGRAM_DIR / args.program_subdir if args.program_subdir else PROGRAM_DIR
+    controller_dir = f"{CONTROLLER_BASE_DIR}/{args.program_subdir}" if args.program_subdir else CONTROLLER_BASE_DIR
+    local_program_dir.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone(timedelta(hours=8)))
+    config = load_json(CONFIG_PATH)
+    geom = line_cfg(config)
+    generated = {}
+    for mode, spec in program_specs(args.version).items():
+        stamp = args.stamp_prefix or source_stamp(spec["suffix"], now)
+        if args.stamp_prefix:
+            stamp = f"{args.stamp_prefix}_{spec['suffix']}"
+        name = spec["name"]
+        script = (
+            preview_script(stamp, generated_at(now), args.version)
+            if mode == "preview"
+            else contact_script(mode, stamp, generated_at(now), geom, args.version)
+        )
+        txt = build_txt(name, stamp, spec["description"], geom)
+        urp = build_urp(script, name, controller_dir)
+        validate(name, script, txt, urp, stamp, controller_dir)
+        script_path = local_program_dir / f"{name}.script"
+        txt_path = local_program_dir / f"{name}.txt"
+        urp_path = local_program_dir / f"{name}.urp"
+        script_path.write_text(script, encoding="utf-8")
+        txt_path.write_text(txt, encoding="utf-8")
+        urp_path.write_bytes(urp)
+        generated[mode] = {
+            "script": str(script_path),
+            "txt": str(txt_path),
+            "urp": str(urp_path),
+            "controller_script": f"{controller_dir}/{name}.script",
+            "controller_urp": f"{controller_dir}/{name}.urp",
+            "stamp": stamp,
+        }
+    print(json.dumps({"generated": generated, "line": geom}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

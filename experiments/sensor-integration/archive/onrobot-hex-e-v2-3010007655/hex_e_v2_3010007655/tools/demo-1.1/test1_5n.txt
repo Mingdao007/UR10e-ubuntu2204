@@ -1,0 +1,4 @@
+ Program
+   Robot Program
+     F/T Zero
+     Script: 10_onrobot_tool_z_contact_stop_3n.script

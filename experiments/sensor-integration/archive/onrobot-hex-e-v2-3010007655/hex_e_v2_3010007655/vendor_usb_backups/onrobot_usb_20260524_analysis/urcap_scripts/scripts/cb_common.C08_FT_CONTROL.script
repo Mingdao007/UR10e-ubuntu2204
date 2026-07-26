@@ -1,0 +1,41 @@
+  #======    OnRobot F/T Control    ======#
+  
+  of_ft_control_state=0
+  of_ft_control_return=0
+  OF_FT_CONTROL_STATE_IDLE=0
+  OF_FT_CONTROL_STATE_RUNNING=1
+  def of_ft_control_start(ft_select=FALSE6D,ft_values=[0.0,0.0,0.0,0.0,0.0,0.0],frameID=0,frameRPY=[0,0,0],forcePID=[1.0,0.0,0.0],torquePID=[1.0,0.0,0.0],deviation_max=0):
+  if not(of_ft_control_state==OF_FT_CONTROL_STATE_IDLE):
+  textmsg("of_ft_control_state: ",of_ft_control_state)
+  popup(of_ft_control_start_error,title=of_ft_control_title,error=True,blocking=False)
+  halt
+  else:
+  of_ft_control_state=OF_FT_CONTROL_STATE_RUNNING
+  end 
+  of_tcp_offset_send_actual()
+  local flags=binary_list_to_integer(ft_select)+(frameID*64)
+  local frame_rotvec=rpy2rotvec(frameRPY)
+  if OF_DEBUG_STATE:
+  textmsg("Start force mode")
+  end 
+  of_send_full(OF_CMD_FT_CONTROL,of_float_to_int(ft_values[0]),of_float_to_int(ft_values[1]),of_float_to_int(ft_values[2]),of_float_to_int(ft_values[3]),of_float_to_int(ft_values[4]),of_float_to_int(ft_values[5]),flags,of_float_to_int(frame_rotvec[0]),of_float_to_int(frame_rotvec[1]),of_float_to_int(frame_rotvec[2]),of_float_to_int(forcePID[0]),of_float_to_int(forcePID[1]),of_float_to_int(forcePID[2]),of_float_to_int(torquePID[0]),of_float_to_int(torquePID[1]),of_float_to_int(torquePID[2]),of_float_to_int(deviation_max))
+  of_speedl_start_for_CMD(OF_CMD_FT_CONTROL)
+  if frameID==0 or frameID==1 or frameID==2 or frameID==3:
+  of_parent_of_move_frameID=frameID
+  of_parent_of_move_frame=p[0,0,0,frame_rotvec[0],frame_rotvec[1],frame_rotvec[2]]
+  else:
+  of_parent_of_move_frameID=0
+  of_parent_of_move_frame=ZEROFRAME
+  end 
+  if OF_DEBUG_STATE:
+  textmsg("FT Control started")
+  end 
+  end 
+  def of_ft_control_stop():
+  of_stop_atomic(stopFTControl=True)
+  of_ft_control_state=OF_FT_CONTROL_STATE_IDLE
+  of_parent_of_move_frameID=0
+  of_parent_of_move_frame=ZEROFRAME
+  end 
+  
+  #======    End of OnRobot F/T Control    ======#

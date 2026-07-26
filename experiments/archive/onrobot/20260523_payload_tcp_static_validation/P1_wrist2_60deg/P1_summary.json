@@ -1,0 +1,206 @@
+{
+  "pose": "P1_wrist2_60deg",
+  "safety_boundary": "read-only/no-motion; no zero; no TCP/payload writes during sampling; no template program",
+  "actual_pose_before": {
+    "actual_q_rad": [
+      0.748501181602478,
+      -1.5770017109312953,
+      -2.4040725231170654,
+      -0.9308025401881714,
+      1.0488128662109375,
+      -0.6187570730792444
+    ],
+    "actual_q_deg": [
+      42.88595866637717,
+      -90.35554232127308,
+      -137.74320921797488,
+      -53.331057112838415,
+      60.092550732905785,
+      -35.452168831308555
+    ],
+    "actual_TCP_pose_m_rad": [
+      0.5383540040573507,
+      0.09995100383343825,
+      0.14268505183692898,
+      2.6194433440238356,
+      -0.19598434522701122,
+      0.35668603975083896
+    ],
+    "actual_TCP_force": [
+      2.912507842047954,
+      -2.720295125792407,
+      -4.029765305951116,
+      -0.055974526129451196,
+      -0.04741146009174296,
+      -0.03892173826594379
+    ]
+  },
+  "ur_dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "safetymode": "Safetymode: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "programState": "STOPPED <unnamed>",
+    "get loaded program": "Loaded program: /programs/<unnamed>.urp",
+    "PolyscopeVersion": "URSoftware 5.11.9.1010452 (Jan 24 2022)"
+  },
+  "ur_dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "safetymode": "Safetymode: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "programState": "STOPPED <unnamed>",
+    "get loaded program": "Loaded program: /programs/<unnamed>.urp",
+    "PolyscopeVersion": "URSoftware 5.11.9.1010452 (Jan 24 2022)"
+  },
+  "payload_tcp_before": {
+    "payload": 0.44,
+    "payload_cog": [
+      0.005,
+      -0.005,
+      0.025
+    ],
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.12254000000000001,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "force_norm_N": 5.490932044638158,
+    "torque_norm_Nm": 0.11075364531430272
+  },
+  "payload_tcp_after": {
+    "payload": 0.44,
+    "payload_cog": [
+      0.005,
+      -0.005,
+      0.025
+    ],
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.12254000000000001,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "force_norm_N": 5.940817879493676,
+    "torque_norm_Nm": 0.09195595045479385
+  },
+  "ur_actual_tcp_force_stats": {
+    "Fx_N": {
+      "n": 1201,
+      "mean": 2.671077352531165,
+      "std": 0.3130464707164211,
+      "min": 1.665824653784194,
+      "max": 3.6442882069200504,
+      "range": 1.9784635531358563
+    },
+    "Fy_N": {
+      "n": 1201,
+      "mean": -2.5706260158417367,
+      "std": 0.24579918073668466,
+      "min": -3.3780642929572835,
+      "max": -1.911887171097312,
+      "range": 1.4661771218599715
+    },
+    "Fz_N": {
+      "n": 1201,
+      "mean": -4.566466764982135,
+      "std": 0.27978203486213643,
+      "min": -5.578808261688384,
+      "max": -3.717930254323712,
+      "range": 1.8608780073646725
+    },
+    "force_norm": {
+      "n": 1201,
+      "mean": 5.892698872180936,
+      "std": 0.3289139266155412,
+      "min": 5.074467476634353,
+      "max": 7.127307953925441,
+      "range": 2.052840477291088
+    }
+  },
+  "onrobot_tcpdaq_summary": {
+    "samples": 336850,
+    "rows_per_duration_hz": 5614.399211806954,
+    "duration_first_last_s": 59.997514835,
+    "errors": [],
+    "started_wall": "2026-05-23T22:39:03",
+    "finished_wall": "2026-05-23T22:40:04"
+  },
+  "onrobot_raw_tuple_change": {
+    "unique_raw_tuples": 5999,
+    "consecutive_raw_tuple_changes": 6016,
+    "consecutive_change_rate_hz": 100.27081982553253,
+    "max_constant_raw_run_reads": 60
+  },
+  "onrobot_force_torque_stats": {
+    "fx_n": {
+      "n": 336850,
+      "mean": -0.07061891049435325,
+      "std": 0.0861330280969372,
+      "min": -0.38,
+      "max": 0.2,
+      "range": 0.5800000000000001
+    },
+    "fy_n": {
+      "n": 336850,
+      "mean": 2.7108444708316117,
+      "std": 0.04856571240631266,
+      "min": 2.54,
+      "max": 2.9000000000000004,
+      "range": 0.3600000000000003
+    },
+    "fz_n": {
+      "n": 336850,
+      "mean": -32.642150630841215,
+      "std": 0.23045447201959907,
+      "min": -33.48,
+      "max": -31.8,
+      "range": 1.6799999999999962
+    },
+    "tx_nm": {
+      "n": 336850,
+      "mean": -0.049677256939327764,
+      "std": 0.008096197027365581,
+      "min": -0.076,
+      "max": -0.021,
+      "range": 0.05499999999999999
+    },
+    "ty_nm": {
+      "n": 336850,
+      "mean": -0.07132809559152044,
+      "std": 0.008187560156378752,
+      "min": -0.097,
+      "max": -0.044000000000000004,
+      "range": 0.053
+    },
+    "tz_nm": {
+      "n": 336850,
+      "mean": 0.07012433872640776,
+      "std": 0.0041129640658845385,
+      "min": 0.0546,
+      "max": 0.08385,
+      "range": 0.02924999999999999
+    },
+    "force_norm": {
+      "n": 336850,
+      "mean": 32.754746052051054,
+      "std": 0.23056547731562133,
+      "min": 31.911684380489852,
+      "max": 33.596904619324675,
+      "range": 1.6852202388348232
+    }
+  },
+  "interpretation": [
+    "P1 was reached by changing wrist2 to about 60.09 deg while keeping the other joints effectively unchanged from P0.",
+    "UR actual_TCP_force force norm mean is about 5.89 N in P1, higher than P0 mean about 2.40 N.",
+    "OnRobot TCP DAQ had no communication errors; raw tuple changed at about 100 Hz in this route.",
+    "The posture-dependent UR force change means payload/TCP is improved but not yet validated across poses; collect P2 before making a stronger conclusion."
+  ]
+}

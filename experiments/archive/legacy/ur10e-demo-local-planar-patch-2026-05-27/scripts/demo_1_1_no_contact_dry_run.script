@@ -1,0 +1,18 @@
+# UR10e demo-1.1 no-contact dry run
+# Boundary: fixed TCP orientation; no contact; no zero; no TCP/payload write; no URCap change.
+# Motion: lift +Z 5 mm, move +Y 5 mm at lifted height, return.
+
+def codex_demo_1_1_no_contact_dry_run():
+  textmsg("codex demo 1.1 no-contact dry run start")
+  p0 = get_actual_tcp_pose()
+  p_safe = p[p0[0], p0[1], p0[2] + 0.005000, p0[3], p0[4], p0[5]]
+  p_line = p[p0[0], p0[1] + 0.005000, p0[2] + 0.005000, p0[3], p0[4], p0[5]]
+  movel(p_safe, a=0.030000, v=0.010000, r=0.0)
+  movel(p_line, a=0.030000, v=0.010000, r=0.0)
+  movel(p_safe, a=0.030000, v=0.010000, r=0.0)
+  movel(p0, a=0.030000, v=0.010000, r=0.0)
+  stopl(0.5)
+  textmsg("codex demo 1.1 no-contact dry run done")
+end
+
+codex_demo_1_1_no_contact_dry_run()

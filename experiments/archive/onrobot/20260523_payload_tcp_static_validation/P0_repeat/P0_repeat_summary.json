@@ -1,0 +1,207 @@
+{
+  "pose": "P0_repeat",
+  "safety_boundary": "read-only/no-motion; no zero; no TCP/payload writes during sampling; no template program",
+  "actual_pose_before": {
+    "actual_q_rad": [
+      0.7485037446022034,
+      -1.5770627460875453,
+      -2.404207229614258,
+      -0.9302795690349122,
+      1.506238579750061,
+      -0.6196168104754847
+    ],
+    "actual_q_deg": [
+      42.88610551544433,
+      -90.35903937812813,
+      -137.750927331737,
+      -53.30109307294957,
+      86.30111355945776,
+      -35.50142815560269
+    ],
+    "actual_TCP_pose_m_rad": [
+      0.4634770641116112,
+      0.1713556055294312,
+      0.11172266811626602,
+      2.9304925424118085,
+      -0.28715331938935584,
+      -0.119768639673895
+    ],
+    "actual_TCP_force": [
+      -1.246506445479206,
+      -4.787419415799768,
+      -12.194536539560048,
+      0.005683861025568768,
+      -0.09364545389955671,
+      -0.19441036328201727
+    ]
+  },
+  "ur_dashboard_before": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "safetymode": "Safetymode: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "programState": "STOPPED <unnamed>",
+    "get loaded program": "Loaded program: /programs/<unnamed>.urp",
+    "PolyscopeVersion": "URSoftware 5.11.9.1010452 (Jan 24 2022)"
+  },
+  "ur_dashboard_after": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "is in remote control": "false",
+    "safetymode": "Safetymode: NORMAL",
+    "robotmode": "Robotmode: RUNNING",
+    "running": "Program running: false",
+    "programState": "STOPPED <unnamed>",
+    "get loaded program": "Loaded program: /programs/<unnamed>.urp",
+    "PolyscopeVersion": "URSoftware 5.11.9.1010452 (Jan 24 2022)"
+  },
+  "payload_tcp_before": {
+    "payload": 0.44,
+    "payload_cog": [
+      0.005,
+      -0.005,
+      0.025
+    ],
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.12254000000000001,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "force_norm_N": 12.886071512187202,
+    "torque_norm_Nm": 0.21123080779955994
+  },
+  "payload_tcp_after": {
+    "payload": 0.44,
+    "payload_cog": [
+      0.005,
+      -0.005,
+      0.025
+    ],
+    "tcp_offset": [
+      0.0,
+      0.0,
+      0.12254000000000001,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "force_norm_N": 13.186346773407612,
+    "torque_norm_Nm": 0.19554389181286622
+  },
+  "ur_actual_tcp_force_stats": {
+    "Fx_N": {
+      "n": 1201,
+      "mean": -1.3561578974476665,
+      "std": 0.29116742717184924,
+      "min": -2.2700610196367785,
+      "max": -0.3545123974923585,
+      "range": 1.91554862214442
+    },
+    "Fy_N": {
+      "n": 1201,
+      "mean": -4.736711430523828,
+      "std": 0.2353713616629614,
+      "min": -5.583203803631932,
+      "max": -3.9773481514014586,
+      "range": 1.6058556522304732
+    },
+    "Fz_N": {
+      "n": 1201,
+      "mean": -12.170575799584778,
+      "std": 0.2888952339986297,
+      "min": -13.03461341130165,
+      "max": -11.305716580682848,
+      "range": 1.7288968306188028
+    },
+    "force_norm": {
+      "n": 1201,
+      "mean": 13.135302205398482,
+      "std": 0.29304365230864665,
+      "min": 12.175621232612833,
+      "max": 14.056533306830644,
+      "range": 1.880912074217811
+    }
+  },
+  "onrobot_tcpdaq_summary": {
+    "samples": 337370,
+    "rows_per_duration_hz": 5623.081683952193,
+    "duration_first_last_s": 59.997350023,
+    "errors": [],
+    "started_wall": "2026-05-23T22:58:22",
+    "finished_wall": "2026-05-23T22:59:23"
+  },
+  "onrobot_raw_tuple_change": {
+    "unique_raw_tuples": 5992,
+    "consecutive_raw_tuple_changes": 6007,
+    "consecutive_change_rate_hz": 100.1210886430353,
+    "max_constant_raw_run_reads": 60
+  },
+  "onrobot_force_torque_stats": {
+    "fx_n": {
+      "n": 337370,
+      "mean": 0.39992975071900067,
+      "std": 0.08513420170310257,
+      "min": 0.06,
+      "max": 0.6799999999999999,
+      "range": 0.6199999999999999
+    },
+    "fy_n": {
+      "n": 337370,
+      "mean": 3.06296837300505,
+      "std": 0.04533785028959435,
+      "min": 2.9000000000000004,
+      "max": 3.2399999999999998,
+      "range": 0.3399999999999994
+    },
+    "fz_n": {
+      "n": 337370,
+      "mean": -32.4469897145543,
+      "std": 0.2352408450660195,
+      "min": -33.339999999999996,
+      "max": -31.480000000000004,
+      "range": 1.8599999999999923
+    },
+    "tx_nm": {
+      "n": 337370,
+      "mean": -0.06520376144882542,
+      "std": 0.0074081062930960685,
+      "min": -0.089,
+      "max": -0.04,
+      "range": 0.048999999999999995
+    },
+    "ty_nm": {
+      "n": 337370,
+      "mean": -0.07533563446662705,
+      "std": 0.007231967629403806,
+      "min": -0.098,
+      "max": -0.05,
+      "range": 0.048
+    },
+    "tz_nm": {
+      "n": 337370,
+      "mean": 0.07504155496935704,
+      "std": 0.0037787661646593563,
+      "min": 0.06175,
+      "max": 0.08775000000000001,
+      "range": 0.02600000000000001
+    },
+    "force_norm": {
+      "n": 337370,
+      "mean": 32.59383134030631,
+      "std": 0.23592527768603416,
+      "min": 31.62424386447841,
+      "max": 33.487251305534166,
+      "range": 1.8630074410557569
+    }
+  },
+  "interpretation": [
+    "P0_repeat was reached after returning wrist2 near the original P0 orientation while J1-J4 and J6 stayed within the requested narrow ranges.",
+    "UR actual_TCP_force force norm mean is about 13.14 N in P0_repeat, much higher than the original P0 mean about 2.40 N.",
+    "The return-to-P0-repeat result did not recover the original low residual force, so the simple hypothesis that the residual is only repeatable posture dependence is weak or false for this run.",
+    "OnRobot TCP DAQ had no communication errors; raw tuple changed at about 100 Hz and its unzeroed Fz stayed near the same -32 to -33 N band seen in P0/P1/P2.",
+    "Do not zero or redo payload/TCP yet; first rule out cable preload, subtle contact, EOAT/adapter settling, or another physical state change."
+  ]
+}

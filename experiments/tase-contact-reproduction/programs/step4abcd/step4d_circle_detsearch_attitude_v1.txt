@@ -1,0 +1,42 @@
+Step4d circle deterministic-search attitude-admittance v1 TP package
+
+Open on Teach Pendant:
+  /programs/andyl/kunwei/step4/step4d_circle_detsearch_attitude_v1.urp
+
+Script source:
+  /programs/andyl/kunwei/step4/step4d_circle_detsearch_attitude_v1.script
+
+Version stamp:
+  2026-06-08T1650HKT_STEP4D_CIRCLE_DETSEARCH_ATTITUDE_V1
+
+Geometry:
+  source: middle half of the existing Step2C contact path
+  circle start XY: 0.457390615, 0.215059119
+  circle center XY: 0.468195467, 0.203401237
+  opposite diameter XY: 0.479000318, 0.191743355
+  radius: 15.895 mm
+  full-circle arc length: 99.871 mm
+
+Motion summary:
+  Step2C final-style scaffold: bounded high approach, deterministic contact search, recoverable-stop short retract, home return
+  deterministic search: 15 mm/s far, 3 mm/s near, speedl acceleration 300 mm/s^2, no pre-contact force admittance
+  contact latch: near-zone raw Fz <= -1.0 N or force norm > 1.5 N
+  far-zone unexpected contact: raw Fz <= -5 N or force norm > 5 N stops/retracts/homes
+  circle: full circle, Cartesian speedl twist, UR handles IK
+  tangent speed: 5 mm/s in v1
+  circle runtime limit: 30 s for full 99.871 mm circle
+  Z control: signed Fz velocity admittance after contact latch only
+  target force: ramp from 1 N to bridge target, normally 5 N, over 2 s
+  attitude: velocity-admittance wx/wy correction from filtered Fx/Fy and Mx/My; no filtered-lateral-force attitude stop
+
+Auto-home policy:
+  auto-home after recoverable stops: complete, stale heartbeat, external stop request, Z correction guard, path progress guard, runtime limit
+  hold position after hard stops: sensor_not_ok, raw normal force guard, force norm guard, torque norm guard
+
+Raw guards:
+  normal force guard: 20 N
+  force norm guard: 50 N
+  torque norm guard: 0.6 Nm
+  sensor stale: 100 ms
+  Z correction guard: 8 mm
+  attitude proxy clamp: 0.35 rad, no direct stop guard

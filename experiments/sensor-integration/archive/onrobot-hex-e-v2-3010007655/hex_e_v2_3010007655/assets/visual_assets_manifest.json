@@ -1,0 +1,422 @@
+{
+  "schema_version": 1,
+  "image_dir": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw",
+  "assets_dir": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets",
+  "thumbnail_count": 39,
+  "contact_sheet_count": 3,
+  "thumbnails": [
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1166.HEIC",
+      "source_name": "IMG_1166.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1166.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1166.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 900,
+      "thumbnail_height": 675
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1167.HEIC",
+      "source_name": "IMG_1167.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1167.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1167.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1168.HEIC",
+      "source_name": "IMG_1168.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1168.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1168.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1169.HEIC",
+      "source_name": "IMG_1169.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1169.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1169.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1170.HEIC",
+      "source_name": "IMG_1170.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1170.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1170.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 900,
+      "thumbnail_height": 675
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1171.HEIC",
+      "source_name": "IMG_1171.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1171.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1171.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1172.HEIC",
+      "source_name": "IMG_1172.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1172.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1172.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1173.HEIC",
+      "source_name": "IMG_1173.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1173.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1173.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1174.HEIC",
+      "source_name": "IMG_1174.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1174.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1174.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1175.HEIC",
+      "source_name": "IMG_1175.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1175.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1175.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1176.HEIC",
+      "source_name": "IMG_1176.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1176.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1176.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1178.HEIC",
+      "source_name": "IMG_1178.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1178.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1178.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1179.HEIC",
+      "source_name": "IMG_1179.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1179.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1179.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1180.HEIC",
+      "source_name": "IMG_1180.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1180.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1180.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1181.HEIC",
+      "source_name": "IMG_1181.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1181.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1181.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1182.HEIC",
+      "source_name": "IMG_1182.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1182.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1182.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1183.HEIC",
+      "source_name": "IMG_1183.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1183.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1183.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1184.HEIC",
+      "source_name": "IMG_1184.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1184.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1184.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1185.HEIC",
+      "source_name": "IMG_1185.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1185.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1185.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1186.HEIC",
+      "source_name": "IMG_1186.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1186.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1186.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1187.HEIC",
+      "source_name": "IMG_1187.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1187.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1187.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 900,
+      "thumbnail_height": 675
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1188.HEIC",
+      "source_name": "IMG_1188.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1188.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1188.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1189.HEIC",
+      "source_name": "IMG_1189.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1189.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1189.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1190.HEIC",
+      "source_name": "IMG_1190.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1190.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1190.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1191.HEIC",
+      "source_name": "IMG_1191.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1191.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1191.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 900,
+      "thumbnail_height": 675
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1192.HEIC",
+      "source_name": "IMG_1192.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1192.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1192.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1193.HEIC",
+      "source_name": "IMG_1193.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1193.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1193.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1194.HEIC",
+      "source_name": "IMG_1194.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1194.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1194.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 900,
+      "thumbnail_height": 675
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1195.HEIC",
+      "source_name": "IMG_1195.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1195.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1195.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 900,
+      "thumbnail_height": 675
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1196.HEIC",
+      "source_name": "IMG_1196.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1196.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1196.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1197.HEIC",
+      "source_name": "IMG_1197.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1197.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1197.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1198.HEIC",
+      "source_name": "IMG_1198.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1198.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1198.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1199.HEIC",
+      "source_name": "IMG_1199.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1199.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1199.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1200.HEIC",
+      "source_name": "IMG_1200.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1200.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1200.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1201.HEIC",
+      "source_name": "IMG_1201.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1201.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1201.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1202.HEIC",
+      "source_name": "IMG_1202.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1202.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1202.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1203.HEIC",
+      "source_name": "IMG_1203.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1203.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1203.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1204.HEIC",
+      "source_name": "IMG_1204.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1204.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1204.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    },
+    {
+      "source_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/photos_raw/IMG_1205.HEIC",
+      "source_name": "IMG_1205.HEIC",
+      "thumbnail_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/thumbnails/IMG_1205.jpg",
+      "thumbnail": "assets/thumbnails/IMG_1205.jpg",
+      "orientation_normalized": true,
+      "manual_rotation_degrees_clockwise": 0,
+      "thumbnail_width": 675,
+      "thumbnail_height": 900
+    }
+  ],
+  "contact_sheets": [
+    {
+      "path_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/contact_sheets/contact_sheet_01.jpg",
+      "path": "assets/contact_sheets/contact_sheet_01.jpg",
+      "first": "IMG_1166.HEIC",
+      "last": "IMG_1179.HEIC",
+      "count": 13
+    },
+    {
+      "path_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/contact_sheets/contact_sheet_02.jpg",
+      "path": "assets/contact_sheets/contact_sheet_02.jpg",
+      "first": "IMG_1180.HEIC",
+      "last": "IMG_1192.HEIC",
+      "count": 13
+    },
+    {
+      "path_abs": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655/assets/contact_sheets/contact_sheet_03.jpg",
+      "path": "assets/contact_sheets/contact_sheet_03.jpg",
+      "first": "IMG_1193.HEIC",
+      "last": "IMG_1205.HEIC",
+      "count": 13
+    }
+  ]
+}

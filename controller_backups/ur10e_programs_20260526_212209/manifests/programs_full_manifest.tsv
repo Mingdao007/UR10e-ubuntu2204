@@ -1,0 +1,524 @@
+ur-20225200364
+Tue May 26 14:56:16 CEST 2026
+d	drwx------	root	root	1024	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1
+d	drwx------	root	root	1024	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/package
+d	drwx------	root	root	1024	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/script
+d	drwxr-xr-x	root	root	1024	2024-01-24 09:44:43.0000000000	/programs/_marco
+d	drwxr-xr-x	root	root	1024	2024-09-19 03:00:44.0000000000	/programs/dragon_new
+d	drwxr-xr-x	root	root	1024	2024-11-01 07:15:45.0000000000	/programs/Testing
+d	drwxr-xr-x	root	root	1024	2025-01-08 14:33:10.0000000000	/programs/2025faichun
+d	drwxr-xr-x	root	root	1024	2025-12-30 03:44:32.0000000000	/programs/Students
+d	drwxr-xr-x	root	root	1024	2026-03-24 04:20:31.0000000000	/programs/snake_new
+d	drwxr-xr-x	root	root	1024	2026-03-24 04:21:21.0000000000	/programs/palletizing
+d	drwxr-xr-x	root	root	1024	2026-03-24 04:26:08.0000000000	/programs/TM1326
+d	drwxr-xr-x	root	root	1024	2026-03-24 09:48:45.0000000000	/programs/v_gripper_tm1326
+d	drwxr-xr-x	root	root	1024	2026-03-24 09:49:39.0000000000	/programs/Xijun
+d	drwxr-xr-x	root	root	1024	2026-05-26 14:50:56.0000000000	/programs/andyl
+d	drwxr-xr-x	root	root	1024	2026-05-26 14:51:12.0000000000	/programs/andyl/onrobot_rtde_export
+d	drwxr-xr-x	root	root	15360	2026-05-23 18:19:14.0000000000	/programs
+f	-rw-r--r--	root	root	10045	2024-01-12 06:14:56.0000000000	/programs/2024DragonThickMarker.urp
+f	-rw-r--r--	root	root	1009	2024-12-31 03:43:15.0000000000	/programs/gpB OK.txt
+f	-rw-r--r--	root	root	103	2025-01-08 13:45:05.0000000000	/programs/2025faichun/withbox.txt
+f	-rw-r--r--	root	root	103	2025-01-08 13:50:24.0000000000	/programs/2025faichun/withboxright.txt
+f	-rw-r--r--	root	root	103360	2024-09-13 11:25:14.0000000000	/programs/elton_fulltask.script
+f	-rw-r--r--	root	root	10343	2026-01-27 10:22:44.0000000000	/programs/ur10e_demo_smooth.urs
+f	-rw-r--r--	root	root	103435	2023-10-11 13:02:35.0000000000	/programs/azat-test.urp
+f	-rw-r--r--	root	root	105	2025-01-08 13:55:53.0000000000	/programs/2025faichun/withboxmiddle.txt
+f	-rw-r--r--	root	root	105	2026-01-21 08:43:56.0000000000	/programs/test_gripper.txt
+f	-rw-r--r--	root	root	10521	2024-07-22 07:42:10.0000000000	/programs/1Johnathan.script
+f	-rw-r--r--	root	root	1066109	2024-02-03 13:39:42.0000000000	/programs/fai_chun_2024_v2.script
+f	-rw-r--r--	root	root	1066114	2024-02-02 14:04:23.0000000000	/programs/final_fai_chun_2024_1.script
+f	-rw-r--r--	root	root	108	2026-01-09 10:53:10.0000000000	/programs/mpc.txt
+f	-rw-r--r--	root	root	108102	2023-12-15 09:30:06.0000000000	/programs/jerry_robot_1.old0
+f	-rw-r--r--	root	root	10936	2026-02-09 02:40:58.0000000000	/programs/ur10e_27.urs
+f	-rw-r--r--	root	root	10936	2026-02-11 04:36:55.0000000000	/programs/ur10e_27.urs_bak
+f	-rw-r--r--	root	root	11032	2023-10-20 05:02:34.0000000000	/programs/draw_test_name.urp
+f	-rw-r--r--	root	root	11589	2026-02-25 03:53:14.0000000000	/programs/Run_mode4_only.urs
+f	-rw-r--r--	root	root	1179	2026-01-09 08:47:54.0000000000	/programs/mpc.old1
+f	-rw-r--r--	root	root	121112	2026-05-23 18:19:43.0000000000	/programs/andyl/wait001.script
+f	-rw-r--r--	root	root	121112	2026-05-24 16:52:57.0000000000	/programs/andyl/1.script
+f	-rw-r--r--	root	root	121112	2026-05-25 16:03:55.0000000000	/programs/andyl/2.script
+f	-rw-r--r--	root	root	121934	2023-10-18 10:38:58.0000000000	/programs/draw_back.script
+f	-rw-r--r--	root	root	121943	2023-10-19 03:57:29.0000000000	/programs/set_b_draw_back.script
+f	-rw-r--r--	root	root	1247	2026-01-21 08:43:56.0000000000	/programs/test_gripper.urp
+f	-rw-r--r--	root	root	12749	2024-07-22 08:47:32.0000000000	/programs/1johnathan_test.script
+f	-rw-r--r--	root	root	12750	2023-10-20 05:02:34.0000000000	/programs/draw_test_name.old0
+f	-rw-r--r--	root	root	128572	2024-02-26 07:35:09.0000000000	/programs/2024Dragon.script
+f	-rw-r--r--	root	root	128572	2024-02-26 07:51:43.0000000000	/programs/2024Dragon.script_bak
+f	-rw-r--r--	root	root	132600	2024-01-10 09:19:16.0000000000	/programs/2024dragon.script
+f	-rw-r--r--	root	root	133390	2023-12-15 09:30:07.0000000000	/programs/jerry_robot_1.urp
+f	-rw-r--r--	root	root	135	2022-11-23 09:22:35.0000000000	/programs/yj221123.txt
+f	-rw-r--r--	root	root	135	2025-11-03 03:55:04.0000000000	/programs/default1103.variables
+f	-rw-r--r--	root	root	136	2026-05-26 13:25:33.0000000000	/programs/default.variables
+f	-rw-r--r--	root	root	137377	2023-10-17 06:55:21.0000000000	/programs/marco_robot_test.script
+f	-rw-r--r--	root	root	138555	2025-01-09 10:03:10.0000000000	/programs/FaiChun_9 Jan_4.script
+f	-rw-r--r--	root	root	138556	2025-01-10 09:40:43.0000000000	/programs/FaiChun_9 Jan_10.script
+f	-rw-r--r--	root	root	138557	2025-01-09 10:19:56.0000000000	/programs/FaiChun_9 Jan_5.script
+f	-rw-r--r--	root	root	1395	2023-10-17 05:33:11.0000000000	/programs/set_b_draw_borders.old1
+f	-rw-r--r--	root	root	139640	2025-01-10 09:31:51.0000000000	/programs/FaiChun_9 Jan_9.script
+f	-rw-r--r--	root	root	1412	2026-01-09 10:53:10.0000000000	/programs/mpc.old0
+f	-rw-r--r--	root	root	1412	2026-01-09 10:53:10.0000000000	/programs/mpc.urp
+f	-rw-r--r--	root	root	1415059	2025-01-08 14:33:10.0000000000	/programs/2025faichun/withboxall.script
+f	-rw-r--r--	root	root	1424	2023-10-18 02:49:52.0000000000	/programs/set_b_draw_borders.bak.urp
+f	-rw-r--r--	root	root	1425110	2023-10-13 09:58:44.0000000000	/programs/azat-test-new.script
+f	-rw-r--r--	root	root	14291	2023-10-17 06:55:21.0000000000	/programs/marco_robot_test.urp
+f	-rw-r--r--	root	root	1430	2023-10-17 05:34:58.0000000000	/programs/set_b_draw_borders.old0
+f	-rw-r--r--	root	root	14310	2023-10-17 06:11:33.0000000000	/programs/marco_robot_test.old1
+f	-rw-r--r--	root	root	14324	2023-10-17 06:55:21.0000000000	/programs/marco_robot_test.old0
+f	-rw-r--r--	root	root	1433	2023-10-17 05:34:58.0000000000	/programs/set_b_draw_borders.urp
+f	-rw-r--r--	root	root	145	2025-01-08 14:33:10.0000000000	/programs/2025faichun/withboxall.txt
+f	-rw-r--r--	root	root	14663	2024-08-15 11:14:55.0000000000	/programs/dragon_new/1_dragon.urp
+f	-rw-r--r--	root	root	1510	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/ReadMe.txt
+f	-rw-r--r--	root	root	151515	2025-01-09 08:54:58.0000000000	/programs/FaiChun_9 Jan_2.script
+f	-rw-r--r--	root	root	151515	2025-01-09 09:10:13.0000000000	/programs/FaiChun_9 Jan_3.script
+f	-rw-r--r--	root	root	151532	2025-01-09 08:18:33.0000000000	/programs/FaiChun_9 Jan_1.bak0
+f	-rw-r--r--	root	root	151534	2025-01-09 08:25:15.0000000000	/programs/FaiChun_9 Jan_1.script
+f	-rw-r--r--	root	root	151696	2025-01-14 02:35:41.0000000000	/programs/FaiChun_9 Jan_8_2.script
+f	-rw-r--r--	root	root	151711	2025-01-10 06:44:10.0000000000	/programs/FaiChun_9 Jan_7.bak0
+f	-rw-r--r--	root	root	151712	2025-01-10 06:44:10.0000000000	/programs/FaiChun_9 Jan_7.script
+f	-rw-r--r--	root	root	151733	2025-01-10 03:24:19.0000000000	/programs/FaiChun_9 Jan_6.script
+f	-rw-r--r--	root	root	151733	2025-01-10 07:03:27.0000000000	/programs/FaiChun_9 Jan_8.bak1
+f	-rw-r--r--	root	root	151733	2025-01-10 09:16:05.0000000000	/programs/FaiChun_9 Jan_8.bak0
+f	-rw-r--r--	root	root	151733	2025-01-10 09:16:28.0000000000	/programs/FaiChun_9 Jan_8.script
+f	-rw-r--r--	root	root	151733	2025-01-14 06:06:27.0000000000	/programs/FaiChun_9 Jan_11_1.bak0
+f	-rw-r--r--	root	root	151734	2025-01-14 02:27:13.0000000000	/programs/FaiChun_9 Jan_8_1.bak0
+f	-rw-r--r--	root	root	151734	2025-01-14 06:06:27.0000000000	/programs/FaiChun_9 Jan_11_1.script
+f	-rw-r--r--	root	root	151735	2025-01-14 02:27:13.0000000000	/programs/FaiChun_9 Jan_8_1.script
+f	-rw-r--r--	root	root	151918	2025-01-17 09:36:33.0000000000	/programs/FaiChun_9 Jan_11_2_t2.bak1
+f	-rw-r--r--	root	root	151919	2025-01-17 09:38:34.0000000000	/programs/FaiChun_9 Jan_11_2_t2.bak0
+f	-rw-r--r--	root	root	151919	2025-01-17 09:38:34.0000000000	/programs/FaiChun_9 Jan_11_2_t2.script
+f	-rw-r--r--	root	root	151921	2025-01-17 10:02:30.0000000000	/programs/FaiChun_9 Jan_11_2_t2_1.bak1
+f	-rw-r--r--	root	root	151921	2025-01-17 10:45:50.0000000000	/programs/FaiChun_9 Jan_11_2_t2_1.bak0
+f	-rw-r--r--	root	root	151921	2025-01-17 10:46:11.0000000000	/programs/FaiChun_9 Jan_11_2_t2_1.script
+f	-rw-r--r--	root	root	151922	2025-01-17 10:47:45.0000000000	/programs/FaiChun_9 Jan_11_2_t3.bak0
+f	-rw-r--r--	root	root	151924	2025-02-13 03:51:43.0000000000	/programs/FaiChun_9 Jan_11_2_t3.script
+f	-rw-r--r--	root	root	151958	2025-01-14 08:59:13.0000000000	/programs/FaiChun_9 Jan_11_2.bak0
+f	-rw-r--r--	root	root	151958	2025-01-14 08:59:13.0000000000	/programs/FaiChun_9 Jan_11_2.script
+f	-rw-r--r--	root	root	151968	2025-01-14 06:32:51.0000000000	/programs/FaiChun_9 Jan_11_3.bak0
+f	-rw-r--r--	root	root	151968	2025-01-16 03:43:03.0000000000	/programs/FaiChun_9 Jan_11_5.bak0
+f	-rw-r--r--	root	root	151969	2025-01-14 08:17:49.0000000000	/programs/FaiChun_9 Jan_11_4.bak0
+f	-rw-r--r--	root	root	151969	2025-01-14 08:17:49.0000000000	/programs/FaiChun_9 Jan_11_4.script
+f	-rw-r--r--	root	root	151969	2025-01-14 08:44:11.0000000000	/programs/FaiChun_9 Jan_11_3.script
+f	-rw-r--r--	root	root	151969	2025-01-16 08:37:40.0000000000	/programs/FaiChun_9 Jan_11_5.script
+f	-rw-r--r--	root	root	152033	2025-01-14 03:32:19.0000000000	/programs/FaiChun_9 Jan_8_4.script
+f	-rw-r--r--	root	root	152464	2025-01-17 10:46:37.0000000000	/programs/FaiChun_9 Jan_11_2_t1_2.bak1
+f	-rw-r--r--	root	root	152464	2025-01-17 10:48:53.0000000000	/programs/FaiChun_9 Jan_11_2_t1_2.bak0
+f	-rw-r--r--	root	root	152465	2025-01-20 02:12:05.0000000000	/programs/FaiChun_9 Jan_11_2_t1_2.script
+f	-rw-r--r--	root	root	152483	2025-01-17 09:23:32.0000000000	/programs/FaiChun_9 Jan_11_2_t1_1.script
+f	-rw-r--r--	root	root	152558	2025-01-17 08:43:46.0000000000	/programs/FaiChun_9 Jan_11_2_t1.script
+f	-rw-r--r--	root	root	15261	2024-01-17 08:56:06.0000000000	/programs/2024DragonThinMarker_v7.old0
+f	-rw-r--r--	root	root	154967	2025-01-13 08:21:16.0000000000	/programs/FaiChun_9 Jan_Mcam1.bak0
+f	-rw-r--r--	root	root	154968	2025-01-13 08:21:53.0000000000	/programs/FaiChun_9 Jan_Mcam1.script
+f	-rw-r--r--	root	root	155997	2023-10-18 12:30:48.0000000000	/programs/set_b_drawing_robot.script_bak
+f	-rw-r--r--	root	root	15651	2025-01-07 04:45:00.0000000000	/programs/Students/grpB2.urp
+f	-rw-r--r--	root	root	15652	2025-01-07 04:45:19.0000000000	/programs/Students/grpB222.urp
+f	-rw-r--r--	root	root	1570	2022-11-23 09:22:35.0000000000	/programs/yj221123.urp
+f	-rw-r--r--	root	root	1573	2026-03-12 04:37:45.0000000000	/programs/TM0512_rs3demo.old2
+f	-rw-r--r--	root	root	1573	2026-03-12 04:40:28.0000000000	/programs/TM0512_rs3demo.old1
+f	-rw-r--r--	root	root	1576	2026-03-12 04:41:07.0000000000	/programs/TM0512_rs3demo.urp
+f	-rw-r--r--	root	root	1579	2026-03-12 04:41:07.0000000000	/programs/TM0512_rs3demo.old0
+f	-rw-r--r--	root	root	158042	2024-01-17 08:56:06.0000000000	/programs/2024DragonThinMarker_v7.urp
+f	-rw-r--r--	root	root	1582	2026-03-12 06:27:41.0000000000	/programs/TM0512_rs3demo_Ratchet.urp
+f	-rw-r--r--	root	root	1583	2024-10-30 01:39:37.0000000000	/programs/Testing/Pick_Place_Exam.old1
+f	-rw-r--r--	root	root	1586	2024-10-25 12:10:09.0000000000	/programs/Testing/Pick_Place_Exam.old2
+f	-rw-r--r--	root	root	15952	2024-11-01 04:56:27.0000000000	/programs/palletizing/pallet_task2 and 3_T.old0
+f	-rw-r--r--	root	root	160720	2023-10-18 12:06:59.0000000000	/programs/set_b_drawing_robot.script
+f	-rw-r--r--	root	root	161	2025-01-17 10:30:39.0000000000	/programs/snake_new/faichun_snake3.txt
+f	-rw-r--r--	root	root	16167	2025-01-14 02:24:42.0000000000	/programs/faichun_9jan_1.old9
+f	-rw-r--r--	root	root	1617	2025-12-01 08:37:38.0000000000	/programs/test.old1
+f	-rw-r--r--	root	root	162352	2023-10-16 11:28:34.0000000000	/programs/inkscape-test-1.script
+f	-rw-r--r--	root	root	16464	2024-11-06 08:30:30.0000000000	/programs/palletizing/pallet_task2 and 3.urp
+f	-rw-r--r--	root	root	1671	2024-10-30 01:40:59.0000000000	/programs/Testing/Pick_Place_Exam.old0
+f	-rw-r--r--	root	root	16755	2025-03-18 05:07:50.0000000000	/programs/palletizing/pallet_task2 and 3_backup.urp
+f	-rw-r--r--	root	root	1677	2024-10-30 01:40:59.0000000000	/programs/Testing/Pick_Place_Exam.urp
+f	-rw-r--r--	root	root	1678	2024-10-30 08:47:07.0000000000	/programs/Testing/Pick_Place_Exam_2.urp
+f	-rw-r--r--	root	root	1678	2024-11-01 07:15:45.0000000000	/programs/Testing/Pick_Place_Exam_3.urp
+f	-rw-r--r--	root	root	168	2024-02-02 14:04:23.0000000000	/programs/final_fai_chun_2024_1.txt
+f	-rw-r--r--	root	root	168	2024-02-03 13:39:42.0000000000	/programs/fai_chun_2024_v2.txt
+f	-rw-r--r--	root	root	1701	2025-01-13 11:29:12.0000000000	/programs/Square.urp
+f	-rw-r--r--	root	root	170598	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/package/libvncserver0_0.9.3.dfsg.1-1_i386.deb
+f	-rw-r--r--	root	root	1761	2025-12-30 03:44:32.0000000000	/programs/Students/12345.txt
+f	-rw-r--r--	root	root	1763	2025-12-22 06:51:26.0000000000	/programs/Students/WIE2.txt
+f	-rw-r--r--	root	root	1774	2025-12-01 08:42:17.0000000000	/programs/test.old0
+f	-rw-r--r--	root	root	1786	2025-12-01 08:42:17.0000000000	/programs/test.urp
+f	-rw-r--r--	root	root	178953	2024-09-13 06:37:31.0000000000	/programs/dragon_new/john_rightlower_rotate.script
+f	-rw-r--r--	root	root	178953	2024-09-19 03:00:33.0000000000	/programs/dragon_new/john_rightlower_rotate.script_bak
+f	-rw-r--r--	root	root	179230	2024-08-15 11:51:29.0000000000	/programs/dragon_new/john_midlower_rotate.script
+f	-rw-r--r--	root	root	179230	2024-12-13 08:40:15.0000000000	/programs/john_midlower_rotate.script
+f	-rw-r--r--	root	root	179230	2025-01-20 03:58:29.0000000000	/programs/dragon_new/john_midlower_rotate.script_bak
+f	-rw-r--r--	root	root	1793	2026-03-24 07:05:13.0000000000	/programs/v_gripper_tm1326/vg_transpor_cards.urp
+f	-rw-r--r--	root	root	1794	2026-01-21 09:19:10.0000000000	/programs/Xijun/test_gripper.urp
+f	-rw-r--r--	root	root	179911	2024-09-19 02:26:02.0000000000	/programs/dragon_new/john_leftupper_rotate.bak0
+f	-rw-r--r--	root	root	179911	2024-09-19 02:26:02.0000000000	/programs/dragon_new/john_leftupper_rotate.script
+f	-rw-r--r--	root	root	179911	2024-10-22 06:53:32.0000000000	/programs/john_leftupper_rotate.script
+f	-rw-r--r--	root	root	179911	2024-12-13 08:40:29.0000000000	/programs/john_leftupper_rotate.script_bak
+f	-rw-r--r--	root	root	179971	2024-09-13 04:50:13.0000000000	/programs/dragon_new/john_leftlower_rotate.bak0
+f	-rw-r--r--	root	root	179971	2024-09-13 04:50:13.0000000000	/programs/dragon_new/john_leftlower_rotate.script
+f	-rw-r--r--	root	root	179971	2024-09-19 02:43:25.0000000000	/programs/dragon_new/john_leftlower_rotate.script_bak
+f	-rw-r--r--	root	root	1809	2025-12-01 08:46:49.0000000000	/programs/palletizing/rs3_task_peter.urp
+f	-rw-r--r--	root	root	1831	2025-12-01 08:23:08.0000000000	/programs/palletizing/move_1_block-TM0513.urp
+f	-rw-r--r--	root	root	1836	2025-12-01 08:11:28.0000000000	/programs/palletizing/move_1_block-TM0513.old2
+f	-rw-r--r--	root	root	1836	2025-12-01 08:18:01.0000000000	/programs/palletizing/move_1_block-TM0513.old1
+f	-rw-r--r--	root	root	186714	2025-01-14 08:53:09.0000000000	/programs/faichun_9jan_1.script
+f	-rw-r--r--	root	root	18692	2023-10-18 10:38:58.0000000000	/programs/draw_back.urp
+f	-rw-r--r--	root	root	18698	2023-10-19 03:57:29.0000000000	/programs/set_b_draw_back.urp
+f	-rw-r--r--	root	root	18700	2023-10-19 03:57:29.0000000000	/programs/set_b_draw_back.old0
+f	-rw-r--r--	root	root	187213	2025-01-17 10:48:57.0000000000	/programs/snake_new/faichun_snake1.script
+f	-rw-r--r--	root	root	187225	2025-01-17 09:31:02.0000000000	/programs/snake_new/faichun_9jan_1t1.script
+f	-rw-r--r--	root	root	1873	2025-10-16 11:22:12.0000000000	/programs/palletizing/move.urp
+f	-rw-r--r--	root	root	187309	2025-01-17 08:44:09.0000000000	/programs/faichun_9jan_1t1.script
+f	-rw-r--r--	root	root	1878	2025-10-28 01:07:42.0000000000	/programs/palletizing/move_1_block.urp
+f	-rw-r--r--	root	root	1881	2025-10-28 01:07:42.0000000000	/programs/palletizing/move_1_block.old0
+f	-rw-r--r--	root	root	1884	2025-12-01 08:23:08.0000000000	/programs/palletizing/move_1_block-TM0513.old0
+f	-rw-r--r--	root	root	1891	2025-12-01 06:58:30.0000000000	/programs/palletizing/move_1_block-TM0513.old3
+f	-rw-r--r--	root	root	190	2025-01-13 11:29:12.0000000000	/programs/Square.txt
+f	-rw-r--r--	root	root	1920	2022-10-12 08:41:26.0000000000	/programs/Robot 3 12_10.urp
+f	-rw-r--r--	root	root	194550	2024-02-03 13:39:42.0000000000	/programs/fai_chun_2024_v2.urp
+f	-rw-r--r--	root	root	194556	2024-02-02 14:04:23.0000000000	/programs/final_fai_chun_2024_1.urp
+f	-rw-r--r--	root	root	195	2025-12-01 08:46:49.0000000000	/programs/palletizing/rs3_task_peter.txt
+f	-rw-r--r--	root	root	1958	2026-03-24 09:49:39.0000000000	/programs/Xijun/vg_palatz_cards.urp
+f	-rw-r--r--	root	root	1961	2026-03-24 09:49:39.0000000000	/programs/Xijun/vg_palatz_cards.old0
+f	-rw-r--r--	root	root	1966	2026-03-24 09:48:45.0000000000	/programs/v_gripper_tm1326/vg_palatz_cards.urp
+f	-rw-r--r--	root	root	1968	2026-03-24 09:48:45.0000000000	/programs/v_gripper_tm1326/vg_palatz_cards.old0
+f	-rw-r--r--	root	root	199694	2023-10-13 09:58:45.0000000000	/programs/azat-test-new.urp
+f	-rw-r--r--	root	root	199790	2023-10-13 09:58:44.0000000000	/programs/azat-test-new.old0
+f	-rw-r--r--	root	root	200	2025-12-01 08:42:17.0000000000	/programs/test.txt
+f	-rw-r--r--	root	root	208335	2023-10-11 08:35:07.0000000000	/programs/azat-test.old9
+f	-rw-r--r--	root	root	2106	2026-01-06 04:42:38.0000000000	/programs/tower.txt
+f	-rw-r--r--	root	root	22003	2024-01-10 09:19:16.0000000000	/programs/2024dragon.urp
+f	-rw-r--r--	root	root	2226	2024-07-22 08:47:32.0000000000	/programs/1johnathan_test.urp
+f	-rw-r--r--	root	root	223	2024-09-19 03:00:44.0000000000	/programs/dragon_new/4_dragon.txt
+f	-rw-r--r--	root	root	22789	2024-11-06 08:30:56.0000000000	/programs/palletizing/elton_fulltask.urp
+f	-rw-r--r--	root	root	23068	2024-09-13 11:25:14.0000000000	/programs/elton_fulltask.old0
+f	-rw-r--r--	root	root	234	2026-03-12 04:41:07.0000000000	/programs/TM0512_rs3demo.txt
+f	-rw-r--r--	root	root	234	2026-03-12 06:27:41.0000000000	/programs/TM0512_rs3demo_Ratchet.txt
+f	-rw-r--r--	root	root	235	2025-12-01 08:23:08.0000000000	/programs/palletizing/move_1_block-TM0513.txt
+f	-rw-r--r--	root	root	2359	2023-10-12 12:11:16.0000000000	/programs/azat-test-new.old5
+f	-rw-r--r--	root	root	23682	2025-01-08 12:26:55.0000000000	/programs/2025faichun/withoutbox.urp
+f	-rw-r--r--	root	root	236866	2024-08-15 11:14:55.0000000000	/programs/dragon_new/1_dragon.script
+f	-rw-r--r--	root	root	23692	2025-01-08 12:06:16.0000000000	/programs/2025faichun/withoutbox.old1
+f	-rw-r--r--	root	root	23698	2024-09-13 11:25:14.0000000000	/programs/elton_fulltask.urp
+f	-rw-r--r--	root	root	23702	2025-01-08 12:26:55.0000000000	/programs/2025faichun/withoutbox.old0
+f	-rw-r--r--	root	root	23711	2024-09-13 11:59:11.0000000000	/programs/palletizing/elton_fulltask.old0
+f	-rw-r--r--	root	root	2383	2023-10-10 10:57:35.0000000000	/programs/default_1.installation
+f	-rw-r--r--	root	root	243	2024-10-30 01:40:59.0000000000	/programs/Testing/Pick_Place_Exam.txt
+f	-rw-r--r--	root	root	243	2024-10-30 08:47:07.0000000000	/programs/Testing/Pick_Place_Exam_2.txt
+f	-rw-r--r--	root	root	243	2024-11-01 07:15:45.0000000000	/programs/Testing/Pick_Place_Exam_3.txt
+f	-rw-r--r--	root	root	243	2025-10-16 11:22:12.0000000000	/programs/palletizing/move.txt
+f	-rw-r--r--	root	root	243	2025-10-28 01:07:42.0000000000	/programs/palletizing/move_1_block.txt
+f	-rw-r--r--	root	root	2539	2023-10-13 07:02:41.0000000000	/programs/azat-test-new.old4
+f	-rw-r--r--	root	root	2607	2023-10-12 11:59:11.0000000000	/programs/azat-test-new.old7
+f	-rw-r--r--	root	root	2607	2023-10-12 12:03:38.0000000000	/programs/azat-test-new.old6
+f	-rw-r--r--	root	root	2611	2025-12-19 08:22:14.0000000000	/programs/Students/WIE.urp
+f	-rw-r--r--	root	root	2612	2023-10-12 11:52:38.0000000000	/programs/azat-test-new.old9
+f	-rw-r--r--	root	root	2612	2023-10-12 11:55:48.0000000000	/programs/azat-test-new.old8
+f	-rw-r--r--	root	root	2615	2023-10-18 03:51:00.0000000000	/programs/draw_borders.script
+f	-rw-r--r--	root	root	2615	2023-10-18 12:33:43.0000000000	/programs/draw_borders.script_bak
+f	-rw-r--r--	root	root	265	2026-03-24 07:05:13.0000000000	/programs/v_gripper_tm1326/vg_transpor_cards.txt
+f	-rw-r--r--	root	root	27562	2023-10-18 12:06:59.0000000000	/programs/set_b_drawing_robot.urp
+f	-rw-r--r--	root	root	27585	2023-10-17 06:04:32.0000000000	/programs/set_b_drawing_robot.old1
+f	-rw-r--r--	root	root	27585	2023-10-18 12:06:59.0000000000	/programs/set_b_drawing_robot.old0
+f	-rw-r--r--	root	root	27673	2023-10-16 11:28:34.0000000000	/programs/inkscape-test-1.urp
+f	-rw-r--r--	root	root	2792	2025-12-22 03:26:53.0000000000	/programs/Students/WIE2.old1
+f	-rw-r--r--	root	root	27945	2023-10-16 11:28:34.0000000000	/programs/inkscape-test-1.old0
+f	-rw-r--r--	root	root	2798	2024-09-13 11:59:11.0000000000	/programs/palletizing/elton_fulltask.txt
+f	-rw-r--r--	root	root	2798	2024-11-01 04:56:27.0000000000	/programs/palletizing/pallet_task2 and 3_T.txt
+f	-rw-r--r--	root	root	2798	2025-03-18 03:34:22.0000000000	/programs/palletizing/pallet_task2 and 3_2.txt
+f	-rw-r--r--	root	root	2798	2025-03-18 05:07:50.0000000000	/programs/palletizing/pallet_task2 and 3_backup.txt
+f	-rw-r--r--	root	root	29087	2025-01-14 02:34:47.0000000000	/programs/faichun_9jan_1.old8
+f	-rw-r--r--	root	root	29173	2025-01-14 03:32:22.0000000000	/programs/faichun_9jan_1.old7
+f	-rw-r--r--	root	root	29193	2025-01-14 04:39:11.0000000000	/programs/faichun_9jan_1.old5
+f	-rw-r--r--	root	root	29243	2025-01-14 06:06:50.0000000000	/programs/faichun_9jan_1.old4
+f	-rw-r--r--	root	root	29324	2025-01-14 08:53:09.0000000000	/programs/faichun_9jan_1.old0
+f	-rw-r--r--	root	root	29331	2025-01-14 06:26:42.0000000000	/programs/faichun_9jan_1.old3
+f	-rw-r--r--	root	root	29334	2025-01-14 06:44:20.0000000000	/programs/faichun_9jan_1.old2
+f	-rw-r--r--	root	root	29337	2025-01-14 08:19:01.0000000000	/programs/faichun_9jan_1.old1
+f	-rw-r--r--	root	root	29351	2025-01-14 08:53:09.0000000000	/programs/faichun_9jan_1.urp
+f	-rw-r--r--	root	root	29416	2025-01-14 03:42:04.0000000000	/programs/faichun_9jan_1.old6
+f	-rw-r--r--	root	root	29419	2025-01-17 08:44:09.0000000000	/programs/faichun_9jan_1t1.urp
+f	-rw-r--r--	root	root	29477	2025-03-07 08:57:34.0000000000	/programs/snake_new/faichun_snake1.old5
+f	-rw-r--r--	root	root	29482	2025-01-17 10:48:57.0000000000	/programs/snake_new/faichun_snake1.old6
+f	-rw-r--r--	root	root	29800	2025-01-08 12:27:41.0000000000	/programs/2025faichun/withbox.old1
+f	-rw-r--r--	root	root	29813	2025-01-08 12:06:31.0000000000	/programs/2025faichun/withbox.old2
+f	-rw-r--r--	root	root	299844	2024-01-10 09:55:48.0000000000	/programs/2024.script
+f	-rw-r--r--	root	root	300743	2024-01-10 10:39:02.0000000000	/programs/2024golden.script
+f	-rw-r--r--	root	root	3019	2022-10-21 03:43:13.0000000000	/programs/Ching_Field_2_SDR.urp
+f	-rw-r--r--	root	root	30202	2025-01-08 13:45:05.0000000000	/programs/2025faichun/withbox.old0
+f	-rw-r--r--	root	root	30566	2025-01-08 13:50:59.0000000000	/programs/2025faichun/withboxleft.urp
+f	-rw-r--r--	root	root	3069	2022-10-19 10:02:48.0000000000	/programs/Ching_Field_2_SDR.old1
+f	-rw-r--r--	root	root	31402	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/package/libavahi-common-data_0.6.23-3lenny3_i386.deb
+f	-rw-r--r--	root	root	3168	2022-10-21 03:43:13.0000000000	/programs/Ching_Field_2_SDR.old0
+f	-rw-r--r--	root	root	31682	2024-02-02 03:58:57.0000000000	/programs/rabit_01d.urp
+f	-rw-r--r--	root	root	31691	2023-08-21 10:16:29.0000000000	/programs/rabit_01d.old2
+f	-rw-r--r--	root	root	31706	2024-02-02 03:58:57.0000000000	/programs/rabit_01d.old0
+f	-rw-r--r--	root	root	32221	2025-01-08 13:55:53.0000000000	/programs/2025faichun/withboxmiddle.urp
+f	-rw-r--r--	root	root	32347	2025-01-08 13:50:24.0000000000	/programs/2025faichun/withboxright.urp
+f	-rw-r--r--	root	root	3243	2025-01-07 04:45:00.0000000000	/programs/Students/grpB2.txt
+f	-rw-r--r--	root	root	3243	2025-01-07 04:45:19.0000000000	/programs/Students/grpB222.txt
+f	-rw-r--r--	root	root	3289	2022-09-20 03:54:44.0000000000	/programs/Ching_Field_2.old2
+f	-rw-r--r--	root	root	3290	2022-09-19 08:49:33.0000000000	/programs/Ching_Field_2.old3
+f	-rw-r--r--	root	root	3291	2022-09-20 07:43:44.0000000000	/programs/Ching_Field_2_SDR.old6
+f	-rw-r--r--	root	root	33	2023-04-17 08:04:23.0000000000	/programs/qbrobot.variables
+f	-rw-r--r--	root	root	33	2023-04-17 10:06:19.0000000000	/programs/default1.variables
+f	-rw-r--r--	root	root	33	2023-10-10 12:07:57.0000000000	/programs/default_1.variables
+f	-rw-r--r--	root	root	33023	2023-01-17 03:22:39.0000000000	/programs/ratbit.old0
+f	-rw-r--r--	root	root	3303	2022-09-20 04:02:16.0000000000	/programs/Ching_Field_2.old0
+f	-rw-r--r--	root	root	33054	2023-01-17 03:22:39.0000000000	/programs/ratbit.urp
+f	-rw-r--r--	root	root	3320	2022-09-20 04:00:03.0000000000	/programs/Ching_Field_2.old1
+f	-rw-r--r--	root	root	3326	2024-07-22 08:47:32.0000000000	/programs/1johnathan_test.old0
+f	-rw-r--r--	root	root	3329	2026-03-24 04:25:18.0000000000	/programs/Xijun/pick_up_bottle_cups.urp
+f	-rw-r--r--	root	root	3341	2026-03-24 04:26:08.0000000000	/programs/TM1326/pick_up_bottle_cups_xijun.urp
+f	-rw-r--r--	root	root	3346	2022-09-21 04:07:43.0000000000	/programs/Ching_Field_2_SDR.old2
+f	-rw-r--r--	root	root	33608	2022-11-23 09:22:35.0000000000	/programs/yj221123.script
+f	-rw-r--r--	root	root	33793	2025-01-13 11:29:12.0000000000	/programs/Square.script
+f	-rw-r--r--	root	root	3407	2026-03-31 09:09:24.0000000000	/programs/massage_robot.urp
+f	-rw-r--r--	root	root	3421	2025-11-03 03:51:52.0000000000	/programs/default1103.installation
+f	-rw-r--r--	root	root	347548	2024-02-06 06:48:29.0000000000	/programs/test_fourth_drawing_8_m18.script
+f	-rw-r--r--	root	root	347548	2024-07-28 08:11:18.0000000000	/programs/test_fourth_drawing_8_m18.script_bak
+f	-rw-r--r--	root	root	347862	2024-03-05 09:48:57.0000000000	/programs/test_second_drawing_8_m18.bak1
+f	-rw-r--r--	root	root	347866	2024-03-05 09:35:50.0000000000	/programs/test_second_drawing_8_m18.bak4
+f	-rw-r--r--	root	root	347866	2024-03-05 09:37:41.0000000000	/programs/test_second_drawing_8_m18.bak3
+f	-rw-r--r--	root	root	347866	2024-03-05 09:44:45.0000000000	/programs/test_second_drawing_8_m18.bak2
+f	-rw-r--r--	root	root	347867	2024-02-06 06:45:10.0000000000	/programs/test_second_drawing_8_m18.script
+f	-rw-r--r--	root	root	347867	2024-03-05 09:33:04.0000000000	/programs/test_second_drawing_8_m18.bak5
+f	-rw-r--r--	root	root	347867	2024-07-22 04:59:47.0000000000	/programs/test_second_drawing_8_m18.bak0
+f	-rw-r--r--	root	root	347867	2024-07-28 08:10:53.0000000000	/programs/test_second_drawing_8_m18.script_bak
+f	-rw-r--r--	root	root	347888	2024-02-02 05:02:25.0000000000	/programs/test_4.script
+f	-rw-r--r--	root	root	348229	2024-02-02 10:11:22.0000000000	/programs/test_first_drawing_6_min3.script
+f	-rw-r--r--	root	root	348234	2024-02-02 10:05:20.0000000000	/programs/test_first_drawing_6.script
+f	-rw-r--r--	root	root	348234	2024-02-02 10:21:04.0000000000	/programs/test_first_drawing_7_m18.script
+f	-rw-r--r--	root	root	348400	2024-02-02 10:27:58.0000000000	/programs/test_first_drawing_8_m18.script
+f	-rw-r--r--	root	root	348964	2024-02-02 09:25:03.0000000000	/programs/test_first_drawing_!.script
+f	-rw-r--r--	root	root	35287	2024-01-24 09:38:28.0000000000	/programs/_marco/externalcontrol-1.0.5.urcap
+f	-rw-r--r--	root	root	35300	2024-01-24 09:38:23.0000000000	/programs/_marco/externalcontrol-1.0.5.jar
+f	-rw-r--r--	root	root	3555	2022-09-20 08:02:47.0000000000	/programs/Ching_Field_2_SDR.old5
+f	-rw-r--r--	root	root	3555	2022-09-20 08:03:44.0000000000	/programs/Ching_Field_2_SDR.old4
+f	-rw-r--r--	root	root	3555	2022-09-21 03:53:39.0000000000	/programs/Ching_Field_2_SDR.old3
+f	-rw-r--r--	root	root	3563	2026-05-25 16:03:55.0000000000	/programs/default.installation
+f	-rw-r--r--	root	root	356331	2024-02-27 02:53:10.0000000000	/programs/fai_chun_2024_v2_draw_one.script
+f	-rw-r--r--	root	root	356355	2024-03-05 09:28:16.0000000000	/programs/Ching_fai_chun_2024_v2_draw_one.script
+f	-rw-r--r--	root	root	362542	2024-03-08 05:12:50.0000000000	/programs/production_test_5.script
+f	-rw-r--r--	root	root	371043	2023-10-16 11:49:26.0000000000	/programs/azat_poduction_test_4.script
+f	-rw-r--r--	root	root	3737	2026-01-28 07:42:45.0000000000	/programs/masage_demo.old2
+f	-rw-r--r--	root	root	3762	2026-01-27 10:20:10.0000000000	/programs/masage_demo.old4
+f	-rw-r--r--	root	root	3762	2026-01-27 10:25:27.0000000000	/programs/masage_demo.old3
+f	-rw-r--r--	root	root	3771	2026-03-24 04:26:07.0000000000	/programs/Xijun/default.installation
+f	-rw-r--r--	root	root	378745	2024-03-13 07:19:27.0000000000	/programs/Fuk_Rabbit_01D.script
+f	-rw-r--r--	root	root	378746	2023-09-13 13:37:54.0000000000	/programs/Fuk_Rabbit_01D.bak3
+f	-rw-r--r--	root	root	378746	2024-03-13 07:01:10.0000000000	/programs/Fuk_Rabbit_01D.bak0
+f	-rw-r--r--	root	root	378747	2023-04-25 08:15:34.0000000000	/programs/Fuk_Rabbit_01D.bak4
+f	-rw-r--r--	root	root	378747	2023-10-11 03:35:59.0000000000	/programs/Fuk_Rabbit_01D.bak2
+f	-rw-r--r--	root	root	378747	2023-10-17 07:56:14.0000000000	/programs/Fuk_Rabbit_01D.bak1
+f	-rw-r--r--	root	root	3802	2026-01-28 08:04:09.0000000000	/programs/masage_demo.old1
+f	-rw-r--r--	root	root	38287	2023-10-11 09:31:25.0000000000	/programs/azat-test.old8
+f	-rw-r--r--	root	root	3875	2026-01-28 08:29:18.0000000000	/programs/masage_demo.old0
+f	-rw-r--r--	root	root	387988	2024-02-02 03:58:57.0000000000	/programs/rabit_01d.script
+f	-rw-r--r--	root	root	3888	2024-09-13 11:25:14.0000000000	/programs/elton_fulltask.txt
+f	-rw-r--r--	root	root	389245	2025-01-08 12:26:55.0000000000	/programs/2025faichun/withoutbox.script
+f	-rw-r--r--	root	root	3900	2024-09-13 10:46:11.0000000000	/programs/Eltonfull_task.txt
+f	-rw-r--r--	root	root	392069	2023-01-17 03:30:59.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak9
+f	-rw-r--r--	root	root	392070	2023-01-17 05:24:11.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak1
+f	-rw-r--r--	root	root	392070	2023-01-17 05:33:37.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak0
+f	-rw-r--r--	root	root	392071	2023-01-17 04:23:52.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak4
+f	-rw-r--r--	root	root	392071	2023-01-17 05:16:24.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak2
+f	-rw-r--r--	root	root	392071	2023-01-17 09:15:28.0000000000	/programs/Fuk_Rabbit_01D_newpath.script
+f	-rw-r--r--	root	root	392072	2023-01-17 03:41:45.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak6
+f	-rw-r--r--	root	root	392072	2023-01-17 04:27:08.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak3
+f	-rw-r--r--	root	root	392074	2023-01-17 03:36:03.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak8
+f	-rw-r--r--	root	root	392075	2023-01-17 03:39:06.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak7
+f	-rw-r--r--	root	root	392075	2023-01-17 03:42:56.0000000000	/programs/Fuk_Rabbit_01D_newpath.bak5
+f	-rw-r--r--	root	root	3932	2026-01-28 08:29:18.0000000000	/programs/masage_demo.urp
+f	-rw-r--r--	root	root	40117	2022-10-12 08:41:25.0000000000	/programs/Robot 3 12_10.script
+f	-rw-r--r--	root	root	4087	2026-02-25 03:50:45.0000000000	/programs/massage_demo_1102.urp
+f	-rw-r--r--	root	root	4088	2026-02-25 03:50:44.0000000000	/programs/massage_demo_1102.old0
+f	-rw-r--r--	root	root	409	2026-05-26 14:55:28.0000000000	/programs/andyl/onrobot_rtde_export/onrobot_ft_rtde_export.script
+f	-rw-r--r--	root	root	4111	2026-02-25 03:28:05.0000000000	/programs/massage_demo_1102.old1
+f	-rw-r--r--	root	root	4114	2026-02-12 08:23:24.0000000000	/programs/massage_demo_1102.old2
+f	-rw-r--r--	root	root	4124	2023-10-17 05:34:58.0000000000	/programs/set_b_draw_borders.script
+f	-rw-r--r--	root	root	4127	2023-10-18 02:49:52.0000000000	/programs/set_b_draw_borders.bak.script
+f	-rw-r--r--	root	root	42	2025-03-07 09:16:24.0000000000	/programs/snake_new/faichun_snake1.txt
+f	-rw-r--r--	root	root	4259	2023-04-17 08:09:22.0000000000	/programs/default1.installation
+f	-rw-r--r--	root	root	4309	2023-04-17 08:04:23.0000000000	/programs/qbrobot.installation
+f	-rw-r--r--	root	root	439222	2023-01-17 03:22:39.0000000000	/programs/ratbit.script
+f	-rw-r--r--	root	root	44125	2023-10-13 07:58:57.0000000000	/programs/azat-test-new.old2
+f	-rw-r--r--	root	root	44870	2023-10-11 13:02:35.0000000000	/programs/azat-test.old0
+f	-rw-r--r--	root	root	448880	2025-01-08 13:57:05.0000000000	/programs/2025faichun/output_right.script
+f	-rw-r--r--	root	root	449596	2025-01-08 13:56:58.0000000000	/programs/2025faichun/output_middle.script
+f	-rw-r--r--	root	root	45	2026-05-23 18:19:43.0000000000	/programs/andyl/wait001.txt
+f	-rw-r--r--	root	root	45	2026-05-24 16:52:58.0000000000	/programs/andyl/1.txt
+f	-rw-r--r--	root	root	45	2026-05-25 16:03:55.0000000000	/programs/andyl/2.txt
+f	-rw-r--r--	root	root	451122	2025-01-08 13:56:49.0000000000	/programs/2025faichun/output_left.script
+f	-rw-r--r--	root	root	45867	2023-10-12 05:41:12.0000000000	/programs/Jonathan_code.script
+f	-rw-r--r--	root	root	4617	2022-07-20 11:21:48.0000000000	/programs/111.urp
+f	-rw-r--r--	root	root	48	2026-04-10 09:55:19.0000000000	/programs/Xijun/default.variables
+f	-rw-r--r--	root	root	48044	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/package/libavahi-common3_0.6.23-3lenny3_i386.deb
+f	-rw-r--r--	root	root	48243	2024-01-19 07:27:55.0000000000	/programs/2024Dagonv3_1_thin_marker_large_2.script
+f	-rw-r--r--	root	root	48539	2022-10-21 03:43:13.0000000000	/programs/Ching_Field_2_SDR.script
+f	-rw-r--r--	root	root	48554	2022-09-20 04:02:16.0000000000	/programs/Ching_Field_2.script
+f	-rw-r--r--	root	root	49215	2023-10-11 11:22:08.0000000000	/programs/azat-test.old5
+f	-rw-r--r--	root	root	492250	2025-01-08 13:45:05.0000000000	/programs/2025faichun/withbox.script
+f	-rw-r--r--	root	root	492255	2025-01-08 13:50:24.0000000000	/programs/2025faichun/withboxright.script
+f	-rw-r--r--	root	root	49233	2023-10-11 10:49:10.0000000000	/programs/azat-test.old6
+f	-rw-r--r--	root	root	49244	2023-10-11 12:12:37.0000000000	/programs/azat-test.old2
+f	-rw-r--r--	root	root	49244	2023-10-11 12:27:50.0000000000	/programs/azat-test.old1
+f	-rw-r--r--	root	root	492974	2025-01-08 13:55:53.0000000000	/programs/2025faichun/withboxmiddle.script
+f	-rw-r--r--	root	root	49530	2023-10-11 11:34:32.0000000000	/programs/azat-test.old3
+f	-rw-r--r--	root	root	49532	2023-10-11 11:25:38.0000000000	/programs/azat-test.old4
+f	-rw-r--r--	root	root	497205	2025-01-17 10:30:39.0000000000	/programs/snake_new/faichun_snake3.script
+f	-rw-r--r--	root	root	49726	2023-10-16 11:41:55.0000000000	/programs/azat_poduction_test_4.old1
+f	-rw-r--r--	root	root	49749	2023-10-16 02:39:13.0000000000	/programs/azat_poduction_test_4.old2
+f	-rw-r--r--	root	root	505	2025-12-19 08:22:14.0000000000	/programs/Students/WIE.txt
+f	-rw-r--r--	root	root	50794	2024-01-12 06:41:45.0000000000	/programs/2024DragonThinMarker.script
+f	-rw-r--r--	root	root	51114	2026-03-24 07:05:13.0000000000	/programs/v_gripper_tm1326/vg_transpor_cards.script
+f	-rw-r--r--	root	root	51647	2023-10-16 11:02:58.0000000000	/programs/inkscape-test-1.old2
+f	-rw-r--r--	root	root	51656	2023-10-16 11:22:56.0000000000	/programs/inkscape-test-1.old1
+f	-rw-r--r--	root	root	51766	2023-10-16 11:01:00.0000000000	/programs/inkscape-test-1.old3
+f	-rw-r--r--	root	root	51773	2023-10-16 10:57:55.0000000000	/programs/inkscape-test-1.old4
+f	-rw-r--r--	root	root	51861	2023-10-16 10:54:30.0000000000	/programs/inkscape-test-1.old5
+f	-rw-r--r--	root	root	52001	2026-01-09 10:53:10.0000000000	/programs/mpc.script
+f	-rw-r--r--	root	root	52067	2024-01-10 09:55:48.0000000000	/programs/2024.urp
+f	-rw-r--r--	root	root	52082	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/package/libavahi-client3_0.6.23-3lenny3_i386.deb
+f	-rw-r--r--	root	root	52194	2026-01-21 08:43:56.0000000000	/programs/test_gripper.script
+f	-rw-r--r--	root	root	52303	2024-01-12 06:14:56.0000000000	/programs/2024DragonThickMarker.script
+f	-rw-r--r--	root	root	52484	2024-01-10 10:39:02.0000000000	/programs/2024golden.urp
+f	-rw-r--r--	root	root	52592	2026-03-24 09:48:45.0000000000	/programs/v_gripper_tm1326/vg_palatz_cards.script
+f	-rw-r--r--	root	root	52592	2026-03-24 09:49:39.0000000000	/programs/Xijun/vg_palatz_cards.script
+f	-rw-r--r--	root	root	526	2026-03-24 09:48:45.0000000000	/programs/v_gripper_tm1326/vg_palatz_cards.txt
+f	-rw-r--r--	root	root	526	2026-03-24 09:49:39.0000000000	/programs/Xijun/vg_palatz_cards.txt
+f	-rw-r--r--	root	root	52934	2025-12-01 07:08:52.0000000000	/programs/test.old2
+f	-rw-r--r--	root	root	53388	2026-01-21 09:19:10.0000000000	/programs/Xijun/test_gripper.script
+f	-rw-r--r--	root	root	53406	2026-03-12 04:41:07.0000000000	/programs/TM0512_rs3demo.script
+f	-rw-r--r--	root	root	53415	2026-03-12 06:27:41.0000000000	/programs/TM0512_rs3demo_Ratchet.script
+f	-rw-r--r--	root	root	537017	2023-12-15 03:54:46.0000000000	/programs/new-robot.script
+f	-rw-r--r--	root	root	53702	2024-11-01 07:15:45.0000000000	/programs/Testing/Pick_Place_Exam_3.script
+f	-rw-r--r--	root	root	53703	2024-10-30 01:40:59.0000000000	/programs/Testing/Pick_Place_Exam.script
+f	-rw-r--r--	root	root	53705	2024-10-30 08:47:07.0000000000	/programs/Testing/Pick_Place_Exam_2.script
+f	-rw-r--r--	root	root	53734	2023-10-16 11:49:26.0000000000	/programs/azat_poduction_test_4.urp
+f	-rw-r--r--	root	root	54	2023-10-11 13:02:35.0000000000	/programs/azat-test.txt
+f	-rw-r--r--	root	root	5419	2025-01-06 04:22:43.0000000000	/programs/Students/12.urp
+f	-rw-r--r--	root	root	54281	2025-12-01 08:46:49.0000000000	/programs/palletizing/rs3_task_peter.script
+f	-rw-r--r--	root	root	54296	2025-12-01 08:42:17.0000000000	/programs/test.script
+f	-rw-r--r--	root	root	54538	2024-09-19 03:00:44.0000000000	/programs/dragon_new/4_dragon.urp
+f	-rw-r--r--	root	root	54539	2024-08-15 09:06:35.0000000000	/programs/4_dragon.urp
+f	-rw-r--r--	root	root	54549	2024-09-19 03:00:44.0000000000	/programs/dragon_new/4_dragon.old0
+f	-rw-r--r--	root	root	54627	2024-09-13 02:41:14.0000000000	/programs/dragon_new/4_dragon.old1
+f	-rw-r--r--	root	root	54734	2025-12-01 08:23:08.0000000000	/programs/palletizing/move_1_block-TM0513.script
+f	-rw-r--r--	root	root	55	2024-07-25 09:43:25.0000000000	/programs/1johnathanpen.txt
+f	-rw-r--r--	root	root	55	2026-01-28 08:29:18.0000000000	/programs/masage_demo.txt
+f	-rw-r--r--	root	root	55009	2025-10-16 11:22:12.0000000000	/programs/palletizing/move.script
+f	-rw-r--r--	root	root	55015	2025-10-28 01:07:42.0000000000	/programs/palletizing/move_1_block.script
+f	-rw-r--r--	root	root	557	2022-10-12 08:41:26.0000000000	/programs/Robot 3 12_10.txt
+f	-rw-r--r--	root	root	5578	2025-01-06 09:33:29.0000000000	/programs/Students/grpB.old0
+f	-rw-r--r--	root	root	569	2022-07-20 11:21:48.0000000000	/programs/111.txt
+f	-rw-r--r--	root	root	5701	2025-12-29 08:46:25.0000000000	/programs/Students/1234.urp
+f	-rw-r--r--	root	root	5710	2025-01-06 09:33:30.0000000000	/programs/Students/grpB.urp
+f	-rw-r--r--	root	root	5721	2025-12-22 06:51:26.0000000000	/programs/Students/WIE2.old0
+f	-rw-r--r--	root	root	59	2023-10-18 10:38:58.0000000000	/programs/draw_back.txt
+f	-rw-r--r--	root	root	59	2023-10-19 03:57:29.0000000000	/programs/set_b_draw_back.txt
+f	-rw-r--r--	root	root	59616	2025-12-19 08:22:14.0000000000	/programs/Students/WIE.script
+f	-rw-r--r--	root	root	60	2024-01-10 09:19:16.0000000000	/programs/2024dragon.txt
+f	-rw-r--r--	root	root	60663	2023-10-13 07:31:04.0000000000	/programs/azat-test-new.old3
+f	-rw-r--r--	root	root	60718	2026-03-24 04:25:17.0000000000	/programs/Xijun/pick_up_bottle_cups.script
+f	-rw-r--r--	root	root	60724	2026-03-24 04:26:08.0000000000	/programs/TM1326/pick_up_bottle_cups_xijun.script
+f	-rw-r--r--	root	root	61	2026-02-25 03:50:45.0000000000	/programs/massage_demo_1102.txt
+f	-rw-r--r--	root	root	61325	2023-10-13 09:22:16.0000000000	/programs/azat-test-new.old1
+f	-rw-r--r--	root	root	61333	2023-10-16 11:49:26.0000000000	/programs/azat_poduction_test_4.old0
+f	-rw-r--r--	root	root	62	2023-10-17 05:34:58.0000000000	/programs/set_b_draw_borders.txt
+f	-rw-r--r--	root	root	62	2023-10-18 02:49:52.0000000000	/programs/set_b_draw_borders.bak.txt
+f	-rw-r--r--	root	root	62	2026-03-31 09:09:24.0000000000	/programs/massage_robot.txt
+f	-rw-r--r--	root	root	63	2023-10-17 06:55:21.0000000000	/programs/marco_robot_test.txt
+f	-rw-r--r--	root	root	63	2024-01-10 09:55:48.0000000000	/programs/2024.txt
+f	-rw-r--r--	root	root	63130	2026-03-31 09:09:24.0000000000	/programs/massage_robot.script
+f	-rw-r--r--	root	root	63231	2026-01-28 08:29:18.0000000000	/programs/masage_demo.script
+f	-rw-r--r--	root	root	63956	2026-02-25 03:50:44.0000000000	/programs/massage_demo_1102.script
+f	-rw-r--r--	root	root	64201	2024-03-05 09:28:16.0000000000	/programs/Ching_fai_chun_2024_v2_draw_one.urp
+f	-rw-r--r--	root	root	64219	2024-02-27 02:53:10.0000000000	/programs/fai_chun_2024_v2_draw_one.urp
+f	-rw-r--r--	root	root	64788	2025-01-06 04:22:43.0000000000	/programs/Students/12.script
+f	-rw-r--r--	root	root	65	2023-10-20 05:02:34.0000000000	/programs/draw_test_name.txt
+f	-rw-r--r--	root	root	65	2023-12-15 03:54:47.0000000000	/programs/new-robot.txt
+f	-rw-r--r--	root	root	6579	2024-07-25 09:43:25.0000000000	/programs/1johnathanpen.urp
+f	-rw-r--r--	root	root	661	2026-05-24 10:46:20.0000000000	/programs/andyl/1.old1
+f	-rw-r--r--	root	root	666	2025-12-19 08:22:14.0000000000	/programs/Students/WIE.old0
+f	-rw-r--r--	root	root	66636	2024-12-31 03:43:15.0000000000	/programs/gpB OK.script
+f	-rw-r--r--	root	root	67	2023-10-13 09:58:45.0000000000	/programs/azat-test-new.txt
+f	-rw-r--r--	root	root	67	2023-10-16 11:49:26.0000000000	/programs/azat_poduction_test_4.txt
+f	-rw-r--r--	root	root	67	2023-12-15 09:30:07.0000000000	/programs/jerry_robot_1.txt
+f	-rw-r--r--	root	root	672	2025-03-07 09:16:24.0000000000	/programs/snake_new/faichun_snake1.urp
+f	-rw-r--r--	root	root	673	2025-03-07 09:08:19.0000000000	/programs/snake_new/faichun_snake1.old4
+f	-rw-r--r--	root	root	673	2025-03-07 09:13:29.0000000000	/programs/snake_new/faichun_snake1.old2
+f	-rw-r--r--	root	root	673	2025-03-07 09:16:24.0000000000	/programs/snake_new/faichun_snake1.old0
+f	-rw-r--r--	root	root	67454	2024-02-02 14:04:23.0000000000	/programs/final_fai_chun_2024_1.old0
+f	-rw-r--r--	root	root	68	2025-01-14 08:53:09.0000000000	/programs/faichun_9jan_1.txt
+f	-rw-r--r--	root	root	68264	2024-12-31 02:47:37.0000000000	/programs/gpb1231.script
+f	-rw-r--r--	root	root	68287	2025-01-06 09:33:29.0000000000	/programs/Students/grpB.script
+f	-rw-r--r--	root	root	684636	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/package/libssl0.9.8_0.9.8o-7ubuntu3.2.14.04.1_i386.deb
+f	-rw-r--r--	root	root	685	2026-05-25 16:03:55.0000000000	/programs/andyl/2.urp
+f	-rw-r--r--	root	root	686	2026-05-24 16:52:58.0000000000	/programs/andyl/1.urp
+f	-rw-r--r--	root	root	68915	2023-12-15 03:54:46.0000000000	/programs/new-robot.old0
+f	-rw-r--r--	root	root	69	2024-01-17 08:56:06.0000000000	/programs/2024DragonThinMarker_v7.txt
+f	-rw-r--r--	root	root	690	2026-05-23 18:19:43.0000000000	/programs/andyl/wait001.urp
+f	-rw-r--r--	root	root	693	2023-08-22 04:01:42.0000000000	/programs/rabit_01d.old1
+f	-rw-r--r--	root	root	693762	2023-12-15 07:58:16.0000000000	/programs/jerry_new_robot_1.script
+f	-rw-r--r--	root	root	70	2024-01-12 06:14:56.0000000000	/programs/2024DragonThickMarker.txt
+f	-rw-r--r--	root	root	70642	2025-01-13 09:25:54.0000000000	/programs/FaiChun_9 Jan_1_arc_1.script
+f	-rw-r--r--	root	root	707	2025-03-07 09:13:53.0000000000	/programs/snake_new/faichun_snake1.old1
+f	-rw-r--r--	root	root	71	2024-07-22 08:47:32.0000000000	/programs/1johnathan_test.txt
+f	-rw-r--r--	root	root	71	2025-01-17 08:44:09.0000000000	/programs/faichun_9jan_1t1.txt
+f	-rw-r--r--	root	root	714	2026-03-24 04:25:18.0000000000	/programs/Xijun/pick_up_bottle_cups.txt
+f	-rw-r--r--	root	root	714	2026-03-24 04:26:08.0000000000	/programs/TM1326/pick_up_bottle_cups_xijun.txt
+f	-rw-r--r--	root	root	72	2025-01-08 12:26:55.0000000000	/programs/2025faichun/withoutbox.txt
+f	-rw-r--r--	root	root	73	2023-10-18 12:06:59.0000000000	/programs/set_b_drawing_robot.txt
+f	-rw-r--r--	root	root	73	2025-01-17 09:31:02.0000000000	/programs/snake_new/faichun_9jan_1t1.txt
+f	-rw-r--r--	root	root	73	2026-01-21 09:19:10.0000000000	/programs/Xijun/test_gripper.txt
+f	-rw-r--r--	root	root	74	2024-01-10 10:39:02.0000000000	/programs/2024golden.txt
+f	-rw-r--r--	root	root	74089	2024-07-25 09:43:25.0000000000	/programs/1johnathanpen.script
+f	-rw-r--r--	root	root	75	2023-10-16 11:28:34.0000000000	/programs/inkscape-test-1.txt
+f	-rw-r--r--	root	root	75	2024-02-02 03:58:57.0000000000	/programs/rabit_01d.txt
+f	-rw-r--r--	root	root	75824	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/package/libjpeg62_6b1-4ubuntu1_i386.deb
+f	-rw-r--r--	root	root	75931	2023-12-15 03:54:47.0000000000	/programs/new-robot.urp
+f	-rw-r--r--	root	root	765086	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/package/x11vnc_0.9.3.dfsg.1-1_i386.deb
+f	-rw-r--r--	root	root	76627	2025-12-22 06:51:26.0000000000	/programs/Students/WIE2.script
+f	-rw-r--r--	root	root	76821	2025-12-30 03:44:32.0000000000	/programs/Students/12345.script
+f	-rw-r--r--	root	root	7743	2024-07-25 09:43:25.0000000000	/programs/1johnathanpen.old0
+f	-rw-r--r--	root	root	776830	2024-09-19 03:00:44.0000000000	/programs/dragon_new/4_dragon.script
+f	-rw-r--r--	root	root	79	2024-02-27 02:53:10.0000000000	/programs/fai_chun_2024_v2_draw_one.txt
+f	-rw-r--r--	root	root	79	2024-03-05 09:28:16.0000000000	/programs/Ching_fai_chun_2024_v2_draw_one.txt
+f	-rw-r--r--	root	root	805201	2023-10-11 13:02:35.0000000000	/programs/azat-test.script
+f	-rw-r--r--	root	root	808	2026-05-24 16:52:57.0000000000	/programs/andyl/1.old0
+f	-rw-r--r--	root	root	81	2024-08-15 11:14:55.0000000000	/programs/dragon_new/1_dragon.txt
+f	-rw-r--r--	root	root	82271	2023-10-20 05:02:34.0000000000	/programs/draw_test_name.script
+f	-rw-r--r--	root	root	83	2023-01-17 03:22:39.0000000000	/programs/ratbit.txt
+f	-rw-r--r--	root	root	83	2024-01-12 06:41:45.0000000000	/programs/2024DragonThinMarker.txt
+f	-rw-r--r--	root	root	836	2025-01-06 04:22:43.0000000000	/programs/Students/12.txt
+f	-rw-r--r--	root	root	83675	2026-01-06 04:42:38.0000000000	/programs/tower.script
+f	-rw-r--r--	root	root	842002	2023-12-15 09:31:52.0000000000	/programs/jerry_new_robot_2.script
+f	-rw-r--r--	root	root	842003	2023-12-15 09:32:41.0000000000	/programs/jerry_new_robot_2.script_bak
+f	-rw-r--r--	root	root	86096	2025-01-17 10:30:39.0000000000	/programs/snake_new/faichun_snake3.urp
+f	-rw-r--r--	root	root	86104	2025-01-17 09:57:19.0000000000	/programs/snake_new/faichun_snake3.old1
+f	-rw-r--r--	root	root	86110	2025-01-17 10:30:39.0000000000	/programs/snake_new/faichun_snake3.old0
+f	-rw-r--r--	root	root	867	2024-01-24 09:44:47.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/script/x11vnc
+f	-rw-r--r--	root	root	875058	2023-12-15 09:30:06.0000000000	/programs/jerry_robot_1.script
+f	-rw-r--r--	root	root	87578	2024-09-13 11:59:11.0000000000	/programs/palletizing/elton_fulltask.script
+f	-rw-r--r--	root	root	87586	2025-03-18 03:34:22.0000000000	/programs/palletizing/pallet_task2 and 3_2.script
+f	-rw-r--r--	root	root	87590	2025-03-18 05:07:49.0000000000	/programs/palletizing/pallet_task2 and 3_backup.script
+f	-rw-r--r--	root	root	877	2025-03-07 09:09:19.0000000000	/programs/snake_new/faichun_snake1.old3
+f	-rw-r--r--	root	root	8796	2025-12-30 03:44:32.0000000000	/programs/Students/12345.urp
+f	-rw-r--r--	root	root	88075	2024-11-01 04:56:27.0000000000	/programs/palletizing/pallet_task2 and 3_T.script
+f	-rw-r--r--	root	root	8883	2025-01-07 04:45:00.0000000000	/programs/Students/grpB2.old0
+f	-rw-r--r--	root	root	8894	2025-12-22 06:51:26.0000000000	/programs/Students/WIE2.urp
+f	-rw-r--r--	root	root	902	2025-12-29 08:46:25.0000000000	/programs/Students/1234.txt
+f	-rw-r--r--	root	root	90885	2025-01-08 14:33:10.0000000000	/programs/2025faichun/withboxall.urp
+f	-rw-r--r--	root	root	91743	2025-01-08 14:33:10.0000000000	/programs/2025faichun/withboxall.old0
+f	-rw-r--r--	root	root	917574	2024-01-17 08:56:06.0000000000	/programs/2024DragonThinMarker_v7.script
+f	-rw-r--r--	root	root	926	2024-12-31 02:47:37.0000000000	/programs/gpb1231.txt
+f	-rw-r--r--	root	root	926	2025-01-06 09:33:30.0000000000	/programs/Students/grpB.txt
+f	-rw-r--r--	root	root	929	2022-09-20 04:02:16.0000000000	/programs/Ching_Field_2.txt
+f	-rw-r--r--	root	root	929	2022-10-21 03:43:13.0000000000	/programs/Ching_Field_2_SDR.txt
+f	-rw-r--r--	root	root	95406	2023-10-11 10:15:11.0000000000	/programs/azat-test.old7
+f	-rw-r--r--	root	root	9636	2026-01-06 04:42:38.0000000000	/programs/tower.old0
+f	-rw-r--r--	root	root	9636	2026-01-06 04:42:38.0000000000	/programs/tower.urp
+f	-rw-r--r--	root	root	9770	2024-01-12 06:41:45.0000000000	/programs/2024DragonThinMarker.urp
+f	-rw-r--r--	root	root	99413	2025-01-07 04:45:00.0000000000	/programs/Students/grpB2.script
+f	-rw-r--r--	root	root	99415	2025-01-07 04:45:19.0000000000	/programs/Students/grpB222.script
+f	-rwxr-xr-x	root	root	1467	2024-01-24 09:46:30.0000000000	/programs/_marco/URMagic_VNC_Installation_V1/urmagic_x11vnc.sh
+f	-rwxr-xr-x	root	root	2606	2022-02-17 16:23:06.0000000000	/programs/Put_into_box_E-series_UR10.urp

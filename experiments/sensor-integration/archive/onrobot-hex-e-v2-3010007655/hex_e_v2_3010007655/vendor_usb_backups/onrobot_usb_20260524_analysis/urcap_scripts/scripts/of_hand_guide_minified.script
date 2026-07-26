@@ -1,0 +1,141 @@
+  #======    OnRobot Hand Guide    ======#
+  
+  if OF_DEBUG_STATE:
+  textmsg("HandGuide script started...")
+  end 
+  MATH_PI=d2r(180)
+  of_snap_angle_deg=90
+  of_snap_speed=0.05
+  of_snap_brake=10
+  of_snap_axes_flag=False
+  of_snap_axes_handler=0
+  limit_v=0.6
+  limit_w=0.2
+  stop_F=100
+  stop_T=5
+  {%if ghex%}
+  PGain_F=0.15
+  PGain_T=0.5
+  IGain_F=0.0
+  IGain_T=0.0
+  DGain_F=0.01
+  DGain_T=0.01
+  {%else%}
+  PGain_F=0.15
+  PGain_T=0.15
+  IGain_F=0.0
+  IGain_T=0.0
+  DGain_F=0.01
+  DGain_T=0.01
+  {%end%}
+  of_disableAllAxes=FALSE6D
+  readString=""
+  of_alive_thrd=0
+  of_control_thrd=0
+  thread of_snap_axes():
+  of_snap_axes_flag=True
+  local act_pose=get_actual_tcp_pose()
+  local rpy_raw=rotvec2rpy([act_pose[3],act_pose[4],act_pose[5]])
+  local rpy_snap=[0,0,0]
+  i=0
+  while i<3:
+  rpy_snap[i]=d2r(floor((r2d(rpy_raw[i])+(of_snap_angle_deg/2))/of_snap_angle_deg)*of_snap_angle_deg)
+  i=i+1
+  end 
+  local snap_orient=rpy2rotvec(rpy_snap)
+  local snap_pose=act_pose
+  snap_pose[3]=snap_orient[0]
+  snap_pose[4]=snap_orient[1]
+  snap_pose[5]=snap_orient[2]
+  movel(snap_pose,v=of_snap_speed)
+  of_snap_axes_flag=False
+  end 
+  thread OptoForceAliveThread():
+  local first_msg=True
+  while(True):
+  if of_portopened_controlSocket:
+  if first_msg:
+  local succ=socket_send_line("HAND_GUIDE","controlSocket")
+  if OF_DEBUG_STATE:
+  textmsg("HAND_GUIDE sent to URCap: ",succ)
+  end 
+  if succ:
+  first_msg=False
+  end 
+  else:
+  socket_send_line("RUNNING","controlSocket")
+  end 
+  end 
+  of_wait_ms(100)
+  sync()
+  end 
+  end 
+  thread OptoForceControlThread():
+  while(True):
+  if of_portopened_controlSocket:
+  readString=socket_read_line("controlSocket",0)
+  if length(readString)!=0:
+  if OF_DEBUG_VAR:
+  textmsg("ControlSocket readString: ",readString)
+  end 
+  end 
+  if readString=="DISABLE_GUIDE":
+  of_hg_enable_HandGuide=False
+  elif readString=="ZERO_FT_VALUES":
+  of_ft_bias()
+  elif readString=="STOP_SNAP":
+  kill of_snap_axes_handler
+  stopl(of_snap_brake)
+  of_snap_axes_flag=False
+  of_ft_bias()
+  of_hand_guide_start(of_hg_enable_axes,threshold_N,threshold_Nm,limit_v,limit_w,stop_F,stop_T,PGain_F,PGain_T,IGain_F,IGain_T,DGain_F,DGain_T)
+  elif readString=="SNAP":
+  of_hand_guide_start(of_disableAllAxes,threshold_N,threshold_Nm,limit_v,limit_w,stop_F,stop_T,PGain_F,PGain_T,IGain_F,IGain_T,DGain_F,DGain_T)
+  of_speedl_stop_for_CMD(OF_CMD_HAND_GUIDE)
+  sync()
+  if(of_snap_axes_flag):
+  kill of_snap_axes_handler
+  of_snap_axes_flag=False
+  end 
+  of_snap_axes_handler=run of_snap_axes() 
+  elif of_RPC.startsWith(readString,"AXES"):
+  local axes_char=of_RPC.subString(readString,4,1)
+  local axes_byte=of_RPC.castToInt(axes_char)
+  local axes_flag=axes_byte-32
+  of_hg_enable_axes=of_RPC.processFlag(axes_flag,6)
+  of_hand_guide_start(of_hg_enable_axes,threshold_N,threshold_Nm,limit_v,limit_w,stop_F,stop_T,PGain_F,PGain_T,IGain_F,IGain_T,DGain_F,DGain_T)
+  end 
+  end 
+  sync()
+  end 
+  end 
+  def closeAppEngine():
+  kill of_alive_thrd
+  kill of_control_thrd
+  kill of_cmd_thrd
+  kill of_sg_thrd
+  kill of_vectorStream_thrd
+  kill of_vectorProcess_thrd
+  end 
+  sync()
+  of_alive_thrd=run OptoForceAliveThread()
+  sync()
+  of_control_thrd=run OptoForceControlThread()
+  sync()
+  of_hg_enable_axes=[enableFx,enableFy,enableFz,enableTx,enableTy,enableTz]
+  of_hand_guide_start(of_hg_enable_axes,threshold_N,threshold_Nm,limit_v,limit_w,stop_F,stop_T,PGain_F,PGain_T,IGain_F,IGain_T,DGain_F,DGain_T)
+  of_hand_guide_run()
+  if OF_DEBUG_STATE:
+  textmsg("Stopping HandGuide...")
+  end 
+  of_hand_guide_stop()
+  closeAppEngine()
+  stopl(1.2)
+  of_wait_ms(100)
+  if OF_DEBUG_STATE:
+  textmsg("HandGuide stopped.")
+  end 
+  halt
+  
+  
+  #======    End of OnRobot Hand Guide    ======#

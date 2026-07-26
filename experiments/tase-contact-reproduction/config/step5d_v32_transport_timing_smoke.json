@@ -1,0 +1,33 @@
+{
+  "action_counts": {
+    "fresh_command": 12500,
+    "preload": 12500,
+    "qdot_clear": 12500,
+    "scaffold": 12500
+  },
+  "checks": {
+    "all_packet_kinds_exercised": true,
+    "all_stage_actions_match": true,
+    "max_below_2ms": true,
+    "p99_below_0_1ms": true
+  },
+  "claim_class": "diagnostic_only_not_formal_timing",
+  "formal_timing_note": "v31 CuPy512 solver/core timing is inherited; v32 changes transport routing only",
+  "formal_timing_rerun": false,
+  "frequency_target_hz": 500,
+  "generated_at": "2026-07-14T13:54:23+00:00",
+  "mismatches": 0,
+  "overall_pass": true,
+  "program": "step5d_strict_rnn_ablation_v32",
+  "samples": 50000,
+  "schema": "step5d_v32_transport_timing_smoke_v1",
+  "source": {
+    "path": "tools/kunwei_rtde_bridge.py",
+    "sha256": "0818799b4ef6289cc89790a36bea95892f22097325675f97440974b023082e83"
+  },
+  "timing_ms": {
+    "max": 0.008676,
+    "mean": 0.00045312214,
+    "p99": 0.000781
+  }
+}

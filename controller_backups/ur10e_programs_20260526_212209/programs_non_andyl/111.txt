@@ -1,0 +1,29 @@
+ Program
+   Robot Program
+     RG Grip
+     MoveL
+       Waypoint_6
+       Waypoint_3
+       Loop
+         <empty>
+       Call 
+       RG Grip
+       Waypoint_7
+     Pallet_1
+       Patterns
+         Grid_Pattern_1
+           CornerItem_1
+           CornerItem_2
+           CornerItem_3
+           CornerItem_4
+       Layers
+       At Each Item
+         Generated Movements
+           MoveJ
+             Approach
+           MoveL
+             ToolActionPoint
+           Tool action
+             RG Grip
+           MoveL
+             Exit_1

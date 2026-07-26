@@ -1,0 +1,30 @@
+  #======    OnRobot Payload    ======#
+  
+  of_robot_mount=[0,0]
+  of_center_of_gravity=[0,0,0]
+  of_payload_mass=0
+  def of_robot_mount_set(robot_mount=[0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("Robot mount set started!")
+  end 
+  of_robot_mount=robot_mount
+  if OF_DEBUG_STATE:
+  textmsg("Robot mount has been set to:",robot_mount)
+  end 
+  end 
+  def of_payload_set(mass=0,center_of_gravity=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("Robot mount, Center of Gravity & Payload sending started!")
+  end 
+  robot_mount=of_robot_mount
+  of_send_full(OF_CMD_PAYLOAD,of_float_to_int(robot_mount[0]),of_float_to_int(robot_mount[1]),of_float_to_int(mass),of_float_to_int(center_of_gravity[0]),of_float_to_int(center_of_gravity[1]),of_float_to_int(center_of_gravity[2]))
+  set_payload(mass,center_of_gravity)
+  of_center_of_gravity=center_of_gravity
+  of_payload_mass=mass
+  if OF_DEBUG_STATE:
+  textmsg("Robot mount, Center of Gravity & Payload sent.")
+  end 
+  end 
+  
+  
+  #======    End of OnRobot Payload    ======#

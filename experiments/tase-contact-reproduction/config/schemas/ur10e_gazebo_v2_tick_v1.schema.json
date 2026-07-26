@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ur10e:gazebo-v2:tick:v1",
+  "title": "UR10e Gazebo v2 command/state/candidate/decision tick",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "run_id", "sequence", "sim_time_s", "backend", "state", "candidate", "decision", "command"],
+  "properties": {
+    "schema": {"const": "ur10e_gazebo_v2_tick_v1"},
+    "run_id": {"type": "string", "minLength": 1},
+    "sequence": {"type": "integer", "minimum": 0},
+    "sim_time_s": {"type": "number", "minimum": 0},
+    "backend": {"enum": ["velocity", "effort_surrogate"]},
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["q_rad", "qd_rad_s", "tcp_pose_base", "tcp_twist_base", "native_ft_tcp", "native_contact_count", "frame_lineage"],
+      "properties": {
+        "q_rad": {"$ref": "#/$defs/vector6"},
+        "qd_rad_s": {"$ref": "#/$defs/vector6"},
+        "tcp_pose_base": {"$ref": "#/$defs/vector6"},
+        "tcp_twist_base": {"$ref": "#/$defs/vector6"},
+        "native_ft_tcp": {"$ref": "#/$defs/vector6"},
+        "native_contact_count": {"type": "integer", "minimum": 0},
+        "frame_lineage": {"type": "object", "minProperties": 5}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["values", "source", "valid", "diagnostics"],
+      "properties": {
+        "values": {"$ref": "#/$defs/vector6"},
+        "source": {"type": "string", "minLength": 1},
+        "valid": {"type": "boolean"},
+        "diagnostics": {"type": "object"}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "reason", "accepted"],
+      "properties": {
+        "action": {"enum": ["accept", "hold", "stop"]},
+        "reason": {"type": "string", "minLength": 1},
+        "accepted": {"type": "boolean"}
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interface", "values", "sequence", "applied"],
+      "properties": {
+        "interface": {"enum": ["velocity", "effort"]},
+        "values": {"$ref": "#/$defs/vector6"},
+        "sequence": {"type": "integer", "minimum": 0},
+        "applied": {"type": "boolean"}
+      }
+    }
+  },
+  "$defs": {
+    "vector6": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {"type": "number"}
+    }
+  }
+}

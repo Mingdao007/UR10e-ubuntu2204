@@ -1,0 +1,749 @@
+{
+  "acceptance": {
+    "cage_margin_hard_stop": true,
+    "online_tcp_cage_ready": true,
+    "success_hold_burden_reported": true,
+    "success_no_hard_stop": true,
+    "v11_intervenes_before_qdot_rail_or_large_escape": true,
+    "v14_enters_hold_before_hard_stop": true
+  },
+  "analysis_created_at": "2026-06-16T15:52:14",
+  "candidate_parameters": {
+    "actual_speed_hold_floor_m_s": 0.012294344589077973,
+    "actual_speed_hold_source": "max success main-tracking p99.9 and max; do not use load jump alone",
+    "actual_speed_success_max_m_s": 0.01307518954146332,
+    "bounded_hold_policy": {
+      "hold_consecutive_max_s": 1.2,
+      "hold_duty_limit": 0.4,
+      "hold_event_limit": 360,
+      "repeated_hold_limit": 120,
+      "source": "success replay hold-burden maxima with finite headroom",
+      "success_hold_duty_max_observed": 0.3163918060112362,
+      "success_hold_event_count_max_observed": 309,
+      "success_max_consecutive_hold_s_observed": 0.29999989800000293
+    },
+    "hard_stop_boundaries": [
+      "tcp_cage_distance_or_braking_margin_exhausted",
+      "semantic_gate_failed",
+      "hard_force_or_torque_or_joint_or_sensor_gate",
+      "hold_timeout",
+      "repeated_hold_limit",
+      "nonfinite_inputs"
+    ],
+    "predicted_speed_policy": "predicted speed above the v14 0.050 m/s intervention threshold is recoverable hold unless a hard boundary is already violated"
+  },
+  "distributions": {
+    "negative": [
+      {
+        "actual_speed_m_s": {
+          "max": 0.5277978981197726,
+          "p99": 0.5269101771908985,
+          "p999": 0.5277245088655422
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_liveprep_v11_20260615_204601/bridge_rtde_500hz.csv",
+        "duration_s": 0.7480004790000017,
+        "kind": "negative",
+        "load_jump_n": {
+          "10_tick": {
+            "max": 0.406040877,
+            "p99": 0.40448730744,
+            "p999": 0.40588772764000003
+          },
+          "1_tick": {
+            "max": 0.402156368,
+            "p99": 0.1715008529899994,
+            "p999": 0.3388020121400016
+          },
+          "25_tick": {
+            "max": 0.410928442,
+            "p99": 0.40955313073,
+            "p999": 0.410801390993
+          },
+          "2_tick": {
+            "max": 0.402592062,
+            "p99": 0.22233762683999964,
+            "p999": 0.402429983832
+          },
+          "5_tick": {
+            "max": 0.403934089,
+            "p99": 0.40229143314,
+            "p999": 0.403771192843
+          }
+        },
+        "normal_angle_jump_rad": {
+          "max": 0.0,
+          "p99": 0.0
+        },
+        "predicted_speed_m_s": {
+          "max": null,
+          "p99": null,
+          "p999": null
+        },
+        "qdot_max_abs_rad_s": {
+          "max": 0.3,
+          "p99": 0.3
+        },
+        "rows": 375
+      },
+      {
+        "actual_speed_m_s": {
+          "max": 3.492610452089443e-05,
+          "p99": 7.418980652146413e-06,
+          "p999": 1.9291587843930318e-05
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805/bridge_rtde_500hz.csv",
+        "duration_s": 9.125582448000001,
+        "kind": "negative",
+        "load_jump_n": {
+          "10_tick": {
+            "max": 0.0,
+            "p99": 0.0,
+            "p999": 0.0
+          },
+          "1_tick": {
+            "max": 0.0,
+            "p99": 0.0,
+            "p999": 0.0
+          },
+          "25_tick": {
+            "max": 0.0,
+            "p99": 0.0,
+            "p999": 0.0
+          },
+          "2_tick": {
+            "max": 0.0,
+            "p99": 0.0,
+            "p999": 0.0
+          },
+          "5_tick": {
+            "max": 0.0,
+            "p99": 0.0,
+            "p999": 0.0
+          }
+        },
+        "normal_angle_jump_rad": {
+          "max": 3.0148043099282953,
+          "p99": 1.943037351715191
+        },
+        "predicted_speed_m_s": {
+          "max": null,
+          "p99": null,
+          "p999": null
+        },
+        "qdot_max_abs_rad_s": {
+          "max": null,
+          "p99": null
+        },
+        "rows": 4979
+      }
+    ],
+    "success": [
+      {
+        "actual_speed_m_s": {
+          "max": 0.011847291585162147,
+          "p99": 0.00678873822781228,
+          "p999": 0.009170811736678289
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+        "duration_s": 59.247999173999986,
+        "kind": "success",
+        "load_jump_n": {
+          "10_tick": {
+            "max": 11.571845629999999,
+            "p99": 9.0068809294,
+            "p999": 10.788996196659642
+          },
+          "1_tick": {
+            "max": 11.57173693,
+            "p99": 4.8391583280000035,
+            "p999": 9.001348159380004
+          },
+          "25_tick": {
+            "max": 11.571104129999998,
+            "p99": 10.0175743632,
+            "p999": 11.10438053978
+          },
+          "2_tick": {
+            "max": 11.57154593,
+            "p99": 6.2790821492,
+            "p999": 9.870510820700023
+          },
+          "5_tick": {
+            "max": 11.57147883,
+            "p99": 7.872635639200002,
+            "p999": 10.43727255747007
+          }
+        },
+        "normal_angle_jump_rad": {
+          "max": 0.08393450515182262,
+          "p99": 0.013975092631703288
+        },
+        "predicted_speed_m_s": {
+          "max": null,
+          "p99": null,
+          "p999": null
+        },
+        "qdot_max_abs_rad_s": {
+          "max": null,
+          "p99": null
+        },
+        "rows": 29625
+      },
+      {
+        "actual_speed_m_s": {
+          "max": 0.011732373906503266,
+          "p99": 0.006968216731503968,
+          "p999": 0.009660758907328561
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv",
+        "duration_s": 59.25199961599999,
+        "kind": "success",
+        "load_jump_n": {
+          "10_tick": {
+            "max": 10.6361561,
+            "p99": 8.402525114,
+            "p999": 10.10740335367969
+          },
+          "1_tick": {
+            "max": 10.6362305,
+            "p99": 4.84438488,
+            "p999": 8.36727458375
+          },
+          "25_tick": {
+            "max": 10.635863,
+            "p99": 8.937653170099999,
+            "p999": 10.24252770508
+          },
+          "2_tick": {
+            "max": 10.6363205,
+            "p99": 6.116463703999996,
+            "p999": 8.77941144408
+          },
+          "5_tick": {
+            "max": 10.6362275,
+            "p99": 7.617741928300015,
+            "p999": 9.06168749306805
+          }
+        },
+        "normal_angle_jump_rad": {
+          "max": 0.06150576534802512,
+          "p99": 0.012841387017129238
+        },
+        "predicted_speed_m_s": {
+          "max": null,
+          "p99": null,
+          "p999": null
+        },
+        "qdot_max_abs_rad_s": {
+          "max": null,
+          "p99": null
+        },
+        "rows": 29627
+      },
+      {
+        "actual_speed_m_s": {
+          "max": 0.011353587376763792,
+          "p99": 0.007638684611702255,
+          "p999": 0.009381324290888952
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv",
+        "duration_s": 29.240000487999996,
+        "kind": "success",
+        "load_jump_n": {
+          "10_tick": {
+            "max": 15.242344400000002,
+            "p99": 9.951864030000001,
+            "p999": 13.868743493
+          },
+          "1_tick": {
+            "max": 15.2427106,
+            "p99": 5.626157118999997,
+            "p999": 9.844373548939895
+          },
+          "25_tick": {
+            "max": 15.240484700000001,
+            "p99": 12.058037385599999,
+            "p999": 15.239817786500002
+          },
+          "2_tick": {
+            "max": 15.242601300000002,
+            "p99": 7.1201101259999975,
+            "p999": 10.95167676816
+          },
+          "5_tick": {
+            "max": 15.242620400000002,
+            "p99": 8.579709305000002,
+            "p999": 13.486803327150117
+          }
+        },
+        "normal_angle_jump_rad": {
+          "max": 0.06231398201617261,
+          "p99": 0.014020440222911938
+        },
+        "predicted_speed_m_s": {
+          "max": null,
+          "p99": null,
+          "p999": null
+        },
+        "qdot_max_abs_rad_s": {
+          "max": null,
+          "p99": null
+        },
+        "rows": 14621
+      },
+      {
+        "actual_speed_m_s": {
+          "max": 0.01307518954146332,
+          "p99": 0.011004749299525558,
+          "p999": 0.012294344589077973
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv",
+        "duration_s": 29.353999209,
+        "kind": "success",
+        "load_jump_n": {
+          "10_tick": {
+            "max": 12.256987170000002,
+            "p99": 9.919997951400001,
+            "p999": 12.226010781800003
+          },
+          "1_tick": {
+            "max": 12.25635697,
+            "p99": 5.327451411999994,
+            "p999": 9.889879064440024
+          },
+          "25_tick": {
+            "max": 12.257042329999997,
+            "p99": 11.19967359228,
+            "p999": 12.256400020960001
+          },
+          "2_tick": {
+            "max": 12.256891770000001,
+            "p99": 7.183679175000002,
+            "p999": 11.114519362500001
+          },
+          "5_tick": {
+            "max": 12.25692501,
+            "p99": 9.062928669600002,
+            "p999": 11.55066777143995
+          }
+        },
+        "normal_angle_jump_rad": {
+          "max": 0.06138898023377146,
+          "p99": 0.01646370515326306
+        },
+        "predicted_speed_m_s": {
+          "max": null,
+          "p99": null,
+          "p999": null
+        },
+        "qdot_max_abs_rad_s": {
+          "max": null,
+          "p99": null
+        },
+        "rows": 14678
+      },
+      {
+        "actual_speed_m_s": {
+          "max": 0.012238630428806681,
+          "p99": 0.01046533191471586,
+          "p999": 0.011416337397436863
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv",
+        "duration_s": 29.261999173999996,
+        "kind": "success",
+        "load_jump_n": {
+          "10_tick": {
+            "max": 10.10964026,
+            "p99": 8.7340498053,
+            "p999": 9.70213292765
+          },
+          "1_tick": {
+            "max": 10.10966616,
+            "p99": 4.996946130000026,
+            "p999": 8.717371565100022
+          },
+          "25_tick": {
+            "max": 10.109460039999998,
+            "p99": 9.0956637874,
+            "p999": 10.109384805180001
+          },
+          "2_tick": {
+            "max": 10.10961766,
+            "p99": 6.410410835999998,
+            "p999": 8.904685065430002
+          },
+          "5_tick": {
+            "max": 10.10967816,
+            "p99": 7.9566324574,
+            "p999": 9.264796954419968
+          }
+        },
+        "normal_angle_jump_rad": {
+          "max": 0.06359487993521978,
+          "p99": 0.01248003904258436
+        },
+        "predicted_speed_m_s": {
+          "max": null,
+          "p99": null,
+          "p999": null
+        },
+        "qdot_max_abs_rad_s": {
+          "max": null,
+          "p99": null
+        },
+        "rows": 14632
+      }
+    ],
+    "tcp_cage_margin": {
+      "availability_by_csv": {
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805/bridge_rtde_500hz.csv": {
+          "finite_counts": {},
+          "present_columns": []
+        },
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv": {
+          "finite_counts": {},
+          "present_columns": []
+        },
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv": {
+          "finite_counts": {},
+          "present_columns": []
+        },
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_liveprep_v11_20260615_204601/bridge_rtde_500hz.csv": {
+          "finite_counts": {},
+          "present_columns": []
+        },
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv": {
+          "finite_counts": {},
+          "present_columns": []
+        },
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv": {
+          "finite_counts": {},
+          "present_columns": []
+        },
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv": {
+          "finite_counts": {},
+          "present_columns": []
+        }
+      },
+      "expected_columns": [
+        "_step5d_tcp_cage_distance_m",
+        "_step5d_tcp_cage_braking_margin_m",
+        "_step5d_tcp_cage_signed_distance_m",
+        "_step5d_tcp_cage_cell_index",
+        "_step5d_tcp_cage_reason"
+      ],
+      "note": "Historical CSVs do not contain TCP cage distance or braking-margin fields; v15a constructs an online broad stage-wise AABB cage from successful Step5b/Step6b source traces and logs these fields during future Stage25 runtime.",
+      "status": "unavailable_in_source_csvs"
+    },
+    "tcp_cage_v15a": {
+      "braking_policy": {
+        "a_stop_m_s2": 1.0,
+        "contact_margin_m": 0.002,
+        "model_margin_m": 0.003,
+        "tau_stop_s": 0.1
+      },
+      "max_xyz": [
+        0.5079929084681909,
+        0.24367595037478126,
+        0.05944807908073341
+      ],
+      "min_xyz": [
+        0.4317484970550932,
+        0.10915382222700289,
+        -0.004498353030779913
+      ],
+      "mode": "broad_stagewise_aabb_from_success_step5b_step6b",
+      "padding_m": 0.02,
+      "source_csvs": [
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv",
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv",
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv",
+        "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv"
+      ],
+      "source_rows": 119709,
+      "status": "online_broad_stagewise_aabb_ready"
+    }
+  },
+  "mode": "offline_only_no_live_robot_action",
+  "replay": {
+    "cage": {
+      "exhausted_margin_action": "stop_zero_qdot",
+      "exhausted_margin_reason": "tcp_cage_braking_margin_exhausted",
+      "inside_margin_action": "hold_zero_qdot",
+      "inside_margin_reason": "predicted_tcp_speed_recoverable_hold"
+    },
+    "success": [
+      {
+        "action_counts": {
+          "hold_zero_qdot": 7650,
+          "pass_solver": 21975
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+        "first_hold": {
+          "actual_tcp_speed_m_s": 0.0019196722711712427,
+          "hold_s": 0.0019998170000121718,
+          "index": 217,
+          "normal_load_n": 0.0,
+          "predicted_tcp_speed_m_s": null,
+          "qdot_max_abs_rad_s": null,
+          "reason": "hard_lost_contact_hold",
+          "t_rel_s": 68.561088737,
+          "tcp_cage_braking_margin_m": 0.014905736708552055,
+          "tcp_cage_reason": "inside_broad_tcp_cage"
+        },
+        "first_stop": null,
+        "hold_burden": {
+          "active_stage25_s": 59.24999917399998,
+          "first_hold_reason": "hard_lost_contact_hold",
+          "hold_duty": 0.25822791985309984,
+          "hold_event_count": 189,
+          "last_repeated_hold_count": 0,
+          "max_consecutive_hold_s": 0.29999982599998987,
+          "total_hold_s": 15.300004037999898
+        },
+        "rows": 29625,
+        "window_kind": "success"
+      },
+      {
+        "action_counts": {
+          "hold_zero_qdot": 6847,
+          "pass_solver": 22780
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv",
+        "first_hold": {
+          "actual_tcp_speed_m_s": 0.0038885612553663197,
+          "hold_s": 0.0020002449999978467,
+          "index": 269,
+          "normal_load_n": 0.180005975,
+          "predicted_tcp_speed_m_s": null,
+          "qdot_max_abs_rad_s": null,
+          "reason": "hard_lost_contact_hold",
+          "t_rel_s": 51.454769025,
+          "tcp_cage_braking_margin_m": 0.014743976516380817,
+          "tcp_cage_reason": "inside_broad_tcp_cage"
+        },
+        "first_stop": null,
+        "hold_burden": {
+          "active_stage25_s": 59.25399961599999,
+          "first_hold_reason": "hard_lost_contact_hold",
+          "hold_duty": 0.23110683885889594,
+          "hold_event_count": 145,
+          "last_repeated_hold_count": 0,
+          "max_consecutive_hold_s": 0.2999994350000037,
+          "total_hold_s": 13.694004540999991
+        },
+        "rows": 29627,
+        "window_kind": "success"
+      },
+      {
+        "action_counts": {
+          "hold_zero_qdot": 4325,
+          "pass_solver": 10296
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv",
+        "first_hold": {
+          "actual_tcp_speed_m_s": 0.006027784273891932,
+          "hold_s": 0.001998899000000165,
+          "index": 243,
+          "normal_load_n": 0.164667906,
+          "predicted_tcp_speed_m_s": null,
+          "qdot_max_abs_rad_s": null,
+          "reason": "hard_lost_contact_hold",
+          "t_rel_s": 31.917276543,
+          "tcp_cage_braking_margin_m": 0.018310183789633686,
+          "tcp_cage_reason": "inside_broad_tcp_cage"
+        },
+        "first_stop": null,
+        "hold_burden": {
+          "active_stage25_s": 29.242000487999995,
+          "first_hold_reason": "hard_lost_contact_hold",
+          "hold_duty": 0.2958072408400945,
+          "hold_event_count": 85,
+          "last_repeated_hold_count": 0,
+          "max_consecutive_hold_s": 0.29999963800000273,
+          "total_hold_s": 8.649995480999976
+        },
+        "rows": 14621,
+        "window_kind": "success"
+      },
+      {
+        "action_counts": {
+          "hold_zero_qdot": 4644,
+          "pass_solver": 10034
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv",
+        "first_hold": {
+          "actual_tcp_speed_m_s": 0.009909392057640801,
+          "hold_s": 0.0019990930000020057,
+          "index": 80,
+          "normal_load_n": 10.2404937,
+          "predicted_tcp_speed_m_s": null,
+          "qdot_max_abs_rad_s": null,
+          "reason": "early_tcp_escape_recoverable_hold",
+          "t_rel_s": 42.624962386,
+          "tcp_cage_braking_margin_m": 0.017818867754029626,
+          "tcp_cage_reason": "inside_broad_tcp_cage"
+        },
+        "first_stop": null,
+        "hold_burden": {
+          "active_stage25_s": 29.355999209,
+          "first_hold_reason": "early_tcp_escape_recoverable_hold",
+          "hold_duty": 0.3163918060112362,
+          "hold_event_count": 309,
+          "last_repeated_hold_count": 0,
+          "max_consecutive_hold_s": 0.2999992359999979,
+          "total_hold_s": 9.28799760699993
+        },
+        "rows": 14678,
+        "window_kind": "success"
+      },
+      {
+        "action_counts": {
+          "hold_zero_qdot": 4404,
+          "pass_solver": 10228
+        },
+        "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv",
+        "first_hold": {
+          "actual_tcp_speed_m_s": 0.010455153394809513,
+          "hold_s": 0.002,
+          "index": 0,
+          "normal_load_n": 2.95117073,
+          "predicted_tcp_speed_m_s": null,
+          "qdot_max_abs_rad_s": null,
+          "reason": "early_tcp_escape_recoverable_hold",
+          "t_rel_s": 33.258042336,
+          "tcp_cage_braking_margin_m": 0.017617746657187114,
+          "tcp_cage_reason": "inside_broad_tcp_cage"
+        },
+        "first_stop": null,
+        "hold_burden": {
+          "active_stage25_s": 29.263999173999995,
+          "first_hold_reason": "early_tcp_escape_recoverable_hold",
+          "hold_duty": 0.3009843769687351,
+          "hold_event_count": 276,
+          "last_repeated_hold_count": 0,
+          "max_consecutive_hold_s": 0.29999989800000293,
+          "total_hold_s": 8.808006558999967
+        },
+        "rows": 14632,
+        "window_kind": "success"
+      }
+    ],
+    "v11": {
+      "action_counts": {
+        "hold_zero_qdot": 73,
+        "pass_solver": 18,
+        "stop_zero_qdot": 1
+      },
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_liveprep_v11_20260615_204601/bridge_rtde_500hz.csv",
+      "first_hold": {
+        "actual_tcp_speed_m_s": 0.009943189777717786,
+        "hold_s": 0.002000397999999848,
+        "index": 17,
+        "normal_load_n": 6.77556709,
+        "predicted_tcp_speed_m_s": null,
+        "qdot_max_abs_rad_s": 0.256421341,
+        "reason": "early_tcp_escape_recoverable_hold",
+        "t_rel_s": 23.687295385,
+        "tcp_cage_braking_margin_m": 0.014057155781628104,
+        "tcp_cage_reason": "inside_broad_tcp_cage"
+      },
+      "first_stop": {
+        "actual_tcp_speed_m_s": 0.08224495712552467,
+        "hold_s": 0.14400075,
+        "index": 91,
+        "normal_load_n": 0.0,
+        "predicted_tcp_speed_m_s": null,
+        "qdot_max_abs_rad_s": 0.3,
+        "reason": "tcp_cage_braking_margin_exhausted",
+        "t_rel_s": 23.835294507,
+        "tcp_cage_braking_margin_m": -0.00035136246055814807,
+        "tcp_cage_reason": "tcp_cage_braking_margin_exhausted"
+      },
+      "hold_burden": {
+        "active_stage25_s": 0.18399895100000063,
+        "first_hold_reason": "early_tcp_escape_recoverable_hold",
+        "hold_duty": 0.7934890237499199,
+        "hold_event_count": 2,
+        "last_repeated_hold_count": 0,
+        "max_consecutive_hold_s": 0.14400075,
+        "total_hold_s": 0.14600114799999986
+      },
+      "rows": 877,
+      "window_kind": "v11"
+    },
+    "v14": {
+      "action_counts": {
+        "hold_zero_qdot": 14,
+        "pass_solver": 65
+      },
+      "csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805/bridge_rtde_500hz.csv",
+      "first_hold": {
+        "actual_tcp_speed_m_s": 0.00999552748,
+        "hold_s": 0.002000798999993947,
+        "index": 65,
+        "normal_load_n": 3.18496075,
+        "predicted_tcp_speed_m_s": 0.0419104135,
+        "qdot_max_abs_rad_s": 0.026,
+        "reason": "early_tcp_escape_recoverable_hold",
+        "t_rel_s": 41.390172869,
+        "tcp_cage_braking_margin_m": 0.009890998584349239,
+        "tcp_cage_reason": "inside_broad_tcp_cage"
+      },
+      "first_stop": null,
+      "hold_burden": {
+        "active_stage25_s": 0.15799943200000155,
+        "first_hold_reason": "early_tcp_escape_recoverable_hold",
+        "hold_duty": 0.1772183586077448,
+        "hold_event_count": 1,
+        "last_repeated_hold_count": 1,
+        "max_consecutive_hold_s": 0.02800039999999626,
+        "total_hold_s": 0.02800039999999626
+      },
+      "rows": 79,
+      "window_kind": "v14"
+    }
+  },
+  "source_csvs": {
+    "negative": [
+      "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_liveprep_v11_20260615_204601/bridge_rtde_500hz.csv",
+      "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v14_20260615_231805/bridge_rtde_500hz.csv"
+    ],
+    "success": [
+      "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv",
+      "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv",
+      "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv",
+      "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv",
+      "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv"
+    ]
+  },
+  "success_first_hold_reason_by_csv": {
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv": "hard_lost_contact_hold",
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv": "hard_lost_contact_hold",
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv": "hard_lost_contact_hold",
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv": "early_tcp_escape_recoverable_hold",
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv": "early_tcp_escape_recoverable_hold"
+  },
+  "success_hold_duty_by_csv": {
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv": 0.25822791985309984,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv": 0.23110683885889594,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv": 0.2958072408400945,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv": 0.3163918060112362,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv": 0.3009843769687351
+  },
+  "success_hold_event_count_by_csv": {
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv": 189,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv": 145,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv": 85,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv": 309,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv": 276
+  },
+  "success_max_consecutive_hold_s_by_csv": {
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260612_082352/bridge_rtde_500hz.csv": 0.29999982599998987,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5b_contact_cycloid_baseline_v1_20260614_222309/bridge_rtde_500hz.csv": 0.2999994350000037,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v1_20260612_223047/bridge_rtde_500hz.csv": 0.29999963800000273,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260612_225841/bridge_rtde_500hz.csv": 0.2999992359999979,
+    "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step6b_contact_eight_baseline_v2_20260614_223106/bridge_rtde_500hz.csv": 0.29999989800000293
+  }
+}

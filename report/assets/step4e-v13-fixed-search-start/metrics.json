@@ -1,0 +1,320 @@
+{
+  "run_dir": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027",
+  "tp_program": "/programs/andyl/kunwei/step4/step4e_line_outerloop_v13.urp",
+  "program_stamp": "2026-06-09T1409HKT_STEP4E_LINE_OUTERLOOP_V13",
+  "bridge_summary": {
+    "baseline_epoch": 1,
+    "baseline_ready": true,
+    "baseline_samples": 1001,
+    "baseline_si_offsets": {
+      "fx_n": 7.896248458648394,
+      "fy_n": 3.260888306478114,
+      "fz_n": 2.966915680375195,
+      "mx_nm": 0.23226051098278339,
+      "my_nm": -0.27506235766750464,
+      "mz_nm": 0.08688910567700404
+    },
+    "bridge_write_timing": {
+      "dt_max_s": 0.010338619002141058,
+      "dt_mean_s": 0.001986612786818296,
+      "dt_p95_s": 0.0020010049920529127,
+      "dt_p99_s": 0.0020046092360280453,
+      "elapsed_s": 78.2228784809704,
+      "rate_hz": 503.3693564419126,
+      "samples": 39376
+    },
+    "bridge_writes": 39376,
+    "dropped_sync_bytes": 0,
+    "echo_heartbeat_transitions": {
+      "dt_max_s": 5.106118816998787,
+      "dt_mean_s": 0.004231251656643482,
+      "dt_p95_s": 0.0040411782247247174,
+      "dt_p99_s": 0.004086835484486073,
+      "elapsed_s": 72.33747832197696,
+      "rate_hz": 236.33668737946644,
+      "samples": 17097
+    },
+    "finished_at": "2026-06-09T14:11:46",
+    "force_norm_stats_n": {
+      "max": 37.02788725171472,
+      "mean": 6.913894440815114,
+      "min": 0.005088205230425684,
+      "samples": 78717,
+      "std": 8.810943551047867
+    },
+    "last_echo_heartbeat": 36431.0,
+    "last_zero_request": 1.0,
+    "normal_force_stats_n": {
+      "max": 3.4616982051998373,
+      "mean": -5.868199108784161,
+      "min": -36.87177822129974,
+      "samples": 78717,
+      "std": 9.167614130722878
+    },
+    "parse_errors": 0,
+    "paths": {
+      "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/bridge_rtde_500hz.csv",
+      "metadata": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/metadata.json",
+      "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/raw_frames.bin",
+      "sensor_csv": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/kunwei_sensor_1khz.csv",
+      "summary": "/home/andy/ur10e_ros2_ws/experiments/kunwei/closed-loop-straight-line/2026-06-04/runs/bridge_step4e_line_outerloop_v13_autowatch_20260609_141027/summary.json"
+    },
+    "rtde_output_timing": {
+      "dt_max_s": 0.010459757002536207,
+      "dt_mean_s": 0.0019999887919767826,
+      "dt_p95_s": 0.00203624353162013,
+      "dt_p99_s": 0.0020783582061994826,
+      "elapsed_s": 78.22156164300395,
+      "rate_hz": 500.00280202150685,
+      "samples": 39112
+    },
+    "rtde_reconnect_event_count": 0,
+    "rtde_reconnect_events": [],
+    "samples": 78717,
+    "stop_reason": "signal_sigint",
+    "torque_norm_stats_nm": {
+      "max": 0.5693585108935643,
+      "mean": 0.0815356210545956,
+      "min": 7.365914520949743e-05,
+      "samples": 78717,
+      "std": 0.11454768562451648
+    },
+    "zero_events": [
+      {
+        "baseline_epoch": 0,
+        "completed_at_monotonic_s": 398260.731702247,
+        "completed_at_sample": 4968,
+        "duration_s": 5.018289037980139,
+        "samples": 4968
+      },
+      {
+        "baseline_epoch": 1,
+        "previous_zero_request": 0.0,
+        "requested_at_monotonic_s": 398268.681552309,
+        "zero_request": 1.0
+      },
+      {
+        "baseline_epoch": 1,
+        "completed_at_monotonic_s": 398269.681900964,
+        "completed_at_sample": 13918,
+        "duration_s": 1.0003486549830996,
+        "samples": 1001
+      }
+    ]
+  },
+  "stage_stats": {
+    "20.0": {
+      "rows": 2506,
+      "duration_s": 4.492548940004781,
+      "ur_stop_last": 0.0,
+      "z_min_m": 0.1504136118899806,
+      "z_max_m": 0.15053096696320145,
+      "fz_min_n": 0.464061773,
+      "fz_mean_n": 2.9583922551101356,
+      "fz_max_n": 3.46169821,
+      "force_norm_max_n": 9.86473952,
+      "torque_norm_max_nm": 0.37183741,
+      "progress_max_m": 0.0
+    },
+    "21.0": {
+      "rows": 1473,
+      "duration_s": 2.9440001909970306,
+      "ur_stop_last": 0.0,
+      "z_min_m": 0.15037389422047676,
+      "z_max_m": 0.1505883953472305,
+      "fz_min_n": -0.502629004,
+      "fz_mean_n": -0.003978128646300067,
+      "fz_max_n": 0.48419446,
+      "force_norm_max_n": 0.834773955,
+      "torque_norm_max_nm": 0.0169182454,
+      "progress_max_m": 0.0
+    },
+    "22.0": {
+      "rows": 1080,
+      "duration_s": 2.1579996689688414,
+      "ur_stop_last": 0.0,
+      "z_min_m": 0.15033170926197992,
+      "z_max_m": 0.150586605194103,
+      "fz_min_n": -0.479551495,
+      "fz_mean_n": -0.01824236852314815,
+      "fz_max_n": 0.463446856,
+      "force_norm_max_n": 0.822253597,
+      "torque_norm_max_nm": 0.0161474687,
+      "progress_max_m": 0.0
+    },
+    "22.5": {
+      "rows": 1419,
+      "duration_s": 2.8359989739838056,
+      "ur_stop_last": 0.0,
+      "z_min_m": 0.09830116418980421,
+      "z_max_m": 0.15049282503394118,
+      "fz_min_n": -0.469577798,
+      "fz_mean_n": 0.03229517152078929,
+      "fz_max_n": 0.501626656,
+      "force_norm_max_n": 0.838211677,
+      "torque_norm_max_nm": 0.0171280363,
+      "progress_max_m": 0.000191596405
+    },
+    "23.0": {
+      "rows": 602,
+      "duration_s": 1.2018610999803059,
+      "ur_stop_last": 0.0,
+      "z_min_m": 0.09830422616834875,
+      "z_max_m": 0.09841069397017922,
+      "fz_min_n": -0.480575578,
+      "fz_mean_n": -0.009461833179401996,
+      "fz_max_n": 0.471708488,
+      "force_norm_max_n": 0.864556793,
+      "torque_norm_max_nm": 0.0167837729,
+      "progress_max_m": 6.40044176e-06
+    },
+    "24.0": {
+      "rows": 2683,
+      "duration_s": 5.364000082015991,
+      "ur_stop_last": 0.0,
+      "z_min_m": 0.018277116831788773,
+      "z_max_m": 0.09835980015916394,
+      "fz_min_n": -0.491384521,
+      "fz_mean_n": 0.005599183516557958,
+      "fz_max_n": 0.420354768,
+      "force_norm_max_n": 0.541849805,
+      "torque_norm_max_nm": 0.0162278666,
+      "progress_max_m": 5.16014913e-05
+    },
+    "24.2": {
+      "rows": 1683,
+      "duration_s": 3.364000479981769,
+      "ur_stop_last": 0.0,
+      "z_min_m": 0.008001657826295958,
+      "z_max_m": 0.018283295330184815,
+      "fz_min_n": -5.92921533,
+      "fz_mean_n": -0.07706494032131611,
+      "fz_max_n": 0.484037843,
+      "force_norm_max_n": 6.00726705,
+      "torque_norm_max_nm": 0.0726052883,
+      "progress_max_m": 9.82546313e-05
+    },
+    "25.0": {
+      "rows": 24410,
+      "duration_s": 48.81800005596597,
+      "ur_stop_last": 0.0,
+      "z_min_m": 0.007988963667463614,
+      "z_max_m": 0.02077514188889773,
+      "fz_min_n": -36.1158605,
+      "fz_mean_n": -9.748514129969449,
+      "fz_max_n": 0.415876161,
+      "force_norm_max_n": 36.2614124,
+      "torque_norm_max_nm": 0.563563897,
+      "progress_max_m": 0.14361775
+    },
+    "26.0": {
+      "rows": 572,
+      "duration_s": 1.1420004979590885,
+      "ur_stop_last": 1.0,
+      "z_min_m": 0.018548726293773535,
+      "z_max_m": 0.028484978190875282,
+      "fz_min_n": -3.38536317,
+      "fz_mean_n": -0.14711819065323425,
+      "fz_max_n": 0.0399116819,
+      "force_norm_max_n": 3.52278015,
+      "torque_norm_max_nm": 0.0614886255,
+      "progress_max_m": 0.143747123
+    },
+    "27.0": {
+      "rows": 2809,
+      "duration_s": 5.616000112961046,
+      "ur_stop_last": 1.0,
+      "z_min_m": 0.028447588149983535,
+      "z_max_m": 0.15048701483125332,
+      "fz_min_n": -0.317121887,
+      "fz_mean_n": 0.00694398718526166,
+      "fz_max_n": 0.37540445,
+      "force_norm_max_n": 0.804393094,
+      "torque_norm_max_nm": 0.0148575595,
+      "progress_max_m": 0.143537834
+    },
+    "29.0": {
+      "rows": 133,
+      "duration_s": 0.2640002249972895,
+      "ur_stop_last": 1.0,
+      "z_min_m": 0.15043134491504268,
+      "z_max_m": 0.15052540707248746,
+      "fz_min_n": -0.219729434,
+      "fz_mean_n": -0.027034231976616543,
+      "fz_max_n": 0.100367027,
+      "force_norm_max_n": 0.665941636,
+      "torque_norm_max_nm": 0.00769447092,
+      "progress_max_m": 0.0
+    }
+  },
+  "stage25": {
+    "full": {
+      "rows": 24410,
+      "duration_s": 48.81800005596597,
+      "fz_mean_n": -9.748514129969449,
+      "fz_median_n": -7.37137989,
+      "fz_std_n": 9.76780406864352,
+      "fz_min_n": -36.1158605,
+      "fz_max_n": 0.415876161,
+      "signed_error_mean_n": -4.7485141299694495,
+      "error_mae_n": 8.535030426105111,
+      "error_abs_p95_n": 22.3381677,
+      "force_norm_max_n": 36.2614124,
+      "torque_norm_max_nm": 0.563563897,
+      "cmd_vz_min_mm_s": -1.83859025,
+      "cmd_vz_mean_mm_s": 0.20382570387671478,
+      "cmd_vz_max_mm_s": 3.72876205
+    },
+    "after_0p5s": {
+      "rows": 24160,
+      "duration_s": 48.317999580001924,
+      "fz_mean_n": -9.756754335178984,
+      "fz_median_n": -7.31649708,
+      "fz_std_n": 9.80527268826569,
+      "fz_min_n": -36.1158605,
+      "fz_max_n": 0.415876161,
+      "signed_error_mean_n": -4.756754335178984,
+      "error_mae_n": 8.568778162814393,
+      "error_abs_p95_n": 22.3381677,
+      "force_norm_max_n": 36.2614124,
+      "torque_norm_max_nm": 0.563563897,
+      "cmd_vz_min_mm_s": -1.83859025,
+      "cmd_vz_mean_mm_s": 0.199312648681358,
+      "cmd_vz_max_mm_s": 3.72876205
+    },
+    "after_1p0s": {
+      "rows": 23910,
+      "duration_s": 47.81799981696531,
+      "fz_mean_n": -9.69624194666906,
+      "fz_median_n": -7.21345523,
+      "fz_std_n": 9.767638840954632,
+      "fz_min_n": -36.1158605,
+      "fz_max_n": 0.415876161,
+      "signed_error_mean_n": -4.69624194666906,
+      "error_mae_n": 8.519852668471048,
+      "error_abs_p95_n": 22.3122126,
+      "force_norm_max_n": 36.2614124,
+      "torque_norm_max_nm": 0.563563897,
+      "cmd_vz_min_mm_s": -1.83859025,
+      "cmd_vz_mean_mm_s": 0.19335486061561052,
+      "cmd_vz_max_mm_s": 3.72876205
+    },
+    "echo_rate_hz": 249.23184042876602,
+    "duration_s_from_frequency_summary": 48.81800005596597
+  },
+  "path": {
+    "length_m": 0.1437471231016468,
+    "progress_max_m": 0.14361775,
+    "progress_at_stage26_m": 0.143601659,
+    "xy_error_mean_mm": 0.04965357864261277,
+    "xy_error_p95_mm": 0.13733581429992772,
+    "xy_error_max_mm": 0.31282390604248034,
+    "cross_track_abs_mean_mm": 0.049648300621557395,
+    "cross_track_abs_p95_mm": 0.13733579325147693
+  },
+  "kunwei_sensor_csv": {
+    "rows": 78717,
+    "duration_s": 78.1954232439748,
+    "rate_hz": 1006.6573813968749
+  }
+}

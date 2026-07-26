@@ -1,0 +1,34 @@
+{
+  "csv_paths": {
+    "onrobot_udp500_raw": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149/three_stream_coldstart_drift_20260528_141152_onrobot_udp500_raw.csv",
+    "rtde_ur500_urcap125": "/home/andy/ur10e_ros2_ws/experiments/20260528_onrobot_three_stream_coldstart_drift/run_20260528_141149/three_stream_coldstart_drift_20260528_141152_rtde_ur500_urcap125.csv"
+  },
+  "elapsed_s": 12843.804552001,
+  "errors": [],
+  "ok_so_far": true,
+  "requested_seconds": 86400.0,
+  "rtde_rows": 6421849,
+  "stop_reason": "signal_2",
+  "udp_commands_sent": [
+    {
+      "command": "SPEED",
+      "command_hex": "0x0082",
+      "data": 2,
+      "sent_wall": "2026-05-28T14:11:54.635"
+    },
+    {
+      "command": "START",
+      "command_hex": "0x0002",
+      "data": 51840000,
+      "sent_wall": "2026-05-28T14:11:54.640"
+    },
+    {
+      "command": "STOP",
+      "command_hex": "0x0000",
+      "data": 0,
+      "sent_wall": "2026-05-28T17:45:58.367"
+    }
+  ],
+  "udp_rows": 6416767,
+  "updated_wall": "2026-05-28T17:45:58"
+}

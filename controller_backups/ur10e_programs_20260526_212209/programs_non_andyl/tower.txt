@@ -1,0 +1,91 @@
+ Program
+   Robot Program
+     RG Grip
+     MoveJ
+       Waypoint_1
+       Loop 3 times
+         Pallet_1
+           Patterns
+             Line_Pattern_1
+               StartItem_1
+               EndItem_1
+           Layers
+           At Each Item
+             Generated Movements
+               MoveJ
+                 Approach
+               MoveL
+                 ToolActionPoint
+               Tool action
+                 RG Grip
+               MoveL
+                 Exit_1
+         Pallet_2
+           Patterns
+             Line_Pattern_2
+               StartItem_2
+               EndItem_2
+           Layers
+           At Each Item
+             Generated Movements
+               MoveJ
+                 Approach_1
+               MoveL
+                 ToolActionPoi_1
+               Tool action
+                 RG Grip
+               MoveL
+                 Exit_2
+       Loop 3 times
+         Pallet_3
+           Patterns
+             Line_Pattern_3
+               StartItem_3
+               EndItem_3
+           Layers
+           At Each Item
+             Generated Movements
+               MoveJ
+                 Approach_2
+               MoveL
+                 ToolActionPoi_2
+               Tool action
+                 RG Grip
+               MoveL
+                 Exit_3
+         Pallet_4
+           Patterns
+             Line_Pattern_4
+               StartItem_4
+               EndItem_4
+           Layers
+           At Each Item
+             Generated Movements
+               MoveJ
+                 Approach_3
+               MoveL
+                 ToolActionPoi_3
+               Tool action
+                 RG Grip
+               MoveL
+                 Exit_4
+       RG Grip
+       Waypoint_2
+       RG Grip
+       Waypoint_4
+       RG Grip
+       Waypoint_4
+       Waypoint_6
+       Waypoint_5
+       RG Grip
+       Waypoint_6
+       Waypoint_8
+       Waypoint_7
+       RG Grip
+       Waypoint_8
+       Waypoint_6
+       Waypoint_9
+       RG Grip
+       Waypoint_10
+       Waypoint_1
+       Halt

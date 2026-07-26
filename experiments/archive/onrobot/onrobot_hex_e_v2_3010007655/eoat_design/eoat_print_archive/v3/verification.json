@@ -1,0 +1,113 @@
+{
+  "version": "v3",
+  "concept": "Thicker UR5e direct-mount column with bottom roller contact.",
+  "parameters": {
+    "adapter_outer_diameter_mm": 80.0,
+    "adapter_thickness_mm": 12.0,
+    "robot_pattern_pcd_mm": 50.0,
+    "robot_screw_clearance_mm": 6.6,
+    "robot_socket_head_counterbore_mm": 11.0,
+    "robot_socket_head_cbore_depth_mm": 6.0,
+    "robot_center_recess_mm": 31.7,
+    "robot_center_recess_depth_mm": 2.0,
+    "body_outer_diameter_mm": 56.0,
+    "body_height_mm": 36.0,
+    "lower_collar_diameter_mm": 36.0,
+    "lower_collar_height_mm": 16.0,
+    "stem_diameter_mm": 20.0,
+    "stem_length_mm": 44.0,
+    "fork_outer_width_mm": 24.0,
+    "fork_depth_mm": 16.0,
+    "fork_height_mm": 20.0,
+    "fork_slot_width_mm": 13.0,
+    "fork_slot_height_mm": 18.0,
+    "axle_diameter_mm": 4.0,
+    "axle_hole_diameter_mm": 4.1,
+    "roller_bore_diameter_mm": 4.4,
+    "roller_diameter_mm": 18.0,
+    "roller_width_mm": 12.0,
+    "roller_protrusion_below_fork_mm": 1.0,
+    "center_bore_mm": 6.0
+  },
+  "derived": {
+    "fork_base_z_mm": 108.0,
+    "roller_axle_z_mm": 118.0,
+    "contact_point_from_flange_face_mm": 109.0,
+    "overall_tool_length_mm": 128.0,
+    "main_column_diameter_mm": 20.0,
+    "roller_diameter_mm": 18.0
+  },
+  "bounding_boxes": {
+    "body": {
+      "xmin": -39.99623597963026,
+      "xmax": 40.0,
+      "ymin": -39.999058983838665,
+      "ymax": 39.999058983838665,
+      "zmin": 0.0,
+      "zmax": 128.0,
+      "xlen": 79.99623597963026,
+      "ylen": 79.99811796767733,
+      "zlen": 128.0
+    },
+    "roller": {
+      "xmin": -6.0,
+      "xmax": 6.0,
+      "ymin": -8.9997882713637,
+      "ymax": 8.9997882713637,
+      "zmin": 109.0008469045832,
+      "zmax": 127.0,
+      "xlen": 12.0,
+      "ylen": 17.9995765427274,
+      "zlen": 17.9991530954168
+    },
+    "axle": {
+      "xmin": -12.0,
+      "xmax": 12.0,
+      "ymin": -1.9999529491919334,
+      "ymax": 1.9999529491919334,
+      "zmin": 116.00018820101849,
+      "zmax": 120.0,
+      "xlen": 24.0,
+      "ylen": 3.999905898383867,
+      "zlen": 3.9998117989815114
+    },
+    "assembly": {
+      "xmin": -39.99623597963026,
+      "xmax": 40.0,
+      "ymin": -39.999058983838665,
+      "ymax": 39.999058983838665,
+      "zmin": 0.0,
+      "zmax": 128.0,
+      "xlen": 79.99623597963026,
+      "ylen": 79.99811796767733,
+      "zlen": 128.0
+    },
+    "onepiece": {
+      "xmin": -39.99623597963026,
+      "xmax": 40.0,
+      "ymin": -39.999058983838665,
+      "ymax": 39.999058983838665,
+      "zmin": 0.0,
+      "zmax": 128.0,
+      "xlen": 79.99623597963026,
+      "ylen": 79.99811796767733,
+      "zlen": 128.0
+    },
+    "fitcheck": {
+      "xmin": -39.99623597963026,
+      "xmax": 40.0,
+      "ymin": -39.999058983838665,
+      "ymax": 39.999058983838665,
+      "zmin": 0.0,
+      "zmax": 4.0,
+      "xlen": 79.99623597963026,
+      "ylen": 79.99811796767733,
+      "zlen": 4.0
+    }
+  },
+  "assumptions_to_confirm": [
+    "UR5e center locating recess diameter is still assumed as 31.7 mm, not yet measured on the bare flange.",
+    "Roller and axle clearances are concept-level and should be tuned after first print.",
+    "This v3 keeps the same 50-4-M6 interface logic used in earlier versions."
+  ]
+}

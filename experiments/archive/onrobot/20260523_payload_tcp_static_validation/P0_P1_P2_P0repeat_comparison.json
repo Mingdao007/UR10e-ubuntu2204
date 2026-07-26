@@ -1,0 +1,151 @@
+{
+  "poses": [
+    "P0",
+    "P1",
+    "P2",
+    "P0_repeat"
+  ],
+  "ur_force_norm_mean_N": {
+    "P0": 2.400459443344207,
+    "P1": 5.892698872180936,
+    "P2": 9.77528005209424,
+    "P0_repeat": 13.135302205398482
+  },
+  "ur_force_mean_N": {
+    "P0": {
+      "Fx_N": 0.7881036197522683,
+      "Fy_N": 1.5187784465285286,
+      "Fz_N": -1.6142578061004513
+    },
+    "P1": {
+      "Fx_N": 2.671077352531165,
+      "Fy_N": -2.5706260158417367,
+      "Fz_N": -4.566466764982135
+    },
+    "P2": {
+      "Fx_N": 2.449192271260064,
+      "Fy_N": -7.307779054159474,
+      "Fz_N": -6.0010892467964325
+    },
+    "P0_repeat": {
+      "Fx_N": -1.3561578974476665,
+      "Fy_N": -4.736711430523828,
+      "Fz_N": -12.170575799584778
+    }
+  },
+  "onrobot_force_mean_N": {
+    "P0": {
+      "fx_n": 0.32590977634428775,
+      "fy_n": 3.0027895145325325,
+      "fz_n": -32.597977153413396
+    },
+    "P1": {
+      "fx_n": -0.07061891049435325,
+      "fy_n": 2.7108444708316117,
+      "fz_n": -32.642150630841215
+    },
+    "P2": {
+      "fx_n": -0.22363837556713312,
+      "fy_n": 3.1911301401902494,
+      "fz_n": -32.76350791475126
+    },
+    "P0_repeat": {
+      "fx_n": 0.39992975071900067,
+      "fy_n": 3.06296837300505,
+      "fz_n": -32.4469897145543
+    }
+  },
+  "onrobot_raw_tuple_change_rate_hz": {
+    "P0": 100.0541656434594,
+    "P1": 100.27081982553253,
+    "P2": 99.9706813459382,
+    "P0_repeat": 100.1210886430353
+  },
+  "dashboard_program_running": {
+    "P0": "Program running: false",
+    "P1": "Program running: false",
+    "P2": "Program running: false",
+    "P0_repeat": "Program running: false"
+  },
+  "payload_tcp_after": {
+    "P0": {
+      "payload": 0.44,
+      "payload_cog": [
+        0.005,
+        -0.005,
+        0.025
+      ],
+      "tcp_offset": [
+        0.0,
+        0.0,
+        0.12254000000000001,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "force_norm_N": 2.5998881084699743,
+      "torque_norm_Nm": 0.11722305823690864
+    },
+    "P1": {
+      "payload": 0.44,
+      "payload_cog": [
+        0.005,
+        -0.005,
+        0.025
+      ],
+      "tcp_offset": [
+        0.0,
+        0.0,
+        0.12254000000000001,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "force_norm_N": 5.940817879493676,
+      "torque_norm_Nm": 0.09195595045479385
+    },
+    "P2": {
+      "payload": 0.44,
+      "payload_cog": [
+        0.005,
+        -0.005,
+        0.025
+      ],
+      "tcp_offset": [
+        0.0,
+        0.0,
+        0.12254000000000001,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "force_norm_N": 9.335927576759355,
+      "torque_norm_Nm": 0.15101064257212077
+    },
+    "P0_repeat": {
+      "payload": 0.44,
+      "payload_cog": [
+        0.005,
+        -0.005,
+        0.025
+      ],
+      "tcp_offset": [
+        0.0,
+        0.0,
+        0.12254000000000001,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "force_norm_N": 13.186346773407612,
+      "torque_norm_Nm": 0.19554389181286622
+    }
+  },
+  "p0_repeat_delta_vs_p0": {
+    "force_norm_mean_delta_N": 10.734842762054274,
+    "Fx_mean_delta_N": -2.1442615171999346,
+    "Fy_mean_delta_N": -6.255489877052357,
+    "Fz_mean_delta_N": -10.556317993484328
+  },
+  "interpretation": "P0_repeat did not return to the original P0 low residual: UR force norm mean increased from about 2.40 N to about 13.14 N. This weakens the simple posture-only/repeatable-residual hypothesis. OnRobot remained stable and unzeroed near the same raw baseline, so next troubleshooting should focus on physical state change or external preload before any zeroing or payload/TCP redo."
+}

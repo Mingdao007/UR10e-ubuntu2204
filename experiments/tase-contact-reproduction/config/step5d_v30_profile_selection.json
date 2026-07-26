@@ -1,0 +1,339 @@
+{
+  "candidates": [
+    {
+      "artifact_binding": {
+        "calibration_yaml": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/src/ur10e_bringup/config/ur10e_calibration.yaml",
+          "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+        },
+        "paper_truth": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+          "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+        },
+        "replay_csv": {
+          "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+          "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+          "size": 43700470
+        },
+        "stage_table": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+          "sha256": "208c02a4de3c53f5804faf813ac83f4679ae1b49fef0b1ebd3b2a41269091d3d"
+        },
+        "ur_xacro": {
+          "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+          "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+        }
+      },
+      "artifact_binding_sha256": "3da686354b4bce38991cb8a19a3397bd2b745d1def2696b881a25a3d580be904",
+      "bitwise_parallel_equivalence": true,
+      "execute_count": 333,
+      "finite_residual_within_gate": true,
+      "full_execute_path": false,
+      "full_tick_deadline_miss_count": 4,
+      "full_tick_max_ms": 4.459246061742306,
+      "full_tick_p99_ms": 0.9673200245015307,
+      "inner_iterations": 128,
+      "normal_sign_mismatch": {
+        "first_10_ticks_count": 4,
+        "first_50_ticks_count": 17,
+        "first_index": 1,
+        "first_tick": false,
+        "total_count": 167
+      },
+      "normal_sign_mismatch_count": 167,
+      "profile": {
+        "backend": "cupy",
+        "control_hz": 500.0,
+        "epsilon": 0.01,
+        "inner_iterations": 128,
+        "qdot_cap_rad_s": 0.05,
+        "sigr_exponent_r": 0.8
+      },
+      "profile_sha256": "3916c7de42f3710704ed30fae4c2f6ff68a877c03042db5d72e2c7b29968ffb8",
+      "raw_artifact": "config/step5d_v30_rnn128_f3c36a7_profile_sweep_raw.json",
+      "raw_sha256": "5127e6516c9f038d90bbf234f43d4efd9a692ab72c0e87aaf967cb3128c878af",
+      "residual_max": 8.947537982092617e-05,
+      "runtime_environment_sha256": "2e9ade06c9025f0fc7b661bfbf5e49c1faddf72b7264b555cf76bf507f6419ae",
+      "safe_hold_deadline_miss_count": 1,
+      "safe_hold_max_ms": 4.410716006532311,
+      "safe_hold_p99_ms": 0.687463616486658,
+      "samples": 500,
+      "scheduler": {
+        "policy": "SCHED_FIFO",
+        "priority": 20
+      },
+      "selection_eligible": false,
+      "solver_p99_ms": 0.15827050432562956,
+      "source_binding": {
+        "aggregator_sha256": "2fe10d91d75568de5cc959e1f9e67ad0749b42d4dbf3348526c9f873d0a65491",
+        "bridge_sha256": "647a53512f6c8cf4cc62088bf0b8608485c19d44432de94492ffea8ca02e5b6e",
+        "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+        "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+        "control_contract_sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423",
+        "delivery": "stdin_bundle",
+        "harness_sha256": "f3caeec74c0fbb4a1339bf5c215f20dfd977c17fe50ac864cdc77279a416e518",
+        "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+        "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+        "readiness_builder_sha256": "213d45b90e380fe25105457bdb663562ebaf8547fed2b1eaaee86558c7a390cf",
+        "runtime_interface_sha256": "834df962defe97f383e1a753dd7e559981a88cefcf176e0774c030dfdfdb59ac",
+        "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+      },
+      "source_binding_sha256": "f4a97a10d3fc4a880dbb4fe583d29e1e44ad877e9a720953f7c70b7f0cfb502d",
+      "timing_pass": false,
+      "zero_normal_sign_mismatch": false
+    },
+    {
+      "artifact_binding": {
+        "calibration_yaml": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/src/ur10e_bringup/config/ur10e_calibration.yaml",
+          "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+        },
+        "paper_truth": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+          "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+        },
+        "replay_csv": {
+          "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+          "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+          "size": 43700470
+        },
+        "stage_table": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+          "sha256": "208c02a4de3c53f5804faf813ac83f4679ae1b49fef0b1ebd3b2a41269091d3d"
+        },
+        "ur_xacro": {
+          "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+          "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+        }
+      },
+      "artifact_binding_sha256": "3da686354b4bce38991cb8a19a3397bd2b745d1def2696b881a25a3d580be904",
+      "bitwise_parallel_equivalence": true,
+      "execute_count": 461,
+      "finite_residual_within_gate": true,
+      "full_execute_path": false,
+      "full_tick_deadline_miss_count": 0,
+      "full_tick_max_ms": 0.9179660119116306,
+      "full_tick_p99_ms": 0.6483065336942673,
+      "inner_iterations": 256,
+      "normal_sign_mismatch": {
+        "first_10_ticks_count": 3,
+        "first_50_ticks_count": 7,
+        "first_index": 1,
+        "first_tick": false,
+        "total_count": 39
+      },
+      "normal_sign_mismatch_count": 39,
+      "profile": {
+        "backend": "cupy",
+        "control_hz": 500.0,
+        "epsilon": 0.01,
+        "inner_iterations": 256,
+        "qdot_cap_rad_s": 0.05,
+        "sigr_exponent_r": 0.8
+      },
+      "profile_sha256": "3722c9bd3a8b07d119c394c53b044645946116576c9f2ade8d20f629d7f8717a",
+      "raw_artifact": "config/step5d_v30_rnn256_f3c36a7_profile_sweep_raw.json",
+      "raw_sha256": "a9f9a9d979db48ecff3e4d4d56c83236a1397d44c946455bf8a869c8f5cd4d96",
+      "residual_max": 0.00014831517409155545,
+      "runtime_environment_sha256": "2e9ade06c9025f0fc7b661bfbf5e49c1faddf72b7264b555cf76bf507f6419ae",
+      "safe_hold_deadline_miss_count": 0,
+      "safe_hold_max_ms": 0.6016348488628864,
+      "safe_hold_p99_ms": 0.5742396460846068,
+      "samples": 500,
+      "scheduler": {
+        "policy": "SCHED_FIFO",
+        "priority": 20
+      },
+      "selection_eligible": false,
+      "solver_p99_ms": 0.1755026215687408,
+      "source_binding": {
+        "aggregator_sha256": "2fe10d91d75568de5cc959e1f9e67ad0749b42d4dbf3348526c9f873d0a65491",
+        "bridge_sha256": "647a53512f6c8cf4cc62088bf0b8608485c19d44432de94492ffea8ca02e5b6e",
+        "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+        "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+        "control_contract_sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423",
+        "delivery": "stdin_bundle",
+        "harness_sha256": "f3caeec74c0fbb4a1339bf5c215f20dfd977c17fe50ac864cdc77279a416e518",
+        "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+        "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+        "readiness_builder_sha256": "213d45b90e380fe25105457bdb663562ebaf8547fed2b1eaaee86558c7a390cf",
+        "runtime_interface_sha256": "834df962defe97f383e1a753dd7e559981a88cefcf176e0774c030dfdfdb59ac",
+        "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+      },
+      "source_binding_sha256": "f4a97a10d3fc4a880dbb4fe583d29e1e44ad877e9a720953f7c70b7f0cfb502d",
+      "timing_pass": true,
+      "zero_normal_sign_mismatch": false
+    },
+    {
+      "artifact_binding": {
+        "calibration_yaml": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/src/ur10e_bringup/config/ur10e_calibration.yaml",
+          "sha256": "029aad03affc0cf60fc4274029463e683dc04b709f3a5e849f693d1c70409be8"
+        },
+        "paper_truth": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5d_liveprep_solver_gate.json",
+          "sha256": "e4eb35d23de9018addf1918a0fbaa04aeb85222cd4cfc2024225fee2220d8555"
+        },
+        "replay_csv": {
+          "path": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step5d_strict_rnn_ablation_v29_20260710_104820/bridge_rtde_500hz.csv",
+          "sha256": "be6a84fe0eebc3df18ebb511874673cb3ee44832ba16335cd4de7a10f3260335",
+          "size": 43700470
+        },
+        "stage_table": {
+          "path": "/home/andy/.codex-worktrees/ur10e-digital-twin-offline-20260711/experiments/tase-contact-reproduction/config/step5_stage_table.json",
+          "sha256": "208c02a4de3c53f5804faf813ac83f4679ae1b49fef0b1ebd3b2a41269091d3d"
+        },
+        "ur_xacro": {
+          "path": "/opt/ros/humble/share/ur_description/urdf/ur.urdf.xacro",
+          "sha256": "618ece26935c6cd146114374abc45142cc858420567005eed2713681ae55694c"
+        }
+      },
+      "artifact_binding_sha256": "3da686354b4bce38991cb8a19a3397bd2b745d1def2696b881a25a3d580be904",
+      "bitwise_parallel_equivalence": true,
+      "execute_count": 500,
+      "finite_residual_within_gate": true,
+      "full_execute_path": true,
+      "full_tick_deadline_miss_count": 0,
+      "full_tick_max_ms": 0.9144088253378868,
+      "full_tick_p99_ms": 0.700395714957267,
+      "inner_iterations": 512,
+      "normal_sign_mismatch": {
+        "first_10_ticks_count": 0,
+        "first_50_ticks_count": 0,
+        "first_index": null,
+        "first_tick": false,
+        "total_count": 0
+      },
+      "normal_sign_mismatch_count": 0,
+      "profile": {
+        "backend": "cupy",
+        "control_hz": 500.0,
+        "epsilon": 0.01,
+        "inner_iterations": 512,
+        "qdot_cap_rad_s": 0.05,
+        "sigr_exponent_r": 0.8
+      },
+      "profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+      "raw_artifact": "config/step5d_v30_rnn512_f3c36a7_profile_sweep_raw.json",
+      "raw_sha256": "1baad564d35d31a46b61ffb565f081233c57b92d09a49271275491980ca38998",
+      "residual_max": 1.9558545013497097e-07,
+      "runtime_environment_sha256": "2e9ade06c9025f0fc7b661bfbf5e49c1faddf72b7264b555cf76bf507f6419ae",
+      "safe_hold_deadline_miss_count": 0,
+      "safe_hold_max_ms": 0.658601988106966,
+      "safe_hold_p99_ms": 0.6390415597707034,
+      "samples": 500,
+      "scheduler": {
+        "policy": "SCHED_FIFO",
+        "priority": 20
+      },
+      "selection_eligible": true,
+      "solver_p99_ms": 0.24797605117783095,
+      "source_binding": {
+        "aggregator_sha256": "2fe10d91d75568de5cc959e1f9e67ad0749b42d4dbf3348526c9f873d0a65491",
+        "bridge_sha256": "647a53512f6c8cf4cc62088bf0b8608485c19d44432de94492ffea8ca02e5b6e",
+        "bundler_sha256": "320960ed2cf836f939b0a65e0cf7c602e6f58e9e4f35a7f9df87fc4cab4abd73",
+        "contact_semantics_sha256": "39d85cf37e3d64b0eceed65a2899fd9ba33db5e96b1c0b8624e13959a820941e",
+        "control_contract_sha256": "53c8a7ae4060a4ebce0415a21b1993636a4fdd0d4894bc80d1f719c03ab19423",
+        "delivery": "stdin_bundle",
+        "harness_sha256": "f3caeec74c0fbb4a1339bf5c215f20dfd977c17fe50ac864cdc77279a416e518",
+        "kinematics_sha256": "5454af16db870350759372ab42583a4f339c71e32f9190679987b3addf6e14fa",
+        "outer_loop_sha256": "f2134857e0b5d72618590404488cb4e15a9ac0d47e33c043a3210e50bbf9ca08",
+        "readiness_builder_sha256": "213d45b90e380fe25105457bdb663562ebaf8547fed2b1eaaee86558c7a390cf",
+        "runtime_interface_sha256": "834df962defe97f383e1a753dd7e559981a88cefcf176e0774c030dfdfdb59ac",
+        "solver_sha256": "2ea368dbb142ec635ebdb709d5bb5783ea9bc848705e191f935055463cf753b7"
+      },
+      "source_binding_sha256": "f4a97a10d3fc4a880dbb4fe583d29e1e44ad877e9a720953f7c70b7f0cfb502d",
+      "timing_pass": true,
+      "zero_normal_sign_mismatch": true
+    }
+  ],
+  "claim_boundary": {
+    "canonical_profile_selected": true,
+    "live_motion_authorized": false,
+    "p0_passed": false,
+    "reproduction_complete": false,
+    "v30_offline_ready": false
+  },
+  "classification": "diagnostic_selection_not_formal_timing",
+  "common_artifact_binding_sha256": "3da686354b4bce38991cb8a19a3397bd2b745d1def2696b881a25a3d580be904",
+  "common_runtime_environment_sha256": "2e9ade06c9025f0fc7b661bfbf5e49c1faddf72b7264b555cf76bf507f6419ae",
+  "common_source_binding_sha256": "f4a97a10d3fc4a880dbb4fe583d29e1e44ad877e9a720953f7c70b7f0cfb502d",
+  "decision": "512 is the only candidate with 0/500 normal-sign mismatch and a 500/500 execute path; its solver/full-tick timing also passes the diagnostic thresholds",
+  "fixed_contract": {
+    "backend": "cupy",
+    "control_hz": 500.0,
+    "dls_runtime_fallback_allowed": false,
+    "epsilon": 0.01,
+    "normal_sign_guard_fail_closed": true,
+    "qdot_cap_rad_s": 0.05,
+    "runtime_scheduler": {
+      "policy": "SCHED_FIFO",
+      "priority": 20
+    },
+    "safety_envelope_unchanged": true,
+    "sigr_exponent_r": 0.8
+  },
+  "formal_evidence_required": {
+    "full_tick_samples": 30000,
+    "paced_500hz": true,
+    "safe_hold_samples": 30000,
+    "scheduler": {
+      "policy": "SCHED_FIFO",
+      "priority": 20
+    },
+    "solver_samples": 10000,
+    "status": "not_satisfied_by_500_tick_profile_sweep"
+  },
+  "historical_pre_512_evidence": [
+    {
+      "immutable": true,
+      "path": "config/step5d_v30_rnn128_00d64f5_formal_timing_raw.json",
+      "sha256": "c2a858f7f84b7e746ce17f30fd88f4c71fef11edbdf3cd3a26b3907b1442f073",
+      "status": "historical_superseded_by_v30_rnn512_profile_selection"
+    },
+    {
+      "immutable": true,
+      "path": "config/step5d_v30_current_source_solver_10k_raw.json",
+      "sha256": "81f94d23ffc985febb2402c2963547cb0110ddf7905d7781d6b52ed1937e49c2",
+      "status": "historical_superseded_by_v30_rnn512_profile_selection"
+    },
+    {
+      "immutable": true,
+      "path": "config/step5d_v30_timing_summary.json",
+      "sha256": "9aace28d1d654b63ae6e1f1a96a41f8828f64879cbff2c98e3b249526b8dfdae",
+      "status": "historical_superseded_by_v30_rnn512_profile_selection"
+    },
+    {
+      "immutable": true,
+      "path": "config/step5d_p0_v8_offline_simulation_diagnostic_pre_rnn512_e55c574.json",
+      "sha256": "4d5c7bf409a8c6cdc5abf6cfa7a6804799d35c2efb5fe969f6827aae2167ce46",
+      "status": "historical_superseded_by_v30_rnn512_profile_selection"
+    },
+    {
+      "immutable": true,
+      "path": "config/step5d_p0_v8_offline_simulation_state_pre_rnn512_e55c574.json",
+      "sha256": "a6b6fbd833980107ba583ed65690ceb394a558c999409a1dc5d5eb0dc21b32a1",
+      "status": "historical_superseded_by_v30_rnn512_profile_selection"
+    }
+  ],
+  "mode": "diagnostic_profile_selection_not_formal_timing_acceptance",
+  "schema_version": "step5d_v30_profile_selection_v1",
+  "selected_inner_iterations": 512,
+  "selected_profile": {
+    "backend": "cupy",
+    "control_hz": 500.0,
+    "epsilon": 0.01,
+    "inner_iterations": 512,
+    "qdot_cap_rad_s": 0.05,
+    "sigr_exponent_r": 0.8
+  },
+  "selected_profile_sha256": "3d811171fc46b66ad0c74be1060925ad2cae3650d3ae1db7544d0bf47dd9292a",
+  "selected_raw_artifact": "config/step5d_v30_rnn512_f3c36a7_profile_sweep_raw.json",
+  "selected_raw_sha256": "1baad564d35d31a46b61ffb565f081233c57b92d09a49271275491980ca38998",
+  "selection_rule": {
+    "forbidden": "do_not_select_fastest_profile_when_normal_sign_mismatch_is_nonzero",
+    "primary": "zero_normal_sign_mismatch_required",
+    "secondary": "solver_p99<=1.50ms and full_tick_p99<=1.80ms and safe_hold_p99<=1.80ms and full/safe max<2.00ms, zero compute deadline miss, and bitwise parallel equivalence",
+    "tie_break": "minimum inner_iterations, then full_tick_p99, then max"
+  }
+}

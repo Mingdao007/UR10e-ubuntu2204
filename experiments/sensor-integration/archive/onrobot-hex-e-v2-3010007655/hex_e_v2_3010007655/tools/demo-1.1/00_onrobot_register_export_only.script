@@ -1,0 +1,14 @@
+def demo_1_1_onrobot_register_export_only():
+  textmsg("demo-1.1: OnRobot register export only; no robot motion")
+  while True:
+    write_output_float_register(24, Fx)
+    write_output_float_register(25, Fy)
+    write_output_float_register(26, Fz)
+    write_output_float_register(27, Tx)
+    write_output_float_register(28, Ty)
+    write_output_float_register(29, Tz)
+    sync()
+  end
+end
+
+demo_1_1_onrobot_register_export_only()

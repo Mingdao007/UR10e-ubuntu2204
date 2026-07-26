@@ -1,0 +1,8 @@
+  #======    OnRobot Gripper Detect Part Messages    ======#
+  
+  of_gripper_detect_part_title="OnRobot - Gripper Detect Part"
+  of_gripper_detect_part_detected="Part detected."
+  of_gripper_detect_part_not_detected="Nothing detected with the Detect Part command."
+  
+  
+  #======    End of OnRobot Gripper Detect Part Messages    ======#

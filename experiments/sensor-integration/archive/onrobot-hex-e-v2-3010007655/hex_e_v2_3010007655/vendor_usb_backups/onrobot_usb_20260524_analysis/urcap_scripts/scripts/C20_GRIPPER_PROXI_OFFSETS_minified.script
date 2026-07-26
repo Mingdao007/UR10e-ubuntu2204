@@ -1,0 +1,34 @@
+  #======    OnRobot Gripper Proximity Offsets    ======#
+  
+  gProxL_offset=0
+  gProxR_offset=0
+  of__gripper_proxi_offset_error_title="OnRobot - Gripper Proxi Offset"
+  of__gripper_proxi_offset_error_ProxL="Please define parameter 'ProxL' as an integer between -200 and 200."
+  of__gripper_proxi_offset_error_ProxR="Please define parameter 'ProxR' as an integer between -200 and 200."
+  def of_gripper_proxi_offsets(ProxL=0,ProxR=0):
+  sync()
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Proximity Offsets command starting..")
+  end 
+  local parameter_error=False
+  if not(ProxL>=-200 and ProxL<=200):
+  parameter_error=True
+  popup(of__gripper_proxi_offset_error_ProxL,title=of__gripper_proxi_offset_error_title,error=True,blocking=False)
+  elif not(ProxR>=-200 and ProxR<=200):
+  parameter_error=True
+  popup(of__gripper_proxi_offset_error_ProxR,title=of__gripper_proxi_offset_error_title,error=True,blocking=False)
+  end 
+  if(parameter_error):
+  halt
+  end 
+  gProxL_offset=ProxL
+  gProxR_offset=ProxR
+  of_send_full(OF_CMD_GRIPPER_PROXI_OFFSETS,of_float_to_int(ProxL),of_float_to_int(ProxR))
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Proximity Offsets command stopping..")
+  end 
+  end 
+  of_gripper_proxi_offsets(of_proxi_offsets[0],of_proxi_offsets[1])
+  
+  
+  #======    End of OnRobot Gripper Proximity Offsets    ======#

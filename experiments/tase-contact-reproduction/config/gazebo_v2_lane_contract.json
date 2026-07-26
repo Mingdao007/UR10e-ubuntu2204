@@ -1,0 +1,108 @@
+{
+  "schema": "ur10e_gazebo_v2_lane_contract_v1",
+  "mode": "offline_simulator_only",
+  "engine": {
+    "family": "Gazebo Fortress",
+    "executable": ["ign", "gazebo"],
+    "required_major": 6,
+    "observed_version": "6.18.0",
+    "ros2_control_package": "ign_ros2_control",
+    "ros2_control_observed_version": "0.7.19",
+    "ros2_control_plugin": "libign_ros2_control-system.so",
+    "spawn_package": "ros_gz_sim",
+    "spawn_package_observed_version": "0.244.24",
+    "forbidden_runtime_tokens": ["gz sim", "gz_ros2_control", "libgz_ros2_control-system.so"]
+  },
+  "rates_hz": {
+    "physics": 2000,
+    "controller": 500,
+    "state": 500,
+    "candidate": 500,
+    "decision": 500
+  },
+  "backends": {
+    "velocity": {
+      "fidelity": "production_velocity_interface",
+      "command_interface": "velocity",
+      "controller": "gazebo_v2_velocity_controller",
+      "active_with": ["joint_state_broadcaster"]
+    },
+    "effort_surrogate": {
+      "fidelity": "simulator_only_effort_surrogate_not_true_ur_torque_backend",
+      "command_interface": "effort",
+      "controller": "gazebo_v2_effort_surrogate_controller",
+      "active_with": ["joint_state_broadcaster"]
+    }
+  },
+  "backend_exclusivity": {
+    "exactly_one": ["velocity", "effort_surrogate"],
+    "separate_controller_configs": true,
+    "separate_exported_command_interfaces": true,
+    "simultaneous_activation_allowed": false
+  },
+  "topics": {
+    "native_contact": "/ur10e/gazebo_v2/native_contact",
+    "native_ft": "/ur10e/gazebo_v2/native_ft",
+    "camera_wide": "/ur10e/gazebo_v2/camera/wide",
+    "camera_oblique": "/ur10e/gazebo_v2/camera/oblique",
+    "camera_close": "/ur10e/gazebo_v2/camera/close",
+    "camera_contact": "/ur10e/gazebo_v2/camera/contact"
+  },
+  "sensor_attachment": {
+    "robot_model": "ur10e_gazebo_v2",
+    "contact_link": "real_aligned_eoat_visual_stack",
+    "contact_collision": "eoat_contact_pad_collision",
+    "ft_joint": "real_aligned_eoat_visual_stack_joint",
+    "same_run_required": true,
+    "virtual_surface_force_allowed": false
+  },
+  "geometry": {
+    "fidelity": "provisional_v13_visual_plus_kunwei_collision_proxy",
+    "current_bench_cad_hash_bound": false,
+    "mass_cog_inertia_calibrated": false,
+    "active_tcp_offset_z_m": 0.12209917288991741,
+    "promotion_effect": "blocks_current_bench_geometry_equivalence_and_p0_simulator_physics_acceptance"
+  },
+  "runtime_implementation": {
+    "production_step5d_adapter_node_implemented": true,
+    "concurrent_camera_capture_implemented": true,
+    "same_run_supervisor_implemented": true,
+    "tooling_status": "runtime_tooling_ready_execution_failed",
+    "gazebo_runtime_pass": false,
+    "blockers": [
+      "velocity_controller_inventory_readiness_not_observed",
+      "runtime_10s_tick_and_command_response_evidence_missing",
+      "same_run_native_contact_ft_tick_camera_evidence_missing"
+    ]
+  },
+  "frame_lineage": {
+    "world": "gazebo_world",
+    "spawn_root": "base_link",
+    "control_base": "base",
+    "tool": "tool0",
+    "physical_ft": "real_aligned_eoat_visual_stack_joint_child",
+    "active_tcp": "active_tcp",
+    "active_tcp_joint": "active_tcp_joint",
+    "active_tcp_offset_tool0_m": [0.0000018186503701174852, 0.00000022293003722353485, 0.12209917288991741],
+    "base_to_world_rpy_rad": [0.0, 0.0, 3.141592653589793],
+    "required_runtime_entities": ["base_link", "base", "base_link_inertia", "shoulder_link", "upper_arm_link", "forearm_link", "wrist_1_link", "wrist_2_link", "wrist_3_link", "flange", "tool0", "real_aligned_eoat_visual_stack", "active_tcp"],
+    "control_base_to_active_tcp_tree_path": ["base", "base_link", "base_link_inertia", "shoulder_link", "upper_arm_link", "forearm_link", "wrist_1_link", "wrist_2_link", "wrist_3_link", "flange", "tool0", "active_tcp"]
+  },
+  "tick_schema": "config/schemas/ur10e_gazebo_v2_tick_v1.schema.json",
+  "observer": {
+    "required_views": ["wide", "oblique", "close", "contact"],
+    "formal_artifact": "observer_review.json",
+    "screenshots_without_review_are": "visual_only"
+  },
+  "claim_boundary": {
+    "allowed": ["offline Gazebo Fortress lane tooling", "native Gazebo contact/FT evidence when same-run verifier passes"],
+    "forbidden": ["real robot motion", "live acceptance", "package acceptance", "reproduction completion", "true UR torque control", "virtual-surface force as physics", "current bench geometry equivalence", "P0 simulator physics acceptance"]
+  },
+  "authorization": {
+    "live_motion_authorized": false,
+    "bridge_start_authorized": false,
+    "controller_upload_authorized": false,
+    "tp_play_authorized": false,
+    "zero_ftsensor_authorized": false
+  }
+}

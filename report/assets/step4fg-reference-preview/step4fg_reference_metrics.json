@@ -1,0 +1,168 @@
+{
+  "cases": {
+    "step4f_cycloid": {
+      "bridge_target_normal_load_n": 5.0,
+      "envelope_mm": {
+        "along_max": 94.19123247298388,
+        "along_min": 0.0,
+        "lateral_max": 29.999980975913093,
+        "lateral_min": 0.0
+      },
+      "force_target_paper_n": -5.0,
+      "formula_m": "x=0.015(0.1t-sin(0.1t)), y=0.015(1-cos(0.1t)), z=z0",
+      "max_speed_mm_s": 2.999999048795504,
+      "preview_png": "/home/andy/ur10e_ros2_ws/report/assets/step4fg-reference-preview/step4f_cycloid_reference_preview.png",
+      "samples": [
+        {
+          "along_mm": 0.0,
+          "lateral_mm": 0.0,
+          "t_s": 0.0
+        },
+        {
+          "along_mm": 0.5303628990744691,
+          "lateral_mm": 2.6199657763548263,
+          "t_s": 6.0
+        },
+        {
+          "along_mm": 4.019413710491607,
+          "lateral_mm": 9.5646336828499,
+          "t_s": 12.0
+        },
+        {
+          "along_mm": 12.392285536827073,
+          "lateral_mm": 18.408031420396306,
+          "t_s": 18.0
+        },
+        {
+          "along_mm": 25.868052291732745,
+          "lateral_mm": 26.060905733118688,
+          "t_s": 24.0
+        },
+        {
+          "along_mm": 42.88319987910199,
+          "lateral_mm": 29.84988744900668,
+          "t_s": 30.0
+        },
+        {
+          "along_mm": 60.63780664942279,
+          "lateral_mm": 28.451376245012202,
+          "t_s": 36.0
+        },
+        {
+          "along_mm": 76.07363658620382,
+          "lateral_mm": 22.35391232011049,
+          "t_s": 42.0
+        },
+        {
+          "along_mm": 86.94246913253761,
+          "lateral_mm": 13.687515248408289,
+          "t_s": 48.0
+        },
+        {
+          "along_mm": 92.5914673133398,
+          "lateral_mm": 5.47960686086048,
+          "t_s": 54.0
+        },
+        {
+          "along_mm": 94.19123247298388,
+          "lateral_mm": 0.5974457002445104,
+          "t_s": 60.0
+        }
+      ],
+      "screenshot": "/home/andy/ur10e_ros2_ws/report/assets/tase-supplementary-video-screenshots/experiment-1-cycloid-small-surface.jpeg",
+      "shape": "cycloid"
+    },
+    "step4g_eight": {
+      "bridge_target_normal_load_n": 5.0,
+      "envelope_mm": {
+        "along_max": 39.99998731727338,
+        "along_min": -39.999885855508715,
+        "lateral_max": 9.999996829318345,
+        "lateral_min": -9.999971463877179
+      },
+      "force_target_paper_n": -5.0,
+      "formula_m": "x=0.04sin(0.1t), y=0.01sin(0.2t), z=z0",
+      "max_speed_mm_s": 4.47213595499958,
+      "preview_png": "/home/andy/ur10e_ros2_ws/report/assets/step4fg-reference-preview/step4g_eight_reference_preview.png",
+      "samples": [
+        {
+          "along_mm": 0.0,
+          "lateral_mm": 0.0,
+          "t_s": 0.0
+        },
+        {
+          "along_mm": 22.58569893580142,
+          "lateral_mm": 9.320390859672264,
+          "t_s": 6.0
+        },
+        {
+          "along_mm": 37.281563438689055,
+          "lateral_mm": 6.754631805511506,
+          "t_s": 12.0
+        },
+        {
+          "along_mm": 38.95390523512781,
+          "lateral_mm": -4.425204432948525,
+          "t_s": 18.0
+        },
+        {
+          "along_mm": 27.018527222046025,
+          "lateral_mm": -9.961646088358407,
+          "t_s": 24.0
+        },
+        {
+          "along_mm": 5.644800322394689,
+          "lateral_mm": -2.7941549819892586,
+          "t_s": 30.0
+        },
+        {
+          "along_mm": -17.7008177317941,
+          "lateral_mm": 7.936678638491531,
+          "t_s": 36.0
+        },
+        {
+          "along_mm": -34.86303089654353,
+          "lateral_mm": 8.545989080882805,
+          "t_s": 42.0
+        },
+        {
+          "along_mm": -39.84658435343363,
+          "lateral_mm": -1.743267812229814,
+          "t_s": 48.0
+        },
+        {
+          "along_mm": -30.910579502239486,
+          "lateral_mm": -9.809362300664915,
+          "t_s": 54.0
+        },
+        {
+          "along_mm": -11.176619927957034,
+          "lateral_mm": -5.365729180004349,
+          "t_s": 60.0
+        }
+      ],
+      "screenshot": "/home/andy/ur10e_ros2_ws/report/assets/tase-supplementary-video-screenshots/experiment-2-eight-small-surface.jpeg",
+      "shape": "eight"
+    }
+  },
+  "duration_s": 60.0,
+  "local_basis": {
+    "origin_step4f_start_xy_m": [
+      0.43301,
+      0.10802
+    ],
+    "origin_step4g_mid_xy_m": [
+      0.46287500000000004,
+      0.17339500000000002
+    ],
+    "p_lateral_xy": [
+      -0.9095834210716256,
+      0.41552135939279694
+    ],
+    "u_along_xy": [
+      0.41552135939279694,
+      0.9095834210716256
+    ]
+  },
+  "source": "TASE paper Section VI-A formulas; screenshots are archived evidence of supplementary-video experiment numbering, not digitization sources."
+}

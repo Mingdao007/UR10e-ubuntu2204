@@ -1,0 +1,14 @@
+  #======    OnRobot Gripper Set Width Messages    ======#
+  
+  of_gripper_set_width_error_title="{{of_gripper_set_width_error_title}}"
+  of_gripper_set_width_state_error_start="{{of_gripper_set_width_state_error_start}}"
+  of_gripper_set_width_state_error_return="{{of_gripper_set_width_state_error_return}}"
+  of_gripper_set_width_return_title="{{of_gripper_set_width_return_title}}"
+  of_gripper_set_width_return_nonblocking="{{of_gripper_set_width_return_nonblocking}}"
+  of_gripper_set_width_return_0="{{of_gripper_set_width_return_0}}"
+  of_gripper_set_width_return_1="{{of_gripper_set_width_return_1}}"
+  of_gripper_set_width_return_PE="{{of_gripper_set_width_return_PE}}"
+  of_gripper_set_width_return_unknown="{{of_gripper_set_width_return_unknown}}"
+  
+  
+  #======    End of OnRobot Gripper Set Width Messages    ======#

@@ -1,0 +1,849 @@
+#!/usr/bin/env python3
+"""Fail-closed claim-boundary verifier for UR10e Gazebo reports.
+
+This gate enforces the current no-live UR10e/Gazebo reproduction evidence
+boundary. It is intentionally conservative: missing or ambiguous evidence
+language fails rather than being upgraded by prose.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import math
+import re
+from pathlib import Path
+from typing import Any
+
+
+HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(?P<text>.+?)\s*#*\s*$")
+
+REQUIRED_TIERS = (
+    "visual_only",
+    "virtual/software force-loop",
+    "simulated_ft",
+    "physical Gazebo collision/contact physics",
+    "real bench/live contact",
+)
+
+SIMULATED_FT_REQUIRED_FIELDS = (
+    "stamp",
+    "frame_id",
+    "source",
+    "status",
+    "baseline",
+    "log evidence",
+)
+
+VISUAL_ONLY_REQUIRED_SOURCES = (
+    "Gazebo/RViz screenshots",
+    "EOAT visibility",
+    "TCP marker",
+    "model pose",
+    "observer-view evidence",
+)
+
+SIMULATED_FT_REQUIRED_SOURCES = (
+    "simulated wrench/FT topics",
+    "Gazebo FT plugin output",
+    "synthetic force logs",
+)
+
+PHYSICAL_GAZEBO_REQUIRED_FIELDS = (
+    "EOAT collision evidence",
+    "contact pair/log evidence",
+    "contact normal/surface relation",
+    "wrench/contact correlation",
+    "total contact wrench",
+)
+
+PHYSICAL_BLOCKERS = (
+    "eoat_collision_count=0",
+    "force_contact_physics_proven=false",
+)
+
+CLAIM_TIER_TABLE_EVIDENCE_HEADERS = (
+    "evidence",
+    "surface",
+    "artifact",
+    "requirement",
+    "gate",
+    "path",
+    "file",
+)
+
+PHYSICAL_ARTIFACT_TOKENS = (
+    "artifact",
+    "path",
+    ".json",
+)
+
+PHYSICAL_HASH_TOKENS = (
+    "sha256",
+    "hash",
+)
+
+JSON_PATH_RE = re.compile(r"`?(/[^`|\s]+\.json)`?")
+SHA256_RE = re.compile(r"\b(?:sha256|hash)\s*[=:]\s*([a-fA-F0-9]{64})\b")
+FULL_ACCEPTANCE_RE = re.compile(
+    r"\b("
+    r"full reproduction|full acceptance|integrated demo|same-run integrated|same run integrated|"
+    r"end-to-end(?: reproduction| demo| acceptance)?|end to end(?: reproduction| demo| acceptance)?|"
+    r"demo ready|bench-ready|bench ready|p6(?: readiness)?"
+    r")\b"
+)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Verify UR10e report evidence claims stay inside explicit claim-boundary tiers.",
+    )
+    parser.add_argument("reports", nargs="+", type=Path)
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    findings: list[dict[str, Any]] = []
+    for report in args.reports:
+        findings.extend(evaluate(report))
+    ok_all = all(finding["ok"] for finding in findings)
+
+    if args.json:
+        print(json.dumps({"ok": ok_all, "findings": findings}, indent=2, sort_keys=True))
+    else:
+        for finding in findings:
+            label = "PASS" if finding["ok"] else "FAIL"
+            print(f"{label} {finding['report']} {finding['check']}: {finding['detail']}")
+        print("OK" if ok_all else "FAILED")
+    return 0 if ok_all else 2
+
+
+def evaluate(report_path: Path) -> list[dict[str, Any]]:
+    try:
+        text = report_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [_finding(report_path, "readable", False, f"{type(exc).__name__}: {exc}")]
+
+    findings: list[dict[str, Any]] = []
+    sections = parse_sections(text)
+    gate = first_section(sections, "claim boundary gate")
+    if gate is None or not gate.strip():
+        return [_finding(report_path, "claim_boundary_section", False, "required section missing or empty")]
+
+    gate_norm = normalize(gate)
+    full_norm = normalize(text)
+
+    findings.append(_finding(report_path, "claim_boundary_section", True, "present"))
+    for tier in REQUIRED_TIERS:
+        check = f"required_tier:{tier}"
+        ok = tier_line_present(gate, tier)
+        findings.append(_finding(report_path, check, ok, "present" if ok else "missing from Claim Boundary Gate"))
+
+    missing_visual_sources = [source for source in VISUAL_ONLY_REQUIRED_SOURCES if normalize(source) not in gate_norm]
+    findings.append(
+        _finding(
+            report_path,
+            "visual_only_source_boundaries",
+            not missing_visual_sources,
+            "present" if not missing_visual_sources else "missing: " + ", ".join(missing_visual_sources),
+        )
+    )
+
+    missing_sim_sources = [source for source in SIMULATED_FT_REQUIRED_SOURCES if normalize(source) not in gate_norm]
+    findings.append(
+        _finding(
+            report_path,
+            "simulated_ft_source_boundaries",
+            not missing_sim_sources,
+            "present" if not missing_sim_sources else "missing: " + ", ".join(missing_sim_sources),
+        )
+    )
+
+    missing_sim_fields = [field for field in SIMULATED_FT_REQUIRED_FIELDS if field.lower() not in gate_norm]
+    findings.append(
+        _finding(
+            report_path,
+            "simulated_ft_evidence_fields",
+            not missing_sim_fields,
+            "present" if not missing_sim_fields else "missing: " + ", ".join(missing_sim_fields),
+        )
+    )
+
+    missing_physical_fields = [field for field in PHYSICAL_GAZEBO_REQUIRED_FIELDS if field.lower() not in gate_norm]
+    findings.append(
+        _finding(
+            report_path,
+            "physical_gazebo_evidence_fields",
+            not missing_physical_fields,
+            "present" if not missing_physical_fields else "missing: " + ", ".join(missing_physical_fields),
+        )
+    )
+
+    missing_blocker_rules = [token for token in PHYSICAL_BLOCKERS if token not in gate_norm]
+    blocker_text_present = "blocked" in gate_norm and "not proven" in gate_norm
+    findings.append(
+        _finding(
+            report_path,
+            "physical_gazebo_blocker_rules",
+            not missing_blocker_rules and blocker_text_present,
+            "present"
+            if not missing_blocker_rules and blocker_text_present
+            else "missing blocker downgrade wording",
+        )
+    )
+
+    real_bench_not_authorized = (
+        "real bench/live contact" in gate_norm
+        and "not authorized" in gate_norm
+        and "upgrade" in gate_norm
+    )
+    findings.append(
+        _finding(
+            report_path,
+            "real_bench_not_authorized_rule",
+            real_bench_not_authorized,
+            "present" if real_bench_not_authorized else "missing not-authorized/no-upgrade rule",
+        )
+    )
+
+    claim_table_ok, claim_table_detail = has_current_claim_tier_table(sections)
+    findings.append(
+        _finding(
+            report_path,
+            "current_claim_tier_table",
+            claim_table_ok,
+            claim_table_detail,
+        )
+    )
+    row_boundary_ok, row_boundary_detail = claim_tier_table_source_boundaries(sections)
+    findings.append(
+        _finding(
+            report_path,
+            "claim_tier_table_source_boundaries",
+            row_boundary_ok,
+            row_boundary_detail,
+        )
+    )
+
+    findings.append(
+        _finding(
+            report_path,
+            "virtual_force_loop_source_boundary",
+            "gazebo_joint_state_fk_virtual_surface_model" not in full_norm
+            or "virtual/software force-loop" in gate_norm,
+            "present" if "gazebo_joint_state_fk_virtual_surface_model" in full_norm else "not referenced",
+        )
+    )
+
+    physical_positive = has_positive_claim(text, "physical Gazebo collision/contact physics")
+    physical_evidence_row = has_source_backed_physical_gazebo_claim_row(sections)
+    physical_contact_ok = not physical_positive or physical_evidence_row
+    findings.append(
+        _finding(
+            report_path,
+            "physical_contact_claim_boundary",
+            physical_contact_ok,
+            "no positive physical Gazebo contact claim"
+            if not physical_positive
+            else (
+                "source-backed physical Gazebo evidence row present"
+                if physical_evidence_row
+                else "positive physical Gazebo contact claim appears without an unblocked evidence row"
+            ),
+        )
+    )
+
+    real_positive = has_positive_claim(text, "real bench/live contact")
+    findings.append(
+        _finding(
+            report_path,
+            "real_bench_claim_boundary",
+            not real_positive,
+            "not authorized"
+            if not real_positive
+            else "positive real bench/live contact claim appears without authorization",
+        )
+    )
+
+    full_positive = has_full_acceptance_positive_claim(text)
+    same_run_artifact = has_source_backed_same_run_integrated_claim(text)
+    findings.append(
+        _finding(
+            report_path,
+            "same_run_full_acceptance_claim_boundary",
+            not full_positive or same_run_artifact,
+            "no positive same-run/full acceptance claim"
+            if not full_positive
+            else (
+                "source-backed same-run integrated binding artifact present"
+                if same_run_artifact
+                else "positive same-run/full acceptance claim appears without source-backed same-run artifact"
+            ),
+        )
+    )
+
+    return findings
+
+
+def parse_sections(text: str) -> list[tuple[str, str]]:
+    sections: list[tuple[str, str]] = []
+    current_head: str | None = None
+    current_body: list[str] = []
+    for line in text.splitlines():
+        match = HEADING_RE.match(line)
+        if match:
+            if current_head is not None:
+                sections.append((current_head, "\n".join(current_body).strip()))
+            current_head = match.group("text")
+            current_body = []
+        elif current_head is not None:
+            current_body.append(line)
+    if current_head is not None:
+        sections.append((current_head, "\n".join(current_body).strip()))
+    return sections
+
+
+def first_section(sections: list[tuple[str, str]], wanted: str) -> str | None:
+    wanted_norm = normalize(wanted)
+    for heading, body in sections:
+        if normalize(heading) == wanted_norm:
+            return body
+    return None
+
+
+def tier_line_present(section: str, tier: str) -> bool:
+    tier_norm = normalize(tier)
+    for raw_line in section.splitlines():
+        line = normalize(raw_line).lstrip("-*| ").strip()
+        if line.startswith(tier_norm + ":") or line.startswith(tier_norm + " |"):
+            return True
+        if raw_line.strip().startswith("|") and re.search(rf"\|\s*{re.escape(tier_norm)}\s*\|", normalize(raw_line)):
+            return True
+    return False
+
+
+def has_current_claim_tier_table(sections: list[tuple[str, str]]) -> tuple[bool, str]:
+    for heading, body in sections:
+        if normalize(heading) == "claim boundary gate":
+            continue
+        for table in markdown_tables(body):
+            if claim_tier_table_is_valid(table):
+                return True, f"present in section: {heading}"
+    return False, "missing current evidence table with evidence/surface/artifact and claim tier columns"
+
+
+def markdown_tables(section: str) -> list[list[list[str]]]:
+    tables: list[list[list[str]]] = []
+    current: list[list[str]] = []
+    for raw_line in section.splitlines():
+        line = raw_line.strip()
+        if line.startswith("|") and line.endswith("|"):
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            current.append(cells)
+            continue
+        if current:
+            tables.append(current)
+            current = []
+    if current:
+        tables.append(current)
+    return [table for table in tables if len(table) >= 3]
+
+
+def claim_tier_table_is_valid(table: list[list[str]]) -> bool:
+    header = [normalize(cell) for cell in table[0]]
+    if not any(cell == "claim tier" or cell.endswith(" claim tier") for cell in header):
+        return False
+    if not any(any(token in cell for token in CLAIM_TIER_TABLE_EVIDENCE_HEADERS) for cell in header):
+        return False
+    body_text = normalize("\n".join("|".join(row) for row in table[2:]))
+    return any(tier.lower() in body_text for tier in REQUIRED_TIERS)
+
+
+def claim_tier_table_source_boundaries(sections: list[tuple[str, str]]) -> tuple[bool, str]:
+    issues: list[str] = []
+    table_count = 0
+    for heading, body in sections:
+        if normalize(heading) == "claim boundary gate":
+            continue
+        for table in markdown_tables(body):
+            if not claim_tier_table_is_valid(table):
+                continue
+            table_count += 1
+            issues.extend(validate_claim_tier_table_rows(table, heading))
+
+    if table_count == 0:
+        return False, "no valid claim tier table found"
+    if issues:
+        return False, "; ".join(issues[:5])
+    return True, f"{table_count} claim tier table(s) checked"
+
+
+def validate_claim_tier_table_rows(table: list[list[str]], heading: str) -> list[str]:
+    claim_index = claim_tier_column_index(table[0])
+    if claim_index is None:
+        return [f"{heading}: claim tier column missing"]
+
+    issues: list[str] = []
+    for row_number, row in enumerate(table[2:], start=3):
+        if claim_index >= len(row):
+            issues.append(f"{heading} row {row_number}: claim tier cell missing")
+            continue
+        tier_cell = normalize(row[claim_index])
+        row_norm = normalize(" | ".join(row))
+        tier = recognized_claim_tier(tier_cell)
+        if tier is None:
+            issues.append(f"{heading} row {row_number}: unsupported claim tier")
+            continue
+        if tier_cell != tier.lower():
+            issues.append(f"{heading} row {row_number}: claim tier cell must be exact tier label")
+            continue
+
+        if has_visual_only_source(row_norm) and tier != "visual_only":
+            issues.append(f"{heading} row {row_number}: visual evidence must stay visual_only")
+
+        if "gazebo_joint_state_fk_virtual_surface_model" in row_norm and tier != "virtual/software force-loop":
+            issues.append(f"{heading} row {row_number}: virtual force source must stay virtual/software force-loop")
+
+        simulated_source = has_simulated_ft_source(row_norm) or tier == "simulated_ft"
+        if simulated_source and tier == "simulated_ft":
+            missing = [field for field in SIMULATED_FT_REQUIRED_FIELDS if field.lower() not in row_norm]
+            if missing:
+                issues.append(
+                    f"{heading} row {row_number}: simulated_ft missing " + ", ".join(missing)
+                )
+
+        if tier == "physical Gazebo collision/contact physics":
+            if has_blocked_or_not_proven(row_norm) or any(token in row_norm for token in PHYSICAL_BLOCKERS):
+                issues.append(
+                    f"{heading} row {row_number}: blocked physical Gazebo evidence must downgrade to visual_only"
+                )
+            else:
+                row_issues = physical_gazebo_row_issues(" | ".join(row))
+                issues.extend(
+                    f"{heading} row {row_number}: {issue}"
+                    for issue in row_issues
+                )
+
+        if "real bench/live contact" in row_norm:
+            issues.append(
+                f"{heading} row {row_number}: unauthorized real bench/live contact must be an authorization blocker/no-claim status, not an evidence row"
+            )
+
+    return issues
+
+
+def claim_tier_column_index(header: list[str]) -> int | None:
+    for index, cell in enumerate(header):
+        cell_norm = normalize(cell)
+        if cell_norm == "claim tier" or cell_norm.endswith(" claim tier"):
+            return index
+    return None
+
+
+def recognized_claim_tier(tier_cell: str) -> str | None:
+    for tier in REQUIRED_TIERS:
+        if tier_cell == tier.lower():
+            return tier
+    return None
+
+
+def has_visual_only_source(row_norm: str) -> bool:
+    return any(
+        token in row_norm
+        for token in (
+            "gazebo/rviz screenshot",
+            "gazebo screenshot",
+            "rviz screenshot",
+            "eoat visibility",
+            "tcp marker",
+            "model pose",
+            "observer-view",
+            "observer view",
+            "visual proxy",
+        )
+    )
+
+
+def has_simulated_ft_source(row_norm: str) -> bool:
+    return any(
+        token in row_norm
+        for token in (
+            "simulated wrench",
+            "simulated ft",
+            "simulated f/t",
+            "ft topic",
+            "f/t topic",
+            "wrench/ft",
+            "gazebo ft plugin",
+            "synthetic force log",
+        )
+    )
+
+
+def has_blocked_or_not_proven(row_norm: str) -> bool:
+    return "blocked" in row_norm or "not proven" in row_norm
+
+
+def physical_gazebo_row_issues(row_text: str) -> list[str]:
+    row_norm = normalize(row_text)
+    issues: list[str] = []
+    missing = [field for field in PHYSICAL_GAZEBO_REQUIRED_FIELDS if field.lower() not in row_norm]
+    if missing:
+        issues.append("physical Gazebo claim missing " + ", ".join(missing))
+    standalone_scope = has_standalone_scope(row_norm)
+    per_stage_scope = has_per_stage_scope(row_norm)
+    if not standalone_scope and not per_stage_scope:
+        issues.append("physical Gazebo claim missing explicit standalone or per-stage scope")
+    if standalone_scope and "p2" not in row_norm:
+        issues.append("standalone physical Gazebo claim must name P2 scope")
+    if per_stage_scope and not has_per_stage_audit_artifact(row_norm):
+        issues.append("per-stage physical Gazebo claim missing per-stage audit artifact")
+    if not any(token in row_norm for token in PHYSICAL_ARTIFACT_TOKENS):
+        issues.append("physical Gazebo claim missing source artifact/path")
+    if not any(token in row_norm for token in PHYSICAL_HASH_TOKENS):
+        issues.append("physical Gazebo claim missing artifact hash/sha256 freshness evidence")
+    artifact_issues = physical_artifact_content_issues(row_text, standalone_scope=standalone_scope, per_stage_scope=per_stage_scope)
+    issues.extend(artifact_issues)
+    return issues
+
+
+def physical_artifact_content_issues(
+    row_text: str,
+    *,
+    standalone_scope: bool,
+    per_stage_scope: bool,
+) -> list[str]:
+    path_match = JSON_PATH_RE.search(row_text)
+    if not path_match:
+        return ["physical Gazebo claim missing parseable JSON artifact path"]
+    artifact_path = Path(path_match.group(1))
+    if not artifact_path.is_file():
+        return [f"physical Gazebo artifact missing or unreadable: {artifact_path}"]
+
+    hash_match = SHA256_RE.search(row_text)
+    if not hash_match:
+        return ["physical Gazebo claim missing parseable sha256=<64 hex> artifact hash"]
+    expected_sha = hash_match.group(1).lower()
+    actual_sha = sha256_file(artifact_path)
+    if actual_sha != expected_sha:
+        return [f"physical Gazebo artifact sha256 mismatch: {artifact_path}"]
+
+    try:
+        payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"physical Gazebo artifact content unreadable: {type(exc).__name__}"]
+    if not isinstance(payload, dict):
+        return ["physical Gazebo artifact content must be a JSON object"]
+
+    if standalone_scope and not standalone_physical_artifact_proven(payload):
+        return ["standalone P2 physical Gazebo artifact content does not prove total contact wrench/contact correlation"]
+    if per_stage_scope and not per_stage_physical_artifact_proven(payload):
+        return ["per-stage physical Gazebo artifact content does not prove row-local stage contact/wrench correlation"]
+    return []
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def standalone_physical_artifact_proven(payload: dict[str, Any]) -> bool:
+    if payload.get("schema") == "ur10e_gazebo_contact_wrench_adapter_report_v1":
+        return bool(
+            payload.get("claim_tier") == "physical Gazebo collision/contact physics"
+            and payload.get("observation_scope") == "standalone_p2_contact_witness"
+            and payload.get("force_source") == "gazebo_contact"
+            and payload.get("trace_written") is True
+            and payload.get("total_contact_wrench_proven") is True
+            and payload.get("wrench_aggregation_policy") == "total_contact_wrench"
+            and not payload.get("total_contact_wrench_blockers")
+        )
+    if payload.get("schema") == "ur10e_gazebo_p2_contact_correlation_audit_v1":
+        physical_gate = payload.get("physical_gazebo_contact_gate")
+        boundary_gate = payload.get("claim_boundary_gate")
+        wrench = payload.get("wrench_evidence")
+        return bool(
+            isinstance(physical_gate, dict)
+            and isinstance(boundary_gate, dict)
+            and isinstance(wrench, dict)
+            and physical_gate.get("force_contact_physics_proven") is True
+            and physical_gate.get("contact_pair_log_evidence") is True
+            and physical_gate.get("wrench_contact_correlation") is True
+            and boundary_gate.get("total_contact_wrench_proven") is True
+            and wrench.get("source") == "gazebo_contact"
+            and wrench.get("total_contact_wrench_proven") is True
+            and wrench.get("wrench_aggregation_policy") == "total_contact_wrench"
+            and not wrench.get("adapter_report_blockers")
+            and not wrench.get("total_contact_wrench_blockers")
+        )
+    return False
+
+
+def per_stage_physical_artifact_proven(payload: dict[str, Any]) -> bool:
+    correlation = payload.get("stage_wrench_contact_correlation")
+    per_stage = payload.get("per_stage_physical_gazebo_contact")
+    contact_pair = payload.get("stage_contact_pair_log")
+    adapter = payload.get("stage_contact_wrench_adapter")
+    return bool(
+        payload.get("schema") == "ur10e_per_stage_dual_sensor_contact_audit_v1"
+        and payload.get("claim_tier") == "physical Gazebo collision/contact physics"
+        and isinstance(correlation, dict)
+        and isinstance(per_stage, dict)
+        and isinstance(contact_pair, dict)
+        and isinstance(adapter, dict)
+        and correlation.get("evidence") is True
+        and correlation.get("status") == "correlated"
+        and per_stage.get("per_stage_physical_gazebo_contact_proven") is True
+        and per_stage_contact_pair_content_proven(contact_pair)
+        and per_stage_wrench_adapter_content_proven(adapter)
+        and not payload.get("blockers")
+        and not payload.get("validation_issues")
+    )
+
+
+def per_stage_contact_pair_content_proven(contact_pair: dict[str, Any]) -> bool:
+    row = contact_pair.get("first_matching_row")
+    return bool(
+        contact_pair.get("evidence") is True
+        and contact_pair.get("same_run_stage_scope_proven") is True
+        and _int(contact_pair.get("valid_matching_row_count")) > 0
+        and isinstance(row, dict)
+        and _float(row.get("stamp_s")) is not None
+        and _valid_vec3(row.get("position_m"))
+        and _valid_unit_vec3(row.get("normal"))
+        and row.get("normal_source") == "gazebo_contact_message_normal"
+        and _int(row.get("contact_count")) > 0
+    )
+
+
+def per_stage_wrench_adapter_content_proven(adapter: dict[str, Any]) -> bool:
+    return bool(
+        adapter.get("same_run_stage_scope_proven") is True
+        and adapter.get("force_source") == "gazebo_contact"
+        and adapter.get("trace_written") is True
+        and adapter.get("total_contact_wrench_proven") is True
+        and adapter.get("wrench_aggregation_policy") == "total_contact_wrench"
+        and _int(adapter.get("verified_native_wrench_row_count")) > 0
+        and _int(adapter.get("total_contact_wrench_row_count")) > 0
+        and _int(adapter.get("valid_total_contact_wrench_row_count")) > 0
+    )
+
+
+def _int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _valid_vec3(value: Any) -> bool:
+    if not isinstance(value, list) or len(value) != 3:
+        return False
+    try:
+        values = [float(item) for item in value]
+    except (TypeError, ValueError):
+        return False
+    return all(math.isfinite(item) for item in values)
+
+
+def _valid_unit_vec3(value: Any, *, tolerance: float = 1e-3) -> bool:
+    if not _valid_vec3(value):
+        return False
+    values = [float(item) for item in value]
+    norm = math.sqrt(sum(item * item for item in values))
+    return abs(norm - 1.0) <= tolerance
+
+
+def has_standalone_scope(row_norm: str) -> bool:
+    return "standalone" in row_norm and ("p2" in row_norm or "witness" in row_norm)
+
+
+def has_per_stage_scope(row_norm: str) -> bool:
+    return "per-stage" in row_norm or "per stage" in row_norm
+
+
+def has_per_stage_audit_artifact(row_norm: str) -> bool:
+    return any(
+        token in row_norm
+        for token in (
+            "per-stage audit artifact",
+            "per stage audit artifact",
+            "per-stage dual-sensor contact audit",
+            "per_stage_dual_sensor_contact_audit",
+            "per-stage contact audit",
+        )
+    )
+
+
+def has_source_backed_physical_gazebo_claim_row(sections: list[tuple[str, str]]) -> bool:
+    for heading, body in sections:
+        if normalize(heading) == "claim boundary gate":
+            continue
+        for table in markdown_tables(body):
+            if not claim_tier_table_is_valid(table):
+                continue
+            claim_index = claim_tier_column_index(table[0])
+            if claim_index is None:
+                continue
+            for row in table[2:]:
+                if claim_index >= len(row):
+                    continue
+                tier = recognized_claim_tier(normalize(row[claim_index]))
+                if tier != "physical Gazebo collision/contact physics":
+                    continue
+                row_norm = normalize(" | ".join(row))
+                if has_blocked_or_not_proven(row_norm) or any(token in row_norm for token in PHYSICAL_BLOCKERS):
+                    continue
+                if not physical_gazebo_row_issues(" | ".join(row)):
+                    return True
+    return False
+
+
+def has_full_acceptance_positive_claim(text: str) -> bool:
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
+        sentence_norm = normalize(sentence)
+        if not FULL_ACCEPTANCE_RE.search(sentence_norm):
+            continue
+        if full_acceptance_meta_context(sentence_norm):
+            continue
+        sanitized = sentence_norm
+        for allowed_negative in (
+            "blocked/not proven",
+            "not proven",
+            "not accepted",
+            "not authorized",
+            "not ready",
+            "blocked",
+            "no claim",
+            "cannot",
+        ):
+            sanitized = sanitized.replace(allowed_negative, "")
+        if re.search(r"\b(accepted|complete|success|verified|validated|pass(?:ed)?|proven|ready)\b", sanitized):
+            return True
+    return False
+
+
+def full_acceptance_meta_context(sentence_norm: str) -> bool:
+    return any(
+        token in sentence_norm
+        for token in (
+            "verifier tests passed",
+            "tests passed",
+            "test passed",
+            "phrase coverage",
+            "claim-language",
+            "variants",
+        )
+    )
+
+
+def has_source_backed_same_run_integrated_claim(text: str) -> bool:
+    for path_match in JSON_PATH_RE.finditer(text):
+        path = Path(path_match.group(1))
+        if path.name != "same_run_integrated_binding_audit.json":
+            continue
+        row_text = surrounding_line(text, path_match.start())
+        hash_match = SHA256_RE.search(row_text) or SHA256_RE.search(text[max(0, path_match.start() - 300): path_match.end() + 300])
+        if not hash_match or not path.is_file():
+            continue
+        if sha256_file(path) != hash_match.group(1).lower():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict) and same_run_integrated_artifact_proven(payload):
+            return True
+    return False
+
+
+def surrounding_line(text: str, index: int) -> str:
+    start = text.rfind("\n", 0, index) + 1
+    end = text.find("\n", index)
+    if end == -1:
+        end = len(text)
+    return text[start:end]
+
+
+def same_run_integrated_artifact_proven(payload: dict[str, Any]) -> bool:
+    if payload.get("schema") != "ur10e_same_run_integrated_binding_audit_v1":
+        return False
+    if payload.get("same_run_integrated_demo_proven") is not True:
+        return False
+    if payload.get("binding_status") != "same_run_integrated_demo_proven":
+        return False
+    if payload.get("validation_issues") or payload.get("blocker"):
+        return False
+    if payload.get("missing_surfaces") or payload.get("cross_run_surfaces"):
+        return False
+    source_content = payload.get("source_content_validation")
+    if isinstance(source_content, dict) and source_content.get("source_content_proven") is not True:
+        return False
+    rows = payload.get("artifact_rows") if isinstance(payload.get("artifact_rows"), list) else []
+    required_surfaces = {
+        "p6_manifest",
+        "p3_visual_rviz_audit",
+        "stage_simulated_ft_manifest",
+        "step_status_rnn_audit",
+        "p2_contact_correlation_audit",
+        "tcp_distance_evidence",
+    }
+    rows_by_surface = {str(row.get("surface")): row for row in rows if isinstance(row, dict)}
+    if not required_surfaces <= set(rows_by_surface):
+        return False
+    for surface in required_surfaces:
+        row = rows_by_surface[surface]
+        path_value = row.get("path")
+        sha_value = row.get("sha256")
+        if not path_value or not sha_value:
+            return False
+        path = Path(str(path_value))
+        if not path.is_absolute():
+            path = Path("/home/andy/ur10e_ros2_ws") / path
+        if not path.is_file() or sha256_file(path) != str(sha_value).lower():
+            return False
+    return True
+
+
+def has_positive_claim(text: str, tier: str) -> bool:
+    tier_norm = tier.lower()
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
+        sentence_norm = normalize(sentence)
+        if tier_norm not in sentence_norm:
+            continue
+        sanitized = sentence_norm
+        for allowed_negative in (
+            "blocked/not proven",
+            "not proven",
+            "not accepted",
+            "not authorized",
+            "no claim may upgrade",
+            "blocked",
+        ):
+            sanitized = sanitized.replace(allowed_negative, "")
+        if re.search(r"\b(accepted|complete|success|verified|validated|pass(?:ed)?|proven)\b", sanitized):
+            return True
+    return False
+
+
+def normalize(text: str) -> str:
+    normalized = text.lower().replace("—", "-").replace("–", "-")
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _finding(report_path: Path, check: str, ok: bool, detail: str) -> dict[str, Any]:
+    return {"ok": ok, "report": str(report_path), "check": check, "detail": detail}
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

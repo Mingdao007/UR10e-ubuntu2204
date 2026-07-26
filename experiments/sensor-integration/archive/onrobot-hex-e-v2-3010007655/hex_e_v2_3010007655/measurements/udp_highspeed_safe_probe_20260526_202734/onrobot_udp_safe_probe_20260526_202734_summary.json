@@ -1,0 +1,129 @@
+{
+  "commands_sent": [
+    {
+      "command": "START",
+      "command_hex": "0x0002",
+      "data": 1000,
+      "sent_wall": "2026-05-26T20:27:34.558"
+    },
+    {
+      "command": "STOP",
+      "command_hex": "0x0000",
+      "data": 0,
+      "sent_wall": "2026-05-26T20:27:36.561"
+    }
+  ],
+  "csv_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/udp_highspeed_safe_probe_20260526_202734/onrobot_udp_safe_probe_20260526_202734.csv",
+  "duration_first_last_s": 1.998121003,
+  "errors": [],
+  "finished_wall": "2026-05-26T20:27:36",
+  "first_t_s": 0.005160365,
+  "force_torque": {
+    "fx_n": {
+      "first": 0.23,
+      "last": 0.16,
+      "last_minus_first": -0.07,
+      "max": 0.33,
+      "mean": 0.22055888223552894,
+      "min": 0.12
+    },
+    "fy_n": {
+      "first": 3.08,
+      "last": 3.05,
+      "last_minus_first": -0.03000000000000025,
+      "max": 3.1199,
+      "mean": 3.0490399201596805,
+      "min": 2.99
+    },
+    "fz_n": {
+      "first": -29.02,
+      "last": -28.95,
+      "last_minus_first": 0.07000000000000028,
+      "max": -28.47,
+      "mean": -28.782814371257487,
+      "min": -29.16
+    },
+    "tx_nm": {
+      "first": -0.02,
+      "last": -0.014,
+      "last_minus_first": 0.006,
+      "max": -0.013,
+      "mean": -0.021634810379241518,
+      "min": -0.03599
+    },
+    "ty_nm": {
+      "first": -0.07599,
+      "last": -0.07,
+      "last_minus_first": 0.005989999999999995,
+      "max": -0.07,
+      "mean": -0.07798275449101796,
+      "min": -0.091
+    },
+    "tz_nm": {
+      "first": 0.069,
+      "last": 0.066,
+      "last_minus_first": -0.0030000000000000027,
+      "max": 0.079,
+      "mean": 0.07105790419161676,
+      "min": 0.066
+    }
+  },
+  "host": "192.168.1.1",
+  "intervals_per_duration_hz": 250.23509549686665,
+  "last_t_s": 2.003281368,
+  "max_dt_ms": 4.412740999999887,
+  "max_recv_latency_ms": 4.389788,
+  "max_samples": 1000,
+  "mean_dt_ms": 3.9962420060000006,
+  "mean_recv_latency_ms": 3.9684650938123753,
+  "median_dt_ms": 4.000322500000014,
+  "median_recv_latency_ms": 3.987895,
+  "min_dt_ms": 0.6887919999999997,
+  "min_recv_latency_ms": 0.021992,
+  "one_over_mean_dt_hz": 250.23509549686662,
+  "p95_dt_ms": 4.111579150000033,
+  "p95_recv_latency_ms": 4.100746,
+  "p99_dt_ms": 4.22863236,
+  "p99_recv_latency_ms": 4.203238,
+  "port": 49152,
+  "requested_seconds": 2.0,
+  "safety_boundary": [
+    "START and final STOP only",
+    "no BIAS command",
+    "no FILTER command",
+    "no SPEED command",
+    "no zero/TCP/payload/URScript/URCap/robot-motion commands"
+  ],
+  "sample_counter": {
+    "backward_count": 0,
+    "duplicate_or_zero_delta_count": 0,
+    "first": 1528,
+    "last": 3528,
+    "lost_estimate": 1500,
+    "max_forward_delta": 4,
+    "wrap_count": 0
+  },
+  "samples": 501,
+  "samples_per_duration_hz": 250.7355656878604,
+  "scaling": {
+    "force_divisor": 10000.0,
+    "source": "OnRobot vendor highspeed_udp.c Newton/Newton-meter mode",
+    "torque_divisor": 100000.0
+  },
+  "script_mode": "safe_probe_no_bias_no_filter_no_speed",
+  "sequence_number": {
+    "backward_count": 0,
+    "duplicate_or_zero_delta_count": 0,
+    "first": 1,
+    "last": 501,
+    "lost_estimate": 0,
+    "max_forward_delta": 1,
+    "wrap_count": 0
+  },
+  "start_count": 1000,
+  "started_wall": "2026-05-26T20:27:34",
+  "status_counts": {
+    "0": 501
+  },
+  "summary_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/udp_highspeed_safe_probe_20260526_202734/onrobot_udp_safe_probe_20260526_202734_summary.json"
+}

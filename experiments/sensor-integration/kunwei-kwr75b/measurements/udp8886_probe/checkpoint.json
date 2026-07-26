@@ -1,0 +1,46 @@
+{
+  "checkpoint_interval_s": 2.0,
+  "paths": {
+    "checkpoint": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/udp8886_probe/checkpoint.json",
+    "csv": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/udp8886_probe/data.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/udp8886_probe/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/udp8886_probe/raw_frames.bin",
+    "summary": "/home/andy/ur10e_ros2_ws/ft_sensor/kunwei/kwr75b/measurements/udp8886_probe/summary.json"
+  },
+  "summary_so_far": {
+    "axis_stats_manual_units": {
+      "Fx_kg_manual": {
+        "samples": 0
+      },
+      "Fy_kg_manual": {
+        "samples": 0
+      },
+      "Fz_kg_manual": {
+        "samples": 0
+      },
+      "Mx_kg_m_manual": {
+        "samples": 0
+      },
+      "My_kg_m_manual": {
+        "samples": 0
+      },
+      "Mz_kg_m_manual": {
+        "samples": 0
+      }
+    },
+    "bytes_received": 0,
+    "command_counts": {},
+    "dropped_sync_bytes": 0,
+    "duration_first_last_s": null,
+    "elapsed_wall_s": 8.043225862027612,
+    "max_dt_ms": null,
+    "mean_dt_ms": null,
+    "min_dt_ms": null,
+    "packets_received": 0,
+    "parse_errors": 0,
+    "rate_hz_by_first_last": null,
+    "samples": 0,
+    "stop_reason": "duration"
+  },
+  "updated_at": "2026-06-02T19:55:41"
+}

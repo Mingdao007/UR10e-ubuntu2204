@@ -1,0 +1,46 @@
+{
+  "clean_duration_s": 101.0,
+  "clean_windows": [
+    {
+      "duration_s": 20.0,
+      "end_s": 2269.0,
+      "start_s": 2249.0
+    },
+    {
+      "duration_s": 24.0,
+      "end_s": 5148.0,
+      "start_s": 5124.0
+    },
+    {
+      "duration_s": 32.0,
+      "end_s": 6110.0,
+      "start_s": 6078.0
+    },
+    {
+      "duration_s": 25.0,
+      "end_s": 6313.0,
+      "start_s": 6288.0
+    }
+  ],
+  "comparison_png": "/home/andy/ur10e_ros2_ws/report/assets/demo_01_02_meeting_deck_20260528/onrobot_three_stream_2h_20260528_artifacts_removed_fz_urcap125_udp500_compare.png",
+  "fz_comparison": {
+    "mae_n": 0.28847664449548,
+    "matched_pairs": 899997,
+    "max_abs_n": 1.7300009999999952,
+    "mean_diff_n": -0.23015717791503487,
+    "nearest_time_offset_abs_mean_ms": 0.5063623104175528,
+    "one_second_mean_rmse_n": 0.23099880383182936,
+    "residual_std_n": 0.268771023433244,
+    "rmse_n": 0.35385040528252415,
+    "udp_mean_n": 0.5614279794265988,
+    "urcap_mean_n": 0.3312708015115639
+  },
+  "overlay_png": "/home/andy/ur10e_ros2_ws/report/assets/demo_01_02_meeting_deck_20260528/onrobot_three_stream_2h_20260528_artifacts_removed_fz_overlay_zeroed.png",
+  "rtde_rate_hz": 499.99897901007625,
+  "rtde_rows": 3599990,
+  "udp_packets": 3597141,
+  "udp_rate_hz": 499.6035155771921,
+  "urcap_update_rate_hz": 124.99964061552976,
+  "urcap_updates": 899997,
+  "window_s": 7200.0
+}

@@ -1,0 +1,14 @@
+robot:
+  ur_type: ur10e
+  robot_ip: 192.168.1.18
+  kinematics_params_file: config/ur10e_calibration.yaml
+
+host:
+  ethernet_device: enp3s0
+  ethernet_ipv4: 192.168.1.10/24
+  realtime_group: realtime
+
+notes:
+  driver_install: sudo apt install ros-humble-ur
+  network_skill: /home/andy/codex-private-skills/skills/ur10e-realsetup
+  calibration_hash: pending_fresh_ur10e_calibration

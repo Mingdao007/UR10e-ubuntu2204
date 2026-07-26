@@ -1,0 +1,14 @@
+Step4e P0/P1 attitude package
+
+Program:
+  step4e_ball_first_contact_p0_v1
+
+Version:
+  2026-06-11T1601HKT_STEP4E_BALL_FIRST_CONTACT_P0_V1
+
+Purpose:
+  P0-geo ball-first contact witness; no attitude, no 5N acquire, no line
+
+Control boundary:
+  Ubuntu bridge writes RTDE input registers 24..47.
+  No UR zero_ftsensor, no Kunwei tare/config write, no TCP/payload write.

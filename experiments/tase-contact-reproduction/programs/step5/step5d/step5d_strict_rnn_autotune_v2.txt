@@ -1,0 +1,20 @@
+Step5d-native continuous autotune TP package
+
+Open on Teach Pendant only after controller read-back is verified:
+  /programs/andyl/kunwei/step5/step5d_strict_rnn_autotune_v2.urp
+
+Version:
+  2026-07-17T1757HKT_STEP5D_STRICT_RNN_AUTOTUNE_V2
+
+Motion class:
+  Contact motion package. Upload/read-back does not load or run it.
+  Program load/Play, bridge start, sensor zero/tare, contact, and motion remain live-gated.
+
+Contract:
+  Continuous campaign home is captured once.
+  Host/TP integer handshake uses input 24..29 and output 24..30.
+  qdot cap is fixed at 0.500 rad/s.
+  Pre-contact entry movel is a=0.135 m/s^2, v=0.090 m/s.
+  Far search is -0.03375 m/s; near search remains -0.0025 m/s.
+  speedj acceleration profiles are 0.100, 0.200, and 0.500 rad/s^2.
+  normal-rate profile 0.030 rad/s is offline-only and rejected by this TP.

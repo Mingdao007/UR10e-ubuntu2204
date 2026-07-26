@@ -1,0 +1,12 @@
+{
+  "updated_wall_time_utc": "2026-05-20T04:59:56.465+00:00",
+  "phase": "done",
+  "effective_valid_segments": [
+    "S00_60s",
+    "S01_600s",
+    "S02_1800s"
+  ],
+  "aborted_segments": [
+    "S02_3600s"
+  ]
+}

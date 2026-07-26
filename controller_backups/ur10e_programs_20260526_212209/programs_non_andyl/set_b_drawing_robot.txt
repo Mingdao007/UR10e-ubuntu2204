@@ -1,0 +1,3 @@
+ Program
+   Robot Program
+     Script: set_b_drawing_robot.script_bak

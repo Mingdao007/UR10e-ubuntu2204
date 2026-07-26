@@ -1,0 +1,52 @@
+  #======    OnRobot TCP    ======#
+  
+  def of_tcp_offset_calc():
+  local act_flange=get_actual_tool_flange_pose()
+  local act_tcp=get_actual_tcp_pose()
+  local tcp_offset=pose_trans(pose_inv(act_flange),act_tcp)
+  return tcp_offset
+  end
+  def of_tcp_offset_send(TCP_offset):
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset sending started!")
+  end 
+  of_send_full(OF_CMD_TCP,of_float_to_int(TCP_offset[0]),of_float_to_int(TCP_offset[1]),of_float_to_int(TCP_offset[2]),of_float_to_int(TCP_offset[3]),of_float_to_int(TCP_offset[4]),of_float_to_int(TCP_offset[5]))
+  of_robot_TCP_offset=TCP_offset
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset sent.")
+  end 
+  end 
+  def of_tcp_offset_send_actual():
+  if OF_DEBUG_STATE:
+  textmsg("Actual TCP Offset sending started!")
+  end 
+  local TCP_offset=of_tcp_offset_calc()
+  of_tcp_offset_send(TCP_offset)
+  if OF_DEBUG_STATE:
+  textmsg("Actual TCP Offset sent.")
+  end 
+  end 
+  def of_tcp_offset_set(TCP_offset):
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset set started!")
+  end 
+  of_tcp_offset_send(TCP_offset)
+  set_tcp(TCP_offset)
+  of_robot_TCP_offset=TCP_offset
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset set to:",of_robot_TCP_offset)
+  end 
+  end 
+  def of_tcp_offset_rpy_set(offset=[0,0,0],rpy=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset RPY set started!")
+  end 
+  local rotvec=rpy2rotvec(rpy)
+  local tcp_offset=p[offset[0],offset[1],offset[2],rotvec[0],rotvec[1],rotvec[2]]
+  of_tcp_offset_set(tcp_offset)
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset RPY set to:",tcp_offset)
+  end 
+  end 
+  
+  #======    End of OnRobot TCP    ======#

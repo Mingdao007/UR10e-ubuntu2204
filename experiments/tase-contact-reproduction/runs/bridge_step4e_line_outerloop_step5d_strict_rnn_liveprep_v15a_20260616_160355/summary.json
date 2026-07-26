@@ -1,0 +1,112 @@
+{
+  "baseline_epoch": 1,
+  "baseline_ready": true,
+  "baseline_samples": 1001,
+  "baseline_si_offsets": {
+    "fx_n": 7.919211750863565,
+    "fy_n": 3.274298955113133,
+    "fz_n": 3.0241989070238247,
+    "mx_nm": 0.2278477954757654,
+    "my_nm": -0.2740857103119109,
+    "mz_nm": 0.08811091185430849
+  },
+  "bridge_write_timing": {
+    "dt_max_s": 2.6697320980019867,
+    "dt_mean_s": 0.001967609298801042,
+    "dt_p95_s": 0.0020023750781547277,
+    "dt_p99_s": 0.002017568761948496,
+    "elapsed_s": 25.622208288987167,
+    "rate_hz": 508.2309788886176,
+    "samples": 13023
+  },
+  "bridge_writes": 13023,
+  "dropped_sync_bytes": 0,
+  "echo_heartbeat_transitions": {
+    "dt_max_s": 7.426044214982539,
+    "dt_mean_s": 0.005655777954088347,
+    "dt_p95_s": 0.004019208461977541,
+    "dt_p99_s": 0.004402220611227676,
+    "elapsed_s": 25.620674132020213,
+    "rate_hz": 176.81033592861226,
+    "samples": 4531
+  },
+  "finished_at": "2026-06-16T16:04:57",
+  "force_norm_stats_n": {
+    "max": 13.992231661536401,
+    "mean": 2.218835957016003,
+    "min": 0.007029783703680818,
+    "samples": 25999,
+    "std": 3.754502973581557
+  },
+  "last_echo_heartbeat": 13018.0,
+  "last_zero_request": 1.0,
+  "normal_force_stats_n": {
+    "max": 3.5726030504614115,
+    "mean": 0.37457504223695254,
+    "min": -13.966508303189434,
+    "samples": 25999,
+    "std": 1.9916880572181808
+  },
+  "parse_errors": 0,
+  "paths": {
+    "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/bridge_rtde_500hz.csv",
+    "metadata": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/metadata.json",
+    "raw_frames": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/raw_frames.bin",
+    "sensor_csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/kunwei_sensor_1khz.csv",
+    "summary": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/summary.json"
+  },
+  "rtde_output_timing": {
+    "dt_max_s": 2.6697319380473346,
+    "dt_mean_s": 0.0022845005913526718,
+    "dt_p95_s": 0.002108773961663246,
+    "dt_p99_s": 0.002442317926324904,
+    "elapsed_s": 25.620674132020213,
+    "rate_hz": 437.73243210582484,
+    "samples": 11216
+  },
+  "rtde_reconnect_event_count": 2,
+  "rtde_reconnect_events": [
+    {
+      "at_monotonic_s": 1009902.431382561,
+      "count": 1,
+      "error": "ConnectionResetError: [Errno 104] Connection reset by peer",
+      "event": "send_failed"
+    },
+    {
+      "at_monotonic_s": 1009902.481624782,
+      "count": 2,
+      "event": "reconnected"
+    }
+  ],
+  "samples": 25999,
+  "stop_reason": "step5d_contact_safety:hold_duty_limit",
+  "torque_norm_stats_nm": {
+    "max": 0.3704129725119421,
+    "mean": 0.07679707579221871,
+    "min": 0.00015033648696290253,
+    "samples": 25999,
+    "std": 0.14118468533719825
+  },
+  "zero_events": [
+    {
+      "baseline_epoch": 0,
+      "completed_at_monotonic_s": 1009904.340271182,
+      "completed_at_sample": 4950,
+      "duration_s": 5.000412542023696,
+      "samples": 4950
+    },
+    {
+      "baseline_epoch": 1,
+      "previous_zero_request": 0.0,
+      "requested_at_monotonic_s": 1009911.786423006,
+      "zero_request": 1.0
+    },
+    {
+      "baseline_epoch": 1,
+      "completed_at_monotonic_s": 1009912.790268292,
+      "completed_at_sample": 13400,
+      "duration_s": 1.0038452859735116,
+      "samples": 1001
+    }
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "schema": "failure_to_guard.invariant_registry/v1",
+  "registry_id": "ur10e_failure_to_guard_invariants_v1",
+  "invariants": [
+    {
+      "id": "f2g.optimizer_eligibility",
+      "description": "Only a finite, fingerprint-bound observation with verified oracle and closure can reach an optimizer.",
+      "touched_path_patterns": [
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/failure_to_guard.py",
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/*autotune*.py",
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/*store*.py"
+      ],
+      "expected_failure_modes": [
+        "invalid_trial_pollutes_optimizer",
+        "cross_fingerprint_observation_reuse"
+      ],
+      "required_lanes": ["small", "medium", "hil", "live"],
+      "parameter_impact": "replay_required"
+    },
+    {
+      "id": "f2g.parameter_semantics",
+      "description": "Objective, candidate, trajectory, controller, frame, and safety semantics are fingerprinted and require a new plant epoch when changed.",
+      "touched_path_patterns": [
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/*objective*.py",
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/*adapter*.py",
+        "experiments/tase-contact-reproduction/config/experiments/*.json"
+      ],
+      "expected_failure_modes": [
+        "stale_parameters_under_new_semantics",
+        "cross_step_parameter_contamination"
+      ],
+      "required_lanes": ["small", "medium", "gazebo_ursim", "hil", "live"],
+      "parameter_impact": "retune_required"
+    },
+    {
+      "id": "f2g.bridge_startup_artifact_closure",
+      "description": "Every production startup dependency exists and is hash-bound before a bridge writer starts or READY is announced.",
+      "touched_path_patterns": [
+        "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py",
+        "experiments/tase-contact-reproduction/tools/run_step5d_autotune_v3_live.py",
+        "experiments/tase-contact-reproduction/config/step5d/manifests/**/*.json"
+      ],
+      "expected_failure_modes": [
+        "bridge_exits_before_hold_ready",
+        "missing_runtime_artifact"
+      ],
+      "required_lanes": ["small", "medium", "hil"],
+      "parameter_impact": "replay_required"
+    },
+    {
+      "id": "f2g.failure_recurrence",
+      "description": "A canonical HIL/live escape or second occurrence creates a deterministic debt-lane request.",
+      "touched_path_patterns": [
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/failure_to_guard.py",
+        "experiments/tase-contact-reproduction/config/failure_to_guard/*.json",
+        "experiments/tase-contact-reproduction/config/failure_to_guard/*.jsonl"
+      ],
+      "expected_failure_modes": [
+        "same_failure_escapes_twice",
+        "debt_lane_runs_during_live_writer"
+      ],
+      "required_lanes": ["small", "medium"],
+      "parameter_impact": "none"
+    },
+    {
+      "id": "f2g.rollout_sanitization",
+      "description": "Rollout analysis is streaming, deterministic, bounded, and never republishes prompt, reasoning, arguments, or tool output.",
+      "touched_path_patterns": [
+        "src/ur10e_experiment_runtime/ur10e_experiment_runtime/rollout.py"
+      ],
+      "expected_failure_modes": [
+        "reviewer_reads_unsanitized_rollout",
+        "timeline_depends_on_source_path"
+      ],
+      "required_lanes": ["small"],
+      "parameter_impact": "none"
+    },
+    {
+      "id": "f2g.step5d_physical_prior_binding",
+      "description": "Physical prior extraction is Stage25-qualified and TP orientation plus bridge normals bind one fingerprint.",
+      "touched_path_patterns": ["src/ur10e_experiment_runtime/ur10e_experiment_runtime/*adapter*.py", "experiments/tase-contact-reproduction/tools/*step5d*bridge*.py"],
+      "expected_failure_modes": ["wrong_stage_prior", "tp_bridge_prior_mismatch"],
+      "required_lanes": ["small", "medium", "replay", "hil", "live"],
+      "parameter_impact": "retune_required"
+    },
+    {
+      "id": "f2g.step5d_trial_reset_no_relatch",
+      "description": "Every trial resets control state and the first loaded tick cannot replace the frozen prior.",
+      "touched_path_patterns": ["experiments/tase-contact-reproduction/tools/*step5d*bridge*.py", "src/ur10e_experiment_runtime/ur10e_experiment_runtime/*prior*.py"],
+      "expected_failure_modes": ["first_tick_relatch", "cross_trial_state_leak"],
+      "required_lanes": ["small", "medium", "replay", "hil", "live"],
+      "parameter_impact": "retune_required"
+    },
+    {
+      "id": "f2g.actual_overlay_identity",
+      "description": "Evidence binds the normalized overlay and candidate UID actually dispatched.",
+      "touched_path_patterns": ["src/ur10e_experiment_runtime/ur10e_experiment_runtime/*evidence*.py", "src/ur10e_experiment_runtime/ur10e_experiment_runtime/runtime.py"],
+      "expected_failure_modes": ["overlay_mismatch", "transport_candidate_confusion"],
+      "required_lanes": ["small", "medium", "replay"],
+      "parameter_impact": "replay_required"
+    },
+    {
+      "id": "f2g.exact_batch_completion",
+      "description": "Exact ten-row identity, durable direct completion, and row-ten final-home closure own normal runner exit zero.",
+      "touched_path_patterns": ["src/ur10e_experiment_runtime/ur10e_experiment_runtime/*batch*.py", "experiments/tase-contact-reproduction/tools/*autotune*launcher*.py"],
+      "expected_failure_modes": ["launcher_false_failure", "batch_overrun", "arm_after_row_ten"],
+      "required_lanes": ["small", "medium", "replay", "hil"],
+      "parameter_impact": "replay_required"
+    },
+    {
+      "id": "f2g.trial_bundle_cold_read_ack_next_arm",
+      "description": "Legacy r001-r005 replay invariant: a physically complete trial survives typed bundle persistence and cold history read before exactly one ACK and the next ARM; this is not the r006 active protocol.",
+      "touched_path_patterns": ["experiments/tase-contact-reproduction/tools/step5d_autotune_*.py", "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py", "experiments/tase-contact-reproduction/tests/test_step5d_autotune_production_second_lap.py"],
+      "expected_failure_modes": ["typed_closure_schema_loss", "batch_bootstrap_source_mismatch", "bundle_cold_read_failure", "missing_ack", "missing_next_arm"],
+      "required_lanes": ["small", "replay"],
+      "parameter_impact": "replay_required"
+    },
+    {
+      "id": "f2g.runtime_csv_schema_timeout_classification",
+      "description": "A growing production CSV distinguishes no rows, rows that never qualify (including missing columns), and an observed terminal whose capture did not seal.",
+      "touched_path_patterns": ["experiments/tase-contact-reproduction/tools/step5d_production_csv.py", "experiments/tase-contact-reproduction/tools/kunwei_rtde_bridge.py", "experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py"],
+      "expected_failure_modes": ["prefixed_csv_schema_mismatch", "fresh_rows_misreported_as_no_fresh", "terminal_capture_not_sealed"],
+      "required_lanes": ["small", "medium", "replay"],
+      "parameter_impact": "replay_required"
+    },
+    {
+      "id": "f2g.direct_trial_commit_next_arm",
+      "description": "The exact candidate plan must run through the formal production runner, growing production CSV, terminal seal, independent store cold-read, exactly one TrialBrief, and the next ARM without ACK state.",
+      "touched_path_patterns": ["experiments/tase-contact-reproduction/tools/run_step5d_autotune_campaign.py", "experiments/tase-contact-reproduction/tools/step5d_autotune_*.py", "experiments/tase-contact-reproduction/tests/test_step5d_r006_production_chain.py"],
+      "expected_failure_modes": ["test_owned_runner_escape", "manual_snapshot_false_pass", "missing_pending_advance", "duplicate_trial_brief", "missing_direct_next_arm", "legacy_ack_on_active_path"],
+      "required_lanes": ["small", "medium", "replay", "hil", "live"],
+      "parameter_impact": "replay_required"
+    },
+    {
+      "id": "f2g.metric_role_optimizer_gate",
+      "description": "Diagnostic and unavailable metrics remain null and cannot enter an optimizer.",
+      "touched_path_patterns": ["src/ur10e_experiment_runtime/ur10e_experiment_runtime/failure_to_guard.py", "src/ur10e_experiment_runtime/ur10e_experiment_runtime/runtime.py"],
+      "expected_failure_modes": ["metric_role_confusion", "unavailable_metric_written_as_zero"],
+      "required_lanes": ["small", "medium", "replay"],
+      "parameter_impact": "replay_required"
+    },
+    {
+      "id": "f2g.typed_return_reference",
+      "description": "Near-ready and campaign-home targets are disjoint types selected by exact batch row identity.",
+      "touched_path_patterns": ["src/ur10e_experiment_runtime/ur10e_experiment_runtime/*return*.py", "src/ur10e_experiment_runtime/ur10e_experiment_runtime/*batch*.py"],
+      "expected_failure_modes": ["near_ready_home_confusion", "implicit_return_counter"],
+      "required_lanes": ["small", "medium", "simulation", "hil"],
+      "parameter_impact": "replay_required"
+    },
+    {
+      "id": "f2g.trajectory_reference_binding",
+      "description": "Moving-sphere center uses authoritative controller progress and the exact reference fingerprint.",
+      "touched_path_patterns": ["src/ur10e_experiment_runtime/ur10e_experiment_runtime/*safety*.py", "src/ur10e_experiment_runtime/ur10e_experiment_runtime/*adapter*.py"],
+      "expected_failure_modes": ["trajectory_reference_mismatch", "progress_freeze_mismatch"],
+      "required_lanes": ["small", "medium", "replay", "timing", "hil"],
+      "parameter_impact": "retune_required"
+    },
+    {
+      "id": "f2g.moving_sphere_exclusive_guard",
+      "description": "Step5d V3 enforces the moving sphere and disables legacy AABB position enforcement.",
+      "touched_path_patterns": ["src/ur10e_experiment_runtime/ur10e_experiment_runtime/*safety*.py", "experiments/tase-contact-reproduction/tools/*step5d*bridge*.py"],
+      "expected_failure_modes": ["aabb_sphere_dual_enforcement", "conflicting_position_stop_reason"],
+      "required_lanes": ["small", "medium", "replay", "timing", "hil"],
+      "parameter_impact": "retune_required"
+    }
+  ]
+}

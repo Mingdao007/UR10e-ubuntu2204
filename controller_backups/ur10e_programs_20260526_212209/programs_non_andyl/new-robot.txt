@@ -1,0 +1,3 @@
+ Program
+   Robot Program
+     Script: azat_jerry_test.script

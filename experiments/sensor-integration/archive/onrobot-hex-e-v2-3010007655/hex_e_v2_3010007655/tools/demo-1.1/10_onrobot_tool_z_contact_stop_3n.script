@@ -1,0 +1,139 @@
+def demo_1_1_write_onrobot_registers():
+  write_output_float_register(24, Fx)
+  write_output_float_register(25, Fy)
+  write_output_float_register(26, Fz)
+  write_output_float_register(27, Tx)
+  write_output_float_register(28, Ty)
+  write_output_float_register(29, Tz)
+end
+
+def demo_1_1_write_diagnostics(stop_reason, travel_m, abs_fz_delta, base_fz):
+  write_output_float_register(30, stop_reason)
+  write_output_float_register(31, travel_m)
+  write_output_float_register(32, abs_fz_delta)
+  write_output_float_register(33, base_fz)
+end
+
+def demo_1_1_speed_along_start_tool_z(contact_sign, speed_mps):
+  start_pose = get_actual_tcp_pose()
+  probe_pose = pose_trans(start_pose, p[0.0, 0.0, contact_sign * 0.001, 0.0, 0.0, 0.0])
+  dir_x = (probe_pose[0] - start_pose[0]) / 0.001
+  dir_y = (probe_pose[1] - start_pose[1]) / 0.001
+  dir_z = (probe_pose[2] - start_pose[2]) / 0.001
+  return [speed_mps * dir_x, speed_mps * dir_y, speed_mps * dir_z, 0.0, 0.0, 0.0]
+end
+
+def demo_1_1_onrobot_tool_z_contact_stop_3n():
+  contact_sign = 1
+  target_fz_delta_n = 5.0
+  startup_fz_abs_abort_n = 2.0
+  raw_fz_abs_guard_n = 8.0
+  guard_f3d_delta_n = 8.0
+  guard_t3d_delta_nm = 0.25
+  max_travel_m = 0.030
+  max_time_s = 10.0
+  approach_speed_mps = 0.010
+  accel_mps2 = 0.5
+  stop_decel_mps2 = 0.5
+  control_period_s = 0.016
+  settle_samples = 63
+  baseline_samples = 125
+
+  textmsg("demo-1.1: OnRobot zeroed Fz-delta 5N Tool-Z contact stop")
+  textmsg("demo-1.1: requires no-contact OnRobot F/T Zero before this script")
+
+  i = 0
+  while i < settle_samples:
+    demo_1_1_write_onrobot_registers()
+    sync()
+    i = i + 1
+  end
+
+  i = 0
+  base_fz = 0.0
+  base_f3d = 0.0
+  base_t3d = 0.0
+  while i < baseline_samples:
+    demo_1_1_write_onrobot_registers()
+    base_fz = base_fz + Fz
+    base_f3d = base_f3d + F3D
+    base_t3d = base_t3d + T3D
+    sync()
+    i = i + 1
+  end
+  base_fz = base_fz / baseline_samples
+  base_f3d = base_f3d / baseline_samples
+  base_t3d = base_t3d / baseline_samples
+
+  if base_fz < 0.0:
+    abs_base_fz = -base_fz
+  else:
+    abs_base_fz = base_fz
+  end
+
+  start_pose = get_actual_tcp_pose()
+  approach_twist = demo_1_1_speed_along_start_tool_z(contact_sign, approach_speed_mps)
+  elapsed_s = 0.0
+  stop_reason = 0
+  travel_m = 0.0
+  abs_fz_delta = 0.0
+  demo_1_1_write_diagnostics(stop_reason, travel_m, abs_fz_delta, base_fz)
+
+  if abs_base_fz >= startup_fz_abs_abort_n:
+    stop_reason = 7
+    demo_1_1_write_diagnostics(stop_reason, travel_m, abs_fz_delta, base_fz)
+  end
+
+  while stop_reason == 0:
+    demo_1_1_write_onrobot_registers()
+
+    if Fz < 0.0:
+      abs_fz = -Fz
+    else:
+      abs_fz = Fz
+    end
+
+    fz_delta = Fz - base_fz
+    if fz_delta < 0.0:
+      abs_fz_delta = -fz_delta
+    else:
+      abs_fz_delta = fz_delta
+    end
+
+    f3d_delta = F3D - base_f3d
+    t3d_delta = T3D - base_t3d
+    rel = pose_trans(pose_inv(start_pose), get_actual_tcp_pose())
+    travel_m = contact_sign * rel[2]
+    demo_1_1_write_diagnostics(stop_reason, travel_m, abs_fz_delta, base_fz)
+
+    if abs_fz_delta >= target_fz_delta_n:
+      stop_reason = 1
+    elif abs_fz >= raw_fz_abs_guard_n:
+      stop_reason = 8
+    elif travel_m >= max_travel_m:
+      stop_reason = 2
+    elif elapsed_s >= max_time_s:
+      stop_reason = 3
+    elif f3d_delta >= guard_f3d_delta_n:
+      stop_reason = 4
+    elif t3d_delta >= guard_t3d_delta_nm:
+      stop_reason = 5
+    elif travel_m < -0.001:
+      stop_reason = 6
+    else:
+      speedl(approach_twist, accel_mps2, control_period_s)
+      sync()
+      elapsed_s = elapsed_s + control_period_s
+    end
+    demo_1_1_write_diagnostics(stop_reason, travel_m, abs_fz_delta, base_fz)
+  end
+
+  stopl(stop_decel_mps2)
+  demo_1_1_write_onrobot_registers()
+  demo_1_1_write_diagnostics(stop_reason, travel_m, abs_fz_delta, base_fz)
+  textmsg("demo-1.1: contact-stop finished")
+  textmsg("stop_reason 1=FzDelta 2=travel 3=time 4=F3Dguard 5=T3Dguard 6=reverse 7=startRawFz 8=rawFzGuard")
+  textmsg(stop_reason)
+end
+
+demo_1_1_onrobot_tool_z_contact_stop_3n()

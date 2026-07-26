@@ -1,0 +1,110 @@
+ Program
+   Robot Program
+     MoveL
+       hp
+       RG Grip
+       Loop 6 times
+         R
+           Patterns
+             Line_Pattern_5
+               StartItem_5
+               EndItem_5
+           Layers
+           At Each Item
+             Generated Movements
+               MoveJ
+                 Approach
+               MoveJ
+                 ToolActionPoint
+               Tool action
+                 RG Grip
+               MoveJ
+                 Exit_1
+         hp
+         R2M
+           Patterns
+             Line_Pattern_6
+               StartItem_6
+               EndItem_6
+             Line_Pattern_7
+               StartItem_7
+               EndItem_7
+           Layers
+           At Each Item
+             Generated Movements
+               MoveJ
+                 Approach_6
+               MoveL
+                 ToolActionPoi_6
+               Tool action
+                 RG Grip
+               MoveL
+                 Exit_7
+       hp
+     MoveL
+       hp
+       RG Grip
+       Loop 6 times
+         Pallet_1
+           Patterns
+             Line_Pattern_11
+               StartItem_11
+               EndItem_11
+             Line_Pattern_12
+               StartItem_12
+               EndItem_12
+           Layers
+           At Each Item
+             Generated Movements
+               MoveL
+                 Approach_5
+               MoveL
+                 ToolActionPoi_5
+               Tool action
+                 RG Grip
+               MoveL
+                 Exit_6
+         MoveL
+           Waypoint_2
+           Waypoint_1
+           Wait: 1.0
+           If analog_in[0]<5
+             MoveJ
+               hp
+               Pallet_2
+                 Patterns
+                   Line_Pattern_2
+                     StartItem_2
+                     EndItem_2
+                 Layers
+                 At Each Item
+                   Generated Movements
+                     MoveJ
+                       Approach_1
+                     MoveL
+                       ToolActionPoi_1
+                     Tool action
+                       RG Grip
+                     MoveL
+                       Exit_2
+           Else
+             MoveL
+               hp
+               Pallet_3
+                 Patterns
+                   Line_Pattern_3
+                     StartItem_3
+                     EndItem_3
+                 Layers
+                 At Each Item
+                   Generated Movements
+                     MoveL
+                       Approach_2
+                     MoveL
+                       ToolActionPoi_2
+                     Tool action
+                       RG Grip
+                     MoveL
+                       Exit_3
+       hp
+     Halt

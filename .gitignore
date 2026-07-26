@@ -6,6 +6,8 @@ log/
 # Python generated files
 __pycache__/
 *.py[cod]
+.conda/
+.venv/
 
 # Large runtime recordings are archived manually unless explicitly selected.
 *.db3
@@ -13,11 +15,49 @@ __pycache__/
 *.bag
 *.zstd
 
+# Large raw force/torque captures stay local unless Git LFS is explicitly
+# configured for the archive branch.
+experiments/**/run_*/**/*.csv
+experiments/**/onrobot_tcpdaq/*.csv
+experiments/**/artifacts/**/*.tar.gz
+experiments/**/worktree/
+experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/vendor_usb_backups/**/Compute_Box_update/*.osu
+
+# Controller filesystem backups are local recovery bundles. Track their
+# manifest in docs, not the tarballs/JAR snapshots themselves.
+controller_backups/
+
+# Kunwei KWR75B local archive policy. Track docs, scripts, reports, metadata,
+# and small summaries intentionally; keep raw captures and vendor software
+# local unless Git LFS is explicitly configured.
+experiments/sensor-integration/kunwei-kwr75b/measurements/**/*.csv
+experiments/sensor-integration/kunwei-kwr75b/measurements/**/*.bin
+experiments/sensor-integration/kunwei-kwr75b/measurements/**/*.log
+experiments/sensor-integration/kunwei-kwr75b/measurements/**/capture.pid
+experiments/sensor-integration/kunwei-kwr75b/measurements/**/logs/
+experiments/sensor-integration/kunwei-kwr75b/software/
+
+# OnRobot HEX device-root data policy.
+# Track small docs/tools/manifests intentionally, but keep raw photos and
+# measurement outputs out of git.
+experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/photos_raw/
+experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/latest_connection_photos/
+experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/assets/thumbnails/
+experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/assets/contact_sheets/
+experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/measurements/**/*.csv
+experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/measurements/**/*.jsonl
+experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/measurements/**/*.png
+experiments/sensor-integration/archive/onrobot-hex-e-v2-3010007655/hex_e_v2_3010007655/measurements/**/*.log
+
 # Local editor/cache files
 .vscode/
 .DS_Store
 *.swp
 *~
+
+# Canonical content-addressed evidence lives under the Git common directory.
+# This root path is only an ignored compatibility link for legacy tools.
+/.ur10e-artifacts
 
 # Obsidian local window state
 .obsidian/workspace.json

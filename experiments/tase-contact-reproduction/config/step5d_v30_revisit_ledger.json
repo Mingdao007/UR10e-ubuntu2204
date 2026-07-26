@@ -1,0 +1,38 @@
+{
+  "schema_version": "step5d_v30_revisit_ledger_v1",
+  "claim_boundary": "package accepted != live accepted != reproduction complete",
+  "v27": {
+    "profile": "step5d_strict_rnn_ablation_v27",
+    "run": "bridge_step5d_strict_rnn_ablation_v27_20260706_045513",
+    "status": "retained_success",
+    "claim": "successful_10s_fix_validation_not_reproduction",
+    "stage25_duration_s": 10.216,
+    "command_consumption_ratio": 0.9982,
+    "live_source": "step5b_speedl_live_step5d_shadow"
+  },
+  "v28": {
+    "profile": "step5d_strict_rnn_ablation_v28",
+    "status": "superseded_incomplete",
+    "claim": "no_completed_reproduction"
+  },
+  "v29": {
+    "profile": "step5d_strict_rnn_ablation_v29",
+    "run": "bridge_step5d_strict_rnn_ablation_v29_20260710_104820",
+    "status": "failed_retained",
+    "classification": "stage25_cadence_or_consumption_failure",
+    "stage25_duration_s": 17.63,
+    "stage25_max_row_gap_s": 0.02457,
+    "command_consumption_ratio": 0.6477,
+    "strict_rnn_safe_hold_reason": "approach_normal_unload_mismatch",
+    "claim": "not_live_accepted_not_reproduction_complete"
+  },
+  "v30": {
+    "profile": "step5d_strict_rnn_ablation_v30",
+    "status": "offline_candidate",
+    "current_pointer": false,
+    "controller_uploaded": false,
+    "controller_readback_verified": false,
+    "live_motion_authorized": false,
+    "claim": "offline_candidate_only"
+  }
+}

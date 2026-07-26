@@ -1,0 +1,17 @@
+Step4e P0/P1 attitude package
+
+Program:
+  step4e_seed_normal_loop_v30
+
+Version:
+  2026-06-12T0425HKT_STEP4E_SEED_NORMAL_LOOP_V30
+
+Purpose:
+  filtered-live-normal line-control profile: v29 entry/search/25.2/25.3 flow unchanged, then bridge follows a gated filtered live normal during 25.0 only
+
+Control boundary:
+  Ubuntu bridge writes RTDE input registers 24..47.
+  No UR zero_ftsensor, no Kunwei tare/config write, no TCP/payload write.
+
+Canonical flow:
+  STEP4E_FLOW.md

@@ -1,0 +1,152 @@
+{
+  "bridge_csv": "/home/andy/ur10e_ros2_ws/experiments/tase-contact-reproduction/runs/bridge_step4e_line_outerloop_step5d_strict_rnn_liveprep_v15a_20260616_160355/bridge_rtde_500hz.csv",
+  "bridge_write_rate_hz": 508.2309788886176,
+  "frequency_contract_note": "Stage25 echo rate is measured from ur_output_double_register_26 heartbeat transitions; do not treat it as internal servo-loop frequency.",
+  "ok": true,
+  "rtde_output_logging_rate_hz": 508.2309788886176,
+  "stage24_2_near_search_echo_rate": {
+    "duration_s": 3.9840006940066814,
+    "echo_rate_hz": 248.49393261635302,
+    "echo_transitions": 990,
+    "rtde_row_rate_hz": 499.99991290078304,
+    "rtde_rows": 1993,
+    "stage": 24.2
+  },
+  "stage24_2_v22_first_near_search_echo_rate": {
+    "duration_s": 3.9840006940066814,
+    "echo_rate_hz": 248.49393261635302,
+    "echo_transitions": 990,
+    "rtde_row_rate_hz": 499.99991290078304,
+    "rtde_rows": 1993,
+    "stage": 24.2
+  },
+  "stage24_3_v22_second_far_search_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 0,
+    "stage": 24.3
+  },
+  "stage24_4_soft_acquisition_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 1,
+    "stage": 24.4
+  },
+  "stage24_4_v22_second_near_search_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 1,
+    "stage": 24.4
+  },
+  "stage24_search_echo_rate": {
+    "duration_s": 7.091999497031793,
+    "echo_rate_hz": 249.85901377201637,
+    "echo_transitions": 1772,
+    "rtde_row_rate_hz": 500.00003546025397,
+    "rtde_rows": 3547,
+    "stage": 24.0
+  },
+  "stage24_v22_first_far_search_echo_rate": {
+    "duration_s": 7.091999497031793,
+    "echo_rate_hz": 249.85901377201637,
+    "echo_transitions": 1772,
+    "rtde_row_rate_hz": 500.00003546025397,
+    "rtde_rows": 3547,
+    "stage": 24.0
+  },
+  "stage25_05_latch_echo_rate": {
+    "duration_s": 0.0059996709460392594,
+    "echo_rate_hz": 500.0274226673179,
+    "echo_transitions": 3,
+    "rtde_row_rate_hz": 500.0274226673179,
+    "rtde_rows": 4,
+    "stage": 25.05
+  },
+  "stage25_1_detach_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 0,
+    "stage": 25.1
+  },
+  "stage25_21_axis_iso_pp_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 0,
+    "stage": 25.21
+  },
+  "stage25_22_axis_iso_pn_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 0,
+    "stage": 25.22
+  },
+  "stage25_23_axis_iso_np_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 0,
+    "stage": 25.23
+  },
+  "stage25_24_axis_iso_nn_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 0,
+    "stage": 25.24
+  },
+  "stage25_2_orientation_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 0,
+    "stage": 25.2
+  },
+  "stage25_3_force_acquire_echo_rate": {
+    "duration_s": 0.2960000770399347,
+    "echo_rate_hz": 249.99993493250452,
+    "echo_transitions": 74,
+    "rtde_row_rate_hz": 499.99986986500903,
+    "rtde_rows": 149,
+    "stage": 25.3
+  },
+  "stage25_ft_line_control_echo_rate": {
+    "duration_s": 0.9979995499597862,
+    "echo_rate_hz": 496.9942120915646,
+    "echo_transitions": 496,
+    "rtde_row_rate_hz": 500.00022547115066,
+    "rtde_rows": 500,
+    "stage": 25.0
+  },
+  "stage26_unload_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 0,
+    "stage": 26.0
+  },
+  "stage27_retract_echo_rate": {
+    "duration_s": 0.0,
+    "echo_rate_hz": null,
+    "echo_transitions": 0,
+    "rtde_row_rate_hz": null,
+    "rtde_rows": 0,
+    "stage": 27.0
+  },
+  "total_rows": 13023
+}

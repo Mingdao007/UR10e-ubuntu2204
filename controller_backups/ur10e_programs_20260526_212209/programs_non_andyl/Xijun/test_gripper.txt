@@ -1,0 +1,4 @@
+ Program
+   Robot Program
+     Script: Test_Gripper.script
+     Halt

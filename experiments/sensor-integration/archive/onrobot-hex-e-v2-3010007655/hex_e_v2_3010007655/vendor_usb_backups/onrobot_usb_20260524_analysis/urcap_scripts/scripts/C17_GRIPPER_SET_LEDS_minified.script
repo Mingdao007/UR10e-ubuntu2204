@@ -1,0 +1,34 @@
+  #======    OnRobot Gripper Set LEDs    ======#
+  
+  of__gripper_set_LEDs_error_RGB0="Please define parameter RGB[0] (red) as an integer between 0 and 255."
+  of__gripper_set_LEDs_error_RGB1="Please define parameter RGB[1] (green) as an integer between 0 and 255."
+  of__gripper_set_LEDs_error_RGB2="Please define parameter RGB[2] (blue) as an integer between 0 and 255."
+  def of_gripper_set_LEDs(RGB=[0,0,0],forLeftLED=True,forRightLED=True):
+  sync()
+  if OF_DEBUG_STATE:
+  textmsg("Gripper Stop command starting..")
+  end 
+  local parameter_error=False
+  if not(RGB[0]>=0 and RGB[0]<=255):
+  parameter_error=True
+  popup(of__gripper_set_LEDs_error_RGB0,title=of_gripper_set_LEDs_error_title,error=True,blocking=False)
+  elif not(RGB[1]>=0 and RGB[1]<=255):
+  parameter_error=True
+  popup(of__gripper_set_LEDs_error_RGB1,title=of_gripper_set_LEDs_error_title,error=True,blocking=False)
+  elif not(RGB[2]>=0 and RGB[2]<=255):
+  parameter_error=True
+  popup(of__gripper_set_LEDs_error_RGB2,title=of_gripper_set_LEDs_error_title,error=True,blocking=False)
+  elif not(forLeftLED or forRightLED):
+  parameter_error=True
+  popup(of_gripper_set_LEDs_error_no_select,title=of_gripper_set_LEDs_error_title,error=True,blocking=False)
+  end 
+  if(parameter_error):
+  halt
+  end 
+  flags=binary_list_to_integer([forLeftLED,forRightLED])
+  of_send_full(OF_CMD_GRIPPER_SET_LEDS,RGB[0],RGB[1],RGB[2],flags)
+  return 0 
+  end 
+  
+  
+  #======    End of OnRobot Gripper Set LEDs    ======#

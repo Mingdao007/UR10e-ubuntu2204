@@ -1,0 +1,19 @@
+{
+  "created_utc": "2026-05-18T19:15:49+00:00",
+  "local_root": "/Users/andyl/Documents/UR10e/ft_sensor/onrobot/transfer_bundles/hex_e_v2_3010007655_20260519_031246/hex_e_v2_3010007655",
+  "target_root": "/home/andy/UR10e/ft_sensor/onrobot/hex_e_v2_3010007655",
+  "ssh_target": "andy7",
+  "file_count_excluding_manifest": 115,
+  "total_size_bytes_excluding_manifest": 66500007,
+  "required_paths": [
+    "GOAL_RUN_ONROBOT_6H.md",
+    "README_UBUNTU_6H.md",
+    "tools/onrobot_socketio_logger.py",
+    "tools/analyze_onrobot_drift.py",
+    "skills/md-report-skill/SKILL.md",
+    "photos_raw/IMG_1166.HEIC",
+    "latest_connection_photos/raw/IMG_1207.HEIC",
+    "measurements/mac_quick_read_check_20260519/onrobot_socketio_sample.csv"
+  ],
+  "missing_required_paths": []
+}

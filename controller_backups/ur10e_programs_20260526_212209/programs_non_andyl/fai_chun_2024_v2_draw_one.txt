@@ -1,0 +1,3 @@
+ Program
+   Robot Program
+     Script: test_second_drawing_8_m18.script_bak

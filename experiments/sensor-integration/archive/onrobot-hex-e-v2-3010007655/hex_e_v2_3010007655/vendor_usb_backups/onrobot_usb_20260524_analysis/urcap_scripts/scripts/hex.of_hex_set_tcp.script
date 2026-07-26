@@ -1,0 +1,53 @@
+  #======    OnRobot     ======#
+  
+  of_hex_qc_offset=p[0,0,0,0,0,0]
+  of_hex_bracket_offset=p[0,0,0,0,0,0]
+  of_robot_mount=[0,0]
+  of_center_of_gravity=[0,0,0]
+  of_payload_mass=0
+  def of_tcp_offset_set(TCP_offset):
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset set started!")
+  end 
+  set_tcp(TCP_offset)
+  of_robot_TCP_offset=TCP_offset
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset set to:",of_robot_TCP_offset)
+  end 
+  end 
+  def of_tcp_offset_rpy_set(offset=[0,0,0],rpy=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset RPY set started!")
+  end 
+  local rotvec=rpy2rotvec(rpy)
+  local tcp_offset=p[offset[0],offset[1],offset[2],rotvec[0],rotvec[1],rotvec[2]]
+  of_tcp_offset_set(tcp_offset)
+  if OF_DEBUG_STATE:
+  textmsg("TCP Offset RPY set to:",tcp_offset)
+  end 
+  end 
+  def of_payload_set(mass=0,center_of_gravity=[0,0,0]):
+  if OF_DEBUG_STATE:
+  textmsg("Robot mount, Center of Gravity & Payload sending started!")
+  end 
+  robot_mount=of_robot_mount
+  set_payload(mass,center_of_gravity)
+  of_center_of_gravity=center_of_gravity
+  of_payload_mass=mass
+  if OF_DEBUG_STATE:
+  textmsg("Robot mount, Center of Gravity & Payload sent.")
+  end 
+  end 
+  if(of_mounting_qc_use):
+  of_hex_mount_qc10()
+  end 
+  of_hex_relative_rpy_offset_set(offset=of_hex_part_tcp_offset_xyz,rpy=of_hex_part_tcp_offset_rpy)
+  if(of_hex_install_cog2tcp):
+  local cog_mass=of_hex_part_cog_mass+of_hex_mounted_mass
+  of_hex_relative_payload_set(mass=cog_mass,center_of_gravity=of_hex_part_cog_offset)
+  else:
+  of_hex_compensated_relative_payload_set(tool_mass=of_hex_part_cog_mass,center_of_gravity=of_hex_part_cog_offset)
+  end 
+  textmsg(of_hex_tcp_set_done)
+  
+  #======    End of OnRobot     ======#

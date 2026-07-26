@@ -1,0 +1,44 @@
+  #======    OnRobot F/T Path    ======#
+  
+  def of_path(pathID):
+  sync()
+  if not(of_move_state==OF_MOVE_STATE_INITED or of_move_state==OF_MOVE_STATE_PATH_STOPPED):
+  textmsg("of_move_state: ",of_move_state)
+  popup(of_path_move_state_error,title=of_path_error_title,error=True,blocking=False)
+  halt
+  end 
+  if not(of_move_path_count==0):
+  popup(of_path_path_count_error,title=of_path_error_title,error=True,blocking=False)
+  halt
+  end 
+  if not((of_move_wp_count==0 and not of_move_path_move_home)or(of_move_wp_count==1 or of_move_path_move_home)):
+  textmsg("Path home & Waypoint#: ",[binary_list_to_integer([of_move_path_move_home]),of_move_wp_count])
+  popup(of_path_wp_count_error,title=of_path_error_title,error=True,blocking=False)
+  halt
+  end 
+  if not(pathID>0 or pathID==-1):
+  popup(of_path_parameter_error_pathid,title=of_path_error_title,error=True,blocking=False)
+  halt
+  end 
+  of_move_path_move_home=False
+  of_send_full(OF_CMD_PATH,pathID)
+  of_move_path_count=of_move_path_count+1
+  if OF_DEBUG_STATE:
+  textmsg("FT Path sent: ",pathID)
+  end 
+  end 
+  def of_path_play(pathID=0,relative=False,homePose=ZEROPOSE):
+  if relative:
+  of_move_path_move_home=False
+  else:
+  of_move_path_move_home=True
+  end 
+  if not relative:
+  of_waypoint(fixP=homePose)
+  of_move_start_move(popupmsg=False)
+  end 
+  of_path(pathID)
+  end 
+  
+  
+  #======    End of OnRobot F/T Path    ======#

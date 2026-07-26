@@ -1,0 +1,23 @@
+  #======    OnRobot Globals    ======#
+  
+  global Fx=0
+  global Fy=0
+  global Fz=0
+  global Tx=0
+  global Ty=0
+  global Tz=0
+  global F3D=0
+  global T3D=0
+  global bFT=[0,0,0,0,0,0]
+  global tFT=[0,0,0,0,0,0]
+  {{debug_global}}of_compute_engine_ping=0
+  {{debug_global}}of_compute_engine_ping_max=0
+  {{debug_global}}ft_Engine_state=0
+  {{debug_global}}ft_Sensor_ID=0
+  FT_hex=[0,0,0,0,0,0]
+  {{debug_global}}ft_Status_hex=0
+  ft_Biased=False
+  of_hex={{hex}}
+  {{debug_global}}of_hex_qc_offset=p[0,0,0,0,0,0]
+  
+  #======    End of OnRobot Globals    ======#

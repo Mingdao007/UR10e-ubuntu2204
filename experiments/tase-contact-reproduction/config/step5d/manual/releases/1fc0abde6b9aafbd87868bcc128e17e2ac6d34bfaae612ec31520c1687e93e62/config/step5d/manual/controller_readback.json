@@ -1,0 +1,25 @@
+{
+  "controller": "root@192.168.1.18",
+  "controller_target": "/programs/andyl/kunwei/step5/step5d_strict_rnn_manual_tune_v1.urp",
+  "fresh_controller_checked_at": "2026-07-21T15:27:09+08:00",
+  "fresh_get": true,
+  "fresh_readback_manifest_sha256": "5b1c00c5439f0d17afe398c41d4c343c97f448d5ba55c62465b3faca7dafb8e4",
+  "parent_r009_commit": "bf6eb59d9530cf7f170f29c68c8812f00613b381",
+  "parent_r009_release_manifest_sha256": "731e75f7cee385bc19ea59e9cdfb5d50ceee2fa1a2a0cd044517a9fcb3419aba",
+  "program": "step5d_strict_rnn_manual_tune_v1",
+  "protocol": "v3_full_home_manual_hold_v1",
+  "safety_boundary": [
+    "controller package upload and fresh GET only",
+    "no Load or Play",
+    "no bridge, ARM, contact, or motion"
+  ],
+  "schema": "step5d.manual-hold/controller-readback-v1",
+  "source_stamp": "2026-07-21T1524HKT_STEP5D_MANUAL_HOLD_V1",
+  "status": "controller read-back verified",
+  "triplet_sha256": {
+    ".script": "f5912b2ebab77975e08b50d16bd09ce23d4a7025f4ffe733a03aad669eeb13cf",
+    ".txt": "cc7ec35fd496d475e93ecd15e17fdb458f278dbeeb7effbe50853347240af1be",
+    ".urp": "f517724876da6fdf6bf8be4bd5c00f9652603a09c5429461b8c7371d64e1342b"
+  },
+  "verified": true
+}

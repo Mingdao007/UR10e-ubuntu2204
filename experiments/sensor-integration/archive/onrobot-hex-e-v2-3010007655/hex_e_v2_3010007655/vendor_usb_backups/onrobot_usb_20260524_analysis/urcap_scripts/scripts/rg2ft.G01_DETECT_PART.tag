@@ -1,0 +1,7 @@
+  #======    OnRobot Gripper Detect Part Messages    ======#
+  
+  of_gripper_detect_part_title="{{of_gripper_detect_part_title}}"
+  of_gripper_detect_part_detected="{{of_gripper_detect_part_detected}}"
+  of_gripper_detect_part_not_detected="{{of_gripper_detect_part_not_detected}}"
+  
+  #======    End of OnRobot Gripper Detect Part Messages    ======#

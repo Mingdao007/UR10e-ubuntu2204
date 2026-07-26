@@ -1,0 +1,77 @@
+{
+  "ok": true,
+  "error": null,
+  "csv_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/demo_1_2_path_straight_line_urcap_20260528_012054/demo_1_2_rtde_20260528_012054.csv",
+  "summary_path": "/home/andy/ur10e_ros2_ws/ft_sensor/onrobot/hex_e_v2_3010007655/measurements/demo_1_2_path_straight_line_urcap_20260528_012054/demo_1_2_rtde_20260528_012054_summary.json",
+  "samples": 14992,
+  "requested_seconds": 120.0,
+  "requested_hz": 125.0,
+  "local_duration_s": 119.92856870999822,
+  "effective_hz": 124.99940724090564,
+  "start_dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "get loaded program": "Loaded program: /programs/andyl/path_straight_line.urp",
+    "programState": "STOPPED path_straight_line.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "safetystatus": "Safetystatus: NORMAL",
+    "is in remote control": "false"
+  },
+  "end_dashboard": {
+    "banner": "Connected: Universal Robots Dashboard Server",
+    "get loaded program": "Loaded program: /programs/andyl/path_straight_line.urp",
+    "programState": "STOPPED path_straight_line.urp",
+    "robotmode": "Robotmode: RUNNING",
+    "safetystatus": "Safetystatus: NORMAL",
+    "is in remote control": "false"
+  },
+  "runtime_state_counts": {
+    "1": 12564,
+    "2": 2428
+  },
+  "robot_mode_counts": {
+    "7": 14992
+  },
+  "safety_mode_counts": {
+    "1": 14992
+  },
+  "speed_scaling_range": [
+    0.0,
+    1.0
+  ],
+  "target_speed_fraction_range": [
+    1.0,
+    1.0
+  ],
+  "tcp_linear_speed_norm_range_m_s": [
+    0.0,
+    0.11424438263341742
+  ],
+  "actual_tcp_force_norm_range_N": [
+    0.03179854849168124,
+    8.312501846160508
+  ],
+  "actual_tcp_torque_norm_range_Nm": [
+    0.04443422579312358,
+    8.320102051482284
+  ],
+  "first_pose": [
+    0.4447330979022549,
+    0.22840722468629815,
+    0.052980860066173294,
+    3.1286085127743,
+    -4.259683667632786e-05,
+    -9.457746877293403e-05
+  ],
+  "last_pose": [
+    0.44473102447499374,
+    0.22834889543090853,
+    0.05296256688549934,
+    3.1284996933238727,
+    -0.00013619628755172654,
+    -6.527170299874745e-05
+  ],
+  "notes": [
+    "Ubuntu read-only RTDE capture only; user manually pressed Play on PolyScope.",
+    "output_double_register_24..33 are included but may be stale unless the running PolyScope program writes them."
+  ]
+}

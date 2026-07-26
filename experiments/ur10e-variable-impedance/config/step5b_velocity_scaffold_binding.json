@@ -1,0 +1,16 @@
+{
+  "claim_boundary": "offline integration binding only; not live authorization",
+  "activation_ready": false,
+  "activation_blocker": "step5b_live_runner_acceptance.accepted is false; offline core/replay binding is not live acceptance",
+  "acceptance_path_from_repository_root": "experiments/tase-contact-reproduction/config/step5b_live_runner_acceptance.json",
+  "acceptance_sha256": "395ed8a84bb326f73099e37cce21415dcc56f31f6fc088df463c4bece5928e42",
+  "profile": "step5b_pure_contact_control_core",
+  "replay_validator_path_from_repository_root": "experiments/tase-contact-reproduction/tools/step5b_contact_core_replay.py",
+  "replay_validator_sha256": "b768f11d4b90cccd1358e08c327ef457aef5dcc918ead3cb1be7342eca8ffe64",
+  "schema_version": 1,
+  "source_path_from_repository_root": "src/ur10e_example_controllers/ur10e_example_controllers/step5b_contact_control_core.py",
+  "source_sha256": "aab274a5775d2c849f9c639afca7c2d8868db858e2353ab044b9a2fd88e3526c",
+  "surrogate_modulation": "preserve Step5b tangent/orientation; scale only reaction-normal velocity by dimensionless sqrt(K_eff/K_baseline)<=1",
+  "verified_live_source_claim": "none; pure core/replay integration is offline, current ROS2 live runner acceptance is explicitly false",
+  "live_motion_authorized": false
+}
