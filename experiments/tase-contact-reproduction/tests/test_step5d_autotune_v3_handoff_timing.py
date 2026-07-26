@@ -15,6 +15,23 @@ sys.path.insert(0, str(ROOT.parents[1] / "src" / "ur10e_experiment_runtime"))
 import measure_step5d_startup_timing as measure
 
 
+def test_offline_runtime_identity_is_sandbox_scoped(tmp_path: Path) -> None:
+    from step5d_autotune_v3.runtime_installation import (
+        current_pointer_path,
+        load_runtime_pointer_identity,
+    )
+
+    environment = measure._seed_offline_runtime_identity(tmp_path)
+    pointer = load_runtime_pointer_identity(environ=environment)
+
+    assert current_pointer_path(environment).is_relative_to(tmp_path)
+    assert Path(pointer["attestation_path"]).is_relative_to(tmp_path)
+    assert all(
+        Path(profile["root"]).is_relative_to(tmp_path)
+        for profile in pointer["profiles"].values()
+    )
+
+
 def test_persistent_worker_campaign_prepare_uses_canonical_request(
     tmp_path: Path, monkeypatch
 ) -> None:

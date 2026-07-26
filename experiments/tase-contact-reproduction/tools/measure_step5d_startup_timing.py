@@ -66,6 +66,121 @@ def _fixture_fingerprint() -> tuple[str, dict[str, str]]:
     return hashlib.sha256(encoded).hexdigest(), digests
 
 
+def _offline_runtime_environment(sandbox: Path) -> dict[str, str]:
+    return {
+        "HOME": str(sandbox / "home"),
+        "XDG_CONFIG_HOME": str(sandbox / "xdg-config"),
+        "XDG_DATA_HOME": str(sandbox / "xdg-data"),
+        "XDG_STATE_HOME": str(sandbox / "xdg-state"),
+        "XDG_CACHE_HOME": str(sandbox / "xdg-cache"),
+    }
+
+
+@contextlib.contextmanager
+def _environment_overlay(additions: Mapping[str, str]) -> Any:
+    previous = {key: os.environ.get(key) for key in additions}
+    os.environ.update(additions)
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def _seed_offline_runtime_identity(sandbox: Path) -> dict[str, str]:
+    """Create the O(1) runtime identity needed only by this temp fixture."""
+
+    from step5d_autotune_v3.runtime_installation import (
+        ATTESTATION_SCHEMA,
+        POINTER_SCHEMA,
+        PROFILES,
+        current_pointer_path,
+        lock_sha256,
+        runtime_bundle_id,
+        runtime_contract_sha256,
+    )
+
+    environment = _offline_runtime_environment(sandbox)
+    Path(environment["HOME"]).mkdir(parents=True, exist_ok=True)
+    bundle_id = runtime_bundle_id()
+    contract_sha256_value = runtime_contract_sha256()
+    lock_sha256_value = lock_sha256()
+    installation_manifest_sha256 = _sha256_json(
+        {
+            "schema": "step5d.autotune-v3/offline-timing-runtime-v1",
+            "bundle_id": bundle_id,
+        }
+    )
+    store = (
+        Path(environment["XDG_DATA_HOME"])
+        / "step5d-autotune-v3"
+        / "runtimes"
+        / bundle_id
+    )
+    profiles = {
+        profile: {
+            "environment_id": _sha256_json(
+                {"profile": profile, "role": "environment"}
+            ),
+            "root": str(store / profile),
+            "python_executable": str(store / profile / "bin" / "python"),
+            "record_tree_sha256": _sha256_json(
+                {"profile": profile, "role": "record-tree"}
+            ),
+            "profile_tree_sha256": _sha256_json(
+                {"profile": profile, "role": "profile-tree"}
+            ),
+        }
+        for profile in PROFILES
+    }
+    attestation_root = (
+        Path(environment["XDG_STATE_HOME"])
+        / "step5d-autotune-v3"
+        / bundle_id
+        / "attestations"
+    )
+    attestation_root.mkdir(parents=True, exist_ok=True)
+    attestation_path = attestation_root / "runtime-attestation-offline-timing.json"
+    attestation = {
+        "schema": ATTESTATION_SCHEMA,
+        "bundle_id": bundle_id,
+        "contract_sha256": contract_sha256_value,
+        "lock_sha256": lock_sha256_value,
+        "installation_manifest_sha256": installation_manifest_sha256,
+        "observed_at_unix_ns": time.time_ns(),
+        "host": {
+            "fixture": "offline-startup-timing",
+            "production_authority": False,
+        },
+        "profiles": profiles,
+    }
+    attestation_path.write_text(
+        json.dumps(attestation, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    attestation_path.chmod(0o400)
+    pointer = {
+        "schema": POINTER_SCHEMA,
+        "bundle_id": bundle_id,
+        "contract_sha256": contract_sha256_value,
+        "lock_sha256": lock_sha256_value,
+        "attestation_path": str(attestation_path),
+        "attestation_sha256": _sha256(attestation_path),
+        "installation_manifest_sha256": installation_manifest_sha256,
+        "profiles": profiles,
+    }
+    pointer_path = current_pointer_path(environment)
+    pointer_path.parent.mkdir(parents=True, exist_ok=True)
+    pointer_path.write_text(
+        json.dumps(pointer, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return environment
+
+
 def _make_fixture(index: int) -> dict[str, Any]:
     import build_step5d_autotune_tp_v3 as builder
     from step5d_autotune_v3.bridge_admission import (
@@ -102,6 +217,7 @@ def _make_fixture(index: int) -> dict[str, Any]:
     from step5d_autotune_v3.state import atomic_json
 
     sandbox = Path(tempfile.mkdtemp(prefix=f"step5d-timing-{index:02d}-"))
+    runtime_environment = _seed_offline_runtime_identity(sandbox)
     fixture_git_root = sandbox / "repo"
     root = fixture_git_root / "experiments" / "tase-contact-reproduction"
     fixture_git_root.mkdir(parents=True, exist_ok=True)
@@ -357,7 +473,10 @@ def _make_fixture(index: int) -> dict[str, Any]:
         root,
         certificate_root,
         release_identity=release,
-        environment={CANONICAL_LAUNCH_ENV: str(launch_env_script)},
+        environment={
+            **runtime_environment,
+            CANONICAL_LAUNCH_ENV: str(launch_env_script),
+        },
     )
     subprocess.run(
         [
@@ -385,6 +504,11 @@ def _make_fixture(index: int) -> dict[str, Any]:
     )
     write_publication_lineage(root, release=release)
     lineage_path, _lineage = resolve_publication_lineage(root, release=release)
+    release_contract = release_contract_reference(
+        root,
+        release,
+        environment=runtime_environment,
+    )
     admission = {
         "schema": BRIDGE_ADMISSION_SCHEMA,
         "observed_at_unix_ns": time.time_ns(),
@@ -400,7 +524,7 @@ def _make_fixture(index: int) -> dict[str, Any]:
             "manifest_sha256": release.manifest_sha256,
             "program_id": release.program_id,
         },
-        "release_contract": release_contract_reference(root, release),
+        "release_contract": release_contract,
         "publication_lineage": {
             "path": lineage_path.relative_to(root.resolve(strict=True)).as_posix(),
             "sha256": _sha256(lineage_path),
@@ -415,7 +539,12 @@ def _make_fixture(index: int) -> dict[str, Any]:
         "attempt_created": False,
         "campaign_fingerprint": campaign_fingerprint,
     }
-    validate_bridge_admission(root, admission, release=release)
+    validate_bridge_admission(
+        root,
+        admission,
+        release=release,
+        environment=runtime_environment,
+    )
     admission_path = write_indexed_bridge_admission(root, admission)
     basis_root = root / "basis"
     basis_path = basis_root / "launch-basis.json"
@@ -460,6 +589,7 @@ def _make_fixture(index: int) -> dict[str, Any]:
         "owner_starttime": owner_starttime,
         "campaign_fingerprint": basis["campaign_fingerprint"],
         "runtime_identity": runtime_identity,
+        "runtime_environment": runtime_environment,
     }
 
 
@@ -520,7 +650,12 @@ def _fixture_from_root(root: Path) -> dict[str, Any]:
         basis_path = root / "basis/launch-basis.json"
     basis = json.loads(basis_path.read_text(encoding="utf-8"))
     release = load_runtime_release(root)
-    admission_path, _admission = resolve_bridge_admission(root, release=release)
+    runtime_environment = _offline_runtime_environment(root.resolve(strict=True).parents[2])
+    admission_path, _admission = resolve_bridge_admission(
+        root,
+        release=release,
+        environment=runtime_environment,
+    )
     return {
         "root": str(root),
         "experiment_root": str(root),
@@ -544,6 +679,7 @@ def _fixture_from_root(root: Path) -> dict[str, Any]:
             "digest_hi": 2,
             "digest_lo": 3,
         },
+        "runtime_environment": runtime_environment,
     }
 
 
@@ -675,6 +811,11 @@ class _TimedPopen:
 
 
 def _run_handoff(fixture: Mapping[str, Any]) -> dict[str, Any]:
+    with _environment_overlay(fixture.get("runtime_environment", {})):
+        return _run_handoff_with_environment(fixture)
+
+
+def _run_handoff_with_environment(fixture: Mapping[str, Any]) -> dict[str, Any]:
     import run_step5d_autotune_v3_coordinator as coordinator
     import run_step5d_autotune_v3_live as live
     import step5d_bridge_authority as authority
@@ -940,13 +1081,14 @@ def _run_handoff(fixture: Mapping[str, Any]) -> dict[str, Any]:
 
 def _run_operation(operation: str, fixture_root: Path) -> dict[str, Any]:
     fixture = _fixture_from_root(fixture_root)
-    if operation == "campaign_prepare":
-        return _run_campaign_function(fixture)
-    if operation == "preflight_worker":
-        return _offline_preflight(fixture)
-    if operation == "live_handoff_to_bridge_popen":
-        return _run_handoff(fixture)
-    raise ValueError(f"unknown timing operation: {operation}")
+    with _environment_overlay(fixture["runtime_environment"]):
+        if operation == "campaign_prepare":
+            return _run_campaign_function(fixture)
+        if operation == "preflight_worker":
+            return _offline_preflight(fixture)
+        if operation == "live_handoff_to_bridge_popen":
+            return _run_handoff(fixture)
+        raise ValueError(f"unknown timing operation: {operation}")
 
 
 def _worker_main(operation: str, fixture_root: Path) -> int:

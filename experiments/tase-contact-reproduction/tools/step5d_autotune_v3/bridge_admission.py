@@ -57,9 +57,15 @@ def _sha256(path: Path) -> str:
 def release_contract_reference(
     root: Path,
     release: ReleaseIdentity,
+    *,
+    environment: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     certificate_root = root.resolve(strict=True) / "runs/step5d_autotune_v3"
-    scope = release_contract_scope_for_release(root, release)
+    scope = release_contract_scope_for_release(
+        root,
+        release,
+        environment=environment,
+    )
     path = certificate_path(certificate_root, scope)
     _certificate, evidence, payload = load_release_certificate(
         certificate_root,
@@ -104,6 +110,7 @@ def validate_bridge_admission(
     *,
     release: ReleaseIdentity,
     now_ns: int | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     required = {
         "schema",
@@ -163,10 +170,15 @@ def validate_bridge_admission(
             raise BridgeAdmissionError("bridge admission campaign fingerprint differs")
     elif campaign_fingerprint is not None:
         raise BridgeAdmissionError("action-required admission must not carry a campaign fingerprint")
-    if row.get("release_contract") != release_contract_reference(
-        root,
-        release,
-    ):
+    if environment is None:
+        expected_release_contract = release_contract_reference(root, release)
+    else:
+        expected_release_contract = release_contract_reference(
+            root,
+            release,
+            environment=environment,
+        )
+    if row.get("release_contract") != expected_release_contract:
         raise BridgeAdmissionError("bridge admission release contract differs")
     try:
         lineage_path, _lineage = resolve_publication_lineage(
@@ -294,6 +306,7 @@ def resolve_bridge_admission(
     *,
     release: ReleaseIdentity,
     now_ns: int | None = None,
+    environment: Mapping[str, str] | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     experiment = root.resolve(strict=True)
     index = experiment / INDEX_ROOT / release.manifest_sha256
@@ -315,6 +328,7 @@ def resolve_bridge_admission(
                 raw,
                 release=release,
                 now_ns=now_ns,
+                environment=environment,
             )
         except (OSError, UnicodeError, json.JSONDecodeError, BridgeAdmissionError):
             continue

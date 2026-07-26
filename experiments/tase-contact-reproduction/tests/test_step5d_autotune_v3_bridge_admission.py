@@ -25,6 +25,23 @@ EXPECTED_PROGRAM = (
 )
 
 
+def _seed_git_reference(source_root: Path, fixture_root: Path) -> None:
+    source = source_root / ".git"
+    if source.is_file():
+        raw = source.read_text(encoding="utf-8").splitlines()
+        if not raw or not raw[0].startswith("gitdir:"):
+            raise ValueError(f"Invalid Git worktree metadata: {source}")
+        target = Path(raw[0][len("gitdir:") :].strip())
+        if not target.is_absolute():
+            target = source.parent / target
+        content = f"gitdir: {target.resolve() if not target.is_absolute() else target}\n"
+    elif source.is_dir():
+        content = f"gitdir: {source.resolve(strict=True)}\n"
+    else:
+        raise FileNotFoundError(f"Git metadata is unavailable: {source}")
+    (fixture_root / ".git").write_text(content, encoding="utf-8")
+
+
 def _seed_campaign_source_contract(root: Path) -> None:
     from step5d_autotune_backend import Step5dV35Backend
 
@@ -47,9 +64,33 @@ def _seed_campaign_source_contract(root: Path) -> None:
         ROOT / "programs" / "step5" / "step5d",
         root / "programs" / "step5" / "step5d",
     )
-    gitfile = WORKTREE_ROOT / ".git"
-    if gitfile.exists():
-        (root / ".git").write_text(gitfile.read_text(encoding="utf-8"), encoding="utf-8")
+    _seed_git_reference(WORKTREE_ROOT, root)
+
+
+def test_seed_git_reference_supports_linked_and_ordinary_checkouts(
+    tmp_path: Path,
+) -> None:
+    linked = tmp_path / "linked"
+    linked.mkdir()
+    (linked / ".git").write_text("gitdir: ../linked-admin\n", encoding="utf-8")
+    linked_fixture = tmp_path / "linked-fixture"
+    linked_fixture.mkdir()
+
+    ordinary = tmp_path / "ordinary"
+    (ordinary / ".git").mkdir(parents=True)
+    (ordinary / ".git/HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    ordinary_fixture = tmp_path / "ordinary-fixture"
+    ordinary_fixture.mkdir()
+
+    _seed_git_reference(linked, linked_fixture)
+    _seed_git_reference(ordinary, ordinary_fixture)
+
+    assert (linked_fixture / ".git").read_text(encoding="utf-8") == (
+        f"gitdir: {(linked / '../linked-admin').resolve()}\n"
+    )
+    assert (ordinary_fixture / ".git").read_text(encoding="utf-8") == (
+        f"gitdir: {(ordinary / '.git').resolve(strict=True)}\n"
+    )
 
 
 def _observation_fixture(
