@@ -2,8 +2,8 @@
 """Validate or run the bounded Remote-Control Direct Torque v4 canary.
 
 ``status`` and ``validate`` are read-only/offline.  ``run`` is fail-closed and
-requires separate command-line and signed-artifact gates for URScript send,
-RTDE input writes, Direct Torque, physical motion, and the no-contact scope.
+requires explicit command-line gates for URScript send, RTDE input writes,
+Direct Torque, physical motion, and the no-contact scope.
 The live canary starts one Kunwei KWR75B 1 kHz capture owner.  Kunwei
 software-baselined sensor-to-TCP SI wrench is the only experiment F/T source
 and the only wrench used by the active no-contact guard.
@@ -15,7 +15,6 @@ import argparse
 import csv
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -74,10 +73,6 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
 )
 
 
-AUTHORIZATION_SCHEMA = "ur10e_tacdiffusion_direct_torque_authorization/v2"
-COMPILE_PROBE_AUTHORIZATION_SCHEMA = (
-    "ur10e_tacdiffusion_direct_torque_compile_probe_authorization/v1"
-)
 COMPILE_PROBE_EVIDENCE_SCHEMA = (
     "ur10e_tacdiffusion_compile_probe_evidence/v2"
 )
@@ -391,13 +386,15 @@ def _finite6(values: Sequence[float], name: str) -> tuple[float, ...]:
     return result
 
 
-def _parse_time(value: object, name: str) -> datetime:
-    if not isinstance(value, str):
-        raise ValueError(f"{name} is missing")
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        raise ValueError(f"{name} must include a timezone")
-    return parsed.astimezone(timezone.utc)
+def _new_live_identity_pair() -> tuple[int, int]:
+    """Mint positive int31 identities locally for one controller episode."""
+
+    identities: list[int] = []
+    while len(identities) < 2:
+        candidate = int.from_bytes(os.urandom(4), "big") & 0x7FFFFFFF
+        if candidate > 0 and candidate not in identities:
+            identities.append(candidate)
+    return identities[0], identities[1]
 
 
 def _sample_translation_error_sqm3(a_pose: Sequence[float], b_pose: Sequence[float]) -> float:
@@ -1193,61 +1190,6 @@ def validate_bundle(manifest_path: Path) -> ValidatedBundle:
     )
 
 
-def validate_authorization(
-    path: Path,
-    bundle: ValidatedBundle,
-    *,
-    robot_host: str,
-    canary_stage: str = CANARY_STAGE_REFERENCE,
-    kunwei_calibration_sha256: str | None = None,
-    now: datetime | None = None,
-) -> Mapping[str, Any]:
-    if canary_stage not in CANARY_STAGE_ORDER:
-        raise ValueError(f"unknown_canary_stage:{canary_stage}")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, Mapping) or payload.get("schema") != AUTHORIZATION_SCHEMA:
-        raise ValueError("authorization schema mismatch")
-    runtime_binding = runtime_source_binding()
-    checks = {
-        "robot_host": robot_host,
-        "receiver_source_sha256": bundle.source_sha256,
-        "bundle_manifest_sha256": bundle.manifest_sha256,
-        "reference_artifact_sha256": bundle.reference_sha256,
-        "runtime_source_sha256": runtime_binding["sha256"],
-        "canary_stage": canary_stage,
-        "allow_urscript_send": True,
-        "allow_rtde_input_write": True,
-        "allow_direct_torque": True,
-        "allow_motion": True,
-        "allow_contact": False,
-        "allow_kunwei_stream": True,
-        "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
-        "kunwei_calibration_sha256": kunwei_calibration_sha256,
-    }
-    failures = [
-        key for key, expected in checks.items() if payload.get(key) != expected
-    ]
-    if int(payload.get("episode_identity", 0)) <= 0:
-        failures.append("episode_identity")
-    required_duration_s = (
-        bundle.timeline.duration_s
-        if canary_stage == CANARY_STAGE_REFERENCE
-        else CANARY_STAGE_DURATIONS_S[canary_stage]
-    )
-    if float(payload.get("max_duration_s", 0.0)) < required_duration_s:
-        failures.append("max_duration_s")
-    if float(payload.get("normal_half_width_m", math.inf)) != 0.002:
-        failures.append("normal_half_width_m")
-    current = datetime.now(timezone.utc) if now is None else now.astimezone(timezone.utc)
-    if not (_parse_time(payload.get("authorized_at"), "authorized_at") <= current):
-        failures.append("authorized_at")
-    if not (current < _parse_time(payload.get("expires_at"), "expires_at")):
-        failures.append("expires_at")
-    if failures:
-        raise RuntimeError("authorization_mismatch:" + ",".join(sorted(set(failures))))
-    return payload
-
-
 def validate_compile_probe_evidence(
     path: Path,
     *,
@@ -1317,46 +1259,6 @@ def validate_prior_stage_evidence(
     if failures:
         raise RuntimeError(
             "prior_stage_evidence_mismatch:" + ",".join(sorted(set(failures)))
-        )
-    return payload
-
-
-def validate_compile_probe_authorization(
-    path: Path,
-    source_sha256: str,
-    *,
-    robot_host: str,
-    now: datetime | None = None,
-) -> Mapping[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if (
-        not isinstance(payload, Mapping)
-        or payload.get("schema") != COMPILE_PROBE_AUTHORIZATION_SCHEMA
-    ):
-        raise ValueError("compile probe authorization schema mismatch")
-    checks = {
-        "robot_host": robot_host,
-        "compile_probe_source_sha256": source_sha256,
-        "allow_urscript_send": True,
-        "allow_rtde_output_read": True,
-        "allow_rtde_input_write": False,
-        "allow_direct_torque": False,
-        "allow_motion": False,
-        "allow_contact": False,
-        "allow_kunwei_stream": False,
-    }
-    failures = [
-        key for key, expected in checks.items() if payload.get(key) != expected
-    ]
-    current = datetime.now(timezone.utc) if now is None else now.astimezone(timezone.utc)
-    if not (_parse_time(payload.get("authorized_at"), "authorized_at") <= current):
-        failures.append("authorized_at")
-    if not (current < _parse_time(payload.get("expires_at"), "expires_at")):
-        failures.append("expires_at")
-    if failures:
-        raise RuntimeError(
-            "compile_probe_authorization_mismatch:"
-            + ",".join(sorted(set(failures)))
         )
     return payload
 
@@ -1904,11 +1806,6 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
     source = build_compile_probe_source()
     parse_compile_probe_source(source)
     source_sha256 = hashlib.sha256(source.encode("utf-8")).hexdigest()
-    validate_compile_probe_authorization(
-        args.authorization.resolve(),
-        source_sha256,
-        robot_host=args.robot_host,
-    )
     status = readonly_status(args.robot_host)
     validate_compile_probe_preflight(status)
     output_dir = _next_available_run_dir(args.output_dir.resolve())
@@ -2109,13 +2006,6 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
     calibration, calibration_sha256 = validate_calibration(
         args.kunwei_calibration.resolve()
     )
-    authorization = validate_authorization(
-        args.authorization.resolve(),
-        bundle,
-        robot_host=args.robot_host,
-        canary_stage=canary_stage,
-        kunwei_calibration_sha256=calibration_sha256,
-    )
     status = readonly_status(args.robot_host)
     timeline = CanaryTimeline.from_stage(
         canary_stage,
@@ -2124,10 +2014,7 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
     )
     validate_live_preflight(status, bundle, timeline=timeline)
     _enforce_no_live_writer_conflict()
-    lease_id = int(authorization["lease_id"])
-    episode_identity = int(authorization["episode_identity"])
-    if lease_id <= 0:
-        raise RuntimeError("authorization_lease_id_invalid")
+    lease_id, episode_identity = _new_live_identity_pair()
     initial_pose = timeline.rows[0]["desired_pose_base"]
     scheduler = AckPacedScheduler()
     samples: list[dict[str, Any]] = []
@@ -2665,7 +2552,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="explicitly authorized controller parser/connectivity probe without motion",
     )
     probe.add_argument("--robot-host", default="192.168.1.18")
-    probe.add_argument("--authorization", type=Path, required=True)
     probe.add_argument("--output-dir", type=Path, required=True)
     probe.add_argument("--connect-timeout-s", type=float, default=3.0)
     probe.add_argument("--probe-timeout-s", type=float, default=1.0)
@@ -2684,7 +2570,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=KUNWEI_CALIBRATION_DEFAULT,
     )
     run.add_argument("--bundle-manifest", type=Path, required=True)
-    run.add_argument("--authorization", type=Path, required=True)
     run.add_argument(
         "--canary-stage",
         choices=CANARY_STAGE_ORDER,

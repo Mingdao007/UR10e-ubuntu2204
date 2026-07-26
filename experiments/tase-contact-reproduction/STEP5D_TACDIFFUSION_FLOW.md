@@ -135,8 +135,10 @@ cannot be skipped:
 2. 0.2 mm smooth in-plane ramp over 0.5 s;
 3. bounded 2 s reference.
 
-Each stage requires a fresh hash-bound authorization and, after the first
-stage, strict-success evidence from the immediately preceding stage. The live
+The native runner does not require or parse a separate authorization JSON.
+Its one-shot CLI live flags express the already-issued operator instruction;
+after the first stage, strict-success evidence from the immediately preceding
+stage remains mandatory. The live
 CSV records every decoded controller packet, command lineage, actual state,
 applied `F_ff`/`K`, and the six commanded joint torques. These diagnostic
 captures remain `training_dataset=false`; Expert/contact collection needs a

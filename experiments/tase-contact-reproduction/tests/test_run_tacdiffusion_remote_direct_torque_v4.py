@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -26,8 +25,6 @@ for path in (TOOLS, VIC_ROOT, UR_HELPERS):
 
 import step5d_v34_transport_primitives as transport_primitives  # noqa: E402
 from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
-    AUTHORIZATION_SCHEMA,
-    COMPILE_PROBE_AUTHORIZATION_SCHEMA,
     COMPILE_PROBE_EVIDENCE_SCHEMA,
     COMPILE_PROBE_PROTOCOL_TOKEN,
     COMPILE_PROBE_STATE_ACTIVE,
@@ -62,6 +59,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _detect_live_writer_processes,
     _enforce_no_live_writer_conflict,
     _next_available_run_dir,
+    _new_live_identity_pair,
     _prime_idle_inputs,
     _sample_translation_error_sqm3,
     _wait_for_fresh_receiver_waiting,
@@ -70,9 +68,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _write_json_new,
     analyze_entry_bumplessness,
     command_values,
-    validate_authorization,
     validate_bundle,
-    validate_compile_probe_authorization,
     validate_compile_probe_evidence,
     validate_compile_probe_preflight,
     validate_live_preflight,
@@ -182,40 +178,6 @@ def _bundle(tmp_path: Path):
         text=True,
     )
     return validate_bundle(manifest)
-
-
-def _write_authorization(
-    tmp_path: Path,
-    bundle,
-    **overrides: Any,
-) -> Path:
-    payload = {
-        "schema": AUTHORIZATION_SCHEMA,
-        "robot_host": "192.168.1.18",
-        "receiver_source_sha256": bundle.source_sha256,
-        "bundle_manifest_sha256": bundle.manifest_sha256,
-        "reference_artifact_sha256": bundle.reference_sha256,
-        "runtime_source_sha256": runtime_source_binding()["sha256"],
-        "canary_stage": CANARY_STAGE_REFERENCE,
-        "lease_id": 111,
-        "episode_identity": 222,
-        "max_duration_s": 2.0,
-        "normal_half_width_m": 0.002,
-        "allow_urscript_send": True,
-        "allow_rtde_input_write": True,
-        "allow_direct_torque": True,
-        "allow_motion": True,
-        "allow_contact": False,
-        "allow_kunwei_stream": True,
-        "kunwei_force_source": "kunwei_software_baselined_sensor_to_tcp_si",
-        "kunwei_calibration_sha256": None,
-        "authorized_at": "2026-07-26T00:00:00+00:00",
-        "expires_at": "2026-07-27T00:00:00+00:00",
-    }
-    payload.update(overrides)
-    path = tmp_path / "authorization.json"
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    return path
 
 
 def _write_compile_probe_evidence(tmp_path: Path, **overrides: Any) -> Path:
@@ -428,10 +390,8 @@ def _run_fake_batched_control(
             return self.batches.pop(0)
 
     fake_rtde = FakeRTDE()
-    auth = SimpleNamespace(resolve=lambda: tmp_path / "unused.json")
     compile_probe_evidence = _write_compile_probe_evidence(tmp_path)
     args = SimpleNamespace(
-        authorization=auth,
         canary_stage=CANARY_STAGE_HOLD,
         compile_probe_evidence=compile_probe_evidence,
         prior_stage_evidence=None,
@@ -498,8 +458,8 @@ def _run_fake_batched_control(
         "run_tacdiffusion_remote_direct_torque_v4.validate_prior_stage_evidence",
         return_value=None,
     ), patch(
-        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization",
-        return_value={"lease_id": 111, "episode_identity": 222},
+        "run_tacdiffusion_remote_direct_torque_v4._new_live_identity_pair",
+        return_value=(111, 222),
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4.readonly_status",
         return_value={"rtde": {"actual_TCP_pose": pose}},
@@ -666,9 +626,9 @@ def test_remote_config_preserves_native_kunwei_rate_and_runtime_binding() -> Non
         )
     )
     assert config["schema"].endswith("/v2")
-    authority = config["authority"]["authorization_artifact"]
-    assert authority["schema"] == AUTHORIZATION_SCHEMA
-    assert authority["runtime_source_binding_required"] is True
+    authority = config["authority"]
+    assert authority["authorization_artifact_required"] is False
+    assert authority["live_cli_gates_required"] is True
     capture = config["no_contact_wrench_guard"]
     assert capture["native_sensor_sample_rate_hz"] == 1000
     assert capture["sensor_delivery_watchdog_s"] == 0.08
@@ -763,36 +723,11 @@ def test_v35_scheduler_gate_requires_sched_other_for_every_thread() -> None:
         transport_primitives.require_v35_sched_other()
 
 
-def test_authorization_binds_every_live_gate_and_hash(tmp_path: Path) -> None:
-    bundle = _bundle(tmp_path)
-    authorization = _write_authorization(tmp_path, bundle)
-    validated = validate_authorization(
-        authorization,
-        bundle,
-        robot_host="192.168.1.18",
-        now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
-    )
-    assert validated["allow_contact"] is False
-    payload = json.loads(authorization.read_text(encoding="utf-8"))
-    payload["runtime_source_sha256"] = "0" * 64
-    authorization.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(RuntimeError, match="runtime_source_sha256"):
-        validate_authorization(
-            authorization,
-            bundle,
-            robot_host="192.168.1.18",
-            now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
-        )
-    payload["runtime_source_sha256"] = runtime_source_binding()["sha256"]
-    payload["allow_direct_torque"] = False
-    authorization.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(RuntimeError, match="allow_direct_torque"):
-        validate_authorization(
-            authorization,
-            bundle,
-            robot_host="192.168.1.18",
-            now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
-        )
+def test_live_identities_are_positive_distinct_int31_values() -> None:
+    lease_id, episode_identity = _new_live_identity_pair()
+    assert 0 < lease_id <= 0x7FFFFFFF
+    assert 0 < episode_identity <= 0x7FFFFFFF
+    assert lease_id != episode_identity
 
 
 def test_canary_timeline_has_fixed_hold_ramp_and_reference_stages(
@@ -943,48 +878,13 @@ def test_idle_prime_overwrites_stale_command_for_five_fresh_controller_ticks() -
     assert rtde.batch_index >= 6
 
 
-def test_compile_probe_authorization_and_evidence_are_strictly_no_motion(
+def test_compile_probe_evidence_is_strictly_no_motion(
     tmp_path: Path,
 ) -> None:
-    source_sha256 = hashlib.sha256(
-        build_compile_probe_source().encode("utf-8")
-    ).hexdigest()
-    authorization = tmp_path / "compile_probe_authorization.json"
-    payload = {
-        "schema": COMPILE_PROBE_AUTHORIZATION_SCHEMA,
-        "robot_host": "192.168.1.18",
-        "compile_probe_source_sha256": source_sha256,
-        "allow_urscript_send": True,
-        "allow_rtde_output_read": True,
-        "allow_rtde_input_write": False,
-        "allow_direct_torque": False,
-        "allow_motion": False,
-        "allow_contact": False,
-        "allow_kunwei_stream": False,
-        "authorized_at": "2026-07-26T00:00:00+00:00",
-        "expires_at": "2026-07-27T00:00:00+00:00",
-    }
-    authorization.write_text(json.dumps(payload), encoding="utf-8")
-    validated = validate_compile_probe_authorization(
-        authorization,
-        source_sha256,
-        robot_host="192.168.1.18",
-        now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
-    )
-    assert validated["allow_direct_torque"] is False
     evidence = _write_compile_probe_evidence(tmp_path)
     assert validate_compile_probe_evidence(
         evidence, robot_host="192.168.1.18"
     )["ok"]
-    payload["allow_motion"] = True
-    authorization.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(RuntimeError, match="allow_motion"):
-        validate_compile_probe_authorization(
-            authorization,
-            source_sha256,
-            robot_host="192.168.1.18",
-            now=datetime(2026, 7, 26, 8, 0, tzinfo=timezone.utc),
-        )
 
 
 def test_compile_probe_ignores_stale_complete_until_current_active() -> None:
@@ -1045,7 +945,6 @@ def test_stage_evidence_prevents_skipping_a_live_canary_stage(tmp_path: Path) ->
 
 def test_run_refuses_partial_cli_authority_before_any_io(tmp_path: Path) -> None:
     bundle = _bundle(tmp_path)
-    fake_authorization = tmp_path / "not_read.json"
     completed = subprocess.run(
         [
             sys.executable,
@@ -1053,8 +952,6 @@ def test_run_refuses_partial_cli_authority_before_any_io(tmp_path: Path) -> None
             "run",
             "--bundle-manifest",
             str(bundle.manifest_path),
-            "--authorization",
-            str(fake_authorization),
             "--canary-stage",
             CANARY_STAGE_HOLD,
             "--compile-probe-evidence",
@@ -1071,7 +968,7 @@ def test_run_refuses_partial_cli_authority_before_any_io(tmp_path: Path) -> None
     assert not (tmp_path / "out").exists()
 
 
-def test_manifest_hash_is_authorization_identity(tmp_path: Path) -> None:
+def test_manifest_hash_is_bundle_identity(tmp_path: Path) -> None:
     bundle = _bundle(tmp_path)
     assert bundle.manifest_sha256 == hashlib.sha256(
         bundle.manifest_path.read_bytes()
@@ -1335,9 +1232,8 @@ def test_wait_for_handshake_accepts_playing_marker_with_matching_protocol(monkey
     assert accepted_samples == [sample]
 
 
-def test_run_live_rejects_partial_cli_gates_before_authorization_or_connect(tmp_path: Path) -> None:
+def test_run_live_rejects_partial_cli_gates_before_preflight_or_connect(tmp_path: Path) -> None:
     bundle = _bundle(tmp_path)
-    auth = _write_authorization(tmp_path, bundle)
     args = SimpleNamespace(
         live=True,
         send_urscript=False,
@@ -1349,20 +1245,18 @@ def test_run_live_rejects_partial_cli_gates_before_authorization_or_connect(tmp_
         canary_stage=CANARY_STAGE_REFERENCE,
         compile_probe_evidence=Path("unused-probe.json"),
         prior_stage_evidence=Path("unused-prior.json"),
-        authorization=auth,
         output_dir=tmp_path / "output",
         robot_host="192.168.1.18",
         connect_timeout_s=1.0,
         receiver_wait_s=1.0,
     )
-    with patch("run_tacdiffusion_remote_direct_torque_v4.validate_authorization") as mock_validate, patch(
+    with patch(
         "run_tacdiffusion_remote_direct_torque_v4.readonly_status"
     ) as mock_status, patch(
         "run_tacdiffusion_remote_direct_torque_v4._live_writer_lease"
     ) as mock_lease:
         with pytest.raises(RuntimeError, match="all_independent_live_cli_gates_are_required"):
             run_live(args, bundle)
-        mock_validate.assert_not_called()
         mock_status.assert_not_called()
         mock_lease.assert_not_called()
 
@@ -1389,15 +1283,12 @@ def test_run_live_maps_canonical_writer_lock_contention_to_stable_error(
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4.writer_lease",
         side_effect=BlockingIOError,
-    ), patch(
-        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization"
-    ) as mock_validate:
+    ):
         with pytest.raises(RuntimeError, match=r"^live_writer_lock_unavailable$"):
             run_live(args, object())
-    mock_validate.assert_not_called()
 
 
-def test_run_live_lock_order_is_before_authorization_preflight_and_connection() -> None:
+def test_run_live_lock_order_is_before_preflight_and_connection() -> None:
     events: list[str] = []
     profile = object()
     bundle = SimpleNamespace(
@@ -1428,7 +1319,6 @@ def test_run_live_lock_order_is_before_authorization_preflight_and_connection() 
         canary_stage=CANARY_STAGE_REFERENCE,
         compile_probe_evidence=Path("unused-probe.json"),
         prior_stage_evidence=Path("unused-prior.json"),
-        authorization=Path("unused-authorization.json"),
         robot_host="192.168.1.18",
         output_dir=Path("unused-output"),
         connect_timeout_s=1.0,
@@ -1437,10 +1327,6 @@ def test_run_live_lock_order_is_before_authorization_preflight_and_connection() 
         sensor_ip="192.168.50.25",
         sensor_port=5152,
     )
-
-    def fake_authorization(*args: object, **kwargs: object) -> dict[str, int]:
-        events.append("authorization")
-        return {"lease_id": 111, "episode_identity": 222}
 
     def fake_status(*args: object, **kwargs: object) -> dict[str, object]:
         events.append("readonly_status")
@@ -1470,9 +1356,6 @@ def test_run_live_lock_order_is_before_authorization_preflight_and_connection() 
         "run_tacdiffusion_remote_direct_torque_v4.validate_prior_stage_evidence",
         return_value={"ok": True},
     ), patch(
-        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization",
-        side_effect=fake_authorization,
-    ), patch(
         "run_tacdiffusion_remote_direct_torque_v4.readonly_status",
         side_effect=fake_status,
     ), patch(
@@ -1485,6 +1368,9 @@ def test_run_live_lock_order_is_before_authorization_preflight_and_connection() 
         "run_tacdiffusion_remote_direct_torque_v4._enforce_no_live_writer_conflict",
         side_effect=fake_conflict,
     ), patch(
+        "run_tacdiffusion_remote_direct_torque_v4._new_live_identity_pair",
+        return_value=(111, 222),
+    ), patch(
         "run_tacdiffusion_remote_direct_torque_v4.LiveRTDE",
         FakeRTDE,
     ), patch(
@@ -1496,7 +1382,6 @@ def test_run_live_lock_order_is_before_authorization_preflight_and_connection() 
 
     assert events == [
         "lease_acquire",
-        "authorization",
         "readonly_status",
         "preflight",
         "legacy_conflict_scan",
@@ -1528,15 +1413,10 @@ def test_run_live_conflict_failure_stays_inside_lease_and_releases() -> None:
         canary_stage=CANARY_STAGE_REFERENCE,
         compile_probe_evidence=Path("unused-probe.json"),
         prior_stage_evidence=Path("unused-prior.json"),
-        authorization=Path("unused-authorization.json"),
         robot_host="192.168.1.18",
         output_dir=Path("unused-output"),
         kunwei_calibration=KUNWEI_CALIBRATION,
     )
-
-    def fake_authorization(*args: object, **kwargs: object) -> dict[str, int]:
-        events.append("authorization")
-        return {"lease_id": 111, "episode_identity": 222}
 
     def fake_conflict() -> None:
         events.append("legacy_conflict_scan")
@@ -1555,9 +1435,6 @@ def test_run_live_conflict_failure_stays_inside_lease_and_releases() -> None:
         "run_tacdiffusion_remote_direct_torque_v4.validate_prior_stage_evidence",
         return_value={"ok": True},
     ), patch(
-        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization",
-        side_effect=fake_authorization,
-    ), patch(
         "run_tacdiffusion_remote_direct_torque_v4.readonly_status",
         return_value={"rtde": {"actual_TCP_pose": [0.0] * 6}},
     ), patch(
@@ -1574,18 +1451,12 @@ def test_run_live_conflict_failure_stays_inside_lease_and_releases() -> None:
         with pytest.raises(RuntimeError, match="active_live_writer_detected:legacy"):
             run_live(args, object())
 
-    assert events == ["lease_acquire", "authorization", "legacy_conflict_scan", "lease_release"]
+    assert events == ["lease_acquire", "legacy_conflict_scan", "lease_release"]
     mock_rtde.assert_not_called()
 
 
 def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(tmp_path: Path) -> None:
     bundle = _bundle(tmp_path)
-    auth = _write_authorization(
-        tmp_path,
-        bundle,
-        canary_stage=CANARY_STAGE_HOLD,
-        max_duration_s=0.1,
-    )
     compile_probe_evidence = _write_compile_probe_evidence(tmp_path)
     output_root = tmp_path / "run"
     output_root.mkdir()
@@ -1714,7 +1585,6 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
         canary_stage=CANARY_STAGE_HOLD,
         compile_probe_evidence=compile_probe_evidence,
         prior_stage_evidence=None,
-        authorization=auth,
         output_dir=output_root,
         robot_host="192.168.1.18",
         connect_timeout_s=1.0,
@@ -1751,8 +1621,8 @@ def test_run_live_emits_failure_evidence_after_live_write_and_advances_run_dir(t
         "run_tacdiffusion_remote_direct_torque_v4.KunweiGuardCapture",
         FakeKunweiCapture,
     ), patch(
-        "run_tacdiffusion_remote_direct_torque_v4.validate_authorization",
-        return_value={"lease_id": 111, "episode_identity": 222},
+        "run_tacdiffusion_remote_direct_torque_v4._new_live_identity_pair",
+        return_value=(111, 222),
     ), patch(
         "run_tacdiffusion_remote_direct_torque_v4._enforce_no_live_writer_conflict",
     ), patch(

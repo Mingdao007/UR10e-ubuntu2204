@@ -28,13 +28,10 @@
     }
   },
   "authority": {
-    "default_authorized": false,
-    "authorization_artifact": {
-      "schema": "ur10e_tacdiffusion_direct_torque_authorization/v2",
-      "runtime_source_binding_required": true,
-      "runtime_source_binding_schema": "ur10e_tacdiffusion_direct_torque_runtime_binding/v1",
-      "prior_stage_runtime_identity_must_match": true
-    },
+    "authorization_artifact_required": false,
+    "live_cli_gates_required": true,
+    "runtime_source_binding_remains_evidence": true,
+    "prior_stage_runtime_identity_must_match": true,
     "source_build_offline_validation": {
       "authorized": false,
       "physical_io": false,
@@ -258,7 +255,7 @@
       }
     ],
     "compile_probe_strict_success_required": true,
-    "fresh_stage_authorization_required": true,
+    "fresh_stage_authorization_required": false,
     "immediately_prior_stage_strict_success_required": true,
     "stage_skip_allowed": false
   },
