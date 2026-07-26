@@ -398,31 +398,55 @@ def _campaign_worker_code(basis: Mapping[str, Any]) -> str:
         "runtime_identity_sha256": basis["runtime_identity_sha256"],
     })
     return f'''\
-import json, sys, time
+import json, sys
 sys.path.insert(0, {str(prepare_path.parent)!r})
 from prepare_step5d_autotune_launch import parse_args, prepare
+from run_step5d_autotune_v3_coordinator import _build_campaign_prepare_payload
 basis = {basis_literal}
-result = prepare(parse_args())
-campaign_result = {{key: result.get(key) for key in {sorted(CAMPAIGN_RESULT_FIELDS)!r}}}
-identity = {{
-    "campaign_id": campaign_result.get("campaign_id"),
-    "campaign_epoch": campaign_result.get("campaign_epoch"),
-    "campaign_fingerprint": campaign_result.get("campaign_fingerprint"),
-    "release_manifest_sha256": basis["release_manifest_sha256"],
-    "runtime_identity_sha256": basis["runtime_identity_sha256"],
-}}
-payload = {{
-    **campaign_result,
-    "schema": {CAMPAIGN_PREPARE_SCHEMA!r},
-    "ok": result.get("ok") is True,
-    "fresh": True,
-    "created_at_unix_ns": time.time_ns(),
-    "launch_basis_sha256": basis["basis_sha256"],
-    "identity": identity,
-    "result": campaign_result,
-}}
+payload = _build_campaign_prepare_payload(
+    basis=basis,
+    result=prepare(parse_args()),
+)
 print(json.dumps(payload, sort_keys=True, separators=(",", ":")), flush=True)
 '''
+
+
+def _build_campaign_prepare_payload(
+    *,
+    basis: Mapping[str, Any],
+    result: Mapping[str, Any],
+    created_at_unix_ns: int | None = None,
+) -> dict[str, Any]:
+    campaign_result = {
+        key: result[key]
+        for key in CAMPAIGN_RESULT_FIELDS
+        if key in result
+    }
+    if set(campaign_result) != CAMPAIGN_RESULT_FIELDS:
+        raise RuntimeError("campaign preparation result schema differs")
+    if campaign_result["ok"] is not True:
+        raise RuntimeError("campaign preparation result is false")
+    payload = {
+        **campaign_result,
+        "schema": CAMPAIGN_PREPARE_SCHEMA,
+        "ok": True,
+        "fresh": True,
+        "created_at_unix_ns": (
+            int(created_at_unix_ns) if created_at_unix_ns is not None else None
+        ),
+        "launch_basis_sha256": basis["basis_sha256"],
+        "identity": {
+            "campaign_id": campaign_result["campaign_id"],
+            "campaign_epoch": campaign_result["campaign_epoch"],
+            "campaign_fingerprint": campaign_result["campaign_fingerprint"],
+            "release_manifest_sha256": basis["release_manifest_sha256"],
+            "runtime_identity_sha256": basis["runtime_identity_sha256"],
+        },
+        "result": campaign_result,
+    }
+    if payload["created_at_unix_ns"] is None:
+        payload["created_at_unix_ns"] = time.time_ns()
+    return payload
 
 
 def _lane_commands(args: argparse.Namespace, basis: dict[str, Any]) -> list[list[str]]:

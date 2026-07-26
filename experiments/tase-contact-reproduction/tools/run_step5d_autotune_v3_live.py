@@ -118,6 +118,30 @@ class LiveLaunchError(RuntimeError):
     pass
 
 
+class LiveSessionAttemptError(LiveLaunchError):
+    """Wrap a session-attempt failure with explicit recoverability."""
+
+    recoverable = False
+
+    def __init__(self, cause: BaseException, *, recoverable: bool = False) -> None:
+        super().__init__(f"{type(cause).__name__}:{cause}")
+        self.cause = cause
+        self.recoverable = recoverable
+
+
+class RecoverableLiveSessionAttemptError(LiveSessionAttemptError):
+    """Marker subclass for explicit retryable attempt failures."""
+
+    def __init__(self, cause: BaseException) -> None:
+        super().__init__(cause, recoverable=True)
+
+
+def _should_retry_session_error(exc: BaseException) -> bool:
+    if isinstance(exc, LiveSessionAttemptError):
+        return bool(exc.recoverable)
+    return False
+
+
 LIVE_REQUIRED_IDENTITY_ARGS = (
     "output_root",
     "preflight",
@@ -279,10 +303,10 @@ def _run_recoverable_sessions(
             except KeyboardInterrupt:
                 raise
             except Exception as exc:
+                if not _should_retry_session_error(exc):
+                    raise
                 cleanup()
-                lifecycle.observe(error=exc)
-                if lifecycle.state is not LiveSessionState.WAITING_FOR_HARDWARE:
-                    lifecycle._set_state(LiveSessionState.RECOVERING, status="DEGRADED")
+                lifecycle._set_state(LiveSessionState.RECOVERING, status="DEGRADED")
                 lifecycle._set_state(LiveSessionState.WAITING_FOR_HARDWARE)
                 backoff()
                 continue
@@ -314,13 +338,16 @@ def dispatch_single_session(
     """Run exactly one owned session for deterministic offline tests.
 
     This seam deliberately has no retry loop and creates no child process of
-    its own.  The session callback owns any children it starts; on failure the
-    supplied cleanup callback is invoked before the exception is propagated.
+    its own.  The session callback owns any children it starts; on KeyboardInterrupt
+    the supplied cleanup callback is invoked before the exception is propagated.
+    Other failures preserve the already-written session status.
     """
     try:
         return session_callable()
-    except BaseException:
+    except KeyboardInterrupt:
         cleanup()
+        raise
+    except BaseException:
         raise
 
 
@@ -470,6 +497,20 @@ def _validate_coordinator_runtime_root(args: argparse.Namespace) -> Path:
         return validate_coordinator_runtime_root(args)
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         raise LiveLaunchError(f"coordinator runtime root validation failed: {exc}") from exc
+
+
+def _build_coordinator_runtime_args(
+    args: argparse.Namespace, attempt_id: str
+) -> argparse.Namespace:
+    output_root = getattr(args, "_coordinator_output_root", args.output_root)
+    return argparse.Namespace(
+        _coordinator_output_root=output_root,
+        output_root=output_root,
+        owner_pid=args.canonical_owner_pid,
+        owner_starttime=args.canonical_owner_starttime,
+        attempt_id=attempt_id,
+        authority_epoch=args.authority_epoch,
+    )
 
 
 def _create_bridge_runtime(runtime_root: Path) -> tuple[Path, Path]:
@@ -1213,7 +1254,6 @@ def _validate_active_launch_identity(
     """Consume the coordinator artifacts before any live child is spawned."""
     try:
         _require_live_identity_args(args)
-        _validate_coordinator_runtime_root(args)
         if args.campaign_prepare is None:
             raise LiveLaunchError("coordinator campaign preparation artifact is required")
         basis = read_and_validate_launch_basis(
@@ -1224,6 +1264,11 @@ def _validate_active_launch_identity(
         )
         if basis["authority_epoch"] != args.authority_epoch:
             raise LiveLaunchError("launch basis authority epoch differs")
+        coordinator_args = _build_coordinator_runtime_args(
+            args,
+            str(basis["launch_nonce"]),
+        )
+        _validate_coordinator_runtime_root(coordinator_args)
         admission = validate_bridge_admission(
             ROOT,
             read_strict_json(args.admission, role="bridge admission"),
@@ -1315,13 +1360,26 @@ def _run_live(
         )
         return result
 
+    def _has_terminal_status_lock() -> bool:
+        status_path = output_root / "recoverable_session_status.json"
+        try:
+            status = read_strict_json(status_path, role="recoverable session status")
+        except Exception:
+            return False
+        if not isinstance(status, dict) or status.get("attempt") != attempt_number:
+            return False
+        return status.get("state") == "SHUTDOWN"
+
     def cleanup() -> None:
         # _run_live_session owns and terminates its runner + bridge in its
         # finally block.  This injectable hook records that the durable
         # receiver remains alive while the wrapper backs off before creating
         # the next isolated session.  Readiness belongs to that new session.
+        if _has_terminal_status_lock():
+            return
+        status_path = output_root / "recoverable_session_status.json"
         atomic_json(
-            output_root / "recoverable_session_status.json",
+            status_path,
             {
                 "schema": "step5d.autotune-v3/recoverable-session-status-v1",
                 "attempt": attempt_number,
@@ -1335,7 +1393,10 @@ def _run_live(
         )
 
     if getattr(args, "single_session", False):
-        return dispatch_single_session(session_callable, cleanup)
+        return dispatch_single_session(
+            session_callable,
+            cleanup,
+        )
     return _run_recoverable_sessions(
         session_callable,
         cleanup=cleanup,
@@ -1357,8 +1418,18 @@ def _run_live_session(
         ROOT, args.delivery_observation, release=release
     )
     legacy_preflight = None
-    runtime_root = _validate_coordinator_runtime_root(args)
     basis, admission, campaign_prepare = _validate_active_launch_identity(args, release)
+    runtime_root = _validate_coordinator_runtime_root(
+        _build_coordinator_runtime_args(
+            args,
+            str(
+                os.environ.get(
+                    "STEP5D_V3_LAUNCH_ATTEMPT_ID",
+                    basis["launch_nonce"],
+                )
+            ),
+        )
+    )
     bridge_run, bridge_runtime = _create_bridge_runtime(runtime_root)
     contract_path = release_payload_path(ROOT, release, SAFETY_ENVELOPE_PATH)
     launch_profile_path = release_payload_path(ROOT, release, LAUNCH_PROFILE_PATH)
@@ -2011,7 +2082,9 @@ def _run_live_session(
             )
         except Exception:
             pass
-        raise
+        if isinstance(exc, LiveSessionAttemptError):
+            raise
+        raise LiveSessionAttemptError(exc) from exc
     finally:
         try:
             request_program_stop = _should_request_program_stop(
