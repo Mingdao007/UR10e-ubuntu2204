@@ -169,6 +169,24 @@ class FakeProbeRTDE:
         return output_sample(phase=self.phase, state=state, ack=ack, pose=pose), 1
 
 
+class StaleCompletionFakeProbeRTDE(FakeProbeRTDE):
+    def __init__(self, host, timeout):
+        super().__init__(host, timeout)
+        self.stale_completion_pending = True
+
+    def receive_latest_available(self, recipe, types, fields, timeout_s):
+        if self.stale_completion_pending:
+            self.stale_completion_pending = False
+            return output_sample(
+                phase=99,
+                state=probe.STATE_WAITING,
+                runtime_state=probe.RUNTIME_STOPPED,
+                result_normal=13.0,
+                result_fault=13.0,
+            ), 1
+        return super().receive_latest_available(recipe, types, fields, timeout_s)
+
+
 def run_fake_probe(monkeypatch, tmp_path, fake_class=FakeProbeRTDE):
     clock = FakeClock()
     fake_class.instances.clear()
@@ -342,6 +360,14 @@ def test_fake_rtde_uses_fixed_equilibrium_and_continuous_sequences(monkeypatch, 
     assert result["faults_by_phase"]["1"] == [0]
     assert probe.FAULT_SEQUENCE in result["faults_by_phase"]["2"]
     assert result["evidence_path"] == str(tmp_path / "evidence.json")
+
+
+def test_stale_terminal_registers_do_not_complete_a_new_run(monkeypatch, tmp_path) -> None:
+    result, fake = run_fake_probe(monkeypatch, tmp_path, StaleCompletionFakeProbeRTDE)
+    assert result["status"] == "passed"
+    assert result["observed_playing_phase"] is True
+    assert result["phase_results"] == {"normal": 1.0, "sequence_fault": 13.0}
+    assert fake.sent[1][24] == probe.MODE_DISABLED
 
 
 class FailingFakeProbeRTDE(FakeProbeRTDE):

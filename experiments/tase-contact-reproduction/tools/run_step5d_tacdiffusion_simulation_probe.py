@@ -413,6 +413,7 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
     max_joint_delta = 0.0
     samples = 0
     completed = False
+    observed_playing_phase = False
     schedule: AbsoluteReleaseSchedule | None = None
     last_values: list[Any] = input_values(
         initial_pose,
@@ -635,7 +636,11 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                                 steptime_samples.append(steptime)
                             controller_timestamp = float(current["timestamp"])
                             controller_timestamps.append(controller_timestamp)
-                            if current_phase == 99:
+                            # Output registers survive Dashboard Stop and can
+                            # still contain the prior run's terminal marker.
+                            # Accept phase 99 only after this invocation has
+                            # observed a playing phase 1/2 from the controller.
+                            if current_phase == 99 and observed_playing_phase:
                                 phase_results["normal"] = float(current["output_double_register_32"])
                                 phase_results["sequence_fault"] = float(current["output_double_register_33"])
                                 completed = True
@@ -650,7 +655,8 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                                     output_drained=drained,
                                 )
                                 break
-                            if current_phase in {1, 2}:
+                            if current_phase in {1, 2} and latest_runtime_state == RUNTIME_PLAYING:
+                                observed_playing_phase = True
                                 saw_states.add(latest_state)
                                 saw_faults.add(latest_fault)
                                 states_by_phase[current_phase].add(latest_state)
@@ -848,6 +854,7 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 },
                 "initial_status": initial_status,
                 "phase_results": phase_results,
+                "observed_playing_phase": observed_playing_phase,
                 "phase_valid_acks": phase_valid_acks,
                 "states_observed": sorted(saw_states),
                 "faults_observed": sorted(saw_faults),
@@ -915,6 +922,7 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 },
                 "initial_status": initial_status,
                 "phase_results": phase_results,
+                "observed_playing_phase": observed_playing_phase,
                 "phase_valid_acks": phase_valid_acks,
                 "states_observed": sorted(saw_states),
                 "faults_observed": sorted(saw_faults),
