@@ -65,9 +65,11 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _sample_translation_error_sqm3,
     _wait_for_fresh_receiver_waiting,
     _update_compile_probe_markers,
+    _update_receiver_handshake_markers,
     _run_live_locked,
     _write_json_new,
     analyze_entry_bumplessness,
+    build_receiver_handshake_probe_source,
     command_values,
     validate_bundle,
     validate_compile_probe_evidence,
@@ -927,6 +929,49 @@ def test_compile_probe_ignores_stale_complete_until_current_active() -> None:
     active["runtime_state"] = RUNTIME_PLAYING
     assert _update_compile_probe_markers(False, False, active) == (True, False)
     assert _update_compile_probe_markers(True, False, stale_complete) == (
+        True,
+        True,
+    )
+
+
+def test_receiver_handshake_probe_is_one_reversible_pre_main_injection(
+    tmp_path: Path,
+) -> None:
+    bundle = _bundle(tmp_path)
+    probe_source = build_receiver_handshake_probe_source(bundle.source)
+    prefix = """  local receiver_handshake_probe_tick = 0
+  while receiver_handshake_probe_tick < 50:
+    sync()
+    receiver_handshake_probe_tick = receiver_handshake_probe_tick + 1
+  end
+  running = False
+"""
+    assert probe_source.count(prefix) == 1
+    assert probe_source.replace(prefix, "", 1) == bundle.source
+    assert probe_source.index(prefix) < probe_source.index("  while running:\n")
+    assert "thread torqueThread():" in probe_source
+    assert "direct_torque(torque, viscous_scale=" in probe_source
+
+
+def test_receiver_handshake_markers_reject_wrong_protocol_and_torque_state() -> None:
+    waiting = {
+        "output_int_register_24": STATE_WAITING,
+        "output_int_register_32": LIVE_PROTOCOL_TOKEN,
+        "runtime_state": RUNTIME_PLAYING,
+    }
+    assert _update_receiver_handshake_markers(False, False, waiting) == (
+        True,
+        False,
+    )
+    wrong_protocol = dict(waiting)
+    wrong_protocol["output_int_register_32"] = 0
+    assert _update_receiver_handshake_markers(False, False, wrong_protocol) == (
+        False,
+        False,
+    )
+    torque = dict(waiting)
+    torque["output_int_register_24"] = STATE_TORQUE
+    assert _update_receiver_handshake_markers(True, False, torque) == (
         True,
         True,
     )

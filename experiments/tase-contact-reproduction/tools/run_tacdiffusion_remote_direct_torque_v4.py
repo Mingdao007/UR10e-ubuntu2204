@@ -76,6 +76,9 @@ from ur10e_vic.tacdiffusion.direct_torque_live_v4 import (  # noqa: E402
 COMPILE_PROBE_EVIDENCE_SCHEMA = (
     "ur10e_tacdiffusion_compile_probe_evidence/v2"
 )
+RECEIVER_HANDSHAKE_EVIDENCE_SCHEMA = (
+    "ur10e_tacdiffusion_receiver_handshake_evidence/v1"
+)
 BUNDLE_SCHEMA = "ur10e_tacdiffusion_direct_torque_live_bundle/v1"
 REFERENCE_SCHEMA = "ur10e_tacdiffusion_unknown_surface_episode_artifact/v1"
 CANARY_EVIDENCE_SCHEMA = (
@@ -1817,6 +1820,21 @@ def _update_compile_probe_markers(
     return observed_active, observed_complete
 
 
+def _update_receiver_handshake_markers(
+    observed_waiting: bool,
+    observed_direct_torque: bool,
+    sample: Mapping[str, Any],
+) -> tuple[bool, bool]:
+    if int(sample["output_int_register_32"]) != LIVE_PROTOCOL_TOKEN:
+        return observed_waiting, observed_direct_torque
+    state = int(sample["output_int_register_24"])
+    if state in (STATE_STARTUP, STATE_TORQUE):
+        observed_direct_torque = True
+    if state == STATE_WAITING and int(sample["runtime_state"]) == RUNTIME_PLAYING:
+        observed_waiting = True
+    return observed_waiting, observed_direct_torque
+
+
 def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
     if not (args.live and args.send_urscript and args.no_motion):
         raise RuntimeError("compile_probe_live_send_and_no_motion_gates_required")
@@ -1974,6 +1992,234 @@ def run_compile_probe(args: argparse.Namespace) -> dict[str, Any]:
                 }
                 _write_json_new(evidence_path, evidence)
     return json.loads((output_dir / "evidence.json").read_text())
+
+
+def build_receiver_handshake_probe_source(receiver_source: str) -> str:
+    """Inject one self-terminating WAITING window before the full main loop."""
+
+    parse_live_receiver_source(receiver_source)
+    main_loop = "  while running:\n"
+    if receiver_source.count(main_loop) != 1:
+        raise ValueError("receiver handshake main loop is not uniquely parseable")
+    probe_prefix = """  local receiver_handshake_probe_tick = 0
+  while receiver_handshake_probe_tick < 50:
+    sync()
+    receiver_handshake_probe_tick = receiver_handshake_probe_tick + 1
+  end
+  running = False
+"""
+    source = receiver_source.replace(
+        main_loop,
+        probe_prefix + main_loop,
+        1,
+    )
+    if source.replace(probe_prefix, "", 1) != receiver_source:
+        raise RuntimeError("receiver handshake source derivation mismatch")
+    parse_live_receiver_source(source)
+    return source
+
+
+def run_receiver_handshake_probe(
+    args: argparse.Namespace,
+    bundle: ValidatedBundle,
+) -> dict[str, Any]:
+    """Compile the full receiver and execute only a bounded WAITING prefix."""
+
+    if not (args.live and args.send_urscript and args.no_motion):
+        raise RuntimeError(
+            "receiver_handshake_live_send_and_no_motion_gates_required"
+        )
+    if not (
+        math.isfinite(args.handshake_timeout_s)
+        and 0.2 <= args.handshake_timeout_s <= 0.8
+    ):
+        raise ValueError("receiver_handshake_timeout_must_be_0_2_to_0_8s")
+    probe_source = build_receiver_handshake_probe_source(bundle.source)
+    probe_source_sha256 = hashlib.sha256(
+        probe_source.encode("utf-8")
+    ).hexdigest()
+    status = readonly_status(args.robot_host)
+    validate_compile_probe_preflight(status)
+    output_dir = _next_available_run_dir(args.output_dir.resolve())
+    rows: list[dict[str, Any]] = []
+    observed_waiting = False
+    observed_direct_torque = False
+    observed_complete = False
+    probe_source_sent = False
+    failure: str | None = None
+    start = time.monotonic()
+    with _live_writer_lease():
+        _enforce_no_live_writer_conflict()
+        with LiveRTDE(args.robot_host, timeout=args.connect_timeout_s) as rtde:
+            rtde.negotiate()
+            output_recipe, output_types = rtde.setup_outputs(
+                500.0, OUTPUT_FIELDS
+            )
+            rtde.start()
+            try:
+                _send_urscript(
+                    args.robot_host, probe_source, args.connect_timeout_s
+                )
+                probe_source_sent = True
+                deadline = time.monotonic() + args.handshake_timeout_s
+                while time.monotonic() < deadline:
+                    batch = _receive_available(
+                        rtde,
+                        output_recipe,
+                        output_types,
+                        OUTPUT_FIELDS,
+                        0.01,
+                    )
+                    for sample in batch:
+                        rows.append(
+                            _compile_probe_row(
+                                sample,
+                                host_elapsed_s=time.monotonic() - start,
+                            )
+                        )
+                        observed_waiting, observed_direct_torque = (
+                            _update_receiver_handshake_markers(
+                                observed_waiting,
+                                observed_direct_torque,
+                                sample,
+                            )
+                        )
+                        if (
+                            observed_waiting
+                            and int(sample["output_int_register_32"])
+                            == LIVE_PROTOCOL_TOKEN
+                            and int(sample["output_int_register_24"])
+                            == STATE_COMPLETE
+                        ):
+                            observed_complete = True
+                    if observed_complete or observed_direct_torque:
+                        break
+                if observed_direct_torque:
+                    raise RuntimeError(
+                        "receiver_handshake_observed_direct_torque_state"
+                    )
+                if not observed_waiting:
+                    raise RuntimeError(
+                        "receiver_handshake_waiting_marker_missing"
+                    )
+                if not observed_complete:
+                    raise RuntimeError(
+                        "receiver_handshake_complete_marker_missing"
+                    )
+            except Exception as exc:
+                failure = f"{type(exc).__name__}: {exc}"
+
+    baseline_pose = tuple(
+        float(value) for value in status["rtde"]["actual_TCP_pose"]
+    )
+    maximum_translation_m = max(
+        (
+            _sample_translation_error_sqm3(
+                [row[f"actual_TCP_pose_{axis}"] for axis in range(6)],
+                baseline_pose,
+            )
+            for row in rows
+        ),
+        default=0.0,
+    )
+    maximum_tcp_speed_m_s = max(
+        (
+            math.sqrt(
+                sum(
+                    float(row[f"actual_TCP_speed_{axis}"]) ** 2
+                    for axis in range(3)
+                )
+            )
+            for row in rows
+        ),
+        default=0.0,
+    )
+    maximum_tcp_angular_speed_rad_s = max(
+        (
+            math.sqrt(
+                sum(
+                    float(row[f"actual_TCP_speed_{axis}"]) ** 2
+                    for axis in range(3, 6)
+                )
+            )
+            for row in rows
+        ),
+        default=0.0,
+    )
+    maximum_joint_speed_rad_s = max(
+        (
+            max(
+                abs(float(row[f"actual_qd_{axis}"]))
+                for axis in range(6)
+            )
+            for row in rows
+        ),
+        default=0.0,
+    )
+    strict_gate = {
+        "full_receiver_source_compiled_with_bounded_prefix": probe_source_sent,
+        "observed_waiting_runtime_marker": observed_waiting,
+        "observed_direct_torque_state": observed_direct_torque is False,
+        "observed_complete_marker": observed_complete,
+        "maximum_tcp_translation_le_0_2mm": (
+            maximum_translation_m <= COMPILE_PROBE_TRANSLATION_TOLERANCE_M
+        ),
+        "maximum_tcp_speed_le_1mm_s": (
+            maximum_tcp_speed_m_s
+            <= COMPILE_PROBE_TCP_SPEED_TOLERANCE_M_S
+        ),
+        "maximum_tcp_angular_speed_le_1mrad_s": (
+            maximum_tcp_angular_speed_rad_s
+            <= COMPILE_PROBE_TCP_ANGULAR_SPEED_TOLERANCE_RAD_S
+        ),
+        "maximum_joint_speed_le_1mrad_s": (
+            maximum_joint_speed_rad_s
+            <= COMPILE_PROBE_JOINT_SPEED_TOLERANCE_RAD_S
+        ),
+    }
+    strict_gate["ok"] = (
+        all(strict_gate.values())
+        and failure is None
+    )
+    csv_path = output_dir / "receiver_handshake_rtde.csv"
+    evidence_path = output_dir / "evidence.json"
+    if rows:
+        _write_csv(csv_path, rows)
+    evidence = {
+        "schema": RECEIVER_HANDSHAKE_EVIDENCE_SCHEMA,
+        "claim_class": "live_full_receiver_handshake_no_motion",
+        "ok": bool(strict_gate["ok"]),
+        "failure": failure,
+        "robot_host": args.robot_host,
+        "receiver_source_sha256": bundle.source_sha256,
+        "bundle_manifest_sha256": bundle.manifest_sha256,
+        "receiver_handshake_probe_source_sha256": probe_source_sha256,
+        "receiver_handshake_source_derivation": (
+            "exact_bundle_receiver_plus_single_50tick_pre_main_early_exit"
+        ),
+        "sample_count": len(rows),
+        "duration_s": time.monotonic() - start,
+        "observed_waiting_marker": observed_waiting,
+        "observed_direct_torque_state": observed_direct_torque,
+        "observed_complete_marker": observed_complete,
+        "maximum_tcp_translation_m": maximum_translation_m,
+        "maximum_tcp_speed_m_s": maximum_tcp_speed_m_s,
+        "maximum_tcp_angular_speed_rad_s": maximum_tcp_angular_speed_rad_s,
+        "maximum_joint_speed_rad_s": maximum_joint_speed_rad_s,
+        "strict_success_gate": strict_gate,
+        "motion_performed": False,
+        "direct_torque_called": False,
+        "rtde_inputs_written": False,
+        "run_packet_sent": False,
+        "kunwei_stream_started": False,
+        "training_dataset": False,
+        "data_csv": str(csv_path) if rows else None,
+    }
+    _write_json_new(evidence_path, evidence)
+    if not evidence["ok"]:
+        detail = failure or "strict_gate_failed"
+        raise RuntimeError(f"receiver_handshake_probe_failed:{detail}")
+    return evidence
 
 
 @contextmanager
@@ -2594,6 +2840,20 @@ def build_parser() -> argparse.ArgumentParser:
     probe.add_argument("--live", action="store_true")
     probe.add_argument("--send-urscript", action="store_true")
     probe.add_argument("--no-motion", action="store_true")
+    handshake = subparsers.add_parser(
+        "receiver-handshake",
+        help="start the exact full receiver without RTDE inputs or Direct Torque",
+    )
+    handshake.add_argument("--robot-host", default="192.168.1.18")
+    handshake.add_argument("--bundle-manifest", type=Path, required=True)
+    handshake.add_argument("--output-dir", type=Path, required=True)
+    handshake.add_argument("--connect-timeout-s", type=float, default=3.0)
+    handshake.add_argument(
+        "--handshake-timeout-s", type=float, default=0.6
+    )
+    handshake.add_argument("--live", action="store_true")
+    handshake.add_argument("--send-urscript", action="store_true")
+    handshake.add_argument("--no-motion", action="store_true")
     validate = subparsers.add_parser("validate", help="offline bundle validation")
     validate.add_argument("--bundle-manifest", type=Path, required=True)
     run = subparsers.add_parser("run", help="explicitly authorized live canary")
@@ -2647,6 +2907,9 @@ def main(argv: list[str] | None = None) -> int:
             result = analyze_entry_csv(args.csv.resolve(), args.output)
         elif args.command == "compile-probe":
             result = run_compile_probe(args)
+        elif args.command == "receiver-handshake":
+            bundle = validate_bundle(args.bundle_manifest)
+            result = run_receiver_handshake_probe(args, bundle)
         else:
             bundle = validate_bundle(args.bundle_manifest)
             if args.command == "validate":
