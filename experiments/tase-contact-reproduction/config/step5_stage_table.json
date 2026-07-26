@@ -10998,7 +10998,7 @@
       "offline_validation": {
         "acceptance_scope": "offline_pre_live_only",
         "diagnostic_bundle_replay": "pass",
-        "exact_ten_row_lifecycle": "approved_initial_ten_seeded_once_then_unbounded_receiver",
+        "exact_ten_row_lifecycle": "sender_submitted_candidate_pool_unbounded_receiver_no_initial_ten_seed",
         "formal_500hz_timing": "not_required_by_user",
         "hardware_promotion": "controller_readback_verified",
         "power_off_controller_audit": "retained_prior_read_only_boundary_current_candidate_unverified",
@@ -11029,9 +11029,11 @@
         "manual_v2_route": "archived_historical_only",
         "mode": "single-owner-one-play-unbounded-parameter-receiver",
         "parameter_receiver": {
+          "candidate_pool_owner": "sender",
           "capacity": null,
           "data_failure_policy": "record_terminal_and_continue",
           "empty_queue_behavior": "safe_home_infinite_wait",
+          "receiver_seed_policy": "none",
           "inflight_limit": 1,
           "optimizer_required": false,
           "physical_replay_allowed": false,

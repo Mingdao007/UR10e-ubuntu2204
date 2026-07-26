@@ -3,7 +3,7 @@
 ## Current stage
 
 - Stage: `step5d_strict_rnn_autotune_v3`.
-- Controller target: `step5d_strict_rnn_autotune_v3_r017.urp`.
+- Controller target: `step5d_strict_rnn_autotune_v3_r022.urp`.
 - Canonical launcher: `scripts/step5d-autotune-v3.sh bridge-live`.
 - Current immutable release: `config/step5d/current.json`.
 
@@ -20,18 +20,18 @@
 
 ## Guards and timing
 
-- TP r017 bytes, safety envelope, register contract, force limits, and motion
+- TP r022 bytes, safety envelope, register contract, force limits, and motion
   limits are unchanged.
 - The 1.0 s identity value is a maximum deadline, not a fixed wait.
 - State verification is event-driven; no formal 60 s qualification is used.
-- TP and host wait indefinitely for Play or the next parameter while stationary
-  at Home; an empty queue is not a fault.
+- TP and host wait indefinitely for Play or the next parameter while stationary at
+  Home; an empty queue is not a fault.
 
 ## Parameter receiver
 
-- The approved initial ten parameters are seeded once and run before any
-  optional optimizer output.
-- The receiver is an unbounded file queue with one inflight parameter.
+- The sender owns candidate-pool submission.
+- The receiver does not seed an approved initial ten and starts/continues as an
+  unbounded file queue with one inflight parameter.
 - `next` requests may jump ahead of normal FIFO requests.
 - A physically attempted parameter is never dispatched again. Data failures are
   terminal records for that attempt and the receiver continues.
