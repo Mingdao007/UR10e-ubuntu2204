@@ -590,9 +590,11 @@ def build_live_receiver_source(
             blend = entry_tick / entry_blend_ticks
           end
           local control_eq = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          local control_k = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
           axis = 0
           while axis < 6:
             control_eq[axis] = entry_pose[axis] + blend*(last_eq[axis] - entry_pose[axis])
+            control_k[axis] = k_min[axis] + blend*(last_k[axis] - k_min[axis])
             local filter_c = filter_velocity[axis] + critical_natural_frequency_rad_s*(filtered_force[axis] - last_raw_force[axis])
             local next_force = last_raw_force[axis] + critical_decay*((filtered_force[axis] - last_raw_force[axis]) + filter_c/500.0)
             local next_velocity = critical_decay*(filter_velocity[axis] - critical_natural_frequency_rad_s*filter_c/500.0)
@@ -612,8 +614,8 @@ def build_live_receiver_source(
           local joint_damping = [1.5, 1.5, 1.2, 0.3, 0.3, 0.2]
           axis = 0
           while axis < 6:
-            damping[axis] = 2.0*damping_ratio*sqrt(virtual_mass[axis]*last_k[axis])
-            control_wrench[axis] = feedforward_base[axis] + last_k[axis]*pose_error[axis] - damping[axis]*actual_speed[axis]
+            damping[axis] = 2.0*damping_ratio*sqrt(virtual_mass[axis]*control_k[axis])
+            control_wrench[axis] = feedforward_base[axis] + control_k[axis]*pose_error[axis] - damping[axis]*actual_speed[axis]
             axis = axis + 1
           end
           local joint = 0
@@ -666,7 +668,7 @@ def build_live_receiver_source(
             axis = 0
             while axis < 6:
               write_output_float_register(26 + axis, filtered_force[axis])
-              write_output_float_register(32 + axis, last_k[axis])
+              write_output_float_register(32 + axis, control_k[axis])
               write_output_float_register(38 + axis, tau[axis])
               axis = axis + 1
             end
@@ -726,7 +728,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "write_output_integer_register(34, last_observed_command)",
         "write_output_integer_register(35, episode_latched)",
         "write_output_float_register(26 + axis, filtered_force[axis])",
-        "write_output_float_register(32 + axis, last_k[axis])",
+        "write_output_float_register(32 + axis, control_k[axis])",
         "write_output_float_register(38 + axis, tau[axis])",
         "direct_torque(tau, friction_comp=True)",
         "stopj(10.0)",
@@ -734,6 +736,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "tacdiffusion_remote_direct_torque_v4_program()",
         "entry_pose[axis] = actual_pose[axis]",
         "entry_tick < entry_blend_ticks",
+        "control_k[axis] = k_min[axis] + blend*(last_k[axis] - k_min[axis])",
         "get_coriolis_and_centrifugal_torques(q, qd)",
         "get_jacobian(q)",
         "running = False",

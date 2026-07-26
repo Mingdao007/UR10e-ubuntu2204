@@ -68,13 +68,16 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert len(re.findall(r"(?m)^\s*def\s+", source)) == 1
     assert source.count("stopj(10.0)") == 1
     assert "release_ready_tolerance_m = 0.001" in source
-    assert "write_output_float_register(32 + axis, last_k[axis])" in source
+    assert "write_output_float_register(32 + axis, control_k[axis])" in source
     assert "write_output_float_register(26 + axis, filtered_force[axis])" in source
     assert "write_output_float_register(38 + axis, tau[axis])" in source
     assert source.count("direct_torque(tau, friction_comp=True)") == 1
     assert "direct_torque([0.0" not in source
     assert "entry_pose[axis] = actual_pose[axis]" in source
     assert "entry_tick < entry_blend_ticks" in source
+    assert "control_k[axis] = k_min[axis] + blend*(last_k[axis] - k_min[axis])" in source
+    assert "virtual_mass[axis]*control_k[axis]" in source
+    assert "control_k[axis]*pose_error[axis]" in source
     assert "episode_latched == 0" in source
     assert "startup_packet_ok = command == command_idle" in source
     assert "packet_lease != lease_id or packet_episode != episode_identity" in source

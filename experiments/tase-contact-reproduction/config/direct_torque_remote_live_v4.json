@@ -173,6 +173,8 @@
     "program_shape": "single_top_level_500hz_state_machine",
     "startup_equilibrium": "fresh_actual_pose",
     "startup_equilibrium_blend_s": 0.1,
+    "startup_gain_blend_s": 0.1,
+    "startup_gain_floor": [25.0, 25.0, 25.0, 0.5, 0.5, 0.5],
     "zero_torque_startup_or_exit": false,
     "active_tick_direct_torque_calls": 1,
     "friction_compensation": true,
