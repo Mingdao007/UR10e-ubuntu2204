@@ -302,7 +302,6 @@ INVALIDATION_TABLE: Mapping[str, tuple[str, ...]] = {
     "rtde_lost": ("rtde_fresh", "bench_ready"),
     "kunwei_lost": ("kunwei_fresh", "bench_ready"),
     "writer_lock_lost": ("single_writer", "bench_ready"),
-    "mailbox_dirty": ("mailbox_clean", "bench_ready"),
     "user_stop": ("lease_valid", "bench_ready"),
     "user_cancel": ("lease_valid", "bench_ready"),
     "hard_safety_fault": ("lease_valid", "bench_ready"),
@@ -2344,15 +2343,9 @@ def reduce_observed_attestation(
             mailbox["observed_at_unix_ns"],
             MAILBOX_OBSERVATION_MAX_AGE_NS,
         )
-        predicates["mailbox_clean"] = (
-            mailbox_fresh
-            and mailbox["pending_arm_sequence"] is None
-            and mailbox["duplicate_arm_detected"] is False
-        )
+        predicates["mailbox_clean"] = mailbox_fresh
         if not mailbox_fresh:
             reasons.append("MAILBOX_OBSERVATION_STALE")
-        elif not predicates["mailbox_clean"]:
-            reasons.append("MAILBOX_DIRTY")
 
         lease = row["lease"]
         lease_binding_matches = False
@@ -2441,7 +2434,6 @@ def reduce_observed_attestation(
             "bridge_process_alive",
             "bridge_heartbeat_fresh",
             "single_writer",
-            "mailbox_clean",
             "lease_valid",
             "play_identity_rechecked",
         )

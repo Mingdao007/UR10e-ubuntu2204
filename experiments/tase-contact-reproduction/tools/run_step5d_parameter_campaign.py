@@ -400,7 +400,11 @@ def _send(
                 or next_arm["mailbox_packet_sha256"] != packet_sha256
             ):
                 raise HardwareRecoveryRequired("NEXT_ARM payload differs from requested ARM")
-            return arm, prepared
+            # NEXT_ARM is durable evidence from a prior runtime session, not
+            # proof that this session's per-run mailbox contains the packet.
+            # Continue through mailbox readback/send so a restarted Bridge
+            # receives the same unconsumed ARM without allocating a new
+            # dispatch.
     mailbox = AtomicCommandMailbox(
         args.mailbox,
         network_mode=True,

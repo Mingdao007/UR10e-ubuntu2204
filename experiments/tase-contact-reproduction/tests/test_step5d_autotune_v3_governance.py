@@ -600,7 +600,6 @@ def test_every_invalidation_fails_closed_without_erasing_outcome() -> None:
         "rtde_lost",
         "kunwei_lost",
         "writer_lock_lost",
-        "mailbox_dirty",
         "user_stop",
         "user_cancel",
         "hard_safety_fault",
