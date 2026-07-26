@@ -93,6 +93,47 @@ def test_shell_rebinds_copied_admission_to_content_addressed_index() -> None:
     assert '"${admission}" "${EXPERIMENT_ROOT}"' in source
 
 
+def test_campaign_worker_code_preserves_bounded_campaign_fingerprint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    basis = {
+        "basis_sha256": "a" * 64,
+        "campaign_fingerprint": "c" * 64,
+        "release_manifest_sha256": "d" * 64,
+        "runtime_identity_sha256": "e" * 64,
+    }
+    args = SimpleNamespace(
+        experiment_root=ROOT,
+        output_root=ROOT / "run-output",
+        campaign_root=ROOT / "tmp-campaign",
+        launch_basis=tmp_path / "launch-basis.json",
+        preflight=tmp_path / "preflight.json",
+        delivery_observation=tmp_path / "delivery-observation.json",
+        owner_pid=123,
+        owner_starttime=456,
+    )
+    launch_profile_path = tmp_path / "launch-profile.json"
+    launch_profile_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(
+        coordinator,
+        "load_runtime_release",
+        lambda _root: SimpleNamespace(program_id="step5d_strict_rnn_autotune_v3_r999"),
+    )
+    monkeypatch.setattr(
+        coordinator,
+        "release_payload_path",
+        lambda *_args, **_kwargs: launch_profile_path,
+    )
+    commands = coordinator._lane_commands(args, basis)
+    campaign_command = commands[0]
+    assert "--campaign-fingerprint" in campaign_command
+    fingerprint_index = campaign_command.index("--campaign-fingerprint")
+    assert campaign_command[fingerprint_index + 1] == basis["campaign_fingerprint"]
+    worker_code = coordinator._campaign_worker_code(basis)
+    assert basis["campaign_fingerprint"] in worker_code
+
+
 def test_coordinator_runtime_root_composes_with_live_bridge_setup(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

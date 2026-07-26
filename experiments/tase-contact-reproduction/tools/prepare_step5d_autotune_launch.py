@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,6 +33,7 @@ class LaunchPreparationRequest:
     launch_profile_path: Path
     candidate_batch_size: int
     rolling_plan: bool
+    campaign_fingerprint: str | None = None
 
 
 def _sha256_path(path: Path) -> str:
@@ -53,6 +55,28 @@ def _campaign_fingerprint(
         separators=(",", ":"),
     ).encode("ascii")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _validate_campaign_fingerprint(
+    *,
+    requested_fingerprint: str | None,
+    release_manifest_sha256: str,
+    launch_profile_sha256: str,
+) -> str:
+    computed = _campaign_fingerprint(
+        release_manifest_sha256=release_manifest_sha256,
+        launch_profile_sha256=launch_profile_sha256,
+    )
+    if requested_fingerprint is None:
+        return computed
+    if not isinstance(requested_fingerprint, str) or not re.fullmatch(
+        r"[0-9a-f]{64}",
+        requested_fingerprint,
+    ):
+        raise RuntimeError("campaign_fingerprint is malformed")
+    if requested_fingerprint != computed:
+        raise RuntimeError("campaign_fingerprint mismatches launch inputs")
+    return requested_fingerprint
 
 
 def _receiver_documents(
@@ -138,9 +162,11 @@ def prepare(args: LaunchPreparationRequest) -> dict[str, object]:
         release,
         INITIAL_MANIFEST_PATH,
     )
-    fingerprint = _campaign_fingerprint(
+    launch_profile_sha256 = _sha256_path(launch_profile_path)
+    fingerprint = _validate_campaign_fingerprint(
+        requested_fingerprint=args.campaign_fingerprint,
         release_manifest_sha256=release.manifest_sha256,
-        launch_profile_sha256=_sha256_path(launch_profile_path),
+        launch_profile_sha256=launch_profile_sha256,
     )
     chain = discover_campaign_epochs(campaign_root)
     if chain:
@@ -238,6 +264,7 @@ def parse_args() -> LaunchPreparationRequest:
         launch_profile_path=args.launch_profile,
         candidate_batch_size=args.candidate_batch_size,
         rolling_plan=False,
+        campaign_fingerprint=args.campaign_fingerprint,
     )
 
 
