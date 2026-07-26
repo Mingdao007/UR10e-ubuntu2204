@@ -9126,8 +9126,10 @@
         "derived_joint_acceleration_guard_rad_s2": 5.0,
         "joint_acceleration_definition": "500hz_actual_qd_finite_difference",
         "acceleration_fault_code": 12,
+        "direct_torque_consumes_timestep": true,
+        "empty_sync_after_direct_torque_allowed": false,
         "root_cause_evidence": "runs/tacdiffusion/direct_torque_v4_v34reuse_live_20260726T1859HKT/hold_100ms/entry_bumplessness_analysis_v1.json",
-        "root_fix_claim": "zero_friction_mode_entry_isolation",
+        "root_fix_claim": "remove_empty_sync_timestep_after_direct_torque",
         "guard_claim": "acceleration_guard_is_defense_in_depth_not_root_fix"
       },
       "kunwei_capture_contract": {

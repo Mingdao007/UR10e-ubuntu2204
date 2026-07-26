@@ -117,6 +117,15 @@ effects. A separate `5 rad/s²` guard, derived from consecutive 500 Hz
 `actual_qd` samples, reports fault 12; it is defense-in-depth and is not
 claimed as the root fix.
 
+The subsequent zero-friction live hold still failed with zero custom torque
+preceding motion, while Kunwei remained near zero load. Its controller torque
+spikes recurred at the cadence created by an explicit `sync()` after each
+`direct_torque()` call. Because `direct_torque()` already consumes one robot
+timestep, that extra `sync()` left an empty timestep in which the controller
+could revert to position mode. The receiver now forbids any `sync()` after the
+active torque command site; waiting and handshake sync points remain before
+torque entry.
+
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean
 `target_moment` was approximately

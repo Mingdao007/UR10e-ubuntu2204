@@ -787,7 +787,6 @@ def build_live_receiver_source(
               write_output_float_register(38 + axis, tau[axis])
               axis = axis + 1
             end
-            sync()
             if entry_tick < entry_blend_ticks:
               entry_tick = entry_tick + 1
             end
@@ -903,6 +902,13 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
     ) != 1:
         raise ValueError("live receiver requires one continuous torque command site")
+    direct_torque_site = source.index(
+        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
+    )
+    if "sync()" in source[direct_torque_site:]:
+        raise ValueError(
+            "live receiver must not leave an empty sync timestep after direct_torque"
+        )
     if source.count("stopj(10.0)") != 1:
         raise ValueError("live receiver requires exactly one explicit position handoff")
     timeout_match = re.search(

@@ -157,7 +157,11 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "write_output_integer_register(34, last_observed_command)" in source
     assert "write_output_integer_register(35, episode_latched)" in source
     assert not re.search(r"(?m)^\s*return\b", source)
-    assert source.count("sync()") == 4
+    direct_torque_site = source.index(
+        "direct_torque(tau, viscous_scale=viscous_scale, coulomb_scale=coulomb_scale)"
+    )
+    assert "sync()" not in source[direct_torque_site:]
+    assert source.count("sync()") == 3
 
 
 def test_compile_probe_is_bounded_and_contains_no_motion_api() -> None:
@@ -189,6 +193,18 @@ def test_v4_source_is_episode_bound_and_deterministic() -> None:
     ).hexdigest()
     for value in tube.anchor_pose_base:
         assert f"{value:.17g}" in first
+
+
+def test_receiver_parser_rejects_empty_sync_after_direct_torque() -> None:
+    source = build_live_receiver_source(
+        LiveTubeContract.from_reference_artifact(reference_path())
+    )
+    injected = source.replace(
+        "            if entry_tick < entry_blend_ticks:",
+        "            sync()\n            if entry_tick < entry_blend_ticks:",
+    )
+    with pytest.raises(ValueError, match="empty sync timestep"):
+        parse_live_receiver_source(injected)
 
 
 def test_sequence_oracle_accepts_new_and_bounded_hold() -> None:

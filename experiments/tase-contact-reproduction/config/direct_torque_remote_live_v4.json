@@ -197,6 +197,8 @@
     "startup_gain_policy": "full_commanded_gain_from_first_direct_torque_tick",
     "zero_torque_startup_or_exit": false,
     "active_tick_direct_torque_calls": 1,
+    "direct_torque_consumes_timestep": true,
+    "empty_sync_after_direct_torque_allowed": false,
     "active_speed_guards": {
       "maximum_abs_joint_speed_rad_s": 0.02,
       "maximum_abs_derived_joint_acceleration_rad_s2": 5.0,
@@ -211,7 +213,7 @@
       "api": "direct_torque_v2",
       "startup_blend_s": 0.0,
       "startup_policy": "disabled_for_no_contact_entry_canary",
-      "root_cause_basis": "failed_hold_first_active_commanded_tau_was_zero_but_motion_started_with_full_ur_friction_scales",
+      "root_cause_basis": "two_failed_holds_showed_zero_custom_tau_preceding_motion; the second zero-friction run exposed an empty sync timestep after each direct_torque call",
       "gravity_compensation": "internal_to_direct_torque_do_not_add_gravity",
       "viscous_scale_target": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
       "coulomb_scale_target": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
