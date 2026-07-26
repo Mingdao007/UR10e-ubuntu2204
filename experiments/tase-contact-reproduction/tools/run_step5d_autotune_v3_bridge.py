@@ -372,7 +372,7 @@ def _apply_v3_arm_runtime(
 
 
 def _strict_ticket(
-    path: Path,
+    path: Path | Mapping[str, Any],
     argv: Sequence[str],
     *,
     release_identity: ReleaseIdentity | None = None,
@@ -382,12 +382,15 @@ def _strict_ticket(
         release = release_identity or load_runtime_release(root)
     except ReleaseIdentityError as exc:
         raise BridgeTicketError(f"active release manifest is invalid: {exc}") from exc
-    if not path.is_absolute() or path.is_symlink() or not path.is_file():
-        raise BridgeTicketError("V3 runtime ticket must be an absolute regular file")
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise BridgeTicketError(f"V3 runtime ticket is unreadable: {exc}") from exc
+    if isinstance(path, Mapping):
+        payload = dict(path)
+    else:
+        if not path.is_absolute() or path.is_symlink() or not path.is_file():
+            raise BridgeTicketError("V3 runtime ticket must be an absolute regular file")
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise BridgeTicketError(f"V3 runtime ticket is unreadable: {exc}") from exc
     required = {
         "schema",
         "parent_pid",
