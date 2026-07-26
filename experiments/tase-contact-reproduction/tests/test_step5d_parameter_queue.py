@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 import shutil
 import sys
@@ -30,6 +31,10 @@ from step5d_parameter_queue import (  # noqa: E402
     prepare_next_dispatch,
     record_dispatch_consumed,
     reconcile_not_consumed,
+    publish_next_arm,
+    read_next_arm,
+    record_terminal_receipt,
+    continuous_readiness,
     status,
     submit,
 )
@@ -673,3 +678,240 @@ def test_prepare_keeps_receiver_root_stable_across_release_rollover(
     assert first["candidate_plan"] != second["candidate_plan"]
     assert not (expected / "state.json").exists()
     assert not (expected / "migration.json").exists()
+
+
+def test_publish_next_arm_is_idempotent_only_for_identical_next_arm(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    published = publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint="a" * 64,
+        mailbox_packet_sha256="b" * 64,
+        observed_at=100,
+    )
+    assert read_next_arm(root) == published
+    assert publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint="a" * 64,
+        mailbox_packet_sha256="b" * 64,
+        observed_at=100,
+    ) == published
+    with pytest.raises(ParameterQueueError, match="conflicts"):
+        publish_next_arm(
+            root,
+            dispatch_identity="dispatch:v1:" + "1" * 64,
+            dispatch_sequence=1,
+            campaign_fingerprint="a" * 64,
+            mailbox_packet_sha256="b" * 64,
+            observed_at=100,
+        )
+    with pytest.raises(ParameterQueueError, match="conflicts"):
+        publish_next_arm(
+            root,
+            dispatch_identity="dispatch:v1:" + "0" * 64,
+            dispatch_sequence=2,
+            campaign_fingerprint="a" * 64,
+            mailbox_packet_sha256="b" * 64,
+            observed_at=100,
+        )
+
+
+def test_next_arm_read_missing_and_schema_validation(tmp_path: Path) -> None:
+    root = _queue(tmp_path)
+    assert read_next_arm(root) is None
+    with pytest.raises(ParameterQueueError, match="SHA-256"):
+        publish_next_arm(
+            root,
+            dispatch_identity="dispatch:v1:" + "0" * 64,
+            dispatch_sequence=1,
+            campaign_fingerprint="not-a-sha",
+            mailbox_packet_sha256="b" * 64,
+            observed_at=100,
+        )
+
+
+def test_record_terminal_receipt_enforces_identity_and_sequence_and_duplicate_replay_fails(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    composition = "c" * 64
+    publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint=composition,
+        mailbox_packet_sha256="d" * 64,
+        observed_at=10,
+    )
+    for index in range(1, 11):
+        record_terminal_receipt(
+            root,
+            process_composition_sha256=composition,
+            dispatch_identity=f"dispatch:v1:{index:064x}",
+            dispatch_sequence=index,
+            terminal_state={"state": index},
+        )
+    with pytest.raises(ParameterQueueError, match="already exists"):
+        record_terminal_receipt(
+            root,
+            process_composition_sha256=composition,
+            dispatch_identity=f"dispatch:v1:{1:064x}",
+            dispatch_sequence=11,
+            terminal_state={"state": 10},
+        )
+    with pytest.raises(ParameterQueueError, match="monotonic"):
+        record_terminal_receipt(
+            root,
+            process_composition_sha256=composition,
+            dispatch_identity="dispatch:v1:" + "2" * 64,
+            dispatch_sequence=10,
+            terminal_state={"state": 10},
+        )
+
+
+def test_continuous_readiness_requires_ten_unique_terminal_receipts_for_composition(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    composition = "c" * 64
+    assert continuous_readiness(root) == {
+        "schema": "step5d.parameter-receiver/governance-continuous-readiness-v1",
+        "continuous_readiness": False,
+        "duplicate_arm_detected": False,
+        "process_composition_sha256": None,
+        "next_arm_dispatch_identity": None,
+        "terminal_receipts": 0,
+    }
+    publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint=composition,
+        mailbox_packet_sha256="d" * 64,
+        observed_at=10,
+    )
+    for index in range(1, 10):
+        record_terminal_receipt(
+            root,
+            process_composition_sha256=composition,
+            dispatch_identity=f"dispatch:v1:{'0'*63}{index}",
+            dispatch_sequence=index,
+            terminal_state={"state": index},
+        )
+    snapshot = continuous_readiness(root)
+    assert snapshot["continuous_readiness"] is False
+    assert snapshot["duplicate_arm_detected"] is False
+    record_terminal_receipt(
+        root,
+        process_composition_sha256=composition,
+        dispatch_identity=f"dispatch:v1:{'e'*64}",
+        dispatch_sequence=10,
+        terminal_state={"state": 10},
+    )
+    assert continuous_readiness(root)["continuous_readiness"] is True
+    assert continuous_readiness(root)["duplicate_arm_detected"] is False
+
+
+def test_continuous_readiness_detects_duplicate_terminal_receipt_arm(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    composition = "c" * 64
+    publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint=composition,
+        mailbox_packet_sha256="d" * 64,
+        observed_at=10,
+    )
+    for index in range(1, 11):
+        record_terminal_receipt(
+            root,
+            process_composition_sha256=composition,
+            dispatch_identity=f"dispatch:v1:{index:064x}",
+            dispatch_sequence=index,
+            terminal_state={"state": index},
+        )
+    duplicate = root / "governance/terminal_receipts/duplicate.json"
+    duplicate.parent.mkdir(parents=True, exist_ok=True)
+    first_path = next((root / "governance" / "terminal_receipts").glob("*.json"))
+    first = json.loads(first_path.read_text(encoding="utf-8"))
+    first_state = json.dumps(
+        first["terminal_state"], sort_keys=True, separators=(",", ":")
+    )
+    canonical_state_sha256 = hashlib.sha256(first_state.encode("utf-8")).hexdigest()
+    duplicate.write_text(
+        json.dumps(
+            {
+                "schema": "step5d.parameter-receiver/governance-terminal-receipt-v1",
+                "process_composition_sha256": composition,
+                "dispatch_identity": "dispatch:v1:" + "f" * 64,
+                "dispatch_sequence": first["dispatch_sequence"],
+                "terminal_state": first["terminal_state"],
+                "terminal_state_sha256": canonical_state_sha256,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert continuous_readiness(root)["duplicate_arm_detected"] is True
+
+
+def test_continuous_readiness_remains_ready_with_more_than_ten_terminal_receipts_for_composition(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    composition = "c" * 64
+    publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint=composition,
+        mailbox_packet_sha256="d" * 64,
+        observed_at=10,
+    )
+    for index in range(1, 12):
+        record_terminal_receipt(
+            root,
+            process_composition_sha256=composition,
+            dispatch_identity=f"dispatch:v1:{'0'*63}{index}",
+            dispatch_sequence=index,
+            terminal_state={"state": index},
+        )
+    snapshot = continuous_readiness(root)
+    assert snapshot["continuous_readiness"] is True
+    assert snapshot["duplicate_arm_detected"] is False
+    assert snapshot["terminal_receipts"] == 11
+
+
+def test_continuous_readiness_fails_non_monotonic_terminal_receipt_sequences_for_composition(
+    tmp_path: Path,
+) -> None:
+    root = _queue(tmp_path)
+    composition = "c" * 64
+    publish_next_arm(
+        root,
+        dispatch_identity="dispatch:v1:" + "0" * 64,
+        dispatch_sequence=1,
+        campaign_fingerprint=composition,
+        mailbox_packet_sha256="d" * 64,
+        observed_at=10,
+    )
+    for index in (1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12):
+        record_terminal_receipt(
+            root,
+            process_composition_sha256=composition,
+            dispatch_identity=f"dispatch:v1:{index:060x}",
+            dispatch_sequence=index,
+            terminal_state={"state": index},
+        )
+    assert continuous_readiness(root)["continuous_readiness"] is False
+    assert continuous_readiness(root)["duplicate_arm_detected"] is True

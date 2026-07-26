@@ -39,6 +39,9 @@ LEGACY_RECEIPT_SCHEMA = "step5d.parameter-receiver/receipt-v1"
 RECONCILIATION_SCHEMA = "step5d.parameter-receiver/reconciliation-v1"
 PHYSICAL_ATTEMPT_SCHEMA = "step5d.parameter-receiver/physical-attempt-v2"
 MIGRATION_SCHEMA = "step5d.parameter-receiver/migration-v1"
+NEXT_ARM_SCHEMA = "step5d.parameter-receiver/governance-next-arm-v1"
+TERMINAL_RECEIPT_SCHEMA = "step5d.parameter-receiver/governance-terminal-receipt-v1"
+CONTINUOUS_READINESS_SCHEMA = "step5d.parameter-receiver/governance-continuous-readiness-v1"
 PROTOCOL = "v3_full_home_parameter_receiver_v1"
 PROFILE_INTEGER_ID = 633
 MAX_JSON_BYTES = 16 * 1024
@@ -136,6 +139,14 @@ def _atomic_json(path: Path, payload: Mapping[str, Any]) -> None:
         os.close(directory)
 
 
+def _is_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def _write_once(path: Path, payload: Mapping[str, Any]) -> None:
     encoded = (
         json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
@@ -216,6 +227,22 @@ def _request_physical_attempt_path(root: Path, request_uid: str) -> Path:
     return root / "physical_attempts" / f"request-{_sha256_bytes(request_uid.encode('utf-8'))}.json"
 
 
+def _governance_root(root: Path) -> Path:
+    return root / "governance"
+
+
+def _next_arm_path(root: Path) -> Path:
+    return _governance_root(root) / "next_arm.json"
+
+
+def _terminal_receipts_root(root: Path) -> Path:
+    return _governance_root(root) / "terminal_receipts"
+
+
+def _terminal_receipt_path(root: Path, dispatch_identity: str) -> Path:
+    return _terminal_receipts_root(root) / f"{_sha256_bytes(dispatch_identity.encode('utf-8'))}.json"
+
+
 def _request_equivalent(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     return all(
         left.get(key) == right.get(key)
@@ -232,6 +259,167 @@ def _request_equivalent(left: Mapping[str, Any], right: Mapping[str, Any]) -> bo
     )
 
 
+def _next_arm_document(
+    *,
+    dispatch_identity: str,
+    dispatch_sequence: int,
+    campaign_fingerprint: str,
+    mailbox_packet_sha256: str,
+    observed_at: int,
+) -> dict[str, Any]:
+    if (
+        not isinstance(dispatch_identity, str)
+        or not dispatch_identity
+        or "\n" in dispatch_identity
+        or not dispatch_identity.startswith("dispatch:v1:")
+    ):
+        raise ParameterQueueError("dispatch_identity must be dispatch:v1:<digest>")
+    if isinstance(dispatch_sequence, bool) or not isinstance(dispatch_sequence, int):
+        raise ParameterQueueError("dispatch_sequence must be a positive integer")
+    if dispatch_sequence <= 0:
+        raise ParameterQueueError("dispatch_sequence must be positive")
+    if not _is_sha256(campaign_fingerprint):
+        raise ParameterQueueError("campaign_fingerprint must be a SHA-256 hex digest")
+    if not _is_sha256(mailbox_packet_sha256):
+        raise ParameterQueueError("mailbox_packet_sha256 must be a SHA-256 hex digest")
+    if isinstance(observed_at, bool) or not isinstance(observed_at, int) or observed_at < 0:
+        raise ParameterQueueError("observed_at must be a non-negative integer")
+    return {
+        "schema": NEXT_ARM_SCHEMA,
+        "dispatch_identity": dispatch_identity,
+        "dispatch_sequence": dispatch_sequence,
+        "campaign_fingerprint": campaign_fingerprint,
+        "mailbox_packet_sha256": mailbox_packet_sha256,
+        "observed_at": observed_at,
+    }
+
+
+def _validate_next_arm(payload: Mapping[str, Any]) -> dict[str, Any]:
+    required = {
+        "schema",
+        "dispatch_identity",
+        "dispatch_sequence",
+        "campaign_fingerprint",
+        "mailbox_packet_sha256",
+        "observed_at",
+    }
+    if not isinstance(payload, Mapping) or set(payload) != required:
+        raise ParameterQueueError("next-arm fields differ")
+    if payload["schema"] != NEXT_ARM_SCHEMA:
+        raise ParameterQueueError("next-arm schema mismatch")
+    if (
+        not isinstance(payload["dispatch_identity"], str)
+        or not payload["dispatch_identity"]
+        or "\n" in payload["dispatch_identity"]
+        or not payload["dispatch_identity"].startswith("dispatch:v1:")
+    ):
+        raise ParameterQueueError("next-arm dispatch_identity is invalid")
+    if (
+        isinstance(payload["dispatch_sequence"], bool)
+        or not isinstance(payload["dispatch_sequence"], int)
+        or payload["dispatch_sequence"] <= 0
+    ):
+        raise ParameterQueueError("next-arm dispatch_sequence is invalid")
+    if not _is_sha256(payload["campaign_fingerprint"]):
+        raise ParameterQueueError("next-arm campaign_fingerprint is not SHA-256")
+    if not _is_sha256(payload["mailbox_packet_sha256"]):
+        raise ParameterQueueError("next-arm mailbox_packet_sha256 is not SHA-256")
+    if (
+        isinstance(payload["observed_at"], bool)
+        or not isinstance(payload["observed_at"], int)
+        or payload["observed_at"] < 0
+    ):
+        raise ParameterQueueError("next-arm observed_at is invalid")
+    return dict(payload)
+
+
+def _load_next_arm(root: Path) -> dict[str, Any] | None:
+    path = _next_arm_path(root)
+    if not path.exists():
+        if path.is_symlink():
+            raise ParameterQueueError("next-arm must be a real regular file")
+        return None
+    return _validate_next_arm(_strict_json(path, "governance next-arm"))
+
+
+def _terminal_receipt_document(
+    *,
+    process_composition_sha256: str,
+    dispatch_identity: str,
+    dispatch_sequence: int,
+    terminal_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    payload = {
+        "process_composition_sha256": process_composition_sha256,
+        "dispatch_identity": dispatch_identity,
+        "dispatch_sequence": dispatch_sequence,
+        "terminal_state": dict(terminal_state),
+    }
+    payload["schema"] = TERMINAL_RECEIPT_SCHEMA
+    payload["terminal_state_sha256"] = _sha256_bytes(_canonical(payload["terminal_state"]))
+    return payload
+
+
+def _validate_terminal_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
+    required = {
+        "schema",
+        "process_composition_sha256",
+        "dispatch_identity",
+        "dispatch_sequence",
+        "terminal_state",
+        "terminal_state_sha256",
+    }
+    if not isinstance(payload, Mapping) or set(payload) != required:
+        raise ParameterQueueError("terminal receipt fields differ")
+    if payload["schema"] != TERMINAL_RECEIPT_SCHEMA:
+        raise ParameterQueueError("terminal receipt schema mismatch")
+    if (
+        not isinstance(payload["dispatch_identity"], str)
+        or not payload["dispatch_identity"]
+        or "\n" in payload["dispatch_identity"]
+    ):
+        raise ParameterQueueError("terminal receipt dispatch_identity is invalid")
+    if (
+        isinstance(payload["dispatch_sequence"], bool)
+        or not isinstance(payload["dispatch_sequence"], int)
+        or payload["dispatch_sequence"] <= 0
+    ):
+        raise ParameterQueueError("terminal receipt dispatch_sequence is invalid")
+    if not _is_sha256(payload["process_composition_sha256"]):
+        raise ParameterQueueError("terminal receipt process_composition_sha256 is not SHA-256")
+    if not isinstance(payload["terminal_state"], Mapping):
+        raise ParameterQueueError("terminal receipt terminal_state must be an object")
+    if (
+        not isinstance(payload["terminal_state_sha256"], str)
+        or len(payload["terminal_state_sha256"]) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in payload["terminal_state_sha256"]
+        )
+    ):
+        raise ParameterQueueError("terminal receipt terminal_state_sha256 is invalid")
+    if (
+        _sha256_bytes(_canonical(dict(payload["terminal_state"])))
+        != payload["terminal_state_sha256"]
+    ):
+        raise ParameterQueueError("terminal receipt terminal_state_sha256 is inconsistent")
+    return dict(payload)
+
+
+def _load_terminal_receipts(root: Path) -> tuple[dict[str, Any], ...]:
+    root = _terminal_receipts_root(root)
+    if not root.exists():
+        return ()
+    if root.is_file() or root.is_symlink():
+        raise ParameterQueueError("terminal receipts must be a directory")
+    rows = []
+    for path in sorted(root.iterdir(), key=lambda node: node.name):
+        if not path.is_file() or path.is_symlink():
+            continue
+        if path.suffix != ".json":
+            continue
+        rows.append(_validate_terminal_receipt(_strict_json(path, "governance terminal receipt")))
+    return tuple(rows)
 def _physical_attempt_document(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema": PHYSICAL_ATTEMPT_SCHEMA,
@@ -244,6 +432,79 @@ def _physical_attempt_document(dispatch: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def publish_next_arm(
+    root: Path,
+    *,
+    dispatch_identity: str,
+    dispatch_sequence: int,
+    campaign_fingerprint: str,
+    mailbox_packet_sha256: str,
+    observed_at: int,
+) -> dict[str, Any]:
+    with _lock(root):
+        record = _next_arm_document(
+            dispatch_identity=dispatch_identity,
+            dispatch_sequence=dispatch_sequence,
+            campaign_fingerprint=campaign_fingerprint,
+            mailbox_packet_sha256=mailbox_packet_sha256,
+            observed_at=observed_at,
+        )
+        path = _next_arm_path(root)
+        if path.exists():
+            existing = _load_next_arm(root)
+            if existing != record:
+                raise ParameterQueueError("next-arm publication conflicts with prior publish")
+            return existing
+        if path.is_symlink():
+            raise ParameterQueueError("next-arm must be a regular file")
+        _atomic_json(path, record)
+        return record
+
+
+def read_next_arm(root: Path) -> dict[str, Any] | None:
+    with _lock(root):
+        return _load_next_arm(root)
+
+
+def record_terminal_receipt(
+    root: Path,
+    *,
+    process_composition_sha256: str,
+    dispatch_identity: str,
+    dispatch_sequence: int,
+    terminal_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not _is_sha256(process_composition_sha256):
+        raise ParameterQueueError("process_composition_sha256 must be SHA-256")
+    if not isinstance(terminal_state, Mapping):
+        raise ParameterQueueError("terminal_state must be an object")
+    if isinstance(dispatch_sequence, bool) or not isinstance(dispatch_sequence, int):
+        raise ParameterQueueError("dispatch_sequence must be an integer")
+    if dispatch_sequence <= 0:
+        raise ParameterQueueError("dispatch_sequence must be positive")
+    record = _terminal_receipt_document(
+        process_composition_sha256=process_composition_sha256,
+        dispatch_identity=dispatch_identity,
+        dispatch_sequence=dispatch_sequence,
+        terminal_state=terminal_state,
+    )
+    with _lock(root):
+        path = _terminal_receipt_path(root, dispatch_identity)
+        existing = _load_terminal_receipts(root)
+        if any(item["dispatch_identity"] == dispatch_identity for item in existing):
+            raise ParameterQueueError("terminal receipt dispatch_identity already exists")
+        highest = 0
+        for item in existing:
+            if item["process_composition_sha256"] == process_composition_sha256:
+                if item["dispatch_sequence"] >= dispatch_sequence:
+                    raise ParameterQueueError("terminal receipt sequence is not monotonic")
+                highest = max(highest, item["dispatch_sequence"])
+        _atomic_json(path, record)
+        if highest and record["dispatch_sequence"] <= highest:
+            raise ParameterQueueError("terminal receipt sequence is not monotonic")
+        return record
+
+
 def _is_physical_receipt(payload: Mapping[str, Any]) -> bool:
     schema = payload.get("schema")
     status = payload.get("status")
@@ -254,6 +515,48 @@ def _is_physical_receipt(payload: Mapping[str, Any]) -> bool:
             "physical_attempted", True
         ) is True
     return False
+
+
+def continuous_readiness(root: Path) -> dict[str, Any]:
+    with _lock(root):
+        next_arm = _load_next_arm(root)
+        receipts = _load_terminal_receipts(root)
+        ready = False
+        duplicate = False
+        seen_identity: set[str] = set()
+        seen_sequence: set[int] = set()
+        composition = None
+        if next_arm is not None:
+            composition = next_arm["campaign_fingerprint"]
+            for row in receipts:
+                if row["process_composition_sha256"] != composition:
+                    continue
+                identity = row["dispatch_identity"]
+                sequence = row["dispatch_sequence"]
+                duplicate = duplicate or (
+                    identity in seen_identity or sequence in seen_sequence
+                )
+                seen_identity.add(identity)
+                seen_sequence.add(sequence)
+            if len(seen_sequence) >= 2:
+                sorted_sequence = sorted(seen_sequence)
+                duplicate = duplicate or any(
+                    next_sequence != current_sequence + 1
+                    for current_sequence, next_sequence in zip(
+                        sorted_sequence[:-1], sorted_sequence[1:]
+                    )
+                )
+            ready = not duplicate and len(seen_identity) >= 10
+        return {
+            "schema": CONTINUOUS_READINESS_SCHEMA,
+            "continuous_readiness": bool(next_arm is not None and ready),
+            "duplicate_arm_detected": bool(duplicate),
+            "process_composition_sha256": composition,
+            "next_arm_dispatch_identity": None
+            if next_arm is None
+            else next_arm["dispatch_identity"],
+            "terminal_receipts": len(seen_identity),
+        }
 
 
 def _initial_state(
