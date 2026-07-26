@@ -211,6 +211,16 @@ def _ticket_fixture(
             "tp_program_id": release.program_id,
             "manifest_sha256": manifest_sha,
             "safety_envelope_sha256": safety_sha,
+            "launch_basis": {"path": str(root / "run/launch-basis.json"), "sha256": "e" * 64},
+            "delivery_observation": {
+                "path": str(root / "run/delivery-observation.json"),
+                "sha256": "f" * 64,
+            },
+            "authority_epoch": 1,
+            "campaign_prepare": {
+                "path": str(root / "run/campaign-prepare.json"),
+                "sha256": "0" * 64,
+            },
             "campaign_binding": {
                 "campaign_id": lease.campaign_id,
                 "campaign_epoch": lease.campaign_epoch,
