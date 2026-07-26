@@ -1,0 +1,15 @@
+Step5d TacDiffusion Direct Torque Simulation diagnostic probe v2
+
+Open only on the physical 5.26 Teach Pendant with Simulation visibly enabled:
+  /programs/andyl/kunwei/step5/step5d_tacdiffusion_direct_torque_simulation_probe_v2.urp
+
+Version:
+  2026-07-26TDIAGNOSTIC_STEP5D_TACDIFFUSION_DIRECT_TORQUE_SIMULATION_PROBE_V2
+
+This package is v1-compatible and diagnostic-only.  It preserves all existing
+packet, lease, model, runtime, fixed-impedance, equilibrium, and safe-exit
+guards.  Current diagnostic code/detail are output integer registers 32/33;
+phase 1 persists in 34/35 and phase 2 persists in 36/37.
+
+Do not press Play in Real Robot mode.  Do not treat a diagnostic code as a
+normal pass or as authorization to bypass a controller-side guard.

@@ -49,6 +49,12 @@ def output_sample(
     pose=(0.48, 0.12, 0.06, 3.14, 0.0, 0.0),
     result_normal: float = 0.0,
     result_fault: float = 0.0,
+    diagnostic_code: int = 0,
+    diagnostic_detail: int = 0,
+    phase1_diagnostic_code: int = 0,
+    phase1_diagnostic_detail: int = 0,
+    phase2_diagnostic_code: int = 0,
+    phase2_diagnostic_detail: int = 0,
 ):
     row = {
         "timestamp": float(ack) * 0.002,
@@ -61,7 +67,7 @@ def output_sample(
         "safety_mode": probe.SAFETY_MODE_NORMAL,
     }
     row.update({f"output_double_register_{index}": 0.0 for index in range(24, 36)})
-    row.update({f"output_int_register_{index}": 0 for index in range(24, 32)})
+    row.update({f"output_int_register_{index}": 0 for index in range(24, 38)})
     row["output_double_register_25"] = 0.002
     row["output_double_register_32"] = result_normal
     row["output_double_register_33"] = result_fault
@@ -69,6 +75,12 @@ def output_sample(
     row["output_int_register_25"] = ack
     row["output_int_register_26"] = fault
     row["output_int_register_31"] = phase
+    row["output_int_register_32"] = diagnostic_code
+    row["output_int_register_33"] = diagnostic_detail
+    row["output_int_register_34"] = phase1_diagnostic_code
+    row["output_int_register_35"] = phase1_diagnostic_detail
+    row["output_int_register_36"] = phase2_diagnostic_code
+    row["output_int_register_37"] = phase2_diagnostic_detail
     return row
 
 
@@ -150,6 +162,12 @@ class FakeProbeRTDE:
                 runtime_state=probe.RUNTIME_STOPPED,
                 result_normal=1.0,
                 result_fault=13.0,
+                diagnostic_code=13,
+                diagnostic_detail=2,
+                phase1_diagnostic_code=14,
+                phase1_diagnostic_detail=0,
+                phase2_diagnostic_code=13,
+                phase2_diagnostic_detail=2,
             ), 1
         if self.receive_calls in self.missing_calls:
             return None, 0
@@ -321,6 +339,11 @@ def test_absolute_release_schedule_records_missed_slots_without_burst() -> None:
 def test_fake_rtde_uses_fixed_equilibrium_and_continuous_sequences(monkeypatch, tmp_path) -> None:
     result, fake = run_fake_probe(monkeypatch, tmp_path)
     assert result["phase_results"] == {"normal": 1.0, "sequence_fault": 13.0}
+    assert result["phase_diagnostics"] == {
+        "1": {"code": 14, "detail": 0},
+        "2": {"code": 13, "detail": 2},
+    }
+    assert any("diagnostic_code" in event for event in json.loads((tmp_path / "evidence.json").read_text())["events"])
     assert result["status"] == "passed"
     assert result["release_timing"]["period_s"] == pytest.approx(0.002)
     assert result["release_timing"]["missed_release_count"] == 0

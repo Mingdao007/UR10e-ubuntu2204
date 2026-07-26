@@ -32,6 +32,12 @@ from _ur_common import RTDEClient, dashboard_exchange, read_rtde_once  # noqa: E
 
 PROGRAM = "step5d_tacdiffusion_direct_torque_simulation_probe_v1"
 CONTROLLER_PROGRAM = f"/programs/andyl/kunwei/step5/{PROGRAM}.urp"
+
+
+def controller_program_for(program: str) -> str:
+    if not program or "/" in program or not program.endswith(("_v1", "_v2")):
+        raise ValueError(f"invalid_probe_program:{program}")
+    return f"/programs/andyl/kunwei/step5/{program}.urp"
 RUNTIME_STOPPED = 1
 RUNTIME_PLAYING = 2
 ROBOT_MODE_RUNNING = 7
@@ -71,6 +77,7 @@ OUTPUT_FIELDS = [
     "safety_mode",
     *[f"output_double_register_{index}" for index in range(24, 36)],
     *[f"output_int_register_{index}" for index in range(24, 32)],
+    *[f"output_int_register_{index}" for index in range(32, 38)],
 ]
 
 
@@ -271,7 +278,8 @@ def dashboard_snapshot(host: str) -> dict[str, str]:
     )
 
 
-def readonly_status(host: str) -> dict[str, Any]:
+def readonly_status(host: str, program: str = PROGRAM) -> dict[str, Any]:
+    controller_program = controller_program_for(program)
     dashboard = dashboard_snapshot(host)
     rtde = read_rtde_once(
         host,
@@ -287,11 +295,11 @@ def readonly_status(host: str) -> dict[str, Any]:
         frequency_hz=10.0,
     )
     return {
-        "program": PROGRAM,
-        "expected_controller_program": CONTROLLER_PROGRAM,
+        "program": program,
+        "expected_controller_program": controller_program,
         "dashboard": dashboard,
         "rtde": rtde,
-        "loaded_program_matches": CONTROLLER_PROGRAM in dashboard.get("get loaded program", ""),
+        "loaded_program_matches": controller_program in dashboard.get("get loaded program", ""),
         "controller_5_26": "URSoftware 5.26." in dashboard.get("PolyscopeVersion", ""),
         "local_control": dashboard.get("is in remote control", "").strip().lower() == "false",
         "stopped": int(rtde["runtime_state"]) == RUNTIME_STOPPED,
@@ -374,6 +382,13 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError(
             "start_requires_--run-probe_--write-rtde-inputs_--tp-simulation-visible"
         )
+    program = getattr(args, "program", PROGRAM)
+    controller_program = controller_program_for(program)
+    evidence_schema = (
+        "step5d_tacdiffusion_controller_simulation_probe_v2"
+        if program.endswith("_v2")
+        else "step5d_tacdiffusion_controller_simulation_probe_v1"
+    )
     evidence_path = Path(getattr(args, "evidence", None) or default_evidence_path())
     started_at = datetime.now().astimezone().isoformat()
     recorder = ProbeEventRing()
@@ -407,6 +422,12 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
     latest_fault = 0
     latest_model_fault = 0
     latest_ack_sequence = 0
+    latest_diagnostic_code = 0
+    latest_diagnostic_detail = 0
+    phase_diagnostics = {
+        "1": {"code": 0, "detail": 0},
+        "2": {"code": 0, "detail": 0},
+    }
     max_tcp_speed = 0.0
     max_qd = 0.0
     max_tcp_pose_delta = 0.0
@@ -438,6 +459,9 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 "fault": latest_fault,
                 "model_fault": latest_model_fault,
                 "ack_sequence": latest_ack_sequence,
+                "diagnostic_code": latest_diagnostic_code,
+                "diagnostic_detail": latest_diagnostic_detail,
+                "phase_diagnostics": phase_diagnostics,
             }
         return {
             "controller_timestamp_s": controller_timestamp,
@@ -447,6 +471,9 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
             "fault": latest_fault,
             "model_fault": latest_model_fault,
             "ack_sequence": latest_ack_sequence,
+            "diagnostic_code": latest_diagnostic_code,
+            "diagnostic_detail": latest_diagnostic_detail,
+            "phase_diagnostics": phase_diagnostics,
             "actual_TCP_pose": [float(value) for value in last_output["actual_TCP_pose"]],
             "actual_TCP_speed": [float(value) for value in last_output["actual_TCP_speed"]],
             "actual_q": [float(value) for value in last_output["actual_q"]],
@@ -499,6 +526,9 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
             "fault": latest_fault,
             "model_fault": latest_model_fault,
             "ack_sequence": latest_ack_sequence,
+            "diagnostic_code": latest_diagnostic_code,
+            "diagnostic_detail": latest_diagnostic_detail,
+            "phase_diagnostics": phase_diagnostics,
             "outgoing": packet,
             "outgoing_mode": event_outgoing_mode,
             "outgoing_sequence": event_outgoing_sequence,
@@ -572,7 +602,10 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
 
     try:
         try:
-            initial_status = readonly_status(args.robot_host)
+            if program == PROGRAM:
+                initial_status = readonly_status(args.robot_host)
+            else:
+                initial_status = readonly_status(args.robot_host, program=program)
             validate_start_preflight(initial_status)
             initial_pose = tuple(float(value) for value in initial_status["rtde"]["actual_TCP_pose"])
             initial_q = tuple(float(value) for value in initial_status["rtde"]["actual_q"])
@@ -608,6 +641,16 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                             latest_fault = int(current["output_int_register_26"])
                             latest_model_fault = int(current["output_int_register_29"])
                             latest_ack_sequence = int(current["output_int_register_25"])
+                            latest_diagnostic_code = int(current["output_int_register_32"])
+                            latest_diagnostic_detail = int(current["output_int_register_33"])
+                            phase_diagnostics["1"] = {
+                                "code": int(current["output_int_register_34"]),
+                                "detail": int(current["output_int_register_35"]),
+                            }
+                            phase_diagnostics["2"] = {
+                                "code": int(current["output_int_register_36"]),
+                                "detail": int(current["output_int_register_37"]),
+                            }
                             current_phase = int(current["output_int_register_31"])
                             if robot_mode != ROBOT_MODE_RUNNING or safety_mode != SAFETY_MODE_NORMAL:
                                 raise RuntimeError(
@@ -841,10 +884,10 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 if right > left
             ]
             success_result = {
-                "schema": "step5d_tacdiffusion_controller_simulation_probe_v2",
+                "schema": evidence_schema,
                 "status": "passed",
-                "program": PROGRAM,
-                "controller_program": CONTROLLER_PROGRAM,
+                "program": program,
+                "controller_program": controller_program,
                 "started_at": started_at,
                 "completed_at": datetime.now().astimezone().isoformat(),
                 "explicit_gates": {
@@ -854,6 +897,7 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 },
                 "initial_status": initial_status,
                 "phase_results": phase_results,
+                "phase_diagnostics": phase_diagnostics,
                 "observed_playing_phase": observed_playing_phase,
                 "phase_valid_acks": phase_valid_acks,
                 "states_observed": sorted(saw_states),
@@ -909,10 +953,10 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
         if success_result is None:
             failure = sys.exc_info()[1]
             payload: dict[str, Any] = {
-                "schema": "step5d_tacdiffusion_controller_simulation_probe_v2",
+                "schema": evidence_schema,
                 "status": "failed",
-                "program": PROGRAM,
-                "controller_program": CONTROLLER_PROGRAM,
+                "program": program,
+                "controller_program": controller_program,
                 "started_at": started_at,
                 "completed_at": datetime.now().astimezone().isoformat(),
                 "explicit_gates": {
@@ -922,6 +966,7 @@ def run_probe(args: argparse.Namespace) -> dict[str, Any]:
                 },
                 "initial_status": initial_status,
                 "phase_results": phase_results,
+                "phase_diagnostics": phase_diagnostics,
                 "observed_playing_phase": observed_playing_phase,
                 "phase_valid_acks": phase_valid_acks,
                 "states_observed": sorted(saw_states),
@@ -976,6 +1021,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", nargs="?", choices=("status", "start"), default="status")
     parser.add_argument("--robot-host", default="192.168.1.18")
+    parser.add_argument("--program", default=PROGRAM)
     parser.add_argument("--connect-timeout-s", type=float, default=3.0)
     parser.add_argument("--wait-for-play-s", type=float, default=180.0)
     parser.add_argument("--valid-ticks", type=int, default=100)
@@ -990,7 +1036,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tp-simulation-visible", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "status":
-        print(json.dumps(readonly_status(args.robot_host), indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                readonly_status(args.robot_host, program=args.program),
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     if args.valid_ticks < 6 or args.fault_after_ticks < 6:
         raise SystemExit("valid tick counts must be at least 6 to reach STATE_TORQUE")
