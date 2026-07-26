@@ -463,11 +463,21 @@ def _require_live_identity_args(args: argparse.Namespace) -> None:
         )
 
 
-def _validate_coordinator_runtime_root(args: argparse.Namespace) -> Path:
+def _validate_coordinator_runtime_root(
+    args: argparse.Namespace,
+    *,
+    basis: Mapping[str, Any] | None = None,
+) -> Path:
     from run_step5d_autotune_v3_coordinator import validate_coordinator_runtime_root
 
+    expected_args = args
+    if basis is not None:
+        expected_args = argparse.Namespace(**vars(args))
+        expected_args.owner_pid = args.canonical_owner_pid
+        expected_args.owner_starttime = args.canonical_owner_starttime
+        expected_args.attempt_id = basis["launch_nonce"]
     try:
-        return validate_coordinator_runtime_root(args)
+        return validate_coordinator_runtime_root(expected_args)
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         raise LiveLaunchError(f"coordinator runtime root validation failed: {exc}") from exc
 
@@ -1213,7 +1223,6 @@ def _validate_active_launch_identity(
     """Consume the coordinator artifacts before any live child is spawned."""
     try:
         _require_live_identity_args(args)
-        _validate_coordinator_runtime_root(args)
         if args.campaign_prepare is None:
             raise LiveLaunchError("coordinator campaign preparation artifact is required")
         basis = read_and_validate_launch_basis(
@@ -1222,6 +1231,7 @@ def _validate_active_launch_identity(
             owner_starttime=args.canonical_owner_starttime,
             expected_basis_sha256=args.launch_basis_sha256,
         )
+        _validate_coordinator_runtime_root(args, basis=basis)
         if basis["authority_epoch"] != args.authority_epoch:
             raise LiveLaunchError("launch basis authority epoch differs")
         admission = validate_bridge_admission(
@@ -1357,8 +1367,8 @@ def _run_live_session(
         ROOT, args.delivery_observation, release=release
     )
     legacy_preflight = None
-    runtime_root = _validate_coordinator_runtime_root(args)
     basis, admission, campaign_prepare = _validate_active_launch_identity(args, release)
+    runtime_root = _validate_coordinator_runtime_root(args, basis=basis)
     bridge_run, bridge_runtime = _create_bridge_runtime(runtime_root)
     contract_path = release_payload_path(ROOT, release, SAFETY_ENVELOPE_PATH)
     launch_profile_path = release_payload_path(ROOT, release, LAUNCH_PROFILE_PATH)

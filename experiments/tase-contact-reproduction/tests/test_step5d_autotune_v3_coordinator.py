@@ -209,6 +209,9 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
     attempt_args.output_root = tmp_path / "output" / "attempt-0001"
     attempt_args.output_root.mkdir()
     attempt_args._coordinator_output_root = output_root
+    del attempt_args.owner_pid
+    del attempt_args.owner_starttime
+    del attempt_args.attempt_id
     admission = {"campaign_fingerprint": basis["campaign_fingerprint"]}
     monkeypatch.setattr(live, "validate_bridge_admission", lambda *_args, **_kwargs: admission)
     monkeypatch.setattr(
@@ -229,12 +232,12 @@ def test_coordinator_runtime_root_composes_with_live_bridge_setup(
     assert checked_basis["basis_sha256"] == basis["basis_sha256"]
     assert checked_admission == admission
     assert campaign == {"result": {}}
-    runtime_root = live._validate_coordinator_runtime_root(attempt_args)
+    runtime_root = live._validate_coordinator_runtime_root(attempt_args, basis=basis)
     bridge_run, bridge_runtime = live._create_bridge_runtime(runtime_root)
     assert bridge_run.is_dir()
     assert bridge_runtime.is_dir()
     with pytest.raises(live.LiveLaunchError, match="unexpected session state"):
-        live._validate_coordinator_runtime_root(attempt_args)
+        live._validate_coordinator_runtime_root(attempt_args, basis=basis)
 
 
 @pytest.mark.parametrize("state", ["prepopulated", "symlink"])
