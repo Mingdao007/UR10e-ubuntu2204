@@ -765,7 +765,7 @@ def build_live_receiver_source(
 {orientation_assignment}
             control_k[axis] = last_k[axis]
             local filter_c = filter_velocity[axis] + critical_natural_frequency_rad_s*(filtered_force[axis] - last_raw_force[axis])
-            local critical_decay = exp(-critical_natural_frequency_rad_s*control_dt_s)
+            local critical_decay = pow(2.718281828459045, -critical_natural_frequency_rad_s*control_dt_s)
             local next_force = last_raw_force[axis] + critical_decay*((filtered_force[axis] - last_raw_force[axis]) + filter_c*control_dt_s)
             local next_velocity = critical_decay*(filter_velocity[axis] - critical_natural_frequency_rad_s*filter_c*control_dt_s)
             filtered_force[axis] = next_force
@@ -937,7 +937,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         "active_speed_violation",
         "qdd = get_actual_joint_accelerations()",
         "control_clock = time()",
-        "critical_decay = exp(-critical_natural_frequency_rad_s*control_dt_s)",
+        "critical_decay = pow(2.718281828459045, -critical_natural_frequency_rad_s*control_dt_s)",
         "write_output_float_register(44, control_dt_s)",
         "write_output_float_register(45, control_update_count)",
         "write_output_float_register(46, maximum_control_update_gap_s)",
@@ -960,6 +960,7 @@ def parse_live_receiver_source(source: str) -> LiveReceiverContract:
         r"\bssh\b",
         r"\bhttp\b",
         r"time\.sleep",
+        r"\bexp\s*\(",
     )
     if any(re.search(pattern, source, flags=re.IGNORECASE) for pattern in forbidden):
         raise ValueError("live receiver source contains a forbidden primitive")

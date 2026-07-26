@@ -178,9 +178,10 @@ def test_receiver_v4_is_invoked_holds_packets_and_returns_through_stopj() -> Non
     assert "qdd = get_actual_joint_accelerations()" in source
     assert "control_clock = time()" in source
     assert (
-        "critical_decay = exp(-critical_natural_frequency_rad_s*control_dt_s)"
+        "critical_decay = pow(2.718281828459045, -critical_natural_frequency_rad_s*control_dt_s)"
         in source
     )
+    assert "exp(" not in source
     assert "filter_c*control_dt_s" in source
     assert "write_output_float_register(44, control_dt_s)" in source
     assert "write_output_float_register(45, control_update_count)" in source
@@ -380,6 +381,8 @@ def test_parser_rejects_wrapped_main_or_high_level_motion() -> None:
         )
     with pytest.raises(ValueError, match="forbidden"):
         parse_live_receiver_source(source + "\nmovel(p[0,0,0,0,0,0])\n")
+    with pytest.raises(ValueError, match="forbidden"):
+        parse_live_receiver_source(source + "\nexp(0.0)\n")
     with pytest.raises(ValueError, match="explicitly invoked"):
         parse_live_receiver_source(
             source + "\ntacdiffusion_remote_direct_torque_v4_program()\n"
