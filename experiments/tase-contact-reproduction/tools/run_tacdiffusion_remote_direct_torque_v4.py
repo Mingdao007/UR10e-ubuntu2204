@@ -230,6 +230,22 @@ def _counter_rate_hz(
     return delta / elapsed_s
 
 
+def _maximum_active_control_update_gap_s(
+    rows: Sequence[Mapping[str, Any]],
+) -> float:
+    """Ignore stale cadence registers before this receiver becomes active."""
+
+    return max(
+        (
+            float(row["maximum_control_update_gap_s"])
+            for row in rows
+            if int(float(row["receiver_state"])) in (STATE_STARTUP, STATE_TORQUE)
+            and row.get("maximum_control_update_gap_s") not in (None, "")
+        ),
+        default=0.0,
+    )
+
+
 def analyze_entry_bumplessness(
     rows: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
@@ -2838,13 +2854,8 @@ def _run_live_locked(args: argparse.Namespace, bundle: ValidatedBundle) -> dict[
             achieved_torque_call_rate_hz = _counter_rate_hz(
                 samples, "torque_thread_tick_count"
             )
-            maximum_control_update_gap_s = max(
-                (
-                    float(row["maximum_control_update_gap_s"])
-                    for row in samples
-                    if row.get("maximum_control_update_gap_s") not in (None, "")
-                ),
-                default=0.0,
+            maximum_control_update_gap_s = (
+                _maximum_active_control_update_gap_s(samples)
             )
             entry_analysis: dict[str, Any] | None = None
             try:

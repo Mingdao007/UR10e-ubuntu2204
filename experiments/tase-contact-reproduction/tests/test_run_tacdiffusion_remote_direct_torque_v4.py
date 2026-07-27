@@ -46,6 +46,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     RUNTIME_STOPPED,
     ReferenceTimeline,
     NO_CONTACT_RELEASE_TOLERANCE_M,
+    STATE_STARTUP,
     STATE_WAITING,
     STATE_TORQUE,
     STATE_COMPLETE,
@@ -59,6 +60,7 @@ from run_tacdiffusion_remote_direct_torque_v4 import (  # noqa: E402
     _detect_live_writer_processes,
     _enforce_no_live_writer_conflict,
     _counter_rate_hz,
+    _maximum_active_control_update_gap_s,
     _is_stationary,
     _next_available_run_dir,
     _new_live_identity_pair,
@@ -109,6 +111,28 @@ def test_cadence_counter_rate_uses_controller_time_and_counter_delta() -> None:
     assert _counter_rate_hz(rows, "counter") == pytest.approx(500.0)
     rows[-1]["counter"] = 25
     assert _counter_rate_hz(rows, "counter") == pytest.approx(200.0)
+
+
+def test_cadence_max_gap_ignores_stale_waiting_register_value() -> None:
+    rows = [
+        {
+            "receiver_state": STATE_WAITING,
+            "maximum_control_update_gap_s": 524.0,
+        },
+        {
+            "receiver_state": STATE_STARTUP,
+            "maximum_control_update_gap_s": 0.002,
+        },
+        {
+            "receiver_state": STATE_TORQUE,
+            "maximum_control_update_gap_s": 0.006,
+        },
+        {
+            "receiver_state": STATE_COMPLETE,
+            "maximum_control_update_gap_s": 524.0,
+        },
+    ]
+    assert _maximum_active_control_update_gap_s(rows) == pytest.approx(0.006)
 
 
 def test_entry_replay_classifies_zero_custom_tau_before_acceleration() -> None:
