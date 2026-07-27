@@ -166,6 +166,23 @@ WAITING and COMPLETE observed, no RTDE inputs, no Direct Torque, and no
 motion. It has not yet passed a physical Direct Torque hold; the historical
 hold does not promote it.
 
+The timing-corrected source was exercised in one authorized no-contact hold on
+2026-07-27. The receiver followed WAITING -> STARTUP -> TORQUE -> SAFE_EXIT ->
+COMPLETE, all sampled robot/safety states stayed RUNNING/NORMAL, and the robot
+returned STOPPED and stationary. Measured rates were `500.00 Hz` RTDE output,
+`481.13 Hz` torque-thread calls, and `198.11 Hz` controller-law refresh. The
+active maximum control-update gap was `6.00 ms`, maximum derived joint
+acceleration was `1.257 rad/s²`, maximum translation from entry was
+`0.102 mm`, and Kunwei captured `1013.15 Hz`. The immutable original evidence
+remains `ok=false` because its postprocessor incorrectly included a stale
+pre-STARTUP output-register value of `524.0` when computing the gap. The
+read-only active-state audit is
+`runs/tacdiffusion/direct_torque_v4_pow_decay_hold_live_20260727T1019HKT/active_cadence_audit_v1.json`.
+Commit `a2a3a7ec` limits cadence aggregation to STARTUP/TORQUE and adds a
+regression test. A fresh 100 ms hold is still required to produce the
+canonical `ok=true` prior-stage receipt; this run does not authorize the
+0.2 mm ramp.
+
 A 2026-07-26 read-only 2 s position-control shadow at the fresh bench pose
 captured 954 RTDE rows without sending a program or writing RTDE inputs. Mean
 `target_moment` was approximately
