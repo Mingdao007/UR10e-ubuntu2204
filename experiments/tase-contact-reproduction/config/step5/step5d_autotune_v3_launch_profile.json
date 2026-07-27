@@ -1,5 +1,5 @@
 {
-  "control_contract_sha256": "28197054843e2f47cc344d6a6e80a1aa49c3239e0435119cb6d46d030782d01b",
+  "control_contract_sha256": "8db0b5acebd30d6823fee31a697ee9d6ac9b1955af5585b6da2a8777bb326431",
   "control_profile_id": "step5d_strict_rnn_autotune_v1",
   "launch_overrides": {},
   "moving_sphere_reference_sha256": "dd5f065a5cecc04098865dda08891e11bfa8c6c11f40bbd964d1b1dcb2b60b86",
@@ -28,6 +28,10 @@
       "max": 0.004,
       "min": 0.00025
     },
+    "normal_filter_tau_s": {
+      "max": 0.7,
+      "min": 0.175
+    },
     "orientation_ko": {
       "allowed": [
         0.4,
@@ -36,10 +40,6 @@
         0.6727171322029717,
         0.8
       ]
-    },
-    "normal_filter_tau_s": {
-      "max": 0.7,
-      "min": 0.175
     },
     "step5d_preload_filtered_max_n": {
       "max": 22.0,
